@@ -9,8 +9,8 @@
 
 #include "xenia/kernel/apps/xmp_app.h"
 
-#include "poly/threading.h"
-#include "xenia/logging.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/threading.h"
 
 namespace xe {
 namespace kernel {
@@ -35,8 +35,8 @@ X_RESULT XXMPApp::XMPGetStatus(uint32_t state_ptr) {
   Sleep(1);
 
   XELOGD("XMPGetStatus(%.8X)", state_ptr);
-  poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
-                                 static_cast<uint32_t>(state_));
+  xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
+                               static_cast<uint32_t>(state_));
   return X_ERROR_SUCCESS;
 }
 
@@ -46,7 +46,7 @@ X_RESULT XXMPApp::XMPCreateTitlePlaylist(
     uint32_t out_playlist_handle) {
   XELOGD("XMPCreateTitlePlaylist(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X)",
          songs_ptr, song_count, playlist_name_ptr,
-         poly::to_string(playlist_name).c_str(), flags, out_song_handles,
+         xe::to_string(playlist_name).c_str(), flags, out_song_handles,
          out_playlist_handle);
   auto playlist = std::make_unique<Playlist>();
   playlist->handle = ++next_playlist_handle_;
@@ -56,32 +56,30 @@ X_RESULT XXMPApp::XMPCreateTitlePlaylist(
     auto song = std::make_unique<Song>();
     song->handle = ++next_song_handle_;
     uint8_t* song_base = memory_->TranslateVirtual(songs_ptr + (i * 36));
-    song->file_path =
-        poly::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-            poly::load_and_swap<uint32_t>(song_base + 0)));
-    song->name = poly::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-        poly::load_and_swap<uint32_t>(song_base + 4)));
-    song->artist = poly::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-        poly::load_and_swap<uint32_t>(song_base + 8)));
-    song->album = poly::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-        poly::load_and_swap<uint32_t>(song_base + 12)));
-    song->album_artist =
-        poly::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-            poly::load_and_swap<uint32_t>(song_base + 16)));
-    song->genre = poly::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-        poly::load_and_swap<uint32_t>(song_base + 20)));
-    song->track_number = poly::load_and_swap<uint32_t>(song_base + 24);
-    song->duration_ms = poly::load_and_swap<uint32_t>(song_base + 28);
-    song->format = static_cast<Song::Format>(
-        poly::load_and_swap<uint32_t>(song_base + 32));
+    song->file_path = xe::load_and_swap<std::wstring>(
+        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 0)));
+    song->name = xe::load_and_swap<std::wstring>(
+        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 4)));
+    song->artist = xe::load_and_swap<std::wstring>(
+        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 8)));
+    song->album = xe::load_and_swap<std::wstring>(
+        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 12)));
+    song->album_artist = xe::load_and_swap<std::wstring>(
+        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 16)));
+    song->genre = xe::load_and_swap<std::wstring>(
+        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 20)));
+    song->track_number = xe::load_and_swap<uint32_t>(song_base + 24);
+    song->duration_ms = xe::load_and_swap<uint32_t>(song_base + 28);
+    song->format =
+        static_cast<Song::Format>(xe::load_and_swap<uint32_t>(song_base + 32));
     if (out_song_handles) {
-      poly::store_and_swap<uint32_t>(
+      xe::store_and_swap<uint32_t>(
           memory_->TranslateVirtual(out_song_handles + (i * 4)), song->handle);
     }
     playlist->songs.emplace_back(std::move(song));
   }
-  poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
-                                 playlist->handle);
+  xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
+                               playlist->handle);
 
   std::lock_guard<std::mutex> lock(mutex_);
   playlists_.insert({playlist->handle, playlist.get()});
@@ -202,49 +200,49 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
   switch (message) {
     case 0x00070002: {
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playlist_handle = poly::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t song_handle = poly::load_and_swap<uint32_t>(buffer + 8);  // 0?
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t playlist_handle = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t song_handle = xe::load_and_swap<uint32_t>(buffer + 8);  // 0?
       assert_true(xmp_client == 0x00000002);
       return XMPPlayTitlePlaylist(playlist_handle, song_handle);
     }
     case 0x00070003: {
       assert_true(!buffer_length || buffer_length == 4);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
       assert_true(xmp_client == 0x00000002);
       return XMPContinue();
     }
     case 0x00070004: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk = poly::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t unk = xe::load_and_swap<uint32_t>(buffer + 4);
       assert_true(xmp_client == 0x00000002);
       return XMPStop(unk);
     }
     case 0x00070005: {
       assert_true(!buffer_length || buffer_length == 4);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
       assert_true(xmp_client == 0x00000002);
       return XMPPause();
     }
     case 0x00070006: {
       assert_true(!buffer_length || buffer_length == 4);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
       assert_true(xmp_client == 0x00000002);
       return XMPNext();
     }
     case 0x00070007: {
       assert_true(!buffer_length || buffer_length == 4);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
       assert_true(xmp_client == 0x00000002);
       return XMPPrevious();
     }
     case 0x00070008: {
       assert_true(!buffer_length || buffer_length == 16);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playback_mode = poly::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t repeat_mode = poly::load_and_swap<uint32_t>(buffer + 8);
-      uint32_t flags = poly::load_and_swap<uint32_t>(buffer + 12);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t playback_mode = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t repeat_mode = xe::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t flags = xe::load_and_swap<uint32_t>(buffer + 12);
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPSetPlaybackBehavior(%.8X, %.8X, %.8X)", playback_mode,
              repeat_mode, flags);
@@ -256,27 +254,26 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x00070009: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t state_ptr = poly::load_and_swap<uint32_t>(
-          buffer + 4);  // out ptr to 4b - expect 0
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t state_ptr =
+          xe::load_and_swap<uint32_t>(buffer + 4);  // out ptr to 4b - expect 0
       assert_true(xmp_client == 0x00000002);
       return XMPGetStatus(state_ptr);
     }
     case 0x0007000B: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t float_ptr = poly::load_and_swap<uint32_t>(
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t float_ptr = xe::load_and_swap<uint32_t>(
           buffer + 4);  // out ptr to 4b - floating point
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPGetVolume(%.8X)", float_ptr);
-      poly::store_and_swap<float>(memory_->TranslateVirtual(float_ptr),
-                                  volume_);
+      xe::store_and_swap<float>(memory_->TranslateVirtual(float_ptr), volume_);
       return X_ERROR_SUCCESS;
     }
     case 0x0007000C: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      float float_value = poly::load_and_swap<float>(buffer + 4);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      float float_value = xe::load_and_swap<float>(buffer + 4);
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPSetVolume(%g)", float_value);
       volume_ = float_value;
@@ -284,18 +281,18 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x0007000D: {
       assert_true(!buffer_length || buffer_length == 36);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t dummy_alloc_ptr = poly::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t dummy_alloc_size = poly::load_and_swap<uint32_t>(buffer + 8);
-      uint32_t songs_ptr = poly::load_and_swap<uint32_t>(buffer + 12);
-      uint32_t song_count = poly::load_and_swap<uint32_t>(buffer + 16);
-      uint32_t playlist_name_ptr = poly::load_and_swap<uint32_t>(buffer + 20);
-      uint32_t flags = poly::load_and_swap<uint32_t>(buffer + 24);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t dummy_alloc_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t dummy_alloc_size = xe::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t songs_ptr = xe::load_and_swap<uint32_t>(buffer + 12);
+      uint32_t song_count = xe::load_and_swap<uint32_t>(buffer + 16);
+      uint32_t playlist_name_ptr = xe::load_and_swap<uint32_t>(buffer + 20);
+      uint32_t flags = xe::load_and_swap<uint32_t>(buffer + 24);
       uint32_t song_handles_ptr =
-          poly::load_and_swap<uint32_t>(buffer + 28);  // 0?
-      uint32_t playlist_handle_ptr = poly::load_and_swap<uint32_t>(buffer + 32);
+          xe::load_and_swap<uint32_t>(buffer + 28);  // 0?
+      uint32_t playlist_handle_ptr = xe::load_and_swap<uint32_t>(buffer + 32);
       assert_true(xmp_client == 0x00000002);
-      auto playlist_name = poly::load_and_swap<std::wstring>(
+      auto playlist_name = xe::load_and_swap<std::wstring>(
           memory_->TranslateVirtual(playlist_name_ptr));
       // dummy_alloc_ptr is the result of a XamAlloc of dummy_alloc_size.
       assert_true(dummy_alloc_size == song_count * 128);
@@ -305,9 +302,9 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x0007000E: {
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk_ptr = poly::load_and_swap<uint32_t>(buffer + 4);  // 0
-      uint32_t info_ptr = poly::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t unk_ptr = xe::load_and_swap<uint32_t>(buffer + 4);  // 0
+      uint32_t info_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
       auto info = memory_->TranslateVirtual(info_ptr);
       assert_true(xmp_client == 0x00000002);
       assert_zero(unk_ptr);
@@ -316,31 +313,31 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         return X_ERROR_NOT_FOUND;
       }
       auto& song = active_playlist_->songs[active_song_index_];
-      poly::store_and_swap<uint32_t>(info + 0, song->handle);
-      poly::store_and_swap<std::wstring>(info + 4 + 572 + 0, song->name);
-      poly::store_and_swap<std::wstring>(info + 4 + 572 + 40, song->artist);
-      poly::store_and_swap<std::wstring>(info + 4 + 572 + 80, song->album);
-      poly::store_and_swap<std::wstring>(info + 4 + 572 + 120,
-                                         song->album_artist);
-      poly::store_and_swap<std::wstring>(info + 4 + 572 + 160, song->genre);
-      poly::store_and_swap<uint32_t>(info + 4 + 572 + 200, song->track_number);
-      poly::store_and_swap<uint32_t>(info + 4 + 572 + 204, song->duration_ms);
-      poly::store_and_swap<uint32_t>(info + 4 + 572 + 208,
-                                     static_cast<uint32_t>(song->format));
+      xe::store_and_swap<uint32_t>(info + 0, song->handle);
+      xe::store_and_swap<std::wstring>(info + 4 + 572 + 0, song->name);
+      xe::store_and_swap<std::wstring>(info + 4 + 572 + 40, song->artist);
+      xe::store_and_swap<std::wstring>(info + 4 + 572 + 80, song->album);
+      xe::store_and_swap<std::wstring>(info + 4 + 572 + 120,
+                                       song->album_artist);
+      xe::store_and_swap<std::wstring>(info + 4 + 572 + 160, song->genre);
+      xe::store_and_swap<uint32_t>(info + 4 + 572 + 200, song->track_number);
+      xe::store_and_swap<uint32_t>(info + 4 + 572 + 204, song->duration_ms);
+      xe::store_and_swap<uint32_t>(info + 4 + 572 + 208,
+                                   static_cast<uint32_t>(song->format));
       return X_ERROR_SUCCESS;
     }
     case 0x00070013: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playlist_handle = poly::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t playlist_handle = xe::load_and_swap<uint32_t>(buffer + 4);
       assert_true(xmp_client == 0x00000002);
       return XMPDeleteTitlePlaylist(playlist_handle);
     }
     case 0x0007001A: {
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk1 = poly::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t enabled = poly::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t unk1 = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t enabled = xe::load_and_swap<uint32_t>(buffer + 8);
       assert_true(xmp_client == 0x00000002);
       assert_zero(unk1);
       XELOGD("XMPSetEnabled(%.8X, %.8X)", unk1, enabled);
@@ -353,49 +350,48 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x0007001B: {
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk_ptr = poly::load_and_swap<uint32_t>(
-          buffer + 4);  // out ptr to 4b - expect 0
-      uint32_t disabled_ptr = poly::load_and_swap<uint32_t>(
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t unk_ptr =
+          xe::load_and_swap<uint32_t>(buffer + 4);  // out ptr to 4b - expect 0
+      uint32_t disabled_ptr = xe::load_and_swap<uint32_t>(
           buffer + 8);  // out ptr to 4b - expect 1 (to skip)
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPGetEnabled(%.8X, %.8X)", unk_ptr, disabled_ptr);
-      poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk_ptr), 0);
-      poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(disabled_ptr),
-                                     disabled_);
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk_ptr), 0);
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(disabled_ptr),
+                                   disabled_);
       // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
-      poly::threading::Sleep(std::chrono::milliseconds(10));
+      xe::threading::Sleep(std::chrono::milliseconds(10));
       return X_ERROR_SUCCESS;
     }
     case 0x00070029: {
       assert_true(!buffer_length || buffer_length == 16);
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playback_mode_ptr = poly::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t repeat_mode_ptr = poly::load_and_swap<uint32_t>(buffer + 8);
-      uint32_t unk3_ptr = poly::load_and_swap<uint32_t>(buffer + 12);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t playback_mode_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t repeat_mode_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t unk3_ptr = xe::load_and_swap<uint32_t>(buffer + 12);
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPGetPlaybackBehavior(%.8X, %.8X, %.8X)", playback_mode_ptr,
              repeat_mode_ptr, unk3_ptr);
-      poly::store_and_swap<uint32_t>(
-          memory_->TranslateVirtual(playback_mode_ptr),
-          static_cast<uint32_t>(playback_mode_));
-      poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
-                                     static_cast<uint32_t>(repeat_mode_));
-      poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
-                                     unknown_flags_);
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(playback_mode_ptr),
+                                   static_cast<uint32_t>(playback_mode_));
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
+                                   static_cast<uint32_t>(repeat_mode_));
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
+                                   unknown_flags_);
       return X_ERROR_SUCCESS;
     }
     case 0x0007002E: {
       assert_true(!buffer_length || buffer_length == 12);
       // Query of size for XamAlloc - the result of the alloc is passed to
       // 0x0007000D.
-      uint32_t xmp_client = poly::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t song_count = poly::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t size_ptr = poly::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
+      uint32_t song_count = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t size_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
       assert_true(xmp_client == 0x00000002);
       // We don't use the storage, so just fudge the number.
-      poly::store_and_swap<uint32_t>(memory_->TranslateVirtual(size_ptr),
-                                     song_count * 128);
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(size_ptr),
+                                   song_count * 128);
       return X_ERROR_SUCCESS;
     }
     case 0x0007003D: {

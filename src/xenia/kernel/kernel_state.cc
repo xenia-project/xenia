@@ -11,8 +11,8 @@
 
 #include <gflags/gflags.h>
 
-#include "poly/assert.h"
-#include "poly/string.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/string.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/xam_module.h"
@@ -52,8 +52,8 @@ KernelState::KernelState(Emulator* emulator)
   app_manager_ = std::make_unique<XAppManager>();
   user_profile_ = std::make_unique<UserProfile>();
 
-  auto content_root = poly::to_wstring(FLAGS_content_root);
-  content_root = poly::to_absolute_path(content_root);
+  auto content_root = xe::to_wstring(FLAGS_content_root);
+  content_root = xe::to_absolute_path(content_root);
   content_manager_ = std::make_unique<ContentManager>(this, content_root);
 
   object_table_ = new ObjectTable();

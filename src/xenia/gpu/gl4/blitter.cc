@@ -11,8 +11,8 @@
 
 #include <string>
 
-#include "poly/assert.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace gpu {

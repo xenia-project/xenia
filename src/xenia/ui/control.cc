@@ -9,7 +9,7 @@
 
 #include "xenia/ui/control.h"
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 
 namespace xe {
 namespace ui {

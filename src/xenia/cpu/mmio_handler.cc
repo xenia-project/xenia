@@ -9,9 +9,9 @@
 
 #include "xenia/cpu/mmio_handler.h"
 
-#include "poly/assert.h"
-#include "poly/byte_order.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/base/math.h"
 
 namespace BE {
 #include <beaengine/BeaEngine.h>
@@ -230,7 +230,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
     // register.
     uint64_t value = range->read(range->context, fault_address & 0xFFFFFFFF);
     uint32_t be_reg_index;
-    if (!poly::bit_scan_forward(arg1_type & 0xFFFF, &be_reg_index)) {
+    if (!xe::bit_scan_forward(arg1_type & 0xFFFF, &be_reg_index)) {
       be_reg_index = 0;
     }
     uint64_t* reg_ptr = GetThreadStateRegPtr(thread_state, be_reg_index);
@@ -239,13 +239,13 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
         *reg_ptr = static_cast<uint8_t>(value);
         break;
       case 16:
-        *reg_ptr = poly::byte_swap(static_cast<uint16_t>(value));
+        *reg_ptr = xe::byte_swap(static_cast<uint16_t>(value));
         break;
       case 32:
-        *reg_ptr = poly::byte_swap(static_cast<uint32_t>(value));
+        *reg_ptr = xe::byte_swap(static_cast<uint32_t>(value));
         break;
       case 64:
-        *reg_ptr = poly::byte_swap(static_cast<uint64_t>(value));
+        *reg_ptr = xe::byte_swap(static_cast<uint64_t>(value));
         break;
     }
   } else if (is_store) {
@@ -253,7 +253,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
     uint64_t value;
     if ((arg2_type & BE::REGISTER_TYPE) == BE::REGISTER_TYPE) {
       uint32_t be_reg_index;
-      if (!poly::bit_scan_forward(arg2_type & 0xFFFF, &be_reg_index)) {
+      if (!xe::bit_scan_forward(arg2_type & 0xFFFF, &be_reg_index)) {
         be_reg_index = 0;
       }
       uint64_t* reg_ptr = GetThreadStateRegPtr(thread_state, be_reg_index);
@@ -269,13 +269,13 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
         value = static_cast<uint8_t>(value);
         break;
       case 16:
-        value = poly::byte_swap(static_cast<uint16_t>(value));
+        value = xe::byte_swap(static_cast<uint16_t>(value));
         break;
       case 32:
-        value = poly::byte_swap(static_cast<uint32_t>(value));
+        value = xe::byte_swap(static_cast<uint32_t>(value));
         break;
       case 64:
-        value = poly::byte_swap(static_cast<uint64_t>(value));
+        value = xe::byte_swap(static_cast<uint64_t>(value));
         break;
     }
     range->write(range->context, fault_address & 0xFFFFFFFF, value);

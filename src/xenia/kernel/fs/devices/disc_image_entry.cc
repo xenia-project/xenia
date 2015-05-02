@@ -26,7 +26,7 @@ class DiscImageMemoryMapping : public MemoryMapping {
 };
 
 DiscImageEntry::DiscImageEntry(Device* device, const char* path,
-                               poly::MappedMemory* mmap, GDFXEntry* gdfx_entry)
+                               MappedMemory* mmap, GDFXEntry* gdfx_entry)
     : Entry(device, path),
       mmap_(mmap),
       gdfx_entry_(gdfx_entry),

@@ -32,14 +32,14 @@ class XFileInfo {
   X_FILE_ATTRIBUTES attributes;
 
   void Write(uint8_t* base, uint32_t p) {
-    poly::store_and_swap<uint64_t>(base + p, creation_time);
-    poly::store_and_swap<uint64_t>(base + p + 8, last_access_time);
-    poly::store_and_swap<uint64_t>(base + p + 16, last_write_time);
-    poly::store_and_swap<uint64_t>(base + p + 24, change_time);
-    poly::store_and_swap<uint64_t>(base + p + 32, allocation_size);
-    poly::store_and_swap<uint64_t>(base + p + 40, file_length);
-    poly::store_and_swap<uint32_t>(base + p + 48, attributes);
-    poly::store_and_swap<uint32_t>(base + p + 52, 0);  // pad
+    xe::store_and_swap<uint64_t>(base + p, creation_time);
+    xe::store_and_swap<uint64_t>(base + p + 8, last_access_time);
+    xe::store_and_swap<uint64_t>(base + p + 16, last_write_time);
+    xe::store_and_swap<uint64_t>(base + p + 24, change_time);
+    xe::store_and_swap<uint64_t>(base + p + 32, allocation_size);
+    xe::store_and_swap<uint64_t>(base + p + 40, file_length);
+    xe::store_and_swap<uint32_t>(base + p + 48, attributes);
+    xe::store_and_swap<uint32_t>(base + p + 52, 0);  // pad
   }
 };
 
@@ -64,16 +64,16 @@ class XDirectoryInfo {
     XDirectoryInfo* info;
     do {
       info = (XDirectoryInfo*)src;
-      poly::store_and_swap<uint32_t>(dst, info->next_entry_offset);
-      poly::store_and_swap<uint32_t>(dst + 4, info->file_index);
-      poly::store_and_swap<uint64_t>(dst + 8, info->creation_time);
-      poly::store_and_swap<uint64_t>(dst + 16, info->last_access_time);
-      poly::store_and_swap<uint64_t>(dst + 24, info->last_write_time);
-      poly::store_and_swap<uint64_t>(dst + 32, info->change_time);
-      poly::store_and_swap<uint64_t>(dst + 40, info->end_of_file);
-      poly::store_and_swap<uint64_t>(dst + 48, info->allocation_size);
-      poly::store_and_swap<uint32_t>(dst + 56, info->attributes);
-      poly::store_and_swap<uint32_t>(dst + 60, info->file_name_length);
+      xe::store_and_swap<uint32_t>(dst, info->next_entry_offset);
+      xe::store_and_swap<uint32_t>(dst + 4, info->file_index);
+      xe::store_and_swap<uint64_t>(dst + 8, info->creation_time);
+      xe::store_and_swap<uint64_t>(dst + 16, info->last_access_time);
+      xe::store_and_swap<uint64_t>(dst + 24, info->last_write_time);
+      xe::store_and_swap<uint64_t>(dst + 32, info->change_time);
+      xe::store_and_swap<uint64_t>(dst + 40, info->end_of_file);
+      xe::store_and_swap<uint64_t>(dst + 48, info->allocation_size);
+      xe::store_and_swap<uint32_t>(dst + 56, info->attributes);
+      xe::store_and_swap<uint32_t>(dst + 60, info->file_name_length);
       memcpy(dst + 64, info->file_name, info->file_name_length);
       dst += info->next_entry_offset;
       src += info->next_entry_offset;
@@ -94,10 +94,10 @@ class XVolumeInfo {
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
-    poly::store_and_swap<uint64_t>(dst + 0, this->creation_time);
-    poly::store_and_swap<uint32_t>(dst + 8, this->serial_number);
-    poly::store_and_swap<uint32_t>(dst + 12, this->label_length);
-    poly::store_and_swap<uint32_t>(dst + 16, this->supports_objects);
+    xe::store_and_swap<uint64_t>(dst + 0, this->creation_time);
+    xe::store_and_swap<uint32_t>(dst + 8, this->serial_number);
+    xe::store_and_swap<uint32_t>(dst + 12, this->label_length);
+    xe::store_and_swap<uint32_t>(dst + 16, this->supports_objects);
     memcpy(dst + 20, this->label, this->label_length);
   }
 };
@@ -114,10 +114,9 @@ class XFileSystemAttributeInfo {
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
-    poly::store_and_swap<uint32_t>(dst + 0, this->attributes);
-    poly::store_and_swap<uint32_t>(dst + 4,
-                                   this->maximum_component_name_length);
-    poly::store_and_swap<uint32_t>(dst + 8, this->fs_name_length);
+    xe::store_and_swap<uint32_t>(dst + 0, this->attributes);
+    xe::store_and_swap<uint32_t>(dst + 4, this->maximum_component_name_length);
+    xe::store_and_swap<uint32_t>(dst + 8, this->fs_name_length);
     memcpy(dst + 12, this->fs_name, this->fs_name_length);
   }
 };

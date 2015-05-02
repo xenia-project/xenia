@@ -11,15 +11,15 @@
 
 #include <cmath>
 
-#include "poly/assert.h"
-#include "poly/byte_order.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace cpu {
 namespace hir {
 
-Value::Use* Value::AddUse(poly::Arena* arena, Instr* instr) {
+Value::Use* Value::AddUse(Arena* arena, Instr* instr) {
   Use* use = arena->Alloc<Use>();
   use->instr = instr;
   use->prev = NULL;
@@ -587,17 +587,17 @@ void Value::ByteSwap() {
       constant.i8 = constant.i8;
       break;
     case INT16_TYPE:
-      constant.i16 = poly::byte_swap(constant.i16);
+      constant.i16 = xe::byte_swap(constant.i16);
       break;
     case INT32_TYPE:
-      constant.i32 = poly::byte_swap(constant.i32);
+      constant.i32 = xe::byte_swap(constant.i32);
       break;
     case INT64_TYPE:
-      constant.i64 = poly::byte_swap(constant.i64);
+      constant.i64 = xe::byte_swap(constant.i64);
       break;
     case VEC128_TYPE:
       for (int n = 0; n < 4; n++) {
-        constant.v128.u32[n] = poly::byte_swap(constant.v128.u32[n]);
+        constant.v128.u32[n] = xe::byte_swap(constant.v128.u32[n]);
       }
       break;
     default:
@@ -609,16 +609,16 @@ void Value::ByteSwap() {
 void Value::CountLeadingZeros(const Value* other) {
   switch (other->type) {
     case INT8_TYPE:
-      constant.i8 = poly::lzcnt(constant.i8);
+      constant.i8 = xe::lzcnt(constant.i8);
       break;
     case INT16_TYPE:
-      constant.i8 = poly::lzcnt(constant.i16);
+      constant.i8 = xe::lzcnt(constant.i16);
       break;
     case INT32_TYPE:
-      constant.i8 = poly::lzcnt(constant.i32);
+      constant.i8 = xe::lzcnt(constant.i32);
       break;
     case INT64_TYPE:
-      constant.i8 = poly::lzcnt(constant.i64);
+      constant.i8 = xe::lzcnt(constant.i64);
       break;
     default:
       assert_unhandled_case(type);

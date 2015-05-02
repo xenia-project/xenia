@@ -10,10 +10,10 @@
 #ifndef XENIA_FRONTEND_PPC_HIR_BUILDER_H_
 #define XENIA_FRONTEND_PPC_HIR_BUILDER_H_
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/symbol_info.h"
-#include "poly/string_buffer.h"
 
 namespace xe {
 namespace cpu {
@@ -91,7 +91,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   PPCFrontend* frontend_;
 
   // Reset whenever needed:
-  poly::StringBuffer comment_buffer_;
+  StringBuffer comment_buffer_;
 
   // Reset each Emit:
   bool with_debug_info_;

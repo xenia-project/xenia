@@ -9,13 +9,13 @@
 
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 
-#include "poly/threading.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gl4/gl4_profiler_display.h"
 #include "xenia/gpu/gpu-private.h"
 #include "xenia/gpu/tracing.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {
@@ -38,7 +38,7 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
 
   // Create rendering control.
   // This must happen on the UI thread.
-  poly::threading::Fence control_ready_fence;
+  xe::threading::Fence control_ready_fence;
   std::unique_ptr<GLContext> processor_context;
   target_loop_->Post([&]() {
     // Setup the GL control that actually does the drawing.
@@ -128,12 +128,11 @@ void GL4GraphicsSystem::RequestSwap() {
 }
 
 void GL4GraphicsSystem::RequestFrameTrace() {
-  command_processor_->RequestFrameTrace(
-      poly::to_wstring(FLAGS_trace_gpu_prefix));
+  command_processor_->RequestFrameTrace(xe::to_wstring(FLAGS_trace_gpu_prefix));
 }
 
 void GL4GraphicsSystem::BeginTracing() {
-  command_processor_->BeginTracing(poly::to_wstring(FLAGS_trace_gpu_prefix));
+  command_processor_->BeginTracing(xe::to_wstring(FLAGS_trace_gpu_prefix));
 }
 
 void GL4GraphicsSystem::EndTracing() { command_processor_->EndTracing(); }
@@ -149,7 +148,7 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
         const PacketStartCommand* pending_packet = nullptr;
         while (trace_ptr < trace_data + trace_size) {
           auto type =
-              static_cast<TraceCommandType>(poly::load<uint32_t>(trace_ptr));
+              static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
           switch (type) {
             case TraceCommandType::kPrimaryBufferStart: {
               auto cmd =

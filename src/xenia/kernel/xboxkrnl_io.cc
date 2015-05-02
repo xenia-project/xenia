@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include "poly/memory.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/memory.h"
 #include "xenia/kernel/async_request.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xfile.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -32,14 +32,14 @@ class X_OBJECT_ATTRIBUTES {
   X_OBJECT_ATTRIBUTES() { Zero(); }
   X_OBJECT_ATTRIBUTES(const uint8_t* base, uint32_t p) { Read(base, p); }
   void Read(const uint8_t* base, uint32_t p) {
-    root_directory = poly::load_and_swap<uint32_t>(base + p);
-    object_name_ptr = poly::load_and_swap<uint32_t>(base + p + 4);
+    root_directory = xe::load_and_swap<uint32_t>(base + p);
+    object_name_ptr = xe::load_and_swap<uint32_t>(base + p + 4);
     if (object_name_ptr) {
       object_name.Read(base, object_name_ptr);
     } else {
       object_name.Zero();
     }
-    attributes = poly::load_and_swap<uint32_t>(base + p + 8);
+    attributes = xe::load_and_swap<uint32_t>(base + p + 8);
   }
   void Zero() {
     root_directory = 0;
@@ -472,7 +472,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         info = 8;
         // TODO(benvanik): use pointer to fs:: entry?
         SHIM_SET_MEM_64(file_info_ptr,
-                        poly::hash_combine(0, file->absolute_path()));
+                        xe::hash_combine(0, file->absolute_path()));
         break;
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {
@@ -511,7 +511,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
             if (bytes_read == sizeof(magic)) {
               info = 4;
               SHIM_SET_MEM_32(file_info_ptr,
-                              magic == poly::byte_swap(0x0FF512ED));
+                              magic == xe::byte_swap(0x0FF512ED));
             } else {
               result = X_STATUS_UNSUCCESSFUL;
             }

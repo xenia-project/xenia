@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/value_reduction_pass.h"
 
-#include "poly/platform.h"
+#include "xenia/base/platform.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/compiler/compiler.h"
 #include "xenia/cpu/runtime.h"

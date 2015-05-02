@@ -10,8 +10,8 @@
 #ifndef XENIA_GPU_XENOS_H_
 #define XENIA_GPU_XENOS_H_
 
-#include "poly/assert.h"
-#include "poly/byte_order.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
 #include "xenia/gpu/ucode.h"
 
 namespace xe {
@@ -239,7 +239,7 @@ inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
     case Endian::k8in32:
       // Swap bytes.
       // NOTE: we are likely doing two swaps here. Wasteful. Oh well.
-      return poly::byte_swap(value);
+      return xe::byte_swap(value);
     case Endian::k16in32:
       // Swap half words.
       return ((value >> 16) & 0xFFFF) | (value << 16);

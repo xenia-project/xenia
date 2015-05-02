@@ -10,10 +10,10 @@
 #include "xenia/cpu/function.h"
 
 #include "xdb/protocol.h"
+#include "xenia/base/logging.h"
 #include "xenia/cpu/debugger.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {

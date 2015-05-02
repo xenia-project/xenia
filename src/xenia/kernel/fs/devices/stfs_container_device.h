@@ -13,7 +13,7 @@
 #include <memory>
 #include <string>
 
-#include "poly/mapped_memory.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/kernel/fs/device.h"
 
 namespace xe {
@@ -33,7 +33,7 @@ class STFSContainerDevice : public Device {
 
  private:
   std::wstring local_path_;
-  std::unique_ptr<poly::MappedMemory> mmap_;
+  std::unique_ptr<MappedMemory> mmap_;
   STFS* stfs_;
 };
 

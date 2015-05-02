@@ -7,7 +7,8 @@
  ******************************************************************************
  */
 
-#include "poly/atomic.h"
+#include "xenia/base/atomic.h"
+#include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/kernel_state.h"
@@ -19,7 +20,6 @@
 #include "xenia/kernel/objects/xtimer.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -63,7 +63,7 @@ void AssertNoNameCollision(KernelState* state, uint32_t obj_attributes_ptr) {
   // with a success of NAME_EXISTS.
   // If the name exists and its type doesn't match, we do NAME_COLLISION.
   // Otherwise, we add like normal.
-  uint32_t name_str_ptr = poly::load_and_swap<uint32_t>(
+  uint32_t name_str_ptr = xe::load_and_swap<uint32_t>(
       state->memory()->TranslateVirtual(obj_attributes_ptr + 4));
   if (name_str_ptr) {
     X_ANSI_STRING name_str(state->memory()->virtual_membase(), name_str_ptr);
@@ -975,7 +975,7 @@ SHIM_CALL KfAcquireSpinLock_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
-  while (!poly::atomic_cas(0, 1, lock)) {
+  while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
   }
@@ -1002,7 +1002,7 @@ SHIM_CALL KfReleaseSpinLock_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Unlock.
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
-  poly::atomic_dec(lock);
+  xe::atomic_dec(lock);
 }
 
 SHIM_CALL KeAcquireSpinLockAtRaisedIrql_shim(PPCContext* ppc_state,
@@ -1015,7 +1015,7 @@ SHIM_CALL KeAcquireSpinLockAtRaisedIrql_shim(PPCContext* ppc_state,
 
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
-  while (!poly::atomic_cas(0, 1, lock)) {
+  while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
   }
@@ -1031,7 +1031,7 @@ SHIM_CALL KeReleaseSpinLockFromRaisedIrql_shim(PPCContext* ppc_state,
 
   // Unlock.
   auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
-  poly::atomic_dec(lock);
+  xe::atomic_dec(lock);
 }
 
 SHIM_CALL KeEnterCriticalRegion_shim(PPCContext* ppc_state,

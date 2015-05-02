@@ -10,8 +10,8 @@
 #ifndef XENIA_COMPILER_COMPILER_PASS_H_
 #define XENIA_COMPILER_COMPILER_PASS_H_
 
+#include "xenia/base/arena.h"
 #include "xenia/cpu/hir/hir_builder.h"
-#include "poly/arena.h"
 
 namespace xe {
 namespace cpu {
@@ -35,7 +35,7 @@ class CompilerPass {
   virtual int Run(hir::HIRBuilder* builder) = 0;
 
  protected:
-  poly::Arena* scratch_arena() const;
+  Arena* scratch_arena() const;
 
  protected:
   Runtime* runtime_;

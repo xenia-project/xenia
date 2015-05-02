@@ -37,7 +37,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 
 namespace xe {
 namespace gpu {

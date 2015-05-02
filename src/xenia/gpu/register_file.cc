@@ -9,7 +9,7 @@
 
 #include "xenia/gpu/register_file.h"
 
-#include "poly/math.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace gpu {

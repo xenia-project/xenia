@@ -11,8 +11,8 @@
 
 #include <gflags/gflags.h>
 
-#include "poly/assert.h"
 #include "xdb/protocol.h"
+#include "xenia/base/assert.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"

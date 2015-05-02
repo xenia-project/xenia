@@ -9,11 +9,11 @@
 
 #include "xenia/gpu/gl4/texture_cache.h"
 
-#include "poly/assert.h"
-#include "poly/math.h"
-#include "poly/memory.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/gpu/gpu-private.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {
@@ -652,14 +652,14 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
                  size_t length) {
   switch (endianness) {
     case Endian::k8in16:
-      poly::copy_and_swap_16_aligned(reinterpret_cast<uint16_t*>(dest),
-                                     reinterpret_cast<const uint16_t*>(src),
-                                     length / 2);
+      xe::copy_and_swap_16_aligned(reinterpret_cast<uint16_t*>(dest),
+                                   reinterpret_cast<const uint16_t*>(src),
+                                   length / 2);
       break;
     case Endian::k8in32:
-      poly::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(dest),
-                                     reinterpret_cast<const uint32_t*>(src),
-                                     length / 4);
+      xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(dest),
+                                   reinterpret_cast<const uint32_t*>(src),
+                                   length / 4);
       break;
     case Endian::k16in32:
       // TODO(benvanik): make more efficient.

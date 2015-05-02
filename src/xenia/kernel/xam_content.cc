@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xenumerator.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -101,8 +101,8 @@ SHIM_CALL XamContentGetDeviceName_shim(PPCContext* ppc_state,
     return;
   }
 
-  poly::store_and_swap<std::wstring>(SHIM_MEM_ADDR(name_ptr),
-                                     dummy_device_info_.name);
+  xe::store_and_swap<std::wstring>(SHIM_MEM_ADDR(name_ptr),
+                                   dummy_device_info_.name);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
@@ -153,8 +153,8 @@ SHIM_CALL XamContentGetDeviceData_shim(PPCContext* ppc_state,
   SHIM_SET_MEM_32(device_data_ptr + 4, device_info.device_type);
   SHIM_SET_MEM_64(device_data_ptr + 8, device_info.total_bytes);
   SHIM_SET_MEM_64(device_data_ptr + 16, device_info.free_bytes);
-  poly::store_and_swap<std::wstring>(SHIM_MEM_ADDR(device_data_ptr + 24),
-                                     device_info.name);
+  xe::store_and_swap<std::wstring>(SHIM_MEM_ADDR(device_data_ptr + 24),
+                                   device_info.name);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
@@ -324,8 +324,7 @@ SHIM_CALL XamContentCreate_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(6);
 
-  auto root_name =
-      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+  auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
   auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
 
   XELOGD("XamContentCreate(%d, %.8X(%s), %.8X, %.8X, %.8X, %.8X, %.8X)",
@@ -349,8 +348,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t sp = (uint32_t)ppc_state->r[1];
   uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
 
-  auto root_name =
-      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+  auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
   auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
 
   XELOGD(
@@ -369,8 +367,7 @@ SHIM_CALL XamContentFlush_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t root_name_ptr = SHIM_GET_ARG_32(0);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(1);
 
-  auto root_name =
-      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+  auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
 
   XELOGD("XamContentFlush(%.8X(%s), %.8X)", root_name_ptr, root_name.c_str(),
          overlapped_ptr);
@@ -388,8 +385,7 @@ SHIM_CALL XamContentClose_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t root_name_ptr = SHIM_GET_ARG_32(0);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(1);
 
-  auto root_name =
-      poly::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
+  auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
 
   XELOGD("XamContentClose(%.8X(%s), %.8X)", root_name_ptr, root_name.c_str(),
          overlapped_ptr);

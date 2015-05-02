@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -232,8 +232,8 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
   }
 
   // Round up the region size and alignment to the next page.
-  uint32_t adjusted_size = poly::round_up(region_size, page_size);
-  uint32_t adjusted_alignment = poly::round_up(alignment, page_size);
+  uint32_t adjusted_size = xe::round_up(region_size, page_size);
+  uint32_t adjusted_alignment = xe::round_up(alignment, page_size);
 
   // Callers can pick an address to allocate with min_addr_range/max_addr_range
   // and the memory must be allocated there. I haven't seen a game do this,
@@ -416,7 +416,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
   uint32_t alignment = 8;
   uint32_t adjusted_size = size;
   if (adjusted_size < 4 * 1024) {
-    adjusted_size = poly::round_up(adjusted_size, 4 * 1024);
+    adjusted_size = xe::round_up(adjusted_size, 4 * 1024);
   } else {
     alignment = 4 * 1024;
   }

@@ -9,14 +9,14 @@
 
 #include "xenia/kernel/objects/xthread.h"
 
-#include "poly/math.h"
-#include "poly/threading.h"
 #include "xdb/protocol.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xuser_module.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -113,7 +113,7 @@ uint32_t XThread::GetCurrentThreadHandle() {
 }
 
 uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
-  return poly::load_and_swap<uint32_t>(thread_state_block + 0x14C);
+  return xe::load_and_swap<uint32_t>(thread_state_block + 0x14C);
 }
 
 uint32_t XThread::thread_state() { return thread_state_address_; }
@@ -122,17 +122,17 @@ uint32_t XThread::thread_id() { return thread_id_; }
 
 uint32_t XThread::last_error() {
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  return poly::load_and_swap<uint32_t>(p + 0x160);
+  return xe::load_and_swap<uint32_t>(p + 0x160);
 }
 
 void XThread::set_last_error(uint32_t error_code) {
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  poly::store_and_swap<uint32_t>(p + 0x160, error_code);
+  xe::store_and_swap<uint32_t>(p + 0x160, error_code);
 }
 
 void XThread::set_name(const std::string& name) {
   name_ = name;
-  poly::threading::set_name(thread_handle_, name);
+  xe::threading::set_name(thread_handle_, name);
 }
 
 X_STATUS XThread::Create() {
@@ -180,11 +180,11 @@ X_STATUS XThread::Create() {
 
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  poly::store_and_swap<uint32_t>(p + 0x000, tls_address_);
-  poly::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
-  poly::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  poly::store_and_swap<uint32_t>(p + 0x150, 0);  // ?
-  poly::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
+  xe::store_and_swap<uint32_t>(p + 0x000, tls_address_);
+  xe::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
+  xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
+  xe::store_and_swap<uint32_t>(p + 0x150, 0);  // ?
+  xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
 
   // Allocate processor thread state.
   // This is thread safe.
@@ -200,7 +200,7 @@ X_STATUS XThread::Create() {
   }
 
   char thread_name[32];
-  snprintf(thread_name, poly::countof(thread_name), "XThread%04X", handle());
+  snprintf(thread_name, xe::countof(thread_name), "XThread%04X", handle());
   set_name(thread_name);
 
   uint32_t proc_mask = creation_params_.creation_flags >> 24;
@@ -338,12 +338,12 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
               thread_id_, handle(), name_.c_str(),
-              poly::threading::current_thread_id());
+              xe::threading::current_thread_id());
 
   // All threads get a mandatory sleep. This is to deal with some buggy
   // games that are assuming the 360 is so slow to create threads that they
   // have time to initialize shared structures AFTER CreateThread (RR).
-  poly::threading::Sleep(std::chrono::milliseconds::duration(100));
+  xe::threading::Sleep(std::chrono::milliseconds::duration(100));
 
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
@@ -352,13 +352,12 @@ void XThread::Execute() {
                        creation_params_.start_context};
     kernel_state()->processor()->Execute(thread_state_,
                                          creation_params_.xapi_thread_startup,
-                                         args, poly::countof(args));
+                                         args, xe::countof(args));
   } else {
     // Run user code.
     uint64_t args[] = {creation_params_.start_context};
     int exit_code = (int)kernel_state()->processor()->Execute(
-        thread_state_, creation_params_.start_address, args,
-        poly::countof(args));
+        thread_state_, creation_params_.start_address, args, xe::countof(args));
     // If we got here it means the execute completed without an exit being
     // called.
     // Treat the return code as an implicit exit code.
@@ -403,25 +402,25 @@ void XThread::DeliverAPCs(void* data) {
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_address = apc_list->Shift() - 8;
     uint8_t* apc_ptr = memory->TranslateVirtual(apc_address);
-    uint32_t kernel_routine = poly::load_and_swap<uint32_t>(apc_ptr + 16);
-    uint32_t normal_routine = poly::load_and_swap<uint32_t>(apc_ptr + 24);
-    uint32_t normal_context = poly::load_and_swap<uint32_t>(apc_ptr + 28);
-    uint32_t system_arg1 = poly::load_and_swap<uint32_t>(apc_ptr + 32);
-    uint32_t system_arg2 = poly::load_and_swap<uint32_t>(apc_ptr + 36);
+    uint32_t kernel_routine = xe::load_and_swap<uint32_t>(apc_ptr + 16);
+    uint32_t normal_routine = xe::load_and_swap<uint32_t>(apc_ptr + 24);
+    uint32_t normal_context = xe::load_and_swap<uint32_t>(apc_ptr + 28);
+    uint32_t system_arg1 = xe::load_and_swap<uint32_t>(apc_ptr + 32);
+    uint32_t system_arg2 = xe::load_and_swap<uint32_t>(apc_ptr + 36);
 
     // Mark as uninserted so that it can be reinserted again by the routine.
-    uint32_t old_flags = poly::load_and_swap<uint32_t>(apc_ptr + 40);
-    poly::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
+    uint32_t old_flags = xe::load_and_swap<uint32_t>(apc_ptr + 40);
+    xe::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
 
     // Call kernel routine.
     // The routine can modify all of its arguments before passing it on.
     // Since we need to give guest accessible pointers over, we copy things
     // into and out of scratch.
     uint8_t* scratch_ptr = memory->TranslateVirtual(thread->scratch_address_);
-    poly::store_and_swap<uint32_t>(scratch_ptr + 0, normal_routine);
-    poly::store_and_swap<uint32_t>(scratch_ptr + 4, normal_context);
-    poly::store_and_swap<uint32_t>(scratch_ptr + 8, system_arg1);
-    poly::store_and_swap<uint32_t>(scratch_ptr + 12, system_arg2);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 0, normal_routine);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 4, normal_context);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 8, system_arg1);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 12, system_arg2);
     // kernel_routine(apc_address, &normal_routine, &normal_context,
     // &system_arg1, &system_arg2)
     uint64_t kernel_args[] = {
@@ -429,11 +428,11 @@ void XThread::DeliverAPCs(void* data) {
         thread->scratch_address_ + 8, thread->scratch_address_ + 12,
     };
     processor->ExecuteInterrupt(0, kernel_routine, kernel_args,
-                                poly::countof(kernel_args));
-    normal_routine = poly::load_and_swap<uint32_t>(scratch_ptr + 0);
-    normal_context = poly::load_and_swap<uint32_t>(scratch_ptr + 4);
-    system_arg1 = poly::load_and_swap<uint32_t>(scratch_ptr + 8);
-    system_arg2 = poly::load_and_swap<uint32_t>(scratch_ptr + 12);
+                                xe::countof(kernel_args));
+    normal_routine = xe::load_and_swap<uint32_t>(scratch_ptr + 0);
+    normal_context = xe::load_and_swap<uint32_t>(scratch_ptr + 4);
+    system_arg1 = xe::load_and_swap<uint32_t>(scratch_ptr + 8);
+    system_arg2 = xe::load_and_swap<uint32_t>(scratch_ptr + 12);
 
     // Call the normal routine. Note that it may have been killed by the kernel
     // routine.
@@ -442,7 +441,7 @@ void XThread::DeliverAPCs(void* data) {
       // normal_routine(normal_context, system_arg1, system_arg2)
       uint64_t normal_args[] = {normal_context, system_arg1, system_arg2};
       processor->ExecuteInterrupt(0, normal_routine, normal_args,
-                                  poly::countof(normal_args));
+                                  xe::countof(normal_args));
       thread->LockApc();
     }
   }
@@ -456,18 +455,18 @@ void XThread::RundownAPCs() {
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_address = apc_list_->Shift() - 8;
     uint8_t* apc_ptr = memory()->TranslateVirtual(apc_address);
-    uint32_t rundown_routine = poly::load_and_swap<uint32_t>(apc_ptr + 20);
+    uint32_t rundown_routine = xe::load_and_swap<uint32_t>(apc_ptr + 20);
 
     // Mark as uninserted so that it can be reinserted again by the routine.
-    uint32_t old_flags = poly::load_and_swap<uint32_t>(apc_ptr + 40);
-    poly::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
+    uint32_t old_flags = xe::load_and_swap<uint32_t>(apc_ptr + 40);
+    xe::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
 
     // Call the rundown routine.
     if (rundown_routine) {
       // rundown_routine(apc)
       uint64_t args[] = {apc_address};
       kernel_state()->processor()->ExecuteInterrupt(0, rundown_routine, args,
-                                                    poly::countof(args));
+                                                    xe::countof(args));
     }
   }
   UnlockApc();

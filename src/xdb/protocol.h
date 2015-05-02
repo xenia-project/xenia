@@ -12,13 +12,13 @@
 
 #include <cstdint>
 
-#include "poly/atomic.h"
-#include "poly/vec128.h"
+#include "xenia/base/atomic.h"
+#include "xenia/base/vec128.h"
 
 namespace xdb {
 namespace protocol {
 
-using vec128_t = poly::vec128_t;
+using vec128_t = xe::vec128_t;
 
 #pragma pack(push, 4)
 
@@ -57,7 +57,7 @@ struct Event {
     if (!trace_base) {
       return nullptr;
     }
-    uint64_t ptr = poly::atomic_exchange_add(
+    uint64_t ptr = xe::atomic_exchange_add(
         sizeof(T), reinterpret_cast<uint64_t*>(trace_base));
     return reinterpret_cast<T*>(ptr);
   }
@@ -96,7 +96,7 @@ struct Registers {
   uint32_t vscr;
   uint64_t gpr[32];
   double fpr[32];
-  poly::vec128_t vr[128];
+  xe::vec128_t vr[128];
 };
 
 struct ThreadCreateEvent : public Event<ThreadCreateEvent> {

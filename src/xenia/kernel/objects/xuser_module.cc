@@ -9,11 +9,11 @@
 
 #include "xenia/kernel/objects/xuser_module.h"
 
-#include "xenia/emulator.h"
+#include "xenia/base/logging.h"
 #include "xenia/cpu/cpu.h"
+#include "xenia/emulator.h"
 #include "xenia/kernel/objects/xfile.h"
 #include "xenia/kernel/objects/xthread.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {
@@ -118,15 +118,15 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   execution_info_ptr_ = memory()->SystemHeapAlloc(24);
   auto eip = memory()->TranslateVirtual(execution_info_ptr_);
   const auto& ex = xe_xex2_get_header(xex_)->execution_info;
-  poly::store_and_swap<uint32_t>(eip + 0x00, ex.media_id);
-  poly::store_and_swap<uint32_t>(eip + 0x04, ex.version.value);
-  poly::store_and_swap<uint32_t>(eip + 0x08, ex.base_version.value);
-  poly::store_and_swap<uint32_t>(eip + 0x0C, ex.title_id);
-  poly::store_and_swap<uint8_t>(eip + 0x10, ex.platform);
-  poly::store_and_swap<uint8_t>(eip + 0x11, ex.executable_table);
-  poly::store_and_swap<uint8_t>(eip + 0x12, ex.disc_number);
-  poly::store_and_swap<uint8_t>(eip + 0x13, ex.disc_count);
-  poly::store_and_swap<uint32_t>(eip + 0x14, ex.savegame_id);
+  xe::store_and_swap<uint32_t>(eip + 0x00, ex.media_id);
+  xe::store_and_swap<uint32_t>(eip + 0x04, ex.version.value);
+  xe::store_and_swap<uint32_t>(eip + 0x08, ex.base_version.value);
+  xe::store_and_swap<uint32_t>(eip + 0x0C, ex.title_id);
+  xe::store_and_swap<uint8_t>(eip + 0x10, ex.platform);
+  xe::store_and_swap<uint8_t>(eip + 0x11, ex.executable_table);
+  xe::store_and_swap<uint8_t>(eip + 0x12, ex.disc_number);
+  xe::store_and_swap<uint8_t>(eip + 0x13, ex.disc_count);
+  xe::store_and_swap<uint32_t>(eip + 0x14, ex.savegame_id);
 
   // Prepare the module for execution.
   // Runtime takes ownership.

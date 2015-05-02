@@ -10,7 +10,7 @@
 #ifndef XENIA_HIR_BLOCK_H_
 #define XENIA_HIR_BLOCK_H_
 
-#include "poly/arena.h"
+#include "xenia/base/arena.h"
 
 namespace llvm {
 class BitVector;
@@ -46,7 +46,7 @@ class Edge {
 
 class Block {
  public:
-  poly::Arena* arena;
+  Arena* arena;
 
   Block* next;
   Block* prev;

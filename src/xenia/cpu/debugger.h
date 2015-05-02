@@ -15,7 +15,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "poly/delegate.h"
+#include "xenia/base/delegate.h"
 #include "xenia/cpu/thread_state.h"
 
 namespace xe {
@@ -104,7 +104,7 @@ class Debugger {
   void OnBreakpointHit(ThreadState* thread_state, Breakpoint* breakpoint);
 
  public:
-  poly::Delegate<BreakpointHitEvent> breakpoint_hit;
+  Delegate<BreakpointHitEvent> breakpoint_hit;
 
  private:
   Runtime* runtime_;

@@ -11,8 +11,8 @@
 
 #include <sys/mman.h>
 
-#include "poly/assert.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace cpu {
@@ -51,7 +51,7 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
                               size_t stack_size) {
   // Always move the code to land on 16b alignment. We do this by rounding up
   // to 16b so that all offsets are aligned.
-  code_size = poly::round_up(code_size, 16);
+  code_size = xe::round_up(code_size, 16);
 
   lock_.lock();
 

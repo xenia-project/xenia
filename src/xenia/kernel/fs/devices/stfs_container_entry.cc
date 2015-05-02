@@ -16,13 +16,12 @@ namespace kernel {
 namespace fs {
 
 STFSContainerEntry::STFSContainerEntry(Device* device, const char* path,
-                                       poly::MappedMemory* mmap,
+                                       MappedMemory* mmap,
                                        STFSEntry* stfs_entry)
     : Entry(device, path),
       mmap_(mmap),
       stfs_entry_(stfs_entry),
-      it_(stfs_entry_->children.end())
-{ }
+      it_(stfs_entry_->children.end()) {}
 
 STFSContainerEntry::~STFSContainerEntry() = default;
 

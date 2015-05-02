@@ -9,7 +9,7 @@
 
 #include "xenia/ui/win32/win32_loop.h"
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 
 namespace xe {
 namespace ui {
@@ -28,9 +28,9 @@ class PostedFn {
 };
 
 Win32Loop::Win32Loop() : thread_id_(0) {
-  poly::threading::Fence init_fence;
+  xe::threading::Fence init_fence;
   thread_ = std::thread([&]() {
-    poly::threading::set_name("Win32 Loop");
+    xe::threading::set_name("Win32 Loop");
     thread_id_ = GetCurrentThreadId();
 
     // Make a Win32 call to enable the thread queue.

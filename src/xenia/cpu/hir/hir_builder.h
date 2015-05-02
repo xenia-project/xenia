@@ -12,13 +12,13 @@
 
 #include <vector>
 
+#include "xenia/base/arena.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/hir/opcodes.h"
 #include "xenia/cpu/hir/value.h"
-#include "poly/arena.h"
-#include "poly/string_buffer.h"
 
 namespace xe {
 namespace cpu {
@@ -36,10 +36,10 @@ class HIRBuilder {
   virtual void Reset();
   virtual int Finalize();
 
-  void Dump(poly::StringBuffer* str);
+  void Dump(StringBuffer* str);
   void AssertNoCycles();
 
-  poly::Arena* arena() const { return arena_; }
+  Arena* arena() const { return arena_; }
 
   uint32_t attributes() const { return attributes_; }
   void set_attributes(uint32_t value) { attributes_ = value; }
@@ -229,9 +229,8 @@ class HIRBuilder {
   Value* AtomicSub(Value* address, Value* value);
 
  protected:
-  void DumpValue(poly::StringBuffer* str, Value* value);
-  void DumpOp(poly::StringBuffer* str, OpcodeSignatureType sig_type,
-              Instr::Op* op);
+  void DumpValue(StringBuffer* str, Value* value);
+  void DumpOp(StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);
 
   Value* AllocValue(TypeName type = INT64_TYPE);
   Value* CloneValue(Value* source);
@@ -246,7 +245,7 @@ class HIRBuilder {
                          TypeName part_type);
 
  protected:
-  poly::Arena* arena_;
+  Arena* arena_;
 
   uint32_t attributes_;
 

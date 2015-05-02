@@ -9,9 +9,9 @@
 
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 
-#include "poly/assert.h"
-#include "poly/math.h"
-#include "xenia/logging.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace cpu {
@@ -64,11 +64,11 @@ void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
   size_t alloc_size = code_size;
 
   // Add unwind info into the allocation size. Keep things 16b aligned.
-  alloc_size += poly::round_up(X64CodeChunk::UNWIND_INFO_SIZE, 16);
+  alloc_size += xe::round_up(X64CodeChunk::UNWIND_INFO_SIZE, 16);
 
   // Always move the code to land on 16b alignment. We do this by rounding up
   // to 16b so that all offsets are aligned.
-  alloc_size = poly::round_up(alloc_size, 16);
+  alloc_size = xe::round_up(alloc_size, 16);
 
   lock_.lock();
 
@@ -108,7 +108,7 @@ X64CodeChunk::X64CodeChunk(size_t chunk_size)
                                   PAGE_EXECUTE_READWRITE);
 
   fn_table_capacity =
-      static_cast<uint32_t>(poly::round_up(capacity / ESTIMATED_FN_SIZE, 16));
+      static_cast<uint32_t>(xe::round_up(capacity / ESTIMATED_FN_SIZE, 16));
   size_t table_size = fn_table_capacity * sizeof(RUNTIME_FUNCTION);
   fn_table = (RUNTIME_FUNCTION*)malloc(table_size);
   fn_table_count = 0;

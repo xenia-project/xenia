@@ -9,12 +9,12 @@
 
 #include "xenia/gpu/gl4/gl4_shader.h"
 
-#include "poly/cxx_compat.h"
-#include "poly/math.h"
+#include "xenia/base/cxx_compat.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gl4/gl4_shader_translator.h"
 #include "xenia/gpu/gpu-private.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {
@@ -355,8 +355,8 @@ bool GL4Shader::CompileProgram(std::string source) {
 
   // Save to disk, if we asked for it.
   auto base_path = FLAGS_dump_shaders.c_str();
-  char file_name[poly::max_path];
-  snprintf(file_name, poly::countof(file_name), "%s/gl4_gen_%.16llX.%s",
+  char file_name[xe::max_path];
+  snprintf(file_name, xe::countof(file_name), "%s/gl4_gen_%.16llX.%s",
            base_path, data_hash_,
            shader_type_ == ShaderType::kVertex ? "vert" : "frag");
   if (FLAGS_dump_shaders.size()) {

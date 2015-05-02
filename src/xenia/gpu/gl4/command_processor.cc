@@ -11,14 +11,14 @@
 
 #include <algorithm>
 
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 #include "xenia/gpu/gpu-private.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 #include "third_party/xxhash/xxhash.h"
@@ -100,7 +100,7 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
 
   worker_running_ = true;
   worker_thread_ = std::thread([this]() {
-    poly::threading::set_name("GL4 Worker");
+    xe::threading::set_name("GL4 Worker");
     xe::Profiler::ThreadEnter("GL4 Worker");
     WorkerMain();
     xe::Profiler::ThreadExit();
@@ -212,7 +212,7 @@ void CommandProcessor::WorkerMain() {
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.
     if (read_ptr_writeback_ptr_) {
-      poly::store_and_swap<uint32_t>(
+      xe::store_and_swap<uint32_t>(
           memory_->TranslatePhysical(read_ptr_writeback_ptr_), read_ptr_index_);
     }
   }
@@ -488,8 +488,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       // Enabled - write to address.
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
-      poly::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr),
-                                     value);
+      xe::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr), value);
     }
   }
 }
@@ -602,14 +601,14 @@ class CommandProcessor::RingbufferReader {
   uint32_t offset() const { return offset_; }
   bool can_read() const { return ptr_ != end_ptr_; }
 
-  uint32_t Peek() { return poly::load_and_swap<uint32_t>(membase_ + ptr_); }
+  uint32_t Peek() { return xe::load_and_swap<uint32_t>(membase_ + ptr_); }
 
   void CheckRead(uint32_t words) {
     assert_true(ptr_ + words * sizeof(uint32_t) <= end_ptr_);
   }
 
   uint32_t Read() {
-    uint32_t value = poly::load_and_swap<uint32_t>(membase_ + ptr_);
+    uint32_t value = xe::load_and_swap<uint32_t>(membase_ + ptr_);
     Advance(1);
     return value;
   }
@@ -992,7 +991,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
       // Memory.
       auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
       poll_reg_addr &= ~0x3;
-      value = poly::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
+      value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
       value = GpuSwap(value, endianness);
       trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
     } else {
@@ -1095,7 +1094,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
     auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
     trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
-    value = poly::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
+    value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
     value = GpuSwap(value, endianness);
   } else {
     // Register.
@@ -1136,7 +1135,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
       auto endianness = static_cast<Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
       write_data = GpuSwap(write_data, endianness);
-      poly::store(memory_->TranslatePhysical(write_reg_addr), write_data);
+      xe::store(memory_->TranslatePhysical(write_reg_addr), write_data);
       trace_writer_.WriteMemoryWrite(write_reg_addr, 4);
     } else {
       // Register.
@@ -1182,7 +1181,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
   auto endianness = static_cast<Endian>(address & 0x3);
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
-  poly::store(memory_->TranslatePhysical(address), data_value);
+  xe::store(memory_->TranslatePhysical(address), data_value);
   trace_writer_.WriteMemoryWrite(address, 4);
   return true;
 }
@@ -1206,9 +1205,9 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
       1,          // max z
   };
   assert_true(endianness == xenos::Endian::k8in16);
-  poly::copy_and_swap_16_aligned(
+  xe::copy_and_swap_16_aligned(
       reinterpret_cast<uint16_t*>(memory_->TranslatePhysical(address)), extents,
-      poly::countof(extents));
+      xe::countof(extents));
   trace_writer_.WriteMemoryWrite(address, sizeof(extents));
   return true;
 }
@@ -1367,7 +1366,7 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
   }
   trace_writer_.WriteMemoryRead(address, size_dwords * 4);
   for (uint32_t n = 0; n < size_dwords; n++, index++) {
-    uint32_t data = poly::load_and_swap<uint32_t>(
+    uint32_t data = xe::load_and_swap<uint32_t>(
         memory_->TranslatePhysical(address + n * 4));
     WriteRegister(index, data);
   }
@@ -1626,7 +1625,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
   if (!cached_pipeline->handles.default_pipeline) {
     // Perhaps it's a bit wasteful to do all of these, but oh well.
     GLuint pipelines[5];
-    glCreateProgramPipelines(GLsizei(poly::countof(pipelines)), pipelines);
+    glCreateProgramPipelines(GLsizei(xe::countof(pipelines)), pipelines);
 
     glUseProgramStages(pipelines[0], GL_VERTEX_SHADER_BIT, vertex_program);
     glUseProgramStages(pipelines[0], GL_FRAGMENT_SHADER_BIT, fragment_program);
@@ -1748,7 +1747,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
         regs.rb_color3_info,
     };
     // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
-    for (int n = 0; n < poly::countof(color_info); n++) {
+    for (int n = 0; n < xe::countof(color_info); n++) {
       uint32_t write_mask = (regs.rb_color_mask >> (n * 4)) & 0xF;
       if (!write_mask || !shader_targets[n]) {
         // Unused, so keep disabled and set to wildcard so we'll take any
@@ -2133,7 +2132,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
       /*  3 */ GL_MAX,
       /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
   };
-  for (int i = 0; i < poly::countof(regs.rb_blendcontrol); ++i) {
+  for (int i = 0; i < xe::countof(regs.rb_blendcontrol); ++i) {
     uint32_t blend_control = regs.rb_blendcontrol[i];
     // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
     auto src_blend = blend_map[(blend_control & 0x0000001F) >> 0];
@@ -2299,11 +2298,11 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateIndexBuffer() {
     if (info.format == IndexFormat::kInt32) {
       auto dest = reinterpret_cast<uint32_t*>(allocation.host_ptr);
       auto src = memory_->TranslatePhysical<const uint32_t*>(info.guest_base);
-      poly::copy_and_swap_32_aligned(dest, src, info.count);
+      xe::copy_and_swap_32_aligned(dest, src, info.count);
     } else {
       auto dest = reinterpret_cast<uint16_t*>(allocation.host_ptr);
       auto src = memory_->TranslatePhysical<const uint16_t*>(info.guest_base);
-      poly::copy_and_swap_16_aligned(dest, src, info.count);
+      xe::copy_and_swap_16_aligned(dest, src, info.count);
     }
     draw_batcher_.set_index_buffer(allocation);
     scratch_buffer_.Commit(std::move(allocation));
@@ -2354,7 +2353,7 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
       // We could be smart about this to save GPU bandwidth by building a CRC
       // as we copy and only if it differs from the previous value committing
       // it (and if it matches just discard and reuse).
-      poly::copy_and_swap_32_aligned(
+      xe::copy_and_swap_32_aligned(
           reinterpret_cast<uint32_t*>(allocation.host_ptr),
           memory_->TranslatePhysical<const uint32_t*>(fetch->address << 2),
           valid_range / 4);
@@ -2663,8 +2662,8 @@ bool CommandProcessor::IssueCopy() {
   // but I can't seem to find something similar.
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
-  uint32_t dest_block_width = poly::round_up(dest_logical_width, 32);
-  uint32_t dest_block_height = poly::round_up(dest_logical_height, 32);
+  uint32_t dest_block_width = xe::round_up(dest_logical_width, 32);
+  uint32_t dest_block_height = xe::round_up(dest_logical_height, 32);
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
@@ -2700,24 +2699,24 @@ bool CommandProcessor::IssueCopy() {
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
   int32_t dest_min_x = int32_t((std::min(
       std::min(
-          GpuSwap(poly::load<float>(vertex_addr + 0), Endian(fetch->endian)),
-          GpuSwap(poly::load<float>(vertex_addr + 8), Endian(fetch->endian))),
-      GpuSwap(poly::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
+          GpuSwap(xe::load<float>(vertex_addr + 0), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 8), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
   int32_t dest_max_x = int32_t((std::max(
       std::max(
-          GpuSwap(poly::load<float>(vertex_addr + 0), Endian(fetch->endian)),
-          GpuSwap(poly::load<float>(vertex_addr + 8), Endian(fetch->endian))),
-      GpuSwap(poly::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
+          GpuSwap(xe::load<float>(vertex_addr + 0), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 8), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
   int32_t dest_min_y = int32_t((std::min(
       std::min(
-          GpuSwap(poly::load<float>(vertex_addr + 4), Endian(fetch->endian)),
-          GpuSwap(poly::load<float>(vertex_addr + 12), Endian(fetch->endian))),
-      GpuSwap(poly::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+          GpuSwap(xe::load<float>(vertex_addr + 4), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 12), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
   int32_t dest_max_y = int32_t((std::max(
       std::max(
-          GpuSwap(poly::load<float>(vertex_addr + 4), Endian(fetch->endian)),
-          GpuSwap(poly::load<float>(vertex_addr + 12), Endian(fetch->endian))),
-      GpuSwap(poly::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+          GpuSwap(xe::load<float>(vertex_addr + 4), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 12), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
   Rect2D dest_rect(dest_min_x, dest_min_y, dest_max_x - dest_min_x,
                    dest_max_y - dest_min_y);
   Rect2D src_rect(0, 0, dest_rect.width, dest_rect.height);

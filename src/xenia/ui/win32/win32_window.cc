@@ -13,7 +13,7 @@
 #include <tpcshrd.h>
 #include <windowsx.h>
 
-#include "xenia/logging.h"
+#include "xenia/base/logging.h"
 
 namespace xe {
 namespace ui {

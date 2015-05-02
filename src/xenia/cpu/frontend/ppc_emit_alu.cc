@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/frontend/ppc_emit-private.h"
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 

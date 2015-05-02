@@ -11,9 +11,9 @@
 
 #include <gflags/gflags.h>
 
-#include "poly/memory.h"
-#include "poly/string.h"
-#include "xenia/logging.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/memory.h"
+#include "xenia/base/string.h"
 
 DEFINE_string(trace_file, "", "Trace to the given file.");
 DEFINE_uint64(trace_capacity, 0x40000000, "Trace file capacity to allocate.");
@@ -47,7 +47,7 @@ int DebugAgent::Initialize() {
 }
 
 int DebugAgent::SetupTracing(const std::string& trace_file, uint64_t capacity) {
-  auto file_path = poly::to_wstring(trace_file);
+  auto file_path = xe::to_wstring(trace_file);
   file_ = CreateFile(file_path.c_str(), GENERIC_READ | GENERIC_WRITE,
                      FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
                      FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY,
@@ -72,7 +72,7 @@ int DebugAgent::SetupTracing(const std::string& trace_file, uint64_t capacity) {
   }
 
   // Store initial trace base.
-  poly::store<uint64_t>(trace_base_, trace_base() + 8);
+  xe::store<uint64_t>(trace_base_, trace_base() + 8);
 
   return 0;
 }

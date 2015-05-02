@@ -9,7 +9,6 @@
 
 #include <xdb/postmortem_debug_target.h>
 
-#include <poly/poly.h>
 #include <xdb/postmortem_cursor.h>
 #include <xenia/logging.h>
 
@@ -60,8 +59,7 @@ bool PostmortemDebugTarget::LoadTrace(const std::wstring& path,
   // path lookup.
   const uint8_t* ptr = trace_base_ + 8;
   EventType event_type;
-  while ((event_type = poly::load<EventType>(ptr)) !=
-         EventType::END_OF_STREAM) {
+  while ((event_type = xe::load<EventType>(ptr)) != EventType::END_OF_STREAM) {
     switch (event_type) {
       case EventType::PROCESS_START: {
         process_start_event_ = protocol::ProcessStartEvent::Get(ptr);
@@ -80,7 +78,7 @@ bool PostmortemDebugTarget::LoadTrace(const std::wstring& path,
   } else {
     // If no path was provided just use what's in the trace.
     auto trace_content_path =
-        poly::to_wstring(std::string(process_start_event_->launch_path));
+        xe::to_wstring(std::string(process_start_event_->launch_path));
     initialized_filesystem = InitializeFileSystem(trace_content_path);
   }
   if (!initialized_filesystem) {
@@ -101,8 +99,7 @@ bool PostmortemDebugTarget::Prepare(std::atomic<bool>& cancelled) {
 
   const uint8_t* ptr = trace_base_ + 8;
   EventType event_type;
-  while ((event_type = poly::load<EventType>(ptr)) !=
-         EventType::END_OF_STREAM) {
+  while ((event_type = xe::load<EventType>(ptr)) != EventType::END_OF_STREAM) {
     switch (event_type) {
       case EventType::PROCESS_START: {
         assert_true(process_start_event_ ==

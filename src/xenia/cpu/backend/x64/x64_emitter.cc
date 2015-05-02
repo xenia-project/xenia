@@ -9,21 +9,21 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
-#include "poly/assert.h"
-#include "poly/math.h"
-#include "poly/vec128.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
+#include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_thunk_emitter.h"
 #include "xenia/cpu/cpu-private.h"
-#include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/debug_info.h"
+#include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 #include "xdb/protocol.h"
 
@@ -35,10 +35,6 @@ namespace x64 {
 // TODO(benvanik): remove when enums redefined.
 using namespace xe::cpu::hir;
 using namespace xe::cpu;
-
-using poly::vec128b;
-using poly::vec128f;
-using poly::vec128i;
 
 using namespace Xbyak;
 using xe::cpu::hir::HIRBuilder;
@@ -132,13 +128,13 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     auto slot = *it;
     size_t type_size = GetTypeSize(slot->type);
     // Align to natural size.
-    stack_offset = poly::align(stack_offset, type_size);
+    stack_offset = xe::align(stack_offset, type_size);
     slot->set_constant((uint32_t)stack_offset);
     stack_offset += type_size;
   }
   // Ensure 16b alignment.
   stack_offset -= StackLayout::GUEST_STACK_SIZE;
-  stack_offset = poly::align(stack_offset, static_cast<size_t>(16));
+  stack_offset = xe::align(stack_offset, static_cast<size_t>(16));
 
   // Function prolog.
   // Must be 16b aligned.
@@ -536,8 +532,8 @@ uint64_t ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   Asm* table_slot = reinterpret_cast<Asm*>(table_start);
   bool wrote_ic = false;
   for (int i = 0; i < kICSlotCount; ++i) {
-    if (poly::atomic_cas(kICSlotInvalidTargetAddress, addr,
-                         &table_slot->target_constant)) {
+    if (xe::atomic_cas(kICSlotInvalidTargetAddress, addr,
+                       &table_slot->target_constant)) {
       // Got slot! Just write the compare and we're done.
       table_slot->address_constant = static_cast<uint32_t>(target_address);
       wrote_ic = true;

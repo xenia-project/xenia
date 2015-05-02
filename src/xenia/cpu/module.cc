@@ -12,7 +12,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "poly/threading.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/profiling.h"
 
@@ -37,7 +37,7 @@ SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
         do {
           lock_.unlock();
           // TODO(benvanik): sleep for less time?
-          poly::threading::Sleep(std::chrono::microseconds(100));
+          xe::threading::Sleep(std::chrono::microseconds(100));
           lock_.lock();
         } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
       } else {
@@ -70,7 +70,7 @@ SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
       do {
         lock_.unlock();
         // TODO(benvanik): sleep for less time?
-        poly::threading::Sleep(std::chrono::microseconds(100));
+        xe::threading::Sleep(std::chrono::microseconds(100));
         lock_.lock();
       } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
     }
@@ -130,7 +130,7 @@ SymbolInfo::Status Module::DefineSymbol(SymbolInfo* symbol_info) {
     do {
       lock_.unlock();
       // TODO(benvanik): sleep for less time?
-      poly::threading::Sleep(std::chrono::microseconds(100));
+      xe::threading::Sleep(std::chrono::microseconds(100));
       lock_.lock();
     } while (symbol_info->status() == SymbolInfo::STATUS_DEFINING);
     status = symbol_info->status();

@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "poly/platform.h"
+#include "xenia/base/platform.h"
 
 namespace xe {
 

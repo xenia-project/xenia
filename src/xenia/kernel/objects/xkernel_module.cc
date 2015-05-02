@@ -9,10 +9,10 @@
 
 #include "xenia/kernel/objects/xkernel_module.h"
 
-#include "xenia/emulator.h"
+#include "xenia/base/logging.h"
 #include "xenia/cpu/cpu.h"
+#include "xenia/emulator.h"
 #include "xenia/kernel/objects/xthread.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

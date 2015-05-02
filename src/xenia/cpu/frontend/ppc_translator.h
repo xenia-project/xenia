@@ -12,10 +12,10 @@
 
 #include <memory>
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/backend/assembler.h"
 #include "xenia/cpu/compiler/compiler.h"
 #include "xenia/cpu/symbol_info.h"
-#include "poly/string_buffer.h"
 
 namespace xe {
 namespace cpu {
@@ -34,7 +34,7 @@ class PPCTranslator {
                 uint32_t trace_flags, Function** out_function);
 
  private:
-  void DumpSource(FunctionInfo* symbol_info, poly::StringBuffer* string_buffer);
+  void DumpSource(FunctionInfo* symbol_info, StringBuffer* string_buffer);
 
  private:
   PPCFrontend* frontend_;
@@ -43,7 +43,7 @@ class PPCTranslator {
   std::unique_ptr<compiler::Compiler> compiler_;
   std::unique_ptr<backend::Assembler> assembler_;
 
-  poly::StringBuffer string_buffer_;
+  StringBuffer string_buffer_;
 };
 
 }  // namespace frontend

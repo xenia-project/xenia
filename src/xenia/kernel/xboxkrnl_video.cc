@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
@@ -15,7 +16,6 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl_rtl.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -309,7 +309,7 @@ SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
   size_t total_words = 0x1CC / 4;
   uint8_t* p = SHIM_MEM_ADDR(dest_ptr);
   for (size_t i = 0; i < total_words; ++i, p += 4) {
-    poly::store_and_swap(p, 0x80000000);
+    xe::store_and_swap(p, 0x80000000);
   }
 
   // returns memcpy size >> 2 for memcpy(...,...,ret << 2)
@@ -419,13 +419,13 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   // use this method.
   memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
-  dwords[0] = poly::byte_swap((0x3 << 30) | ((63 - 1) << 16) |
-                              (xe::gpu::xenos::PM4_XE_SWAP << 8));
-  dwords[1] = poly::byte_swap(frontbuffer);
+  dwords[0] = xe::byte_swap((0x3 << 30) | ((63 - 1) << 16) |
+                            (xe::gpu::xenos::PM4_XE_SWAP << 8));
+  dwords[1] = xe::byte_swap(frontbuffer);
 
   // Set by VdCallGraphicsNotificationRoutines.
-  dwords[2] = poly::byte_swap(last_frontbuffer_width_);
-  dwords[3] = poly::byte_swap(last_frontbuffer_height_);
+  dwords[2] = xe::byte_swap(last_frontbuffer_width_);
+  dwords[3] = xe::byte_swap(last_frontbuffer_height_);
 
   SHIM_SET_RETURN_64(0);
 }
@@ -468,7 +468,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
       memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalDevice,
                                       pVdGlobalDevice);
-  poly::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
+  xe::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
@@ -476,8 +476,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
       memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping(
       "xboxkrnl.exe", ordinals::VdGlobalXamDevice, pVdGlobalXamDevice);
-  poly::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice),
-                                 0);
+  xe::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice), 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
@@ -485,8 +484,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
       memory->SystemHeapAlloc(4, 32, kSystemHeapPhysical);
   export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGpuClockInMHz,
                                       pVdGpuClockInMHz);
-  poly::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz),
-                                 500);
+  xe::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz), 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.

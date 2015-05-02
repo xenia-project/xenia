@@ -24,13 +24,13 @@
 
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
-#include "poly/assert.h"
-#include "poly/threading.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/runtime.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {
@@ -42,8 +42,6 @@ using namespace Xbyak;
 // TODO(benvanik): direct usings.
 using namespace xe::cpu::hir;
 using namespace xe::cpu;
-
-using poly::vec128b;
 
 typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*, const Instr**);
 std::unordered_multimap<uint32_t, SequenceSelectFn> sequence_table;
@@ -1022,7 +1020,7 @@ EMITTER(LOAD_VECTOR_SHL_I8, MATCH(I<OPCODE_LOAD_VECTOR_SHL, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
-      assert_true(sh < poly::countof(lvsl_table));
+      assert_true(sh < xe::countof(lvsl_table));
       e.mov(e.rax, (uintptr_t)&lvsl_table[sh]);
       e.vmovaps(i.dest, e.ptr[e.rax]);
     } else {
@@ -1066,7 +1064,7 @@ EMITTER(LOAD_VECTOR_SHR_I8, MATCH(I<OPCODE_LOAD_VECTOR_SHR, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
-      assert_true(sh < poly::countof(lvsr_table));
+      assert_true(sh < xe::countof(lvsr_table));
       e.mov(e.rax, (uintptr_t)&lvsr_table[sh]);
       e.vmovaps(i.dest, e.ptr[e.rax]);
     } else {
@@ -1095,7 +1093,7 @@ EMITTER(LOAD_CLOCK, MATCH(I<OPCODE_LOAD_CLOCK, I64<>>)) {
     e.mov(i.dest, e.rax);
   }
   static uint64_t LoadClock(void* raw_context) {
-    return poly::threading::ticks();
+    return xe::threading::ticks();
   }
 };
 EMITTER_OPCODE_TABLE(
@@ -4697,7 +4695,7 @@ EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
     _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
     for (size_t i = 0; i < 16; ++i) {
-      value[i] = poly::rotate_left<uint8_t>(value[i], shamt[i] & 0x7);
+      value[i] = xe::rotate_left<uint8_t>(value[i], shamt[i] & 0x7);
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
@@ -4707,7 +4705,7 @@ EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
     _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
     for (size_t i = 0; i < 8; ++i) {
-      value[i] = poly::rotate_left<uint16_t>(value[i], shamt[i] & 0xF);
+      value[i] = xe::rotate_left<uint16_t>(value[i], shamt[i] & 0xF);
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }

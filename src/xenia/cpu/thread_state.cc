@@ -9,9 +9,9 @@
 
 #include "xenia/cpu/thread_state.h"
 
-#include "poly/assert.h"
-#include "poly/threading.h"
 #include "xdb/protocol.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/runtime.h"
 
 namespace xe {
@@ -36,7 +36,7 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
     // set so people know what's up.
-    uint32_t system_thread_handle = poly::threading::current_thread_id();
+    uint32_t system_thread_handle = xe::threading::current_thread_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
   backend_data_ = runtime->backend()->AllocThreadData();

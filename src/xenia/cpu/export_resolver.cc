@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/export_resolver.h"
 
-#include "poly/assert.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace cpu {

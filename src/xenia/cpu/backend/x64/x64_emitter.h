@@ -10,9 +10,10 @@
 #ifndef XENIA_BACKEND_X64_X64_EMITTER_H_
 #define XENIA_BACKEND_X64_X64_EMITTER_H_
 
-#include "xenia/cpu/hir/value.h"
-#include "poly/arena.h"
 #include "third_party/xbyak/xbyak/xbyak.h"
+
+#include "xenia/base/arena.h"
+#include "xenia/cpu/hir/value.h"
 
 namespace xe {
 namespace cpu {
@@ -31,8 +32,6 @@ namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
-
-using vec128_t = poly::vec128_t;
 
 class X64Backend;
 class X64CodeCache;
@@ -196,7 +195,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   hir::Instr* current_instr_;
 
   size_t source_map_count_;
-  poly::Arena source_map_arena_;
+  Arena source_map_arena_;
 
   size_t stack_size_;
 

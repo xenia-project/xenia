@@ -12,9 +12,9 @@
 
 #include <vector>
 
-#include "poly/mapped_memory.h"
+#include "xenia/base/fs.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/kernel/fs/entry.h"
-#include "poly/fs.h"
 #include "xenia/kernel/fs/gdfx.h"
 
 namespace xe {
@@ -23,11 +23,11 @@ namespace fs {
 
 class DiscImageEntry : public Entry {
  public:
-  DiscImageEntry(Device* device, const char* path, poly::MappedMemory* mmap,
+  DiscImageEntry(Device* device, const char* path, MappedMemory* mmap,
                  GDFXEntry* gdfx_entry);
   ~DiscImageEntry() override;
 
-  poly::MappedMemory* mmap() const { return mmap_; }
+  MappedMemory* mmap() const { return mmap_; }
   GDFXEntry* gdfx_entry() const { return gdfx_entry_; }
 
   X_STATUS QueryInfo(XFileInfo* out_info) override;
@@ -42,10 +42,10 @@ class DiscImageEntry : public Entry {
                 XFile** out_file) override;
 
  private:
-  poly::MappedMemory* mmap_;
+  MappedMemory* mmap_;
   GDFXEntry* gdfx_entry_;
 
-  poly::fs::WildcardEngine find_engine_;
+  xe::fs::WildcardEngine find_engine_;
   GDFXEntry::child_it_t it_;
 };
 

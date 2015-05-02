@@ -12,13 +12,9 @@
 
 #include <string>
 
-#include "poly/memory.h"
+#include "xenia/base/memory.h"
 
 namespace xe {
-
-template <typename T>
-using be = poly::be<T>;
-
 
 #pragma pack(push, 4)
 
@@ -218,35 +214,35 @@ enum X_FILE_INFORMATION_CLASS {
 
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  poly::store_and_swap<uint32_t>(&p[0], value);
+  xe::store_and_swap<uint32_t>(&p[0], value);
 }
 inline void XOverlappedSetLength(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  poly::store_and_swap<uint32_t>(&p[1], value);
+  xe::store_and_swap<uint32_t>(&p[1], value);
 }
 inline uint32_t XOverlappedGetContext(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[2]);
+  return xe::load_and_swap<uint32_t>(&p[2]);
 }
 inline void XOverlappedSetContext(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  poly::store_and_swap<uint32_t>(&p[2], value);
+  xe::store_and_swap<uint32_t>(&p[2], value);
 }
 inline X_HANDLE XOverlappedGetEvent(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[3]);
+  return xe::load_and_swap<uint32_t>(&p[3]);
 }
 inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[4]);
+  return xe::load_and_swap<uint32_t>(&p[4]);
 }
 inline uint32_t XOverlappedGetCompletionContext(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  return poly::load_and_swap<uint32_t>(&p[5]);
+  return xe::load_and_swap<uint32_t>(&p[5]);
 }
 inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
-  poly::store_and_swap<uint32_t>(&p[6], value);
+  xe::store_and_swap<uint32_t>(&p[6], value);
 }
 
 class X_ANSI_STRING {
@@ -263,10 +259,10 @@ public:
     Read(base, p);
   }
   void Read(const uint8_t* base, uint32_t p) {
-    length = poly::load_and_swap<uint16_t>(base + p);
-    maximum_length = poly::load_and_swap<uint16_t>(base + p + 2);
+    length = xe::load_and_swap<uint16_t>(base + p);
+    maximum_length = xe::load_and_swap<uint16_t>(base + p + 2);
     if (maximum_length) {
-      buffer = (const char*)(base + poly::load_and_swap<uint32_t>(base + p + 4));
+      buffer = (const char*)(base + xe::load_and_swap<uint32_t>(base + p + 4));
     } else {
       buffer = 0;
     }

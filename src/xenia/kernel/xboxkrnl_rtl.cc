@@ -11,15 +11,15 @@
 
 #include <algorithm>
 
-#include "poly/atomic.h"
-#include "poly/string.h"
+#include "xenia/base/atomic.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {
@@ -79,7 +79,7 @@ SHIM_CALL RtlCompareMemoryUlong_shim(PPCContext* ppc_state,
   // TODO(benvanik): ensure byte order of pattern is correct.
   // Since we are doing byte-by-byte comparison we may not want to swap.
   // GET_ARG swaps, so this is a swap back. Ugly.
-  const uint32_t pb32 = poly::byte_swap(pattern);
+  const uint32_t pb32 = xe::byte_swap(pattern);
   const uint8_t* pb = (uint8_t*)&pb32;
 
   uint32_t c = 0;
@@ -113,7 +113,7 @@ SHIM_CALL RtlFillMemoryUlong_shim(PPCContext* ppc_state, KernelState* state) {
   // swapped arg value.
 
   uint32_t count = length >> 2;
-  uint32_t native_pattern = poly::byte_swap(pattern);
+  uint32_t native_pattern = xe::byte_swap(pattern);
 
   // TODO: unroll loop?
 
@@ -227,9 +227,9 @@ SHIM_CALL RtlInitUnicodeString_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t destination_ptr = SHIM_GET_ARG_32(0);
   uint32_t source_ptr = SHIM_GET_ARG_32(1);
 
-  auto source =
-      source_ptr ? poly::load_and_swap<std::wstring>(SHIM_MEM_ADDR(source_ptr))
-                 : L"";
+  auto source = source_ptr
+                    ? xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(source_ptr))
+                    : L"";
   XELOGD("RtlInitUnicodeString(%.8X, %.8X = %ls)", destination_ptr, source_ptr,
          source.empty() ? L"<null>" : source.c_str());
 
@@ -286,9 +286,9 @@ SHIM_CALL RtlUnicodeStringToAnsiString_shim(PPCContext* ppc_state,
   // _In_     PCUNICODE_STRING SourceString,
   // _In_     BOOLEAN AllocateDestinationString
 
-  std::wstring unicode_str = poly::load_and_swap<std::wstring>(
+  std::wstring unicode_str = xe::load_and_swap<std::wstring>(
       SHIM_MEM_ADDR(SHIM_MEM_32(source_ptr + 4)));
-  std::string ansi_str = poly::to_string(unicode_str);
+  std::string ansi_str = xe::to_string(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER_2);
     return;
@@ -333,9 +333,9 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(PPCContext* ppc_state,
   // TODO: maybe use MultiByteToUnicode on Win32? would require swapping
 
   for (uint32_t i = 0; i < copy_len; i++) {
-    poly::store_and_swap<uint16_t>(
+    xe::store_and_swap<uint16_t>(
         SHIM_MEM_ADDR(destination_ptr + i * 2),
-        poly::load<uint8_t>(SHIM_MEM_ADDR(source_ptr + i)));
+        xe::load<uint8_t>(SHIM_MEM_ADDR(source_ptr + i)));
   }
 
   if (written_ptr != 0) {
@@ -361,7 +361,7 @@ SHIM_CALL RtlUnicodeToMultiByteN_shim(PPCContext* ppc_state,
   auto source = (uint16_t*)SHIM_MEM_ADDR(source_ptr);
   auto destination = (uint8_t*)SHIM_MEM_ADDR(destination_ptr);
   for (uint32_t i = 0; i < copy_len; i++) {
-    uint16_t c = poly::byte_swap(*source++);
+    uint16_t c = xe::byte_swap(*source++);
     *destination++ = c < 256 ? (uint8_t)c : '?';
   }
 
@@ -552,13 +552,13 @@ SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_state,
 
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
 spin:
-  if (poly::atomic_inc(&cs->lock_count) != 0) {
+  if (xe::atomic_inc(&cs->lock_count) != 0) {
     // If this thread already owns the CS increment the recursion count.
     if (cs->owning_thread_id == thread_id) {
       cs->recursion_count++;
       return;
     }
-    poly::atomic_dec(&cs->lock_count);
+    xe::atomic_dec(&cs->lock_count);
 
     // Thread was locked - spin wait.
     if (spin_wait_remaining) {
@@ -593,13 +593,13 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_state,
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
   uint32_t result = 0;
-  if (poly::atomic_cas(-1, 0, &cs->lock_count)) {
+  if (xe::atomic_cas(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.
     cs->owning_thread_id = thread_id;
     cs->recursion_count = 1;
     result = 1;
   } else if (cs->owning_thread_id == thread_id) {
-    poly::atomic_inc(&cs->lock_count);
+    xe::atomic_inc(&cs->lock_count);
     ++cs->recursion_count;
     result = 1;
   }
@@ -619,13 +619,13 @@ SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_state,
   // Drop recursion count - if we are still not zero'ed return.
   uint32_t recursion_count = --cs->recursion_count;
   if (recursion_count) {
-    poly::atomic_dec(&cs->lock_count);
+    xe::atomic_dec(&cs->lock_count);
     return;
   }
 
   // Unlock!
   cs->owning_thread_id = 0;
-  if (poly::atomic_dec(&cs->lock_count) != -1) {
+  if (xe::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
     // TODO(benvanik): wake a waiter.
     XELOGE("RtlLeaveCriticalSection would have woken a waiter");

@@ -11,7 +11,7 @@
 
 #include "xenia/kernel/fs/gdfx.h"
 
-#include "poly/math.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace kernel {
@@ -29,8 +29,8 @@ GDFXEntry::~GDFXEntry() {
   }
 }
 
-GDFXEntry* GDFXEntry::GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it)
-{
+GDFXEntry* GDFXEntry::GetChild(const xe::fs::WildcardEngine& engine,
+                               child_it_t& ref_it) {
   GDFXEntry* child_entry(nullptr);
   while (ref_it != children.end()) {
     if (engine.Match((*ref_it)->name)) {
@@ -64,7 +64,7 @@ void GDFXEntry::Dump(int indent) {
   }
 }
 
-GDFX::GDFX(poly::MappedMemory* mmap) : mmap_(mmap) { root_entry_ = nullptr; }
+GDFX::GDFX(MappedMemory* mmap) : mmap_(mmap) { root_entry_ = nullptr; }
 
 GDFX::~GDFX() { delete root_entry_; }
 
@@ -101,7 +101,7 @@ GDFX::Error GDFX::Verify(ParseState& state) {
       0x00000000, 0x0000FB20, 0x00020600, 0x0FD90000,
   };
   bool magic_found = false;
-  for (size_t n = 0; n < poly::countof(likely_offsets); n++) {
+  for (size_t n = 0; n < xe::countof(likely_offsets); n++) {
     state.game_offset = likely_offsets[n];
     if (VerifyMagic(state, state.game_offset + (32 * kXESectorSize))) {
       magic_found = true;
@@ -118,8 +118,8 @@ GDFX::Error GDFX::Verify(ParseState& state) {
     return kErrorReadError;
   }
   uint8_t* fs_ptr = state.ptr + state.game_offset + (32 * kXESectorSize);
-  state.root_sector = poly::load<uint32_t>(fs_ptr + 20);
-  state.root_size = poly::load<uint32_t>(fs_ptr + 24);
+  state.root_sector = xe::load<uint32_t>(fs_ptr + 20);
+  state.root_size = xe::load<uint32_t>(fs_ptr + 24);
   state.root_offset = state.game_offset + (state.root_sector * kXESectorSize);
   if (state.root_size < 13 || state.root_size > 32 * 1024 * 1024) {
     return kErrorDamagedFile;
@@ -152,12 +152,12 @@ bool GDFX::ReadEntry(ParseState& state, const uint8_t* buffer,
                      uint16_t entry_ordinal, GDFXEntry* parent) {
   const uint8_t* p = buffer + (entry_ordinal * 4);
 
-  uint16_t node_l = poly::load<uint16_t>(p + 0);
-  uint16_t node_r = poly::load<uint16_t>(p + 2);
-  size_t sector = poly::load<uint32_t>(p + 4);
-  size_t length = poly::load<uint32_t>(p + 8);
-  uint8_t attributes = poly::load<uint8_t>(p + 12);
-  uint8_t name_length = poly::load<uint8_t>(p + 13);
+  uint16_t node_l = xe::load<uint16_t>(p + 0);
+  uint16_t node_r = xe::load<uint16_t>(p + 2);
+  size_t sector = xe::load<uint32_t>(p + 4);
+  size_t length = xe::load<uint32_t>(p + 8);
+  uint8_t attributes = xe::load<uint8_t>(p + 12);
+  uint8_t name_length = xe::load<uint8_t>(p + 13);
   char* name = (char*)(p + 14);
 
   if (node_l && !ReadEntry(state, buffer, node_l, parent)) {

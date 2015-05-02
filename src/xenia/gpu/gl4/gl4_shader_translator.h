@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "poly/string_buffer.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/ucode.h"
@@ -41,7 +41,7 @@ class GL4ShaderTranslator {
   const uint32_t* dwords_;
 
   static const int kOutputCapacity = 64 * 1024;
-  poly::StringBuffer output_;
+  StringBuffer output_;
 
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }

@@ -11,9 +11,9 @@
 
 #include <algorithm>
 
-#include "poly/assert.h"
-#include "poly/math.h"
-#include "xenia/logging.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -61,7 +61,7 @@ RegisterAllocationPass::RegisterAllocationPass(const MachineInfo* machine_info)
 }
 
 RegisterAllocationPass::~RegisterAllocationPass() {
-  for (size_t n = 0; n < poly::countof(usage_sets_.all_sets); n++) {
+  for (size_t n = 0; n < xe::countof(usage_sets_.all_sets); n++) {
     if (!usage_sets_.all_sets[n]) {
       break;
     }
@@ -175,7 +175,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
 void RegisterAllocationPass::DumpUsage(const char* name) {
 #if 0
   fprintf(stdout, "\n%s:\n", name);
-  for (size_t i = 0; i < poly::countof(usage_sets_.all_sets); ++i) {
+  for (size_t i = 0; i < xe::countof(usage_sets_.all_sets); ++i) {
     auto usage_set = usage_sets_.all_sets[i];
     if (usage_set) {
       fprintf(stdout, "set %s:\n", usage_set->set->name);
@@ -194,7 +194,7 @@ void RegisterAllocationPass::DumpUsage(const char* name) {
 }
 
 void RegisterAllocationPass::PrepareBlockState() {
-  for (size_t i = 0; i < poly::countof(usage_sets_.all_sets); ++i) {
+  for (size_t i = 0; i < xe::countof(usage_sets_.all_sets); ++i) {
     auto usage_set = usage_sets_.all_sets[i];
     if (usage_set) {
       usage_set->availability.set();
@@ -205,7 +205,7 @@ void RegisterAllocationPass::PrepareBlockState() {
 }
 
 void RegisterAllocationPass::AdvanceUses(Instr* instr) {
-  for (size_t i = 0; i < poly::countof(usage_sets_.all_sets); ++i) {
+  for (size_t i = 0; i < xe::countof(usage_sets_.all_sets); ++i) {
     auto usage_set = usage_sets_.all_sets[i];
     if (!usage_set) {
       break;
@@ -310,7 +310,7 @@ bool RegisterAllocationPass::TryAllocateRegister(Value* value) {
   // Find the first free register, if any.
   // We have to ensure it's a valid one (in our count).
   uint32_t first_unused = 0;
-  bool none_used = poly::bit_scan_forward(
+  bool none_used = xe::bit_scan_forward(
       static_cast<uint32_t>(usage_set->availability.to_ulong()), &first_unused);
   if (none_used && first_unused < usage_set->count) {
     // Available! Use it!

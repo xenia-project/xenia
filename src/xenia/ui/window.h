@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "poly/delegate.h"
+#include "xenia/base/delegate.h"
 #include "xenia/ui/control.h"
 #include "xenia/ui/ui_event.h"
 
@@ -46,10 +46,10 @@ class Window : public T {
   }
 
  public:
-  poly::Delegate<UIEvent> on_shown;
-  poly::Delegate<UIEvent> on_hidden;
-  poly::Delegate<UIEvent> on_closing;
-  poly::Delegate<UIEvent> on_closed;
+  Delegate<UIEvent> on_shown;
+  Delegate<UIEvent> on_hidden;
+  Delegate<UIEvent> on_closing;
+  Delegate<UIEvent> on_closed;
 
  protected:
   Window(const std::wstring& title) : T(0), title_(title) {}

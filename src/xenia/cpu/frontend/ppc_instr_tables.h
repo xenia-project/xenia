@@ -12,84 +12,84 @@
 
 #include <cmath>
 
-#include "poly/math.h"
-#include "poly/string_buffer.h"
+#include "xenia/base/math.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
 
 namespace xe {
 namespace cpu {
 namespace frontend {
 
-void Disasm_0(InstrData& i, poly::StringBuffer* str);
-void Disasm__(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_FRT_FRB(InstrData& i, poly::StringBuffer* str);
-void Disasm_A_FRT_FRB(InstrData& i, poly::StringBuffer* str);
-void Disasm_A_FRT_FRA_FRB(InstrData& i, poly::StringBuffer* str);
-void Disasm_A_FRT_FRA_FRB_FRC(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_RT_RA_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_RT_RA0_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_FRT_RA_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_FRT_RA0_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_D_RT_RA_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_D_RT_RA0_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_D_FRT_RA_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_D_FRT_RA0_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_DS_RT_RA_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_DS_RT_RA0_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_D_RA(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_RA_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_XO_RT_RA_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_XO_RT_RA(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_RA_RT_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_D_RA_RT_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_RA_RT(InstrData& i, poly::StringBuffer* str);
-void Disasm_X_VX_RA0_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX1281_VD_RA0_RB(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX1283_VD_VB(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX1283_VD_VB_I(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX_VD_VA_VB(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX128_VD_VA_VB(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX128_VD_VA_VD_VB(InstrData& i, poly::StringBuffer* str);
-void Disasm_VX1282_VD_VA_VB_VC(InstrData& i, poly::StringBuffer* str);
-void Disasm_VXA_VD_VA_VB_VC(InstrData& i, poly::StringBuffer* str);
+void Disasm_0(InstrData& i, StringBuffer* str);
+void Disasm__(InstrData& i, StringBuffer* str);
+void Disasm_X_FRT_FRB(InstrData& i, StringBuffer* str);
+void Disasm_A_FRT_FRB(InstrData& i, StringBuffer* str);
+void Disasm_A_FRT_FRA_FRB(InstrData& i, StringBuffer* str);
+void Disasm_A_FRT_FRA_FRB_FRC(InstrData& i, StringBuffer* str);
+void Disasm_X_RT_RA_RB(InstrData& i, StringBuffer* str);
+void Disasm_X_RT_RA0_RB(InstrData& i, StringBuffer* str);
+void Disasm_X_FRT_RA_RB(InstrData& i, StringBuffer* str);
+void Disasm_X_FRT_RA0_RB(InstrData& i, StringBuffer* str);
+void Disasm_D_RT_RA_I(InstrData& i, StringBuffer* str);
+void Disasm_D_RT_RA0_I(InstrData& i, StringBuffer* str);
+void Disasm_D_FRT_RA_I(InstrData& i, StringBuffer* str);
+void Disasm_D_FRT_RA0_I(InstrData& i, StringBuffer* str);
+void Disasm_DS_RT_RA_I(InstrData& i, StringBuffer* str);
+void Disasm_DS_RT_RA0_I(InstrData& i, StringBuffer* str);
+void Disasm_D_RA(InstrData& i, StringBuffer* str);
+void Disasm_X_RA_RB(InstrData& i, StringBuffer* str);
+void Disasm_XO_RT_RA_RB(InstrData& i, StringBuffer* str);
+void Disasm_XO_RT_RA(InstrData& i, StringBuffer* str);
+void Disasm_X_RA_RT_RB(InstrData& i, StringBuffer* str);
+void Disasm_D_RA_RT_I(InstrData& i, StringBuffer* str);
+void Disasm_X_RA_RT(InstrData& i, StringBuffer* str);
+void Disasm_X_VX_RA0_RB(InstrData& i, StringBuffer* str);
+void Disasm_VX1281_VD_RA0_RB(InstrData& i, StringBuffer* str);
+void Disasm_VX1283_VD_VB(InstrData& i, StringBuffer* str);
+void Disasm_VX1283_VD_VB_I(InstrData& i, StringBuffer* str);
+void Disasm_VX_VD_VA_VB(InstrData& i, StringBuffer* str);
+void Disasm_VX128_VD_VA_VB(InstrData& i, StringBuffer* str);
+void Disasm_VX128_VD_VA_VD_VB(InstrData& i, StringBuffer* str);
+void Disasm_VX1282_VD_VA_VB_VC(InstrData& i, StringBuffer* str);
+void Disasm_VXA_VD_VA_VB_VC(InstrData& i, StringBuffer* str);
 
-void Disasm_sync(InstrData& i, poly::StringBuffer* str);
-void Disasm_dcbf(InstrData& i, poly::StringBuffer* str);
-void Disasm_dcbz(InstrData& i, poly::StringBuffer* str);
-void Disasm_fcmp(InstrData& i, poly::StringBuffer* str);
+void Disasm_sync(InstrData& i, StringBuffer* str);
+void Disasm_dcbf(InstrData& i, StringBuffer* str);
+void Disasm_dcbz(InstrData& i, StringBuffer* str);
+void Disasm_fcmp(InstrData& i, StringBuffer* str);
 
-void Disasm_bx(InstrData& i, poly::StringBuffer* str);
-void Disasm_bcx(InstrData& i, poly::StringBuffer* str);
-void Disasm_bcctrx(InstrData& i, poly::StringBuffer* str);
-void Disasm_bclrx(InstrData& i, poly::StringBuffer* str);
+void Disasm_bx(InstrData& i, StringBuffer* str);
+void Disasm_bcx(InstrData& i, StringBuffer* str);
+void Disasm_bcctrx(InstrData& i, StringBuffer* str);
+void Disasm_bclrx(InstrData& i, StringBuffer* str);
 
-void Disasm_mfcr(InstrData& i, poly::StringBuffer* str);
-void Disasm_mfspr(InstrData& i, poly::StringBuffer* str);
-void Disasm_mtspr(InstrData& i, poly::StringBuffer* str);
-void Disasm_mftb(InstrData& i, poly::StringBuffer* str);
-void Disasm_mfmsr(InstrData& i, poly::StringBuffer* str);
-void Disasm_mtmsr(InstrData& i, poly::StringBuffer* str);
+void Disasm_mfcr(InstrData& i, StringBuffer* str);
+void Disasm_mfspr(InstrData& i, StringBuffer* str);
+void Disasm_mtspr(InstrData& i, StringBuffer* str);
+void Disasm_mftb(InstrData& i, StringBuffer* str);
+void Disasm_mfmsr(InstrData& i, StringBuffer* str);
+void Disasm_mtmsr(InstrData& i, StringBuffer* str);
 
-void Disasm_cmp(InstrData& i, poly::StringBuffer* str);
-void Disasm_cmpi(InstrData& i, poly::StringBuffer* str);
-void Disasm_cmpli(InstrData& i, poly::StringBuffer* str);
+void Disasm_cmp(InstrData& i, StringBuffer* str);
+void Disasm_cmpi(InstrData& i, StringBuffer* str);
+void Disasm_cmpli(InstrData& i, StringBuffer* str);
 
-void Disasm_rld(InstrData& i, poly::StringBuffer* str);
-void Disasm_rlwim(InstrData& i, poly::StringBuffer* str);
-void Disasm_rlwnmx(InstrData& i, poly::StringBuffer* str);
-void Disasm_srawix(InstrData& i, poly::StringBuffer* str);
-void Disasm_sradix(InstrData& i, poly::StringBuffer* str);
+void Disasm_rld(InstrData& i, StringBuffer* str);
+void Disasm_rlwim(InstrData& i, StringBuffer* str);
+void Disasm_rlwnmx(InstrData& i, StringBuffer* str);
+void Disasm_srawix(InstrData& i, StringBuffer* str);
+void Disasm_sradix(InstrData& i, StringBuffer* str);
 
-void Disasm_vpermwi128(InstrData& i, poly::StringBuffer* str);
-void Disasm_vrfin128(InstrData& i, poly::StringBuffer* str);
-void Disasm_vrlimi128(InstrData& i, poly::StringBuffer* str);
-void Disasm_vsldoi128(InstrData& i, poly::StringBuffer* str);
-void Disasm_vspltb(InstrData& i, poly::StringBuffer* str);
-void Disasm_vsplth(InstrData& i, poly::StringBuffer* str);
-void Disasm_vspltw(InstrData& i, poly::StringBuffer* str);
-void Disasm_vspltisb(InstrData& i, poly::StringBuffer* str);
-void Disasm_vspltish(InstrData& i, poly::StringBuffer* str);
-void Disasm_vspltisw(InstrData& i, poly::StringBuffer* str);
+void Disasm_vpermwi128(InstrData& i, StringBuffer* str);
+void Disasm_vrfin128(InstrData& i, StringBuffer* str);
+void Disasm_vrlimi128(InstrData& i, StringBuffer* str);
+void Disasm_vsldoi128(InstrData& i, StringBuffer* str);
+void Disasm_vspltb(InstrData& i, StringBuffer* str);
+void Disasm_vsplth(InstrData& i, StringBuffer* str);
+void Disasm_vspltw(InstrData& i, StringBuffer* str);
+void Disasm_vspltisb(InstrData& i, StringBuffer* str);
+void Disasm_vspltish(InstrData& i, StringBuffer* str);
+void Disasm_vspltisw(InstrData& i, StringBuffer* str);
 
 namespace tables {
 
@@ -364,7 +364,7 @@ static InstrType instr_table_4_unprep[] = {
                 "Vector Logical XOR"),
 };
 static InstrType** instr_table_4 = instr_table_prep(
-    instr_table_4_unprep, poly::countof(instr_table_4_unprep), 0, 11);
+    instr_table_4_unprep, xe::countof(instr_table_4_unprep), 0, 11);
 
 // Opcode = 19, index = bits 10-1 (10)
 static InstrType instr_table_19_unprep[] = {
@@ -384,7 +384,7 @@ static InstrType instr_table_19_unprep[] = {
                 "Branch Conditional to Count Register"),
 };
 static InstrType** instr_table_19 = instr_table_prep(
-    instr_table_19_unprep, poly::countof(instr_table_19_unprep), 1, 10);
+    instr_table_19_unprep, xe::countof(instr_table_19_unprep), 1, 10);
 
 // Opcode = 30, index = bits 4-1 (4)
 static InstrType instr_table_30_unprep[] = {
@@ -400,7 +400,7 @@ static InstrType instr_table_30_unprep[] = {
     // INSTRUCTION(rldcrx,         0x78000012, MDS, General        , 0),
 };
 static InstrType** instr_table_30 = instr_table_prep(
-    instr_table_30_unprep, poly::countof(instr_table_30_unprep), 0, 0);
+    instr_table_30_unprep, xe::countof(instr_table_30_unprep), 0, 0);
 
 // Opcode = 31, index = bits 10-1 (10)
 static InstrType instr_table_31_unprep[] = {
@@ -651,7 +651,7 @@ static InstrType instr_table_31_unprep[] = {
                 "Store Vector Right Indexed LRU"),
 };
 static InstrType** instr_table_31 = instr_table_prep(
-    instr_table_31_unprep, poly::countof(instr_table_31_unprep), 1, 10);
+    instr_table_31_unprep, xe::countof(instr_table_31_unprep), 1, 10);
 
 // Opcode = 58, index = bits 1-0 (2)
 static InstrType instr_table_58_unprep[] = {
@@ -662,7 +662,7 @@ static InstrType instr_table_58_unprep[] = {
                 "Load Word Algebraic"),
 };
 static InstrType** instr_table_58 = instr_table_prep(
-    instr_table_58_unprep, poly::countof(instr_table_58_unprep), 0, 1);
+    instr_table_58_unprep, xe::countof(instr_table_58_unprep), 0, 1);
 
 // Opcode = 59, index = bits 5-1 (5)
 static InstrType instr_table_59_unprep[] = {
@@ -688,7 +688,7 @@ static InstrType instr_table_59_unprep[] = {
                 "Floating Negative Multiply-Add [Single]"),
 };
 static InstrType** instr_table_59 = instr_table_prep(
-    instr_table_59_unprep, poly::countof(instr_table_59_unprep), 1, 5);
+    instr_table_59_unprep, xe::countof(instr_table_59_unprep), 1, 5);
 
 // Opcode = 62, index = bits 1-0 (2)
 static InstrType instr_table_62_unprep[] = {
@@ -697,7 +697,7 @@ static InstrType instr_table_62_unprep[] = {
                 "Store Doubleword with Update"),
 };
 static InstrType** instr_table_62 = instr_table_prep(
-    instr_table_62_unprep, poly::countof(instr_table_62_unprep), 0, 1);
+    instr_table_62_unprep, xe::countof(instr_table_62_unprep), 0, 1);
 
 // Opcode = 63, index = bits 10-1 (10)
 // NOTE: the A format instructions need some special handling because
@@ -757,7 +757,7 @@ static InstrType instr_table_63_unprep[] = {
                 "Floating Convert From Integer Doubleword"),
 };
 static InstrType** instr_table_63 = instr_table_prep_63(
-    instr_table_63_unprep, poly::countof(instr_table_63_unprep), 1, 10);
+    instr_table_63_unprep, xe::countof(instr_table_63_unprep), 1, 10);
 
 // Main table, index = bits 31-26 (6) : (code >> 26)
 static InstrType instr_table_unprep[64] = {
@@ -837,7 +837,7 @@ static InstrType instr_table_unprep[64] = {
                 "Store Floating-Point Double with Update"),
 };
 static InstrType** instr_table = instr_table_prep(
-    instr_table_unprep, poly::countof(instr_table_unprep), 26, 31);
+    instr_table_unprep, xe::countof(instr_table_unprep), 26, 31);
 
 // Altivec instructions.
 // TODO(benvanik): build a table like the other instructions.

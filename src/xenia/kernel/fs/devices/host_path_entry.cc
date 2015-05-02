@@ -9,8 +9,8 @@
 
 #include "xenia/kernel/fs/devices/host_path_entry.h"
 
-#include "poly/mapped_memory.h"
-#include "poly/string.h"
+#include "xenia/base/mapped_memory.h"
+#include "xenia/base/string.h"
 #include "xenia/kernel/fs/devices/host_path_file.h"
 
 namespace xe {
@@ -19,11 +19,11 @@ namespace fs {
 
 class HostPathMemoryMapping : public MemoryMapping {
  public:
-  HostPathMemoryMapping(std::unique_ptr<poly::MappedMemory> mmap)
+  HostPathMemoryMapping(std::unique_ptr<MappedMemory> mmap)
       : MemoryMapping(mmap->data(), mmap->size()), mmap_(std::move(mmap)) {}
 
  private:
-  std::unique_ptr<poly::MappedMemory> mmap_;
+  std::unique_ptr<MappedMemory> mmap_;
 };
 
 HostPathEntry::HostPathEntry(Device* device, const char* path,
@@ -75,9 +75,9 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
   if (handle == INVALID_HANDLE_VALUE) {
     std::wstring target_path = local_path_;
     if (!file_name) {
-      target_path = poly::join_paths(target_path, L"*");
+      target_path = xe::join_paths(target_path, L"*");
     } else {
-      target_path = poly::join_paths(target_path, poly::to_wstring(file_name));
+      target_path = xe::join_paths(target_path, xe::to_wstring(file_name));
     }
     handle = find_file_ = FindFirstFile(target_path.c_str(), &ffd);
     if (handle == INVALID_HANDLE_VALUE) {
@@ -124,10 +124,9 @@ X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
 
 std::unique_ptr<MemoryMapping> HostPathEntry::CreateMemoryMapping(
     Mode map_mode, const size_t offset, const size_t length) {
-  auto mmap = poly::MappedMemory::Open(
-      local_path_,
-      map_mode == Mode::READ ? poly::MappedMemory::Mode::kRead
-                             : poly::MappedMemory::Mode::kReadWrite,
+  auto mmap = MappedMemory::Open(
+      local_path_, map_mode == Mode::READ ? MappedMemory::Mode::kRead
+                                          : MappedMemory::Mode::kReadWrite,
       offset, length);
   if (!mmap) {
     return nullptr;

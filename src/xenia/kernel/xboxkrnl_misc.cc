@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {

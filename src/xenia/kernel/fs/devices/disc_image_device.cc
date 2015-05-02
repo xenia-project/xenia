@@ -9,10 +9,10 @@
 
 #include "xenia/kernel/fs/devices/disc_image_device.h"
 
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/kernel/fs/gdfx.h"
 #include "xenia/kernel/fs/devices/disc_image_entry.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {
@@ -25,8 +25,7 @@ DiscImageDevice::DiscImageDevice(const std::string& path,
 DiscImageDevice::~DiscImageDevice() { delete gdfx_; }
 
 int DiscImageDevice::Init() {
-  mmap_ =
-      poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::kRead);
+  mmap_ = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
     return 1;
@@ -54,7 +53,7 @@ std::unique_ptr<Entry> DiscImageDevice::ResolvePath(const char* path) {
   GDFXEntry* gdfx_entry = gdfx_->root_entry();
 
   // Walk the path, one separator at a time.
-  auto path_parts = poly::split_path(path);
+  auto path_parts = xe::split_path(path);
   for (auto& part : path_parts) {
     gdfx_entry = gdfx_entry->GetChild(part.c_str());
     if (!gdfx_entry) {

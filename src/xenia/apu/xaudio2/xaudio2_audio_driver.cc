@@ -10,8 +10,8 @@
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
 #include "xenia/apu/apu-private.h"
+#include "xenia/base/logging.h"
 #include "xenia/emulator.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace apu {
@@ -131,7 +131,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   for (int index = 0, o = 0; index < channel_samples_; ++index) {
     for (int channel = 0, table = 0; channel < interleave_channels;
          ++channel, table += channel_samples_) {
-      output_frame[o++] = poly::byte_swap(input_frame[table + index]);
+      output_frame[o++] = xe::byte_swap(input_frame[table + index]);
     }
   }
 

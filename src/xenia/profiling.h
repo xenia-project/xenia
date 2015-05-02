@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include "poly/string.h"
+#include "xenia/base/string.h"
 
 #define XE_OPTION_PROFILING 1
 #if XE_PLATFORM_WIN32

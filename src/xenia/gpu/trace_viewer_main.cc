@@ -9,17 +9,18 @@
 
 #include <gflags/gflags.h>
 
-#include "poly/main.h"
-#include "poly/mapped_memory.h"
-#include "poly/math.h"
 #include "third_party/imgui/imgui.h"
+
+#include "xenia/base/logging.h"
+#include "xenia/base/main.h"
+#include "xenia/base/mapped_memory.h"
+#include "xenia/base/math.h"
+#include "xenia/emulator.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/tracing.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/emulator.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/main_window.h"
 
@@ -100,7 +101,7 @@ bool DisasmPacketType0(const uint8_t* base_ptr, uint32_t packet,
   uint32_t base_index = (packet & 0x7FFF);
   uint32_t write_one_reg = (packet >> 15) & 0x1;
   for (uint32_t m = 0; m < count; m++) {
-    uint32_t reg_data = poly::load_and_swap<uint32_t>(ptr);
+    uint32_t reg_data = xe::load_and_swap<uint32_t>(ptr);
     uint32_t target_index = write_one_reg ? base_index : base_index + m;
     out_info->actions.emplace_back(
         PacketAction::RegisterWrite(target_index, reg_data));
@@ -120,8 +121,8 @@ bool DisasmPacketType1(const uint8_t* base_ptr, uint32_t packet,
 
   uint32_t reg_index_1 = packet & 0x7FF;
   uint32_t reg_index_2 = (packet >> 11) & 0x7FF;
-  uint32_t reg_data_1 = poly::load_and_swap<uint32_t>(ptr);
-  uint32_t reg_data_2 = poly::load_and_swap<uint32_t>(ptr + 4);
+  uint32_t reg_data_1 = xe::load_and_swap<uint32_t>(ptr);
+  uint32_t reg_data_2 = xe::load_and_swap<uint32_t>(ptr + 4);
   out_info->actions.emplace_back(
       PacketAction::RegisterWrite(reg_index_1, reg_data_1));
   out_info->actions.emplace_back(
@@ -177,7 +178,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_INTERRUPT"};
       out_info->type_info = &op_info;
-      uint32_t cpu_mask = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t cpu_mask = xe::load_and_swap<uint32_t>(ptr + 0);
       for (int n = 0; n < 6; n++) {
         if (cpu_mask & (1 << n)) {
           // graphics_system_->DispatchInterruptCallback(1, n);
@@ -193,7 +194,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kSwap,
                                              "PM4_XE_SWAP"};
       out_info->type_info = &op_info;
-      uint32_t frontbuffer_ptr = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t frontbuffer_ptr = xe::load_and_swap<uint32_t>(ptr + 0);
       break;
     }
     case PM4_INDIRECT_BUFFER: {
@@ -201,8 +202,8 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_INDIRECT_BUFFER"};
       out_info->type_info = &op_info;
-      uint32_t list_ptr = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t list_length = poly::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t list_ptr = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t list_length = xe::load_and_swap<uint32_t>(ptr + 4);
       break;
     }
     case PM4_WAIT_REG_MEM: {
@@ -210,11 +211,11 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_WAIT_REG_MEM"};
       out_info->type_info = &op_info;
-      uint32_t wait_info = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t poll_reg_addr = poly::load_and_swap<uint32_t>(ptr + 4);
-      uint32_t ref = poly::load_and_swap<uint32_t>(ptr + 8);
-      uint32_t mask = poly::load_and_swap<uint32_t>(ptr + 12);
-      uint32_t wait = poly::load_and_swap<uint32_t>(ptr + 16);
+      uint32_t wait_info = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t poll_reg_addr = xe::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t ref = xe::load_and_swap<uint32_t>(ptr + 8);
+      uint32_t mask = xe::load_and_swap<uint32_t>(ptr + 12);
+      uint32_t wait = xe::load_and_swap<uint32_t>(ptr + 16);
       break;
     }
     case PM4_REG_RMW: {
@@ -223,9 +224,9 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_REG_RMW"};
       out_info->type_info = &op_info;
-      uint32_t rmw_info = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t and_mask = poly::load_and_swap<uint32_t>(ptr + 4);
-      uint32_t or_mask = poly::load_and_swap<uint32_t>(ptr + 8);
+      uint32_t rmw_info = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t and_mask = xe::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t or_mask = xe::load_and_swap<uint32_t>(ptr + 8);
       break;
     }
     case PM4_COND_WRITE: {
@@ -233,12 +234,12 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_COND_WRITE"};
       out_info->type_info = &op_info;
-      uint32_t wait_info = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t poll_reg_addr = poly::load_and_swap<uint32_t>(ptr + 4);
-      uint32_t ref = poly::load_and_swap<uint32_t>(ptr + 8);
-      uint32_t mask = poly::load_and_swap<uint32_t>(ptr + 12);
-      uint32_t write_reg_addr = poly::load_and_swap<uint32_t>(ptr + 16);
-      uint32_t write_data = poly::load_and_swap<uint32_t>(ptr + 20);
+      uint32_t wait_info = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t poll_reg_addr = xe::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t ref = xe::load_and_swap<uint32_t>(ptr + 8);
+      uint32_t mask = xe::load_and_swap<uint32_t>(ptr + 12);
+      uint32_t write_reg_addr = xe::load_and_swap<uint32_t>(ptr + 16);
+      uint32_t write_data = xe::load_and_swap<uint32_t>(ptr + 20);
       break;
     }
     case PM4_EVENT_WRITE: {
@@ -246,7 +247,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_EVENT_WRITE"};
       out_info->type_info = &op_info;
-      uint32_t initiator = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t initiator = xe::load_and_swap<uint32_t>(ptr + 0);
       break;
     }
     case PM4_EVENT_WRITE_SHD: {
@@ -254,9 +255,9 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_EVENT_WRITE_SHD"};
       out_info->type_info = &op_info;
-      uint32_t initiator = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t address = poly::load_and_swap<uint32_t>(ptr + 4);
-      uint32_t value = poly::load_and_swap<uint32_t>(ptr + 8);
+      uint32_t initiator = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t address = xe::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t value = xe::load_and_swap<uint32_t>(ptr + 8);
       break;
     }
     case PM4_EVENT_WRITE_EXT: {
@@ -264,8 +265,8 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_EVENT_WRITE_EXT"};
       out_info->type_info = &op_info;
-      uint32_t unk0 = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t unk1 = poly::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t unk0 = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t unk1 = xe::load_and_swap<uint32_t>(ptr + 4);
       break;
     }
     case PM4_DRAW_INDX: {
@@ -274,15 +275,15 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kDraw,
                                              "PM4_DRAW_INDX"};
       out_info->type_info = &op_info;
-      uint32_t dword0 = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t dword1 = poly::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t dword0 = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t dword1 = xe::load_and_swap<uint32_t>(ptr + 4);
       uint32_t index_count = dword1 >> 16;
       auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
       uint32_t src_sel = (dword1 >> 6) & 0x3;
       if (src_sel == 0x0) {
         // Indexed draw.
-        uint32_t guest_base = poly::load_and_swap<uint32_t>(ptr + 8);
-        uint32_t index_size = poly::load_and_swap<uint32_t>(ptr + 12);
+        uint32_t guest_base = xe::load_and_swap<uint32_t>(ptr + 8);
+        uint32_t index_size = xe::load_and_swap<uint32_t>(ptr + 12);
         auto endianness = static_cast<Endian>(index_size >> 30);
         index_size &= 0x00FFFFFF;
         bool index_32bit = (dword1 >> 11) & 0x1;
@@ -300,7 +301,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kDraw,
                                              "PM4_DRAW_INDX_2"};
       out_info->type_info = &op_info;
-      uint32_t dword0 = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t dword0 = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t index_count = dword0 >> 16;
       auto prim_type = static_cast<PrimitiveType>(dword0 & 0x3F);
       uint32_t src_sel = (dword0 >> 6) & 0x3;
@@ -317,7 +318,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_CONSTANT"};
       out_info->type_info = &op_info;
-      uint32_t offset_type = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t offset_type = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t index = offset_type & 0x7FF;
       uint32_t type = (offset_type >> 16) & 0xFF;
       switch (type) {
@@ -342,7 +343,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
           break;
       }
       for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = poly::load_and_swap<uint32_t>(ptr + 4 + n * 4);
+        uint32_t data = xe::load_and_swap<uint32_t>(ptr + 4 + n * 4);
         out_info->actions.emplace_back(
             PacketAction::RegisterWrite(index, data));
       }
@@ -352,10 +353,10 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_CONSTANT2"};
       out_info->type_info = &op_info;
-      uint32_t offset_type = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t offset_type = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t index = offset_type & 0xFFFF;
       for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = poly::load_and_swap<uint32_t>(ptr + 4 + n * 4);
+        uint32_t data = xe::load_and_swap<uint32_t>(ptr + 4 + n * 4);
         out_info->actions.emplace_back(
             PacketAction::RegisterWrite(index, data));
       }
@@ -367,11 +368,11 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_LOAD_ALU_CONSTANT"};
       out_info->type_info = &op_info;
-      uint32_t address = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t address = xe::load_and_swap<uint32_t>(ptr + 0);
       address &= 0x3FFFFFFF;
-      uint32_t offset_type = poly::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t offset_type = xe::load_and_swap<uint32_t>(ptr + 4);
       uint32_t index = offset_type & 0x7FF;
-      uint32_t size_dwords = poly::load_and_swap<uint32_t>(ptr + 8);
+      uint32_t size_dwords = xe::load_and_swap<uint32_t>(ptr + 8);
       size_dwords &= 0xFFF;
       uint32_t type = (offset_type >> 16) & 0xFF;
       switch (type) {
@@ -396,7 +397,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       }
       for (uint32_t n = 0; n < size_dwords; n++, index++) {
         // Hrm, ?
-        // poly::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
+        // xe::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
         uint32_t data = 0xDEADBEEF;
         out_info->actions.emplace_back(
             PacketAction::RegisterWrite(index, data));
@@ -407,10 +408,10 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_SHADER_CONSTANTS"};
       out_info->type_info = &op_info;
-      uint32_t offset_type = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t offset_type = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t index = offset_type & 0xFFFF;
       for (uint32_t n = 0; n < count - 1; n++, index++) {
-        uint32_t data = poly::load_and_swap<uint32_t>(ptr + 4 + n * 4);
+        uint32_t data = xe::load_and_swap<uint32_t>(ptr + 4 + n * 4);
         out_info->actions.emplace_back(
             PacketAction::RegisterWrite(index, data));
       }
@@ -421,10 +422,10 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_IM_LOAD"};
       out_info->type_info = &op_info;
-      uint32_t addr_type = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t addr_type = xe::load_and_swap<uint32_t>(ptr + 0);
       auto shader_type = static_cast<ShaderType>(addr_type & 0x3);
       uint32_t addr = addr_type & ~0x3;
-      uint32_t start_size = poly::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t start_size = xe::load_and_swap<uint32_t>(ptr + 4);
       uint32_t start = start_size >> 16;
       uint32_t size_dwords = start_size & 0xFFFF;  // dwords
       assert_true(start == 0);
@@ -435,8 +436,8 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_IM_LOAD_IMMEDIATE"};
       out_info->type_info = &op_info;
-      uint32_t dword0 = poly::load_and_swap<uint32_t>(ptr + 0);
-      uint32_t dword1 = poly::load_and_swap<uint32_t>(ptr + 4);
+      uint32_t dword0 = xe::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t dword1 = xe::load_and_swap<uint32_t>(ptr + 4);
       auto shader_type = static_cast<ShaderType>(dword0);
       uint32_t start_size = dword1;
       uint32_t start = start_size >> 16;
@@ -449,14 +450,14 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_INVALIDATE_STATE"};
       out_info->type_info = &op_info;
-      uint32_t mask = poly::load_and_swap<uint32_t>(ptr + 0);
+      uint32_t mask = xe::load_and_swap<uint32_t>(ptr + 0);
       break;
     }
     case PM4_SET_BIN_MASK_LO: {
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_BIN_MASK_LO"};
       out_info->type_info = &op_info;
-      uint32_t value = poly::load_and_swap<uint32_t>(ptr);
+      uint32_t value = xe::load_and_swap<uint32_t>(ptr);
       // bin_mask_ = (bin_mask_ & 0xFFFFFFFF00000000ull) | value;
       out_info->actions.emplace_back(PacketAction::SetBinMask(value));
       break;
@@ -465,7 +466,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_BIN_MASK_HI"};
       out_info->type_info = &op_info;
-      uint32_t value = poly::load_and_swap<uint32_t>(ptr);
+      uint32_t value = xe::load_and_swap<uint32_t>(ptr);
       // bin_mask_ =
       //  (bin_mask_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       break;
@@ -474,7 +475,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_BIN_SELECT_LO"};
       out_info->type_info = &op_info;
-      uint32_t value = poly::load_and_swap<uint32_t>(ptr);
+      uint32_t value = xe::load_and_swap<uint32_t>(ptr);
       // bin_select_ = (bin_select_ & 0xFFFFFFFF00000000ull) | value;
       out_info->actions.emplace_back(PacketAction::SetBinSelect(value));
       break;
@@ -483,7 +484,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_SET_BIN_SELECT_HI"};
       out_info->type_info = &op_info;
-      uint32_t value = poly::load_and_swap<uint32_t>(ptr);
+      uint32_t value = xe::load_and_swap<uint32_t>(ptr);
       // bin_select_ =
       //  (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       break;
@@ -513,7 +514,7 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
 bool DisasmPacket(const uint8_t* base_ptr, PacketInfo* out_info) {
   std::memset(out_info, 0, sizeof(PacketInfo));
 
-  const uint32_t packet = poly::load_and_swap<uint32_t>(base_ptr);
+  const uint32_t packet = xe::load_and_swap<uint32_t>(base_ptr);
   const uint32_t packet_type = packet >> 30;
   switch (packet_type) {
     case 0x00:
@@ -531,7 +532,7 @@ bool DisasmPacket(const uint8_t* base_ptr, PacketInfo* out_info) {
 }
 
 PacketCategory GetPacketCategory(const uint8_t* base_ptr) {
-  const uint32_t packet = poly::load_and_swap<uint32_t>(base_ptr);
+  const uint32_t packet = xe::load_and_swap<uint32_t>(base_ptr);
   const uint32_t packet_type = packet >> 30;
   switch (packet_type) {
     case 0x00:
@@ -597,7 +598,7 @@ class TraceReader {
   bool Open(const std::wstring& path) {
     Close();
 
-    mmap_ = poly::MappedMemory::Open(path, poly::MappedMemory::Mode::kRead);
+    mmap_ = MappedMemory::Open(path, MappedMemory::Mode::kRead);
     if (!mmap_) {
       return false;
     }
@@ -658,8 +659,7 @@ class TraceReader {
     bool pending_break = false;
     while (trace_ptr < trace_data_ + trace_size_) {
       ++current_frame.command_count;
-      auto type =
-          static_cast<TraceCommandType>(poly::load<uint32_t>(trace_ptr));
+      auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
       switch (type) {
         case TraceCommandType::kPrimaryBufferStart: {
           auto cmd =
@@ -759,7 +759,7 @@ class TraceReader {
     }
   }
 
-  std::unique_ptr<poly::MappedMemory> mmap_;
+  std::unique_ptr<MappedMemory> mmap_;
   const uint8_t* trace_data_;
   size_t trace_size_;
   std::vector<Frame> frames_;
@@ -1266,8 +1266,8 @@ void DrawVertexFetcher(const Memory* memory, gl4::GL4Shader* shader,
     const uint8_t* vstart = addr + i * desc.stride_words * 4;
     for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
       const auto& el = desc.elements[el_index];
-#define LOADEL(type, wo)                                         \
-  GpuSwap(poly::load<type>(vstart + (el.offset_words + wo) * 4), \
+#define LOADEL(type, wo)                                       \
+  GpuSwap(xe::load<type>(vstart + (el.offset_words + wo) * 4), \
           Endian(fetch->endian))
       switch (el.format) {
         case VertexFormat::k_32:
@@ -1402,7 +1402,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
   auto frame = player.current_frame();
   const auto& command = frame->commands[player.current_command_index()];
   auto packet_head = command.head_ptr + sizeof(PacketStartCommand);
-  uint32_t packet = poly::load_and_swap<uint32_t>(packet_head);
+  uint32_t packet = xe::load_and_swap<uint32_t>(packet_head);
   uint32_t packet_type = packet >> 30;
   assert_true(packet_type == 0x03);
   uint32_t opcode = (packet >> 8) & 0x7F;
@@ -1418,8 +1418,8 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
   std::memset(&draw_info, 0, sizeof(draw_info));
   switch (opcode) {
     case PM4_DRAW_INDX: {
-      uint32_t dword0 = poly::load_and_swap<uint32_t>(packet_head + 4);
-      uint32_t dword1 = poly::load_and_swap<uint32_t>(packet_head + 8);
+      uint32_t dword0 = xe::load_and_swap<uint32_t>(packet_head + 4);
+      uint32_t dword1 = xe::load_and_swap<uint32_t>(packet_head + 8);
       draw_info.index_count = dword1 >> 16;
       draw_info.prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
       uint32_t src_sel = (dword1 >> 6) & 0x3;
@@ -1427,8 +1427,8 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
         // Indexed draw.
         draw_info.is_auto_index = false;
         draw_info.index_buffer_ptr =
-            poly::load_and_swap<uint32_t>(packet_head + 12);
-        uint32_t index_size = poly::load_and_swap<uint32_t>(packet_head + 16);
+            xe::load_and_swap<uint32_t>(packet_head + 12);
+        uint32_t index_size = xe::load_and_swap<uint32_t>(packet_head + 16);
         draw_info.index_endianness = static_cast<Endian>(index_size >> 30);
         index_size &= 0x00FFFFFF;
         bool index_32bit = (dword1 >> 11) & 0x1;
@@ -1445,7 +1445,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
       break;
     }
     case PM4_DRAW_INDX_2: {
-      uint32_t dword0 = poly::load_and_swap<uint32_t>(packet_head + 4);
+      uint32_t dword0 = xe::load_and_swap<uint32_t>(packet_head + 4);
       uint32_t src_sel = (dword0 >> 6) & 0x3;
       assert_true(src_sel == 0x2);  // 'SrcSel=AutoIndex'
       draw_info.prim_type = static_cast<PrimitiveType>(dword0 & 0x3F);
@@ -1654,7 +1654,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
           regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
       };
       ImGui::Columns(2);
-      for (int i = 0; i < poly::countof(color_info); ++i) {
+      for (int i = 0; i < xe::countof(color_info); ++i) {
         uint32_t blend_control = rb_blendcontrol[i];
         // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
         auto src_blend = (blend_control & 0x0000001F) >> 0;
@@ -1711,7 +1711,7 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
       ImGui::Columns(1);
 
       ImGui::Columns(4);
-      for (int i = 0; i < poly::countof(color_info); ++i) {
+      for (int i = 0; i < xe::countof(color_info); ++i) {
         uint32_t write_mask = (rb_color_mask >> (i * 4)) & 0xF;
         uint32_t color_base = color_info[i] & 0xFFF;
         auto color_format =
@@ -1883,9 +1883,9 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
         }
         ImGui::NextColumn();
         uint32_t value = element_size == 4
-                             ? GpuSwap(poly::load<uint32_t>(data_ptr),
+                             ? GpuSwap(xe::load<uint32_t>(data_ptr),
                                        draw_info.index_endianness)
-                             : GpuSwap(poly::load<uint16_t>(data_ptr),
+                             : GpuSwap(xe::load<uint16_t>(data_ptr),
                                        draw_info.index_endianness);
         ImGui::Text(" %d", value);
         ImGui::NextColumn();
@@ -2047,7 +2047,7 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
   const PacketStartCommand* pending_packet = nullptr;
   auto trace_ptr = start_ptr;
   while (trace_ptr < end_ptr) {
-    auto type = static_cast<TraceCommandType>(poly::load<uint32_t>(trace_ptr));
+    auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
         auto cmd =
@@ -2190,17 +2190,17 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
       // Passed as a named argument.
       // TODO(benvanik): find something better than gflags that supports
       // unicode.
-      path = poly::to_wstring(FLAGS_target_trace_file);
+      path = xe::to_wstring(FLAGS_target_trace_file);
     } else {
       // Passed as an unnamed argument.
       path = args[1];
     }
     // Normalize the path and make absolute.
-    auto abs_path = poly::to_absolute_path(path);
+    auto abs_path = xe::to_absolute_path(path);
 
     auto window = emulator->main_window();
     auto loop = window->loop();
-    auto file_name = poly::find_name_from_path(path);
+    auto file_name = xe::find_name_from_path(path);
     window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
 
     auto graphics_system = emulator->graphics_system();
@@ -2265,10 +2265,10 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
         imgui_setup = true;
       }
       auto& io = ImGui::GetIO();
-      auto current_ticks = poly::threading::ticks();
+      auto current_ticks = xe::threading::ticks();
       static uint64_t last_ticks = 0;
       io.DeltaTime = (current_ticks - last_ticks) /
-                     float(poly::threading::ticks_per_second());
+                     float(xe::threading::ticks_per_second());
       last_ticks = current_ticks;
 
       io.DisplaySize =

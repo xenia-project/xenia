@@ -93,7 +93,7 @@ class PostmortemCursor::Executor {
       return;
     }
     while (!exit_signal) {
-      auto event_type = poly::load<EventType>(trace_ptr_);
+      auto event_type = xe::load<EventType>(trace_ptr_);
       switch (event_type) {
         case EventType::END_OF_STREAM: {
           eof_= true;

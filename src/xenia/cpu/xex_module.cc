@@ -11,13 +11,13 @@
 
 #include <algorithm>
 
-#include "poly/byte_order.h"
-#include "poly/math.h"
-#include "poly/memory.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/runtime.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace cpu {
@@ -111,12 +111,12 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (kernel_export) {
       if (info->thunk_address) {
-        snprintf(name, poly::countof(name), "__imp_%s", kernel_export->name);
+        snprintf(name, xe::countof(name), "__imp_%s", kernel_export->name);
       } else {
-        snprintf(name, poly::countof(name), "%s", kernel_export->name);
+        snprintf(name, xe::countof(name), "%s", kernel_export->name);
       }
     } else {
-      snprintf(name, poly::countof(name), "__imp_%s_%.3X", library->name,
+      snprintf(name, xe::countof(name), "__imp_%s_%.3X", library->name,
                info->ordinal);
     }
 
@@ -134,20 +134,20 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       if (kernel_export->type == KernelExport::Function) {
         // Not exactly sure what this should be...
         if (info->thunk_address) {
-          *slot = poly::byte_swap(info->thunk_address);
+          *slot = xe::byte_swap(info->thunk_address);
         } else {
           // TODO(benvanik): find out what import variables are.
           XELOGW("kernel import variable not defined %.8X %s",
                  info->value_address, kernel_export->name);
-          *slot = poly::byte_swap(0xF00DF00D);
+          *slot = xe::byte_swap(0xF00DF00D);
         }
       } else {
         if (kernel_export->is_implemented) {
           // Implemented - replace with pointer.
-          poly::store_and_swap<uint32_t>(slot, kernel_export->variable_ptr);
+          xe::store_and_swap<uint32_t>(slot, kernel_export->variable_ptr);
         } else {
           // Not implemented - write with a dummy value.
-          poly::store_and_swap<uint32_t>(
+          xe::store_and_swap<uint32_t>(
               slot, 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
           XELOGCPU("WARNING: imported a variable with no value: %s",
                    kernel_export->name);
@@ -157,9 +157,9 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
     if (info->thunk_address) {
       if (kernel_export) {
-        snprintf(name, poly::countof(name), "%s", kernel_export->name);
+        snprintf(name, xe::countof(name), "%s", kernel_export->name);
       } else {
-        snprintf(name, poly::countof(name), "__kernel_%s_%.3X", library->name,
+        snprintf(name, xe::countof(name), "__kernel_%s_%.3X", library->name,
                  info->ordinal);
       }
 
@@ -178,10 +178,10 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       //     nop
       //     nop
       uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
-      poly::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
-      poly::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
-      poly::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
-      poly::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
+      xe::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
+      xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
+      xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
+      xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
 
       FunctionInfo::ExternHandler handler = 0;
       void* handler_data = 0;
@@ -390,17 +390,17 @@ int XexModule::FindSaveRest() {
       if (!gplr_start) {
         gplr_start = memory_->SearchAligned(start_address, end_address,
                                             gprlr_code_values,
-                                            poly::countof(gprlr_code_values));
+                                            xe::countof(gprlr_code_values));
       }
       if (!fpr_start) {
         fpr_start =
             memory_->SearchAligned(start_address, end_address, fpr_code_values,
-                                   poly::countof(fpr_code_values));
+                                   xe::countof(fpr_code_values));
       }
       if (!vmx_start) {
         vmx_start =
             memory_->SearchAligned(start_address, end_address, vmx_code_values,
-                                   poly::countof(vmx_code_values));
+                                   xe::countof(vmx_code_values));
       }
       if (gplr_start && fpr_start && vmx_start) {
         break;
@@ -414,7 +414,7 @@ int XexModule::FindSaveRest() {
   if (gplr_start) {
     uint32_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, poly::countof(name), "__savegprlr_%d", n);
+      snprintf(name, xe::countof(name), "__savegprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 2 * 4);
@@ -427,7 +427,7 @@ int XexModule::FindSaveRest() {
     }
     address = gplr_start + 20 * 4;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, poly::countof(name), "__restgprlr_%d", n);
+      snprintf(name, xe::countof(name), "__restgprlr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 3 * 4);
@@ -442,7 +442,7 @@ int XexModule::FindSaveRest() {
   if (fpr_start) {
     uint32_t address = fpr_start;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, poly::countof(name), "__savefpr_%d", n);
+      snprintf(name, xe::countof(name), "__savefpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -455,7 +455,7 @@ int XexModule::FindSaveRest() {
     }
     address = fpr_start + (18 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, poly::countof(name), "__restfpr_%d", n);
+      snprintf(name, xe::countof(name), "__restfpr_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
@@ -475,7 +475,7 @@ int XexModule::FindSaveRest() {
     // 64-127 rest
     uint32_t address = vmx_start;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, poly::countof(name), "__savevmx_%d", n);
+      snprintf(name, xe::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -487,7 +487,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      snprintf(name, poly::countof(name), "__savevmx_%d", n);
+      snprintf(name, xe::countof(name), "__savevmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -499,7 +499,7 @@ int XexModule::FindSaveRest() {
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, poly::countof(name), "__restvmx_%d", n);
+      snprintf(name, xe::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);
@@ -511,7 +511,7 @@ int XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      snprintf(name, poly::countof(name), "__restvmx_%d", n);
+      snprintf(name, xe::countof(name), "__restvmx_%d", n);
       FunctionInfo* symbol_info;
       DeclareFunction(address, &symbol_info);
       symbol_info->set_name(name);

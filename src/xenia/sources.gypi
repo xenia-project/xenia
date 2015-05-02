@@ -5,8 +5,6 @@
     'debug_agent.h',
     'emulator.cc',
     'emulator.h',
-    'logging.cc',
-    'logging.h',
     'memory.cc',
     'memory.h',
     'profiling.cc',
@@ -17,6 +15,7 @@
 
   'includes': [
     'apu/sources.gypi',
+    'base/sources.gypi',
     'cpu/sources.gypi',
     'gpu/sources.gypi',
     'hid/sources.gypi',

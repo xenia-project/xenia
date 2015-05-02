@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/constant_propagation_pass.h"
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/profiling.h"

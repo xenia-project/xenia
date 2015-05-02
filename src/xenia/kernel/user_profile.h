@@ -51,8 +51,8 @@ class UserProfile {
     virtual size_t extra_size() const { return 0; }
     virtual size_t Append(uint8_t* user_data, uint8_t* buffer,
                           size_t buffer_offset) {
-      poly::store_and_swap<uint8_t>(user_data + kTypeOffset,
-                                    static_cast<uint8_t>(type));
+      xe::store_and_swap<uint8_t>(user_data + kTypeOffset,
+                                  static_cast<uint8_t>(type));
       return buffer_offset;
     }
     bool is_title_specific() const { return (setting_id & 0x3F00) == 0x3F00; }
@@ -69,7 +69,7 @@ class UserProfile {
     size_t Append(uint8_t* user_data, uint8_t* buffer,
                   size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
-      poly::store_and_swap<int32_t>(user_data + kValueOffset, value);
+      xe::store_and_swap<int32_t>(user_data + kValueOffset, value);
       return buffer_offset;
     }
   };
@@ -80,7 +80,7 @@ class UserProfile {
     size_t Append(uint8_t* user_data, uint8_t* buffer,
                   size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
-      poly::store_and_swap<int64_t>(user_data + kValueOffset, value);
+      xe::store_and_swap<int64_t>(user_data + kValueOffset, value);
       return buffer_offset;
     }
   };
@@ -91,7 +91,7 @@ class UserProfile {
     size_t Append(uint8_t* user_data, uint8_t* buffer,
                   size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
-      poly::store_and_swap<double>(user_data + kValueOffset, value);
+      xe::store_and_swap<double>(user_data + kValueOffset, value);
       return buffer_offset;
     }
   };
@@ -108,13 +108,13 @@ class UserProfile {
       int32_t length;
       if (value.empty()) {
         length = 0;
-        poly::store_and_swap<int32_t>(user_data + kValueOffset, 0);
-        poly::store_and_swap<uint32_t>(user_data + kPointerOffset, 0);
+        xe::store_and_swap<int32_t>(user_data + kValueOffset, 0);
+        xe::store_and_swap<uint32_t>(user_data + kPointerOffset, 0);
       } else {
         length = 2 * (static_cast<int32_t>(value.size()) + 1);
-        poly::store_and_swap<int32_t>(user_data + kValueOffset, length);
-        poly::store_and_swap<uint32_t>(user_data + kPointerOffset,
-                                       static_cast<uint32_t>(buffer_offset));
+        xe::store_and_swap<int32_t>(user_data + kValueOffset, length);
+        xe::store_and_swap<uint32_t>(user_data + kPointerOffset,
+                                     static_cast<uint32_t>(buffer_offset));
         memcpy(buffer + buffer_offset, value.data(), length);
       }
       return buffer_offset + length;
@@ -127,7 +127,7 @@ class UserProfile {
     size_t Append(uint8_t* user_data, uint8_t* buffer,
                   size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
-      poly::store_and_swap<float>(user_data + kValueOffset, value);
+      xe::store_and_swap<float>(user_data + kValueOffset, value);
       return buffer_offset;
     }
   };
@@ -144,13 +144,13 @@ class UserProfile {
       int32_t length;
       if (value.empty()) {
         length = 0;
-        poly::store_and_swap<int32_t>(user_data + kValueOffset, 0);
-        poly::store_and_swap<int32_t>(user_data + kPointerOffset, 0);
+        xe::store_and_swap<int32_t>(user_data + kValueOffset, 0);
+        xe::store_and_swap<int32_t>(user_data + kPointerOffset, 0);
       } else {
         length = static_cast<int32_t>(value.size());
-        poly::store_and_swap<int32_t>(user_data + kValueOffset, length);
-        poly::store_and_swap<uint32_t>(user_data + kPointerOffset,
-                                       static_cast<uint32_t>(buffer_offset));
+        xe::store_and_swap<int32_t>(user_data + kValueOffset, length);
+        xe::store_and_swap<uint32_t>(user_data + kPointerOffset,
+                                     static_cast<uint32_t>(buffer_offset));
         memcpy(buffer + buffer_offset, value.data(), length);
       }
       return buffer_offset + length;
@@ -163,7 +163,7 @@ class UserProfile {
     size_t Append(uint8_t* user_data, uint8_t* buffer,
                   size_t buffer_offset) override {
       buffer_offset = Setting::Append(user_data, buffer, buffer_offset);
-      poly::store_and_swap<int64_t>(user_data + kValueOffset, value);
+      xe::store_and_swap<int64_t>(user_data + kValueOffset, value);
       return buffer_offset;
     }
   };

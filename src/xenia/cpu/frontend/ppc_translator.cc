@@ -9,10 +9,10 @@
 
 #include "xenia/cpu/frontend/ppc_translator.h"
 
-#include "poly/assert.h"
-#include "poly/byte_order.h"
-#include "poly/memory.h"
-#include "poly/reset_scope.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/base/memory.h"
+#include "xenia/base/reset_scope.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
@@ -92,10 +92,10 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   SCOPE_profile_cpu_f("cpu");
 
   // Reset() all caching when we leave.
-  poly::make_reset_scope(builder_);
-  poly::make_reset_scope(compiler_);
-  poly::make_reset_scope(assembler_);
-  poly::make_reset_scope(&string_buffer_);
+  xe::make_reset_scope(builder_);
+  xe::make_reset_scope(compiler_);
+  xe::make_reset_scope(assembler_);
+  xe::make_reset_scope(&string_buffer_);
 
   // Scan the function to find its extents. We only need to do this if we
   // haven't already been provided with them from some other source.
@@ -176,7 +176,7 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
 };
 
 void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
-                               poly::StringBuffer* string_buffer) {
+                               StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
 
   string_buffer->Append("%s fn %.8X-%.8X %s\n",
@@ -193,7 +193,7 @@ void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
   for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
 

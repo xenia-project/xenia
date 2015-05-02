@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include "poly/delegate.h"
+#include "xenia/base/delegate.h"
 #include "xenia/ui/ui_event.h"
 
 namespace xe {
@@ -39,7 +39,7 @@ class MenuItem {
   void AddChild(MenuItemPtr child_item);
   void RemoveChild(MenuItem* child_item);
 
-  poly::Delegate<UIEvent> on_selected;
+  Delegate<UIEvent> on_selected;
 
  protected:
   MenuItem(Type type);

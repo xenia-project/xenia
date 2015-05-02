@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 #include "xenia/gpu/ucode.h"
 #include "xenia/gpu/xenos.h"
 

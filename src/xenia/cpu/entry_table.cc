@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/entry_table.h"
 
-#include "poly/threading.h"
+#include "xenia/base/threading.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -53,7 +53,7 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
       do {
         lock_.unlock();
         // TODO(benvanik): sleep for less time?
-        poly::threading::Sleep(std::chrono::microseconds(10));
+        xe::threading::Sleep(std::chrono::microseconds(10));
         lock_.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }

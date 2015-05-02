@@ -203,87 +203,6 @@
 
   'targets': [
     {
-      'target_name': 'libpoly',
-      'product_name': 'libpoly',
-      'type': 'static_library',
-
-      'dependencies': [
-        'gflags',
-      ],
-
-      'conditions': [
-        ['OS == "mac"', {
-          'xcode_settings': {
-            'OTHER_CFLAGS': [
-              '-fno-operator-names',
-            ],
-          },
-        }],
-        ['OS == "linux"', {
-          'cflags': [
-            '-fno-operator-names',
-          ],
-        }],
-      ],
-
-      'export_dependent_settings': [
-        'gflags',
-      ],
-
-      'direct_dependent_settings': {
-        'include_dirs': [
-          'src/',
-        ],
-
-        'target_conditions': [
-          ['_type=="shared_library"', {
-            'cflags': [
-            ],
-          }],
-          ['_type=="executable"', {
-            'conditions': [
-              ['OS == "win"', {
-                'libraries': [
-                  'kernel32',
-                  'user32',
-                  'ole32',
-                  'ntdll',
-                  'advapi32',
-                  'Shell32',
-                ],
-              }],
-              ['OS == "mac"', {
-                'xcode_settings': {
-                  'OTHER_LDFLAGS': [
-                  ],
-                },
-              }],
-              ['OS == "linux"', {
-                'libraries': [
-                  '-lpthread',
-                  '-ldl',
-                ],
-              }],
-            ],
-          }],
-        ],
-      },
-
-      'cflags': [
-      ],
-
-      'include_dirs': [
-        '.',
-        'src/',
-        '<(INTERMEDIATE_DIR)',
-      ],
-
-      'includes': [
-        'src/poly/sources.gypi',
-      ],
-    },
-
-    {
       'target_name': 'libxenia',
       'product_name': 'libxenia',
       'type': 'static_library',
@@ -293,7 +212,6 @@
         'gflags',
         'glew',
         'llvm',
-        'libpoly',
         'xxhash',
       ],
       'export_dependent_settings': [
@@ -301,7 +219,6 @@
         'gflags',
         'glew',
         'llvm',
-        'libpoly',
         'xxhash',
       ],
 
@@ -331,6 +248,7 @@
                   'glu32',
                   'opengl32',
                   'gdi32',
+                  'ntdll',
                 ],
               }],
               ['OS == "mac"', {

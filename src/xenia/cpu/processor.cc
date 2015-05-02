@@ -9,14 +9,14 @@
 
 #include "xenia/cpu/processor.h"
 
-#include "poly/atomic.h"
-#include "poly/byte_order.h"
-#include "poly/memory.h"
+#include "xenia/base/atomic.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/cpu/xex_module.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -151,13 +151,13 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
 
 Irql Processor::RaiseIrql(Irql new_value) {
   return static_cast<Irql>(
-      poly::atomic_exchange(static_cast<uint32_t>(new_value),
-                            reinterpret_cast<volatile uint32_t*>(&irql_)));
+      xe::atomic_exchange(static_cast<uint32_t>(new_value),
+                          reinterpret_cast<volatile uint32_t*>(&irql_)));
 }
 
 void Processor::LowerIrql(Irql old_value) {
-  poly::atomic_exchange(static_cast<uint32_t>(old_value),
-                        reinterpret_cast<volatile uint32_t*>(&irql_));
+  xe::atomic_exchange(static_cast<uint32_t>(old_value),
+                      reinterpret_cast<volatile uint32_t*>(&irql_));
 }
 
 uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint32_t address,
@@ -168,7 +168,7 @@ uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint32_t address,
   std::lock_guard<std::mutex> lock(interrupt_thread_lock_);
 
   // Set 0x10C(r13) to the current CPU ID.
-  poly::store_and_swap<uint8_t>(
+  xe::store_and_swap<uint8_t>(
       memory_->TranslateVirtual(interrupt_thread_block_ + 0x10C), cpu);
 
   // Execute interrupt.

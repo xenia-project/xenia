@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/raw_module.h"
 
-#include "poly/platform.h"
-#include "poly/string.h"
+#include "xenia/base/platform.h"
+#include "xenia/base/string.h"
 
 namespace xe {
 namespace cpu {
@@ -21,7 +21,7 @@ RawModule::RawModule(Runtime* runtime)
 RawModule::~RawModule() {}
 
 int RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
-  auto fixed_path = poly::to_string(poly::fix_path_separators(path));
+  auto fixed_path = xe::to_string(xe::fix_path_separators(path));
   FILE* file = fopen(fixed_path.c_str(), "rb");
   fseek(file, 0, SEEK_END);
   uint32_t file_length = static_cast<uint32_t>(ftell(file));
@@ -39,7 +39,7 @@ int RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   fclose(file);
 
   // Setup debug info.
-  auto last_slash = fixed_path.find_last_of(poly::path_separator);
+  auto last_slash = fixed_path.find_last_of(xe::path_separator);
   if (last_slash != std::string::npos) {
     name_ = fixed_path.substr(last_slash + 1);
   } else {

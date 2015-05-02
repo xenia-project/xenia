@@ -73,7 +73,7 @@ void XObject::SetAttributes(const uint8_t* obj_attrs_ptr) {
     return;
   }
 
-  uint32_t name_str_ptr = poly::load_and_swap<uint32_t>(obj_attrs_ptr + 4);
+  uint32_t name_str_ptr = xe::load_and_swap<uint32_t>(obj_attrs_ptr + 4);
   if (name_str_ptr) {
     X_ANSI_STRING name_str(memory()->virtual_membase(), name_str_ptr);
     name_ = name_str.to_string();
@@ -157,19 +157,19 @@ void XObject::SetNativePointer(uint32_t native_ptr) {
   auto header_be =
       kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
   DISPATCH_HEADER header;
-  header.type_flags = poly::byte_swap(header_be->type_flags);
-  header.signal_state = poly::byte_swap(header_be->signal_state);
-  header.wait_list_flink = poly::byte_swap(header_be->wait_list_flink);
-  header.wait_list_blink = poly::byte_swap(header_be->wait_list_blink);
+  header.type_flags = xe::byte_swap(header_be->type_flags);
+  header.signal_state = xe::byte_swap(header_be->signal_state);
+  header.wait_list_flink = xe::byte_swap(header_be->wait_list_flink);
+  header.wait_list_blink = xe::byte_swap(header_be->wait_list_blink);
 
   assert_true(!(header.wait_list_blink & 0x1));
 
   // Stash pointer in struct.
   uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
   object_ptr |= 0x1;
-  header_be->wait_list_flink = poly::byte_swap((uint32_t)(object_ptr >> 32));
+  header_be->wait_list_flink = xe::byte_swap((uint32_t)(object_ptr >> 32));
   header_be->wait_list_blink =
-      poly::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
+      xe::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
 }
 
 XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
@@ -187,10 +187,10 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
 
   DISPATCH_HEADER* header_be = (DISPATCH_HEADER*)native_ptr;
   DISPATCH_HEADER header;
-  header.type_flags = poly::byte_swap(header_be->type_flags);
-  header.signal_state = poly::byte_swap(header_be->signal_state);
-  header.wait_list_flink = poly::byte_swap(header_be->wait_list_flink);
-  header.wait_list_blink = poly::byte_swap(header_be->wait_list_blink);
+  header.type_flags = xe::byte_swap(header_be->type_flags);
+  header.signal_state = xe::byte_swap(header_be->signal_state);
+  header.wait_list_flink = xe::byte_swap(header_be->wait_list_flink);
+  header.wait_list_blink = xe::byte_swap(header_be->wait_list_blink);
 
   if (as_type == -1) {
     as_type = header.type_flags & 0xFF;
@@ -248,9 +248,9 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     // Stash pointer in struct.
     uint64_t object_ptr = reinterpret_cast<uint64_t>(object);
     object_ptr |= 0x1;
-    header_be->wait_list_flink = poly::byte_swap((uint32_t)(object_ptr >> 32));
+    header_be->wait_list_flink = xe::byte_swap((uint32_t)(object_ptr >> 32));
     header_be->wait_list_blink =
-        poly::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
+        xe::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
 
     return object;
   }

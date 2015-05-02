@@ -9,13 +9,13 @@
 
 #include "xenia/cpu/backend/x64/x64_assembler.h"
 
+#include "xenia/base/reset_scope.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/runtime.h"
-#include "poly/reset_scope.h"
 #include "xenia/profiling.h"
 
 namespace BE {
@@ -65,7 +65,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   SCOPE_profile_cpu_f("cpu");
 
   // Reset when we leave.
-  poly::make_reset_scope(this);
+  xe::make_reset_scope(this);
 
   // Lower HIR -> x64.
   void* machine_code = 0;
@@ -95,7 +95,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
 }
 
 void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
-                                   size_t code_size, poly::StringBuffer* str) {
+                                   size_t code_size, StringBuffer* str) {
   BE::DISASM disasm = {0};
   disasm.Archi = 64;
   disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;

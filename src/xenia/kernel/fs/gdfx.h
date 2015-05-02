@@ -12,10 +12,10 @@
 
 #include <vector>
 
-#include "poly/mapped_memory.h"
-#include "xenia/xbox.h"
+#include "xenia/base/fs.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/kernel/fs/entry.h"
-#include "poly/fs.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
@@ -31,7 +31,7 @@ class GDFXEntry {
   typedef std::vector<GDFXEntry*> child_t;
   typedef child_t::iterator child_it_t;
 
-  GDFXEntry* GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it);
+  GDFXEntry* GetChild(const xe::fs::WildcardEngine& engine, child_it_t& ref_it);
   GDFXEntry* GetChild(const char* name);
 
   void Dump(int indent);
@@ -53,7 +53,7 @@ class GDFX {
     kErrorDamagedFile = -31,
   };
 
-  GDFX(poly::MappedMemory* mmap);
+  GDFX(MappedMemory* mmap);
   virtual ~GDFX();
 
   GDFXEntry* root_entry();
@@ -85,7 +85,7 @@ class GDFX {
   bool ReadEntry(ParseState& state, const uint8_t* buffer,
                  uint16_t entry_ordinal, GDFXEntry* parent);
 
-  poly::MappedMemory* mmap_;
+  MappedMemory* mmap_;
 
   GDFXEntry* root_entry_;
 };

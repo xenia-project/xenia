@@ -9,8 +9,9 @@
 
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 
-#include "poly/byte_order.h"
-#include "poly/memory.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
@@ -18,7 +19,6 @@
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/runtime.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -82,7 +82,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     // TODO(benvanik): find a way to avoid using the opcode tables.
     i.type = GetInstrType(i.code);
     trace_info_.dest_count = 0;
@@ -170,7 +170,7 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
 
 void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
   char name_buffer[13];
-  snprintf(name_buffer, poly::countof(name_buffer), "loc_%.8X", address);
+  snprintf(name_buffer, xe::countof(name_buffer), "loc_%.8X", address);
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
   memcpy(label->name, name_buffer, sizeof(name_buffer));
 }

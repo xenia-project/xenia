@@ -12,9 +12,9 @@
 #include <sstream>
 #include <vector>
 
-#include "poly/assert.h"
-#include "poly/math.h"
-#include "poly/string_buffer.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/math.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/frontend/ppc_instr_tables.h"
 
 namespace xe {
@@ -24,7 +24,7 @@ namespace frontend {
 std::vector<InstrType*> all_instrs_;
 
 void DumpAllInstrCounts() {
-  poly::StringBuffer sb;
+  StringBuffer sb;
   sb.Append("Instruction translation counts:\n");
   for (auto instr_type : all_instrs_) {
     if (instr_type->translation_count) {
@@ -42,7 +42,7 @@ void InstrOperand::Dump(std::string& out_str) {
   }
 
   char buffer[32];
-  const size_t max_count = poly::countof(buffer);
+  const size_t max_count = xe::countof(buffer);
   switch (type) {
     case InstrOperand::kRegister:
       switch (reg.set) {
@@ -380,7 +380,7 @@ InstrType* GetInstrType(uint32_t code) {
 
   // Slow lookup via linear scan.
   // This is primarily due to laziness. It could be made fast like the others.
-  for (size_t n = 0; n < poly::countof(tables::instr_table_scan); n++) {
+  for (size_t n = 0; n < xe::countof(tables::instr_table_scan); n++) {
     slot = &(tables::instr_table_scan[n]);
     if (slot->opcode == (code & slot->opcode_mask)) {
       return slot;

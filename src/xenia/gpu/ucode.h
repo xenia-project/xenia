@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include "poly/platform.h"
+#include "xenia/base/platform.h"
 
 namespace xe {
 namespace gpu {

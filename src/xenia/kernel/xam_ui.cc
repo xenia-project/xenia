@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -30,13 +30,13 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t sp = (uint32_t)ppc_state->r[1];
   uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
 
-  auto title = poly::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
-  auto text = poly::load_and_swap<std::wstring>(SHIM_MEM_ADDR(text_ptr));
+  auto title = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
+  auto text = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(text_ptr));
   std::vector<std::wstring> buttons;
   std::wstring all_buttons;
   for (uint32_t j = 0; j < button_count; ++j) {
     uint32_t button_ptr = SHIM_MEM_32(button_ptrs + j * 4);
-    auto button = poly::load_and_swap<std::wstring>(SHIM_MEM_ADDR(button_ptr));
+    auto button = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(button_ptr));
     all_buttons.append(button);
     if (j + 1 < button_count) {
       all_buttons.append(L" | ");

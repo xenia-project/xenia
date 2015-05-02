@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include "poly/delegate.h"
+#include "xenia/base/delegate.h"
 #include "xenia/ui/ui_event.h"
 
 namespace xe {
@@ -65,24 +65,24 @@ class Control {
   virtual void set_focus(bool value) { has_focus_ = value; }
 
  public:
-  poly::Delegate<UIEvent> on_resize;
-  poly::Delegate<UIEvent> on_layout;
-  poly::Delegate<UIEvent> on_paint;
+  Delegate<UIEvent> on_resize;
+  Delegate<UIEvent> on_layout;
+  Delegate<UIEvent> on_paint;
 
-  poly::Delegate<UIEvent> on_visible;
-  poly::Delegate<UIEvent> on_hidden;
+  Delegate<UIEvent> on_visible;
+  Delegate<UIEvent> on_hidden;
 
-  poly::Delegate<UIEvent> on_got_focus;
-  poly::Delegate<UIEvent> on_lost_focus;
+  Delegate<UIEvent> on_got_focus;
+  Delegate<UIEvent> on_lost_focus;
 
-  poly::Delegate<KeyEvent> on_key_down;
-  poly::Delegate<KeyEvent> on_key_up;
-  poly::Delegate<KeyEvent> on_key_char;
+  Delegate<KeyEvent> on_key_down;
+  Delegate<KeyEvent> on_key_up;
+  Delegate<KeyEvent> on_key_char;
 
-  poly::Delegate<MouseEvent> on_mouse_down;
-  poly::Delegate<MouseEvent> on_mouse_move;
-  poly::Delegate<MouseEvent> on_mouse_up;
-  poly::Delegate<MouseEvent> on_mouse_wheel;
+  Delegate<MouseEvent> on_mouse_down;
+  Delegate<MouseEvent> on_mouse_move;
+  Delegate<MouseEvent> on_mouse_up;
+  Delegate<MouseEvent> on_mouse_wheel;
 
  protected:
   explicit Control(uint32_t flags);

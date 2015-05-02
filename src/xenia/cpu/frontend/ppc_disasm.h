@@ -10,14 +10,14 @@
 #ifndef XENIA_FRONTEND_PPC_DISASM_H_
 #define XENIA_FRONTEND_PPC_DISASM_H_
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
-#include "poly/string_buffer.h"
 
 namespace xe {
 namespace cpu {
 namespace frontend {
 
-int DisasmPPC(InstrData& i, poly::StringBuffer* str);
+int DisasmPPC(InstrData& i, StringBuffer* str);
 
 }  // namespace frontend
 }  // namespace cpu

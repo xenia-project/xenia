@@ -9,11 +9,11 @@
 
 #include "xenia/cpu/test/util.h"
 
-using namespace xe::cpu::hir;
+using namespace xe;
 using namespace xe::cpu;
+using namespace xe::cpu::hir;
 using namespace xe::cpu::test;
 using xe::cpu::frontend::PPCContext;
-using namespace poly;
 
 TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
   {

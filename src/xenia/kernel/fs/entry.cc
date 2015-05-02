@@ -9,7 +9,7 @@
 
 #include "xenia/kernel/fs/entry.h"
 
-#include "poly/string.h"
+#include "xenia/base/string.h"
 #include "xenia/kernel/fs/device.h"
 
 namespace xe {
@@ -25,7 +25,7 @@ Entry::Entry(Device* device, const std::string& path)
     : device_(device), path_(path) {
   assert_not_null(device);
   absolute_path_ = device->path() + path;
-  name_ = poly::find_name_from_path(path);
+  name_ = xe::find_name_from_path(path);
 }
 
 Entry::~Entry() = default;

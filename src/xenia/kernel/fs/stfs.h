@@ -13,10 +13,10 @@
 #include <memory>
 #include <vector>
 
-#include "poly/mapped_memory.h"
-#include "xenia/xbox.h"
+#include "xenia/base/fs.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/kernel/fs/entry.h"
-#include "poly/fs.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
@@ -134,7 +134,7 @@ class STFSEntry {
   typedef std::vector<std::unique_ptr<STFSEntry>> child_t;
   typedef child_t::iterator child_it_t;
 
-  STFSEntry* GetChild(const poly::fs::WildcardEngine& engine, child_it_t& ref_it);
+  STFSEntry* GetChild(const xe::fs::WildcardEngine& engine, child_it_t& ref_it);
   STFSEntry* GetChild(const char* name);
 
   void Dump(int indent);
@@ -164,7 +164,7 @@ class STFS {
     kErrorDamagedFile = -31,
   };
 
-  STFS(poly::MappedMemory* mmap);
+  STFS(MappedMemory* mmap);
   virtual ~STFS();
 
   const STFSHeader* header() const { return &header_; }
@@ -186,7 +186,7 @@ class STFS {
   BlockHash_t GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                            uint32_t table_offset);
 
-  poly::MappedMemory* mmap_;
+  MappedMemory* mmap_;
 
   STFSPackageType package_type_;
   STFSHeader header_;

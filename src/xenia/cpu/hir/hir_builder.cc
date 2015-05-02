@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/hir/hir_builder.h"
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"
@@ -29,7 +29,7 @@ namespace hir {
   assert_true((value1->type) == (value2->type))
 
 HIRBuilder::HIRBuilder() {
-  arena_ = new poly::Arena();
+  arena_ = new Arena();
   Reset();
 }
 
@@ -87,7 +87,7 @@ int HIRBuilder::Finalize() {
   return 0;
 }
 
-void HIRBuilder::DumpValue(poly::StringBuffer* str, Value* value) {
+void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
   if (value->IsConstant()) {
     switch (value->type) {
       case INT8_TYPE:
@@ -128,7 +128,7 @@ void HIRBuilder::DumpValue(poly::StringBuffer* str, Value* value) {
   }
 }
 
-void HIRBuilder::DumpOp(poly::StringBuffer* str, OpcodeSignatureType sig_type,
+void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
                         Instr::Op* op) {
   switch (sig_type) {
     case OPCODE_SIG_TYPE_X:
@@ -155,7 +155,7 @@ void HIRBuilder::DumpOp(poly::StringBuffer* str, OpcodeSignatureType sig_type,
   }
 }
 
-void HIRBuilder::Dump(poly::StringBuffer* str) {
+void HIRBuilder::Dump(StringBuffer* str) {
   if (attributes_) {
     str->Append("; attributes = %.8X\n", attributes_);
   }

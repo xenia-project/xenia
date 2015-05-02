@@ -9,8 +9,8 @@
 
 #include "xenia/kernel/objects/xtimer.h"
 
+#include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {

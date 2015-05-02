@@ -14,7 +14,7 @@
 
 #include <thread>
 
-#include "xenia/logging.h"
+#include "xenia/base/logging.h"
 
 // Mach internal function, not defined in any header.
 // http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/exc_server.html
@@ -117,7 +117,7 @@ void MachMMIOHandler::ThreadEntry() {
                  listen_port_, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
     if (ret != MACH_MSG_SUCCESS) {
       XELOGE("mach_msg receive failed with %d %s", ret, mach_error_string(ret));
-      poly::debugging::Break();
+      xe::debugging::Break();
       break;
     }
 
@@ -129,7 +129,7 @@ void MachMMIOHandler::ThreadEntry() {
                  MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE,
                  MACH_PORT_NULL) != MACH_MSG_SUCCESS) {
       XELOGE("mach_msg reply send failed");
-      poly::debugging::Break();
+      xe::debugging::Break();
       break;
     }
   }
@@ -168,7 +168,7 @@ kern_return_t CatchExceptionRaise(mach_port_t thread) {
     XELOGE("MMIO unhandled bad access for %llx, bubbling", fault_address);
     // TODO(benvanik): manipulate stack so that we can rip = break_handler or
     // something and have the stack trace be valid.
-    poly::debugging::Break();
+    xe::debugging::Break();
 
     // When the thread resumes, kill it.
     thread_state.__rip = reinterpret_cast<uint64_t>(FailBadAccess);

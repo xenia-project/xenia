@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include "poly/string_buffer.h"
+#include "xenia/base/string_buffer.h"
 
 namespace xe {
 namespace cpu {
@@ -547,7 +547,7 @@ class InstrDisasm {
   void Dump(std::string& out_str, size_t pad = 13);
 };
 
-typedef void (*InstrDisasmFn)(InstrData& i, poly::StringBuffer* str);
+typedef void (*InstrDisasmFn)(InstrData& i, StringBuffer* str);
 typedef void* InstrEmitFn;
 
 class InstrType {

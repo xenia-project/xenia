@@ -11,11 +11,11 @@
 
 #include <mutex>
 
-#include "poly/assert.h"
-#include "poly/cxx_compat.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/cxx_compat.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -306,7 +306,7 @@ void GLContext::SetupDebugging() {
                    // intended to be used as an offset into a buffer object?
   };
   glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER, GL_DONT_CARE,
-                        GLsizei(poly::countof(disable_message_ids)),
+                        GLsizei(xe::countof(disable_message_ids)),
                         disable_message_ids, GL_FALSE);
 
   // Callback will be made from driver threads.

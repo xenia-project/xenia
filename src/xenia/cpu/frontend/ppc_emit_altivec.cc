@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/frontend/ppc_emit-private.h"
 
-#include "poly/assert.h"
+#include "xenia/base/assert.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 
@@ -19,10 +19,6 @@ namespace frontend {
 
 // TODO(benvanik): remove when enums redefined.
 using namespace xe::cpu::hir;
-using poly::vec128b;
-using poly::vec128f;
-using poly::vec128i;
-using poly::vec128s;
 
 using xe::cpu::hir::Value;
 

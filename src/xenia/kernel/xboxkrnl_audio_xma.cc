@@ -8,11 +8,11 @@
  */
 
 #include "xenia/apu/apu.h"
+#include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -138,15 +138,15 @@ struct XMAContextData {
   uint32_t unk_dword_9 : 27;
 
   XMAContextData(const void* ptr) {
-    poly::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(this),
-                                   reinterpret_cast<const uint32_t*>(ptr),
-                                   sizeof(XMAContextData) / 4);
+    xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(this),
+                                 reinterpret_cast<const uint32_t*>(ptr),
+                                 sizeof(XMAContextData) / 4);
   }
 
   void Store(void* ptr) {
-    poly::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(ptr),
-                                   reinterpret_cast<const uint32_t*>(this),
-                                   sizeof(XMAContextData) / 4);
+    xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(ptr),
+                                 reinterpret_cast<const uint32_t*>(this),
+                                 sizeof(XMAContextData) / 4);
   }
 };
 static_assert(sizeof(XMAContextData) == 4 * 10, "Must be packed");
@@ -158,8 +158,8 @@ void StoreXmaContextIndexedRegister(KernelState* state, uint32_t base_reg,
                       XMAContextData::kSize;
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
-  poly::store<uint32_t>(state->memory()->TranslateVirtual(0x7FEA0000 + reg_num),
-                        reg_value);
+  xe::store<uint32_t>(state->memory()->TranslateVirtual(0x7FEA0000 + reg_num),
+                      reg_value);
 }
 
 SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_state, KernelState* state) {

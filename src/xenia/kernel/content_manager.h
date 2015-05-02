@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "poly/memory.h"
+#include "xenia/base/memory.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -33,17 +33,17 @@ struct XCONTENT_DATA {
 
   XCONTENT_DATA() = default;
   XCONTENT_DATA(const uint8_t* ptr) {
-    device_id = poly::load_and_swap<uint32_t>(ptr + 0);
-    content_type = poly::load_and_swap<uint32_t>(ptr + 4);
-    display_name = poly::load_and_swap<std::wstring>(ptr + 8);
-    file_name = poly::load_and_swap<std::string>(ptr + 8 + 128 * 2);
+    device_id = xe::load_and_swap<uint32_t>(ptr + 0);
+    content_type = xe::load_and_swap<uint32_t>(ptr + 4);
+    display_name = xe::load_and_swap<std::wstring>(ptr + 8);
+    file_name = xe::load_and_swap<std::string>(ptr + 8 + 128 * 2);
   }
 
   void Write(uint8_t* ptr) {
-    poly::store_and_swap<uint32_t>(ptr + 0, device_id);
-    poly::store_and_swap<uint32_t>(ptr + 4, content_type);
-    poly::store_and_swap<std::wstring>(ptr + 8, display_name);
-    poly::store_and_swap<std::string>(ptr + 8 + 128 * 2, file_name);
+    xe::store_and_swap<uint32_t>(ptr + 0, device_id);
+    xe::store_and_swap<uint32_t>(ptr + 4, content_type);
+    xe::store_and_swap<std::wstring>(ptr + 8, display_name);
+    xe::store_and_swap<std::string>(ptr + 8 + 128 * 2, file_name);
   }
 };
 

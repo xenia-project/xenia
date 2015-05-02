@@ -9,11 +9,11 @@
 
 #include "xenia/gpu/gl4/draw_batcher.h"
 
-#include "poly/cxx_compat.h"
-#include "poly/math.h"
+#include "xenia/base/cxx_compat.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gpu-private.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {
@@ -168,7 +168,7 @@ bool DrawBatcher::BeginDraw() {
       }
     }
     batch_state_.command_stride =
-        poly::round_up(command_size, GLsizei(kCommandBufferAlignment));
+        xe::round_up(command_size, GLsizei(kCommandBufferAlignment));
 
     GLsizei header_size = sizeof(CommonHeader);
 

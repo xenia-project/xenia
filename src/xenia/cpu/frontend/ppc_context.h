@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include "poly/vec128.h"
+#include "xenia/base/vec128.h"
 
 namespace xe {
 namespace cpu {
@@ -24,8 +24,6 @@ class ThreadState;
 namespace xe {
 namespace cpu {
 namespace frontend {
-
-using vec128_t = poly::vec128_t;
 
 // Map:
 // 0-31: GPR

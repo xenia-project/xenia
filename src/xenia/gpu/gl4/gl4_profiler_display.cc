@@ -11,9 +11,9 @@
 
 #include "third_party/microprofile/microprofileui.h"
 
-#include "poly/assert.h"
-#include "poly/cxx_compat.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/cxx_compat.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/gpu-private.h"
 
 namespace xe {
@@ -182,7 +182,7 @@ GL4ProfilerDisplay::GL4ProfilerDisplay(WGLControl* control)
 
 bool GL4ProfilerDisplay::SetupFont() {
   // Setup font lookup table.
-  for (uint32_t i = 0; i < poly::countof(font_description_.char_offsets); ++i) {
+  for (uint32_t i = 0; i < xe::countof(font_description_.char_offsets); ++i) {
     font_description_.char_offsets[i] = 206;
   }
   for (uint32_t i = 'A'; i <= 'Z'; ++i) {

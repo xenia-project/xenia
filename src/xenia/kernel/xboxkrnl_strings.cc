@@ -7,13 +7,13 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -580,7 +580,7 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
   wchar_t* swapped_format =
       (wchar_t*)malloc((format_length + 1) * sizeof(wchar_t));
   for (size_t i = 0; i < format_length; ++i) {
-    swapped_format[i] = poly::byte_swap(format[i]);
+    swapped_format[i] = xe::byte_swap(format[i]);
   }
   swapped_format[format_length] = '\0';
 
@@ -700,7 +700,7 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
       assert_true(arg_size == 8 || arg_size == 4);
       if (arg_size == 8) {
         if (arg_extras == 0) {
-          uint64_t value = poly::load_and_swap<uint64_t>(
+          uint64_t value = xe::load_and_swap<uint64_t>(
               arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
           int result = wsprintf(b, local, value);
           b += result;
@@ -710,7 +710,7 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
         }
       } else if (arg_size == 4) {
         if (arg_extras == 0) {
-          uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
+          uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
               arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
           int result = wsprintf(b, local, value);
           b += result;
@@ -722,9 +722,9 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
     } else if (*end == 'n') {
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
-        uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
+        uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        poly::store_and_swap<uint32_t>(membase + value, (uint32_t)(b - buffer));
+        xe::store_and_swap<uint32_t>(membase + value, (uint32_t)(b - buffer));
         arg_index++;
       } else {
         assert_true(false);
@@ -736,7 +736,7 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
 
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
-        uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
+        uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
         const void* pointer = (void*)(membase + value);
         int result = wsprintf(b, local, pointer);
@@ -752,14 +752,14 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
 
       assert_true(arg_size == 4);
       if (arg_extras == 0) {
-        uint32_t value = (uint32_t)poly::load_and_swap<uint64_t>(
+        uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
             arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
         const wchar_t* data = (const wchar_t*)(membase + value);
         size_t data_length = wcslen(data);
         wchar_t* swapped_data =
             (wchar_t*)malloc((data_length + 1) * sizeof(wchar_t));
         for (size_t i = 0; i < data_length; ++i) {
-          swapped_data[i] = poly::byte_swap(data[i]);
+          swapped_data[i] = xe::byte_swap(data[i]);
         }
         swapped_data[data_length] = '\0';
         int result = wsprintf(b, local, swapped_data);
@@ -781,7 +781,7 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
 
   // swap the result buffer
   for (wchar_t* swap = buffer; swap != b; ++swap) {
-    *swap = poly::byte_swap(*swap);
+    *swap = xe::byte_swap(*swap);
   }
 
   return uint32_t(b - buffer);

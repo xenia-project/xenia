@@ -18,7 +18,7 @@
 #include <mutex>
 #include <thread>
 
-#include "poly/threading.h"
+#include "xenia/base/threading.h"
 #include "xenia/ui/loop.h"
 
 namespace xe {
@@ -40,7 +40,7 @@ class Win32Loop : public Loop {
 
   std::thread thread_;
   DWORD thread_id_;
-  poly::threading::Fence quit_fence_;
+  xe::threading::Fence quit_fence_;
 };
 
 }  // namespace win32

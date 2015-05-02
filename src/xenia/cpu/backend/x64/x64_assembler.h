@@ -12,8 +12,8 @@
 
 #include <memory>
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/backend/assembler.h"
-#include "poly/string_buffer.h"
 
 namespace xe {
 namespace cpu {
@@ -39,14 +39,14 @@ class X64Assembler : public Assembler {
 
  private:
   void DumpMachineCode(DebugInfo* debug_info, void* machine_code,
-                       size_t code_size, poly::StringBuffer* str);
+                       size_t code_size, StringBuffer* str);
 
  private:
   X64Backend* x64_backend_;
   std::unique_ptr<X64Emitter> emitter_;
   std::unique_ptr<XbyakAllocator> allocator_;
 
-  poly::StringBuffer string_buffer_;
+  StringBuffer string_buffer_;
 };
 
 }  // namespace x64

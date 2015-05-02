@@ -12,11 +12,11 @@
 #include <algorithm>
 #include <map>
 
-#include "poly/memory.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/memory.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/runtime.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 #if 0
@@ -63,7 +63,7 @@ int PPCScanner::FindExtents(FunctionInfo* symbol_info) {
   InstrData i;
   while (true) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
 
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
@@ -290,7 +290,7 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
   InstrData i;
   for (uint32_t address = start_address; address <= end_address; address += 4) {
     i.address = address;
-    i.code = poly::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     if (!i.code) {
       continue;
     }

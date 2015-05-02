@@ -9,10 +9,10 @@
 
 #include "xenia/gpu/graphics_system.h"
 
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gpu-private.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace gpu {
@@ -63,7 +63,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   // NOTE: we may be executing in some random thread.
   uint64_t args[] = {source, interrupt_callback_data_};
   processor_->ExecuteInterrupt(cpu, interrupt_callback_, args,
-                               poly::countof(args));
+                               xe::countof(args));
 }
 
 }  // namespace gpu

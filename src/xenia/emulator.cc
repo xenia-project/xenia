@@ -9,10 +9,10 @@
 
 #include "xenia/emulator.h"
 
-#include "poly/assert.h"
-#include "poly/string.h"
 #include "xdb/protocol.h"
 #include "xenia/apu/apu.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/string.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/gpu/gpu.h"
 #include "xenia/hid/hid.h"
@@ -162,7 +162,7 @@ X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {
 
   // Get just the filename (foo.xex).
   std::wstring file_name;
-  auto last_slash = path.find_last_of(poly::path_separator);
+  auto last_slash = path.find_last_of(xe::path_separator);
   if (last_slash == std::string::npos) {
     // No slash found, whole thing is a file.
     file_name = path;
@@ -172,7 +172,7 @@ X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {
   }
 
   // Launch the game.
-  std::string fs_path = "game:\\" + poly::to_string(file_name);
+  std::string fs_path = "game:\\" + xe::to_string(file_name);
   return CompleteLaunch(path, fs_path);
 }
 
@@ -204,8 +204,8 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
   if (ev) {
     ev->type = xdb::protocol::EventType::PROCESS_START;
     ev->membase = reinterpret_cast<uint64_t>(memory()->virtual_membase());
-    auto path_length = poly::to_string(path)
-                           .copy(ev->launch_path, sizeof(ev->launch_path) - 1);
+    auto path_length =
+        xe::to_string(path).copy(ev->launch_path, sizeof(ev->launch_path) - 1);
     ev->launch_path[path_length] = 0;
   }
 

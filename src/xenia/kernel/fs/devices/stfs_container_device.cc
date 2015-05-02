@@ -9,11 +9,11 @@
 
 #include "xenia/kernel/fs/devices/stfs_container_device.h"
 
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/kernel/fs/stfs.h"
 #include "xenia/kernel/fs/devices/stfs_container_entry.h"
 #include "xenia/kernel/objects/xfile.h"
-#include "xenia/logging.h"
 
 namespace xe {
 namespace kernel {
@@ -26,8 +26,7 @@ STFSContainerDevice::STFSContainerDevice(const std::string& path,
 STFSContainerDevice::~STFSContainerDevice() { delete stfs_; }
 
 int STFSContainerDevice::Init() {
-  mmap_ =
-      poly::MappedMemory::Open(local_path_, poly::MappedMemory::Mode::kRead);
+  mmap_ = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("STFS container could not be mapped");
     return 1;
@@ -55,7 +54,7 @@ std::unique_ptr<Entry> STFSContainerDevice::ResolvePath(const char* path) {
   STFSEntry* stfs_entry = stfs_->root_entry();
 
   // Walk the path, one separator at a time.
-  auto path_parts = poly::split_path(path);
+  auto path_parts = xe::split_path(path);
   for (auto& part : path_parts) {
     stfs_entry = stfs_entry->GetChild(part.c_str());
     if (!stfs_entry) {

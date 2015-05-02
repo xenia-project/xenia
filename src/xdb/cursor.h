@@ -12,7 +12,7 @@
 
 #include <functional>
 
-#include <poly/delegate.h>
+#include "xenia/base/delegate.h"
 #include <xdb/module.h>
 #include <xdb/protocol.h>
 #include <xdb/thread.h>
@@ -27,15 +27,15 @@ class Cursor {
 
   // TODO(benvanik): breakpoints/events
 
-  poly::Delegate<void> end_of_stream;
+  xe::Delegate<void> end_of_stream;
 
   std::vector<Module*> modules();
   std::vector<Thread*> threads();
 
-  poly::Delegate<Module*> module_loaded;
-  poly::Delegate<Module*> module_unloaded;
-  poly::Delegate<Thread*> thread_created;
-  poly::Delegate<Thread*> thread_exited;
+  xe::Delegate<Module*> module_loaded;
+  xe::Delegate<Module*> module_unloaded;
+  xe::Delegate<Thread*> thread_created;
+  xe::Delegate<Thread*> thread_exited;
 
   // TODO(benvanik): memory access
 

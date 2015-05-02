@@ -9,12 +9,12 @@
 
 #include "xenia/apu/audio_system.h"
 
-#include "poly/math.h"
 #include "xenia/apu/audio_driver.h"
-#include "xenia/emulator.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/logging.h"
+#include "xenia/emulator.h"
 #include "xenia/profiling.h"
 
 // As with normal Microsoft, there are like twelve different ways to access
@@ -59,13 +59,13 @@ AudioSystem::AudioSystem(Emulator* emulator)
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     unused_clients_.push(i);
   }
-  for (size_t i = 0; i < poly::countof(client_wait_handles_); ++i) {
+  for (size_t i = 0; i < xe::countof(client_wait_handles_); ++i) {
     client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
   }
 }
 
 AudioSystem::~AudioSystem() {
-  for (size_t i = 0; i < poly::countof(client_wait_handles_); ++i) {
+  for (size_t i = 0; i < xe::countof(client_wait_handles_); ++i) {
     CloseHandle(client_wait_handles_[i]);
   }
 }
@@ -107,7 +107,7 @@ X_STATUS AudioSystem::Setup() {
 }
 
 void AudioSystem::ThreadStart() {
-  poly::threading::set_name("Audio Worker");
+  xe::threading::set_name("Audio Worker");
   xe::Profiler::ThreadEnter("Audio Worker");
 
   // Initialize driver and ringbuffer.
@@ -118,7 +118,7 @@ void AudioSystem::ThreadStart() {
   // Main run loop.
   while (running_) {
     auto result =
-        WaitForMultipleObjectsEx(DWORD(poly::countof(client_wait_handles_)),
+        WaitForMultipleObjectsEx(DWORD(xe::countof(client_wait_handles_)),
                                  client_wait_handles_, FALSE, INFINITE, FALSE);
     if (result == WAIT_FAILED ||
         result == WAIT_OBJECT_0 + maximum_client_count_) {
@@ -137,7 +137,7 @@ void AudioSystem::ThreadStart() {
         if (client_callback) {
           uint64_t args[] = {client_callback_arg};
           processor->Execute(thread_state_, client_callback, args,
-                             poly::countof(args));
+                             xe::countof(args));
         }
         pumped++;
         index++;
@@ -219,7 +219,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   unused_clients_.pop();
 
   uint32_t ptr = memory()->SystemHeapAlloc(0x4);
-  poly::store_and_swap<uint32_t>(memory()->TranslateVirtual(ptr), callback_arg);
+  xe::store_and_swap<uint32_t>(memory()->TranslateVirtual(ptr), callback_arg);
 
   clients_[index] = {driver, callback, callback_arg, ptr};
 
@@ -276,13 +276,13 @@ uint64_t AudioSystem::ReadRegister(uint64_t addr) {
     value = registers_.current_context;
   }
 
-  value = poly::byte_swap(value);
+  value = xe::byte_swap(value);
   return value;
 }
 
 void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
-  value = poly::byte_swap(uint32_t(value));
+  value = xe::byte_swap(uint32_t(value));
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
   // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
 
@@ -303,15 +303,15 @@ void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
         uint32_t guest_ptr =
             registers_.xma_context_array_ptr + context_id * kXmaContextSize;
         auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-        uint32_t dword0 = poly::load_and_swap<uint32_t>(context_ptr + 0);
+        uint32_t dword0 = xe::load_and_swap<uint32_t>(context_ptr + 0);
         bool has_valid_input = (dword0 & 0x00300000) != 0;
         if (has_valid_input) {
           dword0 = dword0 & ~0x00300000;
-          poly::store_and_swap<uint32_t>(context_ptr + 0, dword0);
+          xe::store_and_swap<uint32_t>(context_ptr + 0, dword0);
           // Set output buffer to invalid.
-          uint32_t dword1 = poly::load_and_swap<uint32_t>(context_ptr + 4);
+          uint32_t dword1 = xe::load_and_swap<uint32_t>(context_ptr + 4);
           dword1 = dword1 & ~0x80000000;
-          poly::store_and_swap<uint32_t>(context_ptr + 4, dword1);
+          xe::store_and_swap<uint32_t>(context_ptr + 4, dword1);
         }
       }
       value >>= 1;

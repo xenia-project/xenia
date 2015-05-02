@@ -14,9 +14,9 @@
 #include <memory>
 #include <vector>
 
-#include "poly/platform.h"
-#include "xenia/memory.h"
+#include "xenia/base/platform.h"
 #include "xenia/cpu/mmio_handler.h"
+#include "xenia/memory.h"
 
 namespace xe {
 

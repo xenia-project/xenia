@@ -21,10 +21,10 @@ int api_scanner_main(std::vector<std::wstring>& args) {
 
   if (args.size() == 2 || !FLAGS_target.empty()) {
     apiscanner_loader loader_;
-    std::wstring target(FLAGS_target.empty() ? args[1] :
-      poly::to_wstring(FLAGS_target));
+    std::wstring target(FLAGS_target.empty() ? args[1]
+                                             : xe::to_wstring(FLAGS_target));
 
-    std::wstring target_abs = poly::to_absolute_path(target);
+    std::wstring target_abs = xe::to_absolute_path(target);
 
     // XXX For each target?
     if (loader_.LoadTitleImports(target)) {

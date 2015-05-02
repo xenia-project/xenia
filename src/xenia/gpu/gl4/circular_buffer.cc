@@ -9,8 +9,8 @@
 
 #include "xenia/gpu/gl4/circular_buffer.h"
 
-#include "poly/assert.h"
-#include "poly/math.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gpu-private.h"
 
@@ -67,13 +67,13 @@ void CircularBuffer::Shutdown() {
 }
 
 bool CircularBuffer::CanAcquire(size_t length) {
-  size_t aligned_length = poly::round_up(length, alignment_);
+  size_t aligned_length = xe::round_up(length, alignment_);
   return write_head_ + aligned_length <= capacity_;
 }
 
 CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
   // Addresses must always be % 256.
-  size_t aligned_length = poly::round_up(length, alignment_);
+  size_t aligned_length = xe::round_up(length, alignment_);
   assert_true(aligned_length <= capacity_, "Request too large");
   if (write_head_ + aligned_length > capacity_) {
     // Flush and wait.
@@ -97,7 +97,7 @@ bool CircularBuffer::AcquireCached(uint32_t key, size_t length,
   auto& it = allocation_cache_.find(full_key);
   if (it != allocation_cache_.end()) {
     uintptr_t write_head = it->second;
-    size_t aligned_length = poly::round_up(length, alignment_);
+    size_t aligned_length = xe::round_up(length, alignment_);
     out_allocation->host_ptr = host_base_ + write_head;
     out_allocation->gpu_ptr = gpu_base_ + write_head;
     out_allocation->offset = write_head;

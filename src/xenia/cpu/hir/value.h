@@ -10,9 +10,9 @@
 #ifndef XENIA_HIR_VALUE_H_
 #define XENIA_HIR_VALUE_H_
 
-#include "poly/arena.h"
-#include "poly/assert.h"
-#include "poly/vec128.h"
+#include "xenia/base/arena.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/machine_info.h"
 #include "xenia/cpu/hir/opcodes.h"
 
@@ -22,7 +22,7 @@ namespace hir {
 
 class Instr;
 
-using vec128_t = poly::vec128_t;
+using vec128_t = xe::vec128_t;
 
 enum TypeName {
   // Many tables rely on this ordering.
@@ -102,7 +102,7 @@ class Value {
   // TODO(benvanik): remove to shrink size.
   void* tag;
 
-  Use* AddUse(poly::Arena* arena, Instr* instr);
+  Use* AddUse(Arena* arena, Instr* instr);
   void RemoveUse(Use* use);
 
   int8_t get_constant(int8_t) const { return constant.i8; }

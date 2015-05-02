@@ -13,11 +13,11 @@
 #include <memory>
 #include <mutex>
 
-#include "poly/type_pool.h"
+#include "xenia/base/type_pool.h"
 #include "xenia/cpu/frontend/context_info.h"
-#include "xenia/memory.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/symbol_info.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {
@@ -58,7 +58,7 @@ class PPCFrontend {
   Runtime* runtime_;
   std::unique_ptr<ContextInfo> context_info_;
   PPCBuiltins builtins_;
-  poly::TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
+  TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
 };
 
 }  // namespace frontend

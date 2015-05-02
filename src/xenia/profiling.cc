@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/logging.h"
+#include "xenia/base/logging.h"
 
 #define MICROPROFILE_ENABLED 1
 #define MICROPROFILEUI_ENABLED 1

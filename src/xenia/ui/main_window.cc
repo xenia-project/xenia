@@ -9,10 +9,10 @@
 
 #include "xenia/ui/main_window.h"
 
-#include "poly/threading.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/threading.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/emulator.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -24,10 +24,10 @@ MainWindow::MainWindow(Emulator* emulator)
 MainWindow::~MainWindow() = default;
 
 void MainWindow::Start() {
-  poly::threading::Fence fence;
+  xe::threading::Fence fence;
 
   loop_.Post([&]() {
-    poly::threading::set_name("Win32 Loop");
+    xe::threading::set_name("Win32 Loop");
     xe::Profiler::ThreadEnter("Win32 Loop");
 
     if (!Initialize()) {

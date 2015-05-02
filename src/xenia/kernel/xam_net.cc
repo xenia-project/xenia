@@ -10,23 +10,23 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 #include <winsock2.h>
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
 void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
-  out_addr->sa_family = poly::load_and_swap<uint16_t>(ptr + 0);
+  out_addr->sa_family = xe::load_and_swap<uint16_t>(ptr + 0);
   switch (out_addr->sa_family) {
     case AF_INET: {
       auto in_addr = reinterpret_cast<sockaddr_in*>(out_addr);
-      in_addr->sin_port = poly::load_and_swap<uint16_t>(ptr + 2);
+      in_addr->sin_port = xe::load_and_swap<uint16_t>(ptr + 2);
       // Maybe? Depends on type.
-      in_addr->sin_addr.S_un.S_addr = poly::load_and_swap<uint32_t>(ptr + 4);
+      in_addr->sin_addr.S_un.S_addr = xe::load_and_swap<uint32_t>(ptr + 4);
       break;
     }
     default:
@@ -42,10 +42,10 @@ void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
       break;
     case AF_INET: {
       auto& in_addr = reinterpret_cast<const sockaddr_in&>(addr);
-      poly::store_and_swap<uint16_t>(ptr + 0, in_addr.sin_family);
-      poly::store_and_swap<uint16_t>(ptr + 2, in_addr.sin_port);
+      xe::store_and_swap<uint16_t>(ptr + 0, in_addr.sin_family);
+      xe::store_and_swap<uint16_t>(ptr + 2, in_addr.sin_port);
       // Maybe? Depends on type.
-      poly::store_and_swap<uint32_t>(ptr + 4, in_addr.sin_addr.S_un.S_addr);
+      xe::store_and_swap<uint32_t>(ptr + 4, in_addr.sin_addr.S_un.S_addr);
       break;
     }
     default:
@@ -256,21 +256,21 @@ SHIM_CALL NetDll_accept_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 void LoadFdset(const uint8_t* src, fd_set* dest) {
-  dest->fd_count = poly::load_and_swap<uint32_t>(src);
+  dest->fd_count = xe::load_and_swap<uint32_t>(src);
   for (int i = 0; i < 64; ++i) {
     auto socket_handle =
-        static_cast<SOCKET>(poly::load_and_swap<uint32_t>(src + 4 + i * 4));
+        static_cast<SOCKET>(xe::load_and_swap<uint32_t>(src + 4 + i * 4));
     dest->fd_array[i] = socket_handle;
   }
 }
 
 void StoreFdset(const fd_set& src, uint8_t* dest) {
-  poly::store_and_swap<uint32_t>(dest, src.fd_count);
+  xe::store_and_swap<uint32_t>(dest, src.fd_count);
   for (int i = 0; i < 64; ++i) {
     SOCKET socket_handle = src.fd_array[i];
     assert_true(socket_handle >> 32 == 0);
-    poly::store_and_swap<uint32_t>(dest + 4 + i * 4,
-                                   static_cast<uint32_t>(socket_handle));
+    xe::store_and_swap<uint32_t>(dest + 4 + i * 4,
+                                 static_cast<uint32_t>(socket_handle));
   }
 }
 

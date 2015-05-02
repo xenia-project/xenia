@@ -12,7 +12,7 @@
 
 #include <functional>
 
-#include "poly/threading.h"
+#include "xenia/base/threading.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/ui/loop.h"
 #include "xenia/ui/win32/win32_control.h"

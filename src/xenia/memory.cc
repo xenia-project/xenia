@@ -14,9 +14,9 @@
 #include <algorithm>
 #include <mutex>
 
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/cpu/mmio_handler.h"
-#include "xenia/logging.h"
 
 using namespace xe;
 
@@ -124,7 +124,7 @@ Memory::Memory()
       trace_base_(0),
       mapping_(0),
       mapping_base_(nullptr) {
-  system_page_size_ = uint32_t(poly::page_size());
+  system_page_size_ = uint32_t(xe::page_size());
   virtual_heap_ = new MemoryHeap(this, false);
   physical_heap_ = new MemoryHeap(this, true);
 }
@@ -213,8 +213,8 @@ int Memory::Initialize() {
   // I have no idea what this is, but games try to read/write there.
   VirtualAlloc(TranslateVirtual(0x40000000), 0x00010000, MEM_COMMIT,
                PAGE_READWRITE);
-  poly::store_and_swap<uint32_t>(TranslateVirtual(0x40000000), 0x00C40000);
-  poly::store_and_swap<uint32_t>(TranslateVirtual(0x40000004), 0x00010000);
+  xe::store_and_swap<uint32_t>(TranslateVirtual(0x40000000), 0x00C40000);
+  xe::store_and_swap<uint32_t>(TranslateVirtual(0x40000004), 0x00010000);
 
   return 0;
 }
@@ -235,8 +235,8 @@ const static struct {
     0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages
 };
 int Memory::MapViews(uint8_t* mapping_base) {
-  assert_true(poly::countof(map_info) == poly::countof(views_.all_views));
-  for (size_t n = 0; n < poly::countof(map_info); n++) {
+  assert_true(xe::countof(map_info) == xe::countof(views_.all_views));
+  for (size_t n = 0; n < xe::countof(map_info); n++) {
 #if XE_PLATFORM_WIN32
     views_.all_views[n] = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
         mapping_, FILE_MAP_ALL_ACCESS, 0x00000000,
@@ -260,7 +260,7 @@ int Memory::MapViews(uint8_t* mapping_base) {
 }
 
 void Memory::UnmapViews() {
-  for (size_t n = 0; n < poly::countof(views_.all_views); n++) {
+  for (size_t n = 0; n < xe::countof(views_.all_views); n++) {
     if (views_.all_views[n]) {
 #if XE_PLATFORM_WIN32
       UnmapViewOfFile(views_.all_views[n]);
@@ -521,7 +521,7 @@ uint32_t MemoryHeap::Alloc(uint32_t base_address, uint32_t size, uint32_t flags,
   if (heap_guard_size) {
     alignment = std::max(alignment, static_cast<uint32_t>(heap_guard_size));
     alloc_size =
-        static_cast<uint32_t>(poly::round_up(alloc_size, heap_guard_size));
+        static_cast<uint32_t>(xe::round_up(alloc_size, heap_guard_size));
   }
 
   lock_.lock();

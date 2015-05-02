@@ -7,14 +7,14 @@
  ******************************************************************************
  */
 
-#include "poly/main.h"
-#include "poly/math.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/main.h"
+#include "xenia/base/math.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/raw_module.h"
-#include "xenia/logging.h"
 
 #if !XE_PLATFORM_WIN32
 #include <dirent.h>
@@ -48,11 +48,11 @@ struct TestCase {
 class TestSuite {
  public:
   TestSuite(const std::wstring& src_file_path) : src_file_path(src_file_path) {
-    name = src_file_path.substr(
-        src_file_path.find_last_of(poly::path_separator) + 1);
+    name = src_file_path.substr(src_file_path.find_last_of(xe::path_separator) +
+                                1);
     name = ReplaceExtension(name, L"");
-    map_file_path = poly::to_wstring(FLAGS_test_bin_path) + name + L".map";
-    bin_file_path = poly::to_wstring(FLAGS_test_bin_path) + name + L".bin";
+    map_file_path = xe::to_wstring(FLAGS_test_bin_path) + name + L".map";
+    bin_file_path = xe::to_wstring(FLAGS_test_bin_path) + name + L".bin";
   }
 
   bool Load() {
@@ -92,7 +92,7 @@ class TestSuite {
   }
 
   bool ReadMap(const std::wstring& map_file_path) {
-    FILE* f = fopen(poly::to_string(map_file_path).c_str(), "r");
+    FILE* f = fopen(xe::to_string(map_file_path).c_str(), "r");
     if (!f) {
       return false;
     }
@@ -120,7 +120,7 @@ class TestSuite {
 
   bool ReadAnnotations(const std::wstring& src_file_path) {
     TestCase* current_test_case = nullptr;
-    FILE* f = fopen(poly::to_string(src_file_path).c_str(), "r");
+    FILE* f = fopen(xe::to_string(src_file_path).c_str(), "r");
     if (!f) {
       return false;
     }
@@ -273,7 +273,7 @@ class TestRunner {
         auto reg_value = it.second.substr(space_pos + 1);
         if (!ppc_state->CompareRegWithString(reg_name.c_str(),
                                              reg_value.c_str(), actual_value,
-                                             poly::countof(actual_value))) {
+                                             xe::countof(actual_value))) {
           any_failed = true;
           printf("Register %s assert failed:\n", reg_name.c_str());
           printf("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());
@@ -373,7 +373,7 @@ bool RunTests(const std::wstring& test_name) {
   int passed_count = 0;
 
   auto test_path_root =
-      poly::fix_path_separators(poly::to_wstring(FLAGS_test_path));
+      xe::fix_path_separators(xe::to_wstring(FLAGS_test_path));
   std::vector<std::wstring> test_files;
   if (!DiscoverTests(test_path_root, test_files)) {
     return false;

@@ -13,9 +13,9 @@
 #include <vector>
 #include <iterator>
 
-#include "poly/mapped_memory.h"
+#include "xenia/base/fs.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/kernel/fs/entry.h"
-#include "poly/fs.h"
 #include "xenia/kernel/fs/stfs.h"
 
 namespace xe {
@@ -24,11 +24,11 @@ namespace fs {
 
 class STFSContainerEntry : public Entry {
  public:
-  STFSContainerEntry(Device* device, const char* path, poly::MappedMemory* mmap,
+  STFSContainerEntry(Device* device, const char* path, MappedMemory* mmap,
                      STFSEntry* stfs_entry);
   ~STFSContainerEntry() override;
 
-  poly::MappedMemory* mmap() const { return mmap_; }
+  MappedMemory* mmap() const { return mmap_; }
   STFSEntry* stfs_entry() const { return stfs_entry_; }
 
   X_STATUS QueryInfo(XFileInfo* out_info) override;
@@ -39,10 +39,10 @@ class STFSContainerEntry : public Entry {
                 XFile** out_file) override;
 
  private:
-  poly::MappedMemory* mmap_;
+  MappedMemory* mmap_;
   STFSEntry* stfs_entry_;
-  
-  poly::fs::WildcardEngine find_engine_;
+
+  xe::fs::WildcardEngine find_engine_;
   STFSEntry::child_it_t it_;
 };
 

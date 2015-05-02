@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/logging.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -90,7 +90,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   }
 
   if (buffer) {
-    poly::store_and_swap<uint32_t>(buffer, value);
+    xe::store_and_swap<uint32_t>(buffer, value);
   }
   if (required_size) {
     *required_size = setting_size;

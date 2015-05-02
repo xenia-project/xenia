@@ -8,10 +8,11 @@
  */
 
 #include <gflags/gflags.h>
-#include "poly/main.h"
+
+#include "xenia/base/logging.h"
+#include "xenia/base/main.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel.h"
-#include "xenia/logging.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/main_window.h"
 
@@ -38,13 +39,13 @@ int xenia_main(std::vector<std::wstring>& args) {
       // Passed as a named argument.
       // TODO(benvanik): find something better than gflags that supports
       // unicode.
-      path = poly::to_wstring(FLAGS_target);
+      path = xe::to_wstring(FLAGS_target);
     } else {
       // Passed as an unnamed argument.
       path = args[1];
     }
     // Normalize the path and make absolute.
-    std::wstring abs_path = poly::to_absolute_path(path);
+    std::wstring abs_path = xe::to_absolute_path(path);
 
     result = emulator->main_window()->LaunchPath(abs_path);
     if (XFAILED(result)) {

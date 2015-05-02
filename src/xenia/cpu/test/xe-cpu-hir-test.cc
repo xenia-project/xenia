@@ -10,8 +10,8 @@
 #define CATCH_CONFIG_RUNNER
 #include "third_party/catch/single_include/catch.hpp"
 
-#include "poly/debugging.h"
-#include "poly/string.h"
+#include "xenia/base/debugging.h"
+#include "xenia/base/string.h"
 #include "xenia/cpu/test/util.h"
 
 namespace xe {
@@ -25,7 +25,7 @@ int main(std::vector<std::wstring>& args) {
   std::vector<std::string> narrow_args;
   auto narrow_argv = new char* [args.size()];
   for (size_t i = 0; i < args.size(); ++i) {
-    auto narrow_arg = poly::to_string(args[i]);
+    auto narrow_arg = xe::to_string(args[i]);
     narrow_argv[i] = const_cast<char*>(narrow_arg.data());
     narrow_args.push_back(std::move(narrow_arg));
   }
@@ -33,8 +33,8 @@ int main(std::vector<std::wstring>& args) {
   if (ret) {
 #if XE_PLATFORM_WIN32
     // Visual Studio kills the console on shutdown, so prevent that.
-    if (poly::debugging::IsDebuggerAttached()) {
-      poly::debugging::Break();
+    if (xe::debugging::IsDebuggerAttached()) {
+      xe::debugging::Break();
     }
 #endif  // XE_PLATFORM_WIN32
   }

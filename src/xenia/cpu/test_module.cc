@@ -9,10 +9,10 @@
 
 #include "xenia/cpu/test_module.h"
 
-#include "poly/assert.h"
-#include "poly/platform.h"
-#include "poly/reset_scope.h"
-#include "poly/string.h"
+#include "xenia/base/assert.h"
+#include "xenia/base/platform.h"
+#include "xenia/base/reset_scope.h"
+#include "xenia/base/string.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/runtime.h"
 
@@ -78,8 +78,8 @@ SymbolInfo::Status TestModule::DeclareFunction(uint32_t address,
     auto symbol_info = *out_symbol_info;
 
     // Reset() all caching when we leave.
-    poly::make_reset_scope(compiler_);
-    poly::make_reset_scope(assembler_);
+    xe::make_reset_scope(compiler_);
+    xe::make_reset_scope(assembler_);
 
     if (!generate_(*builder_.get())) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
