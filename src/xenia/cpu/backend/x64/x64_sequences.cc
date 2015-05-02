@@ -5521,7 +5521,7 @@ EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
       }
     } else {
       if (i.src1.is_constant) {
-        e.mov(e.eax, i.src1.constant());
+        e.mov(e.eax, i.src1.value->constant.i32);
         e.vmovd(i.dest, e.eax);
         e.shufps(i.dest, i.dest, 0);
       } else {
