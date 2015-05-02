@@ -12,7 +12,6 @@
 #include "third_party/microprofile/microprofileui.h"
 
 #include "xenia/base/assert.h"
-#include "xenia/base/cxx_compat.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/gpu-private.h"
 

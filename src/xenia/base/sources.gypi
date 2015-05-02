@@ -8,7 +8,6 @@
     'byte_order.h',
     'debugging.h',
     'delegate.h',
-    'cxx_compat.h',
     'fs.h',
     'fs.cc',
     'logging.cc',
