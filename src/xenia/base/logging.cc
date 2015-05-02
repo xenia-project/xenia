@@ -13,7 +13,6 @@
 
 #include <mutex>
 
-#include "xenia/base/cxx_compat.h"
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
 #include "xenia/base/threading.h"
