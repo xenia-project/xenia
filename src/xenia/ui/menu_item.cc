@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include "poly/ui/menu_item.h"
+#include "xenia/ui/menu_item.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 
 MenuItem::MenuItem(Type type) : type_(type), parent_item_(nullptr) {}
@@ -41,9 +41,7 @@ void MenuItem::RemoveChild(MenuItem* child_item) {
   }
 }
 
-void MenuItem::OnSelected(UIEvent& e) {
-  on_selected(e);
-}
+void MenuItem::OnSelected(UIEvent& e) { on_selected(e); }
 
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe

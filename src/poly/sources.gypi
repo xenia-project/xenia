@@ -62,6 +62,5 @@
   ],
 
   'includes': [
-    'ui/sources.gypi',
   ],
 }

@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_WINDOW_H_
-#define POLY_UI_WINDOW_H_
+#ifndef XENIA_UI_WINDOW_H_
+#define XENIA_UI_WINDOW_H_
 
 #include <string>
 
 #include "poly/delegate.h"
-#include "poly/ui/control.h"
-#include "poly/ui/ui_event.h"
+#include "xenia/ui/control.h"
+#include "xenia/ui/ui_event.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 
 template <typename T>
@@ -79,6 +79,6 @@ class Window : public T {
 };
 
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_WINDOW_H_
+#endif  // XENIA_UI_WINDOW_H_

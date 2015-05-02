@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_MENU_ITEM_H_
-#define POLY_UI_MENU_ITEM_H_
+#ifndef XENIA_UI_MENU_ITEM_H_
+#define XENIA_UI_MENU_ITEM_H_
 
 #include <memory>
 #include <vector>
 
 #include "poly/delegate.h"
-#include "poly/ui/ui_event.h"
+#include "xenia/ui/ui_event.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 
 class Window;
@@ -56,6 +56,6 @@ class MenuItem {
 };
 
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_MENU_ITEM_H_
+#endif  // XENIA_UI_MENU_ITEM_H_

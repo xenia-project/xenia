@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include "poly/ui/win32/win32_loop.h"
+#include "xenia/ui/win32/win32_loop.h"
 
 #include "poly/assert.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -89,4 +89,4 @@ void Win32Loop::AwaitQuit() { quit_fence_.Wait(); }
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe

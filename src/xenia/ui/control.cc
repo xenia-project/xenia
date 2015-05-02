@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
-#include "poly/ui/control.h"
+#include "xenia/ui/control.h"
 
 #include "poly/assert.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 
 Control::Control(uint32_t flags)
@@ -129,4 +129,4 @@ void Control::OnMouseWheel(MouseEvent& e) {
 }
 
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe

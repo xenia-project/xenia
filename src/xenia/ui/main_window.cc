@@ -46,7 +46,7 @@ bool MainWindow::Initialize() {
     return false;
   }
   Resize(1280, 720);
-  on_key_down.AddListener([this](poly::ui::KeyEvent& e) {
+  on_key_down.AddListener([this](KeyEvent& e) {
     bool handled = true;
     switch (e.key_code()) {
       case 0x73: {  // VK_F4

@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_WIN32_WIN32_WINDOW_H_
-#define POLY_UI_WIN32_WIN32_WINDOW_H_
+#ifndef XENIA_UI_WIN32_WIN32_WINDOW_H_
+#define XENIA_UI_WIN32_WIN32_WINDOW_H_
 
 #include <string>
 
-#include "poly/ui/win32/win32_control.h"
-#include "poly/ui/window.h"
+#include "xenia/ui/win32/win32_control.h"
+#include "xenia/ui/window.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -50,6 +50,6 @@ class Win32Window : public Window<Win32Control> {
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_WIN32_WIN32_WINDOW_H_
+#endif  // XENIA_UI_WIN32_WIN32_WINDOW_H_

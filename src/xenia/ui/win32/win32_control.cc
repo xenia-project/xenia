@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include "poly/ui/win32/win32_control.h"
+#include "xenia/ui/win32/win32_control.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -182,7 +182,7 @@ LRESULT CALLBACK Win32Control::WndProcThunk(HWND hWnd, UINT message,
   if (message == WM_NCCREATE) {
     auto create_struct = reinterpret_cast<LPCREATESTRUCT>(lParam);
     control = reinterpret_cast<Win32Control*>(create_struct->lpCreateParams);
-    SetWindowLongPtr(hWnd, GWLP_USERDATA, (__int3264)(LONG_PTR)control);
+    SetWindowLongPtr(hWnd, GWLP_USERDATA, (__int3264)(LONG_PTR) control);
   } else {
     control =
         reinterpret_cast<Win32Control*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
@@ -365,4 +365,4 @@ bool Win32Control::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe

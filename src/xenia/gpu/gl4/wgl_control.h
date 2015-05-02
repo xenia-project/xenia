@@ -13,17 +13,17 @@
 #include <functional>
 
 #include "poly/threading.h"
-#include "poly/ui/loop.h"
-#include "poly/ui/win32/win32_control.h"
 #include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/ui/loop.h"
+#include "xenia/ui/win32/win32_control.h"
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
 
-class WGLControl : public poly::ui::win32::Win32Control {
+class WGLControl : public xe::ui::win32::Win32Control {
  public:
-  WGLControl(poly::ui::Loop* loop);
+  WGLControl(xe::ui::Loop* loop);
   ~WGLControl() override;
 
   GLContext* context() { return &context_; }
@@ -33,13 +33,13 @@ class WGLControl : public poly::ui::win32::Win32Control {
  protected:
   bool Create() override;
 
-  void OnLayout(poly::ui::UIEvent& e) override;
+  void OnLayout(xe::ui::UIEvent& e) override;
 
   LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
                   LPARAM lParam) override;
 
  private:
-  poly::ui::Loop* loop_;
+  xe::ui::Loop* loop_;
   GLContext context_;
   std::function<void()> current_paint_callback_;
 };

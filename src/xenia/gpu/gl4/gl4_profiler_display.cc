@@ -142,7 +142,8 @@ GL4ProfilerDisplay::GL4ProfilerDisplay(WGLControl* control)
       vao_(0),
       font_texture_(0),
       font_handle_(0),
-      vertex_buffer_(MICROPROFILE_MAX_VERTICES * sizeof(Vertex) * 10, sizeof(Vertex)),
+      vertex_buffer_(MICROPROFILE_MAX_VERTICES * sizeof(Vertex) * 10,
+                     sizeof(Vertex)),
       draw_command_count_(0) {
   if (!SetupFont() || !SetupState() || !SetupShaders()) {
     // Hrm.
@@ -150,32 +151,32 @@ GL4ProfilerDisplay::GL4ProfilerDisplay(WGLControl* control)
   }
 
   // Pass through mouse events.
-  control->on_mouse_down.AddListener([](poly::ui::MouseEvent& e) {
-    Profiler::OnMouseDown(e.button() == poly::ui::MouseEvent::Button::kLeft,
-                          e.button() == poly::ui::MouseEvent::Button::kRight);
+  control->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
+    Profiler::OnMouseDown(e.button() == xe::ui::MouseEvent::Button::kLeft,
+                          e.button() == xe::ui::MouseEvent::Button::kRight);
     e.set_handled(true);
   });
-  control->on_mouse_up.AddListener([](poly::ui::MouseEvent& e) {
+  control->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
     Profiler::OnMouseUp();
     e.set_handled(true);
   });
-  control->on_mouse_move.AddListener([](poly::ui::MouseEvent& e) {
+  control->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
     Profiler::OnMouseMove(e.x(), e.y());
     e.set_handled(true);
   });
-  control->on_mouse_wheel.AddListener([](poly::ui::MouseEvent& e) {
+  control->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
     Profiler::OnMouseWheel(e.x(), e.y(), -e.dy());
     e.set_handled(true);
   });
 
   // Watch for toggle/mode keys and such.
-  control->on_key_down.AddListener([](poly::ui::KeyEvent& e) {
+  control->on_key_down.AddListener([](xe::ui::KeyEvent& e) {
     Profiler::OnKeyDown(e.key_code());
-    //e.set_handled(true);
+    // e.set_handled(true);
   });
-  control->on_key_up.AddListener([](poly::ui::KeyEvent& e) {
+  control->on_key_up.AddListener([](xe::ui::KeyEvent& e) {
     Profiler::OnKeyUp(e.key_code());
-    //e.set_handled(true);
+    // e.set_handled(true);
   });
 }
 
@@ -258,7 +259,7 @@ struct VertexData { \n\
 };\n\
 ";
   const std::string vertex_shader_source = header +
-    "\n\
+                                           "\n\
 layout(location = 0) uniform mat4 projection_matrix; \n\
 struct VertexFetch { \n\
   vec2 pos; \n\
@@ -274,7 +275,7 @@ void main() { \n\
 } \n\
 ";
   const std::string fragment_shader_source = header +
-    "\n\
+                                             "\n\
 layout(location = 1, bindless_sampler) uniform sampler2D font_texture; \n\
 layout(location = 2) uniform float font_height; \n\
 layout(location = 0) in VertexData vtx; \n\

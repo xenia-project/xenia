@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_UI_EVENT_H_
-#define POLY_UI_UI_EVENT_H_
+#ifndef XENIA_UI_UI_EVENT_H_
+#define XENIA_UI_UI_EVENT_H_
 
-namespace poly {
+namespace xe {
 namespace ui {
 
 class Control;
@@ -84,6 +84,6 @@ class MouseEvent : public UIEvent {
 };
 
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_UI_EVENT_H_
+#endif  // XENIA_UI_UI_EVENT_H_

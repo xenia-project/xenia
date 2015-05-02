@@ -767,7 +767,7 @@ class TraceReader {
 
 class TracePlayer : public TraceReader {
  public:
-  TracePlayer(poly::ui::Loop* loop, GraphicsSystem* graphics_system)
+  TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
       : loop_(loop),
         graphics_system_(graphics_system),
         current_frame_index_(0),
@@ -827,7 +827,7 @@ class TracePlayer : public TraceReader {
   }
 
  private:
-  poly::ui::Loop* loop_;
+  xe::ui::Loop* loop_;
   GraphicsSystem* graphics_system_;
   int current_frame_index_;
   int current_command_index_;
@@ -2213,7 +2213,7 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
     }
 
     auto control = window->child(0);
-    control->on_key_char.AddListener([graphics_system](poly::ui::KeyEvent& e) {
+    control->on_key_char.AddListener([graphics_system](xe::ui::KeyEvent& e) {
       auto& io = ImGui::GetIO();
       if (e.key_code() > 0 && e.key_code() < 0x10000) {
         if (e.key_code() == 0x74 /* VK_F5 */) {
@@ -2224,41 +2224,41 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
       }
       e.set_handled(true);
     });
-    control->on_mouse_down.AddListener([](poly::ui::MouseEvent& e) {
+    control->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
       auto& io = ImGui::GetIO();
       io.MousePos = ImVec2(float(e.x()), float(e.y()));
       switch (e.button()) {
-        case poly::ui::MouseEvent::Button::kLeft:
+        case xe::ui::MouseEvent::Button::kLeft:
           io.MouseDown[0] = true;
           break;
-        case poly::ui::MouseEvent::Button::kRight:
+        case xe::ui::MouseEvent::Button::kRight:
           io.MouseDown[1] = true;
           break;
       }
     });
-    control->on_mouse_move.AddListener([](poly::ui::MouseEvent& e) {
+    control->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
       auto& io = ImGui::GetIO();
       io.MousePos = ImVec2(float(e.x()), float(e.y()));
     });
-    control->on_mouse_up.AddListener([](poly::ui::MouseEvent& e) {
+    control->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
       auto& io = ImGui::GetIO();
       io.MousePos = ImVec2(float(e.x()), float(e.y()));
       switch (e.button()) {
-        case poly::ui::MouseEvent::Button::kLeft:
+        case xe::ui::MouseEvent::Button::kLeft:
           io.MouseDown[0] = false;
           break;
-        case poly::ui::MouseEvent::Button::kRight:
+        case xe::ui::MouseEvent::Button::kRight:
           io.MouseDown[1] = false;
           break;
       }
     });
-    control->on_mouse_wheel.AddListener([](poly::ui::MouseEvent& e) {
+    control->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
       auto& io = ImGui::GetIO();
       io.MousePos = ImVec2(float(e.x()), float(e.y()));
       io.MouseWheel += float(e.dy() / 120.0f);
     });
 
-    control->on_paint.AddListener([&](poly::ui::UIEvent& e) {
+    control->on_paint.AddListener([&](xe::ui::UIEvent& e) {
       static bool imgui_setup = false;
       if (!imgui_setup) {
         ImImpl_Setup();

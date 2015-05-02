@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_WIN32_WIN32_MENU_ITEM_H_
-#define POLY_UI_WIN32_WIN32_MENU_ITEM_H_
+#ifndef XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
+#define XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
 
 #include <windows.h>
 #include <windowsx.h>
 
-#include "poly/ui/menu_item.h"
+#include "xenia/ui/menu_item.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -35,6 +35,6 @@ class Win32MenuItem : public MenuItem {
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_WIN32_WIN32_MENU_ITEM_H_
+#endif  // XENIA_UI_WIN32_WIN32_MENU_ITEM_H_

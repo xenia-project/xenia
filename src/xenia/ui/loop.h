@@ -7,12 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_LOOP_H_
-#define POLY_UI_LOOP_H_
+#ifndef XENIA_UI_LOOP_H_
+#define XENIA_UI_LOOP_H_
 
 #include <functional>
 
-namespace poly {
+namespace xe {
 namespace ui {
 
 class Loop {
@@ -27,6 +27,6 @@ class Loop {
 };
 
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_LOOP_H_
+#endif  // XENIA_UI_LOOP_H_

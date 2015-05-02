@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef POLY_UI_WIN32_WIN32_LOOP_H_
-#define POLY_UI_WIN32_WIN32_LOOP_H_
+#ifndef XENIA_UI_WIN32_WIN32_LOOP_H_
+#define XENIA_UI_WIN32_WIN32_LOOP_H_
 
 #include <windows.h>
 #include <windowsx.h>
@@ -19,9 +19,9 @@
 #include <thread>
 
 #include "poly/threading.h"
-#include "poly/ui/loop.h"
+#include "xenia/ui/loop.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -45,6 +45,6 @@ class Win32Loop : public Loop {
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe
 
-#endif  // POLY_UI_WIN32_WIN32_LOOP_H_
+#endif  // XENIA_UI_WIN32_WIN32_LOOP_H_

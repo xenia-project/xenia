@@ -7,9 +7,9 @@
  ******************************************************************************
  */
 
-#include "poly/ui/win32/win32_menu_item.h"
+#include "xenia/ui/win32/win32_menu_item.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -34,4 +34,4 @@ void Win32MenuItem::OnChildRemoved(MenuItem* generic_child_item) {
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe

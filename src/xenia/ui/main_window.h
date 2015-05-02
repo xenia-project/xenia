@@ -10,12 +10,12 @@
 #ifndef XENIA_UI_MAIN_WINDOW_H_
 #define XENIA_UI_MAIN_WINDOW_H_
 
-#include "poly/ui/window.h"
+#include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
 // TODO(benvanik): only on windows.
-#include "poly/ui/win32/win32_loop.h"
-#include "poly/ui/win32/win32_window.h"
+#include "xenia/ui/win32/win32_loop.h"
+#include "xenia/ui/win32/win32_window.h"
 
 namespace xe {
 class Emulator;
@@ -24,8 +24,8 @@ class Emulator;
 namespace xe {
 namespace ui {
 
-using PlatformLoop = poly::ui::win32::Win32Loop;
-using PlatformWindow = poly::ui::win32::Win32Window;
+using PlatformLoop = xe::ui::win32::Win32Loop;
+using PlatformWindow = xe::ui::win32::Win32Window;
 
 class MainWindow : public PlatformWindow {
  public:

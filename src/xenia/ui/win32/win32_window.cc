@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "poly/ui/win32/win32_window.h"
+#include "xenia/ui/win32/win32_window.h"
 
 #include <dwmapi.h>
 #include <tpcshrd.h>
@@ -15,7 +15,7 @@
 
 #include "poly/logging.h"
 
-namespace poly {
+namespace xe {
 namespace ui {
 namespace win32 {
 
@@ -58,9 +58,8 @@ bool Win32Window::Create() {
 
   // Create window.
   hwnd_ = CreateWindowEx(window_ex_style, L"XeniaWindowClass", L"Xenia",
-                         window_style, rc.left, rc.top,
-                         rc.right - rc.left, rc.bottom - rc.top, nullptr,
-                         nullptr, hInstance, this);
+                         window_style, rc.left, rc.top, rc.right - rc.left,
+                         rc.bottom - rc.top, nullptr, nullptr, hInstance, this);
   if (!hwnd_) {
     PLOGE("CreateWindow failed");
     return false;
@@ -210,4 +209,4 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
 }  // namespace win32
 }  // namespace ui
-}  // namespace poly
+}  // namespace xe

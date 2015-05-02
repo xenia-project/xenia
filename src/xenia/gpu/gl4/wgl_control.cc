@@ -21,8 +21,8 @@ namespace gl4 {
 extern "C" GLEWContext* glewGetContext();
 extern "C" WGLEWContext* wglewGetContext();
 
-WGLControl::WGLControl(poly::ui::Loop* loop)
-    : poly::ui::win32::Win32Control(Flags::kFlagOwnPaint), loop_(loop) {}
+WGLControl::WGLControl(xe::ui::Loop* loop)
+    : xe::ui::win32::Win32Control(Flags::kFlagOwnPaint), loop_(loop) {}
 
 WGLControl::~WGLControl() = default;
 
@@ -70,7 +70,7 @@ bool WGLControl::Create() {
   return true;
 }
 
-void WGLControl::OnLayout(poly::ui::UIEvent& e) { Control::ResizeToFill(); }
+void WGLControl::OnLayout(xe::ui::UIEvent& e) { Control::ResizeToFill(); }
 
 LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
@@ -89,7 +89,7 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           current_paint_callback_ = nullptr;
         }
 
-        poly::ui::UIEvent e(this);
+        xe::ui::UIEvent e(this);
         OnPaint(e);
 
         // TODO(benvanik): profiler present.
