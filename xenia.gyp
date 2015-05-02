@@ -138,7 +138,7 @@
         'inherit_from': ['common_base',],
         'defines': [
           'DEBUG',
-          'ASMJIT_DEBUG=',
+          'XE_DEBUG=1',
         ],
         'msvs_configuration_attributes': {
           'OutputDirectory': '<(DEPTH)\\build\\xenia\\Debug',

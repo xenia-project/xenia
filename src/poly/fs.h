@@ -12,7 +12,6 @@
 
 #include <string>
 
-#include "poly/config.h"
 #include "poly/string.h"
 
 #include <vector>

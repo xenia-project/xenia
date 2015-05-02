@@ -17,7 +17,6 @@
 #include <cstring>
 #include <type_traits>
 
-#include "poly/config.h"
 #include "poly/platform.h"
 
 namespace poly {
@@ -120,11 +119,12 @@ inline uint8_t lzcnt(int64_t v) { return lzcnt(static_cast<uint64_t>(v)); }
 // Returns false if no bits are set and the output index is invalid.
 #if XE_COMPILER_MSVC
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
-  return _BitScanForward(reinterpret_cast<DWORD*>(out_first_set_index), v) != 0;
+  return _BitScanForward(reinterpret_cast<unsigned long*>(out_first_set_index),
+                         v) != 0;
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  return _BitScanForward64(reinterpret_cast<DWORD*>(out_first_set_index), v) !=
-         0;
+  return _BitScanForward64(
+             reinterpret_cast<unsigned long*>(out_first_set_index), v) != 0;
 }
 #else
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {

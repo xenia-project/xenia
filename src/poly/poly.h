@@ -13,7 +13,6 @@
 #include "poly/assert.h"
 #include "poly/atomic.h"
 #include "poly/byte_order.h"
-#include "poly/config.h"
 #include "poly/cxx_compat.h"
 #include "poly/debugging.h"
 #include "poly/logging.h"

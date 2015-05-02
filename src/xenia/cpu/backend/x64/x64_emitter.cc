@@ -426,12 +426,12 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
 
 // Overwrite the call site.
 // The return address points to ReloadRCX work after the call.
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
   uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
 #else
   uint64_t return_address =
       reinterpret_cast<uint64_t>(__builtin_return_address(0));
-#endif  // XE_LIKE_WIN32
+#endif  // XE_PLATFORM_WIN32
 #pragma pack(push, 1)
   struct Asm {
     uint16_t mov_rax;
@@ -507,12 +507,12 @@ uint64_t ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
 
 // Add an IC slot, if there is room.
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
   uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
 #else
   uint64_t return_address =
       reinterpret_cast<uint64_t>(__builtin_return_address(0));
-#endif  // XE_LIKE_WIN32
+#endif  // XE_PLATFORM_WIN32
 #pragma pack(push, 1)
   struct Asm {
     uint16_t cmp_rdx;

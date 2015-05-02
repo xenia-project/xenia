@@ -41,7 +41,7 @@ std::string::size_type find_first_of_case(const std::string& target,
 }
 
 std::wstring to_absolute_path(const std::wstring& path) {
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
   wchar_t buffer[poly::max_path];
   _wfullpath(buffer, path.c_str(), sizeof(buffer) / sizeof(wchar_t));
   return buffer;
@@ -49,7 +49,7 @@ std::wstring to_absolute_path(const std::wstring& path) {
   char buffer[poly::max_path];
   realpath(poly::to_string(path).c_str(), buffer);
   return poly::to_wstring(buffer);
-#endif  // XE_LIKE_WIN32
+#endif  // XE_PLATFORM_WIN32
 }
 
 std::vector<std::string> split_path(const std::string& path) {

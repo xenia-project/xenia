@@ -18,7 +18,6 @@
 #include <string>
 #include <thread>
 
-#include "poly/config.h"
 
 namespace poly {
 namespace threading {

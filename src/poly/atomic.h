@@ -12,19 +12,18 @@
 
 #include <cstdint>
 
-#include "poly/config.h"
 #include "poly/platform.h"
 
-#if XE_LIKE_OSX
+#if XE_PLATFORM_MAC
 #include <libkern/OSAtomic.h>
-#endif  // XE_LIKE_OSX
+#endif  // XE_PLATFORM_MAC
 
 namespace poly {
 
 // These functions are modeled off of the Apple OSAtomic routines
 // http://developer.apple.com/library/mac/#documentation/DriversKernelHardware/Reference/libkern_ref/OSAtomic_h/
 
-#if XE_LIKE_OSX
+#if XE_PLATFORM_MAC
 
 inline int32_t atomic_inc(volatile int32_t* value) {
   return OSAtomicIncrement32Barrier(reinterpret_cast<volatile int32_t*>(value));
@@ -58,7 +57,7 @@ inline bool atomic_cas(int64_t old_value, int64_t new_value,
       old_value, new_value, reinterpret_cast<volatile int64_t*>(value));
 }
 
-#elif XE_LIKE_WIN32
+#elif XE_PLATFORM_WIN32
 
 inline int32_t atomic_inc(volatile int32_t* value) {
   return InterlockedIncrement(reinterpret_cast<volatile LONG*>(value));
@@ -96,7 +95,7 @@ inline bool atomic_cas(int64_t old_value, int64_t new_value,
                                       new_value, old_value) == old_value;
 }
 
-#elif XE_LIKE_POSIX
+#elif XE_PLATFORM_LINUX
 
 inline int32_t atomic_inc(volatile int32_t* value) {
   return __sync_add_and_fetch(value, 1);

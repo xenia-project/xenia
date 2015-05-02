@@ -15,9 +15,9 @@
 #include "poly/string.h"
 
 #define XE_OPTION_PROFILING 1
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
 #define XE_OPTION_PROFILING_UI 1
-#endif  // XE_LIKE_WIN32
+#endif  // XE_PLATFORM_WIN32
 
 #if XE_OPTION_PROFILING
 // Pollutes the global namespace. Yuck.

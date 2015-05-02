@@ -12,7 +12,6 @@
 
 #include <assert.h>
 
-#include "poly/config.h"
 #include "poly/platform.h"
 
 namespace poly {

@@ -15,7 +15,7 @@
 #include "poly/main.h"
 #include "poly/poly.h"
 
-#if !XE_LIKE_WIN32
+#if !XE_PLATFORM_WIN32
 #include <dirent.h>
 #endif  // !WIN32
 #include <gflags/gflags.h>
@@ -319,7 +319,7 @@ class TestRunner {
 bool DiscoverTests(std::wstring& test_path,
                    std::vector<std::wstring>& test_files) {
 // TODO(benvanik): use PAL instead of this.
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
   std::wstring search_path = test_path;
   search_path.append(L"\\*.s");
   WIN32_FIND_DATA ffd;

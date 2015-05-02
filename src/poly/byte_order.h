@@ -12,12 +12,11 @@
 
 #include <cstdint>
 
-#include "poly/config.h"
 #include "poly/platform.h"
 
-#if XE_LIKE_OSX
+#if XE_PLATFORM_MAC
 #include <libkern/OSByteOrder.h>
-#endif  // XE_LIKE_OSX
+#endif  // XE_PLATFORM_MAC
 
 namespace poly {
 
@@ -25,7 +24,7 @@ namespace poly {
 #define POLY_BYTE_SWAP_16 _byteswap_ushort
 #define POLY_BYTE_SWAP_32 _byteswap_ulong
 #define POLY_BYTE_SWAP_64 _byteswap_uint64
-#elif XE_LIKE_OSX
+#elif XE_PLATFORM_MAC
 #define POLY_BYTE_SWAP_16 OSSwapInt16
 #define POLY_BYTE_SWAP_32 OSSwapInt32
 #define POLY_BYTE_SWAP_64 OSSwapInt64

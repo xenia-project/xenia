@@ -294,7 +294,7 @@ X_STATUS XThread::PlatformCreate() {
 
   int result_code;
   if (creation_params_.creation_flags & 0x1) {
-#if XE_PLATFORM_OSX
+#if XE_PLATFORM_MAC
     result_code = pthread_create_suspended_np(
         reinterpret_cast<pthread_t*>(&thread_handle_), &attr,
         &XThreadStartCallbackPthreads, this);

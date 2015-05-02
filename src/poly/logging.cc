@@ -120,7 +120,7 @@ void handle_fatal(const char* file_path, const uint32_t line_number,
     log_lock.unlock();
   }
 
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
   if (!poly::has_console_attached()) {
     MessageBoxA(NULL, buffer, "Xenia Error",
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);

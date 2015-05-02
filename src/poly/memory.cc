@@ -11,22 +11,22 @@
 
 #include <algorithm>
 
-#if !XE_LIKE_WIN32
+#if !XE_PLATFORM_WIN32
 #include <unistd.h>
-#endif  // !XE_LIKE_WIN32
+#endif  // !XE_PLATFORM_WIN32
 
 namespace poly {
 
 size_t page_size() {
   static size_t value = 0;
   if (!value) {
-#if XE_LIKE_WIN32
+#if XE_PLATFORM_WIN32
     SYSTEM_INFO si;
     GetSystemInfo(&si);
     value = si.dwPageSize;
 #else
     value = getpagesize();
-#endif  // XE_LIKE_WIN32
+#endif  // XE_PLATFORM_WIN32
   }
   return value;
 }
