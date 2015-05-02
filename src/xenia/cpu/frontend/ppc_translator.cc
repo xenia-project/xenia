@@ -9,6 +9,10 @@
 
 #include "xenia/cpu/frontend/ppc_translator.h"
 
+#include "poly/assert.h"
+#include "poly/byte_order.h"
+#include "poly/memory.h"
+#include "poly/reset_scope.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
@@ -17,7 +21,6 @@
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/frontend/ppc_scanner.h"
 #include "xenia/cpu/runtime.h"
-#include "poly/reset_scope.h"
 #include "xenia/profiling.h"
 
 namespace xe {

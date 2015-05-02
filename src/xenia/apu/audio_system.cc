@@ -9,7 +9,7 @@
 
 #include "xenia/apu/audio_system.h"
 
-#include "poly/poly.h"
+#include "poly/math.h"
 #include "xenia/apu/audio_driver.h"
 #include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"

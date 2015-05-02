@@ -11,6 +11,8 @@
 
 #include <algorithm>
 
+#include "poly/assert.h"
+#include "poly/math.h"
 #include "xenia/logging.h"
 #include "xenia/profiling.h"
 

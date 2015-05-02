@@ -10,11 +10,11 @@
 #ifndef XENIA_HIR_VALUE_H_
 #define XENIA_HIR_VALUE_H_
 
+#include "poly/arena.h"
+#include "poly/assert.h"
+#include "poly/vec128.h"
 #include "xenia/cpu/backend/machine_info.h"
 #include "xenia/cpu/hir/opcodes.h"
-#include "poly/arena.h"
-#include "poly/poly.h"
-#include "poly/vec128.h"
 
 namespace xe {
 namespace cpu {

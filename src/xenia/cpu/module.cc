@@ -12,8 +12,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "poly/threading.h"
 #include "xenia/cpu/runtime.h"
-#include "poly/poly.h"
 #include "xenia/profiling.h"
 
 namespace xe {

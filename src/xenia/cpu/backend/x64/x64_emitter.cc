@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
+#include "poly/assert.h"
+#include "poly/math.h"
 #include "poly/vec128.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"

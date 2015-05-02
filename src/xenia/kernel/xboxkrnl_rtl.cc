@@ -9,6 +9,9 @@
 
 #include "xenia/kernel/xboxkrnl_rtl.h"
 
+#include <algorithm>
+
+#include "poly/atomic.h"
 #include "poly/string.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"

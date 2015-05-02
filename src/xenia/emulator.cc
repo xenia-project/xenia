@@ -9,7 +9,8 @@
 
 #include "xenia/emulator.h"
 
-#include "poly/poly.h"
+#include "poly/assert.h"
+#include "poly/string.h"
 #include "xdb/protocol.h"
 #include "xenia/apu/apu.h"
 #include "xenia/cpu/cpu.h"

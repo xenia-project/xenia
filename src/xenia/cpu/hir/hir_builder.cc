@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/hir/hir_builder.h"
 
+#include "poly/assert.h"
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"

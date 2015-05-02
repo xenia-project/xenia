@@ -10,14 +10,13 @@
 #ifndef XENIA_TEST_UTIL_H_
 #define XENIA_TEST_UTIL_H_
 
+#include "poly/main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/test_module.h"
-#include "poly/main.h"
-#include "poly/poly.h"
 
 #include "third_party/catch/single_include/catch.hpp"
 

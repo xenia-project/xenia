@@ -24,6 +24,8 @@
 
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
+#include "poly/assert.h"
+#include "poly/threading.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/hir/hir_builder.h"

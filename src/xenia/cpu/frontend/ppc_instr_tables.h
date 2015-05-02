@@ -12,9 +12,9 @@
 
 #include <cmath>
 
-#include "xenia/cpu/frontend/ppc_instr.h"
-#include "poly/poly.h"
+#include "poly/math.h"
 #include "poly/string_buffer.h"
+#include "xenia/cpu/frontend/ppc_instr.h"
 
 namespace xe {
 namespace cpu {

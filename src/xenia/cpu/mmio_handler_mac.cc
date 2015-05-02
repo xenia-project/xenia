@@ -14,7 +14,6 @@
 
 #include <thread>
 
-#include "poly/poly.h"
 #include "xenia/logging.h"
 
 // Mach internal function, not defined in any header.

@@ -12,9 +12,10 @@
 #include <sstream>
 #include <vector>
 
-#include "xenia/cpu/frontend/ppc_instr_tables.h"
-#include "poly/poly.h"
+#include "poly/assert.h"
+#include "poly/math.h"
 #include "poly/string_buffer.h"
+#include "xenia/cpu/frontend/ppc_instr_tables.h"
 
 namespace xe {
 namespace cpu {

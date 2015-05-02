@@ -9,7 +9,8 @@
 
 #include "xenia/cpu/frontend/ppc_disasm.h"
 
-#include "poly/poly.h"
+#include "poly/assert.h"
+#include "poly/math.h"
 #include "poly/string_buffer.h"
 
 namespace xe {

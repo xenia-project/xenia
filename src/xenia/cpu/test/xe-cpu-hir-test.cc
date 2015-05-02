@@ -10,6 +10,8 @@
 #define CATCH_CONFIG_RUNNER
 #include "third_party/catch/single_include/catch.hpp"
 
+#include "poly/debugging.h"
+#include "poly/string.h"
 #include "xenia/cpu/test/util.h"
 
 namespace xe {

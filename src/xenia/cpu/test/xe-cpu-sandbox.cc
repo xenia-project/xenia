@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
+#include "poly/main.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/raw_module.h"
-#include "poly/main.h"
-#include "poly/poly.h"
 
 #include <gflags/gflags.h>
 

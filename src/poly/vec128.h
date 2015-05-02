@@ -12,6 +12,9 @@
 
 #include <cstddef>
 
+#include "poly/math.h"
+#include "poly/platform.h"
+
 namespace poly {
 
 // The first rule of vector programming is to only rely on exact positions

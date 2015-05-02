@@ -9,7 +9,7 @@
 
 #include "xenia/gpu/graphics_system.h"
 
-#include "poly/poly.h"
+#include "poly/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gpu-private.h"
 #include "xenia/logging.h"

@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/thread_state.h"
 
+#include "poly/assert.h"
+#include "poly/threading.h"
 #include "xdb/protocol.h"
 #include "xenia/cpu/runtime.h"
 

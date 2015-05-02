@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 
+#include "poly/byte_order.h"
+#include "poly/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"

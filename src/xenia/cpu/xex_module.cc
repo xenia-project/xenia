@@ -11,7 +11,9 @@
 
 #include <algorithm>
 
+#include "poly/byte_order.h"
 #include "poly/math.h"
+#include "poly/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/runtime.h"

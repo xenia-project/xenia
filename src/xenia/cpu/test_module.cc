@@ -9,11 +9,12 @@
 
 #include "xenia/cpu/test_module.h"
 
-#include "xenia/cpu/compiler/compiler_passes.h"
-#include "xenia/cpu/runtime.h"
+#include "poly/assert.h"
 #include "poly/platform.h"
 #include "poly/reset_scope.h"
 #include "poly/string.h"
+#include "xenia/cpu/compiler/compiler_passes.h"
+#include "xenia/cpu/runtime.h"
 
 namespace xe {
 namespace cpu {

@@ -9,7 +9,8 @@
 
 #include "xenia/kernel/objects/xthread.h"
 
-#include "poly/poly.h"
+#include "poly/math.h"
+#include "poly/threading.h"
 #include "xdb/protocol.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/kernel/native_list.h"

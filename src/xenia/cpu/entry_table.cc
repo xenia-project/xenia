@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/entry_table.h"
 
-#include "poly/poly.h"
+#include "poly/threading.h"
 #include "xenia/profiling.h"
 
 namespace xe {

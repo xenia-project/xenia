@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/data_flow_analysis_pass.h"
 
+#include "poly/assert.h"
 #include "poly/platform.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/compiler/compiler.h"

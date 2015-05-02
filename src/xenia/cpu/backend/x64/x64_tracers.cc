@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 
+#include "poly/vec128.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/runtime.h"
 #include "xenia/cpu/thread_state.h"

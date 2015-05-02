@@ -11,6 +11,10 @@
 
 #include <cmath>
 
+#include "poly/assert.h"
+#include "poly/byte_order.h"
+#include "poly/math.h"
+
 namespace xe {
 namespace cpu {
 namespace hir {

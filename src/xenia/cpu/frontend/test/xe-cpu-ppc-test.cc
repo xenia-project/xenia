@@ -8,7 +8,7 @@
  */
 
 #include "poly/main.h"
-#include "poly/poly.h"
+#include "poly/math.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc_context.h"

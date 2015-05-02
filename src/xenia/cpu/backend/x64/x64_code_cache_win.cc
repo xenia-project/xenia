@@ -9,7 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 
-#include "poly/poly.h"
+#include "poly/assert.h"
+#include "poly/math.h"
 #include "xenia/logging.h"
 
 namespace xe {

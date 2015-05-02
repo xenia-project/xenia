@@ -11,6 +11,8 @@
 
 #include <gflags/gflags.h>
 
+#include "poly/assert.h"
+#include "poly/string.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/xam_module.h"

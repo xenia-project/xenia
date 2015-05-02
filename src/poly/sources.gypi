@@ -18,7 +18,6 @@
     'memory.cc',
     'memory.h',
     'platform.h',
-    'poly.h',
     'reset_scope.h',
     'string.cc',
     'string.h',

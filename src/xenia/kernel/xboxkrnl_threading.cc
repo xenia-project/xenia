@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "poly/atomic.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/kernel_state.h"

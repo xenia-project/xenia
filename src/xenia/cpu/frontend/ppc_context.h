@@ -10,7 +10,8 @@
 #ifndef XENIA_FRONTEND_PPC_CONTEXT_H_
 #define XENIA_FRONTEND_PPC_CONTEXT_H_
 
-#include "poly/poly.h"
+#include <cstdint>
+
 #include "poly/vec128.h"
 
 namespace xe {
