@@ -235,6 +235,11 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
       });
 }
 
+void GL4GraphicsSystem::ClearCaches() {
+  command_processor_->CallInThread(
+      [&]() { command_processor_->texture_cache()->Clear(); });
+}
+
 void GL4GraphicsSystem::MarkVblank() {
   static bool thread_name_set = false;
   if (!thread_name_set) {

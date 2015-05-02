@@ -333,6 +333,15 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 #endif  // WIN32
 
 void XThread::Execute() {
+  XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
+              thread_id_, handle(), name_.c_str(),
+              poly::threading::current_thread_id());
+
+  // All threads get a mandatory sleep. This is to deal with some buggy
+  // games that are assuming the 360 is so slow to create threads that they
+  // have time to initialize shared structures AFTER CreateThread (RR).
+  poly::threading::Sleep(std::chrono::milliseconds::duration(100));
+
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {

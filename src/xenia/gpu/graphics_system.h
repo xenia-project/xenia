@@ -52,6 +52,7 @@ class GraphicsSystem {
   };
   virtual void PlayTrace(const uint8_t* trace_data, size_t trace_size,
                          TracePlaybackMode playback_mode) {}
+  virtual void ClearCaches() {}
 
  protected:
   GraphicsSystem();

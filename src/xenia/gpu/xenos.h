@@ -257,6 +257,8 @@ inline float GpuSwap(float value, Endian endianness) {
 
 inline uint32_t GpuToCpu(uint32_t p) { return p; }
 
+inline uint32_t CpuToGpu(uint32_t p) { return p & 0x1FFFFFFF; }
+
 // XE_GPU_REG_SQ_PROGRAM_CNTL
 typedef union {
   XEPACKEDSTRUCTANONYMOUS({

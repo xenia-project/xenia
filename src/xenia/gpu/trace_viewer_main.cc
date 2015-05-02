@@ -2211,10 +2211,14 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
     }
 
     auto control = window->child(0);
-    control->on_key_char.AddListener([](poly::ui::KeyEvent& e) {
+    control->on_key_char.AddListener([graphics_system](poly::ui::KeyEvent& e) {
       auto& io = ImGui::GetIO();
       if (e.key_code() > 0 && e.key_code() < 0x10000) {
-        io.AddInputCharacter(e.key_code());
+        if (e.key_code() == 0x74 /* VK_F5 */) {
+          graphics_system->ClearCaches();
+        } else {
+          io.AddInputCharacter(e.key_code());
+        }
       }
       e.set_handled(true);
     });

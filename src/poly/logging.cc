@@ -9,12 +9,14 @@
 
 #include "poly/logging.h"
 
+#include <gflags/gflags.h>
+
 #include <mutex>
 
-#include <gflags/gflags.h>
 #include "poly/cxx_compat.h"
 #include "poly/main.h"
 #include "poly/math.h"
+#include "poly/threading.h"
 
 DEFINE_bool(fast_stdout, false,
             "Don't lock around stdout/stderr. May introduce weirdness.");
@@ -42,13 +44,17 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
     }
 
     // Format string - add a trailing newline if required.
-    const char* outfmt = "%c> %s:%d: ";
+    const char* outfmt = "%c> %.2X %s:%d: ";
     buffer_ptr = buffer + snprintf(buffer, buffer_count - 1, outfmt, level_char,
+                                   poly::threading::current_thread_id(),
                                    filename, line_number);
   } else {
     buffer_ptr = buffer;
     *(buffer_ptr++) = level_char;
     *(buffer_ptr++) = '>';
+    *(buffer_ptr++) = ' ';
+    buffer_ptr +=
+        sprintf(buffer_ptr, "%.4X", poly::threading::current_thread_id());
     *(buffer_ptr++) = ' ';
   }
 

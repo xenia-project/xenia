@@ -89,6 +89,7 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_state, KernelState* state) {
          stack_size, thread_id_ptr, xapi_thread_startup, start_address,
          start_context, creation_flags);
 
+  // http://jafile.com/uploads/scoop/main.cpp.txt
   // DWORD
   // LPHANDLE Handle,
   // DWORD    StackSize,

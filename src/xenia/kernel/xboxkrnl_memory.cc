@@ -94,6 +94,8 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_state,
     return;
   }
 
+  XELOGD("NtAllocateVirtualMemory = %.8X", addr);
+
   // Stash back.
   // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
   SHIM_SET_MEM_32(base_addr_ptr, addr);
@@ -249,6 +251,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
     SHIM_SET_RETURN_32(0);
     return;
   }
+  XELOGD("MmAllocatePhysicalMemoryEx = %.8X", base_address);
 
   // Move the address into the right range.
   // if (protect_bits & X_MEM_LARGE_PAGES) {
@@ -260,7 +263,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
   //}
   base_address += 0xA0000000;
 
-  SHIM_SET_RETURN_32(base_address);
+  SHIM_SET_RETURN_64(base_address);
 }
 
 SHIM_CALL MmFreePhysicalMemory_shim(PPCContext* ppc_state, KernelState* state) {
@@ -381,7 +384,7 @@ SHIM_CALL MmGetPhysicalAddress_shim(PPCContext* ppc_state, KernelState* state) {
     base_address |= 0xE0000000;
   }*/
 
-  SHIM_SET_RETURN_32(base_address);
+  SHIM_SET_RETURN_64(base_address);
 }
 
 SHIM_CALL MmMapIoSpace_shim(PPCContext* ppc_state, KernelState* state) {
@@ -399,7 +402,7 @@ SHIM_CALL MmMapIoSpace_shim(PPCContext* ppc_state, KernelState* state) {
   assert_true(size == 0x40);
   assert_true(flags == 0x404);
 
-  SHIM_SET_RETURN_32(src_address);
+  SHIM_SET_RETURN_64(src_address);
 }
 
 SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
@@ -420,7 +423,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
 
   uint32_t addr = state->memory()->SystemHeapAlloc(adjusted_size, alignment);
 
-  SHIM_SET_RETURN_32(addr);
+  SHIM_SET_RETURN_64(addr);
 }
 
 SHIM_CALL ExFreePool_shim(PPCContext* ppc_state, KernelState* state) {

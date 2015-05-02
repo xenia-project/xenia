@@ -356,7 +356,20 @@ SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
 }
 
 SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
-  XELOGD("VdPersistDisplay(?)");
+  uint32_t unk0 = SHIM_GET_ARG_32(0);
+  uint32_t unk1_ptr = SHIM_GET_ARG_32(1);
+  uint32_t unk2 = SHIM_GET_ARG_32(2);
+  uint32_t unk3 = SHIM_GET_ARG_32(3);
+  uint32_t unk4 = SHIM_GET_ARG_32(4);
+  uint32_t unk5 = SHIM_GET_ARG_32(5);
+  uint32_t unk6 = SHIM_GET_ARG_32(6);
+  uint32_t unk7 = SHIM_GET_ARG_32(7);
+
+  XELOGD("VdPersistDisplay(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)",
+         unk0, unk1_ptr, unk2, unk3, unk4, unk5, unk6, unk7);
+
+  // unk1_ptr needs to be populated with a pointer passed to
+  // MmFreePhysicalMemory(1, *unk1_ptr).
 
   // ?
   SHIM_SET_RETURN_64(1);

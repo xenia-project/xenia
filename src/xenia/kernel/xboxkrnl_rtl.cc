@@ -565,7 +565,7 @@ spin:
     // All out of spin waits, create a full waiter.
     // TODO(benvanik): contention - do a real wait!
     // XELOGE("RtlEnterCriticalSection tried to really lock!");
-    spin_wait_remaining = 1;  // HACK: spin forever
+    spin_wait_remaining = 0;  // HACK: spin forever
     Sleep(1);
     goto spin;
   }

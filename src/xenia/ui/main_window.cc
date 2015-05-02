@@ -46,11 +46,22 @@ bool MainWindow::Initialize() {
   }
   Resize(1280, 720);
   on_key_down.AddListener([this](poly::ui::KeyEvent& e) {
-    if (e.key_code() == 115) {
-      emulator()->graphics_system()->RequestFrameTrace();
-      e.set_handled(true);
-      return;
+    bool handled = true;
+    switch (e.key_code()) {
+      case 0x73: {  // VK_F4
+        emulator()->graphics_system()->RequestFrameTrace();
+        break;
+      }
+      case 0x74: {  // VK_F5
+        emulator()->graphics_system()->ClearCaches();
+        break;
+      }
+      default: {
+        handled = false;
+        break;
+      }
     }
+    e.set_handled(handled);
   });
   return true;
 }

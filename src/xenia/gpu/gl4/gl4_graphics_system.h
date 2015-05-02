@@ -46,6 +46,7 @@ class GL4GraphicsSystem : public GraphicsSystem {
   void EndTracing() override;
   void PlayTrace(const uint8_t* trace_data, size_t trace_size,
                  TracePlaybackMode playback_mode) override;
+  void ClearCaches() override;
 
  private:
   void MarkVblank();
