@@ -107,8 +107,13 @@ XModule* KernelState::GetModule(const char* name) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   } else {
-    // TODO(benvanik): support user modules/loading/etc.
-    assert_always();
+    for (XUserModule *module : user_modules_) {
+      if (module->name() == name) {
+        module->Retain();
+        return module;
+      }
+    }
+
     return nullptr;
   }
 }
@@ -134,6 +139,28 @@ void KernelState::SetExecutableModule(XUserModule* module) {
   if (executable_module_) {
     executable_module_->Retain();
   }
+}
+
+XUserModule* KernelState::LoadUserModule(const char *name) {
+  // See if we've already loaded it
+  for (XUserModule *module : user_modules_) {
+    if (module->name() == name) {
+      module->Retain();
+      return module;
+    }
+  }
+
+  // Module wasn't loaded, so load it.
+  XUserModule *module = new XUserModule(this, name);
+  X_STATUS status = module->LoadFromFile(name);
+  if (XFAILED(status)) {
+    delete module;
+    return nullptr;
+  }
+
+  user_modules_.push_back(module);
+  module->Retain();
+  return module;
 }
 
 void KernelState::RegisterThread(XThread* thread) {
