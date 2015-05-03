@@ -1,7 +1,6 @@
 @ECHO OFF
 REM Copyright 2015 Ben Vanik. All Rights Reserved.
 
-TITLE xenia
 SET DIR=%~dp0
 
 SET XENIA_SLN=build\xenia\xenia.sln
@@ -508,7 +507,7 @@ IF %ERRORLEVEL% NEQ 0 (
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
-CMD /c python -c "import sys; sys.exit(1 if sys.version_info[:2] != (2, 7) else 0)"
+CMD /c python -c "import sys; sys.exit(1 if not sys.version_info[:2] == (2, 7) else 0)"
 IF %ERRORLEVEL% NEQ 0 (
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
