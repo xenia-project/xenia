@@ -25,81 +25,6 @@ and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
 
-### OSX
-
-* Mac OSX 10.9+
-* Xcode 5.1+
-
-#### Debugging
-
-Choose `Product > Scheme > Edit Scheme`. For xenia, alloy-sandbox, and the
-other executables select the Run action on the left and set
-`Options > Working Directory` to your root xenia/ git path.
-
-## xenia-build
-
-A simple build script is included to manage basic tasks such as building
-dependencies.
-
-    ./xenia-build.py --help
-
-On Windows the `xb.bat` file enables you to issue all commands by just typing
-`xb`. Note that you should run everything from the root `xenia\` folder.
-
-On Linux/OSX the `xeniarc` bash file has some aliases that save some
-keypresses:
-
-    source xeniarc
-    xb  -> python xenia-build.py
-    xbb -> python xenia-build.py build
-    xbc -> python xenia-build.py clean
-
-### Commands
-
-#### setup
-
-Run this on initial checkout to pull down all dependencies and submodules.
-
-    xb setup
-
-#### pull
-
-Does a `git pull` in addition to updating submodules and rebuilding dependencies
-and gyp outputs. Use this, if possible, instead of git pull.
-
-    xb pull
-
-#### gyp
-
-Updates all of the supported gyp projects. If you're using Visual Studio or
-Xcode to build or debug your projects you'll need to run this after you change
-gyp/gypi files.
-
-    xb gyp
-
-#### build
-
-Builds all xenia targets using ninja. Release is built by default; specify
-`--debug` to build the debug configuration.
-
-    xb build
-    xb build --debug
-
-#### clean
-
-Cleans just xenia outputs from the build/ directory. A following build will just
-have the rebuild xenia and not all of the dependencies.
-
-    xb clean
-
-#### nuke
-
-Cleans up xenia outputs as well as all dependencies. A full build will be
-required after this so only do this if you want to reclaim your disk space or
-something is really wrong.
-
-    xb nuke
-
 ## Running
 
 Use the wrapper shell scripts under `bin/` to run tools. They will ensure the
@@ -108,9 +33,3 @@ switching between the debug and release variants with `--debug`.
 
 To make life easier you can use `--flagfile=myflags.txt` to specify all
 arguments, including using `--target=my.xex` to pick an executable.
-
-### xenia
-
-Runs a xex.
-
-    ./bin/xenia some.xex

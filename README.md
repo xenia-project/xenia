@@ -35,13 +35,15 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-Windows 8.1+:
+Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
 
-    # install python 2.7 and VS2015
-    git clone https://github.com/benvanik/xenia.git
-    cd xenia
-    xb setup
-    # open build\xenia\xenia.sln and start xenia-run
+    > git clone https://github.com/benvanik/xenia.git
+    > cd xenia
+    > xb setup
+    # Build on command line:
+    > xb build
+    # Open Visual Studio (run the 'xenia' project):
+    > xb edit
 
 When fetching updates use `xb pull` to automatically fetch everything and
 update gyp files/etc.
