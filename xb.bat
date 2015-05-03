@@ -488,7 +488,10 @@ IF %ALL% NEQ 1 (
   )
   POPD
   IF %ANY_ERRORS% NEQ 0 (
-    ECHO FOOO
+    ECHO.
+    ECHO ERROR: one or more clang-format calls failed
+    ENDLOCAL & SET _RESULT=1
+    GOTO :eof
   )
 )
 
