@@ -212,7 +212,8 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
   output_length = size_2d.output_pitch * block_height;
 }
 
-void TextureInfo::CalculateTextureSizesCube(const xe_gpu_texture_fetch_t& fetch) {
+void TextureInfo::CalculateTextureSizesCube(
+    const xe_gpu_texture_fetch_t& fetch) {
   assert_true(fetch.size_stack.depth + 1 == 6);
   size_cube.logical_width = 1 + fetch.size_stack.width;
   size_cube.logical_height = 1 + fetch.size_stack.height;
@@ -232,8 +233,8 @@ void TextureInfo::CalculateTextureSizesCube(const xe_gpu_texture_fetch_t& fetch)
   size_cube.block_height = tile_height * 32;
 
   uint32_t bytes_per_block = format_info->block_width *
-    format_info->block_height *
-    format_info->bits_per_pixel / 8;
+                             format_info->block_height *
+                             format_info->bits_per_pixel / 8;
   uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.

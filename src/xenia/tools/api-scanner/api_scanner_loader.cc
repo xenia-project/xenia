@@ -16,21 +16,19 @@ namespace tools {
 
 void apiscanner_logger::operator()(const LogType type, const char* szMessage) {
   switch (type) {
-  case LT_WARNING:
-    fprintf(stderr, "[W] %s\n", szMessage);
-    break;
-  case LT_ERROR:
-    fprintf(stderr, "[!] %s\n", szMessage);
-    break;
-  default:
-    break;
+    case LT_WARNING:
+      fprintf(stderr, "[W] %s\n", szMessage);
+      break;
+    case LT_ERROR:
+      fprintf(stderr, "[!] %s\n", szMessage);
+      break;
+    default:
+      break;
   }
 }
 
 apiscanner_loader::apiscanner_loader()
-  : export_resolver(nullptr)
-  , memory_(nullptr)
-{
+    : export_resolver(nullptr), memory_(nullptr) {
   export_resolver = std::make_unique<xe::cpu::ExportResolver>();
 
   kernel::XamModule::RegisterExportTable(export_resolver.get());
@@ -40,8 +38,7 @@ apiscanner_loader::apiscanner_loader()
   memory_->Initialize();
 }
 
-apiscanner_loader::~apiscanner_loader()
-{
+apiscanner_loader::~apiscanner_loader() {
   if (export_resolver != nullptr) {
     export_resolver.reset();
   }
@@ -61,7 +58,6 @@ bool apiscanner_loader::LoadTitleImports(const std::wstring& target) {
 
   return ReadTarget();
 }
-
 
 bool apiscanner_loader::ReadTarget() {
   // XXX Do a wildcard search for all xex files?
@@ -91,8 +87,7 @@ bool apiscanner_loader::ReadTarget() {
     if (read_result) {
       loaded_titles.push_back(res);
     }
-  }
-  else {
+  } else {
     kernel::XFileInfo file_info;
     if (fs_entry->QueryInfo(&file_info)) {
       if (file) {
@@ -107,7 +102,7 @@ bool apiscanner_loader::ReadTarget() {
 
     // XXX No kernel state again
     int result = file_system.Open(std::move(fs_entry), nullptr,
-      kernel::fs::Mode::READ, false, &file);
+                                  kernel::fs::Mode::READ, false, &file);
     if (result) {
       if (file) {
         file->Release();
@@ -141,10 +136,9 @@ bool apiscanner_loader::ReadTarget() {
 }
 
 bool apiscanner_loader::ExtractImports(const void* addr, const size_t length,
-  title& info)
-{
+                                       title& info) {
   // Load the XEX into memory and decrypt.
-  xe_xex2_options_t xex_options = { 0 };
+  xe_xex2_options_t xex_options = {0};
   xe_xex2_ref xex_(xe_xex2_load(memory_.get(), addr, length, xex_options));
   if (!xex_) {
     log(log.LT_ERROR, "Failed to parse xex file");
@@ -154,7 +148,7 @@ bool apiscanner_loader::ExtractImports(const void* addr, const size_t length,
   const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
 
   info.title_id = header->execution_info.title_id;
-    
+
   // XXX Copy out library versions?
   for (size_t n = 0; n < header->import_library_count; n++) {
     const xe_xex2_import_library_t* library = &header->import_libraries[n];
@@ -162,8 +156,7 @@ bool apiscanner_loader::ExtractImports(const void* addr, const size_t length,
     xe_xex2_import_info_t* import_infos;
     size_t import_info_count;
     if (!xe_xex2_get_import_infos(xex_, library, &import_infos,
-      &import_info_count)) {
-
+                                  &import_info_count)) {
       for (size_t m = 0; m < import_info_count; m++) {
         const xe_xex2_import_info_t* import_info = &import_infos[m];
 
@@ -186,5 +179,5 @@ bool apiscanner_loader::ExtractImports(const void* addr, const size_t length,
   return true;
 }
 
-} // tools
-} // xe
+}  // tools
+}  // xe

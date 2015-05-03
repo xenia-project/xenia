@@ -45,7 +45,7 @@ X_STATUS STFSContainerEntry::QueryDirectory(XDirectoryInfo* out_info,
 
   STFSEntry* entry(nullptr);
 
-  if( file_name != nullptr ) {
+  if (file_name != nullptr) {
     // Only queries in the current directory are supported for now
     assert_true(std::strchr(file_name, '\\') == nullptr);
 

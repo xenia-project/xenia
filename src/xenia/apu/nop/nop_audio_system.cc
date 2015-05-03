@@ -11,23 +11,17 @@
 
 #include "xenia/apu/apu-private.h"
 
-
 using namespace xe;
 using namespace xe::apu;
 using namespace xe::apu::nop;
 
+NopAudioSystem::NopAudioSystem(Emulator* emulator) : AudioSystem(emulator) {}
 
-NopAudioSystem::NopAudioSystem(Emulator* emulator) :
-    AudioSystem(emulator) {
-}
+NopAudioSystem::~NopAudioSystem() {}
 
-NopAudioSystem::~NopAudioSystem() {
-}
-
-X_STATUS NopAudioSystem::CreateDriver(size_t index, HANDLE wait_handle, AudioDriver** out_driver) {
+X_STATUS NopAudioSystem::CreateDriver(size_t index, HANDLE wait_handle,
+                                      AudioDriver** out_driver) {
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
-void NopAudioSystem::DestroyDriver(AudioDriver* driver) {
-  assert_always();
-}
+void NopAudioSystem::DestroyDriver(AudioDriver* driver) { assert_always(); }

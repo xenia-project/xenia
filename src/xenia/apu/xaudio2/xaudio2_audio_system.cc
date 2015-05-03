@@ -18,19 +18,15 @@ using namespace xe;
 using namespace xe::apu;
 using namespace xe::apu::xaudio2;
 
+XAudio2AudioSystem::XAudio2AudioSystem(Emulator* emulator)
+    : AudioSystem(emulator) {}
 
-XAudio2AudioSystem::XAudio2AudioSystem(Emulator* emulator) :
-  AudioSystem(emulator) {
-}
+XAudio2AudioSystem::~XAudio2AudioSystem() {}
 
-XAudio2AudioSystem::~XAudio2AudioSystem() {
-}
+void XAudio2AudioSystem::Initialize() { AudioSystem::Initialize(); }
 
-void XAudio2AudioSystem::Initialize() {
-  AudioSystem::Initialize();
-}
-
-X_STATUS XAudio2AudioSystem::CreateDriver(size_t index, HANDLE wait, AudioDriver** out_driver) {
+X_STATUS XAudio2AudioSystem::CreateDriver(size_t index, HANDLE wait,
+                                          AudioDriver** out_driver) {
   assert_not_null(out_driver);
   auto driver = new XAudio2AudioDriver(emulator_, wait);
   driver->Initialize();

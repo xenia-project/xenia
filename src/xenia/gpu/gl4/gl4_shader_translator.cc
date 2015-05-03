@@ -1497,15 +1497,22 @@ static const struct {
 } cf_instructions[] = {
 #define INSTR(opc, fxn) \
   { #opc }
-    INSTR(NOP, print_cf_nop), INSTR(EXEC, print_cf_exec),
-    INSTR(EXEC_END, print_cf_exec), INSTR(COND_EXEC, print_cf_exec),
-    INSTR(COND_EXEC_END, print_cf_exec), INSTR(COND_PRED_EXEC, print_cf_exec),
-    INSTR(COND_PRED_EXEC_END, print_cf_exec), INSTR(LOOP_START, print_cf_loop),
-    INSTR(LOOP_END, print_cf_loop), INSTR(COND_CALL, print_cf_jmp_call),
-    INSTR(RETURN, print_cf_jmp_call), INSTR(COND_JMP, print_cf_jmp_call),
-    INSTR(ALLOC, print_cf_alloc), INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
-    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
-    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
+      INSTR(NOP, print_cf_nop),
+      INSTR(EXEC, print_cf_exec),
+      INSTR(EXEC_END, print_cf_exec),
+      INSTR(COND_EXEC, print_cf_exec),
+      INSTR(COND_EXEC_END, print_cf_exec),
+      INSTR(COND_PRED_EXEC, print_cf_exec),
+      INSTR(COND_PRED_EXEC_END, print_cf_exec),
+      INSTR(LOOP_START, print_cf_loop),
+      INSTR(LOOP_END, print_cf_loop),
+      INSTR(COND_CALL, print_cf_jmp_call),
+      INSTR(RETURN, print_cf_jmp_call),
+      INSTR(COND_JMP, print_cf_jmp_call),
+      INSTR(ALLOC, print_cf_alloc),
+      INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
+      INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
+      INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
 #undef INSTR
 };
 
@@ -1652,66 +1659,66 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
   } fetch_types[0xff] = {
 #define TYPE(id) \
   { #id }
-      TYPE(FMT_1_REVERSE),  // 0
-      {0},
-      TYPE(FMT_8),  // 2
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_8_8_8_8),     // 6
-      TYPE(FMT_2_10_10_10),  // 7
-      {0},
-      {0},
-      TYPE(FMT_8_8),  // 10
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_16),           // 24
-      TYPE(FMT_16_16),        // 25
-      TYPE(FMT_16_16_16_16),  // 26
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_32),                 // 33
-      TYPE(FMT_32_32),              // 34
-      TYPE(FMT_32_32_32_32),        // 35
-      TYPE(FMT_32_FLOAT),           // 36
-      TYPE(FMT_32_32_FLOAT),        // 37
-      TYPE(FMT_32_32_32_32_FLOAT),  // 38
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_32_32_32_FLOAT),  // 57
+        TYPE(FMT_1_REVERSE),  // 0
+        {0},
+        TYPE(FMT_8),  // 2
+        {0},
+        {0},
+        {0},
+        TYPE(FMT_8_8_8_8),     // 6
+        TYPE(FMT_2_10_10_10),  // 7
+        {0},
+        {0},
+        TYPE(FMT_8_8),  // 10
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        TYPE(FMT_16),           // 24
+        TYPE(FMT_16_16),        // 25
+        TYPE(FMT_16_16_16_16),  // 26
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        TYPE(FMT_32),                 // 33
+        TYPE(FMT_32_32),              // 34
+        TYPE(FMT_32_32_32_32),        // 35
+        TYPE(FMT_32_FLOAT),           // 36
+        TYPE(FMT_32_32_FLOAT),        // 37
+        TYPE(FMT_32_32_32_32_FLOAT),  // 38
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        {0},
+        TYPE(FMT_32_32_32_FLOAT),  // 57
 #undef TYPE
-  };
+    };
 
   // Disassemble.
   Append("  //   %sFETCH:\t", sync ? "(S)" : "   ");

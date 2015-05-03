@@ -12,8 +12,6 @@
 
 #include <gflags/gflags.h>
 
-
 DECLARE_string(hid);
-
 
 #endif  // XENIA_HID_HID_PRIVATE_H_

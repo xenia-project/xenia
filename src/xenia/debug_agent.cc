@@ -50,8 +50,7 @@ int DebugAgent::SetupTracing(const std::string& trace_file, uint64_t capacity) {
   auto file_path = xe::to_wstring(trace_file);
   file_ = CreateFile(file_path.c_str(), GENERIC_READ | GENERIC_WRITE,
                      FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
-                     FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY,
-                     nullptr);
+                     FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY, nullptr);
   if (!file_) {
     XELOGE("Could not open trace file for writing");
     return 1;

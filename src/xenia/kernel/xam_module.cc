@@ -40,7 +40,7 @@ void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
     return;
   }
 
-  // Build the export table used for resolution.
+// Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
   static xe::cpu::KernelExport xam_export_table[] = {
 #include "xenia/kernel/xam_table.inc"

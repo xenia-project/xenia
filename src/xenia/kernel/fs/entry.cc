@@ -30,9 +30,7 @@ Entry::Entry(Device* device, const std::string& path)
 
 Entry::~Entry() = default;
 
-bool Entry::is_read_only() const {
-  return device_->is_read_only();
-}
+bool Entry::is_read_only() const { return device_->is_read_only(); }
 
 }  // namespace fs
 }  // namespace kernel

@@ -213,7 +213,7 @@ X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
   if (name_table_.count(name)) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
-  name_table_.insert({ name, handle });
+  name_table_.insert({name, handle});
   return X_STATUS_SUCCESS;
 }
 

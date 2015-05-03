@@ -96,7 +96,7 @@ class PostmortemCursor::Executor {
       auto event_type = xe::load<EventType>(trace_ptr_);
       switch (event_type) {
         case EventType::END_OF_STREAM: {
-          eof_= true;
+          eof_ = true;
           cursor_->end_of_stream();
           return;
         }

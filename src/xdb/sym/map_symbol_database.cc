@@ -12,9 +12,7 @@
 namespace xdb {
 namespace sym {
 
-Symbol* MapSymbolDatabase::Lookup(uint32_t address) {
-  return nullptr;
-}
+Symbol* MapSymbolDatabase::Lookup(uint32_t address) { return nullptr; }
 
 }  // namespace sym
 }  // namespace xdb

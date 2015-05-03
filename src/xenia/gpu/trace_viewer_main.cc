@@ -1062,24 +1062,23 @@ void DrawShaderUI(xe::ui::MainWindow* window, TracePlayer& player,
 // glBlendFuncSeparatei(i, src_blend, dest_blend, src_blend_alpha,
 //  dest_blend_alpha);
 void DrawBlendMode(uint32_t src_blend, uint32_t dest_blend, uint32_t blend_op) {
-  static const char* kBlendNames[] = {
-      /*  0 */ "ZERO",
-      /*  1 */ "ONE",
-      /*  2 */ "UNK2",  // ?
-      /*  3 */ "UNK3",  // ?
-      /*  4 */ "SRC_COLOR",
-      /*  5 */ "ONE_MINUS_SRC_COLOR",
-      /*  6 */ "SRC_ALPHA",
-      /*  7 */ "ONE_MINUS_SRC_ALPHA",
-      /*  8 */ "DST_COLOR",
-      /*  9 */ "ONE_MINUS_DST_COLOR",
-      /* 10 */ "DST_ALPHA",
-      /* 11 */ "ONE_MINUS_DST_ALPHA",
-      /* 12 */ "CONSTANT_COLOR",
-      /* 13 */ "ONE_MINUS_CONSTANT_COLOR",
-      /* 14 */ "CONSTANT_ALPHA",
-      /* 15 */ "ONE_MINUS_CONSTANT_ALPHA",
-      /* 16 */ "SRC_ALPHA_SATURATE",
+  static const char* kBlendNames[] = {/*  0 */ "ZERO",
+                                      /*  1 */ "ONE",
+                                      /*  2 */ "UNK2",  // ?
+                                      /*  3 */ "UNK3",  // ?
+                                      /*  4 */ "SRC_COLOR",
+                                      /*  5 */ "ONE_MINUS_SRC_COLOR",
+                                      /*  6 */ "SRC_ALPHA",
+                                      /*  7 */ "ONE_MINUS_SRC_ALPHA",
+                                      /*  8 */ "DST_COLOR",
+                                      /*  9 */ "ONE_MINUS_DST_COLOR",
+                                      /* 10 */ "DST_ALPHA",
+                                      /* 11 */ "ONE_MINUS_DST_ALPHA",
+                                      /* 12 */ "CONSTANT_COLOR",
+                                      /* 13 */ "ONE_MINUS_CONSTANT_COLOR",
+                                      /* 14 */ "CONSTANT_ALPHA",
+                                      /* 15 */ "ONE_MINUS_CONSTANT_ALPHA",
+                                      /* 16 */ "SRC_ALPHA_SATURATE",
   };
   const char* src_str = kBlendNames[src_blend];
   const char* dest_str = kBlendNames[dest_blend];
@@ -2397,7 +2396,7 @@ void ImImpl_Setup() {
                       pixels);
 
   // Store our identifier
-  io.Fonts->TexID = (void*)(intptr_t)tex_id;
+  io.Fonts->TexID = (void*)(intptr_t) tex_id;
 
   io.DeltaTime = 1.0f / 60.0f;
   io.RenderDrawListsFn = ImImpl_RenderDrawLists;
@@ -2539,7 +2538,7 @@ void ImImpl_RenderDrawLists(ImDrawList** const cmd_lists, int cmd_lists_count) {
     for (const ImDrawCmd* pcmd = cmd_list->commands.begin(); pcmd != pcmd_end;
          pcmd++) {
       if (pcmd->texture_id != prev_texture_id) {
-        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->texture_id);
+        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t) pcmd->texture_id);
         prev_texture_id = pcmd->texture_id;
       }
       glScissor((int)pcmd->clip_rect.x, (int)(height - pcmd->clip_rect.w),

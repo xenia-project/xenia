@@ -16,7 +16,6 @@ namespace tools {
 DEFINE_string(target, "", "List of file to extract imports from");
 
 int api_scanner_main(std::vector<std::wstring>& args) {
-
   // XXX we need gflags to split multiple flags into arrays for us
 
   if (args.size() == 2 || !FLAGS_target.empty()) {
@@ -44,4 +43,4 @@ int api_scanner_main(std::vector<std::wstring>& args) {
 }  // namespace xe
 
 DEFINE_ENTRY_POINT(L"api-scanner", L"api-scanner --target=<target file>",
-  xe::tools::api_scanner_main);
+                   xe::tools::api_scanner_main);

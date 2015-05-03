@@ -16,9 +16,9 @@ namespace xdb {
 
 class Thread {
  public:
-   uint16_t thread_id;
-   // name
-   // etc
+  uint16_t thread_id;
+  // name
+  // etc
 };
 
 }  // namespace xdb

@@ -103,7 +103,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Runtime* runtime() const { return runtime_; }
   X64Backend* backend() const { return backend_; }
-  const Xbyak::util::Cpu *cpu() const { return &cpu_; }
+  const Xbyak::util::Cpu* cpu() const { return &cpu_; }
 
   int Initialize();
 
@@ -193,7 +193,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Backend* backend_;
   X64CodeCache* code_cache_;
   XbyakAllocator* allocator_;
-  Xbyak::util::Cpu cpu_; // Host CPU info
+  Xbyak::util::Cpu cpu_;  // Host CPU info
 
   hir::Instr* current_instr_;
 

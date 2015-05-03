@@ -18,9 +18,7 @@ namespace fs {
 
 HostPathFile::HostPathFile(KernelState* kernel_state, Mode mode,
                            HostPathEntry* entry, HANDLE file_handle)
-    : entry_(entry),
-      file_handle_(file_handle),
-      XFile(kernel_state, mode) {}
+    : entry_(entry), file_handle_(file_handle), XFile(kernel_state, mode) {}
 
 HostPathFile::~HostPathFile() {
   CloseHandle(file_handle_);

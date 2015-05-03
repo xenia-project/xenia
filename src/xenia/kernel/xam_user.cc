@@ -416,7 +416,8 @@ SHIM_CALL XamWriteGamerTile_shim(PPCContext* ppc_state, KernelState* state) {
   }
 }
 
-SHIM_CALL XamSessionCreateHandle_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamSessionCreateHandle_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XamSessionCreateHandle(%.8X)", handle_ptr);
@@ -426,7 +427,8 @@ SHIM_CALL XamSessionCreateHandle_shim(PPCContext* ppc_state, KernelState* state)
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_state,
+                                        KernelState* state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t obj_ptr = SHIM_GET_ARG_32(1);
 

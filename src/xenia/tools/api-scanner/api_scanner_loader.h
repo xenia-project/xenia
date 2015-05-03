@@ -22,46 +22,39 @@
 namespace xe {
 namespace tools {
 
-  class apiscanner_logger
-  {
-  public:
-    enum LogType {
-      LT_WARNING,
-      LT_ERROR
-    };
+class apiscanner_logger {
+ public:
+  enum LogType { LT_WARNING, LT_ERROR };
 
-    void operator()(const LogType type, const char* szMessage);
+  void operator()(const LogType type, const char* szMessage);
+};
+
+class apiscanner_loader {
+ private:
+  kernel::fs::FileSystem file_system;
+  apiscanner_logger log;
+  std::unique_ptr<Memory> memory_;
+  std::unique_ptr<xe::cpu::ExportResolver> export_resolver;
+
+ public:
+  apiscanner_loader();
+  ~apiscanner_loader();
+
+  bool LoadTitleImports(const std::wstring& target);
+
+  struct title {
+    uint32_t title_id;
+    std::vector<std::string> imports;
   };
 
-  class apiscanner_loader
-  {
-  private:
-    kernel::fs::FileSystem file_system;
-    apiscanner_logger log;
-    std::unique_ptr<Memory> memory_;
-    std::unique_ptr<xe::cpu::ExportResolver> export_resolver;
+  const std::vector<title>& GetAllTitles() const { return loaded_titles; }
 
-  public:
-    apiscanner_loader();
-    ~apiscanner_loader();
+ private:
+  std::vector<title> loaded_titles;
 
-    bool LoadTitleImports(const std::wstring& target);
+  bool ReadTarget();
+  bool ExtractImports(const void* addr, const size_t length, title& info);
+};
 
-    struct title
-    {
-      uint32_t title_id;
-      std::vector<std::string> imports;
-    };
-
-    const std::vector<title>& GetAllTitles() const { return loaded_titles; }
-
-  private:
-    std::vector<title> loaded_titles;
-
-    bool ReadTarget();
-    bool ExtractImports(const void* addr, const size_t length, title& info);
-  };
-
-} // tools
-} // xe
-
+}  // tools
+}  // xe

@@ -224,15 +224,24 @@ const static struct {
   uint32_t virtual_address_end;
   uint32_t target_address;
 } map_info[] = {
-    0x00000000, 0x3FFFFFFF, 0x00000000,  // (1024mb) - virtual 4k pages
-    0x40000000, 0x7EFFFFFF, 0x40000000,  // (1024mb) - virtual 64k pages (cont)
-    0x7F000000, 0x7F0FFFFF, 0x00000000,  //    (1mb) - GPU writeback
-    0x7F100000, 0x7FFFFFFF, 0x00100000,  //   (15mb) - XPS?
-    0x80000000, 0x8FFFFFFF, 0x80000000,  //  (256mb) - xex 64k pages
-    0x90000000, 0x9FFFFFFF, 0x80000000,  //  (256mb) - xex 4k pages
-    0xA0000000, 0xBFFFFFFF, 0x00000000,  //  (512mb) - physical 64k pages
-    0xC0000000, 0xDFFFFFFF, 0x00000000,  //          - physical 16mb pages
-    0xE0000000, 0xFFFFFFFF, 0x00000000,  //          - physical 4k pages
+      0x00000000, 0x3FFFFFFF,
+      0x00000000,  // (1024mb) - virtual 4k pages
+      0x40000000, 0x7EFFFFFF,
+      0x40000000,  // (1024mb) - virtual 64k pages (cont)
+      0x7F000000, 0x7F0FFFFF,
+      0x00000000,  //    (1mb) - GPU writeback
+      0x7F100000, 0x7FFFFFFF,
+      0x00100000,  //   (15mb) - XPS?
+      0x80000000, 0x8FFFFFFF,
+      0x80000000,  //  (256mb) - xex 64k pages
+      0x90000000, 0x9FFFFFFF,
+      0x80000000,  //  (256mb) - xex 4k pages
+      0xA0000000, 0xBFFFFFFF,
+      0x00000000,  //  (512mb) - physical 64k pages
+      0xC0000000, 0xDFFFFFFF,
+      0x00000000,  //          - physical 16mb pages
+      0xE0000000, 0xFFFFFFFF,
+      0x00000000,  //          - physical 4k pages
 };
 int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(xe::countof(map_info) == xe::countof(views_.all_views));

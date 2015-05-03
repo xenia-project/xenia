@@ -283,7 +283,7 @@ SHIM_CALL NetDll_select_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t timeout_ptr = SHIM_GET_ARG_32(5);
   XELOGD("NetDll_select(%d, %d, %.8X, %.8X, %.8X, %.8X)", arg0, nfds,
          readfds_ptr, writefds_ptr, exceptfds_ptr, timeout_ptr);
-  fd_set readfds = { 0 };
+  fd_set readfds = {0};
   if (readfds_ptr) {
     LoadFdset(SHIM_MEM_ADDR(readfds_ptr), &readfds);
   }

@@ -16,8 +16,8 @@ namespace xdb {
 
 class Module {
  public:
-   uint16_t module_id;
-   // info
+  uint16_t module_id;
+  // info
 };
 
 }  // namespace xdb

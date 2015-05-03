@@ -18,10 +18,8 @@ namespace xe {
 
 #pragma pack(push, 4)
 
-
 typedef uint32_t X_HANDLE;
-#define X_INVALID_HANDLE_VALUE  ((X_HANDLE)-1)
-
+#define X_INVALID_HANDLE_VALUE ((X_HANDLE)-1)
 
 // TODO(benvanik): type all of this so we get some safety.
 
@@ -170,7 +168,6 @@ enum X_FILE_ATTRIBUTES {
   X_FILE_ATTRIBUTE_ENCRYPTED    = 0x4000,
 };
 
-
 // http://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
 enum X_FILE_INFORMATION_CLASS {
   XFileDirectoryInformation = 1,
@@ -246,18 +243,14 @@ inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
 }
 
 class X_ANSI_STRING {
-private:
-  uint16_t    length;
-  uint16_t    maximum_length;
+ private:
+  uint16_t length;
+  uint16_t maximum_length;
   const char* buffer;
 
-public:
-  X_ANSI_STRING() {
-    Zero();
-  }
-  X_ANSI_STRING(const uint8_t* base, uint32_t p) {
-    Read(base, p);
-  }
+ public:
+  X_ANSI_STRING() { Zero(); }
+  X_ANSI_STRING(const uint8_t* base, uint32_t p) { Read(base, p); }
   void Read(const uint8_t* base, uint32_t p) {
     length = xe::load_and_swap<uint16_t>(base + p);
     maximum_length = xe::load_and_swap<uint16_t>(base + p + 2);
@@ -287,12 +280,10 @@ public:
     return result;
   }
 };
-//static_assert_size(X_ANSI_STRING, 8);
-
+// static_assert_size(X_ANSI_STRING, 8);
 
 // Values seem to be all over the place - GUIDs?
 typedef uint32_t XNotificationID;
-
 
 // http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
 struct X_VIDEO_MODE {

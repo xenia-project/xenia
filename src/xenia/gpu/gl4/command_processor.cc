@@ -2106,31 +2106,29 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
 
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
-  static const GLenum blend_map[] = {
-      /*  0 */ GL_ZERO,
-      /*  1 */ GL_ONE,
-      /*  2 */ GL_ZERO,  // ?
-      /*  3 */ GL_ZERO,  // ?
-      /*  4 */ GL_SRC_COLOR,
-      /*  5 */ GL_ONE_MINUS_SRC_COLOR,
-      /*  6 */ GL_SRC_ALPHA,
-      /*  7 */ GL_ONE_MINUS_SRC_ALPHA,
-      /*  8 */ GL_DST_COLOR,
-      /*  9 */ GL_ONE_MINUS_DST_COLOR,
-      /* 10 */ GL_DST_ALPHA,
-      /* 11 */ GL_ONE_MINUS_DST_ALPHA,
-      /* 12 */ GL_CONSTANT_COLOR,
-      /* 13 */ GL_ONE_MINUS_CONSTANT_COLOR,
-      /* 14 */ GL_CONSTANT_ALPHA,
-      /* 15 */ GL_ONE_MINUS_CONSTANT_ALPHA,
-      /* 16 */ GL_SRC_ALPHA_SATURATE,
+  static const GLenum blend_map[] = {/*  0 */ GL_ZERO,
+                                     /*  1 */ GL_ONE,
+                                     /*  2 */ GL_ZERO,  // ?
+                                     /*  3 */ GL_ZERO,  // ?
+                                     /*  4 */ GL_SRC_COLOR,
+                                     /*  5 */ GL_ONE_MINUS_SRC_COLOR,
+                                     /*  6 */ GL_SRC_ALPHA,
+                                     /*  7 */ GL_ONE_MINUS_SRC_ALPHA,
+                                     /*  8 */ GL_DST_COLOR,
+                                     /*  9 */ GL_ONE_MINUS_DST_COLOR,
+                                     /* 10 */ GL_DST_ALPHA,
+                                     /* 11 */ GL_ONE_MINUS_DST_ALPHA,
+                                     /* 12 */ GL_CONSTANT_COLOR,
+                                     /* 13 */ GL_ONE_MINUS_CONSTANT_COLOR,
+                                     /* 14 */ GL_CONSTANT_ALPHA,
+                                     /* 15 */ GL_ONE_MINUS_CONSTANT_ALPHA,
+                                     /* 16 */ GL_SRC_ALPHA_SATURATE,
   };
-  static const GLenum blend_op_map[] = {
-      /*  0 */ GL_FUNC_ADD,
-      /*  1 */ GL_FUNC_SUBTRACT,
-      /*  2 */ GL_MIN,
-      /*  3 */ GL_MAX,
-      /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
+  static const GLenum blend_op_map[] = {/*  0 */ GL_FUNC_ADD,
+                                        /*  1 */ GL_FUNC_SUBTRACT,
+                                        /*  2 */ GL_MIN,
+                                        /*  3 */ GL_MAX,
+                                        /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
   };
   for (int i = 0; i < xe::countof(regs.rb_blendcontrol); ++i) {
     uint32_t blend_control = regs.rb_blendcontrol[i];
@@ -2183,25 +2181,23 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
 
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
-  static const GLenum compare_func_map[] = {
-      /*  0 */ GL_NEVER,
-      /*  1 */ GL_LESS,
-      /*  2 */ GL_EQUAL,
-      /*  3 */ GL_LEQUAL,
-      /*  4 */ GL_GREATER,
-      /*  5 */ GL_NOTEQUAL,
-      /*  6 */ GL_GEQUAL,
-      /*  7 */ GL_ALWAYS,
+  static const GLenum compare_func_map[] = {/*  0 */ GL_NEVER,
+                                            /*  1 */ GL_LESS,
+                                            /*  2 */ GL_EQUAL,
+                                            /*  3 */ GL_LEQUAL,
+                                            /*  4 */ GL_GREATER,
+                                            /*  5 */ GL_NOTEQUAL,
+                                            /*  6 */ GL_GEQUAL,
+                                            /*  7 */ GL_ALWAYS,
   };
-  static const GLenum stencil_op_map[] = {
-      /*  0 */ GL_KEEP,
-      /*  1 */ GL_ZERO,
-      /*  2 */ GL_REPLACE,
-      /*  3 */ GL_INCR_WRAP,
-      /*  4 */ GL_DECR_WRAP,
-      /*  5 */ GL_INVERT,
-      /*  6 */ GL_INCR,
-      /*  7 */ GL_DECR,
+  static const GLenum stencil_op_map[] = {/*  0 */ GL_KEEP,
+                                          /*  1 */ GL_ZERO,
+                                          /*  2 */ GL_REPLACE,
+                                          /*  3 */ GL_INCR_WRAP,
+                                          /*  4 */ GL_DECR_WRAP,
+                                          /*  5 */ GL_INVERT,
+                                          /*  6 */ GL_INCR,
+                                          /*  7 */ GL_DECR,
   };
   // A2XX_RB_DEPTHCONTROL_Z_ENABLE
   if (regs.rb_depthcontrol & 0x00000002) {

@@ -33,7 +33,8 @@ SHIM_CALL XMsgInProcessCall_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMsgSystemProcessCall_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMsgSystemProcessCall_shim(PPCContext* ppc_state,
+                                     KernelState* state) {
   uint32_t app = SHIM_GET_ARG_32(0);
   uint32_t message = SHIM_GET_ARG_32(1);
   uint32_t buffer = SHIM_GET_ARG_32(2);

@@ -17,10 +17,7 @@ using namespace xe;
 using namespace xe::apu;
 using namespace xe::cpu;
 
+AudioDriver::AudioDriver(Emulator* emulator)
+    : emulator_(emulator), memory_(emulator->memory()) {}
 
-AudioDriver::AudioDriver(Emulator* emulator) :
-    emulator_(emulator), memory_(emulator->memory()) {
-}
-
-AudioDriver::~AudioDriver() {
-}
+AudioDriver::~AudioDriver() {}

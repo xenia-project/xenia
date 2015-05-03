@@ -16,8 +16,7 @@ XEnumerator::XEnumerator(KernelState* kernel_state, size_t item_capacity,
                          size_t item_size)
     : XObject(kernel_state, kTypeEnumerator),
       item_capacity_(item_capacity),
-      item_size_(item_size)
-{}
+      item_size_(item_size) {}
 
 XEnumerator::~XEnumerator() = default;
 

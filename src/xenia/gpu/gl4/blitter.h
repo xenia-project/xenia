@@ -48,7 +48,8 @@ class Blitter {
                         GLuint dest_texture, Rect2D dest_rect);
 
  private:
-  void Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect, GLenum filter);
+  void Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
+            GLenum filter);
 
   GLuint vertex_program_;
   GLuint color_fragment_program_;

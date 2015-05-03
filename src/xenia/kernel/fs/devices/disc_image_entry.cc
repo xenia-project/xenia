@@ -64,8 +64,7 @@ X_STATUS DiscImageEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
-  }
-  else {
+  } else {
     if (restart) {
       it_ = gdfx_entry_->children.begin();
     }

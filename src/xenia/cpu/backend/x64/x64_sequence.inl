@@ -7,7 +7,6 @@
  ******************************************************************************
  */
 
-
 namespace {
 
 enum KeyType {
@@ -36,16 +35,15 @@ union InstrKey {
   };
   uint32_t value;
 
-  operator uint32_t() const {
-    return value;
-  }
+  operator uint32_t() const { return value; }
 
   InstrKey() : value(0) {}
   InstrKey(uint32_t v) : value(v) {}
   InstrKey(const Instr* i) : value(0) {
     opcode = i->opcode->num;
     uint32_t sig = i->opcode->signature;
-    dest = GET_OPCODE_SIG_TYPE_DEST(sig) ? OPCODE_SIG_TYPE_V + i->dest->type : 0;
+    dest =
+        GET_OPCODE_SIG_TYPE_DEST(sig) ? OPCODE_SIG_TYPE_V + i->dest->type : 0;
     src1 = GET_OPCODE_SIG_TYPE_SRC1(sig);
     if (src1 == OPCODE_SIG_TYPE_V) {
       src1 += i->src1.value->type;
@@ -60,11 +58,8 @@ union InstrKey {
     }
   }
 
-  template <Opcode OPCODE,
-            KeyType DEST = KEY_TYPE_X,
-            KeyType SRC1 = KEY_TYPE_X,
-            KeyType SRC2 = KEY_TYPE_X,
-            KeyType SRC3 = KEY_TYPE_X>
+  template <Opcode OPCODE, KeyType DEST = KEY_TYPE_X, KeyType SRC1 = KEY_TYPE_X,
+            KeyType SRC2 = KEY_TYPE_X, KeyType SRC3 = KEY_TYPE_X>
   struct Construct {
     static const uint32_t value =
         (OPCODE) | (DEST << 8) | (SRC1 << 13) | (SRC2 << 18) | (SRC3 << 23);
@@ -88,27 +83,33 @@ struct Op : OpBase {
 };
 
 struct VoidOp : Op<VoidOp, KEY_TYPE_X> {
-protected:
-  template <typename T, KeyType KEY_TYPE> friend struct Op;
-  template <hir::Opcode OPCODE, typename... Ts> friend struct I;
+ protected:
+  template <typename T, KeyType KEY_TYPE>
+  friend struct Op;
+  template <hir::Opcode OPCODE, typename... Ts>
+  friend struct I;
   void Load(const Instr::Op& op) {}
 };
 
 struct OffsetOp : Op<OffsetOp, KEY_TYPE_O> {
   uint64_t value;
-protected:
-  template <typename T, KeyType KEY_TYPE> friend struct Op;
-  template <hir::Opcode OPCODE, typename... Ts> friend struct I;
-  void Load(const Instr::Op& op) {
-    this->value = op.offset;
-  }
+
+ protected:
+  template <typename T, KeyType KEY_TYPE>
+  friend struct Op;
+  template <hir::Opcode OPCODE, typename... Ts>
+  friend struct I;
+  void Load(const Instr::Op& op) { this->value = op.offset; }
 };
 
 struct SymbolOp : Op<SymbolOp, KEY_TYPE_S> {
   FunctionInfo* value;
-protected:
-  template <typename T, KeyType KEY_TYPE> friend struct Op;
-  template <hir::Opcode OPCODE, typename... Ts> friend struct I;
+
+ protected:
+  template <typename T, KeyType KEY_TYPE>
+  friend struct Op;
+  template <hir::Opcode OPCODE, typename... Ts>
+  friend struct I;
   bool Load(const Instr::Op& op) {
     this->value = op.symbol_info;
     return true;
@@ -117,15 +118,17 @@ protected:
 
 struct LabelOp : Op<LabelOp, KEY_TYPE_L> {
   hir::Label* value;
-protected:
-  template <typename T, KeyType KEY_TYPE> friend struct Op;
-  template <hir::Opcode OPCODE, typename... Ts> friend struct I;
-  void Load(const Instr::Op& op) {
-    this->value = op.label;
-  }
+
+ protected:
+  template <typename T, KeyType KEY_TYPE>
+  friend struct Op;
+  template <hir::Opcode OPCODE, typename... Ts>
+  friend struct I;
+  void Load(const Instr::Op& op) { this->value = op.label; }
 };
 
-template <typename T, KeyType KEY_TYPE, typename REG_TYPE, typename CONST_TYPE, int TAG = -1>
+template <typename T, KeyType KEY_TYPE, typename REG_TYPE, typename CONST_TYPE,
+          int TAG = -1>
 struct ValueOp : Op<ValueOp<T, KEY_TYPE, REG_TYPE, CONST_TYPE, TAG>, KEY_TYPE> {
   typedef REG_TYPE reg_type;
   static const int tag = TAG;
@@ -136,9 +139,7 @@ struct ValueOp : Op<ValueOp<T, KEY_TYPE, REG_TYPE, CONST_TYPE, TAG>, KEY_TYPE> {
     assert_true(!is_constant);
     return reg_;
   }
-  operator const REG_TYPE&() const {
-    return reg();
-  }
+  operator const REG_TYPE&() const { return reg(); }
   bool IsEqual(const T& b) const {
     if (is_constant && b.is_constant) {
       return reinterpret_cast<const T*>(this)->constant() == b.constant();
@@ -157,18 +158,10 @@ struct ValueOp : Op<ValueOp<T, KEY_TYPE, REG_TYPE, CONST_TYPE, TAG>, KEY_TYPE> {
       return false;
     }
   }
-  bool operator== (const T& b) const {
-    return IsEqual(b);
-  }
-  bool operator!= (const T& b) const {
-    return !IsEqual(b);
-  }
-  bool operator== (const Xbyak::Reg& b) const {
-    return IsEqual(b);
-  }
-  bool operator!= (const Xbyak::Reg& b) const {
-    return !IsEqual(b);
-  }
+  bool operator==(const T& b) const { return IsEqual(b); }
+  bool operator!=(const T& b) const { return !IsEqual(b); }
+  bool operator==(const Xbyak::Reg& b) const { return IsEqual(b); }
+  bool operator!=(const Xbyak::Reg& b) const { return !IsEqual(b); }
   void Load(const Instr::Op& op) {
     const Value* value = op.value;
     this->value = value;
@@ -177,7 +170,8 @@ struct ValueOp : Op<ValueOp<T, KEY_TYPE, REG_TYPE, CONST_TYPE, TAG>, KEY_TYPE> {
       X64Emitter::SetupReg(value, reg_);
     }
   }
-protected:
+
+ protected:
   REG_TYPE reg_;
 };
 
@@ -255,30 +249,34 @@ struct TagTable {
     Instr::Op op;
   } table[16];
 
-  template <typename T, typename std::enable_if<T::key_type == KEY_TYPE_X>::type* = nullptr>
+  template <typename T,
+            typename std::enable_if<T::key_type == KEY_TYPE_X>::type* = nullptr>
   bool CheckTag(const Instr::Op& op) {
     return true;
   }
-  template <typename T, typename std::enable_if<T::key_type == KEY_TYPE_L>::type* = nullptr>
+  template <typename T,
+            typename std::enable_if<T::key_type == KEY_TYPE_L>::type* = nullptr>
   bool CheckTag(const Instr::Op& op) {
     return true;
   }
-  template <typename T, typename std::enable_if<T::key_type == KEY_TYPE_O>::type* = nullptr>
+  template <typename T,
+            typename std::enable_if<T::key_type == KEY_TYPE_O>::type* = nullptr>
   bool CheckTag(const Instr::Op& op) {
     return true;
   }
-  template <typename T, typename std::enable_if<T::key_type == KEY_TYPE_S>::type* = nullptr>
+  template <typename T,
+            typename std::enable_if<T::key_type == KEY_TYPE_S>::type* = nullptr>
   bool CheckTag(const Instr::Op& op) {
     return true;
   }
-  template <typename T, typename std::enable_if<T::key_type >= KEY_TYPE_V_I8>::type* = nullptr>
+  template <typename T, typename std::enable_if<T::key_type >=
+                                                KEY_TYPE_V_I8>::type* = nullptr>
   bool CheckTag(const Instr::Op& op) {
     const Value* value = op.value;
     if (T::tag == -1) {
       return true;
     }
-    if (table[T::tag].valid &&
-        table[T::tag].op.value != value) {
+    if (table[T::tag].valid && table[T::tag].op.value != value) {
       return false;
     }
     table[T::tag].valid = true;
@@ -292,7 +290,8 @@ struct DestField;
 template <typename DEST>
 struct DestField<DEST> {
   DEST dest;
-protected:
+
+ protected:
   bool LoadDest(const Instr* i, TagTable& tag_table) {
     Instr::Op op;
     op.value = i->dest;
@@ -305,10 +304,8 @@ protected:
 };
 template <>
 struct DestField<VoidOp> {
-protected:
-  bool LoadDest(const Instr* i, TagTable& tag_table) {
-    return true;
-  }
+ protected:
+  bool LoadDest(const Instr* i, TagTable& tag_table) { return true; }
 };
 
 template <hir::Opcode OPCODE, typename... Ts>
@@ -317,14 +314,16 @@ template <hir::Opcode OPCODE, typename DEST>
 struct I<OPCODE, DEST> : DestField<DEST> {
   typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
-  static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type>::value;
+  static const uint32_t key =
+      InstrKey::Construct<OPCODE, DEST::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
   const Instr* instr;
-protected:
-  template <typename... Ti> friend struct SequenceFields;
+
+ protected:
+  template <typename... Ti>
+  friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
-    if (InstrKey(i).value == key &&
-        BASE::LoadDest(i, tag_table)) {
+    if (InstrKey(i).value == key && BASE::LoadDest(i, tag_table)) {
       instr = i;
       return true;
     }
@@ -335,16 +334,18 @@ template <hir::Opcode OPCODE, typename DEST, typename SRC1>
 struct I<OPCODE, DEST, SRC1> : DestField<DEST> {
   typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
-  static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type>::value;
+  static const uint32_t key =
+      InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
   static const KeyType src1_type = SRC1::key_type;
   const Instr* instr;
   SRC1 src1;
-protected:
-  template <typename... Ti> friend struct SequenceFields;
+
+ protected:
+  template <typename... Ti>
+  friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
-    if (InstrKey(i).value == key &&
-        BASE::LoadDest(i, tag_table) &&
+    if (InstrKey(i).value == key && BASE::LoadDest(i, tag_table) &&
         tag_table.CheckTag<SRC1>(i->src1)) {
       instr = i;
       src1.Load(i->src1);
@@ -357,18 +358,20 @@ template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2>
 struct I<OPCODE, DEST, SRC1, SRC2> : DestField<DEST> {
   typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
-  static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type, SRC2::key_type>::value;
+  static const uint32_t key = InstrKey::Construct<
+      OPCODE, DEST::key_type, SRC1::key_type, SRC2::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
   static const KeyType src1_type = SRC1::key_type;
   static const KeyType src2_type = SRC2::key_type;
   const Instr* instr;
   SRC1 src1;
   SRC2 src2;
-protected:
-  template <typename... Ti> friend struct SequenceFields;
+
+ protected:
+  template <typename... Ti>
+  friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
-    if (InstrKey(i).value == key &&
-        BASE::LoadDest(i, tag_table) &&
+    if (InstrKey(i).value == key && BASE::LoadDest(i, tag_table) &&
         tag_table.CheckTag<SRC1>(i->src1) &&
         tag_table.CheckTag<SRC2>(i->src2)) {
       instr = i;
@@ -379,11 +382,14 @@ protected:
     return false;
   }
 };
-template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2, typename SRC3>
+template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2,
+          typename SRC3>
 struct I<OPCODE, DEST, SRC1, SRC2, SRC3> : DestField<DEST> {
   typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
-  static const uint32_t key = InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type, SRC2::key_type, SRC3::key_type>::value;
+  static const uint32_t key =
+      InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type,
+                          SRC2::key_type, SRC3::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
   static const KeyType src1_type = SRC1::key_type;
   static const KeyType src2_type = SRC2::key_type;
@@ -392,11 +398,12 @@ struct I<OPCODE, DEST, SRC1, SRC2, SRC3> : DestField<DEST> {
   SRC1 src1;
   SRC2 src2;
   SRC3 src3;
-protected:
-  template <typename... Ti> friend struct SequenceFields;
+
+ protected:
+  template <typename... Ti>
+  friend struct SequenceFields;
   bool Load(const Instr* i, TagTable& tag_table) {
-    if (InstrKey(i).value == key &&
-        BASE::LoadDest(i, tag_table) &&
+    if (InstrKey(i).value == key && BASE::LoadDest(i, tag_table) &&
         tag_table.CheckTag<SRC1>(i->src1) &&
         tag_table.CheckTag<SRC2>(i->src2) &&
         tag_table.CheckTag<SRC3>(i->src3)) {
@@ -415,8 +422,10 @@ struct SequenceFields;
 template <typename I1>
 struct SequenceFields<I1> {
   I1 i1;
-protected:
-  template <typename SEQ, typename... Ti> friend struct Sequence;
+
+ protected:
+  template <typename SEQ, typename... Ti>
+  friend struct Sequence;
   bool Check(const Instr* i, TagTable& tag_table, const Instr** new_tail) {
     if (i1.Load(i, tag_table)) {
       *new_tail = i->next;
@@ -428,8 +437,10 @@ protected:
 template <typename I1, typename I2>
 struct SequenceFields<I1, I2> : SequenceFields<I1> {
   I2 i2;
-protected:
-  template <typename SEQ, typename... Ti> friend struct Sequence;
+
+ protected:
+  template <typename SEQ, typename... Ti>
+  friend struct Sequence;
   bool Check(const Instr* i, TagTable& tag_table, const Instr** new_tail) {
     if (SequenceFields<I1>::Check(i, tag_table, new_tail)) {
       auto ni = i->next;
@@ -444,8 +455,10 @@ protected:
 template <typename I1, typename I2, typename I3>
 struct SequenceFields<I1, I2, I3> : SequenceFields<I1, I2> {
   I3 i3;
-protected:
-  template <typename SEQ, typename... Ti> friend struct Sequence;
+
+ protected:
+  template <typename SEQ, typename... Ti>
+  friend struct Sequence;
   bool Check(const Instr* i, TagTable& tag_table, const Instr** new_tail) {
     if (SequenceFields<I1, I2>::Check(i, tag_table, new_tail)) {
       auto ni = i->next;
@@ -460,8 +473,10 @@ protected:
 template <typename I1, typename I2, typename I3, typename I4>
 struct SequenceFields<I1, I2, I3, I4> : SequenceFields<I1, I2, I3> {
   I4 i4;
-protected:
-  template <typename SEQ, typename... Ti> friend struct Sequence;
+
+ protected:
+  template <typename SEQ, typename... Ti>
+  friend struct Sequence;
   bool Check(const Instr* i, TagTable& tag_table, const Instr** new_tail) {
     if (SequenceFields<I1, I2, I3>::Check(i, tag_table, new_tail)) {
       auto ni = i->next;
@@ -476,8 +491,10 @@ protected:
 template <typename I1, typename I2, typename I3, typename I4, typename I5>
 struct SequenceFields<I1, I2, I3, I4, I5> : SequenceFields<I1, I2, I3, I4> {
   I5 i5;
-protected:
-  template <typename SEQ, typename... Ti> friend struct Sequence;
+
+ protected:
+  template <typename SEQ, typename... Ti>
+  friend struct Sequence;
   bool Check(const Instr* i, TagTable& tag_table, const Instr** new_tail) {
     if (SequenceFields<I1, I2, I3, I4>::Check(i, tag_table, new_tail)) {
       auto ni = i->next;
@@ -528,7 +545,7 @@ template <typename SEQ, typename T>
 struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   typedef Sequence<SingleSequence<SEQ, T>, T> BASE;
   typedef T EmitArgType;
-  // TODO(benvanik): find a way to do this cross-compiler.
+// TODO(benvanik): find a way to do this cross-compiler.
 #if XE_COMPILER_MSVC
   static uint32_t head_key() { return T::key; }
 #else
@@ -539,9 +556,8 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   }
 
   template <typename REG_FN>
-  static void EmitUnaryOp(
-      X64Emitter& e, const EmitArgType& i,
-      const REG_FN& reg_fn) {
+  static void EmitUnaryOp(X64Emitter& e, const EmitArgType& i,
+                          const REG_FN& reg_fn) {
     if (i.src1.is_constant) {
       e.mov(i.dest, i.src1.constant());
       reg_fn(e, i.dest);
@@ -554,9 +570,9 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   }
 
   template <typename REG_REG_FN, typename REG_CONST_FN>
-  static void EmitCommutativeBinaryOp(
-      X64Emitter& e, const EmitArgType& i,
-      const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
+  static void EmitCommutativeBinaryOp(X64Emitter& e, const EmitArgType& i,
+                                      const REG_REG_FN& reg_reg_fn,
+                                      const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       if (i.dest == i.src2) {
@@ -596,9 +612,9 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
     }
   }
   template <typename REG_REG_FN, typename REG_CONST_FN>
-  static void EmitAssociativeBinaryOp(
-      X64Emitter& e, const EmitArgType& i,
-      const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
+  static void EmitAssociativeBinaryOp(X64Emitter& e, const EmitArgType& i,
+                                      const REG_REG_FN& reg_reg_fn,
+                                      const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       if (i.dest == i.src2) {
@@ -645,8 +661,8 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   }
 
   template <typename FN>
-  static void EmitCommutativeBinaryXmmOp(
-      X64Emitter& e, const EmitArgType& i, const FN& fn) {
+  static void EmitCommutativeBinaryXmmOp(X64Emitter& e, const EmitArgType& i,
+                                         const FN& fn) {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
@@ -660,8 +676,8 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   }
 
   template <typename FN>
-  static void EmitAssociativeBinaryXmmOp(
-      X64Emitter& e, const EmitArgType& i, const FN& fn) {
+  static void EmitAssociativeBinaryXmmOp(X64Emitter& e, const EmitArgType& i,
+                                         const FN& fn) {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
@@ -675,9 +691,9 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
   }
 
   template <typename REG_REG_FN, typename REG_CONST_FN>
-  static void EmitCommutativeCompareOp(
-      X64Emitter& e, const EmitArgType& i,
-      const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
+  static void EmitCommutativeCompareOp(X64Emitter& e, const EmitArgType& i,
+                                       const REG_REG_FN& reg_reg_fn,
+                                       const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       if (i.src1.ConstantFitsIn32Reg()) {
@@ -700,13 +716,14 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
     }
   }
   template <typename REG_REG_FN, typename REG_CONST_FN>
-  static void EmitAssociativeCompareOp(
-      X64Emitter& e, const EmitArgType& i,
-      const REG_REG_FN& reg_reg_fn, const REG_CONST_FN& reg_const_fn) {
+  static void EmitAssociativeCompareOp(X64Emitter& e, const EmitArgType& i,
+                                       const REG_REG_FN& reg_reg_fn,
+                                       const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
       assert_true(!i.src2.is_constant);
       if (i.src1.ConstantFitsIn32Reg()) {
-        reg_const_fn(e, i.dest, i.src2, static_cast<int32_t>(i.src1.constant()), true);
+        reg_const_fn(e, i.dest, i.src2, static_cast<int32_t>(i.src1.constant()),
+                     true);
       } else {
         auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
         e.mov(temp, i.src1.constant());
@@ -714,7 +731,8 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
       }
     } else if (i.src2.is_constant) {
       if (i.src2.ConstantFitsIn32Reg()) {
-        reg_const_fn(e, i.dest, i.src1, static_cast<int32_t>(i.src2.constant()), false);
+        reg_const_fn(e, i.dest, i.src1, static_cast<int32_t>(i.src2.constant()),
+                     false);
       } else {
         auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
         e.mov(temp, i.src2.constant());
@@ -739,7 +757,7 @@ static const tag_t TAG7 = 7;
 
 template <typename T>
 void Register() {
-  sequence_table.insert({ T::head_key(), T::Select });
+  sequence_table.insert({T::head_key(), T::Select});
 }
 template <typename T, typename Tn, typename... Ts>
 void Register() {
@@ -747,9 +765,7 @@ void Register() {
   Register<Tn, Ts...>();
 };
 #define EMITTER_OPCODE_TABLE(name, ...) \
-  void Register_##name() { \
-    Register<__VA_ARGS__>(); \
-  }
+  void Register_##name() { Register<__VA_ARGS__>(); }
 
 #define MATCH(...) __VA_ARGS__
 #define EMITTER(name, match) struct name : SingleSequence<name, match>

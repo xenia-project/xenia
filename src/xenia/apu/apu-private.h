@@ -12,8 +12,6 @@
 
 #include <gflags/gflags.h>
 
-
 DECLARE_string(apu);
-
 
 #endif  // XENIA_APU_APU_PRIVATE_H_

@@ -63,9 +63,10 @@ struct Output {
 };
 
 static const char* levels[] = {
-    "", "\t", "\t\t", "\t\t\t", "\t\t\t\t", "\t\t\t\t\t", "\t\t\t\t\t\t",
-    "\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t\t", "x", "x", "x",
-    "x", "x", "x",
+    "",                 "\t",                 "\t\t",         "\t\t\t",
+    "\t\t\t\t",         "\t\t\t\t\t",         "\t\t\t\t\t\t", "\t\t\t\t\t\t\t",
+    "\t\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t\t", "x",            "x",
+    "x",                "x",                  "x",            "x",
 };
 
 /*
@@ -155,40 +156,39 @@ void print_export_comment(Output* output, uint32_t num, ShaderType type) {
 struct {
   uint32_t num_srcs;
   const char* name;
-} vector_instructions[0x20] =
-    {
+} vector_instructions[0x20] = {
 #define INSTR(opc, num_srcs) \
   { num_srcs, #opc }
-     INSTR(ADDv, 2),               // 0
-     INSTR(MULv, 2),               // 1
-     INSTR(MAXv, 2),               // 2
-     INSTR(MINv, 2),               // 3
-     INSTR(SETEv, 2),              // 4
-     INSTR(SETGTv, 2),             // 5
-     INSTR(SETGTEv, 2),            // 6
-     INSTR(SETNEv, 2),             // 7
-     INSTR(FRACv, 1),              // 8
-     INSTR(TRUNCv, 1),             // 9
-     INSTR(FLOORv, 1),             // 10
-     INSTR(MULADDv, 3),            // 111
-     INSTR(CNDEv, 3),              // 12
-     INSTR(CNDGTEv, 3),            // 13
-     INSTR(CNDGTv, 3),             // 14
-     INSTR(DOT4v, 2),              // 15
-     INSTR(DOT3v, 2),              // 16
-     INSTR(DOT2ADDv, 3),           // 17 -- ???
-     INSTR(CUBEv, 2),              // 18
-     INSTR(MAX4v, 1),              // 19
-     INSTR(PRED_SETE_PUSHv, 2),    // 20
-     INSTR(PRED_SETNE_PUSHv, 2),   // 21
-     INSTR(PRED_SETGT_PUSHv, 2),   // 22
-     INSTR(PRED_SETGTE_PUSHv, 2),  // 23
-     INSTR(KILLEv, 2),             // 24
-     INSTR(KILLGTv, 2),            // 25
-     INSTR(KILLGTEv, 2),           // 26
-     INSTR(KILLNEv, 2),            // 27
-     INSTR(DSTv, 2),               // 28
-     INSTR(MOVAv, 1),              // 29
+      INSTR(ADDv, 2),               // 0
+      INSTR(MULv, 2),               // 1
+      INSTR(MAXv, 2),               // 2
+      INSTR(MINv, 2),               // 3
+      INSTR(SETEv, 2),              // 4
+      INSTR(SETGTv, 2),             // 5
+      INSTR(SETGTEv, 2),            // 6
+      INSTR(SETNEv, 2),             // 7
+      INSTR(FRACv, 1),              // 8
+      INSTR(TRUNCv, 1),             // 9
+      INSTR(FLOORv, 1),             // 10
+      INSTR(MULADDv, 3),            // 111
+      INSTR(CNDEv, 3),              // 12
+      INSTR(CNDGTEv, 3),            // 13
+      INSTR(CNDGTv, 3),             // 14
+      INSTR(DOT4v, 2),              // 15
+      INSTR(DOT3v, 2),              // 16
+      INSTR(DOT2ADDv, 3),           // 17 -- ???
+      INSTR(CUBEv, 2),              // 18
+      INSTR(MAX4v, 1),              // 19
+      INSTR(PRED_SETE_PUSHv, 2),    // 20
+      INSTR(PRED_SETNE_PUSHv, 2),   // 21
+      INSTR(PRED_SETGT_PUSHv, 2),   // 22
+      INSTR(PRED_SETGTE_PUSHv, 2),  // 23
+      INSTR(KILLEv, 2),             // 24
+      INSTR(KILLGTv, 2),            // 25
+      INSTR(KILLGTEv, 2),           // 26
+      INSTR(KILLNEv, 2),            // 27
+      INSTR(DSTv, 2),               // 28
+      INSTR(MOVAv, 1),              // 29
 },
   scalar_instructions[0x40] = {
       INSTR(ADDs, 1),               // 0
@@ -353,64 +353,64 @@ struct {
 } fetch_types[0xff] = {
 #define TYPE(id) \
   { #id }
-    TYPE(FMT_1_REVERSE),  // 0
-    {0},
-    TYPE(FMT_8),  // 2
-    {0},
-    {0},
-    {0},
-    TYPE(FMT_8_8_8_8),     // 6
-    TYPE(FMT_2_10_10_10),  // 7
-    {0},
-    {0},
-    TYPE(FMT_8_8),  // 10
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    TYPE(FMT_16),           // 24
-    TYPE(FMT_16_16),        // 25
-    TYPE(FMT_16_16_16_16),  // 26
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    TYPE(FMT_32),                 // 33
-    TYPE(FMT_32_32),              // 34
-    TYPE(FMT_32_32_32_32),        // 35
-    TYPE(FMT_32_FLOAT),           // 36
-    TYPE(FMT_32_32_FLOAT),        // 37
-    TYPE(FMT_32_32_32_32_FLOAT),  // 38
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    {0},
-    TYPE(FMT_32_32_32_FLOAT),  // 57
+      TYPE(FMT_1_REVERSE),  // 0
+      {0},
+      TYPE(FMT_8),  // 2
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_8_8_8_8),     // 6
+      TYPE(FMT_2_10_10_10),  // 7
+      {0},
+      {0},
+      TYPE(FMT_8_8),  // 10
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_16),           // 24
+      TYPE(FMT_16_16),        // 25
+      TYPE(FMT_16_16_16_16),  // 26
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_32),                 // 33
+      TYPE(FMT_32_32),              // 34
+      TYPE(FMT_32_32_32_32),        // 35
+      TYPE(FMT_32_FLOAT),           // 36
+      TYPE(FMT_32_32_FLOAT),        // 37
+      TYPE(FMT_32_32_32_32_FLOAT),  // 38
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_32_32_32_FLOAT),  // 57
 #undef TYPE
 };
 
@@ -556,34 +556,34 @@ struct {
 } fetch_instructions[] = {
 #define INSTR(opc, name, fxn) \
   { name, fxn }
-    INSTR(VTX_FETCH, "VERTEX", print_fetch_vtx),  // 0
-    INSTR(TEX_FETCH, "SAMPLE", print_fetch_tex),  // 1
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    INSTR(TEX_GET_BORDER_COLOR_FRAC, "?", print_fetch_tex),  // 16
-    INSTR(TEX_GET_COMP_TEX_LOD, "?", print_fetch_tex),       // 17
-    INSTR(TEX_GET_GRADIENTS, "?", print_fetch_tex),          // 18
-    INSTR(TEX_GET_WEIGHTS, "?", print_fetch_tex),            // 19
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    {0, 0},
-    INSTR(TEX_SET_TEX_LOD, "SET_TEX_LOD", print_fetch_tex),  // 24
-    INSTR(TEX_SET_GRADIENTS_H, "?", print_fetch_tex),        // 25
-    INSTR(TEX_SET_GRADIENTS_V, "?", print_fetch_tex),        // 26
-    INSTR(TEX_RESERVED_4, "?", print_fetch_tex),             // 27
+      INSTR(VTX_FETCH, "VERTEX", print_fetch_vtx),  // 0
+      INSTR(TEX_FETCH, "SAMPLE", print_fetch_tex),  // 1
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      INSTR(TEX_GET_BORDER_COLOR_FRAC, "?", print_fetch_tex),  // 16
+      INSTR(TEX_GET_COMP_TEX_LOD, "?", print_fetch_tex),       // 17
+      INSTR(TEX_GET_GRADIENTS, "?", print_fetch_tex),          // 18
+      INSTR(TEX_GET_WEIGHTS, "?", print_fetch_tex),            // 19
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      {0, 0},
+      INSTR(TEX_SET_TEX_LOD, "SET_TEX_LOD", print_fetch_tex),  // 24
+      INSTR(TEX_SET_GRADIENTS_H, "?", print_fetch_tex),        // 25
+      INSTR(TEX_SET_GRADIENTS_V, "?", print_fetch_tex),        // 26
+      INSTR(TEX_RESERVED_4, "?", print_fetch_tex),             // 27
 #undef INSTR
 };
 
@@ -677,15 +677,22 @@ struct {
 } cf_instructions[] = {
 #define INSTR(opc, fxn) \
   { #opc, fxn }
-    INSTR(NOP, print_cf_nop), INSTR(EXEC, print_cf_exec),
-    INSTR(EXEC_END, print_cf_exec), INSTR(COND_EXEC, print_cf_exec),
-    INSTR(COND_EXEC_END, print_cf_exec), INSTR(COND_PRED_EXEC, print_cf_exec),
-    INSTR(COND_PRED_EXEC_END, print_cf_exec), INSTR(LOOP_START, print_cf_loop),
-    INSTR(LOOP_END, print_cf_loop), INSTR(COND_CALL, print_cf_jmp_call),
-    INSTR(RETURN, print_cf_jmp_call), INSTR(COND_JMP, print_cf_jmp_call),
-    INSTR(ALLOC, print_cf_alloc), INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
-    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
-    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
+      INSTR(NOP, print_cf_nop),
+      INSTR(EXEC, print_cf_exec),
+      INSTR(EXEC_END, print_cf_exec),
+      INSTR(COND_EXEC, print_cf_exec),
+      INSTR(COND_EXEC_END, print_cf_exec),
+      INSTR(COND_PRED_EXEC, print_cf_exec),
+      INSTR(COND_PRED_EXEC_END, print_cf_exec),
+      INSTR(LOOP_START, print_cf_loop),
+      INSTR(LOOP_END, print_cf_loop),
+      INSTR(COND_CALL, print_cf_jmp_call),
+      INSTR(RETURN, print_cf_jmp_call),
+      INSTR(COND_JMP, print_cf_jmp_call),
+      INSTR(ALLOC, print_cf_alloc),
+      INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
+      INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
+      INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
 #undef INSTR
 };
 
