@@ -13,9 +13,6 @@
 [submodule "third_party/gyp"]
 	path = third_party/gyp
 	url = https://chromium.googlesource.com/external/gyp
-[submodule "third_party/ninja"]
-	path = third_party/ninja
-	url = https://chromium.googlesource.com/external/martine/ninja
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/philsquared/Catch.git
