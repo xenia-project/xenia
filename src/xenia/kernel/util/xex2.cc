@@ -876,6 +876,7 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
     xex->sections->push_back(section);
   }
 
+  /*
   if (header->export_table_offset) {
     // This table is located inside of the PE (for some reason)
     xe_xex2_export_table *table = (xe_xex2_export_table *)xex->memory->TranslateVirtual(xex->header.loader_info.export_table);
@@ -889,6 +890,7 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
       table->ordOffset[i] = xe::load_and_swap<uint32_t>(&table->ordOffset[i]);
     }
   }
+  */
 
   // DumpTLSDirectory(pImageBase, pNTHeader, (PIMAGE_TLS_DIRECTORY32)0);
   // DumpExportsSection(pImageBase, pNTHeader);
