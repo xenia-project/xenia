@@ -9,7 +9,6 @@
 
 #include "xenia/emulator.h"
 
-#include "xdb/protocol.h"
 #include "xenia/apu/apu.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/string.h"
@@ -38,13 +37,6 @@ Emulator::Emulator(const std::wstring& command_line)
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
-
-  auto ev = xdb::protocol::ProcessExitEvent::Append(memory()->trace_base());
-  if (ev) {
-    ev->type = xdb::protocol::EventType::PROCESS_EXIT;
-  }
-
-  debug_agent_.reset();
 
   xam_.reset();
   xboxkrnl_.reset();
@@ -75,19 +67,12 @@ X_STATUS Emulator::Setup() {
   main_window_ = std::make_unique<ui::MainWindow>(this);
   main_window_->Start();
 
-  debug_agent_.reset(new DebugAgent(this));
-  result = debug_agent_->Initialize();
-  if (result) {
-    return result;
-  }
-
   // Create memory system first, as it is required for other systems.
   memory_ = std::make_unique<Memory>();
   result = memory_->Initialize();
   if (result) {
     return result;
   }
-  memory_->set_trace_base(debug_agent_->trace_base());
 
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = std::make_unique<xe::cpu::ExportResolver>();
@@ -200,15 +185,6 @@ X_STATUS Emulator::LaunchSTFSTitle(const std::wstring& path) {
 
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
-  auto ev = xdb::protocol::ProcessStartEvent::Append(memory()->trace_base());
-  if (ev) {
-    ev->type = xdb::protocol::EventType::PROCESS_START;
-    ev->membase = reinterpret_cast<uint64_t>(memory()->virtual_membase());
-    auto path_length =
-        xe::to_string(path).copy(ev->launch_path, sizeof(ev->launch_path) - 1);
-    ev->launch_path[path_length] = 0;
-  }
-
   return xboxkrnl_->LaunchModule(module_path.c_str());
 }
 

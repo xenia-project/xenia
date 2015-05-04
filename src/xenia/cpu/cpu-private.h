@@ -12,11 +12,6 @@
 
 #include <gflags/gflags.h>
 
-DECLARE_bool(trace_function_generation);
-DECLARE_bool(trace_kernel_calls);
-DECLARE_bool(trace_user_calls);
-DECLARE_bool(trace_instructions);
-DECLARE_bool(trace_registers);
 DECLARE_string(load_module_map);
 
 DECLARE_string(dump_path);

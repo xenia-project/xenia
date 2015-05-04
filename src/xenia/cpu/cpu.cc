@@ -10,13 +10,6 @@
 #include "xenia/cpu/cpu-private.h"
 
 // Debugging:
-DEFINE_bool(trace_function_generation, false,
-            "Trace function generation/JITing.");
-DEFINE_bool(trace_kernel_calls, false, "Trace all kernel function calls.");
-DEFINE_bool(trace_user_calls, false, "Trace all user function calls.");
-DEFINE_bool(trace_instructions, false, "Trace all instructions.");
-DEFINE_bool(trace_registers, false,
-            "Trace register values when tracing instructions.");
 DEFINE_string(
     load_module_map, "",
     "Loads a .map for symbol names and to diff with the generated symbol "

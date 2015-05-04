@@ -38,6 +38,7 @@ tmtags
 
 # VS
 .vs
+*.user
 bin/
 obj/
 

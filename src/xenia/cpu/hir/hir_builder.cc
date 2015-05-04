@@ -640,32 +640,10 @@ void HIRBuilder::Nop() {
   i->src1.value = i->src2.value = i->src3.value = NULL;
 }
 
-void HIRBuilder::SourceOffset(uint64_t offset) {
+void HIRBuilder::SourceOffset(uint32_t offset) {
   Instr* i = AppendInstr(OPCODE_SOURCE_OFFSET_info, 0);
   i->src1.offset = offset;
   i->src2.value = i->src3.value = NULL;
-}
-
-void HIRBuilder::TraceSource(uint64_t offset) {
-  Instr* i = AppendInstr(OPCODE_TRACE_SOURCE_info, 100 | (100 << 8));
-  i->src1.offset = offset;
-  i->set_src2(LoadZero(INT64_TYPE));
-  i->set_src3(LoadZero(INT64_TYPE));
-}
-
-void HIRBuilder::TraceSource(uint64_t offset, uint8_t index, Value* value) {
-  Instr* i = AppendInstr(OPCODE_TRACE_SOURCE_info, index | (100 << 8));
-  i->src1.offset = offset;
-  i->set_src2(value);
-  i->set_src3(LoadZero(INT64_TYPE));
-}
-
-void HIRBuilder::TraceSource(uint64_t offset, uint8_t index_0, Value* value_0,
-                             uint8_t index_1, Value* value_1) {
-  Instr* i = AppendInstr(OPCODE_TRACE_SOURCE_info, index_0 | (index_1 << 8));
-  i->src1.offset = offset;
-  i->set_src2(value_0);
-  i->set_src3(value_1);
 }
 
 void HIRBuilder::DebugBreak() {

@@ -14,12 +14,6 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/memory.h"
 
-namespace xdb {
-namespace protocol {
-struct Registers;
-}  // namespace protocol
-}  // namespace xdb
-
 namespace xe {
 namespace cpu {
 
@@ -49,8 +43,6 @@ class ThreadState {
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();
   static uint32_t GetThreadID();
-
-  void WriteRegisters(xdb::protocol::Registers* registers);
 
  private:
   Runtime* runtime_;

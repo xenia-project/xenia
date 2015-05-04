@@ -139,30 +139,6 @@ int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
       // DebugBreak();
       // TraceInvalidInstruction(i);
     }
-
-    if (flags & EMIT_TRACE_SOURCE) {
-      if (flags & EMIT_TRACE_SOURCE_VALUES) {
-        switch (trace_info_.dest_count) {
-          case 0:
-            TraceSource(i.address);
-            break;
-          case 1:
-            TraceSource(i.address, trace_info_.dests[0].reg,
-                        trace_info_.dests[0].value);
-            break;
-          case 2:
-            TraceSource(i.address, trace_info_.dests[0].reg,
-                        trace_info_.dests[0].value, trace_info_.dests[1].reg,
-                        trace_info_.dests[1].value);
-            break;
-          default:
-            assert_unhandled_case(trace_info_.dest_count);
-            break;
-        }
-      } else {
-        TraceSource(i.address);
-      }
-    }
   }
 
   return Finalize();

@@ -121,7 +121,6 @@ Memory::Memory()
       physical_membase_(nullptr),
       reserve_address_(0),
       reserve_value_(0),
-      trace_base_(0),
       mapping_(0),
       mapping_base_(nullptr) {
   system_page_size_ = uint32_t(xe::page_size());

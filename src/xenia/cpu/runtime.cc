@@ -11,7 +11,6 @@
 
 #include <gflags/gflags.h>
 
-#include "xdb/protocol.h"
 #include "xenia/base/assert.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/module.h"
@@ -253,16 +252,6 @@ int Runtime::DemandFunction(FunctionInfo* symbol_info,
       return result;
     }
     symbol_info->set_function(function);
-
-    auto trace_base = memory()->trace_base();
-    if (trace_base && trace_flags_ & TRACE_FUNCTION_GENERATION) {
-      auto ev = xdb::protocol::FunctionCompiledEvent::Append(trace_base);
-      ev->type = xdb::protocol::EventType::FUNCTION_COMPILED;
-      ev->flags = 0;
-      ev->address = static_cast<uint32_t>(symbol_info->address());
-      ev->length =
-          static_cast<uint32_t>(symbol_info->end_address() - ev->address);
-    }
 
     // Before we give the symbol back to the rest, let the debugger know.
     debugger_->OnFunctionDefined(symbol_info, function);

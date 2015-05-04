@@ -108,7 +108,7 @@ static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
 
 typedef struct {
   InstrType* type;
-  uint64_t address;
+  uint32_t address;
 
   union {
     uint32_t code;

@@ -76,9 +76,6 @@ class Memory {
   inline uint64_t* reserve_address() { return &reserve_address_; }
   inline uint64_t* reserve_value() { return &reserve_value_; }
 
-  uint64_t trace_base() const { return trace_base_; }
-  void set_trace_base(uint64_t value) { trace_base_ = value; }
-
   // TODO(benvanik): make poly memory utils for these.
   void Zero(uint32_t address, uint32_t size);
   void Fill(uint32_t address, uint32_t size, uint8_t value);
@@ -118,7 +115,6 @@ class Memory {
   uint8_t* physical_membase_;
   uint64_t reserve_address_;
   uint64_t reserve_value_;
-  uint64_t trace_base_;
 
   HANDLE mapping_;
   uint8_t* mapping_base_;

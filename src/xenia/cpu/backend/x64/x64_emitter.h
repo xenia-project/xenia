@@ -183,8 +183,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
  protected:
   void* Emplace(size_t stack_size);
   int Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
-  void EmitTraceSource(const hir::Instr* instr);
-  void EmitTraceSourceAppendValue(const hir::Value* value, size_t r8_offset);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();
 

@@ -9,7 +9,6 @@
 
 #include "xenia/cpu/thread_state.h"
 
-#include "xdb/protocol.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/runtime.h"
@@ -99,31 +98,6 @@ void ThreadState::Bind(ThreadState* thread_state) {
 ThreadState* ThreadState::Get() { return thread_state_; }
 
 uint32_t ThreadState::GetThreadID() { return thread_state_->thread_id_; }
-
-void ThreadState::WriteRegisters(xdb::protocol::Registers* registers) {
-  registers->lr = context_->lr;
-  registers->ctr = context_->ctr;
-  registers->xer = 0xFEFEFEFE;
-  registers->cr[0] = context_->cr0.value;
-  registers->cr[1] = context_->cr1.value;
-  registers->cr[2] = context_->cr2.value;
-  registers->cr[3] = context_->cr3.value;
-  registers->cr[4] = context_->cr4.value;
-  registers->cr[5] = context_->cr5.value;
-  registers->cr[6] = context_->cr6.value;
-  registers->cr[7] = context_->cr7.value;
-  registers->fpscr = context_->fpscr.value;
-  registers->vscr = context_->vscr_sat;
-  static_assert(sizeof(registers->gpr) == sizeof(context_->r),
-                "structs must match");
-  static_assert(sizeof(registers->fpr) == sizeof(context_->f),
-                "structs must match");
-  static_assert(sizeof(registers->vr) == sizeof(context_->v),
-                "structs must match");
-  memcpy(registers->gpr, context_->r, sizeof(context_->r));
-  memcpy(registers->fpr, context_->f, sizeof(context_->f));
-  memcpy(registers->vr, context_->v, sizeof(context_->v));
-}
 
 }  // namespace cpu
 }  // namespace xe

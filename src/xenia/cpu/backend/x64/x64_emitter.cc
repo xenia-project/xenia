@@ -10,6 +10,7 @@
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/vec128.h"
@@ -25,7 +26,6 @@
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/profiling.h"
-#include "xdb/protocol.h"
 
 namespace xe {
 namespace cpu {
@@ -161,19 +161,6 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     mov(rdx, qword[rcx + 8]);  // membase
   }
 
-  uint64_t trace_base = runtime_->memory()->trace_base();
-  if (trace_base && trace_flags_ & TRACE_USER_CALLS) {
-    mov(rax, trace_base);
-    mov(r8d, static_cast<uint32_t>(sizeof(xdb::protocol::UserCallEvent)));
-    lock();
-    xadd(qword[rax], r8);
-    mov(rax, static_cast<uint64_t>(xdb::protocol::EventType::USER_CALL) |
-                 (static_cast<uint64_t>(0) << 8) | (0ull << 32));
-    mov(qword[r8], rax);
-    EmitGetCurrentThreadId();
-    mov(word[r8 + 2], ax);
-  }
-
   // Body.
   auto block = builder->first_block();
   while (block) {
@@ -188,16 +175,6 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     const Instr* instr = block->instr_head;
     while (instr) {
       const Instr* new_tail = instr;
-
-      // Special handling of TRACE_SOURCE.
-      if (instr->opcode == &OPCODE_TRACE_SOURCE_info) {
-        if (trace_flags_ & TRACE_SOURCE) {
-          EmitTraceSource(instr);
-        }
-        instr = instr->next;
-        continue;
-      }
-
       if (!SelectSequence(*this, instr, &new_tail)) {
         // No sequence found!
         assert_always();
@@ -238,129 +215,12 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   source_map_count_++;
 }
 
-void X64Emitter::EmitTraceSource(const Instr* instr) {
-  uint64_t trace_base = runtime_->memory()->trace_base();
-  if (!trace_base || !(trace_flags_ & TRACE_SOURCE)) {
-    return;
-  }
-
-  // TODO(benvanik): make this a function call to some append fn.
-
-  uint8_t dest_reg_0 = instr->flags & 0xFF;
-  uint8_t dest_reg_1 = instr->flags >> 8;
-
-  xdb::protocol::EventType event_type;
-  size_t event_size = 0;
-  if (dest_reg_0 == 100) {
-    event_type = xdb::protocol::EventType::INSTR;
-    event_size = sizeof(xdb::protocol::InstrEvent);
-  } else if (dest_reg_1 == 100) {
-    if (dest_reg_0 & (1 << 7)) {
-      event_type = xdb::protocol::EventType::INSTR_R16;
-      event_size = sizeof(xdb::protocol::InstrEventR16);
-    } else {
-      event_type = xdb::protocol::EventType::INSTR_R8;
-      event_size = sizeof(xdb::protocol::InstrEventR8);
-    }
-  } else {
-    if (dest_reg_0 & (1 << 7) && dest_reg_1 & (1 << 7)) {
-      event_type = xdb::protocol::EventType::INSTR_R16_R16;
-      event_size = sizeof(xdb::protocol::InstrEventR16R16);
-    } else if (dest_reg_0 & (1 << 7) && !(dest_reg_1 & (1 << 7))) {
-      event_type = xdb::protocol::EventType::INSTR_R16_R8;
-      event_size = sizeof(xdb::protocol::InstrEventR16R8);
-    } else if (!(dest_reg_0 & (1 << 7)) && dest_reg_1 & (1 << 7)) {
-      event_type = xdb::protocol::EventType::INSTR_R8_R16;
-      event_size = sizeof(xdb::protocol::InstrEventR8R16);
-    } else if (!(dest_reg_0 & (1 << 7)) && !(dest_reg_1 & (1 << 7))) {
-      event_type = xdb::protocol::EventType::INSTR_R8_R8;
-      event_size = sizeof(xdb::protocol::InstrEventR8R8);
-    }
-  }
-  assert_not_zero(event_size);
-
-  mov(rax, trace_base);
-  mov(r8d, static_cast<uint32_t>(event_size));
-  lock();
-  xadd(qword[rax], r8);
-  // r8 is now the pointer where we can write our event.
-
-  // Write the header, which is the same for everything (pretty much).
-  // Some event types ignore the dest reg, and that's fine.
-  uint64_t qword_0 = static_cast<uint64_t>(event_type) |
-                     (static_cast<uint64_t>(dest_reg_0) << 8) |
-                     (instr->src1.offset << 32);
-  mov(rax, qword_0);
-  mov(qword[r8], rax);
-
-  // Write thread ID.
-  EmitGetCurrentThreadId();
-  mov(word[r8 + 2], ax);
-
-  switch (event_type) {
-    default:
-    case xdb::protocol::EventType::INSTR:
-      break;
-    case xdb::protocol::EventType::INSTR_R8:
-    case xdb::protocol::EventType::INSTR_R16:
-      if (dest_reg_0 & (1 << 7)) {
-        EmitTraceSourceAppendValue(instr->src2.value, 8);
-      } else {
-        EmitTraceSourceAppendValue(instr->src2.value, 8);
-      }
-      break;
-    case xdb::protocol::EventType::INSTR_R8_R8:
-    case xdb::protocol::EventType::INSTR_R8_R16:
-    case xdb::protocol::EventType::INSTR_R16_R8:
-    case xdb::protocol::EventType::INSTR_R16_R16:
-      mov(word[r8 + 8], dest_reg_0 | static_cast<uint16_t>(dest_reg_1 << 8));
-      size_t offset = 8;
-      if (dest_reg_0 & (1 << 7)) {
-        EmitTraceSourceAppendValue(instr->src2.value, offset);
-        offset += 16;
-      } else {
-        EmitTraceSourceAppendValue(instr->src2.value, offset);
-        offset += 8;
-      }
-      if (dest_reg_1 & (1 << 7)) {
-        EmitTraceSourceAppendValue(instr->src3.value, offset);
-        offset += 16;
-      } else {
-        EmitTraceSourceAppendValue(instr->src3.value, offset);
-        offset += 8;
-      }
-      break;
-  }
-}
-
-void X64Emitter::EmitTraceSourceAppendValue(const Value* value,
-                                            size_t r8_offset) {
-  //
-}
-
 void X64Emitter::EmitGetCurrentThreadId() {
   // rcx must point to context. We could fetch from the stack if needed.
   mov(ax, word[rcx + runtime_->frontend()->context_info()->thread_id_offset()]);
 }
 
-void X64Emitter::EmitTraceUserCallReturn() {
-  auto trace_base = runtime_->memory()->trace_base();
-  if (!trace_base || !(trace_flags_ & TRACE_USER_CALLS)) {
-    return;
-  }
-  mov(rdx, rax);
-  mov(rax, trace_base);
-  mov(r8d, static_cast<uint32_t>(sizeof(xdb::protocol::UserCallReturnEvent)));
-  lock();
-  xadd(qword[rax], r8);
-  mov(rax, static_cast<uint64_t>(xdb::protocol::EventType::USER_CALL_RETURN) |
-               (static_cast<uint64_t>(0) << 8) | (0ull << 32));
-  mov(qword[r8], rax);
-  EmitGetCurrentThreadId();
-  mov(word[r8 + 2], ax);
-  mov(rax, rdx);
-  ReloadEDX();
-}
+void X64Emitter::EmitTraceUserCallReturn() {}
 
 void X64Emitter::DebugBreak() {
   // TODO(benvanik): notify debugger.
@@ -628,23 +488,6 @@ void X64Emitter::CallExtern(const hir::Instr* instr,
                             const FunctionInfo* symbol_info) {
   assert_true(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
 
-  uint64_t trace_base = runtime_->memory()->trace_base();
-  if (trace_base & trace_flags_ & TRACE_EXTERN_CALLS) {
-    mov(rax, trace_base);
-    mov(r8d, static_cast<uint32_t>(sizeof(xdb::protocol::KernelCallEvent)));
-    lock();
-    xadd(qword[rax], r8);
-    // TODO(benvanik): get module/ordinal.
-    uint32_t module_id = 0;
-    uint32_t ordinal = 0;
-    mov(rax, static_cast<uint64_t>(xdb::protocol::EventType::KERNEL_CALL) |
-                 (static_cast<uint64_t>(0) << 8) | (module_id << 16) |
-                 (ordinal));
-    mov(qword[r8], rax);
-    EmitGetCurrentThreadId();
-    mov(word[r8 + 2], ax);
-  }
-
   if (!symbol_info->extern_handler()) {
     CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
   } else {
@@ -661,19 +504,6 @@ void X64Emitter::CallExtern(const hir::Instr* instr,
     ReloadECX();
     ReloadEDX();
     // rax = host return
-  }
-  if (trace_base && trace_flags_ & TRACE_EXTERN_CALLS) {
-    mov(rax, trace_base);
-    mov(r8d,
-        static_cast<uint32_t>(sizeof(xdb::protocol::KernelCallReturnEvent)));
-    lock();
-    xadd(qword[rax], r8);
-    mov(rax,
-        static_cast<uint64_t>(xdb::protocol::EventType::KERNEL_CALL_RETURN) |
-            (static_cast<uint64_t>(0) << 8) | (0));
-    mov(qword[r8], rax);
-    EmitGetCurrentThreadId();
-    mov(word[r8 + 2], ax);
   }
 }
 

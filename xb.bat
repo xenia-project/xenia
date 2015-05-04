@@ -464,20 +464,15 @@ IF %CLANG_FORMAT%=="" (
   GOTO :eof
 )
 
+SET ANY_ERRORS=0
 IF %ALL% NEQ 1 (
   ECHO.
   ECHO ^> git-clang-format
   CMD /c python third_party/clang-format/git-clang-format --binary=%CLANG_FORMAT% --commit=HEAD
   IF %ERRORLEVEL% NEQ 0 (
-    ECHO.
-    ECHO ERROR: clang-format failed - ensure all files are staged
-    ENDLOCAL & SET _RESULT=1
-    GOTO :eof
+    SET ANY_ERRORS=1
   )
 ) ELSE (
-  SET ANY_ERRORS=0
-  ECHO.
-  ECHO ^> clang-format (all)
   PUSHD src
   FOR /R %%G in (*.cc *.c *.h *.inl) DO (
     ECHO ^> clang-format %%G
@@ -487,12 +482,12 @@ IF %ALL% NEQ 1 (
     )
   )
   POPD
-  IF %ANY_ERRORS% NEQ 0 (
-    ECHO.
-    ECHO ERROR: one or more clang-format calls failed
-    ENDLOCAL & SET _RESULT=1
-    GOTO :eof
-  )
+)
+IF %ANY_ERRORS% NEQ 0 (
+  ECHO.
+  ECHO ERROR: 1+ clang-format calls failed - ensure all files are staged
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
 )
 
 ENDLOCAL & SET _RESULT=0

@@ -68,11 +68,7 @@ class HIRBuilder {
 
   void Nop();
 
-  void SourceOffset(uint64_t offset);
-  void TraceSource(uint64_t offset);
-  void TraceSource(uint64_t offset, uint8_t index, Value* value);
-  void TraceSource(uint64_t offset, uint8_t index_0, Value* value_0,
-                   uint8_t index_1, Value* value_1);
+  void SourceOffset(uint32_t offset);
 
   // trace info/etc
   void DebugBreak();

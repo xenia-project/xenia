@@ -1,8 +1,6 @@
 # Copyright 2013 Ben Vanik. All Rights Reserved.
 {
   'sources': [
-    'debug_agent.cc',
-    'debug_agent.h',
     'emulator.cc',
     'emulator.h',
     'memory.cc',

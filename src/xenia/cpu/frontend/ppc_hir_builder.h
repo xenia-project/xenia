@@ -35,10 +35,6 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   enum EmitFlags {
     // Emit comment nodes.
     EMIT_DEBUG_COMMENTS = 1 << 0,
-    // Emit TraceSource nodes.
-    EMIT_TRACE_SOURCE = 1 << 1,
-    // Emit TraceSource nodes with the resulting values of the operations.
-    EMIT_TRACE_SOURCE_VALUES = EMIT_TRACE_SOURCE | (1 << 2),
   };
   int Emit(FunctionInfo* symbol_info, uint32_t flags);
 

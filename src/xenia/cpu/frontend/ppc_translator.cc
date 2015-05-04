@@ -134,11 +134,6 @@ int PPCTranslator::Translate(FunctionInfo* symbol_info,
   if (debug_info) {
     emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
   }
-  if (trace_flags & TRACE_SOURCE_VALUES) {
-    emit_flags |= PPCHIRBuilder::EMIT_TRACE_SOURCE_VALUES;
-  } else if (trace_flags & TRACE_SOURCE) {
-    emit_flags |= PPCHIRBuilder::EMIT_TRACE_SOURCE;
-  }
   int result = builder_->Emit(symbol_info, emit_flags);
   if (result) {
     return result;
