@@ -12,7 +12,7 @@
 #include <mutex>
 
 #include "xenia/cpu/function.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -22,7 +22,7 @@ Breakpoint::Breakpoint(Type type, uint32_t address)
 
 Breakpoint::~Breakpoint() = default;
 
-Debugger::Debugger(Runtime* runtime) : runtime_(runtime) {}
+Debugger::Debugger(Processor* processor) : processor_(processor) {}
 
 Debugger::~Debugger() = default;
 
@@ -82,7 +82,7 @@ int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
   }
 
   // Find all functions that contain the breakpoint address.
-  auto fns = runtime_->FindFunctionsWithAddress(breakpoint->address());
+  auto fns = processor_->FindFunctionsWithAddress(breakpoint->address());
 
   // Add.
   for (auto fn : fns) {
@@ -116,7 +116,7 @@ int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
   }
 
   // Find all functions that have the breakpoint set.
-  auto fns = runtime_->FindFunctionsWithAddress(breakpoint->address());
+  auto fns = processor_->FindFunctionsWithAddress(breakpoint->address());
 
   // Remove.
   for (auto fn : fns) {

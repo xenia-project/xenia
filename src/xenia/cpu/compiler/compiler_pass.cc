@@ -15,12 +15,12 @@ namespace xe {
 namespace cpu {
 namespace compiler {
 
-CompilerPass::CompilerPass() : runtime_(0), compiler_(0) {}
+CompilerPass::CompilerPass() : processor_(nullptr), compiler_(nullptr) {}
 
 CompilerPass::~CompilerPass() = default;
 
 int CompilerPass::Initialize(Compiler* compiler) {
-  runtime_ = compiler->runtime();
+  processor_ = compiler->processor();
   compiler_ = compiler;
   return 0;
 }

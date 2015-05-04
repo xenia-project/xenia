@@ -20,7 +20,7 @@ namespace xe {
 namespace cpu {
 class DebugInfo;
 class FunctionInfo;
-class Runtime;
+class Processor;
 class SymbolInfo;
 namespace hir {
 class HIRBuilder;
@@ -101,7 +101,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Emitter(X64Backend* backend, XbyakAllocator* allocator);
   virtual ~X64Emitter();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
   X64Backend* backend() const { return backend_; }
   const Xbyak::util::Cpu* cpu() const { return &cpu_; }
 
@@ -187,7 +187,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitTraceUserCallReturn();
 
  protected:
-  Runtime* runtime_;
+  Processor* processor_;
   X64Backend* backend_;
   X64CodeCache* code_cache_;
   XbyakAllocator* allocator_;

@@ -24,7 +24,7 @@ namespace cpu {
 class Debugger;
 class Function;
 class FunctionInfo;
-class Runtime;
+class Processor;
 
 class Breakpoint {
  public:
@@ -78,10 +78,10 @@ class BreakpointHitEvent : public DebugEvent {
 
 class Debugger {
  public:
-  Debugger(Runtime* runtime);
+  Debugger(Processor* processor);
   ~Debugger();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
 
   int SuspendAllThreads(uint32_t timeout_ms = UINT_MAX);
   int ResumeThread(uint32_t thread_id);
@@ -107,7 +107,7 @@ class Debugger {
   Delegate<BreakpointHitEvent> breakpoint_hit;
 
  private:
-  Runtime* runtime_;
+  Processor* processor_;
 
   std::mutex threads_lock_;
   std::unordered_map<uint32_t, ThreadState*> threads_;

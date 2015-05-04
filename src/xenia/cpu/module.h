@@ -23,11 +23,11 @@ namespace xe {
 namespace cpu {
 
 class Function;
-class Runtime;
+class Processor;
 
 class Module {
  public:
-  Module(Runtime* runtime);
+  Module(Processor* processor);
   virtual ~Module();
 
   Memory* memory() const { return memory_; }
@@ -57,7 +57,7 @@ class Module {
   SymbolInfo::Status DefineSymbol(SymbolInfo* symbol_info);
 
  protected:
-  Runtime* runtime_;
+  Processor* processor_;
   Memory* memory_;
 
  private:

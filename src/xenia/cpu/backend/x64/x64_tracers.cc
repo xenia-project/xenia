@@ -11,7 +11,7 @@
 
 #include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 
 using namespace xe;

@@ -11,7 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/threading.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -22,11 +22,11 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 
 thread_local ThreadState* thread_state_ = nullptr;
 
-ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
+ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
                          uint32_t stack_address, uint32_t stack_size,
                          uint32_t thread_state_address)
-    : runtime_(runtime),
-      memory_(runtime->memory()),
+    : processor_(processor),
+      memory_(processor->memory()),
       thread_id_(thread_id),
       name_(""),
       backend_data_(0),
@@ -38,7 +38,7 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
     uint32_t system_thread_handle = xe::threading::current_thread_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
-  backend_data_ = runtime->backend()->AllocThreadData();
+  backend_data_ = processor->backend()->AllocThreadData();
 
   if (!stack_address) {
     stack_address_ = memory()->SystemHeapAlloc(stack_size);
@@ -60,7 +60,7 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
   context_->reserve_value = memory_->reserve_value();
   context_->virtual_membase = memory_->virtual_membase();
   context_->physical_membase = memory_->physical_membase();
-  context_->runtime = runtime;
+  context_->processor = processor_;
   context_->thread_state = this;
   context_->thread_id = thread_id_;
 
@@ -72,14 +72,14 @@ ThreadState::ThreadState(Runtime* runtime, uint32_t thread_id,
   // 16 to 32b.
   context_->r[1] -= 64;
 
-  runtime_->debugger()->OnThreadCreated(this);
+  processor_->debugger()->OnThreadCreated(this);
 }
 
 ThreadState::~ThreadState() {
-  runtime_->debugger()->OnThreadDestroyed(this);
+  processor_->debugger()->OnThreadDestroyed(this);
 
   if (backend_data_) {
-    runtime_->backend()->FreeThreadData(backend_data_);
+    processor_->backend()->FreeThreadData(backend_data_);
   }
   if (thread_state_ == this) {
     thread_state_ = nullptr;

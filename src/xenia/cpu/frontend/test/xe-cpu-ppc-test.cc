@@ -175,30 +175,30 @@ class TestRunner {
     memory.reset(new Memory());
     memory->Initialize();
 
-    runtime.reset(new Runtime(memory.get(), nullptr, 0, 0));
-    runtime->Initialize(nullptr);
+    processor.reset(new Processor(memory.get(), nullptr));
+    processor->Setup();
   }
 
   ~TestRunner() {
     thread_state.reset();
-    runtime.reset();
+    processor.reset();
     memory.reset();
   }
 
   bool Setup(TestSuite& suite) {
     // Load the binary module.
-    auto module = std::make_unique<xe::cpu::RawModule>(runtime.get());
+    auto module = std::make_unique<xe::cpu::RawModule>(processor.get());
     if (module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
       XELOGE("Unable to load test binary %ls", suite.bin_file_path.c_str());
       return false;
     }
-    runtime->AddModule(std::move(module));
+    processor->AddModule(std::move(module));
 
     // Simulate a thread.
     uint32_t stack_size = 64 * 1024;
     uint32_t stack_address = START_ADDRESS - stack_size;
     uint32_t thread_state_address = stack_address - 0x1000;
-    thread_state.reset(new ThreadState(runtime.get(), 0x100, stack_address,
+    thread_state.reset(new ThreadState(processor.get(), 0x100, stack_address,
                                        stack_size, thread_state_address));
 
     return true;
@@ -213,7 +213,7 @@ class TestRunner {
 
     // Execute test.
     xe::cpu::Function* fn;
-    runtime->ResolveFunction(test_case.address, &fn);
+    processor->ResolveFunction(test_case.address, &fn);
     if (!fn) {
       XELOGE("Entry function not found");
       return false;
@@ -313,7 +313,7 @@ class TestRunner {
 
   size_t memory_size;
   std::unique_ptr<Memory> memory;
-  std::unique_ptr<Runtime> runtime;
+  std::unique_ptr<Processor> processor;
   std::unique_ptr<ThreadState> thread_state;
 };
 

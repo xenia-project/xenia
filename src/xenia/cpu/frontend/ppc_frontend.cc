@@ -13,7 +13,7 @@
 #include "xenia/cpu/frontend/ppc_disasm.h"
 #include "xenia/cpu/frontend/ppc_emit.h"
 #include "xenia/cpu/frontend/ppc_translator.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -42,7 +42,7 @@ void InitializeIfNeeded() {
 
 void CleanupOnShutdown() {}
 
-PPCFrontend::PPCFrontend(Runtime* runtime) : runtime_(runtime) {
+PPCFrontend::PPCFrontend(Processor* processor) : processor_(processor) {
   InitializeIfNeeded();
 
   std::unique_ptr<ContextInfo> context_info(
@@ -57,7 +57,7 @@ PPCFrontend::~PPCFrontend() {
   translator_pool_.Reset();
 }
 
-Memory* PPCFrontend::memory() const { return runtime_->memory(); }
+Memory* PPCFrontend::memory() const { return processor_->memory(); }
 
 void CheckGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
   ppc_state->scratch = 0x8000;
@@ -78,10 +78,10 @@ void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
 int PPCFrontend::Initialize() {
   void* arg0 = reinterpret_cast<void*>(&builtins_.global_lock);
   void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_taken);
-  builtins_.check_global_lock = runtime_->DefineBuiltin(
+  builtins_.check_global_lock = processor_->DefineBuiltin(
       "CheckGlobalLock", (FunctionInfo::ExternHandler)CheckGlobalLock, arg0,
       arg1);
-  builtins_.handle_global_lock = runtime_->DefineBuiltin(
+  builtins_.handle_global_lock = processor_->DefineBuiltin(
       "HandleGlobalLock", (FunctionInfo::ExternHandler)HandleGlobalLock, arg0,
       arg1);
 

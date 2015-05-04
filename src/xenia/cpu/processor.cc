@@ -9,15 +9,23 @@
 
 #include "xenia/cpu/processor.h"
 
+#include <gflags/gflags.h>
+
+#include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/frontend/ppc_frontend.h"
+#include "xenia/cpu/module.h"
+#include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/profiling.h"
+
+// TODO(benvanik): based on compiler support
+#include "xenia/cpu/backend/x64/x64_backend.h"
 
 namespace xe {
 namespace cpu {
@@ -49,11 +57,26 @@ void InitializeIfNeeded() {
 
 void CleanupOnShutdown() {}
 
+class BuiltinModule : public Module {
+ public:
+  BuiltinModule(Processor* processor) : Module(processor), name_("builtin") {}
+  const std::string& name() const override { return name_; }
+  bool ContainsAddress(uint32_t address) override {
+    return (address & 0xFFFFFFF0) == 0xFFFFFFF0;
+  }
+
+ private:
+  std::string name_;
+};
+
 Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
-    : export_resolver_(export_resolver),
-      runtime_(0),
-      memory_(memory),
-      interrupt_thread_state_(NULL),
+    : memory_(memory),
+      debug_info_flags_(0),
+      trace_flags_(0),
+      builtin_module_(nullptr),
+      next_builtin_address_(0xFFFF0000ul),
+      export_resolver_(export_resolver),
+      interrupt_thread_state_(nullptr),
       interrupt_thread_block_(0) {
   InitializeIfNeeded();
 }
@@ -64,32 +87,235 @@ Processor::~Processor() {
     delete interrupt_thread_state_;
   }
 
-  delete runtime_;
+  {
+    std::lock_guard<std::mutex> guard(modules_lock_);
+    modules_.clear();
+  }
+
+  debugger_.reset();
+  frontend_.reset();
+  backend_.reset();
 }
 
 int Processor::Setup() {
-  assert_null(runtime_);
+  debug_info_flags_ = DEBUG_INFO_DEFAULT;
+  trace_flags_ = 0;
 
-  uint32_t debug_info_flags = DEBUG_INFO_DEFAULT;
-  uint32_t trace_flags = 0;
+  auto frontend = std::make_unique<xe::cpu::frontend::PPCFrontend>(this);
+  // TODO(benvanik): set options/etc.
 
-  runtime_ =
-      new Runtime(memory_, export_resolver_, debug_info_flags, trace_flags);
-  if (!runtime_) {
+  // Must be initialized by subclass before calling into this.
+  assert_not_null(memory_);
+
+  // Create debugger first. Other types hook up to it.
+  debugger_.reset(new Debugger(this));
+
+  std::unique_ptr<Module> builtin_module(new BuiltinModule(this));
+  builtin_module_ = builtin_module.get();
+  modules_.push_back(std::move(builtin_module));
+
+  if (frontend_ || backend_) {
     return 1;
   }
 
-  std::unique_ptr<Backend> backend;
-  // backend.reset(new xe::cpu::backend::x64::X64Backend(runtime));
-  int result = runtime_->Initialize(std::move(backend));
+  std::unique_ptr<xe::cpu::backend::Backend> backend;
+  if (!backend) {
+#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
+    if (FLAGS_processor_backend == "x64") {
+      backend.reset(new xe::cpu::backend::x64::X64Backend(this));
+    }
+#endif  // XENIA_HAS_X64_BACKEND
+    if (FLAGS_processor_backend == "any") {
+#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
+      if (!backend) {
+        backend.reset(new xe::cpu::backend::x64::X64Backend(this));
+      }
+#endif  // XENIA_HAS_X64_BACKEND
+    }
+  }
+
+  if (!backend) {
+    return 1;
+  }
+
+  int result = backend->Initialize();
   if (result) {
     return result;
   }
 
-  interrupt_thread_state_ = new ThreadState(runtime_, 0, 0, 16 * 1024, 0);
+  result = frontend->Initialize();
+  if (result) {
+    return result;
+  }
+
+  backend_ = std::move(backend);
+  frontend_ = std::move(frontend);
+
+  interrupt_thread_state_ = new ThreadState(this, 0, 0, 16 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
   interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
+
+  return 0;
+}
+
+int Processor::AddModule(std::unique_ptr<Module> module) {
+  std::lock_guard<std::mutex> guard(modules_lock_);
+  modules_.push_back(std::move(module));
+  return 0;
+}
+
+Module* Processor::GetModule(const char* name) {
+  std::lock_guard<std::mutex> guard(modules_lock_);
+  for (const auto& module : modules_) {
+    if (module->name() == name) {
+      return module.get();
+    }
+  }
+  return nullptr;
+}
+
+std::vector<Module*> Processor::GetModules() {
+  std::lock_guard<std::mutex> guard(modules_lock_);
+  std::vector<Module*> clone(modules_.size());
+  for (const auto& module : modules_) {
+    clone.push_back(module.get());
+  }
+  return clone;
+}
+
+FunctionInfo* Processor::DefineBuiltin(const std::string& name,
+                                       FunctionInfo::ExternHandler handler,
+                                       void* arg0, void* arg1) {
+  uint32_t address = next_builtin_address_;
+  next_builtin_address_ += 4;
+
+  FunctionInfo* fn_info;
+  builtin_module_->DeclareFunction(address, &fn_info);
+  fn_info->set_end_address(address + 4);
+  fn_info->set_name(name);
+  fn_info->SetupExtern(handler, arg0, arg1);
+  fn_info->set_status(SymbolInfo::STATUS_DECLARED);
+
+  return fn_info;
+}
+
+std::vector<Function*> Processor::FindFunctionsWithAddress(uint32_t address) {
+  return entry_table_.FindWithAddress(address);
+}
+
+int Processor::ResolveFunction(uint32_t address, Function** out_function) {
+  *out_function = nullptr;
+  Entry* entry;
+  Entry::Status status = entry_table_.GetOrCreate(address, &entry);
+  if (status == Entry::STATUS_NEW) {
+    // Needs to be generated. We have the 'lock' on it and must do so now.
+
+    // Grab symbol declaration.
+    FunctionInfo* symbol_info;
+    int result = LookupFunctionInfo(address, &symbol_info);
+    if (result) {
+      return result;
+    }
+
+    result = DemandFunction(symbol_info, &entry->function);
+    if (result) {
+      entry->status = Entry::STATUS_FAILED;
+      return result;
+    }
+    entry->end_address = symbol_info->end_address();
+    status = entry->status = Entry::STATUS_READY;
+  }
+  if (status == Entry::STATUS_READY) {
+    // Ready to use.
+    *out_function = entry->function;
+    return 0;
+  } else {
+    // Failed or bad state.
+    return 1;
+  }
+}
+
+int Processor::LookupFunctionInfo(uint32_t address,
+                                  FunctionInfo** out_symbol_info) {
+  *out_symbol_info = nullptr;
+
+  // TODO(benvanik): fast reject invalid addresses/log errors.
+
+  // Find the module that contains the address.
+  Module* code_module = nullptr;
+  {
+    std::lock_guard<std::mutex> guard(modules_lock_);
+    // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
+    // TODO(benvanik): cache last module low/high, as likely to be in there.
+    for (const auto& module : modules_) {
+      if (module->ContainsAddress(address)) {
+        code_module = module.get();
+        break;
+      }
+    }
+  }
+  if (!code_module) {
+    // No module found that could contain the address.
+    return 1;
+  }
+
+  return LookupFunctionInfo(code_module, address, out_symbol_info);
+}
+
+int Processor::LookupFunctionInfo(Module* module, uint32_t address,
+                                  FunctionInfo** out_symbol_info) {
+  // Atomic create/lookup symbol in module.
+  // If we get back the NEW flag we must declare it now.
+  FunctionInfo* symbol_info = nullptr;
+  SymbolInfo::Status symbol_status =
+      module->DeclareFunction(address, &symbol_info);
+  if (symbol_status == SymbolInfo::STATUS_NEW) {
+    // Symbol is undeclared, so declare now.
+    int result = frontend_->DeclareFunction(symbol_info);
+    if (result) {
+      symbol_info->set_status(SymbolInfo::STATUS_FAILED);
+      return 1;
+    }
+    symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
+  }
+
+  *out_symbol_info = symbol_info;
+  return 0;
+}
+
+int Processor::DemandFunction(FunctionInfo* symbol_info,
+                              Function** out_function) {
+  *out_function = nullptr;
+
+  // Lock function for generation. If it's already being generated
+  // by another thread this will block and return DECLARED.
+  Module* module = symbol_info->module();
+  SymbolInfo::Status symbol_status = module->DefineFunction(symbol_info);
+  if (symbol_status == SymbolInfo::STATUS_NEW) {
+    // Symbol is undefined, so define now.
+    Function* function = nullptr;
+    int result = frontend_->DefineFunction(symbol_info, debug_info_flags_,
+                                           trace_flags_, &function);
+    if (result) {
+      symbol_info->set_status(SymbolInfo::STATUS_FAILED);
+      return result;
+    }
+    symbol_info->set_function(function);
+
+    // Before we give the symbol back to the rest, let the debugger know.
+    debugger_->OnFunctionDefined(symbol_info, function);
+
+    symbol_info->set_status(SymbolInfo::STATUS_DEFINED);
+    symbol_status = symbol_info->status();
+  }
+
+  if (symbol_status == SymbolInfo::STATUS_FAILED) {
+    // Symbol likely failed.
+    return 1;
+  }
+
+  *out_function = symbol_info->function();
 
   return 0;
 }
@@ -99,7 +325,7 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   // Attempt to get the function.
   Function* fn;
-  if (runtime_->ResolveFunction(address, &fn)) {
+  if (ResolveFunction(address, &fn)) {
     // Symbol not found in any module.
     XELOGCPU("Execute(%.8X): failed to find function", address);
     return 1;

@@ -12,6 +12,8 @@
 
 #include <gflags/gflags.h>
 
+DECLARE_string(processor_backend);
+
 DECLARE_string(load_module_map);
 
 DECLARE_string(dump_path);

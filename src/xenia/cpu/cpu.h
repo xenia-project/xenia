@@ -13,9 +13,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/module.h"
-#include "xenia/cpu/runtime.h"
-#include "xenia/cpu/thread_state.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
 

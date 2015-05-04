@@ -16,10 +16,7 @@ namespace xe {
 namespace cpu {
 namespace compiler {
 
-using xe::cpu::hir::HIRBuilder;
-using xe::cpu::Runtime;
-
-Compiler::Compiler(Runtime* runtime) : runtime_(runtime) {}
+Compiler::Compiler(Processor* processor) : processor_(processor) {}
 
 Compiler::~Compiler() { Reset(); }
 
@@ -30,7 +27,7 @@ void Compiler::AddPass(std::unique_ptr<CompilerPass> pass) {
 
 void Compiler::Reset() {}
 
-int Compiler::Compile(HIRBuilder* builder) {
+int Compiler::Compile(xe::cpu::hir::HIRBuilder* builder) {
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
   for (size_t i = 0; i < passes_.size(); ++i) {

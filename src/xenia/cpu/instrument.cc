@@ -11,13 +11,15 @@
 
 #include "xenia/memory.h"
 #include "xenia/cpu/function.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
 
-Instrument::Instrument(Runtime* runtime)
-    : runtime_(runtime), memory_(runtime->memory()), is_attached_(false) {}
+Instrument::Instrument(Processor* processor)
+    : processor_(processor),
+      memory_(processor->memory()),
+      is_attached_(false) {}
 
 Instrument::~Instrument() {
   if (is_attached_) {
@@ -43,8 +45,8 @@ bool Instrument::Detach() {
   return true;
 }
 
-FunctionInstrument::FunctionInstrument(Runtime* runtime, Function* function)
-    : Instrument(runtime), target_(function) {}
+FunctionInstrument::FunctionInstrument(Processor* processor, Function* function)
+    : Instrument(processor), target_(function) {}
 
 bool FunctionInstrument::Attach() {
   if (!Instrument::Attach()) {
@@ -78,9 +80,9 @@ void FunctionInstrument::Exit(ThreadState* thread_state) {
   //
 }
 
-MemoryInstrument::MemoryInstrument(Runtime* runtime, uint32_t address,
+MemoryInstrument::MemoryInstrument(Processor* processor, uint32_t address,
                                    uint32_t end_address)
-    : Instrument(runtime), address_(address), end_address_(end_address) {}
+    : Instrument(processor), address_(address), end_address_(end_address) {}
 
 bool MemoryInstrument::Attach() {
   if (!Instrument::Attach()) {

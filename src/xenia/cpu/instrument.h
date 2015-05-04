@@ -14,23 +14,18 @@
 
 namespace xe {
 namespace cpu {
-class Memory;
-class ThreadState;
-}  // namespace cpu
-}  // namespace xe
-
-namespace xe {
-namespace cpu {
 
 class Function;
-class Runtime;
+class Memory;
+class Processor;
+class ThreadState;
 
 class Instrument {
  public:
-  Instrument(Runtime* runtime);
+  Instrument(Processor* processor);
   virtual ~Instrument();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
   Memory* memory() const { return memory_; }
   bool is_attached() const { return is_attached_; }
 
@@ -38,14 +33,14 @@ class Instrument {
   virtual bool Detach();
 
  private:
-  Runtime* runtime_;
+  Processor* processor_;
   Memory* memory_;
   bool is_attached_;
 };
 
 class FunctionInstrument : public Instrument {
  public:
-  FunctionInstrument(Runtime* runtime, Function* function);
+  FunctionInstrument(Processor* processor, Function* function);
   virtual ~FunctionInstrument() {}
 
   Function* target() const { return target_; }
@@ -86,7 +81,8 @@ class FunctionInstrument : public Instrument {
 
 class MemoryInstrument : public Instrument {
  public:
-  MemoryInstrument(Runtime* runtime, uint32_t address, uint32_t end_address);
+  MemoryInstrument(Processor* processor, uint32_t address,
+                   uint32_t end_address);
   virtual ~MemoryInstrument() {}
 
   uint64_t address() const { return address_; }

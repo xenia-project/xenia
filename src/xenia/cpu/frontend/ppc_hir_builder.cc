@@ -18,7 +18,7 @@
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/hir/label.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -152,9 +152,9 @@ void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
 }
 
 FunctionInfo* PPCHIRBuilder::LookupFunction(uint32_t address) {
-  Runtime* runtime = frontend_->runtime();
+  Processor* processor = frontend_->processor();
   FunctionInfo* symbol_info;
-  if (runtime->LookupFunctionInfo(address, &symbol_info)) {
+  if (processor->LookupFunctionInfo(address, &symbol_info)) {
     return NULL;
   }
   return symbol_info;

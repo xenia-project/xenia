@@ -17,15 +17,15 @@
 namespace xe {
 namespace cpu {
 
-class Runtime;
+class Processor;
 
 class ThreadState {
  public:
-  ThreadState(Runtime* runtime, uint32_t thread_id, uint32_t stack_address,
+  ThreadState(Processor* processor, uint32_t thread_id, uint32_t stack_address,
               uint32_t stack_size, uint32_t thread_state_address);
   ~ThreadState();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
   Memory* memory() const { return memory_; }
   uint32_t thread_id() const { return thread_id_; }
   const std::string& name() const { return name_; }
@@ -45,7 +45,7 @@ class ThreadState {
   static uint32_t GetThreadID();
 
  private:
-  Runtime* runtime_;
+  Processor* processor_;
   Memory* memory_;
   uint32_t thread_id_;
   std::string name_;

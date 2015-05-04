@@ -24,7 +24,7 @@ namespace cpu {
 
 class TestModule : public Module {
  public:
-  TestModule(Runtime* runtime, const std::string& name,
+  TestModule(Processor* processor, const std::string& name,
              std::function<bool(uint32_t)> contains_address,
              std::function<bool(hir::HIRBuilder&)> generate);
   ~TestModule() override;

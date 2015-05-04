@@ -16,7 +16,7 @@
 
 namespace xe {
 namespace cpu {
-class Runtime;
+class Processor;
 }  // namespace cpu
 }  // namespace xe
 
@@ -28,10 +28,10 @@ class Assembler;
 
 class Backend {
  public:
-  Backend(Runtime* runtime);
+  Backend(Processor* processor);
   virtual ~Backend();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
   const MachineInfo* machine_info() const { return &machine_info_; }
 
   virtual int Initialize();
@@ -42,7 +42,7 @@ class Backend {
   virtual std::unique_ptr<Assembler> CreateAssembler() = 0;
 
  protected:
-  Runtime* runtime_;
+  Processor* processor_;
   MachineInfo machine_info_;
 };
 

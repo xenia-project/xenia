@@ -22,7 +22,7 @@ class Runtime;
 
 class XexModule : public xe::cpu::Module {
  public:
-  XexModule(Runtime* runtime);
+  XexModule(Processor* processor);
   virtual ~XexModule();
 
   xe_xex2_ref xex() const { return xex_; }
@@ -39,7 +39,7 @@ class XexModule : public xe::cpu::Module {
   int FindSaveRest();
 
  private:
-  Runtime* runtime_;
+  Processor* processor_;
   std::string name_;
   std::string path_;
   xe_xex2_ref xex_;

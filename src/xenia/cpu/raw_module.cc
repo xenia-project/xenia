@@ -15,8 +15,8 @@
 namespace xe {
 namespace cpu {
 
-RawModule::RawModule(Runtime* runtime)
-    : Module(runtime), base_address_(0), low_address_(0), high_address_(0) {}
+RawModule::RawModule(Processor* processor)
+    : Module(processor), base_address_(0), low_address_(0), high_address_(0) {}
 
 RawModule::~RawModule() {}
 

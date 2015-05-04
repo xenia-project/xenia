@@ -13,14 +13,14 @@
 #include <sstream>
 
 #include "xenia/base/threading.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {
 
-Module::Module(Runtime* runtime)
-    : runtime_(runtime), memory_(runtime->memory()) {}
+Module::Module(Processor* processor)
+    : processor_(processor), memory_(processor->memory()) {}
 
 Module::~Module() = default;
 
@@ -225,7 +225,7 @@ int Module::ReadMap(const char* file_name) {
     if (type_str == "f") {
       // Function.
       FunctionInfo* fn_info;
-      if (runtime_->LookupFunctionInfo(this, address, &fn_info)) {
+      if (processor_->LookupFunctionInfo(this, address, &fn_info)) {
         continue;
       }
       // Don't overwrite names we've set elsewhere.

@@ -20,7 +20,7 @@
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/frontend/ppc_scanner.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -35,11 +35,11 @@ using xe::cpu::compiler::Compiler;
 namespace passes = xe::cpu::compiler::passes;
 
 PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
-  Backend* backend = frontend->runtime()->backend();
+  Backend* backend = frontend->processor()->backend();
 
   scanner_.reset(new PPCScanner(frontend));
   builder_.reset(new PPCHIRBuilder(frontend));
-  compiler_.reset(new Compiler(frontend->runtime()));
+  compiler_.reset(new Compiler(frontend->processor()));
   assembler_ = std::move(backend->CreateAssembler());
   assembler_->Initialize();
 

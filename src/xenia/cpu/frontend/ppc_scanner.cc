@@ -16,7 +16,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
 
 #if 0
@@ -35,7 +35,7 @@ PPCScanner::~PPCScanner() {}
 
 bool PPCScanner::IsRestGprLr(uint32_t address) {
   FunctionInfo* symbol_info;
-  if (frontend_->runtime()->LookupFunctionInfo(address, &symbol_info)) {
+  if (frontend_->processor()->LookupFunctionInfo(address, &symbol_info)) {
     return false;
   }
   return symbol_info->behavior() == FunctionInfo::BEHAVIOR_EPILOG_RETURN;

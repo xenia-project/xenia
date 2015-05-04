@@ -16,7 +16,7 @@
 
 namespace xe {
 namespace cpu {
-class Runtime;
+class Processor;
 class ThreadState;
 }  // namespace cpu
 }  // namespace xe
@@ -205,9 +205,9 @@ typedef struct alignas(64) PPCContext_s {
   // Used to shuttle data into externs. Contents volatile.
   uint64_t scratch;
 
-  // Runtime-specific data pointer. Used on callbacks to get access to the
+  // Processor-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
-  Runtime* runtime;
+  Processor* processor;
 
   uint8_t* physical_membase;
 

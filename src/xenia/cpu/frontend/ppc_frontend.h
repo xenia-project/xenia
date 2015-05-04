@@ -21,7 +21,7 @@
 
 namespace xe {
 namespace cpu {
-class Runtime;
+class Processor;
 }  // namespace cpu
 }  // namespace xe
 
@@ -40,12 +40,12 @@ struct PPCBuiltins {
 
 class PPCFrontend {
  public:
-  explicit PPCFrontend(Runtime* runtime);
+  explicit PPCFrontend(Processor* processor);
   ~PPCFrontend();
 
   int Initialize();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
   Memory* memory() const;
   ContextInfo* context_info() const { return context_info_.get(); }
   PPCBuiltins* builtins() { return &builtins_; }
@@ -55,7 +55,7 @@ class PPCFrontend {
                      uint32_t trace_flags, Function** out_function);
 
  private:
-  Runtime* runtime_;
+  Processor* processor_;
   std::unique_ptr<ContextInfo> context_info_;
   PPCBuiltins builtins_;
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;

@@ -15,7 +15,7 @@
 
 namespace xe {
 namespace cpu {
-class Runtime;
+class Processor;
 }  // namespace cpu
 }  // namespace xe
 
@@ -38,7 +38,7 @@ class CompilerPass {
   Arena* scratch_arena() const;
 
  protected:
-  Runtime* runtime_;
+  Processor* processor_;
   Compiler* compiler_;
 };
 

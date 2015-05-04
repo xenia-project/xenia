@@ -22,7 +22,7 @@
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/hir/hir_builder.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/profiling.h"
@@ -60,7 +60,7 @@ const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     : CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator),
-      runtime_(backend->runtime()),
+      processor_(backend->processor()),
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator),
@@ -217,7 +217,8 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
 
 void X64Emitter::EmitGetCurrentThreadId() {
   // rcx must point to context. We could fetch from the stack if needed.
-  mov(ax, word[rcx + runtime_->frontend()->context_info()->thread_id_offset()]);
+  mov(ax,
+      word[rcx + processor_->frontend()->context_info()->thread_id_offset()]);
 }
 
 void X64Emitter::EmitTraceUserCallReturn() {}
@@ -279,7 +280,7 @@ uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
 
   // Resolve function. This will demand compile as required.
   Function* fn = NULL;
-  thread_state->runtime()->ResolveFunction(symbol_info->address(), &fn);
+  thread_state->processor()->ResolveFunction(symbol_info->address(), &fn);
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
@@ -361,7 +362,7 @@ uint64_t ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   assert_not_zero(target_address);
 
   Function* fn = NULL;
-  thread_state->runtime()->ResolveFunction(target_address, &fn);
+  thread_state->processor()->ResolveFunction(target_address, &fn);
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());

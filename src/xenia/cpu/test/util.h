@@ -38,44 +38,42 @@ class TestFunction {
 
 #if XENIA_TEST_X64
     {
-      auto runtime = std::make_unique<Runtime>(memory.get(), nullptr, 0, 0);
-      auto backend =
-          std::make_unique<xe::cpu::backend::x64::X64Backend>(runtime.get());
-      runtime->Initialize(std::move(backend));
-      runtimes.emplace_back(std::move(runtime));
+      auto processor = std::make_unique<Processor>(memory.get(), nullptr);
+      processor->Setup();
+      processors.emplace_back(std::move(processor));
     }
 #endif  // XENIA_TEST_X64
 
-    for (auto& runtime : runtimes) {
+    for (auto& processor : processors) {
       auto module = std::make_unique<xe::cpu::TestModule>(
-          runtime.get(), "Test",
+          processor.get(), "Test",
           [](uint64_t address) { return address == 0x1000; },
           [generator](hir::HIRBuilder& b) {
             generator(b);
             return true;
           });
-      runtime->AddModule(std::move(module));
+      processor->AddModule(std::move(module));
     }
   }
 
   ~TestFunction() {
-    runtimes.clear();
+    processors.clear();
     memory.reset();
   }
 
   void Run(std::function<void(PPCContext*)> pre_call,
            std::function<void(PPCContext*)> post_call) {
-    for (auto& runtime : runtimes) {
+    for (auto& processor : processors) {
       memory->Zero(0, memory_size);
 
       xe::cpu::Function* fn;
-      runtime->ResolveFunction(0x1000, &fn);
+      processor->ResolveFunction(0x1000, &fn);
 
       uint32_t stack_size = 64 * 1024;
       uint32_t stack_address = memory_size - stack_size;
       uint32_t thread_state_address = stack_address - 0x1000;
       auto thread_state =
-          std::make_unique<ThreadState>(runtime.get(), 0x100, stack_address,
+          std::make_unique<ThreadState>(processor.get(), 0x100, stack_address,
                                         stack_size, thread_state_address);
       auto ctx = thread_state->context();
       ctx->lr = 0xBEBEBEBE;
@@ -90,7 +88,7 @@ class TestFunction {
 
   uint32_t memory_size;
   std::unique_ptr<Memory> memory;
-  std::vector<std::unique_ptr<Runtime>> runtimes;
+  std::vector<std::unique_ptr<Processor>> processors;
 };
 
 inline hir::Value* LoadGPR(hir::HIRBuilder& b, int reg) {

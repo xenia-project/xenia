@@ -17,7 +17,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -30,9 +30,9 @@ void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
   XELOGE("call to undefined kernel import");
 }
 
-XexModule::XexModule(Runtime* runtime)
-    : Module(runtime),
-      runtime_(runtime),
+XexModule::XexModule(Processor* processor)
+    : Module(processor),
+      processor_(processor),
       xex_(nullptr),
       base_address_(0),
       low_address_(0),
@@ -93,7 +93,7 @@ int XexModule::Load(const std::string& name, const std::string& path,
 }
 
 int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
-  ExportResolver* export_resolver = runtime_->export_resolver();
+  ExportResolver* export_resolver = processor_->export_resolver();
 
   xe_xex2_import_info_t* import_infos;
   size_t import_info_count;

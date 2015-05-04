@@ -24,8 +24,6 @@
     'processor.h',
     'raw_module.cc',
     'raw_module.h',
-    'runtime.cc',
-    'runtime.h',
     'symbol_info.cc',
     'symbol_info.h',
     'test_module.cc',

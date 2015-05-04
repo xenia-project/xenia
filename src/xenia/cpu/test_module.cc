@@ -14,7 +14,7 @@
 #include "xenia/base/reset_scope.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -24,16 +24,16 @@ using xe::cpu::compiler::Compiler;
 using xe::cpu::hir::HIRBuilder;
 namespace passes = xe::cpu::compiler::passes;
 
-TestModule::TestModule(Runtime* runtime, const std::string& name,
+TestModule::TestModule(Processor* processor, const std::string& name,
                        std::function<bool(uint32_t)> contains_address,
                        std::function<bool(hir::HIRBuilder&)> generate)
-    : Module(runtime),
+    : Module(processor),
       name_(name),
       contains_address_(contains_address),
       generate_(generate) {
   builder_.reset(new HIRBuilder());
-  compiler_.reset(new Compiler(runtime));
-  assembler_ = std::move(runtime->backend()->CreateAssembler());
+  compiler_.reset(new Compiler(processor));
+  assembler_ = std::move(processor->backend()->CreateAssembler());
   assembler_->Initialize();
 
   // Merge blocks early. This will let us use more context in other passes.
@@ -59,7 +59,7 @@ TestModule::TestModule(Runtime* runtime, const std::string& name,
   // This should be the last pass before finalization, as after this all
   // registers are assigned and ready to be emitted.
   compiler_->AddPass(std::make_unique<passes::RegisterAllocationPass>(
-      runtime->backend()->machine_info()));
+      processor->backend()->machine_info()));
 
   // Must come last. The HIR is not really HIR after this.
   compiler_->AddPass(std::make_unique<passes::FinalizationPass>());

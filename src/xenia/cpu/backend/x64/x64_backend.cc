@@ -19,9 +19,8 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-using xe::cpu::Runtime;
-
-X64Backend::X64Backend(Runtime* runtime) : Backend(runtime), code_cache_(0) {}
+X64Backend::X64Backend(Processor* processor)
+    : Backend(processor), code_cache_(nullptr) {}
 
 X64Backend::~X64Backend() { delete code_cache_; }
 

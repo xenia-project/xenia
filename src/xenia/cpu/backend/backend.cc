@@ -13,9 +13,7 @@ namespace xe {
 namespace cpu {
 namespace backend {
 
-using xe::cpu::Runtime;
-
-Backend::Backend(Runtime* runtime) : runtime_(runtime) {
+Backend::Backend(Processor* processor) : processor_(processor) {
   memset(&machine_info_, 0, sizeof(machine_info_));
 }
 

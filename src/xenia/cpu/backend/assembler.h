@@ -17,7 +17,6 @@ namespace cpu {
 class DebugInfo;
 class Function;
 class FunctionInfo;
-class Runtime;
 namespace hir {
 class HIRBuilder;
 }  // namespace hir

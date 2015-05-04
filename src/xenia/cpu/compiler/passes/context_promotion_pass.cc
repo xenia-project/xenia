@@ -12,7 +12,7 @@
 #include <gflags/gflags.h>
 
 #include "xenia/cpu/compiler/compiler.h"
-#include "xenia/cpu/runtime.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
 
 DEFINE_bool(store_all_context_values, false,
@@ -42,7 +42,7 @@ int ContextPromotionPass::Initialize(Compiler* compiler) {
   }
 
   // This is a terrible implementation.
-  ContextInfo* context_info = runtime_->frontend()->context_info();
+  ContextInfo* context_info = processor_->frontend()->context_info();
   context_values_.resize(context_info->size());
   context_validity_.resize(static_cast<uint32_t>(context_info->size()));
 

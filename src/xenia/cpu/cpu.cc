@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/cpu-private.h"
 
+DEFINE_string(processor_backend, "any", "CPU backend [any, x64].");
+
 // Debugging:
 DEFINE_string(
     load_module_map, "",

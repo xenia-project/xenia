@@ -18,7 +18,7 @@
 
 namespace xe {
 namespace cpu {
-class Runtime;
+class Processor;
 }  // namespace cpu
 }  // namespace xe
 
@@ -30,10 +30,10 @@ class CompilerPass;
 
 class Compiler {
  public:
-  Compiler(Runtime* runtime);
+  Compiler(Processor* processor);
   ~Compiler();
 
-  Runtime* runtime() const { return runtime_; }
+  Processor* processor() const { return processor_; }
   Arena* scratch_arena() { return &scratch_arena_; }
 
   void AddPass(std::unique_ptr<CompilerPass> pass);
@@ -43,7 +43,7 @@ class Compiler {
   int Compile(hir::HIRBuilder* builder);
 
  private:
-  Runtime* runtime_;
+  Processor* processor_;
   Arena scratch_arena_;
 
   std::vector<std::unique_ptr<CompilerPass>> passes_;

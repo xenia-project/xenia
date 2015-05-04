@@ -26,7 +26,7 @@ typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 
 class X64Backend : public Backend {
  public:
-  X64Backend(Runtime* runtime);
+  X64Backend(Processor* processor);
   ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_; }
