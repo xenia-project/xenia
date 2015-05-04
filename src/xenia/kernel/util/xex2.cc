@@ -1013,8 +1013,8 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
     return 1;
   }
 
-  uint64_t loadaddr = (uint64_t)xex->memory->TranslateVirtual(header->loader_info.load_address);
-  IMAGE_EXPORT_DIRECTORY *e = (PIMAGE_EXPORT_DIRECTORY)(loadaddr + header->export_table_offset);
+  uint64_t baseaddr = (uint64_t)xex->memory->TranslateVirtual(header->exe_address);
+  IMAGE_EXPORT_DIRECTORY *e = (PIMAGE_EXPORT_DIRECTORY)(baseaddr + header->export_table_offset);
 
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
   uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions); // Functions relative to base
@@ -1026,7 +1026,7 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
   for (int i = 0; i < e->NumberOfNames; i++) {
     const char *fn_name = (const char *)((uint64_t)e + name_table[i]);
     uint16_t ordinal = ordinal_table[i];
-    uint64_t addr = (uint64_t)(loadaddr + function_table[ordinal]);
+    uint64_t addr = (uint64_t)(baseaddr + function_table[ordinal]);
 
     if (!strcmp(name, fn_name)) {
       // We have a match!
