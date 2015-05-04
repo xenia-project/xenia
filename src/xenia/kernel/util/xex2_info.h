@@ -295,6 +295,17 @@ typedef struct {
   xe_xex2_approval_type     approval;
 } xe_xex2_static_library_t;
 
+// credits: some obscure pastebin (http://pastebin.com/ZRvr3Sgj)
+typedef struct {
+  uint32_t magic[3];
+  uint32_t modulenumber[2];
+  uint32_t version[3];
+  uint32_t imagebaseaddr; // must be <<16 to be accurate
+  uint32_t count;
+  uint32_t base;
+  uint32_t ordOffset[1]; // ordOffset[0] + (imagebaseaddr << 16) = function offset of ordinal 1
+} xe_xex2_export_table;
+
 typedef enum {
   XEX_ENCRYPTION_NONE         = 0,
   XEX_ENCRYPTION_NORMAL       = 1,
@@ -397,7 +408,7 @@ typedef struct {
   uint8_t                   import_table_digest[20];
   uint8_t                   media_id[16];
   uint8_t                   file_key[16];
-  uint32_t                  export_table;
+  uint32_t                  export_table; // address of the export table
   uint8_t                   header_digest[20];
   xe_xex2_region_flags      game_regions;
   xe_xex2_media_flags       media_flags;
@@ -434,6 +445,7 @@ typedef struct {
   xe_xex2_tls_info_t          tls_info;
   size_t                      import_library_count;
   xe_xex2_import_library_t    import_libraries[32];
+  size_t                      export_table_offset; // PE Export Directory
   size_t                      static_library_count;
   xe_xex2_static_library_t    static_libraries[32];
   xe_xex2_file_format_info_t  file_format_info;

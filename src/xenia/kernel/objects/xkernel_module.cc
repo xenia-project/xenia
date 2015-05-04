@@ -34,5 +34,10 @@ void* XKernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   return NULL;
 }
 
+void* XKernelModule::GetProcAddressByName(const char* name) {
+  XELOGE("GetProcAddressByName not implemented");
+  return NULL;
+}
+
 }  // namespace kernel
 }  // namespace xe

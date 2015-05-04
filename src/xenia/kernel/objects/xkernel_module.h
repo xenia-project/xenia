@@ -24,6 +24,7 @@ class XKernelModule : public XModule {
   virtual ~XKernelModule();
 
   virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
+  virtual void* GetProcAddressByName(const char* name);
 
  protected:
   Emulator* emulator_;
