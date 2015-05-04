@@ -104,8 +104,8 @@ void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
   uint64_t prev_source_offset = 0;
   while (disasm.EIP < eip_end) {
     // Look up source offset.
-    auto map_entry =
-        debug_info->LookupCodeOffset(disasm.EIP - (BE::UIntPtr)machine_code);
+    auto map_entry = debug_info->LookupCodeOffset(
+        static_cast<uint32_t>(disasm.EIP - (BE::UIntPtr)machine_code));
     if (map_entry) {
       if (map_entry->source_offset == prev_source_offset) {
         str->Append("         ");

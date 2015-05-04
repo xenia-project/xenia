@@ -211,7 +211,7 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   auto entry = source_map_arena_.Alloc<SourceMapEntry>();
   entry->source_offset = static_cast<uint32_t>(i->src1.offset);
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
-  entry->code_offset = getSize();
+  entry->code_offset = static_cast<uint32_t>(getSize());
   source_map_count_++;
 }
 

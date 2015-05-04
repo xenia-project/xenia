@@ -49,7 +49,7 @@ SourceMapEntry* DebugInfo::LookupSourceOffset(uint32_t offset) {
   return nullptr;
 }
 
-SourceMapEntry* DebugInfo::LookupHIROffset(uint64_t offset) {
+SourceMapEntry* DebugInfo::LookupHIROffset(uint32_t offset) {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (size_t n = 0; n < source_map_count_; n++) {
     auto entry = &source_map_[n];
@@ -60,7 +60,7 @@ SourceMapEntry* DebugInfo::LookupHIROffset(uint64_t offset) {
   return nullptr;
 }
 
-SourceMapEntry* DebugInfo::LookupCodeOffset(uint64_t offset) {
+SourceMapEntry* DebugInfo::LookupCodeOffset(uint32_t offset) {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (int64_t n = source_map_count_ - 1; n >= 0; n--) {
     auto entry = &source_map_[n];

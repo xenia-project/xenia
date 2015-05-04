@@ -29,8 +29,8 @@ enum DebugInfoFlags {
 
 typedef struct SourceMapEntry_s {
   uint32_t source_offset;  // Original source address/offset.
-  uint64_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
-  uint64_t code_offset;    // Offset from emitted code start.
+  uint32_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
+  uint32_t code_offset;    // Offset from emitted code start.
 } SourceMapEntry;
 
 class DebugInfo {
@@ -49,8 +49,8 @@ class DebugInfo {
 
   void InitializeSourceMap(size_t source_map_count, SourceMapEntry* source_map);
   SourceMapEntry* LookupSourceOffset(uint32_t offset);
-  SourceMapEntry* LookupHIROffset(uint64_t offset);
-  SourceMapEntry* LookupCodeOffset(uint64_t offset);
+  SourceMapEntry* LookupHIROffset(uint32_t offset);
+  SourceMapEntry* LookupCodeOffset(uint32_t offset);
 
  private:
   char* source_disasm_;
