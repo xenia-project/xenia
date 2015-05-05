@@ -4864,6 +4864,16 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShrI16));
     e.vmovaps(i.dest, e.xmm0);
   }
+  static __m128i EmulateVectorShrI32(void*, __m128i src1, __m128i src2) {
+    alignas(16) uint16_t value[4];
+    alignas(16) uint16_t shamt[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      value[i] = value[i] >> (shamt[i] & 0x1F);
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(value));
+  }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
       const auto& shamt = i.src2.constant();
@@ -4877,22 +4887,41 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
       if (all_same) {
         // Every count is the same, so we can use vpslld.
         e.vpsrld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        return;
       } else {
-        // Counts differ, so pre-mask and load constant.
-        vec128_t masked = i.src2.constant();
-        for (size_t n = 0; n < 4; ++n) {
-          masked.u32[n] &= 0x1F;
+        if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+          // Counts differ, so pre-mask and load constant.
+          vec128_t masked = i.src2.constant();
+          for (size_t n = 0; n < 4; ++n) {
+            masked.u32[n] &= 0x1F;
+          }
+          e.LoadConstantXmm(e.xmm0, masked);
+          e.vpsrlvd(i.dest, i.src1, e.xmm0);
+          return;
         }
-        e.LoadConstantXmm(e.xmm0, masked);
-        e.vpsrlvd(i.dest, i.src1, e.xmm0);
       }
     } else {
-      // Fully variable shift.
-      // src shift mask may have values >31, and x86 sets to zero when
-      // that happens so we mask.
-      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-      e.vpsrlvd(i.dest, i.src1, e.xmm0);
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // Fully variable shift.
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+        e.vpsrlvd(i.dest, i.src1, e.xmm0);
+        return;
+      }
     }
+
+    // We've reached here if we don't have AVX2 and it's a variable shift
+    // TODO: native version
+    if (i.src2.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      e.lea(e.r9, e.StashXmm(1, e.xmm0));
+    } else {
+      e.lea(e.r9, e.StashXmm(1, i.src2));
+    }
+    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShrI32));
+    e.vmovaps(i.dest, e.xmm0);
   }
 };
 EMITTER_OPCODE_TABLE(
