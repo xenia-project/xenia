@@ -49,8 +49,6 @@ typedef struct xe_xex2 {
     size_t count;
     xe_xex2_import_info_t *infos;
   } library_imports[16];
-
-  xe_xex2_export_table *export_table;
 } xe_xex2_t;
 
 int xe_xex2_read_header(const uint8_t *addr, const size_t length,
@@ -875,22 +873,6 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
     section->flags = sechdr->Characteristics;
     xex->sections->push_back(section);
   }
-
-  /*
-  if (header->export_table_offset) {
-    // This table is located inside of the PE (for some reason)
-    xe_xex2_export_table *table = (xe_xex2_export_table *)xex->memory->TranslateVirtual(xex->header.loader_info.export_table);
-    xex->export_table = table;
-    // cmp magic...
-
-    table->base = xe::load_and_swap<uint32_t>(&table->base);
-    table->imagebaseaddr = xe::load_and_swap<uint32_t>(&table->imagebaseaddr);
-    table->count = xe::load_and_swap<uint32_t>(&table->count);
-    for (int i = 0; i < table->count; i++) {
-      table->ordOffset[i] = xe::load_and_swap<uint32_t>(&table->ordOffset[i]);
-    }
-  }
-  */
 
   // DumpTLSDirectory(pImageBase, pNTHeader, (PIMAGE_TLS_DIRECTORY32)0);
   // DumpExportsSection(pImageBase, pNTHeader);
