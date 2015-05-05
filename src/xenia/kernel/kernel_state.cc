@@ -111,6 +111,8 @@ XModule* KernelState::GetModule(const char* name) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   } else {
+    std::lock_guard<std::mutex> lock(object_mutex_);
+
     for (XUserModule *module : user_modules_) {
       if (module->name() == name) {
         module->Retain();
@@ -146,6 +148,8 @@ void KernelState::SetExecutableModule(XUserModule* module) {
 }
 
 XUserModule* KernelState::LoadUserModule(const char *name) {
+  std::lock_guard<std::mutex> lock(object_mutex_);
+
   // See if we've already loaded it
   for (XUserModule *module : user_modules_) {
     if (module->name() == name) {
@@ -158,7 +162,7 @@ XUserModule* KernelState::LoadUserModule(const char *name) {
   XUserModule *module = new XUserModule(this, name);
   X_STATUS status = module->LoadFromFile(name);
   if (XFAILED(status)) {
-    delete module;
+    module->Release();
     return nullptr;
   }
 
