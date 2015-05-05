@@ -5488,7 +5488,7 @@ EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
       }
     } else {
       // TODO
-      //e.DebugBreak();
+      e.DebugBreak();
     }
   }
 };
