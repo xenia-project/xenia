@@ -249,12 +249,13 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
   const char *name = (const char *)SHIM_MEM_ADDR(ordinal);
   uint32_t out_function_ptr = SHIM_GET_ARG_32(2);
 
-  if (ordinal < 0x10000)
+  if (ordinal < 0x10000) {
     XELOGD("XexGetProcedureAddress(%.8X, %.8X, %.8X)", module_handle, ordinal,
            out_function_ptr);
-  else
+  } else {
     XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", module_handle, ordinal,
            name, out_function_ptr);
+  }
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
   SHIM_SET_MEM_32(out_function_ptr, 0xDEADF00D);
@@ -267,6 +268,8 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
     result =
         state->object_table()->GetObject(module_handle, (XObject**)&module);
   }
+
+  result = X_STATUS_UNSUCCESSFUL;
 
   if (XSUCCEEDED(result)) {
     if (ordinal < 0x10000) {
@@ -281,8 +284,7 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
       uint64_t ptr = (uint64_t)module->GetProcAddressByName(name);
 
       // FYI: We don't need to generate this function now. It'll
-      // be done automatically by xenia when it gets called
-
+      // be done automatically by xenia when it gets called.
       if (ptr) {
         SHIM_SET_MEM_32(out_function_ptr, ptr);
         result = X_STATUS_SUCCESS;
