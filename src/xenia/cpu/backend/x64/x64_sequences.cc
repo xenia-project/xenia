@@ -5562,7 +5562,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
             (((control >> 10) & 0x1) << 1) |
             (((control >> 2) & 0x1) << 0);
       } else {
-        // Blender for pblendw
+        // Blender for vpblendw
         blend_control =
           (((control >> 26) & 0x1) << 6) |
           (((control >> 18) & 0x1) << 4) |
