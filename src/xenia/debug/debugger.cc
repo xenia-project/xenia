@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/debugger.h"
+#include "xenia/debug/debugger.h"
 
 #include <mutex>
 
@@ -15,14 +15,16 @@
 #include "xenia/cpu/processor.h"
 
 namespace xe {
-namespace cpu {
+namespace debug {
+
+using xe::cpu::ThreadState;
 
 Breakpoint::Breakpoint(Type type, uint32_t address)
     : type_(type), address_(address) {}
 
 Breakpoint::~Breakpoint() = default;
 
-Debugger::Debugger(Processor* processor) : processor_(processor) {}
+Debugger::Debugger(cpu::Processor* processor) : processor_(processor) {}
 
 Debugger::~Debugger() = default;
 
@@ -156,8 +158,8 @@ void Debugger::OnThreadDestroyed(ThreadState* thread_state) {
   }
 }
 
-void Debugger::OnFunctionDefined(FunctionInfo* symbol_info,
-                                 Function* function) {
+void Debugger::OnFunctionDefined(cpu::FunctionInfo* symbol_info,
+                                 cpu::Function* function) {
   // Man, I'd love not to take this lock.
   std::vector<Breakpoint*> breakpoints;
   {
@@ -195,5 +197,5 @@ void Debugger::OnBreakpointHit(ThreadState* thread_state,
   // Note that we stay suspended.
 }
 
-}  // namespace cpu
+}  // namespace debug
 }  // namespace xe

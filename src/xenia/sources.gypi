@@ -15,6 +15,7 @@
     'apu/sources.gypi',
     'base/sources.gypi',
     'cpu/sources.gypi',
+    'debug/sources.gypi',
     'gpu/sources.gypi',
     'hid/sources.gypi',
     'kernel/sources.gypi',

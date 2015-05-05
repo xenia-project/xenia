@@ -30,9 +30,11 @@ void X64Function::Setup(void* machine_code, size_t code_size) {
   code_size_ = code_size;
 }
 
-int X64Function::AddBreakpointImpl(Breakpoint* breakpoint) { return 0; }
+int X64Function::AddBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
 
-int X64Function::RemoveBreakpointImpl(Breakpoint* breakpoint) { return 0; }
+int X64Function::RemoveBreakpointImpl(debug::Breakpoint* breakpoint) {
+  return 0;
+}
 
 int X64Function::CallImpl(ThreadState* thread_state, uint32_t return_address) {
   auto backend =

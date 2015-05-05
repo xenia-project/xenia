@@ -19,8 +19,6 @@ namespace xe {
 namespace cpu {
 namespace frontend {
 
-using xe::cpu::Runtime;
-
 void InitializeIfNeeded();
 void CleanupOnShutdown();
 

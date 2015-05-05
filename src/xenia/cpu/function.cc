@@ -10,12 +10,13 @@
 #include "xenia/cpu/function.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/cpu/debugger.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
 
 namespace xe {
 namespace cpu {
+
+using xe::debug::Breakpoint;
 
 Function::Function(FunctionInfo* symbol_info)
     : address_(symbol_info->address()), symbol_info_(symbol_info) {}

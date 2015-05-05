@@ -30,8 +30,8 @@ class X64Function : public Function {
   void Setup(void* machine_code, size_t code_size);
 
  protected:
-  virtual int AddBreakpointImpl(Breakpoint* breakpoint);
-  virtual int RemoveBreakpointImpl(Breakpoint* breakpoint);
+  virtual int AddBreakpointImpl(debug::Breakpoint* breakpoint);
+  virtual int RemoveBreakpointImpl(debug::Breakpoint* breakpoint);
   virtual int CallImpl(ThreadState* thread_state, uint32_t return_address);
 
  private:

@@ -22,6 +22,7 @@
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
+#include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
 
 // TODO(benvanik): based on compiler support
@@ -108,7 +109,7 @@ int Processor::Setup() {
   assert_not_null(memory_);
 
   // Create debugger first. Other types hook up to it.
-  debugger_.reset(new Debugger(this));
+  debugger_.reset(new xe::debug::Debugger(this));
 
   std::unique_ptr<Module> builtin_module(new BuiltinModule(this));
   builtin_module_ = builtin_module.get();
