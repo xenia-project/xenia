@@ -269,11 +269,13 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
   }
 
   if (XSUCCEEDED(result)) {
-    // TODO(benvanik): implement. May need to create stub functions on the fly.
     if (ordinal < 0x10000) {
+      // Ordinal.
       uint64_t ptr = (uint64_t)module->GetProcAddressByOrdinal(ordinal);
-      SHIM_SET_MEM_32(out_function_ptr, ptr);
-      result = X_STATUS_NOT_IMPLEMENTED;
+      if (ptr) {
+        SHIM_SET_MEM_32(out_function_ptr, ptr);
+        result = X_STATUS_SUCCESS;
+      }
     } else {
       // It's a name pointer instead.
       uint64_t ptr = (uint64_t)module->GetProcAddressByName(name);
