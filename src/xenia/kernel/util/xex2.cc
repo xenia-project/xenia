@@ -237,6 +237,11 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
       case XEX_HEADER_DEFAULT_HEAP_SIZE:
         header->exe_heap_size = opt_header->value;
         break;
+      case XEX_HEADER_EXPORTS_BY_NAME: {
+        // IMAGE_DATA_DIRECTORY (w/ offset from PE file base)
+        header->export_table_offset = xe::load_and_swap<uint32_t>(pp);
+        // size = xe::load_and_swap<uint32_t>(pp + 0x04);
+      } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
         const size_t max_count = xe::countof(header->import_libraries);
         size_t count = xe::load_and_swap<uint32_t>(pp + 0x08);
@@ -981,4 +986,42 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
   *out_import_info_count = xex->library_imports[library_index].count;
   *out_import_infos = xex->library_imports[library_index].infos;
   return 0;
+}
+
+int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
+                        PEExport &peexport) {
+  auto header = xe_xex2_get_header(xex);
+
+  // no exports :(
+  if (!header->export_table_offset) {
+    return 1;
+  }
+
+  uint64_t baseaddr = (uint64_t)xex->memory->TranslateVirtual(header->exe_address);
+  IMAGE_EXPORT_DIRECTORY *e = (PIMAGE_EXPORT_DIRECTORY)(baseaddr + header->export_table_offset);
+
+  // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
+  uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions); // Functions relative to base
+  uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames); // Names relative to directory
+  uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals); // Table of ordinals
+
+  const char* mod_name = (const char*)((uint64_t)e + e->Name);
+
+  for (int i = 0; i < e->NumberOfNames; i++) {
+    const char *fn_name = (const char *)((uint64_t)e + name_table[i]);
+    uint16_t ordinal = ordinal_table[i];
+    uint64_t addr = (uint64_t)(baseaddr + function_table[ordinal]);
+
+    if (!strcmp(name, fn_name)) {
+      // We have a match!
+      peexport.name = fn_name;
+      peexport.addr = addr;
+      peexport.ordinal = ordinal;
+
+      return 0;
+    }
+  }
+
+  // No match
+  return 1;
 }

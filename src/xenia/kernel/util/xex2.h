@@ -43,6 +43,13 @@ class PESection {
   uint32_t flags;  // kXEPESection*
 };
 
+struct PEExport {
+  const char *name;
+  uint32_t ordinal;
+
+  uint64_t addr; // Function address
+};
+
 xe_xex2_ref xe_xex2_load(xe::Memory* memory, const void* addr,
                          const size_t length, xe_xex2_options_t options);
 void xe_xex2_dealloc(xe_xex2_ref xex);
@@ -54,5 +61,8 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
                              const xe_xex2_import_library_t* library,
                              xe_xex2_import_info_t** out_import_infos,
                              size_t* out_import_info_count);
+
+int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
+                          PEExport &peexport);
 
 #endif  // XENIA_KERNEL_UTIL_XEX2_H_

@@ -33,6 +33,7 @@ class XUserModule : public XModule {
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
   virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
+  virtual void* GetProcAddressByName(const char* name);
   virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
                               uint32_t* out_section_size);
 
