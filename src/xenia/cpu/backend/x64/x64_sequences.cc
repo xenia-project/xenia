@@ -4726,34 +4726,57 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShlI16));
     e.vmovaps(i.dest, e.xmm0);
   }
+  static __m128i EmulateVectorShlI32(void*, __m128i src1, __m128i src2) {
+    alignas(16) uint32_t value[4];
+    alignas(16) uint32_t shamt[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      value[i] = value[i] << (shamt[i] & 0x1F);
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(value));
+  }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
-    if (i.src2.is_constant) {
-      const auto& shamt = i.src2.constant();
-      bool all_same = true;
-      for (size_t n = 0; n < 4 - n; ++n) {
-        if (shamt.u32[n] != shamt.u32[n + 1]) {
-          all_same = false;
-          break;
+    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (i.src2.is_constant) {
+        const auto& shamt = i.src2.constant();
+        bool all_same = true;
+        for (size_t n = 0; n < 4 - n; ++n) {
+          if (shamt.u32[n] != shamt.u32[n + 1]) {
+            all_same = false;
+            break;
+          }
         }
-      }
-      if (all_same) {
-        // Every count is the same, so we can use vpslld.
-        e.vpslld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        if (all_same) {
+          // Every count is the same, so we can use vpslld.
+          e.vpslld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        } else {
+          // Counts differ, so pre-mask and load constant.
+          vec128_t masked = i.src2.constant();
+          for (size_t n = 0; n < 4; ++n) {
+            masked.u32[n] &= 0x1F;
+          }
+          e.LoadConstantXmm(e.xmm0, masked);
+          e.vpsllvd(i.dest, i.src1, e.xmm0);
+        }
       } else {
-        // Counts differ, so pre-mask and load constant.
-        vec128_t masked = i.src2.constant();
-        for (size_t n = 0; n < 4; ++n) {
-          masked.u32[n] &= 0x1F;
-        }
-        e.LoadConstantXmm(e.xmm0, masked);
+        // Fully variable shift.
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
         e.vpsllvd(i.dest, i.src1, e.xmm0);
       }
     } else {
-      // Fully variable shift.
-      // src shift mask may have values >31, and x86 sets to zero when
-      // that happens so we mask.
-      e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-      e.vpsllvd(i.dest, i.src1, e.xmm0);
+      // TODO(benvanik): native version (with shift magic).
+      if (i.src2.is_constant) {
+        e.LoadConstantXmm(e.xmm0, i.src2.constant());
+        e.lea(e.r9, e.StashXmm(1, e.xmm0));
+      } else {
+        e.lea(e.r9, e.StashXmm(1, i.src2));
+      }
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShlI32));
+      e.vmovaps(i.dest, e.xmm0);
     }
   }
 };
@@ -5058,6 +5081,16 @@ EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
+  static __m128i EmulateVectorRotateLeftI32(void*, __m128i src1, __m128i src2) {
+    alignas(16) uint32_t value[4];
+    alignas(16) uint32_t shamt[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      value[i] = xe::rotate_left<uint32_t>(value[i], shamt[i] & 0x1F);
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(value));
+  }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
     case INT8_TYPE:
@@ -5075,19 +5108,27 @@ EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128
       e.vmovaps(i.dest, e.xmm0);
       break;
     case INT32_TYPE: {
-      Xmm temp = i.dest;
-      if (i.dest == i.src1 || i.dest == i.src2) {
-        temp = e.xmm2;
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        Xmm temp = i.dest;
+        if (i.dest == i.src1 || i.dest == i.src2) {
+          temp = e.xmm2;
+        }
+        // Shift left (to get high bits):
+        e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+        e.vpsllvd(e.xmm1, i.src1, e.xmm0);
+        // Shift right (to get low bits):
+        e.vmovaps(temp, e.GetXmmConstPtr(XMMPI32));
+        e.vpsubd(temp, e.xmm0);
+        e.vpsrlvd(i.dest, i.src1, temp);
+        // Merge:
+        e.vpor(i.dest, e.xmm1);
+      } else {
+        // TODO: Non-AVX2 native version
+        e.lea(e.r8, e.StashXmm(0, i.src1));
+        e.lea(e.r9, e.StashXmm(1, i.src2));
+        e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorRotateLeftI32));
+        e.vmovaps(i.dest, e.xmm0);
       }
-      // Shift left (to get high bits):
-      e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-      e.vpsllvd(e.xmm1, i.src1, e.xmm0);
-      // Shift right (to get low bits):
-      e.vmovaps(temp, e.GetXmmConstPtr(XMMPI32));
-      e.vpsubd(temp, e.xmm0);
-      e.vpsrlvd(i.dest, i.src1, temp);
-      // Merge:
-      e.vpor(i.dest, e.xmm1);
       break;
     }
     default:
