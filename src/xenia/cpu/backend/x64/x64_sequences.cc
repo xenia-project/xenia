@@ -4472,13 +4472,9 @@ void EmitShlXX(X64Emitter& e, const ARGS& i) {
               e.shlx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
             }
           } else {
-            // back up ecx...
-            e.mov(e.al, e.cl);
             e.mov(e.cl, src);
-
             e.shl(dest_src, e.cl);
-
-            e.mov(e.cl, e.al);
+            e.ReloadECX();
           }
         }, [](X64Emitter& e, const REG& dest_src, int8_t constant) {
           e.shl(dest_src, constant);
@@ -4533,13 +4529,9 @@ void EmitShrXX(X64Emitter& e, const ARGS& i) {
               e.shrx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
             }
           } else {
-            // back up ecx...
-            e.mov(e.al, e.cl);
             e.mov(e.cl, src);
-
             e.shr(dest_src, e.cl);
-
-            e.mov(e.cl, e.al);
+            e.ReloadECX();
           }
         }, [](X64Emitter& e, const REG& dest_src, int8_t constant) {
           e.shr(dest_src, constant);
@@ -4619,13 +4611,9 @@ void EmitSarXX(X64Emitter& e, const ARGS& i) {
               e.sarx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
             }
           } else {
-            // back up ecx...
-            e.mov(e.al, e.cl);
             e.mov(e.cl, src);
-
             e.sar(dest_src, e.cl);
-
-            e.mov(e.cl, e.al);
+            e.ReloadECX();
           }
         }, [](X64Emitter& e, const REG& dest_src, int8_t constant) {
           e.sar(dest_src, constant);
