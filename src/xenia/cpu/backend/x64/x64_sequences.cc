@@ -4865,8 +4865,8 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
     e.vmovaps(i.dest, e.xmm0);
   }
   static __m128i EmulateVectorShrI32(void*, __m128i src1, __m128i src2) {
-    alignas(16) uint16_t value[4];
-    alignas(16) uint16_t shamt[4];
+    alignas(16) uint32_t value[4];
+    alignas(16) uint32_t shamt[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
     _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
     for (size_t i = 0; i < 4; ++i) {
