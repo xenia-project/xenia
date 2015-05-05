@@ -77,6 +77,10 @@ KernelState::~KernelState() {
 
   assert_true(shared_kernel_state_ == this);
   shared_kernel_state_ = nullptr;
+
+  for (XUserModule* mod : user_modules_) {
+    mod->Release();
+  }
 }
 
 KernelState* KernelState::shared() { return shared_kernel_state_; }
