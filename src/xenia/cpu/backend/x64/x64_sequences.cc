@@ -3793,9 +3793,6 @@ EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
         }
       }
     } else {
-      // TODO(justin): Test this
-      //e.DebugBreak();
-
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
       if (i.dest == i.src3) {
         e.vmovss(e.xmm0, i.src3);
@@ -5490,8 +5487,8 @@ EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
         e.vpbroadcastw(i.dest, e.xmm0);
       }
     } else {
-      // TODO(justin)
-      e.DebugBreak();
+      // TODO
+      //e.DebugBreak();
     }
   }
 };
@@ -5567,11 +5564,25 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
           (((control >> 16) & 0x3) << 4) |
           (((control >> 8) & 0x3) << 2) |
           (((control >> 0) & 0x3) << 0);
-      uint32_t blend_control =
-          (((control >> 26) & 0x1) << 3) |
-          (((control >> 18) & 0x1) << 2) |
-          (((control >> 10) & 0x1) << 1) |
+
+      uint32_t blend_control = 0;
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // Blender for vpblendd
+        blend_control =
+            (((control >> 26) & 0x1) << 3) |
+            (((control >> 18) & 0x1) << 2) |
+            (((control >> 10) & 0x1) << 1) |
+            (((control >> 2) & 0x1) << 0);
+      } else {
+        // Blender for pblendw
+        blend_control =
+          (((control >> 26) & 0x1) << 6) |
+          (((control >> 18) & 0x1) << 4) |
+          (((control >> 10) & 0x1) << 2) |
           (((control >> 2) & 0x1) << 0);
+        blend_control |= blend_control << 1;
+      }
+
       // TODO(benvanik): if src2/src3 are constants, shuffle now!
       Xmm src2;
       if (i.src2.is_constant) {
@@ -5590,12 +5601,16 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
       if (i.dest != src3) {
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, src3, src_control);
-        e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
       } else {
         e.vmovaps(e.xmm0, src3);
         e.vpshufd(i.dest, src2, src_control);
         e.vpshufd(e.xmm0, e.xmm0, src_control);
-        e.vpblendd(i.dest, e.xmm0, blend_control);
+      }
+
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
+      } else {
+        e.vpblendw(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
       }
     } else {
       // Permute by non-constant.
