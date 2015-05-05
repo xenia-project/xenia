@@ -1004,14 +1004,15 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
 
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
   uint32_t *function_table =
-      (uint32_t *)((uint64_t)e +
-                   e->AddressOfFunctions);  // Functions relative to base
+      (uint32_t *)((uint64_t)e + e->AddressOfFunctions);
+
+  // Names relative to directory
   uint32_t *name_table =
-      (uint32_t *)((uint64_t)e +
-                   e->AddressOfNames);  // Names relative to directory
+      (uint32_t *)((uint64_t)e + e->AddressOfNames);
+
+  // Table of ordinals (by name)
   uint16_t *ordinal_table =
-      (uint16_t *)((uint64_t)e +
-                   e->AddressOfNameOrdinals);  // Table of ordinals
+      (uint16_t *)((uint64_t)e + e->AddressOfNameOrdinals);
 
   const char *mod_name = (const char *)((uint64_t)e + e->Name);
 
@@ -1028,6 +1029,47 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
 
       return 0;
     }
+  }
+
+  // No match
+  return 1;
+}
+
+int xe_xex2_lookup_export(xe_xex2_ref xex, int ordinal,
+                          PEExport &peexport) {
+    auto header = xe_xex2_get_header(xex);
+
+  // no exports :(
+  if (!header->export_table_offset) {
+    return 1;
+  }
+
+  uint64_t baseaddr =
+      (uint64_t)xex->memory->TranslateVirtual(header->exe_address);
+  IMAGE_EXPORT_DIRECTORY *e =
+      (PIMAGE_EXPORT_DIRECTORY)(baseaddr + header->export_table_offset);
+
+  // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
+  // Functions relative to base
+  uint32_t *function_table =
+      (uint32_t *)((uint64_t)e + e->AddressOfFunctions);
+
+  // Names relative to directory
+  uint32_t *name_table =
+      (uint32_t *)((uint64_t)e + e->AddressOfNames);
+
+  // Table of ordinals (by name)
+  uint16_t *ordinal_table =
+      (uint16_t *)((uint64_t)e + e->AddressOfNameOrdinals);
+
+  const char *mod_name = (const char *)((uint64_t)e + e->Name);
+
+  if (ordinal < e->NumberOfFunctions) {
+    peexport.name = nullptr; // TODO: Backwards conversion to get this
+    peexport.ordinal = ordinal;
+    peexport.addr = (uint64_t)(baseaddr + function_table[ordinal]);
+
+    return 0;
   }
 
   // No match
