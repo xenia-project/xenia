@@ -246,15 +246,15 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
                                       KernelState* state) {
   uint32_t module_handle = SHIM_GET_ARG_32(0);
   uint32_t ordinal = SHIM_GET_ARG_32(1);
-  const char *name = (const char *)SHIM_MEM_ADDR(ordinal);
+  const char* name = (const char*)SHIM_MEM_ADDR(ordinal);
   uint32_t out_function_ptr = SHIM_GET_ARG_32(2);
 
   if (ordinal < 0x10000) {
     XELOGD("XexGetProcedureAddress(%.8X, %.8X, %.8X)", module_handle, ordinal,
            out_function_ptr);
   } else {
-    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", module_handle, ordinal,
-           name, out_function_ptr);
+    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", module_handle,
+           ordinal, name, out_function_ptr);
   }
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;

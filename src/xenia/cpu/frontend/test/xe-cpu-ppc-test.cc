@@ -369,14 +369,16 @@ bool DiscoverTests(std::wstring& test_path,
 
 #ifdef _MSC_VER
 int filter(unsigned int code) {
-  if (code == EXCEPTION_ILLEGAL_INSTRUCTION)
+  if (code == EXCEPTION_ILLEGAL_INSTRUCTION) {
     return EXCEPTION_EXECUTE_HANDLER;
-
+  }
   return EXCEPTION_CONTINUE_SEARCH;
 }
 #endif
 
-void ProtectedRunTest(TestSuite &test_suite, TestRunner &runner, TestCase &test_case, int &failed_count, int &passed_count) {
+void ProtectedRunTest(TestSuite& test_suite, TestRunner& runner,
+                      TestCase& test_case, int& failed_count,
+                      int& passed_count) {
 #ifdef _MSC_VER
   __try {
 #endif
@@ -393,7 +395,8 @@ void ProtectedRunTest(TestSuite &test_suite, TestRunner &runner, TestCase &test_
     }
 
 #ifdef _MSC_VER
-  } __except (filter(GetExceptionCode())) {
+  }
+  __except(filter(GetExceptionCode())) {
     XELOGE("    TEST FAILED (UNSUPPORTED INSTRUCTION)");
     ++failed_count;
   }
@@ -442,7 +445,8 @@ bool RunTests(const std::wstring& test_name) {
     for (auto& test_case : test_suite.test_cases) {
       XELOGI("  - %s", test_case.name.c_str());
       TestRunner runner;
-      ProtectedRunTest(test_suite, runner, test_case, failed_count, passed_count);
+      ProtectedRunTest(test_suite, runner, test_case, failed_count,
+                       passed_count);
     }
 
     XELOGI("");

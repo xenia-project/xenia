@@ -153,10 +153,9 @@ void* XUserModule::GetProcAddressByName(const char* name) {
   int ret = xe_xex2_lookup_export(xex_, name, export);
 
   // Failure.
-  if (ret)
-    return NULL;
+  if (ret) return NULL;
 
-  return (void *)export.addr;
+  return (void*)export.addr;
 }
 
 X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
