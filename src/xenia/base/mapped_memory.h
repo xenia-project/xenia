@@ -31,6 +31,8 @@ class MappedMemory {
   uint8_t* data() const { return reinterpret_cast<uint8_t*>(data_); }
   size_t size() const { return size_; }
 
+  virtual void Flush() = 0;
+
  protected:
   MappedMemory(const std::wstring& path, Mode mode)
       : path_(path), mode_(mode), data_(nullptr), size_(0) {}
@@ -39,6 +41,25 @@ class MappedMemory {
   Mode mode_;
   void* data_;
   size_t size_;
+};
+
+class ChunkedMappedMemoryWriter {
+ public:
+  virtual ~ChunkedMappedMemoryWriter() = default;
+
+  static std::unique_ptr<ChunkedMappedMemoryWriter> Open(
+      const std::wstring& path, size_t chunk_size);
+
+  virtual uint8_t* Allocate(size_t length) = 0;
+  virtual void Flush() = 0;
+  virtual void FlushNew() = 0;
+
+ protected:
+  ChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size)
+      : path_(path), chunk_size_(chunk_size) {}
+
+  std::wstring path_;
+  size_t chunk_size_;
 };
 
 }  // namespace xe
