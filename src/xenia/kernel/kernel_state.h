@@ -69,6 +69,7 @@ class KernelState {
   XModule* GetModule(const char* name);
   XUserModule* GetExecutableModule();
   void SetExecutableModule(XUserModule* module);
+  XUserModule* LoadUserModule(const char *name);
 
   void RegisterThread(XThread* thread);
   void UnregisterThread(XThread* thread);
@@ -103,6 +104,8 @@ class KernelState {
 
   uint32_t process_type_;
   XUserModule* executable_module_;
+
+  std::vector<XUserModule*> user_modules_;
 
   friend class XObject;
 };

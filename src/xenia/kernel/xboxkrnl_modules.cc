@@ -224,7 +224,14 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
 
     result = X_STATUS_SUCCESS;
   } else {
-    result = X_STATUS_NO_SUCH_FILE;
+    XUserModule* usermod = state->LoadUserModule(module_name);
+    if (usermod) {
+      result = X_STATUS_SUCCESS;
+
+      usermod->RetainHandle();
+      SHIM_SET_MEM_32(handle_ptr, usermod->handle());
+      usermod->Release();
+    }
   }
 
   SHIM_SET_RETURN_32(result);
