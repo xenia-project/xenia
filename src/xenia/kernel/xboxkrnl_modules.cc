@@ -269,8 +269,6 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
         state->object_table()->GetObject(module_handle, (XObject**)&module);
   }
 
-  result = X_STATUS_UNSUCCESSFUL;
-
   if (XSUCCEEDED(result)) {
     if (ordinal < 0x10000) {
       // Ordinal.
