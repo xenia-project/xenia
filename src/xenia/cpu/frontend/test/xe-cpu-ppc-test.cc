@@ -367,6 +367,39 @@ bool DiscoverTests(std::wstring& test_path,
   return true;
 }
 
+#ifdef _MSC_VER
+int filter(unsigned int code) {
+  if (code == EXCEPTION_ILLEGAL_INSTRUCTION)
+    return EXCEPTION_EXECUTE_HANDLER;
+
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
+void ProtectedRunTest(TestSuite &test_suite, TestRunner &runner, TestCase &test_case, int &failed_count, int &passed_count) {
+#ifdef _MSC_VER
+  __try {
+#endif
+
+    if (!runner.Setup(test_suite)) {
+      XELOGE("    TEST FAILED SETUP");
+      ++failed_count;
+    }
+    if (runner.Run(test_case)) {
+      ++passed_count;
+    } else {
+      XELOGE("    TEST FAILED");
+      ++failed_count;
+    }
+
+#ifdef _MSC_VER
+  } __except (filter(GetExceptionCode())) {
+    XELOGE("    TEST FAILED (UNSUPPORTED INSTRUCTION)");
+    ++failed_count;
+  }
+#endif
+}
+
 bool RunTests(const std::wstring& test_name) {
   int result_code = 1;
   int failed_count = 0;
@@ -409,16 +442,7 @@ bool RunTests(const std::wstring& test_name) {
     for (auto& test_case : test_suite.test_cases) {
       XELOGI("  - %s", test_case.name.c_str());
       TestRunner runner;
-      if (!runner.Setup(test_suite)) {
-        XELOGE("    TEST FAILED SETUP");
-        ++failed_count;
-      }
-      if (runner.Run(test_case)) {
-        ++passed_count;
-      } else {
-        XELOGE("    TEST FAILED");
-        ++failed_count;
-      }
+      ProtectedRunTest(test_suite, runner, test_case, failed_count, passed_count);
     }
 
     XELOGI("");
