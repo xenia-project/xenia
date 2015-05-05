@@ -4901,6 +4901,16 @@ EMITTER(VECTOR_SHA_V128, MATCH(I<OPCODE_VECTOR_SHA, V128<>, V128<>, V128<>>)) {
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
+  static __m128i EmulateVectorShaI32(void*, __m128i src1, __m128i src2) {
+    alignas(16) int32_t value[4];
+    alignas(16) int32_t shamt[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(shamt), src2);
+    for (size_t i = 0; i < 4; ++i) {
+      value[i] = value[i] >> (shamt[i] & 0x1F);
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(value));
+  }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
     case INT8_TYPE:
@@ -4928,15 +4938,29 @@ EMITTER(VECTOR_SHA_V128, MATCH(I<OPCODE_VECTOR_SHA, V128<>, V128<>, V128<>>)) {
       e.vmovaps(i.dest, e.xmm0);
       break;
     case INT32_TYPE:
-      // src shift mask may have values >31, and x86 sets to zero when
-      // that happens so we mask.
-      if (i.src2.is_constant) {
-        e.LoadConstantXmm(e.xmm0, i.src2.constant());
-        e.vandps(e.xmm0, e.GetXmmConstPtr(XMMShiftMaskPS));
+      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        // src shift mask may have values >31, and x86 sets to zero when
+        // that happens so we mask.
+        if (i.src2.is_constant) {
+          e.LoadConstantXmm(e.xmm0, i.src2.constant());
+          e.vandps(e.xmm0, e.GetXmmConstPtr(XMMShiftMaskPS));
+        } else {
+          e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+        }
+        e.vpsravd(i.dest, i.src1, e.xmm0);
       } else {
-        e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+        // Emulated for now...
+        // TODO: Native version
+        if (i.src2.is_constant) {
+          e.LoadConstantXmm(e.xmm0, i.src2.constant());
+          e.lea(e.r9, e.StashXmm(1, e.xmm0));
+        } else {
+          e.lea(e.r9, e.StashXmm(1, i.src2));
+        }
+        e.lea(e.r8, e.StashXmm(0, i.src1));
+        e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShaI32));
+        e.vmovaps(i.dest, e.xmm0);
       }
-      e.vpsravd(i.dest, i.src1, e.xmm0);
       break;
     default:
       assert_always();
@@ -5475,8 +5499,16 @@ EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
         e.vpbroadcastw(i.dest, e.xmm0);
       }
     } else {
-      // TODO
-      e.DebugBreak();
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.constant());
+        e.movd(e.xmm0, e.eax);
+      } else {
+        e.movd(e.xmm0, i.src1.reg().cvt32());
+      }
+
+      // Credits: VC++ compiler (i love you so much)
+      e.punpcklwd(e.xmm0, e.xmm0); // unpack low word data
+      e.pshufd(i.dest, e.xmm0, 0);
     }
   }
 };
