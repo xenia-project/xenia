@@ -143,9 +143,12 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 }
 
 void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
-  // TODO(benvanik): check export tables.
-  XELOGE("GetProcAddressByOrdinal not implemented");
-  return NULL;
+  PEExport export;
+  int ret = xe_xex2_lookup_export(xex_, ordinal, export);
+
+  if (ret) return nullptr;
+
+  return (void*)export.addr;
 }
 
 void* XUserModule::GetProcAddressByName(const char* name) {
@@ -153,7 +156,7 @@ void* XUserModule::GetProcAddressByName(const char* name) {
   int ret = xe_xex2_lookup_export(xex_, name, export);
 
   // Failure.
-  if (ret) return NULL;
+  if (ret) return nullptr;
 
   return (void*)export.addr;
 }
