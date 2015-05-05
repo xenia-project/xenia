@@ -4612,13 +4612,23 @@ void EmitSarXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitAssociativeBinaryOp(
         e, i,
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
-          if (dest_src.getBit() == 64) {
-            e.sarx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
-          } else if (dest_src.getBit() == 32) {
-            e.sarx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+          if (e.cpu()->has(Xbyak::util::Cpu::tBMI2)) {
+            if (dest_src.getBit() == 64) {
+              e.sarx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
+            } else if (dest_src.getBit() == 32) {
+              e.sarx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            } else {
+              e.movsx(dest_src.cvt32(), dest_src);
+              e.sarx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            }
           } else {
-            e.movsx(dest_src.cvt32(), dest_src);
-            e.sarx(dest_src.cvt32(), dest_src.cvt32(), src.cvt32());
+            // back up ecx...
+            e.mov(e.al, e.cl);
+            e.mov(e.cl, src);
+
+            e.sar(dest_src, e.cl);
+
+            e.mov(e.cl, e.al);
           }
         }, [](X64Emitter& e, const REG& dest_src, int8_t constant) {
           e.sar(dest_src, constant);
@@ -5200,6 +5210,7 @@ EMITTER_OPCODE_TABLE(
 
 // ============================================================================
 // OPCODE_CNTLZ
+// Count leading zeroes
 // ============================================================================
 EMITTER(CNTLZ_I8, MATCH(I<OPCODE_CNTLZ, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -5211,21 +5222,21 @@ EMITTER(CNTLZ_I8, MATCH(I<OPCODE_CNTLZ, I8<>, I8<>>)) {
     } else {
       e.inLocalLabel();
 
-      e.cmp(i.src1, 0); // Special case if number is 0
-      e.jne(".la"); // not 0, use bsr
-      e.mov(i.src1, 8); // If it's 0, the result should be 8
-      e.jmp(".lb");
-
       // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined
-      e.L(".la");
-      e.bsr(e.ebx, i.src1);
+      // if input is 0, results are undefined (and ZF is set)
+      e.bsr(i.dest, i.src1);
+      e.jz(".la"); // Jump if zero
 
       // sub: $1 = $1 - $2
       // sub 7 from e.eax
       e.mov(e.eax, 7);
-      e.sub(e.eax, e.ebx);
+      e.sub(e.eax, i.dest);
       e.mov(i.dest, e.eax);
+      e.jmp(".lb"); // Jmp to end
+
+      // src1 was zero, so write 8 to the dest reg
+      e.L(".la");
+      e.mov(i.dest, 8);
 
       e.L(".lb");
       e.outLocalLabel();
@@ -5240,21 +5251,21 @@ EMITTER(CNTLZ_I16, MATCH(I<OPCODE_CNTLZ, I8<>, I16<>>)) {
     } else {
       e.inLocalLabel();
 
-      e.cmp(i.src1, 0); // Special case if number is 0
-      e.jne(".la"); // not 0, use bsr
-      e.mov(i.src1, 16); // If it's 0, the result should be 16
-      e.jmp(".lb");
-      
       // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined
-      e.L(".la");
-      e.bsr(e.ebx, i.src1);
+      // if input is 0, results are undefined (and ZF is set)
+      e.bsr(i.dest, i.src1);
+      e.jz(".la"); // Jump if zero
 
       // sub: $1 = $1 - $2
-      // sub 16 from e.eax
+      // sub 15 from e.eax
       e.mov(e.eax, 15);
-      e.sub(e.eax, e.ebx);
+      e.sub(e.eax, i.dest);
       e.mov(i.dest, e.eax);
+      e.jmp(".lb"); // Jmp to end
+
+      // src1 was zero, so write 16 to the dest reg
+      e.L(".la");
+      e.mov(i.dest, 16);
 
       e.L(".lb");
       e.outLocalLabel();
@@ -5268,21 +5279,21 @@ EMITTER(CNTLZ_I32, MATCH(I<OPCODE_CNTLZ, I8<>, I32<>>)) {
     } else {
       e.inLocalLabel();
 
-      e.cmp(i.src1, 0); // Special case if number is 0
-      e.jne(".la"); // not 0, use bsr
-      e.mov(i.src1, 32); // If it's 0, the result should be 32
-      e.jmp(".lb");
-
       // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined
-      e.L(".la");
-      e.bsr(e.ebx, i.src1);
+      // if input is 0, results are undefined (and ZF is set)
+      e.bsr(i.dest, i.src1);
+      e.jz(".la"); // Jump if zero
 
       // sub: $1 = $1 - $2
-      // sub 32 from e.eax
+      // sub 31 from e.eax
       e.mov(e.eax, 31);
-      e.sub(e.eax, e.ebx);
+      e.sub(e.eax, i.dest);
       e.mov(i.dest, e.eax);
+      e.jmp(".lb"); // Jmp to end
+
+      // src1 was zero, so write 32 to the dest reg
+      e.L(".la");
+      e.mov(i.dest, 32);
 
       e.L(".lb");
       e.outLocalLabel();
@@ -5296,21 +5307,21 @@ EMITTER(CNTLZ_I64, MATCH(I<OPCODE_CNTLZ, I8<>, I64<>>)) {
     } else {
       e.inLocalLabel();
 
-      e.cmp(i.src1, 0); // Special case if number is 0
-      e.jne(".la"); // not 0, use bsr
-      e.mov(i.src1, 64); // If it's 0, the result should be 64
-      e.jmp(".lb");
-
       // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined
-      e.L(".la");
-      e.bsr(e.rbx, i.src1);
+      // if input is 0, results are undefined (and ZF is set)
+      e.bsr(i.dest, i.src1);
+      e.jz(".la"); // Jump if zero
 
       // sub: $1 = $1 - $2
-      // sub 64 from e.rax
+      // sub 63 from e.rax
       e.mov(e.rax, 63);
-      e.sub(e.rax, e.ebx);
+      e.sub(e.rax, i.dest);
       e.mov(i.dest, e.rax);
+      e.jmp(".lb"); // Jmp to end
+
+      // src1 was zero, so write 64 to the dest reg
+      e.L(".la");
+      e.mov(i.dest, 64);
 
       e.L(".lb");
       e.outLocalLabel();
