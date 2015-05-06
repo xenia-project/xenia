@@ -48,18 +48,23 @@ class ChunkedMappedMemoryWriter {
   virtual ~ChunkedMappedMemoryWriter() = default;
 
   static std::unique_ptr<ChunkedMappedMemoryWriter> Open(
-      const std::wstring& path, size_t chunk_size);
+      const std::wstring& path, size_t chunk_size,
+      bool low_address_space = false);
 
   virtual uint8_t* Allocate(size_t length) = 0;
   virtual void Flush() = 0;
   virtual void FlushNew() = 0;
 
  protected:
-  ChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size)
-      : path_(path), chunk_size_(chunk_size) {}
+  ChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size,
+                            bool low_address_space)
+      : path_(path),
+        chunk_size_(chunk_size),
+        low_address_space_(low_address_space) {}
 
   std::wstring path_;
   size_t chunk_size_;
+  bool low_address_space_;
 };
 
 }  // namespace xe

@@ -11,11 +11,13 @@
 #define XENIA_DEBUG_DEBUGGER_H_
 
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 
 #include "xenia/base/delegate.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/breakpoint.h"
 
@@ -65,6 +67,12 @@ class Debugger {
 
   cpu::Processor* processor() const { return processor_; }
 
+  bool StartSession();
+  void StopSession();
+  void FlushSession();
+
+  uint8_t* AllocateTraceFunctionData(size_t size);
+
   int SuspendAllThreads(uint32_t timeout_ms = UINT_MAX);
   int ResumeThread(uint32_t thread_id);
   int ResumeAllThreads(bool force = false);
@@ -91,6 +99,8 @@ class Debugger {
 
  private:
   cpu::Processor* processor_;
+
+  std::unique_ptr<ChunkedMappedMemoryWriter> trace_functions_;
 
   std::mutex threads_lock_;
   std::unordered_map<uint32_t, cpu::ThreadState*> threads_;

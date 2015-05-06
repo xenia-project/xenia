@@ -31,7 +31,7 @@ class PPCTranslator {
   ~PPCTranslator();
 
   bool Translate(FunctionInfo* symbol_info, uint32_t debug_info_flags,
-                 uint32_t trace_flags, Function** out_function);
+                 Function** out_function);
 
  private:
   void DumpSource(FunctionInfo* symbol_info, StringBuffer* string_buffer);

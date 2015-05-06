@@ -22,6 +22,11 @@ DECLARE_bool(dump_module_map);
 DECLARE_bool(debug);
 DECLARE_bool(always_disasm);
 
+DECLARE_bool(trace_functions);
+DECLARE_bool(trace_function_coverage);
+DECLARE_bool(trace_function_references);
+DECLARE_bool(trace_function_data);
+
 DECLARE_bool(validate_hir);
 
 DECLARE_uint64(break_on_instruction);

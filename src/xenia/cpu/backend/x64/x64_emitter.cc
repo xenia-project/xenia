@@ -13,6 +13,7 @@
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
@@ -65,24 +66,25 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       code_cache_(backend->code_cache()),
       allocator_(allocator),
       current_instr_(0),
+      debug_info_(nullptr),
+      debug_info_flags_(0),
       source_map_count_(0),
-      stack_size_(0),
-      trace_flags_(0),
-      cpu_() {}
+      stack_size_(0) {}
 
 X64Emitter::~X64Emitter() = default;
 
 bool X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
-                      DebugInfo* debug_info, uint32_t trace_flags,
-                      void*& out_code_address, size_t& out_code_size) {
+                      DebugInfo* debug_info, void*& out_code_address,
+                      size_t& out_code_size) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset.
-  if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
+  debug_info_ = debug_info;
+  debug_info_flags_ = debug_info_flags;
+  if (debug_info_flags_ & DebugInfoFlags::kDebugInfoSourceMap) {
     source_map_count_ = 0;
     source_map_arena_.Reset();
   }
-  trace_flags_ = trace_flags;
 
   // Fill the generator with code.
   size_t stack_size = 0;
@@ -95,7 +97,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
   out_code_address = Emplace(stack_size);
 
   // Stash source map.
-  if (debug_info_flags & DEBUG_INFO_SOURCE_MAP) {
+  if (debug_info_flags_ & DebugInfoFlags::kDebugInfoSourceMap) {
     debug_info->InitializeSourceMap(
         source_map_count_, (SourceMapEntry*)source_map_arena_.CloneContents());
   }
@@ -145,18 +147,45 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
-  const bool emit_prolog = true;
   const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
   assert_true((stack_size + 8) % 16 == 0);
   out_stack_size = stack_size;
   stack_size_ = stack_size;
-  if (emit_prolog) {
-    sub(rsp, (uint32_t)stack_size);
-    mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
-    mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
-    mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
-    mov(rdx, qword[rcx + 8]);  // membase
+  sub(rsp, (uint32_t)stack_size);
+  mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
+  mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
+  mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
+
+  // Safe now to do some tracing.
+  if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctions) {
+    // We require 32-bit addresses.
+    assert_true(uint64_t(debug_info_->trace_data().header()) < UINT_MAX);
+    auto trace_header = debug_info_->trace_data().header();
+
+    // Call count.
+    lock();
+    inc(qword[low_address(&trace_header->function_call_count)]);
+
+    // Get call history slot.
+    static_assert(debug::FunctionTraceData::kFunctionCallerHistoryCount == 4,
+                  "bitmask depends on count");
+    mov(rax, qword[low_address(&trace_header->function_call_count)]);
+    and(rax, B00000011);
+
+    // Record call history value into slot (guest addr in RDX).
+    mov(dword[RegExp(uint32_t(uint64_t(
+                  low_address(&trace_header->function_caller_history)))) +
+              rax * 4],
+        edx);
+
+    // Calling thread. Load ax with thread ID.
+    EmitGetCurrentThreadId();
+    lock();
+    bts(qword[low_address(&trace_header->function_thread_use)], rax);
   }
+
+  // Load membase.
+  mov(rdx, qword[rcx + 8]);
 
   // Body.
   auto block = builder->first_block();
@@ -187,10 +216,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   // Function epilog.
   L("epilog");
   EmitTraceUserCallReturn();
-  if (emit_prolog) {
-    mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
-    add(rsp, (uint32_t)stack_size);
-  }
+  mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
+  add(rsp, (uint32_t)stack_size);
   ret();
 
 #if XE_DEBUG
@@ -210,6 +237,23 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
   entry->code_offset = static_cast<uint32_t>(getSize());
   source_map_count_++;
+
+#if XE_DEBUG
+  nop();
+  nop();
+  mov(eax, entry->source_offset);
+  nop();
+  nop();
+#endif  // XE_DEBUG
+
+  if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
+    auto trace_data = debug_info_->trace_data();
+    uint32_t instruction_index =
+        (entry->source_offset - trace_data.start_address()) / 4;
+    lock();
+    inc(qword[low_address(trace_data.instruction_execute_counts() +
+                          instruction_index * 8)]);
+  }
 }
 
 void X64Emitter::EmitGetCurrentThreadId() {
@@ -234,6 +278,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   XELOGD("(DebugPrint) %s", str);
   return 0;
 }
+
 void X64Emitter::Trap(uint16_t trap_type) {
   switch (trap_type) {
     case 20:

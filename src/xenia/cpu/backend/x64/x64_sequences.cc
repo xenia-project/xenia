@@ -95,13 +95,6 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(SOURCE_OFFSET, MATCH(I<OPCODE_SOURCE_OFFSET, VoidOp, OffsetOp>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-#if XE_DEBUG
-    e.nop();
-    e.nop();
-    e.mov(e.eax, (uint32_t)i.src1.value);
-    e.nop();
-    e.nop();
-#endif  // XE_DEBUG
     e.MarkSourceOffset(i.instr);
   }
 };

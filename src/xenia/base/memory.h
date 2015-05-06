@@ -29,6 +29,10 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
 
 size_t page_size();
 
+constexpr void* low_address(void* address) {
+  return (void*)(uint64_t(address) & 0xFFFFFFFF);
+}
+
 void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
                               size_t count);
 void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,

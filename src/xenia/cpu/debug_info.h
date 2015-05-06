@@ -13,18 +13,25 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "xenia/debug/trace_data.h"
+
 namespace xe {
 namespace cpu {
 
 enum DebugInfoFlags {
-  DEBUG_INFO_NONE = 0,
-  DEBUG_INFO_SOURCE_DISASM = (1 << 1),
-  DEBUG_INFO_RAW_HIR_DISASM = (1 << 2),
-  DEBUG_INFO_HIR_DISASM = (1 << 3),
-  DEBUG_INFO_MACHINE_CODE_DISASM = (1 << 4),
-  DEBUG_INFO_SOURCE_MAP = (1 << 5),
-  DEBUG_INFO_DEFAULT = DEBUG_INFO_SOURCE_MAP,
-  DEBUG_INFO_ALL_DISASM = 0xFFFF,
+  kDebugInfoNone = 0,
+  kDebugInfoDisasmSource = (1 << 1),
+  kDebugInfoDisasmRawHir = (1 << 2),
+  kDebugInfoDisasmHir = (1 << 3),
+  kDebugInfoDisasmMachineCode = (1 << 4),
+  kDebugInfoAllDisasm = kDebugInfoDisasmSource | kDebugInfoDisasmRawHir |
+                        kDebugInfoDisasmHir | kDebugInfoDisasmMachineCode,
+  kDebugInfoSourceMap = (1 << 5),
+  kDebugInfoTraceFunctions = (1 << 6),
+  kDebugInfoTraceFunctionCoverage = (1 << 7) | kDebugInfoTraceFunctions,
+  kDebugInfoTraceFunctionReferences = (1 << 8) | kDebugInfoTraceFunctions,
+  kDebugInfoTraceFunctionData = (1 << 9) | kDebugInfoTraceFunctions,
+  kDebugInfoAll = 0xFFFFFFFF,
 };
 
 typedef struct SourceMapEntry_s {
@@ -37,6 +44,19 @@ class DebugInfo {
  public:
   DebugInfo();
   ~DebugInfo();
+
+  uint32_t address_reference_count() const { return address_reference_count_; }
+  void set_address_reference_count(uint32_t value) {
+    address_reference_count_ = value;
+  }
+  uint32_t instruction_result_count() const {
+    return instruction_result_count_;
+  }
+  void set_instruction_result_count(uint32_t value) {
+    instruction_result_count_ = value;
+  }
+
+  debug::FunctionTraceData& trace_data() { return trace_data_; }
 
   const char* source_disasm() const { return source_disasm_; }
   void set_source_disasm(char* value) { source_disasm_ = value; }
@@ -53,6 +73,11 @@ class DebugInfo {
   SourceMapEntry* LookupCodeOffset(uint32_t offset);
 
  private:
+  uint32_t address_reference_count_;
+  uint32_t instruction_result_count_;
+
+  debug::FunctionTraceData trace_data_;
+
   char* source_disasm_;
   char* raw_hir_disasm_;
   char* hir_disasm_;

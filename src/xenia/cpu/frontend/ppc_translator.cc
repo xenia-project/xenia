@@ -21,6 +21,7 @@
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/frontend/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
 
 namespace xe {
@@ -87,7 +88,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
 PPCTranslator::~PPCTranslator() = default;
 
 bool PPCTranslator::Translate(FunctionInfo* symbol_info,
-                              uint32_t debug_info_flags, uint32_t trace_flags,
+                              uint32_t debug_info_flags,
                               Function** out_function) {
   SCOPE_profile_cpu_f("cpu");
 
@@ -99,7 +100,19 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
 
   // NOTE: we only want to do this when required, as it's expensive to build.
   if (FLAGS_always_disasm) {
-    debug_info_flags |= DEBUG_INFO_ALL_DISASM;
+    debug_info_flags |= DebugInfoFlags::kDebugInfoAllDisasm;
+  }
+  if (FLAGS_trace_functions) {
+    debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctions;
+  }
+  if (FLAGS_trace_function_coverage) {
+    debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionCoverage;
+  }
+  if (FLAGS_trace_function_references) {
+    debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionReferences;
+  }
+  if (FLAGS_trace_function_data) {
+    debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionData;
   }
   std::unique_ptr<DebugInfo> debug_info;
   if (debug_info_flags) {
@@ -111,8 +124,25 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
     return false;
   }
 
+  // Setup trace data, if needed.
+  if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctions) {
+    // Base trace data.
+    size_t trace_data_size = debug::FunctionTraceData::SizeOfHeader();
+    if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
+      // Additional space for instruction coverage counts.
+      trace_data_size += debug::FunctionTraceData::SizeOfInstructionCounts(
+          symbol_info->address(), symbol_info->end_address());
+    }
+    uint8_t* trace_data =
+        frontend_->processor()->debugger()->AllocateTraceFunctionData(
+            trace_data_size);
+    debug_info->trace_data().Reset(trace_data, trace_data_size,
+                                   symbol_info->address(),
+                                   symbol_info->end_address());
+  }
+
   // Stash source.
-  if (debug_info_flags & DEBUG_INFO_SOURCE_DISASM) {
+  if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmSource) {
     DumpSource(symbol_info, &string_buffer_);
     debug_info->set_source_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
@@ -132,7 +162,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Stash raw HIR.
-  if (debug_info_flags & DEBUG_INFO_RAW_HIR_DISASM) {
+  if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmRawHir) {
     builder_->Dump(&string_buffer_);
     debug_info->set_raw_hir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
@@ -144,7 +174,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Stash optimized HIR.
-  if (debug_info_flags & DEBUG_INFO_HIR_DISASM) {
+  if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmHir) {
     builder_->Dump(&string_buffer_);
     debug_info->set_hir_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
@@ -152,7 +182,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
 
   // Assemble to backend machine code.
   if (!assembler_->Assemble(symbol_info, builder_.get(), debug_info_flags,
-                            std::move(debug_info), trace_flags, out_function)) {
+                            std::move(debug_info), out_function)) {
     return false;
   }
 

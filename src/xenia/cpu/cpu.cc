@@ -36,6 +36,15 @@ DEFINE_bool(
     always_disasm, false,
     "Always add debug info to functions, even when no debugger is attached.");
 
+DEFINE_bool(trace_functions, false,
+            "Generate tracing for function statistics.");
+DEFINE_bool(trace_function_coverage, false,
+            "Generate tracing for function instruction coverage statistics.");
+DEFINE_bool(trace_function_references, false,
+            "Generate tracing for function address references.");
+DEFINE_bool(trace_function_data, false,
+            "Generate tracing for function result data.");
+
 DEFINE_bool(validate_hir, false,
             "Perform validation checks on the HIR during compilation.");
 

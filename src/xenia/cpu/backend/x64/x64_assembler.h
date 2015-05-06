@@ -35,7 +35,7 @@ class X64Assembler : public Assembler {
 
   bool Assemble(FunctionInfo* symbol_info, hir::HIRBuilder* builder,
                 uint32_t debug_info_flags,
-                std::unique_ptr<DebugInfo> debug_info, uint32_t trace_flags,
+                std::unique_ptr<DebugInfo> debug_info,
                 Function** out_function) override;
 
  private:

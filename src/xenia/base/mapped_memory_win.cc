@@ -15,6 +15,7 @@
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
 namespace xe {
@@ -38,9 +39,7 @@ class Win32MappedMemory : public MappedMemory {
     }
   }
 
-  void Flush() override {
-    FlushViewOfFile(data(), size());
-  }
+  void Flush() override { FlushViewOfFile(data(), size()); }
 
   HANDLE file_handle;
   HANDLE mapping_handle;
@@ -114,8 +113,9 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
 
 class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
  public:
-  Win32ChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size)
-      : ChunkedMappedMemoryWriter(path, chunk_size) {}
+  Win32ChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size,
+                                 bool low_address_space)
+      : ChunkedMappedMemoryWriter(path, chunk_size, low_address_space) {}
 
   ~Win32ChunkedMappedMemoryWriter() override {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -132,7 +132,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
     }
     auto chunk = std::make_unique<Chunk>(chunk_size_);
     auto chunk_path = path_ + L"." + std::to_wstring(chunks_.size());
-    if (!chunk->Open(chunk_path)) {
+    if (!chunk->Open(chunk_path, low_address_space_)) {
       return nullptr;
     }
     uint8_t* result = chunk->Allocate(length);
@@ -177,10 +177,10 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       }
     }
 
-    bool Open(const std::wstring& path) {
+    bool Open(const std::wstring& path, bool low_address_space) {
       DWORD file_access = GENERIC_READ | GENERIC_WRITE;
       DWORD file_share = 0;
-      DWORD create_mode = OPEN_EXISTING;
+      DWORD create_mode = CREATE_ALWAYS;
       DWORD mapping_protect = PAGE_READWRITE;
       DWORD view_access = FILE_MAP_READ | FILE_MAP_WRITE;
 
@@ -197,8 +197,28 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         return false;
       }
 
-      data_ = reinterpret_cast<uint8_t*>(
-          MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
+      // If specified, ensure the allocation occurs in the lower 32-bit address
+      // space.
+      if (low_address_space) {
+        bool successful = false;
+        data_ = reinterpret_cast<uint8_t*>(0x10000000);
+        for (int i = 0; i < 1000; ++i) {
+          if (MapViewOfFileEx(mapping_handle_, view_access, 0, 0, capacity_,
+                              data_)) {
+            successful = true;
+            break;
+          }
+          data_ += capacity_;
+          if (!successful) {
+            XELOGE("Unable to find space for mapping");
+            data_ = nullptr;
+            return false;
+          }
+        }
+      } else {
+        data_ = reinterpret_cast<uint8_t*>(
+            MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
+      }
       if (!data_) {
         return false;
       }
@@ -215,9 +235,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       return result;
     }
 
-    void Flush() {
-      FlushViewOfFile(data_, offset_);
-    }
+    void Flush() { FlushViewOfFile(data_, offset_); }
 
     void FlushNew() {
       FlushViewOfFile(data_ + last_flush_offset_, offset_ - last_flush_offset_);
@@ -238,13 +256,13 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 };
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
-    const std::wstring& path, size_t chunk_size) {
+    const std::wstring& path, size_t chunk_size, bool low_address_space) {
   SYSTEM_INFO system_info;
   GetSystemInfo(&system_info);
   size_t aligned_chunk_size =
       xe::round_up(chunk_size, system_info.dwAllocationGranularity);
-  return std::make_unique<Win32ChunkedMappedMemoryWriter>(path,
-                                                          aligned_chunk_size);
+  return std::make_unique<Win32ChunkedMappedMemoryWriter>(
+      path, aligned_chunk_size, low_address_space);
 }
 
 }  // namespace xe

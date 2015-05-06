@@ -53,6 +53,10 @@ bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
 
   LOGPPC("Analyzing function %.8X...", symbol_info->address());
 
+  // For debug info, only if needed.
+  uint32_t address_reference_count = 0;
+  uint32_t instruction_result_count = 0;
+
   uint32_t start_address = static_cast<uint32_t>(symbol_info->address());
   uint32_t end_address = static_cast<uint32_t>(symbol_info->end_address());
   uint32_t address = start_address;
@@ -77,6 +81,10 @@ bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
     // TODO(benvanik): find a way to avoid using the opcode tables.
     // This lookup is *expensive* and should be avoided when scanning.
     i.type = GetInstrType(i.code);
+
+    // TODO(benvanik): switch on instruction metadata.
+    ++address_reference_count;
+    ++instruction_result_count;
 
     // Check if the function starts with a mfspr lr, as that's a good indication
     // of whether or not this is a normal function with a prolog/epilog.
@@ -273,6 +281,11 @@ bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
   // - look for __savegprlr_* and __restgprlr_*
   // - if present, flag function as needing a stack
   // - record prolog/epilog lengths/stack size/etc
+
+  if (debug_info) {
+    debug_info->set_address_reference_count(address_reference_count);
+    debug_info->set_instruction_result_count(instruction_result_count);
+  }
 
   LOGPPC("Finished analyzing %.8X", start_address);
   return true;

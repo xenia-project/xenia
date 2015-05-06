@@ -5,5 +5,6 @@
     'debug_server.h',
     'debugger.cc',
     'debugger.h',
+    'trace_data.h',
   ],
 }

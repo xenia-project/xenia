@@ -89,7 +89,7 @@ SymbolInfo::Status TestModule::DeclareFunction(uint32_t address,
     compiler_->Compile(builder_.get());
 
     Function* fn = nullptr;
-    assembler_->Assemble(symbol_info, builder_.get(), 0, nullptr, 0, &fn);
+    assembler_->Assemble(symbol_info, builder_.get(), 0, nullptr, &fn);
 
     symbol_info->set_function(fn);
     status = SymbolInfo::STATUS_DEFINED;

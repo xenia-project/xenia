@@ -9,10 +9,15 @@
 
 #include "xenia/debug/debugger.h"
 
+#include <gflags/gflags.h>
+
 #include <mutex>
 
+#include "xenia/base/string.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
+
+DEFINE_string(debug_session_path, "", "Debug output path.");
 
 namespace xe {
 namespace debug {
@@ -27,6 +32,34 @@ Breakpoint::~Breakpoint() = default;
 Debugger::Debugger(cpu::Processor* processor) : processor_(processor) {}
 
 Debugger::~Debugger() = default;
+
+bool Debugger::StartSession() {
+  std::wstring session_path = xe::to_wstring(FLAGS_debug_session_path);
+
+  std::wstring trace_functions_path =
+      xe::join_paths(session_path, L"trace.functions");
+  trace_functions_ = ChunkedMappedMemoryWriter::Open(trace_functions_path,
+                                                     32 * 1024 * 1024, true);
+  return true;
+}
+
+void Debugger::StopSession() {
+  FlushSession();
+  trace_functions_.reset();
+}
+
+void Debugger::FlushSession() {
+  if (trace_functions_) {
+    trace_functions_->Flush();
+  }
+}
+
+uint8_t* Debugger::AllocateTraceFunctionData(size_t size) {
+  if (!trace_functions_) {
+    return nullptr;
+  }
+  return trace_functions_->Allocate(size);
+}
 
 int Debugger::SuspendAllThreads(uint32_t timeout_ms) {
   std::lock_guard<std::mutex> guard(threads_lock_);

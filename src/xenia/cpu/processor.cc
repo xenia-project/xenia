@@ -73,7 +73,6 @@ class BuiltinModule : public Module {
 Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
     : memory_(memory),
       debug_info_flags_(0),
-      trace_flags_(0),
       builtin_module_(nullptr),
       next_builtin_address_(0xFFFF0000ul),
       export_resolver_(export_resolver),
@@ -99,8 +98,8 @@ Processor::~Processor() {
 }
 
 bool Processor::Setup() {
-  debug_info_flags_ = DEBUG_INFO_DEFAULT;
-  trace_flags_ = 0;
+  // TODO(benvanik): query mode from debugger?
+  debug_info_flags_ = DebugInfoFlags::kDebugInfoSourceMap;
 
   auto frontend = std::make_unique<xe::cpu::frontend::PPCFrontend>(this);
   // TODO(benvanik): set options/etc.
@@ -110,6 +109,7 @@ bool Processor::Setup() {
 
   // Create debugger first. Other types hook up to it.
   debugger_.reset(new xe::debug::Debugger(this));
+  debugger_->StartSession();
 
   std::unique_ptr<Module> builtin_module(new BuiltinModule(this));
   builtin_module_ = builtin_module.get();
@@ -289,8 +289,7 @@ bool Processor::DemandFunction(FunctionInfo* symbol_info,
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undefined, so define now.
     Function* function = nullptr;
-    if (!frontend_->DefineFunction(symbol_info, debug_info_flags_, trace_flags_,
-                                   &function)) {
+    if (!frontend_->DefineFunction(symbol_info, debug_info_flags_, &function)) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
       return false;
     }

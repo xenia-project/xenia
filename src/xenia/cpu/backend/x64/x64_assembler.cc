@@ -60,22 +60,22 @@ void X64Assembler::Reset() {
 bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
                             uint32_t debug_info_flags,
                             std::unique_ptr<DebugInfo> debug_info,
-                            uint32_t trace_flags, Function** out_function) {
+                            Function** out_function) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset when we leave.
   xe::make_reset_scope(this);
 
   // Lower HIR -> x64.
-  void* machine_code = 0;
+  void* machine_code = nullptr;
   size_t code_size = 0;
-  if (!emitter_->Emit(builder, debug_info_flags, debug_info.get(), trace_flags,
-                      machine_code, code_size)) {
+  if (!emitter_->Emit(builder, debug_info_flags, debug_info.get(), machine_code,
+                      code_size)) {
     return false;
   }
 
   // Stash generated machine code.
-  if (debug_info_flags & DebugInfoFlags::DEBUG_INFO_MACHINE_CODE_DISASM) {
+  if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmMachineCode) {
     DumpMachineCode(debug_info.get(), machine_code, code_size, &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();

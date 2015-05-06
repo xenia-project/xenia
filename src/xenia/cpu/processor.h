@@ -87,7 +87,6 @@ class Processor {
   Memory* memory_;
 
   uint32_t debug_info_flags_;
-  uint32_t trace_flags_;
 
   std::unique_ptr<debug::Debugger> debugger_;
 
