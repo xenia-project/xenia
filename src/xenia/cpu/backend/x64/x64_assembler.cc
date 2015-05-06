@@ -41,16 +41,15 @@ X64Assembler::~X64Assembler() {
   allocator_.reset();
 }
 
-int X64Assembler::Initialize() {
-  int result = Assembler::Initialize();
-  if (result) {
-    return result;
+bool X64Assembler::Initialize() {
+  if (!Assembler::Initialize()) {
+    return false;
   }
 
   allocator_.reset(new XbyakAllocator());
   emitter_.reset(new X64Emitter(x64_backend_, allocator_.get()));
 
-  return result;
+  return true;
 }
 
 void X64Assembler::Reset() {
@@ -58,10 +57,10 @@ void X64Assembler::Reset() {
   Assembler::Reset();
 }
 
-int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
-                           uint32_t debug_info_flags,
-                           std::unique_ptr<DebugInfo> debug_info,
-                           uint32_t trace_flags, Function** out_function) {
+bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
+                            uint32_t debug_info_flags,
+                            std::unique_ptr<DebugInfo> debug_info,
+                            uint32_t trace_flags, Function** out_function) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset when we leave.
@@ -70,10 +69,9 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   // Lower HIR -> x64.
   void* machine_code = 0;
   size_t code_size = 0;
-  int result = emitter_->Emit(builder, debug_info_flags, debug_info.get(),
-                              trace_flags, machine_code, code_size);
-  if (result) {
-    return result;
+  if (!emitter_->Emit(builder, debug_info_flags, debug_info.get(), trace_flags,
+                      machine_code, code_size)) {
+    return false;
   }
 
   // Stash generated machine code.
@@ -91,7 +89,7 @@ int X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
     *out_function = fn;
   }
 
-  return 0;
+  return true;
 }
 
 void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,

@@ -27,18 +27,18 @@ void Compiler::AddPass(std::unique_ptr<CompilerPass> pass) {
 
 void Compiler::Reset() {}
 
-int Compiler::Compile(xe::cpu::hir::HIRBuilder* builder) {
+bool Compiler::Compile(xe::cpu::hir::HIRBuilder* builder) {
   // TODO(benvanik): sophisticated stuff. Run passes in parallel, run until they
   //                 stop changing things, etc.
   for (size_t i = 0; i < passes_.size(); ++i) {
     auto& pass = passes_[i];
     scratch_arena_.Reset();
-    if (pass->Run(builder)) {
-      return 1;
+    if (!pass->Run(builder)) {
+      return false;
     }
   }
 
-  return 0;
+  return true;
 }
 
 }  // namespace compiler

@@ -49,7 +49,7 @@ class Module {
   void ForEachFunction(size_t since, size_t& version,
                        std::function<void(FunctionInfo*)> callback);
 
-  int ReadMap(const char* file_name);
+  bool ReadMap(const char* file_name);
 
  private:
   SymbolInfo::Status DeclareSymbol(SymbolInfo::Type type, uint32_t address,

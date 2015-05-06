@@ -22,7 +22,7 @@ class FinalizationPass : public CompilerPass {
   FinalizationPass();
   ~FinalizationPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
 };

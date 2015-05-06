@@ -34,9 +34,9 @@ class ContextPromotionPass : public CompilerPass {
   ContextPromotionPass();
   virtual ~ContextPromotionPass() override;
 
-  int Initialize(Compiler* compiler) override;
+  bool Initialize(Compiler* compiler) override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
   void PromoteBlock(hir::Block* block);

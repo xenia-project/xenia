@@ -5,7 +5,5 @@
     'debug_server.h',
     'debugger.cc',
     'debugger.h',
-    'trace_writer.cc',
-    'trace_writer.h',
   ],
 }

@@ -36,7 +36,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
     // Emit comment nodes.
     EMIT_DEBUG_COMMENTS = 1 << 0,
   };
-  int Emit(FunctionInfo* symbol_info, uint32_t flags);
+  bool Emit(FunctionInfo* symbol_info, uint32_t flags);
 
   FunctionInfo* symbol_info() const { return symbol_info_; }
   FunctionInfo* LookupFunction(uint32_t address);

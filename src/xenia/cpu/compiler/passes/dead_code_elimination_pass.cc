@@ -27,7 +27,7 @@ DeadCodeEliminationPass::DeadCodeEliminationPass() : CompilerPass() {}
 
 DeadCodeEliminationPass::~DeadCodeEliminationPass() {}
 
-int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
+bool DeadCodeEliminationPass::Run(HIRBuilder* builder) {
   // ContextPromotion/DSE will likely leave around a lot of dead statements.
   // Code generated for comparison/testing produces many unused statements and
   // with proper use analysis it should be possible to remove most of them:
@@ -143,7 +143,7 @@ int DeadCodeEliminationPass::Run(HIRBuilder* builder) {
     }
   }
 
-  return 0;
+  return true;
 }
 
 void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {

@@ -24,7 +24,7 @@ class X64CodeCache {
   X64CodeCache(size_t chunk_size = DEFAULT_CHUNK_SIZE);
   virtual ~X64CodeCache();
 
-  int Initialize();
+  bool Initialize();
 
   // TODO(benvanik): ELF serialization/etc
   // TODO(benvanik): keep track of code blocks

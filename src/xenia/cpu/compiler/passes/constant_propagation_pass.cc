@@ -30,7 +30,7 @@ ConstantPropagationPass::ConstantPropagationPass() : CompilerPass() {}
 
 ConstantPropagationPass::~ConstantPropagationPass() {}
 
-int ConstantPropagationPass::Run(HIRBuilder* builder) {
+bool ConstantPropagationPass::Run(HIRBuilder* builder) {
   // Once ContextPromotion has run there will likely be a whole slew of
   // constants that can be pushed through the function.
   // Example:
@@ -98,7 +98,7 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_CALL_INDIRECT:
           if (i->src1.value->IsConstant()) {
             FunctionInfo* symbol_info;
-            if (processor_->LookupFunctionInfo(
+            if (!processor_->LookupFunctionInfo(
                     (uint32_t)i->src1.value->constant.i32, &symbol_info)) {
               break;
             }
@@ -468,7 +468,7 @@ int ConstantPropagationPass::Run(HIRBuilder* builder) {
     block = block->next;
   }
 
-  return 0;
+  return true;
 }
 
 void ConstantPropagationPass::PropagateCarry(Value* v, bool did_carry) {

@@ -19,10 +19,10 @@ CompilerPass::CompilerPass() : processor_(nullptr), compiler_(nullptr) {}
 
 CompilerPass::~CompilerPass() = default;
 
-int CompilerPass::Initialize(Compiler* compiler) {
+bool CompilerPass::Initialize(Compiler* compiler) {
   processor_ = compiler->processor();
   compiler_ = compiler;
-  return 0;
+  return true;
 }
 
 Arena* CompilerPass::scratch_arena() const {

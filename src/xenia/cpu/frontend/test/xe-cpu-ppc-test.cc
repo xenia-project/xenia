@@ -188,7 +188,7 @@ class TestRunner {
   bool Setup(TestSuite& suite) {
     // Load the binary module.
     auto module = std::make_unique<xe::cpu::RawModule>(processor.get());
-    if (module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
+    if (!module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
       XELOGE("Unable to load test binary %ls", suite.bin_file_path.c_str());
       return false;
     }
@@ -212,9 +212,8 @@ class TestRunner {
     }
 
     // Execute test.
-    xe::cpu::Function* fn;
-    processor->ResolveFunction(test_case.address, &fn);
-    if (!fn) {
+    xe::cpu::Function* fn = nullptr;
+    if (!processor->ResolveFunction(test_case.address, &fn)) {
       XELOGE("Entry function not found");
       return false;
     }

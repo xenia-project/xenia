@@ -40,10 +40,8 @@ XexModule::XexModule(Processor* processor)
 
 XexModule::~XexModule() { xe_xex2_dealloc(xex_); }
 
-int XexModule::Load(const std::string& name, const std::string& path,
-                    xe_xex2_ref xex) {
-  int result;
-
+bool XexModule::Load(const std::string& name, const std::string& path,
+                     xe_xex2_ref xex) {
   xex_ = xex;
   const xe_xex2_header_t* header = xe_xex2_get_header(xex);
 
@@ -66,17 +64,15 @@ int XexModule::Load(const std::string& name, const std::string& path,
 
   // Add all imports (variables/functions).
   for (size_t n = 0; n < header->import_library_count; n++) {
-    result = SetupLibraryImports(&header->import_libraries[n]);
-    if (result) {
-      return result;
+    if (!SetupLibraryImports(&header->import_libraries[n])) {
+      return false;
     }
   }
 
   // Find __savegprlr_* and __restgprlr_* and the others.
   // We can flag these for special handling (inlining/etc).
-  result = FindSaveRest();
-  if (result) {
-    return result;
+  if (!FindSaveRest()) {
+    return false;
   }
 
   // Setup debug info.
@@ -86,20 +82,22 @@ int XexModule::Load(const std::string& name, const std::string& path,
 
   // Load a specified module map and diff.
   if (FLAGS_load_module_map.size()) {
-    ReadMap(FLAGS_load_module_map.c_str());
+    if (!ReadMap(FLAGS_load_module_map.c_str())) {
+      return false;
+    }
   }
 
-  return 0;
+  return true;
 }
 
-int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
+bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
   ExportResolver* export_resolver = processor_->export_resolver();
 
   xe_xex2_import_info_t* import_infos;
   size_t import_info_count;
   if (xe_xex2_get_import_infos(xex_, library, &import_infos,
                                &import_info_count)) {
-    return 1;
+    return false;
   }
 
   char name[128];
@@ -203,14 +201,14 @@ int XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
     }
   }
 
-  return 0;
+  return true;
 }
 
 bool XexModule::ContainsAddress(uint32_t address) {
   return address >= low_address_ && address < high_address_;
 }
 
-int XexModule::FindSaveRest() {
+bool XexModule::FindSaveRest() {
   // Special stack save/restore functions.
   // http://research.microsoft.com/en-us/um/redmond/projects/invisible/src/crt/md/ppc/xxx.s.htm
   // It'd be nice to stash these away and mark them as such to allow for
@@ -523,7 +521,7 @@ int XexModule::FindSaveRest() {
     }
   }
 
-  return 0;
+  return true;
 }
 
 }  // namespace cpu

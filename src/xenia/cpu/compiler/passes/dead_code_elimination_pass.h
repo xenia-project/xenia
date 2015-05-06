@@ -22,7 +22,7 @@ class DeadCodeEliminationPass : public CompilerPass {
   DeadCodeEliminationPass();
   ~DeadCodeEliminationPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
   void MakeNopRecursive(hir::Instr* i);

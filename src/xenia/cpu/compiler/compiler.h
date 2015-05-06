@@ -40,7 +40,7 @@ class Compiler {
 
   void Reset();
 
-  int Compile(hir::HIRBuilder* builder);
+  bool Compile(hir::HIRBuilder* builder);
 
  private:
   Processor* processor_;

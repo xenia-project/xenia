@@ -24,10 +24,9 @@ X64Backend::X64Backend(Processor* processor)
 
 X64Backend::~X64Backend() { delete code_cache_; }
 
-int X64Backend::Initialize() {
-  int result = Backend::Initialize();
-  if (result) {
-    return result;
+bool X64Backend::Initialize() {
+  if (!Backend::Initialize()) {
+    return false;
   }
 
   RegisterSequences();
@@ -42,9 +41,8 @@ int X64Backend::Initialize() {
   };
 
   code_cache_ = new X64CodeCache();
-  result = code_cache_->Initialize();
-  if (result) {
-    return result;
+  if (!code_cache_->Initialize()) {
+    return false;
   }
 
   // Generate thunks used to transition between jitted code and host code.
@@ -53,7 +51,7 @@ int X64Backend::Initialize() {
   host_to_guest_thunk_ = thunk_emitter->EmitHostToGuestThunk();
   guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
 
-  return result;
+  return true;
 }
 
 std::unique_ptr<Assembler> X64Backend::CreateAssembler() {

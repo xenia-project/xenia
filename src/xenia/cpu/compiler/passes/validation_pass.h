@@ -22,11 +22,11 @@ class ValidationPass : public CompilerPass {
   ValidationPass();
   ~ValidationPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
-  int ValidateInstruction(hir::Block* block, hir::Instr* instr);
-  int ValidateValue(hir::Block* block, hir::Instr* instr, hir::Value* value);
+  bool ValidateInstruction(hir::Block* block, hir::Instr* instr);
+  bool ValidateValue(hir::Block* block, hir::Instr* instr, hir::Value* value);
 };
 
 }  // namespace passes

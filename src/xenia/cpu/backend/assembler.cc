@@ -17,7 +17,7 @@ Assembler::Assembler(Backend* backend) : backend_(backend) {}
 
 Assembler::~Assembler() { Reset(); }
 
-int Assembler::Initialize() { return 0; }
+bool Assembler::Initialize() { return true; }
 
 void Assembler::Reset() {}
 

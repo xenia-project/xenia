@@ -100,8 +100,7 @@ X_STATUS Emulator::Setup() {
   }
 
   // Setup the core components.
-  result = processor_->Setup();
-  if (result) {
+  if (!processor_->Setup()) {
     return result;
   }
   result = audio_system_->Setup();

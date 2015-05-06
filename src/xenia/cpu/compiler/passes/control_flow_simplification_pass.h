@@ -22,7 +22,7 @@ class ControlFlowSimplificationPass : public CompilerPass {
   ControlFlowSimplificationPass();
   ~ControlFlowSimplificationPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
 };

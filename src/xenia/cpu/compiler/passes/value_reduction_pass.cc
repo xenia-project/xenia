@@ -58,7 +58,7 @@ void ValueReductionPass::ComputeLastUse(Value* value) {
   value->last_use = last_use ? last_use->instr : nullptr;
 }
 
-int ValueReductionPass::Run(HIRBuilder* builder) {
+bool ValueReductionPass::Run(HIRBuilder* builder) {
   // Walk each block and reuse variable ordinals as much as possible.
 
   llvm::BitVector ordinals(builder->max_value_ordinal());
@@ -139,7 +139,7 @@ int ValueReductionPass::Run(HIRBuilder* builder) {
     block = block->next;
   }
 
-  return 0;
+  return true;
 }
 
 }  // namespace passes

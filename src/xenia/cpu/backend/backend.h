@@ -34,7 +34,7 @@ class Backend {
   Processor* processor() const { return processor_; }
   const MachineInfo* machine_info() const { return &machine_info_; }
 
-  virtual int Initialize();
+  virtual bool Initialize();
 
   virtual void* AllocThreadData();
   virtual void FreeThreadData(void* thread_data);

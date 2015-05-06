@@ -22,7 +22,7 @@ class DataFlowAnalysisPass : public CompilerPass {
   DataFlowAnalysisPass();
   ~DataFlowAnalysisPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
   uint32_t LinearizeBlocks(hir::HIRBuilder* builder);

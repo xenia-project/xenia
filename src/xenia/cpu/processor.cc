@@ -98,7 +98,7 @@ Processor::~Processor() {
   backend_.reset();
 }
 
-int Processor::Setup() {
+bool Processor::Setup() {
   debug_info_flags_ = DEBUG_INFO_DEFAULT;
   trace_flags_ = 0;
 
@@ -116,7 +116,7 @@ int Processor::Setup() {
   modules_.push_back(std::move(builtin_module));
 
   if (frontend_ || backend_) {
-    return 1;
+    return false;
   }
 
   std::unique_ptr<xe::cpu::backend::Backend> backend;
@@ -136,17 +136,13 @@ int Processor::Setup() {
   }
 
   if (!backend) {
-    return 1;
+    return false;
   }
-
-  int result = backend->Initialize();
-  if (result) {
-    return result;
+  if (!backend->Initialize()) {
+    return false;
   }
-
-  result = frontend->Initialize();
-  if (result) {
-    return result;
+  if (!frontend->Initialize()) {
+    return false;
   }
 
   backend_ = std::move(backend);
@@ -157,13 +153,13 @@ int Processor::Setup() {
   interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
 
-  return 0;
+  return true;
 }
 
-int Processor::AddModule(std::unique_ptr<Module> module) {
+bool Processor::AddModule(std::unique_ptr<Module> module) {
   std::lock_guard<std::mutex> guard(modules_lock_);
   modules_.push_back(std::move(module));
-  return 0;
+  return true;
 }
 
 Module* Processor::GetModule(const char* name) {
@@ -205,7 +201,7 @@ std::vector<Function*> Processor::FindFunctionsWithAddress(uint32_t address) {
   return entry_table_.FindWithAddress(address);
 }
 
-int Processor::ResolveFunction(uint32_t address, Function** out_function) {
+bool Processor::ResolveFunction(uint32_t address, Function** out_function) {
   *out_function = nullptr;
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
@@ -214,15 +210,13 @@ int Processor::ResolveFunction(uint32_t address, Function** out_function) {
 
     // Grab symbol declaration.
     FunctionInfo* symbol_info;
-    int result = LookupFunctionInfo(address, &symbol_info);
-    if (result) {
-      return result;
+    if (!LookupFunctionInfo(address, &symbol_info)) {
+      return false;
     }
 
-    result = DemandFunction(symbol_info, &entry->function);
-    if (result) {
+    if (!DemandFunction(symbol_info, &entry->function)) {
       entry->status = Entry::STATUS_FAILED;
-      return result;
+      return false;
     }
     entry->end_address = symbol_info->end_address();
     status = entry->status = Entry::STATUS_READY;
@@ -230,15 +224,15 @@ int Processor::ResolveFunction(uint32_t address, Function** out_function) {
   if (status == Entry::STATUS_READY) {
     // Ready to use.
     *out_function = entry->function;
-    return 0;
+    return true;
   } else {
     // Failed or bad state.
-    return 1;
+    return false;
   }
 }
 
-int Processor::LookupFunctionInfo(uint32_t address,
-                                  FunctionInfo** out_symbol_info) {
+bool Processor::LookupFunctionInfo(uint32_t address,
+                                   FunctionInfo** out_symbol_info) {
   *out_symbol_info = nullptr;
 
   // TODO(benvanik): fast reject invalid addresses/log errors.
@@ -258,14 +252,14 @@ int Processor::LookupFunctionInfo(uint32_t address,
   }
   if (!code_module) {
     // No module found that could contain the address.
-    return 1;
+    return false;
   }
 
   return LookupFunctionInfo(code_module, address, out_symbol_info);
 }
 
-int Processor::LookupFunctionInfo(Module* module, uint32_t address,
-                                  FunctionInfo** out_symbol_info) {
+bool Processor::LookupFunctionInfo(Module* module, uint32_t address,
+                                   FunctionInfo** out_symbol_info) {
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
   FunctionInfo* symbol_info = nullptr;
@@ -273,20 +267,19 @@ int Processor::LookupFunctionInfo(Module* module, uint32_t address,
       module->DeclareFunction(address, &symbol_info);
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undeclared, so declare now.
-    int result = frontend_->DeclareFunction(symbol_info);
-    if (result) {
+    if (!frontend_->DeclareFunction(symbol_info)) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
-      return 1;
+      return false;
     }
     symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
   }
 
   *out_symbol_info = symbol_info;
-  return 0;
+  return true;
 }
 
-int Processor::DemandFunction(FunctionInfo* symbol_info,
-                              Function** out_function) {
+bool Processor::DemandFunction(FunctionInfo* symbol_info,
+                               Function** out_function) {
   *out_function = nullptr;
 
   // Lock function for generation. If it's already being generated
@@ -296,11 +289,10 @@ int Processor::DemandFunction(FunctionInfo* symbol_info,
   if (symbol_status == SymbolInfo::STATUS_NEW) {
     // Symbol is undefined, so define now.
     Function* function = nullptr;
-    int result = frontend_->DefineFunction(symbol_info, debug_info_flags_,
-                                           trace_flags_, &function);
-    if (result) {
+    if (!frontend_->DefineFunction(symbol_info, debug_info_flags_, trace_flags_,
+                                   &function)) {
       symbol_info->set_status(SymbolInfo::STATUS_FAILED);
-      return result;
+      return false;
     }
     symbol_info->set_function(function);
 
@@ -313,23 +305,23 @@ int Processor::DemandFunction(FunctionInfo* symbol_info,
 
   if (symbol_status == SymbolInfo::STATUS_FAILED) {
     // Symbol likely failed.
-    return 1;
+    return false;
   }
 
   *out_function = symbol_info->function();
 
-  return 0;
+  return true;
 }
 
-int Processor::Execute(ThreadState* thread_state, uint32_t address) {
+bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   SCOPE_profile_cpu_f("cpu");
 
   // Attempt to get the function.
   Function* fn;
-  if (ResolveFunction(address, &fn)) {
+  if (!ResolveFunction(address, &fn)) {
     // Symbol not found in any module.
     XELOGCPU("Execute(%.8X): failed to find function", address);
-    return 1;
+    return false;
   }
 
   PPCContext* context = thread_state->context();
@@ -342,8 +334,7 @@ int Processor::Execute(ThreadState* thread_state, uint32_t address) {
   context->lr = lr;
 
   // Execute the function.
-  fn->Call(thread_state, lr);
-  return 0;
+  return fn->Call(thread_state, lr);
 }
 
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
@@ -355,7 +346,7 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
   for (size_t i = 0; i < arg_count; ++i) {
     context->r[3 + i] = args[i];
   }
-  if (Execute(thread_state, address)) {
+  if (!Execute(thread_state, address)) {
     return 0xDEADBABE;
   }
   return context->r[3];

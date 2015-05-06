@@ -28,7 +28,7 @@ FinalizationPass::FinalizationPass() : CompilerPass() {}
 
 FinalizationPass::~FinalizationPass() {}
 
-int FinalizationPass::Run(HIRBuilder* builder) {
+bool FinalizationPass::Run(HIRBuilder* builder) {
   // Process the HIR and prepare it for lowering.
   // After this is done the HIR should be ready for emitting.
 
@@ -65,7 +65,7 @@ int FinalizationPass::Run(HIRBuilder* builder) {
     block = block->next;
   }
 
-  return 0;
+  return true;
 }
 
 }  // namespace passes

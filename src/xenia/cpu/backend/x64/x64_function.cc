@@ -30,19 +30,21 @@ void X64Function::Setup(void* machine_code, size_t code_size) {
   code_size_ = code_size;
 }
 
-int X64Function::AddBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
-
-int X64Function::RemoveBreakpointImpl(debug::Breakpoint* breakpoint) {
-  return 0;
+bool X64Function::AddBreakpointImpl(debug::Breakpoint* breakpoint) {
+  return false;
 }
 
-int X64Function::CallImpl(ThreadState* thread_state, uint32_t return_address) {
+bool X64Function::RemoveBreakpointImpl(debug::Breakpoint* breakpoint) {
+  return false;
+}
+
+bool X64Function::CallImpl(ThreadState* thread_state, uint32_t return_address) {
   auto backend =
       reinterpret_cast<X64Backend*>(thread_state->processor()->backend());
   auto thunk = backend->host_to_guest_thunk();
   thunk(machine_code_, thread_state->context(),
         reinterpret_cast<void*>(uintptr_t(return_address)));
-  return 0;
+  return true;
 }
 
 }  // namespace x64

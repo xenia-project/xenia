@@ -30,9 +30,9 @@ class CompilerPass {
   CompilerPass();
   virtual ~CompilerPass();
 
-  virtual int Initialize(Compiler* compiler);
+  virtual bool Initialize(Compiler* compiler);
 
-  virtual int Run(hir::HIRBuilder* builder) = 0;
+  virtual bool Run(hir::HIRBuilder* builder) = 0;
 
  protected:
   Arena* scratch_arena() const;

@@ -45,7 +45,7 @@ void PPCHIRBuilder::Reset() {
   HIRBuilder::Reset();
 }
 
-int PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
+bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   SCOPE_profile_cpu_f("cpu");
 
   Memory* memory = frontend_->memory();
@@ -154,19 +154,19 @@ void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
 FunctionInfo* PPCHIRBuilder::LookupFunction(uint32_t address) {
   Processor* processor = frontend_->processor();
   FunctionInfo* symbol_info;
-  if (processor->LookupFunctionInfo(address, &symbol_info)) {
-    return NULL;
+  if (!processor->LookupFunctionInfo(address, &symbol_info)) {
+    return nullptr;
   }
   return symbol_info;
 }
 
 Label* PPCHIRBuilder::LookupLabel(uint32_t address) {
   if (address < start_address_) {
-    return NULL;
+    return nullptr;
   }
   size_t offset = (address - start_address_) / 4;
   if (offset >= instr_count_) {
-    return NULL;
+    return nullptr;
   }
   Label* label = label_list_[offset];
   if (label) {

@@ -19,7 +19,7 @@ Backend::Backend(Processor* processor) : processor_(processor) {
 
 Backend::~Backend() = default;
 
-int Backend::Initialize() { return 0; }
+bool Backend::Initialize() { return true; }
 
 void* Backend::AllocThreadData() { return nullptr; }
 

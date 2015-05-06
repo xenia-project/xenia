@@ -33,7 +33,7 @@ ValidationPass::ValidationPass() : CompilerPass() {}
 
 ValidationPass::~ValidationPass() {}
 
-int ValidationPass::Run(HIRBuilder* builder) {
+bool ValidationPass::Run(HIRBuilder* builder) {
 #if 0
   StringBuffer str;
   builder->Dump(&str);
@@ -48,15 +48,15 @@ int ValidationPass::Run(HIRBuilder* builder) {
     while (label) {
       assert_true(label->block == block);
       if (label->block != block) {
-        return 1;
+        return false;
       }
       label = label->next;
     }
 
     auto instr = block->instr_head;
     while (instr) {
-      if (ValidateInstruction(block, instr)) {
-        return 1;
+      if (!ValidateInstruction(block, instr)) {
+        return false;
       }
       instr = instr->next;
     }
@@ -64,13 +64,13 @@ int ValidationPass::Run(HIRBuilder* builder) {
     block = block->next;
   }
 
-  return 0;
+  return true;
 }
 
-int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
+bool ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
   assert_true(instr->block == block);
   if (instr->block != block) {
-    return 1;
+    return false;
   }
 
   if (instr->dest) {
@@ -84,33 +84,33 @@ int ValidationPass::ValidateInstruction(Block* block, Instr* instr) {
 
   uint32_t signature = instr->opcode->signature;
   if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
-    if (ValidateValue(block, instr, instr->src1.value)) {
-      return 1;
+    if (!ValidateValue(block, instr, instr->src1.value)) {
+      return false;
     }
   }
   if (GET_OPCODE_SIG_TYPE_SRC2(signature) == OPCODE_SIG_TYPE_V) {
-    if (ValidateValue(block, instr, instr->src2.value)) {
-      return 1;
+    if (!ValidateValue(block, instr, instr->src2.value)) {
+      return false;
     }
   }
   if (GET_OPCODE_SIG_TYPE_SRC3(signature) == OPCODE_SIG_TYPE_V) {
-    if (ValidateValue(block, instr, instr->src3.value)) {
-      return 1;
+    if (!ValidateValue(block, instr, instr->src3.value)) {
+      return false;
     }
   }
 
-  return 0;
+  return true;
 }
 
-int ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
+bool ValidationPass::ValidateValue(Block* block, Instr* instr, Value* value) {
   // if (value->def) {
   //  auto def = value->def;
   //  assert_true(def->block == block);
   //  if (def->block != block) {
-  //    return 1;
+  //    return false;
   //  }
   //}
-  return 0;
+  return true;
 }
 
 }  // namespace passes

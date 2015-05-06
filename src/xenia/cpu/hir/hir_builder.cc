@@ -51,7 +51,7 @@ void HIRBuilder::Reset() {
   arena_->Reset();
 }
 
-int HIRBuilder::Finalize() {
+bool HIRBuilder::Finalize() {
   // Scan blocks in order and add fallthrough branches. These are needed for
   // analysis passes to work. We may have also added blocks out of order and
   // need to ensure they fall through in the right order.
@@ -84,7 +84,7 @@ int HIRBuilder::Finalize() {
       current_block_ = NULL;
     }
   }
-  return 0;
+  return true;
 }
 
 void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {

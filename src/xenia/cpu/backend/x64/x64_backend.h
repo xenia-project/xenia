@@ -33,7 +33,7 @@ class X64Backend : public Backend {
   HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
   GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
 
-  int Initialize() override;
+  bool Initialize() override;
 
   std::unique_ptr<Assembler> CreateAssembler() override;
 

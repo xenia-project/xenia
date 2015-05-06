@@ -175,7 +175,7 @@ void Module::ForEachFunction(size_t since, size_t& version,
   }
 }
 
-int Module::ReadMap(const char* file_name) {
+bool Module::ReadMap(const char* file_name) {
   std::ifstream infile(file_name);
 
   // Skip until '  Address'. Skip the next blank line.
@@ -225,7 +225,7 @@ int Module::ReadMap(const char* file_name) {
     if (type_str == "f") {
       // Function.
       FunctionInfo* fn_info;
-      if (processor_->LookupFunctionInfo(this, address, &fn_info)) {
+      if (!processor_->LookupFunctionInfo(this, address, &fn_info)) {
         continue;
       }
       // Don't overwrite names we've set elsewhere.
@@ -243,7 +243,7 @@ int Module::ReadMap(const char* file_name) {
     }
   }
 
-  return 0;
+  return true;
 }
 
 }  // namespace cpu

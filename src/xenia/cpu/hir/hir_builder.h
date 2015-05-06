@@ -34,7 +34,7 @@ class HIRBuilder {
   virtual ~HIRBuilder();
 
   virtual void Reset();
-  virtual int Finalize();
+  virtual bool Finalize();
 
   void Dump(StringBuffer* str);
   void AssertNoCycles();

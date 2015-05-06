@@ -30,7 +30,7 @@ ControlFlowSimplificationPass::ControlFlowSimplificationPass()
 
 ControlFlowSimplificationPass::~ControlFlowSimplificationPass() {}
 
-int ControlFlowSimplificationPass::Run(HIRBuilder* builder) {
+bool ControlFlowSimplificationPass::Run(HIRBuilder* builder) {
   // Walk backwards and merge blocks if possible.
   bool merged_any = false;
   auto block = builder->last_block();
@@ -52,7 +52,7 @@ int ControlFlowSimplificationPass::Run(HIRBuilder* builder) {
     block = prev_block;
   }
 
-  return 0;
+  return true;
 }
 
 }  // namespace passes

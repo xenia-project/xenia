@@ -12,6 +12,7 @@
 
 #include <vector>
 
+#include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/symbol_info.h"
 
 namespace xe {
@@ -30,7 +31,7 @@ class PPCScanner {
   PPCScanner(PPCFrontend* frontend);
   ~PPCScanner();
 
-  int FindExtents(FunctionInfo* symbol_info);
+  bool Scan(FunctionInfo* symbol_info, DebugInfo* debug_info);
 
   std::vector<BlockInfo> FindBlocks(FunctionInfo* symbol_info);
 

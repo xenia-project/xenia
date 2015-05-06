@@ -73,7 +73,7 @@ void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
   }
 }
 
-int PPCFrontend::Initialize() {
+bool PPCFrontend::Initialize() {
   void* arg0 = reinterpret_cast<void*>(&builtins_.global_lock);
   void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_taken);
   builtins_.check_global_lock = processor_->DefineBuiltin(
@@ -83,24 +83,25 @@ int PPCFrontend::Initialize() {
       "HandleGlobalLock", (FunctionInfo::ExternHandler)HandleGlobalLock, arg0,
       arg1);
 
-  return 0;
+  return true;
 }
 
-int PPCFrontend::DeclareFunction(FunctionInfo* symbol_info) {
+bool PPCFrontend::DeclareFunction(FunctionInfo* symbol_info) {
   // Could scan or something here.
   // Could also check to see if it's a well-known function type and classify
   // for later.
   // Could also kick off a precompiler, since we know it's likely the function
   // will be demanded soon.
-  return 0;
+  return true;
 }
 
-int PPCFrontend::DefineFunction(FunctionInfo* symbol_info,
-                                uint32_t debug_info_flags, uint32_t trace_flags,
-                                Function** out_function) {
+bool PPCFrontend::DefineFunction(FunctionInfo* symbol_info,
+                                 uint32_t debug_info_flags,
+                                 uint32_t trace_flags,
+                                 Function** out_function) {
   PPCTranslator* translator = translator_pool_.Allocate(this);
-  int result = translator->Translate(symbol_info, debug_info_flags, trace_flags,
-                                     out_function);
+  bool result = translator->Translate(symbol_info, debug_info_flags,
+                                      trace_flags, out_function);
   translator_pool_.Release(translator);
   return result;
 }

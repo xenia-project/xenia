@@ -20,7 +20,7 @@ RawModule::RawModule(Processor* processor)
 
 RawModule::~RawModule() {}
 
-int RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
+bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   auto fixed_path = xe::to_string(xe::fix_path_separators(path));
   FILE* file = fopen(fixed_path.c_str(), "rb");
   fseek(file, 0, SEEK_END);
@@ -49,7 +49,7 @@ int RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
 
   low_address_ = base_address;
   high_address_ = base_address + file_length;
-  return 0;
+  return true;
 }
 
 bool RawModule::ContainsAddress(uint32_t address) {

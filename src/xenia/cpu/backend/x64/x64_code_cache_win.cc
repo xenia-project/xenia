@@ -57,7 +57,7 @@ X64CodeCache::~X64CodeCache() {
   head_chunk_ = NULL;
 }
 
-int X64CodeCache::Initialize() { return 0; }
+bool X64CodeCache::Initialize() { return true; }
 
 void* X64CodeCache::PlaceCode(void* machine_code, size_t code_size,
                               size_t stack_size) {

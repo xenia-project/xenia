@@ -36,9 +36,9 @@ ContextPromotionPass::ContextPromotionPass() : CompilerPass() {}
 
 ContextPromotionPass::~ContextPromotionPass() {}
 
-int ContextPromotionPass::Initialize(Compiler* compiler) {
-  if (CompilerPass::Initialize(compiler)) {
-    return 1;
+bool ContextPromotionPass::Initialize(Compiler* compiler) {
+  if (!CompilerPass::Initialize(compiler)) {
+    return false;
   }
 
   // This is a terrible implementation.
@@ -46,10 +46,10 @@ int ContextPromotionPass::Initialize(Compiler* compiler) {
   context_values_.resize(context_info->size());
   context_validity_.resize(static_cast<uint32_t>(context_info->size()));
 
-  return 0;
+  return true;
 }
 
-int ContextPromotionPass::Run(HIRBuilder* builder) {
+bool ContextPromotionPass::Run(HIRBuilder* builder) {
   // Like mem2reg, but because context memory is unaliasable it's easier to
   // check and convert LoadContext/StoreContext into value operations.
   // Example of load->value promotion:
@@ -82,7 +82,7 @@ int ContextPromotionPass::Run(HIRBuilder* builder) {
     }
   }
 
-  return 0;
+  return true;
 }
 
 void ContextPromotionPass::PromoteBlock(Block* block) {

@@ -36,9 +36,9 @@ class ThreadState {
   uint32_t thread_state_address() const { return thread_state_address_; }
   xe::cpu::frontend::PPCContext* context() const { return context_; }
 
-  int Suspend() { return Suspend(~0); }
-  int Suspend(uint32_t timeout_ms) { return 1; }
-  int Resume(bool force = false) { return 1; }
+  bool Suspend() { return Suspend(~0); }
+  bool Suspend(uint32_t timeout_ms) { return false; }
+  bool Resume(bool force = false) { return false; }
 
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();

@@ -70,13 +70,11 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       trace_flags_(0),
       cpu_() {}
 
-X64Emitter::~X64Emitter() {}
+X64Emitter::~X64Emitter() = default;
 
-int X64Emitter::Initialize() { return 0; }
-
-int X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
-                     DebugInfo* debug_info, uint32_t trace_flags,
-                     void*& out_code_address, size_t& out_code_size) {
+bool X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
+                      DebugInfo* debug_info, uint32_t trace_flags,
+                      void*& out_code_address, size_t& out_code_size) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset.
@@ -88,9 +86,8 @@ int X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
 
   // Fill the generator with code.
   size_t stack_size = 0;
-  int result = Emit(builder, stack_size);
-  if (result) {
-    return result;
+  if (!Emit(builder, stack_size)) {
+    return false;
   }
 
   // Copy the final code to the cache and relocate it.
@@ -103,7 +100,7 @@ int X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
         source_map_count_, (SourceMapEntry*)source_map_arena_.CloneContents());
   }
 
-  return 0;
+  return true;
 }
 
 void* X64Emitter::Emplace(size_t stack_size) {
@@ -120,7 +117,7 @@ void* X64Emitter::Emplace(size_t stack_size) {
   return new_address;
 }
 
-int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
+bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   // Calculate stack size. We need to align things to their natural sizes.
   // This could be much better (sort by type/etc).
   auto locals = builder->locals();
@@ -204,7 +201,7 @@ int X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   nop();
 #endif  // XE_DEBUG
 
-  return 0;
+  return true;
 }
 
 void X64Emitter::MarkSourceOffset(const Instr* i) {

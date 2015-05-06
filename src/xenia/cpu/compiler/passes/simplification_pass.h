@@ -22,7 +22,7 @@ class SimplificationPass : public CompilerPass {
   SimplificationPass();
   ~SimplificationPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
   void EliminateConversions(hir::HIRBuilder* builder);

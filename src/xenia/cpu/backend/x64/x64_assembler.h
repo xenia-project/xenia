@@ -29,13 +29,14 @@ class X64Assembler : public Assembler {
   X64Assembler(X64Backend* backend);
   ~X64Assembler() override;
 
-  int Initialize() override;
+  bool Initialize() override;
 
   void Reset() override;
 
-  int Assemble(FunctionInfo* symbol_info, hir::HIRBuilder* builder,
-               uint32_t debug_info_flags, std::unique_ptr<DebugInfo> debug_info,
-               uint32_t trace_flags, Function** out_function) override;
+  bool Assemble(FunctionInfo* symbol_info, hir::HIRBuilder* builder,
+                uint32_t debug_info_flags,
+                std::unique_ptr<DebugInfo> debug_info, uint32_t trace_flags,
+                Function** out_function) override;
 
  private:
   void DumpMachineCode(DebugInfo* debug_info, void* machine_code,

@@ -27,10 +27,10 @@ SimplificationPass::SimplificationPass() : CompilerPass() {}
 
 SimplificationPass::~SimplificationPass() {}
 
-int SimplificationPass::Run(HIRBuilder* builder) {
+bool SimplificationPass::Run(HIRBuilder* builder) {
   EliminateConversions(builder);
   SimplifyAssignments(builder);
-  return 0;
+  return true;
 }
 
 void SimplificationPass::EliminateConversions(HIRBuilder* builder) {

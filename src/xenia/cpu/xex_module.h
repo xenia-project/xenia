@@ -27,16 +27,16 @@ class XexModule : public xe::cpu::Module {
 
   xe_xex2_ref xex() const { return xex_; }
 
-  int Load(const std::string& name, const std::string& path, xe_xex2_ref xex);
+  bool Load(const std::string& name, const std::string& path, xe_xex2_ref xex);
 
   const std::string& name() const override { return name_; }
 
   bool ContainsAddress(uint32_t address) override;
 
  private:
-  int SetupImports(xe_xex2_ref xex);
-  int SetupLibraryImports(const xe_xex2_import_library_t* library);
-  int FindSaveRest();
+  bool SetupImports(xe_xex2_ref xex);
+  bool SetupLibraryImports(const xe_xex2_import_library_t* library);
+  bool FindSaveRest();
 
  private:
   Processor* processor_;

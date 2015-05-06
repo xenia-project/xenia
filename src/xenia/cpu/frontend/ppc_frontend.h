@@ -43,16 +43,16 @@ class PPCFrontend {
   explicit PPCFrontend(Processor* processor);
   ~PPCFrontend();
 
-  int Initialize();
+  bool Initialize();
 
   Processor* processor() const { return processor_; }
   Memory* memory() const;
   ContextInfo* context_info() const { return context_info_.get(); }
   PPCBuiltins* builtins() { return &builtins_; }
 
-  int DeclareFunction(FunctionInfo* symbol_info);
-  int DefineFunction(FunctionInfo* symbol_info, uint32_t debug_info_flags,
-                     uint32_t trace_flags, Function** out_function);
+  bool DeclareFunction(FunctionInfo* symbol_info);
+  bool DefineFunction(FunctionInfo* symbol_info, uint32_t debug_info_flags,
+                      uint32_t trace_flags, Function** out_function);
 
  private:
   Processor* processor_;

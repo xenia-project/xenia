@@ -27,7 +27,7 @@ class RegisterAllocationPass : public CompilerPass {
   RegisterAllocationPass(const backend::MachineInfo* machine_info);
   ~RegisterAllocationPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
   // TODO(benvanik): rewrite all this set shit -- too much indirection, the

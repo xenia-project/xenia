@@ -130,10 +130,10 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   // Prepare the module for execution.
   // Runtime takes ownership.
   auto xex_module = std::make_unique<XexModule>(processor);
-  if (xex_module->Load(name_, path_, xex_)) {
+  if (!xex_module->Load(name_, path_, xex_)) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  if (processor->AddModule(std::move(xex_module))) {
+  if (!processor->AddModule(std::move(xex_module))) {
     return X_STATUS_UNSUCCESSFUL;
   }
 

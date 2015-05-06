@@ -69,7 +69,7 @@ RegisterAllocationPass::~RegisterAllocationPass() {
   }
 }
 
-int RegisterAllocationPass::Run(HIRBuilder* builder) {
+bool RegisterAllocationPass::Run(HIRBuilder* builder) {
   // Simple per-block allocator that operates on SSA form.
   // Registers do not move across blocks, though this could be
   // optimized with some intra-block analysis (dominators/etc).
@@ -151,7 +151,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
             // Unable to spill anything - this shouldn't happen.
             XELOGE("Unable to spill any registers");
             assert_always();
-            return 1;
+            return false;
           }
 
           // Demand allocation.
@@ -159,7 +159,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
             // Boned.
             XELOGE("Register allocation failed");
             assert_always();
-            return 1;
+            return false;
           }
         }
       }
@@ -169,7 +169,7 @@ int RegisterAllocationPass::Run(HIRBuilder* builder) {
     block = block->next;
   }
 
-  return 0;
+  return true;
 }
 
 void RegisterAllocationPass::DumpUsage(const char* name) {

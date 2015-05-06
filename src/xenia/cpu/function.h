@@ -36,16 +36,16 @@ class Function {
     debug_info_ = std::move(debug_info);
   }
 
-  int AddBreakpoint(debug::Breakpoint* breakpoint);
-  int RemoveBreakpoint(debug::Breakpoint* breakpoint);
+  bool AddBreakpoint(debug::Breakpoint* breakpoint);
+  bool RemoveBreakpoint(debug::Breakpoint* breakpoint);
 
-  int Call(ThreadState* thread_state, uint32_t return_address);
+  bool Call(ThreadState* thread_state, uint32_t return_address);
 
  protected:
   debug::Breakpoint* FindBreakpoint(uint32_t address);
-  virtual int AddBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
-  virtual int RemoveBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
-  virtual int CallImpl(ThreadState* thread_state, uint32_t return_address) = 0;
+  virtual bool AddBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
+  virtual bool RemoveBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
+  virtual bool CallImpl(ThreadState* thread_state, uint32_t return_address) = 0;
 
  protected:
   uint32_t address_;

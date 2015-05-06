@@ -52,9 +52,9 @@ class Processor {
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
 
-  int Setup();
+  bool Setup();
 
-  int AddModule(std::unique_ptr<Module> module);
+  bool AddModule(std::unique_ptr<Module> module);
   Module* GetModule(const char* name);
   Module* GetModule(const std::string& name) { return GetModule(name.c_str()); }
   std::vector<Module*> GetModules();
@@ -66,12 +66,12 @@ class Processor {
 
   std::vector<Function*> FindFunctionsWithAddress(uint32_t address);
 
-  int LookupFunctionInfo(uint32_t address, FunctionInfo** out_symbol_info);
-  int LookupFunctionInfo(Module* module, uint32_t address,
-                         FunctionInfo** out_symbol_info);
-  int ResolveFunction(uint32_t address, Function** out_function);
+  bool LookupFunctionInfo(uint32_t address, FunctionInfo** out_symbol_info);
+  bool LookupFunctionInfo(Module* module, uint32_t address,
+                          FunctionInfo** out_symbol_info);
+  bool ResolveFunction(uint32_t address, Function** out_function);
 
-  int Execute(ThreadState* thread_state, uint32_t address);
+  bool Execute(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                    size_t arg_count);
 
@@ -82,7 +82,7 @@ class Processor {
                             size_t arg_count);
 
  private:
-  int DemandFunction(FunctionInfo* symbol_info, Function** out_function);
+  bool DemandFunction(FunctionInfo* symbol_info, Function** out_function);
 
   Memory* memory_;
 

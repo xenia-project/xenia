@@ -22,7 +22,7 @@ class ControlFlowAnalysisPass : public CompilerPass {
   ControlFlowAnalysisPass();
   ~ControlFlowAnalysisPass() override;
 
-  int Run(hir::HIRBuilder* builder) override;
+  bool Run(hir::HIRBuilder* builder) override;
 
  private:
 };

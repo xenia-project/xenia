@@ -42,14 +42,14 @@ DataFlowAnalysisPass::DataFlowAnalysisPass() : CompilerPass() {}
 
 DataFlowAnalysisPass::~DataFlowAnalysisPass() {}
 
-int DataFlowAnalysisPass::Run(HIRBuilder* builder) {
+bool DataFlowAnalysisPass::Run(HIRBuilder* builder) {
   // Linearize blocks so that we can detect cycles and propagate dependencies.
   uint32_t block_count = LinearizeBlocks(builder);
 
   // Analyze value flow and add locals as needed.
   AnalyzeFlow(builder, block_count);
 
-  return 0;
+  return true;
 }
 
 uint32_t DataFlowAnalysisPass::LinearizeBlocks(HIRBuilder* builder) {
