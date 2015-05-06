@@ -1016,7 +1016,7 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
 
   const char *mod_name = (const char *)((uint64_t)e + e->Name);
 
-  for (int i = 0; i < e->NumberOfNames; i++) {
+  for (uint32_t i = 0; i < e->NumberOfNames; i++) {
     const char *fn_name = (const char *)((uint64_t)e + name_table[i]);
     uint16_t ordinal = ordinal_table[i];
     uint64_t addr = (uint64_t)(baseaddr + function_table[ordinal]);
@@ -1064,7 +1064,7 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, int ordinal,
 
   const char *mod_name = (const char *)((uint64_t)e + e->Name);
 
-  if (ordinal < e->NumberOfFunctions) {
+  if (ordinal < int(e->NumberOfFunctions)) {
     peexport.name = nullptr; // TODO: Backwards conversion to get this
     peexport.ordinal = ordinal;
     peexport.addr = (uint64_t)(baseaddr + function_table[ordinal]);

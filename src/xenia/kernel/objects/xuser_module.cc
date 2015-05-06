@@ -142,23 +142,25 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   return X_STATUS_SUCCESS;
 }
 
-void* XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
+uint32_t XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   PEExport export;
   int ret = xe_xex2_lookup_export(xex_, ordinal, export);
+  if (ret) {
+    XELOGE("XUserModule::GetProcAddressByOrdinal(%d) not found", ordinal);
+    return 0;
+  }
 
-  if (ret) return nullptr;
-
-  return (void*)export.addr;
+  return uint32_t(export.addr);
 }
 
-void* XUserModule::GetProcAddressByName(const char* name) {
+uint32_t XUserModule::GetProcAddressByName(const char* name) {
   PEExport export;
   int ret = xe_xex2_lookup_export(xex_, name, export);
-
-  // Failure.
-  if (ret) return nullptr;
-
-  return (void*)export.addr;
+  if (ret) {
+    XELOGE("XUserModule::GetProcAddressByName(%s) not found", name);
+    return 0;
+  }
+  return uint32_t(export.addr);
 }
 
 X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,

@@ -28,15 +28,15 @@ XKernelModule::XKernelModule(KernelState* kernel_state, const char* path)
 
 XKernelModule::~XKernelModule() {}
 
-void* XKernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
+uint32_t XKernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   // TODO(benvanik): check export tables.
   XELOGE("GetProcAddressByOrdinal not implemented");
-  return NULL;
+  return 0;
 }
 
-void* XKernelModule::GetProcAddressByName(const char* name) {
+uint32_t XKernelModule::GetProcAddressByName(const char* name) {
   XELOGE("GetProcAddressByName not implemented");
-  return NULL;
+  return 0;
 }
 
 }  // namespace kernel

@@ -279,14 +279,14 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
   if (XSUCCEEDED(result)) {
     if (ordinal < 0x10000) {
       // Ordinal.
-      uint64_t ptr = (uint64_t)module->GetProcAddressByOrdinal(ordinal);
+      uint32_t ptr = module->GetProcAddressByOrdinal(ordinal);
       if (ptr) {
         SHIM_SET_MEM_32(out_function_ptr, ptr);
         result = X_STATUS_SUCCESS;
       }
     } else {
       // It's a name pointer instead.
-      uint64_t ptr = (uint64_t)module->GetProcAddressByName(name);
+      uint32_t ptr = module->GetProcAddressByName(name);
 
       // FYI: We don't need to generate this function now. It'll
       // be done automatically by xenia when it gets called.

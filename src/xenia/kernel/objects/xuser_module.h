@@ -22,7 +22,7 @@ namespace kernel {
 class XUserModule : public XModule {
  public:
   XUserModule(KernelState* kernel_state, const char* path);
-  virtual ~XUserModule();
+  ~XUserModule() override;
 
   xe_xex2_ref xex();
   const xe_xex2_header_t* xex_header();
@@ -32,18 +32,16 @@ class XUserModule : public XModule {
   X_STATUS LoadFromFile(const char* path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
-  virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
-  virtual void* GetProcAddressByName(const char* name);
-  virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
-                              uint32_t* out_section_size);
+  uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
+  uint32_t GetProcAddressByName(const char* name) override;
+  X_STATUS GetSection(const char* name, uint32_t* out_section_data,
+                      uint32_t* out_section_size) override;
 
   X_STATUS Launch(uint32_t flags);
 
   void Dump();
 
  private:
-  int LoadPE();
-
   xe_xex2_ref xex_;
   uint32_t execution_info_ptr_;
 };

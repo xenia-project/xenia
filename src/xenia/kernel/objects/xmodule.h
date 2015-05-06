@@ -26,8 +26,8 @@ class XModule : public XObject {
   const std::string& path() const { return path_; }
   const std::string& name() const { return name_; }
 
-  virtual void* GetProcAddressByOrdinal(uint16_t ordinal) = 0;
-  virtual void* GetProcAddressByName(const char* name) = 0;
+  virtual uint32_t GetProcAddressByOrdinal(uint16_t ordinal) = 0;
+  virtual uint32_t GetProcAddressByName(const char* name) = 0;
   virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
                               uint32_t* out_section_size);
 

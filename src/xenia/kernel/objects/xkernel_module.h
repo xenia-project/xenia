@@ -21,10 +21,10 @@ class KernelState;
 class XKernelModule : public XModule {
  public:
   XKernelModule(KernelState* kernel_state, const char* path);
-  virtual ~XKernelModule();
+  ~XKernelModule() override;
 
-  virtual void* GetProcAddressByOrdinal(uint16_t ordinal);
-  virtual void* GetProcAddressByName(const char* name);
+  uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
+  uint32_t GetProcAddressByName(const char* name) override;
 
  protected:
   Emulator* emulator_;
