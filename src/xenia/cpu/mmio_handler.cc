@@ -185,6 +185,11 @@ bool MMIOHandler::CheckWriteWatch(void* thread_state, uint64_t fault_address) {
 
 bool MMIOHandler::HandleAccessFault(void* thread_state,
                                     uint64_t fault_address) {
+  if (fault_address < uint64_t(mapping_base_)) {
+    // Quick kill anything below our mapping base.
+    return false;
+  }
+
   // Access violations are pretty rare, so we can do a linear search here.
   const MMIORange* range = nullptr;
   for (const auto& test_range : mapped_ranges_) {
