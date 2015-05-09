@@ -20,7 +20,9 @@ namespace ui {
 namespace win32 {
 
 Win32Window::Win32Window(const std::wstring& title)
-    : Window(title), main_menu_(nullptr), closing_(false) {}
+    : Window(title), closing_(false) {
+  menu_ = nullptr;
+}
 
 Win32Window::~Win32Window() {}
 
@@ -57,17 +59,13 @@ bool Win32Window::Create() {
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
   // Create window.
-  hwnd_ = CreateWindowEx(window_ex_style, L"XeniaWindowClass", L"Xenia",
+  hwnd_ = CreateWindowEx(window_ex_style, L"XeniaWindowClass", title_.c_str(),
                          window_style, rc.left, rc.top, rc.right - rc.left,
                          rc.bottom - rc.top, nullptr, nullptr, hInstance, this);
   if (!hwnd_) {
     XELOGE("CreateWindow failed");
     return false;
   }
-
-  main_menu_ = CreateMenu();
-  AppendMenu(main_menu_, MF_STRING, 0, L"TODO");
-  SetMenu(hwnd_, main_menu_);
 
   // Disable flicks.
   ATOM atom = GlobalAddAtom(L"MicrosoftTabletPenServiceProperty");
@@ -137,7 +135,7 @@ bool Win32Window::set_title(const std::wstring& title) {
 
 void Win32Window::Resize(int32_t width, int32_t height) {
   RECT rc = {0, 0, width, height};
-  bool has_menu = main_menu_ ? true : false;
+  bool has_menu = menu_ ? true : false;
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
   if (true) {
     rc.right += 100 - rc.left;
@@ -151,7 +149,7 @@ void Win32Window::Resize(int32_t width, int32_t height) {
 void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
                          int32_t bottom) {
   RECT rc = {left, top, right, bottom};
-  bool has_menu = main_menu_ ? true : false;
+  bool has_menu = menu_ ? true : false;
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
   Window::Resize(rc.left, rc.top, rc.right, rc.bottom);
 }
@@ -165,6 +163,13 @@ void Win32Window::OnClose() {
   if (!closing_ && hwnd_) {
     closing_ = true;
     CloseWindow(hwnd_);
+  }
+}
+
+void Win32Window::OnSetMenu(MenuItem* menu) {
+  Win32MenuItem* win_menu = reinterpret_cast<Win32MenuItem*>(menu);
+  if (win_menu) {
+    ::SetMenu(hwnd_, win_menu->handle());
   }
 }
 
@@ -197,9 +202,9 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
              TABLET_DISABLE_TOUCHSWITCH | TABLET_DISABLE_SMOOTHSCROLLING |
              TABLET_DISABLE_TOUCHUIFORCEON | TABLET_ENABLE_MULTITOUCHDATA;
 
-    case WM_COMMAND:
-      switch (LOWORD(wParam)) {
-        // TODO(benvanik): dispatch to menu.
+    case WM_COMMAND: {
+        OnCommand(LOWORD(wParam));
+        break;
       }
       break;
   }

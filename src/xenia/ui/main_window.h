@@ -16,6 +16,7 @@
 // TODO(benvanik): only on windows.
 #include "xenia/ui/win32/win32_loop.h"
 #include "xenia/ui/win32/win32_window.h"
+#include "xenia/ui/win32/win32_menu_item.h"
 
 namespace xe {
 class Emulator;
@@ -26,6 +27,7 @@ namespace ui {
 
 using PlatformLoop = xe::ui::win32::Win32Loop;
 using PlatformWindow = xe::ui::win32::Win32Window;
+using PlatformMenu = xe::ui::win32::Win32MenuItem;
 
 class MainWindow : public PlatformWindow {
  public:
@@ -43,9 +45,15 @@ class MainWindow : public PlatformWindow {
   bool Initialize();
 
   void OnClose() override;
+  void OnCommand(int id) override;
+
+  enum Commands {
+    IDC_FILE_OPEN,
+  };
 
   Emulator* emulator_;
   PlatformLoop loop_;
+  PlatformMenu main_menu_;
 };
 
 }  // namespace ui

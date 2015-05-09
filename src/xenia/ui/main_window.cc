@@ -19,7 +19,8 @@ namespace xe {
 namespace ui {
 
 MainWindow::MainWindow(Emulator* emulator)
-    : PlatformWindow(L"xenia"), emulator_(emulator) {}
+    : PlatformWindow(L"xenia"), emulator_(emulator),
+      main_menu_(MenuItem::Type::kNormal) {}
 
 MainWindow::~MainWindow() = default;
 
@@ -64,6 +65,19 @@ bool MainWindow::Initialize() {
     }
     e.set_handled(handled);
   });
+
+  // Main menu
+  // FIXME: This code is really messy.
+  auto file = std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&File");
+  file->AddChild(std::make_unique<PlatformMenu>(
+                MenuItem::Type::kString, Commands::IDC_FILE_OPEN, L"&Open"));
+
+  main_menu_.AddChild(std::move(file));
+
+  auto debug = std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Debug");
+
+  SetMenu(&main_menu_);
+
   return true;
 }
 
@@ -73,6 +87,10 @@ void MainWindow::OnClose() {
   // TODO(benvanik): proper exit.
   XELOGI("User-initiated death!");
   exit(1);
+}
+
+void MainWindow::OnCommand(int id) {
+
 }
 
 X_STATUS MainWindow::LaunchPath(std::wstring path) {

@@ -13,6 +13,7 @@
 #include <string>
 
 #include "xenia/ui/win32/win32_control.h"
+#include "xenia/ui/win32/win32_menu_item.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
@@ -38,13 +39,14 @@ class Win32Window : public Window<Win32Control> {
   bool Create() override;
   void OnClose() override;
 
+  void OnSetMenu(MenuItem*) override;
+
   LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
                   LPARAM lParam) override;
 
  private:
   void EnableMMCSS();
 
-  HMENU main_menu_;
   bool closing_;
 };
 

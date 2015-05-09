@@ -15,6 +15,7 @@
 #include "xenia/base/delegate.h"
 #include "xenia/ui/control.h"
 #include "xenia/ui/ui_event.h"
+#include "xenia/ui/menu_item.h"
 
 namespace xe {
 namespace ui {
@@ -43,6 +44,12 @@ class Window : public T {
 
     e = UIEvent(this);
     on_closed(e);
+  }
+
+  virtual void SetMenu(MenuItem* menu) {
+    menu_ = menu;
+
+    OnSetMenu(menu);
   }
 
  public:
@@ -74,7 +81,11 @@ class Window : public T {
 
   virtual void OnClose() {}
 
- private:
+  virtual void OnSetMenu(MenuItem* menu) {}
+
+  virtual void OnCommand(int id) {}
+
+  MenuItem* menu_;
   std::wstring title_;
 };
 
