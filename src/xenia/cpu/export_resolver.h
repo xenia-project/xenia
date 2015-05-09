@@ -70,10 +70,18 @@ class ExportResolver {
  private:
   struct ExportTable {
     std::string name;
+    std::string simple_name;  // without extension
     KernelExport* exports;
     size_t count;
     ExportTable(const std::string& name, KernelExport* exports, size_t count)
-        : name(name), exports(exports), count(count) {}
+        : name(name), exports(exports), count(count) {
+      auto dot_pos = name.find_last_of('.');
+      if (dot_pos != std::string::npos) {
+        simple_name = name.substr(0, dot_pos);
+      } else {
+        simple_name = name;
+      }
+    }
   };
   std::vector<ExportTable> tables_;
 };

@@ -239,7 +239,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
         break;
       case XEX_HEADER_EXPORTS_BY_NAME: {
         // IMAGE_DATA_DIRECTORY (w/ offset from PE file base)
-        header->export_table_offset = xe::load_and_swap<uint32_t>(pp);
+        header->pe_export_table_offset = xe::load_and_swap<uint32_t>(pp);
         // size = xe::load_and_swap<uint32_t>(pp + 0x04);
       } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
@@ -988,27 +988,24 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
   return 0;
 }
 
-int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
-                          PEExport &peexport) {
+uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, const char *name) {
   auto header = xe_xex2_get_header(xex);
 
   // no exports :(
-  if (!header->export_table_offset) {
-    return 1;
+  if (!header->pe_export_table_offset) {
+    XELOGE("xe_xex2_lookup_export(%s) failed: no PE export table", name);
+    return 0;
   }
 
-  uint64_t baseaddr =
-      (uint64_t)xex->memory->TranslateVirtual(header->exe_address);
-  IMAGE_EXPORT_DIRECTORY *e =
-      (PIMAGE_EXPORT_DIRECTORY)(baseaddr + header->export_table_offset);
+  auto e = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY *>(
+      xex->memory->TranslateVirtual(header->exe_address +
+                                    header->pe_export_table_offset));
 
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
-  uint32_t *function_table =
-      (uint32_t *)((uint64_t)e + e->AddressOfFunctions);
+  uint32_t *function_table = (uint32_t *)((uint64_t)e + e->AddressOfFunctions);
 
   // Names relative to directory
-  uint32_t *name_table =
-      (uint32_t *)((uint64_t)e + e->AddressOfNames);
+  uint32_t *name_table = (uint32_t *)((uint64_t)e + e->AddressOfNames);
 
   // Table of ordinals (by name)
   uint16_t *ordinal_table =
@@ -1019,44 +1016,53 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, const char *name,
   for (uint32_t i = 0; i < e->NumberOfNames; i++) {
     const char *fn_name = (const char *)((uint64_t)e + name_table[i]);
     uint16_t ordinal = ordinal_table[i];
-    uint64_t addr = (uint64_t)(baseaddr + function_table[ordinal]);
+    uint32_t addr = header->exe_address + function_table[ordinal];
 
     if (!strcmp(name, fn_name)) {
       // We have a match!
-      peexport.name = fn_name;
-      peexport.addr = addr;
-      peexport.ordinal = ordinal;
-
-      return 0;
+      return addr;
     }
   }
 
   // No match
-  return 1;
+  return 0;
 }
 
-int xe_xex2_lookup_export(xe_xex2_ref xex, int ordinal,
-                          PEExport &peexport) {
-    auto header = xe_xex2_get_header(xex);
+uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, uint16_t ordinal) {
+  auto header = xe_xex2_get_header(xex);
 
-  // no exports :(
-  if (!header->export_table_offset) {
-    return 1;
+  // XEX-style export table.
+  if (header->loader_info.export_table) {
+    auto export_table = reinterpret_cast<const xe_xex2_export_table *>(
+        xex->memory->TranslateVirtual(header->loader_info.export_table));
+    uint32_t ordinal_count = xe::byte_swap(export_table->count);
+    uint32_t ordinal_base = xe::byte_swap(export_table->base);
+    if (ordinal > ordinal_count) {
+      XELOGE("xe_xex2_lookup_export: ordinal out of bounds");
+      return 0;
+    }
+    uint32_t i = ordinal - ordinal_base;
+    uint32_t ordinal_offset = xe::byte_swap(export_table->ordOffset[i]);
+    ordinal_offset += xe::byte_swap(export_table->imagebaseaddr) << 16;
+    return ordinal_offset;
   }
 
-  uint64_t baseaddr =
-      (uint64_t)xex->memory->TranslateVirtual(header->exe_address);
-  IMAGE_EXPORT_DIRECTORY *e =
-      (PIMAGE_EXPORT_DIRECTORY)(baseaddr + header->export_table_offset);
+  // Check for PE-style export table.
+  if (!header->pe_export_table_offset) {
+    XELOGE("xe_xex2_lookup_export(%.4X) failed: no XEX or PE export table");
+    return 0;
+  }
+
+  auto e = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY *>(
+      xex->memory->TranslateVirtual(header->exe_address +
+                                    header->pe_export_table_offset));
 
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
   // Functions relative to base
-  uint32_t *function_table =
-      (uint32_t *)((uint64_t)e + e->AddressOfFunctions);
+  uint32_t *function_table = (uint32_t *)((uint64_t)e + e->AddressOfFunctions);
 
   // Names relative to directory
-  uint32_t *name_table =
-      (uint32_t *)((uint64_t)e + e->AddressOfNames);
+  uint32_t *name_table = (uint32_t *)((uint64_t)e + e->AddressOfNames);
 
   // Table of ordinals (by name)
   uint16_t *ordinal_table =
@@ -1064,14 +1070,10 @@ int xe_xex2_lookup_export(xe_xex2_ref xex, int ordinal,
 
   const char *mod_name = (const char *)((uint64_t)e + e->Name);
 
-  if (ordinal < int(e->NumberOfFunctions)) {
-    peexport.name = nullptr; // TODO: Backwards conversion to get this
-    peexport.ordinal = ordinal;
-    peexport.addr = (uint64_t)(baseaddr + function_table[ordinal]);
-
-    return 0;
+  if (ordinal < e->NumberOfFunctions) {
+    return header->exe_address + function_table[ordinal];
   }
 
   // No match
-  return 1;
+  return 0;
 }

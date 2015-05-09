@@ -143,24 +143,11 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 }
 
 uint32_t XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
-  PEExport export;
-  int ret = xe_xex2_lookup_export(xex_, ordinal, export);
-  if (ret) {
-    XELOGE("XUserModule::GetProcAddressByOrdinal(%d) not found", ordinal);
-    return 0;
-  }
-
-  return uint32_t(export.addr);
+  return xe_xex2_lookup_export(xex_, ordinal);
 }
 
 uint32_t XUserModule::GetProcAddressByName(const char* name) {
-  PEExport export;
-  int ret = xe_xex2_lookup_export(xex_, name, export);
-  if (ret) {
-    XELOGE("XUserModule::GetProcAddressByName(%s) not found", name);
-    return 0;
-  }
-  return uint32_t(export.addr);
+  return xe_xex2_lookup_export(xex_, name);
 }
 
 X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
@@ -300,6 +287,45 @@ void XUserModule::Dump() {
   }
   printf("\n");
 
+  // Exports.
+  printf("Exports:\n");
+  if (header->loader_info.export_table) {
+    printf(" XEX-style Ordinal Exports:\n");
+    auto export_table = reinterpret_cast<const xe_xex2_export_table*>(
+        memory()->TranslateVirtual(header->loader_info.export_table));
+    uint32_t ordinal_count = xe::byte_swap(export_table->count);
+    uint32_t ordinal_base = xe::byte_swap(export_table->base);
+    for (uint32_t i = 0, ordinal = ordinal_base; i < ordinal_count;
+         ++i, ++ordinal) {
+      uint32_t ordinal_offset = xe::byte_swap(export_table->ordOffset[i]);
+      ordinal_offset += xe::byte_swap(export_table->imagebaseaddr) << 16;
+      printf("     %.8X          %.3X (%3d)\n", ordinal_offset, ordinal,
+             ordinal);
+    }
+  }
+  if (header->pe_export_table_offset) {
+    auto e = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(
+        memory()->TranslateVirtual(header->exe_address +
+                                   header->pe_export_table_offset));
+    uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
+    uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
+    uint16_t* ordinal_table =
+        (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
+    const char* mod_name = (const char*)((uint64_t)e + e->Name);
+    printf(" PE %s:\n", mod_name);
+    for (uint32_t i = 0; i < e->NumberOfNames; i++) {
+      const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
+      uint16_t ordinal = ordinal_table[i];
+      uint32_t addr = header->exe_address + function_table[ordinal];
+      printf("     %.8X          %.3X (%3d)    %s\n", addr, ordinal, ordinal,
+             fn_name);
+    }
+  }
+  if (!header->loader_info.export_table && !header->pe_export_table_offset) {
+    printf("  No exports\n");
+  }
+  printf("\n");
+
   // Imports.
   printf("Imports:\n");
   for (size_t n = 0; n < header->import_library_count; n++) {
@@ -372,11 +398,6 @@ void XUserModule::Dump() {
 
     printf("\n");
   }
-
-  // Exports.
-  printf("Exports:\n");
-  printf("  TODO\n");
-  printf("\n");
 }
 
 }  // namespace kernel

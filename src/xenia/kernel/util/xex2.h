@@ -62,9 +62,7 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
                              xe_xex2_import_info_t** out_import_infos,
                              size_t* out_import_info_count);
 
-int xe_xex2_lookup_export(xe_xex2_ref xex, const char* name,
-                          PEExport& peexport);
-int xe_xex2_lookup_export(xe_xex2_ref xex, int ordinal,
-                          PEExport& peexport);
+uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, const char* name);
+uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, uint16_t ordinal);
 
 #endif  // XENIA_KERNEL_UTIL_XEX2_H_

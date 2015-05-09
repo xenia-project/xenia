@@ -445,7 +445,7 @@ typedef struct {
   xe_xex2_tls_info_t          tls_info;
   size_t                      import_library_count;
   xe_xex2_import_library_t    import_libraries[32];
-  size_t                      export_table_offset; // PE Export Directory
+  uint32_t                    pe_export_table_offset; // PE Export Directory
   size_t                      static_library_count;
   xe_xex2_static_library_t    static_libraries[32];
   xe_xex2_file_format_info_t  file_format_info;

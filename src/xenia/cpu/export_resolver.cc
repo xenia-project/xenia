@@ -34,7 +34,7 @@ void ExportResolver::RegisterTable(const std::string& library_name,
 KernelExport* ExportResolver::GetExportByOrdinal(
     const std::string& library_name, const uint32_t ordinal) {
   for (const auto& table : tables_) {
-    if (table.name == library_name) {
+    if (table.name == library_name || table.simple_name == library_name) {
       // TODO(benvanik): binary search?
       for (size_t n = 0; n < table.count; n++) {
         if (table.exports[n].ordinal == ordinal) {

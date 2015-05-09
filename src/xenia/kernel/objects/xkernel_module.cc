@@ -29,9 +29,35 @@ XKernelModule::XKernelModule(KernelState* kernel_state, const char* path)
 XKernelModule::~XKernelModule() {}
 
 uint32_t XKernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
-  // TODO(benvanik): check export tables.
-  XELOGE("GetProcAddressByOrdinal not implemented");
-  return 0;
+  auto export = export_resolver_->GetExportByOrdinal(name(), ordinal);
+  if (!export) {
+    // Export (or its parent library) not found.
+    return 0;
+  }
+  if (export->type == cpu::KernelExport::ExportType::Variable) {
+    if (export->variable_ptr) {
+      return export->variable_ptr;
+    } else {
+      XELOGW(
+          "ERROR: var export referenced GetProcAddressByOrdinal(%.4X(%s)) is "
+          "not implemented",
+          ordinal, export->name);
+      return 0;
+    }
+  } else {
+    if (export->function_data.shim) {
+      // Implemented. Dynamically generate trampoline.
+      XELOGE("GetProcAddressByOrdinal not implemented");
+      return 0;
+    } else {
+      // Not implemented.
+      XELOGW(
+          "ERROR: fn export referenced GetProcAddressByOrdinal(%.4X(%s)) is "
+          "not implemented",
+          ordinal, export->name);
+      return 0;
+    }
+  }
 }
 
 uint32_t XKernelModule::GetProcAddressByName(const char* name) {
