@@ -10,9 +10,10 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XUSER_MODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_XUSER_MODULE_H_
 
-#include "xenia/kernel/objects/xmodule.h"
+#include <string>
 
 #include "xenia/cpu/export_resolver.h"
+#include "xenia/kernel/objects/xmodule.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/xbox.h"
 
@@ -29,7 +30,7 @@ class XUserModule : public XModule {
 
   uint32_t execution_info_ptr() const { return execution_info_ptr_; }
 
-  X_STATUS LoadFromFile(const char* path);
+  X_STATUS LoadFromFile(std::string path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;

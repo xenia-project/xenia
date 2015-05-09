@@ -8,14 +8,13 @@
  */
 
 #include "xenia/base/logging.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/xbox.h"
-
-#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace kernel {
@@ -218,51 +217,33 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
+  X_HANDLE module_handle = X_INVALID_HANDLE_VALUE;
   XModule* module = state->GetModule(module_name);
   if (module) {
-    module->RetainHandle();
-    SHIM_SET_MEM_32(handle_ptr, module->handle());
-    module->Release();
-
-    result = X_STATUS_SUCCESS;
+    // Existing module found, just add a reference and obtain a handle.
+    result = state->object_table()->AddHandle(module, &module_handle);
   } else {
-    XUserModule* usermod = state->LoadUserModule(module_name);
-    if (usermod) {
-      // If the module has an entry point function, we have to call it.
-      const xe_xex2_header_t* header = usermod->xex_header();
-      if (header->exe_entry_point) {
-        // Return address
-        uint32_t lr = ppc_state->thread_state->context()->lr;
-
-        // TODO: What are these args for?
-        // param 2: val 1 seems to make CRT initialize
-        uint64_t args[] = { 0, 1, 0 };
-        state->processor()->Execute(ppc_state->thread_state,
-                                    header->exe_entry_point,
-                                    args, xe::countof(args));
-
-        ppc_state->thread_state->context()->lr = lr;
-      }
-
+    // Not found; attempt to load as a user module.
+    module = state->LoadUserModule(module_name);
+    if (module) {
+      module->RetainHandle();
+      module_handle = module->handle();
       result = X_STATUS_SUCCESS;
-
-      usermod->RetainHandle();
-      SHIM_SET_MEM_32(handle_ptr, usermod->handle());
-      usermod->Release();
     }
   }
+  SHIM_SET_MEM_32(handle_ptr, module_handle);
 
   SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t module_handle = SHIM_GET_ARG_32(0);
 
-  XELOGD("XexUnloadImage(%.8X)", handle);
+  XELOGD("XexUnloadImage(%.8X)", module_handle);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
-  result = state->object_table()->RemoveHandle(handle);
+  result = state->object_table()->RemoveHandle(module_handle);
 
   SHIM_SET_RETURN_32(result);
 }

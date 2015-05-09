@@ -32,6 +32,8 @@ std::wstring to_absolute_path(const std::wstring& path);
 std::vector<std::string> split_path(const std::string& path);
 
 // Joins two path segments with the given separator.
+std::string join_paths(const std::string& left, const std::string& right,
+                       char sep = xe::path_separator);
 std::wstring join_paths(const std::wstring& left, const std::wstring& right,
                         wchar_t sep = xe::path_separator);
 
@@ -42,9 +44,12 @@ std::wstring fix_path_separators(const std::wstring& source,
 std::string fix_path_separators(const std::string& source,
                                 char new_sep = xe::path_separator);
 
-// Find the top directory name or filename from a path
+// Find the top directory name or filename from a path.
 std::string find_name_from_path(const std::string& path);
 std::wstring find_name_from_path(const std::wstring& path);
+
+// Get parent path of the given directory or filename.
+std::string find_base_path(const std::string& path);
 
 }  // namespace xe
 

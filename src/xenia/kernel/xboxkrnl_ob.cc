@@ -69,7 +69,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
       case 0xD01BBEEF:  // ExThreadObjectType
       {
         XThread* thread = (XThread*)object;
-        native_ptr = thread->thread_state();
+        native_ptr = thread->thread_state_ptr();
       } break;
       default:
         assert_unhandled_case(object_type_ptr);

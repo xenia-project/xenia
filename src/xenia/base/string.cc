@@ -68,6 +68,20 @@ std::vector<std::string> split_path(const std::string& path) {
   return parts;
 }
 
+std::string join_paths(const std::string& left, const std::string& right,
+                       char sep) {
+  if (!left.size()) {
+    return right;
+  } else if (!right.size()) {
+    return left;
+  }
+  if (left[left.size() - 1] == sep) {
+    return left + right;
+  } else {
+    return left + sep + right;
+  }
+}
+
 std::wstring join_paths(const std::wstring& left, const std::wstring& right,
                         wchar_t sep) {
   if (!left.size()) {
@@ -164,6 +178,22 @@ std::wstring find_name_from_path(const std::wstring& path) {
     }
   }
   return name;
+}
+
+std::string find_base_path(const std::string& path) {
+  auto last_slash = path.find_last_of('\\');
+  if (last_slash == std::string::npos) {
+    return path;
+  } else if (last_slash == path.length() - 1) {
+    auto prev_slash = path.find_last_of('\\', last_slash - 1);
+    if (prev_slash == std::string::npos) {
+      return "";
+    } else {
+      return path.substr(0, prev_slash + 1);
+    }
+  } else {
+    return path.substr(0, last_slash + 1);
+  }
 }
 
 }  // namespace xe

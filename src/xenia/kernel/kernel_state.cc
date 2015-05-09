@@ -13,6 +13,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/string.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/xam_module.h"
@@ -113,8 +114,11 @@ XModule* KernelState::GetModule(const char* name) {
   } else {
     std::lock_guard<std::mutex> lock(object_mutex_);
 
-    for (XUserModule *module : user_modules_) {
-      if (module->name() == name) {
+    for (XUserModule* module : user_modules_) {
+      if ((strcasecmp(xe::find_name_from_path(module->path()).c_str(), name) ==
+           0) ||
+          (strcasecmp(module->name().c_str(), name) == 0) ||
+          (strcasecmp(module->path().c_str(), name) == 0)) {
         module->Retain();
         return module;
       }
@@ -147,27 +151,54 @@ void KernelState::SetExecutableModule(XUserModule* module) {
   }
 }
 
-XUserModule* KernelState::LoadUserModule(const char *name) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+XUserModule* KernelState::LoadUserModule(const char* raw_name) {
+  // Some games try to load relative to launch module, others specify full path.
+  std::string name = xe::find_name_from_path(raw_name);
+  std::string path(raw_name);
+  if (name == raw_name) {
+    path = xe::join_paths(xe::find_base_path(executable_module_->path()), name);
+  }
 
-  // See if we've already loaded it
-  for (XUserModule *module : user_modules_) {
-    if (module->name() == name) {
-      module->Retain();
-      return module;
+  XUserModule* module = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(object_mutex_);
+
+    // See if we've already loaded it
+    for (XUserModule* existing_module : user_modules_) {
+      if (existing_module->path() == path) {
+        existing_module->Retain();
+        return existing_module;
+      }
     }
+
+    // Module wasn't loaded, so load it.
+    module = new XUserModule(this, path.c_str());
+    X_STATUS status = module->LoadFromFile(path);
+    if (XFAILED(status)) {
+      module->Release();
+      return nullptr;
+    }
+
+    user_modules_.push_back(module);
+    module->Retain();
   }
 
-  // Module wasn't loaded, so load it.
-  XUserModule *module = new XUserModule(this, name);
-  X_STATUS status = module->LoadFromFile(name);
-  if (XFAILED(status)) {
-    module->Release();
-    return nullptr;
+  module->Dump();
+
+  auto xex_header = module->xex_header();
+  if (xex_header->exe_entry_point) {
+    // Call DllMain(DLL_PROCESS_ATTACH):
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
+    uint64_t args[] = {
+        module->handle(),
+        1,  // DLL_PROCESS_ATTACH
+        0,  // 0 because always dynamic
+    };
+    auto thread_state = XThread::GetCurrentThread()->thread_state();
+    processor()->Execute(thread_state, xex_header->exe_entry_point, args,
+                         xe::countof(args));
   }
 
-  user_modules_.push_back(module);
-  module->Retain();
   return module;
 }
 
@@ -181,6 +212,52 @@ void KernelState::UnregisterThread(XThread* thread) {
   auto it = threads_by_id_.find(thread->thread_id());
   if (it != threads_by_id_.end()) {
     threads_by_id_.erase(it);
+  }
+}
+
+void KernelState::OnThreadExecute(XThread* thread) {
+  std::lock_guard<std::mutex> lock(object_mutex_);
+
+  // Must be called on executing thread.
+  assert_true(XThread::GetCurrentThread() == thread);
+
+  // Call DllMain(DLL_THREAD_ATTACH) for each user module:
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
+  auto thread_state = thread->thread_state();
+  for (auto user_module : user_modules_) {
+    auto xex_header = user_module->xex_header();
+    if (xex_header->exe_entry_point) {
+      uint64_t args[] = {
+          user_module->handle(),
+          2,  // DLL_THREAD_ATTACH
+          0,  // 0 because always dynamic
+      };
+      processor()->Execute(thread_state, xex_header->exe_entry_point, args,
+                           xe::countof(args));
+    }
+  }
+}
+
+void KernelState::OnThreadExit(XThread* thread) {
+  std::lock_guard<std::mutex> lock(object_mutex_);
+
+  // Must be called on executing thread.
+  assert_true(XThread::GetCurrentThread() == thread);
+
+  // Call DllMain(DLL_THREAD_DETACH) for each user module:
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
+  auto thread_state = thread->thread_state();
+  for (auto user_module : user_modules_) {
+    auto xex_header = user_module->xex_header();
+    if (xex_header->exe_entry_point) {
+      uint64_t args[] = {
+          user_module->handle(),
+          3,  // DLL_THREAD_DETACH
+          0,  // 0 because always dynamic
+      };
+      processor()->Execute(thread_state, xex_header->exe_entry_point, args,
+                           xe::countof(args));
+    }
   }
 }
 

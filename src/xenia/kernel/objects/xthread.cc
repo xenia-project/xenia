@@ -109,10 +109,6 @@ uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
   return xe::load_and_swap<uint32_t>(thread_state_block + 0x14C);
 }
 
-uint32_t XThread::thread_state() { return thread_state_address_; }
-
-uint32_t XThread::thread_id() { return thread_id_; }
-
 uint32_t XThread::last_error() {
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   return xe::load_and_swap<uint32_t>(p + 0x160);
@@ -326,6 +322,9 @@ void XThread::Execute() {
               thread_id_, handle(), name_.c_str(),
               xe::threading::current_thread_id());
 
+  // Let the kernel know we are starting.
+  kernel_state()->OnThreadExecute(this);
+
   // All threads get a mandatory sleep. This is to deal with some buggy
   // games that are assuming the 360 is so slow to create threads that they
   // have time to initialize shared structures AFTER CreateThread (RR).
@@ -349,6 +348,9 @@ void XThread::Execute() {
     // Treat the return code as an implicit exit code.
     Exit(exit_code);
   }
+
+  // Let the kernel know we are exiting.
+  kernel_state()->OnThreadExit(this);
 }
 
 void XThread::EnterCriticalRegion() {

@@ -34,7 +34,7 @@ const xe_xex2_header_t* XUserModule::xex_header() {
   return xe_xex2_get_header(xex_);
 }
 
-X_STATUS XUserModule::LoadFromFile(const char* path) {
+X_STATUS XUserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   XFile* file = NULL;
 
@@ -42,7 +42,7 @@ X_STATUS XUserModule::LoadFromFile(const char* path) {
   // TODO(benvanik): make this code shared?
   auto fs_entry = kernel_state()->file_system()->ResolvePath(path);
   if (!fs_entry) {
-    XELOGE("File not found: %s", path);
+    XELOGE("File not found: %s", path.c_str());
     return X_STATUS_NO_SUCH_FILE;
   }
 

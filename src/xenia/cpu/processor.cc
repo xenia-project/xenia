@@ -325,15 +325,18 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   PPCContext* context = thread_state->context();
 
+  // Setup registers.
+  uint64_t previous_lr = context->lr;
   // This could be set to anything to give us a unique identifier to track
   // re-entrancy/etc.
-  uint32_t lr = 0xBEBEBEBE;
-
-  // Setup registers.
-  context->lr = lr;
+  context->lr = 0xBEBEBEBE;
 
   // Execute the function.
-  return fn->Call(thread_state, lr);
+  auto result = fn->Call(thread_state, uint32_t(context->lr));
+
+  context->lr = previous_lr;
+
+  return result;
 }
 
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,

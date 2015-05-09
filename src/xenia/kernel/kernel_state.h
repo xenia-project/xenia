@@ -73,6 +73,8 @@ class KernelState {
 
   void RegisterThread(XThread* thread);
   void UnregisterThread(XThread* thread);
+  void OnThreadExecute(XThread* thread);
+  void OnThreadExit(XThread* thread);
   XThread* GetThreadByID(uint32_t thread_id);
 
   void RegisterNotifyListener(XNotifyListener* listener);
