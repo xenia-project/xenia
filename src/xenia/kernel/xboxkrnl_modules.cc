@@ -231,8 +231,17 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
       // If the module has an entry point function, we have to call it.
       const xe_xex2_header_t* header = usermod->xex_header();
       if (header->exe_entry_point) {
+        // Return address
+        uint32_t lr = ppc_state->thread_state->context()->lr;
+
+        // TODO: What are these args for?
+        // param 2: val 1 seems to make CRT initialize
+        uint64_t args[] = { 0, 1, 0 };
         state->processor()->Execute(ppc_state->thread_state,
-                                    header->exe_entry_point);
+                                    header->exe_entry_point,
+                                    args, xe::countof(args));
+
+        ppc_state->thread_state->context()->lr = lr;
       }
 
       result = X_STATUS_SUCCESS;
