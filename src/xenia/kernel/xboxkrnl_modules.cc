@@ -15,6 +15,8 @@
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
+#include "xenia/cpu/processor.h"
+
 namespace xe {
 namespace kernel {
 
@@ -226,6 +228,13 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
   } else {
     XUserModule* usermod = state->LoadUserModule(module_name);
     if (usermod) {
+      // If the module has an entry point function, we have to call it.
+      const xe_xex2_header_t* header = usermod->xex_header();
+      if (header->exe_entry_point) {
+        state->processor()->Execute(ppc_state->thread_state,
+                                    header->exe_entry_point);
+      }
+
       result = X_STATUS_SUCCESS;
 
       usermod->RetainHandle();
