@@ -19,20 +19,22 @@
 namespace xe {
 namespace ui {
 
-class Window;
-
 class MenuItem {
  public:
   typedef std::unique_ptr<MenuItem, void (*)(MenuItem*)> MenuItemPtr;
 
   enum class Type {
-    kNormal,
+    kPopup, // Popup menu (submenu)
     kSeparator,
+    kNormal, // Root menu
+    kString, // Menu is just a string
   };
 
   virtual ~MenuItem();
 
   MenuItem* parent_item() const { return parent_item_; }
+  Type type() { return type_; }
+  const std::wstring &text() { return text_; }
 
   void AddChild(MenuItem* child_item);
   void AddChild(std::unique_ptr<MenuItem> child_item);
@@ -43,16 +45,17 @@ class MenuItem {
 
  protected:
   MenuItem(Type type);
+  MenuItem(Type type, const std::wstring &text);
 
   virtual void OnChildAdded(MenuItem* child_item) {}
   virtual void OnChildRemoved(MenuItem* child_item) {}
 
   virtual void OnSelected(UIEvent& e);
 
- private:
   Type type_;
   MenuItem* parent_item_;
   std::vector<MenuItemPtr> children_;
+  std::wstring text_; // Text associated with this item (typically the title)
 };
 
 }  // namespace ui
