@@ -71,7 +71,8 @@ class Debugger {
   void StopSession();
   void FlushSession();
 
-  uint8_t* AllocateTraceFunctionData(size_t size);
+  uint8_t* AllocateFunctionData(size_t size);
+  uint8_t* AllocateFunctionTraceData(size_t size);
 
   int SuspendAllThreads(uint32_t timeout_ms = UINT_MAX);
   int ResumeThread(uint32_t thread_id);
@@ -100,7 +101,8 @@ class Debugger {
  private:
   cpu::Processor* processor_;
 
-  std::unique_ptr<ChunkedMappedMemoryWriter> trace_functions_;
+  std::unique_ptr<ChunkedMappedMemoryWriter> functions_file_;
+  std::unique_ptr<ChunkedMappedMemoryWriter> functions_trace_file_;
 
   std::mutex threads_lock_;
   std::unordered_map<uint32_t, cpu::ThreadState*> threads_;

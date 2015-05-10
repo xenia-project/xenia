@@ -13,6 +13,7 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
+#include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/processor.h"
@@ -79,6 +80,14 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
     DumpMachineCode(debug_info.get(), machine_code, code_size, &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
+  }
+
+  // Dump debug data.
+  //auto fn_data = backend_->processor()->debugger()->
+  if (FLAGS_disassemble_functions) {
+    if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmSource) {
+      //
+    }
   }
 
   {

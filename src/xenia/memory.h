@@ -16,7 +16,6 @@
 
 #include "xenia/base/platform.h"
 #include "xenia/cpu/mmio_handler.h"
-#include "xenia/memory.h"
 
 namespace xe {
 

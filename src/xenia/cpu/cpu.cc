@@ -35,6 +35,8 @@ DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
 DEFINE_bool(
     always_disasm, false,
     "Always add debug info to functions, even when no debugger is attached.");
+DEFINE_bool(disassemble_functions, false,
+            "Disassemble functions during generation.");
 
 DEFINE_bool(trace_functions, false,
             "Generate tracing for function statistics.");

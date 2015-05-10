@@ -3,7 +3,7 @@ REM Copyright 2015 Ben Vanik. All Rights Reserved.
 
 SET DIR=%~dp0
 
-SET XENIA_SLN=build\xenia\xenia.sln
+SET XENIA_SLN=xenia.sln
 
 REM ============================================================================
 REM Environment Validation
@@ -83,16 +83,16 @@ ECHO.
 ECHO   xb pull [--rebase]
 ECHO     Fetches latest changes from github and rebuilds dependencies.
 ECHO.
-ECHO   xb gyp
-ECHO     Creates/updates xenia.sln and project files. Use after changing gypi.
+ECHO   xb proto
+ECHO     Regenerates protocol files (*.fbs).
 ECHO.
 ECHO   xb edit
 ECHO     Opens Visual Studio with `xenia.sln`.
 ECHO.
-ECHO   xb build [--debug OR --release] [--force]
+ECHO   xb build [--checked OR --debug OR --release] [--force]
 ECHO     Initializes dependencies and prepares build environment.
 ECHO.
-ECHO   xb test [--debug OR --release] [--continue]
+ECHO   xb test [--checked OR --debug OR --release] [--continue]
 ECHO     Runs automated tests. Tests must have been built with `xb build`.
 ECHO.
 ECHO   xb clean
@@ -124,16 +124,6 @@ git submodule update --init
 IF %ERRORLEVEL% NEQ 0 (
   ECHO.
   ECHO ERROR: failed to initialize git submodules
-  ENDLOCAL & SET _RESULT=1
-  GOTO :eof
-)
-
-ECHO.
-ECHO ^> generating projects...
-CALL :generate_projects
-IF %_RESULT% NEQ 0 (
-  ECHO.
-  ECHO ERROR: failed to generate projects
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
@@ -193,36 +183,20 @@ IF %ERRORLEVEL% NEQ 0 (
   GOTO :eof
 )
 
-ECHO.
-ECHO ^> generating projects...
-CALL :generate_projects
-IF %_RESULT% NEQ 0 (
-  ECHO.
-  ECHO ERROR: failed to generate projects
-  ENDLOCAL & SET _RESULT=1
-  GOTO :eof
-)
-
 ENDLOCAL & SET _RESULT=0
 GOTO :eof
 
 
 REM ============================================================================
-REM xb gyp
+REM xb proto
 REM ============================================================================
-:perform_gyp
+:perform_proto
 SETLOCAL
-ECHO Generating projects...
+ECHO Generating proto files...
 
 ECHO.
-ECHO ^> generating projects...
-CALL :generate_projects
-IF %_RESULT% NEQ 0 (
-  ECHO.
-  ECHO ERROR: failed to generate projects
-  ENDLOCAL & SET _RESULT=1
-  GOTO :eof
-)
+ECHO ^> running flatc...
+REM foo
 
 ENDLOCAL & SET _RESULT=0
 GOTO :eof
@@ -234,16 +208,6 @@ REM ============================================================================
 :perform_edit
 SETLOCAL
 ECHO Launching Visual Studio...
-
-ECHO.
-ECHO ^> generating projects...
-CALL :generate_projects
-IF %_RESULT% NEQ 0 (
-  ECHO.
-  ECHO ERROR: failed to generate projects
-  ENDLOCAL & SET _RESULT=1
-  GOTO :eof
-)
 
 ECHO.
 ECHO ^> devenv %XENIA_SLN%
@@ -264,6 +228,7 @@ SHIFT
 :perform_build_args
 IF "%~1"=="" GOTO :perform_build_parsed
 IF "%~1"=="--" GOTO :perform_build_parsed
+IF "%~1"=="--checked" (SET CONFIG="checked")
 IF "%~1"=="--debug" (SET CONFIG="debug")
 IF "%~1"=="--release" (SET CONFIG="release")
 IF "%~1"=="--force" (SET FORCE=1)
@@ -271,16 +236,6 @@ SHIFT
 GOTO :perform_build_args
 :perform_build_parsed
 ECHO Building for config %CONFIG%...
-
-ECHO.
-ECHO ^> generating projects...
-CALL :generate_projects
-IF %_RESULT% NEQ 0 (
-  ECHO.
-  ECHO ERROR: failed to generate projects
-  ENDLOCAL & SET _RESULT=1
-  GOTO :eof
-)
 
 IF %FORCE% EQU 1 (
   SET DEVENV_COMMAND=/rebuild
@@ -314,6 +269,7 @@ SHIFT
 :perform_test_args
 IF "%~1"=="" GOTO :perform_test_parsed
 IF "%~1"=="--" GOTO :perform_test_parsed
+IF "%~1"=="--checked" (SET CONFIG="checked")
 IF "%~1"=="--debug" (SET CONFIG="debug")
 IF "%~1"=="--release" (SET CONFIG="release")
 IF "%~1"=="--continue" (SET CONTINUE=1)
@@ -324,7 +280,7 @@ ECHO Running automated testing for config %CONFIG%...
 
 SET TEST_NAMES=xe-cpu-hir-test xe-cpu-ppc-test
 FOR %%G IN (%TEST_NAMES%) DO (
-  IF NOT EXIST build\xenia\%CONFIG%\%%G.exe (
+  IF NOT EXIST build\bin\%CONFIG%\%%G.exe (
     ECHO.
     ECHO ERROR: unable to find `%%G.exe` - ensure it is built.
     ENDLOCAL & SET _RESULT=1
@@ -335,8 +291,8 @@ FOR %%G IN (%TEST_NAMES%) DO (
 SET ANY_FAILED=0
 FOR %%G IN (%TEST_NAMES%) DO (
   ECHO.
-  ECHO ^> build\xenia\%CONFIG%\%%G.exe
-  build\xenia\%CONFIG%\%%G.exe
+  ECHO ^> build\bin\%CONFIG%\%%G.exe
+  build\bin\%CONFIG%\%%G.exe
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_FAILED=1
     IF %CONTINUE% EQU 0 (
@@ -369,7 +325,7 @@ SETLOCAL
 ECHO Cleaning normal build outputs...
 ECHO (use nuke to kill all artifacts)
 
-SET CONFIG_NAMES=Debug Release
+SET CONFIG_NAMES=Checked Debug Release
 FOR %%G IN (%CONFIG_NAMES%) DO (
   ECHO.
   ECHO ^> devenv %XENIA_SLN% /clean %%G
@@ -535,9 +491,4 @@ IF "%VS150COMNTOOLS%" NEQ "" (
     SET _RESULT=0
   )
 )
-GOTO :eof
-
-:generate_projects
-CALL third_party\gyp\gyp.bat -f msvs -G output_dir=. --depth=. --toplevel-dir=. --generator-output=build/xenia/ -G msvs_version=2015 -D windows_sdk_dir="C:\Program Files (x86)\Windows Kits\8.1" xenia.gyp
-SET _RESULT=%ERRORLEVEL%
 GOTO :eof

@@ -39,6 +39,8 @@ tmtags
 # VS
 .vs
 *.user
+*.sdf
+*.opensdf
 bin/
 obj/
 
@@ -74,7 +76,8 @@ scratch/
 
 .anvil-cache
 .build-cache/
-build/
+build/bin/
+build/obj/
 build-out/
 build-gen/
 build-bin/

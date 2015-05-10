@@ -15,7 +15,7 @@
 
 #include "xenia/base/arena.h"
 #include "xenia/cpu/hir/value.h"
-#include "xenia/debug/trace_data.h"
+#include "xenia/debug/function_trace_data.h"
 
 namespace xe {
 namespace cpu {

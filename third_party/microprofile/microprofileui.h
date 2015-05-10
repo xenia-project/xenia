@@ -49,6 +49,8 @@
 #define MicroProfileSetDisplayMode(f) do{}while(0)
 #else
 
+#pragma warning(disable: 4244)  // implicit conversion from float -> int
+
 #ifndef MICROPROFILE_DRAWCURSOR
 #define MICROPROFILE_DRAWCURSOR 0
 #endif

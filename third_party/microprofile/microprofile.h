@@ -1666,7 +1666,7 @@ uint32_t MicroProfileWebServerPort()
 
 void MicroProfileDumpHtml(const char* pFile)
 {
-	uint32_t nLen = strlen(pFile);
+	uint32_t nLen = uint32_t(strlen(pFile));
 	if(nLen > sizeof(S.HtmlDumpPath)-1)
 	{
 		return;
@@ -1914,7 +1914,7 @@ static uint64_t g_nMicroProfileDataSent = 0;
 void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 {
 	g_nMicroProfileDataSent += nSize;
-	send(*(MpSocket*)Handle, pData, nSize, 0);
+	send(*(MpSocket*)Handle, pData, int(nSize), 0);
 }
 
 
