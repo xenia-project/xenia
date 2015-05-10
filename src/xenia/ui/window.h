@@ -14,8 +14,8 @@
 
 #include "xenia/base/delegate.h"
 #include "xenia/ui/control.h"
-#include "xenia/ui/ui_event.h"
 #include "xenia/ui/menu_item.h"
+#include "xenia/ui/ui_event.h"
 
 namespace xe {
 namespace ui {

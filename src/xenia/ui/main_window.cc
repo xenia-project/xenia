@@ -19,7 +19,8 @@ namespace xe {
 namespace ui {
 
 MainWindow::MainWindow(Emulator* emulator)
-    : PlatformWindow(L"xenia"), emulator_(emulator),
+    : PlatformWindow(L"xenia"),
+      emulator_(emulator),
       main_menu_(MenuItem::Type::kNormal) {}
 
 MainWindow::~MainWindow() = default;
@@ -70,11 +71,12 @@ bool MainWindow::Initialize() {
   // FIXME: This code is really messy.
   auto file = std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&File");
   file->AddChild(std::make_unique<PlatformMenu>(
-                MenuItem::Type::kString, Commands::IDC_FILE_OPEN, L"&Open"));
+      MenuItem::Type::kString, Commands::IDC_FILE_OPEN, L"&Open"));
 
   main_menu_.AddChild(std::move(file));
 
-  auto debug = std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Debug");
+  auto debug =
+      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Debug");
 
   SetMenu(&main_menu_);
 
@@ -89,9 +91,7 @@ void MainWindow::OnClose() {
   exit(1);
 }
 
-void MainWindow::OnCommand(int id) {
-
-}
+void MainWindow::OnCommand(int id) {}
 
 X_STATUS MainWindow::LaunchPath(std::wstring path) {
   X_STATUS result;

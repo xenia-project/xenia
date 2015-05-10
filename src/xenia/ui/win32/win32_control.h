@@ -52,7 +52,7 @@ class Win32Control : public Control {
   void OnResize(UIEvent& e) override;
 
   static LRESULT CALLBACK
-      WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+  WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
   virtual LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
                           LPARAM lParam);
 

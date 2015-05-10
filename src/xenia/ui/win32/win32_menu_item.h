@@ -22,8 +22,8 @@ namespace win32 {
 class Win32MenuItem : public MenuItem {
  public:
   Win32MenuItem(Type type);
-  Win32MenuItem(Type type, const std::wstring &text);
-  Win32MenuItem(Type type, int id, const std::wstring &text);
+  Win32MenuItem(Type type, const std::wstring& text);
+  Win32MenuItem(Type type, int id, const std::wstring& text);
   ~Win32MenuItem() override;
 
   HMENU handle() { return handle_; }
@@ -34,9 +34,8 @@ class Win32MenuItem : public MenuItem {
   void OnChildRemoved(MenuItem* child_item) override;
 
  private:
-
   HMENU handle_;
-  uint32_t position_; // Position within parent, if any
+  uint32_t position_;  // Position within parent, if any
   int id_;
 };
 

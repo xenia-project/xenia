@@ -203,10 +203,8 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
              TABLET_DISABLE_TOUCHUIFORCEON | TABLET_ENABLE_MULTITOUCHDATA;
 
     case WM_COMMAND: {
-        OnCommand(LOWORD(wParam));
-        break;
-      }
-      break;
+      OnCommand(LOWORD(wParam));
+    } break;
   }
 
   return Win32Control::WndProc(hWnd, message, wParam, lParam);

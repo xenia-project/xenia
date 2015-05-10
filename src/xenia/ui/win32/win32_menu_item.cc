@@ -27,8 +27,7 @@ Win32MenuItem::Win32MenuItem(Type type, int id, const std::wstring& text)
   }
 }
 
-Win32MenuItem::Win32MenuItem(Type type)
-    : Win32MenuItem(type, 0, L"") {}
+Win32MenuItem::Win32MenuItem(Type type) : Win32MenuItem(type, 0, L"") {}
 
 Win32MenuItem::Win32MenuItem(Type type, const std::wstring& text)
     : Win32MenuItem(type, 0, text) {}
@@ -44,8 +43,9 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
 
   switch (child_item->type()) {
     case MenuItem::Type::kPopup:
-      AppendMenuW(handle_, MF_POPUP, (UINT)child_item->handle(),
-                 child_item->text().c_str());
+      AppendMenuW(handle_, MF_POPUP,
+                  reinterpret_cast<UINT_PTR>(child_item->handle()),
+                  child_item->text().c_str());
       break;
     case MenuItem::Type::kSeparator:
       AppendMenuW(handle_, MF_SEPARATOR, child_item->id(), 0);

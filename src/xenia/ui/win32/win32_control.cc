@@ -182,7 +182,7 @@ LRESULT CALLBACK Win32Control::WndProcThunk(HWND hWnd, UINT message,
   if (message == WM_NCCREATE) {
     auto create_struct = reinterpret_cast<LPCREATESTRUCT>(lParam);
     control = reinterpret_cast<Win32Control*>(create_struct->lpCreateParams);
-    SetWindowLongPtr(hWnd, GWLP_USERDATA, (__int3264)(LONG_PTR) control);
+    SetWindowLongPtr(hWnd, GWLP_USERDATA, (__int3264)(LONG_PTR)control);
   } else {
     control =
         reinterpret_cast<Win32Control*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
