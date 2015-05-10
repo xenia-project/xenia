@@ -210,8 +210,9 @@ void RegisterAllocationPass::AdvanceUses(Instr* instr) {
     if (!usage_set) {
       break;
     }
+    std::vector<RegisterUsage> to_add;
     auto& upcoming_uses = usage_set->upcoming_uses;
-    for (auto it = upcoming_uses.begin(); it != upcoming_uses.end();) {
+    for (auto& it = upcoming_uses.begin(); it != upcoming_uses.end();) {
       if (!it->use) {
         // No uses at all - we can remove right away.
         // This comes up from instructions where the dest is never used,
@@ -243,8 +244,11 @@ void RegisterAllocationPass::AdvanceUses(Instr* instr) {
         it = upcoming_uses.erase(it);
         assert_true(next_use->instr->block == instr->block);
         assert_true(value->def->block == instr->block);
-        upcoming_uses.emplace_back(value, next_use);
+        to_add.emplace_back(value, next_use);
       }
+    }
+    for (auto& use : to_add) {
+      upcoming_uses.emplace_back(use);
     }
   }
   DumpUsage("AdvanceUses");

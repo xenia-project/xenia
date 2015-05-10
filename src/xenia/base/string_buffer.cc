@@ -47,17 +47,19 @@ void StringBuffer::AppendVarargs(const char* format, va_list args) {
   int length = vsnprintf(nullptr, 0, format, args);
   auto offset = buffer_.size();
   Grow(length + 1);
-  buffer_.resize(buffer_.size() + length);
+  buffer_.resize(buffer_.size() + length + 1);
   vsnprintf(buffer_.data() + offset, buffer_.capacity(), format, args);
-  buffer_[buffer_.size()] = 0;
+  buffer_[buffer_.size() - 1] = 0;
+  buffer_.resize(buffer_.size() - 1);
 }
 
 void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
   auto offset = buffer_.size();
   Grow(length + 1);
-  buffer_.resize(buffer_.size() + length);
+  buffer_.resize(buffer_.size() + length + 1);
   memcpy(buffer_.data() + offset, buffer, length);
-  buffer_[buffer_.size()] = 0;
+  buffer_[buffer_.size() - 1] = 0;
+  buffer_.resize(buffer_.size() - 1);
 }
 
 const char* StringBuffer::GetString() const { return buffer_.data(); }

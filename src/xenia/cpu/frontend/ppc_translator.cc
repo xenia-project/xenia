@@ -134,11 +134,13 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
           symbol_info->address(), symbol_info->end_address());
     }
     uint8_t* trace_data =
-        frontend_->processor()->debugger()->AllocateTraceFunctionData(
+        frontend_->processor()->debugger()->AllocateFunctionTraceData(
             trace_data_size);
-    debug_info->trace_data().Reset(trace_data, trace_data_size,
-                                   symbol_info->address(),
-                                   symbol_info->end_address());
+    if (trace_data) {
+      debug_info->trace_data().Reset(trace_data, trace_data_size,
+                                     symbol_info->address(),
+                                     symbol_info->end_address());
+    }
   }
 
   // Stash source.

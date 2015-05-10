@@ -1,18 +1,12 @@
 [submodule "third_party/gflags"]
 	path = third_party/gflags
 	url = https://github.com/benvanik/gflags.git
-[submodule "third_party/sparsehash"]
-	path = third_party/sparsehash
-	url = https://github.com/benvanik/sparsehash.git
 [submodule "third_party/beaengine"]
 	path = third_party/beaengine
 	url = https://github.com/benvanik/beaengine.git
 [submodule "third_party/xbyak"]
 	path = third_party/xbyak
 	url = https://github.com/herumi/xbyak.git
-[submodule "third_party/gyp"]
-	path = third_party/gyp
-	url = https://chromium.googlesource.com/external/gyp
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/philsquared/Catch.git
@@ -22,3 +16,6 @@
 [submodule "third_party/dockpanelsuite"]
 	path = third_party/dockpanelsuite
 	url = https://github.com/dockpanelsuite/dockpanelsuite.git
+[submodule "third_party/flatbuffers"]
+	path = third_party/flatbuffers
+	url = https://github.com/google/flatbuffers.git

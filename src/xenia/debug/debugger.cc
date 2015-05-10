@@ -36,29 +36,44 @@ Debugger::~Debugger() = default;
 bool Debugger::StartSession() {
   std::wstring session_path = xe::to_wstring(FLAGS_debug_session_path);
 
-  std::wstring trace_functions_path =
-      xe::join_paths(session_path, L"trace.functions");
-  trace_functions_ = ChunkedMappedMemoryWriter::Open(trace_functions_path,
-                                                     32 * 1024 * 1024, true);
+  std::wstring functions_path = xe::join_paths(session_path, L"functions");
+  functions_file_ =
+      ChunkedMappedMemoryWriter::Open(functions_path, 32 * 1024 * 1024, false);
+
+  std::wstring functions_trace_path =
+      xe::join_paths(session_path, L"functions.trace");
+  functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
+      functions_trace_path, 32 * 1024 * 1024, true);
   return true;
 }
 
 void Debugger::StopSession() {
   FlushSession();
-  trace_functions_.reset();
+  functions_file_.reset();
+  functions_trace_file_.reset();
 }
 
 void Debugger::FlushSession() {
-  if (trace_functions_) {
-    trace_functions_->Flush();
+  if (functions_file_) {
+    functions_file_->Flush();
+  }
+  if (functions_trace_file_) {
+    functions_trace_file_->Flush();
   }
 }
 
-uint8_t* Debugger::AllocateTraceFunctionData(size_t size) {
-  if (!trace_functions_) {
+uint8_t* Debugger::AllocateFunctionData(size_t size) {
+  if (!functions_file_) {
     return nullptr;
   }
-  return trace_functions_->Allocate(size);
+  return functions_file_->Allocate(size);
+}
+
+uint8_t* Debugger::AllocateFunctionTraceData(size_t size) {
+  if (!functions_trace_file_) {
+    return nullptr;
+  }
+  return functions_trace_file_->Allocate(size);
 }
 
 int Debugger::SuspendAllThreads(uint32_t timeout_ms) {
