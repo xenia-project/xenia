@@ -97,6 +97,13 @@ class XbyakAllocator : public Xbyak::Allocator {
   virtual bool useProtect() const { return false; }
 };
 
+enum X64EmitterFeatureFlags {
+  kX64EmitAVX2 = 1 << 1,
+  kX64EmitFMA = 1 << 2,
+  kX64EmitLZCNT = 1 << 3,
+  kX64EmitBMI2 = 1 << 4,
+};
+
 class X64Emitter : public Xbyak::CodeGenerator {
  public:
   X64Emitter(X64Backend* backend, XbyakAllocator* allocator);
@@ -104,7 +111,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Processor* processor() const { return processor_; }
   X64Backend* backend() const { return backend_; }
-  const Xbyak::util::Cpu* cpu() const { return &cpu_; }
 
   bool Emit(hir::HIRBuilder* builder, uint32_t debug_info_flags,
             DebugInfo* debug_info, void*& out_code_address,
@@ -177,6 +183,10 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v);
   Xbyak::Address StashXmm(int index, const Xbyak::Xmm& r);
 
+  bool IsFeatureEnabled(uint32_t feature_flag) const {
+    return (feature_flags_ & feature_flag) != 0;
+  }
+
   DebugInfo* debug_info() const { return debug_info_; }
 
   size_t stack_size() const { return stack_size_; }
@@ -192,7 +202,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Backend* backend_;
   X64CodeCache* code_cache_;
   XbyakAllocator* allocator_;
-  Xbyak::util::Cpu cpu_;  // Host CPU info
+  Xbyak::util::Cpu cpu_;
+  uint32_t feature_flags_;
 
   hir::Instr* current_instr_;
 

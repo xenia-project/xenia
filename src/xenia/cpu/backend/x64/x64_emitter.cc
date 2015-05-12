@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
+#include <gflags/gflags.h>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
@@ -27,6 +29,10 @@
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/profiling.h"
+
+DEFINE_bool(
+    enable_haswell_instructions, true,
+    "Uses the AVX2/FMA/etc instructions on Haswell processors, if available.");
 
 namespace xe {
 namespace cpu {
@@ -65,11 +71,19 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator),
+      feature_flags_(0),
       current_instr_(0),
       debug_info_(nullptr),
       debug_info_flags_(0),
       source_map_count_(0),
-      stack_size_(0) {}
+      stack_size_(0) {
+  if (FLAGS_enable_haswell_instructions) {
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
+  }
+}
 
 X64Emitter::~X64Emitter() = default;
 

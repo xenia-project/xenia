@@ -3070,7 +3070,7 @@ EMITTER(MUL_I8, MATCH(I<OPCODE_MUL, I8<>, I8<>, I8<>>)) {
     // dest hi, dest low = src * edx
 
     // TODO(justin): Find a way to shorten this has call
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       // TODO(benvanik): place src2 in edx?
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
@@ -3088,17 +3088,13 @@ EMITTER(MUL_I8, MATCH(I<OPCODE_MUL, I8<>, I8<>, I8<>>)) {
     } else {
       // x86 mul instruction
       // EDX:EAX <- EAX * $1;
-      //e.DebugBreak();
-
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
-
         e.mov(e.eax, i.src1);
         e.mul(i.src2);
         e.mov(i.dest, e.eax);
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant);
-
         e.mov(e.eax, i.src2);
         e.mul(i.src1);
         e.mov(i.dest, e.eax);
@@ -3116,7 +3112,7 @@ EMITTER(MUL_I16, MATCH(I<OPCODE_MUL, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * edx
 
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       // TODO(benvanik): place src2 in edx?
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
@@ -3134,17 +3130,13 @@ EMITTER(MUL_I16, MATCH(I<OPCODE_MUL, I16<>, I16<>, I16<>>)) {
     } else {
       // x86 mul instruction
       // EDX:EAX <- EAX * REG;
-      //e.DebugBreak();
-
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
-
         e.mov(e.eax, i.src1.constant());
         e.mul(i.src2);
         e.mov(i.dest, e.eax);
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant);
-
         e.mov(e.eax, i.src2.constant());
         e.mul(i.src1);
         e.mov(i.dest, e.eax);
@@ -3163,7 +3155,7 @@ EMITTER(MUL_I32, MATCH(I<OPCODE_MUL, I32<>, I32<>, I32<>>)) {
     // dest hi, dest low = src * edx
     // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
 
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       // TODO(benvanik): place src2 in edx?
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
@@ -3181,18 +3173,13 @@ EMITTER(MUL_I32, MATCH(I<OPCODE_MUL, I32<>, I32<>, I32<>>)) {
     } else {
       // x86 mul instruction
       // EDX:EAX < EAX * REG(op1);
-      //e.DebugBreak();
-
-      // is_constant AKA not a register
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant); // can't multiply 2 constants
-
         e.mov(e.eax, i.src1.constant());
         e.mul(i.src2);
         e.mov(i.dest, e.eax);
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant); // can't multiply 2 constants
-
         e.mov(e.eax, i.src2.constant());
         e.mul(i.src1);
         e.mov(i.dest, e.eax);
@@ -3210,7 +3197,7 @@ EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * rdx
 
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
 
       // TODO(benvanik): place src2 in edx?
@@ -3230,17 +3217,13 @@ EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
     } else {
       // x86 mul instruction
       // EDX:EAX < EAX * REG(op1);
-      //e.DebugBreak();
-
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant); // can't multiply 2 constants
-
         e.mov(e.rax, i.src1.constant());
         e.mul(i.src2);
         e.mov(i.dest, e.rax);
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant); // can't multiply 2 constants
-        
         e.mov(e.rax, i.src2.constant());
         e.mul(i.src1);
         e.mov(i.dest, e.rax);
@@ -3302,24 +3285,20 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
 
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.movzx(e.edx, i.src1);
         e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
       } else {
         // x86 mul instruction
         // EDX:EAX < EAX * REG(op1);
-
-        // is_constant AKA not a register
         if (i.src1.is_constant) {
           assert_true(!i.src2.is_constant); // can't multiply 2 constants
-
           e.mov(e.eax, i.src1.constant());
           e.mul(i.src2);
           e.mov(i.dest, e.edx);
         } else if (i.src2.is_constant) {
           assert_true(!i.src1.is_constant); // can't multiply 2 constants
-
           e.mov(e.eax, i.src2.constant());
           e.mul(i.src1);
           e.mov(i.dest, e.edx);
@@ -3346,24 +3325,20 @@ EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.movzx(e.edx, i.src1);
         e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
       } else {
         // x86 mul instruction
         // EDX:EAX < EAX * REG(op1);
-
-        // is_constant AKA not a register
         if (i.src1.is_constant) {
           assert_true(!i.src2.is_constant); // can't multiply 2 constants
-
           e.mov(e.eax, i.src1.constant());
           e.mul(i.src2);
           e.mov(i.dest, e.edx);
         } else if (i.src2.is_constant) {
           assert_true(!i.src1.is_constant); // can't multiply 2 constants
-
           e.mov(e.eax, i.src2.constant());
           e.mul(i.src1);
           e.mov(i.dest, e.edx);
@@ -3390,7 +3365,7 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.mov(e.edx, i.src1);
         if (i.src2.is_constant) {
@@ -3402,17 +3377,13 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
       } else {
         // x86 mul instruction
         // EDX:EAX < EAX * REG(op1);
-
-        // is_constant AKA not a register
         if (i.src1.is_constant) {
           assert_true(!i.src2.is_constant); // can't multiply 2 constants
-
           e.mov(e.eax, i.src1.constant());
           e.mul(i.src2);
           e.mov(i.dest, e.edx);
         } else if (i.src2.is_constant) {
           assert_true(!i.src1.is_constant); // can't multiply 2 constants
-
           e.mov(e.eax, i.src2.constant());
           e.mul(i.src1);
           e.mov(i.dest, e.edx);
@@ -3439,7 +3410,7 @@ EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.mov(e.rdx, i.src1);
         if (i.src2.is_constant) {
@@ -3451,17 +3422,13 @@ EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
       } else {
         // x86 mul instruction
         // EDX:EAX < EAX * REG(op1);
-
-        // is_constant AKA not a register
         if (i.src1.is_constant) {
           assert_true(!i.src2.is_constant); // can't multiply 2 constants
-
           e.mov(e.rax, i.src1.constant());
           e.mul(i.src2);
           e.mov(i.dest, e.rdx);
         } else if (i.src2.is_constant) {
           assert_true(!i.src1.is_constant); // can't multiply 2 constants
-
           e.mov(e.rax, i.src2.constant());
           e.mul(i.src1);
           e.mov(i.dest, e.rdx);
@@ -3772,7 +3739,7 @@ EMITTER_OPCODE_TABLE(
 EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
-    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213ss(i.dest, i.src2, i.src3);
       } else {
@@ -3801,7 +3768,7 @@ EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
 EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
-    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213sd(i.dest, i.src2, i.src3);
       } else {
@@ -3830,7 +3797,7 @@ EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
 EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
-    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213ps(i.dest, i.src2, i.src3);
       } else {
@@ -3877,7 +3844,7 @@ EMITTER_OPCODE_TABLE(
 EMITTER(MUL_SUB_F32, MATCH(I<OPCODE_MUL_SUB, F32<>, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
-    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmsub213ss(i.dest, i.src2, i.src3);
       } else {
@@ -3909,7 +3876,7 @@ EMITTER(MUL_SUB_F32, MATCH(I<OPCODE_MUL_SUB, F32<>, F32<>, F32<>, F32<>>)) {
 EMITTER(MUL_SUB_F64, MATCH(I<OPCODE_MUL_SUB, F64<>, F64<>, F64<>, F64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
-    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmsub213sd(i.dest, i.src2, i.src3);
       } else {
@@ -3941,7 +3908,7 @@ EMITTER(MUL_SUB_F64, MATCH(I<OPCODE_MUL_SUB, F64<>, F64<>, F64<>, F64<>>)) {
 EMITTER(MUL_SUB_V128, MATCH(I<OPCODE_MUL_SUB, V128<>, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
-    if (e.cpu()->has(Xbyak::util::Cpu::tFMA)) {
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmsub213ps(i.dest, i.src2, i.src3);
       } else {
@@ -4458,7 +4425,7 @@ void EmitShlXX(X64Emitter& e, const ARGS& i) {
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
           // shlx: $1 = $2 << $3
           // shl: $1 = $1 << $2
-          if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
             if (dest_src.getBit() == 64) {
               e.shlx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
             } else {
@@ -4512,7 +4479,7 @@ void EmitShrXX(X64Emitter& e, const ARGS& i) {
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
           // shrx: op1 dest, op2 src, op3 count
           // shr: op1 src/dest, op2 count
-          if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
             if (dest_src.getBit() == 64) {
               e.shrx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
             } else if (dest_src.getBit() == 32) {
@@ -4594,7 +4561,7 @@ void EmitSarXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitAssociativeBinaryOp(
         e, i,
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
-          if (e.cpu()->has(Xbyak::util::Cpu::tBMI2)) {
+          if (e.IsFeatureEnabled(kX64EmitBMI2)) {
             if (dest_src.getBit() == 64) {
               e.sarx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
             } else if (dest_src.getBit() == 32) {
@@ -4730,7 +4697,7 @@ EMITTER(VECTOR_SHL_V128, MATCH(I<OPCODE_VECTOR_SHL, V128<>, V128<>, V128<>>)) {
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       if (i.src2.is_constant) {
         const auto& shamt = i.src2.constant();
         bool all_same = true;
@@ -4882,7 +4849,7 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
         e.vpsrld(i.dest, i.src1, shamt.u8[0] & 0x1F);
         return;
       } else {
-        if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+        if (e.IsFeatureEnabled(kX64EmitAVX2)) {
           // Counts differ, so pre-mask and load constant.
           vec128_t masked = i.src2.constant();
           for (size_t n = 0; n < 4; ++n) {
@@ -4894,7 +4861,7 @@ EMITTER(VECTOR_SHR_V128, MATCH(I<OPCODE_VECTOR_SHR, V128<>, V128<>, V128<>>)) {
         }
       }
     } else {
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // Fully variable shift.
         // src shift mask may have values >31, and x86 sets to zero when
         // that happens so we mask.
@@ -4983,7 +4950,7 @@ EMITTER(VECTOR_SHA_V128, MATCH(I<OPCODE_VECTOR_SHA, V128<>, V128<>, V128<>>)) {
       e.vmovaps(i.dest, e.xmm0);
       break;
     case INT32_TYPE:
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // src shift mask may have values >31, and x86 sets to zero when
         // that happens so we mask.
         if (i.src2.is_constant) {
@@ -5130,7 +5097,7 @@ EMITTER(VECTOR_ROTATE_LEFT_V128, MATCH(I<OPCODE_VECTOR_ROTATE_LEFT, V128<>, V128
       e.vmovaps(i.dest, e.xmm0);
       break;
     case INT32_TYPE: {
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         Xmm temp = i.dest;
         if (i.dest == i.src1 || i.dest == i.src2) {
           temp = e.xmm2;
@@ -5286,7 +5253,7 @@ EMITTER_OPCODE_TABLE(
 // ============================================================================
 EMITTER(CNTLZ_I8, MATCH(I<OPCODE_CNTLZ, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+    if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       // No 8bit lzcnt, so do 16 and sub 8.
       e.movzx(i.dest.reg().cvt16(), i.src1);
       e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
@@ -5317,7 +5284,7 @@ EMITTER(CNTLZ_I8, MATCH(I<OPCODE_CNTLZ, I8<>, I8<>>)) {
 };
 EMITTER(CNTLZ_I16, MATCH(I<OPCODE_CNTLZ, I8<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+    if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       // LZCNT: searches $2 until MSB 1 found, stores idx (from last bit) in $1
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
@@ -5346,7 +5313,7 @@ EMITTER(CNTLZ_I16, MATCH(I<OPCODE_CNTLZ, I8<>, I16<>>)) {
 };
 EMITTER(CNTLZ_I32, MATCH(I<OPCODE_CNTLZ, I8<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+    if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
       e.inLocalLabel();
@@ -5374,7 +5341,7 @@ EMITTER(CNTLZ_I32, MATCH(I<OPCODE_CNTLZ, I8<>, I32<>>)) {
 };
 EMITTER(CNTLZ_I64, MATCH(I<OPCODE_CNTLZ, I8<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tLZCNT)) {
+    if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       e.lzcnt(i.dest.reg().cvt64(), i.src1);
     } else {
       e.inLocalLabel();
@@ -5524,7 +5491,7 @@ EMITTER_OPCODE_TABLE(
 // Copy a value into all elements of a vector
 EMITTER(SPLAT_I8, MATCH(I<OPCODE_SPLAT, V128<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       if (i.src1.is_constant) {
         // TODO(benvanik): faster constant splats.
         e.mov(e.al, i.src1.constant());
@@ -5551,7 +5518,7 @@ EMITTER(SPLAT_I8, MATCH(I<OPCODE_SPLAT, V128<>, I8<>>)) {
 };
 EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       if (i.src1.is_constant) {
         // TODO(benvanik): faster constant splats.
         e.mov(e.ax, i.src1.constant());
@@ -5577,7 +5544,7 @@ EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
 };
 EMITTER(SPLAT_I32, MATCH(I<OPCODE_SPLAT, V128<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       if (i.src1.is_constant) {
         // TODO(benvanik): faster constant splats.
         e.mov(e.eax, i.src1.constant());
@@ -5601,7 +5568,7 @@ EMITTER(SPLAT_I32, MATCH(I<OPCODE_SPLAT, V128<>, I32<>>)) {
 };
 EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
       if (i.src1.is_constant) {
         // TODO(benvanik): faster constant splats.
         e.mov(e.eax, i.src1.value->constant.i32);
@@ -5649,7 +5616,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
           (((control >> 0) & 0x3) << 0);
 
       uint32_t blend_control = 0;
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         // Blender for vpblendd
         blend_control =
             (((control >> 26) & 0x1) << 3) |
@@ -5690,7 +5657,7 @@ EMITTER(PERMUTE_I32, MATCH(I<OPCODE_PERMUTE, V128<>, I32<>, V128<>, V128<>>)) {
         e.vpshufd(e.xmm0, e.xmm0, src_control);
       }
 
-      if (e.cpu()->has(Xbyak::util::Cpu::tAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
         e.vpblendd(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
       } else {
         e.vpblendw(i.dest, e.xmm0, blend_control); // $0 = $1 <blend> $2
