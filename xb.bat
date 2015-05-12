@@ -268,7 +268,10 @@ SET CONTINUE=0
 SHIFT
 :perform_test_args
 IF "%~1"=="" GOTO :perform_test_parsed
-IF "%~1"=="--" GOTO :perform_test_parsed
+IF "%~1"=="--" (
+  SHIFT
+  GOTO :perform_test_parsed
+)
 IF "%~1"=="--checked" (SET CONFIG="checked")
 IF "%~1"=="--debug" (SET CONFIG="debug")
 IF "%~1"=="--release" (SET CONFIG="release")
@@ -291,8 +294,8 @@ FOR %%G IN (%TEST_NAMES%) DO (
 SET ANY_FAILED=0
 FOR %%G IN (%TEST_NAMES%) DO (
   ECHO.
-  ECHO ^> build\bin\%CONFIG%\%%G.exe
-  build\bin\%CONFIG%\%%G.exe
+  ECHO ^> build\bin\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
+  build\bin\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_FAILED=1
     IF %CONTINUE% EQU 0 (
