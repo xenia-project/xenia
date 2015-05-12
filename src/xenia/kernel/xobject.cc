@@ -193,7 +193,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
   header.wait_list_blink = xe::byte_swap(header_be->wait_list_blink);
 
   if (as_type == -1) {
-    as_type = header.type_flags & 0xFF;
+    as_type = (header.type_flags >> 24) & 0xFF;
   }
 
   if (header.wait_list_blink & 0x1) {
