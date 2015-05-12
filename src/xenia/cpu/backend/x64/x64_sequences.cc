@@ -4425,7 +4425,7 @@ void EmitShlXX(X64Emitter& e, const ARGS& i) {
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
           // shlx: $1 = $2 << $3
           // shl: $1 = $1 << $2
-          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+          if (e.IsFeatureEnabled(kX64EmitBMI2)) {
             if (dest_src.getBit() == 64) {
               e.shlx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
             } else {
@@ -4479,7 +4479,7 @@ void EmitShrXX(X64Emitter& e, const ARGS& i) {
         [](X64Emitter& e, const REG& dest_src, const Reg8& src) {
           // shrx: op1 dest, op2 src, op3 count
           // shr: op1 src/dest, op2 count
-          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+          if (e.IsFeatureEnabled(kX64EmitBMI2)) {
             if (dest_src.getBit() == 64) {
               e.shrx(dest_src.cvt64(), dest_src.cvt64(), src.cvt64());
             } else if (dest_src.getBit() == 32) {
