@@ -1789,6 +1789,7 @@ Value* HIRBuilder::CountLeadingZeros(Value* value) {
     const static uint8_t zeros[] = {
         8, 16, 32, 64,
     };
+    assert_true(value->type <= INT64_TYPE);
     return LoadConstant(zeros[value->type]);
   }
 
