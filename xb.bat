@@ -294,8 +294,8 @@ FOR %%G IN (%TEST_NAMES%) DO (
 SET ANY_FAILED=0
 FOR %%G IN (%TEST_NAMES%) DO (
   ECHO.
-  ECHO ^> build\bin\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
-  build\bin\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
+  ECHO ^> build\bin\%CONFIG%\%%G.exe %*
+  build\bin\%CONFIG%\%%G.exe %*
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_FAILED=1
     IF %CONTINUE% EQU 0 (
