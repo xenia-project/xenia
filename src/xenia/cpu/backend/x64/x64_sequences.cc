@@ -3070,7 +3070,7 @@ EMITTER(MUL_I8, MATCH(I<OPCODE_MUL, I8<>, I8<>, I8<>>)) {
     // dest hi, dest low = src * edx
 
     // TODO(justin): Find a way to shorten this has call
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // TODO(benvanik): place src2 in edx?
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
@@ -3112,7 +3112,7 @@ EMITTER(MUL_I16, MATCH(I<OPCODE_MUL, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * edx
 
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // TODO(benvanik): place src2 in edx?
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
@@ -3155,7 +3155,7 @@ EMITTER(MUL_I32, MATCH(I<OPCODE_MUL, I32<>, I32<>, I32<>>)) {
     // dest hi, dest low = src * edx
     // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
 
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // TODO(benvanik): place src2 in edx?
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
@@ -3197,7 +3197,7 @@ EMITTER(MUL_I64, MATCH(I<OPCODE_MUL, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest hi, dest low = src * rdx
 
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+    if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: edx src, 1st op high half, 2nd op low half, 3rd op src2
 
       // TODO(benvanik): place src2 in edx?
@@ -3285,7 +3285,7 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
 
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.movzx(e.edx, i.src1);
         e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
@@ -3325,7 +3325,7 @@ EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.movzx(e.edx, i.src1);
         e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
@@ -3365,7 +3365,7 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.mov(e.edx, i.src1);
         if (i.src2.is_constant) {
@@ -3410,7 +3410,7 @@ EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // TODO(justin): Find a way to shorten this has call
-      if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.mov(e.rdx, i.src1);
         if (i.src2.is_constant) {
