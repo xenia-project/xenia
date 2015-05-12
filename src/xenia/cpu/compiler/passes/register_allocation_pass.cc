@@ -210,45 +210,47 @@ void RegisterAllocationPass::AdvanceUses(Instr* instr) {
     if (!usage_set) {
       break;
     }
-    std::vector<RegisterUsage> to_add;
     auto& upcoming_uses = usage_set->upcoming_uses;
-    for (auto& it = upcoming_uses.begin(); it != upcoming_uses.end();) {
-      if (!it->use) {
+    for (int i = 0; i < upcoming_uses.size();) {
+      auto& upcoming_use = upcoming_uses.at(i);
+      if (!upcoming_use.use) {
         // No uses at all - we can remove right away.
         // This comes up from instructions where the dest is never used,
         // like the ATOMIC ops.
-        MarkRegAvailable(it->value->reg);
-        it = upcoming_uses.erase(it);
+        MarkRegAvailable(upcoming_use.value->reg);
+        upcoming_uses.erase(upcoming_uses.begin() + i);
+        // i remains the same.
         continue;
       }
-      if (it->use->instr != instr) {
+      if (upcoming_use.use->instr != instr) {
         // Not yet at this instruction.
-        ++it;
+        ++i;
         continue;
       }
       // The use is from this instruction.
-      if (!it->use->next) {
+      if (!upcoming_use.use->next) {
         // Last use of the value. We can retire it now.
-        MarkRegAvailable(it->value->reg);
-        it = upcoming_uses.erase(it);
+        MarkRegAvailable(upcoming_use.value->reg);
+        upcoming_uses.erase(upcoming_uses.begin() + i);
+        // i remains the same.
+        continue;
       } else {
         // Used again. Push back the next use.
         // Note that we may be used multiple times this instruction, so
         // eat those.
-        auto next_use = it->use->next;
+        auto next_use = upcoming_use.use->next;
         while (next_use->next && next_use->instr == instr) {
           next_use = next_use->next;
         }
         // Remove the iterator.
-        auto value = it->value;
-        it = upcoming_uses.erase(it);
+        auto value = upcoming_use.value;
+        upcoming_uses.erase(upcoming_uses.begin() + i);
         assert_true(next_use->instr->block == instr->block);
         assert_true(value->def->block == instr->block);
-        to_add.emplace_back(value, next_use);
+        upcoming_uses.emplace_back(value, next_use);
+        // i remains the same.
+        continue;
       }
-    }
-    for (auto& use : to_add) {
-      upcoming_uses.emplace_back(use);
     }
   }
   DumpUsage("AdvanceUses");
