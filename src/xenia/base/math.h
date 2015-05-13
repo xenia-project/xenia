@@ -61,7 +61,8 @@ T next_pow2(T value) {
 // return value is the size of the input operand (8, 16, 32, or 64). If the most
 // significant bit of value is one, the return value is zero.
 #if XE_COMPILER_MSVC
-// TODO(benvanik): runtime magic so these point to an appropriate implementation at runtime based on CPU features
+// TODO(benvanik): runtime magic so these point to an appropriate implementation
+// at runtime based on CPU features
 #if 0
 inline uint8_t lzcnt(uint8_t v) {
   return static_cast<uint8_t>(__lzcnt16(v) - 8);
