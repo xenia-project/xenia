@@ -1,29 +1,25 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_vupkd3d128.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_vupkd3d128_d3dcolor>:
-  100000:	18 60 1f f0 	vupkd3d128 v3,v3,0
-  100004:	4e 80 00 20 	blr
+  100000:       18 60 1f f0     vupkd3d128 v3,v3,0
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_vupkd3d128_short2_0>:
-  100008:	18 64 1f f0 	vupkd3d128 v3,v3,4
-  10000c:	4e 80 00 20 	blr
+  100008:       18 64 1f f0     vupkd3d128 v3,v3,4
+  10000c:       4e 80 00 20     blr
 
 0000000000100010 <test_vupkd3d128_short2_1>:
-  100010:	18 64 1f f0 	vupkd3d128 v3,v3,4
-  100014:	4e 80 00 20 	blr
+  100010:       18 64 1f f0     vupkd3d128 v3,v3,4
+  100014:       4e 80 00 20     blr
 
 0000000000100018 <test_vupkd3d128_short2_2>:
-  100018:	18 64 1f f0 	vupkd3d128 v3,v3,4
-  10001c:	4e 80 00 20 	blr
+  100018:       18 64 1f f0     vupkd3d128 v3,v3,4
+  10001c:       4e 80 00 20     blr
 
 0000000000100020 <test_vupkd3d128_float16_2_0>:
-  100020:	18 6c 1f f0 	vupkd3d128 v3,v3,12
-  100024:	4e 80 00 20 	blr
+  100020:       18 6c 1f f0     vupkd3d128 v3,v3,12
+  100024:       4e 80 00 20     blr
 
 0000000000100028 <test_vupkd3d128_float16_4_0>:
-  100028:	18 74 1f f0 	vupkd3d128 v3,v3,20
-  10002c:	4e 80 00 20 	blr
+  100028:       18 74 1f f0     vupkd3d128 v3,v3,20
+  10002c:       4e 80 00 20     blr

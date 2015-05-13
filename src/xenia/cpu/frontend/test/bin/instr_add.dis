@@ -1,13 +1,9 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_add.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_add_1>:
-  100000:	7d 65 ca 14 	add     r11,r5,r25
-  100004:	4e 80 00 20 	blr
+  100000:       7d 65 ca 14     add     r11,r5,r25
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_add_2>:
-  100008:	7d 60 ca 14 	add     r11,r0,r25
-  10000c:	4e 80 00 20 	blr
+  100008:       7d 60 ca 14     add     r11,r0,r25
+  10000c:       4e 80 00 20     blr

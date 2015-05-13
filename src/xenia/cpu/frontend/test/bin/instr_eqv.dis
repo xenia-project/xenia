@@ -1,29 +1,25 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_eqv.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_eqv_1>:
-  100000:	7c 83 2a 38 	eqv     r3,r4,r5
-  100004:	4e 80 00 20 	blr
+  100000:       7c 83 2a 38     eqv     r3,r4,r5
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_eqv_2>:
-  100008:	7c 83 2a 38 	eqv     r3,r4,r5
-  10000c:	4e 80 00 20 	blr
+  100008:       7c 83 2a 38     eqv     r3,r4,r5
+  10000c:       4e 80 00 20     blr
 
 0000000000100010 <test_eqv_3>:
-  100010:	7c 83 2a 38 	eqv     r3,r4,r5
-  100014:	4e 80 00 20 	blr
+  100010:       7c 83 2a 38     eqv     r3,r4,r5
+  100014:       4e 80 00 20     blr
 
 0000000000100018 <test_eqv_4>:
-  100018:	7c 83 2a 38 	eqv     r3,r4,r5
-  10001c:	4e 80 00 20 	blr
+  100018:       7c 83 2a 38     eqv     r3,r4,r5
+  10001c:       4e 80 00 20     blr
 
 0000000000100020 <test_eqv_5>:
-  100020:	7c 83 2a 38 	eqv     r3,r4,r5
-  100024:	4e 80 00 20 	blr
+  100020:       7c 83 2a 38     eqv     r3,r4,r5
+  100024:       4e 80 00 20     blr
 
 0000000000100028 <test_eqv_6>:
-  100028:	7c 83 2a 38 	eqv     r3,r4,r5
-  10002c:	4e 80 00 20 	blr
+  100028:       7c 83 2a 38     eqv     r3,r4,r5
+  10002c:       4e 80 00 20     blr

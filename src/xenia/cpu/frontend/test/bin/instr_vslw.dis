@@ -1,29 +1,25 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_vslw.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_vslw_1>:
-  100000:	10 63 21 84 	vslw    v3,v3,v4
-  100004:	4e 80 00 20 	blr
+  100000:       10 63 21 84     vslw    v3,v3,v4
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_vslw_2>:
-  100008:	10 63 21 84 	vslw    v3,v3,v4
-  10000c:	4e 80 00 20 	blr
+  100008:       10 63 21 84     vslw    v3,v3,v4
+  10000c:       4e 80 00 20     blr
 
 0000000000100010 <test_vslw_3>:
-  100010:	10 63 21 84 	vslw    v3,v3,v4
-  100014:	4e 80 00 20 	blr
+  100010:       10 63 21 84     vslw    v3,v3,v4
+  100014:       4e 80 00 20     blr
 
 0000000000100018 <test_vslw_4>:
-  100018:	10 63 21 84 	vslw    v3,v3,v4
-  10001c:	4e 80 00 20 	blr
+  100018:       10 63 21 84     vslw    v3,v3,v4
+  10001c:       4e 80 00 20     blr
 
 0000000000100020 <test_vslw_5>:
-  100020:	10 63 21 84 	vslw    v3,v3,v4
-  100024:	4e 80 00 20 	blr
+  100020:       10 63 21 84     vslw    v3,v3,v4
+  100024:       4e 80 00 20     blr
 
 0000000000100028 <test_vslw_6>:
-  100028:	10 63 21 84 	vslw    v3,v3,v4
-  10002c:	4e 80 00 20 	blr
+  100028:       10 63 21 84     vslw    v3,v3,v4
+  10002c:       4e 80 00 20     blr

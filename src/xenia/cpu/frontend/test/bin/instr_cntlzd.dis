@@ -1,44 +1,40 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_cntlzd.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_cntlzd_1>:
-  100000:	7c a6 00 74 	cntlzd  r6,r5
-  100004:	4e 80 00 20 	blr
+  100000:       7c a6 00 74     cntlzd  r6,r5
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_cntlzd_1_constant>:
-  100008:	38 a0 00 00 	li      r5,0
-  10000c:	7c a6 00 74 	cntlzd  r6,r5
-  100010:	4e 80 00 20 	blr
+  100008:       38 a0 00 00     li      r5,0
+  10000c:       7c a6 00 74     cntlzd  r6,r5
+  100010:       4e 80 00 20     blr
 
 0000000000100014 <test_cntlzd_2>:
-  100014:	7c a6 00 74 	cntlzd  r6,r5
-  100018:	4e 80 00 20 	blr
+  100014:       7c a6 00 74     cntlzd  r6,r5
+  100018:       4e 80 00 20     blr
 
 000000000010001c <test_cntlzd_2_constant>:
-  10001c:	38 a0 00 01 	li      r5,1
-  100020:	7c a6 00 74 	cntlzd  r6,r5
-  100024:	4e 80 00 20 	blr
+  10001c:       38 a0 00 01     li      r5,1
+  100020:       7c a6 00 74     cntlzd  r6,r5
+  100024:       4e 80 00 20     blr
 
 0000000000100028 <test_cntlzd_3>:
-  100028:	7c a6 00 74 	cntlzd  r6,r5
-  10002c:	4e 80 00 20 	blr
+  100028:       7c a6 00 74     cntlzd  r6,r5
+  10002c:       4e 80 00 20     blr
 
 0000000000100030 <test_cntlzd_3_constant>:
-  100030:	38 a0 00 00 	li      r5,0
-  100034:	7c a5 28 f8 	not     r5,r5
-  100038:	7c a6 00 74 	cntlzd  r6,r5
-  10003c:	4e 80 00 20 	blr
+  100030:       38 a0 00 00     li      r5,0
+  100034:       7c a5 28 f8     not     r5,r5
+  100038:       7c a6 00 74     cntlzd  r6,r5
+  10003c:       4e 80 00 20     blr
 
 0000000000100040 <test_cntlzd_4>:
-  100040:	7c a6 00 74 	cntlzd  r6,r5
-  100044:	4e 80 00 20 	blr
+  100040:       7c a6 00 74     cntlzd  r6,r5
+  100044:       4e 80 00 20     blr
 
 0000000000100048 <test_cntlzd_4_constant>:
-  100048:	38 a0 00 00 	li      r5,0
-  10004c:	7c a5 28 f8 	not     r5,r5
-  100050:	78 a5 f8 42 	rldicl  r5,r5,63,1
-  100054:	7c a6 00 74 	cntlzd  r6,r5
-  100058:	4e 80 00 20 	blr
+  100048:       38 a0 00 00     li      r5,0
+  10004c:       7c a5 28 f8     not     r5,r5
+  100050:       78 a5 f8 42     rldicl  r5,r5,63,1
+  100054:       7c a6 00 74     cntlzd  r6,r5
+  100058:       4e 80 00 20     blr

@@ -1,37 +1,33 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_mulld.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_mulld_1>:
-  100000:	7c 64 29 d2 	mulld   r3,r4,r5
-  100004:	4e 80 00 20 	blr
+  100000:       7c 64 29 d2     mulld   r3,r4,r5
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_mulld_2>:
-  100008:	7c 64 29 d2 	mulld   r3,r4,r5
-  10000c:	4e 80 00 20 	blr
+  100008:       7c 64 29 d2     mulld   r3,r4,r5
+  10000c:       4e 80 00 20     blr
 
 0000000000100010 <test_mulld_3>:
-  100010:	7c 64 29 d2 	mulld   r3,r4,r5
-  100014:	4e 80 00 20 	blr
+  100010:       7c 64 29 d2     mulld   r3,r4,r5
+  100014:       4e 80 00 20     blr
 
 0000000000100018 <test_mulld_4>:
-  100018:	7c 64 29 d2 	mulld   r3,r4,r5
-  10001c:	4e 80 00 20 	blr
+  100018:       7c 64 29 d2     mulld   r3,r4,r5
+  10001c:       4e 80 00 20     blr
 
 0000000000100020 <test_mulld_5>:
-  100020:	7c 64 29 d2 	mulld   r3,r4,r5
-  100024:	4e 80 00 20 	blr
+  100020:       7c 64 29 d2     mulld   r3,r4,r5
+  100024:       4e 80 00 20     blr
 
 0000000000100028 <test_mulld_6>:
-  100028:	7c 64 29 d2 	mulld   r3,r4,r5
-  10002c:	4e 80 00 20 	blr
+  100028:       7c 64 29 d2     mulld   r3,r4,r5
+  10002c:       4e 80 00 20     blr
 
 0000000000100030 <test_mulld_7>:
-  100030:	7c 64 29 d2 	mulld   r3,r4,r5
-  100034:	4e 80 00 20 	blr
+  100030:       7c 64 29 d2     mulld   r3,r4,r5
+  100034:       4e 80 00 20     blr
 
 0000000000100038 <test_mulld_8>:
-  100038:	7c 64 29 d2 	mulld   r3,r4,r5
-  10003c:	4e 80 00 20 	blr
+  100038:       7c 64 29 d2     mulld   r3,r4,r5
+  10003c:       4e 80 00 20     blr

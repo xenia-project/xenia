@@ -1,45 +1,41 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_cntlzw.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_cntlzw_1>:
-  100000:	7c a6 00 34 	cntlzw  r6,r5
-  100004:	4e 80 00 20 	blr
+  100000:       7c a6 00 34     cntlzw  r6,r5
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_cntlzw_1_constant>:
-  100008:	38 a0 00 00 	li      r5,0
-  10000c:	7c a6 00 34 	cntlzw  r6,r5
-  100010:	4e 80 00 20 	blr
+  100008:       38 a0 00 00     li      r5,0
+  10000c:       7c a6 00 34     cntlzw  r6,r5
+  100010:       4e 80 00 20     blr
 
 0000000000100014 <test_cntlzw_2>:
-  100014:	7c a6 00 34 	cntlzw  r6,r5
-  100018:	4e 80 00 20 	blr
+  100014:       7c a6 00 34     cntlzw  r6,r5
+  100018:       4e 80 00 20     blr
 
 000000000010001c <test_cntlzw_2_constant>:
-  10001c:	38 a0 00 01 	li      r5,1
-  100020:	7c a6 00 34 	cntlzw  r6,r5
-  100024:	4e 80 00 20 	blr
+  10001c:       38 a0 00 01     li      r5,1
+  100020:       7c a6 00 34     cntlzw  r6,r5
+  100024:       4e 80 00 20     blr
 
 0000000000100028 <test_cntlzw_3>:
-  100028:	7c a6 00 34 	cntlzw  r6,r5
-  10002c:	4e 80 00 20 	blr
+  100028:       7c a6 00 34     cntlzw  r6,r5
+  10002c:       4e 80 00 20     blr
 
 0000000000100030 <test_cntlzw_3_constant>:
-  100030:	38 a0 00 00 	li      r5,0
-  100034:	7c a5 28 f8 	not     r5,r5
-  100038:	54 a5 00 3e 	rotlwi  r5,r5,0
-  10003c:	7c a6 00 34 	cntlzw  r6,r5
-  100040:	4e 80 00 20 	blr
+  100030:       38 a0 00 00     li      r5,0
+  100034:       7c a5 28 f8     not     r5,r5
+  100038:       54 a5 00 3e     rotlwi  r5,r5,0
+  10003c:       7c a6 00 34     cntlzw  r6,r5
+  100040:       4e 80 00 20     blr
 
 0000000000100044 <test_cntlzw_4>:
-  100044:	7c a6 00 34 	cntlzw  r6,r5
-  100048:	4e 80 00 20 	blr
+  100044:       7c a6 00 34     cntlzw  r6,r5
+  100048:       4e 80 00 20     blr
 
 000000000010004c <test_cntlzw_4_constant>:
-  10004c:	38 a0 00 00 	li      r5,0
-  100050:	7c a5 28 f8 	not     r5,r5
-  100054:	54 a5 f8 7e 	rlwinm  r5,r5,31,1,31
-  100058:	7c a6 00 34 	cntlzw  r6,r5
-  10005c:	4e 80 00 20 	blr
+  10004c:       38 a0 00 00     li      r5,0
+  100050:       7c a5 28 f8     not     r5,r5
+  100054:       54 a5 f8 7e     rlwinm  r5,r5,31,1,31
+  100058:       7c a6 00 34     cntlzw  r6,r5
+  10005c:       4e 80 00 20     blr

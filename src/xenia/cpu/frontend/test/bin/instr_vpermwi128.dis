@@ -1,21 +1,17 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_vpermwi128.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_vpermwi128_1>:
-  100000:	18 9b 1a 10 	vpermwi128 v4,v3,27
-  100004:	4e 80 00 20 	blr
+  100000:       18 9b 1a 10     vpermwi128 v4,v3,27
+  100004:       4e 80 00 20     blr
 
 0000000000100008 <test_vpermwi128_2>:
-  100008:	18 84 1b d0 	vpermwi128 v4,v3,228
-  10000c:	4e 80 00 20 	blr
+  100008:       18 84 1b d0     vpermwi128 v4,v3,228
+  10000c:       4e 80 00 20     blr
 
 0000000000100010 <test_vpermwi128_3>:
-  100010:	18 80 1a 10 	vpermwi128 v4,v3,0
-  100014:	4e 80 00 20 	blr
+  100010:       18 80 1a 10     vpermwi128 v4,v3,0
+  100014:       4e 80 00 20     blr
 
 0000000000100018 <test_vpermwi128_4>:
-  100018:	18 9f 1b d0 	vpermwi128 v4,v3,255
-  10001c:	4e 80 00 20 	blr
+  100018:       18 9f 1b d0     vpermwi128 v4,v3,255
+  10001c:       4e 80 00 20     blr

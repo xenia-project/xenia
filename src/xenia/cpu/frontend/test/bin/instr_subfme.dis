@@ -1,65 +1,61 @@
-
-/vagrant/src/xenia/cpu/frontend/test/bin//instr_subfme.o:     file format elf64-powerpc
-
-
 Disassembly of section .text:
 
 0000000000100000 <test_subfme_one_ca_1>:
-  100000:	7c 63 1a 78 	xor     r3,r3,r3
-  100004:	7c 63 18 f8 	not     r3,r3
-  100008:	30 63 00 01 	addic   r3,r3,1
-  10000c:	7c 6a 01 d0 	subfme  r3,r10
-  100010:	7c 80 01 14 	adde    r4,r0,r0
-  100014:	4e 80 00 20 	blr
+  100000:       7c 63 1a 78     xor     r3,r3,r3
+  100004:       7c 63 18 f8     not     r3,r3
+  100008:       30 63 00 01     addic   r3,r3,1
+  10000c:       7c 6a 01 d0     subfme  r3,r10
+  100010:       7c 80 01 14     adde    r4,r0,r0
+  100014:       4e 80 00 20     blr
 
 0000000000100018 <test_subfme_one_ca_2>:
-  100018:	7c 63 1a 78 	xor     r3,r3,r3
-  10001c:	7c 63 18 f8 	not     r3,r3
-  100020:	30 63 00 01 	addic   r3,r3,1
-  100024:	7c 6a 01 d0 	subfme  r3,r10
-  100028:	7c 80 01 14 	adde    r4,r0,r0
-  10002c:	4e 80 00 20 	blr
+  100018:       7c 63 1a 78     xor     r3,r3,r3
+  10001c:       7c 63 18 f8     not     r3,r3
+  100020:       30 63 00 01     addic   r3,r3,1
+  100024:       7c 6a 01 d0     subfme  r3,r10
+  100028:       7c 80 01 14     adde    r4,r0,r0
+  10002c:       4e 80 00 20     blr
 
 0000000000100030 <test_subfme_one_ca_3>:
-  100030:	7c 63 1a 78 	xor     r3,r3,r3
-  100034:	7c 63 18 f8 	not     r3,r3
-  100038:	30 63 00 01 	addic   r3,r3,1
-  10003c:	7c 6a 01 d0 	subfme  r3,r10
-  100040:	7c 80 01 14 	adde    r4,r0,r0
-  100044:	4e 80 00 20 	blr
+  100030:       7c 63 1a 78     xor     r3,r3,r3
+  100034:       7c 63 18 f8     not     r3,r3
+  100038:       30 63 00 01     addic   r3,r3,1
+  10003c:       7c 6a 01 d0     subfme  r3,r10
+  100040:       7c 80 01 14     adde    r4,r0,r0
+  100044:       4e 80 00 20     blr
 
 0000000000100048 <test_subfme_one_ca_4>:
-  100048:	7c 63 1a 78 	xor     r3,r3,r3
-  10004c:	7c 63 18 f8 	not     r3,r3
-  100050:	30 63 00 01 	addic   r3,r3,1
-  100054:	7c 6a 01 d0 	subfme  r3,r10
-  100058:	7c 80 01 14 	adde    r4,r0,r0
-  10005c:	4e 80 00 20 	blr
+  100048:       7c 63 1a 78     xor     r3,r3,r3
+  10004c:       7c 63 18 f8     not     r3,r3
+  100050:       30 63 00 01     addic   r3,r3,1
+  100054:       7c 6a 01 d0     subfme  r3,r10
+  100058:       7c 80 01 14     adde    r4,r0,r0
+  10005c:       4e 80 00 20     blr
 
 0000000000100060 <test_subfme_zero_ca_1>:
-  100060:	7c 63 1a 78 	xor     r3,r3,r3
-  100064:	30 63 00 01 	addic   r3,r3,1
-  100068:	7c 6a 01 d0 	subfme  r3,r10
-  10006c:	7c 80 01 14 	adde    r4,r0,r0
-  100070:	4e 80 00 20 	blr
+  100060:       7c 63 1a 78     xor     r3,r3,r3
+  100064:       30 63 00 01     addic   r3,r3,1
+  100068:       7c 6a 01 d0     subfme  r3,r10
+  10006c:       7c 80 01 14     adde    r4,r0,r0
+  100070:       4e 80 00 20     blr
 
 0000000000100074 <test_subfme_zero_ca_2>:
-  100074:	7c 63 1a 78 	xor     r3,r3,r3
-  100078:	30 63 00 01 	addic   r3,r3,1
-  10007c:	7c 6a 01 d0 	subfme  r3,r10
-  100080:	7c 80 01 14 	adde    r4,r0,r0
-  100084:	4e 80 00 20 	blr
+  100074:       7c 63 1a 78     xor     r3,r3,r3
+  100078:       30 63 00 01     addic   r3,r3,1
+  10007c:       7c 6a 01 d0     subfme  r3,r10
+  100080:       7c 80 01 14     adde    r4,r0,r0
+  100084:       4e 80 00 20     blr
 
 0000000000100088 <test_subfme_zero_ca_3>:
-  100088:	7c 63 1a 78 	xor     r3,r3,r3
-  10008c:	30 63 00 01 	addic   r3,r3,1
-  100090:	7c 6a 01 d0 	subfme  r3,r10
-  100094:	7c 80 01 14 	adde    r4,r0,r0
-  100098:	4e 80 00 20 	blr
+  100088:       7c 63 1a 78     xor     r3,r3,r3
+  10008c:       30 63 00 01     addic   r3,r3,1
+  100090:       7c 6a 01 d0     subfme  r3,r10
+  100094:       7c 80 01 14     adde    r4,r0,r0
+  100098:       4e 80 00 20     blr
 
 000000000010009c <test_subfme_zero_ca_4>:
-  10009c:	7c 63 1a 78 	xor     r3,r3,r3
-  1000a0:	30 63 00 01 	addic   r3,r3,1
-  1000a4:	7c 6a 01 d0 	subfme  r3,r10
-  1000a8:	7c 80 01 14 	adde    r4,r0,r0
-  1000ac:	4e 80 00 20 	blr
+  10009c:       7c 63 1a 78     xor     r3,r3,r3
+  1000a0:       30 63 00 01     addic   r3,r3,1
+  1000a4:       7c 6a 01 d0     subfme  r3,r10
+  1000a8:       7c 80 01 14     adde    r4,r0,r0
+  1000ac:       4e 80 00 20     blr
