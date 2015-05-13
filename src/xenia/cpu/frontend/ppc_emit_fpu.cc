@@ -505,8 +505,15 @@ XEEMITTER(fmrx, 0xFC000090, X)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(fnabsx, 0xFC000110, X)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // frD <- !abs(frB)
+  Value* v = f.Neg(f.Abs(f.LoadFPR(i.X.RB)));
+  f.StoreFPR(i.X.RT, v);
+  if (i.X.Rc) {
+    // e.update_cr_with_cond(1, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  return 0;
 }
 
 XEEMITTER(fnegx, 0xFC000050, X)(PPCHIRBuilder& f, InstrData& i) {

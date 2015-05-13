@@ -135,6 +135,7 @@
     <None Include="instr_divwu.s" />
     <None Include="instr_eqv.s" />
     <None Include="instr_fabs.s" />
+    <None Include="instr_fnabs.s" />
     <None Include="instr_fsel.s" />
     <None Include="instr_lvexx.s" />
     <None Include="instr_lvl.s" />

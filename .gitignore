@@ -96,3 +96,6 @@ third_party/binutils/powerpc-none-elf/
 third_party/binutils/share/
 third_party/binutils/binutils*
 third_party/vasm/
+
+# Add back test bin:
+!src/xenia/cpu/frontend/test/bin/

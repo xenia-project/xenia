@@ -1,0 +1,5 @@
+test_fnabs_1:
+  #_ REGISTER_IN f1 0x400C000000000000
+  fnabs f2, f1
+  blr
+  #_ REGISTER_OUT f2 0xC00C000000000000

@@ -93,6 +93,7 @@
     <None Include="instr_vsubuhm.s" />
     <None Include="instr_vupkd3d128.s" />
     <None Include="instr_vupkhsh.s" />
+    <None Include="instr_fnabs.s" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

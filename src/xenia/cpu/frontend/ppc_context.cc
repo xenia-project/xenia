@@ -19,7 +19,17 @@ uint64_t ParseInt64(const char* value) {
   return std::strtoull(value, nullptr, 0);
 }
 
-double ParseFloat64(const char* value) { return std::strtod(value, nullptr); }
+double ParseFloat64(const char* value) {
+  if (strstr(value, "0x") == value) {
+    union {
+      uint64_t ui;
+      double dbl;
+    } v;
+    v.ui = ParseInt64(value);
+    return v.dbl;
+  }
+  return std::strtod(value, nullptr);
+}
 
 vec128_t ParseVec128(const char* value) {
   vec128_t v;
