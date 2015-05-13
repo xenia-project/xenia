@@ -32,7 +32,7 @@ SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_state, KernelState* state) {
 SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_state,
                                              KernelState* state) {
   uint32_t zero = SHIM_GET_ARG_32(0);
-  uint32_t unk = SHIM_GET_ARG_32(2);
+  uint32_t unk = SHIM_GET_ARG_32(1);
 
   XELOGD("XamEnableInactivityProcessing(%d, %d)", zero, unk);
 
