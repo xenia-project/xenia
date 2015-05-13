@@ -66,8 +66,24 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
     // TODO(benvanik): get native value, if supported.
     uint32_t native_ptr;
     switch (object_type_ptr) {
-      case 0xD01BBEEF:  // ExThreadObjectType
-      {
+      case 0x00000000: {  // whatever?
+        switch (object->type()) {
+          // TODO(benvanik): need to track native_ptr in XObject, allocate as
+          // needed?
+          /*case XObject::kTypeEvent:
+            XEvent* ev = (XEvent*)object;
+            break;*/
+          case XObject::kTypeThread:
+            XThread* thread = (XThread*)object;
+            native_ptr = thread->thread_state_ptr();
+            break;
+          default:
+            assert_unhandled_case(object->type());
+            native_ptr = 0xDEADF00D;
+            break;
+        }
+      } break;
+      case 0xD01BBEEF: {  // ExThreadObjectType
         XThread* thread = (XThread*)object;
         native_ptr = thread->thread_state_ptr();
       } break;
