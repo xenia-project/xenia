@@ -552,7 +552,7 @@ void Value::Shr(Value* other) {
       constant.i32 = (uint32_t)constant.i32 >> other->constant.i8;
       break;
     case INT64_TYPE:
-      constant.i64 = (uint16_t)constant.i64 >> other->constant.i8;
+      constant.i64 = (uint64_t)constant.i64 >> other->constant.i8;
       break;
     default:
       assert_unhandled_case(type);
