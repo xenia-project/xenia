@@ -107,7 +107,7 @@ void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->is_hi_def = 1;
   video_mode->refresh_rate = 60.0f;
   video_mode->video_standard = 1;   // NTSC
-  video_mode->unknown_0x8a = 0x94;  // 0x8A;
+  video_mode->unknown_0x8a = 0x4A;
   video_mode->unknown_0x01 = 0x01;
   video_mode->reserved[0] = video_mode->reserved[1] = video_mode->reserved[2] =
       0;
