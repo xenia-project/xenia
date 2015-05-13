@@ -92,7 +92,7 @@ ECHO.
 ECHO   xb build [--checked OR --debug OR --release] [--force]
 ECHO     Initializes dependencies and prepares build environment.
 ECHO.
-ECHO   xb gentest
+ECHO   xb gentests
 ECHO     Generates test binaries (under src/xenia/cpu/frontend/test/bin/).
 ECHO     Run after modifying test .s files.
 ECHO.
@@ -262,9 +262,9 @@ GOTO :eof
 
 
 REM ============================================================================
-REM xb gentest
+REM xb gentests
 REM ============================================================================
-:perform_gentest
+:perform_gentests
 SETLOCAL EnableDelayedExpansion
 ECHO Generating test binaries...
 
@@ -274,34 +274,36 @@ SET PPC_LD=%BINUTILS%\powerpc-none-elf-ld.exe
 SET PPC_OBJDUMP=%BINUTILS%\powerpc-none-elf-objdump.exe
 SET PPC_NM=%BINUTILS%\powerpc-none-elf-nm.exe
 
-SET TEST_SRC=src\xenia\cpu\frontend\test\
-SET TEST_BIN=%TEST_SRC%\bin
+SET TEST_SRC=src/xenia/cpu/frontend/test
+SET TEST_SRC_WIN=src\xenia\cpu\frontend\test
+SET TEST_BIN=%TEST_SRC%/bin
+SET TEST_BIN_WIN=%TEST_SRC_WIN%\bin
 IF NOT EXIST %TEST_BIN% (mkdir %TEST_BIN%)
 
 SET ANY_ERRORS=0
-PUSHD %TEST_SRC%
+PUSHD %TEST_SRC_WIN%
 FOR %%G in (*.s) DO (
   ECHO ^> generating %%~nG...
   POPD
-  SET SRC_FILE=%TEST_SRC%\%%G
+  SET SRC_FILE=%TEST_SRC%/%%G
   SET SRC_NAME=%%~nG
-  SET OBJ_FILE=%TEST_BIN%\!SRC_NAME!.o
-  %PPC_AS% -a64 -be -mregnames -mpower7 -maltivec -mvsx -mvmx128 -R -o !OBJ_FILE! !SRC_FILE!
+  SET OBJ_FILE=%TEST_BIN%/!SRC_NAME!.o
+  CMD /c %PPC_AS% -a64 -be -mregnames -mpower7 -maltivec -mvsx -mvmx128 -R -o !OBJ_FILE! !SRC_FILE! 2>&1
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
-  %PPC_OBJDUMP% --adjust-vma=0x100000 -Mpower7 -Mvmx128 -D -EB !OBJ_FILE! > %TEST_BIN%\!SRC_NAME!.dis.tmp
+  %PPC_OBJDUMP% --adjust-vma=0x100000 -Mpower7 -Mvmx128 -D -EB !OBJ_FILE! > %TEST_BIN%/!SRC_NAME!.dis.tmp
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
   REM Eat the first 4 lines to kill the file path that'll differ across machines.
-  MORE +4 %TEST_BIN%\!SRC_NAME!.dis.tmp > %TEST_BIN%\!SRC_NAME!.dis
-  DEL %TEST_BIN%\!SRC_NAME!.dis.tmp
-  %PPC_LD% -A powerpc:common64 -melf64ppc -EB -nostdlib --oformat binary -Ttext 0x100000 -e 0x100000 -o %TEST_BIN%\!SRC_NAME!.bin !OBJ_FILE!
+  MORE +4 %TEST_BIN_WIN%\!SRC_NAME!.dis.tmp > %TEST_BIN_WIN%\!SRC_NAME!.dis
+  DEL %TEST_BIN_WIN%\!SRC_NAME!.dis.tmp
+  %PPC_LD% -A powerpc:common64 -melf64ppc -EB -nostdlib --oformat binary -Ttext 0x100000 -e 0x100000 -o %TEST_BIN%/!SRC_NAME!.bin !OBJ_FILE!
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
-  %PPC_NM% --numeric-sort !OBJ_FILE! > %TEST_BIN%\!SRC_NAME!.map
+  %PPC_NM% --numeric-sort !OBJ_FILE! > %TEST_BIN%/!SRC_NAME!.map
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
