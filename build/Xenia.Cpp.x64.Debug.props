@@ -11,6 +11,9 @@
       </BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
+    <Link>
+      <GenerateDebugInformation>Debug</GenerateDebugInformation>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup />
 </Project>

@@ -2560,5 +2560,5 @@ void ImImpl_RenderDrawLists(ImDrawList** const cmd_lists, int cmd_lists_count) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"gpu_trace_viewer", L"gpu_trace_viewer some.trace",
+DEFINE_ENTRY_POINT(L"xe-gpu-trace-viewer", L"xe-gpu-trace-viewer some.trace",
                    xe::gpu::trace_viewer_main);
