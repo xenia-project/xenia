@@ -201,8 +201,10 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00070002: {
       assert_true(!buffer_length || buffer_length == 12);
       uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playlist_handle = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t storage_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
       uint32_t song_handle = xe::load_and_swap<uint32_t>(buffer + 8);  // 0?
+      uint32_t playlist_handle =
+          xe::load_and_swap<uint32_t>(memory_->TranslateVirtual(storage_ptr));
       assert_true(xmp_client == 0x00000002);
       return XMPPlayTitlePlaylist(playlist_handle, song_handle);
     }
@@ -282,8 +284,8 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x0007000D: {
       assert_true(!buffer_length || buffer_length == 36);
       uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t dummy_alloc_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t dummy_alloc_size = xe::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t storage_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t storage_size = xe::load_and_swap<uint32_t>(buffer + 8);
       uint32_t songs_ptr = xe::load_and_swap<uint32_t>(buffer + 12);
       uint32_t song_count = xe::load_and_swap<uint32_t>(buffer + 16);
       uint32_t playlist_name_ptr = xe::load_and_swap<uint32_t>(buffer + 20);
@@ -291,14 +293,16 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t song_handles_ptr =
           xe::load_and_swap<uint32_t>(buffer + 28);  // 0?
       uint32_t playlist_handle_ptr = xe::load_and_swap<uint32_t>(buffer + 32);
+      xe::store_and_swap<uint32_t>(
+          memory_->TranslateVirtual(playlist_handle_ptr), storage_ptr);
       assert_true(xmp_client == 0x00000002);
       auto playlist_name = xe::load_and_swap<std::wstring>(
           memory_->TranslateVirtual(playlist_name_ptr));
-      // dummy_alloc_ptr is the result of a XamAlloc of dummy_alloc_size.
-      assert_true(dummy_alloc_size == song_count * 128);
+      // dummy_alloc_ptr is the result of a XamAlloc of storage_size.
+      assert_true(storage_size == 4 + song_count * 128);
       return XMPCreateTitlePlaylist(songs_ptr, song_count, playlist_name_ptr,
                                     playlist_name, flags, song_handles_ptr,
-                                    playlist_handle_ptr);
+                                    storage_ptr);
     }
     case 0x0007000E: {
       assert_true(!buffer_length || buffer_length == 12);
@@ -329,7 +333,9 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00070013: {
       assert_true(!buffer_length || buffer_length == 8);
       uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playlist_handle = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t storage_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
+      uint32_t playlist_handle =
+          xe::load_and_swap<uint32_t>(memory_->TranslateVirtual(storage_ptr));
       assert_true(xmp_client == 0x00000002);
       return XMPDeleteTitlePlaylist(playlist_handle);
     }
@@ -391,7 +397,7 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(xmp_client == 0x00000002);
       // We don't use the storage, so just fudge the number.
       xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(size_ptr),
-                                   song_count * 128);
+                                   4 + song_count * 128);
       return X_ERROR_SUCCESS;
     }
     case 0x0007003D: {
