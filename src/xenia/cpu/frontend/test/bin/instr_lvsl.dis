@@ -4,10 +4,25 @@ Disassembly of section .text:
   100000:       7c 64 00 0c     lvsl    v3,r4,r0
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_lvsl_2>:
-  100008:       7c 64 00 0c     lvsl    v3,r4,r0
-  10000c:       4e 80 00 20     blr
+0000000000100008 <test_lvsl_1_constant>:
+  100008:       38 80 10 70     li      r4,4208
+  10000c:       7c 64 00 0c     lvsl    v3,r4,r0
+  100010:       4e 80 00 20     blr
 
-0000000000100010 <test_lvsl_3>:
-  100010:       7c 64 00 0c     lvsl    v3,r4,r0
-  100014:       4e 80 00 20     blr
+0000000000100014 <test_lvsl_2>:
+  100014:       7c 64 00 0c     lvsl    v3,r4,r0
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_lvsl_2_constant>:
+  10001c:       38 80 10 71     li      r4,4209
+  100020:       7c 64 00 0c     lvsl    v3,r4,r0
+  100024:       4e 80 00 20     blr
+
+0000000000100028 <test_lvsl_3>:
+  100028:       7c 64 00 0c     lvsl    v3,r4,r0
+  10002c:       4e 80 00 20     blr
+
+0000000000100030 <test_lvsl_3_constant>:
+  100030:       38 80 10 7f     li      r4,4223
+  100034:       7c 64 00 0c     lvsl    v3,r4,r0
+  100038:       4e 80 00 20     blr

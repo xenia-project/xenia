@@ -3299,7 +3299,11 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
         }
       }
     } else {
-      e.mov(e.al, i.src1);
+      if (i.src1.is_constant) {
+        e.mov(e.al, i.src1.constant());
+      } else {
+        e.mov(e.al, i.src1);
+      }
       if (i.src2.is_constant) {
         e.mov(e.al, i.src2.constant());
         e.imul(e.al);
@@ -3339,7 +3343,11 @@ EMITTER(MUL_HI_I16, MATCH(I<OPCODE_MUL_HI, I16<>, I16<>, I16<>>)) {
         }
       }
     } else {
-      e.mov(e.ax, i.src1);
+      if (i.src1.is_constant) {
+        e.mov(e.ax, i.src1.constant());
+      } else {
+        e.mov(e.ax, i.src1);
+      }
       if (i.src2.is_constant) {
         e.mov(e.dx, i.src2.constant());
         e.imul(e.dx);
@@ -3384,7 +3392,11 @@ EMITTER(MUL_HI_I32, MATCH(I<OPCODE_MUL_HI, I32<>, I32<>, I32<>>)) {
         }
       }
     } else {
-      e.mov(e.eax, i.src1);
+      if (i.src1.is_constant) {
+        e.mov(e.eax, i.src1.constant());
+      } else {
+        e.mov(e.eax, i.src1);
+      }
       if (i.src2.is_constant) {
         e.mov(e.edx, i.src2.constant());
         e.imul(e.edx);
@@ -3429,7 +3441,11 @@ EMITTER(MUL_HI_I64, MATCH(I<OPCODE_MUL_HI, I64<>, I64<>, I64<>>)) {
         }
       }
     } else {
-      e.mov(e.rax, i.src1);
+      if (i.src1.is_constant) {
+        e.mov(e.rax, i.src1.constant());
+      } else {
+        e.mov(e.rax, i.src1);
+      }
       if (i.src2.is_constant) {
         e.mov(e.rdx, i.src2.constant());
         e.imul(e.rdx);

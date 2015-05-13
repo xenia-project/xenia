@@ -4,18 +4,48 @@ Disassembly of section .text:
   100000:       7c 64 28 92     mulhd   r3,r4,r5
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_mulhd_2>:
-  100008:       7c 64 28 92     mulhd   r3,r4,r5
-  10000c:       4e 80 00 20     blr
-
-0000000000100010 <test_mulhd_3>:
+0000000000100008 <test_mulhd_1_constant>:
+  100008:       38 80 00 01     li      r4,1
+  10000c:       38 a0 00 00     li      r5,0
   100010:       7c 64 28 92     mulhd   r3,r4,r5
   100014:       4e 80 00 20     blr
 
-0000000000100018 <test_mulhd_4>:
+0000000000100018 <test_mulhd_2>:
   100018:       7c 64 28 92     mulhd   r3,r4,r5
   10001c:       4e 80 00 20     blr
 
-0000000000100020 <test_mulhd_5>:
-  100020:       7c 64 28 92     mulhd   r3,r4,r5
-  100024:       4e 80 00 20     blr
+0000000000100020 <test_mulhd_2_constant>:
+  100020:       38 80 ff ff     li      r4,-1
+  100024:       38 a0 00 01     li      r5,1
+  100028:       7c 64 28 92     mulhd   r3,r4,r5
+  10002c:       4e 80 00 20     blr
+
+0000000000100030 <test_mulhd_3>:
+  100030:       7c 64 28 92     mulhd   r3,r4,r5
+  100034:       4e 80 00 20     blr
+
+0000000000100038 <test_mulhd_3_constant>:
+  100038:       38 80 ff ff     li      r4,-1
+  10003c:       38 a0 00 02     li      r5,2
+  100040:       7c 64 28 92     mulhd   r3,r4,r5
+  100044:       4e 80 00 20     blr
+
+0000000000100048 <test_mulhd_4>:
+  100048:       7c 64 28 92     mulhd   r3,r4,r5
+  10004c:       4e 80 00 20     blr
+
+0000000000100050 <test_mulhd_4_constant>:
+  100050:       38 a0 00 01     li      r5,1
+  100054:       78 a4 f8 06     rldicr  r4,r5,63,0
+  100058:       7c 64 28 92     mulhd   r3,r4,r5
+  10005c:       4e 80 00 20     blr
+
+0000000000100060 <test_mulhd_5>:
+  100060:       7c 64 28 92     mulhd   r3,r4,r5
+  100064:       4e 80 00 20     blr
+
+0000000000100068 <test_mulhd_5_constant>:
+  100068:       38 80 ff ff     li      r4,-1
+  10006c:       38 a0 ff ff     li      r5,-1
+  100070:       7c 64 28 92     mulhd   r3,r4,r5
+  100074:       4e 80 00 20     blr

@@ -4,22 +4,52 @@ Disassembly of section .text:
   100000:       7c 60 20 0e     lvebx   v3,0,r4
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_lvebx_2>:
-  100008:       7c 60 20 0e     lvebx   v3,0,r4
-  10000c:       4e 80 00 20     blr
+0000000000100008 <test_lvebx_1_constant>:
+  100008:       38 80 00 00     li      r4,0
+  10000c:       7c 60 20 0e     lvebx   v3,0,r4
+  100010:       4e 80 00 20     blr
 
-0000000000100010 <test_lvehx_1>:
-  100010:       7c 60 20 4e     lvehx   v3,0,r4
-  100014:       4e 80 00 20     blr
+0000000000100014 <test_lvebx_2>:
+  100014:       7c 60 20 0e     lvebx   v3,0,r4
+  100018:       4e 80 00 20     blr
 
-0000000000100018 <test_lvehx_2>:
-  100018:       7c 60 20 4e     lvehx   v3,0,r4
-  10001c:       4e 80 00 20     blr
-
-0000000000100020 <test_lvewx_1>:
-  100020:       7c 60 20 8e     lvewx   v3,0,r4
+000000000010001c <test_lvebx_2_constant>:
+  10001c:       38 80 00 04     li      r4,4
+  100020:       7c 60 20 0e     lvebx   v3,0,r4
   100024:       4e 80 00 20     blr
 
-0000000000100028 <test_lvewx_2>:
-  100028:       7c 60 20 8e     lvewx   v3,0,r4
+0000000000100028 <test_lvehx_1>:
+  100028:       7c 60 20 4e     lvehx   v3,0,r4
   10002c:       4e 80 00 20     blr
+
+0000000000100030 <test_lvehx_1_constant>:
+  100030:       38 80 00 00     li      r4,0
+  100034:       7c 60 20 4e     lvehx   v3,0,r4
+  100038:       4e 80 00 20     blr
+
+000000000010003c <test_lvehx_2>:
+  10003c:       7c 60 20 4e     lvehx   v3,0,r4
+  100040:       4e 80 00 20     blr
+
+0000000000100044 <test_lvehx_2_constant>:
+  100044:       38 80 00 04     li      r4,4
+  100048:       7c 60 20 4e     lvehx   v3,0,r4
+  10004c:       4e 80 00 20     blr
+
+0000000000100050 <test_lvewx_1>:
+  100050:       7c 60 20 8e     lvewx   v3,0,r4
+  100054:       4e 80 00 20     blr
+
+0000000000100058 <test_lvewx_1_constant>:
+  100058:       38 80 00 00     li      r4,0
+  10005c:       7c 60 20 8e     lvewx   v3,0,r4
+  100060:       4e 80 00 20     blr
+
+0000000000100064 <test_lvewx_2>:
+  100064:       7c 60 20 8e     lvewx   v3,0,r4
+  100068:       4e 80 00 20     blr
+
+000000000010006c <test_lvewx_2_constant>:
+  10006c:       38 80 00 04     li      r4,4
+  100070:       7c 60 20 8e     lvewx   v3,0,r4
+  100074:       4e 80 00 20     blr
