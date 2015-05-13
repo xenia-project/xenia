@@ -350,7 +350,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_DIV:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
-            v->Div(i->src2.value);
+            v->Div(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
             i->Remove();
           }
           break;

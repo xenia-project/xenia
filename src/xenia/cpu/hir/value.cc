@@ -304,20 +304,36 @@ void Value::Mul(Value* other) {
   }
 }
 
-void Value::Div(Value* other) {
+void Value::Div(Value* other, bool is_unsigned) {
   assert_true(type == other->type);
   switch (type) {
     case INT8_TYPE:
-      constant.i8 /= uint8_t(other->constant.i8);
+      if (is_unsigned) {
+        constant.i8 /= uint8_t(other->constant.i8);
+      } else {
+        constant.i8 /= other->constant.i8;
+      }
       break;
     case INT16_TYPE:
-      constant.i16 /= uint16_t(other->constant.i16);
+      if (is_unsigned) {
+        constant.i16 /= uint16_t(other->constant.i16);
+      } else {
+        constant.i16 /= other->constant.i16;
+      }
       break;
     case INT32_TYPE:
-      constant.i32 /= uint32_t(other->constant.i32);
+      if (is_unsigned) {
+        constant.i32 /= uint32_t(other->constant.i32);
+      } else {
+        constant.i32 /= other->constant.i32;
+      }
       break;
     case INT64_TYPE:
-      constant.i64 /= uint64_t(other->constant.i64);
+      if (is_unsigned) {
+        constant.i64 /= uint64_t(other->constant.i64);
+      } else {
+        constant.i64 /= other->constant.i64;
+      }
       break;
     case FLOAT32_TYPE:
       constant.f32 /= other->constant.f32;
