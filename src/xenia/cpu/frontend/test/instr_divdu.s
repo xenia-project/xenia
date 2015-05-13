@@ -154,12 +154,12 @@ test_divdu_9:
   #_ REGISTER_OUT r5 -1
 
 # TODO(benvanik): integer overflow (=0)
-#test_divdu_9_constant:
-#  li r4, 1
-#  sldi r4, r4, 63
-#  li r5, -1
-#  divdu r3, r4, r5
-#  blr
-#  #_ REGISTER_OUT r3 0
-#  #_ REGISTER_OUT r4 0x8000000000000000
-#  #_ REGISTER_OUT r5 -1
+test_divdu_9_constant:
+  li r4, 1
+  sldi r4, r4, 63
+  li r5, -1
+  divdu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0x8000000000000000
+  #_ REGISTER_OUT r5 -1
