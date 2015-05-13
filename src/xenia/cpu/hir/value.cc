@@ -609,16 +609,16 @@ void Value::ByteSwap() {
 void Value::CountLeadingZeros(const Value* other) {
   switch (other->type) {
     case INT8_TYPE:
-      constant.i8 = xe::lzcnt(constant.i8);
+      constant.i8 = xe::lzcnt(other->constant.i8);
       break;
     case INT16_TYPE:
-      constant.i8 = xe::lzcnt(constant.i16);
+      constant.i8 = xe::lzcnt(other->constant.i16);
       break;
     case INT32_TYPE:
-      constant.i8 = xe::lzcnt(constant.i32);
+      constant.i8 = xe::lzcnt(other->constant.i32);
       break;
     case INT64_TYPE:
-      constant.i8 = xe::lzcnt(constant.i64);
+      constant.i8 = xe::lzcnt(other->constant.i64);
       break;
     default:
       assert_unhandled_case(type);
