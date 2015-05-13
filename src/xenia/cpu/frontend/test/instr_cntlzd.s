@@ -34,8 +34,7 @@ test_cntlzd_3:
   #_ REGISTER_OUT r6 0
 
 test_cntlzd_3_constant:
-  li r5, 0
-  not r5, r5
+  li r5, -1
   cntlzd r6, r5
   blr
   #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
@@ -49,8 +48,7 @@ test_cntlzd_4:
   #_ REGISTER_OUT r6 1
 
 test_cntlzd_4_constant:
-  li r5, 0
-  not r5, r5
+  li r5, -1
   srdi r5, r5, 1
   cntlzd r6, r5
   blr

@@ -34,8 +34,7 @@ test_cntlzw_3:
   #_ REGISTER_OUT r6 0
 
 test_cntlzw_3_constant:
-  li r5, 0
-  not r5, r5
+  li r5, -1
   srwi r5, r5, 0
   cntlzw r6, r5
   blr
@@ -50,8 +49,7 @@ test_cntlzw_4:
   #_ REGISTER_OUT r6 1
 
 test_cntlzw_4_constant:
-  li r5, 0
-  not r5, r5
+  li r5, -1
   srwi r5, r5, 1
   cntlzw r6, r5
   blr
