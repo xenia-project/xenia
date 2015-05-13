@@ -43,3 +43,136 @@ test_add_2_constant:
   #_ REGISTER_OUT r0 0x00100000
   #_ REGISTER_OUT r25 0x0000FFFF
   #_ REGISTER_OUT r11 0x0010FFFF
+
+test_add_cr_1:
+  #_ REGISTER_IN r5 0x00100000
+  #_ REGISTER_IN r25 0x0000FFFF
+
+  add. r11, r5, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r5 0x00100000
+  #_ REGISTER_OUT r25 0x0000FFFF
+  #_ REGISTER_OUT r11 0x0010FFFF
+  #_ REGISTER_OUT r12 0x40000000
+
+test_add_cr_1_constant:
+  lis r5, 0x10
+  li r25, -1
+  clrldi r25, r25, 48
+
+  add. r11, r5, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r5 0x00100000
+  #_ REGISTER_OUT r25 0x0000FFFF
+  #_ REGISTER_OUT r11 0x0010FFFF
+  #_ REGISTER_OUT r12 0x40000000
+
+test_add_cr_2:
+  #_ REGISTER_IN r0 0x00100000
+  #_ REGISTER_IN r25 0x0000FFFF
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 0x00100000
+  #_ REGISTER_OUT r25 0x0000FFFF
+  #_ REGISTER_OUT r11 0x0010FFFF
+  #_ REGISTER_OUT r12 0x40000000
+
+test_add_cr_2_constant:
+  lis r0, 0x10
+  li r25, -1
+  clrldi r25, r25, 48
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 0x00100000
+  #_ REGISTER_OUT r25 0x0000FFFF
+  #_ REGISTER_OUT r11 0x0010FFFF
+  #_ REGISTER_OUT r12 0x40000000
+
+test_add_cr_3:
+  #_ REGISTER_IN r0 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_IN r25 0x000000000000FFFF
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r25 0x000000000000FFFF
+  #_ REGISTER_OUT r11 0x000000000000FFFE
+  #_ REGISTER_OUT r12 0x40000000
+
+test_add_cr_3_constant:
+  li r0, -1
+  li r25, -1
+  clrldi r25, r25, 48
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r25 0x000000000000FFFF
+  #_ REGISTER_OUT r11 0x000000000000FFFE
+  #_ REGISTER_OUT r12 0x40000000
+
+test_add_cr_4:
+  #_ REGISTER_IN r0 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_IN r25 0x0000000000000001
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r25 0x0000000000000001
+  #_ REGISTER_OUT r11 0x0000000000000000
+  #_ REGISTER_OUT r12 0x20000000
+
+test_add_cr_4_constant:
+  li r0, -1
+  li r25, 1
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r25 0x0000000000000001
+  #_ REGISTER_OUT r11 0x0000000000000000
+  #_ REGISTER_OUT r12 0x20000000
+
+test_add_cr_5:
+  #_ REGISTER_IN r0 -50
+  #_ REGISTER_IN r25 -25
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 -50
+  #_ REGISTER_OUT r25 -25
+  #_ REGISTER_OUT r11 -75
+  #_ REGISTER_OUT r12 0x80000000
+
+test_add_cr_5_constant:
+  li r0, -50
+  li r25, -25
+
+  add. r11, r0, r25
+  mfcr r12
+
+  blr
+  #_ REGISTER_OUT r0 -50
+  #_ REGISTER_OUT r25 -25
+  #_ REGISTER_OUT r11 -75
+  #_ REGISTER_OUT r12 0x80000000
