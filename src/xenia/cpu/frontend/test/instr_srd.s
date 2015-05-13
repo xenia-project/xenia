@@ -7,9 +7,27 @@ test_srd_1:
   #_ REGISTER_OUT r4 1
   #_ REGISTER_OUT r5 0
 
+test_srd_1_constant:
+  li r4, 1
+  li r5, 0
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 1
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0
+
 test_srd_2:
   #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_IN r5 0
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 0
+
+test_srd_2_constant:
+  li r4, -1
+  li r5, 0
   srd r3, r4, r5
   blr
   #_ REGISTER_OUT r3 0xFFFFFFFFFFFFFFFF
@@ -25,9 +43,27 @@ test_srd_3:
   #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_OUT r5 1
 
+test_srd_3_constant:
+  li r4, -1
+  li r5, 1
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x7FFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 1
+
 test_srd_4:
   #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_IN r5 62
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x0000000000000003
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 62
+
+test_srd_4_constant:
+  li r4, -1
+  li r5, 62
   srd r3, r4, r5
   blr
   #_ REGISTER_OUT r3 0x0000000000000003
@@ -43,6 +79,15 @@ test_srd_5:
   #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_OUT r5 63
 
+test_srd_5_constant:
+  li r4, -1
+  li r5, 63
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x0000000000000001
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 63
+
 test_srd_6:
   #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_IN r5 64
@@ -52,9 +97,27 @@ test_srd_6:
   #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_OUT r5 64
 
+test_srd_6_constant:
+  li r4, -1
+  li r5, 64
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 64
+
 test_srd_7:
   #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_IN r5 100
+  srd r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
+  #_ REGISTER_OUT r5 100
+
+test_srd_7_constant:
+  li r4, -1
+  li r5, 100
   srd r3, r4, r5
   blr
   #_ REGISTER_OUT r3 0
