@@ -314,7 +314,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
                 if (use->instr->opcode == &OPCODE_DID_CARRY_info) {
                   // Replace carry value.
                   use->instr->Replace(&OPCODE_ASSIGN_info, 0);
-                  use->instr->set_src1(ca);
+                  use->instr->set_src1(builder->LoadZero(INT8_TYPE));
                 }
               }
             }
