@@ -211,7 +211,7 @@ test_adde_9:
 
 test_adde_9_constant:
   li r5, -1
-  sldi r4, r5, 1
+  srdi r4, r5, 1
   adde r3, r4, r5
   adde r6, r0, r0
   blr
@@ -236,7 +236,7 @@ test_adde_10:
 
 test_adde_10_constant:
   li r5, -1
-  sldi r4, r5, 1
+  srdi r4, r5, 1
   xor r3, r3, r3
   not r3, r3
   addic r3, r3, 1 # CA=1
