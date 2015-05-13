@@ -4,6 +4,20 @@ Disassembly of section .text:
   100000:       7d 65 ca 14     add     r11,r5,r25
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_add_2>:
-  100008:       7d 60 ca 14     add     r11,r0,r25
-  10000c:       4e 80 00 20     blr
+0000000000100008 <test_add_1_constant>:
+  100008:       3c a0 00 10     lis     r5,16
+  10000c:       3b 20 ff ff     li      r25,-1
+  100010:       7b 39 04 20     clrldi  r25,r25,48
+  100014:       7d 65 ca 14     add     r11,r5,r25
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_add_2>:
+  10001c:       7d 60 ca 14     add     r11,r0,r25
+  100020:       4e 80 00 20     blr
+
+0000000000100024 <test_add_2_constant>:
+  100024:       3c 00 00 10     lis     r0,16
+  100028:       3b 20 ff ff     li      r25,-1
+  10002c:       7b 39 04 20     clrldi  r25,r25,48
+  100030:       7d 60 ca 14     add     r11,r0,r25
+  100034:       4e 80 00 20     blr

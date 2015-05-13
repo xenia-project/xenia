@@ -2702,22 +2702,12 @@ void EmitAddCarryXX(X64Emitter& e, const ARGS& i) {
     }
     e.sahf();
   }
-  if (i.src1.is_constant && i.src2.is_constant) {
-    auto ab = i.src1.constant() + i.src2.constant();
-    if (!ab) {
-      e.xor(i.dest, i.dest);
-    } else {
-      e.mov(i.dest, ab);
-    }
-    e.adc(i.dest, 0);
-  } else {
-    SEQ::EmitCommutativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src, const REG& src) {
-      e.adc(dest_src, src);
-    }, [](X64Emitter& e, const REG& dest_src, int32_t constant) {
-      e.adc(dest_src, constant);
-    });
-  }
+  SEQ::EmitCommutativeBinaryOp(
+    e, i, [](X64Emitter& e, const REG& dest_src, const REG& src) {
+    e.adc(dest_src, src);
+  }, [](X64Emitter& e, const REG& dest_src, int32_t constant) {
+    e.adc(dest_src, constant);
+  });
   if (i.instr->flags & ARITHMETIC_SET_CARRY) {
     // CF is set if carried.
     e.StoreEflags();

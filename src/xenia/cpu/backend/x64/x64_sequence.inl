@@ -574,18 +574,32 @@ struct SingleSequence : public Sequence<SingleSequence<SEQ, T>, T> {
                                       const REG_REG_FN& reg_reg_fn,
                                       const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
-      assert_true(!i.src2.is_constant);
-      if (i.dest == i.src2) {
+      if (i.src2.is_constant) {
         if (i.src1.ConstantFitsIn32Reg()) {
+          e.mov(i.dest, i.src2.constant());
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
+        } else if (i.src2.ConstantFitsIn32Reg()) {
+          e.mov(i.dest, i.src1.constant());
+          reg_const_fn(e, i.dest, static_cast<int32_t>(i.src2.constant()));
         } else {
-          auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
-          e.mov(temp, i.src1.constant());
+          e.mov(i.dest, i.src1.constant());
+          auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
+          e.mov(temp, i.src2.constant());
           reg_reg_fn(e, i.dest, temp);
         }
       } else {
-        e.mov(i.dest, i.src1.constant());
-        reg_reg_fn(e, i.dest, i.src2);
+        if (i.dest == i.src2) {
+          if (i.src1.ConstantFitsIn32Reg()) {
+            reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
+          } else {
+            auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
+            e.mov(temp, i.src1.constant());
+            reg_reg_fn(e, i.dest, temp);
+          }
+        } else {
+          e.mov(i.dest, i.src1.constant());
+          reg_reg_fn(e, i.dest, i.src2);
+        }
       }
     } else if (i.src2.is_constant) {
       if (i.dest == i.src1) {
