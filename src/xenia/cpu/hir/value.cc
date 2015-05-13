@@ -304,6 +304,29 @@ void Value::Mul(Value* other) {
   }
 }
 
+void Value::MulHi(Value* other, bool is_unsigned) {
+  assert_true(type == other->type);
+  switch (type) {
+    case INT32_TYPE:
+      if (is_unsigned) {
+        constant.i32 = (int32_t)(((uint64_t)((uint32_t)constant.i32) * (uint32_t)other->constant.i32) >> 32);
+      } else {
+        constant.i32 = (int32_t)(((int64_t)constant.i32 * (int64_t)other->constant.i32) >> 32);
+      }
+      break;
+    case INT64_TYPE:
+      if (is_unsigned) {
+        constant.i64 = __umulh(constant.i64, other->constant.i64);
+      } else {
+        constant.i64 = __mulh(constant.i64, other->constant.i64);
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
 void Value::Div(Value* other, bool is_unsigned) {
   assert_true(type == other->type);
   switch (type) {

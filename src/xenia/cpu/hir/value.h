@@ -385,6 +385,7 @@ class Value {
   bool Add(Value* other);
   bool Sub(Value* other);
   void Mul(Value* other);
+  void MulHi(Value* other, bool is_unsigned);
   void Div(Value* other, bool is_unsigned);
   static void MulAdd(Value* dest, Value* value1, Value* value2, Value* value3);
   static void MulSub(Value* dest, Value* value1, Value* value2, Value* value3);
