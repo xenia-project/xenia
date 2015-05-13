@@ -318,12 +318,19 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
                 }
               }
             }
-            if (i->dest->type == ca->type) {
-              i->Replace(&OPCODE_ASSIGN_info, 0);
-              i->set_src1(ca);
+            if (ca->IsConstant()) {
+              TypeName target_type = v->type;
+              v->set_from(ca);
+              v->ZeroExtend(target_type);
+              i->Remove();
             } else {
-              i->Replace(&OPCODE_ZERO_EXTEND_info, 0);
-              i->set_src1(ca);
+              if (i->dest->type == ca->type) {
+                i->Replace(&OPCODE_ASSIGN_info, 0);
+                i->set_src1(ca);
+              } else {
+                i->Replace(&OPCODE_ZERO_EXTEND_info, 0);
+                i->set_src1(ca);
+              }
             }
           }
           break;
@@ -404,6 +411,11 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Xor(i->src2.value);
             i->Remove();
+          } else if (!i->src1.value->IsConstant() &&
+                     !i->src2.value->IsConstant() &&
+                     i->src1.value == i->src2.value) {
+            v->set_zero(v->type);
+            i->Remove();
           }
           break;
         case OPCODE_NOT:
@@ -478,7 +490,7 @@ void ConstantPropagationPass::PropagateCarry(Value* v, bool did_carry) {
     next = use->next;
     if (use->instr->opcode == &OPCODE_DID_CARRY_info) {
       // Replace carry value.
-      use->instr->dest->set_constant(did_carry ? 1 : 0);
+      use->instr->dest->set_constant(int8_t(did_carry ? 1 : 0));
       use->instr->Remove();
     }
   }

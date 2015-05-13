@@ -55,7 +55,7 @@ test_subfme_zero_ca_1:
   blr
   #_ REGISTER_OUT r10 0x00000000000103BF
   #_ REGISTER_OUT r3 0xfffffffffffefc3f
-  #_ REGISTER_OUT r4 0
+  #_ REGISTER_OUT r4 1
 
 test_subfme_zero_ca_2:
   #_ REGISTER_IN r10 0
@@ -66,7 +66,7 @@ test_subfme_zero_ca_2:
   blr
   #_ REGISTER_OUT r10 0
   #_ REGISTER_OUT r3 0xfffffffffffffffe
-  #_ REGISTER_OUT r4 0
+  #_ REGISTER_OUT r4 1
 
 test_subfme_zero_ca_3:
   #_ REGISTER_IN r10 1
@@ -77,7 +77,7 @@ test_subfme_zero_ca_3:
   blr
   #_ REGISTER_OUT r10 1
   #_ REGISTER_OUT r3 0xfffffffffffffffd
-  #_ REGISTER_OUT r4 0
+  #_ REGISTER_OUT r4 1
 
 test_subfme_zero_ca_4:
   #_ REGISTER_IN r10 0xFFFFFFFFFFFFFFFF

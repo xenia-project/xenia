@@ -466,8 +466,9 @@ XEEMITTER(subfex, 0x7C000110, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(subfmex, 0x7C0001D0, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA - 1
-  Value* v = f.AddWithCarry(f.Not(f.LoadGPR(i.XO.RA)),
-                            f.LoadConstant((int64_t)-1), f.LoadCA());
+  Value* v =
+      f.AddWithCarry(f.Not(f.LoadGPR(i.XO.RA)), f.LoadConstant((int64_t)-1),
+                     f.LoadCA(), ARITHMETIC_SET_CARRY);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
