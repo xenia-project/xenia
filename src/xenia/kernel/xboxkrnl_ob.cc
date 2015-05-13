@@ -70,27 +70,27 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
         switch (object->type()) {
           // TODO(benvanik): need to track native_ptr in XObject, allocate as
           // needed?
-          /*case XObject::kTypeEvent:
+          /*case XObject::kTypeEvent: {
             XEvent* ev = (XEvent*)object;
-            break;*/
-          case XObject::kTypeThread:
+          } break;*/
+          case XObject::kTypeThread: {
             XThread* thread = (XThread*)object;
             native_ptr = thread->thread_state_ptr();
-            break;
-          default:
+          } break;
+          default: {
             assert_unhandled_case(object->type());
             native_ptr = 0xDEADF00D;
-            break;
+          } break;
         }
       } break;
       case 0xD01BBEEF: {  // ExThreadObjectType
         XThread* thread = (XThread*)object;
         native_ptr = thread->thread_state_ptr();
       } break;
-      default:
+      default: {
         assert_unhandled_case(object_type_ptr);
         native_ptr = 0xDEADF00D;
-        break;
+      } break;
     }
 
     if (out_object_ptr) {
