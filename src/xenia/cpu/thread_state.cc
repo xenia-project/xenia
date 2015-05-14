@@ -14,6 +14,8 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
 
+#include "xenia/xbox.h"
+
 namespace xe {
 namespace cpu {
 
@@ -41,11 +43,21 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   }
   backend_data_ = processor->backend()->AllocThreadData();
 
+  uint32_t stack_position;
   if (!stack_address) {
-    stack_address_ = memory()->SystemHeapAlloc(stack_size);
+    stack_size = (stack_size + 0xFFF) & 0xFFFFF000;
+    uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
+    uint32_t stack_padding = stack_alignment * 1;
+    uint32_t actual_stack_size = stack_padding + stack_size;
+    stack_address_ = memory()->SystemHeapAlloc(actual_stack_size, stack_alignment);
+    assert_true(!(stack_address & 0xFFF)); // just to be safe
+    stack_position = stack_address_ + actual_stack_size;
     stack_allocated_ = true;
+    memset(memory()->TranslateVirtual(stack_address_), 0xBE, actual_stack_size);
+    memory()->Protect(stack_address_, stack_padding, X_PAGE_NOACCESS);
   } else {
     stack_address_ = stack_address;
+    stack_position = stack_address_ + stack_size;
     stack_allocated_ = false;
   }
   assert_not_zero(stack_address_);
@@ -66,7 +78,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   context_->thread_id = thread_id_;
 
   // Set initial registers.
-  context_->r[1] = stack_address_ + stack_size;
+  context_->r[1] = stack_position;
   context_->r[13] = thread_state_address_;
 
   // Pad out stack a bit, as some games seem to overwrite the caller by about
