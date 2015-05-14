@@ -232,7 +232,7 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 X_STATUS XThread::PlatformCreate() {
   bool suspended = creation_params_.creation_flags & 0x1;
   thread_handle_ =
-      CreateThread(NULL, creation_params_.stack_size,
+      CreateThread(NULL, 0,
                    (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32, this,
                    suspended ? CREATE_SUSPENDED : 0, NULL);
   if (!thread_handle_) {
@@ -273,7 +273,8 @@ X_STATUS XThread::PlatformCreate() {
   pthread_attr_t attr;
 
   pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, creation_params_.stack_size);
+  // TODO(benvanik): this shouldn't be necessary
+  //pthread_attr_setstacksize(&attr, creation_params_.stack_size);
 
   int result_code;
   if (creation_params_.creation_flags & 0x1) {
