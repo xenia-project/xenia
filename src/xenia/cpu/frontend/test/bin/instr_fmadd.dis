@@ -1,0 +1,13 @@
+Disassembly of section .text:
+
+0000000000100000 <test_fmadd_1>:
+  100000:       fc 22 20 fa     fmadd   f1,f2,f3,f4
+  100004:       4e 80 00 20     blr
+
+0000000000100008 <test_fmadd_2>:
+  100008:       fc 22 20 fa     fmadd   f1,f2,f3,f4
+  10000c:       4e 80 00 20     blr
+
+0000000000100010 <test_fmadd_3>:
+  100010:       fc 22 20 fa     fmadd   f1,f2,f3,f4
+  100014:       4e 80 00 20     blr
