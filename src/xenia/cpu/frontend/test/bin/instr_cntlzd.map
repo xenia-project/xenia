@@ -4,5 +4,5 @@
 000000000000001c t test_cntlzd_2_constant
 0000000000000028 t test_cntlzd_3
 0000000000000030 t test_cntlzd_3_constant
-0000000000000040 t test_cntlzd_4
-0000000000000048 t test_cntlzd_4_constant
+000000000000003c t test_cntlzd_4
+0000000000000044 t test_cntlzd_4_constant

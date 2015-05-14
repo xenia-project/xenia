@@ -5,27 +5,65 @@ Disassembly of section .text:
   100004:       7c 80 01 14     adde    r4,r0,r0
   100008:       4e 80 00 20     blr
 
-000000000010000c <test_subfic_2>:
-  10000c:       20 6a ff 16     subfic  r3,r10,-234
-  100010:       7c 80 01 14     adde    r4,r0,r0
-  100014:       4e 80 00 20     blr
+000000000010000c <test_subfic_1_constant>:
+  10000c:       3d 40 00 01     lis     r10,1
+  100010:       61 4a 03 bf     ori     r10,r10,959
+  100014:       20 6a 03 c0     subfic  r3,r10,960
+  100018:       7c 80 01 14     adde    r4,r0,r0
+  10001c:       4e 80 00 20     blr
 
-0000000000100018 <test_subfic_3>:
-  100018:       20 6a 00 00     subfic  r3,r10,0
-  10001c:       7c 80 01 14     adde    r4,r0,r0
-  100020:       4e 80 00 20     blr
+0000000000100020 <test_subfic_2>:
+  100020:       20 6a ff 16     subfic  r3,r10,-234
+  100024:       7c 80 01 14     adde    r4,r0,r0
+  100028:       4e 80 00 20     blr
 
-0000000000100024 <test_subfic_4>:
-  100024:       20 6a 00 00     subfic  r3,r10,0
-  100028:       7c 80 01 14     adde    r4,r0,r0
-  10002c:       4e 80 00 20     blr
+000000000010002c <test_subfic_2_constant>:
+  10002c:       3d 40 00 01     lis     r10,1
+  100030:       61 4a 03 bf     ori     r10,r10,959
+  100034:       20 6a ff 16     subfic  r3,r10,-234
+  100038:       7c 80 01 14     adde    r4,r0,r0
+  10003c:       4e 80 00 20     blr
 
-0000000000100030 <test_subfic_5>:
-  100030:       20 6a 00 01     subfic  r3,r10,1
-  100034:       7c 80 01 14     adde    r4,r0,r0
-  100038:       4e 80 00 20     blr
+0000000000100040 <test_subfic_3>:
+  100040:       20 6a 00 00     subfic  r3,r10,0
+  100044:       7c 80 01 14     adde    r4,r0,r0
+  100048:       4e 80 00 20     blr
 
-000000000010003c <test_subfic_6>:
-  10003c:       20 6a ff ff     subfic  r3,r10,-1
-  100040:       7c 80 01 14     adde    r4,r0,r0
-  100044:       4e 80 00 20     blr
+000000000010004c <test_subfic_3_constant>:
+  10004c:       39 40 00 00     li      r10,0
+  100050:       20 6a 00 00     subfic  r3,r10,0
+  100054:       7c 80 01 14     adde    r4,r0,r0
+  100058:       4e 80 00 20     blr
+
+000000000010005c <test_subfic_4>:
+  10005c:       20 6a 00 00     subfic  r3,r10,0
+  100060:       7c 80 01 14     adde    r4,r0,r0
+  100064:       4e 80 00 20     blr
+
+0000000000100068 <test_subfic_4_constant>:
+  100068:       39 40 00 01     li      r10,1
+  10006c:       20 6a 00 00     subfic  r3,r10,0
+  100070:       7c 80 01 14     adde    r4,r0,r0
+  100074:       4e 80 00 20     blr
+
+0000000000100078 <test_subfic_5>:
+  100078:       20 6a 00 01     subfic  r3,r10,1
+  10007c:       7c 80 01 14     adde    r4,r0,r0
+  100080:       4e 80 00 20     blr
+
+0000000000100084 <test_subfic_5_constant>:
+  100084:       39 40 00 00     li      r10,0
+  100088:       20 6a 00 01     subfic  r3,r10,1
+  10008c:       7c 80 01 14     adde    r4,r0,r0
+  100090:       4e 80 00 20     blr
+
+0000000000100094 <test_subfic_6>:
+  100094:       20 6a ff ff     subfic  r3,r10,-1
+  100098:       7c 80 01 14     adde    r4,r0,r0
+  10009c:       4e 80 00 20     blr
+
+00000000001000a0 <test_subfic_6_constant>:
+  1000a0:       39 40 ff ff     li      r10,-1
+  1000a4:       20 6a ff ff     subfic  r3,r10,-1
+  1000a8:       7c 80 01 14     adde    r4,r0,r0
+  1000ac:       4e 80 00 20     blr

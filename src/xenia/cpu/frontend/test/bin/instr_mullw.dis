@@ -4,42 +4,111 @@ Disassembly of section .text:
   100000:       7c 64 29 d6     mullw   r3,r4,r5
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_mullw_2>:
-  100008:       7c 64 29 d6     mullw   r3,r4,r5
-  10000c:       4e 80 00 20     blr
-
-0000000000100010 <test_mullw_3>:
+0000000000100008 <test_mullw_1_constant>:
+  100008:       38 80 00 01     li      r4,1
+  10000c:       38 a0 00 00     li      r5,0
   100010:       7c 64 29 d6     mullw   r3,r4,r5
   100014:       4e 80 00 20     blr
 
-0000000000100018 <test_mullw_4>:
+0000000000100018 <test_mullw_2>:
   100018:       7c 64 29 d6     mullw   r3,r4,r5
   10001c:       4e 80 00 20     blr
 
-0000000000100020 <test_mullw_5>:
-  100020:       7c 64 29 d6     mullw   r3,r4,r5
-  100024:       4e 80 00 20     blr
-
-0000000000100028 <test_mullw_6>:
+0000000000100020 <test_mullw_2_constant>:
+  100020:       38 80 00 01     li      r4,1
+  100024:       38 a0 00 01     li      r5,1
   100028:       7c 64 29 d6     mullw   r3,r4,r5
   10002c:       4e 80 00 20     blr
 
-0000000000100030 <test_mullw_7>:
+0000000000100030 <test_mullw_3>:
   100030:       7c 64 29 d6     mullw   r3,r4,r5
   100034:       4e 80 00 20     blr
 
-0000000000100038 <test_mullw_8>:
-  100038:       7c 64 29 d6     mullw   r3,r4,r5
-  10003c:       4e 80 00 20     blr
-
-0000000000100040 <test_mullw_9>:
+0000000000100038 <test_mullw_3_constant>:
+  100038:       38 80 00 01     li      r4,1
+  10003c:       38 a0 ff ff     li      r5,-1
   100040:       7c 64 29 d6     mullw   r3,r4,r5
   100044:       4e 80 00 20     blr
 
-0000000000100048 <test_mullw_10>:
+0000000000100048 <test_mullw_4>:
   100048:       7c 64 29 d6     mullw   r3,r4,r5
   10004c:       4e 80 00 20     blr
 
-0000000000100050 <test_mullw_11>:
-  100050:       7c 64 29 d6     mullw   r3,r4,r5
-  100054:       4e 80 00 20     blr
+0000000000100050 <test_mullw_4_constant>:
+  100050:       38 80 00 7b     li      r4,123
+  100054:       38 a0 ff ff     li      r5,-1
+  100058:       7c 64 29 d6     mullw   r3,r4,r5
+  10005c:       4e 80 00 20     blr
+
+0000000000100060 <test_mullw_5>:
+  100060:       7c 64 29 d6     mullw   r3,r4,r5
+  100064:       4e 80 00 20     blr
+
+0000000000100068 <test_mullw_5_constant>:
+  100068:       38 80 ff ff     li      r4,-1
+  10006c:       38 a0 00 01     li      r5,1
+  100070:       7c 64 29 d6     mullw   r3,r4,r5
+  100074:       4e 80 00 20     blr
+
+0000000000100078 <test_mullw_6>:
+  100078:       7c 64 29 d6     mullw   r3,r4,r5
+  10007c:       4e 80 00 20     blr
+
+0000000000100080 <test_mullw_6_constant>:
+  100080:       38 80 ff ff     li      r4,-1
+  100084:       38 a0 00 02     li      r5,2
+  100088:       7c 64 29 d6     mullw   r3,r4,r5
+  10008c:       4e 80 00 20     blr
+
+0000000000100090 <test_mullw_7>:
+  100090:       7c 64 29 d6     mullw   r3,r4,r5
+  100094:       4e 80 00 20     blr
+
+0000000000100098 <test_mullw_7_constant>:
+  100098:       38 80 00 01     li      r4,1
+  10009c:       38 a0 ff ff     li      r5,-1
+  1000a0:       7c 64 29 d6     mullw   r3,r4,r5
+  1000a4:       4e 80 00 20     blr
+
+00000000001000a8 <test_mullw_8>:
+  1000a8:       7c 64 29 d6     mullw   r3,r4,r5
+  1000ac:       4e 80 00 20     blr
+
+00000000001000b0 <test_mullw_8_constant>:
+  1000b0:       38 80 ff ff     li      r4,-1
+  1000b4:       38 a0 ff ff     li      r5,-1
+  1000b8:       7c 64 29 d6     mullw   r3,r4,r5
+  1000bc:       4e 80 00 20     blr
+
+00000000001000c0 <test_mullw_9>:
+  1000c0:       7c 64 29 d6     mullw   r3,r4,r5
+  1000c4:       4e 80 00 20     blr
+
+00000000001000c8 <test_mullw_9_constant>:
+  1000c8:       38 80 ff ff     li      r4,-1
+  1000cc:       78 84 07 c6     rldicr  r4,r4,32,31
+  1000d0:       38 a0 00 01     li      r5,1
+  1000d4:       7c 64 29 d6     mullw   r3,r4,r5
+  1000d8:       4e 80 00 20     blr
+
+00000000001000dc <test_mullw_10>:
+  1000dc:       7c 64 29 d6     mullw   r3,r4,r5
+  1000e0:       4e 80 00 20     blr
+
+00000000001000e4 <test_mullw_10_constant>:
+  1000e4:       38 80 00 01     li      r4,1
+  1000e8:       38 a0 ff ff     li      r5,-1
+  1000ec:       78 a5 07 c6     rldicr  r5,r5,32,31
+  1000f0:       7c 64 29 d6     mullw   r3,r4,r5
+  1000f4:       4e 80 00 20     blr
+
+00000000001000f8 <test_mullw_11>:
+  1000f8:       7c 64 29 d6     mullw   r3,r4,r5
+  1000fc:       4e 80 00 20     blr
+
+0000000000100100 <test_mullw_11_constant>:
+  100100:       38 80 00 01     li      r4,1
+  100104:       38 a0 ff ff     li      r5,-1
+  100108:       78 a5 00 60     clrldi  r5,r5,33
+  10010c:       7c 64 29 d6     mullw   r3,r4,r5
+  100110:       4e 80 00 20     blr

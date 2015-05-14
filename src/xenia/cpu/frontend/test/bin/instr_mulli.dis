@@ -4,30 +4,70 @@ Disassembly of section .text:
   100000:       1c 64 00 00     mulli   r3,r4,0
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_mulli_2>:
-  100008:       1c 64 00 01     mulli   r3,r4,1
-  10000c:       4e 80 00 20     blr
+0000000000100008 <test_mulli_1_constant>:
+  100008:       38 80 00 01     li      r4,1
+  10000c:       1c 64 00 00     mulli   r3,r4,0
+  100010:       4e 80 00 20     blr
 
-0000000000100010 <test_mulli_3>:
-  100010:       1c 64 ff ff     mulli   r3,r4,-1
-  100014:       4e 80 00 20     blr
+0000000000100014 <test_mulli_2>:
+  100014:       1c 64 00 01     mulli   r3,r4,1
+  100018:       4e 80 00 20     blr
 
-0000000000100018 <test_mulli_4>:
-  100018:       1c 64 ff ff     mulli   r3,r4,-1
-  10001c:       4e 80 00 20     blr
-
-0000000000100020 <test_mulli_5>:
+000000000010001c <test_mulli_2_constant>:
+  10001c:       38 80 00 01     li      r4,1
   100020:       1c 64 00 01     mulli   r3,r4,1
   100024:       4e 80 00 20     blr
 
-0000000000100028 <test_mulli_6>:
-  100028:       1c 64 00 02     mulli   r3,r4,2
+0000000000100028 <test_mulli_3>:
+  100028:       1c 64 ff ff     mulli   r3,r4,-1
   10002c:       4e 80 00 20     blr
 
-0000000000100030 <test_mulli_7>:
-  100030:       1c 64 ff ff     mulli   r3,r4,-1
-  100034:       4e 80 00 20     blr
+0000000000100030 <test_mulli_3_constant>:
+  100030:       38 80 00 01     li      r4,1
+  100034:       1c 64 ff ff     mulli   r3,r4,-1
+  100038:       4e 80 00 20     blr
 
-0000000000100038 <test_mulli_8>:
-  100038:       1c 64 ff ff     mulli   r3,r4,-1
-  10003c:       4e 80 00 20     blr
+000000000010003c <test_mulli_4>:
+  10003c:       1c 64 ff ff     mulli   r3,r4,-1
+  100040:       4e 80 00 20     blr
+
+0000000000100044 <test_mulli_4_constant>:
+  100044:       38 80 00 7b     li      r4,123
+  100048:       1c 64 ff ff     mulli   r3,r4,-1
+  10004c:       4e 80 00 20     blr
+
+0000000000100050 <test_mulli_5>:
+  100050:       1c 64 00 01     mulli   r3,r4,1
+  100054:       4e 80 00 20     blr
+
+0000000000100058 <test_mulli_5_constant>:
+  100058:       38 80 ff ff     li      r4,-1
+  10005c:       1c 64 00 01     mulli   r3,r4,1
+  100060:       4e 80 00 20     blr
+
+0000000000100064 <test_mulli_6>:
+  100064:       1c 64 00 02     mulli   r3,r4,2
+  100068:       4e 80 00 20     blr
+
+000000000010006c <test_mulli_6_constant>:
+  10006c:       38 80 ff ff     li      r4,-1
+  100070:       1c 64 00 02     mulli   r3,r4,2
+  100074:       4e 80 00 20     blr
+
+0000000000100078 <test_mulli_7>:
+  100078:       1c 64 ff ff     mulli   r3,r4,-1
+  10007c:       4e 80 00 20     blr
+
+0000000000100080 <test_mulli_7_constant>:
+  100080:       38 80 00 01     li      r4,1
+  100084:       1c 64 ff ff     mulli   r3,r4,-1
+  100088:       4e 80 00 20     blr
+
+000000000010008c <test_mulli_8>:
+  10008c:       1c 64 ff ff     mulli   r3,r4,-1
+  100090:       4e 80 00 20     blr
+
+0000000000100094 <test_mulli_8_constant>:
+  100094:       38 80 ff ff     li      r4,-1
+  100098:       1c 64 ff ff     mulli   r3,r4,-1
+  10009c:       4e 80 00 20     blr

@@ -4,6 +4,16 @@ Disassembly of section .text:
   100000:       7c 64 05 0e     stvlx   v3,r4,r0
   100004:       4e 80 00 20     blr
 
-0000000000100008 <test_stvl_2>:
-  100008:       7c 64 05 0e     stvlx   v3,r4,r0
-  10000c:       4e 80 00 20     blr
+0000000000100008 <test_stvl_1_constant>:
+  100008:       38 80 10 40     li      r4,4160
+  10000c:       7c 64 05 0e     stvlx   v3,r4,r0
+  100010:       4e 80 00 20     blr
+
+0000000000100014 <test_stvl_2>:
+  100014:       7c 64 05 0e     stvlx   v3,r4,r0
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_stvl_2_constant>:
+  10001c:       38 80 10 44     li      r4,4164
+  100020:       7c 64 05 0e     stvlx   v3,r4,r0
+  100024:       4e 80 00 20     blr

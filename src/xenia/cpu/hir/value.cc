@@ -244,24 +244,28 @@ bool Value::Add(Value* other) {
 }
 
 bool Value::Sub(Value* other) {
-#define SUB_DID_CARRY(a, b) (b > a)
+#define SUB_DID_CARRY(a, b) (b == 0 || a > (~(0-b)))
   assert_true(type == other->type);
   bool did_carry = false;
   switch (type) {
     case INT8_TYPE:
-      did_carry = SUB_DID_CARRY(constant.i8, other->constant.i8);
+      did_carry =
+          SUB_DID_CARRY(uint16_t(constant.i8), uint16_t(other->constant.i8));
       constant.i8 -= other->constant.i8;
       break;
     case INT16_TYPE:
-      did_carry = SUB_DID_CARRY(constant.i16, other->constant.i16);
+      did_carry =
+          SUB_DID_CARRY(uint16_t(constant.i16), uint16_t(other->constant.i16));
       constant.i16 -= other->constant.i16;
       break;
     case INT32_TYPE:
-      did_carry = SUB_DID_CARRY(constant.i32, other->constant.i32);
+      did_carry =
+          SUB_DID_CARRY(uint32_t(constant.i32), uint32_t(other->constant.i32));
       constant.i32 -= other->constant.i32;
       break;
     case INT64_TYPE:
-      did_carry = SUB_DID_CARRY(constant.i64, other->constant.i64);
+      did_carry =
+          SUB_DID_CARRY(uint64_t(constant.i64), uint64_t(other->constant.i64));
       constant.i64 -= other->constant.i64;
       break;
     case FLOAT32_TYPE:

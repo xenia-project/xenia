@@ -5,42 +5,105 @@ Disassembly of section .text:
   100004:       7c c0 01 14     adde    r6,r0,r0
   100008:       4e 80 00 20     blr
 
-000000000010000c <test_sraw_2>:
-  10000c:       7c 83 2e 30     sraw    r3,r4,r5
-  100010:       7c c0 01 14     adde    r6,r0,r0
-  100014:       4e 80 00 20     blr
+000000000010000c <test_sraw_1_constant>:
+  10000c:       38 80 00 01     li      r4,1
+  100010:       38 a0 00 00     li      r5,0
+  100014:       7c 83 2e 30     sraw    r3,r4,r5
+  100018:       7c c0 01 14     adde    r6,r0,r0
+  10001c:       4e 80 00 20     blr
 
-0000000000100018 <test_sraw_3>:
-  100018:       7c 83 2e 30     sraw    r3,r4,r5
-  10001c:       7c c0 01 14     adde    r6,r0,r0
-  100020:       4e 80 00 20     blr
+0000000000100020 <test_sraw_2>:
+  100020:       7c 83 2e 30     sraw    r3,r4,r5
+  100024:       7c c0 01 14     adde    r6,r0,r0
+  100028:       4e 80 00 20     blr
 
-0000000000100024 <test_sraw_4>:
-  100024:       7c 83 2e 30     sraw    r3,r4,r5
-  100028:       7c c0 01 14     adde    r6,r0,r0
-  10002c:       4e 80 00 20     blr
+000000000010002c <test_sraw_2_constant>:
+  10002c:       38 80 ff ff     li      r4,-1
+  100030:       38 a0 00 00     li      r5,0
+  100034:       7c 83 2e 30     sraw    r3,r4,r5
+  100038:       7c c0 01 14     adde    r6,r0,r0
+  10003c:       4e 80 00 20     blr
 
-0000000000100030 <test_sraw_5>:
-  100030:       7c 83 2e 30     sraw    r3,r4,r5
-  100034:       7c c0 01 14     adde    r6,r0,r0
-  100038:       4e 80 00 20     blr
+0000000000100040 <test_sraw_3>:
+  100040:       7c 83 2e 30     sraw    r3,r4,r5
+  100044:       7c c0 01 14     adde    r6,r0,r0
+  100048:       4e 80 00 20     blr
 
-000000000010003c <test_sraw_6>:
-  10003c:       7c 83 2e 30     sraw    r3,r4,r5
-  100040:       7c c0 01 14     adde    r6,r0,r0
-  100044:       4e 80 00 20     blr
-
-0000000000100048 <test_sraw_7>:
-  100048:       7c 83 2e 30     sraw    r3,r4,r5
-  10004c:       7c c0 01 14     adde    r6,r0,r0
-  100050:       4e 80 00 20     blr
-
-0000000000100054 <test_sraw_8>:
+000000000010004c <test_sraw_3_constant>:
+  10004c:       38 80 ff ff     li      r4,-1
+  100050:       38 a0 00 01     li      r5,1
   100054:       7c 83 2e 30     sraw    r3,r4,r5
   100058:       7c c0 01 14     adde    r6,r0,r0
   10005c:       4e 80 00 20     blr
 
-0000000000100060 <test_sraw_9>:
+0000000000100060 <test_sraw_4>:
   100060:       7c 83 2e 30     sraw    r3,r4,r5
   100064:       7c c0 01 14     adde    r6,r0,r0
   100068:       4e 80 00 20     blr
+
+000000000010006c <test_sraw_4_constant>:
+  10006c:       38 80 ff ff     li      r4,-1
+  100070:       38 a0 00 3f     li      r5,63
+  100074:       7c 83 2e 30     sraw    r3,r4,r5
+  100078:       7c c0 01 14     adde    r6,r0,r0
+  10007c:       4e 80 00 20     blr
+
+0000000000100080 <test_sraw_5>:
+  100080:       7c 83 2e 30     sraw    r3,r4,r5
+  100084:       7c c0 01 14     adde    r6,r0,r0
+  100088:       4e 80 00 20     blr
+
+000000000010008c <test_sraw_5_constant>:
+  10008c:       38 80 ff ff     li      r4,-1
+  100090:       38 a0 00 40     li      r5,64
+  100094:       7c 83 2e 30     sraw    r3,r4,r5
+  100098:       7c c0 01 14     adde    r6,r0,r0
+  10009c:       4e 80 00 20     blr
+
+00000000001000a0 <test_sraw_6>:
+  1000a0:       7c 83 2e 30     sraw    r3,r4,r5
+  1000a4:       7c c0 01 14     adde    r6,r0,r0
+  1000a8:       4e 80 00 20     blr
+
+00000000001000ac <test_sraw_6_constant>:
+  1000ac:       38 80 ff ff     li      r4,-1
+  1000b0:       38 a0 00 64     li      r5,100
+  1000b4:       7c 83 2e 30     sraw    r3,r4,r5
+  1000b8:       7c c0 01 14     adde    r6,r0,r0
+  1000bc:       4e 80 00 20     blr
+
+00000000001000c0 <test_sraw_7>:
+  1000c0:       7c 83 2e 30     sraw    r3,r4,r5
+  1000c4:       7c c0 01 14     adde    r6,r0,r0
+  1000c8:       4e 80 00 20     blr
+
+00000000001000cc <test_sraw_7_constant>:
+  1000cc:       38 80 ff ff     li      r4,-1
+  1000d0:       38 a0 00 1e     li      r5,30
+  1000d4:       7c 83 2e 30     sraw    r3,r4,r5
+  1000d8:       7c c0 01 14     adde    r6,r0,r0
+  1000dc:       4e 80 00 20     blr
+
+00000000001000e0 <test_sraw_8>:
+  1000e0:       7c 83 2e 30     sraw    r3,r4,r5
+  1000e4:       7c c0 01 14     adde    r6,r0,r0
+  1000e8:       4e 80 00 20     blr
+
+00000000001000ec <test_sraw_8_constant>:
+  1000ec:       38 80 ff ff     li      r4,-1
+  1000f0:       38 a0 00 1f     li      r5,31
+  1000f4:       7c 83 2e 30     sraw    r3,r4,r5
+  1000f8:       7c c0 01 14     adde    r6,r0,r0
+  1000fc:       4e 80 00 20     blr
+
+0000000000100100 <test_sraw_9>:
+  100100:       7c 83 2e 30     sraw    r3,r4,r5
+  100104:       7c c0 01 14     adde    r6,r0,r0
+  100108:       4e 80 00 20     blr
+
+000000000010010c <test_sraw_9_constant>:
+  10010c:       38 80 ff ff     li      r4,-1
+  100110:       38 a0 00 20     li      r5,32
+  100114:       7c 83 2e 30     sraw    r3,r4,r5
+  100118:       7c c0 01 14     adde    r6,r0,r0
+  10011c:       4e 80 00 20     blr

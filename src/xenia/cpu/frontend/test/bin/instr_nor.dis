@@ -8,3 +8,14 @@ Disassembly of section .text:
 
 0000000000100010 <.nor_cr_1_ne>:
   100010:       4e 80 00 20     blr
+
+0000000000100014 <test_nor_cr_1_constant>:
+  100014:       38 60 ff ff     li      r3,-1
+  100018:       78 63 00 20     clrldi  r3,r3,32
+  10001c:       7c 63 18 f9     not.    r3,r3
+  100020:       38 60 00 00     li      r3,0
+  100024:       40 82 00 08     bne     10002c <.nor_cr_1_constant_ne>
+  100028:       38 60 00 01     li      r3,1
+
+000000000010002c <.nor_cr_1_constant_ne>:
+  10002c:       4e 80 00 20     blr
