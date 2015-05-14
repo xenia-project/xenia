@@ -1,0 +1,89 @@
+Disassembly of section .text:
+
+0000000000100000 <test_extsw_1>:
+  100000:       7c 83 07 b4     extsw   r3,r4
+  100004:       4e 80 00 20     blr
+
+0000000000100008 <test_extsw_1_constant>:
+  100008:       38 80 00 0f     li      r4,15
+  10000c:       7c 83 07 b4     extsw   r3,r4
+  100010:       4e 80 00 20     blr
+
+0000000000100014 <test_extsw_2>:
+  100014:       7c 83 07 b4     extsw   r3,r4
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_extsw_2_constant>:
+  10001c:       3c 80 7f ff     lis     r4,32767
+  100020:       60 84 ff ff     ori     r4,r4,65535
+  100024:       7c 83 07 b4     extsw   r3,r4
+  100028:       4e 80 00 20     blr
+
+000000000010002c <test_extsw_3>:
+  10002c:       7c 83 07 b4     extsw   r3,r4
+  100030:       4e 80 00 20     blr
+
+0000000000100034 <test_extsw_3_constant>:
+  100034:       38 80 00 80     li      r4,128
+  100038:       78 84 c1 e4     rldicr  r4,r4,24,39
+  10003c:       7c 83 07 b4     extsw   r3,r4
+  100040:       4e 80 00 20     blr
+
+0000000000100044 <test_extsw_4>:
+  100044:       7c 83 07 b4     extsw   r3,r4
+  100048:       4e 80 00 20     blr
+
+000000000010004c <test_extsw_4_constant>:
+  10004c:       38 80 0f 7f     li      r4,3967
+  100050:       7c 84 20 f8     not     r4,r4
+  100054:       78 84 c1 e4     rldicr  r4,r4,24,39
+  100058:       7c 83 07 b4     extsw   r3,r4
+  10005c:       4e 80 00 20     blr
+
+0000000000100060 <test_extsw_cr_1>:
+  100060:       7c 83 07 b5     extsw.  r3,r4
+  100064:       7d 80 00 26     mfcr    r12
+  100068:       4e 80 00 20     blr
+
+000000000010006c <test_extsw_cr_1_constant>:
+  10006c:       38 80 00 0f     li      r4,15
+  100070:       7c 83 07 b5     extsw.  r3,r4
+  100074:       7d 80 00 26     mfcr    r12
+  100078:       4e 80 00 20     blr
+
+000000000010007c <test_extsw_cr_2>:
+  10007c:       7c 83 07 b5     extsw.  r3,r4
+  100080:       7d 80 00 26     mfcr    r12
+  100084:       4e 80 00 20     blr
+
+0000000000100088 <test_extsw_cr_2_constant>:
+  100088:       3c 80 7f ff     lis     r4,32767
+  10008c:       60 84 ff ff     ori     r4,r4,65535
+  100090:       7c 83 07 b5     extsw.  r3,r4
+  100094:       7d 80 00 26     mfcr    r12
+  100098:       4e 80 00 20     blr
+
+000000000010009c <test_extsw_cr_3>:
+  10009c:       7c 83 07 b5     extsw.  r3,r4
+  1000a0:       7d 80 00 26     mfcr    r12
+  1000a4:       4e 80 00 20     blr
+
+00000000001000a8 <test_extsw_cr_3_constant>:
+  1000a8:       38 80 00 80     li      r4,128
+  1000ac:       78 84 c1 e4     rldicr  r4,r4,24,39
+  1000b0:       7c 83 07 b5     extsw.  r3,r4
+  1000b4:       7d 80 00 26     mfcr    r12
+  1000b8:       4e 80 00 20     blr
+
+00000000001000bc <test_extsw_cr_4>:
+  1000bc:       7c 83 07 b5     extsw.  r3,r4
+  1000c0:       7d 80 00 26     mfcr    r12
+  1000c4:       4e 80 00 20     blr
+
+00000000001000c8 <test_extsw_cr_4_constant>:
+  1000c8:       38 80 0f 7f     li      r4,3967
+  1000cc:       7c 84 20 f8     not     r4,r4
+  1000d0:       78 84 c1 e4     rldicr  r4,r4,24,39
+  1000d4:       7c 83 07 b5     extsw.  r3,r4
+  1000d8:       7d 80 00 26     mfcr    r12
+  1000dc:       4e 80 00 20     blr

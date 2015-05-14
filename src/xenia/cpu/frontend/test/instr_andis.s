@@ -16,23 +16,23 @@ test_andis_cr_1_constant:
   #_ REGISTER_OUT r11 0xCAFE0000
   #_ REGISTER_OUT r12 0x80000000
 
-#test_andis_cr_2:
-#  #_ REGISTER_IN r5 0xFFFFFFFFFFFFFFFF
-#  andis. r11, r5, 0
-#  mfcr r12
-#  blr
-#  #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
-#  #_ REGISTER_OUT r11 0
-#  #_ REGISTER_OUT r12 0x20000000
+test_andis_cr_2:
+ #_ REGISTER_IN r5 0xFFFFFFFFFFFFFFFF
+ andis. r11, r5, 0
+ mfcr r12
+ blr
+ #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
+ #_ REGISTER_OUT r11 0
+ #_ REGISTER_OUT r12 0x20000000
 
-#test_andis_cr_2_constant:
-#  #_ REGISTER_IN r5 0xFFFFFFFFFFFFFFFF
-#  andis. r11, r5, 0
-#  mfcr r12
-#  blr
-#  #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
-#  #_ REGISTER_OUT r11 0
-#  #_ REGISTER_OUT r12 0x20000000
+test_andis_cr_2_constant:
+ #_ REGISTER_IN r5 0xFFFFFFFFFFFFFFFF
+ andis. r11, r5, 0
+ mfcr r12
+ blr
+ #_ REGISTER_OUT r5 0xFFFFFFFFFFFFFFFF
+ #_ REGISTER_OUT r11 0
+ #_ REGISTER_OUT r12 0x20000000
 
 test_andis_cr_3:
   #_ REGISTER_IN r5 0

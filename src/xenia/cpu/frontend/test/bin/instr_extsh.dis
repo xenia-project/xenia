@@ -1,0 +1,87 @@
+Disassembly of section .text:
+
+0000000000100000 <test_extsh_1>:
+  100000:       7c 83 07 34     extsh   r3,r4
+  100004:       4e 80 00 20     blr
+
+0000000000100008 <test_extsh_1_constant>:
+  100008:       38 80 00 0f     li      r4,15
+  10000c:       7c 83 07 34     extsh   r3,r4
+  100010:       4e 80 00 20     blr
+
+0000000000100014 <test_extsh_2>:
+  100014:       7c 83 07 34     extsh   r3,r4
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_extsh_2_constant>:
+  10001c:       38 80 7f ff     li      r4,32767
+  100020:       7c 83 07 34     extsh   r3,r4
+  100024:       4e 80 00 20     blr
+
+0000000000100028 <test_extsh_3>:
+  100028:       7c 83 07 34     extsh   r3,r4
+  10002c:       4e 80 00 20     blr
+
+0000000000100030 <test_extsh_3_constant>:
+  100030:       38 80 00 80     li      r4,128
+  100034:       78 84 45 e4     rldicr  r4,r4,8,55
+  100038:       7c 83 07 34     extsh   r3,r4
+  10003c:       4e 80 00 20     blr
+
+0000000000100040 <test_extsh_4>:
+  100040:       7c 83 07 34     extsh   r3,r4
+  100044:       4e 80 00 20     blr
+
+0000000000100048 <test_extsh_4_constant>:
+  100048:       38 80 0f 7f     li      r4,3967
+  10004c:       7c 84 20 f8     not     r4,r4
+  100050:       78 84 45 e4     rldicr  r4,r4,8,55
+  100054:       7c 83 07 34     extsh   r3,r4
+  100058:       4e 80 00 20     blr
+
+000000000010005c <test_extsh_cr_1>:
+  10005c:       7c 83 07 35     extsh.  r3,r4
+  100060:       7d 80 00 26     mfcr    r12
+  100064:       4e 80 00 20     blr
+
+0000000000100068 <test_extsh_cr_1_constant>:
+  100068:       38 80 00 0f     li      r4,15
+  10006c:       7c 83 07 35     extsh.  r3,r4
+  100070:       7d 80 00 26     mfcr    r12
+  100074:       4e 80 00 20     blr
+
+0000000000100078 <test_extsh_cr_2>:
+  100078:       7c 83 07 35     extsh.  r3,r4
+  10007c:       7d 80 00 26     mfcr    r12
+  100080:       4e 80 00 20     blr
+
+0000000000100084 <test_extsh_cr_2_constant>:
+  100084:       38 80 7f ff     li      r4,32767
+  100088:       7c 83 07 35     extsh.  r3,r4
+  10008c:       7d 80 00 26     mfcr    r12
+  100090:       4e 80 00 20     blr
+
+0000000000100094 <test_extsh_cr_3>:
+  100094:       7c 83 07 35     extsh.  r3,r4
+  100098:       7d 80 00 26     mfcr    r12
+  10009c:       4e 80 00 20     blr
+
+00000000001000a0 <test_extsh_cr_3_constant>:
+  1000a0:       38 80 00 80     li      r4,128
+  1000a4:       78 84 45 e4     rldicr  r4,r4,8,55
+  1000a8:       7c 83 07 35     extsh.  r3,r4
+  1000ac:       7d 80 00 26     mfcr    r12
+  1000b0:       4e 80 00 20     blr
+
+00000000001000b4 <test_extsh_cr_4>:
+  1000b4:       7c 83 07 35     extsh.  r3,r4
+  1000b8:       7d 80 00 26     mfcr    r12
+  1000bc:       4e 80 00 20     blr
+
+00000000001000c0 <test_extsh_cr_4_constant>:
+  1000c0:       38 80 0f 7f     li      r4,3967
+  1000c4:       7c 84 20 f8     not     r4,r4
+  1000c8:       78 84 45 e4     rldicr  r4,r4,8,55
+  1000cc:       7c 83 07 35     extsh.  r3,r4
+  1000d0:       7d 80 00 26     mfcr    r12
+  1000d4:       4e 80 00 20     blr

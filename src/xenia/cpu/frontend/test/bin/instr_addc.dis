@@ -5,22 +5,142 @@ Disassembly of section .text:
   100004:       7c c0 01 14     adde    r6,r0,r0
   100008:       4e 80 00 20     blr
 
-000000000010000c <test_addc_2>:
-  10000c:       7c 64 28 14     addc    r3,r4,r5
-  100010:       7c c0 01 14     adde    r6,r0,r0
-  100014:       4e 80 00 20     blr
+000000000010000c <test_addc_1_constant>:
+  10000c:       38 80 00 01     li      r4,1
+  100010:       38 a0 00 02     li      r5,2
+  100014:       7c 64 28 14     addc    r3,r4,r5
+  100018:       7c c0 01 14     adde    r6,r0,r0
+  10001c:       4e 80 00 20     blr
 
-0000000000100018 <test_addc_3>:
-  100018:       7c 64 28 14     addc    r3,r4,r5
-  10001c:       7c c0 01 14     adde    r6,r0,r0
-  100020:       4e 80 00 20     blr
+0000000000100020 <test_addc_2>:
+  100020:       7c 64 28 14     addc    r3,r4,r5
+  100024:       7c c0 01 14     adde    r6,r0,r0
+  100028:       4e 80 00 20     blr
 
-0000000000100024 <test_addc_4>:
-  100024:       7c 64 28 14     addc    r3,r4,r5
-  100028:       7c c0 01 14     adde    r6,r0,r0
-  10002c:       4e 80 00 20     blr
+000000000010002c <test_addc_2_constant>:
+  10002c:       38 80 ff ff     li      r4,-1
+  100030:       38 a0 00 00     li      r5,0
+  100034:       7c 64 28 14     addc    r3,r4,r5
+  100038:       7c c0 01 14     adde    r6,r0,r0
+  10003c:       4e 80 00 20     blr
 
-0000000000100030 <test_addc_5>:
-  100030:       7c 64 28 14     addc    r3,r4,r5
-  100034:       7c c0 01 14     adde    r6,r0,r0
-  100038:       4e 80 00 20     blr
+0000000000100040 <test_addc_3>:
+  100040:       7c 64 28 14     addc    r3,r4,r5
+  100044:       7c c0 01 14     adde    r6,r0,r0
+  100048:       4e 80 00 20     blr
+
+000000000010004c <test_addc_3_constant>:
+  10004c:       38 80 ff ff     li      r4,-1
+  100050:       38 a0 00 01     li      r5,1
+  100054:       7c 64 28 14     addc    r3,r4,r5
+  100058:       7c c0 01 14     adde    r6,r0,r0
+  10005c:       4e 80 00 20     blr
+
+0000000000100060 <test_addc_4>:
+  100060:       7c 64 28 14     addc    r3,r4,r5
+  100064:       7c c0 01 14     adde    r6,r0,r0
+  100068:       4e 80 00 20     blr
+
+000000000010006c <test_addc_4_constant>:
+  10006c:       38 80 ff ff     li      r4,-1
+  100070:       38 a0 00 7b     li      r5,123
+  100074:       7c 64 28 14     addc    r3,r4,r5
+  100078:       7c c0 01 14     adde    r6,r0,r0
+  10007c:       4e 80 00 20     blr
+
+0000000000100080 <test_addc_5>:
+  100080:       7c 64 28 14     addc    r3,r4,r5
+  100084:       7c c0 01 14     adde    r6,r0,r0
+  100088:       4e 80 00 20     blr
+
+000000000010008c <test_addc_5_constant>:
+  10008c:       38 a0 ff ff     li      r5,-1
+  100090:       78 a4 f8 42     rldicl  r4,r5,63,1
+  100094:       7c 64 28 14     addc    r3,r4,r5
+  100098:       7c c0 01 14     adde    r6,r0,r0
+  10009c:       4e 80 00 20     blr
+
+00000000001000a0 <test_addc_cr_1>:
+  1000a0:       7c 64 28 15     addc.   r3,r4,r5
+  1000a4:       7c c0 01 14     adde    r6,r0,r0
+  1000a8:       7d 80 00 26     mfcr    r12
+  1000ac:       4e 80 00 20     blr
+
+00000000001000b0 <test_addc_cr_1_constant>:
+  1000b0:       38 80 00 01     li      r4,1
+  1000b4:       38 a0 00 02     li      r5,2
+  1000b8:       7c 64 28 15     addc.   r3,r4,r5
+  1000bc:       7c c0 01 14     adde    r6,r0,r0
+  1000c0:       7d 80 00 26     mfcr    r12
+  1000c4:       4e 80 00 20     blr
+
+00000000001000c8 <test_addc_cr_2>:
+  1000c8:       7c 64 28 15     addc.   r3,r4,r5
+  1000cc:       7c c0 01 14     adde    r6,r0,r0
+  1000d0:       7d 80 00 26     mfcr    r12
+  1000d4:       4e 80 00 20     blr
+
+00000000001000d8 <test_addc_cr_2_constant>:
+  1000d8:       38 80 ff ff     li      r4,-1
+  1000dc:       38 a0 00 00     li      r5,0
+  1000e0:       7c 64 28 15     addc.   r3,r4,r5
+  1000e4:       7c c0 01 14     adde    r6,r0,r0
+  1000e8:       7d 80 00 26     mfcr    r12
+  1000ec:       4e 80 00 20     blr
+
+00000000001000f0 <test_addc_cr_3>:
+  1000f0:       7c 64 28 15     addc.   r3,r4,r5
+  1000f4:       7c c0 01 14     adde    r6,r0,r0
+  1000f8:       7d 80 00 26     mfcr    r12
+  1000fc:       4e 80 00 20     blr
+
+0000000000100100 <test_addc_cr_3_constant>:
+  100100:       38 80 ff ff     li      r4,-1
+  100104:       38 a0 00 01     li      r5,1
+  100108:       7c 64 28 15     addc.   r3,r4,r5
+  10010c:       7c c0 01 14     adde    r6,r0,r0
+  100110:       7d 80 00 26     mfcr    r12
+  100114:       4e 80 00 20     blr
+
+0000000000100118 <test_addc_cr_4>:
+  100118:       7c 64 28 15     addc.   r3,r4,r5
+  10011c:       7c c0 01 14     adde    r6,r0,r0
+  100120:       7d 80 00 26     mfcr    r12
+  100124:       4e 80 00 20     blr
+
+0000000000100128 <test_addc_cr_4_constant>:
+  100128:       38 80 ff ff     li      r4,-1
+  10012c:       38 a0 00 7b     li      r5,123
+  100130:       7c 64 28 15     addc.   r3,r4,r5
+  100134:       7c c0 01 14     adde    r6,r0,r0
+  100138:       7d 80 00 26     mfcr    r12
+  10013c:       4e 80 00 20     blr
+
+0000000000100140 <test_addc_cr_5>:
+  100140:       7c 64 28 15     addc.   r3,r4,r5
+  100144:       7c c0 01 14     adde    r6,r0,r0
+  100148:       7d 80 00 26     mfcr    r12
+  10014c:       4e 80 00 20     blr
+
+0000000000100150 <test_addc_cr_5_constant>:
+  100150:       38 a0 ff ff     li      r5,-1
+  100154:       78 a4 f8 42     rldicl  r4,r5,63,1
+  100158:       7c 64 28 15     addc.   r3,r4,r5
+  10015c:       7c c0 01 14     adde    r6,r0,r0
+  100160:       7d 80 00 26     mfcr    r12
+  100164:       4e 80 00 20     blr
+
+0000000000100168 <test_addc_cr_6>:
+  100168:       7c 64 28 15     addc.   r3,r4,r5
+  10016c:       7c c0 01 14     adde    r6,r0,r0
+  100170:       7d 80 00 26     mfcr    r12
+  100174:       4e 80 00 20     blr
+
+0000000000100178 <test_addc_cr_6_constant>:
+  100178:       38 80 ff ff     li      r4,-1
+  10017c:       78 84 f8 42     rldicl  r4,r4,63,1
+  100180:       38 a0 00 02     li      r5,2
+  100184:       7c 64 28 15     addc.   r3,r4,r5
+  100188:       7c c0 01 14     adde    r6,r0,r0
+  10018c:       7d 80 00 26     mfcr    r12
+  100190:       4e 80 00 20     blr

@@ -111,3 +111,131 @@ Disassembly of section .text:
   100134:       7c 64 01 d4     addme   r3,r4
   100138:       7c c0 01 14     adde    r6,r0,r0
   10013c:       4e 80 00 20     blr
+
+0000000000100140 <test_addme_cr_1>:
+  100140:       7c 64 01 d5     addme.  r3,r4
+  100144:       7c c0 01 14     adde    r6,r0,r0
+  100148:       7d 80 00 26     mfcr    r12
+  10014c:       4e 80 00 20     blr
+
+0000000000100150 <test_addme_cr_1_constant>:
+  100150:       38 80 00 01     li      r4,1
+  100154:       7c 64 01 d5     addme.  r3,r4
+  100158:       7c c0 01 14     adde    r6,r0,r0
+  10015c:       7d 80 00 26     mfcr    r12
+  100160:       4e 80 00 20     blr
+
+0000000000100164 <test_addme_cr_2>:
+  100164:       7c 63 1a 78     xor     r3,r3,r3
+  100168:       7c 63 18 f8     not     r3,r3
+  10016c:       30 63 00 01     addic   r3,r3,1
+  100170:       7c 64 01 d5     addme.  r3,r4
+  100174:       7c c0 01 14     adde    r6,r0,r0
+  100178:       7d 80 00 26     mfcr    r12
+  10017c:       4e 80 00 20     blr
+
+0000000000100180 <test_addme_cr_2_constant>:
+  100180:       38 80 00 01     li      r4,1
+  100184:       7c 63 1a 78     xor     r3,r3,r3
+  100188:       7c 63 18 f8     not     r3,r3
+  10018c:       30 63 00 01     addic   r3,r3,1
+  100190:       7c 64 01 d5     addme.  r3,r4
+  100194:       7c c0 01 14     adde    r6,r0,r0
+  100198:       7d 80 00 26     mfcr    r12
+  10019c:       4e 80 00 20     blr
+
+00000000001001a0 <test_addme_cr_3>:
+  1001a0:       7c 64 01 d5     addme.  r3,r4
+  1001a4:       7c c0 01 14     adde    r6,r0,r0
+  1001a8:       7d 80 00 26     mfcr    r12
+  1001ac:       4e 80 00 20     blr
+
+00000000001001b0 <test_addme_cr_3_constant>:
+  1001b0:       38 80 00 0c     li      r4,12
+  1001b4:       7c 64 01 d5     addme.  r3,r4
+  1001b8:       7c c0 01 14     adde    r6,r0,r0
+  1001bc:       7d 80 00 26     mfcr    r12
+  1001c0:       4e 80 00 20     blr
+
+00000000001001c4 <test_addme_cr_4>:
+  1001c4:       7c 63 1a 78     xor     r3,r3,r3
+  1001c8:       7c 63 18 f8     not     r3,r3
+  1001cc:       30 63 00 01     addic   r3,r3,1
+  1001d0:       7c 64 01 d5     addme.  r3,r4
+  1001d4:       7c c0 01 14     adde    r6,r0,r0
+  1001d8:       7d 80 00 26     mfcr    r12
+  1001dc:       4e 80 00 20     blr
+
+00000000001001e0 <test_addme_cr_4_constant>:
+  1001e0:       38 80 00 0c     li      r4,12
+  1001e4:       7c 63 1a 78     xor     r3,r3,r3
+  1001e8:       7c 63 18 f8     not     r3,r3
+  1001ec:       30 63 00 01     addic   r3,r3,1
+  1001f0:       7c 64 01 d5     addme.  r3,r4
+  1001f4:       7c c0 01 14     adde    r6,r0,r0
+  1001f8:       7d 80 00 26     mfcr    r12
+  1001fc:       4e 80 00 20     blr
+
+0000000000100200 <test_addme_cr_5>:
+  100200:       7c 64 01 d5     addme.  r3,r4
+  100204:       7c c0 01 14     adde    r6,r0,r0
+  100208:       7d 80 00 26     mfcr    r12
+  10020c:       4e 80 00 20     blr
+
+0000000000100210 <test_addme_cr_5_constant>:
+  100210:       38 80 ff ff     li      r4,-1
+  100214:       7c 64 01 d5     addme.  r3,r4
+  100218:       7c c0 01 14     adde    r6,r0,r0
+  10021c:       7d 80 00 26     mfcr    r12
+  100220:       4e 80 00 20     blr
+
+0000000000100224 <test_addme_cr_6>:
+  100224:       7c 63 1a 78     xor     r3,r3,r3
+  100228:       7c 63 18 f8     not     r3,r3
+  10022c:       30 63 00 01     addic   r3,r3,1
+  100230:       7c 64 01 d5     addme.  r3,r4
+  100234:       7c c0 01 14     adde    r6,r0,r0
+  100238:       7d 80 00 26     mfcr    r12
+  10023c:       4e 80 00 20     blr
+
+0000000000100240 <test_addme_cr_6_constant>:
+  100240:       38 80 ff ff     li      r4,-1
+  100244:       7c 63 1a 78     xor     r3,r3,r3
+  100248:       7c 63 18 f8     not     r3,r3
+  10024c:       30 63 00 01     addic   r3,r3,1
+  100250:       7c 64 01 d5     addme.  r3,r4
+  100254:       7c c0 01 14     adde    r6,r0,r0
+  100258:       7d 80 00 26     mfcr    r12
+  10025c:       4e 80 00 20     blr
+
+0000000000100260 <test_addme_cr_7>:
+  100260:       7c 64 01 d5     addme.  r3,r4
+  100264:       7c c0 01 14     adde    r6,r0,r0
+  100268:       7d 80 00 26     mfcr    r12
+  10026c:       4e 80 00 20     blr
+
+0000000000100270 <test_addme_cr_7_constant>:
+  100270:       38 80 00 00     li      r4,0
+  100274:       7c 64 01 d5     addme.  r3,r4
+  100278:       7c c0 01 14     adde    r6,r0,r0
+  10027c:       7d 80 00 26     mfcr    r12
+  100280:       4e 80 00 20     blr
+
+0000000000100284 <test_addme_cr_8>:
+  100284:       7c 63 1a 78     xor     r3,r3,r3
+  100288:       7c 63 18 f8     not     r3,r3
+  10028c:       30 63 00 01     addic   r3,r3,1
+  100290:       7c 64 01 d5     addme.  r3,r4
+  100294:       7c c0 01 14     adde    r6,r0,r0
+  100298:       7d 80 00 26     mfcr    r12
+  10029c:       4e 80 00 20     blr
+
+00000000001002a0 <test_addme_cr_8_constant>:
+  1002a0:       38 80 00 00     li      r4,0
+  1002a4:       7c 63 1a 78     xor     r3,r3,r3
+  1002a8:       7c 63 18 f8     not     r3,r3
+  1002ac:       30 63 00 01     addic   r3,r3,1
+  1002b0:       7c 64 01 d5     addme.  r3,r4
+  1002b4:       7c c0 01 14     adde    r6,r0,r0
+  1002b8:       7d 80 00 26     mfcr    r12
+  1002bc:       4e 80 00 20     blr

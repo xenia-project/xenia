@@ -1,0 +1,56 @@
+Disassembly of section .text:
+
+0000000000100000 <test_andis_cr_1>:
+  100000:       74 ab ca fe     andis.  r11,r5,51966
+  100004:       7d 80 00 26     mfcr    r12
+  100008:       4e 80 00 20     blr
+
+000000000010000c <test_andis_cr_1_constant>:
+  10000c:       38 a0 ff ff     li      r5,-1
+  100010:       74 ab ca fe     andis.  r11,r5,51966
+  100014:       7d 80 00 26     mfcr    r12
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_andis_cr_2>:
+  10001c:       74 ab 00 00     andis.  r11,r5,0
+  100020:       7d 80 00 26     mfcr    r12
+  100024:       4e 80 00 20     blr
+
+0000000000100028 <test_andis_cr_2_constant>:
+  100028:       74 ab 00 00     andis.  r11,r5,0
+  10002c:       7d 80 00 26     mfcr    r12
+  100030:       4e 80 00 20     blr
+
+0000000000100034 <test_andis_cr_3>:
+  100034:       74 ab ff ff     andis.  r11,r5,65535
+  100038:       7d 80 00 26     mfcr    r12
+  10003c:       4e 80 00 20     blr
+
+0000000000100040 <test_andis_cr_3_constant>:
+  100040:       38 a0 00 00     li      r5,0
+  100044:       74 ab ff ff     andis.  r11,r5,65535
+  100048:       7d 80 00 26     mfcr    r12
+  10004c:       4e 80 00 20     blr
+
+0000000000100050 <test_andis_cr_4>:
+  100050:       74 ab ca fe     andis.  r11,r5,51966
+  100054:       7d 80 00 26     mfcr    r12
+  100058:       4e 80 00 20     blr
+
+000000000010005c <test_andis_cr_4_constant>:
+  10005c:       38 a0 ff ff     li      r5,-1
+  100060:       74 ab ca fe     andis.  r11,r5,51966
+  100064:       7d 80 00 26     mfcr    r12
+  100068:       4e 80 00 20     blr
+
+000000000010006c <test_andis_cr_5>:
+  10006c:       74 0b ff ff     andis.  r11,r0,65535
+  100070:       7d 80 00 26     mfcr    r12
+  100074:       4e 80 00 20     blr
+
+0000000000100078 <test_andis_cr_5_constant>:
+  100078:       3c 00 10 00     lis     r0,4096
+  10007c:       60 00 00 ff     ori     r0,r0,255
+  100080:       74 0b ff ff     andis.  r11,r0,65535
+  100084:       7d 80 00 26     mfcr    r12
+  100088:       4e 80 00 20     blr

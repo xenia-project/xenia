@@ -1,0 +1,10 @@
+0000000000000000 t test_andi_cr_1
+000000000000000c t test_andi_cr_1_constant
+000000000000001c t test_andi_cr_2
+0000000000000028 t test_andi_cr_2_constant
+0000000000000034 t test_andi_cr_3
+0000000000000040 t test_andi_cr_3_constant
+0000000000000050 t test_andi_cr_4
+000000000000005c t test_andi_cr_4_constant
+000000000000006c t test_andi_cr_5
+0000000000000078 t test_andi_cr_5_constant

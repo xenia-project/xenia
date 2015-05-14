@@ -1,2 +1,8 @@
 0000000000000000 t test_addic_1
-000000000000000c t test_addic_2
+000000000000000c t test_addic_1_constant
+000000000000001c t test_addic_2
+0000000000000028 t test_addic_2_constant
+0000000000000038 t test_addic_cr_1
+0000000000000048 t test_addic_cr_1_constant
+000000000000005c t test_addic_cr_2
+000000000000006c t test_addic_cr_2_constant

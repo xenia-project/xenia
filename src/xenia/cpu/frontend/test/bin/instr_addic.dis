@@ -5,7 +5,45 @@ Disassembly of section .text:
   100004:       7c c0 01 14     adde    r6,r0,r0
   100008:       4e 80 00 20     blr
 
-000000000010000c <test_addic_2>:
-  10000c:       30 84 00 01     addic   r4,r4,1
-  100010:       7c c0 01 14     adde    r6,r0,r0
-  100014:       4e 80 00 20     blr
+000000000010000c <test_addic_1_constant>:
+  10000c:       38 80 00 01     li      r4,1
+  100010:       30 84 00 01     addic   r4,r4,1
+  100014:       7c c0 01 14     adde    r6,r0,r0
+  100018:       4e 80 00 20     blr
+
+000000000010001c <test_addic_2>:
+  10001c:       30 84 00 01     addic   r4,r4,1
+  100020:       7c c0 01 14     adde    r6,r0,r0
+  100024:       4e 80 00 20     blr
+
+0000000000100028 <test_addic_2_constant>:
+  100028:       38 80 ff ff     li      r4,-1
+  10002c:       30 84 00 01     addic   r4,r4,1
+  100030:       7c c0 01 14     adde    r6,r0,r0
+  100034:       4e 80 00 20     blr
+
+0000000000100038 <test_addic_cr_1>:
+  100038:       34 84 00 01     addic.  r4,r4,1
+  10003c:       7c c0 01 14     adde    r6,r0,r0
+  100040:       7d 80 00 26     mfcr    r12
+  100044:       4e 80 00 20     blr
+
+0000000000100048 <test_addic_cr_1_constant>:
+  100048:       38 80 00 01     li      r4,1
+  10004c:       34 84 00 01     addic.  r4,r4,1
+  100050:       7c c0 01 14     adde    r6,r0,r0
+  100054:       7d 80 00 26     mfcr    r12
+  100058:       4e 80 00 20     blr
+
+000000000010005c <test_addic_cr_2>:
+  10005c:       34 84 00 01     addic.  r4,r4,1
+  100060:       7c c0 01 14     adde    r6,r0,r0
+  100064:       7d 80 00 26     mfcr    r12
+  100068:       4e 80 00 20     blr
+
+000000000010006c <test_addic_cr_2_constant>:
+  10006c:       38 80 ff ff     li      r4,-1
+  100070:       34 84 00 01     addic.  r4,r4,1
+  100074:       7c c0 01 14     adde    r6,r0,r0
+  100078:       7d 80 00 26     mfcr    r12
+  10007c:       4e 80 00 20     blr

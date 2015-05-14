@@ -1196,7 +1196,8 @@ Value* HIRBuilder::CompareXX(const OpcodeInfo& opcode, Value* value1,
                              Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
   if (value1->IsConstant() && value2->IsConstant()) {
-    return LoadConstant(value1->Compare(opcode.num, value2) ? 1 : 0);
+    return LoadConstant(value1->Compare(opcode.num, value2) ? int8_t(1)
+                                                            : int8_t(0));
   }
 
   Instr* i = AppendInstr(opcode, 0, AllocValue(INT8_TYPE));

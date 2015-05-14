@@ -403,6 +403,12 @@ class Value {
   void ByteSwap();
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
+
+ private:
+  static bool CompareInt8(Opcode opcode, Value* a, Value* b);
+  static bool CompareInt16(Opcode opcode, Value* a, Value* b);
+  static bool CompareInt32(Opcode opcode, Value* a, Value* b);
+  static bool CompareInt64(Opcode opcode, Value* a, Value* b);
 };
 
 }  // namespace hir

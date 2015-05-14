@@ -1,0 +1,16 @@
+0000000000000000 t test_extsw_1
+0000000000000008 t test_extsw_1_constant
+0000000000000014 t test_extsw_2
+000000000000001c t test_extsw_2_constant
+000000000000002c t test_extsw_3
+0000000000000034 t test_extsw_3_constant
+0000000000000044 t test_extsw_4
+000000000000004c t test_extsw_4_constant
+0000000000000060 t test_extsw_cr_1
+000000000000006c t test_extsw_cr_1_constant
+000000000000007c t test_extsw_cr_2
+0000000000000088 t test_extsw_cr_2_constant
+000000000000009c t test_extsw_cr_3
+00000000000000a8 t test_extsw_cr_3_constant
+00000000000000bc t test_extsw_cr_4
+00000000000000c8 t test_extsw_cr_4_constant
