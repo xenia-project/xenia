@@ -25,6 +25,8 @@ void RegisterAudioXmaExports(xe::cpu::ExportResolver* export_resolver,
                              KernelState* state);
 void RegisterDebugExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* state);
+void RegisterErrorExports(xe::cpu::ExportResolver* export_resolver,
+                          KernelState* state);
 void RegisterHalExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* state);
 void RegisterIoExports(xe::cpu::ExportResolver* export_resolver,

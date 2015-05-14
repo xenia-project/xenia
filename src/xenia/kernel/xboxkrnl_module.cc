@@ -40,6 +40,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xboxkrnl::RegisterModuleExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterObExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterRtlExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterErrorExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterStringExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterThreadingExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterUsbcamExports(export_resolver_, kernel_state_);

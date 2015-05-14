@@ -181,6 +181,7 @@
     <ClCompile Include="src\xenia\kernel\xboxkrnl_modules.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_ob.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_rtl.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_error.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_strings.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_threading.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_usbcam.cc" />
@@ -378,6 +379,7 @@
     <ClInclude Include="src\xenia\kernel\xboxkrnl_ordinals.h" />
     <ClInclude Include="src\xenia\kernel\xboxkrnl_private.h" />
     <ClInclude Include="src\xenia\kernel\xboxkrnl_rtl.h" />
+    <ClInclude Include="src\xenia\kernel\xboxkrnl_error.h" />
     <ClInclude Include="src\xenia\kernel\xobject.h" />
     <ClInclude Include="src\xenia\memory.h" />
     <ClInclude Include="src\xenia\profiling.h" />
