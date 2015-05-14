@@ -18,7 +18,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ntdll.lib;wsock32.lib;ws2_32.lib;xinput.lib;xaudio2.lib;glu32.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ntdll.lib;wsock32.lib;ws2_32.lib;xinput.lib;xaudio2.lib;glu32.lib;opengl32.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Lib>
       <AdditionalLibraryDirectories>$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>

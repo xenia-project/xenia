@@ -8,10 +8,13 @@
  */
 
 #include "xenia/base/logging.h"
+#include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
 #include "xenia/xbox.h"
+
+#include <commctrl.h>
 
 namespace xe {
 namespace kernel {
@@ -51,8 +54,55 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
       button_count, button_ptrs, all_buttons.c_str(), active_button, flags,
       result_ptr, overlapped_ptr);
 
-  // Auto-pick the focused button.
-  SHIM_SET_MEM_32(result_ptr, active_button);
+  uint32_t chosen_button;
+  if (FLAGS_headless) {
+    // Auto-pick the focused button.
+    chosen_button = active_button;
+  } else {
+    TASKDIALOGCONFIG config = {0};
+    config.cbSize = sizeof(config);
+    config.hInstance = GetModuleHandle(nullptr);
+    config.hwndParent = state->emulator()->main_window()->hwnd();
+    config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION |   // esc to exit
+                     TDF_POSITION_RELATIVE_TO_WINDOW;  // center in window
+    config.dwCommonButtons = 0;
+    config.pszWindowTitle = title.c_str();
+    switch (flags & 0xF) {
+      case 0:
+        config.pszMainIcon = nullptr;
+        break;
+      case 1:
+        config.pszMainIcon = TD_ERROR_ICON;
+        break;
+      case 2:
+        config.pszMainIcon = TD_WARNING_ICON;
+        break;
+      case 3:
+        config.pszMainIcon = TD_INFORMATION_ICON;
+        break;
+    }
+    config.pszMainInstruction = text.c_str();
+    config.pszContent = nullptr;
+    std::vector<TASKDIALOG_BUTTON> taskdialog_buttons;
+    for (uint32_t i = 0; i < button_count; ++i) {
+      taskdialog_buttons.push_back({1000 + int(i), buttons[i].c_str()});
+    }
+    config.pButtons = taskdialog_buttons.data();
+    config.cButtons = button_count;
+    config.nDefaultButton = active_button;
+    int button_pressed = 0;
+    TaskDialogIndirect(&config, &button_pressed, nullptr, nullptr);
+    switch (button_pressed) {
+      default:
+        chosen_button = button_pressed - 1000;
+        break;
+      case IDCANCEL:
+        // User cancelled, just pick default.
+        chosen_button = active_button;
+        break;
+    }
+  }
+  SHIM_SET_MEM_32(result_ptr, chosen_button);
 
   state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);

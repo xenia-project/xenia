@@ -27,6 +27,8 @@
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
 
+DEFINE_bool(headless, false,
+            "Don't display any UI, using defaults for prompts as needed.");
 DEFINE_string(content_root, "content",
               "Root path for content (save/etc) storage.");
 

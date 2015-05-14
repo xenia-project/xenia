@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_KERNEL_STATE_H_
 #define XENIA_KERNEL_KERNEL_STATE_H_
 
+#include <gflags/gflags.h>
+
 #include <memory>
 #include <mutex>
 
@@ -28,6 +30,8 @@ namespace cpu {
 class Processor;
 }  // namespace cpu
 }  // namespace xe
+
+DECLARE_bool(headless);
 
 namespace xe {
 namespace kernel {
