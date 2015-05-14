@@ -14,6 +14,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/gpu/gpu-private.h"
+#include "xenia/profiling.h"
 
 namespace xe {
 namespace gpu {
@@ -678,6 +679,7 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
 
 bool TextureCache::UploadTexture2D(GLuint texture,
                                    const TextureInfo& texture_info) {
+  SCOPE_profile_cpu_f("gpu");
   const auto host_address =
       memory_->TranslatePhysical(texture_info.guest_address);
 
@@ -781,6 +783,7 @@ bool TextureCache::UploadTexture2D(GLuint texture,
 
 bool TextureCache::UploadTextureCube(GLuint texture,
                                      const TextureInfo& texture_info) {
+  SCOPE_profile_cpu_f("gpu");
   const auto host_address =
       memory_->TranslatePhysical(texture_info.guest_address);
 
