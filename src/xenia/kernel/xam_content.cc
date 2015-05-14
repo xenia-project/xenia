@@ -265,7 +265,7 @@ void XamContentCreateCore(PPCContext* ppc_state, KernelState* state,
     case 3:  // OPEN_EXISTING
              // Open only if exists.
       if (!content_manager->ContentExists(content_data)) {
-        result = X_ERROR_FILE_NOT_FOUND;
+        result = X_ERROR_PATH_NOT_FOUND;
       } else {
         open = true;
       }
@@ -281,7 +281,7 @@ void XamContentCreateCore(PPCContext* ppc_state, KernelState* state,
     case 5:  // TRUNCATE_EXISTING
              // Fail if doesn't exist, if does exist delete and recreate.
       if (!content_manager->ContentExists(content_data)) {
-        result = X_ERROR_FILE_NOT_FOUND;
+        result = X_ERROR_PATH_NOT_FOUND;
       } else {
         content_manager->DeleteContent(content_data);
         create = true;
