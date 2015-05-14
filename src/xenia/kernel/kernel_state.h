@@ -85,10 +85,12 @@ class KernelState {
   void UnregisterNotifyListener(XNotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
-  void CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result,
-                          uint32_t length = 0);
-  void CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT result,
-                                   uint32_t length = 0);
+  void CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result);
+  void CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
+                            uint32_t extended_error, uint32_t length);
+  void CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT result);
+  void CompleteOverlappedImmediateEx(uint32_t overlapped_ptr, X_RESULT result,
+                                     uint32_t extended_error, uint32_t length);
 
  private:
   Emulator* emulator_;

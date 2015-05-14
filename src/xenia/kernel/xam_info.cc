@@ -175,7 +175,8 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
     SHIM_SET_MEM_32(item_count_ptr, item_count);
   } else if (overlapped_ptr) {
     assert_zero(item_count_ptr);
-    state->CompleteOverlappedImmediate(overlapped_ptr, result, item_count);
+    state->CompleteOverlappedImmediateEx(overlapped_ptr, result, result,
+                                         item_count);
     result = X_ERROR_IO_PENDING;
   } else {
     assert_always();

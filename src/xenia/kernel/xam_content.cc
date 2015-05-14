@@ -116,10 +116,9 @@ SHIM_CALL XamContentGetDeviceState_shim(PPCContext* ppc_state,
 
   if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
     if (overlapped_ptr) {
-      state->CompleteOverlappedImmediate(overlapped_ptr,
-                                         X_ERROR_FUNCTION_FAILED);
-      XOverlappedSetExtendedError(SHIM_MEM_BASE + overlapped_ptr,
-                                  X_ERROR_DEVICE_NOT_CONNECTED);
+      state->CompleteOverlappedImmediateEx(overlapped_ptr,
+                                           X_ERROR_FUNCTION_FAILED,
+                                           X_ERROR_DEVICE_NOT_CONNECTED, 0);
       SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
     } else {
       SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
@@ -292,12 +291,13 @@ void XamContentCreateCore(PPCContext* ppc_state, KernelState* state,
       break;
   }
 
+  uint32_t disposition = create ? 1 : 2;
   if (disposition_ptr) {
     if (overlapped_ptr) {
       // If async always set to zero, but don't set to a real value.
       SHIM_SET_MEM_32(disposition_ptr, 0);
     } else {
-      SHIM_SET_MEM_32(disposition_ptr, create ? 1 : 2);
+      SHIM_SET_MEM_32(disposition_ptr, disposition);
     }
   }
 
@@ -308,7 +308,8 @@ void XamContentCreateCore(PPCContext* ppc_state, KernelState* state,
   }
 
   if (overlapped_ptr) {
-    state->CompleteOverlappedImmediate(overlapped_ptr, result);
+    state->CompleteOverlappedImmediateEx(overlapped_ptr, disposition, result,
+                                         0);
     SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
   } else {
     SHIM_SET_RETURN_32(result);

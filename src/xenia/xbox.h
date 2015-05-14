@@ -212,9 +212,17 @@ enum X_FILE_INFORMATION_CLASS {
   XFileMaximumInformation
 };
 
+inline uint32_t XOverlappedGetResult(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return xe::load_and_swap<uint32_t>(&p[0]);
+}
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
   xe::store_and_swap<uint32_t>(&p[0], value);
+}
+inline uint32_t XOverlappedGetLength(void* ptr) {
+  auto p = reinterpret_cast<uint32_t*>(ptr);
+  return xe::load_and_swap<uint32_t>(&p[1]);
 }
 inline void XOverlappedSetLength(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);

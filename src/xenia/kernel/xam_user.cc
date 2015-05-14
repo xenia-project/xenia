@@ -236,7 +236,14 @@ SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_state,
       user_index, unknown, setting_count, settings_ptr, overlapped_ptr);
 
   if (!setting_count || !settings_ptr) {
-    SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
+    if (overlapped_ptr) {
+      state->CompleteOverlappedImmediate(overlapped_ptr,
+                                         X_ERROR_INVALID_PARAMETER);
+      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    } else {
+      SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
+    }
+    return;
   }
 
   if (user_index == 255) {

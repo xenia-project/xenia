@@ -318,12 +318,17 @@ void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
   }
 }
 
-void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result,
-                                     uint32_t length) {
+void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result) {
+  CompleteOverlappedEx(overlapped_ptr, result, result, 0);
+}
+
+void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
+                                       uint32_t extended_error,
+                                       uint32_t length) {
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, result);
+  XOverlappedSetExtendedError(ptr, extended_error);
   XOverlappedSetLength(ptr, length);
-  XOverlappedSetExtendedError(ptr, result);
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
     XEvent* ev = nullptr;
@@ -347,11 +352,17 @@ void KernelState::CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result,
 }
 
 void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr,
-                                              X_RESULT result,
-                                              uint32_t length) {
+                                              X_RESULT result) {
+  CompleteOverlappedImmediateEx(overlapped_ptr, result, result, 0);
+}
+
+void KernelState::CompleteOverlappedImmediateEx(uint32_t overlapped_ptr,
+                                                X_RESULT result,
+                                                uint32_t extended_error,
+                                                uint32_t length) {
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
-  CompleteOverlapped(overlapped_ptr, result, length);
+  CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
 }
 
 }  // namespace kernel
