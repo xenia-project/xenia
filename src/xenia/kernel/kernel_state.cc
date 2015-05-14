@@ -339,13 +339,21 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
     }
   }
   if (XOverlappedGetCompletionRoutine(ptr)) {
-    assert_always();
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
     XThread* thread = nullptr;
     if (XSUCCEEDED(object_table()->GetObject(
             thread_handle, reinterpret_cast<XObject**>(&thread)))) {
+      uint32_t routine = XOverlappedGetCompletionRoutine(ptr);
+      uint64_t args[] = {
+          result, length, overlapped_ptr,
+      };
       // TODO(benvanik): queue APC on the thread that requested the overlapped
       // operation.
+      assert_always();
+      // THIS IS WRONG, for testing only:
+      processor()->Execute(XThread::GetCurrentThread()->thread_state(), routine,
+                           args, xe::countof(args));
+
       thread->Release();
     }
   }
