@@ -18,6 +18,7 @@
 #include "xenia/kernel/objects/xsemaphore.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xtimer.h"
+#include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/xbox.h"
@@ -99,6 +100,14 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_state, KernelState* state) {
   // LPVOID   StartAddress,
   // LPVOID   StartContext,
   // DWORD    CreationFlags // 0x80?
+
+  // Inherit default stack size
+  if (stack_size == 0) {
+    stack_size = state->GetExecutableModule()->xex_header()->exe_stack_size;
+  }
+
+  // Stack must be aligned to 16kb pages
+  stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
   XThread* thread = new XThread(state, stack_size, xapi_thread_startup,
                                 start_address, start_context, creation_flags);
