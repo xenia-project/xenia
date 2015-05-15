@@ -148,7 +148,7 @@ bool Processor::Setup() {
   backend_ = std::move(backend);
   frontend_ = std::move(frontend);
 
-  interrupt_thread_state_ = new ThreadState(this, 0, 0, 16 * 1024, 0);
+  interrupt_thread_state_ = new ThreadState(this, 0, 0, 128 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
   interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;

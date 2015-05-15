@@ -90,7 +90,7 @@ X_STATUS AudioSystem::Setup() {
   registers_.next_context = 1;
 
   // Setup worker thread state. This lets us make calls into guest code.
-  thread_state_ = new ThreadState(emulator_->processor(), 0, 0, 16 * 1024, 0);
+  thread_state_ = new ThreadState(emulator_->processor(), 0, 0, 128 * 1024, 0);
   thread_state_->set_name("Audio Worker");
   thread_block_ = memory()->SystemHeapAlloc(2048);
   thread_state_->context()->r[13] = thread_block_;
@@ -184,8 +184,6 @@ uint32_t AudioSystem::AllocateXmaContext() {
   auto guest_ptr = xma_context_free_list_.back();
   xma_context_free_list_.pop_back();
   auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-
-  // Initialize?
 
   return guest_ptr;
 }
