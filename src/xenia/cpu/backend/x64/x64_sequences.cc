@@ -3760,14 +3760,14 @@ EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      Xmm src3 = i.src3;
       if (i.dest == i.src3) {
         e.vmovss(e.xmm0, i.src3);
-        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vaddss(i.dest, i.dest, e.xmm0); // $0 = $1 + $2
-      } else {
-        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vaddss(i.dest, i.dest, i.src3); // $0 = $1 + $2
+        src3 = e.xmm0;
       }
+
+      e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
+      e.addss(i.dest, src3); // $0 = $0 + $1
     }
   }
 };
@@ -3789,14 +3789,14 @@ EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      Xmm src3 = i.src3;
       if (i.dest == i.src3) {
         e.vmovsd(e.xmm0, i.src3);
-        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vaddsd(i.dest, i.dest, e.xmm0); // $0 = $1 + $2
-      } else {
-        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vaddsd(i.dest, i.dest, i.src3); // $0 = $1 + $2
+        src3 = e.xmm0;
       }
+
+      e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
+      e.addsd(i.dest, src3); // $0 = $0 + $1
     }
   }
 };
@@ -3817,18 +3817,15 @@ EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) 
         }
       }
     } else {
-      // TODO(justin): Test this
-      //e.DebugBreak();
-
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      Xmm src3 = i.src3;
       if (i.dest == i.src3) {
         e.vmovdqa(e.xmm0, i.src3);
-        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vaddps(i.dest, i.dest, e.xmm0); // $0 = $1 + $2
-      } else {
-        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vaddps(i.dest, i.dest, i.src3); // $0 = $1 + $2
+        src3 = e.xmm0;
       }
+
+      e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
+      e.addps(i.dest, src3); // $0 = $0 + $1
     }
   }
 };
@@ -3864,18 +3861,15 @@ EMITTER(MUL_SUB_F32, MATCH(I<OPCODE_MUL_SUB, F32<>, F32<>, F32<>, F32<>>)) {
         }
       }
     } else {
-      // TODO(justin): Test this
-      //e.DebugBreak();
-
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      Xmm src3 = i.src3;
       if (i.dest == i.src3) {
         e.vmovss(e.xmm0, i.src3);
-        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vsubss(i.dest, i.dest, e.xmm0); // $0 = $1 - $2
-      } else {
-        e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vsubss(i.dest, i.dest, i.src3); // $0 = $1 - $2
+        src3 = e.xmm0;
       }
+
+      e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
+      e.subss(i.dest, src3); // $0 = $0 - $1
     }
   }
 };
@@ -3896,18 +3890,15 @@ EMITTER(MUL_SUB_F64, MATCH(I<OPCODE_MUL_SUB, F64<>, F64<>, F64<>, F64<>>)) {
         }
       }
     } else {
-      // TODO(justin): Test this
-      //e.DebugBreak();
-
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      Xmm src3 = i.src3;
       if (i.dest == i.src3) {
-        e.vmovdqa(e.xmm0, i.src3);
-        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vsubsd(i.dest, i.dest, e.xmm0); // $0 = $1 - $2
-      } else {
-        e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vsubsd(i.dest, i.dest, i.src3); // $0 = $1 - $2
+        e.vmovsd(e.xmm0, i.src3);
+        src3 = e.xmm0;
       }
+
+      e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
+      e.subsd(i.dest, src3); // $0 = $0 - $1
     }
   }
 };
@@ -3928,18 +3919,15 @@ EMITTER(MUL_SUB_V128, MATCH(I<OPCODE_MUL_SUB, V128<>, V128<>, V128<>, V128<>>)) 
         }
       }
     } else {
-      // TODO(justin): Test this
-      //e.DebugBreak();
-
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+      Xmm src3 = i.src3;
       if (i.dest == i.src3) {
         e.vmovdqa(e.xmm0, i.src3);
-        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vsubps(i.dest, i.dest, e.xmm0); // $0 = $1 - $2
-      } else {
-        e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
-        e.vsubps(i.dest, i.dest, i.src3); // $0 = $1 - $2
+        src3 = e.xmm0;
       }
+
+      e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
+      e.subps(i.dest, i.src3); // $0 = $0 - $1
     }
   }
 };
@@ -5572,11 +5560,11 @@ EMITTER(SPLAT_I32, MATCH(I<OPCODE_SPLAT, V128<>, I32<>>)) {
       if (i.src1.is_constant) {
         e.mov(e.eax, i.src1.constant());
         e.vmovd(e.xmm0, e.eax);
-        e.pshufd(i.dest, e.xmm0, 0);
       } else {
         e.vmovd(e.xmm0, i.src1.reg().cvt32());
-        e.pshufd(i.dest, e.xmm0, 0);
       }
+
+      e.pshufd(i.dest, e.xmm0, 0);
     }
   }
 };
@@ -5595,11 +5583,11 @@ EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
       if (i.src1.is_constant) {
         e.mov(e.eax, i.src1.value->constant.i32);
         e.vmovd(i.dest, e.eax);
-        e.shufps(i.dest, i.dest, 0);
       } else {
         e.vmovd(i.dest, i.src1.reg().cvt32());
-        e.shufps(i.dest, i.dest, 0);
       }
+
+      e.shufps(i.dest, i.dest, 0);
     }
   }
 };
