@@ -3076,22 +3076,22 @@ EMITTER(MUL_I8, MATCH(I<OPCODE_MUL, I8<>, I8<>, I8<>>)) {
       }
     } else {
       // x86 mul instruction
-      // AX = AL * $1;
+      // AH:AL = AL * $1;
 
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
         e.mov(e.al, i.src1.constant());
         e.mul(i.src2);
-        e.mov(i.dest, e.ax);
+        e.mov(i.dest, e.al);
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant);
         e.mov(e.al, i.src2.constant());
         e.mul(i.src1);
-        e.mov(i.dest, e.ax);
+        e.mov(i.dest, e.al);
       } else {
         e.movzx(e.al, i.src1);
         e.mul(i.src2);
-        e.mov(i.dest, e.ax);
+        e.mov(i.dest, e.al);
       }
     }
 
@@ -3281,21 +3281,21 @@ EMITTER(MUL_HI_I8, MATCH(I<OPCODE_MUL_HI, I8<>, I8<>, I8<>>)) {
         e.mulx(i.dest.reg().cvt32(), e.eax, i.src2.reg().cvt32());
       } else {
         // x86 mul instruction
-        // AX = AL * $1;
+        // AH:AL = AL * $1;
         if (i.src1.is_constant) {
           assert_true(!i.src2.is_constant); // can't multiply 2 constants
           e.mov(e.al, i.src1.constant());
           e.mul(i.src2);
-          e.mov(i.dest, e.ax);
+          e.mov(i.dest, e.ah);
         } else if (i.src2.is_constant) {
           assert_true(!i.src1.is_constant); // can't multiply 2 constants
           e.mov(e.al, i.src2.constant());
           e.mul(i.src1);
-          e.mov(i.dest, e.ax);
+          e.mov(i.dest, e.ah);
         } else {
           e.mov(e.al, i.src1);
           e.mul(i.src2);
-          e.mov(i.dest, e.ax);
+          e.mov(i.dest, e.ah);
         }
       }
     } else {
