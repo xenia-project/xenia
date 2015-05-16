@@ -146,7 +146,7 @@ X_STATUS XThread::Create() {
   }
 
   // Set native info.
-  SetNativePointer(thread_state_address_);
+  SetNativePointer(thread_state_address_, true);
 
   XUserModule* module = kernel_state()->GetExecutableModule();
 

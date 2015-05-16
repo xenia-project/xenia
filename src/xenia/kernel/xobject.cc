@@ -152,13 +152,16 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
   return result;
 }
 
-void XObject::SetNativePointer(uint32_t native_ptr) {
+void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   std::lock_guard<std::mutex> lock(kernel_state_->object_mutex());
 
   auto header =
       kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
 
-  assert_true(!(header->wait_list_blink & 0x1));
+  // Memory uninitialized, so don't bother with the check.
+  if (!uninitialized) {
+    assert_true(!(header->wait_list_blink & 0x1));
+  }
 
   // Stash pointer in struct.
   uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
