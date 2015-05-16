@@ -35,6 +35,7 @@ class XThread : public XObject {
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId(const uint8_t* thread_state_block);
 
+  uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }
   cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
@@ -89,6 +90,7 @@ class XThread : public XObject {
   uint32_t scratch_address_;
   uint32_t scratch_size_;
   uint32_t tls_address_;
+  uint32_t pcr_address_;
   uint32_t thread_state_address_;
   cpu::ThreadState* thread_state_;
 

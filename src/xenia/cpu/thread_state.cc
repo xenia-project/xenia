@@ -28,14 +28,14 @@ thread_local ThreadState* thread_state_ = nullptr;
 
 ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
                          uint32_t stack_address, uint32_t stack_size,
-                         uint32_t thread_state_address)
+                         uint32_t pcr_address)
     : processor_(processor),
       memory_(processor->memory()),
       thread_id_(thread_id),
       name_(""),
       backend_data_(0),
       stack_size_(stack_size),
-      thread_state_address_(thread_state_address) {
+      pcr_address_(pcr_address) {
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
     // set so people know what's up.
@@ -87,7 +87,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
 
   // Set initial registers.
   context_->r[1] = stack_position;
-  context_->r[13] = thread_state_address_;
+  context_->r[13] = pcr_address_;
 
   // Pad out stack a bit, as some games seem to overwrite the caller by about
   // 16 to 32b.

@@ -34,6 +34,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
     : XObject(kernel_state, kTypeThread),
       thread_id_(++next_xthread_id),
       thread_handle_(0),
+      pcr_address_(0),
       thread_state_address_(0),
       thread_state_(0),
       event_(NULL),
@@ -76,7 +77,7 @@ XThread::~XThread() {
   }
   kernel_state()->memory()->SystemHeapFree(scratch_address_);
   kernel_state()->memory()->SystemHeapFree(tls_address_);
-  kernel_state()->memory()->SystemHeapFree(thread_state_address_);
+  kernel_state()->memory()->SystemHeapFree(pcr_address_);
 
   if (thread_handle_) {
     // TODO(benvanik): platform kill
@@ -137,7 +138,8 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  thread_state_address_ = memory()->SystemHeapAlloc(0xAB0);
+  pcr_address_ = memory()->SystemHeapAlloc(0x2D8 + 0xAB0);
+  thread_state_address_ = pcr_address_ + 0x2D8;
   if (!thread_state_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -167,6 +169,23 @@ X_STATUS XThread::Create() {
   // TODO(benvanik): is this correct?
   memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
 
+  // Allocate processor thread state.
+  // This is thread safe.
+  thread_state_ = new ThreadState(kernel_state()->processor(), thread_id_, 0,
+                                  creation_params_.stack_size, pcr_address_);
+  XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
+         thread_state_->thread_id(), thread_state_->stack_address(),
+         thread_state_->stack_address() + thread_state_->stack_size());
+
+  uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
+  xe::store_and_swap<uint32_t>(pcr + 0x000, tls_address_);
+  xe::store_and_swap<uint32_t>(pcr + 0x030, pcr_address_);
+  xe::store_and_swap<uint32_t>(pcr + 0x070, thread_state_->stack_address() +
+                                                thread_state_->stack_size());
+  xe::store_and_swap<uint32_t>(pcr + 0x074, thread_state_->stack_address());
+  xe::store_and_swap<uint32_t>(pcr + 0x100, thread_state_address_);
+  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);  // DPC active bool?
+
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   xe::store_and_swap<uint32_t>(p + 0x000, 6);
@@ -180,6 +199,9 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x04C, thread_state_address_ + 0x018);
   xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
   xe::store_and_swap<uint16_t>(p + 0x056, 1);
+  xe::store_and_swap<uint32_t>(
+      p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());
+  xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
   xe::store_and_swap<uint8_t>(p + 0x06C, 0);
   xe::store_and_swap<uint32_t>(p + 0x074, thread_state_address_ + 0x074);
@@ -192,7 +214,8 @@ X_STATUS XThread::Create() {
   // A88 = APC
   // 18 = timer
   xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
-  xe::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
+  xe::store_and_swap<uint32_t>(
+      p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
   xe::store_and_swap<uint64_t>(
@@ -200,28 +223,12 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  // TODO(benvanik): figure out why RtlGetLastError changes on this:
-  // xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
+  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
   xe::store_and_swap<uint32_t>(p + 0x154, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x158, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
   xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
   xe::store_and_swap<uint32_t>(p + 0x17C, 1);
-
-  // Allocate processor thread state.
-  // This is thread safe.
-  thread_state_ =
-      new ThreadState(kernel_state()->processor(), thread_id_, 0,
-                      creation_params_.stack_size, thread_state_address_);
-  XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
-         thread_state_->thread_id(), thread_state_->stack_address(),
-         thread_state_->stack_address() + thread_state_->stack_size());
-
-  xe::store_and_swap<uint32_t>(
-      p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
-  xe::store_and_swap<uint32_t>(
-      p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
 
   SetNativePointer(thread_state_address_);
 
