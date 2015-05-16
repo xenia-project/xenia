@@ -15,6 +15,8 @@ using namespace xe::apu;
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
 
+DEFINE_bool(mute, false, "Mutes all audio output.");
+
 #include "xenia/apu/nop/nop_apu.h"
 std::unique_ptr<AudioSystem> xe::apu::CreateNop(Emulator* emulator) {
   return xe::apu::nop::Create(emulator);

@@ -14,4 +14,6 @@
 
 DECLARE_string(apu);
 
+DECLARE_bool(mute);
+
 #endif  // XENIA_APU_APU_PRIVATE_H_

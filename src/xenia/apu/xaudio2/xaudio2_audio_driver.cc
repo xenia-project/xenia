@@ -116,6 +116,10 @@ void XAudio2AudioDriver::Initialize() {
     return;
   }
 
+  if (FLAGS_mute) {
+    pcm_voice_->SetVolume(0.0f);
+  }
+
   SetEvent(wait_handle_);
 }
 
