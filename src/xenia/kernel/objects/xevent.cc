@@ -31,7 +31,7 @@ void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
   assert_null(handle_);
 
   bool manual_reset;
-  switch (header.type_flags >> 24) {
+  switch ((header.type_flags >> 24) & 0xFF) {
     case 0x00:  // EventNotificationObject (manual reset)
       manual_reset = true;
       break;

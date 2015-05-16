@@ -20,10 +20,10 @@ namespace kernel {
 
 // http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
-  uint32_t type_flags;
-  uint32_t signal_state;
-  uint32_t wait_list_flink;
-  uint32_t wait_list_blink;
+  xe::be<uint32_t> type_flags;
+  xe::be<uint32_t> signal_state;
+  xe::be<uint32_t> wait_list_flink;
+  xe::be<uint32_t> wait_list_blink;
 } DISPATCH_HEADER;
 
 class XObject {

@@ -32,7 +32,7 @@ class ThreadState {
   void set_name(const std::string& value) { name_ = value; }
   void* backend_data() const { return backend_data_; }
   uint32_t stack_address() const { return stack_address_; }
-  size_t stack_size() const { return stack_size_; }
+  uint32_t stack_size() const { return stack_size_; }
   uint32_t thread_state_address() const { return thread_state_address_; }
   xe::cpu::frontend::PPCContext* context() const { return context_; }
 

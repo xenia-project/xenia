@@ -154,22 +154,16 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
 void XObject::SetNativePointer(uint32_t native_ptr) {
   std::lock_guard<std::mutex> lock(kernel_state_->object_mutex());
 
-  auto header_be =
+  auto header =
       kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
-  DISPATCH_HEADER header;
-  header.type_flags = xe::byte_swap(header_be->type_flags);
-  header.signal_state = xe::byte_swap(header_be->signal_state);
-  header.wait_list_flink = xe::byte_swap(header_be->wait_list_flink);
-  header.wait_list_blink = xe::byte_swap(header_be->wait_list_blink);
 
-  assert_true(!(header.wait_list_blink & 0x1));
+  assert_true(!(header->wait_list_blink & 0x1));
 
   // Stash pointer in struct.
   uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
   object_ptr |= 0x1;
-  header_be->wait_list_flink = xe::byte_swap((uint32_t)(object_ptr >> 32));
-  header_be->wait_list_blink =
-      xe::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
+  header->wait_list_flink = (uint32_t)(object_ptr >> 32);
+  header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
 }
 
 XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
@@ -185,21 +179,16 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
 
   std::lock_guard<std::mutex> lock(kernel_state->object_mutex());
 
-  DISPATCH_HEADER* header_be = (DISPATCH_HEADER*)native_ptr;
-  DISPATCH_HEADER header;
-  header.type_flags = xe::byte_swap(header_be->type_flags);
-  header.signal_state = xe::byte_swap(header_be->signal_state);
-  header.wait_list_flink = xe::byte_swap(header_be->wait_list_flink);
-  header.wait_list_blink = xe::byte_swap(header_be->wait_list_blink);
+  auto header = reinterpret_cast<DISPATCH_HEADER*>(native_ptr);
 
   if (as_type == -1) {
-    as_type = (header.type_flags >> 24) & 0xFF;
+    as_type = (header->type_flags >> 24) & 0xFF;
   }
 
-  if (header.wait_list_blink & 0x1) {
+  if (header->wait_list_blink & 0x1) {
     // Already initialized.
-    uint64_t object_ptr = ((uint64_t)header.wait_list_flink << 32) |
-                          ((header.wait_list_blink) & ~0x1);
+    uint64_t object_ptr = ((uint64_t)header->wait_list_flink << 32) |
+                          ((header->wait_list_blink) & ~0x1);
     XObject* object = reinterpret_cast<XObject*>(object_ptr);
     // TODO(benvanik): assert nothing has been changed in the struct.
     return object;
@@ -212,19 +201,19 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
       case 1:  // EventSynchronizationObject
       {
         XEvent* ev = new XEvent(kernel_state);
-        ev->InitializeNative(native_ptr, header);
+        ev->InitializeNative(native_ptr, *header);
         object = ev;
       } break;
       case 2:  // MutantObject
       {
         XMutant* mutant = new XMutant(kernel_state);
-        mutant->InitializeNative(native_ptr, header);
+        mutant->InitializeNative(native_ptr, *header);
         object = mutant;
       } break;
       case 5:  // SemaphoreObject
       {
         XSemaphore* sem = new XSemaphore(kernel_state);
-        sem->InitializeNative(native_ptr, header);
+        sem->InitializeNative(native_ptr, *header);
         object = sem;
       } break;
       case 3:   // ProcessObject
@@ -248,9 +237,8 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     // Stash pointer in struct.
     uint64_t object_ptr = reinterpret_cast<uint64_t>(object);
     object_ptr |= 0x1;
-    header_be->wait_list_flink = xe::byte_swap((uint32_t)(object_ptr >> 32));
-    header_be->wait_list_blink =
-        xe::byte_swap((uint32_t)(object_ptr & 0xFFFFFFFF));
+    header->wait_list_flink = (uint32_t)(object_ptr >> 32);
+    header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
 
     return object;
   }

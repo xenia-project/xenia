@@ -91,7 +91,7 @@ XThread* XThread::GetCurrentThread() {
     XThread::EnterCriticalRegion();
     thread = shared_kernel_thread_;
     if (!thread) {
-      thread = new XThread(KernelState::shared(), 32 * 1024, 0, 0, 0, 0);
+      thread = new XThread(KernelState::shared(), 256 * 1024, 0, 0, 0, 0);
       shared_kernel_thread_ = thread;
       current_thread_tls = thread;
     }
@@ -137,7 +137,7 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  thread_state_address_ = memory()->SystemHeapAlloc(2048);
+  thread_state_address_ = memory()->SystemHeapAlloc(0xAB0);
   if (!thread_state_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -169,27 +169,57 @@ X_STATUS XThread::Create() {
 
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  xe::store_and_swap<uint32_t>(p + 0x000, tls_address_);
+  xe::store_and_swap<uint32_t>(p + 0x000, 6);
+  xe::store_and_swap<uint32_t>(p + 0x008, thread_state_address_ + 0x008);
+  xe::store_and_swap<uint32_t>(p + 0x00C, thread_state_address_ + 0x008);
+  xe::store_and_swap<uint32_t>(p + 0x010, thread_state_address_ + 0x010);
+  xe::store_and_swap<uint32_t>(p + 0x014, thread_state_address_ + 0x010);
+  xe::store_and_swap<uint32_t>(p + 0x040, thread_state_address_ + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x044, thread_state_address_ + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x048, thread_state_address_);
+  xe::store_and_swap<uint32_t>(p + 0x04C, thread_state_address_ + 0x018);
+  xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
+  xe::store_and_swap<uint16_t>(p + 0x056, 1);
+  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
+  xe::store_and_swap<uint8_t>(p + 0x06C, 0);
+  xe::store_and_swap<uint32_t>(p + 0x074, thread_state_address_ + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x078, thread_state_address_ + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x07C, thread_state_address_ + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x080, thread_state_address_ + 0x07C);
+  xe::store_and_swap<uint8_t>(p + 0x08B, 1);
+  // D4 = APC
+  // FC = semaphore (ptr, 0, 2)
+  // A88 = APC
+  // 18 = timer
+  xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
   xe::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
-
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
   xe::store_and_swap<uint64_t>(
       p + 0x130, ((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime);
-
   xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  xe::store_and_swap<uint32_t>(p + 0x150, 0);  // ?
+  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
   xe::store_and_swap<uint32_t>(p + 0x154, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x158, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
+  xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
+  xe::store_and_swap<uint32_t>(p + 0x17C, 1);
 
   // Allocate processor thread state.
   // This is thread safe.
   thread_state_ =
       new ThreadState(kernel_state()->processor(), thread_id_, 0,
                       creation_params_.stack_size, thread_state_address_);
+
+  xe::store_and_swap<uint32_t>(
+      p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());
+  xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
+  xe::store_and_swap<uint32_t>(
+      p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
+
+  SetNativePointer(thread_state_address_);
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {
@@ -242,9 +272,8 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 X_STATUS XThread::PlatformCreate() {
   bool suspended = creation_params_.creation_flags & 0x1;
   thread_handle_ =
-      CreateThread(NULL, 0,
-                   (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32, this,
-                   suspended ? CREATE_SUSPENDED : 0, NULL);
+      CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
+                   this, suspended ? CREATE_SUSPENDED : 0, NULL);
   if (!thread_handle_) {
     uint32_t last_error = GetLastError();
     // TODO(benvanik): translate?
@@ -289,7 +318,7 @@ X_STATUS XThread::PlatformCreate() {
 
   pthread_attr_init(&attr);
   // TODO(benvanik): this shouldn't be necessary
-  //pthread_attr_setstacksize(&attr, creation_params_.stack_size);
+  // pthread_attr_setstacksize(&attr, creation_params_.stack_size);
 
   int result_code;
   if (creation_params_.creation_flags & 0x1) {
@@ -428,9 +457,8 @@ void XThread::DeliverAPCs(void* data) {
     // kernel_routine(apc_address, &normal_routine, &normal_context,
     // &system_arg1, &system_arg2)
     uint64_t kernel_args[] = {
-        apc_address,                   thread->scratch_address_ + 0,
-        thread->scratch_address_ + 4,  thread->scratch_address_ + 8,
-        thread->scratch_address_ + 12,
+        apc_address, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
+        thread->scratch_address_ + 8, thread->scratch_address_ + 12,
     };
     processor->ExecuteInterrupt(0, kernel_routine, kernel_args,
                                 xe::countof(kernel_args));
