@@ -596,7 +596,9 @@ SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_state, KernelState* state) {
 
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  AssertNoNameCollision(state, obj_attributes_ptr);
+  if (obj_attributes_ptr) {
+    AssertNoNameCollision(state, obj_attributes_ptr);
+  }
 
   XSemaphore* sem = new XSemaphore(state);
   sem->Initialize(count, limit);
@@ -690,7 +692,9 @@ SHIM_CALL NtCreateMutant_shim(PPCContext* ppc_state, KernelState* state) {
 
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  AssertNoNameCollision(state, obj_attributes_ptr);
+  if (obj_attributes_ptr) {
+    AssertNoNameCollision(state, obj_attributes_ptr);
+  }
 
   XMutant* mutant = new XMutant(state);
   mutant->Initialize(initial_owner ? true : false);
@@ -747,7 +751,9 @@ SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_state, KernelState* state) {
 
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  AssertNoNameCollision(state, obj_attributes_ptr);
+  if (obj_attributes_ptr) {
+    AssertNoNameCollision(state, obj_attributes_ptr);
+  }
 
   XTimer* timer = new XTimer(state);
   timer->Initialize(timer_type);
