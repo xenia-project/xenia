@@ -171,8 +171,18 @@ X_STATUS XThread::Create() {
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   xe::store_and_swap<uint32_t>(p + 0x000, tls_address_);
   xe::store_and_swap<uint32_t>(p + 0x100, thread_state_address_);
+
+  FILETIME t;
+  GetSystemTimeAsFileTime(&t);
+  xe::store_and_swap<uint64_t>(
+      p + 0x130, ((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime);
+
+  xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
   xe::store_and_swap<uint32_t>(p + 0x150, 0);  // ?
+  xe::store_and_swap<uint32_t>(p + 0x154, thread_state_address_ + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x158, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
 
   // Allocate processor thread state.
@@ -240,6 +250,11 @@ X_STATUS XThread::PlatformCreate() {
     // TODO(benvanik): translate?
     XELOGE("CreateThread failed with %d", last_error);
     return last_error;
+  }
+
+  if (creation_params_.creation_flags & 0x60) {
+    SetThreadPriority(thread_handle_,
+                      creation_params_.creation_flags & 0x20 ? 1 : 0);
   }
 
   return X_STATUS_SUCCESS;
