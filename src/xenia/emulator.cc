@@ -63,6 +63,13 @@ Emulator::~Emulator() {
 X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
+  HANDLE process_handle = GetCurrentProcess();
+  DWORD_PTR process_affinity_mask;
+  DWORD_PTR system_affinity_mask;
+  GetProcessAffinityMask(process_handle, &process_affinity_mask,
+                         &system_affinity_mask);
+  SetProcessAffinityMask(process_handle, system_affinity_mask);
+
   // Create the main window. Other parts will hook into this.
   main_window_ = std::make_unique<ui::MainWindow>(this);
   main_window_->Start();
