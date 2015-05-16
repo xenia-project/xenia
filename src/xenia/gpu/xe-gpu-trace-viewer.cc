@@ -771,7 +771,15 @@ class TracePlayer : public TraceReader {
       : loop_(loop),
         graphics_system_(graphics_system),
         current_frame_index_(0),
-        current_command_index_(-1) {}
+        current_command_index_(-1) {
+    // Need to allocate all of physical memory so that we can write to it
+    // during playback.
+    graphics_system_->memory()
+        ->LookupHeapByType(true, 4096)
+        ->AllocFixed(0, 0x1FFFFFFF, 4096,
+                     kMemoryAllocationReserve | kMemoryAllocationCommit,
+                     kMemoryProtectRead | kMemoryProtectWrite);
+  }
   ~TracePlayer() = default;
 
   GraphicsSystem* graphics_system() const { return graphics_system_; }

@@ -30,8 +30,11 @@ bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   // Allocate memory.
   // Since we have no real heap just load it wherever.
   base_address_ = base_address;
+  memory_->LookupHeap(base_address_)
+      ->AllocFixed(base_address_, file_length, 0,
+                   kMemoryAllocationReserve | kMemoryAllocationCommit,
+                   kMemoryProtectRead | kMemoryProtectWrite);
   uint8_t* p = memory_->TranslateVirtual(base_address_);
-  std::memset(p, 0, file_length);
 
   // Read into memory.
   fread(p, file_length, 1, file);

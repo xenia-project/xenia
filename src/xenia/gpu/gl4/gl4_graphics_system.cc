@@ -74,7 +74,7 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
       [this](const SwapParameters& swap_params) { SwapHandler(swap_params); });
 
   // Let the processor know we want register access callbacks.
-  memory_->AddMappedRange(
+  memory_->AddVirtualMappedRange(
       0x7FC80000, 0xFFFF0000, 0x0000FFFF, this,
       reinterpret_cast<cpu::MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<cpu::MMIOWriteCallback>(MMIOWriteRegisterThunk));
@@ -275,7 +275,7 @@ void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
   });
 }
 
-uint64_t GL4GraphicsSystem::ReadRegister(uint64_t addr) {
+uint64_t GL4GraphicsSystem::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
 
   switch (r) {
@@ -295,7 +295,7 @@ uint64_t GL4GraphicsSystem::ReadRegister(uint64_t addr) {
   return register_file_.values[r].u32;
 }
 
-void GL4GraphicsSystem::WriteRegister(uint64_t addr, uint64_t value) {
+void GL4GraphicsSystem::WriteRegister(uint32_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
 
   switch (r) {

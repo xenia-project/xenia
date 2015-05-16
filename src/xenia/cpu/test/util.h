@@ -64,8 +64,6 @@ class TestFunction {
   void Run(std::function<void(PPCContext*)> pre_call,
            std::function<void(PPCContext*)> post_call) {
     for (auto& processor : processors) {
-      memory->Zero(0, memory_size);
-
       xe::cpu::Function* fn;
       processor->ResolveFunction(0x1000, &fn);
 

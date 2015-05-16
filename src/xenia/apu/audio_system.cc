@@ -74,7 +74,7 @@ X_STATUS AudioSystem::Setup() {
   processor_ = emulator_->processor();
 
   // Let the processor know we want register access callbacks.
-  emulator_->memory()->AddMappedRange(
+  emulator_->memory()->AddVirtualMappedRange(
       0x7FEA0000, 0xFFFF0000, 0x0000FFFF, this,
       reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
@@ -94,6 +94,9 @@ X_STATUS AudioSystem::Setup() {
   thread_state_->set_name("Audio Worker");
   thread_block_ = memory()->SystemHeapAlloc(2048);
   thread_state_->context()->r[13] = thread_block_;
+  XELOGI("Audio Worker Thread %X Stack: %.8X-%.8X", thread_state_->thread_id(),
+         thread_state_->stack_address(),
+         thread_state_->stack_address() + thread_state_->stack_size());
 
   // Create worker thread.
   // This will initialize the audio system.
@@ -252,7 +255,7 @@ void AudioSystem::UnregisterClient(size_t index) {
 // piece of hardware:
 // https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
 
-uint64_t AudioSystem::ReadRegister(uint64_t addr) {
+uint64_t AudioSystem::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
@@ -277,7 +280,7 @@ uint64_t AudioSystem::ReadRegister(uint64_t addr) {
   return value;
 }
 
-void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
+void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
   value = xe::byte_swap(uint32_t(value));
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);

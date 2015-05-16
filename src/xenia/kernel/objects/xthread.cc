@@ -213,6 +213,9 @@ X_STATUS XThread::Create() {
   thread_state_ =
       new ThreadState(kernel_state()->processor(), thread_id_, 0,
                       creation_params_.stack_size, thread_state_address_);
+  XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
+         thread_state_->thread_id(), thread_state_->stack_address(),
+         thread_state_->stack_address() + thread_state_->stack_size());
 
   xe::store_and_swap<uint32_t>(
       p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());

@@ -49,8 +49,8 @@ class AudioSystem {
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
-  virtual uint64_t ReadRegister(uint64_t addr);
-  virtual void WriteRegister(uint64_t addr, uint64_t value);
+  virtual uint64_t ReadRegister(uint32_t addr);
+  virtual void WriteRegister(uint32_t addr, uint64_t value);
 
  protected:
   virtual void Initialize();
@@ -58,10 +58,10 @@ class AudioSystem {
  private:
   void ThreadStart();
 
-  static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint64_t addr) {
+  static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint32_t addr) {
     return as->ReadRegister(addr);
   }
-  static void MMIOWriteRegisterThunk(AudioSystem* as, uint64_t addr,
+  static void MMIOWriteRegisterThunk(AudioSystem* as, uint32_t addr,
                                      uint64_t value) {
     as->WriteRegister(addr, value);
   }

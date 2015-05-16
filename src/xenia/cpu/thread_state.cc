@@ -10,6 +10,7 @@
 #include "xenia/cpu/thread_state.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
@@ -49,12 +50,19 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
     uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
     uint32_t stack_padding = stack_alignment * 1;
     uint32_t actual_stack_size = stack_padding + stack_size;
-    stack_address_ = memory()->SystemHeapAlloc(actual_stack_size, stack_alignment);
-    assert_true(!(stack_address & 0xFFF)); // just to be safe
+    memory()
+        ->LookupHeapByType(false, 0x10000)
+        ->Alloc(actual_stack_size, stack_alignment,
+                kMemoryAllocationReserve | kMemoryAllocationCommit,
+                kMemoryProtectRead | kMemoryProtectWrite, true,
+                &stack_address_);
+    assert_true(!(stack_address_ & 0xFFF));  // just to be safe
     stack_position = stack_address_ + actual_stack_size;
     stack_allocated_ = true;
     memset(memory()->TranslateVirtual(stack_address_), 0xBE, actual_stack_size);
-    memory()->Protect(stack_address_, stack_padding, X_PAGE_NOACCESS);
+    memory()
+        ->LookupHeap(stack_address_)
+        ->Protect(stack_address_, stack_padding, kMemoryProtectNoAccess);
   } else {
     stack_address_ = stack_address;
     stack_position = stack_address_ + stack_size;
@@ -100,7 +108,7 @@ ThreadState::~ThreadState() {
 
   _aligned_free(context_);
   if (stack_allocated_) {
-    memory()->SystemHeapFree(stack_address_);
+    memory()->LookupHeap(stack_address_)->Decommit(stack_address_, stack_size_);
   }
 }
 

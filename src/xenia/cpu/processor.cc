@@ -152,6 +152,11 @@ bool Processor::Setup() {
   interrupt_thread_state_->set_name("Interrupt");
   interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
+  XELOGI("Interrupt Thread %X Stack: %.8X-%.8X",
+         interrupt_thread_state_->thread_id(),
+         interrupt_thread_state_->stack_address(),
+         interrupt_thread_state_->stack_address() +
+             interrupt_thread_state_->stack_size());
 
   return true;
 }

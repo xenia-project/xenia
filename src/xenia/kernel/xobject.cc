@@ -113,6 +113,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
       // Or X_STATUS_ALERTED?
       return X_STATUS_USER_APC;
     case WAIT_TIMEOUT:
+      YieldProcessor();
       return X_STATUS_TIMEOUT;
     default:
     case WAIT_FAILED:

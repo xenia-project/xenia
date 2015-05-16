@@ -50,13 +50,13 @@ class GL4GraphicsSystem : public GraphicsSystem {
  private:
   void MarkVblank();
   void SwapHandler(const SwapParameters& swap_params);
-  uint64_t ReadRegister(uint64_t addr);
-  void WriteRegister(uint64_t addr, uint64_t value);
+  uint64_t ReadRegister(uint32_t addr);
+  void WriteRegister(uint32_t addr, uint64_t value);
 
-  static uint64_t MMIOReadRegisterThunk(GL4GraphicsSystem* gs, uint64_t addr) {
+  static uint64_t MMIOReadRegisterThunk(GL4GraphicsSystem* gs, uint32_t addr) {
     return gs->ReadRegister(addr);
   }
-  static void MMIOWriteRegisterThunk(GL4GraphicsSystem* gs, uint64_t addr,
+  static void MMIOWriteRegisterThunk(GL4GraphicsSystem* gs, uint32_t addr,
                                      uint64_t value) {
     gs->WriteRegister(addr, value);
   }
