@@ -3814,7 +3814,7 @@ EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) 
         e.vfmadd231ps(i.dest, i.src1, i.src2);
       } else {
         // Dest not equal to anything
-        e.vmovqda(i.dest, i.src1);
+        e.vmovdqa(i.dest, i.src1);
         e.vfmadd213ps(i.dest, i.src2, i.src3);
       }
     } else {
