@@ -3742,21 +3742,24 @@ EMITTER_OPCODE_TABLE(
 // TODO(benvanik): use other forms (132/213/etc) to avoid register shuffling.
 // dest could be src2 or src3 - need to ensure it's not before overwriting dest
 // perhaps use other 132/213/etc
+// Forms:
+// - 132 -> $1 = $1 * $3 + $2
+// - 213 -> $1 = $2 * $1 + $3
+// - 231 -> $1 = $2 * $3 + $1
 EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213ss(i.dest, i.src2, i.src3);
+      } else if (i.dest == i.src2) {
+        e.vfmadd213ss(i.dest, i.src1, i.src3);
+      } else if (i.dest == i.src3) {
+        e.vfmadd231ss(i.dest, i.src1, i.src2);
       } else {
-        if (i.dest != i.src2 && i.dest != i.src3) {
-          e.vmovss(i.dest, i.src1);
-          e.vfmadd213ss(i.dest, i.src2, i.src3);
-        } else {
-          e.vmovss(e.xmm0, i.src1);
-          e.vfmadd213ss(e.xmm0, i.src2, i.src3);
-          e.vmovss(i.dest, e.xmm0);
-        }
+        // Dest not equal to anything
+        e.vmovss(i.dest, i.src1);
+        e.vfmadd213ss(i.dest, i.src2, i.src3);
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
@@ -3767,7 +3770,7 @@ EMITTER(MUL_ADD_F32, MATCH(I<OPCODE_MUL_ADD, F32<>, F32<>, F32<>, F32<>>)) {
       }
 
       e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
-      e.addss(i.dest, src3); // $0 = $0 + $1
+      e.vaddss(i.dest, i.dest,   src3); // $0 = $1 + $2
     }
   }
 };
@@ -3777,15 +3780,14 @@ EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213sd(i.dest, i.src2, i.src3);
+      } else if (i.dest == i.src2) {
+        e.vfmadd213sd(i.dest, i.src1, i.src3);
+      } else if (i.dest == i.src3) {
+        e.vfmadd231sd(i.dest, i.src1, i.src2);
       } else {
-        if (i.dest != i.src2 && i.dest != i.src3) {
-          e.vmovsd(i.dest, i.src1);
-          e.vfmadd213sd(i.dest, i.src2, i.src3);
-        } else {
-          e.vmovsd(e.xmm0, i.src1);
-          e.vfmadd213sd(e.xmm0, i.src2, i.src3);
-          e.vmovsd(i.dest, e.xmm0);
-        }
+        // Dest not equal to anything
+        e.vmovsd(i.dest, i.src1);
+        e.vfmadd213sd(i.dest, i.src2, i.src3);
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
@@ -3796,7 +3798,7 @@ EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
       }
 
       e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
-      e.addsd(i.dest, src3); // $0 = $0 + $1
+      e.vaddsd(i.dest, i.dest,   src3); // $0 = $1 + $2
     }
   }
 };
@@ -3806,15 +3808,14 @@ EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) 
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213ps(i.dest, i.src2, i.src3);
+      } else if (i.dest == i.src2) {
+        e.vfmadd213ps(i.dest, i.src1, i.src3);
+      } else if (i.dest == i.src3) {
+        e.vfmadd231ps(i.dest, i.src1, i.src2);
       } else {
-        if (i.dest != i.src2 && i.dest != i.src3) {
-          e.vmovdqa(i.dest, i.src1);
-          e.vfmadd213ps(i.dest, i.src2, i.src3);
-        } else {
-          e.vmovdqa(e.xmm0, i.src1);
-          e.vfmadd213ps(e.xmm0, i.src2, i.src3);
-          e.vmovdqa(i.dest, e.xmm0);
-        }
+        // Dest not equal to anything
+        e.vmovdqa(i.dest, i.src1);
+        e.vfmadd213ps(i.dest, i.src2, i.src3);
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
@@ -3825,7 +3826,7 @@ EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) 
       }
 
       e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
-      e.addps(i.dest, src3); // $0 = $0 + $1
+      e.vaddps(i.dest, i.dest,   src3); // $0 = $1 + $2
     }
   }
 };
@@ -3844,21 +3845,24 @@ EMITTER_OPCODE_TABLE(
 // TODO(benvanik): use other forms (132/213/etc) to avoid register shuffling.
 // dest could be src2 or src3 - need to ensure it's not before overwriting dest
 // perhaps use other 132/213/etc
+// Forms:
+// - 132 -> $1 = $1 * $3 - $2
+// - 213 -> $1 = $2 * $1 - $3
+// - 231 -> $1 = $2 * $3 - $1
 EMITTER(MUL_SUB_F32, MATCH(I<OPCODE_MUL_SUB, F32<>, F32<>, F32<>, F32<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmsub213ss(i.dest, i.src2, i.src3);
+      } else if (i.dest == i.src2) {
+        e.vfmsub213ss(i.dest, i.src1, i.src3);
+      } else if (i.dest == i.src3) {
+        e.vfmsub231ss(i.dest, i.src1, i.src2);
       } else {
-        if (i.dest != i.src2 && i.dest != i.src3) {
-          e.vmovss(i.dest, i.src1);
-          e.vfmsub213ss(i.dest, i.src2, i.src3);
-        } else {
-          e.vmovss(e.xmm0, i.src1);
-          e.vfmsub213ss(e.xmm0, i.src2, i.src3);
-          e.vmovss(i.dest, e.xmm0);
-        }
+        // Dest not equal to anything
+        e.vmovss(i.dest, i.src1);
+        e.vfmsub213ss(i.dest, i.src2, i.src3);
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
@@ -3869,7 +3873,7 @@ EMITTER(MUL_SUB_F32, MATCH(I<OPCODE_MUL_SUB, F32<>, F32<>, F32<>, F32<>>)) {
       }
 
       e.vmulss(i.dest, i.src1, i.src2); // $0 = $1 * $2
-      e.subss(i.dest, src3); // $0 = $0 - $1
+      e.vsubss(i.dest, i.dest,   src3); // $0 = $1 - $2
     }
   }
 };
@@ -3879,15 +3883,14 @@ EMITTER(MUL_SUB_F64, MATCH(I<OPCODE_MUL_SUB, F64<>, F64<>, F64<>, F64<>>)) {
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmsub213sd(i.dest, i.src2, i.src3);
+      } else if (i.dest == i.src2) {
+        e.vfmsub213sd(i.dest, i.src1, i.src3);
+      } else if (i.dest == i.src3) {
+        e.vfmsub231sd(i.dest, i.src1, i.src2);
       } else {
-        if (i.dest != i.src2 && i.dest != i.src3) {
-          e.vmovsd(i.dest, i.src1);
-          e.vfmsub213sd(i.dest, i.src2, i.src3);
-        } else {
-          e.vmovsd(e.xmm0, i.src1);
-          e.vfmsub213sd(e.xmm0, i.src2, i.src3);
-          e.vmovsd(i.dest, e.xmm0);
-        }
+        // Dest not equal to anything
+        e.vmovsd(i.dest, i.src1);
+        e.vfmsub213sd(i.dest, i.src2, i.src3);
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
@@ -3898,7 +3901,7 @@ EMITTER(MUL_SUB_F64, MATCH(I<OPCODE_MUL_SUB, F64<>, F64<>, F64<>, F64<>>)) {
       }
 
       e.vmulsd(i.dest, i.src1, i.src2); // $0 = $1 * $2
-      e.subsd(i.dest, src3); // $0 = $0 - $1
+      e.vsubsd(i.dest, i.dest,   src3); // $0 = $1 - $2
     }
   }
 };
@@ -3908,15 +3911,14 @@ EMITTER(MUL_SUB_V128, MATCH(I<OPCODE_MUL_SUB, V128<>, V128<>, V128<>, V128<>>)) 
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmsub213ps(i.dest, i.src2, i.src3);
+      } else if (i.dest == i.src2) {
+        e.vfmsub213ps(i.dest, i.src1, i.src3);
+      } else if (i.dest == i.src3) {
+        e.vfmsub231ps(i.dest, i.src1, i.src2);
       } else {
-        if (i.dest != i.src2 && i.dest != i.src3) {
-          e.vmovdqa(i.dest, i.src1);
-          e.vfmsub213ps(i.dest, i.src2, i.src3);
-        } else {
-          e.vmovdqa(e.xmm0, i.src1);
-          e.vfmsub213ps(e.xmm0, i.src2, i.src3);
-          e.vmovdqa(i.dest, e.xmm0);
-        }
+        // Dest not equal to anything
+        e.vmovdqa(i.dest, i.src1);
+        e.vfmsub213ps(i.dest, i.src2, i.src3);
       }
     } else {
       // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
@@ -3927,7 +3929,7 @@ EMITTER(MUL_SUB_V128, MATCH(I<OPCODE_MUL_SUB, V128<>, V128<>, V128<>, V128<>>)) 
       }
 
       e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
-      e.subps(i.dest, i.src3); // $0 = $0 - $1
+      e.vsubps(i.dest, i.dest,   src3); // $0 = $1 - $2
     }
   }
 };
