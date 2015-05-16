@@ -55,3 +55,19 @@ test_cntlzw_4_constant:
   blr
   #_ REGISTER_OUT r5 0x7FFFFFFF
   #_ REGISTER_OUT r6 1
+
+test_cntlzw_5:
+  #_ REGISTER_IN r5 0xFFFFFFFF00000001
+  cntlzw r6, r5
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF00000001
+  #_ REGISTER_OUT r6 31
+
+test_cntlzw_5_constant:
+  li r5, -1
+  sldi r5, r5, 32
+  addi r5, r5, 1
+  cntlzw r6, r5
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF00000001
+  #_ REGISTER_OUT r6 31
