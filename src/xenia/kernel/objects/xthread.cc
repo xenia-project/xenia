@@ -200,7 +200,8 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
+  // TODO(benvanik): figure out why RtlGetLastError changes on this:
+  // xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
   xe::store_and_swap<uint32_t>(p + 0x154, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x158, thread_state_address_ + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
