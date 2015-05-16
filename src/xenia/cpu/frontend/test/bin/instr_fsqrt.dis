@@ -1,0 +1,13 @@
+Disassembly of section .text:
+
+0000000000100000 <test_fsqrt_1>:
+  100000:       fc 20 08 2c     fsqrt   f1,f1
+  100004:       4e 80 00 20     blr
+
+0000000000100008 <test_fsqrt_2>:
+  100008:       fc 20 08 2c     fsqrt   f1,f1
+  10000c:       4e 80 00 20     blr
+
+0000000000100010 <test_fsqrt_3>:
+  100010:       fc 20 08 2c     fsqrt   f1,f1
+  100014:       4e 80 00 20     blr

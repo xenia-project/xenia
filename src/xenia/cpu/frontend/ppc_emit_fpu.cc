@@ -130,8 +130,17 @@ XEEMITTER(fresx, 0xEC000030, A)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 XEEMITTER(frsqrtex, 0xFC000034, A)(PPCHIRBuilder& f, InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // Double precision:
+  // frD <- 1/sqrt(frB)
+  Value* v = f.RSqrt(f.LoadFPR(i.A.FRB));
+  f.StoreFPR(i.A.FRT, v);
+  // f.UpdateFPRF(v);
+  if (i.A.Rc) {
+    // e.update_cr_with_cond(1, v);
+    XEINSTRNOTIMPLEMENTED();
+    return 1;
+  }
+  return 0;
 }
 
 XEEMITTER(fsubx, 0xFC000028, A)(PPCHIRBuilder& f, InstrData& i) {
@@ -179,7 +188,7 @@ XEEMITTER(fselx, 0xFC00002E, A)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(fsqrtx, 0xFC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
   // Double precision:
   // frD <- sqrt(frB)
-  Value* v = f.Sqrt(f.LoadFPR(i.A.FRA));
+  Value* v = f.Sqrt(f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
   // f.UpdateFPRF(v);
   if (i.A.Rc) {
@@ -193,7 +202,7 @@ XEEMITTER(fsqrtx, 0xFC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(fsqrtsx, 0xEC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
   // Single precision:
   // frD <- sqrt(frB)
-  Value* v = f.Sqrt(f.LoadFPR(i.A.FRA));
+  Value* v = f.Sqrt(f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
   // f.UpdateFPRF(v);
