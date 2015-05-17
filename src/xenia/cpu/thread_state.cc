@@ -103,10 +103,6 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   context_->r[1] = stack_base_;
   context_->r[13] = pcr_address_;
 
-  // Pad out stack a bit, as some games seem to overwrite the caller by about
-  // 16 to 32b.
-  context_->r[1] -= 64;
-
   processor_->debugger()->OnThreadCreated(this);
 }
 

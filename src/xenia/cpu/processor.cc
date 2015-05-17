@@ -331,16 +331,20 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   PPCContext* context = thread_state->context();
 
-  // Setup registers.
-  uint64_t previous_lr = context->lr;
+  // Pad out stack a bit, as some games seem to overwrite the caller by about
+  // 16 to 32b.
+  context->r[1] -= 64 + 112;
+
   // This could be set to anything to give us a unique identifier to track
   // re-entrancy/etc.
+  uint64_t previous_lr = context->lr;
   context->lr = 0xBEBEBEBE;
 
   // Execute the function.
   auto result = fn->Call(thread_state, uint32_t(context->lr));
 
   context->lr = previous_lr;
+  context->r[1] += 64 + 112;
 
   return result;
 }
