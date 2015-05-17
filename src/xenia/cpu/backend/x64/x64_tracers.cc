@@ -28,10 +28,11 @@ namespace x64 {
 
 #define TARGET_THREAD 1
 
-#define IFLUSH() fflush(stdout)
+#define IFLUSH() \
+  if (thread_state->thread_id() == TARGET_THREAD) fflush(stdout)
 #define IPRINT \
   if (thread_state->thread_id() == TARGET_THREAD) printf
-#define DFLUSH() fflush(stdout)
+#define DFLUSH() IFLUSH()
 #define DPRINT \
   DFLUSH();    \
   if (thread_state->thread_id() == TARGET_THREAD) printf
@@ -192,6 +193,13 @@ void TraceMemoryStoreV128(void* raw_context, uint32_t address, __m128 value) {
          xe::m128_f32<2>(value), xe::m128_f32<3>(value), xe::m128_i32<0>(value),
          xe::m128_i32<1>(value), xe::m128_i32<2>(value),
          xe::m128_i32<3>(value));
+}
+
+void TraceMemset(void* raw_context, uint32_t address, uint8_t value,
+  uint32_t length) {
+  auto thread_state = *((ThreadState**)raw_context);
+  DPRINT("memset %.8X-%.8X (%d) = %.2X", address, address + length, length,
+         value);
 }
 
 }  // namespace x64

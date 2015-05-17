@@ -191,13 +191,10 @@ int Memory::Initialize() {
     return 1;
   }
 
-  // I have no idea what this is, but games try to read/write there.
-  heaps_.v40000000.AllocFixed(
-      0x40000000, 0x00010000, 32,
-      kMemoryAllocationReserve | kMemoryAllocationCommit,
-      kMemoryProtectRead | kMemoryProtectWrite);
-  xe::store_and_swap<uint32_t>(TranslateVirtual(0x40000000), 0x00C40000);
-  xe::store_and_swap<uint32_t>(TranslateVirtual(0x40000004), 0x00010000);
+  // ?
+  uint32_t unk_phys_alloc;
+  heaps_.vA0000000.Alloc(0x340000, 64 * 1024, kMemoryAllocationReserve,
+                         kMemoryProtectNoAccess, true, &unk_phys_alloc);
 
   return 0;
 }

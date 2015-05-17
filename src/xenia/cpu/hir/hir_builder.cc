@@ -20,15 +20,27 @@ namespace xe {
 namespace cpu {
 namespace hir {
 
-#define ASSERT_ADDRESS_TYPE(value)
-#define ASSERT_INTEGER_TYPE(value)
-#define ASSERT_FLOAT_TYPE(value)
-#define ASSERT_NON_VECTOR_TYPE(value)
-#define ASSERT_VECTOR_TYPE(value)
+#define ASSERT_ADDRESS_TYPE(value) \
+  \
+assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
+#define ASSERT_INTEGER_TYPE(value)                                       \
+  \
+assert_true((value->type) == INT8_TYPE || (value->type) == INT16_TYPE || \
+            (value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
+#define ASSERT_FLOAT_TYPE(value) \
+  assert_true((value->type) == FLOAT32_TYPE || (value->type) == FLOAT64_TYPE)
+#define ASSERT_NON_FLOAT_TYPE(value) \
+  \
+assert_true((value->type) != FLOAT32_TYPE && (value->type) != FLOAT64_TYPE)
+#define ASSERT_NON_VECTOR_TYPE(value) assert_false((value->type) == VEC128_TYPE)
+#define ASSERT_VECTOR_TYPE(value) assert_true((value->type) == VEC128_TYPE)
+#define ASSERT_FLOAT_OR_VECTOR_TYPE(value)     \
+  assert_true((value->type) == FLOAT32_TYPE || \
+              (value->type) == FLOAT64_TYPE || (value->type) == VEC128_TYPE)
 #define ASSERT_TYPES_EQUAL(value1, value2) \
   assert_true((value1->type) == (value2->type))
 
-HIRBuilder::HIRBuilder() {
+    HIRBuilder::HIRBuilder() {
   arena_ = new Arena();
   Reset();
 }
@@ -755,7 +767,7 @@ void HIRBuilder::ReturnTrue(Value* cond) {
     return;
   }
 
-  ASSERT_ADDRESS_TYPE(value);
+  ASSERT_ADDRESS_TYPE(cond);
   Instr* i = AppendInstr(OPCODE_RETURN_TRUE_info, 0);
   i->set_src1(cond);
   i->src2.value = i->src3.value = NULL;
@@ -873,8 +885,9 @@ Value* HIRBuilder::SignExtend(Value* value, TypeName target_type) {
 }
 
 Value* HIRBuilder::Truncate(Value* value, TypeName target_type) {
-  ASSERT_INTEGER_TYPE(value->type);
-  ASSERT_INTEGER_TYPE(target_type);
+  ASSERT_INTEGER_TYPE(value);
+  assert_true(target_type == INT8_TYPE || target_type == INT16_TYPE ||
+              target_type == INT32_TYPE || target_type == INT64_TYPE);
 
   if (value->type == target_type) {
     return value;
@@ -908,7 +921,7 @@ Value* HIRBuilder::Convert(Value* value, TypeName target_type,
 }
 
 Value* HIRBuilder::Round(Value* value, RoundMode round_mode) {
-  ASSERT_FLOAT_TYPE(value);
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   if (value->IsConstant()) {
     Value* dest = CloneValue(value);
@@ -1088,6 +1101,16 @@ void HIRBuilder::Store(Value* address, Value* value, uint32_t store_flags) {
   i->set_src1(address);
   i->set_src2(value);
   i->src3.value = NULL;
+}
+
+void HIRBuilder::Memset(Value* address, Value* value, Value* length) {
+  ASSERT_ADDRESS_TYPE(address);
+  ASSERT_TYPES_EQUAL(address, length);
+  assert_true(value->type == INT8_TYPE);
+  Instr* i = AppendInstr(OPCODE_MEMSET_info, 0);
+  i->set_src1(address);
+  i->set_src2(value);
+  i->set_src3(length);
 }
 
 void HIRBuilder::Prefetch(Value* address, size_t length,
@@ -1471,8 +1494,6 @@ Value* HIRBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
 }
 
 Value* HIRBuilder::Neg(Value* value) {
-  ASSERT_NON_VECTOR_TYPE(value);
-
   Instr* i = AppendInstr(OPCODE_NEG_info, 0, AllocValue(value->type));
   i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
@@ -1480,7 +1501,7 @@ Value* HIRBuilder::Neg(Value* value) {
 }
 
 Value* HIRBuilder::Abs(Value* value) {
-  ASSERT_NON_VECTOR_TYPE(value);
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(OPCODE_ABS_info, 0, AllocValue(value->type));
   i->set_src1(value);
@@ -1489,7 +1510,7 @@ Value* HIRBuilder::Abs(Value* value) {
 }
 
 Value* HIRBuilder::Sqrt(Value* value) {
-  ASSERT_FLOAT_TYPE(value);
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(OPCODE_SQRT_info, 0, AllocValue(value->type));
   i->set_src1(value);
@@ -1498,7 +1519,7 @@ Value* HIRBuilder::Sqrt(Value* value) {
 }
 
 Value* HIRBuilder::RSqrt(Value* value) {
-  ASSERT_FLOAT_TYPE(value);
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(OPCODE_RSQRT_info, 0, AllocValue(value->type));
   i->set_src1(value);
@@ -1507,7 +1528,7 @@ Value* HIRBuilder::RSqrt(Value* value) {
 }
 
 Value* HIRBuilder::Pow2(Value* value) {
-  ASSERT_FLOAT_TYPE(value);
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(OPCODE_POW2_info, 0, AllocValue(value->type));
   i->set_src1(value);
@@ -1516,7 +1537,7 @@ Value* HIRBuilder::Pow2(Value* value) {
 }
 
 Value* HIRBuilder::Log2(Value* value) {
-  ASSERT_FLOAT_TYPE(value);
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(OPCODE_LOG2_info, 0, AllocValue(value->type));
   i->set_src1(value);
@@ -1551,8 +1572,8 @@ Value* HIRBuilder::DotProduct4(Value* value1, Value* value2) {
 }
 
 Value* HIRBuilder::And(Value* value1, Value* value2) {
-  ASSERT_INTEGER_TYPE(value1);
-  ASSERT_INTEGER_TYPE(value2);
+  ASSERT_NON_FLOAT_TYPE(value1);
+  ASSERT_NON_FLOAT_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
   if (value1 == value2) {
@@ -1571,8 +1592,8 @@ Value* HIRBuilder::And(Value* value1, Value* value2) {
 }
 
 Value* HIRBuilder::Or(Value* value1, Value* value2) {
-  ASSERT_INTEGER_TYPE(value1);
-  ASSERT_INTEGER_TYPE(value2);
+  ASSERT_NON_FLOAT_TYPE(value1);
+  ASSERT_NON_FLOAT_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
   if (value1 == value2) {
@@ -1591,8 +1612,8 @@ Value* HIRBuilder::Or(Value* value1, Value* value2) {
 }
 
 Value* HIRBuilder::Xor(Value* value1, Value* value2) {
-  ASSERT_INTEGER_TYPE(value1);
-  ASSERT_INTEGER_TYPE(value2);
+  ASSERT_NON_FLOAT_TYPE(value1);
+  ASSERT_NON_FLOAT_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
   if (value1 == value2) {
@@ -1607,7 +1628,7 @@ Value* HIRBuilder::Xor(Value* value1, Value* value2) {
 }
 
 Value* HIRBuilder::Not(Value* value) {
-  ASSERT_INTEGER_TYPE(value);
+  ASSERT_NON_FLOAT_TYPE(value);
 
   if (value->IsConstant()) {
     Value* dest = CloneValue(value);
@@ -1657,7 +1678,7 @@ Value* HIRBuilder::VectorShl(Value* value1, Value* value2, TypeName part_type) {
 }
 
 Value* HIRBuilder::Shr(Value* value1, Value* value2) {
-  ASSERT_INTEGER_TYPE(value1);
+  ASSERT_NON_FLOAT_TYPE(value1);
   ASSERT_INTEGER_TYPE(value2);
 
   if (value2->IsConstantZero()) {

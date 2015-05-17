@@ -323,7 +323,6 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
   }
   XELOGD("MmAllocatePhysicalMemoryEx = %.8X", base_address);
 
-
   SHIM_SET_RETURN_64(base_address);
 }
 
