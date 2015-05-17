@@ -247,8 +247,18 @@ SHIM_CALL KeSetBasePriorityThread_shim(PPCContext* ppc_state,
 
   int32_t prev_priority = 0;
 
-  XThread* thread =
-      (XThread*)XObject::GetObject(state, SHIM_MEM_ADDR(thread_ptr));
+  XThread* thread = NULL;
+  if (thread_ptr < 0x1000) {
+    // They passed in a handle (for some reason)
+    X_STATUS result =
+              state->object_table()->GetObject(thread_ptr, (XObject**)&thread);
+
+    // Log it in case this is the source of any problems in the future
+    XELOGD("KeSetBasePriorityThread - Interpreting thread ptr as handle!");
+  } else {
+    thread = (XThread*)XObject::GetObject(state, SHIM_MEM_ADDR(thread_ptr));
+  }
+
   if (thread) {
     prev_priority = thread->QueryPriority();
     thread->SetPriority(increment);
