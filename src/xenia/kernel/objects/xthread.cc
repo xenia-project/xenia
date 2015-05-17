@@ -171,7 +171,8 @@ X_STATUS XThread::Create() {
 
   // Allocate processor thread state.
   // This is thread safe.
-  thread_state_ = new ThreadState(kernel_state()->processor(), thread_id_, 0,
+  thread_state_ = new ThreadState(kernel_state()->processor(), thread_id_,
+                                  ThreadStackType::kUserStack, 0,
                                   creation_params_.stack_size, pcr_address_);
   XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
          thread_state_->thread_id(), thread_state_->stack_limit(),

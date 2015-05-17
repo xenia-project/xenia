@@ -27,11 +27,12 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 thread_local ThreadState* thread_state_ = nullptr;
 
 ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
-                         uint32_t stack_address, uint32_t stack_size,
-                         uint32_t pcr_address)
+                         ThreadStackType stack_type, uint32_t stack_address,
+                         uint32_t stack_size, uint32_t pcr_address)
     : processor_(processor),
       memory_(processor->memory()),
       thread_id_(thread_id),
+      stack_type_(stack_type),
       name_(""),
       backend_data_(0),
       stack_size_(stack_size),
@@ -49,12 +50,24 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
     uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
     uint32_t stack_padding = stack_alignment * 1;
     uint32_t actual_stack_size = stack_padding + stack_size;
+    bool top_down;
+    switch (stack_type) {
+      case ThreadStackType::kKernelStack:
+        top_down = true;
+        break;
+      case ThreadStackType::kUserStack:
+        top_down = false;
+        break;
+      default:
+        assert_unhandled_case(stack_type);
+        break;
+    }
     memory()
-        ->LookupHeapByType(false, stack_alignment)
-        ->Alloc(actual_stack_size, stack_alignment,
-                kMemoryAllocationReserve | kMemoryAllocationCommit,
-                kMemoryProtectRead | kMemoryProtectWrite, true,
-                &stack_address_);
+        ->LookupHeap(0x70000000)
+        ->AllocRange(0x70000000, 0x7FFFFFFF, actual_stack_size, stack_alignment,
+                     kMemoryAllocationReserve | kMemoryAllocationCommit,
+                     kMemoryProtectRead | kMemoryProtectWrite, top_down,
+                     &stack_address_);
     assert_true(!(stack_address_ & 0xFFF));  // just to be safe
     stack_allocated_ = true;
     stack_base_ = stack_address_ + actual_stack_size;
