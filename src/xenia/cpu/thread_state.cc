@@ -44,29 +44,30 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   }
   backend_data_ = processor->backend()->AllocThreadData();
 
-  uint32_t stack_position;
   if (!stack_address) {
     stack_size = (stack_size + 0xFFF) & 0xFFFFF000;
     uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
     uint32_t stack_padding = stack_alignment * 1;
     uint32_t actual_stack_size = stack_padding + stack_size;
     memory()
-        ->LookupHeapByType(false, 0x10000)
+        ->LookupHeapByType(false, stack_alignment)
         ->Alloc(actual_stack_size, stack_alignment,
                 kMemoryAllocationReserve | kMemoryAllocationCommit,
                 kMemoryProtectRead | kMemoryProtectWrite, true,
                 &stack_address_);
     assert_true(!(stack_address_ & 0xFFF));  // just to be safe
-    stack_position = stack_address_ + actual_stack_size;
     stack_allocated_ = true;
-    memset(memory()->TranslateVirtual(stack_address_), 0xBE, actual_stack_size);
+    stack_base_ = stack_address_ + actual_stack_size;
+    stack_limit_ = stack_address_ + stack_padding;
+    memory()->Fill(stack_address_, actual_stack_size, 0xBE);
     memory()
         ->LookupHeap(stack_address_)
         ->Protect(stack_address_, stack_padding, kMemoryProtectNoAccess);
   } else {
     stack_address_ = stack_address;
-    stack_position = stack_address_ + stack_size;
     stack_allocated_ = false;
+    stack_base_ = stack_address_ + stack_size;
+    stack_limit_ = stack_address_;
   }
   assert_not_zero(stack_address_);
 
@@ -86,7 +87,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   context_->thread_id = thread_id_;
 
   // Set initial registers.
-  context_->r[1] = stack_position;
+  context_->r[1] = stack_base_;
   context_->r[13] = pcr_address_;
 
   // Pad out stack a bit, as some games seem to overwrite the caller by about

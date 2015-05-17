@@ -33,6 +33,8 @@ class ThreadState {
   void* backend_data() const { return backend_data_; }
   uint32_t stack_address() const { return stack_address_; }
   uint32_t stack_size() const { return stack_size_; }
+  uint32_t stack_base() const { return stack_base_; }
+  uint32_t stack_limit() const { return stack_limit_; }
   uint32_t pcr_address() const { return pcr_address_; }
   xe::cpu::frontend::PPCContext* context() const { return context_; }
 
@@ -53,6 +55,8 @@ class ThreadState {
   uint32_t stack_address_;
   bool stack_allocated_;
   uint32_t stack_size_;
+  uint32_t stack_base_;
+  uint32_t stack_limit_;
   uint32_t pcr_address_;
 
   // NOTE: must be 64b aligned for SSE ops.

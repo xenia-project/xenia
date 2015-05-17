@@ -522,7 +522,7 @@ void BaseHeap::DumpMap() {
            heap_base_ + (i + page.region_page_count) * page_size_,
            page.region_page_count, page.region_page_count * page_size_,
            state_name, access_r, access_w);
-    i += page.region_page_count;
+    i += page.region_page_count - 1;
   }
   if (is_empty_span) {
     XELOGE("  %.8X-%.8X - %d unreserved pages)",

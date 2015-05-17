@@ -174,8 +174,8 @@ X_STATUS XThread::Create() {
   thread_state_ = new ThreadState(kernel_state()->processor(), thread_id_, 0,
                                   creation_params_.stack_size, pcr_address_);
   XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
-         thread_state_->thread_id(), thread_state_->stack_address(),
-         thread_state_->stack_address() + thread_state_->stack_size());
+         thread_state_->thread_id(), thread_state_->stack_limit(),
+         thread_state_->stack_base());
 
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   xe::store_and_swap<uint32_t>(pcr + 0x000, tls_address_);
