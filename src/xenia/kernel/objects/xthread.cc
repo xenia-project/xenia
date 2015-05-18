@@ -520,7 +520,19 @@ void XThread::RundownAPCs() {
 int32_t XThread::QueryPriority() { return GetThreadPriority(thread_handle_); }
 
 void XThread::SetPriority(int32_t increment) {
-  SetThreadPriority(thread_handle_, increment);
+  int target_priority = 0;
+  if (increment > 0x11) {
+    target_priority = THREAD_PRIORITY_HIGHEST;
+  } else if (increment > 0) {
+    target_priority = THREAD_PRIORITY_ABOVE_NORMAL;
+  } else if (increment < -0x22) {
+    target_priority = THREAD_PRIORITY_IDLE;
+  } else if (increment < -0x11) {
+    target_priority = THREAD_PRIORITY_LOWEST;
+  } else {
+    target_priority = THREAD_PRIORITY_NORMAL;
+  }
+  SetThreadPriority(thread_handle_, target_priority);
 }
 
 void XThread::SetAffinity(uint32_t affinity) {
