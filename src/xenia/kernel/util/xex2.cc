@@ -612,7 +612,6 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
   uint8_t *buffer = memory->TranslateVirtual(header->exe_address);
   std::memset(buffer, 0, total_size); // Quickly zero the contents.
   uint8_t *d = buffer;
-  std::memset(buffer, 0, uncompressed_size);
 
   uint32_t rk[4 * (MAXNR + 1)];
   uint8_t ivec[16] = {0};
