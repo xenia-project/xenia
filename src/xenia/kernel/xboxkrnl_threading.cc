@@ -64,6 +64,9 @@ void AssertNoNameCollision(KernelState* state, uint32_t obj_attributes_ptr) {
   // with a success of NAME_EXISTS.
   // If the name exists and its type doesn't match, we do NAME_COLLISION.
   // Otherwise, we add like normal.
+  if (!obj_attributes_ptr) {
+    return;
+  }
   uint32_t name_str_ptr = xe::load_and_swap<uint32_t>(
       state->memory()->TranslateVirtual(obj_attributes_ptr + 4));
   if (name_str_ptr) {
@@ -450,9 +453,7 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  if (obj_attributes_ptr) {
-    AssertNoNameCollision(state, obj_attributes_ptr);
-  }
+  AssertNoNameCollision(state, obj_attributes_ptr);
 
   XEvent* ev = new XEvent(state);
   ev->Initialize(!event_type, !!initial_state);
