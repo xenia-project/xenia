@@ -18,21 +18,25 @@
 #include "xenia/cpu/cpu-private.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/objects/xmodule.h"
 
 namespace xe {
 namespace cpu {
 
 using namespace xe::cpu;
+using namespace xe::kernel;
 
 using PPCContext = xe::cpu::frontend::PPCContext;
 
 void UndefinedImport(PPCContext* ppc_state, void* arg0, void* arg1) {
-  XELOGE("call to undefined kernel import");
+  XELOGE("call to undefined import");
 }
 
-XexModule::XexModule(Processor* processor)
+XexModule::XexModule(Processor* processor, KernelState* state)
     : Module(processor),
       processor_(processor),
+      kernel_state_(state),
       xex_(nullptr),
       base_address_(0),
       low_address_(0),
@@ -104,8 +108,23 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
   for (size_t n = 0; n < import_info_count; n++) {
     const xe_xex2_import_info_t* info = &import_infos[n];
 
-    KernelExport* kernel_export =
-        export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+    // Strip off the extension (for the symbol name)
+    std::string libname = library->name;
+    auto dot = libname.find_last_of('.');
+    if (dot != libname.npos) {
+      libname = libname.substr(0, dot);
+    }
+
+    KernelExport* kernel_export = NULL; // kernel export info
+    uint32_t user_export_addr = 0; // user export address
+
+    if (kernel_state_->IsKernelModule(library->name)) {
+      kernel_export =
+            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+    } else {
+      XModule* module = kernel_state_->GetModule(library->name);
+      user_export_addr = module->GetProcAddressByOrdinal(info->ordinal);
+    }
 
     if (kernel_export) {
       if (info->thunk_address) {
@@ -114,7 +133,7 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
         snprintf(name, xe::countof(name), "%s", kernel_export->name);
       }
     } else {
-      snprintf(name, xe::countof(name), "__imp_%s_%.3X", library->name,
+      snprintf(name, xe::countof(name), "__imp_%s_%.3X", libname,
                info->ordinal);
     }
 
@@ -151,53 +170,77 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
                    kernel_export->name);
         }
       }
+    } else {
+      auto slot = memory_->TranslateVirtual<uint32_t*>(info->value_address);
+
+      // Assuming this is correct...
+      xe::store_and_swap<uint32_t>(slot, user_export_addr);
     }
 
     if (info->thunk_address) {
       if (kernel_export) {
         snprintf(name, xe::countof(name), "%s", kernel_export->name);
+      } else if (user_export_addr) {
+        snprintf(name, xe::countof(name), "__%s_%.3X", libname,
+                 info->ordinal);
       } else {
-        snprintf(name, xe::countof(name), "__kernel_%s_%.3X", library->name,
+        snprintf(name, xe::countof(name), "__kernel_%s_%.3X", libname,
                  info->ordinal);
       }
 
-      // On load we have something like this in memory:
-      //     li r3, 0
-      //     li r4, 0x1F5
-      //     mtspr CTR, r11
-      //     bctr
-      // Real consoles rewrite this with some code that sets r11.
-      // If we did that we'd still have to put a thunk somewhere and do the
-      // dynamic lookup. Instead, we rewrite it to use syscalls, as they
-      // aren't used on the 360. CPU backends can either take the syscall
-      // or do something smarter.
-      //     sc
-      //     blr
-      //     nop
-      //     nop
-      uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
-      xe::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
-      xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
-      xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
-      xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
-
-      FunctionInfo::ExternHandler handler = 0;
-      void* handler_data = 0;
+      // Kernel exports go up to the host shim functions
       if (kernel_export) {
-        handler =
-            (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
-        handler_data = kernel_export->function_data.shim_data;
-      } else {
-        handler = (FunctionInfo::ExternHandler)UndefinedImport;
-        handler_data = this;
-      }
+        // On load we have something like this in memory:
+        //     li r3, 0
+        //     li r4, 0x1F5
+        //     mtspr CTR, r11
+        //     bctr
+        // Real consoles rewrite this with some code that sets r11.
+        // If we did that we'd still have to put a thunk somewhere and do the
+        // dynamic lookup. Instead, we rewrite it to use syscalls, as they
+        // aren't used on the 360. CPU backends can either take the syscall
+        // or do something smarter.
+        //     sc
+        //     blr
+        //     nop
+        //     nop
+        uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
+        xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
+        xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
 
-      FunctionInfo* fn_info;
-      DeclareFunction(info->thunk_address, &fn_info);
-      fn_info->set_end_address(info->thunk_address + 16 - 4);
-      fn_info->set_name(name);
-      fn_info->SetupExtern(handler, handler_data, NULL);
-      fn_info->set_status(SymbolInfo::STATUS_DECLARED);
+        FunctionInfo::ExternHandler handler = 0;
+        void* handler_data = 0;
+        if (kernel_export) {
+          handler =
+            (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
+          handler_data = kernel_export->function_data.shim_data;
+        } else {
+          handler = (FunctionInfo::ExternHandler)UndefinedImport;
+          handler_data = this;
+        }
+
+        FunctionInfo* fn_info;
+        DeclareFunction(info->thunk_address, &fn_info);
+        fn_info->set_end_address(info->thunk_address + 16 - 4);
+        fn_info->set_name(name);
+        fn_info->SetupExtern(handler, handler_data, NULL);
+        fn_info->set_status(SymbolInfo::STATUS_DECLARED);
+      } else if (user_export_addr) {
+        // Rewrite PPC code to set r11 to the target address
+        // So we'll have:
+        //    lis r11, user_export_addr
+        //    ori r11, r11, user_export_addr
+        //    mtspr CTR, r11
+        //    bctr
+        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
+        uint16_t low_addr = user_export_addr & 0xFFFF;
+
+        uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
+      }
     }
   }
 

@@ -16,13 +16,17 @@
 #include "xenia/kernel/util/xex2.h"
 
 namespace xe {
+
+// KernelState forward decl.
+namespace kernel { class KernelState; }
+
 namespace cpu {
 
 class Runtime;
 
 class XexModule : public xe::cpu::Module {
  public:
-  XexModule(Processor* processor);
+  XexModule(Processor* processor, kernel::KernelState* state);
   virtual ~XexModule();
 
   xe_xex2_ref xex() const { return xex_; }
@@ -40,6 +44,7 @@ class XexModule : public xe::cpu::Module {
 
  private:
   Processor* processor_;
+  kernel::KernelState* kernel_state_;
   std::string name_;
   std::string path_;
   xe_xex2_ref xex_;

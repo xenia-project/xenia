@@ -153,7 +153,7 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
 }
 
 void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
-  std::lock_guard<std::mutex> lock(kernel_state_->object_mutex());
+  std::lock_guard<std::recursive_mutex> lock(kernel_state_->object_mutex());
 
   auto header =
       kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
@@ -181,7 +181,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
   // We identify this by checking the low bit of wait_list_blink - if it's 1,
   // we have already put our pointer in there.
 
-  std::lock_guard<std::mutex> lock(kernel_state->object_mutex());
+  std::lock_guard<std::recursive_mutex> lock(kernel_state->object_mutex());
 
   auto header = reinterpret_cast<DISPATCH_HEADER*>(native_ptr);
 

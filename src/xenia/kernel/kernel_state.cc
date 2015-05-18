@@ -97,6 +97,19 @@ void KernelState::RegisterModule(XModule* module) {}
 
 void KernelState::UnregisterModule(XModule* module) {}
 
+bool KernelState::IsKernelModule(const char* name) {
+  if (!name) {
+    // executing module isn't a kernel module
+    return false;
+  } else if (strcasecmp(name, "xam.xex") == 0) {
+    return true;
+  } else if (strcasecmp(name, "xboxkrnl.exe") == 0) {
+    return true;
+  }
+
+  return false;
+}
+
 XModule* KernelState::GetModule(const char* name) {
   if (!name) {
     // NULL name = self.
@@ -114,7 +127,7 @@ XModule* KernelState::GetModule(const char* name) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   } else {
-    std::lock_guard<std::mutex> lock(object_mutex_);
+    std::lock_guard<std::recursive_mutex> lock(object_mutex_);
 
     for (XUserModule* module : user_modules_) {
       if ((strcasecmp(xe::find_name_from_path(module->path()).c_str(), name) ==
@@ -163,7 +176,7 @@ XUserModule* KernelState::LoadUserModule(const char* raw_name) {
 
   XUserModule* module = nullptr;
   {
-    std::lock_guard<std::mutex> lock(object_mutex_);
+    std::lock_guard<std::recursive_mutex> lock(object_mutex_);
 
     // See if we've already loaded it
     for (XUserModule* existing_module : user_modules_) {
@@ -205,12 +218,12 @@ XUserModule* KernelState::LoadUserModule(const char* raw_name) {
 }
 
 void KernelState::RegisterThread(XThread* thread) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
   threads_by_id_[thread->thread_id()] = thread;
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
   auto it = threads_by_id_.find(thread->thread_id());
   if (it != threads_by_id_.end()) {
     threads_by_id_.erase(it);
@@ -218,7 +231,7 @@ void KernelState::UnregisterThread(XThread* thread) {
 }
 
 void KernelState::OnThreadExecute(XThread* thread) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
 
   // Must be called on executing thread.
   assert_true(XThread::GetCurrentThread() == thread);
@@ -241,7 +254,7 @@ void KernelState::OnThreadExecute(XThread* thread) {
 }
 
 void KernelState::OnThreadExit(XThread* thread) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
 
   // Must be called on executing thread.
   assert_true(XThread::GetCurrentThread() == thread);
@@ -264,7 +277,7 @@ void KernelState::OnThreadExit(XThread* thread) {
 }
 
 XThread* KernelState::GetThreadByID(uint32_t thread_id) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
   XThread* thread = nullptr;
   auto it = threads_by_id_.find(thread_id);
   if (it != threads_by_id_.end()) {
@@ -276,7 +289,7 @@ XThread* KernelState::GetThreadByID(uint32_t thread_id) {
 }
 
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
   notify_listeners_.push_back(listener);
 
   // Games seem to expect a few notifications on startup, only for the first
@@ -300,7 +313,7 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     if (*it == listener) {
@@ -311,7 +324,7 @@ void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
-  std::lock_guard<std::mutex> lock(object_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     (*it)->EnqueueNotification(id, data);
