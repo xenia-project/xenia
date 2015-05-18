@@ -351,18 +351,38 @@ void XUserModule::Dump() {
       int unimpl_count = 0;
       for (size_t m = 0; m < import_info_count; m++) {
         const xe_xex2_import_info_t* info = &import_infos[m];
-        KernelExport* kernel_export =
+
+        if (kernel_state_->IsKernelModule(library->name)) {
+          KernelExport* kernel_export =
             export_resolver->GetExportByOrdinal(library->name, info->ordinal);
-        if (kernel_export) {
-          known_count++;
-          if (kernel_export->is_implemented) {
-            impl_count++;
+          if (kernel_export) {
+            known_count++;
+            if (kernel_export->is_implemented) {
+              impl_count++;
+            } else {
+              unimpl_count++;
+            }
           } else {
+            unknown_count++;
             unimpl_count++;
           }
         } else {
-          unknown_count++;
-          unimpl_count++;
+          // User module
+          XModule* module = kernel_state_->GetModule(library->name);
+          if (module) {
+            uint32_t export_addr =
+                      module->GetProcAddressByOrdinal(info->ordinal);
+            if (export_addr) {
+              impl_count++;
+              known_count++;
+            } else {
+              unimpl_count++;
+              unknown_count++;
+            }
+          } else {
+            unimpl_count++;
+            unknown_count++;
+          }
         }
       }
       printf("         Total: %4u\n", uint32_t(import_info_count));
@@ -377,13 +397,23 @@ void XUserModule::Dump() {
       // Listing.
       for (size_t m = 0; m < import_info_count; m++) {
         const xe_xex2_import_info_t* info = &import_infos[m];
-        KernelExport* kernel_export =
-            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
         const char* name = "UNKNOWN";
         bool implemented = false;
-        if (kernel_export) {
-          name = kernel_export->name;
-          implemented = kernel_export->is_implemented;
+
+        KernelExport* kernel_export;
+        if (kernel_state_->IsKernelModule(library->name)) {
+          kernel_export =
+            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+          if (kernel_export) {
+            name = kernel_export->name;
+            implemented = kernel_export->is_implemented;
+          }
+        } else {
+          XModule* module = kernel_state_->GetModule(library->name);
+          if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
+            // TODO: Name lookup
+            implemented = true;
+          }
         }
         if (kernel_export && kernel_export->type == KernelExport::Variable) {
           printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
