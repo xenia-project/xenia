@@ -161,8 +161,11 @@ int Memory::Initialize() {
 
   // Prepare physical heaps.
   heaps_.physical.Initialize(physical_membase_, 0x00000000, 0x20000000, 4096);
+  // HACK: should be 64k, but with us overlaying A and E it needs to be 4.
+  /*heaps_.vA0000000.Initialize(virtual_membase_, 0xA0000000, 0x20000000,
+                              64 * 1024, &heaps_.physical);*/
   heaps_.vA0000000.Initialize(virtual_membase_, 0xA0000000, 0x20000000,
-                              64 * 1024, &heaps_.physical);
+                              4 * 1024, &heaps_.physical);
   heaps_.vC0000000.Initialize(virtual_membase_, 0xC0000000, 0x20000000,
                               16 * 1024 * 1024, &heaps_.physical);
   heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
@@ -285,8 +288,7 @@ BaseHeap* Memory::LookupHeap(uint32_t address) {
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   if (physical) {
     if (page_size <= 4096) {
-      // HACK
-      //return &heaps_.vE0000000;
+      // HACK: should be vE0000000
       return &heaps_.vA0000000;
     } else if (page_size <= 64 * 1024) {
       return &heaps_.vA0000000;
@@ -1000,6 +1002,9 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
   }
+  if (heap_base_ >= 0xE0000000) {
+    parent_address -= 0x1000;
+  }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
@@ -1034,6 +1039,9 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
     XELOGE(
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
+  }
+  if (heap_base_ >= 0xE0000000) {
+    parent_base_address -= 0x1000;
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
@@ -1074,6 +1082,9 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     XELOGE(
         "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
     return false;
+  }
+  if (heap_base_ >= 0xE0000000) {
+    parent_address -= 0x1000;
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
