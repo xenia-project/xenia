@@ -175,9 +175,13 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
     } else if (user_export_addr) {
       xe::store_and_swap<uint32_t>(slot, user_export_addr);
     } else {
-      // Nothing.
-      XELOGE("kernel import not found: %.8X", info->value_address);
-      *slot = xe::byte_swap(0xF00DF00D);
+      // No module found.
+      XELOGE("kernel import not found: %s", name);
+      if (info->thunk_address) {
+        *slot = xe::byte_swap(info->thunk_address);
+      } else {
+        *slot = xe::byte_swap(0xF00DF00D);
+      }
     }
 
     if (info->thunk_address) {
@@ -190,8 +194,20 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
                  info->ordinal);
       }
 
-      // Kernel exports go up to the host shim functions
-      if (kernel_export) {
+      if (user_export_addr) {
+        // Rewrite PPC code to set r11 to the target address
+        // So we'll have:
+        //    lis r11, user_export_addr
+        //    ori r11, r11, user_export_addr
+        //    mtspr CTR, r11
+        //    bctr
+        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
+        uint16_t low_addr = user_export_addr & 0xFFFF;
+
+        uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
+      } else {
         // On load we have something like this in memory:
         //     li r3, 0
         //     li r4, 0x1F5
@@ -229,19 +245,6 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
         fn_info->set_name(name);
         fn_info->SetupExtern(handler, handler_data, NULL);
         fn_info->set_status(SymbolInfo::STATUS_DECLARED);
-      } else if (user_export_addr) {
-        // Rewrite PPC code to set r11 to the target address
-        // So we'll have:
-        //    lis r11, user_export_addr
-        //    ori r11, r11, user_export_addr
-        //    mtspr CTR, r11
-        //    bctr
-        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
-        uint16_t low_addr = user_export_addr & 0xFFFF;
-
-        uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
-        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
-        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
       }
     }
   }
