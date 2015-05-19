@@ -710,7 +710,9 @@ bool TextureCache::UploadTexture2D(GLuint texture,
       uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
       uint32_t pitch = std::min(texture_info.size_2d.input_pitch,
                                 texture_info.size_2d.output_pitch);
-      for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
+      for (uint32_t y = 0; y < std::min(texture_info.size_2d.block_height,
+                                        texture_info.size_2d.logical_height);
+           y++) {
         TextureSwap(texture_info.endianness, dest, src, pitch);
         src += texture_info.size_2d.input_pitch;
         dest += texture_info.size_2d.output_pitch;
