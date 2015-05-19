@@ -115,15 +115,17 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       libname = libname.substr(0, dot);
     }
 
-    KernelExport* kernel_export = NULL; // kernel export info
-    uint32_t user_export_addr = 0; // user export address
+    KernelExport* kernel_export = NULL;  // kernel export info
+    uint32_t user_export_addr = 0;       // user export address
 
     if (kernel_state_->IsKernelModule(library->name)) {
       kernel_export =
-            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+          export_resolver->GetExportByOrdinal(library->name, info->ordinal);
     } else {
       XModule* module = kernel_state_->GetModule(library->name);
-      user_export_addr = module->GetProcAddressByOrdinal(info->ordinal);
+      if (module) {
+        user_export_addr = module->GetProcAddressByOrdinal(info->ordinal);
+      }
     }
 
     if (kernel_export) {
@@ -146,8 +148,8 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
     var_info->set_status(SymbolInfo::STATUS_DEFINED);
 
     // Grab, if available.
+    auto slot = memory_->TranslateVirtual<uint32_t*>(info->value_address);
     if (kernel_export) {
-      auto slot = memory_->TranslateVirtual<uint32_t*>(info->value_address);
       if (kernel_export->type == KernelExport::Function) {
         // Not exactly sure what this should be...
         if (info->thunk_address) {
@@ -170,19 +172,19 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
                    kernel_export->name);
         }
       }
-    } else {
-      auto slot = memory_->TranslateVirtual<uint32_t*>(info->value_address);
-
-      // Assuming this is correct...
+    } else if (user_export_addr) {
       xe::store_and_swap<uint32_t>(slot, user_export_addr);
+    } else {
+      // Nothing.
+      XELOGE("kernel import not found: %.8X", info->value_address);
+      *slot = xe::byte_swap(0xF00DF00D);
     }
 
     if (info->thunk_address) {
       if (kernel_export) {
         snprintf(name, xe::countof(name), "%s", kernel_export->name);
       } else if (user_export_addr) {
-        snprintf(name, xe::countof(name), "__%s_%.3X", libname,
-                 info->ordinal);
+        snprintf(name, xe::countof(name), "__%s_%.3X", libname, info->ordinal);
       } else {
         snprintf(name, xe::countof(name), "__kernel_%s_%.3X", libname,
                  info->ordinal);
@@ -214,7 +216,7 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
         void* handler_data = 0;
         if (kernel_export) {
           handler =
-            (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
+              (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
           handler_data = kernel_export->function_data.shim_data;
         } else {
           handler = (FunctionInfo::ExternHandler)UndefinedImport;
