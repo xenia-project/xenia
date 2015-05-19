@@ -108,10 +108,27 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
+SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_state,
+                                       KernelState* state) {
+  uint32_t user_index = SHIM_GET_ARG_32(0);
+
+  XELOGD("XamShowDirtyDiscErrorUI(%d)", user_index);
+
+  int button_pressed = 0;
+  TaskDialog(state->emulator()->main_window()->hwnd(), GetModuleHandle(nullptr),
+             L"Disc Read Error",
+             L"Game is claiming to be unable to read game data!", nullptr,
+             TDCBF_CLOSE_BUTTON, TD_ERROR_ICON, &button_pressed);
+
+  // This is death, and should never return.
+  assert_always();
+}
+
 }  // namespace kernel
 }  // namespace xe
 
 void xe::kernel::xam::RegisterUIExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xam.xex", XamShowMessageBoxUI, state);
+  SHIM_SET_MAPPING("xam.xex", XamShowDirtyDiscErrorUI, state);
 }
