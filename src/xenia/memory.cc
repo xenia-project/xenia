@@ -804,12 +804,17 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     PLOGE("BaseHeap::Release failed due to host VirtualFree failure");
     return false;
   }*/
-  // Instead, we just protect it.
-  DWORD old_protect;
-  if (!VirtualProtect(membase_ + heap_base_ + base_page_number * page_size_,
-                      base_page_entry.region_page_count * page_size_,
-                      PAGE_NOACCESS, &old_protect)) {
-    XELOGW("BaseHeap::Release failed due to host VirtualProtect failure");
+  // Instead, we just protect it, if we can.
+  if (page_size_ == xe::page_size() ||
+      ((base_page_entry.region_page_count * page_size_) % xe::page_size() ==
+       0) &&
+          ((base_page_number * page_size_) % xe::page_size() == 0)) {
+    DWORD old_protect;
+    if (!VirtualProtect(membase_ + heap_base_ + base_page_number * page_size_,
+                        base_page_entry.region_page_count * page_size_,
+                        PAGE_NOACCESS, &old_protect)) {
+      XELOGW("BaseHeap::Release failed due to host VirtualProtect failure");
+    }
   }
 
   // Perform table change.
