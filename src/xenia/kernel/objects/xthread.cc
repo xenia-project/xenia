@@ -106,8 +106,8 @@ uint32_t XThread::GetCurrentThreadHandle() {
   return thread->handle();
 }
 
-uint32_t XThread::GetCurrentThreadId(const uint8_t* thread_state_block) {
-  return xe::load_and_swap<uint32_t>(thread_state_block + 0x14C);
+uint32_t XThread::GetCurrentThreadId(const uint8_t* pcr) {
+  return xe::load_and_swap<uint32_t>(pcr + 0x2D8 + 0x14C);
 }
 
 uint32_t XThread::last_error() {

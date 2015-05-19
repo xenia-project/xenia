@@ -731,7 +731,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     }
 
     if (FLAGS_scribble_heap && protect & kMemoryProtectWrite) {
-      memset(result, 0xCD, page_count * page_size_);
+      std::memset(result, 0xCD, page_count * page_size_);
     }
   }
 

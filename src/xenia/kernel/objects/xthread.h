@@ -33,7 +33,7 @@ class XThread : public XObject {
 
   static XThread* GetCurrentThread();
   static uint32_t GetCurrentThreadHandle();
-  static uint32_t GetCurrentThreadId(const uint8_t* thread_state_block);
+  static uint32_t GetCurrentThreadId(const uint8_t* pcr);
 
   uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }

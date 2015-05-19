@@ -149,7 +149,7 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_state,
   // Zero memory, if needed.
   if (address && !(alloc_type & X_MEM_NOZERO)) {
     if (alloc_type & X_MEM_COMMIT) {
-      std::memset(SHIM_MEM_ADDR(address), 0, adjusted_size);
+      state->memory()->Zero(address, adjusted_size);
     }
   }
 
