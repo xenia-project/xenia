@@ -35,6 +35,7 @@ class Device;
 enum class Mode {
   READ,
   READ_WRITE,
+  READ_APPEND,
 };
 
 class MemoryMapping {
