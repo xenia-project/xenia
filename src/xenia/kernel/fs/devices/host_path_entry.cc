@@ -150,7 +150,7 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
                  flags_and_attributes | FILE_FLAG_BACKUP_SEMANTICS, NULL);
   if (file == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
-    return X_STATUS_ACCESS_DENIED;
+    return X_STATUS_NO_SUCH_FILE;
   }
 
   *out_file = new HostPathFile(kernel_state, mode, this, file);
