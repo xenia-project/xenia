@@ -14,6 +14,7 @@
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/emulator.h"
 #include "xenia/profiling.h"
 
@@ -47,6 +48,7 @@ namespace xe {
 namespace apu {
 
 using namespace xe::cpu;
+using namespace xe::kernel;
 
 // Size of a hardware XMA context.
 const uint32_t kXmaContextSize = 64;
@@ -89,30 +91,23 @@ X_STATUS AudioSystem::Setup() {
   }
   registers_.next_context = 1;
 
-  // Setup worker thread state. This lets us make calls into guest code.
-  thread_state_ =
-      new ThreadState(emulator_->processor(), 0, ThreadStackType::kKernelStack,
-                      0, 128 * 1024, 0);
-  thread_state_->set_name("Audio Worker");
-  thread_block_ = memory()->SystemHeapAlloc(2048);
-  thread_state_->context()->r[13] = thread_block_;
-  XELOGI("Audio Worker Thread %X Stack: %.8X-%.8X", thread_state_->thread_id(),
-         thread_state_->stack_address(),
-         thread_state_->stack_address() + thread_state_->stack_size());
+  // Setup our worker thread
+  std::function<int()> thread_fn = [this]() {
+    this->ThreadStart();
+    return 0;
+  };
 
-  // Create worker thread.
-  // This will initialize the audio system.
-  // Init needs to happen there so that any thread-local stuff
-  // is created on the right thread.
   running_ = true;
-  thread_ = std::thread(std::bind(&AudioSystem::ThreadStart, this));
+
+  thread_ = std::make_unique<XHostThread>(emulator()->kernel_state(), 
+                                        128 * 1024, 0, thread_fn);
+  thread_->Create();
 
   return X_STATUS_SUCCESS;
 }
 
 void AudioSystem::ThreadStart() {
   xe::threading::set_name("Audio Worker");
-  xe::Profiler::ThreadEnter("Audio Worker");
 
   // Initialize driver and ringbuffer.
   Initialize();
@@ -140,7 +135,7 @@ void AudioSystem::ThreadStart() {
         lock_.unlock();
         if (client_callback) {
           uint64_t args[] = {client_callback_arg};
-          processor->Execute(thread_state_, client_callback, args,
+          processor->Execute(thread_->thread_state(), client_callback, args,
                              xe::countof(args));
         }
         pumped++;
@@ -162,8 +157,6 @@ void AudioSystem::ThreadStart() {
   running_ = false;
 
   // TODO(benvanik): call module API to kill?
-
-  xe::Profiler::ThreadExit();
 }
 
 void AudioSystem::Initialize() {}
@@ -171,10 +164,7 @@ void AudioSystem::Initialize() {}
 void AudioSystem::Shutdown() {
   running_ = false;
   ResetEvent(client_wait_handles_[maximum_client_count_]);
-  thread_.join();
-
-  delete thread_state_;
-  memory()->SystemHeapFree(thread_block_);
+  thread_->Wait(0, 0, 0, NULL);
 
   memory()->SystemHeapFree(registers_.xma_context_array_ptr);
 }

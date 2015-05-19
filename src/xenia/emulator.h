@@ -66,6 +66,8 @@ class Emulator {
   }
   kernel::fs::FileSystem* file_system() const { return file_system_.get(); }
 
+  kernel::KernelState* kernel_state() const { return kernel_state_.get(); }
+
   kernel::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_.get(); }
   kernel::XamModule* xam() const { return xam_.get(); }
 

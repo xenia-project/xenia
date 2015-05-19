@@ -19,6 +19,9 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+
+namespace kernel { class XHostThread; }
+
 namespace apu {
 
 class AudioDriver;
@@ -73,9 +76,7 @@ class AudioSystem {
   Memory* memory_;
   cpu::Processor* processor_;
 
-  std::thread thread_;
-  cpu::ThreadState* thread_state_;
-  uint32_t thread_block_;
+  std::unique_ptr<kernel::XHostThread> thread_;
   std::atomic<bool> running_;
 
   std::mutex lock_;
