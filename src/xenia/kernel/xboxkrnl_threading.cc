@@ -1289,6 +1289,31 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_64(result ? 1 : 0);
 }
 
+// http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
+SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_state, KernelState* state) {
+  uint32_t plist_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("InterlockedPopEntrySList(%.8X)", plist_ptr);
+
+  // TODO: Interlocked part of this
+  uint8_t* p = state->memory()->TranslateVirtual(plist_ptr);
+  auto first = xe::load_and_swap<uint32_t>(p);
+  if (first == 0) {
+    // List empty!
+    SHIM_SET_RETURN_32(0);
+    return;
+  }
+
+  uint8_t* p2 = state->memory()->TranslateVirtual(first);
+  auto second = xe::load_and_swap<uint32_t>(p2);
+
+  // Now drop the first element
+  xe::store_and_swap<uint32_t>(p, second);
+
+  // Return the one we popped
+  SHIM_SET_RETURN_32(first);
+}
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -1364,4 +1389,6 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInsertQueueDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeRemoveQueueDpc, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", InterlockedPopEntrySList, state);
 }
