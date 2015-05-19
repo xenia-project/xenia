@@ -1289,13 +1289,17 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_64(result ? 1 : 0);
 }
 
+std::mutex global_list_mutex_;
+
 // http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
-SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_state,
+                                        KernelState* state) {
   uint32_t plist_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("InterlockedPopEntrySList(%.8X)", plist_ptr);
 
-  // TODO: Interlocked part of this
+  std::lock_guard<std::mutex> lock(global_list_mutex_);
+
   uint8_t* p = state->memory()->TranslateVirtual(plist_ptr);
   auto first = xe::load_and_swap<uint32_t>(p);
   if (first == 0) {
