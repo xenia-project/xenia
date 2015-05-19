@@ -380,6 +380,7 @@ uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
                    kMemoryProtectRead | kMemoryProtectWrite, false, &address)) {
     return 0;
   }
+  Zero(address, size);
   return address;
 }
 
