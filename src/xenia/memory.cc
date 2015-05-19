@@ -852,12 +852,19 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
   }
 
   // Attempt host change (hopefully won't fail).
-  DWORD new_protect = ToWin32ProtectFlags(protect);
-  DWORD old_protect;
-  if (!VirtualProtect(membase_ + heap_base_ + start_page_number * page_size_,
-                      page_count * page_size_, new_protect, &old_protect)) {
-    XELOGE("BaseHeap::Protect failed due to host VirtualProtect failure");
-    return false;
+  // We can only do this if our size matches system page granularity.
+  if (page_size_ == xe::page_size() ||
+      ((page_count * page_size_) % xe::page_size() == 0) &&
+          ((start_page_number * page_size_) % xe::page_size() == 0)) {
+    DWORD new_protect = ToWin32ProtectFlags(protect);
+    DWORD old_protect;
+    if (!VirtualProtect(membase_ + heap_base_ + start_page_number * page_size_,
+                        page_count * page_size_, new_protect, &old_protect)) {
+      XELOGE("BaseHeap::Protect failed due to host VirtualProtect failure");
+      return false;
+    }
+  } else {
+    XELOGW("BaseHeap::Protect: ignoring request as not 64k page aligned");
   }
 
   // Perform table change.
