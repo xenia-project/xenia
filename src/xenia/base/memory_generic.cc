@@ -23,7 +23,7 @@ size_t page_size() {
 #if XE_PLATFORM_WIN32
     SYSTEM_INFO si;
     GetSystemInfo(&si);
-    value = si.dwPageSize;
+    value = si.dwAllocationGranularity;
 #else
     value = getpagesize();
 #endif  // XE_PLATFORM_WIN32

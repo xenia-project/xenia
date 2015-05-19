@@ -50,7 +50,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
     // only Protect() on system page granularity.
     stack_size = (stack_size + 0xFFF) & 0xFFFFF000;
     uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
-    uint32_t stack_padding = xe::page_size();  // Host page size.
+    uint32_t stack_padding = uint32_t(xe::page_size());  // Host page size.
     uint32_t actual_stack_size = stack_padding + stack_size;
     bool top_down;
     switch (stack_type) {
