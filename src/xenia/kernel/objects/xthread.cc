@@ -156,8 +156,12 @@ X_STATUS XThread::Create() {
   scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
 
   // Allocate TLS block.
-  const xe_xex2_header_t* header = module->xex_header();
-  uint32_t tls_size = header->tls_info.slot_count * header->tls_info.data_size;
+  uint32_t tls_size = 32; // Default 32 (is this OK?)
+  if (module && module->xex_header()) {
+    const xe_xex2_header_t* header = module->xex_header();
+    tls_size = header->tls_info.slot_count * header->tls_info.data_size;
+  }
+
   tls_address_ = memory()->SystemHeapAlloc(tls_size);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
@@ -165,9 +169,20 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
 
-  // Copy in default TLS info.
-  // TODO(benvanik): is this correct?
-  memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
+  // Copy in default TLS info (or zero it out)
+  if (module && module->xex_header()) {
+    const xe_xex2_header_t* header = module->xex_header();
+
+    // Copy in default TLS info.
+    // TODO(benvanik): is this correct?
+    memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
+  } else {
+    memory()->Fill(tls_address_, tls_size, 0);
+  }
+
+  if (module) {
+    module->Release();
+  }
 
   // Allocate processor thread state.
   // This is thread safe.
@@ -179,13 +194,15 @@ X_STATUS XThread::Create() {
          thread_state_->stack_base());
 
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
+  std::memset(pcr, 0x0, 0x2D8 + 0xAB0); // Zero the PCR
   xe::store_and_swap<uint32_t>(pcr + 0x000, tls_address_);
   xe::store_and_swap<uint32_t>(pcr + 0x030, pcr_address_);
   xe::store_and_swap<uint32_t>(pcr + 0x070, thread_state_->stack_address() +
                                                 thread_state_->stack_size());
   xe::store_and_swap<uint32_t>(pcr + 0x074, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(pcr + 0x100, thread_state_address_);
-  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);  // DPC active bool?
+  xe::store_and_swap<uint8_t> (pcr + 0x10C, 1); // Current CPU(?)
+  xe::store_and_swap<uint32_t>(pcr + 0x150, 0); // DPC active bool?
 
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
@@ -236,7 +253,6 @@ X_STATUS XThread::Create() {
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {
     XELOGW("Unable to create platform thread (%.8X)", return_code);
-    module->Release();
     return return_code;
   }
 
@@ -249,7 +265,6 @@ X_STATUS XThread::Create() {
     SetAffinity(proc_mask);
   }
 
-  module->Release();
   return X_STATUS_SUCCESS;
 }
 
@@ -605,6 +620,29 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
 }
 
 void* XThread::GetWaitHandle() { return event_->GetWaitHandle(); }
+
+XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
+              uint32_t creation_flags, std::function<int()> host_fn):
+              XThread(kernel_state, stack_size, 0, 0, 0, creation_flags),
+              host_fn_(host_fn) {
+}
+
+void XHostThread::Execute() {
+  XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
+              thread_id_, handle(), name_.c_str(),
+              xe::threading::current_thread_id());
+
+  // Let the kernel know we are starting.
+  kernel_state()->OnThreadExecute(this);
+
+  int ret = host_fn_();
+
+  // Let the kernel know we are exiting.
+  kernel_state()->OnThreadExit(this);
+
+  // Exit.
+  Exit(ret);
+}
 
 }  // namespace kernel
 }  // namespace xe

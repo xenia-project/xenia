@@ -47,7 +47,7 @@ class XThread : public XObject {
   X_STATUS Create();
   X_STATUS Exit(int exit_code);
 
-  void Execute();
+  virtual void Execute();
 
   static void EnterCriticalRegion();
   static void LeaveCriticalRegion();
@@ -69,7 +69,7 @@ class XThread : public XObject {
 
   virtual void* GetWaitHandle();
 
- private:
+ protected:
   X_STATUS PlatformCreate();
   void PlatformDestroy();
   X_STATUS PlatformExit(int exit_code);
@@ -101,6 +101,17 @@ class XThread : public XObject {
   NativeList* apc_list_;
 
   XEvent* event_;
+};
+
+class XHostThread : public XThread {
+  public:
+    XHostThread(KernelState* kernel_state, uint32_t stack_size,
+                uint32_t creation_flags, std::function<int()> host_fn);
+
+    virtual void Execute();
+
+  private:
+    std::function<int()> host_fn_;
 };
 
 }  // namespace kernel
