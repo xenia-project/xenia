@@ -287,6 +287,7 @@ X_STATUS XThread::Exit(int exit_code) {
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
   XThread* thread = reinterpret_cast<XThread*>(param);
+  thread->set_name(thread->name());
   xe::Profiler::ThreadEnter(thread->name().c_str());
   current_thread_tls = thread;
   thread->Execute();
