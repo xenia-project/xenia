@@ -132,6 +132,7 @@ class HIRBuilder {
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
+  void Memset(Value* address, Value* value, Value* length);
   void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
 
   Value* Max(Value* value1, Value* value2);

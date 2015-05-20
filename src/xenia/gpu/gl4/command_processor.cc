@@ -456,7 +456,7 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
                                                   uint32_t block_size) {
   // CP_RB_RPTR_ADDR Ring Buffer Read Pointer Address 0x70C
   // ptr = RB_RPTR_ADDR, pointer to write back the address to.
-  read_ptr_writeback_ptr_ = (primary_buffer_ptr_ & ~0x1FFFFFFF) + ptr;
+  read_ptr_writeback_ptr_ = ptr;
   // CP_RB_CNTL Ring Buffer Control 0x704
   // block_size = RB_BLKSZ, number of quadwords read between updates of the
   //              read pointer.
@@ -966,7 +966,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
 bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(
     RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // indirect buffer dispatch
-  uint32_t list_ptr = reader->Read();
+  uint32_t list_ptr = CpuToGpu(reader->Read());
   uint32_t list_length = reader->Read();
   ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
   return true;
@@ -993,7 +993,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
       poll_reg_addr &= ~0x3;
       value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
       value = GpuSwap(value, endianness);
-      trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
+      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
     } else {
       // Register.
       assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
@@ -1093,7 +1093,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
     // Memory.
     auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
-    trace_writer_.WriteMemoryRead(poll_reg_addr, 4);
+    trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
     value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
     value = GpuSwap(value, endianness);
   } else {
@@ -1136,7 +1136,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
       write_reg_addr &= ~0x3;
       write_data = GpuSwap(write_data, endianness);
       xe::store(memory_->TranslatePhysical(write_reg_addr), write_data);
-      trace_writer_.WriteMemoryWrite(write_reg_addr, 4);
+      trace_writer_.WriteMemoryWrite(CpuToGpu(write_reg_addr), 4);
     } else {
       // Register.
       WriteRegister(write_reg_addr, write_data);
@@ -1182,7 +1182,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
   xe::store(memory_->TranslatePhysical(address), data_value);
-  trace_writer_.WriteMemoryWrite(address, 4);
+  trace_writer_.WriteMemoryWrite(CpuToGpu(address), 4);
   return true;
 }
 
@@ -1208,7 +1208,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
   xe::copy_and_swap_16_aligned(
       reinterpret_cast<uint16_t*>(memory_->TranslatePhysical(address)), extents,
       xe::countof(extents));
-  trace_writer_.WriteMemoryWrite(address, sizeof(extents));
+  trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
   return true;
 }
 
@@ -1364,7 +1364,7 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(
       assert_always();
       return true;
   }
-  trace_writer_.WriteMemoryRead(address, size_dwords * 4);
+  trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
   for (uint32_t n = 0; n < size_dwords; n++, index++) {
     uint32_t data = xe::load_and_swap<uint32_t>(
         memory_->TranslatePhysical(address + n * 4));
@@ -1395,7 +1395,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
   uint32_t start = start_size >> 16;
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
-  trace_writer_.WriteMemoryRead(addr, size_dwords * 4);
+  trace_writer_.WriteMemoryRead(CpuToGpu(addr), size_dwords * 4);
   LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
              size_dwords);
   return true;
@@ -2106,29 +2106,31 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
 
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
-  static const GLenum blend_map[] = {/*  0 */ GL_ZERO,
-                                     /*  1 */ GL_ONE,
-                                     /*  2 */ GL_ZERO,  // ?
-                                     /*  3 */ GL_ZERO,  // ?
-                                     /*  4 */ GL_SRC_COLOR,
-                                     /*  5 */ GL_ONE_MINUS_SRC_COLOR,
-                                     /*  6 */ GL_SRC_ALPHA,
-                                     /*  7 */ GL_ONE_MINUS_SRC_ALPHA,
-                                     /*  8 */ GL_DST_COLOR,
-                                     /*  9 */ GL_ONE_MINUS_DST_COLOR,
-                                     /* 10 */ GL_DST_ALPHA,
-                                     /* 11 */ GL_ONE_MINUS_DST_ALPHA,
-                                     /* 12 */ GL_CONSTANT_COLOR,
-                                     /* 13 */ GL_ONE_MINUS_CONSTANT_COLOR,
-                                     /* 14 */ GL_CONSTANT_ALPHA,
-                                     /* 15 */ GL_ONE_MINUS_CONSTANT_ALPHA,
-                                     /* 16 */ GL_SRC_ALPHA_SATURATE,
+  static const GLenum blend_map[] = {
+      /*  0 */ GL_ZERO,
+      /*  1 */ GL_ONE,
+      /*  2 */ GL_ZERO,  // ?
+      /*  3 */ GL_ZERO,  // ?
+      /*  4 */ GL_SRC_COLOR,
+      /*  5 */ GL_ONE_MINUS_SRC_COLOR,
+      /*  6 */ GL_SRC_ALPHA,
+      /*  7 */ GL_ONE_MINUS_SRC_ALPHA,
+      /*  8 */ GL_DST_COLOR,
+      /*  9 */ GL_ONE_MINUS_DST_COLOR,
+      /* 10 */ GL_DST_ALPHA,
+      /* 11 */ GL_ONE_MINUS_DST_ALPHA,
+      /* 12 */ GL_CONSTANT_COLOR,
+      /* 13 */ GL_ONE_MINUS_CONSTANT_COLOR,
+      /* 14 */ GL_CONSTANT_ALPHA,
+      /* 15 */ GL_ONE_MINUS_CONSTANT_ALPHA,
+      /* 16 */ GL_SRC_ALPHA_SATURATE,
   };
-  static const GLenum blend_op_map[] = {/*  0 */ GL_FUNC_ADD,
-                                        /*  1 */ GL_FUNC_SUBTRACT,
-                                        /*  2 */ GL_MIN,
-                                        /*  3 */ GL_MAX,
-                                        /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
+  static const GLenum blend_op_map[] = {
+      /*  0 */ GL_FUNC_ADD,
+      /*  1 */ GL_FUNC_SUBTRACT,
+      /*  2 */ GL_MIN,
+      /*  3 */ GL_MAX,
+      /*  4 */ GL_FUNC_REVERSE_SUBTRACT,
   };
   for (int i = 0; i < xe::countof(regs.rb_blendcontrol); ++i) {
     uint32_t blend_control = regs.rb_blendcontrol[i];
@@ -2181,23 +2183,25 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
 
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
 
-  static const GLenum compare_func_map[] = {/*  0 */ GL_NEVER,
-                                            /*  1 */ GL_LESS,
-                                            /*  2 */ GL_EQUAL,
-                                            /*  3 */ GL_LEQUAL,
-                                            /*  4 */ GL_GREATER,
-                                            /*  5 */ GL_NOTEQUAL,
-                                            /*  6 */ GL_GEQUAL,
-                                            /*  7 */ GL_ALWAYS,
+  static const GLenum compare_func_map[] = {
+      /*  0 */ GL_NEVER,
+      /*  1 */ GL_LESS,
+      /*  2 */ GL_EQUAL,
+      /*  3 */ GL_LEQUAL,
+      /*  4 */ GL_GREATER,
+      /*  5 */ GL_NOTEQUAL,
+      /*  6 */ GL_GEQUAL,
+      /*  7 */ GL_ALWAYS,
   };
-  static const GLenum stencil_op_map[] = {/*  0 */ GL_KEEP,
-                                          /*  1 */ GL_ZERO,
-                                          /*  2 */ GL_REPLACE,
-                                          /*  3 */ GL_INCR_WRAP,
-                                          /*  4 */ GL_DECR_WRAP,
-                                          /*  5 */ GL_INVERT,
-                                          /*  6 */ GL_INCR,
-                                          /*  7 */ GL_DECR,
+  static const GLenum stencil_op_map[] = {
+      /*  0 */ GL_KEEP,
+      /*  1 */ GL_ZERO,
+      /*  2 */ GL_REPLACE,
+      /*  3 */ GL_INCR_WRAP,
+      /*  4 */ GL_DECR_WRAP,
+      /*  5 */ GL_INVERT,
+      /*  6 */ GL_INCR,
+      /*  7 */ GL_DECR,
   };
   // A2XX_RB_DEPTHCONTROL_Z_ENABLE
   if (regs.rb_depthcontrol & 0x00000002) {

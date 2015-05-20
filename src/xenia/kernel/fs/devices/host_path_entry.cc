@@ -140,9 +140,25 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
   // TODO(benvanik): plumb through proper disposition/access mode.
   DWORD desired_access =
       is_read_only() ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
-  // mode == Mode::READ ? GENERIC_READ : (GENERIC_READ | GENERIC_WRITE);
+  if (mode == Mode::READ_APPEND) {
+    desired_access |= FILE_APPEND_DATA;
+  }
   DWORD share_mode = FILE_SHARE_READ;
-  DWORD creation_disposition = mode == Mode::READ ? OPEN_EXISTING : OPEN_ALWAYS;
+  DWORD creation_disposition;
+  switch (mode) {
+    case Mode::READ:
+      creation_disposition = OPEN_EXISTING;
+      break;
+    case Mode::READ_WRITE:
+      creation_disposition = OPEN_ALWAYS;
+      break;
+    case Mode::READ_APPEND:
+      creation_disposition = OPEN_EXISTING;
+      break;
+    default:
+      assert_unhandled_case(mode);
+      break;
+  }
   DWORD flags_and_attributes = async ? FILE_FLAG_OVERLAPPED : 0;
   HANDLE file =
       CreateFile(local_path_.c_str(), desired_access, share_mode, NULL,
@@ -150,7 +166,7 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
                  flags_and_attributes | FILE_FLAG_BACKUP_SEMANTICS, NULL);
   if (file == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
-    return X_STATUS_ACCESS_DENIED;
+    return X_STATUS_NO_SUCH_FILE;
   }
 
   *out_file = new HostPathFile(kernel_state, mode, this, file);

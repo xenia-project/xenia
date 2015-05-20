@@ -148,10 +148,16 @@ bool Processor::Setup() {
   backend_ = std::move(backend);
   frontend_ = std::move(frontend);
 
-  interrupt_thread_state_ = new ThreadState(this, 0, 0, 128 * 1024, 0);
+  interrupt_thread_state_ =
+      new ThreadState(this, 0, ThreadStackType::kKernelStack, 0, 128 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
   interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
   interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
+  XELOGI("Interrupt Thread %X Stack: %.8X-%.8X",
+         interrupt_thread_state_->thread_id(),
+         interrupt_thread_state_->stack_address(),
+         interrupt_thread_state_->stack_address() +
+             interrupt_thread_state_->stack_size());
 
   return true;
 }
@@ -325,16 +331,20 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   PPCContext* context = thread_state->context();
 
-  // Setup registers.
-  uint64_t previous_lr = context->lr;
+  // Pad out stack a bit, as some games seem to overwrite the caller by about
+  // 16 to 32b.
+  context->r[1] -= 64 + 112;
+
   // This could be set to anything to give us a unique identifier to track
   // re-entrancy/etc.
+  uint64_t previous_lr = context->lr;
   context->lr = 0xBEBEBEBE;
 
   // Execute the function.
   auto result = fn->Call(thread_state, uint32_t(context->lr));
 
   context->lr = previous_lr;
+  context->r[1] += 64 + 112;
 
   return result;
 }

@@ -60,10 +60,13 @@ struct FileDisposition {
 };
 
 struct FileAccess {
-  static const uint32_t X_GENERIC_READ = 1 << 0;
-  static const uint32_t X_GENERIC_WRITE = 1 << 1;
-  static const uint32_t X_GENERIC_EXECUTE = 1 << 2;
-  static const uint32_t X_GENERIC_ALL = 1 << 3;
+  static const uint32_t X_GENERIC_READ = 0x80000000;
+  static const uint32_t X_GENERIC_WRITE = 0x40000000;
+  static const uint32_t X_GENERIC_EXECUTE = 0x20000000;
+  static const uint32_t X_GENERIC_ALL = 0x10000000;
+  static const uint32_t X_FILE_READ_DATA = 0x00000001;
+  static const uint32_t X_FILE_WRITE_DATA = 0x00000002;
+  static const uint32_t X_FILE_APPEND_DATA = 0x00000004;
 };
 
 X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
@@ -100,9 +103,11 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     entry = fs->ResolvePath(object_name);
   }
 
-  if (creation_disposition != FileDisposition::X_FILE_OPEN ||
-      desired_access & FileAccess::X_GENERIC_WRITE ||
-      desired_access & FileAccess::X_GENERIC_ALL) {
+  bool wants_write = desired_access & FileAccess::X_GENERIC_WRITE ||
+                     desired_access & FileAccess::X_GENERIC_ALL ||
+                     desired_access & FileAccess::X_FILE_WRITE_DATA ||
+                     desired_access & FileAccess::X_FILE_APPEND_DATA;
+  if (wants_write) {
     if (entry && entry->is_read_only()) {
       // We don't support any write modes.
       XELOGW("Attempted to open the file/dir for create/write");
@@ -116,10 +121,15 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     info = X_FILE_DOES_NOT_EXIST;
   } else {
     // Open the file/directory.
-    result = fs->Open(std::move(entry), state,
-                      desired_access & FileAccess::X_GENERIC_WRITE
-                          ? fs::Mode::READ_WRITE
-                          : fs::Mode::READ,
+    fs::Mode mode;
+    if (desired_access & FileAccess::X_FILE_APPEND_DATA) {
+      mode = fs::Mode::READ_APPEND;
+    } else if (wants_write) {
+      mode = fs::Mode::READ_WRITE;
+    } else {
+      mode = fs::Mode::READ;
+    }
+    result = fs->Open(std::move(entry), state, mode,
                       false,  // TODO(benvanik): pick async mode, if needed.
                       &file);
   }

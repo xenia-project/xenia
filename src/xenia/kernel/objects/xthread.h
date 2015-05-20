@@ -33,8 +33,9 @@ class XThread : public XObject {
 
   static XThread* GetCurrentThread();
   static uint32_t GetCurrentThreadHandle();
-  static uint32_t GetCurrentThreadId(const uint8_t* thread_state_block);
+  static uint32_t GetCurrentThreadId(const uint8_t* pcr);
 
+  uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }
   cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
@@ -46,7 +47,7 @@ class XThread : public XObject {
   X_STATUS Create();
   X_STATUS Exit(int exit_code);
 
-  void Execute();
+  virtual void Execute();
 
   static void EnterCriticalRegion();
   static void LeaveCriticalRegion();
@@ -68,7 +69,7 @@ class XThread : public XObject {
 
   virtual void* GetWaitHandle();
 
- private:
+ protected:
   X_STATUS PlatformCreate();
   void PlatformDestroy();
   X_STATUS PlatformExit(int exit_code);
@@ -89,6 +90,7 @@ class XThread : public XObject {
   uint32_t scratch_address_;
   uint32_t scratch_size_;
   uint32_t tls_address_;
+  uint32_t pcr_address_;
   uint32_t thread_state_address_;
   cpu::ThreadState* thread_state_;
 
@@ -99,6 +101,17 @@ class XThread : public XObject {
   NativeList* apc_list_;
 
   XEvent* event_;
+};
+
+class XHostThread : public XThread {
+  public:
+    XHostThread(KernelState* kernel_state, uint32_t stack_size,
+                uint32_t creation_flags, std::function<int()> host_fn);
+
+    virtual void Execute();
+
+  private:
+    std::function<int()> host_fn_;
 };
 
 }  // namespace kernel

@@ -83,6 +83,11 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
           } break;
         }
       } break;
+      case 0xD017BEEF: {  // ExSemaphoreObjectType
+        // TODO(benvanik): implement.
+        assert_unhandled_case(object_type_ptr);
+        native_ptr = 0xDEADF00D;
+      } break;
       case 0xD01BBEEF: {  // ExThreadObjectType
         XThread* thread = (XThread*)object;
         native_ptr = thread->thread_state_ptr();

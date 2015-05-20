@@ -490,7 +490,7 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   // Add a write watch. If any data in the given range is touched we'll get a
   // callback and evict the texture. We could reuse the storage, though the
   // driver is likely in a better position to pool that kind of stuff.
-  entry->write_watch_handle = memory_->AddWriteWatch(
+  entry->write_watch_handle = memory_->AddPhysicalWriteWatch(
       texture_info.guest_address, texture_info.input_length,
       [](void* context_ptr, void* data_ptr, uint32_t address) {
         auto self = reinterpret_cast<TextureCache*>(context_ptr);
@@ -710,7 +710,9 @@ bool TextureCache::UploadTexture2D(GLuint texture,
       uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
       uint32_t pitch = std::min(texture_info.size_2d.input_pitch,
                                 texture_info.size_2d.output_pitch);
-      for (uint32_t y = 0; y < texture_info.size_2d.block_height; y++) {
+      for (uint32_t y = 0; y < std::min(texture_info.size_2d.block_height,
+                                        texture_info.size_2d.logical_height);
+           y++) {
         TextureSwap(texture_info.endianness, dest, src, pitch);
         src += texture_info.size_2d.input_pitch;
         dest += texture_info.size_2d.output_pitch;
@@ -735,7 +737,8 @@ bool TextureCache::UploadTexture2D(GLuint texture,
     auto bpp = (bytes_per_block >> 2) +
                ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
     for (uint32_t y = 0, output_base_offset = 0;
-         y < texture_info.size_2d.block_height;
+         y < std::min(texture_info.size_2d.block_height,
+                      texture_info.size_2d.logical_height);
          y++, output_base_offset += texture_info.size_2d.output_pitch) {
       auto input_base_offset = TextureInfo::TiledOffset2DOuter(
           offset_y + y, (texture_info.size_2d.input_width /

@@ -64,6 +64,9 @@ void AssertNoNameCollision(KernelState* state, uint32_t obj_attributes_ptr) {
   // with a success of NAME_EXISTS.
   // If the name exists and its type doesn't match, we do NAME_COLLISION.
   // Otherwise, we add like normal.
+  if (!obj_attributes_ptr) {
+    return;
+  }
   uint32_t name_str_ptr = xe::load_and_swap<uint32_t>(
       state->memory()->TranslateVirtual(obj_attributes_ptr + 4));
   if (name_str_ptr) {
@@ -460,9 +463,7 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  if (obj_attributes_ptr) {
-    AssertNoNameCollision(state, obj_attributes_ptr);
-  }
+  AssertNoNameCollision(state, obj_attributes_ptr);
 
   XEvent* ev = new XEvent(state);
   ev->Initialize(!event_type, !!initial_state);
@@ -1304,6 +1305,35 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_64(result ? 1 : 0);
 }
 
+std::mutex global_list_mutex_;
+
+// http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
+SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_state,
+                                        KernelState* state) {
+  uint32_t plist_ptr = SHIM_GET_ARG_32(0);
+
+  XELOGD("InterlockedPopEntrySList(%.8X)", plist_ptr);
+
+  std::lock_guard<std::mutex> lock(global_list_mutex_);
+
+  uint8_t* p = state->memory()->TranslateVirtual(plist_ptr);
+  auto first = xe::load_and_swap<uint32_t>(p);
+  if (first == 0) {
+    // List empty!
+    SHIM_SET_RETURN_32(0);
+    return;
+  }
+
+  uint8_t* p2 = state->memory()->TranslateVirtual(first);
+  auto second = xe::load_and_swap<uint32_t>(p2);
+
+  // Now drop the first element
+  xe::store_and_swap<uint32_t>(p, second);
+
+  // Return the one we popped
+  SHIM_SET_RETURN_32(first);
+}
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -1379,4 +1409,6 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInsertQueueDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeRemoveQueueDpc, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", InterlockedPopEntrySList, state);
 }

@@ -41,7 +41,7 @@ SHIM_CALL XGetAVPack_shim(PPCContext* ppc_state, KernelState* state) {
 SHIM_CALL XGetGameRegion_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XGetGameRegion()");
 
-  SHIM_SET_RETURN_64(XEX_REGION_ALL);
+  SHIM_SET_RETURN_64(0xFFFF);
 }
 
 SHIM_CALL XGetLanguage_shim(PPCContext* ppc_state, KernelState* state) {

@@ -78,7 +78,7 @@ class XObject {
   virtual void* GetWaitHandle() { return 0; }
 
  protected:
-  void SetNativePointer(uint32_t native_ptr);
+  void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
 

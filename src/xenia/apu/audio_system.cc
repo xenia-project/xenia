@@ -14,6 +14,7 @@
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/emulator.h"
 #include "xenia/profiling.h"
 
@@ -47,6 +48,7 @@ namespace xe {
 namespace apu {
 
 using namespace xe::cpu;
+using namespace xe::kernel;
 
 // Size of a hardware XMA context.
 const uint32_t kXmaContextSize = 64;
@@ -74,7 +76,7 @@ X_STATUS AudioSystem::Setup() {
   processor_ = emulator_->processor();
 
   // Let the processor know we want register access callbacks.
-  emulator_->memory()->AddMappedRange(
+  emulator_->memory()->AddVirtualMappedRange(
       0x7FEA0000, 0xFFFF0000, 0x0000FFFF, this,
       reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
@@ -89,25 +91,23 @@ X_STATUS AudioSystem::Setup() {
   }
   registers_.next_context = 1;
 
-  // Setup worker thread state. This lets us make calls into guest code.
-  thread_state_ = new ThreadState(emulator_->processor(), 0, 0, 128 * 1024, 0);
-  thread_state_->set_name("Audio Worker");
-  thread_block_ = memory()->SystemHeapAlloc(2048);
-  thread_state_->context()->r[13] = thread_block_;
+  // Setup our worker thread
+  std::function<int()> thread_fn = [this]() {
+    this->ThreadStart();
+    return 0;
+  };
 
-  // Create worker thread.
-  // This will initialize the audio system.
-  // Init needs to happen there so that any thread-local stuff
-  // is created on the right thread.
   running_ = true;
-  thread_ = std::thread(std::bind(&AudioSystem::ThreadStart, this));
+
+  thread_ = std::make_unique<XHostThread>(emulator()->kernel_state(), 
+                                        128 * 1024, 0, thread_fn);
+  thread_->Create();
 
   return X_STATUS_SUCCESS;
 }
 
 void AudioSystem::ThreadStart() {
   xe::threading::set_name("Audio Worker");
-  xe::Profiler::ThreadEnter("Audio Worker");
 
   // Initialize driver and ringbuffer.
   Initialize();
@@ -135,7 +135,7 @@ void AudioSystem::ThreadStart() {
         lock_.unlock();
         if (client_callback) {
           uint64_t args[] = {client_callback_arg};
-          processor->Execute(thread_state_, client_callback, args,
+          processor->Execute(thread_->thread_state(), client_callback, args,
                              xe::countof(args));
         }
         pumped++;
@@ -157,8 +157,6 @@ void AudioSystem::ThreadStart() {
   running_ = false;
 
   // TODO(benvanik): call module API to kill?
-
-  xe::Profiler::ThreadExit();
 }
 
 void AudioSystem::Initialize() {}
@@ -166,10 +164,7 @@ void AudioSystem::Initialize() {}
 void AudioSystem::Shutdown() {
   running_ = false;
   ResetEvent(client_wait_handles_[maximum_client_count_]);
-  thread_.join();
-
-  delete thread_state_;
-  memory()->SystemHeapFree(thread_block_);
+  thread_->Wait(0, 0, 0, NULL);
 
   memory()->SystemHeapFree(registers_.xma_context_array_ptr);
 }
@@ -252,7 +247,7 @@ void AudioSystem::UnregisterClient(size_t index) {
 // piece of hardware:
 // https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
 
-uint64_t AudioSystem::ReadRegister(uint64_t addr) {
+uint64_t AudioSystem::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
@@ -277,7 +272,7 @@ uint64_t AudioSystem::ReadRegister(uint64_t addr) {
   return value;
 }
 
-void AudioSystem::WriteRegister(uint64_t addr, uint64_t value) {
+void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
   uint32_t r = addr & 0xFFFF;
   value = xe::byte_swap(uint32_t(value));
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);

@@ -64,6 +64,9 @@ void TraceMemoryStoreF32(void* raw_context, uint32_t address, __m128 value);
 void TraceMemoryStoreF64(void* raw_context, uint32_t address, __m128 value);
 void TraceMemoryStoreV128(void* raw_context, uint32_t address, __m128 value);
 
+void TraceMemset(void* raw_context, uint32_t address, uint8_t value,
+                 uint32_t length);
+
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

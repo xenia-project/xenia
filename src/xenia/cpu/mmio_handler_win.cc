@@ -12,13 +12,18 @@
 #include <Windows.h>
 
 namespace xe {
+void CrashDump();
+}  // namespace xe
+
+namespace xe {
 namespace cpu {
 
 LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info);
 
 class WinMMIOHandler : public MMIOHandler {
  public:
-  WinMMIOHandler(uint8_t* mapping_base) : MMIOHandler(mapping_base) {}
+  WinMMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase)
+      : MMIOHandler(virtual_membase, physical_membase) {}
   ~WinMMIOHandler() override;
 
  protected:
@@ -30,8 +35,9 @@ class WinMMIOHandler : public MMIOHandler {
                                  int32_t be_reg_index) override;
 };
 
-std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* mapping_base) {
-  return std::make_unique<WinMMIOHandler>(mapping_base);
+std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* virtual_membase,
+                                               uint8_t* physical_membase) {
+  return std::make_unique<WinMMIOHandler>(virtual_membase, physical_membase);
 }
 
 bool WinMMIOHandler::Initialize() {
@@ -67,6 +73,7 @@ LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info) {
     } else {
       // Failed to handle; continue search for a handler (and die if no other
       // handler is found).
+      xe::CrashDump();
       return EXCEPTION_CONTINUE_SEARCH;
     }
   }

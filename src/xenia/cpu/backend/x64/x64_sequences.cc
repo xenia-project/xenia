@@ -1674,6 +1674,49 @@ EMITTER_OPCODE_TABLE(
 
 
 // ============================================================================
+// OPCODE_MEMSET
+// ============================================================================
+EMITTER(MEMSET_I64_I8_I64, MATCH(I<OPCODE_MEMSET, VoidOp, I64<>, I8<>, I64<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.is_constant);
+    assert_true(i.src3.is_constant);
+    assert_true(i.src2.constant() == 0);
+    e.vpxor(e.xmm0, e.xmm0);
+    auto addr = ComputeMemoryAddress(e, i.src1);
+    switch (i.src3.constant()) {
+      case 32:
+        e.vmovaps(e.ptr[addr + 0 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 1 * 16], e.xmm0);
+        break;
+      case 128:
+        e.vmovaps(e.ptr[addr + 0 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 1 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 2 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 3 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 4 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 5 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 6 * 16], e.xmm0);
+        e.vmovaps(e.ptr[addr + 7 * 16], e.xmm0);
+        break;
+      default:
+        assert_unhandled_case(i.src3.constant());
+        break;
+    }
+    if (IsTracingData()) {
+      addr = ComputeMemoryAddress(e, i.src1);
+      e.mov(e.r9, i.src3.constant());
+      e.mov(e.r8, i.src2.constant());
+      e.lea(e.rdx, e.ptr[addr]);
+      e.CallNative(reinterpret_cast<void*>(TraceMemset));
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_MEMSET,
+    MEMSET_I64_I8_I64);
+
+
+// ============================================================================
 // OPCODE_MAX
 // ============================================================================
 EMITTER(MAX_F32, MATCH(I<OPCODE_MAX, F32<>, F32<>, F32<>>)) {
@@ -6335,6 +6378,7 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE_CONTEXT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_LOAD);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MEMSET);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_PREFETCH);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MAX);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_MAX);

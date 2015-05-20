@@ -536,8 +536,12 @@ int xe_xex2_read_image_uncompressed(const xe_xex2_header_t *header,
   // Allocate in-place the XEX memory.
   const uint32_t exe_length = xex_length - header->exe_offset;
   uint32_t uncompressed_size = exe_length;
-  uint32_t alloc_result = memory->HeapAlloc(
-      header->exe_address, uncompressed_size, xe::MEMORY_FLAG_ZERO);
+  bool alloc_result =
+      memory->LookupHeap(header->exe_address)
+          ->AllocFixed(
+              header->exe_address, uncompressed_size, 4096,
+              xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
+              xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", header->exe_address,
            uncompressed_size);
@@ -588,22 +592,26 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t *header,
   // Calculate the total size of the XEX image from its headers.
   uint32_t total_size = 0;
   for (uint32_t i = 0; i < header->section_count; i++) {
-    xe_xex2_section_t& section = header->sections[i];
+    xe_xex2_section_t &section = header->sections[i];
 
     total_size += section.info.page_count * section.page_size;
   }
 
   // Allocate in-place the XEX memory.
-  uint32_t alloc_result = memory->HeapAlloc(
-      header->exe_address, total_size, xe::MEMORY_FLAG_ZERO);
+  bool alloc_result =
+      memory->LookupHeap(header->exe_address)
+          ->AllocFixed(
+              header->exe_address, total_size, 4096,
+              xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
+              xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", header->exe_address,
            uncompressed_size);
     return 1;
   }
   uint8_t *buffer = memory->TranslateVirtual(header->exe_address);
+  std::memset(buffer, 0, total_size); // Quickly zero the contents.
   uint8_t *d = buffer;
-  std::memset(buffer, 0, uncompressed_size);
 
   uint32_t rk[4 * (MAXNR + 1)];
   uint8_t ivec[16] = {0};
@@ -731,8 +739,12 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t *header,
   }
 
   // Allocate in-place the XEX memory.
-  uint32_t alloc_result = memory->HeapAlloc(
-      header->exe_address, uncompressed_size, xe::MEMORY_FLAG_ZERO);
+  bool alloc_result =
+      memory->LookupHeap(header->exe_address)
+          ->AllocFixed(
+              header->exe_address, uncompressed_size, 4096,
+              xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
+              xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", header->exe_address,
            uncompressed_size);

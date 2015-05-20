@@ -113,6 +113,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
       // Or X_STATUS_ALERTED?
       return X_STATUS_USER_APC;
     case WAIT_TIMEOUT:
+      YieldProcessor();
       return X_STATUS_TIMEOUT;
     default:
     case WAIT_FAILED:
@@ -151,13 +152,16 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
   return result;
 }
 
-void XObject::SetNativePointer(uint32_t native_ptr) {
-  std::lock_guard<std::mutex> lock(kernel_state_->object_mutex());
+void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
+  std::lock_guard<std::recursive_mutex> lock(kernel_state_->object_mutex());
 
   auto header =
       kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
 
-  assert_true(!(header->wait_list_blink & 0x1));
+  // Memory uninitialized, so don't bother with the check.
+  if (!uninitialized) {
+    assert_true(!(header->wait_list_blink & 0x1));
+  }
 
   // Stash pointer in struct.
   uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
@@ -177,7 +181,7 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
   // We identify this by checking the low bit of wait_list_blink - if it's 1,
   // we have already put our pointer in there.
 
-  std::lock_guard<std::mutex> lock(kernel_state->object_mutex());
+  std::lock_guard<std::recursive_mutex> lock(kernel_state->object_mutex());
 
   auto header = reinterpret_cast<DISPATCH_HEADER*>(native_ptr);
 

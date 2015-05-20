@@ -64,17 +64,15 @@ class TestFunction {
   void Run(std::function<void(PPCContext*)> pre_call,
            std::function<void(PPCContext*)> post_call) {
     for (auto& processor : processors) {
-      memory->Zero(0, memory_size);
-
       xe::cpu::Function* fn;
       processor->ResolveFunction(0x1000, &fn);
 
       uint32_t stack_size = 64 * 1024;
       uint32_t stack_address = memory_size - stack_size;
       uint32_t thread_state_address = stack_address - 0x1000;
-      auto thread_state =
-          std::make_unique<ThreadState>(processor.get(), 0x100, stack_address,
-                                        stack_size, thread_state_address);
+      auto thread_state = std::make_unique<ThreadState>(
+          processor.get(), 0x100, ThreadStackType::kUserStack, stack_address,
+          stack_size, thread_state_address);
       auto ctx = thread_state->context();
       ctx->lr = 0xBEBEBEBE;
 

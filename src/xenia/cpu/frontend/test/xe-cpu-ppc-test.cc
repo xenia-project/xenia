@@ -197,9 +197,10 @@ class TestRunner {
     // Simulate a thread.
     uint32_t stack_size = 64 * 1024;
     uint32_t stack_address = START_ADDRESS - stack_size;
-    uint32_t thread_state_address = stack_address - 0x1000;
-    thread_state.reset(new ThreadState(processor.get(), 0x100, stack_address,
-                                       stack_size, thread_state_address));
+    uint32_t pcr_address = stack_address - 0x1000;
+    thread_state.reset(new ThreadState(processor.get(), 0x100,
+                                       ThreadStackType::kUserStack,
+                                       stack_address, stack_size, pcr_address));
 
     return true;
   }

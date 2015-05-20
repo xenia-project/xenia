@@ -225,6 +225,12 @@ DEFINE_OPCODE(
     OPCODE_FLAG_MEMORY)
 
 DEFINE_OPCODE(
+    OPCODE_MEMSET,
+    "memset",
+    OPCODE_SIG_X_V_V_V,
+    0)
+
+DEFINE_OPCODE(
     OPCODE_PREFETCH,
     "prefetch",
     OPCODE_SIG_X_V_O,

@@ -18,8 +18,8 @@
 namespace xe {
 namespace cpu {
 
-typedef uint64_t (*MMIOReadCallback)(void* context, uint64_t addr);
-typedef void (*MMIOWriteCallback)(void* context, uint64_t addr, uint64_t value);
+typedef uint64_t (*MMIOReadCallback)(void* context, uint32_t addr);
+typedef void (*MMIOWriteCallback)(void* context, uint32_t addr, uint64_t value);
 
 typedef void (*WriteWatchCallback)(void* context_ptr, void* data_ptr,
                                    uint32_t address);
@@ -29,19 +29,20 @@ class MMIOHandler {
  public:
   virtual ~MMIOHandler();
 
-  static std::unique_ptr<MMIOHandler> Install(uint8_t* mapping_base);
+  static std::unique_ptr<MMIOHandler> Install(uint8_t* virtual_membase,
+                                              uint8_t* physical_membase);
   static MMIOHandler* global_handler() { return global_handler_; }
 
-  bool RegisterRange(uint64_t address, uint64_t mask, uint64_t size,
+  bool RegisterRange(uint32_t virtual_address, uint32_t mask, uint32_t size,
                      void* context, MMIOReadCallback read_callback,
                      MMIOWriteCallback write_callback);
 
-  bool CheckLoad(uint64_t address, uint64_t* out_value);
-  bool CheckStore(uint64_t address, uint64_t value);
+  bool CheckLoad(uint32_t virtual_address, uint64_t* out_value);
+  bool CheckStore(uint32_t virtual_address, uint64_t value);
 
-  uintptr_t AddWriteWatch(uint32_t guest_address, size_t length,
-                          WriteWatchCallback callback, void* callback_context,
-                          void* callback_data);
+  uintptr_t AddPhysicalWriteWatch(uint32_t guest_address, size_t length,
+                                  WriteWatchCallback callback,
+                                  void* callback_context, void* callback_data);
   void CancelWriteWatch(uintptr_t watch_handle);
 
  public:
@@ -56,7 +57,9 @@ class MMIOHandler {
     void* callback_data;
   };
 
-  MMIOHandler(uint8_t* mapping_base) : mapping_base_(mapping_base) {}
+  MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase)
+      : virtual_membase_(virtual_membase),
+        physical_membase_(physical_membase) {}
 
   virtual bool Initialize() = 0;
 
@@ -68,12 +71,13 @@ class MMIOHandler {
   virtual uint64_t* GetThreadStateRegPtr(void* thread_state_ptr,
                                          int32_t be_reg_index) = 0;
 
-  uint8_t* mapping_base_;
+  uint8_t* virtual_membase_;
+  uint8_t* physical_membase_;
 
   struct MMIORange {
-    uint64_t address;
-    uint64_t mask;
-    uint64_t size;
+    uint32_t address;
+    uint32_t mask;
+    uint32_t size;
     void* context;
     MMIOReadCallback read;
     MMIOWriteCallback write;
