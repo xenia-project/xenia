@@ -18,9 +18,6 @@
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/objects/xuser_module.h"
 
-DEFINE_bool(abort_before_entry, false,
-            "Abort execution right before launching the module.");
-
 namespace xe {
 namespace kernel {
 
@@ -186,12 +183,6 @@ int XboxkrnlModule::LaunchModule(const char* path) {
 
   // Set as the main module, while running.
   kernel_state_->SetExecutableModule(module);
-
-  if (FLAGS_abort_before_entry) {
-    XELOGI("--abort_before_entry causing an early exit");
-    module->Release();
-    return 0;
-  }
 
   // Launch the module.
   // NOTE: this won't return until the module exits.

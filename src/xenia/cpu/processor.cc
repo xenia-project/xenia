@@ -122,11 +122,11 @@ bool Processor::Setup() {
   std::unique_ptr<xe::cpu::backend::Backend> backend;
   if (!backend) {
 #if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
-    if (FLAGS_processor_backend == "x64") {
+    if (FLAGS_cpu == "x64") {
       backend.reset(new xe::cpu::backend::x64::X64Backend(this));
     }
 #endif  // XENIA_HAS_X64_BACKEND
-    if (FLAGS_processor_backend == "any") {
+    if (FLAGS_cpu == "any") {
 #if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
       if (!backend) {
         backend.reset(new xe::cpu::backend::x64::X64Backend(this));

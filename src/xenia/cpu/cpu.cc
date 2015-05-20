@@ -9,20 +9,12 @@
 
 #include "xenia/cpu/cpu-private.h"
 
-DEFINE_string(processor_backend, "any", "CPU backend [any, x64].");
+DEFINE_string(cpu, "any", "CPU backend [any, x64].");
 
-// Debugging:
 DEFINE_string(
     load_module_map, "",
     "Loads a .map for symbol names and to diff with the generated symbol "
     "database.");
-
-// Dumping:
-DEFINE_string(dump_path, "build/",
-              "Directory that dump files are placed into.");
-DEFINE_bool(dump_module_bitcode, true,
-            "Writes the module bitcode both before and after optimizations.");
-DEFINE_bool(dump_module_map, true, "Dumps the module symbol database.");
 
 #if 0 && DEBUG
 #define DEFAULT_DEBUG_FLAG true
@@ -53,6 +45,4 @@ DEFINE_bool(validate_hir, false,
 // Breakpoints:
 DEFINE_uint64(break_on_instruction, 0,
               "int3 before the given guest address is executed.");
-DEFINE_uint64(break_on_memory, 0,
-              "int3 on read/write to the given memory address.");
 DEFINE_bool(break_on_debugbreak, true, "int3 on JITed __debugbreak requests.");
