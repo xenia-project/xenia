@@ -28,6 +28,79 @@ namespace apu {
 
 class AudioDriver;
 
+// This is stored in guest space in big-endian order.
+// We load and swap the whole thing to splat here so that we can
+// use bitfields.
+struct XMAContextData {
+  static const uint32_t kSize = 64;
+  static const uint32_t kBytesPerBlock = 2048;
+  static const uint32_t kSamplesPerFrame = 512;
+  static const uint32_t kSamplesPerSubframe = 128;
+
+  // DWORD 0
+  uint32_t input_buffer_0_block_count : 12;  // XMASetInputBuffer0, number of
+                                             // 2KB blocks.
+  uint32_t loop_count : 8;                   // +12bit, XMASetLoopData
+  uint32_t input_buffer_0_valid : 1;         // +20bit, XMAIsInputBuffer0Valid
+  uint32_t input_buffer_1_valid : 1;         // +21bit, XMAIsInputBuffer1Valid
+  uint32_t output_buffer_block_count : 5;    // +22bit
+  uint32_t
+    output_buffer_write_offset : 5;  // +27bit, XMAGetOutputBufferWriteOffset
+
+                                     // DWORD 1
+  uint32_t input_buffer_1_block_count : 12;  // XMASetInputBuffer1, number of
+                                             // 2KB blocks.
+  uint32_t loop_subframe_end : 2;            // +12bit, XMASetLoopData
+  uint32_t unk_dword_1_a : 3;                // ?
+  uint32_t loop_subframe_skip : 3;           // +17bit, XMASetLoopData
+  uint32_t subframe_decode_count : 4;        // +20bit
+  uint32_t unk_dword_1_b : 3;                // ?
+  uint32_t sample_rate : 2;                  // +27bit
+  uint32_t is_stereo : 1;                    // +29bit
+  uint32_t unk_dword_1_c : 1;                // ?
+  uint32_t output_buffer_valid : 1;          // +31bit, XMAIsOutputBufferValid
+
+                                             // DWORD 2
+  uint32_t input_buffer_read_offset : 30;  // XMAGetInputBufferReadOffset
+  uint32_t unk_dword_2 : 2;                // ?
+
+                                           // DWORD 3
+  uint32_t loop_start : 26;  // XMASetLoopData
+  uint32_t unk_dword_3 : 6;  // ?
+
+                             // DWORD 4
+  uint32_t loop_end : 26;        // XMASetLoopData
+  uint32_t packet_metadata : 5;  // XMAGetPacketMetadata
+  uint32_t current_buffer : 1;   // ?
+
+                                // DWORD 5
+  uint32_t input_buffer_0_ptr;  // physical address
+                                // DWORD 6
+  uint32_t input_buffer_1_ptr;  // physical address
+                                // DWORD 7
+  uint32_t output_buffer_ptr;   // physical address
+                                // DWORD 8
+  uint32_t unk_dword_8;         // Some kind of pointer like output_buffer_ptr
+
+                                // DWORD 9
+  uint32_t
+    output_buffer_read_offset : 5;  // +0bit, XMAGetOutputBufferReadOffset
+  uint32_t unk_dword_9 : 27;
+
+  XMAContextData(const void* ptr) {
+    xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(this),
+      reinterpret_cast<const uint32_t*>(ptr),
+      sizeof(XMAContextData) / 4);
+  }
+
+  void Store(void* ptr) {
+    xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(ptr),
+      reinterpret_cast<const uint32_t*>(this),
+      sizeof(XMAContextData) / 4);
+  }
+};
+static_assert(sizeof(XMAContextData) == 4 * 10, "Must be packed");
+
 class AudioSystem {
  public:
   virtual ~AudioSystem();
