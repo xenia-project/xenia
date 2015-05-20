@@ -295,16 +295,20 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         uint32_t guest_ptr =
             registers_.xma_context_array_ptr + context_id * kXmaContextSize;
         auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-        uint32_t dword0 = xe::load_and_swap<uint32_t>(context_ptr + 0);
-        bool has_valid_input = (dword0 & 0x00300000) != 0;
+        XMAContextData data(context_ptr);
+
+        bool has_valid_input = data.input_buffer_0_valid ||
+                               data.input_buffer_1_valid;
         if (has_valid_input) {
-          dword0 = dword0 & ~0x00300000;
-          xe::store_and_swap<uint32_t>(context_ptr + 0, dword0);
+          // Invalidate the buffers.
+          data.input_buffer_0_valid = 0;
+          data.input_buffer_1_valid = 0;
+
           // Set output buffer to invalid.
-          uint32_t dword1 = xe::load_and_swap<uint32_t>(context_ptr + 4);
-          dword1 = dword1 & ~0x80000000;
-          xe::store_and_swap<uint32_t>(context_ptr + 4, dword1);
+          data.output_buffer_valid = false;
         }
+
+        data.Store(context_ptr);
       }
       value >>= 1;
     }
@@ -327,6 +331,14 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         uint32_t context_id = i + (r - 0x1A80) / 4 * 32;
         XELOGAPU("AudioSystem: reset context %d", context_id);
         // TODO(benvanik): something?
+        uint32_t guest_ptr =
+            registers_.xma_context_array_ptr + context_id * kXmaContextSize;
+        auto context_ptr = memory()->TranslateVirtual(guest_ptr);
+        XMAContextData data(context_ptr);
+
+
+
+        data.Store(context_ptr);
       }
       value >>= 1;
     }
