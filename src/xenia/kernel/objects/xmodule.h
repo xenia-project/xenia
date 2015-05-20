@@ -25,6 +25,7 @@ class XModule : public XObject {
 
   const std::string& path() const { return path_; }
   const std::string& name() const { return name_; }
+  bool Matches(const std::string& name) const;
 
   virtual uint32_t GetProcAddressByOrdinal(uint16_t ordinal) = 0;
   virtual uint32_t GetProcAddressByName(const char* name) = 0;

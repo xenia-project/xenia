@@ -17,6 +17,7 @@ Win32Control::Win32Control(uint32_t flags) : Control(flags), hwnd_(nullptr) {}
 
 Win32Control::~Win32Control() {
   if (hwnd_) {
+    SetWindowLongPtr(hwnd_, GWLP_USERDATA, 0);
     CloseWindow(hwnd_);
     hwnd_ = nullptr;
   }

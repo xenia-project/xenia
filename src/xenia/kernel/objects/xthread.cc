@@ -156,7 +156,7 @@ X_STATUS XThread::Create() {
   scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
 
   // Allocate TLS block.
-  uint32_t tls_size = 32; // Default 32 (is this OK?)
+  uint32_t tls_size = 32;  // Default 32 (is this OK?)
   if (module && module->xex_header()) {
     const xe_xex2_header_t* header = module->xex_header();
     tls_size = header->tls_info.slot_count * header->tls_info.data_size;
@@ -194,15 +194,15 @@ X_STATUS XThread::Create() {
          thread_state_->stack_base());
 
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
-  std::memset(pcr, 0x0, 0x2D8 + 0xAB0); // Zero the PCR
+  std::memset(pcr, 0x0, 0x2D8 + 0xAB0);  // Zero the PCR
   xe::store_and_swap<uint32_t>(pcr + 0x000, tls_address_);
   xe::store_and_swap<uint32_t>(pcr + 0x030, pcr_address_);
   xe::store_and_swap<uint32_t>(pcr + 0x070, thread_state_->stack_address() +
                                                 thread_state_->stack_size());
   xe::store_and_swap<uint32_t>(pcr + 0x074, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(pcr + 0x100, thread_state_address_);
-  xe::store_and_swap<uint8_t> (pcr + 0x10C, 1); // Current CPU(?)
-  xe::store_and_swap<uint32_t>(pcr + 0x150, 0); // DPC active bool?
+  xe::store_and_swap<uint8_t>(pcr + 0x10C, 1);   // Current CPU(?)
+  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);  // DPC active bool?
 
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
@@ -622,15 +622,14 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
 void* XThread::GetWaitHandle() { return event_->GetWaitHandle(); }
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
-              uint32_t creation_flags, std::function<int()> host_fn):
-              XThread(kernel_state, stack_size, 0, 0, 0, creation_flags),
-              host_fn_(host_fn) {
-}
+                         uint32_t creation_flags, std::function<int()> host_fn)
+    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags),
+      host_fn_(host_fn) {}
 
 void XHostThread::Execute() {
-  XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
-              thread_id_, handle(), name_.c_str(),
-              xe::threading::current_thread_id());
+  XELOGKERNEL(
+      "XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
+      thread_id_, handle(), name_.c_str(), xe::threading::current_thread_id());
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);

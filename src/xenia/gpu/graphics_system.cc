@@ -17,8 +17,9 @@
 namespace xe {
 namespace gpu {
 
-GraphicsSystem::GraphicsSystem()
-    : memory_(nullptr),
+GraphicsSystem::GraphicsSystem(Emulator* emulator)
+    : emulator_(emulator),
+      memory_(nullptr),
       processor_(nullptr),
       target_loop_(nullptr),
       target_window_(nullptr),

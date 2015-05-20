@@ -19,6 +19,8 @@
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/emulator.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
 
 #include "third_party/xxhash/xxhash.h"
@@ -99,12 +101,12 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   context_ = std::move(context);
 
   worker_running_ = true;
-  worker_thread_ = std::thread([this]() {
-    xe::threading::set_name("GL4 Worker");
-    xe::Profiler::ThreadEnter("GL4 Worker");
-    WorkerMain();
-    xe::Profiler::ThreadExit();
-  });
+  worker_thread_ = new kernel::XHostThread(
+      graphics_system_->emulator()->kernel_state(), 128 * 1024, 0, [this]() {
+        WorkerThreadMain();
+        return 0;
+      });
+  worker_thread_->Create();
 
   return true;
 }
@@ -114,7 +116,8 @@ void CommandProcessor::Shutdown() {
 
   worker_running_ = false;
   SetEvent(write_ptr_index_event_);
-  worker_thread_.join();
+  worker_thread_->Wait(0, 0, 0, nullptr);
+  worker_thread_->Release();
 
   all_pipelines_.clear();
   all_shaders_.clear();
@@ -160,14 +163,16 @@ void CommandProcessor::EndTracing() {
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
   if (pending_fns_.empty() &&
-      worker_thread_.get_id() == std::this_thread::get_id()) {
+      worker_thread_ == kernel::XThread::GetCurrentThread()) {
     fn();
   } else {
     pending_fns_.push(std::move(fn));
   }
 }
 
-void CommandProcessor::WorkerMain() {
+void CommandProcessor::WorkerThreadMain() {
+  xe::threading::set_name("GL4 Worker");
+
   context_->MakeCurrent();
   if (!SetupGL()) {
     XEFATAL("Unable to setup command processor GL state");

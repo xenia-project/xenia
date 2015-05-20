@@ -14,7 +14,6 @@
 #include <functional>
 #include <memory>
 #include <queue>
-#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -27,6 +26,12 @@
 #include "xenia/gpu/tracing.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
+
+namespace xe {
+namespace kernel {
+class XHostThread;
+}  // namespace kernel
+}  // namespace xe
 
 namespace xe {
 namespace gpu {
@@ -134,7 +139,7 @@ class CommandProcessor {
     } handles;
   };
 
-  void WorkerMain();
+  void WorkerThreadMain();
   bool SetupGL();
   void ShutdownGL();
   GLuint CreateGeometryProgram(const std::string& source);
@@ -226,8 +231,9 @@ class CommandProcessor {
   TraceState trace_state_;
   std::wstring trace_frame_path_;
 
-  std::thread worker_thread_;
   std::atomic<bool> worker_running_;
+  kernel::XHostThread* worker_thread_;
+
   std::unique_ptr<GLContext> context_;
   SwapHandler swap_handler_;
   std::queue<std::function<void()>> pending_fns_;

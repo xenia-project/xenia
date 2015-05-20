@@ -27,14 +27,14 @@ DEFINE_bool(vsync, true, "Enable VSYNC.");
 namespace xe {
 namespace gpu {
 
-std::unique_ptr<GraphicsSystem> Create() {
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator) {
   if (FLAGS_gpu.compare("gl4") == 0) {
-    return xe::gpu::gl4::Create();
+    return xe::gpu::gl4::Create(emulator);
   } else {
     // Create best available.
     std::unique_ptr<GraphicsSystem> best;
 
-    best = xe::gpu::gl4::Create();
+    best = xe::gpu::gl4::Create(emulator);
     if (best) {
       return best;
     }

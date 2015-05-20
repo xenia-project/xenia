@@ -25,6 +25,7 @@ class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
 
+  Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
 
@@ -54,8 +55,9 @@ class GraphicsSystem {
   virtual void ClearCaches() {}
 
  protected:
-  GraphicsSystem();
+  GraphicsSystem(Emulator* emulator);
 
+  Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;
   ui::PlatformLoop* target_loop_;

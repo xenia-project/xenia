@@ -13,15 +13,17 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
-#include <thread>
 
 #include "xenia/emulator.h"
 #include "xenia/xbox.h"
 
 namespace xe {
+namespace kernel {
+class XHostThread;
+}  // namespace kernel
+}  // namespace xe
 
-namespace kernel { class XHostThread; }
-
+namespace xe {
 namespace apu {
 
 class AudioDriver;
@@ -59,7 +61,7 @@ class AudioSystem {
   virtual void Initialize();
 
  private:
-  void ThreadStart();
+  void WorkerThreadMain();
 
   static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint32_t addr) {
     return as->ReadRegister(addr);
@@ -76,8 +78,8 @@ class AudioSystem {
   Memory* memory_;
   cpu::Processor* processor_;
 
-  std::unique_ptr<kernel::XHostThread> thread_;
-  std::atomic<bool> running_;
+  std::atomic<bool> worker_running_;
+  kernel::XHostThread* worker_thread_;
 
   std::mutex lock_;
 

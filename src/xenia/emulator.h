@@ -32,10 +32,6 @@ class GraphicsSystem;
 namespace hid {
 class InputSystem;
 }  // namespace hid
-namespace kernel {
-class XamModule;
-class XboxkrnlModule;
-}  // namespace kernel
 namespace ui {
 class MainWindow;
 }  // namespace ui
@@ -68,9 +64,6 @@ class Emulator {
 
   kernel::KernelState* kernel_state() const { return kernel_state_.get(); }
 
-  kernel::XboxkrnlModule* xboxkrnl() const { return xboxkrnl_.get(); }
-  kernel::XamModule* xam() const { return xam_.get(); }
-
   X_STATUS Setup();
 
   // TODO(benvanik): raw binary.
@@ -97,8 +90,6 @@ class Emulator {
   std::unique_ptr<kernel::fs::FileSystem> file_system_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
-  std::unique_ptr<kernel::XamModule> xam_;
-  std::unique_ptr<kernel::XboxkrnlModule> xboxkrnl_;
 };
 
 }  // namespace xe

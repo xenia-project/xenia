@@ -37,6 +37,7 @@ namespace xe {
 namespace kernel {
 
 class Dispatcher;
+class XKernelModule;
 class XModule;
 class XNotifyListener;
 class XThread;
@@ -74,7 +75,13 @@ class KernelState {
   XModule* GetModule(const char* name);
   XUserModule* GetExecutableModule();
   void SetExecutableModule(XUserModule* module);
-  XUserModule* LoadUserModule(const char *name);
+  template <typename T>
+  XKernelModule* LoadKernelModule() {
+    auto kernel_module = std::make_unique<T>(emulator_, this);
+    LoadKernelModule(kernel_module.get());
+    return kernel_module.release();
+  }
+  XUserModule* LoadUserModule(const char* name);
 
   void RegisterThread(XThread* thread);
   void UnregisterThread(XThread* thread);
@@ -94,6 +101,8 @@ class KernelState {
                                      uint32_t extended_error, uint32_t length);
 
  private:
+  void LoadKernelModule(XKernelModule* kernel_module);
+
   Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;
@@ -113,7 +122,7 @@ class KernelState {
 
   uint32_t process_type_;
   XUserModule* executable_module_;
-
+  std::vector<XKernelModule*> kernel_modules_;
   std::vector<XUserModule*> user_modules_;
 
   friend class XObject;

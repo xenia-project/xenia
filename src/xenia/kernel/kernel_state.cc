@@ -70,6 +70,15 @@ KernelState::KernelState(Emulator* emulator)
 KernelState::~KernelState() {
   SetExecutableModule(nullptr);
 
+  for (auto user_module : user_modules_) {
+    user_module->Release();
+  }
+  user_modules_.clear();
+  for (auto kernel_module : kernel_modules_) {
+    kernel_module->Release();
+  }
+  kernel_modules_.clear();
+
   // Delete all objects.
   delete object_table_;
 
@@ -80,10 +89,6 @@ KernelState::~KernelState() {
 
   assert_true(shared_kernel_state_ == this);
   shared_kernel_state_ = nullptr;
-
-  for (XUserModule* mod : user_modules_) {
-    mod->Release();
-  }
 }
 
 KernelState* KernelState::shared() { return shared_kernel_state_; }
@@ -99,14 +104,15 @@ void KernelState::UnregisterModule(XModule* module) {}
 
 bool KernelState::IsKernelModule(const char* name) {
   if (!name) {
-    // executing module isn't a kernel module
+    // Executing module isn't a kernel module.
     return false;
-  } else if (strcasecmp(name, "xam.xex") == 0) {
-    return true;
-  } else if (strcasecmp(name, "xboxkrnl.exe") == 0) {
-    return true;
   }
-
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  for (auto kernel_module : kernel_modules_) {
+    if (kernel_module->Matches(name)) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -115,32 +121,24 @@ XModule* KernelState::GetModule(const char* name) {
     // NULL name = self.
     // TODO(benvanik): lookup module from caller address.
     return GetExecutableModule();
-  } else if (strcasecmp(name, "xam.xex") == 0) {
-    auto module = emulator_->xam();
-    module->Retain();
-    return module;
-  } else if (strcasecmp(name, "xboxkrnl.exe") == 0) {
-    auto module = emulator_->xboxkrnl();
-    module->Retain();
-    return module;
   } else if (strcasecmp(name, "kernel32.dll") == 0) {
     // Some games request this, for some reason. wtf.
     return nullptr;
-  } else {
-    std::lock_guard<std::recursive_mutex> lock(object_mutex_);
-
-    for (XUserModule* module : user_modules_) {
-      if ((strcasecmp(xe::find_name_from_path(module->path()).c_str(), name) ==
-           0) ||
-          (strcasecmp(module->name().c_str(), name) == 0) ||
-          (strcasecmp(module->path().c_str(), name) == 0)) {
-        module->Retain();
-        return module;
-      }
-    }
-
-    return nullptr;
   }
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  for (auto kernel_module : kernel_modules_) {
+    if (kernel_module->Matches(name)) {
+      kernel_module->Retain();
+      return kernel_module;
+    }
+  }
+  for (auto user_module : user_modules_) {
+    if (user_module->Matches(name)) {
+      user_module->Retain();
+      return user_module;
+    }
+  }
+  return nullptr;
 }
 
 XUserModule* KernelState::GetExecutableModule() {
@@ -164,6 +162,11 @@ void KernelState::SetExecutableModule(XUserModule* module) {
   if (executable_module_) {
     executable_module_->Retain();
   }
+}
+
+void KernelState::LoadKernelModule(XKernelModule* kernel_module) {
+  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  kernel_modules_.push_back(kernel_module);
 }
 
 XUserModule* KernelState::LoadUserModule(const char* raw_name) {

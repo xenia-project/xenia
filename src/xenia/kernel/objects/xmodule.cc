@@ -9,6 +9,8 @@
 
 #include "xenia/kernel/objects/xmodule.h"
 
+#include "xenia/base/string.h"
+
 namespace xe {
 namespace kernel {
 
@@ -30,6 +32,19 @@ XModule::XModule(KernelState* kernel_state, const std::string& path)
 }
 
 XModule::~XModule() { kernel_state_->UnregisterModule(this); }
+
+bool XModule::Matches(const std::string& name) const {
+  if (strcasecmp(xe::find_name_from_path(path_).c_str(), name.c_str()) == 0) {
+    return true;
+  }
+  if (strcasecmp(name_.c_str(), name.c_str()) == 0) {
+    return true;
+  }
+  if (strcasecmp(path_.c_str(), name.c_str()) == 0) {
+    return true;
+  }
+  return false;
+}
 
 void XModule::OnLoad() { kernel_state_->RegisterModule(this); }
 

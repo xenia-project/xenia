@@ -23,7 +23,7 @@ namespace gl4 {
 
 class GL4GraphicsSystem : public GraphicsSystem {
  public:
-  GL4GraphicsSystem();
+  GL4GraphicsSystem(Emulator* emulator);
   ~GL4GraphicsSystem() override;
 
   X_STATUS Setup(cpu::Processor* processor, ui::PlatformLoop* target_loop,

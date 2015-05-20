@@ -29,7 +29,7 @@ class PostedFn {
 
 Win32Loop::Win32Loop() : thread_id_(0) {
   xe::threading::Fence init_fence;
-  thread_ = std::thread([&]() {
+  thread_ = std::thread([&init_fence, this]() {
     xe::threading::set_name("Win32 Loop");
     thread_id_ = GetCurrentThreadId();
 
@@ -46,7 +46,10 @@ Win32Loop::Win32Loop() : thread_id_(0) {
   init_fence.Wait();
 }
 
-Win32Loop::~Win32Loop() = default;
+Win32Loop::~Win32Loop() {
+  Quit();
+  thread_.join();
+}
 
 void Win32Loop::ThreadMain() {
   MSG msg;

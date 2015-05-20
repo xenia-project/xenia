@@ -23,8 +23,8 @@ namespace gl4 {
 
 extern "C" GLEWContext* glewGetContext();
 
-GL4GraphicsSystem::GL4GraphicsSystem()
-    : GraphicsSystem(), timer_queue_(nullptr), vsync_timer_(nullptr) {}
+GL4GraphicsSystem::GL4GraphicsSystem(Emulator* emulator)
+    : GraphicsSystem(emulator), timer_queue_(nullptr), vsync_timer_(nullptr) {}
 
 GL4GraphicsSystem::~GL4GraphicsSystem() = default;
 

@@ -21,9 +21,7 @@ class Emulator;
 namespace xe {
 namespace gpu {
 
-std::unique_ptr<GraphicsSystem> Create();
-
-std::unique_ptr<GraphicsSystem> CreateGL4();
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
 
 }  // namespace gpu
 }  // namespace xe

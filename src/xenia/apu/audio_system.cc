@@ -14,8 +14,8 @@
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/kernel/objects/xthread.h"
 #include "xenia/emulator.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
 
 // As with normal Microsoft, there are like twelve different ways to access
@@ -48,7 +48,6 @@ namespace xe {
 namespace apu {
 
 using namespace xe::cpu;
-using namespace xe::kernel;
 
 // Size of a hardware XMA context.
 const uint32_t kXmaContextSize = 64;
@@ -56,7 +55,7 @@ const uint32_t kXmaContextSize = 64;
 const uint32_t kXmaContextCount = 320;
 
 AudioSystem::AudioSystem(Emulator* emulator)
-    : emulator_(emulator), memory_(emulator->memory()), running_(false) {
+    : emulator_(emulator), memory_(emulator->memory()), worker_running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     unused_clients_.push(i);
@@ -91,22 +90,18 @@ X_STATUS AudioSystem::Setup() {
   }
   registers_.next_context = 1;
 
-  // Setup our worker thread
-  std::function<int()> thread_fn = [this]() {
-    this->ThreadStart();
+  worker_running_ = true;
+  worker_thread_ = new kernel::XHostThread(emulator()->kernel_state(),
+                                           128 * 1024, 0, [this]() {
+    this->WorkerThreadMain();
     return 0;
-  };
-
-  running_ = true;
-
-  thread_ = std::make_unique<XHostThread>(emulator()->kernel_state(), 
-                                        128 * 1024, 0, thread_fn);
-  thread_->Create();
+  });
+  worker_thread_->Create();
 
   return X_STATUS_SUCCESS;
 }
 
-void AudioSystem::ThreadStart() {
+void AudioSystem::WorkerThreadMain() {
   xe::threading::set_name("Audio Worker");
 
   // Initialize driver and ringbuffer.
@@ -115,7 +110,7 @@ void AudioSystem::ThreadStart() {
   auto processor = emulator_->processor();
 
   // Main run loop.
-  while (running_) {
+  while (worker_running_) {
     auto result =
         WaitForMultipleObjectsEx(DWORD(xe::countof(client_wait_handles_)),
                                  client_wait_handles_, FALSE, INFINITE, FALSE);
@@ -135,8 +130,8 @@ void AudioSystem::ThreadStart() {
         lock_.unlock();
         if (client_callback) {
           uint64_t args[] = {client_callback_arg};
-          processor->Execute(thread_->thread_state(), client_callback, args,
-                             xe::countof(args));
+          processor->Execute(worker_thread_->thread_state(), client_callback,
+                             args, xe::countof(args));
         }
         pumped++;
         index++;
@@ -145,7 +140,7 @@ void AudioSystem::ThreadStart() {
                    WAIT_OBJECT_0);
     }
 
-    if (!running_) {
+    if (!worker_running_) {
       break;
     }
 
@@ -154,7 +149,7 @@ void AudioSystem::ThreadStart() {
       Sleep(500);
     }
   }
-  running_ = false;
+  worker_running_ = false;
 
   // TODO(benvanik): call module API to kill?
 }
@@ -162,9 +157,10 @@ void AudioSystem::ThreadStart() {
 void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
-  running_ = false;
-  ResetEvent(client_wait_handles_[maximum_client_count_]);
-  thread_->Wait(0, 0, 0, NULL);
+  worker_running_ = false;
+  SetEvent(client_wait_handles_[maximum_client_count_]);
+  worker_thread_->Wait(0, 0, 0, nullptr);
+  worker_thread_->Release();
 
   memory()->SystemHeapFree(registers_.xma_context_array_ptr);
 }

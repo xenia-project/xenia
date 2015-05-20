@@ -354,7 +354,7 @@ void XUserModule::Dump() {
 
         if (kernel_state_->IsKernelModule(library->name)) {
           KernelExport* kernel_export =
-            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
             known_count++;
             if (kernel_export->is_implemented) {
@@ -371,7 +371,7 @@ void XUserModule::Dump() {
           XModule* module = kernel_state_->GetModule(library->name);
           if (module) {
             uint32_t export_addr =
-                      module->GetProcAddressByOrdinal(info->ordinal);
+                module->GetProcAddressByOrdinal(info->ordinal);
             if (export_addr) {
               impl_count++;
               known_count++;
@@ -400,10 +400,10 @@ void XUserModule::Dump() {
         const char* name = "UNKNOWN";
         bool implemented = false;
 
-        KernelExport* kernel_export;
+        KernelExport* kernel_export = nullptr;
         if (kernel_state_->IsKernelModule(library->name)) {
           kernel_export =
-            export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
             name = kernel_export->name;
             implemented = kernel_export->is_implemented;
