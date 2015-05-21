@@ -35,6 +35,8 @@ class X64Backend : public Backend {
 
   bool Initialize() override;
 
+  void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high) override;
+
   std::unique_ptr<Assembler> CreateAssembler() override;
 
  private:

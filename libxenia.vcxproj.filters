@@ -274,9 +274,6 @@
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_backend.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache_win.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_emitter.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
@@ -702,6 +699,9 @@
     </ClCompile>
     <ClCompile Include="src\xenia\kernel\xboxkrnl_error.cc">
       <Filter>src\xenia\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc">
+      <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

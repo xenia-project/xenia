@@ -54,6 +54,11 @@ bool X64Backend::Initialize() {
   return true;
 }
 
+void X64Backend::CommitExecutableRange(uint32_t guest_low,
+                                       uint32_t guest_high) {
+  code_cache_->CommitExecutableRange(guest_low, guest_high);
+}
+
 std::unique_ptr<Assembler> X64Backend::CreateAssembler() {
   return std::make_unique<X64Assembler>(this);
 }

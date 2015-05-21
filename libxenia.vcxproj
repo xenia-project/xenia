@@ -38,7 +38,7 @@
     <ClCompile Include="src\xenia\cpu\backend\backend.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_assembler.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_backend.cc" />
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache_win.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_emitter.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_function.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_sequences.cc" />

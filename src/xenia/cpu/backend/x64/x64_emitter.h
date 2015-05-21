@@ -112,9 +112,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Processor* processor() const { return processor_; }
   X64Backend* backend() const { return backend_; }
 
-  bool Emit(hir::HIRBuilder* builder, uint32_t debug_info_flags,
-            DebugInfo* debug_info, void*& out_code_address,
-            size_t& out_code_size);
+  bool Emit(uint32_t guest_address, hir::HIRBuilder* builder,
+            uint32_t debug_info_flags, DebugInfo* debug_info,
+            void*& out_code_address, size_t& out_code_size);
 
  public:
   // Reserved:  rsp
@@ -192,7 +192,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
 
  protected:
-  void* Emplace(size_t stack_size);
+  void* Emplace(uint32_t guest_address, size_t stack_size);
   bool Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();

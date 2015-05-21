@@ -66,6 +66,9 @@ bool XexModule::Load(const std::string& name, const std::string& path,
     i += section->info.page_count;
   }
 
+  // Notify backend that we have an executable range.
+  processor_->backend()->CommitExecutableRange(low_address_, high_address_);
+
   // Add all imports (variables/functions).
   for (size_t n = 0; n < header->import_library_count; n++) {
     if (!SetupLibraryImports(&header->import_libraries[n])) {

@@ -87,9 +87,9 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 
 X64Emitter::~X64Emitter() = default;
 
-bool X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
-                      DebugInfo* debug_info, void*& out_code_address,
-                      size_t& out_code_size) {
+bool X64Emitter::Emit(uint32_t guest_address, HIRBuilder* builder,
+                      uint32_t debug_info_flags, DebugInfo* debug_info,
+                      void*& out_code_address, size_t& out_code_size) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset.
@@ -108,7 +108,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
 
   // Copy the final code to the cache and relocate it.
   out_code_size = getSize();
-  out_code_address = Emplace(stack_size);
+  out_code_address = Emplace(guest_address, stack_size);
 
   // Stash source map.
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoSourceMap) {
@@ -119,13 +119,14 @@ bool X64Emitter::Emit(HIRBuilder* builder, uint32_t debug_info_flags,
   return true;
 }
 
-void* X64Emitter::Emplace(size_t stack_size) {
+void* X64Emitter::Emplace(uint32_t guest_address, size_t stack_size) {
   // To avoid changing xbyak, we do a switcharoo here.
   // top_ points to the Xbyak buffer, and since we are in AutoGrow mode
   // it has pending relocations. We copy the top_ to our buffer, swap the
   // pointer, relocate, then return the original scratch pointer for use.
   uint8_t* old_address = top_;
-  void* new_address = code_cache_->PlaceCode(top_, size_, stack_size);
+  void* new_address =
+      code_cache_->PlaceCode(guest_address, top_, size_, stack_size);
   top_ = (uint8_t*)new_address;
   ready();
   top_ = old_address;

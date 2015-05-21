@@ -10,18 +10,21 @@
 #ifndef XENIA_BACKEND_X64_X64_CODE_CACHE_H_
 #define XENIA_BACKEND_X64_X64_CODE_CACHE_H_
 
+// For RUNTIME_FUNCTION:
+#include "xenia/base/platform.h"
+
+#include <atomic>
 #include <mutex>
+#include <vector>
 
 namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
 
-class X64CodeChunk;
-
 class X64CodeCache {
  public:
-  X64CodeCache(size_t chunk_size = DEFAULT_CHUNK_SIZE);
+  X64CodeCache();
   virtual ~X64CodeCache();
 
   bool Initialize();
@@ -30,14 +33,43 @@ class X64CodeCache {
   // TODO(benvanik): keep track of code blocks
   // TODO(benvanik): padding/guards/etc
 
-  void* PlaceCode(void* machine_code, size_t code_size, size_t stack_size);
+  void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high);
+
+  void* PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
+                  size_t stack_size);
 
  private:
-  const static size_t DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024;
-  std::mutex lock_;
-  size_t chunk_size_;
-  X64CodeChunk* head_chunk_;
-  X64CodeChunk* active_chunk_;
+  const static uint64_t kIndirectionTableBase = 0x80000000;
+  const static uint64_t kIndirectionTableSize = 0x1FFFFFFF;
+  const static uint64_t kGeneratedCodeBase = 0xA0000000;
+  const static uint64_t kGeneratedCodeSize = 0x0FFFFFFF;
+
+  void InitializeUnwindEntry(uint8_t* unwind_entry_address,
+                             size_t unwind_table_slot, uint8_t* code_address,
+                             size_t code_size, size_t stack_size);
+
+  // Must be held when manipulating the offsets or counts of anything, to keep
+  // the tables consistent and ordered.
+  std::mutex allocation_mutex_;
+
+  // Fixed at kIndirectionTableBase in host space, holding 4 byte pointers into
+  // the generated code table that correspond to the PPC functions in guest
+  // space.
+  uint8_t* indirection_table_base_;
+  // Fixed at kGeneratedCodeBase and holding all generated code, growing as
+  // needed.
+  uint8_t* generated_code_base_;
+  // Current offset to empty space in generated code.
+  size_t generated_code_offset_;
+  // Current high water mark of COMMITTED code.
+  std::atomic<size_t> generated_code_commit_mark_;
+
+  // Growable function table system handle.
+  void* unwind_table_handle_;
+  // Actual unwind table entries.
+  std::vector<RUNTIME_FUNCTION> unwind_table_;
+  // Current number of entries in the table.
+  std::atomic<uint32_t> unwind_table_count_;
 };
 
 }  // namespace x64

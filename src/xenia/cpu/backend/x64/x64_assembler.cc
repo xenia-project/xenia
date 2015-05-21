@@ -70,8 +70,8 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   // Lower HIR -> x64.
   void* machine_code = nullptr;
   size_t code_size = 0;
-  if (!emitter_->Emit(builder, debug_info_flags, debug_info.get(), machine_code,
-                      code_size)) {
+  if (!emitter_->Emit(symbol_info->address(), builder, debug_info_flags,
+                      debug_info.get(), machine_code, code_size)) {
     return false;
   }
 

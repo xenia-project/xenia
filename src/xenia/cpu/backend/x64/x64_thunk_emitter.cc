@@ -88,7 +88,7 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   mov(r8, qword[rsp + 8 * 3]);
   ret();
 
-  void* fn = Emplace(stack_size);
+  void* fn = Emplace(0, stack_size);
   return (HostToGuestThunk)fn;
 }
 
@@ -137,7 +137,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(rdx, qword[rsp + 8 * 2]);
   ret();
 
-  void* fn = Emplace(stack_size);
+  void* fn = Emplace(0, stack_size);
   return (HostToGuestThunk)fn;
 }
 
