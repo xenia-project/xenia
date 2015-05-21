@@ -338,7 +338,7 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   // This could be set to anything to give us a unique identifier to track
   // re-entrancy/etc.
   uint64_t previous_lr = context->lr;
-  context->lr = 0xBEBEBEBE;
+  context->lr = 0xBCBCBCBC;
 
   // Execute the function.
   auto result = fn->Call(thread_state, uint32_t(context->lr));

@@ -220,7 +220,7 @@ class TestRunner {
     }
 
     auto ctx = thread_state->context();
-    ctx->lr = 0xBEBEBEBE;
+    ctx->lr = 0xBCBCBCBC;
     fn->Call(thread_state.get(), uint32_t(ctx->lr));
 
     // Assert test state expectations.

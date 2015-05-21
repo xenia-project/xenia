@@ -259,7 +259,7 @@ void X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
-    unwind_info->CountOfCodes = 3;
+    unwind_info->CountOfCodes = 2;
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 

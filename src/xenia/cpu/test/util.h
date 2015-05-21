@@ -74,7 +74,7 @@ class TestFunction {
           processor.get(), 0x100, ThreadStackType::kUserStack, stack_address,
           stack_size, thread_state_address);
       auto ctx = thread_state->context();
-      ctx->lr = 0xBEBEBEBE;
+      ctx->lr = 0xBCBCBCBC;
 
       pre_call(ctx);
 

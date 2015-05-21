@@ -235,13 +235,13 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   add(rsp, (uint32_t)stack_size);
   ret();
 
-#if XE_DEBUG
-  nop();
-  nop();
-  nop();
-  nop();
-  nop();
-#endif  // XE_DEBUG
+  if (FLAGS_debug) {
+    nop();
+    nop();
+    nop();
+    nop();
+    nop();
+  }
 
   return true;
 }
@@ -253,13 +253,13 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   entry->code_offset = static_cast<uint32_t>(getSize());
   source_map_count_++;
 
-#if XE_DEBUG
-  nop();
-  nop();
-  mov(eax, entry->source_offset);
-  nop();
-  nop();
-#endif  // XE_DEBUG
+  if (FLAGS_debug) {
+    nop();
+    nop();
+    mov(eax, entry->source_offset);
+    nop();
+    nop();
+  }
 
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
     auto trace_data = debug_info_->trace_data();
