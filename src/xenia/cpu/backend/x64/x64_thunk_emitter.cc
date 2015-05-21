@@ -141,6 +141,52 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   return (HostToGuestThunk)fn;
 }
 
+// X64Emitter handles actually resolving functions.
+extern "C" uint64_t ResolveFunction(void* raw_context, uint32_t target_address);
+
+ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
+  // ebx = target PPC address
+  // rcx = context
+
+  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  // rsp + 0 = return address
+  mov(qword[rsp + 8 * 2], rdx);
+  mov(qword[rsp + 8 * 1], rcx);
+  sub(rsp, stack_size);
+
+  mov(qword[rsp + 48], rbx);
+  mov(qword[rsp + 56], rcx);
+  mov(qword[rsp + 64], rbp);
+  mov(qword[rsp + 72], rsi);
+  mov(qword[rsp + 80], rdi);
+  mov(qword[rsp + 88], r12);
+  mov(qword[rsp + 96], r13);
+  mov(qword[rsp + 104], r14);
+  mov(qword[rsp + 112], r15);
+
+  mov(rdx, rbx);
+  mov(rax, uint64_t(&ResolveFunction));
+  call(rax);
+
+  mov(rbx, qword[rsp + 48]);
+  mov(rcx, qword[rsp + 56]);
+  mov(rbp, qword[rsp + 64]);
+  mov(rsi, qword[rsp + 72]);
+  mov(rdi, qword[rsp + 80]);
+  mov(r12, qword[rsp + 88]);
+  mov(r13, qword[rsp + 96]);
+  mov(r14, qword[rsp + 104]);
+  mov(r15, qword[rsp + 112]);
+
+  add(rsp, stack_size);
+  mov(rcx, qword[rsp + 8 * 1]);
+  mov(rdx, qword[rsp + 8 * 2]);
+  jmp(rax);
+
+  void* fn = Emplace(0, stack_size);
+  return (ResolveFunctionThunk)fn;
+}
+
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

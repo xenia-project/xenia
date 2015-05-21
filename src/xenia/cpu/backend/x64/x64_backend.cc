@@ -50,6 +50,16 @@ bool X64Backend::Initialize() {
   auto thunk_emitter = std::make_unique<X64ThunkEmitter>(this, allocator.get());
   host_to_guest_thunk_ = thunk_emitter->EmitHostToGuestThunk();
   guest_to_host_thunk_ = thunk_emitter->EmitGuestToHostThunk();
+  resolve_function_thunk_ = thunk_emitter->EmitResolveFunctionThunk();
+
+  // Set the code cache to use the ResolveFunction thunk for default
+  // indirections.
+  assert_zero(uint64_t(resolve_function_thunk_) & 0xFFFFFFFF00000000ull);
+  code_cache_->set_indirection_default(
+      uint32_t(uint64_t(resolve_function_thunk_)));
+
+  // Allocate some special indirections.
+  code_cache_->CommitExecutableRange(0x9FFF0000, 0x9FFFFFFF);
 
   return true;
 }

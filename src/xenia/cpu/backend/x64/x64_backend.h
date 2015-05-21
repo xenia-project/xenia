@@ -23,15 +23,21 @@ class X64CodeCache;
 
 typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
+typedef void (*ResolveFunctionThunk)();
 
 class X64Backend : public Backend {
  public:
+  const static uint32_t kForceReturnAddress = 0x9FFF0000u;
+
   X64Backend(Processor* processor);
   ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_; }
   HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
   GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
+  ResolveFunctionThunk resolve_function_thunk() const {
+    return resolve_function_thunk_;
+  }
 
   bool Initialize() override;
 
@@ -41,8 +47,10 @@ class X64Backend : public Backend {
 
  private:
   X64CodeCache* code_cache_;
+
   HostToGuestThunk host_to_guest_thunk_;
   GuestToHostThunk guest_to_host_thunk_;
+  ResolveFunctionThunk resolve_function_thunk_;
 };
 
 }  // namespace x64

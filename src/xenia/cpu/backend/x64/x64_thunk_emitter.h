@@ -133,6 +133,9 @@ class X64ThunkEmitter : public X64Emitter {
 
   // Function that guest code can call to transition into host code.
   GuestToHostThunk EmitGuestToHostThunk();
+
+  // Function that thunks to the ResolveFunction in X64Emitter.
+  ResolveFunctionThunk EmitResolveFunctionThunk();
 };
 
 }  // namespace x64

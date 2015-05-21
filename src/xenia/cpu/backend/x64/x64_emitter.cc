@@ -325,94 +325,9 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
   assert_always();
 }
 
-// Total size of ResolveFunctionSymbol call site in bytes.
-// Used to overwrite it with nops as needed.
-const size_t TOTAL_RESOLVE_SIZE = 27;
-const size_t ASM_OFFSET = 2 + 2 + 8 + 2 + 8;
-
-uint64_t ResolveFunctionSymbol(void* raw_context, uint64_t symbol_info_ptr) {
-  // TODO(benvanik): generate this thunk at runtime? or a shim?
-  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
-
-  // Resolve function. This will demand compile as required.
-  Function* fn = NULL;
-  thread_state->processor()->ResolveFunction(symbol_info->address(), &fn);
-  assert_not_null(fn);
-  auto x64_fn = static_cast<X64Function*>(fn);
-  uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
-
-// Overwrite the call site.
-// The return address points to ReloadRCX work after the call.
-#if XE_PLATFORM_WIN32
-  uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
-#else
-  uint64_t return_address =
-      reinterpret_cast<uint64_t>(__builtin_return_address(0));
-#endif  // XE_PLATFORM_WIN32
-#pragma pack(push, 1)
-  struct Asm {
-    uint16_t mov_rax;
-    uint64_t rax_constant;
-    uint16_t mov_rdx;
-    uint64_t rdx_constant;
-    uint16_t call_rax;
-    uint8_t mov_rcx[5];
-  };
-#pragma pack(pop)
-  static_assert_size(Asm, TOTAL_RESOLVE_SIZE);
-  Asm* code = reinterpret_cast<Asm*>(return_address - ASM_OFFSET);
-  code->rax_constant = addr;
-  code->call_rax = 0x9066;
-
-  // We need to return the target in rax so that it gets called.
-  return addr;
-}
-
-void X64Emitter::Call(const hir::Instr* instr, FunctionInfo* symbol_info) {
-  auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
-  // Resolve address to the function to call and store in rax.
-  if (fn) {
-    mov(rax, reinterpret_cast<uint64_t>(fn->machine_code()));
-  } else {
-    size_t start = getSize();
-    // 2b + 8b constant
-    mov(rax, reinterpret_cast<uint64_t>(ResolveFunctionSymbol));
-    // 2b + 8b constant
-    mov(rdx, reinterpret_cast<uint64_t>(symbol_info));
-    // 2b
-    call(rax);
-    // 5b
-    ReloadECX();
-    size_t total_size = getSize() - start;
-    assert_true(total_size == TOTAL_RESOLVE_SIZE);
-    // EDX overwritten, don't bother reloading.
-  }
-
-  // Actually jump/call to rax.
-  if (instr->flags & CALL_TAIL) {
-    // Since we skip the prolog we need to mark the return here.
-    EmitTraceUserCallReturn();
-
-    // Pass the callers return address over.
-    mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
-
-    add(rsp, static_cast<uint32_t>(stack_size()));
-    jmp(rax);
-  } else {
-    // Return address is from the previous SET_RETURN_ADDRESS.
-    mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
-    call(rax);
-  }
-}
-
-// NOTE: slot count limited by short jump size.
-const int kICSlotCount = 4;
-const int kICSlotSize = 23;
-const uint64_t kICSlotInvalidTargetAddress = 0x0F0F0F0F0F0F0F0F;
-
-uint64_t ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
-  // TODO(benvanik): generate this thunk at runtime? or a shim?
+// This is used by the X64ThunkEmitter's ResolveFunctionThunk.
+extern "C" uint64_t ResolveFunction(void* raw_context,
+                                    uint32_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
@@ -424,100 +339,26 @@ uint64_t ResolveFunctionAddress(void* raw_context, uint32_t target_address) {
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
 
-// Add an IC slot, if there is room.
-#if XE_PLATFORM_WIN32
-  uint64_t return_address = reinterpret_cast<uint64_t>(_ReturnAddress());
-#else
-  uint64_t return_address =
-      reinterpret_cast<uint64_t>(__builtin_return_address(0));
-#endif  // XE_PLATFORM_WIN32
-#pragma pack(push, 1)
-  struct Asm {
-    uint16_t cmp_rdx;
-    uint32_t address_constant;
-    uint16_t jmp_next_slot;
-    uint16_t mov_rax;
-    uint64_t target_constant;
-    uint8_t jmp_skip_resolve[5];
-  };
-#pragma pack(pop)
-  static_assert_size(Asm, kICSlotSize);
-  // TODO(benvanik): quick check table is full (so we don't have to enum slots)
-  // The return address points to ReloadRCX work after the call.
-  // To get the top of the table, look back a ways.
-  uint64_t table_start = return_address - 12 - kICSlotSize * kICSlotCount;
-  // NOTE: order matters here - we update the address BEFORE we switch the code
-  // over to passing the compare.
-  Asm* table_slot = reinterpret_cast<Asm*>(table_start);
-  bool wrote_ic = false;
-  for (int i = 0; i < kICSlotCount; ++i) {
-    if (xe::atomic_cas(kICSlotInvalidTargetAddress, addr,
-                       &table_slot->target_constant)) {
-      // Got slot! Just write the compare and we're done.
-      table_slot->address_constant = static_cast<uint32_t>(target_address);
-      wrote_ic = true;
-      break;
-    }
-    ++table_slot;
-  }
-  if (!wrote_ic) {
-    // TODO(benvanik): log that IC table is full.
-  }
-
-  // We need to return the target in rax so that it gets called.
   return addr;
 }
 
-void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
-  // Check if return.
-  if (instr->flags & CALL_POSSIBLE_RETURN) {
-    cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
-    je("epilog", CodeGenerator::T_NEAR);
-  }
-
-  if (reg.getIdx() != rdx.getIdx()) {
-    mov(rdx, reg);
-  }
-
-  inLocalLabel();
-  Xbyak::Label skip_resolve;
-
-  // TODO(benvanik): make empty tables skippable (cmp, jump right to resolve).
-
-  // IC table, initially empty.
-  // This will get filled in as functions are resolved.
-  // Note that we only have a limited cache, and once it's full all calls
-  // will fall through.
-  // TODO(benvanik): check miss rate when full and add a 2nd-level table?
-  // 0000000264BD4DC3 81 FA 0F0F0F0F         cmp         edx,0F0F0F0Fh
-  // 0000000264BD4DC9 75 0C                  jne         0000000264BD4DD7
-  // 0000000264BD4DCB 48 B8 0F0F0F0F0F0F0F0F mov         rax,0F0F0F0F0F0F0F0Fh
-  // 0000000264BD4DD5 EB XXXXXXXX            jmp         0000000264BD4E00
-  size_t table_start = getSize();
-  for (int i = 0; i < kICSlotCount; ++i) {
-    // Compare target address with constant, if matches jump there.
-    // Otherwise, fall through.
-    // 6b
-    cmp(edx, 0x0F0F0F0F);
-    Xbyak::Label next_slot;
-    // 2b
-    jne(next_slot, T_SHORT);
-    // Match! Load up rax and skip down to the jmp code.
-    // 10b
-    mov(rax, kICSlotInvalidTargetAddress);
-    // 5b
-    jmp(skip_resolve, T_NEAR);
-    L(next_slot);
-  }
-  size_t table_size = getSize() - table_start;
-  assert_true(table_size == kICSlotSize * kICSlotCount);
-
+void X64Emitter::Call(const hir::Instr* instr, FunctionInfo* symbol_info) {
+  auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
   // Resolve address to the function to call and store in rax.
-  // We fall through to this when there are no hits in the IC table.
-  CallNative(ResolveFunctionAddress);
+  if (fn) {
+    // TODO(benvanik): is it worth it to do this? It removes the need for
+    // a ResolveFunction call, but makes the table less useful.
+    assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
+    mov(eax, uint32_t(uint64_t(fn->machine_code())));
+  } else {
+    // Load the pointer to the indirection table maintained in X64CodeCache.
+    // The target dword will either contain the address of the generated code
+    // or a thunk to ResolveAddress.
+    mov(ebx, symbol_info->address());
+    mov(eax, dword[ebx]);
+  }
 
   // Actually jump/call to rax.
-  L(skip_resolve);
   if (instr->flags & CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
@@ -530,10 +371,42 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
     mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+
     call(rax);
   }
+}
 
-  outLocalLabel();
+void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
+  // Check if return.
+  if (instr->flags & CALL_POSSIBLE_RETURN) {
+    cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
+    je("epilog", CodeGenerator::T_NEAR);
+  }
+
+  // Load the pointer to the indirection table maintained in X64CodeCache.
+  // The target dword will either contain the address of the generated code
+  // or a thunk to ResolveAddress.
+  if (reg.cvt32() != ebx) {
+    mov(ebx, reg.cvt32());
+  }
+  mov(eax, dword[ebx]);
+
+  // Actually jump/call to rax.
+  if (instr->flags & CALL_TAIL) {
+    // Since we skip the prolog we need to mark the return here.
+    EmitTraceUserCallReturn();
+
+    // Pass the callers return address over.
+    mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+
+    add(rsp, static_cast<uint32_t>(stack_size()));
+    jmp(rax);
+  } else {
+    // Return address is from the previous SET_RETURN_ADDRESS.
+    mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+
+    call(rax);
+  }
 }
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {

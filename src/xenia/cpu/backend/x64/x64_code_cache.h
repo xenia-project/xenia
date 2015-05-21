@@ -33,6 +33,10 @@ class X64CodeCache {
   // TODO(benvanik): keep track of code blocks
   // TODO(benvanik): padding/guards/etc
 
+  void set_indirection_default(uint32_t default_value);
+
+  void AddIndirection(uint32_t guest_address, uint32_t host_address);
+
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high);
 
   void* PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
@@ -51,6 +55,9 @@ class X64CodeCache {
   // Must be held when manipulating the offsets or counts of anything, to keep
   // the tables consistent and ordered.
   std::mutex allocation_mutex_;
+
+  // Value that the indirection table will be initialized with upon commit.
+  uint32_t indirection_default_value_;
 
   // Fixed at kIndirectionTableBase in host space, holding 4 byte pointers into
   // the generated code table that correspond to the PPC functions in guest

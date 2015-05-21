@@ -24,7 +24,8 @@ namespace x64 {
 const static uint32_t kUnwindInfoSize = 4 + (2 * 1 + 2 + 2);
 
 X64CodeCache::X64CodeCache()
-    : indirection_table_base_(nullptr),
+    : indirection_default_value_(0xFEEDF00D),
+      indirection_table_base_(nullptr),
       generated_code_base_(nullptr),
       generated_code_offset_(0),
       generated_code_commit_mark_(0),
@@ -87,10 +88,28 @@ bool X64CodeCache::Initialize() {
   return true;
 }
 
+void X64CodeCache::set_indirection_default(uint32_t default_value) {
+  indirection_default_value_ = default_value;
+}
+
+void X64CodeCache::AddIndirection(uint32_t guest_address,
+                                  uint32_t host_address) {
+  uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
+      indirection_table_base_ + (guest_address - kIndirectionTableBase));
+  *indirection_slot = host_address;
+}
+
 void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
                                          uint32_t guest_high) {
+  // Commit the memory.
   VirtualAlloc(indirection_table_base_ + (guest_low - kIndirectionTableBase),
                guest_high - guest_low, MEM_COMMIT, PAGE_READWRITE);
+
+  // Fill memory with the default value.
+  uint32_t* p = reinterpret_cast<uint32_t*>(indirection_table_base_);
+  for (uint32_t address = guest_low; address < guest_high; ++address) {
+    p[(address - kIndirectionTableBase) / 4] = indirection_default_value_;
+  }
 }
 
 void* X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
