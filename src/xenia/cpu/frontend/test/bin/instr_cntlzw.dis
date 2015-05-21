@@ -37,3 +37,14 @@ Disassembly of section .text:
   10004c:       54 a5 f8 7e     rlwinm  r5,r5,31,1,31
   100050:       7c a6 00 34     cntlzw  r6,r5
   100054:       4e 80 00 20     blr
+
+0000000000100058 <test_cntlzw_5>:
+  100058:       7c a6 00 34     cntlzw  r6,r5
+  10005c:       4e 80 00 20     blr
+
+0000000000100060 <test_cntlzw_5_constant>:
+  100060:       38 a0 ff ff     li      r5,-1
+  100064:       78 a5 07 c6     rldicr  r5,r5,32,31
+  100068:       38 a5 00 01     addi    r5,r5,1
+  10006c:       7c a6 00 34     cntlzw  r6,r5
+  100070:       4e 80 00 20     blr

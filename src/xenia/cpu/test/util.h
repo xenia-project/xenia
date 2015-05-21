@@ -47,12 +47,13 @@ class TestFunction {
     for (auto& processor : processors) {
       auto module = std::make_unique<xe::cpu::TestModule>(
           processor.get(), "Test",
-          [](uint64_t address) { return address == 0x1000; },
+          [](uint64_t address) { return address == 0x80000000; },
           [generator](hir::HIRBuilder& b) {
             generator(b);
             return true;
           });
       processor->AddModule(std::move(module));
+      processor->backend()->CommitExecutableRange(0x80000000, 0x80010000);
     }
   }
 
@@ -65,7 +66,7 @@ class TestFunction {
            std::function<void(PPCContext*)> post_call) {
     for (auto& processor : processors) {
       xe::cpu::Function* fn;
-      processor->ResolveFunction(0x1000, &fn);
+      processor->ResolveFunction(0x80000000, &fn);
 
       uint32_t stack_size = 64 * 1024;
       uint32_t stack_address = memory_size - stack_size;

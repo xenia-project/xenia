@@ -37,10 +37,10 @@ X64CodeCache::~X64CodeCache() {
     RtlDeleteGrowableFunctionTable(unwind_table_handle_);
   }
   if (indirection_table_base_) {
-    VirtualFree(indirection_table_base_, kIndirectionTableSize, MEM_RELEASE);
+    VirtualFree(indirection_table_base_, 0, MEM_RELEASE);
   }
   if (generated_code_base_) {
-    VirtualFree(generated_code_base_, kIndirectionTableSize, MEM_RELEASE);
+    VirtualFree(generated_code_base_, 0, MEM_RELEASE);
   }
 }
 

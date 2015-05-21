@@ -35,7 +35,7 @@ using xe::cpu::Runtime;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 
-const uint32_t START_ADDRESS = 0x100000;
+const uint32_t START_ADDRESS = 0x80000000;
 
 struct TestCase {
   TestCase(uint32_t address, std::string& name)
@@ -193,6 +193,9 @@ class TestRunner {
       return false;
     }
     processor->AddModule(std::move(module));
+
+    processor->backend()->CommitExecutableRange(START_ADDRESS,
+                                                START_ADDRESS + 1024 * 1024);
 
     // Simulate a thread.
     uint32_t stack_size = 64 * 1024;

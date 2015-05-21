@@ -6,3 +6,5 @@
 0000000000000030 t test_cntlzw_3_constant
 0000000000000040 t test_cntlzw_4
 0000000000000048 t test_cntlzw_4_constant
+0000000000000058 t test_cntlzw_5
+0000000000000060 t test_cntlzw_5_constant
