@@ -212,34 +212,51 @@ SHIM_CALL DbgBreakPoint_shim(PPCContext* ppc_state, KernelState* state) {
   DebugBreak();
 }
 
+// https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
+typedef struct {
+    xe::be<uint32_t> type;
+    xe::be<uint32_t> name_ptr;
+    xe::be<uint32_t> thread_id;
+    xe::be<uint32_t> flags;
+} X_THREADNAME_INFO;
+static_assert_size(X_THREADNAME_INFO, 0x10);
+
+// https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082.aspx
+typedef struct {
+  xe::be<uint32_t> exception_code;
+  xe::be<uint32_t> exception_flags;
+  xe::be<uint32_t> exception_record;
+  xe::be<uint32_t> exception_address;
+  xe::be<uint32_t> number_parameters;
+  xe::be<uint32_t> exception_information[15];
+} X_EXCEPTION_RECORD;
+static_assert_size(X_EXCEPTION_RECORD, 0x50);
+
 SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t record_ptr = SHIM_GET_ARG_32(0);
 
-  uint32_t code = SHIM_MEM_32(record_ptr + 0);
-  uint32_t flags = SHIM_MEM_32(record_ptr + 4);
-  // ...
-  uint32_t param_count = SHIM_MEM_32(record_ptr + 16);
+  auto record = reinterpret_cast<X_EXCEPTION_RECORD*>(SHIM_MEM_ADDR(record_ptr));
 
-  XELOGD("RtlRaiseException(%.8X(%.8X))", record_ptr, code);
+  XELOGD("RtlRaiseException(%.8X(%.8X))", record_ptr, record->exception_code);
 
-  if (code == 0x406D1388) {
+  if (record->exception_code == 0x406D1388) {
     // SetThreadName. FFS.
-    uint32_t thread_info_ptr = record_ptr + 20;
-    uint32_t type = SHIM_MEM_32(thread_info_ptr + 0);
-    assert_true(type == 0x1000);
-    uint32_t name_ptr = SHIM_MEM_32(thread_info_ptr + 4);
-    uint32_t thread_id = SHIM_MEM_32(thread_info_ptr + 8);
+    // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 
-    const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
+    // TODO: check record->number_parameters to make sure it's a correct size
+    auto thread_info = reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
+
+    assert_true(thread_info->type == 0x1000);
+    const char* name = (const char*)SHIM_MEM_ADDR(thread_info->name_ptr);
 
     XThread* thread = NULL;
-    if (thread_id == -1) {
+    if (thread_info->thread_id == -1) {
       // Current thread.
       thread = XThread::GetCurrentThread();
       thread->Retain();
     } else {
       // Lookup thread by ID.
-      thread = state->GetThreadByID(thread_id);
+      thread = state->GetThreadByID(thread_info->thread_id);
     }
 
     if (thread) {
@@ -249,6 +266,13 @@ SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
     }
 
     // TODO(benvanik): unwinding required here?
+    return;
+  }
+
+  if (record->exception_code == 0xE06D7363) {
+    // C++ exception.
+    // http://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
+    DebugBreak();
     return;
   }
 
