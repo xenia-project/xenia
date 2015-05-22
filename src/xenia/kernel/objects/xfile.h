@@ -103,6 +103,25 @@ class XVolumeInfo {
 };
 static_assert_size(XVolumeInfo, 24);
 
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540282(v=vs.85).aspx
+class XFileSystemSizeInfo {
+ public:
+  // FILE_FS_SIZE_INFORMATION
+  uint64_t total_allocation_units;
+  uint64_t available_allocation_units;
+  uint32_t sectors_per_allocation_unit;
+  uint32_t bytes_per_sector;
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    xe::store_and_swap<uint64_t>(dst + 0, this->total_allocation_units);
+    xe::store_and_swap<uint64_t>(dst + 8, this->available_allocation_units);
+    xe::store_and_swap<uint32_t>(dst + 16, this->sectors_per_allocation_unit);
+    xe::store_and_swap<uint32_t>(dst + 20, this->bytes_per_sector);
+  }
+};
+static_assert_size(XFileSystemSizeInfo, 24);
+
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
 class XFileSystemAttributeInfo {
  public:
