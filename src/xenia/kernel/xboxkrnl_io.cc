@@ -633,6 +633,12 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
         free(fs_attribute_info);
         break;
       }
+      case 2: // FileFsLabelInformation
+      case 3: // FileFsSizeInformation
+      case 4: // FileFsDeviceInformation
+      case 6: // FileFsControlInformation
+      case 7: // FileFsFullSizeInformation
+      case 8: // FileFsObjectIdInformation
       default:
         // Unsupported, for now.
         assert_always();
