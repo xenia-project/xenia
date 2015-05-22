@@ -270,8 +270,10 @@ void Memory::UnmapViews() {
 BaseHeap* Memory::LookupHeap(uint32_t address) {
   if (address < 0x40000000) {
     return &heaps_.v00000000;
-  } else if (address < 0x80000000) {
+  } else if (address < 0x7F000000) {
     return &heaps_.v40000000;
+  } else if (address < 0x80000000) {
+    return nullptr;
   } else if (address < 0x90000000) {
     return &heaps_.v80000000;
   } else if (address < 0xA0000000) {

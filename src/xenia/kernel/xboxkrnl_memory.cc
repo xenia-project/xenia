@@ -231,7 +231,7 @@ SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_state, KernelState* state) {
 
   auto heap = state->memory()->LookupHeap(base_address);
   HeapAllocationInfo alloc_info;
-  if (!heap->QueryRegionInfo(base_address, &alloc_info)) {
+  if (heap == nullptr || !heap->QueryRegionInfo(base_address, &alloc_info)) {
     SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
     return;
   }
