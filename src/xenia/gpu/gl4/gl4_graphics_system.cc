@@ -262,7 +262,7 @@ void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
 
   // Swap requested. Synchronously post a request to the loop so that
   // we do the swap in the right thread.
-  control_->SynchronousRepaint([&]() {
+  control_->SynchronousRepaint([this, swap_params]() {
     if (!swap_params.framebuffer_texture) {
       // no-op.
       return;

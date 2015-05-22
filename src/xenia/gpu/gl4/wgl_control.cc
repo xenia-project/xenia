@@ -107,10 +107,12 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 void WGLControl::SynchronousRepaint(std::function<void()> paint_callback) {
   SCOPE_profile_cpu_f("gpu");
 
-  assert_null(current_paint_callback_);
+  // We may already have a pending paint from a previous request when we
+  // were minimized. We just overwrite it.
   current_paint_callback_ = std::move(paint_callback);
 
   // This will not return until the WM_PAINT has completed.
+  // Note, if we are minimized this won't do anything.
   RedrawWindow(hwnd(), nullptr, nullptr,
                RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ALLCHILDREN);
 }
