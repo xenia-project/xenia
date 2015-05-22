@@ -62,6 +62,10 @@ std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
       // Publisher content?
       type_name = L"00000003";
       break;
+    case 0x000D0000:
+      // ???
+      type_name = L"000D0000";
+      break;
     default:
       assert_unhandled_case(data.content_type);
       return nullptr;
