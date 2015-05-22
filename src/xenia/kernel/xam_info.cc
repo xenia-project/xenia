@@ -92,7 +92,7 @@ SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_state,
 
   SHIM_SET_MEM_32(size_ptr, 0);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_state,
@@ -102,7 +102,7 @@ SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_state,
 
   XELOGD("XamLoaderGetLaunchData(%.8X, %d)", buffer_ptr, buffer_size);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_state, KernelState* state) {
