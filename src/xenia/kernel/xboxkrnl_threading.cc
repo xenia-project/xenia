@@ -260,11 +260,13 @@ SHIM_CALL KeSetBasePriorityThread_shim(PPCContext* ppc_state,
     XELOGD("KeSetBasePriorityThread - Interpreting thread ptr as handle!");
   } else {
     thread = (XThread*)XObject::GetObject(state, SHIM_MEM_ADDR(thread_ptr));
+    thread->Retain();
   }
 
   if (thread) {
     prev_priority = thread->QueryPriority();
     thread->SetPriority(increment);
+    thread->Release();
   }
 
   SHIM_SET_RETURN_32(prev_priority);

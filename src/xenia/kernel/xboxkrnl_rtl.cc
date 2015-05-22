@@ -547,7 +547,7 @@ spin:
     // TODO(benvanik): contention - do a real wait!
     // XELOGE("RtlEnterCriticalSection tried to really lock!");
     spin_wait_remaining = 0;  // HACK: spin forever
-    Sleep(1);
+    SwitchToThread();
     goto spin;
   }
 

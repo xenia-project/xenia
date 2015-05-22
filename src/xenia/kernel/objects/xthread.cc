@@ -18,6 +18,11 @@
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/profiling.h"
 
+DEFINE_bool(ignore_thread_priorities, true,
+            "Ignores game-specified thread priorities.");
+DEFINE_bool(ignore_thread_affinities, true,
+            "Ignores game-specified thread affinities.");
+
 namespace xe {
 namespace kernel {
 
@@ -537,9 +542,9 @@ int32_t XThread::QueryPriority() { return GetThreadPriority(thread_handle_); }
 
 void XThread::SetPriority(int32_t increment) {
   int target_priority = 0;
-  if (increment > 0x11) {
+  if (increment > 0x22) {
     target_priority = THREAD_PRIORITY_HIGHEST;
-  } else if (increment > 0) {
+  } else if (increment > 0x11) {
     target_priority = THREAD_PRIORITY_ABOVE_NORMAL;
   } else if (increment < -0x22) {
     target_priority = THREAD_PRIORITY_IDLE;
@@ -548,7 +553,9 @@ void XThread::SetPriority(int32_t increment) {
   } else {
     target_priority = THREAD_PRIORITY_NORMAL;
   }
-  SetThreadPriority(thread_handle_, target_priority);
+  if (!FLAGS_ignore_thread_priorities) {
+    SetThreadPriority(thread_handle_, target_priority);
+  }
 }
 
 void XThread::SetAffinity(uint32_t affinity) {
@@ -567,7 +574,9 @@ void XThread::SetAffinity(uint32_t affinity) {
   if (system_info.dwNumberOfProcessors < 6) {
     XELOGW("Too few processors - scheduling will be wonky");
   }
-  SetThreadAffinityMask(reinterpret_cast<HANDLE>(thread_handle_), affinity);
+  if (!FLAGS_ignore_thread_affinities) {
+    SetThreadAffinityMask(reinterpret_cast<HANDLE>(thread_handle_), affinity);
+  }
 }
 
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
