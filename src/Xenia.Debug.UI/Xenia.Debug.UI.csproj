@@ -51,14 +51,107 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Form1.cs">
+    <Compile Include="Controls\BaseDocument.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Form1.Designer.cs">
-      <DependentUpon>Form1.cs</DependentUpon>
+    <Compile Include="Controls\BaseDocument.Designer.cs">
+      <DependentUpon>BaseDocument.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\BasePanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Controls\BasePanel.Designer.cs">
+      <DependentUpon>BasePanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="MainWindow.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Designer.cs">
+      <DependentUpon>MainWindow.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Views\BreakpointsPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\BreakpointsPanel.Designer.cs">
+      <DependentUpon>BreakpointsPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CallstackPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\CallstackPanel.Designer.cs">
+      <DependentUpon>CallstackPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CodeDocument.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\CodeDocument.Designer.cs">
+      <DependentUpon>CodeDocument.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\FilesystemPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\FilesystemPanel.Designer.cs">
+      <DependentUpon>FilesystemPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\FunctionsPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\FunctionsPanel.Designer.cs">
+      <DependentUpon>FunctionsPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\HeapDocument.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\HeapDocument.Designer.cs">
+      <DependentUpon>HeapDocument.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\MemoryDocument.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\MemoryDocument.Designer.cs">
+      <DependentUpon>MemoryDocument.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ModulesPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\ModulesPanel.Designer.cs">
+      <DependentUpon>ModulesPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ProfilePanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\ProfilePanel.Designer.cs">
+      <DependentUpon>ProfilePanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\RegistersPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\RegistersPanel.Designer.cs">
+      <DependentUpon>RegistersPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\StatisticsDocument.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\StatisticsDocument.Designer.cs">
+      <DependentUpon>StatisticsDocument.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ThreadsPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\ThreadsPanel.Designer.cs">
+      <DependentUpon>ThreadsPanel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\TracePanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\TracePanel.Designer.cs">
+      <DependentUpon>TracePanel.cs</DependentUpon>
+    </Compile>
+    <EmbeddedResource Include="MainWindow.resx">
+      <DependentUpon>MainWindow.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

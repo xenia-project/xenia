@@ -7,10 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using WeifenLuo.WinFormsUI.Docking;
 
-namespace Xenia.Debug.UI {
-  public partial class Form1 : Form {
-    public Form1() {
+namespace Xenia.Debug.UI.Controls {
+  public partial class BaseDocument : DockContent {
+    public BaseDocument() {
       InitializeComponent();
     }
   }

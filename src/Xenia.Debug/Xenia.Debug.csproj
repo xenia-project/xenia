@@ -43,7 +43,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Breakpoint.cs" />
+    <Compile Include="BreakpointList.cs" />
+    <Compile Include="Callstack.cs" />
+    <Compile Include="DebugClient.cs" />
+    <Compile Include="Debugger.cs" />
+    <Compile Include="Function.cs" />
+    <Compile Include="FunctionList.cs" />
+    <Compile Include="Memory.cs" />
+    <Compile Include="MemoryView.cs" />
+    <Compile Include="Module.cs" />
+    <Compile Include="ModuleList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Thread.cs" />
+    <Compile Include="ThreadList.cs" />
+    <Compile Include="Utilities\Changeable.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

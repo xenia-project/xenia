@@ -1,5 +1,5 @@
-﻿namespace Xenia.Debug.UI {
-  partial class Form1 {
+﻿namespace Xenia.Debug.UI.Views {
+  partial class MemoryDocument {
     /// <summary>
     /// Required designer variable.
     /// </summary>
@@ -25,10 +25,9 @@
     private void InitializeComponent() {
       this.components = new System.ComponentModel.Container();
       this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-      this.Text = "Form1";
+      this.Text = "Memory";
     }
 
     #endregion
   }
 }
-
