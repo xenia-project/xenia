@@ -19,8 +19,6 @@
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
 
-#include "libavutil/log.h"
-
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
 // decoders. Later games use XAudio*() and direct memory writes to the XMA
@@ -362,6 +360,7 @@ void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
       context.in_use = false;
       auto context_ptr = memory()->TranslateVirtual(guest_ptr);
       std::memset(context_ptr, 0, kXmaContextSize); // Zero it.
+      context.decoder->DiscardPacket();
       
       context.lock.unlock();
     }

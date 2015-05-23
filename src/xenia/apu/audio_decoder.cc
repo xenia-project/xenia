@@ -61,7 +61,8 @@ int AudioDecoder::Initialize(int bits) {
   packet_ = new AVPacket();
   av_init_packet(packet_);
 
-  context_->channels = 0; // Only 1 channel for our purposes.
+  // Initialize these to 0. They'll actually be set later.
+  context_->channels = 0;
   context_->sample_rate = 0;
   context_->block_align = XMAContextData::kBytesPerBlock;
 
@@ -84,10 +85,6 @@ int AudioDecoder::Initialize(int bits) {
   return 0;
 }
 
-void AudioDecoder::Cleanup() {
-
-}
-
 int AudioDecoder::PreparePacket(uint8_t* input, size_t size,
                                 int sample_rate, int channels) {
   if (size != XMAContextData::kBytesPerBlock) {
@@ -107,7 +104,6 @@ int AudioDecoder::PreparePacket(uint8_t* input, size_t size,
                            (*((int*)packet_data_) & 0xFFFEFF08);
   offset_ += XMAContextData::kBytesPerBlock; // Sequence number
 
-  //std::memcpy(packet_data_, input, size);
   packet_->data = packet_data_;
   packet_->size = XMAContextData::kBytesPerBlock;
 

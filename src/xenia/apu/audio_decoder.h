@@ -37,7 +37,6 @@ class AudioDecoder {
     ~AudioDecoder();
 
     int Initialize(int bits);
-    void Cleanup();
 
     int PreparePacket(uint8_t* input, size_t size, int sample_rate, int channels);
     void DiscardPacket();
