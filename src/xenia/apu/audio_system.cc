@@ -95,10 +95,13 @@ X_STATUS AudioSystem::Setup() {
 
     // Create a new decoder per context
     // Needed because some data needs to be persisted across calls
+    // TODO: Need to destroy this on class destruction
     xma_context_array_[i].decoder = new AudioDecoder();
     xma_context_array_[i].decoder->Initialize(16);
   }
   registers_.next_context = 1;
+
+  // Threads
 
   worker_running_ = true;
   worker_thread_ = new kernel::XHostThread(emulator()->kernel_state(),

@@ -26,6 +26,21 @@ AudioDecoder::AudioDecoder() : offset_(0) {
 }
 
 AudioDecoder::~AudioDecoder() {
+  if (context_) {
+    if (context_->extradata) {
+      delete context_->extradata;
+    }
+    if (avcodec_is_open(context_)) {
+      avcodec_close(context_);
+    }
+    av_free(context_);
+  }
+  if (decoded_frame_) {
+    avcodec_free_frame(&decoded_frame_);
+  }
+  if (current_frame_) {
+    delete current_frame_;
+  }
 }
 
 int AudioDecoder::Initialize(int bits) {
