@@ -36,7 +36,7 @@ AudioDecoder::~AudioDecoder() {
     av_free(context_);
   }
   if (decoded_frame_) {
-    avcodec_free_frame(&decoded_frame_);
+    av_frame_free(&decoded_frame_);
   }
   if (current_frame_) {
     delete current_frame_;
@@ -131,7 +131,7 @@ int AudioDecoder::PreparePacket(uint8_t* input, size_t size,
     // TODO: Find a better way.
     avcodec_close(context_);
     if (avcodec_open2(context_, codec_, NULL) < 0) {
-      // Shit.
+      XELOGE("Audio Decoder: Failed to reopen context.");
       return 1;
     }
   }
