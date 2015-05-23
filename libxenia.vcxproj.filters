@@ -700,6 +700,9 @@
     <ClCompile Include="src\xenia\kernel\xboxkrnl_error.cc">
       <Filter>src\xenia\kernel</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\apu\audio_decoder.cc">
+      <Filter>src\xenia\apu</Filter>
+    </ClCompile>
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
@@ -1340,6 +1343,9 @@
     </ClInclude>
     <ClInclude Include="src\xenia\kernel\xboxkrnl_error.h">
       <Filter>src\xenia\kernel</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\apu\audio_decoder.h">
+      <Filter>src\xenia\apu</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

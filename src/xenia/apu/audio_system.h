@@ -27,10 +27,16 @@ namespace xe {
 namespace apu {
 
 class AudioDriver;
+class AudioDecoder;
 
 // This is stored in guest space in big-endian order.
 // We load and swap the whole thing to splat here so that we can
 // use bitfields.
+// This could be important:
+// http://www.fmod.org/questions/question/forum-15859
+// Appears to be dumped in order (for the most part)
+
+// http://pastebin.com/9amqJ2kQ
 struct XMAContextData {
   static const uint32_t kSize = 64;
   static const uint32_t kBytesPerBlock = 2048;
@@ -39,53 +45,54 @@ struct XMAContextData {
 
   // DWORD 0
   uint32_t input_buffer_0_block_count : 12;  // XMASetInputBuffer0, number of
-                                             // 2KB blocks.
-  uint32_t loop_count : 8;                   // +12bit, XMASetLoopData
+                                             // 2KB blocks. AKA SizeRead0
+                                             // Maximum 4095 packets.
+  uint32_t loop_count : 8;                   // +12bit, XMASetLoopData NumLoops
   uint32_t input_buffer_0_valid : 1;         // +20bit, XMAIsInputBuffer0Valid
   uint32_t input_buffer_1_valid : 1;         // +21bit, XMAIsInputBuffer1Valid
-  uint32_t output_buffer_block_count : 5;    // +22bit
-  uint32_t
-    output_buffer_write_offset : 5;  // +27bit, XMAGetOutputBufferWriteOffset
+  uint32_t output_buffer_block_count : 5;    // +22bit SizeWrite 256byte blocks
+  uint32_t output_buffer_write_offset : 5;   // +27bit, XMAGetOutputBufferWriteOffset
+                                             // AKA OffsetWrite
 
-                                     // DWORD 1
+  // DWORD 1
   uint32_t input_buffer_1_block_count : 12;  // XMASetInputBuffer1, number of
                                              // 2KB blocks.
   uint32_t loop_subframe_end : 2;            // +12bit, XMASetLoopData
-  uint32_t unk_dword_1_a : 3;                // ?
-  uint32_t loop_subframe_skip : 3;           // +17bit, XMASetLoopData
-  uint32_t subframe_decode_count : 4;        // +20bit
-  uint32_t unk_dword_1_b : 3;                // ?
-  uint32_t sample_rate : 2;                  // +27bit
-  uint32_t is_stereo : 1;                    // +29bit
-  uint32_t unk_dword_1_c : 1;                // ?
+  uint32_t unk_dword_1_a : 3;                // ? might be loop_subframe_skip
+  uint32_t loop_subframe_skip : 3;           // +17bit, XMASetLoopData might be subframe_decode_count
+  uint32_t subframe_decode_count : 4;        // +20bit might be subframe_skip_count
+  uint32_t unk_dword_1_b : 3;                // ? NumSubframesToSkip/NumChannels(?)
+  uint32_t sample_rate : 2;                  // +27bit multiplied by something?
+  uint32_t is_stereo : 1;                    // +29bit might be NumChannels
+  uint32_t unk_dword_1_c : 1;                // ? NumChannels?
   uint32_t output_buffer_valid : 1;          // +31bit, XMAIsOutputBufferValid
 
-                                             // DWORD 2
-  uint32_t input_buffer_read_offset : 30;  // XMAGetInputBufferReadOffset
-  uint32_t unk_dword_2 : 2;                // ?
+  // DWORD 2
+  uint32_t input_buffer_read_offset : 30;   // XMAGetInputBufferReadOffset
+  uint32_t unk_dword_2 : 2;                 // ErrorStatus/ErrorSet (?)
 
-                                           // DWORD 3
-  uint32_t loop_start : 26;  // XMASetLoopData
-  uint32_t unk_dword_3 : 6;  // ?
+  // DWORD 3
+  uint32_t loop_start : 26;  // XMASetLoopData LoopStartOffset
+  uint32_t unk_dword_3 : 6;  // ? ParserErrorStatus/ParserErrorSet(?)
 
-                             // DWORD 4
-  uint32_t loop_end : 26;        // XMASetLoopData
+  // DWORD 4
+  uint32_t loop_end : 26;        // XMASetLoopData LoopEndOffset
   uint32_t packet_metadata : 5;  // XMAGetPacketMetadata
   uint32_t current_buffer : 1;   // ?
 
-                                // DWORD 5
+  // DWORD 5
   uint32_t input_buffer_0_ptr;  // physical address
-                                // DWORD 6
+  // DWORD 6
   uint32_t input_buffer_1_ptr;  // physical address
-                                // DWORD 7
+  // DWORD 7
   uint32_t output_buffer_ptr;   // physical address
-                                // DWORD 8
-  uint32_t unk_dword_8;         // Some kind of pointer like output_buffer_ptr
+  // DWORD 8
+  uint32_t overlap_add_ptr;     // PtrOverlapAdd(?)
 
-                                // DWORD 9
-  uint32_t
-    output_buffer_read_offset : 5;  // +0bit, XMAGetOutputBufferReadOffset
-  uint32_t unk_dword_9 : 27;
+  // DWORD 9
+  // +0bit, XMAGetOutputBufferReadOffset AKA WriteBufferOffsetRead
+  uint32_t output_buffer_read_offset : 5;  
+  uint32_t unk_dword_9 : 27; // StopWhenDone/InterruptWhenDone(?)
 
   XMAContextData(const void* ptr) {
     xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(this),
@@ -135,6 +142,7 @@ class AudioSystem {
 
  private:
   void WorkerThreadMain();
+  void DecoderThreadMain();
 
   static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint32_t addr) {
     return as->ReadRegister(addr);
@@ -153,6 +161,10 @@ class AudioSystem {
 
   std::atomic<bool> worker_running_;
   kernel::XHostThread* worker_thread_;
+
+  std::atomic<bool> decoder_running_;
+  std::thread decoder_thread_;
+  xe::threading::Fence decoder_fence_;
 
   std::mutex lock_;
 
@@ -176,7 +188,17 @@ class AudioSystem {
     } registers_;
     uint32_t register_file_[0xFFFF / 4];
   };
+  struct XMAContext {
+    uint32_t    guest_ptr;
+    std::mutex  lock;
+    bool        in_use;
+
+    AudioDecoder* decoder;
+  };
+
+  XMAContext xma_context_array_[320];
   std::vector<uint32_t> xma_context_free_list_;
+  std::vector<uint32_t> xma_context_used_list_; // XMA contexts in use
 
   static const size_t maximum_client_count_ = 8;
 

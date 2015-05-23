@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\apu\apu.cc" />
+    <ClCompile Include="src\xenia\apu\audio_decoder.cpp" />
     <ClCompile Include="src\xenia\apu\audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\audio_system.cc" />
     <ClCompile Include="src\xenia\apu\nop\nop_apu.cc" />
@@ -203,6 +204,7 @@
   <ItemGroup>
     <ClInclude Include="src\xenia\apu\apu-private.h" />
     <ClInclude Include="src\xenia\apu\apu.h" />
+    <ClInclude Include="src\xenia\apu\audio_decoder.h" />
     <ClInclude Include="src\xenia\apu\audio_driver.h" />
     <ClInclude Include="src\xenia\apu\audio_system.h" />
     <ClInclude Include="src\xenia\apu\nop\nop_apu-private.h" />
@@ -483,14 +485,15 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\$(Configuration);$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">
@@ -500,14 +503,15 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\$(Configuration);$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -519,7 +523,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -528,7 +532,8 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib>
-      <AdditionalDependencies>libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\$(Configuration);$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
