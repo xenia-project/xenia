@@ -22,3 +22,6 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin
+[submodule "third_party/libav-bin"]
+	path = third_party/libav-bin
+	url = https://github.com/DrChat/xenia-libav-bin.git

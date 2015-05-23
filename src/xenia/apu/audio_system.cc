@@ -10,6 +10,7 @@
 #include "xenia/apu/audio_system.h"
 
 #include "xenia/apu/audio_driver.h"
+#include "xenia/apu/audio_decoder.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
@@ -55,7 +56,8 @@ const uint32_t kXmaContextSize = 64;
 const uint32_t kXmaContextCount = 320;
 
 AudioSystem::AudioSystem(Emulator* emulator)
-    : emulator_(emulator), memory_(emulator->memory()), worker_running_(false) {
+    : emulator_(emulator), memory_(emulator->memory()), worker_running_(false),
+    decoder_running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     unused_clients_.push(i);
@@ -85,10 +87,21 @@ X_STATUS AudioSystem::Setup() {
       kXmaContextSize * kXmaContextCount, 256, kSystemHeapPhysical);
   // Add all contexts to the free list.
   for (int i = kXmaContextCount - 1; i >= 0; --i) {
-    xma_context_free_list_.push_back(registers_.xma_context_array_ptr +
-                                     i * kXmaContextSize);
+    uint32_t ptr = registers_.xma_context_array_ptr + i * kXmaContextSize;
+
+    // Initialize it
+    xma_context_array_[i].guest_ptr = ptr;
+    xma_context_array_[i].in_use = false;
+
+    // Create a new decoder per context
+    // Needed because some data needs to be persisted across calls
+    // TODO: Need to destroy this on class destruction
+    xma_context_array_[i].decoder = new AudioDecoder();
+    xma_context_array_[i].decoder->Initialize(16);
   }
   registers_.next_context = 1;
+
+  // Threads
 
   worker_running_ = true;
   worker_thread_ = new kernel::XHostThread(emulator()->kernel_state(),
@@ -97,6 +110,9 @@ X_STATUS AudioSystem::Setup() {
     return 0;
   });
   worker_thread_->Create();
+
+  decoder_running_ = true;
+  decoder_thread_ = std::thread(std::bind(&AudioSystem::DecoderThreadMain, this));
 
   return X_STATUS_SUCCESS;
 }
@@ -128,6 +144,7 @@ void AudioSystem::WorkerThreadMain() {
         uint32_t client_callback = clients_[index].callback;
         uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
         lock_.unlock();
+
         if (client_callback) {
           uint64_t args[] = {client_callback_arg};
           processor->Execute(worker_thread_->thread_state(), client_callback,
@@ -154,6 +171,156 @@ void AudioSystem::WorkerThreadMain() {
   // TODO(benvanik): call module API to kill?
 }
 
+void AudioSystem::DecoderThreadMain() {
+  xe::threading::set_name("Audio Decoder");
+  xe::Profiler::ThreadEnter("Audio Decoder");
+
+  while (decoder_running_) {
+    // Wait for the fence
+    // FIXME: This actually does nothing once signaled once
+    decoder_fence_.Wait();
+
+    // Check to see if we're supposed to exit
+    if (!decoder_running_) {
+      break;
+    }
+
+    // Okay, let's loop through XMA contexts to find ones we need to decode!
+    for (uint32_t n = 0; n < kXmaContextCount; n++) {
+      XMAContext& context = xma_context_array_[n];
+      if (!context.lock.try_lock()) {
+        // Someone else has the lock.
+        continue;
+      }
+
+      // Skip unused contexts
+      if (!context.in_use) {
+        context.lock.unlock();
+        continue;
+      }
+
+      uint8_t* ptr = memory()->TranslatePhysical(context.guest_ptr);
+      auto data = XMAContextData(ptr);
+
+      if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
+        // A buffer is valid. Run the decoder!
+
+        // Reset valid flags
+        data.input_buffer_0_valid = 0;
+        data.input_buffer_1_valid = 0;
+        data.output_buffer_valid = 0;
+
+        // Translate pointers for future use.
+        auto in0 = memory()->TranslatePhysical(data.input_buffer_0_ptr);
+        auto in1 = memory()->TranslatePhysical(data.input_buffer_1_ptr);
+        auto out = memory()->TranslatePhysical(data.output_buffer_ptr);
+
+        // I haven't seen this be used yet.
+        assert(!data.input_buffer_1_block_count);
+
+        // What I see:
+        // XMA outputs 2 bytes per sample
+        // 512 samples per frame (128 per subframe)
+        // Max output size is data.output_buffer_block_count * 256
+
+        // This decoder is fed packets (max 4095 per buffer)
+        // Packets contain "some" frames
+        // 32bit header (big endian)
+
+        // Frames are the smallest thing the SPUs can decode.
+        // They usually can span packets (libav handles this)
+
+        // Sample rates (data.sample_rate):
+        // 0 - 24 kHz ?
+        // 1 - 32 kHz
+        // 2 - 44.1 kHz ?
+        // 3 - 48 kHz ?
+
+        // SPUs also support stereo decoding. (data.is_stereo)
+
+        while (true) {
+          // Initial check - see if we've finished with the input
+          // TODO - Probably need to move this, I think it might skip the very
+          // last packet (see the call to PreparePacket)
+          size_t input_size = (data.input_buffer_0_block_count +
+                              data.input_buffer_1_block_count) * 2048;
+          size_t input_offset = (data.input_buffer_read_offset / 8 - 4);
+          size_t input_remaining = input_size - input_offset;
+          if (input_remaining == 0) {
+            // We're finished!
+            break;
+          }
+
+          // Now check the output buffer.
+          size_t output_size = data.output_buffer_block_count * 256;
+          size_t output_offset = data.output_buffer_write_offset * 256;
+          size_t output_remaining = output_size - output_offset;
+          if (output_remaining == 0) {
+            // Can't write any more data. Break.
+            // The game will kick us again with a new output buffer later.
+            break;
+          }
+
+          // This'll copy audio samples into the output buffer.
+          // The samples need to be 2 bytes long!
+          // Copies one frame at a time, so keep calling this until size == 0
+          int read = context.decoder->DecodePacket(out, output_offset,
+                                                   output_remaining);
+          if (read < 0) {
+            XELOGAPU("APU failed to decode packet (returned %.8X)", -read);
+            context.decoder->DiscardPacket();
+
+            // TODO: Set error state
+
+            break;
+          }
+
+          if (read == 0) {
+            // Select sample rate.
+            int sample_rate = 0;
+            if (data.sample_rate == 0) {
+              // TODO: Test this
+              sample_rate = 24000;
+            } else if (data.sample_rate == 1) {
+              sample_rate = 32000;
+            } else if (data.sample_rate == 2) {
+              // TODO: Test this
+              sample_rate = 44100;
+            } else if (data.sample_rate == 3) {
+              // TODO: Test this
+              sample_rate = 48000;
+            }
+
+            // Channels
+            int channels = 1;
+            if (data.is_stereo == 1) {
+              channels = 2;
+            }
+
+            // New packet time.
+            // TODO: Select input buffer 1 if necessary.
+            auto packet = in0 + input_offset;
+            context.decoder->PreparePacket(packet, 2048, sample_rate, channels);
+            input_offset += 2048;
+          }
+
+          output_offset += read;
+
+          // blah copy these back to the context
+          data.input_buffer_read_offset = (input_offset + 4) * 8;
+          data.output_buffer_write_offset = output_offset / 256;
+        }
+
+        data.Store(ptr);
+      }
+
+      context.lock.unlock();
+    }
+  }
+
+  xe::Profiler::ThreadExit();
+}
+
 void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
@@ -162,30 +329,45 @@ void AudioSystem::Shutdown() {
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_->Release();
 
+  decoder_running_ = false;
+  decoder_fence_.Signal();
+
   memory()->SystemHeapFree(registers_.xma_context_array_ptr);
 }
 
 uint32_t AudioSystem::AllocateXmaContext() {
   std::lock_guard<std::mutex> lock(lock_);
-  if (xma_context_free_list_.empty()) {
-    // No contexts available.
-    return 0;
+
+  for (uint32_t n = 0; n < kXmaContextCount; n++) {
+    XMAContext& context = xma_context_array_[n];
+    if (!context.in_use) {
+      context.in_use = true;
+      return context.guest_ptr;
+    }
   }
 
-  auto guest_ptr = xma_context_free_list_.back();
-  xma_context_free_list_.pop_back();
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-
-  return guest_ptr;
+  return 0;
 }
 
 void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
   std::lock_guard<std::mutex> lock(lock_);
 
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-  std::memset(context_ptr, 0, kXmaContextSize);
+  // Find it in the list.
+  for (uint32_t n = 0; n < kXmaContextCount; n++) {
+    XMAContext& context = xma_context_array_[n];
+    if (context.guest_ptr == guest_ptr) {
+      // Found it!
+      // Lock it in case the decoder thread is working on it now
+      context.lock.lock();
 
-  xma_context_free_list_.push_back(guest_ptr);
+      context.in_use = false;
+      auto context_ptr = memory()->TranslateVirtual(guest_ptr);
+      std::memset(context_ptr, 0, kXmaContextSize); // Zero it.
+      context.decoder->DiscardPacket();
+      
+      context.lock.unlock();
+    }
+  }
 }
 
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
@@ -280,42 +462,49 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
   if (r >= 0x1940 && r <= 0x1940 + 9 * 4) {
     // Context kick command.
     // This will kick off the given hardware contexts.
+    // Basically, this kicks the SPU and says "hey, decode that audio!"
+    // XMAEnableContext
+
+    // The context ID is a bit in the range of the entire context array
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
         uint32_t context_id = i + (r - 0x1940) / 4 * 32;
-        XELOGAPU("AudioSystem: kicking context %d", context_id);
-        // Games check bits 20/21 of context[0].
-        // If both bits are set buffer full, otherwise room available.
-        // Right after a kick we always set buffers to invalid so games keep
-        // feeding data.
-        uint32_t guest_ptr =
-            registers_.xma_context_array_ptr + context_id * kXmaContextSize;
-        auto context_ptr = memory()->TranslateVirtual(guest_ptr);
+        XMAContext& context = xma_context_array_[context_id];
+
+        context.lock.lock();
+        auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
 
-        bool has_valid_input = data.input_buffer_0_valid ||
-                               data.input_buffer_1_valid;
-        if (has_valid_input) {
-          // Invalidate the buffers.
-          data.input_buffer_0_valid = 0;
-          data.input_buffer_1_valid = 0;
+        XELOGAPU("AudioSystem: kicking context %d (%d/%d bytes)", context_id,
+                 data.input_buffer_read_offset, data.input_buffer_0_block_count
+                 * XMAContextData::kBytesPerBlock);
 
-          // Set output buffer to invalid.
-          data.output_buffer_valid = false;
-        }
+        // Reset valid flags so our audio decoder knows to process this one
+        data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
+        data.input_buffer_1_valid = data.input_buffer_1_ptr != 0;
+        data.output_buffer_write_offset = 0;
 
         data.Store(context_ptr);
+        context.lock.unlock();
+
+        // Signal the decoder thread
+        decoder_fence_.Signal();
       }
       value >>= 1;
     }
   } else if (r >= 0x1A40 && r <= 0x1A40 + 9 * 4) {
     // Context lock command.
     // This requests a lock by flagging the context.
+    // XMADisableContext
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
         uint32_t context_id = i + (r - 0x1A40) / 4 * 32;
         XELOGAPU("AudioSystem: set context lock %d", context_id);
-        // TODO(benvanik): set lock?
+
+        // TODO: Find the correct way to lock/unlock this.
+        // I thought we could lock it here, unlock it in the kick but that
+        // doesn't seem to work
+        XMAContext& context = xma_context_array_[context_id];
       }
       value >>= 1;
     }
@@ -326,15 +515,11 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
       if (value & 1) {
         uint32_t context_id = i + (r - 0x1A80) / 4 * 32;
         XELOGAPU("AudioSystem: reset context %d", context_id);
+
         // TODO(benvanik): something?
         uint32_t guest_ptr =
             registers_.xma_context_array_ptr + context_id * kXmaContextSize;
         auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-        XMAContextData data(context_ptr);
-
-
-
-        data.Store(context_ptr);
       }
       value >>= 1;
     }
