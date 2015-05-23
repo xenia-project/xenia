@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\apu\apu.cc" />
-    <ClCompile Include="src\xenia\apu\audio_decoder.cpp" />
+    <ClCompile Include="src\xenia\apu\audio_decoder.cc" />
     <ClCompile Include="src\xenia\apu\audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\audio_system.cc" />
     <ClCompile Include="src\xenia\apu\nop\nop_apu.cc" />

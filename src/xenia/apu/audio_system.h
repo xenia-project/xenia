@@ -62,9 +62,9 @@ struct XMAContextData {
   uint32_t loop_subframe_skip : 3;           // +17bit, XMASetLoopData might be subframe_decode_count
   uint32_t subframe_decode_count : 4;        // +20bit might be subframe_skip_count
   uint32_t unk_dword_1_b : 3;                // ? NumSubframesToSkip/NumChannels(?)
-  uint32_t sample_rate : 2;                  // +27bit multiplied by something?
+  uint32_t sample_rate : 2;                  // +27bit enum of sample rates
   uint32_t is_stereo : 1;                    // +29bit might be NumChannels
-  uint32_t unk_dword_1_c : 1;                // ? NumChannels?
+  uint32_t unk_dword_1_c : 1;                // ? part of NumChannels?
   uint32_t output_buffer_valid : 1;          // +31bit, XMAIsOutputBufferValid
 
   // DWORD 2
