@@ -380,11 +380,13 @@ SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
 
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
-  auto heap = state->memory()->LookupHeapByType(true, 16 * 1024);
-  uint32_t unk1_value;
-  heap->Alloc(64, 32, kMemoryAllocationReserve | kMemoryAllocationCommit,
-              kMemoryProtectNoAccess, false, &unk1_value);
-  SHIM_SET_MEM_32(unk1_ptr, unk1_value);
+  if (unk1_ptr) {
+    auto heap = state->memory()->LookupHeapByType(true, 16 * 1024);
+    uint32_t unk1_value;
+    heap->Alloc(64, 32, kMemoryAllocationReserve | kMemoryAllocationCommit,
+                kMemoryProtectNoAccess, false, &unk1_value);
+    SHIM_SET_MEM_32(unk1_ptr, unk1_value);
+  }
 
   // ?
   SHIM_SET_RETURN_64(1);

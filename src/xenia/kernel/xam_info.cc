@@ -84,6 +84,17 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
+SHIM_CALL XamLoaderSetLaunchData_shim(PPCContext* ppc_state,
+                                      KernelState* state) {
+  uint32_t data_ptr = SHIM_GET_ARG_32(0);
+  uint32_t data_size = SHIM_GET_ARG_32(1);
+
+  XELOGD("XamLoaderSetLaunchData(%.8X, %d)", data_ptr, data_size);
+
+  // Unknown return value.
+  SHIM_SET_RETURN_32(0);
+}
+
 SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_state,
                                           KernelState* state) {
   uint32_t size_ptr = SHIM_GET_ARG_32(0);
@@ -205,8 +216,9 @@ void xe::kernel::xam::RegisterInfoExports(
   SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
 
   SHIM_SET_MAPPING("xam.xex", XamVoiceIsActiveProcess, state);
-
   SHIM_SET_MAPPING("xam.xex", XamGetExecutionId, state);
+
+  SHIM_SET_MAPPING("xam.xex", XamLoaderSetLaunchData, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchDataSize, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchData, state);
   SHIM_SET_MAPPING("xam.xex", XamLoaderLaunchTitle, state);

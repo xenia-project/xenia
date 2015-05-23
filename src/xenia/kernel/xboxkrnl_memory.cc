@@ -306,8 +306,6 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
   // and the memory must be allocated there. I haven't seen a game do this,
   // and instead they all do min=0 / max=-1 to indicate the system should pick.
   // If we have to suport arbitrary placement things will get nasty.
-  assert_true(min_addr_range == 0);
-  assert_true(max_addr_range == 0xFFFFFFFF);
 
   uint32_t allocation_type = kMemoryAllocationReserve | kMemoryAllocationCommit;
   uint32_t protect = FromXdkProtectFlags(protect_bits);
