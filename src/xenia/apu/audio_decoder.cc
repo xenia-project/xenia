@@ -22,8 +22,8 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-AudioDecoder::AudioDecoder() : offset_(0) {
-}
+AudioDecoder::AudioDecoder() : offset_(0), codec_(nullptr), context_(nullptr),
+                              decoded_frame_(nullptr), packet_(nullptr) {}
 
 AudioDecoder::~AudioDecoder() {
   if (context_) {
