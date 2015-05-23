@@ -5551,15 +5551,14 @@ EMITTER(SPLAT_I8, MATCH(I<OPCODE_SPLAT, V128<>, I8<>>)) {
     } else {
       if (i.src1.is_constant) {
         e.mov(e.eax, i.src1.constant());
-        e.movd(e.xmm0, e.eax);
+        e.vmovd(e.xmm0, e.eax);
       } else {
-        e.movd(e.xmm0, i.src1.reg().cvt32());
+        e.vmovd(e.xmm0, i.src1.reg().cvt32());
       }
 
-      // Credits: VC++ compiler (i love you so much)
-      e.punpcklbw(e.xmm0, e.xmm0);
-      e.punpcklwd(e.xmm0, e.xmm0);
-      e.pshufd(i.dest, e.xmm0, 0);
+      e.vpunpcklbw(e.xmm0, e.xmm0);
+      e.vpunpcklwd(e.xmm0, e.xmm0);
+      e.vpshufd(i.dest, e.xmm0, 0);
     }
   }
 };
@@ -5578,14 +5577,13 @@ EMITTER(SPLAT_I16, MATCH(I<OPCODE_SPLAT, V128<>, I16<>>)) {
     } else {
       if (i.src1.is_constant) {
         e.mov(e.eax, i.src1.constant());
-        e.movd(e.xmm0, e.eax);
+        e.vmovd(e.xmm0, e.eax);
       } else {
-        e.movd(e.xmm0, i.src1.reg().cvt32());
+        e.vmovd(e.xmm0, i.src1.reg().cvt32());
       }
 
-      // Credits: VC++ compiler (i love you so much)
-      e.punpcklwd(e.xmm0, e.xmm0); // unpack low word data
-      e.pshufd(i.dest, e.xmm0, 0);
+      e.vpunpcklwd(e.xmm0, e.xmm0); // unpack low word data
+      e.vpshufd(i.dest, e.xmm0, 0);
     }
   }
 };
@@ -5609,7 +5607,7 @@ EMITTER(SPLAT_I32, MATCH(I<OPCODE_SPLAT, V128<>, I32<>>)) {
         e.vmovd(e.xmm0, i.src1.reg().cvt32());
       }
 
-      e.pshufd(i.dest, e.xmm0, 0);
+      e.vpshufd(i.dest, e.xmm0, 0);
     }
   }
 };
@@ -5632,7 +5630,7 @@ EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
         e.vmovd(i.dest, i.src1.reg().cvt32());
       }
 
-      e.shufps(i.dest, i.dest, 0);
+      e.vshufps(i.dest, i.dest, i.dest, 0);
     }
   }
 };
