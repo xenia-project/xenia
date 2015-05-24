@@ -15,6 +15,7 @@
 #include <memory>
 #include <mutex>
 
+#include "xenia/base/mutex.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/content_manager.h"
@@ -64,7 +65,7 @@ class KernelState {
   ContentManager* content_manager() const { return content_manager_.get(); }
 
   ObjectTable* object_table() const { return object_table_; }
-  std::recursive_mutex& object_mutex() { return object_mutex_; }
+  xe::recursive_mutex& object_mutex() { return object_mutex_; }
 
   uint32_t process_type() const { return process_type_; }
   void set_process_type(uint32_t value) { process_type_ = value; }
@@ -115,7 +116,7 @@ class KernelState {
   std::unique_ptr<ContentManager> content_manager_;
 
   ObjectTable* object_table_;
-  std::recursive_mutex object_mutex_;
+  xe::recursive_mutex object_mutex_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<XNotifyListener*> notify_listeners_;
   bool has_notified_startup_;

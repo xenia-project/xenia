@@ -224,6 +224,7 @@
     <ClInclude Include="src\xenia\base\mapped_memory.h" />
     <ClInclude Include="src\xenia\base\math.h" />
     <ClInclude Include="src\xenia\base\memory.h" />
+    <ClInclude Include="src\xenia\base\mutex.h" />
     <ClInclude Include="src\xenia\base\platform.h" />
     <ClInclude Include="src\xenia\base\reset_scope.h" />
     <ClInclude Include="src\xenia\base\string.h" />

@@ -404,6 +404,7 @@
     <ClInclude Include="src\xenia\debug\proto\control_generated.h" />
     <ClInclude Include="src\xenia\debug\proto\modules_generated.h" />
     <ClInclude Include="src\xenia\debug\proto\threads_generated.h" />
+    <ClInclude Include="src\xenia\base\mutex.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl" />

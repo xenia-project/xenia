@@ -107,7 +107,7 @@ bool KernelState::IsKernelModule(const char* name) {
     // Executing module isn't a kernel module.
     return false;
   }
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   for (auto kernel_module : kernel_modules_) {
     if (kernel_module->Matches(name)) {
       return true;
@@ -125,7 +125,7 @@ XModule* KernelState::GetModule(const char* name) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   }
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   for (auto kernel_module : kernel_modules_) {
     if (kernel_module->Matches(name)) {
       kernel_module->Retain();
@@ -165,7 +165,7 @@ void KernelState::SetExecutableModule(XUserModule* module) {
 }
 
 void KernelState::LoadKernelModule(XKernelModule* kernel_module) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   kernel_modules_.push_back(kernel_module);
 }
 
@@ -179,7 +179,7 @@ XUserModule* KernelState::LoadUserModule(const char* raw_name) {
 
   XUserModule* module = nullptr;
   {
-    std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+    std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
 
     // See if we've already loaded it
     for (XUserModule* existing_module : user_modules_) {
@@ -221,12 +221,12 @@ XUserModule* KernelState::LoadUserModule(const char* raw_name) {
 }
 
 void KernelState::RegisterThread(XThread* thread) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   threads_by_id_[thread->thread_id()] = thread;
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   auto it = threads_by_id_.find(thread->thread_id());
   if (it != threads_by_id_.end()) {
     threads_by_id_.erase(it);
@@ -234,7 +234,7 @@ void KernelState::UnregisterThread(XThread* thread) {
 }
 
 void KernelState::OnThreadExecute(XThread* thread) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
 
   // Must be called on executing thread.
   assert_true(XThread::GetCurrentThread() == thread);
@@ -257,7 +257,7 @@ void KernelState::OnThreadExecute(XThread* thread) {
 }
 
 void KernelState::OnThreadExit(XThread* thread) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
 
   // Must be called on executing thread.
   assert_true(XThread::GetCurrentThread() == thread);
@@ -280,7 +280,7 @@ void KernelState::OnThreadExit(XThread* thread) {
 }
 
 XThread* KernelState::GetThreadByID(uint32_t thread_id) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   XThread* thread = nullptr;
   auto it = threads_by_id_.find(thread_id);
   if (it != threads_by_id_.end()) {
@@ -292,7 +292,7 @@ XThread* KernelState::GetThreadByID(uint32_t thread_id) {
 }
 
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   notify_listeners_.push_back(listener);
 
   // Games seem to expect a few notifications on startup, only for the first
@@ -316,7 +316,7 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     if (*it == listener) {
@@ -327,7 +327,7 @@ void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
-  std::lock_guard<std::recursive_mutex> lock(object_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     (*it)->EnqueueNotification(id, data);
