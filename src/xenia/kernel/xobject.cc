@@ -172,6 +172,8 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
 
 XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
                             int32_t as_type) {
+  assert_not_null(native_ptr);
+
   // Unfortunately the XDK seems to inline some KeInitialize calls, meaning
   // we never see it and just randomly start getting passed events/timers/etc.
   // Luckily it seems like all other calls (Set/Reset/Wait/etc) are used and
