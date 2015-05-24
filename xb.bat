@@ -278,7 +278,7 @@ SET TEST_SRC=src/xenia/cpu/frontend/test
 SET TEST_SRC_WIN=src\xenia\cpu\frontend\test
 SET TEST_BIN=%TEST_SRC%/bin
 SET TEST_BIN_WIN=%TEST_SRC_WIN%\bin
-IF NOT EXIST %TEST_BIN% (mkdir %TEST_BIN%)
+IF NOT EXIST %TEST_BIN_WIN% (mkdir %TEST_BIN_WIN%)
 
 SET ANY_ERRORS=0
 PUSHD %TEST_SRC_WIN%
