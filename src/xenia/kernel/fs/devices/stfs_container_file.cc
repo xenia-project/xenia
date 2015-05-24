@@ -27,11 +27,9 @@ STFSContainerFile::~STFSContainerFile() { delete entry_; }
 
 const std::string& STFSContainerFile::path() const { return entry_->path(); }
 
-const std::string& STFSContainerFile::absolute_path() const {
-  return entry_->absolute_path();
-}
-
 const std::string& STFSContainerFile::name() const { return entry_->name(); }
+
+Device* STFSContainerFile::device() const { return entry_->device(); }
 
 X_STATUS STFSContainerFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);

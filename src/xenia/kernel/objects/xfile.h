@@ -146,8 +146,9 @@ class XFile : public XObject {
   virtual ~XFile();
 
   virtual const std::string& path() const = 0;
-  virtual const std::string& absolute_path() const = 0;
   virtual const std::string& name() const = 0;
+
+  virtual fs::Device* device() const = 0;
 
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }

@@ -27,11 +27,9 @@ DiscImageFile::~DiscImageFile() { delete entry_; }
 
 const std::string& DiscImageFile::path() const { return entry_->path(); }
 
-const std::string& DiscImageFile::absolute_path() const {
-  return entry_->absolute_path();
-}
-
 const std::string& DiscImageFile::name() const { return entry_->name(); }
+
+Device* DiscImageFile::device() const { return entry_->device(); }
 
 X_STATUS DiscImageFile::QueryInfo(XFileInfo* out_info) {
   return entry_->QueryInfo(out_info);

@@ -11,6 +11,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/kernel/async_request.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/fs/device.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xfile.h"
 #include "xenia/kernel/util/shim_utils.h"
@@ -95,9 +96,10 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     assert_true(XSUCCEEDED(result));
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
-    auto root_path = root_file->absolute_path();
-    auto target_path = xe::join_paths(root_path, object_name);
-    entry = fs->ResolvePath(target_path);
+    // Resolve the file using the device the root directory is part of.
+    auto device = root_file->device();
+    auto target_path = xe::join_paths(root_file->path(), object_name);
+    entry = device->ResolvePath(target_path.c_str());
   } else {
     // Resolve the file using the virtual file system.
     entry = fs->ResolvePath(object_name);
@@ -482,7 +484,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         info = 8;
         // TODO(benvanik): use pointer to fs:: entry?
         SHIM_SET_MEM_64(file_info_ptr,
-                        xe::hash_combine(0, file->absolute_path()));
+                        xe::hash_combine(0, file->path()));
         break;
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {

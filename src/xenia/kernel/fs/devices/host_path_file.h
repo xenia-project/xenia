@@ -27,8 +27,9 @@ class HostPathFile : public XFile {
   ~HostPathFile() override;
 
   const std::string& path() const override;
-  const std::string& absolute_path() const override;
   const std::string& name() const override;
+
+  Device* device() const override;
 
   X_STATUS QueryInfo(XFileInfo* out_info) override;
   X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
