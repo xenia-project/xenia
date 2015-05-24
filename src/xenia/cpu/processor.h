@@ -20,13 +20,8 @@
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/debug/debugger.h"
 #include "xenia/memory.h"
-
-namespace xe {
-namespace debug {
-class Debugger;
-}  // namespace debug
-}  // namespace xe
 
 namespace xe {
 namespace cpu {
@@ -43,11 +38,12 @@ enum class Irql : uint32_t {
 
 class Processor {
  public:
-  Processor(Memory* memory, ExportResolver* export_resolver);
+  Processor(Memory* memory, ExportResolver* export_resolver,
+            debug::Debugger* debugger);
   ~Processor();
 
   Memory* memory() const { return memory_; }
-  debug::Debugger* debugger() const { return debugger_.get(); }
+  debug::Debugger* debugger() const { return debugger_; }
   frontend::PPCFrontend* frontend() const { return frontend_.get(); }
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
@@ -85,10 +81,9 @@ class Processor {
   bool DemandFunction(FunctionInfo* symbol_info, Function** out_function);
 
   Memory* memory_;
+  debug::Debugger* debugger_;
 
   uint32_t debug_info_flags_;
-
-  std::unique_ptr<debug::Debugger> debugger_;
 
   std::unique_ptr<frontend::PPCFrontend> frontend_;
   std::unique_ptr<backend::Backend> backend_;

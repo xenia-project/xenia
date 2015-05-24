@@ -1,0 +1,59 @@
+include "breakpoints.fbs";
+include "common.fbs";
+include "control.fbs";
+
+namespace xe.debug.proto;
+
+enum Foo:byte (bit_flags) {
+  A,
+  B,
+}
+
+struct StructTest {
+  a:short;
+  b:byte;
+  c:Foo;
+}
+
+table TableTest {
+  st:StructTest;
+  iv:[ubyte];
+  name:string (required);
+  id:uint (key);
+}
+
+table AttachRequest {
+  //
+}
+table AttachResponse {
+  // file paths
+  // mmap name
+}
+
+union RequestData {
+  AttachRequest,
+
+  ListBreakpointsRequest,
+  AddBreakpointRequest,
+  UpdateBreakpointRequest,
+  RemoveBreakpointRequest,
+}
+
+table Request {
+  id:uint;
+  request_data:RequestData;
+}
+
+union ResponseData {
+  AttachResponse,
+
+  ListBreakpointsResponse,
+  AddBreakpointResponse,
+  UpdateBreakpointResponse,
+  RemoveBreakpointResponse,
+}
+
+table Response {
+  id:uint;
+  response_data:ResponseData;
+}

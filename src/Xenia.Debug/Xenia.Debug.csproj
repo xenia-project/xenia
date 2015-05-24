@@ -43,10 +43,24 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\third_party\flatbuffers\net\FlatBuffers\ByteBuffer.cs">
+      <Link>Flatbuffers\ByteBuffer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\third_party\flatbuffers\net\FlatBuffers\FlatBufferBuilder.cs">
+      <Link>Flatbuffers\FlatBufferBuilder.cs</Link>
+    </Compile>
+    <Compile Include="..\..\third_party\flatbuffers\net\FlatBuffers\FlatBufferConstants.cs">
+      <Link>Flatbuffers\FlatBufferConstants.cs</Link>
+    </Compile>
+    <Compile Include="..\..\third_party\flatbuffers\net\FlatBuffers\Struct.cs">
+      <Link>Flatbuffers\Struct.cs</Link>
+    </Compile>
+    <Compile Include="..\..\third_party\flatbuffers\net\FlatBuffers\Table.cs">
+      <Link>Flatbuffers\Table.cs</Link>
+    </Compile>
     <Compile Include="Breakpoint.cs" />
     <Compile Include="BreakpointList.cs" />
     <Compile Include="Callstack.cs" />
-    <Compile Include="DebugClient.cs" />
     <Compile Include="Debugger.cs" />
     <Compile Include="Function.cs" />
     <Compile Include="FunctionList.cs" />
@@ -55,9 +69,26 @@
     <Compile Include="Module.cs" />
     <Compile Include="ModuleList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Proto\xe\debug\proto\AddBreakpointRequest.cs" />
+    <Compile Include="Proto\xe\debug\proto\AddBreakpointResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\AttachRequest.cs" />
+    <Compile Include="Proto\xe\debug\proto\AttachResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\Foo.cs" />
+    <Compile Include="Proto\xe\debug\proto\ListBreakpointsRequest.cs" />
+    <Compile Include="Proto\xe\debug\proto\ListBreakpointsResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\RemoveBreakpointRequest.cs" />
+    <Compile Include="Proto\xe\debug\proto\RemoveBreakpointResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\Request.cs" />
+    <Compile Include="Proto\xe\debug\proto\RequestData.cs" />
+    <Compile Include="Proto\xe\debug\proto\Response.cs" />
+    <Compile Include="Proto\xe\debug\proto\ResponseData.cs" />
+    <Compile Include="Proto\xe\debug\proto\StructTest.cs" />
+    <Compile Include="Proto\xe\debug\proto\TableTest.cs" />
     <Compile Include="Thread.cs" />
     <Compile Include="ThreadList.cs" />
     <Compile Include="Utilities\Changeable.cs" />
+    <Compile Include="Utilities\Dispatch.cs" />
+    <Compile Include="Utilities\TaskExtensions.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

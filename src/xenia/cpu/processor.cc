@@ -22,7 +22,6 @@
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
-#include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
 
 // TODO(benvanik): based on compiler support
@@ -70,8 +69,10 @@ class BuiltinModule : public Module {
   std::string name_;
 };
 
-Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
+Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
+                     debug::Debugger* debugger)
     : memory_(memory),
+      debugger_(debugger),
       debug_info_flags_(0),
       builtin_module_(nullptr),
       next_builtin_address_(0xFFFF0000ul),
@@ -92,7 +93,6 @@ Processor::~Processor() {
     modules_.clear();
   }
 
-  debugger_.reset();
   frontend_.reset();
   backend_.reset();
 }
@@ -106,10 +106,6 @@ bool Processor::Setup() {
 
   // Must be initialized by subclass before calling into this.
   assert_not_null(memory_);
-
-  // Create debugger first. Other types hook up to it.
-  debugger_.reset(new xe::debug::Debugger(this));
-  debugger_->StartSession();
 
   std::unique_ptr<Module> builtin_module(new BuiltinModule(this));
   builtin_module_ = builtin_module.get();
@@ -302,7 +298,9 @@ bool Processor::DemandFunction(FunctionInfo* symbol_info,
     symbol_info->set_function(function);
 
     // Before we give the symbol back to the rest, let the debugger know.
-    debugger_->OnFunctionDefined(symbol_info, function);
+    if (debugger_) {
+      debugger_->OnFunctionDefined(symbol_info, function);
+    }
 
     symbol_info->set_status(SymbolInfo::STATUS_DEFINED);
     symbol_status = symbol_info->status();

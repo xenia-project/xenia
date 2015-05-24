@@ -14,12 +14,18 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include "xenia/base/delegate.h"
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/breakpoint.h"
+
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace cpu {
@@ -62,12 +68,13 @@ class BreakpointHitEvent : public DebugEvent {
 
 class Debugger {
  public:
-  Debugger(cpu::Processor* processor);
+  Debugger(Emulator* emulator);
   ~Debugger();
 
-  cpu::Processor* processor() const { return processor_; }
+  Emulator* emulator() const { return emulator_; }
 
   bool StartSession();
+  void PreLaunch();
   void StopSession();
   void FlushSession();
 
@@ -99,7 +106,15 @@ class Debugger {
   Delegate<BreakpointHitEvent> breakpoint_hit;
 
  private:
-  cpu::Processor* processor_;
+  void OnMessage(std::vector<uint8_t> buffer);
+
+  Emulator* emulator_;
+
+  UINT_PTR listen_socket_;
+  std::thread accept_thread_;
+  xe::threading::Fence accept_fence_;
+  UINT_PTR client_socket_;
+  std::thread receive_thread_;
 
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_file_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_trace_file_;

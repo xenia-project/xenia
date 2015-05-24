@@ -1,0 +1,3 @@
+include "common.fbs";
+
+namespace xe.debug.proto;

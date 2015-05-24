@@ -37,6 +37,9 @@ Emulator::Emulator(const std::wstring& command_line)
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
 
+  // Kill the debugger first, so that we don't have it messing with things.
+  debugger_.reset();
+
   // Give the systems time to shutdown before we delete them.
   graphics_system_->Shutdown();
   audio_system_->Shutdown();
@@ -80,9 +83,15 @@ X_STATUS Emulator::Setup() {
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = std::make_unique<xe::cpu::ExportResolver>();
 
+  // Debugger first, as other parts hook into it.
+  debugger_.reset(new debug::Debugger(this));
+
+  // Create debugger first. Other types hook up to it.
+  debugger_->StartSession();
+
   // Initialize the CPU.
-  processor_ =
-      std::make_unique<Processor>(memory_.get(), export_resolver_.get());
+  processor_ = std::make_unique<Processor>(
+      memory_.get(), export_resolver_.get(), debugger_.get());
 
   // Initialize the APU.
   audio_system_ = std::move(xe::apu::Create(this));

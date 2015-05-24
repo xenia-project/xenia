@@ -1,0 +1,22 @@
+// automatically generated, do not modify
+
+namespace xe.debug.proto
+{
+
+using FlatBuffers;
+
+public sealed class ListBreakpointsResponse : Table {
+  public static ListBreakpointsResponse GetRootAsListBreakpointsResponse(ByteBuffer _bb) { return GetRootAsListBreakpointsResponse(_bb, new ListBreakpointsResponse()); }
+  public static ListBreakpointsResponse GetRootAsListBreakpointsResponse(ByteBuffer _bb, ListBreakpointsResponse obj) { return (obj.__init(_bb.GetInt(_bb.Position) + _bb.Position, _bb)); }
+  public ListBreakpointsResponse __init(int _i, ByteBuffer _bb) { bb_pos = _i; bb = _bb; return this; }
+
+
+  public static void StartListBreakpointsResponse(FlatBufferBuilder builder) { builder.StartObject(0); }
+  public static int EndListBreakpointsResponse(FlatBufferBuilder builder) {
+    int o = builder.EndObject();
+    return o;
+  }
+};
+
+
+}

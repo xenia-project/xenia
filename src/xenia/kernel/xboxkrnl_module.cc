@@ -184,6 +184,9 @@ int XboxkrnlModule::LaunchModule(const char* path) {
   // Set as the main module, while running.
   kernel_state_->SetExecutableModule(module);
 
+  // Waits for a debugger client, if desired.
+  emulator()->debugger()->PreLaunch();
+
   // Launch the module.
   // NOTE: this won't return until the module exits.
   result_code = module->Launch(0);

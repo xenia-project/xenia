@@ -195,12 +195,47 @@ REM ============================================================================
 REM xb proto
 REM ============================================================================
 :perform_proto
-SETLOCAL
+SETLOCAL EnableDelayedExpansion
 ECHO Generating proto files...
 
-ECHO.
-ECHO ^> running flatc...
-REM foo
+SET FLATC=build\bin\Debug\flatc.exe
+IF NOT EXIST %FLATC% (
+  SET FLATC=build\bin\Release\flatc.exe
+  IF NOT EXIST %FLATC% (
+    ECHO.
+    ECHO ERROR: flatc not built - build before running this
+    ENDLOCAL & SET _RESULT=1
+    GOTO :eof
+  )
+)
+
+SET FBS_SRCS=src\xenia\debug\proto\
+SET CC_OUT=src\xenia\debug\proto\
+SET CS_OUT=src\Xenia.Debug\Proto\
+
+SET ANY_ERRORS=0
+PUSHD %FBS_SRCS%
+FOR %%G in (*.fbs) DO (
+  ECHO ^> generating %%~nG...
+  POPD
+  SET SRC_FILE=%FBS_SRCS%\%%G
+  CMD /c build\bin\Debug\flatc.exe -c -o %CC_OUT% !SRC_FILE! 2>&1
+  IF !ERRORLEVEL! NEQ 0 (
+    SET ANY_ERRORS=1
+  )
+  CMD /c build\bin\Debug\flatc.exe -n -o %CS_OUT% !SRC_FILE! 2>&1
+  IF !ERRORLEVEL! NEQ 0 (
+    SET ANY_ERRORS=1
+  )
+  PUSHD %TEST_SRC%
+)
+POPD
+IF %ANY_ERRORS% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to build one or more tests
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
 
 ENDLOCAL & SET _RESULT=0
 GOTO :eof
@@ -307,7 +342,7 @@ FOR %%G in (*.s) DO (
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
-  PUSHD %TEST_SRC%
+  PUSHD %TEST_SRC_WIN%
 )
 POPD
 IF %ANY_ERRORS% NEQ 0 (

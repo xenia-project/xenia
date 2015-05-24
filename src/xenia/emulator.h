@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include "xenia/debug/debugger.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
 #include "xenia/ui/main_window.h"
@@ -50,6 +51,8 @@ class Emulator {
 
   Memory* memory() const { return memory_.get(); }
 
+  debug::Debugger* debugger() const { return debugger_.get(); }
+
   cpu::Processor* processor() const { return processor_.get(); }
   apu::AudioSystem* audio_system() const { return audio_system_.get(); }
   gpu::GraphicsSystem* graphics_system() const {
@@ -80,6 +83,8 @@ class Emulator {
   std::unique_ptr<ui::MainWindow> main_window_;
 
   std::unique_ptr<Memory> memory_;
+
+  std::unique_ptr<debug::Debugger> debugger_;
 
   std::unique_ptr<cpu::Processor> processor_;
   std::unique_ptr<apu::AudioSystem> audio_system_;

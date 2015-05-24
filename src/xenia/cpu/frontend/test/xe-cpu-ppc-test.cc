@@ -175,7 +175,7 @@ class TestRunner {
     memory.reset(new Memory());
     memory->Initialize();
 
-    processor.reset(new Processor(memory.get(), nullptr));
+    processor.reset(new Processor(memory.get(), nullptr, nullptr));
     processor->Setup();
   }
 

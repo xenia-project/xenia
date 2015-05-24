@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
 using Xenia.Debug.UI.Views;
+using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug.UI {
   public partial class MainWindow : Form {
@@ -16,14 +17,14 @@ namespace Xenia.Debug.UI {
 
     private BreakpointsPanel breakpointsPanel;
     private CallstackPanel callstackPanel;
-    private List<CodeDocument> codeDocuments = new List<CodeDocument>();
+    private readonly List<CodeDocument> codeDocuments = new List<CodeDocument>();
     private FilesystemPanel filesystemPanel;
     private FunctionsPanel functionsPanel;
     private HeapDocument heapDocument;
-    private List<MemoryDocument> memoryDocuments = new List<MemoryDocument>();
+    private readonly List<MemoryDocument> memoryDocuments = new List<MemoryDocument>();
     private ModulesPanel modulesPanel;
     private ProfilePanel profilePanel;
-    private List<RegistersPanel> registersPanels = new List<RegistersPanel>();
+    private readonly List<RegistersPanel> registersPanels = new List<RegistersPanel>();
     private StatisticsDocument statisticsDocument;
     private ThreadsPanel threadsPanel;
     private TracePanel tracePanel;
@@ -44,7 +45,9 @@ namespace Xenia.Debug.UI {
       Controls.Add(dockPanel);
       Controls.SetChildIndex(dockPanel, 0);
 
-      this.Debugger = new Debugger();
+      Debugger = new Debugger((AsyncTask task) => {
+        BeginInvoke(task);
+      });
 
       breakpointsPanel = new BreakpointsPanel(Debugger);
       callstackPanel = new CallstackPanel(Debugger);
@@ -66,6 +69,28 @@ namespace Xenia.Debug.UI {
       //    new DeserializeDockContent(GetContentFromPersistString);
 
       SetupDefaultLayout();
+
+      Debugger.StateChanged += Debugger_StateChanged;
+      Debugger_StateChanged(this, Debugger.CurrentState);
+
+      Debugger.Attach();
+    }
+
+    private void Debugger_StateChanged(object sender, Debugger.State e) {
+      switch (e) {
+      case Debugger.State.Idle:
+        statusMessageLabel.Text = "Idle";
+        break;
+      case Debugger.State.Attaching:
+        statusMessageLabel.Text = "Attaching";
+        break;
+      case Debugger.State.Attached:
+        statusMessageLabel.Text = "Attached";
+        break;
+      case Debugger.State.Detached:
+        statusMessageLabel.Text = "Detached";
+        break;
+      }
     }
 
     private void SetupDefaultLayout() {

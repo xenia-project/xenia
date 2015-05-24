@@ -1,0 +1,23 @@
+include "common.fbs";
+
+namespace xe.debug.proto;
+
+table ListBreakpointsRequest {
+}
+table ListBreakpointsResponse {
+}
+
+table AddBreakpointRequest {
+}
+table AddBreakpointResponse {
+}
+
+table UpdateBreakpointRequest {
+}
+table UpdateBreakpointResponse {
+}
+
+table RemoveBreakpointRequest {
+}
+table RemoveBreakpointResponse {
+}

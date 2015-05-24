@@ -9,8 +9,8 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GLEW_STATIC=1;GLEW_MX=1;_CRT_NONSTDC_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_UNICODE;UNICODE;WIN32;_WIN64=1;_AMD64=1;MICROPROFILE_MAX_THREADS=256;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\flatbuffers\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GLEW_STATIC=1;GLEW_MX=1;_CRT_NONSTDC_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_UNICODE;UNICODE;WIN32;_WIN64=1;_AMD64=1;MICROPROFILE_MAX_THREADS=128;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>true</TreatWarningAsError>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>

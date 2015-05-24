@@ -382,9 +382,6 @@
     <ClCompile Include="src\xenia\debug\debugger.cc">
       <Filter>src\xenia\debug</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\debug\debug_server.cc">
-      <Filter>src\xenia\debug</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\cpu\compiler\passes\finalization_pass.cc">
       <Filter>src\xenia\cpu\compiler\passes</Filter>
     </ClCompile>
@@ -984,9 +981,6 @@
     <ClInclude Include="src\xenia\debug\debugger.h">
       <Filter>src\xenia\debug</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\debug\debug_server.h">
-      <Filter>src\xenia\debug</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\debug\function_data.h">
       <Filter>src\xenia\debug</Filter>
     </ClInclude>
@@ -1349,6 +1343,11 @@
     </ClInclude>
     <ClInclude Include="src\xenia\apu\audio_decoder.h">
       <Filter>src\xenia\apu</Filter>
+    <ClInclude Include="src\xenia\debug\proto\messages_generated.h">
+      <Filter>src\xenia\debug\proto</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\debug\proto\breakpoints_generated.h">
+      <Filter>src\xenia\debug\proto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1378,6 +1377,9 @@
     </None>
     <None Include="src\xenia\kernel\xboxkrnl_table.inc">
       <Filter>src\xenia\kernel</Filter>
+    </None>
+    <None Include="src\xenia\debug\proto\messages.fbs">
+      <Filter>src\xenia\debug\proto</Filter>
     </None>
   </ItemGroup>
 </Project>

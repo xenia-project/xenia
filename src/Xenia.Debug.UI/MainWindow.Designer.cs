@@ -29,7 +29,7 @@
       this.mainToolStrip = new System.Windows.Forms.ToolStrip();
       this.toolStripButton1 = new System.Windows.Forms.ToolStripButton();
       this.statusStrip = new System.Windows.Forms.StatusStrip();
-      this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
+      this.statusMessageLabel = new System.Windows.Forms.ToolStripStatusLabel();
       this.mainMenuStrip.SuspendLayout();
       this.mainToolStrip.SuspendLayout();
       this.statusStrip.SuspendLayout();
@@ -72,18 +72,18 @@
       // statusStrip
       // 
       this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripStatusLabel1});
+            this.statusMessageLabel});
       this.statusStrip.Location = new System.Drawing.Point(0, 1081);
       this.statusStrip.Name = "statusStrip";
       this.statusStrip.Size = new System.Drawing.Size(1571, 22);
       this.statusStrip.TabIndex = 4;
       this.statusStrip.Text = "statusStrip1";
       // 
-      // toolStripStatusLabel1
+      // statusMessageLabel
       // 
-      this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
-      this.toolStripStatusLabel1.Size = new System.Drawing.Size(118, 17);
-      this.toolStripStatusLabel1.Text = "toolStripStatusLabel1";
+      this.statusMessageLabel.Name = "statusMessageLabel";
+      this.statusMessageLabel.Size = new System.Drawing.Size(118, 17);
+      this.statusMessageLabel.Text = "";
       // 
       // MainWindow
       // 
@@ -115,7 +115,7 @@
     private System.Windows.Forms.ToolStrip mainToolStrip;
     private System.Windows.Forms.ToolStripButton toolStripButton1;
     private System.Windows.Forms.StatusStrip statusStrip;
-    private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
+    private System.Windows.Forms.ToolStripStatusLabel statusMessageLabel;
     private WeifenLuo.WinFormsUI.Docking.DockPanel dockPanel;
   }
 }

@@ -92,7 +92,6 @@
     <ClCompile Include="src\xenia\cpu\thread_state.cc" />
     <ClCompile Include="src\xenia\cpu\xex_module.cc" />
     <ClCompile Include="src\xenia\debug\debugger.cc" />
-    <ClCompile Include="src\xenia\debug\debug_server.cc" />
     <ClCompile Include="src\xenia\emulator.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\blitter.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\circular_buffer.cc" />
@@ -291,9 +290,10 @@
     <ClInclude Include="src\xenia\cpu\xex_module.h" />
     <ClInclude Include="src\xenia\debug\breakpoint.h" />
     <ClInclude Include="src\xenia\debug\debugger.h" />
-    <ClInclude Include="src\xenia\debug\debug_server.h" />
     <ClInclude Include="src\xenia\debug\function_data.h" />
     <ClInclude Include="src\xenia\debug\function_trace_data.h" />
+    <ClInclude Include="src\xenia\debug\proto\breakpoints_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\messages_generated.h" />
     <ClInclude Include="src\xenia\emulator.h" />
     <ClInclude Include="src\xenia\gpu\gl4\blitter.h" />
     <ClInclude Include="src\xenia\gpu\gl4\circular_buffer.h" />
@@ -419,6 +419,7 @@
   <ItemGroup>
     <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl" />
     <None Include="src\xenia\cpu\hir\opcodes.inl" />
+    <None Include="src\xenia\debug\proto\messages.fbs" />
     <None Include="src\xenia\gpu\register_table.inc" />
     <None Include="src\xenia\kernel\util\export_table_post.inc" />
     <None Include="src\xenia\kernel\util\export_table_pre.inc" />
@@ -485,7 +486,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -503,7 +504,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -523,7 +524,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\third_party;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
