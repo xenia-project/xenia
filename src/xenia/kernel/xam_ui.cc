@@ -19,6 +19,11 @@
 namespace xe {
 namespace kernel {
 
+SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_state, KernelState* state) {
+  XELOGD("XamIsUIActive()");
+  SHIM_SET_RETURN_32(0);
+}
+
 // http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
 SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -129,6 +134,7 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_state,
 
 void xe::kernel::xam::RegisterUIExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+  SHIM_SET_MAPPING("xam.xex", XamIsUIActive, state);
   SHIM_SET_MAPPING("xam.xex", XamShowMessageBoxUI, state);
   SHIM_SET_MAPPING("xam.xex", XamShowDirtyDiscErrorUI, state);
 }
