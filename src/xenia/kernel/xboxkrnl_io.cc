@@ -514,23 +514,22 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         }
         break;
       case XFileXctdCompressionInformation:
-        // Read timeout.
-        if (length == 4) {
-          uint32_t magic;
-          size_t bytes_read;
-          result = file->Read(&magic, sizeof(magic), 0, &bytes_read);
-          if (XSUCCEEDED(result)) {
-            if (bytes_read == sizeof(magic)) {
-              info = 4;
-              SHIM_SET_MEM_32(file_info_ptr,
-                              magic == xe::byte_swap(0x0FF512ED));
-            } else {
-              result = X_STATUS_UNSUCCESSFUL;
-            }
+        assert_true(length == 4);
+        /*
+        // This is wrong and puts files into wrong states for games that use XctdDecompression.
+        uint32_t magic;
+        size_t bytes_read;
+        result = file->Read(&magic, sizeof(magic), 0, &bytes_read);
+        if (XSUCCEEDED(result)) {
+          if (bytes_read == sizeof(magic)) {
+            info = 4;
+            SHIM_SET_MEM_32(file_info_ptr, magic == xe::byte_swap(0x0FF512ED) ? 1 : 0);
+          } else {
+            result = X_STATUS_UNSUCCESSFUL;
           }
-        } else {
-          result = X_STATUS_INFO_LENGTH_MISMATCH;
         }
+        */
+        result = X_STATUS_UNSUCCESSFUL;
         break;
       default:
         // Unsupported, for now.
