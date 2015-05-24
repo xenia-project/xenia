@@ -96,7 +96,7 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
     auto root_path = root_file->absolute_path();
-    auto target_path = root_path + object_name;
+    auto target_path = xe::join_paths(root_path, object_name);
     entry = fs->ResolvePath(target_path);
   } else {
     // Resolve the file using the virtual file system.
