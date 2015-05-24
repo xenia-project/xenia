@@ -2573,7 +2573,7 @@ EMITTER(VECTOR_COMPARE_UGT_V128, MATCH(I<OPCODE_VECTOR_COMPARE_UGT, V128<>, V128
     }
     if (i.src2.is_constant) {
       // TODO(benvanik): make this constant.
-      e.LoadConstantXmm(e.xmm1, i.src1.constant());
+      e.LoadConstantXmm(e.xmm1, i.src2.constant());
       e.vpxor(e.xmm1, sign_addr);
     } else {
       e.vpxor(e.xmm1, i.src2, sign_addr);
@@ -2628,7 +2628,7 @@ EMITTER(VECTOR_COMPARE_UGE_V128, MATCH(I<OPCODE_VECTOR_COMPARE_UGE, V128<>, V128
     }
     if (i.src2.is_constant) {
       // TODO(benvanik): make this constant.
-      e.LoadConstantXmm(e.xmm1, i.src1.constant());
+      e.LoadConstantXmm(e.xmm1, i.src2.constant());
       e.vpxor(e.xmm1, sign_addr);
     } else {
       e.vpxor(e.xmm1, i.src2, sign_addr);
