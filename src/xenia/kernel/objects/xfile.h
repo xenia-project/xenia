@@ -84,8 +84,8 @@ class X_FILE_DIRECTORY_INFORMATION {
 };
 static_assert_size(X_FILE_DIRECTORY_INFORMATION, 72);
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287(v=vs.85).aspx
-class XVolumeInfo {
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
+class X_FILE_FS_VOLUME_INFORMATION {
  public:
   // FILE_FS_VOLUME_INFORMATION
   uint64_t creation_time;
@@ -103,7 +103,7 @@ class XVolumeInfo {
     memcpy(dst + 20, this->label, this->label_length);
   }
 };
-static_assert_size(XVolumeInfo, 24);
+static_assert_size(X_FILE_FS_VOLUME_INFORMATION, 24);
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff540282(v=vs.85).aspx
 class XFileSystemSizeInfo {
@@ -158,7 +158,7 @@ class XFile : public XObject {
   virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
   virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
+  virtual X_STATUS QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) = 0;
   virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
                                              size_t length) = 0;
 

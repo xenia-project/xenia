@@ -20,7 +20,7 @@ Device::Device(const std::string& path) : path_(path) {}
 Device::~Device() = default;
 
 // TODO(gibbed): call into HostPathDevice?
-X_STATUS Device::QueryVolume(XVolumeInfo* out_info, size_t length) {
+X_STATUS Device::QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) {
   assert_not_null(out_info);
   const char* name = "test";  // TODO(gibbed): actual value
 

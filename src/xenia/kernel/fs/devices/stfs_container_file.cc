@@ -41,7 +41,7 @@ X_STATUS STFSContainerFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_inf
   return entry_->QueryDirectory(out_info, length, file_name, restart);
 }
 
-X_STATUS STFSContainerFile::QueryVolume(XVolumeInfo* out_info, size_t length) {
+X_STATUS STFSContainerFile::QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) {
   return entry_->device()->QueryVolume(out_info, length);
 }
 

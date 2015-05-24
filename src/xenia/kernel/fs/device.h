@@ -30,7 +30,7 @@ class Device {
 
   virtual std::unique_ptr<Entry> ResolvePath(const char* path) = 0;
 
-  virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length);
+  virtual X_STATUS QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length);
   virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
                                              size_t length);
 
