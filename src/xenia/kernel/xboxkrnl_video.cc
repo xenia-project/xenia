@@ -136,8 +136,8 @@ SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_state,
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   double refresh_rate = ppc_state->f[1];  // 0, 50, 59.9, etc.
-  uint32_t unk3 = SHIM_GET_ARG_32(2);
-  uint32_t unk4 = SHIM_GET_ARG_32(3);
+  uint32_t unk3 = SHIM_GET_ARG_32(3);
+  uint32_t unk4 = SHIM_GET_ARG_32(4);
 
   // TODO(benvanik): something with refresh rate?
   XELOGD("VdSetDisplayModeOverride(%.8X, %.8X, %g, %.8X, %.8X)", unk0, unk1,
@@ -160,6 +160,8 @@ SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_state, KernelState* state) {
   // r4 = function ptr (cleanup callback?)
   // r5 = 0
   // r6/r7 = some binary data in .data
+
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
