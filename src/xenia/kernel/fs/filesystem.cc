@@ -153,34 +153,31 @@ std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
   // Resolve relative paths
   std::string normalized_path(xe::fs::CanonicalizePath(path));
 
-  // If no path (starts with a slash) do it module-relative.
-  // Which for now, we just make game:.
-  if (normalized_path[0] == '\\') {
-    normalized_path = "game:" + normalized_path;
-  }
-
   // Resolve symlinks.
-  // TODO(benvanik): more robust symlink handling - right now we assume simple
-  //     drive path -> device mappings with nothing nested.
-  std::string full_path = normalized_path;
+  std::string device_path;
+  std::string relative_path;
   for (const auto& it : symlinks_) {
     if (xe::find_first_of_case(normalized_path, it.first) == 0) {
-      // Found symlink, fixup by replacing the prefix.
-      full_path = it.second + full_path.substr(it.first.size());
+      // Found symlink!
+      device_path = it.second;
+      relative_path = normalized_path.substr(it.first.size());
       break;
     }
   }
 
+  if (device_path.empty()) {
+    XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
+    return nullptr;
+  }
+
   // Scan all devices.
   for (auto& device : devices_) {
-    if (xe::find_first_of_case(full_path, device->path()) == 0) {
-      // Found! Trim the device prefix off and pass down.
-      auto device_path = full_path.substr(device->path().size());
-      return device->ResolvePath(device_path.c_str());
+    if (strcasecmp(device_path.c_str(), device->path().c_str()) == 0) {
+      return device->ResolvePath(relative_path.c_str());
     }
   }
 
-  XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
+  XELOGE("ResolvePath(%s) failed - device not found (%s)", path.c_str(), device_path.c_str());
   return nullptr;
 }
 
