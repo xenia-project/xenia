@@ -434,6 +434,12 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
         info = 8;
         file->set_position(SHIM_MEM_64(file_info_ptr));
         break;
+      case XFileAllocationInformation:
+      case XFileEndOfFileInformation:
+        assert_true(length == 8);
+        info = 8;
+        XELOGW("NtSetInformationFile ignoring alloc/eof");
+        break;
       default:
         // Unsupported, for now.
         assert_always();
