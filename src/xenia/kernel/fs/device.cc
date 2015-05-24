@@ -19,8 +19,8 @@ Device::Device(const std::string& path) : path_(path) {}
 
 Device::~Device() = default;
 
-// TODO(gibbed): call into HostPathDevice?
-X_STATUS Device::QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) {
+// TODO(gibbed): make virtual + move implementation into HostPathDevice/etc.
+X_STATUS Device::QueryVolumeInfo(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) {
   assert_not_null(out_info);
   const char* name = "test";  // TODO(gibbed): actual value
 
@@ -38,9 +38,8 @@ X_STATUS Device::QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t leng
   return X_STATUS_SUCCESS;
 }
 
-// TODO(gibbed): call into HostPathDevice?
-X_STATUS Device::QueryFileSystemAttributes(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info,
-                                           size_t length) {
+// TODO(gibbed): make virtual + move implementation into HostPathDevice/etc.
+X_STATUS Device::QueryAttributeInfo(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info, size_t length) {
   assert_not_null(out_info);
   const char* name = "test";  // TODO(gibbed): actual value
 
