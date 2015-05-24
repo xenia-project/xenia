@@ -1,8 +1,0 @@
-0000000000000000 t test_cntlzd_1
-0000000000000008 t test_cntlzd_1_constant
-0000000000000014 t test_cntlzd_2
-000000000000001c t test_cntlzd_2_constant
-0000000000000028 t test_cntlzd_3
-0000000000000030 t test_cntlzd_3_constant
-000000000000003c t test_cntlzd_4
-0000000000000044 t test_cntlzd_4_constant

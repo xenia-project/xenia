@@ -1,5 +1,0 @@
-Disassembly of section .text:
-
-0000000000100000 <test_fnabs_1>:
-  100000:       fc 40 09 10     fnabs   f2,f1
-  100004:       4e 80 00 20     blr

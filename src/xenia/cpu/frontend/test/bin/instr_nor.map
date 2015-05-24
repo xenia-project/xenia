@@ -1,4 +1,0 @@
-0000000000000000 t test_nor_cr_1
-0000000000000010 t .nor_cr_1_ne
-0000000000000014 t test_nor_cr_1_constant
-000000000000002c t .nor_cr_1_constant_ne
