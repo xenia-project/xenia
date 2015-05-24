@@ -34,7 +34,7 @@ DiscImageEntry::DiscImageEntry(Device* device, const char* path,
 
 DiscImageEntry::~DiscImageEntry() {}
 
-X_STATUS DiscImageEntry::QueryInfo(XFileInfo* out_info) {
+X_STATUS DiscImageEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   assert_not_null(out_info);
   out_info->creation_time = 0;
   out_info->last_access_time = 0;

@@ -20,7 +20,8 @@ namespace kernel {
 class XAsyncRequest;
 class XEvent;
 
-class XFileInfo {
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff545822.aspx
+class X_FILE_NETWORK_OPEN_INFORMATION {
  public:
   // FILE_NETWORK_OPEN_INFORMATION
   uint64_t creation_time;
@@ -153,7 +154,7 @@ class XFile : public XObject {
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
 
-  virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
+  virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;
   virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;

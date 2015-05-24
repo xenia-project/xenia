@@ -19,7 +19,7 @@ namespace xe {
 namespace kernel {
 class KernelState;
 class XFile;
-class XFileInfo;
+class X_FILE_NETWORK_OPEN_INFORMATION;
 class XFileSystemAttributeInfo;
 class XDirectoryInfo;
 class XVolumeInfo;
@@ -63,7 +63,7 @@ class Entry {
 
   bool is_read_only() const;
 
-  virtual X_STATUS QueryInfo(XFileInfo* out_info) = 0;
+  virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
   virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;
 

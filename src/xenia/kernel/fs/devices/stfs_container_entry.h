@@ -31,7 +31,7 @@ class STFSContainerEntry : public Entry {
   MappedMemory* mmap() const { return mmap_; }
   STFSEntry* stfs_entry() const { return stfs_entry_; }
 
-  X_STATUS QueryInfo(XFileInfo* out_info) override;
+  X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
   X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
                           const char* file_name, bool restart) override;
 

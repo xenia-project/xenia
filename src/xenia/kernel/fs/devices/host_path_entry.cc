@@ -40,7 +40,7 @@ HostPathEntry::~HostPathEntry() {
 
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
-X_STATUS HostPathEntry::QueryInfo(XFileInfo* out_info) {
+X_STATUS HostPathEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   assert_not_null(out_info);
 
   WIN32_FILE_ATTRIBUTE_DATA data;

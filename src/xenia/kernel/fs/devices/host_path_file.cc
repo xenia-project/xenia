@@ -31,7 +31,7 @@ const std::string& HostPathFile::name() const { return entry_->name(); }
 
 Device* HostPathFile::device() const { return entry_->device(); }
 
-X_STATUS HostPathFile::QueryInfo(XFileInfo* out_info) {
+X_STATUS HostPathFile::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   return entry_->QueryInfo(out_info);
 }
 

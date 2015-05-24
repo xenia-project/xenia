@@ -29,7 +29,7 @@ class DiscImageFile : public XFile {
 
   Device* device() const override;
 
-  X_STATUS QueryInfo(XFileInfo* out_info) override;
+  X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
   X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
                           const char* file_name, bool restart) override;
   X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) override;

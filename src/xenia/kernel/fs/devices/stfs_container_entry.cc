@@ -25,7 +25,7 @@ STFSContainerEntry::STFSContainerEntry(Device* device, const char* path,
 
 STFSContainerEntry::~STFSContainerEntry() = default;
 
-X_STATUS STFSContainerEntry::QueryInfo(XFileInfo* out_info) {
+X_STATUS STFSContainerEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   assert_not_null(out_info);
   out_info->creation_time = stfs_entry_->update_timestamp;
   out_info->last_access_time = stfs_entry_->access_timestamp;

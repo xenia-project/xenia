@@ -506,7 +506,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         //   ULONG         Unknown;
         // };
         assert_true(length == 56);
-        XFileInfo file_info;
+        X_FILE_NETWORK_OPEN_INFORMATION file_info;
         result = file->QueryInfo(&file_info);
         if (XSUCCEEDED(result)) {
           info = 56;
@@ -583,7 +583,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
   auto entry = fs->ResolvePath(object_name);
   if (entry) {
     // Found.
-    XFileInfo file_info;
+    X_FILE_NETWORK_OPEN_INFORMATION file_info;
     result = entry->QueryInfo(&file_info);
     if (XSUCCEEDED(result)) {
       file_info.Write(SHIM_MEM_BASE, file_info_ptr);

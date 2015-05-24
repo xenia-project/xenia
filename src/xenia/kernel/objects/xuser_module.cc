@@ -60,7 +60,7 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     // Load the module.
     result = LoadFromMemory(mmap->address(), mmap->length());
   } else {
-    XFileInfo file_info;
+    X_FILE_NETWORK_OPEN_INFORMATION file_info;
     result = fs_entry->QueryInfo(&file_info);
     if (result) {
       if (file) {
