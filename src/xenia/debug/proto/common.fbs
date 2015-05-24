@@ -1,1 +1,5 @@
 namespace xe.debug.proto;
+
+struct XObject {
+  handle:uint;
+}

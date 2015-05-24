@@ -8,9 +8,17 @@ public enum ResponseData : byte
  NONE = 0,
  AttachResponse = 1,
  ListBreakpointsResponse = 2,
- AddBreakpointResponse = 3,
- UpdateBreakpointResponse = 4,
- RemoveBreakpointResponse = 5,
+ AddBreakpointsResponse = 3,
+ UpdateBreakpointsResponse = 4,
+ RemoveBreakpointsResponse = 5,
+ ListModulesResponse = 6,
+ GetModuleResponse = 7,
+ StopResponse = 8,
+ BreakResponse = 9,
+ ContinueResponse = 10,
+ StepResponse = 11,
+ BreakpointEvent = 12,
+ AccessViolationEvent = 13,
 };
 
 

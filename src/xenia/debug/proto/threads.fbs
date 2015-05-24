@@ -1,0 +1,21 @@
+include "common.fbs";
+
+namespace xe.debug.proto;
+
+enum ThreadType:byte {
+  Kernel,
+  User,
+}
+
+table Thread {
+  object:XObject;
+  type:ThreadType;
+
+  // module_id:uint;
+  // creation callstack
+}
+
+table ListThreadsRequest {
+}
+table ListThreadsResponse {
+}

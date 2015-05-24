@@ -17,6 +17,18 @@ namespace Xenia.Debug.UI.Views {
     public ThreadsPanel(Debugger debugger) {
       InitializeComponent();
       this.debugger = debugger;
+
+      debugger.ThreadList.Changed += UpdateThreadList;
+      UpdateThreadList();
+    }
+
+    private void UpdateThreadList() {
+      threadsListView.BeginUpdate();
+      threadsListView.Items.Clear();
+      foreach (Thread thread in debugger.ThreadList) {
+        threadsListView.Items.Add("Thread A");
+      }
+      threadsListView.EndUpdate();
     }
   }
 }

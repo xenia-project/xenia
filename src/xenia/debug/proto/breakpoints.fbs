@@ -2,22 +2,30 @@ include "common.fbs";
 
 namespace xe.debug.proto;
 
+struct Breakpoint {
+  breakpoint_id:uint;
+}
+
 table ListBreakpointsRequest {
 }
 table ListBreakpointsResponse {
+  breakpoints:[Breakpoint];
 }
 
-table AddBreakpointRequest {
+table AddBreakpointsRequest {
+  breakpoints:[Breakpoint];
 }
-table AddBreakpointResponse {
-}
-
-table UpdateBreakpointRequest {
-}
-table UpdateBreakpointResponse {
+table AddBreakpointsResponse {
 }
 
-table RemoveBreakpointRequest {
+table UpdateBreakpointsRequest {
+  breakpoints:[Breakpoint];
 }
-table RemoveBreakpointResponse {
+table UpdateBreakpointsResponse {
+}
+
+table RemoveBreakpointsRequest {
+  breakpoints:[Breakpoint];
+}
+table RemoveBreakpointsResponse {
 }

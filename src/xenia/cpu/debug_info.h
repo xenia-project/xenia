@@ -13,7 +13,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "xenia/debug/function_data.h"
 #include "xenia/debug/function_trace_data.h"
 
 namespace xe {

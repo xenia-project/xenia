@@ -3,10 +3,10 @@
 namespace xe.debug.proto
 {
 
-public enum Foo : sbyte
+public enum ModuleType : sbyte
 {
- A = 1,
- B = 2,
+ Kernel = 0,
+ User = 1,
 };
 
 

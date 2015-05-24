@@ -8,9 +8,15 @@ public enum RequestData : byte
  NONE = 0,
  AttachRequest = 1,
  ListBreakpointsRequest = 2,
- AddBreakpointRequest = 3,
- UpdateBreakpointRequest = 4,
- RemoveBreakpointRequest = 5,
+ AddBreakpointsRequest = 3,
+ UpdateBreakpointsRequest = 4,
+ RemoveBreakpointsRequest = 5,
+ ListModulesRequest = 6,
+ GetModuleRequest = 7,
+ StopRequest = 8,
+ BreakRequest = 9,
+ ContinueRequest = 10,
+ StepRequest = 11,
 };
 
 

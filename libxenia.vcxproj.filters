@@ -1,1385 +1,425 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
-    <Filter Include="src">
-      <UniqueIdentifier>{ac2ed3f3-54e5-4039-a771-dce7f1afb317}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia">
-      <UniqueIdentifier>{95c5da4e-5624-45cb-acd7-f3ea42f7f35f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\apu">
-      <UniqueIdentifier>{b996d1c8-9a7a-4bf0-8c55-786c15a9a615}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\base">
-      <UniqueIdentifier>{c3b64a9c-babd-4ed7-a495-b720522b9572}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu">
-      <UniqueIdentifier>{ea01c27b-70c2-4527-b8c5-e3cc5cfc92e1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\apu\xaudio2">
-      <UniqueIdentifier>{11c993f1-4ff9-4edb-b589-684bd863c173}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\apu\nop">
-      <UniqueIdentifier>{db2ffaf9-4c33-40bd-a6f6-898d1ff1696e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu\compiler">
-      <UniqueIdentifier>{5b320879-0064-4d8e-bb97-f2c4bb9e53f2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu\frontend">
-      <UniqueIdentifier>{22342627-7b86-4d86-b46a-86ad0babe279}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu\hir">
-      <UniqueIdentifier>{9a9b0a2d-3c03-4377-87ee-d4f3d27fbff3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu\backend">
-      <UniqueIdentifier>{39b164c9-8888-40b3-9cc1-cf58e5fdd2f1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu\backend\x64">
-      <UniqueIdentifier>{d208b57a-e9d9-44cd-84be-365a3992806e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\cpu\compiler\passes">
-      <UniqueIdentifier>{1cdd538c-c1a8-4667-9f7c-dc1dcbdd2934}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\debug">
-      <UniqueIdentifier>{531deabc-1284-48f6-87b6-8a4537960b7a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\debug\proto">
-      <UniqueIdentifier>{b3e55480-f727-470f-a1d6-f602e477f6d5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\gpu">
-      <UniqueIdentifier>{7430583f-5bb5-4901-8ca7-a325978d517f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\gpu\gl4">
-      <UniqueIdentifier>{c205c825-d8a3-4c6d-b2c1-730517c4d62d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\hid">
-      <UniqueIdentifier>{786f142c-5cff-4562-8237-b114650fc3bf}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\hid\winkey">
-      <UniqueIdentifier>{2a8239c3-db27-4eda-82d9-2e837c8c5ba6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\hid\xinput">
-      <UniqueIdentifier>{c2844d0d-a762-4887-bfd1-46ec3c51585b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\hid\nop">
-      <UniqueIdentifier>{7621c4d6-7cf6-495e-b4c9-950deba29a01}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\ui">
-      <UniqueIdentifier>{42d47a43-1af4-4e1a-9ed7-afa7f7d18e9f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\ui\win32">
-      <UniqueIdentifier>{268545c9-fbdf-46d2-96f6-35188cec09d6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel">
-      <UniqueIdentifier>{c1ac0db1-2f4b-4376-b1dc-e6355c99b395}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel\apps">
-      <UniqueIdentifier>{4e0349c4-b0bd-4595-9e83-cb3cbe11a172}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel\fs">
-      <UniqueIdentifier>{65927db3-9314-4d02-a392-702b09fca341}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel\objects">
-      <UniqueIdentifier>{bb86c40a-ad91-482e-a7c8-ef0a84280c8d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel\util">
-      <UniqueIdentifier>{447ef539-2dab-4969-a5b0-57c8d6f4c6ec}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel\fs\devices">
-      <UniqueIdentifier>{cceab7bd-2f0a-4a27-a297-2f89170b8f6b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party">
-      <UniqueIdentifier>{9194a1f4-9934-465e-adcb-3ac0e337dfe3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\beaengine">
-      <UniqueIdentifier>{119b6173-c3a2-491b-b1eb-dc9248a7ae50}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\beaengine\include">
-      <UniqueIdentifier>{23815560-d0dc-451d-acad-832ac6c2d634}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\beaengine\include\beaengine">
-      <UniqueIdentifier>{fab30014-dd55-4ae2-b2b0-b5f9955fb90d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\beaengine\beaengineSources">
-      <UniqueIdentifier>{23bf3e93-569a-4432-b265-6bbfccf0e7ca}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\flatbuffers">
-      <UniqueIdentifier>{1e52ba44-1bf6-425d-a2c8-a0744f34d348}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\flatbuffers\include">
-      <UniqueIdentifier>{1775ec47-fb64-43eb-be29-3fc356cbfdca}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\flatbuffers\include\flatbuffers">
-      <UniqueIdentifier>{686bc832-94dd-44af-8f4f-f5e9a1f70341}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\llvm">
-      <UniqueIdentifier>{36203590-1da4-4d59-a270-80dd7f8dc9c5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\llvm\include">
-      <UniqueIdentifier>{e339422e-722c-4a25-9865-bfb382c32a14}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\llvm\include\llvm">
-      <UniqueIdentifier>{0c75741e-deec-4675-a7f3-dea54c449ff9}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\llvm\include\llvm\ADT">
-      <UniqueIdentifier>{c007145f-e965-4fab-b9be-f957a63e1281}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\llvm\include\llvm\Support">
-      <UniqueIdentifier>{1963ff6f-5514-4c96-a66e-35a6e5cef776}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\microprofile">
-      <UniqueIdentifier>{c976eeb2-a3c2-4692-8397-2b503d928123}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\mspack">
-      <UniqueIdentifier>{b9a45887-83a6-444f-94a9-6002a507da50}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\pe">
-      <UniqueIdentifier>{f8917264-c401-4b7f-8df7-08752ae0acad}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\xxhash">
-      <UniqueIdentifier>{818cdefa-9c17-402a-b427-68640bec3d4c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\xbyak">
-      <UniqueIdentifier>{7eec808d-2cd4-4987-9eaf-abde1c86d579}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="third_party\xbyak\xbyak">
-      <UniqueIdentifier>{d1405e1d-d9b0-4d8d-89ce-29d43698c415}</UniqueIdentifier>
-    </Filter>
+    <ClCompile Include="src\xenia\apu\apu.cc" />
+    <ClCompile Include="src\xenia\apu\audio_decoder.cc" />
+    <ClCompile Include="src\xenia\apu\audio_driver.cc" />
+    <ClCompile Include="src\xenia\apu\audio_system.cc" />
+    <ClCompile Include="src\xenia\apu\nop\nop_apu.cc" />
+    <ClCompile Include="src\xenia\apu\nop\nop_audio_system.cc" />
+    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu.cc" />
+    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.cc" />
+    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc" />
+    <ClCompile Include="src\xenia\base\arena.cc" />
+    <ClCompile Include="src\xenia\base\debugging_win.cc" />
+    <ClCompile Include="src\xenia\base\fs.cc" />
+    <ClCompile Include="src\xenia\base\fs_win.cc" />
+    <ClCompile Include="src\xenia\base\logging.cc" />
+    <ClCompile Include="src\xenia\base\mapped_memory_win.cc" />
+    <ClCompile Include="src\xenia\base\math.cc" />
+    <ClCompile Include="src\xenia\base\memory_generic.cc" />
+    <ClCompile Include="src\xenia\base\string.cc" />
+    <ClCompile Include="src\xenia\base\string_buffer.cc" />
+    <ClCompile Include="src\xenia\base\threading_win.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\assembler.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\backend.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_assembler.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_backend.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_emitter.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_function.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_sequences.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.cc" />
+    <ClCompile Include="src\xenia\cpu\backend\x64\x64_tracers.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\compiler.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\compiler_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\constant_propagation_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\context_promotion_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\control_flow_analysis_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\control_flow_simplification_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\data_flow_analysis_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\dead_code_elimination_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\finalization_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\register_allocation_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\simplification_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\validation_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\value_reduction_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\cpu.cc" />
+    <ClCompile Include="src\xenia\cpu\debug_info.cc" />
+    <ClCompile Include="src\xenia\cpu\entry_table.cc" />
+    <ClCompile Include="src\xenia\cpu\export_resolver.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\context_info.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_context.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_disasm.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_altivec.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_alu.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_control.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_fpu.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_memory.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_frontend.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_hir_builder.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_instr.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_scanner.cc" />
+    <ClCompile Include="src\xenia\cpu\frontend\ppc_translator.cc" />
+    <ClCompile Include="src\xenia\cpu\function.cc" />
+    <ClCompile Include="src\xenia\cpu\hir\block.cc" />
+    <ClCompile Include="src\xenia\cpu\hir\hir_builder.cc" />
+    <ClCompile Include="src\xenia\cpu\hir\instr.cc" />
+    <ClCompile Include="src\xenia\cpu\hir\opcodes.cc" />
+    <ClCompile Include="src\xenia\cpu\hir\value.cc" />
+    <ClCompile Include="src\xenia\cpu\instrument.cc" />
+    <ClCompile Include="src\xenia\cpu\mmio_handler.cc" />
+    <ClCompile Include="src\xenia\cpu\mmio_handler_win.cc" />
+    <ClCompile Include="src\xenia\cpu\module.cc" />
+    <ClCompile Include="src\xenia\cpu\processor.cc" />
+    <ClCompile Include="src\xenia\cpu\raw_module.cc" />
+    <ClCompile Include="src\xenia\cpu\symbol_info.cc" />
+    <ClCompile Include="src\xenia\cpu\test_module.cc" />
+    <ClCompile Include="src\xenia\cpu\thread_state.cc" />
+    <ClCompile Include="src\xenia\cpu\xex_module.cc" />
+    <ClCompile Include="src\xenia\debug\debugger.cc" />
+    <ClCompile Include="src\xenia\emulator.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\blitter.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\circular_buffer.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\command_processor.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\draw_batcher.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_gpu.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_graphics_system.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_profiler_display.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_shader.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_shader_translator.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl_context.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\texture_cache.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\wgl_control.cc" />
+    <ClCompile Include="src\xenia\gpu\gpu.cc" />
+    <ClCompile Include="src\xenia\gpu\graphics_system.cc" />
+    <ClCompile Include="src\xenia\gpu\register_file.cc" />
+    <ClCompile Include="src\xenia\gpu\sampler_info.cc" />
+    <ClCompile Include="src\xenia\gpu\shader.cc" />
+    <ClCompile Include="src\xenia\gpu\texture_info.cc" />
+    <ClCompile Include="src\xenia\gpu\ucode_disassembler.cc" />
+    <ClCompile Include="src\xenia\hid\hid.cc" />
+    <ClCompile Include="src\xenia\hid\input_driver.cc" />
+    <ClCompile Include="src\xenia\hid\input_system.cc" />
+    <ClCompile Include="src\xenia\hid\nop\nop_hid.cc" />
+    <ClCompile Include="src\xenia\hid\nop\nop_input_driver.cc" />
+    <ClCompile Include="src\xenia\hid\winkey\winkey_hid.cc" />
+    <ClCompile Include="src\xenia\hid\winkey\winkey_input_driver.cc" />
+    <ClCompile Include="src\xenia\hid\xinput\xinput_hid.cc" />
+    <ClCompile Include="src\xenia\hid\xinput\xinput_input_driver.cc" />
+    <ClCompile Include="src\xenia\kernel\app.cc" />
+    <ClCompile Include="src\xenia\kernel\apps\apps.cc" />
+    <ClCompile Include="src\xenia\kernel\apps\xgi_app.cc" />
+    <ClCompile Include="src\xenia\kernel\apps\xlivebase_app.cc" />
+    <ClCompile Include="src\xenia\kernel\apps\xmp_app.cc" />
+    <ClCompile Include="src\xenia\kernel\async_request.cc" />
+    <ClCompile Include="src\xenia\kernel\content_manager.cc" />
+    <ClCompile Include="src\xenia\kernel\dispatcher.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\device.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_device.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_entry.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_file.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_device.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_entry.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_file.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_device.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_entry.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_file.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\entry.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\filesystem.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\gdfx.cc" />
+    <ClCompile Include="src\xenia\kernel\fs\stfs.cc" />
+    <ClCompile Include="src\xenia\kernel\kernel_state.cc" />
+    <ClCompile Include="src\xenia\kernel\native_list.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xenumerator.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xevent.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xfile.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xkernel_module.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xmodule.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xmutant.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xnotify_listener.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xsemaphore.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xthread.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xtimer.cc" />
+    <ClCompile Include="src\xenia\kernel\objects\xuser_module.cc" />
+    <ClCompile Include="src\xenia\kernel\object_table.cc" />
+    <ClCompile Include="src\xenia\kernel\user_profile.cc" />
+    <ClCompile Include="src\xenia\kernel\util\xex2.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_content.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_info.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_input.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_module.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_msg.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_net.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_notify.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_ui.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_user.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_video.cc" />
+    <ClCompile Include="src\xenia\kernel\xam_voice.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_audio.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_audio_xma.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_debug.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_hal.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_io.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_memory.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_misc.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_module.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_modules.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_ob.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_rtl.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_error.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_strings.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_threading.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_usbcam.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_video.cc" />
+    <ClCompile Include="src\xenia\kernel\xobject.cc" />
+    <ClCompile Include="src\xenia\memory.cc" />
+    <ClCompile Include="src\xenia\profiling.cc" />
+    <ClCompile Include="src\xenia\ui\control.cc" />
+    <ClCompile Include="src\xenia\ui\main_window.cc" />
+    <ClCompile Include="src\xenia\ui\menu_item.cc" />
+    <ClCompile Include="src\xenia\ui\win32\win32_control.cc" />
+    <ClCompile Include="src\xenia\ui\win32\win32_loop.cc" />
+    <ClCompile Include="src\xenia\ui\win32\win32_menu_item.cc" />
+    <ClCompile Include="src\xenia\ui\win32\win32_window.cc" />
+    <ClCompile Include="third_party\beaengine\beaengineSources\BeaEngine.c" />
+    <ClCompile Include="third_party\mspack\lzxd.c" />
+    <ClCompile Include="third_party\xxhash\xxhash.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\xenia\emulator.cc">
-      <Filter>src\xenia</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\memory.cc">
-      <Filter>src\xenia</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\profiling.cc">
-      <Filter>src\xenia</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\apu.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\audio_driver.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\audio_system.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\nop\nop_apu.cc">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\nop\nop_audio_system.cc">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu.cc">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.cc">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\arena.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\cpu.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\debugging_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\fs.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\fs_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\logging.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\mapped_memory_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\math.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\memory_generic.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\string.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\string_buffer.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\threading_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\debug_info.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\entry_table.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\export_resolver.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\function.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\instrument.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\mmio_handler.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\mmio_handler_win.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\module.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\processor.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\raw_module.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\symbol_info.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\test_module.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\thread_state.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\xex_module.cc">
-      <Filter>src\xenia\cpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\assembler.cc">
-      <Filter>src\xenia\cpu\backend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\backend.cc">
-      <Filter>src\xenia\cpu\backend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_assembler.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_backend.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_emitter.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_function.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_sequences.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_tracers.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\compiler.cc">
-      <Filter>src\xenia\cpu\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\compiler_pass.cc">
-      <Filter>src\xenia\cpu\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\constant_propagation_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\control_flow_analysis_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\control_flow_simplification_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\context_promotion_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\data_flow_analysis_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\dead_code_elimination_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\register_allocation_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\simplification_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\value_reduction_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\validation_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_context.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_disasm.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_altivec.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_alu.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_control.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_fpu.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_emit_memory.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_frontend.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_hir_builder.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_instr.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_scanner.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\ppc_translator.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\frontend\context_info.cc">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\hir\block.cc">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\hir\hir_builder.cc">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\hir\instr.cc">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\hir\opcodes.cc">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\hir\value.cc">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\debug\debugger.cc">
-      <Filter>src\xenia\debug</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\compiler\passes\finalization_pass.cc">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gpu.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\graphics_system.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\register_file.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\sampler_info.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\shader.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\texture_info.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\ucode_disassembler.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\blitter.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\circular_buffer.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\command_processor.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\draw_batcher.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl_context.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\texture_cache.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\wgl_control.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_gpu.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_graphics_system.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_profiler_display.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_shader.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_shader_translator.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\hid.cc">
-      <Filter>src\xenia\hid</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\input_system.cc">
-      <Filter>src\xenia\hid</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\input_driver.cc">
-      <Filter>src\xenia\hid</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\nop\nop_hid.cc">
-      <Filter>src\xenia\hid\nop</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\nop\nop_input_driver.cc">
-      <Filter>src\xenia\hid\nop</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\winkey\winkey_hid.cc">
-      <Filter>src\xenia\hid\winkey</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\winkey\winkey_input_driver.cc">
-      <Filter>src\xenia\hid\winkey</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\xinput\xinput_hid.cc">
-      <Filter>src\xenia\hid\xinput</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\xinput\xinput_input_driver.cc">
-      <Filter>src\xenia\hid\xinput</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_control.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_loop.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_menu_item.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_window.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\control.cc">
-      <Filter>src\xenia\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\main_window.cc">
-      <Filter>src\xenia\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\menu_item.cc">
-      <Filter>src\xenia\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\util\xex2.cc">
-      <Filter>src\xenia\kernel\util</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xenumerator.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xevent.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xfile.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xkernel_module.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xmodule.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xmutant.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xnotify_listener.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xsemaphore.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xthread.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xtimer.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\objects\xuser_module.cc">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\apps\apps.cc">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\apps\xgi_app.cc">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\apps\xlivebase_app.cc">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\apps\xmp_app.cc">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\device.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\entry.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\filesystem.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\gdfx.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\stfs.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_device.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_entry.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_file.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_device.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_entry.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_file.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_device.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_entry.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_file.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\app.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\async_request.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\content_manager.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\dispatcher.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\kernel_state.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\native_list.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\object_table.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\user_profile.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_content.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_info.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_input.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_module.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_msg.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_net.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_notify.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_ui.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_user.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_video.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xam_voice.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_audio.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_audio_xma.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_debug.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_hal.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_io.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_memory.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_misc.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_module.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_modules.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_ob.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_rtl.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_strings.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_threading.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_usbcam.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_video.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xobject.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\beaengine\beaengineSources\BeaEngine.c">
-      <Filter>third_party\beaengine\beaengineSources</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\mspack\lzxd.c">
-      <Filter>third_party\mspack</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\xxhash\xxhash.c">
-      <Filter>third_party\xxhash</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\xboxkrnl_error.cc">
-      <Filter>src\xenia\kernel</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\audio_decoder.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\audio_decoder.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
+    <ClInclude Include="src\xenia\apu\apu-private.h" />
+    <ClInclude Include="src\xenia\apu\apu.h" />
+    <ClInclude Include="src\xenia\apu\audio_decoder.h" />
+    <ClInclude Include="src\xenia\apu\audio_driver.h" />
+    <ClInclude Include="src\xenia\apu\audio_system.h" />
+    <ClInclude Include="src\xenia\apu\nop\nop_apu-private.h" />
+    <ClInclude Include="src\xenia\apu\nop\nop_apu.h" />
+    <ClInclude Include="src\xenia\apu\nop\nop_audio_system.h" />
+    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu-private.h" />
+    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu.h" />
+    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.h" />
+    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_system.h" />
+    <ClInclude Include="src\xenia\base\arena.h" />
+    <ClInclude Include="src\xenia\base\assert.h" />
+    <ClInclude Include="src\xenia\base\atomic.h" />
+    <ClInclude Include="src\xenia\base\byte_order.h" />
+    <ClInclude Include="src\xenia\base\debugging.h" />
+    <ClInclude Include="src\xenia\base\delegate.h" />
+    <ClInclude Include="src\xenia\base\fs.h" />
+    <ClInclude Include="src\xenia\base\logging.h" />
+    <ClInclude Include="src\xenia\base\mapped_memory.h" />
+    <ClInclude Include="src\xenia\base\math.h" />
+    <ClInclude Include="src\xenia\base\memory.h" />
+    <ClInclude Include="src\xenia\base\platform.h" />
+    <ClInclude Include="src\xenia\base\reset_scope.h" />
+    <ClInclude Include="src\xenia\base\string.h" />
+    <ClInclude Include="src\xenia\base\string_buffer.h" />
+    <ClInclude Include="src\xenia\base\threading.h" />
+    <ClInclude Include="src\xenia\base\type_pool.h" />
+    <ClInclude Include="src\xenia\base\vec128.h" />
+    <ClInclude Include="src\xenia\cpu\backend\assembler.h" />
+    <ClInclude Include="src\xenia\cpu\backend\backend.h" />
+    <ClInclude Include="src\xenia\cpu\backend\machine_info.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_assembler.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_backend.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_code_cache.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_emitter.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_function.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_sequences.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_tracers.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\compiler.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\compiler_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\compiler_passes.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\constant_propagation_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\context_promotion_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\control_flow_analysis_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\control_flow_simplification_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\data_flow_analysis_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\dead_code_elimination_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\finalization_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\register_allocation_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\simplification_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\validation_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\value_reduction_pass.h" />
+    <ClInclude Include="src\xenia\cpu\cpu-private.h" />
+    <ClInclude Include="src\xenia\cpu\cpu.h" />
+    <ClInclude Include="src\xenia\cpu\debug_info.h" />
+    <ClInclude Include="src\xenia\cpu\entry_table.h" />
+    <ClInclude Include="src\xenia\cpu\export_resolver.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\context_info.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_context.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_disasm.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_emit-private.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_emit.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_frontend.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_hir_builder.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_instr.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_instr_tables.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_scanner.h" />
+    <ClInclude Include="src\xenia\cpu\frontend\ppc_translator.h" />
+    <ClInclude Include="src\xenia\cpu\function.h" />
+    <ClInclude Include="src\xenia\cpu\hir\block.h" />
+    <ClInclude Include="src\xenia\cpu\hir\hir_builder.h" />
+    <ClInclude Include="src\xenia\cpu\hir\instr.h" />
+    <ClInclude Include="src\xenia\cpu\hir\label.h" />
+    <ClInclude Include="src\xenia\cpu\hir\opcodes.h" />
+    <ClInclude Include="src\xenia\cpu\hir\value.h" />
+    <ClInclude Include="src\xenia\cpu\instrument.h" />
+    <ClInclude Include="src\xenia\cpu\mmio_handler.h" />
+    <ClInclude Include="src\xenia\cpu\module.h" />
+    <ClInclude Include="src\xenia\cpu\processor.h" />
+    <ClInclude Include="src\xenia\cpu\raw_module.h" />
+    <ClInclude Include="src\xenia\cpu\symbol_info.h" />
+    <ClInclude Include="src\xenia\cpu\test_module.h" />
+    <ClInclude Include="src\xenia\cpu\thread_state.h" />
+    <ClInclude Include="src\xenia\cpu\xex_module.h" />
+    <ClInclude Include="src\xenia\debug\breakpoint.h" />
+    <ClInclude Include="src\xenia\debug\debugger.h" />
+    <ClInclude Include="src\xenia\debug\function_trace_data.h" />
+    <ClInclude Include="src\xenia\debug\proto\breakpoints_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\messages_generated.h" />
+    <ClInclude Include="src\xenia\emulator.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\blitter.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\circular_buffer.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\command_processor.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\draw_batcher.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu-private.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_graphics_system.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_profiler_display.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_shader.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_shader_translator.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl_context.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\texture_cache.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h" />
+    <ClInclude Include="src\xenia\gpu\gpu-private.h" />
+    <ClInclude Include="src\xenia\gpu\gpu.h" />
+    <ClInclude Include="src\xenia\gpu\graphics_system.h" />
+    <ClInclude Include="src\xenia\gpu\register_file.h" />
+    <ClInclude Include="src\xenia\gpu\sampler_info.h" />
+    <ClInclude Include="src\xenia\gpu\shader.h" />
+    <ClInclude Include="src\xenia\gpu\texture_info.h" />
+    <ClInclude Include="src\xenia\gpu\tracing.h" />
+    <ClInclude Include="src\xenia\gpu\ucode.h" />
+    <ClInclude Include="src\xenia\gpu\ucode_disassembler.h" />
+    <ClInclude Include="src\xenia\gpu\xenos.h" />
+    <ClInclude Include="src\xenia\hid\hid-private.h" />
+    <ClInclude Include="src\xenia\hid\hid.h" />
+    <ClInclude Include="src\xenia\hid\input_driver.h" />
+    <ClInclude Include="src\xenia\hid\input_system.h" />
+    <ClInclude Include="src\xenia\hid\nop\nop_hid-private.h" />
+    <ClInclude Include="src\xenia\hid\nop\nop_hid.h" />
+    <ClInclude Include="src\xenia\hid\nop\nop_input_driver.h" />
+    <ClInclude Include="src\xenia\hid\winkey\winkey_hid-private.h" />
+    <ClInclude Include="src\xenia\hid\winkey\winkey_hid.h" />
+    <ClInclude Include="src\xenia\hid\winkey\winkey_input_driver.h" />
+    <ClInclude Include="src\xenia\hid\xinput\xinput_hid-private.h" />
+    <ClInclude Include="src\xenia\hid\xinput\xinput_hid.h" />
+    <ClInclude Include="src\xenia\hid\xinput\xinput_input_driver.h" />
+    <ClInclude Include="src\xenia\kernel\app.h" />
+    <ClInclude Include="src\xenia\kernel\apps\apps.h" />
+    <ClInclude Include="src\xenia\kernel\apps\xgi_app.h" />
+    <ClInclude Include="src\xenia\kernel\apps\xlivebase_app.h" />
+    <ClInclude Include="src\xenia\kernel\apps\xmp_app.h" />
+    <ClInclude Include="src\xenia\kernel\async_request.h" />
+    <ClInclude Include="src\xenia\kernel\content_manager.h" />
+    <ClInclude Include="src\xenia\kernel\dispatcher.h" />
+    <ClInclude Include="src\xenia\kernel\fs\device.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_device.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_entry.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_file.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_device.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_entry.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_file.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_device.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_entry.h" />
+    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_file.h" />
+    <ClInclude Include="src\xenia\kernel\fs\entry.h" />
+    <ClInclude Include="src\xenia\kernel\fs\filesystem.h" />
+    <ClInclude Include="src\xenia\kernel\fs\gdfx.h" />
+    <ClInclude Include="src\xenia\kernel\fs\stfs.h" />
+    <ClInclude Include="src\xenia\kernel\kernel.h" />
+    <ClInclude Include="src\xenia\kernel\kernel_state.h" />
+    <ClInclude Include="src\xenia\kernel\modules.h" />
+    <ClInclude Include="src\xenia\kernel\native_list.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xenumerator.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xevent.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xfile.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xkernel_module.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xmodule.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xmutant.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xnotify_listener.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xsemaphore.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xthread.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xtimer.h" />
+    <ClInclude Include="src\xenia\kernel\objects\xuser_module.h" />
+    <ClInclude Include="src\xenia\kernel\object_table.h" />
+    <ClInclude Include="src\xenia\kernel\user_profile.h" />
+    <ClInclude Include="src\xenia\kernel\util\shim_utils.h" />
+    <ClInclude Include="src\xenia\kernel\util\xex2.h" />
+    <ClInclude Include="src\xenia\kernel\util\xex2_info.h" />
+    <ClInclude Include="src\xenia\kernel\xam_module.h" />
+    <ClInclude Include="src\xenia\kernel\xam_ordinals.h" />
+    <ClInclude Include="src\xenia\kernel\xam_private.h" />
+    <ClInclude Include="src\xenia\kernel\xboxkrnl_module.h" />
+    <ClInclude Include="src\xenia\kernel\xboxkrnl_ordinals.h" />
+    <ClInclude Include="src\xenia\kernel\xboxkrnl_private.h" />
+    <ClInclude Include="src\xenia\kernel\xboxkrnl_rtl.h" />
+    <ClInclude Include="src\xenia\kernel\xboxkrnl_error.h" />
+    <ClInclude Include="src\xenia\kernel\xobject.h" />
+    <ClInclude Include="src\xenia\memory.h" />
+    <ClInclude Include="src\xenia\profiling.h" />
+    <ClInclude Include="src\xenia\ui\control.h" />
+    <ClInclude Include="src\xenia\ui\loop.h" />
+    <ClInclude Include="src\xenia\ui\main_window.h" />
+    <ClInclude Include="src\xenia\ui\menu_item.h" />
+    <ClInclude Include="src\xenia\ui\ui_event.h" />
+    <ClInclude Include="src\xenia\ui\win32\win32_control.h" />
+    <ClInclude Include="src\xenia\ui\win32\win32_loop.h" />
+    <ClInclude Include="src\xenia\ui\win32\win32_menu_item.h" />
+    <ClInclude Include="src\xenia\ui\win32\win32_window.h" />
+    <ClInclude Include="src\xenia\ui\window.h" />
+    <ClInclude Include="src\xenia\xbox.h" />
+    <ClInclude Include="third_party\beaengine\include\beaengine\basic_types.h" />
+    <ClInclude Include="third_party\beaengine\include\beaengine\BeaEngine.h" />
+    <ClInclude Include="third_party\beaengine\include\beaengine\export.h" />
+    <ClInclude Include="third_party\beaengine\include\beaengine\macros.h" />
+    <ClInclude Include="third_party\flatbuffers\include\flatbuffers\flatbuffers.h" />
+    <ClInclude Include="third_party\llvm\include\llvm\ADT\BitVector.h" />
+    <ClInclude Include="third_party\llvm\include\llvm\Support\Compiler.h" />
+    <ClInclude Include="third_party\llvm\include\llvm\Support\MathExtras.h" />
+    <ClInclude Include="third_party\llvm\include\llvm\Support\type_traits.h" />
+    <ClInclude Include="third_party\microprofile\microprofile.h" />
+    <ClInclude Include="third_party\microprofile\microprofileui.h" />
+    <ClInclude Include="third_party\mspack\lzx.h" />
+    <ClInclude Include="third_party\mspack\mspack.h" />
+    <ClInclude Include="third_party\pe\pe_image.h" />
+    <ClInclude Include="third_party\xbyak\xbyak\xbyak.h" />
+    <ClInclude Include="third_party\xbyak\xbyak\xbyak_bin2hex.h" />
+    <ClInclude Include="third_party\xbyak\xbyak\xbyak_mnemonic.h" />
+    <ClInclude Include="third_party\xbyak\xbyak\xbyak_util.h" />
+    <ClInclude Include="third_party\xxhash\xxhash.h" />
+    <ClInclude Include="src\xenia\debug\proto\common_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\control_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\modules_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\threads_generated.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\xenia\emulator.h">
-      <Filter>src\xenia</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\profiling.h">
-      <Filter>src\xenia</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\xbox.h">
-      <Filter>src\xenia</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\memory.h">
-      <Filter>src\xenia</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\apu.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\apu-private.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\audio_driver.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\audio_system.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\nop\nop_apu.h">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\nop\nop_apu-private.h">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\nop\nop_audio_system.h">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_system.h">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu.h">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu-private.h">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.h">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\arena.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\assert.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\atomic.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\byte_order.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\cpu.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\cpu-private.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\debugging.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\delegate.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\fs.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\logging.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\mapped_memory.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\math.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\memory.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\platform.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\reset_scope.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\string.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\string_buffer.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\threading.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\type_pool.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\vec128.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\debug_info.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\entry_table.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\export_resolver.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\function.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\instrument.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\mmio_handler.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\module.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\processor.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\raw_module.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\symbol_info.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\test_module.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\thread_state.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\xex_module.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\assembler.h">
-      <Filter>src\xenia\cpu\backend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\backend.h">
-      <Filter>src\xenia\cpu\backend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\machine_info.h">
-      <Filter>src\xenia\cpu\backend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_assembler.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_backend.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_code_cache.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_emitter.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_function.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_sequences.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_tracers.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\compiler.h">
-      <Filter>src\xenia\cpu\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\compiler_pass.h">
-      <Filter>src\xenia\cpu\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\compiler_passes.h">
-      <Filter>src\xenia\cpu\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\constant_propagation_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\control_flow_analysis_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\control_flow_simplification_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\context_promotion_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\data_flow_analysis_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\dead_code_elimination_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\register_allocation_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\simplification_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\value_reduction_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\validation_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_translator.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_context.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_disasm.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_emit.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_emit-private.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_frontend.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_hir_builder.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_instr.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_instr_tables.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\ppc_scanner.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\frontend\context_info.h">
-      <Filter>src\xenia\cpu\frontend</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\hir\block.h">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\hir\hir_builder.h">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\hir\instr.h">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\hir\label.h">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\hir\opcodes.h">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\hir\value.h">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\debug\breakpoint.h">
-      <Filter>src\xenia\debug</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\debug\debugger.h">
-      <Filter>src\xenia\debug</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\debug\function_data.h">
-      <Filter>src\xenia\debug</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\debug\function_trace_data.h">
-      <Filter>src\xenia\debug</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\compiler\passes\finalization_pass.h">
-      <Filter>src\xenia\cpu\compiler\passes</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gpu.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gpu-private.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\graphics_system.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\register_file.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\sampler_info.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\shader.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\texture_info.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\tracing.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\ucode.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\ucode_disassembler.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\xenos.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\blitter.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\circular_buffer.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\command_processor.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\draw_batcher.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl_context.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\texture_cache.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu-private.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_graphics_system.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_profiler_display.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_shader.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_shader_translator.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\hid.h">
-      <Filter>src\xenia\hid</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\hid-private.h">
-      <Filter>src\xenia\hid</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\input_driver.h">
-      <Filter>src\xenia\hid</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\input_system.h">
-      <Filter>src\xenia\hid</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\nop\nop_hid.h">
-      <Filter>src\xenia\hid\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\nop\nop_hid-private.h">
-      <Filter>src\xenia\hid\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\nop\nop_input_driver.h">
-      <Filter>src\xenia\hid\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\winkey\winkey_input_driver.h">
-      <Filter>src\xenia\hid\winkey</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\winkey\winkey_hid.h">
-      <Filter>src\xenia\hid\winkey</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\winkey\winkey_hid-private.h">
-      <Filter>src\xenia\hid\winkey</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\xinput\xinput_hid.h">
-      <Filter>src\xenia\hid\xinput</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\xinput\xinput_hid-private.h">
-      <Filter>src\xenia\hid\xinput</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\xinput\xinput_input_driver.h">
-      <Filter>src\xenia\hid\xinput</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_window.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_control.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_loop.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_menu_item.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\control.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\loop.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\main_window.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\menu_item.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\window.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\ui_event.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\util\shim_utils.h">
-      <Filter>src\xenia\kernel\util</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\util\xex2.h">
-      <Filter>src\xenia\kernel\util</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\util\xex2_info.h">
-      <Filter>src\xenia\kernel\util</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xenumerator.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xevent.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xfile.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xkernel_module.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xmodule.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xmutant.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xnotify_listener.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xsemaphore.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xtimer.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xthread.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\objects\xuser_module.h">
-      <Filter>src\xenia\kernel\objects</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\apps\apps.h">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\apps\xgi_app.h">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\apps\xlivebase_app.h">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\apps\xmp_app.h">
-      <Filter>src\xenia\kernel\apps</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\device.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\entry.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\filesystem.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\gdfx.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\stfs.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_device.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_entry.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_file.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_device.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_entry.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_file.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_device.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_entry.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_file.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\app.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\async_request.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\content_manager.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\dispatcher.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\kernel.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\kernel_state.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\modules.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\native_list.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\object_table.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\user_profile.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xam_module.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xam_ordinals.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xam_private.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xobject.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_module.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_ordinals.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_private.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_rtl.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\beaengine\include\beaengine\basic_types.h">
-      <Filter>third_party\beaengine\include\beaengine</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\beaengine\include\beaengine\BeaEngine.h">
-      <Filter>third_party\beaengine\include\beaengine</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\beaengine\include\beaengine\export.h">
-      <Filter>third_party\beaengine\include\beaengine</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\beaengine\include\beaengine\macros.h">
-      <Filter>third_party\beaengine\include\beaengine</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\flatbuffers\include\flatbuffers\flatbuffers.h">
-      <Filter>third_party\flatbuffers\include\flatbuffers</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\llvm\include\llvm\ADT\BitVector.h">
-      <Filter>third_party\llvm\include\llvm\ADT</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\llvm\include\llvm\Support\MathExtras.h">
-      <Filter>third_party\llvm\include\llvm\Support</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\llvm\include\llvm\Support\type_traits.h">
-      <Filter>third_party\llvm\include\llvm\Support</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\llvm\include\llvm\Support\Compiler.h">
-      <Filter>third_party\llvm\include\llvm\Support</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\microprofile\microprofileui.h">
-      <Filter>third_party\microprofile</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\microprofile\microprofile.h">
-      <Filter>third_party\microprofile</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\mspack\mspack.h">
-      <Filter>third_party\mspack</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\mspack\lzx.h">
-      <Filter>third_party\mspack</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\pe\pe_image.h">
-      <Filter>third_party\pe</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\xxhash\xxhash.h">
-      <Filter>third_party\xxhash</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\xbyak\xbyak\xbyak_bin2hex.h">
-      <Filter>third_party\xbyak\xbyak</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\xbyak\xbyak\xbyak_mnemonic.h">
-      <Filter>third_party\xbyak\xbyak</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\xbyak\xbyak\xbyak_util.h">
-      <Filter>third_party\xbyak\xbyak</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\xbyak\xbyak\xbyak.h">
-      <Filter>third_party\xbyak\xbyak</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_error.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\audio_decoder.h">
-      <Filter>src\xenia\apu</Filter>
-    <ClInclude Include="src\xenia\debug\proto\messages_generated.h">
-      <Filter>src\xenia\debug\proto</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\debug\proto\breakpoints_generated.h">
-      <Filter>src\xenia\debug\proto</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </None>
-    <None Include="src\xenia\cpu\hir\opcodes.inl">
-      <Filter>src\xenia\cpu\hir</Filter>
-    </None>
-    <None Include="src\xenia\gpu\register_table.inc">
-      <Filter>src\xenia\gpu</Filter>
-    </None>
-    <None Include="src\xenia\kernel\util\export_table_post.inc">
-      <Filter>src\xenia\kernel\util</Filter>
-    </None>
-    <None Include="src\xenia\kernel\util\export_table_pre.inc">
-      <Filter>src\xenia\kernel\util</Filter>
-    </None>
-    <None Include="src\xenia\kernel\util\ordinal_table_pre.inc">
-      <Filter>src\xenia\kernel\util</Filter>
-    </None>
-    <None Include="src\xenia\kernel\util\ordinal_table_post.inc">
-      <Filter>src\xenia\kernel\util</Filter>
-    </None>
-    <None Include="src\xenia\kernel\xam_table.inc">
-      <Filter>src\xenia\kernel</Filter>
-    </None>
-    <None Include="src\xenia\kernel\xboxkrnl_table.inc">
-      <Filter>src\xenia\kernel</Filter>
-    </None>
-    <None Include="src\xenia\debug\proto\messages.fbs">
-      <Filter>src\xenia\debug\proto</Filter>
-    </None>
+    <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl" />
+    <None Include="src\xenia\cpu\hir\opcodes.inl" />
+    <None Include="src\xenia\debug\proto\messages.fbs" />
+    <None Include="src\xenia\gpu\register_table.inc" />
+    <None Include="src\xenia\kernel\util\export_table_post.inc" />
+    <None Include="src\xenia\kernel\util\export_table_pre.inc" />
+    <None Include="src\xenia\kernel\util\ordinal_table_post.inc" />
+    <None Include="src\xenia\kernel\util\ordinal_table_pre.inc" />
+    <None Include="src\xenia\kernel\xam_table.inc" />
+    <None Include="src\xenia\kernel\xboxkrnl_table.inc" />
+    <None Include="src\xenia\debug\proto\breakpoints.fbs" />
+    <None Include="src\xenia\debug\proto\common.fbs" />
+    <None Include="src\xenia\debug\proto\control.fbs" />
+    <None Include="src\xenia\debug\proto\modules.fbs" />
+    <None Include="src\xenia\debug\proto\threads.fbs" />
   </ItemGroup>
 </Project>

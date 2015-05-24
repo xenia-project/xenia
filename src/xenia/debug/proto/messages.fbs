@@ -1,26 +1,10 @@
 include "breakpoints.fbs";
 include "common.fbs";
 include "control.fbs";
+include "modules.fbs";
+include "threads.fbs";
 
 namespace xe.debug.proto;
-
-enum Foo:byte (bit_flags) {
-  A,
-  B,
-}
-
-struct StructTest {
-  a:short;
-  b:byte;
-  c:Foo;
-}
-
-table TableTest {
-  st:StructTest;
-  iv:[ubyte];
-  name:string (required);
-  id:uint (key);
-}
 
 table AttachRequest {
   //
@@ -35,9 +19,17 @@ union RequestData {
   AttachRequest,
 
   ListBreakpointsRequest,
-  AddBreakpointRequest,
-  UpdateBreakpointRequest,
-  RemoveBreakpointRequest,
+  AddBreakpointsRequest,
+  UpdateBreakpointsRequest,
+  RemoveBreakpointsRequest,
+
+  ListModulesRequest,
+  GetModuleRequest,
+
+  StopRequest,
+  BreakRequest,
+  ContinueRequest,
+  StepRequest,
 }
 
 table Request {
@@ -49,9 +41,20 @@ union ResponseData {
   AttachResponse,
 
   ListBreakpointsResponse,
-  AddBreakpointResponse,
-  UpdateBreakpointResponse,
-  RemoveBreakpointResponse,
+  AddBreakpointsResponse,
+  UpdateBreakpointsResponse,
+  RemoveBreakpointsResponse,
+  
+  ListModulesResponse,
+  GetModuleResponse,
+
+  StopResponse,
+  BreakResponse,
+  ContinueResponse,
+  StepResponse,
+
+  BreakpointEvent,
+  AccessViolationEvent,
 }
 
 table Response {

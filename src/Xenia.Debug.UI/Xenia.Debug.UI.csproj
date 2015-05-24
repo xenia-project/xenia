@@ -160,7 +160,26 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
     </Compile>
+    <EmbeddedResource Include="Views\BreakpointsPanel.resx">
+      <DependentUpon>BreakpointsPanel.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\CallstackPanel.resx">
+      <DependentUpon>CallstackPanel.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\CodeDocument.resx">
+      <DependentUpon>CodeDocument.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\FunctionsPanel.resx">
+      <DependentUpon>FunctionsPanel.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\ModulesPanel.resx">
+      <DependentUpon>ModulesPanel.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\ThreadsPanel.resx">
+      <DependentUpon>ThreadsPanel.cs</DependentUpon>
+    </EmbeddedResource>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -183,6 +202,14 @@
       <Project>{58348c66-1b0d-497c-b51a-28e99df1ef74}</Project>
       <Name>Xenia.Debug</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\pause.png" />
+    <Content Include="Resources\play.png" />
+    <Content Include="Resources\step_in.bmp" />
+    <Content Include="Resources\step_out.bmp" />
+    <Content Include="Resources\step_over.bmp" />
+    <Content Include="Resources\stop.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

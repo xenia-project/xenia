@@ -17,6 +17,18 @@ namespace Xenia.Debug.UI.Views {
     public BreakpointsPanel(Debugger debugger) {
       InitializeComponent();
       this.debugger = debugger;
+
+      debugger.BreakpointList.Changed += UpdateBreakpointsList;
+      UpdateBreakpointsList();
+    }
+
+    private void UpdateBreakpointsList() {
+      breakpointsListView.BeginUpdate();
+      breakpointsListView.Items.Clear();
+      foreach (Breakpoint breakpoint in debugger.BreakpointList) {
+        breakpointsListView.Items.Add("Breakpoint A");
+      }
+      breakpointsListView.EndUpdate();
     }
   }
 }

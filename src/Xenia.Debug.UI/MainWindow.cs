@@ -70,13 +70,19 @@ namespace Xenia.Debug.UI {
 
       SetupDefaultLayout();
 
+      // For hotkeys.
+      KeyPreview = true;
+
       Debugger.StateChanged += Debugger_StateChanged;
       Debugger_StateChanged(this, Debugger.CurrentState);
+      Debugger.CurrentContext.Changed += CurrentContext_Changed;
+      CurrentContext_Changed();
 
       Debugger.Attach();
     }
 
     private void Debugger_StateChanged(object sender, Debugger.State e) {
+      bool enabled = false;
       switch (e) {
       case Debugger.State.Idle:
         statusMessageLabel.Text = "Idle";
@@ -86,11 +92,36 @@ namespace Xenia.Debug.UI {
         break;
       case Debugger.State.Attached:
         statusMessageLabel.Text = "Attached";
+        enabled = true;
         break;
       case Debugger.State.Detached:
         statusMessageLabel.Text = "Detached";
         break;
       }
+
+      controlToolStrip.Enabled = enabled;
+    }
+
+    private void CurrentContext_Changed() {
+      bool enabled = false;
+      switch (Debugger.CurrentContext.RunState) {
+      case RunState.Updating:
+        enabled = false;
+        break;
+      case RunState.Running:
+        enabled = false;
+        break;
+      case RunState.Paused:
+        enabled = true;
+        break;
+      }
+      breakToolStripButton.Enabled = !enabled;
+      continueToolStripButton.Enabled = enabled;
+      stepInToolStripButton.Enabled = enabled;
+      stepOverToolStripButton.Enabled = enabled;
+      stepOutToolStripButton.Enabled = enabled;
+
+      // TODO(benvanik): set thread info/etc.
     }
 
     private void SetupDefaultLayout() {
@@ -124,6 +155,54 @@ namespace Xenia.Debug.UI {
       statisticsDocument.Show(tracePanel.Pane, tracePanel);
 
       dockPanel.ResumeLayout(true, true);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
+      //if (keyData == (Keys.Control | Keys.F)) {
+      //  MessageBox.Show("What the Ctrl+F?");
+      //  return true;
+      //}
+      if (keyData == Keys.F11) {
+        stepInToolStripButton_Click(this, EventArgs.Empty);
+        return true;
+      } else if (keyData == Keys.F10) {
+        stepOverToolStripButton_Click(this, EventArgs.Empty);
+        return true;
+      } else if (keyData == (Keys.Shift | Keys.F11)) {
+        stepOutToolStripButton_Click(this, EventArgs.Empty);
+        return true;
+      } else if (keyData == (Keys.Pause)) {
+        breakToolStripButton_Click(this, EventArgs.Empty);
+        return true;
+      } else if (keyData == (Keys.Shift | Keys.F5)) {
+        stopToolStripButton_Click(this, EventArgs.Empty);
+        return true;
+      }
+      return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private void continueToolStripButton_Click(object sender, EventArgs e) {
+      Debugger.Continue();
+    }
+
+    private void breakToolStripButton_Click(object sender, EventArgs e) {
+      Debugger.Break();
+    }
+
+    private void stopToolStripButton_Click(object sender, EventArgs e) {
+      Debugger.Stop();
+    }
+
+    private void stepInToolStripButton_Click(object sender, EventArgs e) {
+      Debugger.StepIn();
+    }
+
+    private void stepOverToolStripButton_Click(object sender, EventArgs e) {
+      Debugger.StepOver();
+    }
+
+    private void stepOutToolStripButton_Click(object sender, EventArgs e) {
+      Debugger.StepOut();
     }
   }
 }

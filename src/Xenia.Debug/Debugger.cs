@@ -35,16 +35,13 @@ namespace Xenia.Debug {
     private uint nextRequestId = 1;
 
     private FileMappingHandle memoryHandle;
-    public IntPtr Membase {
-      get;
-    }
 
     public unsafe byte* TranslateVirtual(uint address) {
-      return (byte*)Membase.ToPointer() + address;
+      return (byte*)Memory.VirtualMembase.ToPointer() + address;
     }
 
     public unsafe byte* TranslatePhysical(uint address) {
-      return (byte*)Membase.ToPointer() + 0xFFFFFFFF + address;
+      return (byte*)Memory.PhysicalMembase.ToPointer() + 0xFFFFFFFF + address;
     }
 
     public event EventHandler<State> StateChanged;
@@ -54,30 +51,22 @@ namespace Xenia.Debug {
     }
     = State.Idle;
 
-    public BreakpointList BreakpointList {
-      get;
-    }
-    public FunctionList FunctionList {
-      get;
-    }
-    public Memory Memory {
-      get;
-    }
-    public ModuleList ModuleList {
-      get;
-    }
-    public ThreadList ThreadList {
-      get;
-    }
+    public readonly Context CurrentContext;
+
+    public readonly BreakpointList BreakpointList;
+    public readonly Memory Memory;
+    public readonly ModuleList ModuleList;
+    public readonly ThreadList ThreadList;
 
     public Debugger(AsyncTaskRunner asyncTaskRunner) {
       Dispatch.AsyncTaskRunner = asyncTaskRunner;
 
       this.BreakpointList = new BreakpointList(this);
-      this.FunctionList = new FunctionList(this);
       this.Memory = new Memory(this);
       this.ModuleList = new ModuleList(this);
       this.ThreadList = new ThreadList(this);
+
+      this.CurrentContext = new Context(this);
     }
 
     public Task Attach() {
@@ -91,8 +80,7 @@ namespace Xenia.Debug {
                 NetworkAccess.Connect,
                 TransportType.Tcp,
                 kServerHostname,
-                kServerPort
-                );
+                kServerPort);
       permission.Demand();
 
       IPAddress ipAddress = new IPAddress(new byte[] { 127, 0, 0, 1 });
@@ -281,6 +269,97 @@ namespace Xenia.Debug {
       if (StateChanged != null) {
         StateChanged(this, newState);
       }
+    }
+
+    private async Task BeginRunStateTransition() {
+      CurrentContext.SetRunState(RunState.Updating);
+    }
+
+    private async Task CompleteRunStateTransition(RunState newRunState) {
+      await Task.WhenAll(new Task[] {
+        ModuleList.Invalidate(),
+      });
+
+      CurrentContext.SetRunState(newRunState);
+    }
+
+    public async Task<StopResponse> Stop() {
+      await BeginRunStateTransition();
+      var fbb = BeginRequest();
+      StopRequest.StartStopRequest(fbb);
+      int requestDataOffset = StopRequest.EndStopRequest(fbb);
+      var response = await CommitRequest(fbb, RequestData.StopRequest, requestDataOffset);
+      System.Diagnostics.Debug.Assert(response.ResponseDataType ==
+                                      ResponseData.StopResponse);
+      var stopResponse = new StopResponse();
+      response.GetResponseData(stopResponse);
+      await CompleteRunStateTransition(RunState.Paused);
+      return stopResponse;
+    }
+
+    public async Task<BreakResponse> Break() {
+      await BeginRunStateTransition();
+      var fbb = BeginRequest();
+      BreakRequest.StartBreakRequest(fbb);
+      int requestDataOffset = BreakRequest.EndBreakRequest(fbb);
+      var response = await CommitRequest(fbb, RequestData.BreakRequest, requestDataOffset);
+      System.Diagnostics.Debug.Assert(response.ResponseDataType ==
+                                      ResponseData.BreakResponse);
+      var breakResponse = new BreakResponse();
+      response.GetResponseData(breakResponse);
+      await CompleteRunStateTransition(RunState.Paused);
+      return breakResponse;
+    }
+
+    public async Task<ContinueResponse> Continue() {
+      await BeginRunStateTransition();
+      var fbb = BeginRequest();
+      int requestDataOffset = ContinueRequest.CreateContinueRequest(fbb, ContinueAction.Continue, 0);
+      var response = await CommitRequest(fbb, RequestData.ContinueRequest, requestDataOffset);
+      System.Diagnostics.Debug.Assert(response.ResponseDataType ==
+                                      ResponseData.ContinueResponse);
+      var continueResponse = new ContinueResponse();
+      response.GetResponseData(continueResponse);
+      await CompleteRunStateTransition(RunState.Running);
+      return continueResponse;
+    }
+
+    public async Task<ContinueResponse> ContinueTo(uint targetAddress) {
+      await BeginRunStateTransition();
+      var fbb = BeginRequest();
+      int requestDataOffset = ContinueRequest.CreateContinueRequest(fbb, ContinueAction.ContinueTo, targetAddress);
+      var response = await CommitRequest(fbb, RequestData.ContinueRequest, requestDataOffset);
+      System.Diagnostics.Debug.Assert(response.ResponseDataType ==
+                                      ResponseData.ContinueResponse);
+      var continueResponse = new ContinueResponse();
+      response.GetResponseData(continueResponse);
+      await CompleteRunStateTransition(RunState.Running);
+      return continueResponse;
+    }
+
+    public async Task<StepResponse> StepIn() {
+      return await Step(StepAction.StepIn, CurrentContext.CurrentThreadId);
+    }
+
+    public async Task<StepResponse> StepOver() {
+      return await Step(StepAction.StepOver, CurrentContext.CurrentThreadId);
+    }
+
+    public async Task<StepResponse> StepOut() {
+      return await Step(StepAction.StepOut, CurrentContext.CurrentThreadId);
+    }
+
+    private async Task<StepResponse> Step(StepAction stepAction, uint threadId) {
+      await BeginRunStateTransition();
+      var fbb = BeginRequest();
+      int requestDataOffset = StepRequest.CreateStepRequest(fbb, stepAction, threadId);
+      var response = await CommitRequest(fbb, RequestData.StepRequest, requestDataOffset);
+      System.Diagnostics.Debug.Assert(response.ResponseDataType ==
+                                      ResponseData.StepResponse);
+      var stepResponse = new StepResponse();
+      response.GetResponseData(stepResponse);
+      await CompleteRunStateTransition(RunState.Paused);
+      return stepResponse;
     }
   }
 }

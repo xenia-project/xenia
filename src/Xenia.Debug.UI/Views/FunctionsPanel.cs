@@ -17,6 +17,18 @@ namespace Xenia.Debug.UI.Views {
     public FunctionsPanel(Debugger debugger) {
       InitializeComponent();
       this.debugger = debugger;
+
+      debugger.ModuleList.Changed += UpdateModulesList;
+      UpdateModulesList();
+    }
+
+    private void UpdateModulesList() {
+      modulesComboBox.BeginUpdate();
+      modulesComboBox.Items.Clear();
+      foreach (Module module in debugger.ModuleList) {
+        modulesComboBox.Items.Add("Module A");
+      }
+      modulesComboBox.EndUpdate();
     }
   }
 }

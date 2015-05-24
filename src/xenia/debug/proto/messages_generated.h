@@ -8,14 +8,58 @@
 namespace xe {
 namespace debug {
 namespace proto {
+struct XObject;
+}  // namespace proto
+}  // namespace debug
+}  // namespace xe
+namespace xe {
+namespace debug {
+namespace proto {
+struct Breakpoint;
 struct ListBreakpointsRequest;
 struct ListBreakpointsResponse;
-struct AddBreakpointRequest;
-struct AddBreakpointResponse;
-struct UpdateBreakpointRequest;
-struct UpdateBreakpointResponse;
-struct RemoveBreakpointRequest;
-struct RemoveBreakpointResponse;
+struct AddBreakpointsRequest;
+struct AddBreakpointsResponse;
+struct UpdateBreakpointsRequest;
+struct UpdateBreakpointsResponse;
+struct RemoveBreakpointsRequest;
+struct RemoveBreakpointsResponse;
+}  // namespace proto
+}  // namespace debug
+}  // namespace xe
+namespace xe {
+namespace debug {
+namespace proto {
+struct StopRequest;
+struct StopResponse;
+struct BreakRequest;
+struct BreakResponse;
+struct ContinueRequest;
+struct ContinueResponse;
+struct StepRequest;
+struct StepResponse;
+struct BreakpointEvent;
+struct AccessViolationEvent;
+}  // namespace proto
+}  // namespace debug
+}  // namespace xe
+namespace xe {
+namespace debug {
+namespace proto {
+struct Module;
+struct ListModulesRequest;
+struct ListModulesResponse;
+struct GetModuleRequest;
+struct GetModuleResponse;
+}  // namespace proto
+}  // namespace debug
+}  // namespace xe
+namespace xe {
+namespace debug {
+namespace proto {
+struct Thread;
+struct ListThreadsRequest;
+struct ListThreadsResponse;
 }  // namespace proto
 }  // namespace debug
 }  // namespace xe
@@ -24,36 +68,28 @@ namespace xe {
 namespace debug {
 namespace proto {
 
-struct StructTest;
-struct TableTest;
 struct AttachRequest;
 struct AttachResponse;
 struct Request;
 struct Response;
 
-enum Foo {
-  Foo_A = 1,
-  Foo_B = 2
-};
-
-inline const char **EnumNamesFoo() {
-  static const char *names[] = { "A", "B", nullptr };
-  return names;
-}
-
-inline const char *EnumNameFoo(Foo e) { return EnumNamesFoo()[e - Foo_A]; }
-
 enum RequestData {
   RequestData_NONE = 0,
   RequestData_AttachRequest = 1,
   RequestData_ListBreakpointsRequest = 2,
-  RequestData_AddBreakpointRequest = 3,
-  RequestData_UpdateBreakpointRequest = 4,
-  RequestData_RemoveBreakpointRequest = 5
+  RequestData_AddBreakpointsRequest = 3,
+  RequestData_UpdateBreakpointsRequest = 4,
+  RequestData_RemoveBreakpointsRequest = 5,
+  RequestData_ListModulesRequest = 6,
+  RequestData_GetModuleRequest = 7,
+  RequestData_StopRequest = 8,
+  RequestData_BreakRequest = 9,
+  RequestData_ContinueRequest = 10,
+  RequestData_StepRequest = 11
 };
 
 inline const char **EnumNamesRequestData() {
-  static const char *names[] = { "NONE", "AttachRequest", "ListBreakpointsRequest", "AddBreakpointRequest", "UpdateBreakpointRequest", "RemoveBreakpointRequest", nullptr };
+  static const char *names[] = { "NONE", "AttachRequest", "ListBreakpointsRequest", "AddBreakpointsRequest", "UpdateBreakpointsRequest", "RemoveBreakpointsRequest", "ListModulesRequest", "GetModuleRequest", "StopRequest", "BreakRequest", "ContinueRequest", "StepRequest", nullptr };
   return names;
 }
 
@@ -65,83 +101,27 @@ enum ResponseData {
   ResponseData_NONE = 0,
   ResponseData_AttachResponse = 1,
   ResponseData_ListBreakpointsResponse = 2,
-  ResponseData_AddBreakpointResponse = 3,
-  ResponseData_UpdateBreakpointResponse = 4,
-  ResponseData_RemoveBreakpointResponse = 5
+  ResponseData_AddBreakpointsResponse = 3,
+  ResponseData_UpdateBreakpointsResponse = 4,
+  ResponseData_RemoveBreakpointsResponse = 5,
+  ResponseData_ListModulesResponse = 6,
+  ResponseData_GetModuleResponse = 7,
+  ResponseData_StopResponse = 8,
+  ResponseData_BreakResponse = 9,
+  ResponseData_ContinueResponse = 10,
+  ResponseData_StepResponse = 11,
+  ResponseData_BreakpointEvent = 12,
+  ResponseData_AccessViolationEvent = 13
 };
 
 inline const char **EnumNamesResponseData() {
-  static const char *names[] = { "NONE", "AttachResponse", "ListBreakpointsResponse", "AddBreakpointResponse", "UpdateBreakpointResponse", "RemoveBreakpointResponse", nullptr };
+  static const char *names[] = { "NONE", "AttachResponse", "ListBreakpointsResponse", "AddBreakpointsResponse", "UpdateBreakpointsResponse", "RemoveBreakpointsResponse", "ListModulesResponse", "GetModuleResponse", "StopResponse", "BreakResponse", "ContinueResponse", "StepResponse", "BreakpointEvent", "AccessViolationEvent", nullptr };
   return names;
 }
 
 inline const char *EnumNameResponseData(ResponseData e) { return EnumNamesResponseData()[e]; }
 
 inline bool VerifyResponseData(flatbuffers::Verifier &verifier, const void *union_obj, ResponseData type);
-
-MANUALLY_ALIGNED_STRUCT(2) StructTest FLATBUFFERS_FINAL_CLASS {
- private:
-  int16_t a_;
-  int8_t b_;
-  int8_t c_;
-
- public:
-  StructTest(int16_t a, int8_t b, Foo c)
-    : a_(flatbuffers::EndianScalar(a)), b_(flatbuffers::EndianScalar(b)), c_(flatbuffers::EndianScalar(static_cast<int8_t>(c))) { }
-
-  int16_t a() const { return flatbuffers::EndianScalar(a_); }
-  int8_t b() const { return flatbuffers::EndianScalar(b_); }
-  Foo c() const { return static_cast<Foo>(flatbuffers::EndianScalar(c_)); }
-};
-STRUCT_END(StructTest, 4);
-
-struct TableTest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  const StructTest *st() const { return GetStruct<const StructTest *>(4); }
-  const flatbuffers::Vector<uint8_t> *iv() const { return GetPointer<const flatbuffers::Vector<uint8_t> *>(6); }
-  const flatbuffers::String *name() const { return GetPointer<const flatbuffers::String *>(8); }
-  uint32_t id() const { return GetField<uint32_t>(10, 0); }
-  bool KeyCompareLessThan(const TableTest *o) const { return id() < o->id(); }
-  int KeyCompareWithValue(uint32_t val) const { return id() < val ? -1 : id() > val; }
-  bool Verify(flatbuffers::Verifier &verifier) const {
-    return VerifyTableStart(verifier) &&
-           VerifyField<StructTest>(verifier, 4 /* st */) &&
-           VerifyField<flatbuffers::uoffset_t>(verifier, 6 /* iv */) &&
-           verifier.Verify(iv()) &&
-           VerifyFieldRequired<flatbuffers::uoffset_t>(verifier, 8 /* name */) &&
-           verifier.Verify(name()) &&
-           VerifyField<uint32_t>(verifier, 10 /* id */) &&
-           verifier.EndTable();
-  }
-};
-
-struct TableTestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
-  flatbuffers::uoffset_t start_;
-  void add_st(const StructTest *st) { fbb_.AddStruct(4, st); }
-  void add_iv(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> iv) { fbb_.AddOffset(6, iv); }
-  void add_name(flatbuffers::Offset<flatbuffers::String> name) { fbb_.AddOffset(8, name); }
-  void add_id(uint32_t id) { fbb_.AddElement<uint32_t>(10, id, 0); }
-  TableTestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
-  TableTestBuilder &operator=(const TableTestBuilder &);
-  flatbuffers::Offset<TableTest> Finish() {
-    auto o = flatbuffers::Offset<TableTest>(fbb_.EndTable(start_, 4));
-    fbb_.Required(o, 8);  // name
-    return o;
-  }
-};
-
-inline flatbuffers::Offset<TableTest> CreateTableTest(flatbuffers::FlatBufferBuilder &_fbb,
-   const StructTest *st = 0,
-   flatbuffers::Offset<flatbuffers::Vector<uint8_t>> iv = 0,
-   flatbuffers::Offset<flatbuffers::String> name = 0,
-   uint32_t id = 0) {
-  TableTestBuilder builder_(_fbb);
-  builder_.add_id(id);
-  builder_.add_name(name);
-  builder_.add_iv(iv);
-  builder_.add_st(st);
-  return builder_.Finish();
-}
 
 struct AttachRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   bool Verify(flatbuffers::Verifier &verifier) const {
@@ -290,9 +270,15 @@ inline bool VerifyRequestData(flatbuffers::Verifier &verifier, const void *union
     case RequestData_NONE: return true;
     case RequestData_AttachRequest: return verifier.VerifyTable(reinterpret_cast<const AttachRequest *>(union_obj));
     case RequestData_ListBreakpointsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListBreakpointsRequest *>(union_obj));
-    case RequestData_AddBreakpointRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::AddBreakpointRequest *>(union_obj));
-    case RequestData_UpdateBreakpointRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::UpdateBreakpointRequest *>(union_obj));
-    case RequestData_RemoveBreakpointRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::RemoveBreakpointRequest *>(union_obj));
+    case RequestData_AddBreakpointsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::AddBreakpointsRequest *>(union_obj));
+    case RequestData_UpdateBreakpointsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::UpdateBreakpointsRequest *>(union_obj));
+    case RequestData_RemoveBreakpointsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::RemoveBreakpointsRequest *>(union_obj));
+    case RequestData_ListModulesRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListModulesRequest *>(union_obj));
+    case RequestData_GetModuleRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetModuleRequest *>(union_obj));
+    case RequestData_StopRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StopRequest *>(union_obj));
+    case RequestData_BreakRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakRequest *>(union_obj));
+    case RequestData_ContinueRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ContinueRequest *>(union_obj));
+    case RequestData_StepRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StepRequest *>(union_obj));
     default: return false;
   }
 }
@@ -302,9 +288,17 @@ inline bool VerifyResponseData(flatbuffers::Verifier &verifier, const void *unio
     case ResponseData_NONE: return true;
     case ResponseData_AttachResponse: return verifier.VerifyTable(reinterpret_cast<const AttachResponse *>(union_obj));
     case ResponseData_ListBreakpointsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListBreakpointsResponse *>(union_obj));
-    case ResponseData_AddBreakpointResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::AddBreakpointResponse *>(union_obj));
-    case ResponseData_UpdateBreakpointResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::UpdateBreakpointResponse *>(union_obj));
-    case ResponseData_RemoveBreakpointResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::RemoveBreakpointResponse *>(union_obj));
+    case ResponseData_AddBreakpointsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::AddBreakpointsResponse *>(union_obj));
+    case ResponseData_UpdateBreakpointsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::UpdateBreakpointsResponse *>(union_obj));
+    case ResponseData_RemoveBreakpointsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::RemoveBreakpointsResponse *>(union_obj));
+    case ResponseData_ListModulesResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListModulesResponse *>(union_obj));
+    case ResponseData_GetModuleResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetModuleResponse *>(union_obj));
+    case ResponseData_StopResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StopResponse *>(union_obj));
+    case ResponseData_BreakResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakResponse *>(union_obj));
+    case ResponseData_ContinueResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ContinueResponse *>(union_obj));
+    case ResponseData_StepResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StepResponse *>(union_obj));
+    case ResponseData_BreakpointEvent: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakpointEvent *>(union_obj));
+    case ResponseData_AccessViolationEvent: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::AccessViolationEvent *>(union_obj));
     default: return false;
   }
 }

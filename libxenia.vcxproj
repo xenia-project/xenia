@@ -290,10 +290,13 @@
     <ClInclude Include="src\xenia\cpu\xex_module.h" />
     <ClInclude Include="src\xenia\debug\breakpoint.h" />
     <ClInclude Include="src\xenia\debug\debugger.h" />
-    <ClInclude Include="src\xenia\debug\function_data.h" />
     <ClInclude Include="src\xenia\debug\function_trace_data.h" />
     <ClInclude Include="src\xenia\debug\proto\breakpoints_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\common_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\control_generated.h" />
     <ClInclude Include="src\xenia\debug\proto\messages_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\modules_generated.h" />
+    <ClInclude Include="src\xenia\debug\proto\threads_generated.h" />
     <ClInclude Include="src\xenia\emulator.h" />
     <ClInclude Include="src\xenia\gpu\gl4\blitter.h" />
     <ClInclude Include="src\xenia\gpu\gl4\circular_buffer.h" />
@@ -419,7 +422,12 @@
   <ItemGroup>
     <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl" />
     <None Include="src\xenia\cpu\hir\opcodes.inl" />
+    <None Include="src\xenia\debug\proto\breakpoints.fbs" />
+    <None Include="src\xenia\debug\proto\common.fbs" />
+    <None Include="src\xenia\debug\proto\control.fbs" />
     <None Include="src\xenia\debug\proto\messages.fbs" />
+    <None Include="src\xenia\debug\proto\modules.fbs" />
+    <None Include="src\xenia\debug\proto\threads.fbs" />
     <None Include="src\xenia\gpu\register_table.inc" />
     <None Include="src\xenia\kernel\util\export_table_post.inc" />
     <None Include="src\xenia\kernel\util\export_table_pre.inc" />

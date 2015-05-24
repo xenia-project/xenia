@@ -1,0 +1,31 @@
+include "common.fbs";
+
+namespace xe.debug.proto;
+
+enum ModuleType:byte {
+  Kernel,
+  User,
+}
+
+table Module {
+  object:XObject;
+  type:ModuleType;
+  name:string;
+  path:string;
+
+  // TODO(benvanik): xex info/etc?
+}
+
+table ListModulesRequest {
+}
+table ListModulesResponse {
+  module_ids:[uint];
+}
+
+table GetModuleRequest {
+  module_id:uint;
+}
+table GetModuleResponse {
+  module:Module;
+}
+

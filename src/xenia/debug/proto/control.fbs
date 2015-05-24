@@ -1,3 +1,49 @@
 include "common.fbs";
 
 namespace xe.debug.proto;
+
+table StopRequest {
+}
+table StopResponse {
+}
+
+
+table BreakRequest {
+}
+table BreakResponse {
+}
+
+enum ContinueAction:byte {
+  Continue,
+  ContinueTo,
+}
+
+table ContinueRequest {
+  action:ContinueAction;
+  target_address:uint;
+}
+table ContinueResponse {
+}
+
+enum StepAction:byte {
+  StepIn,
+  StepOver,
+  StepOut,
+}
+
+table StepRequest {
+  action:StepAction;
+  thread_id:uint;
+}
+table StepResponse {
+}
+
+table BreakpointEvent {
+  thread_id:uint;
+  breakpoint_id:uint;
+}
+
+table AccessViolationEvent {
+  thread_id:uint;
+  target_address:uint;
+}
