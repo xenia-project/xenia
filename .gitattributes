@@ -1,0 +1,9 @@
+*           text=auto whitespace=blank-at-eol,tab-in-indent,trailing-space,tabwidth=2
+
+*.bat       text eol=crlf
+*.sh        text eol=lf
+
+*.sln       text eol=crlf -whitespace
+*.csproj    text eol=crlf -whitespace merge=union
+*.vcxproj   text eol=crlf -whitespace merge=union
+*.props     text eol=crlf -whitespace merge=union
