@@ -1,4 +1,4 @@
-test_rlwinm_extrwi:
+test_extrwi_1:
   # extrwi ra,rs,n,b (n > 0) == rlwinm ra,rs,b+n,32-n,31
   #_ REGISTER_IN r5 0x30
   # rlwinm r7, r5, 29, 28, 31
@@ -7,7 +7,7 @@ test_rlwinm_extrwi:
   #_ REGISTER_OUT r5 0x30
   #_ REGISTER_OUT r7 0x06
 
-test_rlwinm_extrwi_constant:
+test_extrwi_1_constant:
   # extrwi ra,rs,n,b (n > 0) == rlwinm ra,rs,b+n,32-n,31
   li r5, 0x30
   # rlwinm r7, r5, 29, 28, 31
@@ -15,6 +15,23 @@ test_rlwinm_extrwi_constant:
   blr
   #_ REGISTER_OUT r5 0x30
   #_ REGISTER_OUT r7 0x06
+
+test_extrwi_2:
+  #_ REGISTER_IN r5 0xFFFFFFFF01234567
+  extrwi r7, r5, 16, 10
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
+  #_ REGISTER_OUT r7 0x0000000000008D15
+
+test_extrwi_2_constant:
+  li r5, -1
+  sldi r5, r5, 32
+  oris r5, r5, 0x0123
+  ori r5, r5, 0x4567
+  extrwi r7, r5, 16, 10
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
+  #_ REGISTER_OUT r7 0x0000000000008D15
 
 test_rlwinm_1:
   #_ REGISTER_IN r4 0x12345678
@@ -154,3 +171,61 @@ test_rlwinm_9_constant:
   blr
   #_ REGISTER_OUT r3 0x00001234
   #_ REGISTER_OUT r4 0x12345678
+
+test_extrwi_cr_1:
+  #_ REGISTER_IN r5 0x30
+  extrwi. r7, r5, 4, 25
+  mfcr r12
+  blr
+  #_ REGISTER_OUT r5 0x30
+  #_ REGISTER_OUT r7 0x06
+  #_ REGISTER_OUT r12 0x40000000
+
+test_extrwi_cr_1_constant:
+  li r5, 0x30
+  extrwi. r7, r5, 4, 25
+  mfcr r12
+  blr
+  #_ REGISTER_OUT r5 0x30
+  #_ REGISTER_OUT r7 0x06
+  #_ REGISTER_OUT r12 0x40000000
+
+test_extrwi_cr_2:
+  #_ REGISTER_IN r5 0xFFFFFFFF01234567
+  extrwi. r7, r5, 16, 10
+  mfcr r12
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
+  #_ REGISTER_OUT r7 0x0000000000008D15
+  #_ REGISTER_OUT r12 0x40000000
+
+test_extrwi_cr_2_constant:
+  li r5, -1
+  sldi r5, r5, 32
+  oris r5, r5, 0x0123
+  ori r5, r5, 0x4567
+  extrwi. r7, r5, 16, 10
+  mfcr r12
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
+  #_ REGISTER_OUT r7 0x0000000000008D15
+  #_ REGISTER_OUT r12 0x40000000
+
+test_extrwi_cr_3:
+  #_ REGISTER_IN r5 0xFFFFFFFF00000000
+  extrwi. r7, r5, 16, 10
+  mfcr r12
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF00000000
+  #_ REGISTER_OUT r7 0x0000000000000000
+  #_ REGISTER_OUT r12 0x20000000
+
+test_extrwi_cr_3_constant:
+  li r5, -1
+  sldi r5, r5, 32
+  extrwi. r7, r5, 16, 10
+  mfcr r12
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF00000000
+  #_ REGISTER_OUT r7 0x0000000000000000
+  #_ REGISTER_OUT r12 0x20000000
