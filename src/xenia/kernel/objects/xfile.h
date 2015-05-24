@@ -158,9 +158,6 @@ class XFile : public XObject {
   virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
   virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;
-  virtual X_STATUS QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) = 0;
-  virtual X_STATUS QueryFileSystemAttributes(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info,
-                                             size_t length) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);

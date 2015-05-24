@@ -617,7 +617,7 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
     switch (fs_info_class) {
       case 1: {  // FileFsVolumeInformation
         auto volume_info = (X_FILE_FS_VOLUME_INFORMATION*)calloc(length, 1);
-        result = file->QueryVolume(volume_info, length);
+        result = file->device()->QueryVolume(volume_info, length);
         if (XSUCCEEDED(result)) {
           volume_info->Write(SHIM_MEM_BASE, fs_info_ptr);
           info = length;
@@ -627,7 +627,7 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
       }
       case 5: {  // FileFsAttributeInformation
         auto fs_attribute_info = (X_FILE_FS_ATTRIBUTE_INFORMATION*)calloc(length, 1);
-        result = file->QueryFileSystemAttributes(fs_attribute_info, length);
+        result = file->device()->QueryFileSystemAttributes(fs_attribute_info, length);
         if (XSUCCEEDED(result)) {
           fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);
           info = length;
