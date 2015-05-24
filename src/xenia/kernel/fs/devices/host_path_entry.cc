@@ -59,7 +59,7 @@ X_STATUS HostPathEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS HostPathEntry::QueryDirectory(XDirectoryInfo* out_info, size_t length,
+X_STATUS HostPathEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                                        const char* file_name, bool restart) {
   assert_not_null(out_info);
 

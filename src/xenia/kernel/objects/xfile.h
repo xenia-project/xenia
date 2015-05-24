@@ -44,7 +44,8 @@ class X_FILE_NETWORK_OPEN_INFORMATION {
   }
 };
 
-class XDirectoryInfo {
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540248.aspx
+class X_FILE_DIRECTORY_INFORMATION {
  public:
   // FILE_DIRECTORY_INFORMATION
   uint32_t next_entry_offset;
@@ -62,9 +63,9 @@ class XDirectoryInfo {
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
     uint8_t* src = (uint8_t*)this;
-    XDirectoryInfo* info;
+    X_FILE_DIRECTORY_INFORMATION* info;
     do {
-      info = (XDirectoryInfo*)src;
+      info = (X_FILE_DIRECTORY_INFORMATION*)src;
       xe::store_and_swap<uint32_t>(dst, info->next_entry_offset);
       xe::store_and_swap<uint32_t>(dst + 4, info->file_index);
       xe::store_and_swap<uint64_t>(dst + 8, info->creation_time);
@@ -81,7 +82,7 @@ class XDirectoryInfo {
     } while (info->next_entry_offset != 0);
   }
 };
-static_assert_size(XDirectoryInfo, 72);
+static_assert_size(X_FILE_DIRECTORY_INFORMATION, 72);
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287(v=vs.85).aspx
 class XVolumeInfo {
@@ -155,7 +156,7 @@ class XFile : public XObject {
   void set_position(size_t value) { position_ = value; }
 
   virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
-  virtual X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+  virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;
   virtual X_STATUS QueryVolume(XVolumeInfo* out_info, size_t length) = 0;
   virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,

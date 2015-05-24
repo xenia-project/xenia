@@ -35,7 +35,7 @@ X_STATUS HostPathFile::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   return entry_->QueryInfo(out_info);
 }
 
-X_STATUS HostPathFile::QueryDirectory(XDirectoryInfo* out_info, size_t length,
+X_STATUS HostPathFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                                       const char* file_name, bool restart) {
   return entry_->QueryDirectory(out_info, length, file_name, restart);
 }

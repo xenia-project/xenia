@@ -32,7 +32,7 @@ class STFSContainerEntry : public Entry {
   STFSEntry* stfs_entry() const { return stfs_entry_; }
 
   X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
-  X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                           const char* file_name, bool restart) override;
 
   X_STATUS Open(KernelState* kernel_state, Mode desired_access, bool async,

@@ -25,7 +25,7 @@ class HostPathEntry : public Entry {
   const std::wstring& local_path() { return local_path_; }
 
   X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
-  X_STATUS QueryDirectory(XDirectoryInfo* out_info, size_t length,
+  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                           const char* file_name, bool restart) override;
 
   bool can_map() override { return true; }

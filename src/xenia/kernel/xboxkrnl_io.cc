@@ -701,7 +701,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   XFile* file = NULL;
   result = state->object_table()->GetObject(file_handle, (XObject**)&file);
   if (XSUCCEEDED(result)) {
-    XDirectoryInfo* dir_info = (XDirectoryInfo*)calloc(length, 1);
+    X_FILE_DIRECTORY_INFORMATION* dir_info = (X_FILE_DIRECTORY_INFORMATION*)calloc(length, 1);
     result =
         file->QueryDirectory(dir_info, length, file_name, restart_scan != 0);
     if (XSUCCEEDED(result)) {
