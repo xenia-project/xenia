@@ -125,7 +125,7 @@ class X_FILE_FS_SIZE_INFORMATION {
 static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
-class XFileSystemAttributeInfo {
+class X_FILE_FS_ATTRIBUTE_INFORMATION {
  public:
   // FILE_FS_ATTRIBUTE_INFORMATION
   uint32_t attributes;
@@ -141,7 +141,7 @@ class XFileSystemAttributeInfo {
     memcpy(dst + 12, this->fs_name, this->fs_name_length);
   }
 };
-static_assert_size(XFileSystemAttributeInfo, 16);
+static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 class XFile : public XObject {
  public:
@@ -159,7 +159,7 @@ class XFile : public XObject {
   virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                                   const char* file_name, bool restart) = 0;
   virtual X_STATUS QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) = 0;
-  virtual X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+  virtual X_STATUS QueryFileSystemAttributes(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info,
                                              size_t length) = 0;
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,

@@ -626,7 +626,7 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
         break;
       }
       case 5: {  // FileFsAttributeInformation
-        auto fs_attribute_info = (XFileSystemAttributeInfo*)calloc(length, 1);
+        auto fs_attribute_info = (X_FILE_FS_ATTRIBUTE_INFORMATION*)calloc(length, 1);
         result = file->QueryFileSystemAttributes(fs_attribute_info, length);
         if (XSUCCEEDED(result)) {
           fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);

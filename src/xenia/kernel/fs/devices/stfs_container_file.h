@@ -33,7 +33,7 @@ class STFSContainerFile : public XFile {
   X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                           const char* file_name, bool restart) override;
   X_STATUS QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t length) override;
-  X_STATUS QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+  X_STATUS QueryFileSystemAttributes(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info,
                                      size_t length) override;
 
  protected:

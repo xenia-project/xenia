@@ -39,7 +39,7 @@ X_STATUS Device::QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t leng
 }
 
 // TODO(gibbed): call into HostPathDevice?
-X_STATUS Device::QueryFileSystemAttributes(XFileSystemAttributeInfo* out_info,
+X_STATUS Device::QueryFileSystemAttributes(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info,
                                            size_t length) {
   assert_not_null(out_info);
   const char* name = "test";  // TODO(gibbed): actual value

@@ -45,7 +45,7 @@ X_STATUS HostPathFile::QueryVolume(X_FILE_FS_VOLUME_INFORMATION* out_info, size_
 }
 
 X_STATUS HostPathFile::QueryFileSystemAttributes(
-    XFileSystemAttributeInfo* out_info, size_t length) {
+    X_FILE_FS_ATTRIBUTE_INFORMATION* out_info, size_t length) {
   return entry_->device()->QueryFileSystemAttributes(out_info, length);
 }
 
