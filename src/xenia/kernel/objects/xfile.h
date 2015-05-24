@@ -105,8 +105,8 @@ class X_FILE_FS_VOLUME_INFORMATION {
 };
 static_assert_size(X_FILE_FS_VOLUME_INFORMATION, 24);
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540282(v=vs.85).aspx
-class XFileSystemSizeInfo {
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540282.aspx
+class X_FILE_FS_SIZE_INFORMATION {
  public:
   // FILE_FS_SIZE_INFORMATION
   uint64_t total_allocation_units;
@@ -122,7 +122,7 @@ class XFileSystemSizeInfo {
     xe::store_and_swap<uint32_t>(dst + 20, this->bytes_per_sector);
   }
 };
-static_assert_size(XFileSystemSizeInfo, 24);
+static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
 class XFileSystemAttributeInfo {
