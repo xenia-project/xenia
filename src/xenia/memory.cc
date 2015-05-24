@@ -16,6 +16,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/mmio_handler.h"
 
 // TODO(benvanik): move xbox.h out
@@ -114,13 +115,17 @@ Memory::~Memory() {
 }
 
 int Memory::Initialize() {
+  wchar_t file_name[256];
+  wsprintf(file_name, L"Local\\xenia_memory_%p", xe::threading::ticks());
+  file_name_ = file_name;
+
 // Create main page file-backed mapping. This is all reserved but
 // uncommitted (so it shouldn't expand page file).
 #if XE_PLATFORM_WIN32
   mapping_ = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
                                PAGE_READWRITE | SEC_RESERVE,
                                // entire 4gb space + 512mb physical:
-                               1, 0x1FFFFFFF, NULL);
+                               1, 0x1FFFFFFF, file_name_.c_str());
 #else
   char mapping_path[] = "/xenia/mapping/XXXXXX";
   mktemp(mapping_path);

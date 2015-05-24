@@ -12,7 +12,6 @@ using xe.debug.proto;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-
   public class Debugger {
     private readonly static string kServerHostname = "";
     private readonly static int kServerPort = 19000;
@@ -34,6 +33,19 @@ namespace Xenia.Debug {
     private readonly ConcurrentDictionary<uint, PendingRequest>
         pendingRequests = new ConcurrentDictionary<uint, PendingRequest>();
     private uint nextRequestId = 1;
+
+    private FileMappingHandle memoryHandle;
+    public IntPtr Membase {
+      get;
+    }
+
+    public unsafe byte* TranslateVirtual(uint address) {
+      return (byte*)Membase.ToPointer() + address;
+    }
+
+    public unsafe byte* TranslatePhysical(uint address) {
+      return (byte*)Membase.ToPointer() + 0xFFFFFFFF + address;
+    }
 
     public event EventHandler<State> StateChanged;
 
@@ -126,6 +138,27 @@ namespace Xenia.Debug {
       int requestDataOffset = AttachRequest.EndAttachRequest(fbb);
       var response = await CommitRequest(fbb, RequestData.AttachRequest, requestDataOffset);
 
+      System.Diagnostics.Debug.Assert(response.ResponseDataType ==
+                                      ResponseData.AttachResponse);
+      var attachResponse = new AttachResponse();
+      response.GetResponseData(attachResponse);
+
+      // Open mmap to share memroy.
+      memoryHandle = FileMapping.OpenFileMapping(
+          FileMapAccess.FILE_MAP_ALL_ACCESS, false, attachResponse.MemoryFile);
+      if (memoryHandle.IsInvalid) {
+        System.Diagnostics.Debug.Fail("Unable to open target memory");
+        Detach();
+        return;
+      }
+
+      // Setup the memory system. This maps the emulator memory into our address
+      // space.
+      if (!Memory.InitializeMapping(memoryHandle)) {
+        Detach();
+        return;
+      }
+
       OnStateChanged(State.Attached);
     }
 
@@ -134,8 +167,17 @@ namespace Xenia.Debug {
         return;
       }
 
-      socket.Close();
-      socket = null;
+      Memory.UninitializeMapping();
+
+      if (memoryHandle != null) {
+        memoryHandle.Close();
+        memoryHandle = null;
+      }
+
+      if (socket != null) {
+        socket.Close();
+        socket = null;
+      }
 
       OnStateChanged(State.Detached);
     }

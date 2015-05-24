@@ -26,8 +26,9 @@ table AttachRequest {
   //
 }
 table AttachResponse {
-  // file paths
-  // mmap name
+  memory_file:string;
+  functions_file:string;
+  functions_trace_file:string;
 }
 
 union RequestData {

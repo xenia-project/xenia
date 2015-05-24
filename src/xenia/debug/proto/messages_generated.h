@@ -167,8 +167,17 @@ inline flatbuffers::Offset<AttachRequest> CreateAttachRequest(flatbuffers::FlatB
 }
 
 struct AttachResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  const flatbuffers::String *memory_file() const { return GetPointer<const flatbuffers::String *>(4); }
+  const flatbuffers::String *functions_file() const { return GetPointer<const flatbuffers::String *>(6); }
+  const flatbuffers::String *functions_trace_file() const { return GetPointer<const flatbuffers::String *>(8); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* memory_file */) &&
+           verifier.Verify(memory_file()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 6 /* functions_file */) &&
+           verifier.Verify(functions_file()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 8 /* functions_trace_file */) &&
+           verifier.Verify(functions_trace_file()) &&
            verifier.EndTable();
   }
 };
@@ -176,16 +185,25 @@ struct AttachResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct AttachResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
+  void add_memory_file(flatbuffers::Offset<flatbuffers::String> memory_file) { fbb_.AddOffset(4, memory_file); }
+  void add_functions_file(flatbuffers::Offset<flatbuffers::String> functions_file) { fbb_.AddOffset(6, functions_file); }
+  void add_functions_trace_file(flatbuffers::Offset<flatbuffers::String> functions_trace_file) { fbb_.AddOffset(8, functions_trace_file); }
   AttachResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AttachResponseBuilder &operator=(const AttachResponseBuilder &);
   flatbuffers::Offset<AttachResponse> Finish() {
-    auto o = flatbuffers::Offset<AttachResponse>(fbb_.EndTable(start_, 0));
+    auto o = flatbuffers::Offset<AttachResponse>(fbb_.EndTable(start_, 3));
     return o;
   }
 };
 
-inline flatbuffers::Offset<AttachResponse> CreateAttachResponse(flatbuffers::FlatBufferBuilder &_fbb) {
+inline flatbuffers::Offset<AttachResponse> CreateAttachResponse(flatbuffers::FlatBufferBuilder &_fbb,
+   flatbuffers::Offset<flatbuffers::String> memory_file = 0,
+   flatbuffers::Offset<flatbuffers::String> functions_file = 0,
+   flatbuffers::Offset<flatbuffers::String> functions_trace_file = 0) {
   AttachResponseBuilder builder_(_fbb);
+  builder_.add_functions_trace_file(functions_trace_file);
+  builder_.add_functions_file(functions_file);
+  builder_.add_memory_file(memory_file);
   return builder_.Finish();
 }
 

@@ -116,7 +116,9 @@ class Debugger {
   UINT_PTR client_socket_;
   std::thread receive_thread_;
 
+  std::wstring functions_path_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_file_;
+  std::wstring functions_trace_path_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_trace_file_;
 
   std::mutex threads_lock_;

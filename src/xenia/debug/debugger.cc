@@ -60,14 +60,13 @@ Debugger::~Debugger() {
 bool Debugger::StartSession() {
   std::wstring session_path = xe::to_wstring(FLAGS_debug_session_path);
 
-  std::wstring functions_path = xe::join_paths(session_path, L"functions");
+  functions_path_ = xe::join_paths(session_path, L"functions");
   functions_file_ =
-      ChunkedMappedMemoryWriter::Open(functions_path, 32 * 1024 * 1024, false);
+      ChunkedMappedMemoryWriter::Open(functions_path_, 32 * 1024 * 1024, false);
 
-  std::wstring functions_trace_path =
-      xe::join_paths(session_path, L"functions.trace");
+  functions_trace_path_ = xe::join_paths(session_path, L"functions.trace");
   functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
-      functions_trace_path, 32 * 1024 * 1024, true);
+    functions_trace_path_, 32 * 1024 * 1024, true);
 
   listen_socket_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (listen_socket_ < 1) {
@@ -195,9 +194,12 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
     case proto::RequestData_AttachRequest: {
       // Send debug info.
       response_data_type = proto::ResponseData_AttachResponse;
-      auto response_data = proto::AttachResponseBuilder(fbb);
-      //
-      response_data_offset = response_data.Finish().Union();
+      response_data_offset =
+          proto::CreateAttachResponse(
+              fbb, fbb.CreateString(
+                       xe::to_string(emulator()->memory()->file_name())),
+              fbb.CreateString(xe::to_string(functions_path_)),
+              fbb.CreateString(xe::to_string(functions_trace_path_))).Union();
 
       // Allow continuation if we were blocked waiting for a client.
       accept_fence_.Signal();

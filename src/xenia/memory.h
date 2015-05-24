@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include "xenia/base/platform.h"
@@ -158,6 +159,8 @@ class Memory {
 
   int Initialize();
 
+  const std::wstring& file_name() const { return file_name_; }
+
   inline uint8_t* virtual_membase() const { return virtual_membase_; }
   inline uint8_t* TranslateVirtual(uint32_t guest_address) const {
     return virtual_membase_ + guest_address;
@@ -211,6 +214,7 @@ class Memory {
   void UnmapViews();
 
  private:
+  std::wstring file_name_;
   uint32_t system_page_size_;
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;
