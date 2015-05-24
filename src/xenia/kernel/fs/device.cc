@@ -39,6 +39,16 @@ X_STATUS Device::QueryVolumeInfo(X_FILE_FS_VOLUME_INFORMATION* out_info, size_t 
 }
 
 // TODO(gibbed): make virtual + move implementation into HostPathDevice/etc.
+X_STATUS Device::QuerySizeInfo(X_FILE_FS_SIZE_INFORMATION* out_info, size_t length) {
+  assert_not_null(out_info);
+  out_info->total_allocation_units = 1234;  // TODO(gibbed): actual value
+  out_info->available_allocation_units = 0;  // TODO(gibbed): actual value
+  out_info->sectors_per_allocation_unit = 1;  // TODO(gibbed): actual value
+  out_info->bytes_per_sector = 1024;  // TODO(gibbed): actual value
+  return X_STATUS_SUCCESS;
+}
+
+// TODO(gibbed): make virtual + move implementation into HostPathDevice/etc.
 X_STATUS Device::QueryAttributeInfo(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info, size_t length) {
   assert_not_null(out_info);
   const char* name = "test";  // TODO(gibbed): actual value
