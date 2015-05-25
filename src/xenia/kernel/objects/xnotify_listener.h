@@ -13,6 +13,7 @@
 #include <mutex>
 #include <unordered_map>
 
+#include "xenia/base/mutex.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -36,7 +37,7 @@ class XNotifyListener : public XObject {
 
  private:
   HANDLE wait_handle_;
-  std::mutex lock_;
+  xe::mutex lock_;
   std::unordered_map<XNotificationID, uint32_t> notifications_;
   size_t notification_count_;
   uint64_t mask_;

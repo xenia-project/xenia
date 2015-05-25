@@ -196,7 +196,7 @@ void TextureCache::EvictAllTextures() {
   }
 
   {
-    std::lock_guard<std::mutex> lock(invalidated_textures_mutex_);
+    std::lock_guard<xe::mutex> lock(invalidated_textures_mutex_);
     invalidated_textures_sets_[0].clear();
     invalidated_textures_sets_[1].clear();
   }

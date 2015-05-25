@@ -24,7 +24,7 @@ Function::Function(FunctionInfo* symbol_info)
 Function::~Function() = default;
 
 bool Function::AddBreakpoint(Breakpoint* breakpoint) {
-  std::lock_guard<std::mutex> guard(lock_);
+  std::lock_guard<xe::mutex> guard(lock_);
   bool found = false;
   for (auto other : breakpoints_) {
     if (other == breakpoint) {
@@ -41,7 +41,7 @@ bool Function::AddBreakpoint(Breakpoint* breakpoint) {
 }
 
 bool Function::RemoveBreakpoint(Breakpoint* breakpoint) {
-  std::lock_guard<std::mutex> guard(lock_);
+  std::lock_guard<xe::mutex> guard(lock_);
   for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
     if (*it == breakpoint) {
       if (!RemoveBreakpointImpl(breakpoint)) {
@@ -54,7 +54,7 @@ bool Function::RemoveBreakpoint(Breakpoint* breakpoint) {
 }
 
 Breakpoint* Function::FindBreakpoint(uint32_t address) {
-  std::lock_guard<std::mutex> guard(lock_);
+  std::lock_guard<xe::mutex> guard(lock_);
   Breakpoint* result = nullptr;
   for (auto breakpoint : breakpoints_) {
     if (breakpoint->address() == address) {

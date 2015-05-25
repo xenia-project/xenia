@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 
+#include "xenia/base/mutex.h"
 #include "xenia/base/type_pool.h"
 #include "xenia/cpu/frontend/context_info.h"
 #include "xenia/cpu/function.h"
@@ -32,7 +33,7 @@ namespace frontend {
 class PPCTranslator;
 
 struct PPCBuiltins {
-  std::mutex global_lock;
+  xe::mutex global_lock;
   bool global_lock_taken;
   FunctionInfo* check_global_lock;
   FunctionInfo* handle_global_lock;

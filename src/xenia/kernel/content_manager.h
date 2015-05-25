@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "xenia/base/memory.h"
+#include "xenia/base/mutex.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -87,7 +88,7 @@ class ContentManager {
   KernelState* kernel_state_;
   std::wstring root_path_;
 
-  std::recursive_mutex content_mutex_;
+  xe::recursive_mutex content_mutex_;
   std::unordered_map<std::string, ContentPackage*> open_packages_;
 };
 

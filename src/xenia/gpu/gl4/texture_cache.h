@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/gpu/gl4/blitter.h"
 #include "xenia/gpu/gl4/circular_buffer.h"
 #include "xenia/gpu/gl4/gl_context.h"
@@ -100,7 +101,7 @@ class TextureCache {
 
   std::vector<ReadBufferTexture*> read_buffer_textures_;
 
-  std::mutex invalidated_textures_mutex_;
+  xe::mutex invalidated_textures_mutex_;
   std::vector<TextureEntry*>* invalidated_textures_;
   std::vector<TextureEntry*> invalidated_textures_sets_[2];
 };

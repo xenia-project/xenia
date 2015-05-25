@@ -13,6 +13,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/kernel/kernel_state.h"
@@ -33,7 +34,7 @@ using namespace xe::cpu;
 
 uint32_t next_xthread_id = 0;
 thread_local XThread* current_thread_tls;
-std::mutex critical_region_;
+xe::mutex critical_region_;
 XThread* shared_kernel_thread_ = 0;
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,

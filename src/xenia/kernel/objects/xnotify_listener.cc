@@ -42,7 +42,7 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
     return;
   }
 
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
   if (notifications_.count(id)) {
     // Already exists. Overwrite.
     notifications_[id] = data;
@@ -56,7 +56,7 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
 
 bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
                                           uint32_t* out_data) {
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
   bool dequeued = false;
   if (notification_count_) {
     dequeued = true;
@@ -74,7 +74,7 @@ bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
 
 bool XNotifyListener::DequeueNotification(XNotificationID id,
                                           uint32_t* out_data) {
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
   bool dequeued = false;
   if (notification_count_) {
     dequeued = true;

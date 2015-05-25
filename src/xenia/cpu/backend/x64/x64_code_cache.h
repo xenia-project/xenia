@@ -17,6 +17,8 @@
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/mutex.h"
+
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -54,7 +56,7 @@ class X64CodeCache {
 
   // Must be held when manipulating the offsets or counts of anything, to keep
   // the tables consistent and ordered.
-  std::mutex allocation_mutex_;
+  xe::mutex allocation_mutex_;
 
   // Value that the indirection table will be initialized with upon commit.
   uint32_t indirection_default_value_;

@@ -97,7 +97,7 @@ class XThread : public XObject {
   std::string name_;
 
   std::atomic<uint32_t> irql_;
-  std::mutex apc_lock_;
+  xe::mutex apc_lock_;
   NativeList* apc_list_;
 
   object_ref<XEvent> event_;

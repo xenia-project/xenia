@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/base/platform.h"
 #include "xenia/cpu/mmio_handler.h"
 
@@ -115,7 +116,7 @@ class BaseHeap {
   uint32_t heap_size_;
   uint32_t page_size_;
   std::vector<PageEntry> page_table_;
-  std::recursive_mutex heap_mutex_;
+  xe::recursive_mutex heap_mutex_;
 };
 
 class VirtualHeap : public BaseHeap {

@@ -120,7 +120,7 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
     return nullptr;
   }
 
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
 
   auto package = std::make_unique<ContentPackage>(kernel_state_, root_name,
                                                   data, package_path);
@@ -134,7 +134,7 @@ bool ContentManager::ContentExists(const XCONTENT_DATA& data) {
 
 X_RESULT ContentManager::CreateContent(std::string root_name,
                                        const XCONTENT_DATA& data) {
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
@@ -161,7 +161,7 @@ X_RESULT ContentManager::CreateContent(std::string root_name,
 
 X_RESULT ContentManager::OpenContent(std::string root_name,
                                      const XCONTENT_DATA& data) {
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
@@ -184,7 +184,7 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
 }
 
 X_RESULT ContentManager::CloseContent(std::string root_name) {
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
 
   auto it = open_packages_.find(root_name);
   if (it == open_packages_.end()) {
@@ -200,7 +200,7 @@ X_RESULT ContentManager::CloseContent(std::string root_name) {
 
 X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t>* buffer) {
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
   auto package_path = ResolvePackagePath(data);
   auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
   if (xe::fs::PathExists(thumb_path)) {
@@ -219,7 +219,7 @@ X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
 
 X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t> buffer) {
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
   auto package_path = ResolvePackagePath(data);
   if (xe::fs::PathExists(package_path)) {
     auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
@@ -233,7 +233,7 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
 }
 
 X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
-  std::lock_guard<std::recursive_mutex> lock(content_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
 
   auto package_path = ResolvePackagePath(data);
   if (xe::fs::PathExists(package_path)) {

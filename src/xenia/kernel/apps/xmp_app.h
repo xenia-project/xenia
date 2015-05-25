@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/kernel_state.h"
 
@@ -101,7 +102,7 @@ class XXMPApp : public XApp {
   Playlist* active_playlist_;
   int active_song_index_;
 
-  std::mutex mutex_;
+  xe::mutex mutex_;
   std::unordered_map<uint32_t, Playlist*> playlists_;
   uint32_t next_playlist_handle_;
   uint32_t next_song_handle_;

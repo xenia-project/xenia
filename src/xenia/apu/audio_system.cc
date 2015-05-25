@@ -56,8 +56,10 @@ const uint32_t kXmaContextSize = 64;
 const uint32_t kXmaContextCount = 320;
 
 AudioSystem::AudioSystem(Emulator* emulator)
-    : emulator_(emulator), memory_(emulator->memory()), worker_running_(false),
-    decoder_running_(false) {
+    : emulator_(emulator),
+      memory_(emulator->memory()),
+      worker_running_(false),
+      decoder_running_(false) {
   memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     unused_clients_.push(i);
@@ -249,7 +251,8 @@ void AudioSystem::DecoderThreadMain() {
           // TODO - Probably need to move this, I think it might skip the very
           // last packet (see the call to PreparePacket)
           size_t input_size = (data.input_buffer_0_block_count +
-                              data.input_buffer_1_block_count) * 2048;
+                               data.input_buffer_1_block_count) *
+                              2048;
           size_t input_offset = (data.input_buffer_read_offset / 8 - 4);
           size_t input_remaining = input_size - input_offset;
           if (input_offset > input_size) {
@@ -339,7 +342,7 @@ void AudioSystem::Shutdown() {
 }
 
 uint32_t AudioSystem::AllocateXmaContext() {
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
 
   for (uint32_t n = 0; n < kXmaContextCount; n++) {
     XMAContext& context = xma_context_array_[n];
@@ -353,7 +356,7 @@ uint32_t AudioSystem::AllocateXmaContext() {
 }
 
 void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
 
   // Find it in the list.
   for (uint32_t n = 0; n < kXmaContextCount; n++) {
@@ -365,9 +368,9 @@ void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
 
       context.in_use = false;
       auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-      std::memset(context_ptr, 0, kXmaContextSize); // Zero it.
+      std::memset(context_ptr, 0, kXmaContextSize);  // Zero it.
       context.decoder->DiscardPacket();
-      
+
       context.lock.unlock();
     }
   }
@@ -376,7 +379,7 @@ void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
                                      size_t* out_index) {
   assert_true(unused_clients_.size());
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
 
   auto index = unused_clients_.front();
 
@@ -406,7 +409,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
 void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
   SCOPE_profile_cpu_f("apu");
 
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
   assert_true(index < maximum_client_count_);
   assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
@@ -416,7 +419,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 void AudioSystem::UnregisterClient(size_t index) {
   SCOPE_profile_cpu_f("apu");
 
-  std::lock_guard<std::mutex> lock(lock_);
+  std::lock_guard<xe::mutex> lock(lock_);
   assert_true(index < maximum_client_count_);
   DestroyDriver(clients_[index].driver);
   clients_[index] = {0};
@@ -478,9 +481,10 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
 
-        XELOGAPU("AudioSystem: kicking context %d (%d/%d bytes)", context_id,
-                 data.input_buffer_read_offset, data.input_buffer_0_block_count
-                 * XMAContextData::kBytesPerBlock);
+        XELOGAPU(
+            "AudioSystem: kicking context %d (%d/%d bytes)", context_id,
+            data.input_buffer_read_offset,
+            data.input_buffer_0_block_count * XMAContextData::kBytesPerBlock);
 
         // Reset valid flags so our audio decoder knows to process this one
         data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;

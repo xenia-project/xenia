@@ -9,6 +9,7 @@
 
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/mutex.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/kernel_state.h"
@@ -1290,7 +1291,7 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_64(result ? 1 : 0);
 }
 
-std::mutex global_list_mutex_;
+xe::mutex global_list_mutex_;
 
 // http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
 SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_state,
@@ -1299,7 +1300,7 @@ SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_state,
 
   XELOGD("InterlockedPopEntrySList(%.8X)", plist_ptr);
 
-  std::lock_guard<std::mutex> lock(global_list_mutex_);
+  std::lock_guard<xe::mutex> lock(global_list_mutex_);
 
   uint8_t* p = state->memory()->TranslateVirtual(plist_ptr);
   auto first = xe::load_and_swap<uint32_t>(p);

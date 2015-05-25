@@ -150,6 +150,7 @@ SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
 
   auto object = state->object_table()->LookupObject<XObject>(handle);
   if (object) {
+    object->Retain();
     object->RetainHandle();
     uint32_t new_handle = object->handle();
     if (new_handle_ptr) {

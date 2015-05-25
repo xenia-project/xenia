@@ -122,7 +122,7 @@ void* X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   uint8_t* unwind_entry_address = nullptr;
   size_t unwind_table_slot = 0;
   {
-    std::lock_guard<std::mutex> allocation_lock(allocation_mutex_);
+    std::lock_guard<xe::mutex> allocation_lock(allocation_mutex_);
 
     low_mark = generated_code_offset_;
 

@@ -89,7 +89,7 @@ Processor::~Processor() {
   }
 
   {
-    std::lock_guard<std::mutex> guard(modules_lock_);
+    std::lock_guard<xe::mutex> guard(modules_lock_);
     modules_.clear();
   }
 
@@ -159,13 +159,13 @@ bool Processor::Setup() {
 }
 
 bool Processor::AddModule(std::unique_ptr<Module> module) {
-  std::lock_guard<std::mutex> guard(modules_lock_);
+  std::lock_guard<xe::mutex> guard(modules_lock_);
   modules_.push_back(std::move(module));
   return true;
 }
 
 Module* Processor::GetModule(const char* name) {
-  std::lock_guard<std::mutex> guard(modules_lock_);
+  std::lock_guard<xe::mutex> guard(modules_lock_);
   for (const auto& module : modules_) {
     if (module->name() == name) {
       return module.get();
@@ -175,7 +175,7 @@ Module* Processor::GetModule(const char* name) {
 }
 
 std::vector<Module*> Processor::GetModules() {
-  std::lock_guard<std::mutex> guard(modules_lock_);
+  std::lock_guard<xe::mutex> guard(modules_lock_);
   std::vector<Module*> clone(modules_.size());
   for (const auto& module : modules_) {
     clone.push_back(module.get());
@@ -242,7 +242,7 @@ bool Processor::LookupFunctionInfo(uint32_t address,
   // Find the module that contains the address.
   Module* code_module = nullptr;
   {
-    std::lock_guard<std::mutex> guard(modules_lock_);
+    std::lock_guard<xe::mutex> guard(modules_lock_);
     // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
     // TODO(benvanik): cache last module low/high, as likely to be in there.
     for (const auto& module : modules_) {
@@ -378,7 +378,7 @@ uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint32_t address,
   SCOPE_profile_cpu_f("cpu");
 
   // Acquire lock on interrupt thread (we can only dispatch one at a time).
-  std::lock_guard<std::mutex> lock(interrupt_thread_lock_);
+  std::lock_guard<xe::mutex> lock(interrupt_thread_lock_);
 
   // Set 0x10C(r13) to the current CPU ID.
   xe::store_and_swap<uint8_t>(

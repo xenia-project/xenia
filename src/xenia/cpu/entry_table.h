@@ -14,6 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/mutex.h"
+
 namespace xe {
 namespace cpu {
 
@@ -45,7 +47,7 @@ class EntryTable {
 
  private:
   // TODO(benvanik): replace with a better data structure.
-  std::mutex lock_;
+  xe::mutex lock_;
   std::unordered_map<uint32_t, Entry*> map_;
 };
 

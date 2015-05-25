@@ -14,6 +14,7 @@
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/breakpoint.h"
@@ -53,7 +54,7 @@ class Function {
   std::unique_ptr<DebugInfo> debug_info_;
 
   // TODO(benvanik): move elsewhere? DebugData?
-  std::mutex lock_;
+  xe::mutex lock_;
   std::vector<debug::Breakpoint*> breakpoints_;
 };
 

@@ -16,8 +16,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/memory.h"
+#include "xenia/base/mutex.h"
 #include "xenia/cpu/symbol_info.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {
@@ -62,7 +63,7 @@ class Module {
 
  private:
   // TODO(benvanik): replace with a better data structure.
-  std::mutex lock_;
+  xe::mutex lock_;
   std::unordered_map<uint32_t, SymbolInfo*> map_;
   std::vector<std::unique_ptr<SymbolInfo>> list_;
 };

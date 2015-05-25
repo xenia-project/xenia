@@ -13,6 +13,7 @@
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/entry_table.h"
 #include "xenia/cpu/export_resolver.h"
@@ -90,13 +91,13 @@ class Processor {
   ExportResolver* export_resolver_;
 
   EntryTable entry_table_;
-  std::mutex modules_lock_;
+  xe::mutex modules_lock_;
   std::vector<std::unique_ptr<Module>> modules_;
   Module* builtin_module_;
   uint32_t next_builtin_address_;
 
   Irql irql_;
-  std::mutex interrupt_thread_lock_;
+  xe::mutex interrupt_thread_lock_;
   ThreadState* interrupt_thread_state_;
   uint32_t interrupt_thread_block_;
 };

@@ -151,7 +151,7 @@ SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
 
 void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("cpu");
-  std::lock_guard<std::mutex> guard(lock_);
+  std::lock_guard<xe::mutex> guard(lock_);
   for (auto& symbol_info : list_) {
     if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
       FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
@@ -163,7 +163,7 @@ void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
 void Module::ForEachFunction(size_t since, size_t& version,
                              std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("cpu");
-  std::lock_guard<std::mutex> guard(lock_);
+  std::lock_guard<xe::mutex> guard(lock_);
   size_t count = list_.size();
   version = count;
   for (size_t n = since; n < count; n++) {

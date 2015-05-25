@@ -15,6 +15,8 @@
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/mutex.h"
+
 namespace xe {
 namespace cpu {
 
@@ -85,7 +87,7 @@ class MMIOHandler {
   std::vector<MMIORange> mapped_ranges_;
 
   // TODO(benvanik): data structure magic.
-  std::mutex write_watch_mutex_;
+  xe::mutex write_watch_mutex_;
   std::list<WriteWatchEntry*> write_watches_;
 
   static MMIOHandler* global_handler_;

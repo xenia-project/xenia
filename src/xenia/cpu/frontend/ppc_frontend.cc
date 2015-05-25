@@ -61,7 +61,7 @@ void CheckGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
   ppc_state->scratch = 0x8000;
 }
 void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
-  std::mutex* global_lock = reinterpret_cast<std::mutex*>(arg0);
+  auto global_lock = reinterpret_cast<xe::mutex*>(arg0);
   volatile bool* global_lock_taken = reinterpret_cast<bool*>(arg1);
   uint64_t value = ppc_state->scratch;
   if (value == 0x8000) {
