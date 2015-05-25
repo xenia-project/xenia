@@ -88,7 +88,7 @@ class KernelState {
   void UnregisterThread(XThread* thread);
   void OnThreadExecute(XThread* thread);
   void OnThreadExit(XThread* thread);
-  XThread* GetThreadByID(uint32_t thread_id);
+  object_ref<XThread> GetThreadByID(uint32_t thread_id);
 
   void RegisterNotifyListener(XNotifyListener* listener);
   void UnregisterNotifyListener(XNotifyListener* listener);
@@ -118,7 +118,7 @@ class KernelState {
   ObjectTable* object_table_;
   xe::recursive_mutex object_mutex_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
-  std::vector<XNotifyListener*> notify_listeners_;
+  std::vector<object_ref<XNotifyListener>> notify_listeners_;
   bool has_notified_startup_;
 
   uint32_t process_type_;

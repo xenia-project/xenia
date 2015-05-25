@@ -36,7 +36,6 @@ const xe_xex2_header_t* XUserModule::xex_header() {
 
 X_STATUS XUserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
-  XFile* file = NULL;
 
   // Resolve the file to open.
   // TODO(benvanik): make this code shared?
@@ -66,12 +65,11 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     std::vector<uint8_t> buffer(file_info.file_length);
 
     // Open file for reading.
+    XFile* file_ptr = nullptr;
     result = kernel_state()->file_system()->Open(
-        std::move(fs_entry), kernel_state(), fs::Mode::READ, false, &file);
+        std::move(fs_entry), kernel_state(), fs::Mode::READ, false, &file_ptr);
+    object_ref<XFile> file(file_ptr);
     if (result) {
-      if (file) {
-        file->Release();
-      }
       return result;
     }
 
@@ -80,9 +78,6 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     size_t bytes_read = 0;
     result = file->Read(buffer.data(), buffer.size(), 0, &bytes_read);
     if (result) {
-      if (file) {
-        file->Release();
-      }
       return result;
     }
 
@@ -90,9 +85,6 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     result = LoadFromMemory(buffer.data(), bytes_read);
   }
 
-  if (file) {
-    file->Release();
-  }
   return result;
 }
 
@@ -167,8 +159,9 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
   Dump();
 
   // Create a thread to run in.
-  XThread* thread = new XThread(kernel_state(), header->exe_stack_size, 0,
-                                header->exe_entry_point, NULL, 0);
+  auto thread =
+      object_ref<XThread>(new XThread(kernel_state(), header->exe_stack_size, 0,
+                                      header->exe_entry_point, 0, 0));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -177,9 +170,7 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
   }
 
   // Wait until thread completes.
-  thread->Wait(0, 0, 0, NULL);
-
-  thread->Release();
+  thread->Wait(0, 0, 0, nullptr);
 
   return X_STATUS_SUCCESS;
 }

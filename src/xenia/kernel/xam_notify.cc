@@ -26,12 +26,11 @@ SHIM_CALL XamNotifyCreateListener_shim(PPCContext* ppc_state,
 
   // r4=1 may indicate user process?
 
-  XNotifyListener* listener = new XNotifyListener(state);
+  auto listener = object_ref<XNotifyListener>(new XNotifyListener(state));
   listener->Initialize(mask);
 
   // Handle ref is incremented, so return that.
   uint32_t handle = listener->handle();
-  listener->Release();
 
   SHIM_SET_RETURN_64(handle);
 }

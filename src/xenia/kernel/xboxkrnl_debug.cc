@@ -249,11 +249,10 @@ SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
     assert_true(thread_info->type == 0x1000);
     const char* name = (const char*)SHIM_MEM_ADDR(thread_info->name_ptr);
 
-    XThread* thread = NULL;
+    object_ref<XThread> thread;
     if (thread_info->thread_id == -1) {
       // Current thread.
-      thread = XThread::GetCurrentThread();
-      thread->Retain();
+      thread = retain_object(XThread::GetCurrentThread());
     } else {
       // Lookup thread by ID.
       thread = state->GetThreadByID(thread_info->thread_id);
@@ -262,7 +261,6 @@ SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
     if (thread) {
       XELOGD("SetThreadName(%d, %s)", thread->thread_id(), name);
       thread->set_name(name);
-      thread->Release();
     }
 
     // TODO(benvanik): unwinding required here?

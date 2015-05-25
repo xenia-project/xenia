@@ -112,13 +112,13 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_state, KernelState* state) {
   // Stack must be aligned to 16kb pages
   stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
-  XThread* thread = new XThread(state, stack_size, xapi_thread_startup,
-                                start_address, start_context, creation_flags);
+  auto thread = object_ref<XThread>(
+      new XThread(state, stack_size, xapi_thread_startup, start_address,
+                  start_context, creation_flags));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     // Failed!
-    thread->Release();
     XELOGE("Thread creation failed: %.8X", result);
     SHIM_SET_RETURN_32(result);
     return;

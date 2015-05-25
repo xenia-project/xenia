@@ -262,21 +262,19 @@ void KernelState::OnThreadExit(XThread* thread) {
   }
 }
 
-XThread* KernelState::GetThreadByID(uint32_t thread_id) {
+object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   XThread* thread = nullptr;
   auto it = threads_by_id_.find(thread_id);
   if (it != threads_by_id_.end()) {
     thread = it->second;
-    // Caller must release.
-    thread->Retain();
   }
-  return thread;
+  return retain_object(thread);
 }
 
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
-  notify_listeners_.push_back(listener);
+  notify_listeners_.push_back(retain_object(listener));
 
   // Games seem to expect a few notifications on startup, only for the first
   // listener.
@@ -300,9 +298,9 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
-  for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
+  for (auto& it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
-    if (*it == listener) {
+    if ((*it).get() == listener) {
       notify_listeners_.erase(it);
       break;
     }

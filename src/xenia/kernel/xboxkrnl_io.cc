@@ -117,7 +117,7 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     }
   }
 
-  XFile* file = nullptr;
+  object_ref<XFile> file;
   if (!entry) {
     result = X_STATUS_NO_SUCH_FILE;
     info = X_FILE_DOES_NOT_EXIST;
@@ -131,15 +131,16 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
     } else {
       mode = fs::Mode::READ;
     }
+    XFile* file_ptr = nullptr;
     result = fs->Open(std::move(entry), state, mode,
                       false,  // TODO(benvanik): pick async mode, if needed.
-                      &file);
+                      &file_ptr);
+    file = object_ref<XFile>(file_ptr);
   }
 
   if (XSUCCEEDED(result)) {
     // Handle ref is incremented, so return that.
     handle = file->handle();
-    file->Release();
     result = X_STATUS_SUCCESS;
     info = X_FILE_OPENED;
   }
@@ -299,9 +300,6 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
   }
 
-  if (file) {
-    file->Release();
-  }
   if (ev) {
     if (signal_event) {
       ev->Set(0, false);
