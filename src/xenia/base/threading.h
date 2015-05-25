@@ -34,6 +34,7 @@ class Fence {
     while (!signaled_.load()) {
       cond_.wait(lock);
     }
+    signaled_.store(false);
   }
 
  private:

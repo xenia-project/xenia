@@ -155,6 +155,7 @@ void AudioSystem::WorkerThreadMain() {
         lock_.unlock();
 
         if (client_callback) {
+          SCOPE_profile_cpu_i("apu", "xe::apu::AudioSystem->client_callback");
           uint64_t args[] = {client_callback_arg};
           processor->Execute(worker_thread_->thread_state(), client_callback,
                              args, xe::countof(args));
@@ -185,7 +186,6 @@ void AudioSystem::DecoderThreadMain() {
 
   while (decoder_running_) {
     // Wait for the fence
-    // FIXME: This actually does nothing once signaled once
     decoder_fence_.Wait();
 
     // Check to see if we're supposed to exit
@@ -223,9 +223,6 @@ void AudioSystem::DecoderThreadMain() {
         auto in1 = memory()->TranslatePhysical(data.input_buffer_1_ptr);
         auto out = memory()->TranslatePhysical(data.output_buffer_ptr);
 
-        // I haven't seen this be used yet.
-        assert(!data.input_buffer_1_block_count);
-
         // What I see:
         // XMA outputs 2 bytes per sample
         // 512 samples per frame (128 per subframe)
@@ -245,8 +242,8 @@ void AudioSystem::DecoderThreadMain() {
         // 3 - 48 kHz ?
 
         // SPUs also support stereo decoding. (data.is_stereo)
-
-        while (true) {
+        int retries_remaining = 2;
+        while (retries_remaining) {
           // Initial check - see if we've finished with the input
           // TODO - Probably need to move this, I think it might skip the very
           // last packet (see the call to PreparePacket)
@@ -255,7 +252,7 @@ void AudioSystem::DecoderThreadMain() {
                               2048;
           size_t input_offset = (data.input_buffer_read_offset / 8 - 4);
           size_t input_remaining = input_size - input_offset;
-          if (input_offset > input_size) {
+          if (input_offset >= input_size) {
             // We're finished. Break.
             break;
           }
@@ -280,7 +277,7 @@ void AudioSystem::DecoderThreadMain() {
             // looking for cross-packet frames and failing. If you run it again
             // on the same packet it'll work though.
             XELOGAPU("APU failed to decode packet (returned %.8X)", -read);
-
+            --retries_remaining;
             continue;
           }
 
@@ -306,8 +303,7 @@ void AudioSystem::DecoderThreadMain() {
             // New packet time.
             // TODO: Select input buffer 1 if necessary.
             auto packet = in0 + input_offset;
-            context.decoder->PreparePacket(packet, 2048, sample_rate,
-                                           channels);
+            context.decoder->PreparePacket(packet, 2048, sample_rate, channels);
             input_offset += 2048;
           }
 
@@ -413,7 +409,6 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
   assert_true(index < maximum_client_count_);
   assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
-  //ResetEvent(client_wait_handles_[index]);
 }
 
 void AudioSystem::UnregisterClient(size_t index) {

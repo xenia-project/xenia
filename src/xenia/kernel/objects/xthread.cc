@@ -33,7 +33,7 @@ namespace kernel {
 using namespace xe::cpu;
 
 uint32_t next_xthread_id = 0;
-thread_local XThread* current_thread_tls;
+thread_local XThread* current_thread_tls = nullptr;
 xe::mutex critical_region_;
 XThread* shared_kernel_thread_ = 0;
 
@@ -275,10 +275,15 @@ X_STATUS XThread::Exit(int exit_code) {
   // TODO(benvanik): set exit code in thread state block
 
   // TODO(benvanik); dispatch events? waiters? etc?
-  event_->Set(0, false);
+  if (event_) {
+    event_->Set(0, false);
+  }
   RundownAPCs();
 
   // NOTE: unless PlatformExit fails, expect it to never return!
+  current_thread_tls = nullptr;
+  xe::Profiler::ThreadExit();
+  Release();
   X_STATUS return_code = PlatformExit(exit_code);
   if (XFAILED(return_code)) {
     return return_code;
@@ -289,17 +294,19 @@ X_STATUS XThread::Exit(int exit_code) {
 #if XE_PLATFORM_WIN32
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
-  auto thread = object_ref<XThread>(reinterpret_cast<XThread*>(param));
+  auto thread = reinterpret_cast<XThread*>(param);
   thread->set_name(thread->name());
   xe::Profiler::ThreadEnter(thread->name().c_str());
-  current_thread_tls = thread.get();
+  current_thread_tls = thread;
   thread->Execute();
   current_thread_tls = nullptr;
   xe::Profiler::ThreadExit();
+  thread->Release();
   return 0;
 }
 
 X_STATUS XThread::PlatformCreate() {
+  Retain();
   bool suspended = creation_params_.creation_flags & 0x1;
   thread_handle_ =
       CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
