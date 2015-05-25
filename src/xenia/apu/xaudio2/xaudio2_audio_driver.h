@@ -32,13 +32,18 @@ class XAudio2AudioDriver : public AudioDriver {
   IXAudio2* audio_;
   IXAudio2MasteringVoice* mastering_voice_;
   IXAudio2SourceVoice* pcm_voice_;
-  static const int frame_channels_ = 6;
-  static const int channel_samples_ = 256;
-  float frame_[frame_channels_ * channel_samples_];
   HANDLE wait_handle_;
 
   class VoiceCallback;
   VoiceCallback* voice_callback_;
+
+  static const uint32_t frame_count_ = XAUDIO2_MAX_QUEUED_BUFFERS;
+  static const uint32_t frame_channels_ = 6;
+  static const uint32_t channel_samples_ = 256;
+  static const uint32_t frame_samples_ = frame_channels_ * channel_samples_;
+  static const uint32_t frame_size_ = sizeof(float) * frame_samples_;
+  float frames_[frame_count_][frame_samples_];
+  uint32_t current_frame_;
 };
 
 }  // namespace xaudio2

@@ -40,6 +40,7 @@ XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait)
       pcm_voice_(0),
       wait_handle_(wait),
       voice_callback_(0),
+      current_frame_(0),
       AudioDriver(emulator) {}
 
 XAudio2AudioDriver::~XAudio2AudioDriver() {}
@@ -101,7 +102,8 @@ void XAudio2AudioDriver::Initialize() {
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
   waveformat.dwChannelMask = ChannelMasks[waveformat.Format.nChannels];
 
-  hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format, 0,
+  hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format,
+                                 0, // XAUDIO2_VOICE_NOSRC | XAUDIO2_VOICE_NOPITCH,
                                  XAUDIO2_DEFAULT_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
@@ -127,22 +129,28 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   // Process samples! They are big-endian floats.
   HRESULT hr;
 
+  XAUDIO2_VOICE_STATE state;
+  pcm_voice_->GetState(&state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
+  assert_true(state.BuffersQueued < frame_count_);
+
   auto input_frame = memory_->TranslateVirtual<float*>(frame_ptr);
-  auto output_frame = reinterpret_cast<float*>(frame_);
+  auto output_frame = reinterpret_cast<float*>(frames_[current_frame_]);
   auto interleave_channels = frame_channels_;
 
   // interleave the data
-  for (int index = 0, o = 0; index < channel_samples_; ++index) {
-    for (int channel = 0, table = 0; channel < interleave_channels;
+  for (uint32_t index = 0, o = 0; index < channel_samples_; ++index) {
+    for (uint32_t channel = 0, table = 0; channel < interleave_channels;
          ++channel, table += channel_samples_) {
       output_frame[o++] = xe::byte_swap(input_frame[table + index]);
     }
   }
 
+  XELOGE("Submitting audio frame %u", current_frame_);
+
   XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
-  buffer.pAudioData = (BYTE*)frame_;
-  buffer.AudioBytes = sizeof(frame_);
+  buffer.pAudioData = (BYTE*)output_frame;
+  buffer.AudioBytes = frame_size_;
   buffer.PlayBegin = 0;
   buffer.PlayLength = channel_samples_;
   buffer.LoopBegin = XAUDIO2_NO_LOOP_REGION;
@@ -154,6 +162,15 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
     XELOGE("SubmitSourceBuffer failed with %.8X", hr);
     assert_always();
     return;
+  }
+
+  current_frame_ = (current_frame_ + 1) % frame_count_;
+
+  XAUDIO2_VOICE_STATE state2;
+  pcm_voice_->GetState(&state2, XAUDIO2_VOICE_NOSAMPLESPLAYED);
+
+  if (state2.BuffersQueued >= frame_count_) {
+    ResetEvent(wait_handle_);
   }
 }
 
@@ -169,7 +186,6 @@ void XAudio2AudioDriver::Shutdown() {
   audio_->Release();
 
   delete voice_callback_;
-  CloseHandle(wait_handle_);
 }
 
 }  // namespace xaudio2

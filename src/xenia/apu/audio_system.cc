@@ -405,7 +405,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
   assert_true(index < maximum_client_count_);
   assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
-  ResetEvent(client_wait_handles_[index]);
+  //ResetEvent(client_wait_handles_[index]);
 }
 
 void AudioSystem::UnregisterClient(size_t index) {
