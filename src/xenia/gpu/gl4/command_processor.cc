@@ -202,10 +202,11 @@ void CommandProcessor::WorkerThreadMain() {
         SwitchToThread();
         MemoryBarrier();
         write_ptr_index = write_ptr_index_.load();
-      } while (pending_fns_.empty() && (write_ptr_index == 0xBAADF00D ||
-                                        read_ptr_index_ == write_ptr_index));
+      } while (worker_running_ && pending_fns_.empty() &&
+               (write_ptr_index == 0xBAADF00D ||
+                read_ptr_index_ == write_ptr_index));
       // ReturnFromWait();
-      if (!pending_fns_.empty()) {
+      if (!worker_running_ || !pending_fns_.empty()) {
         continue;
       }
     }

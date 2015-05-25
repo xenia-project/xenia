@@ -45,8 +45,7 @@ KernelState::KernelState(Emulator* emulator)
       memory_(emulator->memory()),
       object_table_(nullptr),
       has_notified_startup_(false),
-      process_type_(X_PROCTYPE_USER),
-      executable_module_(nullptr) {
+      process_type_(X_PROCTYPE_USER) {
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
 
@@ -70,13 +69,8 @@ KernelState::KernelState(Emulator* emulator)
 KernelState::~KernelState() {
   SetExecutableModule(nullptr);
 
-  for (auto user_module : user_modules_) {
-    user_module->Release();
-  }
+  executable_module_.reset();
   user_modules_.clear();
-  for (auto kernel_module : kernel_modules_) {
-    kernel_module->Release();
-  }
   kernel_modules_.clear();
 
   // Delete all objects.
@@ -116,7 +110,7 @@ bool KernelState::IsKernelModule(const char* name) {
   return false;
 }
 
-XModule* KernelState::GetModule(const char* name) {
+object_ref<XModule> KernelState::GetModule(const char* name) {
   if (!name) {
     // NULL name = self.
     // TODO(benvanik): lookup module from caller address.
@@ -128,48 +122,37 @@ XModule* KernelState::GetModule(const char* name) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   for (auto kernel_module : kernel_modules_) {
     if (kernel_module->Matches(name)) {
-      kernel_module->Retain();
-      return kernel_module;
+      return retain_object(kernel_module.get());
     }
   }
   for (auto user_module : user_modules_) {
     if (user_module->Matches(name)) {
-      user_module->Retain();
-      return user_module;
+      return retain_object(user_module.get());
     }
   }
   return nullptr;
 }
 
-XUserModule* KernelState::GetExecutableModule() {
+object_ref<XUserModule> KernelState::GetExecutableModule() {
   if (!executable_module_) {
     return nullptr;
   }
-
-  executable_module_->Retain();
   return executable_module_;
 }
 
-void KernelState::SetExecutableModule(XUserModule* module) {
-  if (module == executable_module_) {
+void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
+  if (module.get() == executable_module_.get()) {
     return;
   }
-
-  if (executable_module_) {
-    executable_module_->Release();
-  }
-  executable_module_ = module;
-  if (executable_module_) {
-    executable_module_->Retain();
-  }
+  executable_module_ = std::move(module);
 }
 
-void KernelState::LoadKernelModule(XKernelModule* kernel_module) {
+void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
-  kernel_modules_.push_back(kernel_module);
+  kernel_modules_.push_back(std::move(kernel_module));
 }
 
-XUserModule* KernelState::LoadUserModule(const char* raw_name) {
+object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
   // Some games try to load relative to launch module, others specify full path.
   std::string name = xe::find_name_from_path(raw_name);
   std::string path(raw_name);
@@ -177,28 +160,28 @@ XUserModule* KernelState::LoadUserModule(const char* raw_name) {
     path = xe::join_paths(xe::find_base_path(executable_module_->path()), name);
   }
 
-  XUserModule* module = nullptr;
+  object_ref<XUserModule> module;
   {
     std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
 
     // See if we've already loaded it
-    for (XUserModule* existing_module : user_modules_) {
+    for (auto& existing_module : user_modules_) {
       if (existing_module->path() == path) {
         existing_module->Retain();
-        return existing_module;
+        return retain_object(existing_module.get());
       }
     }
 
     // Module wasn't loaded, so load it.
-    module = new XUserModule(this, path.c_str());
+    module = object_ref<XUserModule>(new XUserModule(this, path.c_str()));
     X_STATUS status = module->LoadFromFile(path);
     if (XFAILED(status)) {
-      module->Release();
       return nullptr;
     }
 
-    user_modules_.push_back(module);
+    // Retain when putting into the listing.
     module->Retain();
+    user_modules_.push_back(module);
   }
 
   module->Dump();

@@ -35,7 +35,7 @@ ObjectTable::~ObjectTable() {
   table_capacity_ = 0;
   last_free_entry_ = 0;
   free(table_);
-  table_ = NULL;
+  table_ = nullptr;
 }
 
 X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {

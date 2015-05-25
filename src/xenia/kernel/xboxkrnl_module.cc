@@ -171,13 +171,12 @@ XboxkrnlModule::~XboxkrnlModule() {
 int XboxkrnlModule::LaunchModule(const char* path) {
   // Create and register the module. We keep it local to this function and
   // dispose it on exit.
-  XUserModule* module = new XUserModule(kernel_state_, path);
+  auto module = object_ref<XUserModule>(new XUserModule(kernel_state_, path));
 
   // Load the module into memory from the filesystem.
   X_STATUS result_code = module->LoadFromFile(path);
   if (XFAILED(result_code)) {
     XELOGE("Failed to load module %s: %.8X", path, result_code);
-    module->Release();
     return 1;
   }
 
@@ -193,11 +192,8 @@ int XboxkrnlModule::LaunchModule(const char* path) {
   kernel_state_->SetExecutableModule(NULL);
   if (XFAILED(result_code)) {
     XELOGE("Failed to launch module %s: %.8X", path, result_code);
-    module->Release();
     return 2;
   }
-
-  module->Release();
 
   return 0;
 }

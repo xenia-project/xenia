@@ -172,7 +172,6 @@ X_STATUS XThread::Create() {
   tls_address_ = memory()->SystemHeapAlloc(tls_size);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
-    module->Release();
     return X_STATUS_NO_MEMORY;
   }
 
@@ -185,10 +184,6 @@ X_STATUS XThread::Create() {
     memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
   } else {
     memory()->Fill(tls_address_, tls_size, 0);
-  }
-
-  if (module) {
-    module->Release();
   }
 
   // Allocate processor thread state.

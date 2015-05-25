@@ -79,8 +79,6 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_state, KernelState* state) {
 
   SHIM_SET_MEM_32(info_ptr, module->execution_info_ptr());
 
-  module->Release();
-
   SHIM_SET_RETURN_32(0);
 }
 

@@ -135,7 +135,7 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_state,
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
-  XUserModule* module = state->GetExecutableModule();
+  auto module = state->GetExecutableModule();
   if (!module) {
     SHIM_SET_RETURN_32(0);
     return;
@@ -144,8 +144,6 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_state,
 
   const xe_xex2_header_t* header = xe_xex2_get_header(xex);
   uint32_t result = (header->system_flags & mask) > 0;
-
-  module->Release();
 
   SHIM_SET_RETURN_32(result);
 }
@@ -157,7 +155,7 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("XexGetModuleHandle(%s, %.8X)", module_name, module_handle_ptr);
 
-  XModule* module = nullptr;
+  object_ref<XModule> module;
   if (!module_name) {
     module = state->GetExecutableModule();
   } else {
@@ -172,8 +170,6 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
   // NOTE: we don't retain the handle for return.
   SHIM_SET_MEM_32(module_handle_ptr, module->handle());
 
-  module->Release();
-
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
@@ -187,10 +183,11 @@ SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XexGetModuleSection(%.8X, %s, %.8X, %.8X)", handle, name, data_ptr,
          size_ptr);
 
-  XModule* module = NULL;
-  X_STATUS result =
-      state->object_table()->GetObject(handle, (XObject**)&module);
-  if (XSUCCEEDED(result)) {
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+
+  XModule* module = nullptr;
+  state->object_table()->GetObject(handle, (XObject**)&module);
+  if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
     result = module->GetSection(name, &section_data, &section_size);
@@ -198,7 +195,6 @@ SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
       SHIM_SET_MEM_32(data_ptr, section_data);
       SHIM_SET_MEM_32(size_ptr, section_size);
     }
-
     module->Release();
   }
 
@@ -218,16 +214,16 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   X_HANDLE module_handle = X_INVALID_HANDLE_VALUE;
-  XModule* module = state->GetModule(module_name);
+  auto module = state->GetModule(module_name);
   if (module) {
     // Existing module found, just add a reference and obtain a handle.
-    result = state->object_table()->AddHandle(module, &module_handle);
+    result = state->object_table()->AddHandle(module.get(), &module_handle);
   } else {
     // Not found; attempt to load as a user module.
-    module = state->LoadUserModule(module_name);
-    if (module) {
-      module->RetainHandle();
-      module_handle = module->handle();
+    auto user_module = state->LoadUserModule(module_name);
+    if (user_module) {
+      user_module->RetainHandle();
+      module_handle = user_module->handle();
       result = X_STATUS_SUCCESS;
     }
   }
@@ -272,7 +268,7 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
 
   XModule* module = NULL;
   if (!module_handle) {
-    module = state->GetExecutableModule();
+    module = state->GetExecutableModule().get();
   } else {
     result =
         state->object_table()->GetObject(module_handle, (XObject**)&module);

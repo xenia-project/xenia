@@ -38,20 +38,22 @@ Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
 
   // Kill the debugger first, so that we don't have it messing with things.
-  debugger_.reset();
+  debugger_->StopSession();
 
   // Give the systems time to shutdown before we delete them.
   graphics_system_->Shutdown();
   audio_system_->Shutdown();
 
-  kernel_state_.reset();
-  file_system_.reset();
-
   input_system_.reset();
   graphics_system_.reset();
   audio_system_.reset();
 
+  kernel_state_.reset();
+  file_system_.reset();
+
   processor_.reset();
+
+  debugger_.reset();
 
   export_resolver_.reset();
 
@@ -198,10 +200,10 @@ X_STATUS Emulator::LaunchSTFSTitle(const std::wstring& path) {
 
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
-  auto xboxkrnl = static_cast<kernel::XboxkrnlModule*>(
-      kernel_state_->GetModule("xboxkrnl.exe"));
+  auto xboxkrnl_module = kernel_state_->GetModule("xboxkrnl.exe");
+  auto xboxkrnl = kernel::object_ref<kernel::XboxkrnlModule>(
+      reinterpret_cast<kernel::XboxkrnlModule*>(xboxkrnl_module.release()));
   int result = xboxkrnl->LaunchModule(module_path.c_str());
-  xboxkrnl->Release();
   if (result == 0) {
     return X_STATUS_SUCCESS;
   } else {

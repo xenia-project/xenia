@@ -300,7 +300,9 @@ void Debugger::StopSession() {
   shutdown(listen_socket_, SD_SEND);
   closesocket(listen_socket_);
   listen_socket_ = INVALID_SOCKET;
-  accept_thread_.join();
+  if (accept_thread_.joinable()) {
+    accept_thread_.join();
+  }
 
   functions_file_.reset();
   functions_trace_file_.reset();

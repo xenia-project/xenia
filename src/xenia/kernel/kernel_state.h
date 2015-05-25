@@ -73,16 +73,16 @@ class KernelState {
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
   bool IsKernelModule(const char* name);
-  XModule* GetModule(const char* name);
-  XUserModule* GetExecutableModule();
-  void SetExecutableModule(XUserModule* module);
+  object_ref<XModule> GetModule(const char* name);
+  object_ref<XUserModule> GetExecutableModule();
+  void SetExecutableModule(object_ref<XUserModule> module);
   template <typename T>
-  XKernelModule* LoadKernelModule() {
-    auto kernel_module = std::make_unique<T>(emulator_, this);
-    LoadKernelModule(kernel_module.get());
-    return kernel_module.release();
+  object_ref<XKernelModule> LoadKernelModule() {
+    auto kernel_module = object_ref<XKernelModule>(new T(emulator_, this));
+    LoadKernelModule(kernel_module);
+    return kernel_module;
   }
-  XUserModule* LoadUserModule(const char* name);
+  object_ref<XUserModule> LoadUserModule(const char* name);
 
   void RegisterThread(XThread* thread);
   void UnregisterThread(XThread* thread);
@@ -102,7 +102,7 @@ class KernelState {
                                      uint32_t extended_error, uint32_t length);
 
  private:
-  void LoadKernelModule(XKernelModule* kernel_module);
+  void LoadKernelModule(object_ref<XKernelModule> kernel_module);
 
   Emulator* emulator_;
   Memory* memory_;
@@ -122,9 +122,9 @@ class KernelState {
   bool has_notified_startup_;
 
   uint32_t process_type_;
-  XUserModule* executable_module_;
-  std::vector<XKernelModule*> kernel_modules_;
-  std::vector<XUserModule*> user_modules_;
+  object_ref<XUserModule> executable_module_;
+  std::vector<object_ref<XKernelModule>> kernel_modules_;
+  std::vector<object_ref<XUserModule>> user_modules_;
 
   friend class XObject;
 };

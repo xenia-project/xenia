@@ -397,24 +397,20 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_state,
   // The only ImageField I've seen in the wild is
   // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
 
-  XUserModule* module = NULL;
-
   // TODO(benvanik): use xex_header_base to dereference this.
   // Right now we are only concerned with games making this call on their main
   // module, so this hack is fine.
-  module = state->GetExecutableModule();
+  auto module = state->GetExecutableModule();
 
   const xe_xex2_header_t* xex_header = module->xex_header();
   for (size_t n = 0; n < xex_header->header_count; n++) {
     if (xex_header->headers[n].key == image_field) {
       uint32_t value = xex_header->headers[n].value;
-      module->Release();
       SHIM_SET_RETURN_64(value);
       return;
     }
   }
 
-  module->Release();
   SHIM_SET_RETURN_64(0);
 }
 
