@@ -237,7 +237,7 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
 
 void GL4GraphicsSystem::ClearCaches() {
   command_processor_->CallInThread(
-      [&]() { command_processor_->texture_cache()->Clear(); });
+      [&]() { command_processor_->ClearCaches(); });
 }
 
 void GL4GraphicsSystem::MarkVblank() {

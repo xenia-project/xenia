@@ -70,6 +70,8 @@ class CommandProcessor {
   void Shutdown();
   void CallInThread(std::function<void()> fn);
 
+  void ClearCaches();
+
   void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
   void IssueSwap();
   void IssueSwap(uint32_t frontbuffer_width, uint32_t frontbuffer_height);

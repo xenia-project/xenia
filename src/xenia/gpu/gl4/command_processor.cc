@@ -171,6 +171,25 @@ void CommandProcessor::CallInThread(std::function<void()> fn) {
   }
 }
 
+void CommandProcessor::ClearCaches() {
+  texture_cache()->Clear();
+
+  for (auto& cached_framebuffer : cached_framebuffers_) {
+    glDeleteFramebuffers(1, &cached_framebuffer.framebuffer);
+  }
+  cached_framebuffers_.clear();
+
+  for (auto& cached_color_render_target : cached_color_render_targets_) {
+    glDeleteTextures(1, &cached_color_render_target.texture);
+  }
+  cached_color_render_targets_.clear();
+
+  for (auto& cached_depth_render_target : cached_depth_render_targets_) {
+    glDeleteTextures(1, &cached_depth_render_target.texture);
+  }
+  cached_depth_render_targets_.clear();
+}
+
 void CommandProcessor::WorkerThreadMain() {
   xe::threading::set_name("GL4 Worker");
 
