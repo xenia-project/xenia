@@ -145,8 +145,6 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
     }
   }
 
-  XELOGE("Submitting audio frame %u", current_frame_);
-
   XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
   buffer.pAudioData = (BYTE*)output_frame;
