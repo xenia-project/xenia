@@ -100,7 +100,7 @@ class XThread : public XObject {
   std::mutex apc_lock_;
   NativeList* apc_list_;
 
-  XEvent* event_;
+  object_ref<XEvent> event_;
 };
 
 class XHostThread : public XThread {

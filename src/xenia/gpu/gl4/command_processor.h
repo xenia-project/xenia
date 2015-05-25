@@ -233,7 +233,7 @@ class CommandProcessor {
   std::wstring trace_frame_path_;
 
   std::atomic<bool> worker_running_;
-  kernel::XHostThread* worker_thread_;
+  kernel::object_ref<kernel::XHostThread> worker_thread_;
 
   std::unique_ptr<GLContext> context_;
   SwapHandler swap_handler_;

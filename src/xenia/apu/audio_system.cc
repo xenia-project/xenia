@@ -104,15 +104,22 @@ X_STATUS AudioSystem::Setup() {
   // Threads
 
   worker_running_ = true;
-  worker_thread_ = new kernel::XHostThread(emulator()->kernel_state(),
-                                           128 * 1024, 0, [this]() {
-    this->WorkerThreadMain();
-    return 0;
-  });
+  worker_thread_ =
+      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
+          emulator()->kernel_state(), 128 * 1024, 0, [this]() {
+            this->WorkerThreadMain();
+            return 0;
+          }));
   worker_thread_->Create();
 
   decoder_running_ = true;
-  decoder_thread_ = std::thread(std::bind(&AudioSystem::DecoderThreadMain, this));
+  decoder_thread_ =
+      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
+          emulator()->kernel_state(), 128 * 1024, 0, [this]() {
+            DecoderThreadMain();
+            return 0;
+          }));
+  decoder_thread_->Create();
 
   return X_STATUS_SUCCESS;
 }
@@ -173,7 +180,6 @@ void AudioSystem::WorkerThreadMain() {
 
 void AudioSystem::DecoderThreadMain() {
   xe::threading::set_name("Audio Decoder");
-  xe::Profiler::ThreadEnter("Audio Decoder");
 
   while (decoder_running_) {
     // Wait for the fence
@@ -315,8 +321,6 @@ void AudioSystem::DecoderThreadMain() {
       context.lock.unlock();
     }
   }
-
-  xe::Profiler::ThreadExit();
 }
 
 void AudioSystem::Initialize() {}
@@ -325,10 +329,11 @@ void AudioSystem::Shutdown() {
   worker_running_ = false;
   SetEvent(client_wait_handles_[maximum_client_count_]);
   worker_thread_->Wait(0, 0, 0, nullptr);
-  worker_thread_->Release();
+  worker_thread_.reset();
 
   decoder_running_ = false;
   decoder_fence_.Signal();
+  worker_thread_.reset();
 
   memory()->SystemHeapFree(registers_.xma_context_array_ptr);
 }

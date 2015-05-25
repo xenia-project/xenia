@@ -101,11 +101,12 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   context_ = std::move(context);
 
   worker_running_ = true;
-  worker_thread_ = new kernel::XHostThread(
-      graphics_system_->emulator()->kernel_state(), 128 * 1024, 0, [this]() {
+  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
+      new kernel::XHostThread(graphics_system_->emulator()->kernel_state(),
+                              128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
-      });
+      }));
   worker_thread_->Create();
 
   return true;
@@ -117,7 +118,7 @@ void CommandProcessor::Shutdown() {
   worker_running_ = false;
   SetEvent(write_ptr_index_event_);
   worker_thread_->Wait(0, 0, 0, nullptr);
-  worker_thread_->Release();
+  worker_thread_.reset();
 
   all_pipelines_.clear();
   all_shaders_.clear();
@@ -163,7 +164,7 @@ void CommandProcessor::EndTracing() {
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
   if (pending_fns_.empty() &&
-      worker_thread_ == kernel::XThread::GetCurrentThread()) {
+      worker_thread_.get() == kernel::XThread::GetCurrentThread()) {
     fn();
   } else {
     pending_fns_.push(std::move(fn));

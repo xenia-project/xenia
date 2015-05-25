@@ -45,7 +45,6 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
       pcr_address_(0),
       thread_state_address_(0),
       thread_state_(0),
-      event_(NULL),
       irql_(0) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
@@ -63,7 +62,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
 
   apc_list_ = new NativeList(kernel_state->memory());
 
-  event_ = new XEvent(kernel_state);
+  event_ = object_ref<XEvent>(new XEvent(kernel_state));
   event_->Initialize(true, false);
 
   // The kernel does not take a reference. We must unregister in the dtor.
@@ -76,7 +75,7 @@ XThread::~XThread() {
 
   delete apc_list_;
 
-  event_->Release();
+  event_.reset();
 
   PlatformDestroy();
 
@@ -294,13 +293,12 @@ X_STATUS XThread::Exit(int exit_code) {
 #if XE_PLATFORM_WIN32
 
 static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
-  XThread* thread = reinterpret_cast<XThread*>(param);
+  auto thread = object_ref<XThread>(reinterpret_cast<XThread*>(param));
   thread->set_name(thread->name());
   xe::Profiler::ThreadEnter(thread->name().c_str());
-  current_thread_tls = thread;
+  current_thread_tls = thread.get();
   thread->Execute();
   current_thread_tls = nullptr;
-  thread->Release();
   xe::Profiler::ThreadExit();
   return 0;
 }
@@ -339,12 +337,11 @@ X_STATUS XThread::PlatformExit(int exit_code) {
 #else
 
 static void* XThreadStartCallbackPthreads(void* param) {
-  XThread* thread = reinterpret_cast<XThread*>(param);
+  auto thread = object_ref<XThread>(reinterpret_cast<XThread*>(param));
   xe::Profiler::ThreadEnter(thread->name().c_str());
-  current_thread_tls = thread;
+  current_thread_tls = thread.get();
   thread->Execute();
   current_thread_tls = nullptr;
-  thread->Release();
   xe::Profiler::ThreadExit();
   return 0;
 }

@@ -160,10 +160,10 @@ class AudioSystem {
   cpu::Processor* processor_;
 
   std::atomic<bool> worker_running_;
-  kernel::XHostThread* worker_thread_;
+  kernel::object_ref<kernel::XHostThread> worker_thread_;
 
   std::atomic<bool> decoder_running_;
-  std::thread decoder_thread_;
+  kernel::object_ref<kernel::XHostThread> decoder_thread_;
   xe::threading::Fence decoder_fence_;
 
   std::mutex lock_;
