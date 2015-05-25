@@ -328,18 +328,15 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
   XOverlappedSetLength(ptr, length);
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
-    XEvent* ev = nullptr;
-    if (XSUCCEEDED(object_table()->GetObject(
-            event_handle, reinterpret_cast<XObject**>(&ev)))) {
+    auto ev = object_table()->LookupObject<XEvent>(event_handle);
+    if (ev) {
       ev->Set(0, false);
-      ev->Release();
     }
   }
   if (XOverlappedGetCompletionRoutine(ptr)) {
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
-    XThread* thread = nullptr;
-    if (XSUCCEEDED(object_table()->GetObject(
-            thread_handle, reinterpret_cast<XObject**>(&thread)))) {
+    auto thread = object_table()->LookupObject<XThread>(thread_handle);
+    if (thread) {
       uint32_t routine = XOverlappedGetCompletionRoutine(ptr);
       uint64_t args[] = {
           result, length, overlapped_ptr,
@@ -350,8 +347,6 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
       // THIS IS WRONG, for testing only:
       processor()->Execute(XThread::GetCurrentThread()->thread_state(), routine,
                            args, xe::countof(args));
-
-      thread->Release();
     }
   }
 }

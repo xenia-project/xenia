@@ -169,8 +169,8 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XamEnumerate(%.8X, %d, %.8X, %d, %.8X, %.8X)", handle, zero,
          buffer_ptr, buffer_length, item_count_ptr, overlapped_ptr);
 
-  XEnumerator* e = nullptr;
-  if (XFAILED(state->object_table()->GetObject(handle, (XObject**)&e))) {
+  auto e = state->object_table()->LookupObject<XEnumerator>(handle);
+  if (!e) {
     if (overlapped_ptr) {
       state->CompleteOverlappedImmediateEx(overlapped_ptr, 0,
                                            X_ERROR_INVALID_HANDLE, 0);
@@ -197,8 +197,6 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
     assert_always();
     result = X_ERROR_INVALID_PARAMETER;
   }
-
-  e->Release();
 
   SHIM_SET_RETURN_64(result);
 }

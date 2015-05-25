@@ -153,18 +153,15 @@ SHIM_CALL NtResumeThread_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("NtResumeThread(%.8X, %.8X)", handle, suspend_count_ptr);
 
-  XThread* thread = NULL;
-  X_STATUS result =
-      state->object_table()->GetObject(handle, (XObject**)&thread);
-  uint32_t suspend_count;
-  if (XSUCCEEDED(result)) {
+  X_RESULT result = X_STATUS_INVALID_HANDLE;
+  uint32_t suspend_count = 0;
+
+  auto thread = state->object_table()->LookupObject<XThread>(handle);
+  if (thread) {
     result = thread->Resume(&suspend_count);
-    thread->Release();
   }
-  if (XSUCCEEDED(result)) {
-    if (suspend_count_ptr) {
-      SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
-    }
+  if (suspend_count_ptr) {
+    SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -175,11 +172,13 @@ SHIM_CALL KeResumeThread_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("KeResumeThread(%.8X)", thread_ptr);
 
-  X_STATUS result;
+  X_STATUS result = X_STATUS_SUCCESS;
   auto thread =
       XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr));
   if (thread) {
     result = thread->Resume();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -191,19 +190,18 @@ SHIM_CALL NtSuspendThread_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("NtSuspendThread(%.8X, %.8X)", handle, suspend_count_ptr);
 
-  XThread* thread = NULL;
-  X_STATUS result =
-      state->object_table()->GetObject(handle, (XObject**)&thread);
-  uint32_t suspend_count;
-  if (XSUCCEEDED(result)) {
+  X_RESULT result = X_STATUS_SUCCESS;
+  uint32_t suspend_count = 0;
+
+  auto thread = state->object_table()->LookupObject<XThread>(handle);
+  if (thread) {
     result = thread->Suspend(&suspend_count);
-    thread->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
-  if (XSUCCEEDED(result)) {
-    if (suspend_count_ptr) {
-      SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
-    }
+  if (suspend_count_ptr) {
+    SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -250,22 +248,21 @@ SHIM_CALL KeSetBasePriorityThread_shim(PPCContext* ppc_state,
 
   int32_t prev_priority = 0;
 
-  XThread* thread = NULL;
+  object_ref<XThread> thread;
   if (thread_ptr < 0x1000) {
     // They passed in a handle (for some reason)
-    X_STATUS result =
-              state->object_table()->GetObject(thread_ptr, (XObject**)&thread);
+    thread = state->object_table()->LookupObject<XThread>(thread_ptr);
 
     // Log it in case this is the source of any problems in the future
     XELOGD("KeSetBasePriorityThread - Interpreting thread ptr as handle!");
   } else {
-    thread = XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr)).release();
+    thread =
+        XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr));
   }
 
   if (thread) {
     prev_priority = thread->QueryPriority();
     thread->SetPriority(increment);
-    thread->Release();
   }
 
   SHIM_SET_RETURN_32(prev_priority);
@@ -507,15 +504,14 @@ SHIM_CALL NtSetEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XEvent* ev = NULL;
-  result = state->object_table()->GetObject(event_handle, (XObject**)&ev);
-  if (XSUCCEEDED(result)) {
+  auto ev = state->object_table()->LookupObject<XEvent>(event_handle);
+  if (ev) {
     int32_t was_signalled = ev->Set(0, false);
     if (previous_state_ptr) {
       SHIM_SET_MEM_32(previous_state_ptr, was_signalled);
     }
-
-    ev->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -547,15 +543,14 @@ SHIM_CALL NtPulseEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XEvent* ev = NULL;
-  result = state->object_table()->GetObject(event_handle, (XObject**)&ev);
-  if (XSUCCEEDED(result)) {
+  auto ev = state->object_table()->LookupObject<XEvent>(event_handle);
+  if (ev) {
     int32_t was_signalled = ev->Pulse(0, false);
     if (previous_state_ptr) {
       SHIM_SET_MEM_32(previous_state_ptr, was_signalled);
     }
-
-    ev->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -584,11 +579,11 @@ SHIM_CALL NtClearEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XEvent* ev = NULL;
-  result = state->object_table()->GetObject(event_handle, (XObject**)&ev);
-  if (XSUCCEEDED(result)) {
+  auto ev = state->object_table()->LookupObject<XEvent>(event_handle);
+  if (ev) {
     ev->Reset();
-    ev->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -674,16 +669,16 @@ SHIM_CALL NtReleaseSemaphore_shim(PPCContext* ppc_state, KernelState* state) {
          previous_count_ptr);
 
   X_STATUS result = X_STATUS_SUCCESS;
+  int32_t previous_count = 0;
 
-  XSemaphore* sem = NULL;
-  result = state->object_table()->GetObject(sem_handle, (XObject**)&sem);
-  if (XSUCCEEDED(result)) {
-    int32_t previous_count = sem->ReleaseSemaphore(release_count);
-    sem->Release();
-
-    if (previous_count_ptr) {
-      SHIM_SET_MEM_32(previous_count_ptr, previous_count);
-    }
+  auto sem = state->object_table()->LookupObject<XSemaphore>(sem_handle);
+  if (sem) {
+    previous_count = sem->ReleaseSemaphore(release_count);
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+  if (previous_count_ptr) {
+    SHIM_SET_MEM_32(previous_count_ptr, previous_count);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -736,11 +731,11 @@ SHIM_CALL NtReleaseMutant_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XMutant* mutant = NULL;
-  result = state->object_table()->GetObject(mutant_handle, (XObject**)&mutant);
-  if (XSUCCEEDED(result)) {
+  auto mutant = state->object_table()->LookupObject<XMutant>(mutant_handle);
+  if (mutant) {
     result = mutant->ReleaseMutant(priority_increment, abandon, wait);
-    mutant->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -798,12 +793,12 @@ SHIM_CALL NtSetTimerEx_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XTimer* timer = NULL;
-  result = state->object_table()->GetObject(timer_handle, (XObject**)&timer);
-  if (XSUCCEEDED(result)) {
+  auto timer = state->object_table()->LookupObject<XTimer>(timer_handle);
+  if (timer) {
     result = timer->SetTimer(due_time, period_ms, routine, routine_arg,
                              resume ? true : false);
-    timer->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -817,15 +812,14 @@ SHIM_CALL NtCancelTimer_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XTimer* timer = NULL;
-  result = state->object_table()->GetObject(timer_handle, (XObject**)&timer);
-  if (XSUCCEEDED(result)) {
+  auto timer = state->object_table()->LookupObject<XTimer>(timer_handle);
+  if (timer) {
     result = timer->Cancel();
-    timer->Release();
-
-    if (current_state_ptr) {
-      SHIM_SET_MEM_32(current_state_ptr, 0);
-    }
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+  if (current_state_ptr) {
+    SHIM_SET_MEM_32(current_state_ptr, 0);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -869,13 +863,13 @@ SHIM_CALL NtWaitForSingleObjectEx_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XObject* object = NULL;
-  result = state->object_table()->GetObject(object_handle, &object);
-  if (XSUCCEEDED(result)) {
+  auto object = state->object_table()->LookupObject<XObject>(object_handle);
+  if (object) {
     uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
     result =
-        object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : NULL);
-    object->Release();
+        object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -936,21 +930,21 @@ SHIM_CALL NtWaitForMultipleObjectsEx_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XObject** objects = (XObject**)alloca(sizeof(XObject*) * count);
+  std::vector<object_ref<XObject>> objects(count);
   for (uint32_t n = 0; n < count; n++) {
     uint32_t object_handle = SHIM_MEM_32(handles_ptr + n * 4);
-    XObject* object = NULL;
-    result = state->object_table()->GetObject(object_handle, &object);
-    if (XFAILED(result)) {
+    auto object = state->object_table()->LookupObject<XObject>(object_handle);
+    if (!object) {
       SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
       return;
     }
-    objects[n] = object;
+    objects[n] = std::move(object);
   }
 
   uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
-  result = XObject::WaitMultiple(count, objects, wait_type, 6, wait_mode,
-                                 alertable, timeout_ptr ? &timeout : NULL);
+  result = XObject::WaitMultiple(
+      count, reinterpret_cast<XObject**>(objects.data()), wait_type, 6,
+      wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
 
   SHIM_SET_RETURN_32(result);
 }
@@ -968,22 +962,16 @@ SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  XObject* signal_object = NULL;
-  XObject* wait_object = NULL;
-  result = state->object_table()->GetObject(signal_handle, &signal_object);
-  if (XSUCCEEDED(result)) {
-    result = state->object_table()->GetObject(wait_handle, &wait_object);
-  }
-  if (XSUCCEEDED(result)) {
+  auto signal_object =
+      state->object_table()->LookupObject<XObject>(signal_handle);
+  auto wait_object = state->object_table()->LookupObject<XObject>(wait_handle);
+  if (signal_object && wait_object) {
     uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
-    result = XObject::SignalAndWait(signal_object, wait_object, 3, 1, alertable,
-                                    timeout_ptr ? &timeout : NULL);
-  }
-  if (signal_object) {
-    signal_object->Release();
-  }
-  if (wait_object) {
-    wait_object->Release();
+    result =
+        XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1,
+                               alertable, timeout_ptr ? &timeout : nullptr);
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);

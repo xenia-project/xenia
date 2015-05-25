@@ -56,11 +56,10 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
   XELOGD("ObReferenceObjectByHandle(%.8X, %.8X, %.8X)", handle, object_type_ptr,
          out_object_ptr);
 
-  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  X_STATUS result = X_STATUS_SUCCESS;
 
-  XObject* object = NULL;
-  result = state->object_table()->GetObject(handle, &object);
-  if (XSUCCEEDED(result)) {
+  auto object = state->object_table()->LookupObject<XObject>(handle);
+  if (object) {
     // TODO(benvanik): verify type with object_type_ptr
 
     // TODO(benvanik): get native value, if supported.
@@ -74,7 +73,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
             XEvent* ev = (XEvent*)object;
           } break;*/
           case XObject::kTypeThread: {
-            XThread* thread = (XThread*)object;
+            auto thread = object.get<XThread>();
             native_ptr = thread->thread_state_ptr();
           } break;
           default: {
@@ -89,7 +88,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
         native_ptr = 0xDEADF00D;
       } break;
       case 0xD01BBEEF: {  // ExThreadObjectType
-        XThread* thread = (XThread*)object;
+        auto thread = object.get<XThread>();
         native_ptr = thread->thread_state_ptr();
       } break;
       default: {
@@ -98,9 +97,14 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
       } break;
     }
 
+    // Caller takes the reference.
+    // It's released in ObDereferenceObject.
+    object->Retain();
     if (out_object_ptr) {
       SHIM_SET_MEM_32(out_object_ptr, native_ptr);
     }
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -142,22 +146,21 @@ SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
   // So we just fake it and properly reference count but not actually make
   // different handles.
 
-  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  X_STATUS result = X_STATUS_SUCCESS;
 
-  XObject* obj = 0;
-  result = state->object_table()->GetObject(handle, &obj);
-  if (XSUCCEEDED(result)) {
-    obj->RetainHandle();
-    uint32_t new_handle = obj->handle();
+  auto object = state->object_table()->LookupObject<XObject>(handle);
+  if (object) {
+    object->RetainHandle();
+    uint32_t new_handle = object->handle();
     if (new_handle_ptr) {
       SHIM_SET_MEM_32(new_handle_ptr, new_handle);
     }
-
     if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
       // Always close the source object.
       state->object_table()->RemoveHandle(handle);
     }
-    obj->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);

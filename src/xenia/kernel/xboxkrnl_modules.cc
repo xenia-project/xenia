@@ -183,10 +183,9 @@ SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XexGetModuleSection(%.8X, %s, %.8X, %.8X)", handle, name, data_ptr,
          size_ptr);
 
-  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  X_STATUS result = X_STATUS_SUCCESS;
 
-  XModule* module = nullptr;
-  state->object_table()->GetObject(handle, (XObject**)&module);
+  auto module = state->object_table()->LookupObject<XModule>(handle);
   if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
@@ -195,7 +194,8 @@ SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
       SHIM_SET_MEM_32(data_ptr, section_data);
       SHIM_SET_MEM_32(size_ptr, section_size);
     }
-    module->Release();
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   SHIM_SET_RETURN_32(result);
@@ -266,15 +266,13 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
-  XModule* module = NULL;
+  object_ref<XModule> module;
   if (!module_handle) {
-    module = state->GetExecutableModule().get();
+    module = state->GetExecutableModule();
   } else {
-    result =
-        state->object_table()->GetObject(module_handle, (XObject**)&module);
+    module = state->object_table()->LookupObject<XModule>(module_handle);
   }
-
-  if (XSUCCEEDED(result)) {
+  if (module) {
     uint32_t ptr;
     if (is_string_name) {
       ptr = module->GetProcAddressByName(string_name);
@@ -289,10 +287,6 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
       SHIM_SET_MEM_32(out_function_ptr, 0);
       result = X_STATUS_DRIVER_ORDINAL_NOT_FOUND;
     }
-  }
-
-  if (module) {
-    module->Release();
   }
 
   SHIM_SET_RETURN_32(result);

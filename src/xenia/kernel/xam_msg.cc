@@ -104,11 +104,9 @@ SHIM_CALL XMsgCancelIORequest_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_HANDLE event_handle = XOverlappedGetEvent(SHIM_MEM_ADDR(overlapped_ptr));
   if (event_handle && wait) {
-    XEvent* ev = nullptr;
-    if (XSUCCEEDED(state->object_table()->GetObject(
-            event_handle, reinterpret_cast<XObject**>(&ev)))) {
+    auto ev = state->object_table()->LookupObject<XEvent>(event_handle);
+    if (ev) {
       ev->Wait(0, 0, true, nullptr);
-      ev->Release();
     }
   }
 

@@ -88,12 +88,12 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
   FileSystem* fs = state->file_system();
   std::unique_ptr<Entry> entry;
 
-  XFile* root_file = NULL;
+  object_ref<XFile> root_file;
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
-    result = state->object_table()->GetObject(object_attrs->root_directory,
-                                              (XObject**)&root_file);
-    assert_true(XSUCCEEDED(result));
+    root_file = state->object_table()->LookupObject<XFile>(
+        object_attrs->root_directory);
+    assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
     // Resolve the file using the device the root directory is part of.
@@ -242,16 +242,18 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t info = 0;
 
   // Grab event to signal.
-  XEvent* ev = NULL;
   bool signal_event = false;
-  if (event_handle) {
-    result = state->object_table()->GetObject(event_handle, (XObject**)&ev);
+  auto ev = event_handle
+                ? state->object_table()->LookupObject<XEvent>(event_handle)
+                : object_ref<XEvent>();
+  if (event_handle && !ev) {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   // Grab file.
-  XFile* file = NULL;
-  if (XSUCCEEDED(result)) {
-    result = state->object_table()->GetObject(file_handle, (XObject**)&file);
+  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  if (!file) {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   // Execute read.
@@ -300,11 +302,8 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
   }
 
-  if (ev) {
-    if (signal_event) {
-      ev->Set(0, false);
-    }
-    ev->Release();
+  if (ev && signal_event) {
+    ev->Set(0, false);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -333,16 +332,18 @@ SHIM_CALL NtWriteFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t info = 0;
 
   // Grab event to signal.
-  XEvent* ev = NULL;
   bool signal_event = false;
-  if (event_handle) {
-    result = state->object_table()->GetObject(event_handle, (XObject**)&ev);
+  auto ev = event_handle
+                ? state->object_table()->LookupObject<XEvent>(event_handle)
+                : object_ref<XEvent>();
+  if (event_handle && !ev) {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   // Grab file.
-  XFile* file = NULL;
-  if (XSUCCEEDED(result)) {
-    result = state->object_table()->GetObject(file_handle, (XObject**)&file);
+  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  if (!ev) {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
   // Execute write.
@@ -383,14 +384,8 @@ SHIM_CALL NtWriteFile_shim(PPCContext* ppc_state, KernelState* state) {
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
   }
 
-  if (file) {
-    file->Release();
-  }
-  if (ev) {
-    if (signal_event) {
-      ev->Set(0, false);
-    }
-    ev->Release();
+  if (ev && signal_event) {
+    ev->Set(0, false);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -410,11 +405,8 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t info = 0;
 
   // Grab file.
-  XFile* file = NULL;
-  result = state->object_table()->GetObject(file_handle, (XObject**)&file);
-
-  if (XSUCCEEDED(result)) {
-    result = X_STATUS_SUCCESS;
+  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  if (file) {
     switch (file_info_class) {
       case XFileDispositionInformation: {
         // Used to set deletion flag. Which we don't support. Probably?
@@ -444,18 +436,13 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
         info = 0;
         break;
     }
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
-  if (XFAILED(result)) {
-    info = 0;
-  }
   if (io_status_block_ptr) {
     SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
-  }
-
-  if (file) {
-    file->Release();
   }
 
   SHIM_SET_RETURN_32(result);
@@ -476,11 +463,8 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
   uint32_t info = 0;
 
   // Grab file.
-  XFile* file = NULL;
-  result = state->object_table()->GetObject(file_handle, (XObject**)&file);
-
-  if (XSUCCEEDED(result)) {
-    result = X_STATUS_SUCCESS;
+  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  if (file) {
     switch (file_info_class) {
       case XFileInternalInformation:
         // Internal unique file pointer. Not sure why anyone would want this.
@@ -541,18 +525,13 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         info = 0;
         break;
     }
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
   }
 
-  if (XFAILED(result)) {
-    info = 0;
-  }
   if (io_status_block_ptr) {
     SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
-  }
-
-  if (file) {
-    file->Release();
   }
 
   SHIM_SET_RETURN_32(result);
@@ -572,11 +551,11 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
-  XFile* root_file = NULL;
+  object_ref<XFile> root_file;
   if (attrs.root_directory != 0xFFFFFFFD) {  // ObDosDevices
-    result = state->object_table()->GetObject(attrs.root_directory,
-                                              (XObject**)&root_file);
-    assert_true(XSUCCEEDED(result));
+    root_file =
+        state->object_table()->LookupObject<XFile>(attrs.root_directory);
+    assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::kTypeFile);
     assert_always();
   }
@@ -612,11 +591,8 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
   uint32_t info = 0;
 
   // Grab file.
-  XFile* file = NULL;
-  result = state->object_table()->GetObject(file_handle, (XObject**)&file);
-
-  if (XSUCCEEDED(result)) {
-    result = X_STATUS_SUCCESS;
+  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  if (file) {
     switch (fs_info_class) {
       case 1: {  // FileFsVolumeInformation
         auto volume_info = (X_FILE_FS_VOLUME_INFORMATION*)calloc(length, 1);
@@ -648,17 +624,19 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
         free(fs_attribute_info);
         break;
       }
-      case 2: // FileFsLabelInformation
-      case 4: // FileFsDeviceInformation
-      case 6: // FileFsControlInformation
-      case 7: // FileFsFullSizeInformation
-      case 8: // FileFsObjectIdInformation
+      case 2:  // FileFsLabelInformation
+      case 4:  // FileFsDeviceInformation
+      case 6:  // FileFsControlInformation
+      case 7:  // FileFsFullSizeInformation
+      case 8:  // FileFsObjectIdInformation
       default:
         // Unsupported, for now.
         assert_always();
         info = 0;
         break;
     }
+  } else {
+    result = X_STATUS_NO_SUCH_FILE;
   }
 
   if (XFAILED(result)) {
@@ -667,10 +645,6 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
   if (io_status_block_ptr) {
     SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
-  }
-
-  if (file) {
-    file->Release();
   }
 
   SHIM_SET_RETURN_32(result);
@@ -710,9 +684,8 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   uint32_t info = 0;
 
-  XFile* file = NULL;
-  result = state->object_table()->GetObject(file_handle, (XObject**)&file);
-  if (XSUCCEEDED(result)) {
+  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  if (file) {
     X_FILE_DIRECTORY_INFORMATION* dir_info = (X_FILE_DIRECTORY_INFORMATION*)calloc(length, 1);
     result =
         file->QueryDirectory(dir_info, length, file_name, restart_scan != 0);
@@ -721,6 +694,8 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
       info = length;
     }
     free(dir_info);
+  } else {
+    result = X_STATUS_NO_SUCH_FILE;
   }
 
   if (XFAILED(result)) {
@@ -729,10 +704,6 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   if (io_status_block_ptr) {
     SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
-  }
-
-  if (file) {
-    file->Release();
   }
 
   free(file_name);

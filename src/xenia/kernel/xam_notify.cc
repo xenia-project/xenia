@@ -51,8 +51,8 @@ SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_state, KernelState* state) {
   }
 
   // Grab listener.
-  XNotifyListener* listener = NULL;
-  if (XFAILED(state->object_table()->GetObject(handle, (XObject**)&listener))) {
+  auto listener = state->object_table()->LookupObject<XNotifyListener>(handle);
+  if (!listener) {
     SHIM_SET_RETURN_64(0);
     return;
   }
@@ -67,10 +67,6 @@ SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_state, KernelState* state) {
   } else {
     // Just get next.
     dequeued = listener->DequeueNotification(&id, &param);
-  }
-
-  if (listener) {
-    listener->Release();
   }
 
   if (dequeued) {
