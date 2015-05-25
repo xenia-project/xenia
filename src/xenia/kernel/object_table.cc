@@ -151,42 +151,6 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   return result;
 }
 
-X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object,
-                                bool already_locked) {
-  handle = TranslateHandle(handle);
-  if (!handle) {
-    return X_STATUS_INVALID_HANDLE;
-  }
-
-  XObject* object = nullptr;
-  if (!already_locked) {
-    table_mutex_.lock();
-  }
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
-
-  // Verify slot.
-  if (slot < table_capacity_) {
-    ObjectTableEntry& entry = table_[slot];
-    if (entry.object) {
-      object = entry.object;
-    }
-  }
-
-  // Retain the object pointer.
-  if (object) {
-    object->Retain();
-  }
-
-  if (!already_locked) {
-    table_mutex_.unlock();
-  }
-
-  *out_object = object;
-  return object ? X_STATUS_SUCCESS : X_STATUS_INVALID_HANDLE;
-}
-
 XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
   handle = TranslateHandle(handle);
   if (!handle) {
