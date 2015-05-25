@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 
 #include <mutex>
+#include <unordered_map>
 
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"

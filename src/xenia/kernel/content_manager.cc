@@ -12,6 +12,7 @@
 #include <string>
 
 #include "xenia/base/fs.h"
+#include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xobject.h"
 
 namespace xe {

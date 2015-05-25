@@ -14,12 +14,12 @@
 #include <string>
 #include <unordered_map>
 
+#include "xenia/base/mutex.h"
+#include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
-
-class XObject;
 
 class ObjectTable {
  public:

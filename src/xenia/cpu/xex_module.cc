@@ -125,7 +125,7 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       kernel_export =
           export_resolver->GetExportByOrdinal(library->name, info->ordinal);
     } else {
-      XModule* module = kernel_state_->GetModule(library->name);
+      auto module = kernel_state_->GetModule(library->name);
       if (module) {
         user_export_addr = module->GetProcAddressByOrdinal(info->ordinal);
       }

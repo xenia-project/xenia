@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XFILE_H_
 #define XENIA_KERNEL_XBOXKRNL_XFILE_H_
 
+#include "xenia/kernel/fs/entry.h"
 #include "xenia/kernel/xobject.h"
 
 #include "xenia/xbox.h"

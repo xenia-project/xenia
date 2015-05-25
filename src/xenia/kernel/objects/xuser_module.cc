@@ -51,9 +51,6 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     // Map.
     auto mmap = fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
     if (!mmap) {
-      if (file) {
-        file->Release();
-      }
       return result;
     }
 
@@ -63,9 +60,6 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     X_FILE_NETWORK_OPEN_INFORMATION file_info;
     result = fs_entry->QueryInfo(&file_info);
     if (result) {
-      if (file) {
-        file->Release();
-      }
       return result;
     }
 
@@ -367,8 +361,7 @@ void XUserModule::Dump() {
             unimpl_count++;
           }
         } else {
-          // User module
-          XModule* module = kernel_state_->GetModule(library->name);
+          auto module = kernel_state_->GetModule(library->name);
           if (module) {
             uint32_t export_addr =
                 module->GetProcAddressByOrdinal(info->ordinal);
@@ -409,7 +402,7 @@ void XUserModule::Dump() {
             implemented = kernel_export->is_implemented;
           }
         } else {
-          XModule* module = kernel_state_->GetModule(library->name);
+          auto module = kernel_state_->GetModule(library->name);
           if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
             // TODO: Name lookup
             implemented = true;

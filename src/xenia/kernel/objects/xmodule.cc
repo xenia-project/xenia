@@ -10,6 +10,7 @@
 #include "xenia/kernel/objects/xmodule.h"
 
 #include "xenia/base/string.h"
+#include "xenia/kernel/kernel_state.h"
 
 namespace xe {
 namespace kernel {

@@ -9,10 +9,11 @@
 
 #include "xenia/kernel/xobject.h"
 
-#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xmutant.h"
 #include "xenia/kernel/objects/xsemaphore.h"
+#include "xenia/kernel/xboxkrnl_private.h"
 
 namespace xe {
 namespace kernel {
@@ -33,6 +34,10 @@ XObject::~XObject() {
   assert_zero(handle_ref_count_);
   assert_zero(pointer_ref_count_);
 }
+
+Emulator* XObject::emulator() const { return kernel_state_->emulator_; }
+KernelState* XObject::kernel_state() const { return kernel_state_; }
+Memory* XObject::memory() const { return kernel_state_->memory(); }
 
 XObject::Type XObject::type() { return type_; }
 

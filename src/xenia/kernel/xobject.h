@@ -12,11 +12,17 @@
 
 #include <atomic>
 
-#include "xenia/kernel/kernel_state.h"
 #include "xenia/xbox.h"
 
 namespace xe {
+class Emulator;
+class Memory;
+}  // namespace xe
+
+namespace xe {
 namespace kernel {
+
+class KernelState;
 
 // http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
@@ -43,9 +49,9 @@ class XObject {
   XObject(KernelState* kernel_state, Type type);
   virtual ~XObject();
 
-  Emulator* emulator() const { return kernel_state_->emulator_; }
-  KernelState* kernel_state() const { return kernel_state_; }
-  Memory* memory() const { return kernel_state_->memory(); }
+  Emulator* emulator() const;
+  KernelState* kernel_state() const;
+  Memory* memory() const;
 
   Type type();
   X_HANDLE handle() const;

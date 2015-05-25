@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XENUMERATOR_H_
 #define XENIA_KERNEL_XBOXKRNL_XENUMERATOR_H_
 
+#include <vector>
+
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
