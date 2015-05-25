@@ -105,11 +105,15 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   context_->r[1] = stack_base_;
   context_->r[13] = pcr_address_;
 
-  processor_->debugger()->OnThreadCreated(this);
+  if (processor_->debugger()) {
+    processor_->debugger()->OnThreadCreated(this);
+  }
 }
 
 ThreadState::~ThreadState() {
-  processor_->debugger()->OnThreadDestroyed(this);
+  if (processor_->debugger()) {
+    processor_->debugger()->OnThreadDestroyed(this);
+  }
 
   if (backend_data_) {
     processor_->backend()->FreeThreadData(backend_data_);
