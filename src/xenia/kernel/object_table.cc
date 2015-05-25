@@ -21,7 +21,7 @@ ObjectTable::ObjectTable()
     : table_capacity_(0), table_(nullptr), last_free_entry_(0) {}
 
 ObjectTable::~ObjectTable() {
-  std::lock_guard<std::mutex> lock(table_mutex_);
+  std::lock_guard<xe::mutex> lock(table_mutex_);
 
   // Release all objects.
   for (uint32_t n = 0; n < table_capacity_; n++) {
@@ -89,7 +89,7 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
 
   uint32_t slot = 0;
   {
-    std::lock_guard<std::mutex> lock(table_mutex_);
+    std::lock_guard<xe::mutex> lock(table_mutex_);
 
     // Find a free slot.
     result = FindFreeSlot(&slot);
@@ -122,7 +122,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
 
   XObject* object = NULL;
   {
-    std::lock_guard<std::mutex> lock(table_mutex_);
+    std::lock_guard<xe::mutex> lock(table_mutex_);
 
     // Lower 2 bits are ignored.
     uint32_t slot = handle >> 2;
@@ -153,16 +153,12 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
 
 X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object,
                                 bool already_locked) {
-  assert_not_null(out_object);
-
-  X_STATUS result = X_STATUS_SUCCESS;
-
   handle = TranslateHandle(handle);
   if (!handle) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  XObject* object = NULL;
+  XObject* object = nullptr;
   if (!already_locked) {
     table_mutex_.lock();
   }
@@ -171,14 +167,10 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object,
   uint32_t slot = handle >> 2;
 
   // Verify slot.
-  if (slot > table_capacity_) {
-    result = X_STATUS_INVALID_HANDLE;
-  } else {
+  if (slot < table_capacity_) {
     ObjectTableEntry& entry = table_[slot];
     if (entry.object) {
       object = entry.object;
-    } else {
-      result = X_STATUS_INVALID_HANDLE;
     }
   }
 
@@ -192,7 +184,41 @@ X_STATUS ObjectTable::GetObject(X_HANDLE handle, XObject** out_object,
   }
 
   *out_object = object;
-  return result;
+  return object ? X_STATUS_SUCCESS : X_STATUS_INVALID_HANDLE;
+}
+
+XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
+  handle = TranslateHandle(handle);
+  if (!handle) {
+    return nullptr;
+  }
+
+  XObject* object = nullptr;
+  if (!already_locked) {
+    table_mutex_.lock();
+  }
+
+  // Lower 2 bits are ignored.
+  uint32_t slot = handle >> 2;
+
+  // Verify slot.
+  if (slot < table_capacity_) {
+    ObjectTableEntry& entry = table_[slot];
+    if (entry.object) {
+      object = entry.object;
+    }
+  }
+
+  // Retain the object pointer.
+  if (object) {
+    object->Retain();
+  }
+
+  if (!already_locked) {
+    table_mutex_.unlock();
+  }
+
+  return object;
 }
 
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
@@ -209,7 +235,7 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
-  std::lock_guard<std::mutex> lock(table_mutex_);
+  std::lock_guard<xe::mutex> lock(table_mutex_);
   if (name_table_.count(name)) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
@@ -218,7 +244,7 @@ X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
 }
 
 void ObjectTable::RemoveNameMapping(const std::string& name) {
-  std::lock_guard<std::mutex> lock(table_mutex_);
+  std::lock_guard<xe::mutex> lock(table_mutex_);
   auto it = name_table_.find(name);
   if (it != name_table_.end()) {
     name_table_.erase(it);
@@ -227,7 +253,7 @@ void ObjectTable::RemoveNameMapping(const std::string& name) {
 
 X_STATUS ObjectTable::GetObjectByName(const std::string& name,
                                       X_HANDLE* out_handle) {
-  std::lock_guard<std::mutex> lock(table_mutex_);
+  std::lock_guard<xe::mutex> lock(table_mutex_);
   auto it = name_table_.find(name);
   if (it == name_table_.end()) {
     *out_handle = X_INVALID_HANDLE_VALUE;
@@ -236,8 +262,8 @@ X_STATUS ObjectTable::GetObjectByName(const std::string& name,
   *out_handle = it->second;
 
   // We need to ref the handle. I think.
-  XObject* obj = nullptr;
-  if (XSUCCEEDED(GetObject(it->second, &obj, true))) {
+  auto obj = LookupObject(it->second, true);
+  if (obj) {
     obj->RetainHandle();
     obj->Release();
   }

@@ -30,18 +30,26 @@ class ObjectTable {
   X_STATUS RemoveHandle(X_HANDLE handle);
   X_STATUS GetObject(X_HANDLE handle, XObject** out_object,
                      bool already_locked = false);
+  template <typename T>
+  object_ref<T> LookupObject(X_HANDLE handle) {
+    auto object = LookupObject(handle, false);
+    auto result = object_ref<T>(reinterpret_cast<T*>(object));
+    return result;
+  }
 
   X_STATUS AddNameMapping(const std::string& name, X_HANDLE handle);
   void RemoveNameMapping(const std::string& name);
   X_STATUS GetObjectByName(const std::string& name, X_HANDLE* out_handle);
 
  private:
+  XObject* LookupObject(X_HANDLE handle, bool already_locked);
+
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
 
   typedef struct { XObject* object; } ObjectTableEntry;
 
-  std::mutex table_mutex_;
+  xe::mutex table_mutex_;
   uint32_t table_capacity_;
   ObjectTableEntry* table_;
   uint32_t last_free_entry_;
