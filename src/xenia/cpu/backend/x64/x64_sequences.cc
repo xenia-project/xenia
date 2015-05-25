@@ -5626,11 +5626,10 @@ EMITTER(SPLAT_F32, MATCH(I<OPCODE_SPLAT, V128<>, F32<>>)) {
       if (i.src1.is_constant) {
         e.mov(e.eax, i.src1.value->constant.i32);
         e.vmovd(i.dest, e.eax);
+        e.vshufps(i.dest, i.dest, i.dest, 0);
       } else {
-        e.vmovd(i.dest, i.src1.reg().cvt32());
+        e.vshufps(i.dest, i.src1, i.src1, 0);
       }
-
-      e.vshufps(i.dest, i.dest, i.dest, 0);
     }
   }
 };
