@@ -87,7 +87,7 @@ int AudioDecoder::Initialize(int bits) {
 
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
-  current_frame_ = new uint8_t[XMAContextData::kSamplesPerFrame * 2 * (bits / 8)];
+  current_frame_ = new uint8_t[XMAContextData::kSamplesPerFrame * 2 * (bits/8)];
   current_frame_pos_ = 0;
   frame_samples_size_ = 0;
 
@@ -179,6 +179,7 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
 
     // Successfully decoded a frame
     if (got_frame) {
+      // Validity checks.
       if (decoded_frame_->nb_samples > XMAContextData::kSamplesPerFrame) {
         return -2;
       } else if (context_->sample_fmt != AV_SAMPLE_FMT_FLTP) {
@@ -193,24 +194,26 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
         return -4;
       }
 
-      float* curSample = (float *)decoded_frame_->data[0];
+      // Output sample array
+      float* sample_array = (float *)decoded_frame_->data[0];
 
       // Loop through every sample, convert and drop it into the output array
       for (int i = 0; i < decoded_frame_->nb_samples; i++) {
-        float fSample = curSample[i] * (1 << (bits_ - 1));
-        // Weird problem: Sometimes the samples are outside [-1,1]
-        if (fSample >= 0) {
-          fSample += 0.5f;
-          if (fSample > (1 << (bits_ - 1)) - 1) {
-            fSample = (float)(1 << (bits_ - 1)) - 1;
-          }
-        } else {
-          fSample -= 0.5f;
+        // Raw sample should be within [-1, 1]
+        float fRawSample = sample_array[i];
+        float fScaledSample = fRawSample * (1 << (bits_ - 1));
+
+        // Clamp the sample in range
+        int64_t range = (1 << (bits_ - 1));
+        if (fScaledSample > (range - 1)) {
+          fScaledSample = (float)range;
+        } else if (fScaledSample < (-range + 1)) {
+          fScaledSample = (float)-range;
         }
 
-        // Convert the sample
-        int sample = (int)fSample;
-        for (uint32_t j = 0; j < sample_size; j++) {
+        // Convert the sample and output it in big endian
+        int sample = (int)fScaledSample;
+        for (int32_t j = sample_size-1; j >= 0; j--) {
           current_frame_[i * sample_size + j] = sample & 0xFF;
           sample >>= 8;
         }

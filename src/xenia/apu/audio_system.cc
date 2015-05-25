@@ -246,8 +246,8 @@ void AudioSystem::DecoderThreadMain() {
                               data.input_buffer_1_block_count) * 2048;
           size_t input_offset = (data.input_buffer_read_offset / 8 - 4);
           size_t input_remaining = input_size - input_offset;
-          if (input_remaining == 0) {
-            // We're finished!
+          if (input_offset > input_size) {
+            // We're finished. Break.
             break;
           }
 
@@ -267,27 +267,24 @@ void AudioSystem::DecoderThreadMain() {
           int read = context.decoder->DecodePacket(out, output_offset,
                                                    output_remaining);
           if (read < 0) {
+            // Sometimes the decoder will fail on a packet. I think it's
+            // looking for cross-packet frames and failing. If you run it again
+            // on the same packet it'll work though.
             XELOGAPU("APU failed to decode packet (returned %.8X)", -read);
-            context.decoder->DiscardPacket();
 
-            // TODO: Set error state
-
-            break;
+            continue;
           }
 
           if (read == 0) {
             // Select sample rate.
             int sample_rate = 0;
             if (data.sample_rate == 0) {
-              // TODO: Test this
               sample_rate = 24000;
             } else if (data.sample_rate == 1) {
               sample_rate = 32000;
             } else if (data.sample_rate == 2) {
-              // TODO: Test this
               sample_rate = 44100;
             } else if (data.sample_rate == 3) {
-              // TODO: Test this
               sample_rate = 48000;
             }
 
@@ -300,13 +297,14 @@ void AudioSystem::DecoderThreadMain() {
             // New packet time.
             // TODO: Select input buffer 1 if necessary.
             auto packet = in0 + input_offset;
-            context.decoder->PreparePacket(packet, 2048, sample_rate, channels);
+            context.decoder->PreparePacket(packet, 2048, sample_rate,
+                                           channels);
             input_offset += 2048;
           }
 
           output_offset += read;
 
-          // blah copy these back to the context
+          // Copy the variables we changed back to the context.
           data.input_buffer_read_offset = (input_offset + 4) * 8;
           data.output_buffer_write_offset = output_offset / 256;
         }
