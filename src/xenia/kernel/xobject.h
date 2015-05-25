@@ -81,8 +81,15 @@ class XObject {
                                uint32_t processor_mode, uint32_t alertable,
                                uint64_t* opt_timeout);
 
-  static XObject* GetObject(KernelState* kernel_state, void* native_ptr,
-                            int32_t as_type = -1);
+  static object_ref<XObject> GetNativeObject(KernelState* kernel_state,
+                                             void* native_ptr,
+                                             int32_t as_type = -1);
+  template <typename T>
+  static object_ref<T> GetNativeObject(KernelState* kernel_state,
+                                       void* native_ptr, int32_t as_type = -1) {
+    return object_ref<T>(reinterpret_cast<T*>(
+        GetNativeObject(kernel_state, native_ptr, as_type).release()));
+  }
 
   virtual void* GetWaitHandle() { return 0; }
 

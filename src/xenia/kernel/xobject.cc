@@ -175,10 +175,9 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
 }
 
-XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
-                            int32_t as_type) {
-  assert_not_null(native_ptr);
-
+object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
+                                             void* native_ptr,
+                                             int32_t as_type) {
   // Unfortunately the XDK seems to inline some KeInitialize calls, meaning
   // we never see it and just randomly start getting passed events/timers/etc.
   // Luckily it seems like all other calls (Set/Reset/Wait/etc) are used and
@@ -202,28 +201,28 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
                           ((header->wait_list_blink) & ~0x1);
     XObject* object = reinterpret_cast<XObject*>(object_ptr);
     // TODO(benvanik): assert nothing has been changed in the struct.
-    return object;
+    return retain_object<XObject>(object);
   } else {
     // First use, create new.
     // http://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
-    XObject* object = NULL;
+    XObject* object = nullptr;
     switch (as_type) {
       case 0:  // EventNotificationObject
       case 1:  // EventSynchronizationObject
       {
-        XEvent* ev = new XEvent(kernel_state);
+        auto ev = new XEvent(kernel_state);
         ev->InitializeNative(native_ptr, *header);
         object = ev;
       } break;
       case 2:  // MutantObject
       {
-        XMutant* mutant = new XMutant(kernel_state);
+        auto mutant = new XMutant(kernel_state);
         mutant->InitializeNative(native_ptr, *header);
         object = mutant;
       } break;
       case 5:  // SemaphoreObject
       {
-        XSemaphore* sem = new XSemaphore(kernel_state);
+        auto sem = new XSemaphore(kernel_state);
         sem->InitializeNative(native_ptr, *header);
         object = sem;
       } break;
@@ -251,7 +250,9 @@ XObject* XObject::GetObject(KernelState* kernel_state, void* native_ptr,
     header->wait_list_flink = (uint32_t)(object_ptr >> 32);
     header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
 
-    return object;
+    // NOTE: we are double-retaining, as the object is implicitly created and
+    // can never be released.
+    return retain_object<XObject>(object);
   }
 }
 

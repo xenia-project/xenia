@@ -118,7 +118,7 @@ SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_state, KernelState* state) {
   }
 
   void* object_ptr = SHIM_MEM_ADDR(native_ptr);
-  XObject* object = XObject::GetObject(state, object_ptr);
+  auto object = XObject::GetNativeObject<XObject>(state, object_ptr);
   if (object) {
     object->Release();
   }
