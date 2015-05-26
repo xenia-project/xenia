@@ -639,7 +639,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   uint32_t high_page_number = (high_address - heap_base_) / page_size_;
   low_page_number = std::min(uint32_t(page_table_.size()) - 1, low_page_number);
   high_page_number =
-      std::min(uint32_t(page_table_.size()) - 1, high_page_number) - page_count;
+      std::min(uint32_t(page_table_.size()) - 1, high_page_number);
 
   std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
 
@@ -683,7 +683,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     }
   } else {
     for (uint32_t base_page_number = low_page_number;
-         base_page_number <= high_page_number;
+         base_page_number <= high_page_number - page_count;
          base_page_number += page_scan_stride) {
       bool is_free = page_table_[base_page_number].state == 0;
       if (page_table_[base_page_number].state != 0) {

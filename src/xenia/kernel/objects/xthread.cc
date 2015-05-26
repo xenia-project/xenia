@@ -66,6 +66,10 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
   event_ = object_ref<XEvent>(new XEvent(kernel_state));
   event_->Initialize(true, false);
 
+  char thread_name[32];
+  snprintf(thread_name, xe::countof(thread_name), "XThread%04X", handle());
+  set_name(thread_name);
+
   // The kernel does not take a reference. We must unregister in the dtor.
   kernel_state_->RegisterThread(this);
 }
@@ -258,10 +262,6 @@ X_STATUS XThread::Create() {
     XELOGW("Unable to create platform thread (%.8X)", return_code);
     return return_code;
   }
-
-  char thread_name[32];
-  snprintf(thread_name, xe::countof(thread_name), "XThread%04X", handle());
-  set_name(thread_name);
 
   uint32_t proc_mask = creation_params_.creation_flags >> 24;
   if (proc_mask) {

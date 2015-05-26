@@ -109,9 +109,10 @@ X_STATUS AudioSystem::Setup() {
   worker_thread_ =
       kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
           emulator()->kernel_state(), 128 * 1024, 0, [this]() {
-            this->WorkerThreadMain();
+            WorkerThreadMain();
             return 0;
           }));
+  worker_thread_->set_name("Audio Worker");
   worker_thread_->Create();
 
   decoder_running_ = true;
@@ -121,14 +122,13 @@ X_STATUS AudioSystem::Setup() {
             DecoderThreadMain();
             return 0;
           }));
+  decoder_thread_->set_name("Audio Decoder");
   decoder_thread_->Create();
 
   return X_STATUS_SUCCESS;
 }
 
 void AudioSystem::WorkerThreadMain() {
-  xe::threading::set_name("Audio Worker");
-
   // Initialize driver and ringbuffer.
   Initialize();
 
@@ -182,8 +182,6 @@ void AudioSystem::WorkerThreadMain() {
 }
 
 void AudioSystem::DecoderThreadMain() {
-  xe::threading::set_name("Audio Decoder");
-
   while (decoder_running_) {
     // Wait for the fence
     decoder_fence_.Wait();

@@ -20,7 +20,6 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
 
 #include "third_party/xxhash/xxhash.h"
@@ -107,6 +106,7 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
         WorkerThreadMain();
         return 0;
       }));
+  worker_thread_->set_name("GL4 Worker");
   worker_thread_->Create();
 
   return true;
@@ -191,8 +191,6 @@ void CommandProcessor::ClearCaches() {
 }
 
 void CommandProcessor::WorkerThreadMain() {
-  xe::threading::set_name("GL4 Worker");
-
   context_->MakeCurrent();
   if (!SetupGL()) {
     XEFATAL("Unable to setup command processor GL state");

@@ -71,8 +71,8 @@ class mutex {
  private:
   std::aligned_storage<_Mtx_internal_imp_size,
                        _Mtx_internal_imp_alignment>::type _Mtx_storage;
-  HANDLE holding_thread_;
-  bool debugger_waiting_;
+  HANDLE holding_thread_ = nullptr;
+  bool debugger_waiting_ = false;
 
   _Mtx_t _Mymtx() noexcept { return (reinterpret_cast<_Mtx_t>(&_Mtx_storage)); }
 };

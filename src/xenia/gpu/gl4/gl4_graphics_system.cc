@@ -241,11 +241,6 @@ void GL4GraphicsSystem::ClearCaches() {
 }
 
 void GL4GraphicsSystem::MarkVblank() {
-  static bool thread_name_set = false;
-  if (!thread_name_set) {
-    thread_name_set = true;
-    Profiler::ThreadEnter("GL4 Vsync Timer");
-  }
   SCOPE_profile_cpu_f("gpu");
 
   // Increment vblank counter (so the game sees us making progress).
