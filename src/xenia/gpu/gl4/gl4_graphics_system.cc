@@ -12,6 +12,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/emulator.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
 #include "xenia/gpu/gl4/gl4_profiler_display.h"
 #include "xenia/gpu/gpu-private.h"
@@ -24,7 +25,7 @@ namespace gl4 {
 extern "C" GLEWContext* glewGetContext();
 
 GL4GraphicsSystem::GL4GraphicsSystem(Emulator* emulator)
-    : GraphicsSystem(emulator), timer_queue_(nullptr), vsync_timer_(nullptr) {}
+    : GraphicsSystem(emulator), worker_running_(false) {}
 
 GL4GraphicsSystem::~GL4GraphicsSystem() = default;
 
@@ -80,15 +81,26 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
       reinterpret_cast<cpu::MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // 60hz vsync timer.
-  DWORD timer_period = 16;
-  if (!FLAGS_vsync) {
-    // DANGER a value too low here will lead to starvation!
-    timer_period = 4;
-  }
-  timer_queue_ = CreateTimerQueue();
-  CreateTimerQueueTimer(&vsync_timer_, timer_queue_,
-                        (WAITORTIMERCALLBACK)VsyncCallbackThunk, this, 16,
-                        timer_period, WT_EXECUTEINPERSISTENTTHREAD);
+  worker_running_ = true;
+  worker_thread_ =
+      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
+          emulator()->kernel_state(), 128 * 1024, 0, [this]() {
+            uint64_t vsync_duration = FLAGS_vsync ? 16 : 1;
+            uint64_t last_frame_time = xe::threading::ticks();
+            while (worker_running_) {
+              uint64_t current_time = xe::threading::ticks();
+              uint64_t elapsed = (current_time - last_frame_time) /
+                                 (xe::threading::ticks_per_second() / 1000);
+              if (elapsed >= vsync_duration) {
+                MarkVblank();
+                last_frame_time = current_time;
+              }
+              Sleep(1);
+            }
+            return 0;
+          }));
+  worker_thread_->set_name("GL4 Vsync");
+  worker_thread_->Create();
 
   if (FLAGS_trace_gpu_stream) {
     BeginTracing();
@@ -100,8 +112,9 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
 void GL4GraphicsSystem::Shutdown() {
   EndTracing();
 
-  DeleteTimerQueueTimer(timer_queue_, vsync_timer_, nullptr);
-  DeleteTimerQueue(timer_queue_);
+  worker_running_ = false;
+  worker_thread_->Wait(0, 0, 0, nullptr);
+  worker_thread_.reset();
 
   command_processor_->Shutdown();
 

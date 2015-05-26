@@ -13,6 +13,7 @@
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gpu-private.h"
+#include "xenia/kernel/objects/xthread.h"
 
 namespace xe {
 namespace gpu {
@@ -53,18 +54,21 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
     return;
   }
 
+  auto thread = kernel::XThread::GetCurrentThread();
+  assert_not_null(thread);
+
   // Pick a CPU, if needed. We're going to guess 2. Because.
   if (cpu == 0xFFFFFFFF) {
     cpu = 2;
   }
+  thread->SetActiveCpu(cpu);
 
   // XELOGGPU("Dispatching GPU interrupt at %.8X w/ mode %d on cpu %d",
   //         interrupt_callback_, source, cpu);
 
-  // NOTE: we may be executing in some random thread.
   uint64_t args[] = {source, interrupt_callback_data_};
-  processor_->ExecuteInterrupt(cpu, interrupt_callback_, args,
-                               xe::countof(args));
+  processor_->Execute(thread->thread_state(), interrupt_callback_, args,
+                      xe::countof(args));
 }
 
 }  // namespace gpu

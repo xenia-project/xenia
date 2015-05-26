@@ -144,6 +144,7 @@ bool Processor::Setup() {
   backend_ = std::move(backend);
   frontend_ = std::move(frontend);
 
+  // DEPRECATED: will be removed.
   interrupt_thread_state_ =
       new ThreadState(this, 0, ThreadStackType::kKernelStack, 0, 128 * 1024, 0);
   interrupt_thread_state_->set_name("Interrupt");
@@ -373,16 +374,12 @@ void Processor::LowerIrql(Irql old_value) {
                       reinterpret_cast<volatile uint32_t*>(&irql_));
 }
 
-uint64_t Processor::ExecuteInterrupt(uint32_t cpu, uint32_t address,
-                                     uint64_t args[], size_t arg_count) {
+uint64_t Processor::ExecuteInterrupt(uint32_t address, uint64_t args[],
+                                     size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
   // Acquire lock on interrupt thread (we can only dispatch one at a time).
   std::lock_guard<xe::mutex> lock(interrupt_thread_lock_);
-
-  // Set 0x10C(r13) to the current CPU ID.
-  xe::store_and_swap<uint8_t>(
-      memory_->TranslateVirtual(interrupt_thread_block_ + 0x10C), cpu);
 
   // Execute interrupt.
   uint64_t result = Execute(interrupt_thread_state_, address, args, arg_count);

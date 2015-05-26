@@ -164,7 +164,7 @@ void CommandProcessor::EndTracing() {
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
   if (pending_fns_.empty() &&
-      worker_thread_.get() == kernel::XThread::GetCurrentThread()) {
+      kernel::XThread::IsInThread(worker_thread_.get())) {
     fn();
   } else {
     pending_fns_.push(std::move(fn));

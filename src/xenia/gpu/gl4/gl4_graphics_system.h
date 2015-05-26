@@ -16,6 +16,7 @@
 #include "xenia/gpu/gl4/wgl_control.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/kernel/objects/xthread.h"
 
 namespace xe {
 namespace gpu {
@@ -60,16 +61,13 @@ class GL4GraphicsSystem : public GraphicsSystem {
                                      uint64_t value) {
     gs->WriteRegister(addr, value);
   }
-  static void __stdcall VsyncCallbackThunk(GL4GraphicsSystem* gs, BOOLEAN) {
-    gs->MarkVblank();
-  }
 
   RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;
   std::unique_ptr<WGLControl> control_;
 
-  HANDLE timer_queue_;
-  HANDLE vsync_timer_;
+  std::atomic<bool> worker_running_;
+  kernel::object_ref<kernel::XHostThread> worker_thread_;
 };
 
 }  // namespace gl4

@@ -35,7 +35,6 @@ using namespace xe::cpu;
 uint32_t next_xthread_id = 0;
 thread_local XThread* current_thread_tls = nullptr;
 xe::mutex critical_region_;
-XThread* shared_kernel_thread_ = 0;
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
@@ -97,18 +96,14 @@ XThread::~XThread() {
   }
 }
 
+bool XThread::IsInThread(XThread* other) {
+  return current_thread_tls == other;
+}
+
 XThread* XThread::GetCurrentThread() {
   XThread* thread = current_thread_tls;
   if (!thread) {
-    // Assume this is some shared interrupt thread/etc.
-    XThread::EnterCriticalRegion();
-    thread = shared_kernel_thread_;
-    if (!thread) {
-      thread = new XThread(KernelState::shared(), 256 * 1024, 0, 0, 0, 0);
-      shared_kernel_thread_ = thread;
-      current_thread_tls = thread;
-    }
-    XThread::LeaveCriticalRegion();
+    assert_always("Attempting to use kernel stuff from a non-kernel thread");
   }
   return thread;
 }
@@ -496,7 +491,7 @@ void XThread::DeliverAPCs(void* data) {
         apc_address, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
         thread->scratch_address_ + 8, thread->scratch_address_ + 12,
     };
-    processor->ExecuteInterrupt(0, kernel_routine, kernel_args,
+    processor->ExecuteInterrupt(kernel_routine, kernel_args,
                                 xe::countof(kernel_args));
     normal_routine = xe::load_and_swap<uint32_t>(scratch_ptr + 0);
     normal_context = xe::load_and_swap<uint32_t>(scratch_ptr + 4);
@@ -509,7 +504,7 @@ void XThread::DeliverAPCs(void* data) {
       thread->UnlockApc();
       // normal_routine(normal_context, system_arg1, system_arg2)
       uint64_t normal_args[] = {normal_context, system_arg1, system_arg2};
-      processor->ExecuteInterrupt(0, normal_routine, normal_args,
+      processor->ExecuteInterrupt(normal_routine, normal_args,
                                   xe::countof(normal_args));
       thread->LockApc();
     }
@@ -534,7 +529,7 @@ void XThread::RundownAPCs() {
     if (rundown_routine) {
       // rundown_routine(apc)
       uint64_t args[] = {apc_address};
-      kernel_state()->processor()->ExecuteInterrupt(0, rundown_routine, args,
+      kernel_state()->processor()->ExecuteInterrupt(rundown_routine, args,
                                                     xe::countof(args));
     }
   }
@@ -580,6 +575,11 @@ void XThread::SetAffinity(uint32_t affinity) {
   if (!FLAGS_ignore_thread_affinities) {
     SetThreadAffinityMask(reinterpret_cast<HANDLE>(thread_handle_), affinity);
   }
+}
+
+void XThread::SetActiveCpu(uint32_t cpu_index) {
+  uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
+  xe::store_and_swap<uint8_t>(pcr + 0x10C, cpu_index);
 }
 
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {

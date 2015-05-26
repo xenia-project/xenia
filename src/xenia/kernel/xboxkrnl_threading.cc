@@ -990,6 +990,7 @@ SHIM_CALL KfAcquireSpinLock_shim(PPCContext* ppc_state, KernelState* state) {
   while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
+    YieldProcessor();
   }
 
   // Raise IRQL to DISPATCH.

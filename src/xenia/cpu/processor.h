@@ -75,7 +75,8 @@ class Processor {
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
-  uint64_t ExecuteInterrupt(uint32_t cpu, uint32_t address, uint64_t args[],
+  // DEPRECATED: will be removed.
+  uint64_t ExecuteInterrupt(uint32_t address, uint64_t args[],
                             size_t arg_count);
 
  private:

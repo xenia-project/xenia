@@ -31,6 +31,7 @@ class XThread : public XObject {
           uint32_t start_context, uint32_t creation_flags);
   virtual ~XThread();
 
+  static bool IsInThread(XThread* other);
   static XThread* GetCurrentThread();
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId(const uint8_t* pcr);
@@ -61,6 +62,7 @@ class XThread : public XObject {
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
   void SetAffinity(uint32_t affinity);
+  void SetActiveCpu(uint32_t cpu_index);
 
   X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
   X_STATUS Suspend(uint32_t* out_suspend_count);
