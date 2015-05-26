@@ -185,6 +185,20 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
   return object;
 }
 
+void ObjectTable::GetObjectsByType(XObject::Type type,
+                                   std::vector<object_ref<XObject>>& results) {
+  std::lock_guard<xe::mutex> lock(table_mutex_);
+  for (uint32_t slot = 0; slot < table_capacity_; ++slot) {
+    auto& entry = table_[slot];
+    if (entry.object) {
+      if (entry.object->type() == type) {
+        entry.object->Retain();
+        results.push_back(object_ref<XObject>(entry.object));
+      }
+    }
+  }
+}
+
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
   if (handle == 0xFFFFFFFF) {
     // CurrentProcess

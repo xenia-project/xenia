@@ -38,9 +38,18 @@ class ObjectTable {
   X_STATUS AddNameMapping(const std::string& name, X_HANDLE handle);
   void RemoveNameMapping(const std::string& name);
   X_STATUS GetObjectByName(const std::string& name, X_HANDLE* out_handle);
+  template <typename T>
+  std::vector<object_ref<T>> GetObjectsByType(XObject::Type type) {
+    std::vector<object_ref<T>> results;
+    GetObjectsByType(
+        type, *reinterpret_cast<std::vector<object_ref<XObject>>*>(&results));
+    return results;
+  }
 
  private:
   XObject* LookupObject(X_HANDLE handle, bool already_locked);
+  void GetObjectsByType(XObject::Type type,
+                        std::vector<object_ref<XObject>>& results);
 
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
