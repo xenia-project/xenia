@@ -65,11 +65,13 @@ void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
   volatile bool* global_lock_taken = reinterpret_cast<bool*>(arg1);
   uint64_t value = ppc_state->scratch;
   if (value == 0x8000) {
-    global_lock->unlock();
+    global_lock->lock();
     *global_lock_taken = false;
+    global_lock->unlock();
   } else if (value == ppc_state->r[13]) {
     global_lock->lock();
     *global_lock_taken = true;
+    global_lock->unlock();
   }
 }
 
