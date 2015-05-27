@@ -174,9 +174,9 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
     if (overlapped_ptr) {
       state->CompleteOverlappedImmediateEx(overlapped_ptr, 0,
                                            X_ERROR_INVALID_HANDLE, 0);
-      SHIM_SET_RETURN_64(X_ERROR_IO_PENDING);
+      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
     } else {
-      SHIM_SET_RETURN_64(X_ERROR_INVALID_HANDLE);
+      SHIM_SET_RETURN_32(X_ERROR_INVALID_HANDLE);
     }
     return;
   }
@@ -198,7 +198,7 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
     result = X_ERROR_INVALID_PARAMETER;
   }
 
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 }  // namespace kernel
