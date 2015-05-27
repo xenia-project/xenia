@@ -82,7 +82,7 @@ X_STATUS HostPathEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, s
     handle = find_file_ = FindFirstFile(target_path.c_str(), &ffd);
     if (handle == INVALID_HANDLE_VALUE) {
       if (GetLastError() == ERROR_FILE_NOT_FOUND) {
-        return X_STATUS_NO_MORE_FILES;
+        return X_STATUS_NO_SUCH_FILE;
       }
       return X_STATUS_UNSUCCESSFUL;
     }
