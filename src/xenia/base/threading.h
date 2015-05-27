@@ -43,10 +43,6 @@ class Fence {
   std::atomic<bool> signaled_;
 };
 
-// Gets the current high-performance tick count.
-uint64_t ticks();
-uint64_t ticks_per_second();
-
 // TODO(benvanik): processor info API.
 
 // Gets a stable thread-specific ID, but may not be. Use for informative

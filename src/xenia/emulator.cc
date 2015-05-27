@@ -9,8 +9,11 @@
 
 #include "xenia/emulator.h"
 
+#include <gflags/gflags.h>
+
 #include "xenia/apu/apu.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/gpu/gpu.h"
@@ -21,6 +24,9 @@
 #include "xenia/kernel/fs/filesystem.h"
 #include "xenia/memory.h"
 #include "xenia/ui/main_window.h"
+
+DEFINE_double(time_scalar, 1.0,
+              "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
 
 namespace xe {
 
@@ -64,6 +70,16 @@ Emulator::~Emulator() {
 X_STATUS Emulator::Setup() {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
+  // Initialize clock.
+  // 360 uses a 50MHz clock.
+  // Clock::set_guest_tick_frequency(50000000);
+  // We could reset this with save state data/constant value to help replays.
+  Clock::set_guest_system_time_base(Clock::QueryHostSystemTime());
+  // This can be adjusted dynamically, as well.
+  Clock::set_guest_time_scalar(FLAGS_time_scalar);
+
+  // Before we can set thread affinity we must enable the process to use all
+  // logical processors.
   HANDLE process_handle = GetCurrentProcess();
   DWORD_PTR process_affinity_mask;
   DWORD_PTR system_affinity_mask;

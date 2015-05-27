@@ -706,6 +706,9 @@
     <ClCompile Include="src\xenia\apu\audio_decoder.cc">
       <Filter>src\xenia\apu</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\base\clock.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
@@ -1360,6 +1363,9 @@
       <Filter>src\xenia\debug\proto</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\base\mutex.h">
+      <Filter>src\xenia\base</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\base\clock.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
   </ItemGroup>

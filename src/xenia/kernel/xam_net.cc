@@ -10,6 +10,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 #include <winsock2.h>
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
@@ -373,6 +374,7 @@ SHIM_CALL NetDll_select_shim(PPCContext* ppc_state, KernelState* state) {
   if (timeout_ptr) {
     timeout = {static_cast<long>(SHIM_MEM_32(timeout_ptr + 0)),
                static_cast<long>(SHIM_MEM_32(timeout_ptr + 4))};
+    Clock::ScaleGuestDurationTimeval(&timeout.tv_sec, &timeout.tv_usec);
     timeout_in = &timeout;
   }
   int ret = select(nfds, readfds_ptr ? &readfds : nullptr,

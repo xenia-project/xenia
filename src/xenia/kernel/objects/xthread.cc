@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/mutex.h"
@@ -236,10 +237,7 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
   xe::store_and_swap<uint32_t>(
       p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
-  FILETIME t;
-  GetSystemTimeAsFileTime(&t);
-  xe::store_and_swap<uint64_t>(
-      p + 0x130, ((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime);
+  xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
   xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
@@ -621,6 +619,7 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
   } else {
     timeout_ms = 0;
   }
+  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
   DWORD result = SleepEx(timeout_ms, alertable ? TRUE : FALSE);
   switch (result) {
     case 0:

@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/atomic.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/processor.h"
@@ -312,13 +313,7 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(PPCContext* ppc_state,
   // XELOGD(
   //     "KeQueryPerformanceFrequency()");
 
-  // TODO(benvanik): return fixed 50000000?
-
-  uint64_t result = 0;
-  LARGE_INTEGER frequency;
-  if (QueryPerformanceFrequency(&frequency)) {
-    result = frequency.QuadPart;
-  }
+  uint64_t result = Clock::guest_tick_frequency();
   SHIM_SET_RETURN_64(result);
 }
 
@@ -351,9 +346,7 @@ SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("KeQuerySystemTime(%.8X)", time_ptr);
 
-  FILETIME t;
-  GetSystemTimeAsFileTime(&t);
-  uint64_t time = ((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime;
+  uint64_t time = Clock::QueryGuestSystemTime();
 
   if (time_ptr) {
     SHIM_SET_MEM_64(time_ptr, time);

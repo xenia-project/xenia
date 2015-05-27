@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/xobject.h"
 
+#include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xmutant.h"
@@ -109,6 +110,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
   }
 
   DWORD timeout_ms = opt_timeout ? TimeoutTicksToMs(*opt_timeout) : INFINITE;
+  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
 
   DWORD result = WaitForSingleObjectEx(wait_handle, timeout_ms, alertable);
   switch (result) {
@@ -131,6 +133,7 @@ X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object,
                                 uint32_t wait_reason, uint32_t processor_mode,
                                 uint32_t alertable, uint64_t* opt_timeout) {
   DWORD timeout_ms = opt_timeout ? TimeoutTicksToMs(*opt_timeout) : INFINITE;
+  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
 
   DWORD result = SignalObjectAndWait(signal_object->GetWaitHandle(),
                                      wait_object->GetWaitHandle(), timeout_ms,
@@ -150,6 +153,7 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
   }
 
   DWORD timeout_ms = opt_timeout ? TimeoutTicksToMs(*opt_timeout) : INFINITE;
+  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
 
   DWORD result = WaitForMultipleObjectsEx(
       count, wait_handles, wait_type ? FALSE : TRUE, timeout_ms, alertable);

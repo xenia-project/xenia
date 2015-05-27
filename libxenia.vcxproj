@@ -25,6 +25,7 @@
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc" />
     <ClCompile Include="src\xenia\base\arena.cc" />
+    <ClCompile Include="src\xenia\base\clock.cc" />
     <ClCompile Include="src\xenia\base\debugging_win.cc" />
     <ClCompile Include="src\xenia\base\fs.cc" />
     <ClCompile Include="src\xenia\base\fs_win.cc" />
@@ -217,6 +218,7 @@
     <ClInclude Include="src\xenia\base\assert.h" />
     <ClInclude Include="src\xenia\base\atomic.h" />
     <ClInclude Include="src\xenia\base\byte_order.h" />
+    <ClInclude Include="src\xenia\base\clock.h" />
     <ClInclude Include="src\xenia\base\debugging.h" />
     <ClInclude Include="src\xenia\base\delegate.h" />
     <ClInclude Include="src\xenia\base\fs.h" />

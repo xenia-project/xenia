@@ -59,7 +59,6 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       trace_state_(TraceState::kDisabled),
       worker_running_(true),
       swap_mode_(SwapMode::kNormal),
-      time_base_(0),
       counter_(0),
       primary_buffer_ptr_(0),
       primary_buffer_size_(0),
@@ -83,18 +82,9 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       draw_index_count_(0),
       draw_batcher_(graphics_system_->register_file()),
       scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {
-  LARGE_INTEGER perf_counter;
-  QueryPerformanceCounter(&perf_counter);
-  time_base_ = perf_counter.QuadPart;
 }
 
 CommandProcessor::~CommandProcessor() { CloseHandle(write_ptr_index_event_); }
-
-uint64_t CommandProcessor::QueryTime() {
-  LARGE_INTEGER perf_counter;
-  QueryPerformanceCounter(&perf_counter);
-  return perf_counter.QuadPart - time_base_;
-}
 
 bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   context_ = std::move(context);

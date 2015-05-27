@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/emulator.h"
@@ -133,13 +134,15 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
       "xboxkrnl.exe", ordinals::KeTimeStampBundle, pKeTimeStampBundle);
   xe::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
   xe::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
-  xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16, GetTickCount());
+  xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
+                               Clock::QueryGuestUptimeMillis());
   xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
   CreateTimerQueueTimer(
       &timestamp_timer_, nullptr,
       [](PVOID param, BOOLEAN timer_or_wait_fired) {
         auto timestamp_bundle = reinterpret_cast<uint8_t*>(param);
-        xe::store_and_swap<uint32_t>(timestamp_bundle + 16, GetTickCount());
+        xe::store_and_swap<uint32_t>(timestamp_bundle + 16,
+                                     Clock::QueryGuestUptimeMillis());
       },
       lpKeTimeStampBundle, 0,
       1,  // 1ms

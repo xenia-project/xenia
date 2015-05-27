@@ -14,23 +14,6 @@
 namespace xe {
 namespace threading {
 
-uint64_t ticks() {
-  LARGE_INTEGER counter;
-  uint64_t time = 0;
-  if (QueryPerformanceCounter(&counter)) {
-    time = counter.QuadPart;
-  }
-  return time;
-}
-
-uint64_t ticks_per_second() {
-  static LARGE_INTEGER freq = {0};
-  if (!freq.QuadPart) {
-    QueryPerformanceFrequency(&freq);
-  }
-  return freq.QuadPart;
-}
-
 uint32_t current_thread_id() {
   return static_cast<uint32_t>(GetCurrentThreadId());
 }

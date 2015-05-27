@@ -11,6 +11,7 @@
 
 #include "third_party/imgui/imgui.h"
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/mapped_memory.h"
@@ -2272,10 +2273,10 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
         imgui_setup = true;
       }
       auto& io = ImGui::GetIO();
-      auto current_ticks = xe::threading::ticks();
+      auto current_ticks = Clock::QueryHostTickCount();
       static uint64_t last_ticks = 0;
-      io.DeltaTime = (current_ticks - last_ticks) /
-                     float(xe::threading::ticks_per_second());
+      io.DeltaTime =
+          (current_ticks - last_ticks) / float(Clock::host_tick_frequency());
       last_ticks = current_ticks;
 
       io.DisplaySize =

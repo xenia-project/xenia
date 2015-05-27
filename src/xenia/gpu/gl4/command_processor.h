@@ -62,7 +62,6 @@ class CommandProcessor {
   typedef std::function<void(const SwapParameters& params)> SwapHandler;
   void set_swap_handler(SwapHandler fn) { swap_handler_ = fn; }
 
-  uint64_t QueryTime();
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
 
@@ -243,7 +242,6 @@ class CommandProcessor {
 
   SwapMode swap_mode_;
 
-  uint64_t time_base_;
   uint32_t counter_;
 
   uint32_t primary_buffer_ptr_;

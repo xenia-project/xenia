@@ -25,6 +25,7 @@
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -1086,7 +1087,7 @@ EMITTER(LOAD_CLOCK, MATCH(I<OPCODE_LOAD_CLOCK, I64<>>)) {
     e.mov(i.dest, e.rax);
   }
   static uint64_t LoadClock(void* raw_context) {
-    return xe::threading::ticks();
+    return Clock::QueryGuestTickCount();
   }
 };
 EMITTER_OPCODE_TABLE(

@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
@@ -86,11 +87,11 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
       kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
           emulator()->kernel_state(), 128 * 1024, 0, [this]() {
             uint64_t vsync_duration = FLAGS_vsync ? 16 : 1;
-            uint64_t last_frame_time = xe::threading::ticks();
+            uint64_t last_frame_time = Clock::QueryGuestTickCount();
             while (worker_running_) {
-              uint64_t current_time = xe::threading::ticks();
+              uint64_t current_time = Clock::QueryGuestTickCount();
               uint64_t elapsed = (current_time - last_frame_time) /
-                                 (xe::threading::ticks_per_second() / 1000);
+                                 (Clock::guest_tick_frequency() / 1000);
               if (elapsed >= vsync_duration) {
                 MarkVblank();
                 last_frame_time = current_time;

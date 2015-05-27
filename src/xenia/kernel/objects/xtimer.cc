@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/objects/xtimer.h"
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
 
@@ -48,6 +49,9 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
   // Stash routine for callback.
   current_routine_ = routine;
   current_routine_arg_ = routine_arg;
+
+  due_time = Clock::ScaleGuestDurationFileTime(due_time);
+  period_ms = Clock::ScaleGuestDurationMillis(period_ms);
 
   LARGE_INTEGER due_time_li;
   due_time_li.QuadPart = due_time;

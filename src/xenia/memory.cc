@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <mutex>
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/threading.h"
@@ -114,7 +115,7 @@ Memory::~Memory() {
 
 int Memory::Initialize() {
   wchar_t file_name[256];
-  wsprintf(file_name, L"Local\\xenia_memory_%p", xe::threading::ticks());
+  wsprintf(file_name, L"Local\\xenia_memory_%p", Clock::QueryHostTickCount());
   file_name_ = file_name;
 
 // Create main page file-backed mapping. This is all reserved but
