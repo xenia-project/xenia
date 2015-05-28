@@ -374,6 +374,30 @@ SHIM_CALL vsprintf_shim(PPCContext* ppc_state, KernelState* state) {
       } else {
         assert_true(false);
       }
+    } else if (*end == 'S') {
+      char local[512];
+      local[0] = '\0';
+      strncat(local, start, end + 1 - start);
+
+      assert_true(arg_size == 4);
+      if (arg_extras == 0) {
+        uint32_t value = (uint32_t)SHIM_MEM_64(
+            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
+        const wchar_t* data = (const wchar_t*)SHIM_MEM_ADDR(value);
+        size_t data_length = wcslen(data);
+        wchar_t* swapped_data =
+            (wchar_t*)malloc((data_length + 1) * sizeof(wchar_t));
+        for (size_t i = 0; i < data_length; ++i) {
+          swapped_data[i] = xe::byte_swap(data[i]);
+        }
+        swapped_data[data_length] = '\0';
+        int result = sprintf(b, local, swapped_data);
+        free(swapped_data);
+        b += result;
+        arg_index++;
+      } else {
+        assert_true(false);
+      }
     } else {
       assert_true(false);
       break;
