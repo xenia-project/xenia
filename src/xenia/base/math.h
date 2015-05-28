@@ -75,13 +75,13 @@ inline uint8_t lzcnt(uint8_t v) {
   DWORD index;
   DWORD mask = v;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index - 24) ^ 0x7 : 8);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
 }
 inline uint8_t lzcnt(uint16_t v) {
   DWORD index;
   DWORD mask = v;
   BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index - 16) ^ 0xF : 16);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
 }
 inline uint8_t lzcnt(uint32_t v) {
   DWORD index;
