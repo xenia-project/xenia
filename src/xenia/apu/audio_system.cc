@@ -181,7 +181,7 @@ void AudioSystem::WorkerThreadMain() {
 
 void AudioSystem::DecoderThreadMain() {
   while (decoder_running_) {
-    // Wait for the fence
+    // Wait for a kick from WriteRegister.
     decoder_fence_.Wait();
 
     // Check to see if we're supposed to exit
@@ -192,128 +192,14 @@ void AudioSystem::DecoderThreadMain() {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     for (uint32_t n = 0; n < kXmaContextCount; n++) {
       XMAContext& context = xma_context_array_[n];
-      if (!context.lock.try_lock()) {
-        // Someone else has the lock.
-        continue;
-      }
-
-      // Skip unused contexts
-      if (!context.in_use) {
+      if (context.in_use) {
+        context.lock.lock();
+        auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
+        XMAContextData data(context_ptr);
+        ProcessXmaContext(context, data);
+        data.Store(context_ptr);
         context.lock.unlock();
-        continue;
       }
-
-      uint8_t* ptr = memory()->TranslatePhysical(context.guest_ptr);
-      auto data = XMAContextData(ptr);
-
-      if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
-        // A buffer is valid. Run the decoder!
-
-        // Reset valid flags
-        data.input_buffer_0_valid = 0;
-        data.input_buffer_1_valid = 0;
-        data.output_buffer_valid = 0;
-
-        // Translate pointers for future use.
-        auto in0 = memory()->TranslatePhysical(data.input_buffer_0_ptr);
-        auto in1 = memory()->TranslatePhysical(data.input_buffer_1_ptr);
-        auto out = memory()->TranslatePhysical(data.output_buffer_ptr);
-
-        // What I see:
-        // XMA outputs 2 bytes per sample
-        // 512 samples per frame (128 per subframe)
-        // Max output size is data.output_buffer_block_count * 256
-
-        // This decoder is fed packets (max 4095 per buffer)
-        // Packets contain "some" frames
-        // 32bit header (big endian)
-
-        // Frames are the smallest thing the SPUs can decode.
-        // They usually can span packets (libav handles this)
-
-        // Sample rates (data.sample_rate):
-        // 0 - 24 kHz ?
-        // 1 - 32 kHz
-        // 2 - 44.1 kHz ?
-        // 3 - 48 kHz ?
-
-        // SPUs also support stereo decoding. (data.is_stereo)
-        int retries_remaining = 2;
-        while (retries_remaining) {
-          // Initial check - see if we've finished with the input
-          // TODO - Probably need to move this, I think it might skip the very
-          // last packet (see the call to PreparePacket)
-          size_t input_size = (data.input_buffer_0_block_count +
-                               data.input_buffer_1_block_count) *
-                              2048;
-          size_t input_offset = (data.input_buffer_read_offset / 8 - 4);
-          size_t input_remaining = input_size - input_offset;
-          if (input_offset >= input_size) {
-            // We're finished. Break.
-            break;
-          }
-
-          // Now check the output buffer.
-          size_t output_size = data.output_buffer_block_count * 256;
-          size_t output_offset = data.output_buffer_write_offset * 256;
-          size_t output_remaining = output_size - output_offset;
-          if (output_remaining == 0) {
-            // Can't write any more data. Break.
-            // The game will kick us again with a new output buffer later.
-            break;
-          }
-
-          // This'll copy audio samples into the output buffer.
-          // The samples need to be 2 bytes long!
-          // Copies one frame at a time, so keep calling this until size == 0
-          int read = context.decoder->DecodePacket(out, output_offset,
-                                                   output_remaining);
-          if (read < 0) {
-            // Sometimes the decoder will fail on a packet. I think it's
-            // looking for cross-packet frames and failing. If you run it again
-            // on the same packet it'll work though.
-            XELOGAPU("APU failed to decode packet (returned %.8X)", -read);
-            --retries_remaining;
-            continue;
-          }
-
-          if (read == 0) {
-            // Select sample rate.
-            int sample_rate = 0;
-            if (data.sample_rate == 0) {
-              sample_rate = 24000;
-            } else if (data.sample_rate == 1) {
-              sample_rate = 32000;
-            } else if (data.sample_rate == 2) {
-              sample_rate = 44100;
-            } else if (data.sample_rate == 3) {
-              sample_rate = 48000;
-            }
-
-            // Channels
-            int channels = 1;
-            if (data.is_stereo == 1) {
-              channels = 2;
-            }
-
-            // New packet time.
-            // TODO: Select input buffer 1 if necessary.
-            auto packet = in0 + input_offset;
-            context.decoder->PreparePacket(packet, 2048, sample_rate, channels);
-            input_offset += 2048;
-          }
-
-          output_offset += read;
-
-          // Copy the variables we changed back to the context.
-          data.input_buffer_read_offset = (input_offset + 4) * 8;
-          data.output_buffer_write_offset = output_offset / 256;
-        }
-
-        data.Store(ptr);
-      }
-
-      context.lock.unlock();
     }
   }
 }
@@ -437,6 +323,140 @@ void AudioSystem::UnregisterClient(size_t index) {
   ResetEvent(client_wait_handles_[index]);
 }
 
+void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
+  if (!context.in_use) {
+    // Skip unused contexts.
+    return;
+  }
+
+  SCOPE_profile_cpu_f("apu");
+
+  // Translate pointers for future use.
+  uint8_t* in0 = data.input_buffer_0_valid
+                     ? memory()->TranslatePhysical(data.input_buffer_0_ptr)
+                     : nullptr;
+  uint8_t* in1 = data.input_buffer_1_valid
+                     ? memory()->TranslatePhysical(data.input_buffer_1_ptr)
+                     : nullptr;
+  uint8_t* out = memory()->TranslatePhysical(data.output_buffer_ptr);
+
+  // What I see:
+  // XMA outputs 2 bytes per sample
+  // 512 samples per frame (128 per subframe)
+  // Max output size is data.output_buffer_block_count * 256
+
+  // This decoder is fed packets (max 4095 per buffer)
+  // Packets contain "some" frames
+  // 32bit header (big endian)
+
+  // Frames are the smallest thing the SPUs can decode.
+  // They usually can span packets (libav handles this)
+
+  // Sample rates (data.sample_rate):
+  // 0 - 24 kHz ?
+  // 1 - 32 kHz
+  // 2 - 44.1 kHz ?
+  // 3 - 48 kHz ?
+
+  // SPUs also support stereo decoding. (data.is_stereo)
+  while (data.output_buffer_valid) {
+    // Check the output buffer - we cannot decode anything else if it's
+    // unavailable.
+    // Output buffers are in frames.
+    uint32_t output_size_bytes = data.output_buffer_block_count * 256;
+    uint32_t output_offset_bytes = data.output_buffer_write_offset * 256;
+    uint32_t output_remaining_bytes = output_size_bytes - output_offset_bytes;
+    if (!output_remaining_bytes) {
+      // Can't write any more data. Break.
+      // The game will kick us again with a new output buffer later.
+      data.output_buffer_valid = 0;
+      break;
+    }
+
+    // This'll copy audio samples into the output buffer.
+    // The samples need to be 2 bytes long!
+    // Copies one frame at a time, so keep calling this until size == 0
+    int read_bytes = 0;
+    int decode_attempts_remaining = 3;
+    while (decode_attempts_remaining) {
+      read_bytes = context.decoder->DecodePacket(out, output_offset_bytes,
+                                                 output_remaining_bytes);
+      if (read_bytes >= 0) {
+        // Ok.
+        break;
+      } else {
+        // Sometimes the decoder will fail on a packet. I think it's
+        // looking for cross-packet frames and failing. If you run it again
+        // on the same packet it'll work though.
+        XELOGAPU("APU failed to decode packet (returned %.8X)", -read_bytes);
+        --decode_attempts_remaining;
+      }
+    }
+    if (!decode_attempts_remaining) {
+      // Failed out.
+      if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
+        // There's new data available - maybe we'll be ok if we decode it?
+        read_bytes = 0;
+        context.decoder->DiscardPacket();
+      } else {
+        // No data and hosed - bail.
+        break;
+      }
+    }
+    data.output_buffer_write_offset += uint32_t(read_bytes) / 256;
+
+    // If we need more data and the input buffers have it, grab it.
+    if (read_bytes) {
+      // Still outputting.
+      continue;
+    } else if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
+      // Done with previous packet, so grab a new one.
+      int sample_rate = 0;
+      if (data.sample_rate == 0) {
+        sample_rate = 24000;
+      } else if (data.sample_rate == 1) {
+        sample_rate = 32000;
+      } else if (data.sample_rate == 2) {
+        sample_rate = 44100;
+      } else if (data.sample_rate == 3) {
+        sample_rate = 48000;
+      }
+      int channels = data.is_stereo ? 2 : 1;
+
+      // See if we've finished with the input
+      // TODO - Probably need to move this, I think it might skip the very
+      // last packet (see the call to PreparePacket)
+      // Block count is in frames, so expand by
+      // samples_per_frame*bytes_per_sample*bits_per_byte.
+      uint32_t input_size_bytes =
+          (data.input_buffer_0_block_count + data.input_buffer_1_block_count) *
+          2048;
+      // Input read offset is in bits. Typically starts at 32 (4 bytes).
+      uint32_t input_offset_bytes =
+          (data.input_buffer_read_offset & ~0x7FF) / 8;
+      if (input_offset_bytes < input_size_bytes) {
+        // Still have data to read.
+        // TODO: Select input buffer 1 if necessary.
+        auto packet = in0 + input_offset_bytes;
+        context.decoder->PreparePacket(packet, 2048, sample_rate, channels);
+        data.input_buffer_read_offset += 2048 * 8;
+        if (input_offset_bytes + 2048 >= input_size_bytes) {
+          // Used the last of the data.
+          data.input_buffer_0_valid = 0;
+          data.input_buffer_1_valid = 0;
+        }
+      } else {
+        // No more data available (for now).
+        data.input_buffer_0_valid = 0;
+        data.input_buffer_1_valid = 0;
+      }
+    } else {
+      // Decoder is out of data and there's no more to give.
+      break;
+    }
+  }
+}
+
 // free60 may be useful here, however it looks like it's using a different
 // piece of hardware:
 // https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
@@ -483,7 +503,7 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
     // Basically, this kicks the SPU and says "hey, decode that audio!"
     // XMAEnableContext
 
-    // The context ID is a bit in the range of the entire context array
+    // The context ID is a bit in the range of the entire context array.
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
         uint32_t context_id = i + (r - 0x1940) / 4 * 32;
@@ -495,10 +515,10 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
 
         XELOGAPU(
             "AudioSystem: kicking context %d (%d/%d bytes)", context_id,
-            data.input_buffer_read_offset,
+            data.input_buffer_read_offset / 8,
             data.input_buffer_0_block_count * XMAContextData::kBytesPerBlock);
 
-        // Reset valid flags so our audio decoder knows to process this one
+        // Reset valid flags so our audio decoder knows to process this one.
         data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
         data.input_buffer_1_valid = data.input_buffer_1_ptr != 0;
         data.output_buffer_write_offset = 0;
@@ -519,26 +539,34 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
       if (value & 1) {
         uint32_t context_id = i + (r - 0x1A40) / 4 * 32;
         XELOGAPU("AudioSystem: set context lock %d", context_id);
-
-        // TODO: Find the correct way to lock/unlock this.
-        // I thought we could lock it here, unlock it in the kick but that
-        // doesn't seem to work
-        XMAContext& context = xma_context_array_[context_id];
       }
       value >>= 1;
     }
+
+    // Signal the decoder thread to start processing.
+    decoder_fence_.Signal();
   } else if (r >= 0x1A80 && r <= 0x1A80 + 9 * 4) {
     // Context clear command.
     // This will reset the given hardware contexts.
     for (int i = 0; value && i < 32; ++i) {
       if (value & 1) {
         uint32_t context_id = i + (r - 0x1A80) / 4 * 32;
+        XMAContext& context = xma_context_array_[context_id];
         XELOGAPU("AudioSystem: reset context %d", context_id);
 
-        // TODO(benvanik): something?
         uint32_t guest_ptr =
             registers_.xma_context_array_ptr + context_id * kXmaContextSize;
-        auto context_ptr = memory()->TranslateVirtual(guest_ptr);
+        context.lock.lock();
+        auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
+        XMAContextData data(context_ptr);
+
+        context.decoder->DiscardPacket();
+        data.input_buffer_0_valid = 0;
+        data.input_buffer_1_valid = 0;
+        data.output_buffer_valid = 0;
+
+        data.Store(context_ptr);
+        context.lock.unlock();
       }
       value >>= 1;
     }

@@ -889,21 +889,23 @@ SHIM_CALL KeWaitForMultipleObjects_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  std::vector<object_ref<XObject>> objects(count);
+  std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
     uint32_t object_ptr_ptr = SHIM_MEM_32(objects_ptr + n * 4);
     void* object_ptr = SHIM_MEM_ADDR(object_ptr_ptr);
-    objects[n] = XObject::GetNativeObject<XObject>(state, object_ptr);
-    if (!objects[n]) {
+    auto object_ref = XObject::GetNativeObject<XObject>(state, object_ptr);
+    if (!object_ref) {
       SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
       return;
     }
+    objects.push_back(std::move(object_ref));
   }
 
   uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
-  result = XObject::WaitMultiple(
-      count, reinterpret_cast<XObject**>(objects.data()), wait_type,
-      wait_reason, processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
+  result = XObject::WaitMultiple(uint32_t(objects.size()),
+                                 reinterpret_cast<XObject**>(objects.data()),
+                                 wait_type, wait_reason, processor_mode,
+                                 alertable, timeout_ptr ? &timeout : nullptr);
 
   SHIM_SET_RETURN_32(result);
 }

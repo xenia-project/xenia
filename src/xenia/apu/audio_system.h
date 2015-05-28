@@ -111,6 +111,9 @@ struct XMAContextData {
 static_assert(sizeof(XMAContextData) == 4 * 10, "Must be packed");
 
 class AudioSystem {
+ protected:
+  struct XMAContext;
+
  public:
   virtual ~AudioSystem();
 
@@ -146,6 +149,8 @@ class AudioSystem {
  private:
   void WorkerThreadMain();
   void DecoderThreadMain();
+
+  void ProcessXmaContext(XMAContext& context, XMAContextData& data);
 
   static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint32_t addr) {
     return as->ReadRegister(addr);

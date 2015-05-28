@@ -146,7 +146,7 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
                                uint32_t wait_type, uint32_t wait_reason,
                                uint32_t processor_mode, uint32_t alertable,
                                uint64_t* opt_timeout) {
-  void** wait_handles = (void**)alloca(sizeof(void*) * count);
+  HANDLE* wait_handles = (HANDLE*)alloca(sizeof(HANDLE) * count);
   for (uint32_t n = 0; n < count; n++) {
     wait_handles[n] = objects[n]->GetWaitHandle();
     assert_not_null(wait_handles[n]);
