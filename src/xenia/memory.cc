@@ -604,7 +604,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
     }
 
     if (FLAGS_scribble_heap && protect & kMemoryProtectWrite) {
-      memset(result, 0xCD, page_count * page_size_);
+      std::memset(result, 0xCD, page_count * page_size_);
     }
   }
 

@@ -60,7 +60,7 @@ AudioSystem::AudioSystem(Emulator* emulator)
       memory_(emulator->memory()),
       worker_running_(false),
       decoder_running_(false) {
-  memset(clients_, 0, sizeof(clients_));
+  std::memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < maximum_client_count_; ++i) {
     unused_clients_.push(i);
   }

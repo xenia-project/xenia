@@ -209,7 +209,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_state,
       buffer_offset = setting->Append(SHIM_MEM_ADDR(user_data_ptr + 24),
                                       SHIM_MEM_ADDR(buffer_ptr), buffer_offset);
     } else {
-      memset(SHIM_MEM_ADDR(user_data_ptr + 24), 0, 16);
+      std::memset(SHIM_MEM_ADDR(user_data_ptr + 24), 0, 16);
     }
     user_data_ptr += kSettingSize;
   }

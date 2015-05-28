@@ -70,8 +70,8 @@ bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   size_t list_size = instr_count_ * sizeof(void*);
   instr_offset_list_ = (Instr**)arena_->Alloc(list_size);
   label_list_ = (Label**)arena_->Alloc(list_size);
-  memset(instr_offset_list_, 0, list_size);
-  memset(label_list_, 0, list_size);
+  std::memset(instr_offset_list_, 0, list_size);
+  std::memset(label_list_, 0, list_size);
 
   // Always mark entry with label.
   label_list_[0] = NewLabel();

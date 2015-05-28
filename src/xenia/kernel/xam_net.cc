@@ -39,7 +39,7 @@ void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
 void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
   switch (addr.sa_family) {
     case AF_UNSPEC:
-      memset(ptr, 0, sizeof(addr));
+      std::memset(ptr, 0, sizeof(addr));
       break;
     case AF_INET: {
       auto& in_addr = reinterpret_cast<const sockaddr_in&>(addr);
@@ -98,7 +98,7 @@ SHIM_CALL NetDll_XNetRandom_shim(PPCContext* ppc_state, KernelState* state) {
 
   // For now, constant values.
   // This makes replicating things easier.
-  memset(SHIM_MEM_ADDR(buffer_ptr), 0xBB, length);
+  std::memset(SHIM_MEM_ADDR(buffer_ptr), 0xBB, length);
 
   SHIM_SET_RETURN_32(0);
 }
@@ -316,7 +316,7 @@ SHIM_CALL NetDll_accept_shim(PPCContext* ppc_state, KernelState* state) {
   SOCKET ret_socket = accept(socket_handle, &addr, &addrlen);
 
   if (ret_socket == INVALID_SOCKET) {
-    memset(SHIM_MEM_ADDR(addr_ptr), 0, sizeof(addr));
+    std::memset(SHIM_MEM_ADDR(addr_ptr), 0, sizeof(addr));
     SHIM_SET_MEM_32(addrlen_ptr, sizeof(addr));
     SHIM_SET_RETURN_32(-1);
   } else {
@@ -427,7 +427,7 @@ SHIM_CALL NetDll_recvfrom_shim(PPCContext* ppc_state, KernelState* state) {
       recvfrom(socket_handle, reinterpret_cast<char*>(SHIM_MEM_ADDR(buf_ptr)),
                len, flags, &from, &fromlen);
   if (ret == -1) {
-    memset(SHIM_MEM_ADDR(from_ptr), 0, sizeof(from));
+    std::memset(SHIM_MEM_ADDR(from_ptr), 0, sizeof(from));
     SHIM_SET_MEM_32(fromlen_ptr, sizeof(from));
   } else {
     StoreSockaddr(from, SHIM_MEM_ADDR(from_ptr));

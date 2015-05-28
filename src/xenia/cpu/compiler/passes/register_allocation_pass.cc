@@ -39,7 +39,7 @@ RegisterAllocationPass::RegisterAllocationPass(const MachineInfo* machine_info)
   // Initialize register sets.
   // TODO(benvanik): rewrite in a way that makes sense - this is terrible.
   auto mi_sets = machine_info->register_sets;
-  memset(&usage_sets_, 0, sizeof(usage_sets_));
+  std::memset(&usage_sets_, 0, sizeof(usage_sets_));
   uint32_t n = 0;
   while (mi_sets[n].count) {
     auto& mi_set = mi_sets[n];

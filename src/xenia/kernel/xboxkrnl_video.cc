@@ -277,7 +277,7 @@ SHIM_CALL VdGetSystemCommandBuffer_shim(PPCContext* ppc_state,
 
   XELOGD("VdGetSystemCommandBuffer(%.8X, %.8X)", p0_ptr, p1_ptr);
 
-  memset(SHIM_MEM_ADDR(p0_ptr), 0, 0x94);
+  std::memset(SHIM_MEM_ADDR(p0_ptr), 0, 0x94);
   SHIM_SET_MEM_32(p0_ptr, 0xBEEF0000);
   SHIM_SET_MEM_32(p1_ptr, 0xBEEF0001);
 }
@@ -430,7 +430,7 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   // token value. It'd be nice to figure out what this is really doing so
   // that we could simulate it, though due to TCR I bet all games need to
   // use this method.
-  memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
+  std::memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
   dwords[0] = xe::byte_swap((0x3 << 30) | ((63 - 1) << 16) |
                             (xe::gpu::xenos::PM4_XE_SWAP << 8));

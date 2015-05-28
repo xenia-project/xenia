@@ -112,7 +112,7 @@ void Win32Window::EnableMMCSS() {
                                                "DwmSetPresentParameters");
   if (pDwmSetPresentParameters) {
     DWM_PRESENT_PARAMETERS pp;
-    memset(&pp, 0, sizeof(DWM_PRESENT_PARAMETERS));
+    std::memset(&pp, 0, sizeof(DWM_PRESENT_PARAMETERS));
     pp.cbSize = sizeof(DWM_PRESENT_PARAMETERS);
     pp.fQueue = FALSE;
     pp.cBuffer = 2;

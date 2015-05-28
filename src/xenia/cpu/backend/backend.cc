@@ -14,7 +14,7 @@ namespace cpu {
 namespace backend {
 
 Backend::Backend(Processor* processor) : processor_(processor) {
-  memset(&machine_info_, 0, sizeof(machine_info_));
+  std::memset(&machine_info_, 0, sizeof(machine_info_));
 }
 
 Backend::~Backend() = default;

@@ -14,7 +14,7 @@
 namespace xe {
 namespace gpu {
 
-RegisterFile::RegisterFile() { memset(values, 0, sizeof(values)); }
+RegisterFile::RegisterFile() { std::memset(values, 0, sizeof(values)); }
 
 const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {

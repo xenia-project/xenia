@@ -26,7 +26,7 @@ FunctionInfo::FunctionInfo(Module* module, uint32_t address)
       end_address_(0),
       behavior_(BEHAVIOR_DEFAULT),
       function_(0) {
-  memset(&extern_info_, 0, sizeof(extern_info_));
+  std::memset(&extern_info_, 0, sizeof(extern_info_));
 }
 
 FunctionInfo::~FunctionInfo() = default;

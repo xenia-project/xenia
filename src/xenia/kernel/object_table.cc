@@ -68,7 +68,7 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
   }
   // Zero out new memory.
   if (new_table_size > old_table_size) {
-    memset(reinterpret_cast<uint8_t*>(new_table) + old_table_size, 0,
+    std::memset(reinterpret_cast<uint8_t*>(new_table) + old_table_size, 0,
            new_table_size - old_table_size);
   }
   last_free_entry_ = table_capacity_;
