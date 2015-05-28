@@ -126,6 +126,7 @@ class AudioSystem {
   }
   uint32_t AllocateXmaContext();
   void ReleaseXmaContext(uint32_t guest_ptr);
+  bool BlockOnXmaContext(uint32_t guest_ptr, bool poll);
 
   X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg,
                           size_t* out_index);

@@ -87,8 +87,7 @@ void StoreXmaContextIndexedRegister(KernelState* state, uint32_t base_reg,
                       XMAContextData::kSize;
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
-  xe::store<uint32_t>(state->memory()->TranslateVirtual(0x7FEA0000 + reg_num),
-                      reg_value);
+  audio_system->WriteRegister(reg_num, xe::byte_swap(reg_value));
 }
 
 SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_state, KernelState* state) {
@@ -372,7 +371,9 @@ SHIM_CALL XMADisableContext_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_HRESULT result = X_E_SUCCESS;
   StoreXmaContextIndexedRegister(state, 0x1A40, context_ptr);
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  if (!state->emulator()->audio_system()->BlockOnXmaContext(context_ptr, !wait)) {
+    result = X_E_FALSE;
+  }
 
   SHIM_SET_RETURN_32(result);
 }

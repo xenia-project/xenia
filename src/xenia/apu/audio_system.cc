@@ -103,8 +103,6 @@ X_STATUS AudioSystem::Setup() {
   }
   registers_.next_context = 1;
 
-  // Threads
-
   worker_running_ = true;
   worker_thread_ =
       kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
@@ -366,8 +364,27 @@ void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
       context.decoder->DiscardPacket();
 
       context.lock.unlock();
+      break;
     }
   }
+}
+
+bool AudioSystem::BlockOnXmaContext(uint32_t guest_ptr, bool poll) {
+  std::lock_guard<xe::mutex> lock(lock_);
+  for (uint32_t n = 0; n < kXmaContextCount; n++) {
+    XMAContext& context = xma_context_array_[n];
+    if (context.guest_ptr == guest_ptr) {
+      if (!context.lock.try_lock()) {
+        if (poll) {
+          return false;
+        }
+        context.lock.lock();
+      }
+      context.lock.unlock();
+      return true;
+    }
+  }
+  return true;
 }
 
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
@@ -450,6 +467,8 @@ uint64_t AudioSystem::ReadRegister(uint32_t addr) {
 }
 
 void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
+  SCOPE_profile_cpu_f("apu");
+
   uint32_t r = addr & 0xFFFF;
   value = xe::byte_swap(uint32_t(value));
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
@@ -486,12 +505,12 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
 
         data.Store(context_ptr);
         context.lock.unlock();
-
-        // Signal the decoder thread
-        decoder_fence_.Signal();
       }
       value >>= 1;
     }
+
+    // Signal the decoder thread to start processing.
+    decoder_fence_.Signal();
   } else if (r >= 0x1A40 && r <= 0x1A40 + 9 * 4) {
     // Context lock command.
     // This requests a lock by flagging the context.

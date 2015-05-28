@@ -11,6 +11,8 @@
 
 #include <Windows.h>
 
+#include "xenia/profiling.h"
+
 namespace xe {
 void CrashDump();
 }  // namespace xe
@@ -61,6 +63,8 @@ WinMMIOHandler::~WinMMIOHandler() {
 // addresses in our range and call into the registered handlers, if any.
 // If there are none, we continue.
 LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info) {
+  SCOPE_profile_cpu_i("cpu", "MMIOExceptionHandler");
+
   // http://msdn.microsoft.com/en-us/library/ms679331(v=vs.85).aspx
   // http://msdn.microsoft.com/en-us/library/aa363082(v=vs.85).aspx
   auto code = ex_info->ExceptionRecord->ExceptionCode;
