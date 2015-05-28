@@ -277,7 +277,7 @@ SHIM_CALL VdGetSystemCommandBuffer_shim(PPCContext* ppc_state,
 
   XELOGD("VdGetSystemCommandBuffer(%.8X, %.8X)", p0_ptr, p1_ptr);
 
-  memset(SHIM_MEM_ADDR(p1_ptr), 0, 0x94);
+  memset(SHIM_MEM_ADDR(p0_ptr), 0, 0x94);
   SHIM_SET_MEM_32(p0_ptr, 0xBEEF0000);
   SHIM_SET_MEM_32(p1_ptr, 0xBEEF0001);
 }
