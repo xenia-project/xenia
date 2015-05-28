@@ -9,6 +9,7 @@
 
 #include "xenia/ui/main_window.h"
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/graphics_system.h"
@@ -18,8 +19,10 @@
 namespace xe {
 namespace ui {
 
+const std::wstring kBaseTitle = L"xenia";
+
 MainWindow::MainWindow(Emulator* emulator)
-    : PlatformWindow(L"xenia"),
+    : PlatformWindow(kBaseTitle),
       emulator_(emulator),
       main_menu_(MenuItem::Type::kNormal) {}
 
@@ -48,6 +51,7 @@ bool MainWindow::Initialize() {
     return false;
   }
   Resize(1280, 720);
+  UpdateTitle();
   on_key_down.AddListener([this](KeyEvent& e) {
     bool handled = true;
     switch (e.key_code()) {
@@ -57,6 +61,21 @@ bool MainWindow::Initialize() {
       }
       case 0x74: {  // VK_F5
         emulator()->graphics_system()->ClearCaches();
+        break;
+      }
+      case 0x6D: {  // numpad minus
+        Clock::set_guest_time_scalar(Clock::guest_time_scalar() / 2.0);
+        UpdateTitle();
+        break;
+      }
+      case 0x6B: {  // numpad plus
+        Clock::set_guest_time_scalar(Clock::guest_time_scalar() * 2.0);
+        UpdateTitle();
+        break;
+      }
+      case 0x0D: {  // numpad enter
+        Clock::set_guest_time_scalar(1.0);
+        UpdateTitle();
         break;
       }
       default: {
@@ -81,6 +100,16 @@ bool MainWindow::Initialize() {
   SetMenu(&main_menu_);
 
   return true;
+}
+
+void MainWindow::UpdateTitle() {
+  std::wstring title(kBaseTitle);
+  if (Clock::guest_time_scalar() != 1.0) {
+    title += L" (@";
+    title += xe::to_wstring(std::to_string(Clock::guest_time_scalar()));
+    title += L"x)";
+  }
+  set_title(title);
 }
 
 void MainWindow::OnClose() {

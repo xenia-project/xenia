@@ -44,6 +44,8 @@ class MainWindow : public PlatformWindow {
  private:
   bool Initialize();
 
+  void UpdateTitle();
+
   void OnClose() override;
   void OnCommand(int id) override;
 
