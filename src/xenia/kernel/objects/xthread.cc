@@ -133,6 +133,17 @@ void XThread::set_name(const std::string& name) {
   xe::threading::set_name(thread_handle_, name);
 }
 
+uint8_t fake_CPU_number(uint8_t proc_mask) {
+  if (!proc_mask) {
+    return 0; // is this reasonable?
+  }
+  assert_false(proc_mask & 0xC0);
+
+  uint8_t cpu_number = 7 - xe::lzcnt(proc_mask);
+  assert_true(1 << cpu_number == proc_mask);
+  return cpu_number;
+}
+
 X_STATUS XThread::Create() {
   // Allocate thread state block from heap.
   // This is set as r13 for user code and some special inlined Win32 calls
@@ -196,6 +207,8 @@ X_STATUS XThread::Create() {
          thread_state_->thread_id(), thread_state_->stack_limit(),
          thread_state_->stack_base());
 
+  uint8_t proc_mask = static_cast<uint8_t>(creation_params_.creation_flags >> 24);
+
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   std::memset(pcr, 0x0, 0x2D8 + 0xAB0);  // Zero the PCR
   xe::store_and_swap<uint32_t>(pcr + 0x000, tls_address_);
@@ -204,7 +217,7 @@ X_STATUS XThread::Create() {
                                                 thread_state_->stack_size());
   xe::store_and_swap<uint32_t>(pcr + 0x074, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(pcr + 0x100, thread_state_address_);
-  xe::store_and_swap<uint8_t>(pcr + 0x10C, 1);   // Current CPU(?)
+  xe::store_and_swap<uint8_t>(pcr + 0x10C, fake_CPU_number(proc_mask));   // Current CPU(?)
   xe::store_and_swap<uint32_t>(pcr + 0x150, 0);  // DPC active bool?
 
   // Setup the thread state block (last error/etc).
@@ -256,7 +269,7 @@ X_STATUS XThread::Create() {
     return return_code;
   }
 
-  uint32_t proc_mask = creation_params_.creation_flags >> 24;
+  //uint32_t proc_mask = creation_params_.creation_flags >> 24;
   if (proc_mask) {
     SetAffinity(proc_mask);
   }
@@ -571,6 +584,7 @@ void XThread::SetAffinity(uint32_t affinity) {
     XELOGW("Too few processors - scheduling will be wonky");
   }
   if (!FLAGS_ignore_thread_affinities) {
+    SetActiveCpu(fake_CPU_number(affinity));
     SetThreadAffinityMask(reinterpret_cast<HANDLE>(thread_handle_), affinity);
   }
 }
