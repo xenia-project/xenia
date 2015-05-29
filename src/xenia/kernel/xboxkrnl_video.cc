@@ -434,11 +434,12 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
   dwords[0] = xe::byte_swap((0x3 << 30) | ((63 - 1) << 16) |
                             (xe::gpu::xenos::PM4_XE_SWAP << 8));
-  dwords[1] = xe::byte_swap(frontbuffer);
+  dwords[1] = xe::byte_swap('SWAP');
+  dwords[2] = xe::byte_swap(frontbuffer);
 
   // Set by VdCallGraphicsNotificationRoutines.
-  dwords[2] = xe::byte_swap(last_frontbuffer_width_);
-  dwords[3] = xe::byte_swap(last_frontbuffer_height_);
+  dwords[3] = xe::byte_swap(last_frontbuffer_width_);
+  dwords[4] = xe::byte_swap(last_frontbuffer_height_);
 
   SHIM_SET_RETURN_64(0);
 }

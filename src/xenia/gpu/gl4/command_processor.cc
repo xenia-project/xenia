@@ -946,10 +946,13 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
   // 63 words here, but only the first has any data.
+  uint32_t magic = reader->Read();
+  assert_true(magic == 'SWAP');
+
   uint32_t frontbuffer_ptr = reader->Read();
   uint32_t frontbuffer_width = reader->Read();
   uint32_t frontbuffer_height = reader->Read();
-  reader->Advance(count - 3);
+  reader->Advance(count - 4);
   last_swap_width_ = frontbuffer_width;
   last_swap_height_ = frontbuffer_height;
 
