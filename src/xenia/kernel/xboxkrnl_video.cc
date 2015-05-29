@@ -411,27 +411,38 @@ SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t unk0 = SHIM_GET_ARG_32(0);  // ptr into primary ringbuffer
-  uint32_t unk1 = SHIM_GET_ARG_32(1);
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);       // ptr into primary ringbuffer
+  uint32_t fetch_ptr = SHIM_GET_ARG_32(1);        // frontbuffer texture fetch
   uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t unk3 = SHIM_GET_ARG_32(3);             // ptr to 0xBEEF0000
-  uint32_t unk4 = SHIM_GET_ARG_32(4);             // 0xBEEF0001
+  uint32_t unk3 = SHIM_GET_ARG_32(3);             // buffer from VdGetSystemCommandBuffer
+  uint32_t unk4 = SHIM_GET_ARG_32(4);             // pointer from VdGetSystemCommandBuffer (0xBEEF0001)
   uint32_t frontbuffer_ptr = SHIM_GET_ARG_32(5);  // ptr to frontbuffer address
-  uint32_t unk6 = SHIM_GET_ARG_32(6);             // ptr to 6?
-  uint32_t unk7 = SHIM_GET_ARG_32(7);
+  uint32_t color_format_ptr = SHIM_GET_ARG_32(6);
+  uint32_t color_space_ptr = SHIM_GET_ARG_32(7);
 
   uint32_t frontbuffer = SHIM_MEM_32(frontbuffer_ptr);
 
-  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X(%.8X), %.8X, %.8X)", unk0,
-         unk1, unk2, unk3, unk4, frontbuffer_ptr, frontbuffer, unk6, unk7);
+  gpu::xenos::xe_gpu_texture_fetch_t fetch;
+  xe::copy_and_swap_32_unaligned((uint32_t*)&fetch, (uint32_t*)SHIM_MEM_ADDR(fetch_ptr), 6);
+
+  auto color_format = (gpu::xenos::ColorFormat)SHIM_MEM_32(color_format_ptr);
+  auto color_space = SHIM_MEM_32(color_space_ptr);
+  assert_true(color_format == gpu::xenos::ColorFormat::k_8_8_8_8);
+  assert_true(color_space == 0);
+  assert_true(frontbuffer == fetch.address << 12);
+  assert_true(last_frontbuffer_width_ == 1 + fetch.size_2d.width);
+  assert_true(last_frontbuffer_height_ == 1 + fetch.size_2d.height);
+
+  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X(%.8X), %.8X(%u), %.8X(%u))", buffer_ptr,
+         fetch_ptr, unk2, unk3, unk4, frontbuffer_ptr, frontbuffer, color_format_ptr, color_format, color_space_ptr, color_space);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
   // for this method to do what it needs. We just zero them out and send a
   // token value. It'd be nice to figure out what this is really doing so
   // that we could simulate it, though due to TCR I bet all games need to
   // use this method.
-  std::memset(SHIM_MEM_ADDR(unk0), 0, 64 * 4);
-  auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(unk0));
+  std::memset(SHIM_MEM_ADDR(buffer_ptr), 0, 64 * 4);
+  auto dwords = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(buffer_ptr));
   dwords[0] = xe::byte_swap((0x3 << 30) | ((63 - 1) << 16) |
                             (xe::gpu::xenos::PM4_XE_SWAP << 8));
   dwords[1] = xe::byte_swap('SWAP');
@@ -440,8 +451,6 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   // Set by VdCallGraphicsNotificationRoutines.
   dwords[3] = xe::byte_swap(last_frontbuffer_width_);
   dwords[4] = xe::byte_swap(last_frontbuffer_height_);
-
-  SHIM_SET_RETURN_64(0);
 }
 
 }  // namespace kernel
