@@ -200,6 +200,7 @@ class AudioSystem {
     uint32_t guest_ptr;
     xe::mutex lock;
     bool in_use;
+    bool kicked;
 
     AudioDecoder* decoder;
   };

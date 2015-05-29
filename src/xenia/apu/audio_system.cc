@@ -91,15 +91,18 @@ X_STATUS AudioSystem::Setup() {
   for (int i = kXmaContextCount - 1; i >= 0; --i) {
     uint32_t ptr = registers_.xma_context_array_ptr + i * kXmaContextSize;
 
+    XMAContext& context = xma_context_array_[i];
+
     // Initialize it
-    xma_context_array_[i].guest_ptr = ptr;
-    xma_context_array_[i].in_use = false;
+    context.guest_ptr = ptr;
+    context.in_use = false;
+    context.kicked = false;
 
     // Create a new decoder per context
     // Needed because some data needs to be persisted across calls
     // TODO: Need to destroy this on class destruction
-    xma_context_array_[i].decoder = new AudioDecoder();
-    xma_context_array_[i].decoder->Initialize(16);
+    context.decoder = new AudioDecoder();
+    context.decoder->Initialize(16);
   }
   registers_.next_context = 1;
 
@@ -192,12 +195,15 @@ void AudioSystem::DecoderThreadMain() {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     for (uint32_t n = 0; n < kXmaContextCount; n++) {
       XMAContext& context = xma_context_array_[n];
-      if (context.in_use) {
+      if (context.in_use && context.kicked) {
         context.lock.lock();
+        context.kicked = false;
+
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
         ProcessXmaContext(context, data);
         data.Store(context_ptr);
+
         context.lock.unlock();
       }
     }
@@ -339,6 +345,8 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
                      ? memory()->TranslatePhysical(data.input_buffer_1_ptr)
                      : nullptr;
   uint8_t* out = memory()->TranslatePhysical(data.output_buffer_ptr);
+
+  assert(!in1);
 
   // What I see:
   // XMA outputs 2 bytes per sample
@@ -540,6 +548,8 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         data.output_buffer_write_offset = 0;
 
         data.Store(context_ptr);
+
+        context.kicked = true;
         context.lock.unlock();
       }
       value >>= 1;
