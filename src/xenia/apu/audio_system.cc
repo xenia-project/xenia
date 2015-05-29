@@ -330,11 +330,6 @@ void AudioSystem::UnregisterClient(size_t index) {
 }
 
 void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
-  if (!context.in_use) {
-    // Skip unused contexts.
-    return;
-  }
-
   SCOPE_profile_cpu_f("apu");
 
   // Translate pointers for future use.
