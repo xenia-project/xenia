@@ -22,7 +22,7 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-AudioDecoder::AudioDecoder() : offset_(0), codec_(nullptr), context_(nullptr),
+AudioDecoder::AudioDecoder() : codec_(nullptr), context_(nullptr),
                               decoded_frame_(nullptr), packet_(nullptr) {}
 
 AudioDecoder::~AudioDecoder() {
@@ -100,7 +100,7 @@ int AudioDecoder::Initialize(int bits) {
   return 0;
 }
 
-int AudioDecoder::PreparePacket(uint8_t* input, size_t size,
+int AudioDecoder::PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
                                 int sample_rate, int channels) {
   if (size != XMAContextData::kBytesPerBlock) {
     // Invalid packet size!
@@ -115,9 +115,8 @@ int AudioDecoder::PreparePacket(uint8_t* input, size_t size,
   std::memcpy(packet_data_, input, size);
 
   // Modify the packet header so it's WMAPro compatible
-  *((int *)packet_data_) = (((offset_ & 0x7800) | 0x400) >> 7) |
+  *((int *)packet_data_) = (((seq_offset & 0x7800) | 0x400) >> 7) |
                            (*((int*)packet_data_) & 0xFFFEFF08);
-  offset_ += XMAContextData::kBytesPerBlock; // Sequence number
 
   packet_->data = packet_data_;
   packet_->size = XMAContextData::kBytesPerBlock;
@@ -201,15 +200,12 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
       for (int i = 0; i < decoded_frame_->nb_samples; i++) {
         // Raw sample should be within [-1, 1]
         float fRawSample = sample_array[i];
-        float fScaledSample = fRawSample * (1 << (bits_ - 1));
 
-        // Clamp the sample in range
-        int64_t range = (1 << (bits_ - 1));
-        if (fScaledSample > (range - 1)) {
-          fScaledSample = (float)range;
-        } else if (fScaledSample < (-range + 1)) {
-          fScaledSample = (float)-range;
-        }
+        // Clamp it, just in case.
+        fRawSample = std::min( 1.f, fRawSample);
+        fRawSample = std::max(-1.f, fRawSample);
+
+        float fScaledSample = fRawSample * ((1 << bits_) - 1);
 
         // Convert the sample and output it in big endian
         int sample = (int)fScaledSample;

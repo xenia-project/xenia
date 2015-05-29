@@ -91,15 +91,18 @@ X_STATUS AudioSystem::Setup() {
   for (int i = kXmaContextCount - 1; i >= 0; --i) {
     uint32_t ptr = registers_.xma_context_array_ptr + i * kXmaContextSize;
 
+    XMAContext& context = xma_context_array_[i];
+
     // Initialize it
-    xma_context_array_[i].guest_ptr = ptr;
-    xma_context_array_[i].in_use = false;
+    context.guest_ptr = ptr;
+    context.in_use = false;
+    context.kicked = false;
 
     // Create a new decoder per context
     // Needed because some data needs to be persisted across calls
     // TODO: Need to destroy this on class destruction
-    xma_context_array_[i].decoder = new AudioDecoder();
-    xma_context_array_[i].decoder->Initialize(16);
+    context.decoder = new AudioDecoder();
+    context.decoder->Initialize(16);
   }
   registers_.next_context = 1;
 
@@ -192,12 +195,15 @@ void AudioSystem::DecoderThreadMain() {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     for (uint32_t n = 0; n < kXmaContextCount; n++) {
       XMAContext& context = xma_context_array_[n];
-      if (context.in_use) {
+      if (context.in_use && context.kicked) {
         context.lock.lock();
+        context.kicked = false;
+
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
         ProcessXmaContext(context, data);
         data.Store(context_ptr);
+
         context.lock.unlock();
       }
     }
@@ -324,11 +330,6 @@ void AudioSystem::UnregisterClient(size_t index) {
 }
 
 void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
-  if (!context.in_use) {
-    // Skip unused contexts.
-    return;
-  }
-
   SCOPE_profile_cpu_f("apu");
 
   // Translate pointers for future use.
@@ -339,6 +340,8 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
                      ? memory()->TranslatePhysical(data.input_buffer_1_ptr)
                      : nullptr;
   uint8_t* out = memory()->TranslatePhysical(data.output_buffer_ptr);
+
+  assert(!in1);
 
   // What I see:
   // XMA outputs 2 bytes per sample
@@ -362,7 +365,7 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   while (data.output_buffer_valid) {
     // Check the output buffer - we cannot decode anything else if it's
     // unavailable.
-    // Output buffers are in frames.
+    // Output buffers are in raw PCM samples, 256 bytes per block.
     uint32_t output_size_bytes = data.output_buffer_block_count * 256;
     uint32_t output_offset_bytes = data.output_buffer_write_offset * 256;
     uint32_t output_remaining_bytes = output_size_bytes - output_offset_bytes;
@@ -423,24 +426,39 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
       }
       int channels = data.is_stereo ? 2 : 1;
 
-      // See if we've finished with the input
-      // TODO - Probably need to move this, I think it might skip the very
-      // last packet (see the call to PreparePacket)
-      // Block count is in frames, so expand by
-      // samples_per_frame*bytes_per_sample*bits_per_byte.
-      uint32_t input_size_bytes =
-          (data.input_buffer_0_block_count + data.input_buffer_1_block_count) *
-          2048;
+      // See if we've finished with the input.
+      // Block count is in packets, so expand by packet size.
+      uint32_t input_size_0_bytes =
+          (data.input_buffer_0_block_count) * 2048;
+      uint32_t input_size_1_bytes =
+          (data.input_buffer_1_block_count) * 2048;
+
+      // Total input size
+      uint32_t input_size_bytes = input_size_0_bytes + input_size_1_bytes;
+
       // Input read offset is in bits. Typically starts at 32 (4 bytes).
-      uint32_t input_offset_bytes =
+      // "Sequence" offset - used internally for WMA Pro decoder.
+      // Just the read offset.
+      uint32_t seq_offset_bytes =
           (data.input_buffer_read_offset & ~0x7FF) / 8;
-      if (input_offset_bytes < input_size_bytes) {
+
+      if (seq_offset_bytes < input_size_bytes) {
+        // Setup input offset and input buffer.
+        uint32_t input_offset_bytes = seq_offset_bytes;
+        auto input_buffer = in0;
+
+        if (seq_offset_bytes >= input_size_0_bytes) {
+          // Size overlap, select input buffer 1.
+          input_offset_bytes -= input_size_0_bytes;
+          input_buffer = in1;
+        }
+
         // Still have data to read.
-        // TODO: Select input buffer 1 if necessary.
-        auto packet = in0 + input_offset_bytes;
-        context.decoder->PreparePacket(packet, 2048, sample_rate, channels);
+        auto packet = input_buffer + input_offset_bytes;
+        context.decoder->PreparePacket(packet, seq_offset_bytes, 2048,
+                                       sample_rate, channels);
         data.input_buffer_read_offset += 2048 * 8;
-        if (input_offset_bytes + 2048 >= input_size_bytes) {
+        if (seq_offset_bytes + 2048 >= input_size_bytes) {
           // Used the last of the data.
           data.input_buffer_0_valid = 0;
           data.input_buffer_1_valid = 0;
@@ -515,8 +533,9 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
 
         XELOGAPU(
             "AudioSystem: kicking context %d (%d/%d bytes)", context_id,
-            data.input_buffer_read_offset / 8,
-            data.input_buffer_0_block_count * XMAContextData::kBytesPerBlock);
+            (data.input_buffer_read_offset & ~0x7FF) / 8,
+            (data.input_buffer_0_block_count + data.input_buffer_1_block_count)
+            * XMAContextData::kBytesPerBlock);
 
         // Reset valid flags so our audio decoder knows to process this one.
         data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
@@ -524,6 +543,8 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         data.output_buffer_write_offset = 0;
 
         data.Store(context_ptr);
+
+        context.kicked = true;
         context.lock.unlock();
       }
       value >>= 1;
