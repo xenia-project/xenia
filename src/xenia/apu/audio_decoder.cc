@@ -205,7 +205,7 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
         fRawSample = std::min( 1.f, fRawSample);
         fRawSample = std::max(-1.f, fRawSample);
 
-        float fScaledSample = fRawSample * ((1 << bits_) - 1);
+        float fScaledSample = fRawSample * (1 << (bits_ - 1));
 
         // Convert the sample and output it in big endian
         int sample = (int)fScaledSample;
