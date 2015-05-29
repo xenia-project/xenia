@@ -200,15 +200,12 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
       for (int i = 0; i < decoded_frame_->nb_samples; i++) {
         // Raw sample should be within [-1, 1]
         float fRawSample = sample_array[i];
-        float fScaledSample = fRawSample * ((1 << bits_) - 1);
 
-        // Clamp the sample in range
-        int64_t range = (1 << bits_) * 2;
-        if (fScaledSample > (range - 1)) {
-          fScaledSample = (float)range;
-        } else if (fScaledSample < (-range + 1)) {
-          fScaledSample = (float)-range;
-        }
+        // Clamp it, just in case.
+        fRawSample = std::min( 1.f, fRawSample);
+        fRawSample = std::max(-1.f, fRawSample);
+
+        float fScaledSample = fRawSample * ((1 << bits_) - 1);
 
         // Convert the sample and output it in big endian
         int sample = (int)fScaledSample;
