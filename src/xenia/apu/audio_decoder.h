@@ -38,7 +38,8 @@ class AudioDecoder {
 
     int Initialize(int bits);
 
-    int PreparePacket(uint8_t* input, size_t size, int sample_rate, int channels);
+    int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
+                      int sample_rate, int channels);
     void DiscardPacket();
 
     int DecodePacket(uint8_t* output, size_t offset, size_t size);
@@ -54,7 +55,6 @@ class AudioDecoder {
     size_t current_frame_pos_;
     uint8_t* current_frame_;
     uint32_t frame_samples_size_;
-    int offset_;
 
     uint8_t packet_data_[XMAContextData::kBytesPerBlock];
 };
