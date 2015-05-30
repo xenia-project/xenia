@@ -560,7 +560,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
   uint32_t end_page_number = start_page_number + page_count - 1;
   if (start_page_number >= page_table_.size() ||
       end_page_number > page_table_.size()) {
-    XELOGE("BaseHeap::Alloc passed out of range address range");
+    XELOGE("BaseHeap::AllocFixed passed out of range address range");
     return false;
   }
 
@@ -575,14 +575,18 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
     uint32_t state = page_table_[page_number].state;
     if ((allocation_type == kMemoryAllocationReserve) && state) {
       // Already reserved.
-      XELOGE("BaseHeap::Alloc attempting to reserve an already reserved range");
+      XELOGE(
+          "BaseHeap::AllocFixed attempting to reserve an already reserved "
+          "range");
       return false;
     }
     if ((allocation_type == kMemoryAllocationCommit) &&
         !(state & kMemoryAllocationReserve)) {
       // Attempting a commit-only op on an unreserved page.
-      XELOGE("BaseHeap::Alloc attempting commit on unreserved page");
-      return false;
+      // This may be OK.
+      XELOGW("BaseHeap::AllocFixed attempting commit on unreserved page");
+      allocation_type |= kMemoryAllocationReserve;
+      break;
     }
   }
 
@@ -599,7 +603,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
                      page_count * page_size_, flAllocationType,
                      ToWin32ProtectFlags(protect));
     if (!result) {
-      XELOGE("BaseHeap::Alloc failed to alloc range from host");
+      XELOGE("BaseHeap::AllocFixed failed to alloc range from host");
       return false;
     }
 

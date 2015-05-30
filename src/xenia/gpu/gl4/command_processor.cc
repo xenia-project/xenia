@@ -484,7 +484,10 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile* regs = register_file_;
-  assert_true(index < RegisterFile::kRegisterCount);
+  if (index >= RegisterFile::kRegisterCount) {
+    XELOGW("CommandProcessor::WriteRegister index out of bounds: %d", index);
+    return;
+  }
 
   regs->values[index].u32 = value;
 
