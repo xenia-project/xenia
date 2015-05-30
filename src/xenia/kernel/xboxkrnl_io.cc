@@ -9,11 +9,13 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/kernel/async_request.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/fs/device.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xfile.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/xbox.h"
@@ -235,9 +237,6 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
          io_status_block_ptr, buffer, buffer_length, byte_offset_ptr,
          byte_offset);
 
-  // Async not supported yet.
-  assert_zero(apc_routine_ptr);
-
   X_STATUS result = X_STATUS_SUCCESS;
   uint32_t info = 0;
 
@@ -277,6 +276,14 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
                           &bytes_read);
       if (XSUCCEEDED(result)) {
         info = (int32_t)bytes_read;
+      }
+
+      // Queue the APC callback. It must be delivered via the APC mechanism even
+      // though were are completing immediately.
+      if (apc_routine_ptr & ~1) {
+        auto thread = XThread::GetCurrentThread();
+        thread->EnqueueApc(apc_routine_ptr & ~1, apc_context,
+                           io_status_block_ptr, 0);
       }
 
       // Mark that we should signal the event now. We do this after

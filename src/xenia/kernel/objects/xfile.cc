@@ -40,6 +40,7 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
   if (XSUCCEEDED(result)) {
     position_ += *out_bytes_read;
   }
+  async_event_->Set(0, false);
   return result;
 }
 
@@ -64,6 +65,7 @@ X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
   if (XSUCCEEDED(result)) {
     position_ += *out_bytes_written;
   }
+  async_event_->Set(0, false);
   return result;
 }
 

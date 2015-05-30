@@ -97,9 +97,7 @@ XThread::~XThread() {
   }
 }
 
-bool XThread::IsInThread(XThread* other) {
-  return current_thread_tls == other;
-}
+bool XThread::IsInThread(XThread* other) { return current_thread_tls == other; }
 
 XThread* XThread::GetCurrentThread() {
   XThread* thread = current_thread_tls;
@@ -135,7 +133,7 @@ void XThread::set_name(const std::string& name) {
 
 uint8_t fake_CPU_number(uint8_t proc_mask) {
   if (!proc_mask) {
-    return 0; // is this reasonable?
+    return 0;  // is this reasonable?
   }
   assert_false(proc_mask & 0xC0);
 
@@ -207,7 +205,8 @@ X_STATUS XThread::Create() {
          thread_state_->thread_id(), thread_state_->stack_limit(),
          thread_state_->stack_base());
 
-  uint8_t proc_mask = static_cast<uint8_t>(creation_params_.creation_flags >> 24);
+  uint8_t proc_mask =
+      static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   std::memset(pcr, 0x0, 0x2D8 + 0xAB0);  // Zero the PCR
@@ -217,8 +216,9 @@ X_STATUS XThread::Create() {
                                                 thread_state_->stack_size());
   xe::store_and_swap<uint32_t>(pcr + 0x074, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(pcr + 0x100, thread_state_address_);
-  xe::store_and_swap<uint8_t>(pcr + 0x10C, fake_CPU_number(proc_mask));   // Current CPU(?)
-  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);  // DPC active bool?
+  xe::store_and_swap<uint8_t>(pcr + 0x10C,
+                              fake_CPU_number(proc_mask));  // Current CPU(?)
+  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);             // DPC active bool?
 
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
@@ -269,7 +269,7 @@ X_STATUS XThread::Create() {
     return return_code;
   }
 
-  //uint32_t proc_mask = creation_params_.creation_flags >> 24;
+  // uint32_t proc_mask = creation_params_.creation_flags >> 24;
   if (proc_mask) {
     SetAffinity(proc_mask);
   }
@@ -453,21 +453,49 @@ uint32_t XThread::RaiseIrql(uint32_t new_irql) {
 
 void XThread::LowerIrql(uint32_t new_irql) { irql_ = new_irql; }
 
+void XThread::CheckApcs() { DeliverAPCs(this); }
+
 void XThread::LockApc() { apc_lock_.lock(); }
 
-void XThread::UnlockApc() {
+void XThread::UnlockApc(bool queue_delivery) {
   bool needs_apc = apc_list_->HasPending();
   apc_lock_.unlock();
-  if (needs_apc) {
+  if (needs_apc && queue_delivery) {
     QueueUserAPC(reinterpret_cast<PAPCFUNC>(DeliverAPCs), thread_handle_,
                  reinterpret_cast<ULONG_PTR>(this));
   }
 }
 
+void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
+                         uint32_t arg1, uint32_t arg2) {
+  LockApc();
+
+  // Allocate APC.
+  // We'll tag it as special and free it when dispatched.
+  uint32_t apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
+  auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
+
+  apc->Initialize();
+  apc->kernel_routine = XAPC::kDummyKernelRoutine;
+  apc->rundown_routine = XAPC::kDummyRundownRoutine;
+  apc->normal_routine = normal_routine;
+  apc->normal_context = normal_context;
+  apc->arg1 = arg1;
+  apc->arg2 = arg2;
+  apc->enqueued = 1;
+
+  uint32_t list_entry_ptr = apc_ptr + 8;
+  apc_list_->Insert(list_entry_ptr);
+
+  UnlockApc(true);
+}
+
 void XThread::DeliverAPCs(void* data) {
+  XThread* thread = reinterpret_cast<XThread*>(data);
+  assert_true(XThread::GetCurrentThread() == thread);
+
   // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
   // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
-  XThread* thread = reinterpret_cast<XThread*>(data);
   auto memory = thread->memory();
   auto processor = thread->kernel_state()->processor();
   auto apc_list = thread->apc_list();
@@ -475,76 +503,86 @@ void XThread::DeliverAPCs(void* data) {
   while (apc_list->HasPending()) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
-    uint32_t apc_address = apc_list->Shift() - 8;
-    uint8_t* apc_ptr = memory->TranslateVirtual(apc_address);
-    uint32_t kernel_routine = xe::load_and_swap<uint32_t>(apc_ptr + 16);
-    uint32_t normal_routine = xe::load_and_swap<uint32_t>(apc_ptr + 24);
-    uint32_t normal_context = xe::load_and_swap<uint32_t>(apc_ptr + 28);
-    uint32_t system_arg1 = xe::load_and_swap<uint32_t>(apc_ptr + 32);
-    uint32_t system_arg2 = xe::load_and_swap<uint32_t>(apc_ptr + 36);
+    uint32_t apc_ptr = apc_list->Shift() - 8;
+    auto apc = reinterpret_cast<XAPC*>(memory->TranslateVirtual(apc_ptr));
+    bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
     // Mark as uninserted so that it can be reinserted again by the routine.
-    uint32_t old_flags = xe::load_and_swap<uint32_t>(apc_ptr + 40);
-    xe::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
+    apc->enqueued = 0;
 
     // Call kernel routine.
     // The routine can modify all of its arguments before passing it on.
     // Since we need to give guest accessible pointers over, we copy things
     // into and out of scratch.
     uint8_t* scratch_ptr = memory->TranslateVirtual(thread->scratch_address_);
-    xe::store_and_swap<uint32_t>(scratch_ptr + 0, normal_routine);
-    xe::store_and_swap<uint32_t>(scratch_ptr + 4, normal_context);
-    xe::store_and_swap<uint32_t>(scratch_ptr + 8, system_arg1);
-    xe::store_and_swap<uint32_t>(scratch_ptr + 12, system_arg2);
-    // kernel_routine(apc_address, &normal_routine, &normal_context,
-    // &system_arg1, &system_arg2)
-    uint64_t kernel_args[] = {
-        apc_address, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
-        thread->scratch_address_ + 8, thread->scratch_address_ + 12,
-    };
-    processor->ExecuteInterrupt(kernel_routine, kernel_args,
-                                xe::countof(kernel_args));
-    normal_routine = xe::load_and_swap<uint32_t>(scratch_ptr + 0);
-    normal_context = xe::load_and_swap<uint32_t>(scratch_ptr + 4);
-    system_arg1 = xe::load_and_swap<uint32_t>(scratch_ptr + 8);
-    system_arg2 = xe::load_and_swap<uint32_t>(scratch_ptr + 12);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 0, apc->normal_routine);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 4, apc->normal_context);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 8, apc->arg1);
+    xe::store_and_swap<uint32_t>(scratch_ptr + 12, apc->arg2);
+    if (apc->kernel_routine != XAPC::kDummyKernelRoutine) {
+      // kernel_routine(apc_address, &normal_routine, &normal_context,
+      // &system_arg1, &system_arg2)
+      uint64_t kernel_args[] = {
+          apc_ptr,                       thread->scratch_address_ + 0,
+          thread->scratch_address_ + 4,  thread->scratch_address_ + 8,
+          thread->scratch_address_ + 12,
+      };
+      processor->Execute(thread->thread_state(), apc->kernel_routine,
+                         kernel_args, xe::countof(kernel_args));
+    }
+    uint32_t normal_routine = xe::load_and_swap<uint32_t>(scratch_ptr + 0);
+    uint32_t normal_context = xe::load_and_swap<uint32_t>(scratch_ptr + 4);
+    uint32_t arg1 = xe::load_and_swap<uint32_t>(scratch_ptr + 8);
+    uint32_t arg2 = xe::load_and_swap<uint32_t>(scratch_ptr + 12);
 
     // Call the normal routine. Note that it may have been killed by the kernel
     // routine.
     if (normal_routine) {
-      thread->UnlockApc();
+      thread->UnlockApc(false);
       // normal_routine(normal_context, system_arg1, system_arg2)
-      uint64_t normal_args[] = {normal_context, system_arg1, system_arg2};
-      processor->ExecuteInterrupt(normal_routine, normal_args,
-                                  xe::countof(normal_args));
+      uint64_t normal_args[] = {normal_context, apc->arg1, apc->arg2};
+      processor->Execute(thread->thread_state(), normal_routine, normal_args,
+                         xe::countof(normal_args));
       thread->LockApc();
     }
+
+    // If special, free it.
+    if (needs_freeing) {
+      memory->SystemHeapFree(apc_ptr);
+    }
   }
-  thread->UnlockApc();
+  thread->UnlockApc(true);
 }
 
 void XThread::RundownAPCs() {
+  assert_true(XThread::GetCurrentThread() == this);
   LockApc();
   while (apc_list_->HasPending()) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
-    uint32_t apc_address = apc_list_->Shift() - 8;
-    uint8_t* apc_ptr = memory()->TranslateVirtual(apc_address);
-    uint32_t rundown_routine = xe::load_and_swap<uint32_t>(apc_ptr + 20);
+    uint32_t apc_ptr = apc_list_->Shift() - 8;
+    auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
+    bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
     // Mark as uninserted so that it can be reinserted again by the routine.
-    uint32_t old_flags = xe::load_and_swap<uint32_t>(apc_ptr + 40);
-    xe::store_and_swap<uint32_t>(apc_ptr + 40, old_flags & ~0xFF00);
+    apc->enqueued = 0;
 
     // Call the rundown routine.
-    if (rundown_routine) {
+    if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
+      // No-op.
+    } else if (apc->rundown_routine) {
       // rundown_routine(apc)
-      uint64_t args[] = {apc_address};
-      kernel_state()->processor()->ExecuteInterrupt(rundown_routine, args,
-                                                    xe::countof(args));
+      uint64_t args[] = {apc_ptr};
+      kernel_state()->processor()->Execute(thread_state(), apc->rundown_routine,
+                                           args, xe::countof(args));
+    }
+
+    // If special, free it.
+    if (needs_freeing) {
+      memory()->SystemHeapFree(apc_ptr);
     }
   }
-  UnlockApc();
+  UnlockApc(true);
 }
 
 int32_t XThread::QueryPriority() { return GetThreadPriority(thread_handle_); }

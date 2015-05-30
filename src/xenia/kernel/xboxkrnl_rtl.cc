@@ -603,6 +603,8 @@ SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_state,
     // TODO(benvanik): wake a waiter.
     XELOGE("RtlLeaveCriticalSection would have woken a waiter");
   }
+
+  XThread::GetCurrentThread()->CheckApcs();
 }
 
 SHIM_CALL RtlTimeToTimeFields_shim(PPCContext* ppc_state, KernelState* state) {

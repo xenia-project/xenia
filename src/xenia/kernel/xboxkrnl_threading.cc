@@ -1054,6 +1054,8 @@ SHIM_CALL KeLeaveCriticalRegion_shim(PPCContext* ppc_state,
   // XELOGD(
   //     "KeLeaveCriticalRegion()");
   XThread::LeaveCriticalRegion();
+
+  XThread::GetCurrentThread()->CheckApcs();
 }
 
 SHIM_CALL KeRaiseIrqlToDpcLevel_shim(PPCContext* ppc_state,
@@ -1070,6 +1072,8 @@ SHIM_CALL KfLowerIrql_shim(PPCContext* ppc_state, KernelState* state) {
   //     "KfLowerIrql(%d)",
   //     old_value);
   state->processor()->LowerIrql(static_cast<cpu::Irql>(old_value));
+
+  XThread::GetCurrentThread()->CheckApcs();
 }
 
 SHIM_CALL NtQueueApcThread_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1082,6 +1086,8 @@ SHIM_CALL NtQueueApcThread_shim(PPCContext* ppc_state, KernelState* state) {
          apc_routine, arg1, arg2, arg3);
 
   // Alloc APC object (from somewhere) and insert.
+
+  assert_always("not implemented");
 }
 
 SHIM_CALL KeInitializeApc_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1097,27 +1103,14 @@ SHIM_CALL KeInitializeApc_shim(PPCContext* ppc_state, KernelState* state) {
          thread, kernel_routine, rundown_routine, normal_routine,
          processor_mode, normal_context);
 
-  // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
-  // This is 4b shorter than NT - looks like the reserved dword at +4 is gone
-  uint32_t type = 18;  // ApcObject
-  uint32_t unk0 = 0;
-  uint32_t size = 0x28;
-  uint32_t unk1 = 0;
-  SHIM_SET_MEM_32(apc_ptr + 0,
-                  (type << 24) | (unk0 << 16) | (size << 8) | (unk1));
-  SHIM_SET_MEM_32(apc_ptr + 4, thread);  // known offset - derefed by games
-  SHIM_SET_MEM_32(apc_ptr + 8, 0);       // flink
-  SHIM_SET_MEM_32(apc_ptr + 12, 0);      // blink
-  SHIM_SET_MEM_32(apc_ptr + 16, kernel_routine);
-  SHIM_SET_MEM_32(apc_ptr + 20, rundown_routine);
-  SHIM_SET_MEM_32(apc_ptr + 24, normal_routine);
-  SHIM_SET_MEM_32(apc_ptr + 28, normal_routine ? normal_context : 0);
-  SHIM_SET_MEM_32(apc_ptr + 32, 0);  // arg1
-  SHIM_SET_MEM_32(apc_ptr + 36, 0);  // arg2
-  uint32_t state_index = 0;
-  uint32_t inserted = 0;
-  SHIM_SET_MEM_32(apc_ptr + 40, (state_index << 24) | (processor_mode << 16) |
-                                    (inserted << 8));
+  auto apc = SHIM_STRUCT(XAPC, apc_ptr);
+  apc->Initialize();
+  apc->processor_mode = processor_mode;
+  apc->thread_ptr = thread;
+  apc->kernel_routine = kernel_routine;
+  apc->rundown_routine = rundown_routine;
+  apc->normal_routine = normal_routine;
+  apc->normal_context = normal_routine ? normal_context : 0;
 }
 
 SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1129,9 +1122,10 @@ SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("KeInsertQueueApc(%.8X, %.8X, %.8X, %.8X)", apc_ptr, arg1, arg2,
          priority_increment);
 
-  uint32_t thread_ptr = SHIM_MEM_32(apc_ptr + 4);
+  auto apc = SHIM_STRUCT(XAPC, apc_ptr);
+
   auto thread =
-      XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr));
+      XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(apc->thread_ptr));
   if (!thread) {
     SHIM_SET_RETURN_32(0);
     return;
@@ -1141,17 +1135,16 @@ SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   thread->LockApc();
 
   // Fail if already inserted.
-  if (SHIM_MEM_32(apc_ptr + 40) & 0xFF00) {
-    thread->UnlockApc();
+  if (apc->enqueued) {
+    thread->UnlockApc(false);
     SHIM_SET_RETURN_32(0);
     return;
   }
 
   // Prep APC.
-  SHIM_SET_MEM_32(apc_ptr + 32, arg1);
-  SHIM_SET_MEM_32(apc_ptr + 36, arg2);
-  SHIM_SET_MEM_32(apc_ptr + 40,
-                  (SHIM_MEM_32(apc_ptr + 40) & ~0xFF00) | (1 << 8));
+  apc->arg1 = arg1;
+  apc->arg2 = arg2;
+  apc->enqueued = 1;
 
   auto apc_list = thread->apc_list();
 
@@ -1159,7 +1152,7 @@ SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   apc_list->Insert(list_entry_ptr);
 
   // Unlock thread.
-  thread->UnlockApc();
+  thread->UnlockApc(true);
 
   SHIM_SET_RETURN_32(1);
 }
@@ -1171,9 +1164,10 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
 
   bool result = false;
 
-  uint32_t thread_ptr = SHIM_MEM_32(apc_ptr + 4);
+  auto apc = SHIM_STRUCT(XAPC, apc_ptr);
+
   auto thread =
-      XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr));
+      XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(apc->thread_ptr));
   if (!thread) {
     SHIM_SET_RETURN_32(0);
     return;
@@ -1181,8 +1175,8 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
 
   thread->LockApc();
 
-  if (!(SHIM_MEM_32(apc_ptr + 40) & 0xFF00)) {
-    thread->UnlockApc();
+  if (!apc->enqueued) {
+    thread->UnlockApc(false);
     SHIM_SET_RETURN_32(0);
     return;
   }
@@ -1194,7 +1188,7 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
     result = true;
   }
 
-  thread->UnlockApc();
+  thread->UnlockApc(true);
 
   SHIM_SET_RETURN_32(result ? 1 : 0);
 }

@@ -26,25 +26,25 @@ namespace x64 {
 #define ITRACE 0
 #define DTRACE 0
 
-#define TARGET_THREAD 4
+#define TARGET_THREAD 0
 
 bool trace_enabled = true;
 
+#define THREAD_MATCH \
+  (!TARGET_THREAD || thread_state->thread_id() == TARGET_THREAD)
 #if !DTRACE
-#define IFLUSH()                                                   \
-  if (trace_enabled && thread_state->thread_id() == TARGET_THREAD) \
-  fflush(stdout)
+#define IFLUSH() \
+  if (trace_enabled && THREAD_MATCH) fflush(stdout)
 #else
 #define IFLUSH()
 #endif
 #define IPRINT \
-  if (trace_enabled && thread_state->thread_id() == TARGET_THREAD) printf
-#define DFLUSH()                                                   \
-  if (trace_enabled && thread_state->thread_id() == TARGET_THREAD) \
-  fflush(stdout)
+  if (trace_enabled && THREAD_MATCH) printf
+#define DFLUSH() \
+  if (trace_enabled && THREAD_MATCH) fflush(stdout)
 #define DPRINT \
   DFLUSH();    \
-  if (trace_enabled && thread_state->thread_id() == TARGET_THREAD) printf
+  if (trace_enabled && THREAD_MATCH) printf
 
 uint32_t GetTracingMode() {
   uint32_t mode = 0;

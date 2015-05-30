@@ -24,6 +24,42 @@ namespace kernel {
 class NativeList;
 class XEvent;
 
+struct XAPC {
+  static const uint32_t kSize = 40;
+  static const uint32_t kDummyKernelRoutine = 0xF00DFF00;
+  static const uint32_t kDummyRundownRoutine = 0xF00DFF01;
+
+  // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
+  // This is 4b shorter than NT - looks like the reserved dword at +4 is gone.
+  // NOTE: stored in guest memory.
+  xe::be<uint8_t> type;              // +0
+  xe::be<uint8_t> unk1;              // +1
+  xe::be<uint8_t> processor_mode;    // +2
+  xe::be<uint8_t> enqueued;          // +3
+  xe::be<uint32_t> thread_ptr;       // +4
+  xe::be<uint32_t> flink;            // +8
+  xe::be<uint32_t> blink;            // +12
+  xe::be<uint32_t> kernel_routine;   // +16
+  xe::be<uint32_t> rundown_routine;  // +20
+  xe::be<uint32_t> normal_routine;   // +24
+  xe::be<uint32_t> normal_context;   // +28
+  xe::be<uint32_t> arg1;             // +32
+  xe::be<uint32_t> arg2;             // +36
+
+  void Initialize() {
+    type = 18;  // ApcObject
+    unk1 = 0;
+    processor_mode = 0;
+    enqueued = 0;
+    thread_ptr = 0;
+    flink = blink = 0;
+    kernel_routine = 0;
+    normal_routine = 0;
+    normal_context = 0;
+    arg1 = arg2 = 0;
+  }
+};
+
 class XThread : public XObject {
  public:
   XThread(KernelState* kernel_state, uint32_t stack_size,
@@ -55,9 +91,12 @@ class XThread : public XObject {
   uint32_t RaiseIrql(uint32_t new_irql);
   void LowerIrql(uint32_t new_irql);
 
+  void CheckApcs();
   void LockApc();
-  void UnlockApc();
+  void UnlockApc(bool queue_delivery);
   NativeList* apc_list() const { return apc_list_; }
+  void EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
+                  uint32_t arg1, uint32_t arg2);
 
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
