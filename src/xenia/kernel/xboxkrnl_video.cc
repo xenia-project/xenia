@@ -44,7 +44,7 @@ SHIM_CALL VdGetCurrentDisplayGamma_shim(PPCContext* ppc_state,
   XELOGD("VdGetCurrentDisplayGamma(%.8X, %.8X)", arg0_ptr, arg1_ptr);
 
   SHIM_SET_MEM_32(arg0_ptr, 2);
-  SHIM_SET_MEM_F32(arg1_ptr, 2.22222233f);
+  xe::store_and_swap<float>(SHIM_MEM_ADDR(arg1_ptr), 2.22222233f);
 }
 
 SHIM_CALL VdGetCurrentDisplayInformation_shim(PPCContext* ppc_state,
@@ -128,7 +128,7 @@ SHIM_CALL VdSetDisplayMode_shim(PPCContext* ppc_state, KernelState* state) {
   // 40000000
   XELOGD("VdSetDisplayMode(%.8X)", mode);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_state,
@@ -143,7 +143,7 @@ SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_state,
   XELOGD("VdSetDisplayModeOverride(%.8X, %.8X, %g, %.8X, %.8X)", unk0, unk1,
          refresh_rate, unk3, unk4);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_state, KernelState* state) {
@@ -177,7 +177,7 @@ SHIM_CALL VdGetGraphicsAsicID_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
   // (retrain/etc).
-  SHIM_SET_RETURN_64(0x11);
+  SHIM_SET_RETURN_32(0x11);
 }
 
 SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_state,
@@ -188,7 +188,7 @@ SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_state,
 
   // Ignored, as it really doesn't matter.
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL VdSetGraphicsInterruptCallback_shim(PPCContext* ppc_state,
@@ -326,7 +326,7 @@ SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
   }
 
   // returns memcpy size >> 2 for memcpy(...,...,ret << 2)
-  SHIM_SET_RETURN_64(total_words >> 2);
+  SHIM_SET_RETURN_32(total_words >> 2);
 }
 
 // We use these to shuffle data to VdSwap.
@@ -356,7 +356,7 @@ SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
   last_frontbuffer_width_ = fb_width;
   last_frontbuffer_height_ = fb_height;
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
@@ -365,7 +365,7 @@ SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
 
   // Not really sure what this should be - code does weird stuff here:
   // (cntlzw    r11, r3  / extrwi    r11, r11, 1, 26)
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
@@ -385,7 +385,7 @@ SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
   }
 
   // ?
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL VdRetrainEDRAMWorker_shim(PPCContext* ppc_state, KernelState* state) {
@@ -393,7 +393,7 @@ SHIM_CALL VdRetrainEDRAMWorker_shim(PPCContext* ppc_state, KernelState* state) {
 
   XELOGD("VdRetrainEDRAMWorker(%.8X)", unk0);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_state, KernelState* state) {
@@ -407,7 +407,7 @@ SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("VdRetrainEDRAM(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1, unk2,
          unk3, unk4, unk5);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {

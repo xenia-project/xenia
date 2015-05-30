@@ -26,7 +26,7 @@ SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XamResetInactivity(%d)", unk);
 
   // Result ignored.
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_state,
@@ -37,7 +37,7 @@ SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_state,
   XELOGD("XamEnableInactivityProcessing(%d, %d)", zero, unk);
 
   // Expects 0.
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx

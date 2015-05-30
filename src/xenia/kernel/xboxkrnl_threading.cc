@@ -293,7 +293,7 @@ SHIM_CALL KeGetCurrentProcessType_shim(PPCContext* ppc_state,
 
   // DWORD
 
-  SHIM_SET_RETURN_64(state->process_type());
+  SHIM_SET_RETURN_32(state->process_type());
 }
 
 SHIM_CALL KeSetCurrentProcessType_shim(PPCContext* ppc_state,
@@ -314,7 +314,7 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(PPCContext* ppc_state,
   //     "KeQueryPerformanceFrequency()");
 
   uint64_t result = Clock::guest_tick_frequency();
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL KeDelayExecutionThread_shim(PPCContext* ppc_state,
@@ -338,7 +338,7 @@ SHIM_CALL NtYieldExecution_shim(PPCContext* ppc_state, KernelState* state) {
   // XELOGD("NtYieldExecution()");
   XThread* thread = XThread::GetCurrentThread();
   X_STATUS result = thread->Delay(0, 0, 0);
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_state, KernelState* state) {
@@ -375,7 +375,7 @@ SHIM_CALL KeTlsAlloc_shim(PPCContext* ppc_state, KernelState* state) {
   }
 #endif  // WIN32
 
-  SHIM_SET_RETURN_64(tls_index);
+  SHIM_SET_RETURN_32(tls_index);
 }
 
 // http://msdn.microsoft.com/en-us/library/ms686804
@@ -385,7 +385,7 @@ SHIM_CALL KeTlsFree_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("KeTlsFree(%.8X)", tls_index);
 
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -397,7 +397,7 @@ SHIM_CALL KeTlsFree_shim(PPCContext* ppc_state, KernelState* state) {
   result = pthread_key_delete(tls_index) == 0;
 #endif  // WIN32
 
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 // http://msdn.microsoft.com/en-us/library/ms686812
@@ -422,7 +422,7 @@ SHIM_CALL KeTlsGetValue_shim(PPCContext* ppc_state, KernelState* state) {
     // TODO(benvanik): SetLastError
   }
 
-  SHIM_SET_RETURN_64(value);
+  SHIM_SET_RETURN_32(value);
 }
 
 // http://msdn.microsoft.com/en-us/library/ms686818
@@ -441,7 +441,7 @@ SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_state, KernelState* state) {
   result = pthread_setspecific(tls_index, (void*)tls_value) == 0;
 #endif  // WIN32
 
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_state, KernelState* state) {
@@ -482,12 +482,12 @@ SHIM_CALL KeSetEvent_shim(PPCContext* ppc_state, KernelState* state) {
 
   auto ev = XObject::GetNativeObject<XEvent>(state, event_ptr);
   if (!ev) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
   auto result = ev->Set(increment, !!wait);
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtSetEvent_shim(PPCContext* ppc_state, KernelState* state) {
@@ -526,7 +526,7 @@ SHIM_CALL KePulseEvent_shim(PPCContext* ppc_state, KernelState* state) {
     result = ev->Pulse(increment, !!wait);
   }
 
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtPulseEvent_shim(PPCContext* ppc_state, KernelState* state) {
@@ -558,12 +558,12 @@ SHIM_CALL KeResetEvent_shim(PPCContext* ppc_state, KernelState* state) {
   void* event_ptr = SHIM_MEM_ADDR(event_ref);
   auto ev = XObject::GetNativeObject<XEvent>(state, event_ptr);
   if (!ev) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
   auto result = ev->Reset();
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtClearEvent_shim(PPCContext* ppc_state, KernelState* state) {
@@ -643,7 +643,7 @@ SHIM_CALL KeReleaseSemaphore_shim(PPCContext* ppc_state, KernelState* state) {
   void* semaphore_ptr = SHIM_MEM_ADDR(semaphore_ref);
   auto sem = XObject::GetNativeObject<XSemaphore>(state, semaphore_ptr);
   if (!sem) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -651,7 +651,7 @@ SHIM_CALL KeReleaseSemaphore_shim(PPCContext* ppc_state, KernelState* state) {
   // TODO(benvanik): wait?
 
   int32_t result = sem->ReleaseSemaphore(adjustment);
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL NtReleaseSemaphore_shim(PPCContext* ppc_state, KernelState* state) {
@@ -992,7 +992,7 @@ SHIM_CALL KfAcquireSpinLock_shim(PPCContext* ppc_state, KernelState* state) {
   XThread* thread = XThread::GetCurrentThread();
   auto old_irql = thread->RaiseIrql(2);
 
-  SHIM_SET_RETURN_64(old_irql);
+  SHIM_SET_RETURN_32(old_irql);
 }
 
 SHIM_CALL KfReleaseSpinLock_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1133,7 +1133,7 @@ SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   auto thread =
       XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr));
   if (!thread) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -1143,7 +1143,7 @@ SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   // Fail if already inserted.
   if (SHIM_MEM_32(apc_ptr + 40) & 0xFF00) {
     thread->UnlockApc();
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -1161,7 +1161,7 @@ SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   // Unlock thread.
   thread->UnlockApc();
 
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1175,7 +1175,7 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
   auto thread =
       XObject::GetNativeObject<XThread>(state, SHIM_MEM_ADDR(thread_ptr));
   if (!thread) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -1183,7 +1183,7 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
 
   if (!(SHIM_MEM_32(apc_ptr + 40) & 0xFF00)) {
     thread->UnlockApc();
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -1196,7 +1196,7 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_state, KernelState* state) {
 
   thread->UnlockApc();
 
-  SHIM_SET_RETURN_64(result ? 1 : 0);
+  SHIM_SET_RETURN_32(result ? 1 : 0);
 }
 
 SHIM_CALL KiApcNormalRoutineNop_shim(PPCContext* ppc_state,
@@ -1206,7 +1206,7 @@ SHIM_CALL KiApcNormalRoutineNop_shim(PPCContext* ppc_state,
 
   XELOGD("KiApcNormalRoutineNop(%.8X, %.8X)", unk0, unk1);
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL KeInitializeDpc_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1248,7 +1248,7 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
 
   // If already in a queue, abort.
   if (dpc_list->IsQueued(list_entry_ptr)) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     dispatcher->Unlock();
     return;
   }
@@ -1261,7 +1261,7 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
 
   dispatcher->Unlock();
 
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
@@ -1284,7 +1284,7 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_state, KernelState* state) {
 
   dispatcher->Unlock();
 
-  SHIM_SET_RETURN_64(result ? 1 : 0);
+  SHIM_SET_RETURN_32(result ? 1 : 0);
 }
 
 xe::mutex global_list_mutex_;

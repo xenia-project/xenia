@@ -321,7 +321,7 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_state,
   }
   XELOGD("MmAllocatePhysicalMemoryEx = %.8X", base_address);
 
-  SHIM_SET_RETURN_64(base_address);
+  SHIM_SET_RETURN_32(base_address);
 }
 
 SHIM_CALL MmFreePhysicalMemory_shim(PPCContext* ppc_state, KernelState* state) {
@@ -440,7 +440,7 @@ SHIM_CALL MmGetPhysicalAddress_shim(PPCContext* ppc_state, KernelState* state) {
     physical_address += 0x1000;
   }
 
-  SHIM_SET_RETURN_64(physical_address);
+  SHIM_SET_RETURN_32(physical_address);
 }
 
 SHIM_CALL MmMapIoSpace_shim(PPCContext* ppc_state, KernelState* state) {
@@ -458,7 +458,7 @@ SHIM_CALL MmMapIoSpace_shim(PPCContext* ppc_state, KernelState* state) {
   assert_true(size == 0x40);
   assert_true(flags == 0x404);
 
-  SHIM_SET_RETURN_64(src_address);
+  SHIM_SET_RETURN_32(src_address);
 }
 
 SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
@@ -479,7 +479,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_state,
 
   uint32_t addr = state->memory()->SystemHeapAlloc(adjusted_size, alignment);
 
-  SHIM_SET_RETURN_64(addr);
+  SHIM_SET_RETURN_32(addr);
 }
 
 SHIM_CALL ExFreePool_shim(PPCContext* ppc_state, KernelState* state) {

@@ -56,7 +56,7 @@ SHIM_CALL XAudioGetVoiceCategoryVolume_shim(PPCContext* ppc_state,
   XELOGD("XAudioGetVoiceCategoryVolume(%.8X, %.8X)", unk, out_ptr);
 
   // Expects a floating point single. Volume %?
-  SHIM_SET_MEM_F32(out_ptr, 1.0f);
+  xe::store_and_swap<float>(SHIM_MEM_ADDR(out_ptr), 1.0f);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }

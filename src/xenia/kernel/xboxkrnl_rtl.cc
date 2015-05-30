@@ -51,7 +51,7 @@ SHIM_CALL RtlCompareMemory_shim(PPCContext* ppc_state, KernelState* state) {
     }
   }
 
-  SHIM_SET_RETURN_64(c);
+  SHIM_SET_RETURN_32(c);
 }
 
 // http://msdn.microsoft.com/en-us/library/ff552123
@@ -69,7 +69,7 @@ SHIM_CALL RtlCompareMemoryUlong_shim(PPCContext* ppc_state,
   // _In_  ULONG Pattern
 
   if ((source_ptr % 4) || (length % 4)) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -89,7 +89,7 @@ SHIM_CALL RtlCompareMemoryUlong_shim(PPCContext* ppc_state,
     }
   }
 
-  SHIM_SET_RETURN_64(c);
+  SHIM_SET_RETURN_32(c);
 }
 
 // http://msdn.microsoft.com/en-us/library/ff552263
@@ -406,12 +406,12 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_state,
   for (size_t n = 0; n < xex_header->header_count; n++) {
     if (xex_header->headers[n].key == image_field) {
       uint32_t value = xex_header->headers[n].value;
-      SHIM_SET_RETURN_64(value);
+      SHIM_SET_RETURN_32(value);
       return;
     }
   }
 
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
@@ -576,7 +576,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_state,
     ++cs->recursion_count;
     result = 1;
   }
-  SHIM_SET_RETURN_64(result);
+  SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_state,
@@ -646,13 +646,13 @@ SHIM_CALL RtlTimeFieldsToTime_shim(PPCContext* ppc_state, KernelState* state) {
   FILETIME ft;
   if (!SystemTimeToFileTime(&st, &ft)) {
     // set last error = ERROR_INVALID_PARAMETER
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
   uint64_t time = (uint64_t(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
   SHIM_SET_MEM_64(time_ptr, time);
-  SHIM_SET_RETURN_64(1);
+  SHIM_SET_RETURN_32(1);
 }
 
 }  // namespace kernel

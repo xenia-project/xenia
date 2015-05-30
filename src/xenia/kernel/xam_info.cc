@@ -26,7 +26,7 @@ SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_state, KernelState* state) {
   // we pretend to be old we have less to worry with implementing.
   // 0x200A3200
   // 0x20096B00
-  SHIM_SET_RETURN_64(0);
+  SHIM_SET_RETURN_32(0);
 }
 
 SHIM_CALL XGetAVPack_shim(PPCContext* ppc_state, KernelState* state) {
@@ -35,13 +35,13 @@ SHIM_CALL XGetAVPack_shim(PPCContext* ppc_state, KernelState* state) {
   // Other likely values are 3/4/8 for HDMI or something.
   // Games seem to use this as a PAL check - if the result is not 3/4/6/8
   // they explode with errors if not in PAL mode.
-  SHIM_SET_RETURN_64(6);
+  SHIM_SET_RETURN_32(6);
 }
 
 SHIM_CALL XGetGameRegion_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XGetGameRegion()");
 
-  SHIM_SET_RETURN_64(0xFFFF);
+  SHIM_SET_RETURN_32(0xFFFF);
 }
 
 SHIM_CALL XGetLanguage_shim(PPCContext* ppc_state, KernelState* state) {
@@ -59,7 +59,7 @@ SHIM_CALL XGetLanguage_shim(PPCContext* ppc_state, KernelState* state) {
   }
   // Add more overrides?
 
-  SHIM_SET_RETURN_64(desired_language);
+  SHIM_SET_RETURN_32(desired_language);
 }
 
 SHIM_CALL XamVoiceIsActiveProcess_shim(PPCContext* ppc_state,

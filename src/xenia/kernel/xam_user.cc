@@ -48,9 +48,9 @@ SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_state,
   if (user_index == 0 || (user_index & 0xFF) == 0xFF) {
     const auto& user_profile = state->user_profile();
     auto signin_state = user_profile->signin_state();
-    SHIM_SET_RETURN_64(signin_state);
+    SHIM_SET_RETURN_32(signin_state);
   } else {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
   }
 }
 

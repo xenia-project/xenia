@@ -17,11 +17,13 @@
 namespace xe {
 namespace kernel {
 
+#define SHIM_GPR_32(n) (uint32_t)(ppc_state->r[n])
+
 // TODO: clean me up!
 SHIM_CALL DbgPrint_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   if (format_ptr == 0) {
-    SHIM_SET_RETURN_64(-1);
+    SHIM_SET_RETURN_32(-1);
     return;
   }
 

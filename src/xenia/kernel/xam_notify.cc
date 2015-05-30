@@ -32,7 +32,7 @@ SHIM_CALL XamNotifyCreateListener_shim(PPCContext* ppc_state,
   // Handle ref is incremented, so return that.
   uint32_t handle = listener->handle();
 
-  SHIM_SET_RETURN_64(handle);
+  SHIM_SET_RETURN_32(handle);
 }
 
 // http://ffplay360.googlecode.com/svn/Test/Common/AtgSignIn.cpp
@@ -46,14 +46,14 @@ SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_state, KernelState* state) {
          param_ptr);
 
   if (!handle) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
   // Grab listener.
   auto listener = state->object_table()->LookupObject<XNotifyListener>(handle);
   if (!listener) {
-    SHIM_SET_RETURN_64(0);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
@@ -74,7 +74,7 @@ SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_state, KernelState* state) {
     SHIM_SET_MEM_32(param_ptr, param);
   }
 
-  SHIM_SET_RETURN_64(dequeued ? 1 : 0);
+  SHIM_SET_RETURN_32(dequeued ? 1 : 0);
 }
 
 SHIM_CALL XNotifyDelayUI_shim(PPCContext* ppc_state, KernelState* state) {
