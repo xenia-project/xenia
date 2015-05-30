@@ -341,8 +341,6 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
                      : nullptr;
   uint8_t* out = memory()->TranslatePhysical(data.output_buffer_ptr);
 
-  assert(!in1);
-
   // What I see:
   // XMA outputs 2 bytes per sample
   // 512 samples per frame (128 per subframe)

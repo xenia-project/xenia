@@ -13,7 +13,7 @@
 #include "xenia/base/logging.h"
 
 extern "C" {
-  #include "libavcodec/avcodec.h"
+#include "libavcodec/avcodec.h"
 }
 
 // Credits for most of this code goes to:
@@ -22,8 +22,11 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-AudioDecoder::AudioDecoder() : codec_(nullptr), context_(nullptr),
-                              decoded_frame_(nullptr), packet_(nullptr) {}
+AudioDecoder::AudioDecoder()
+    : codec_(nullptr),
+      context_(nullptr),
+      decoded_frame_(nullptr),
+      packet_(nullptr) {}
 
 AudioDecoder::~AudioDecoder() {
   if (context_) {
@@ -87,20 +90,21 @@ int AudioDecoder::Initialize(int bits) {
 
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
-  current_frame_ = new uint8_t[XMAContextData::kSamplesPerFrame * 2 * (bits/8)];
+  current_frame_ =
+      new uint8_t[XMAContextData::kSamplesPerFrame * 2 * (bits / 8)];
   current_frame_pos_ = 0;
   frame_samples_size_ = 0;
 
-  *(short *)(context_->extradata) = 0x10; // bits per sample
-  *(int *)(context_->extradata + 2) = 1; // channel mask
-  *(short *)(context_->extradata + 14) = 0x10D6; // decode flags
+  *(short *)(context_->extradata) = 0x10;         // bits per sample
+  *(int *)(context_->extradata + 2) = 1;          // channel mask
+  *(short *)(context_->extradata + 14) = 0x10D6;  // decode flags
 
   // FYI: We're purposely not opening the context here. That is done later.
 
   return 0;
 }
 
-int AudioDecoder::PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
+int AudioDecoder::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
                                 int sample_rate, int channels) {
   if (size != XMAContextData::kBytesPerBlock) {
     // Invalid packet size!
@@ -116,7 +120,7 @@ int AudioDecoder::PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
 
   // Modify the packet header so it's WMAPro compatible
   *((int *)packet_data_) = (((seq_offset & 0x7800) | 0x400) >> 7) |
-                           (*((int*)packet_data_) & 0xFFFEFF08);
+                           (*((int *)packet_data_) & 0xFFFEFF08);
 
   packet_->data = packet_data_;
   packet_->size = XMAContextData::kBytesPerBlock;
@@ -146,7 +150,8 @@ void AudioDecoder::DiscardPacket() {
   }
 }
 
-int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t output_size) {
+int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
+                               size_t output_size) {
   size_t to_copy = 0;
   size_t original_offset = output_offset;
   uint32_t sample_size = bits_ / 8;
@@ -154,7 +159,8 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
   // We're holding onto an already-decoded frame. Copy it out.
   if (current_frame_pos_ != frame_samples_size_) {
     to_copy = std::min(output_size, frame_samples_size_ - current_frame_pos_);
-    memcpy(output + output_offset, current_frame_ + current_frame_pos_, to_copy);
+    memcpy(output + output_offset, current_frame_ + current_frame_pos_,
+           to_copy);
 
     current_frame_pos_ += to_copy;
     output_size -= to_copy;
@@ -165,7 +171,8 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
     int got_frame = 0;
 
     // Decode the current frame
-    int len = avcodec_decode_audio4(context_, decoded_frame_, &got_frame, packet_);
+    int len =
+        avcodec_decode_audio4(context_, decoded_frame_, &got_frame, packet_);
     if (len < 0) {
       // Error in codec (bad sample rate or something)
       return len;
@@ -188,37 +195,36 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
       // Check the returned buffer size
       if (av_samples_get_buffer_size(NULL, context_->channels,
                                      decoded_frame_->nb_samples,
-                                     context_->sample_fmt, 1)
-          != context_->channels * decoded_frame_->nb_samples * sizeof(float)) {
+                                     context_->sample_fmt, 1) !=
+          context_->channels * decoded_frame_->nb_samples * sizeof(float)) {
         return -4;
       }
 
       // Output sample array
-      float* sample_array = (float *)decoded_frame_->data[0];
+      float *sample_array = (float *)decoded_frame_->data[0];
 
-      // Loop through every sample, convert and drop it into the output array
-      for (int i = 0; i < decoded_frame_->nb_samples; i++) {
-        // Raw sample should be within [-1, 1]
-        float fRawSample = sample_array[i];
+      // Loop through every sample, convert and drop it into the output array.
+      if (sample_size == 2) {
+        for (int i = 0; i < decoded_frame_->nb_samples; i++) {
+          // Raw sample should be within [-1, 1].
+          // Clamp it, just in case.
+          float raw_sample = xe::saturate(sample_array[i]);
 
-        // Clamp it, just in case.
-        fRawSample = std::min( 1.f, fRawSample);
-        fRawSample = std::max(-1.f, fRawSample);
-
-        float fScaledSample = fRawSample * (1 << (bits_ - 1));
-
-        // Convert the sample and output it in big endian
-        int sample = (int)fScaledSample;
-        for (int32_t j = sample_size-1; j >= 0; j--) {
-          current_frame_[i * sample_size + j] = sample & 0xFF;
-          sample >>= 8;
+          // Convert the sample and output it in big endian.
+          float scaled_sample = raw_sample * (1 << (bits_ - 1));
+          int sample = static_cast<int>(scaled_sample);
+          xe::store_and_swap<uint16_t>(&current_frame_[i * 2],
+                                       sample & 0xFFFF);
         }
+      } else {
+        // 1 byte? 4 bytes?
+        assert_unhandled_case(sample_size);
       }
       current_frame_pos_ = 0;
 
       // Total size of the frame's samples
-      frame_samples_size_ = context_->channels * decoded_frame_->nb_samples
-                          * sample_size;
+      frame_samples_size_ =
+          context_->channels * decoded_frame_->nb_samples * sample_size;
 
       to_copy = std::min(output_size, (size_t)(frame_samples_size_));
       std::memcpy(output + output_offset, current_frame_, to_copy);
@@ -233,6 +239,5 @@ int AudioDecoder::DecodePacket(uint8_t* output, size_t output_offset, size_t out
   return (int)(output_offset - original_offset);
 }
 
-
-} // namespace xe
-} // namespace apu
+}  // namespace xe
+}  // namespace apu
