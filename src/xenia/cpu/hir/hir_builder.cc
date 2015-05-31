@@ -1643,7 +1643,7 @@ Value* HIRBuilder::Not(Value* value) {
 }
 
 Value* HIRBuilder::Shl(Value* value1, Value* value2) {
-  ASSERT_INTEGER_TYPE(value1);
+  ASSERT_NON_FLOAT_TYPE(value1);
   ASSERT_INTEGER_TYPE(value2);
 
   // NOTE AND value2 with 0x3F for 64bit, 0x1F for 32bit, etc..
