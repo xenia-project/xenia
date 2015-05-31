@@ -36,7 +36,7 @@ class AudioDecoder {
     AudioDecoder();
     ~AudioDecoder();
 
-    int Initialize(int bits);
+    int Initialize();
 
     int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
                       int sample_rate, int channels);
@@ -51,7 +51,6 @@ class AudioDecoder {
     AVPacket* packet_;
 
     uint8_t bits_per_frame_;
-    uint32_t bits_;
     size_t current_frame_pos_;
     uint8_t* current_frame_;
     uint32_t frame_samples_size_;

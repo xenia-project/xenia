@@ -102,7 +102,7 @@ X_STATUS AudioSystem::Setup() {
     // Needed because some data needs to be persisted across calls
     // TODO: Need to destroy this on class destruction
     context.decoder = new AudioDecoder();
-    context.decoder->Initialize(16);
+    context.decoder->Initialize();
   }
   registers_.next_context = 1;
 

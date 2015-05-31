@@ -46,19 +46,12 @@ AudioDecoder::~AudioDecoder() {
   }
 }
 
-int AudioDecoder::Initialize(int bits) {
+int AudioDecoder::Initialize() {
   static bool avcodec_initialized = false;
   if (!avcodec_initialized) {
     avcodec_register_all();
     avcodec_initialized = true;
   }
-
-  if (bits <= 0 || bits > 32 || (bits % 8) != 0) {
-    assert_always();
-  }
-
-  // Output bits per sample
-  bits_ = bits;
 
   // Allocate important stuff
   codec_ = avcodec_find_decoder(AV_CODEC_ID_WMAPRO);
@@ -154,7 +147,6 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
                                size_t output_size) {
   size_t to_copy = 0;
   size_t original_offset = output_offset;
-  uint32_t sample_size = bits_ / 8;
 
   // We're holding onto an already-decoded frame. Copy it out.
   if (current_frame_pos_ != frame_samples_size_) {
@@ -204,27 +196,23 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
       float *sample_array = (float *)decoded_frame_->data[0];
 
       // Loop through every sample, convert and drop it into the output array.
-      if (sample_size == 2) {
-        for (int i = 0; i < decoded_frame_->nb_samples; i++) {
-          // Raw sample should be within [-1, 1].
-          // Clamp it, just in case.
-          float raw_sample = xe::saturate(sample_array[i]);
+      for (int i = 0; i < decoded_frame_->nb_samples; i++) {
+        // Raw sample should be within [-1, 1].
+        // Clamp it, just in case.
+        float raw_sample = xe::saturate(sample_array[i]);
 
-          // Convert the sample and output it in big endian.
-          float scaled_sample = raw_sample * (1 << (bits_ - 1));
-          int sample = static_cast<int>(scaled_sample);
-          xe::store_and_swap<uint16_t>(&current_frame_[i * 2],
-                                       sample & 0xFFFF);
-        }
-      } else {
-        // 1 byte? 4 bytes?
-        assert_unhandled_case(sample_size);
+        // Convert the sample and output it in big endian.
+        float scaled_sample = raw_sample * (1 << 15);
+        int sample = static_cast<int>(scaled_sample);
+        xe::store_and_swap<uint16_t>(&current_frame_[i * 2],
+                                      sample & 0xFFFF);
       }
       current_frame_pos_ = 0;
 
       // Total size of the frame's samples
+      // Magic number 2 is sizeof the output
       frame_samples_size_ =
-          context_->channels * decoded_frame_->nb_samples * sample_size;
+          context_->channels * decoded_frame_->nb_samples * 2;
 
       to_copy = std::min(output_size, (size_t)(frame_samples_size_));
       std::memcpy(output + output_offset, current_frame_, to_copy);
