@@ -205,6 +205,9 @@ X_STATUS XThread::Create() {
          thread_state_->thread_id(), thread_state_->stack_limit(),
          thread_state_->stack_base());
 
+  // Exports use this to get the kernel.
+  thread_state_->context()->kernel_state = kernel_state_;
+
   uint8_t proc_mask =
       static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 

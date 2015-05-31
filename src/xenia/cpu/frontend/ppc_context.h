@@ -19,6 +19,9 @@ namespace cpu {
 class Processor;
 class ThreadState;
 }  // namespace cpu
+namespace kernel {
+class KernelState;
+}  // namespace kernel
 }  // namespace xe
 
 namespace xe {
@@ -208,6 +211,9 @@ typedef struct alignas(64) PPCContext_s {
   // Processor-specific data pointer. Used on callbacks to get access to the
   // current runtime and its data.
   Processor* processor;
+
+  // Shared kernel state, for easy access from kernel exports.
+  xe::kernel::KernelState* kernel_state;
 
   uint8_t* physical_membase;
 
