@@ -20,7 +20,7 @@ Project tracker:
 [![Stories in Ready](https://badge.waffle.io/benvanik/xenia.svg?label=ready&title=Ready)](http://waffle.io/benvanik/xenia)
 [![Stories in In Progress](https://badge.waffle.io/benvanik/xenia.svg?label=in%20progress&title=In%20Progress)](http://waffle.io/benvanik/xenia)
 
-Some real games run. Most don't. Don't ask if GTA or whatever runs. [Game compatibility list](https://github.com/benvanik/xenia/wiki/Compatibility-List).
+Some real games run. Most don't. Don't ask if GTA or whatever runs. [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues).
 
 Watch A-Train HX running at ~60fps (check YouTube playback quality setting):
 [![A-Train HX first run](http://img.youtube.com/vi/vE32Z9ytbgU/0.jpg)](http://www.youtube.com/watch?v=vE32Z9ytbgU)
