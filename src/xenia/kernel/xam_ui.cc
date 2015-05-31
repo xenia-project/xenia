@@ -36,9 +36,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
   uint32_t active_button = SHIM_GET_ARG_32(5);
   uint32_t flags = SHIM_GET_ARG_32(6);
   uint32_t result_ptr = SHIM_GET_ARG_32(7);
-  // arg8 is in stack!
-  uint32_t sp = (uint32_t)ppc_context->r[1];
-  uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(8);
 
   auto title = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
   auto text = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(text_ptr));

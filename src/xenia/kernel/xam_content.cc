@@ -350,8 +350,7 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_context,
   uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
   uint32_t cache_size = SHIM_GET_ARG_32(6);
   uint64_t content_size = SHIM_GET_ARG_64(7);
-  uint32_t sp = (uint32_t)ppc_context->r[1];
-  uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
+  uint32_t overlapped_ptr = SHIM_GET_ARG_32(8);
 
   auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
   auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));

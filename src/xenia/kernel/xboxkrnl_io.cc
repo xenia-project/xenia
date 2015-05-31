@@ -673,8 +673,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_context,
   uint32_t file_info_ptr = SHIM_GET_ARG_32(5);
   uint32_t length = SHIM_GET_ARG_32(6);
   uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
-  uint32_t sp = (uint32_t)ppc_context->r[1];
-  uint32_t restart_scan = SHIM_MEM_32(sp + 0x54);
+  uint32_t restart_scan = SHIM_GET_ARG_32(8);
 
   char* file_name = NULL;
   if (file_name_ptr != 0) {

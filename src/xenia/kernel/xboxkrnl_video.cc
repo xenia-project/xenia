@@ -304,18 +304,15 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 
 SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_context,
                                                KernelState* kernel_state) {
-  uint32_t unk0 = SHIM_GET_ARG_32(0);  // 0?
-  uint32_t unk1 = SHIM_GET_ARG_32(1);  // 0x050002d0 size of ?
-  uint32_t unk2 = SHIM_GET_ARG_32(2);  // 0?
-  uint32_t unk3 = SHIM_GET_ARG_32(3);  // 0x050002d0 size of ?
-  uint32_t unk4 = SHIM_GET_ARG_32(4);  // 0x050002d0 size of ?
-  uint32_t unk5 = SHIM_GET_ARG_32(5);  // 7?
-  uint32_t unk6 = SHIM_GET_ARG_32(6);  // 0x2004909c <-- points to zeros?
-  uint32_t unk7 = SHIM_GET_ARG_32(7);  // 7?
-  // arg8 is in stack!
-  uint32_t sp = (uint32_t)ppc_context->r[1];
-  // Points to the first 80000000h where the memcpy sources from.
-  uint32_t dest_ptr = SHIM_MEM_32(sp + 0x54);
+  uint32_t unk0 = SHIM_GET_ARG_32(0);      // 0?
+  uint32_t unk1 = SHIM_GET_ARG_32(1);      // 0x050002d0 size of ?
+  uint32_t unk2 = SHIM_GET_ARG_32(2);      // 0?
+  uint32_t unk3 = SHIM_GET_ARG_32(3);      // 0x050002d0 size of ?
+  uint32_t unk4 = SHIM_GET_ARG_32(4);      // 0x050002d0 size of ?
+  uint32_t unk5 = SHIM_GET_ARG_32(5);      // 7?
+  uint32_t unk6 = SHIM_GET_ARG_32(6);      // 0x2004909c <-- points to zeros?
+  uint32_t unk7 = SHIM_GET_ARG_32(7);      // 7?
+  uint32_t dest_ptr = SHIM_GET_ARG_32(8);  // Points to the first 80000000h where the memcpy sources from.
 
   XELOGD(
       "VdInitializeScalerCommandBuffer(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, "
