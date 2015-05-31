@@ -192,26 +192,30 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
         return -4;
       }
 
-      // Output sample array
-      float *sample_array = (float *)decoded_frame_->data[0];
-
       // Loop through every sample, convert and drop it into the output array.
-      for (int i = 0; i < context_->channels * decoded_frame_->nb_samples;
-           i++) {
-        // Raw sample should be within [-1, 1].
-        // Clamp it, just in case.
-        float raw_sample = xe::saturate(sample_array[i]);
+      // If more than one channel, the game wants the samples from each channel
+      // interleaved next to eachother
+      uint32_t o = 0;
+      for (int i = 0; i < decoded_frame_->nb_samples; i++) {
+        for (int j = 0; j < context_->channels; j++) {
+          // Select the appropriate array based on the current channel.
+          float *sample_array = (float *)decoded_frame_->data[j];
 
-        // Convert the sample and output it in big endian.
-        float scaled_sample = raw_sample * (1 << 15);
-        int sample = static_cast<int>(scaled_sample);
-        xe::store_and_swap<uint16_t>(&current_frame_[i * 2],
-                                      sample & 0xFFFF);
+          // Raw sample should be within [-1, 1].
+          // Clamp it, just in case.
+          float raw_sample = xe::saturate(sample_array[i]);
+
+          // Convert the sample and output it in big endian.
+          float scaled_sample = raw_sample * (1 << 15);
+          int sample = static_cast<int>(scaled_sample);
+          xe::store_and_swap<uint16_t>(&current_frame_[o++ * 2],
+                                        sample & 0xFFFF);
+        }
       }
       current_frame_pos_ = 0;
 
       // Total size of the frame's samples
-      // Magic number 2 is sizeof the output
+      // Magic number 2 is sizeof an output sample
       frame_samples_size_ =
           context_->channels * decoded_frame_->nb_samples * 2;
 
@@ -224,7 +228,7 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
     }
   }
 
-  // Return number of bytes written (typically 2048)
+  // Return number of bytes written
   return (int)(output_offset - original_offset);
 }
 
