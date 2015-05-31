@@ -46,19 +46,12 @@ AudioDecoder::~AudioDecoder() {
   }
 }
 
-int AudioDecoder::Initialize(int bits) {
+int AudioDecoder::Initialize() {
   static bool avcodec_initialized = false;
   if (!avcodec_initialized) {
     avcodec_register_all();
     avcodec_initialized = true;
   }
-
-  if (bits <= 0 || bits > 32 || (bits % 8) != 0) {
-    assert_always();
-  }
-
-  // Output bits per sample
-  bits_ = bits;
 
   // Allocate important stuff
   codec_ = avcodec_find_decoder(AV_CODEC_ID_WMAPRO);
@@ -91,7 +84,7 @@ int AudioDecoder::Initialize(int bits) {
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
   current_frame_ =
-      new uint8_t[XMAContextData::kSamplesPerFrame * 2 * (bits / 8)];
+      new uint8_t[XMAContextData::kSamplesPerFrame * 2 * 2];
   current_frame_pos_ = 0;
   frame_samples_size_ = 0;
 
@@ -154,7 +147,6 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
                                size_t output_size) {
   size_t to_copy = 0;
   size_t original_offset = output_offset;
-  uint32_t sample_size = bits_ / 8;
 
   // We're holding onto an already-decoded frame. Copy it out.
   if (current_frame_pos_ != frame_samples_size_) {
@@ -200,31 +192,32 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
         return -4;
       }
 
-      // Output sample array
-      float *sample_array = (float *)decoded_frame_->data[0];
-
       // Loop through every sample, convert and drop it into the output array.
-      if (sample_size == 2) {
-        for (int i = 0; i < decoded_frame_->nb_samples; i++) {
+      // If more than one channel, the game wants the samples from each channel
+      // interleaved next to eachother
+      uint32_t o = 0;
+      for (int i = 0; i < decoded_frame_->nb_samples; i++) {
+        for (int j = 0; j < context_->channels; j++) {
+          // Select the appropriate array based on the current channel.
+          float *sample_array = (float *)decoded_frame_->data[j];
+
           // Raw sample should be within [-1, 1].
           // Clamp it, just in case.
           float raw_sample = xe::saturate(sample_array[i]);
 
           // Convert the sample and output it in big endian.
-          float scaled_sample = raw_sample * (1 << (bits_ - 1));
+          float scaled_sample = raw_sample * (1 << 15);
           int sample = static_cast<int>(scaled_sample);
-          xe::store_and_swap<uint16_t>(&current_frame_[i * 2],
-                                       sample & 0xFFFF);
+          xe::store_and_swap<uint16_t>(&current_frame_[o++ * 2],
+                                        sample & 0xFFFF);
         }
-      } else {
-        // 1 byte? 4 bytes?
-        assert_unhandled_case(sample_size);
       }
       current_frame_pos_ = 0;
 
       // Total size of the frame's samples
+      // Magic number 2 is sizeof an output sample
       frame_samples_size_ =
-          context_->channels * decoded_frame_->nb_samples * sample_size;
+          context_->channels * decoded_frame_->nb_samples * 2;
 
       to_copy = std::min(output_size, (size_t)(frame_samples_size_));
       std::memcpy(output + output_offset, current_frame_, to_copy);
@@ -235,7 +228,7 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
     }
   }
 
-  // Return number of bytes written (typically 2048)
+  // Return number of bytes written
   return (int)(output_offset - original_offset);
 }
 
