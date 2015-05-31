@@ -13,7 +13,7 @@
  *
  * // Build the export table used for resolution.
  * #include "xenia/kernel/util/export_table_pre.inc"
- * static KernelExport my_module_export_table[] = {
+ * static Export my_module_export_table[] = {
  *   #include "xenia/kernel/my_module/my_module_table.inc"
  * };
  * #include "xenia/kernel/util/export_table_post.inc"
@@ -23,11 +23,10 @@
  */
 
 
-#define XE_EXPORT(module, ordinal, name, type, flags) \
+#define XE_EXPORT(module, ordinal, name, type) \
   { \
     ordinal, \
-    xe::cpu::KernelExport::type, \
-    flags, \
+    xe::cpu::Export::Type::type, \
     #name, \
   }
 

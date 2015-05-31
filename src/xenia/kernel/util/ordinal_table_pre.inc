@@ -22,6 +22,6 @@
  */
 
 
-#define XE_EXPORT(module, ordinal, name, type, flags) \
+#define XE_EXPORT(module, ordinal, name, type) \
   name = ordinal
 

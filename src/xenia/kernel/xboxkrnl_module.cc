@@ -159,7 +159,7 @@ void XboxkrnlModule::RegisterExportTable(
 
 // Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
-  static xe::cpu::KernelExport xboxkrnl_export_table[] = {
+  static xe::cpu::Export xboxkrnl_export_table[] = {
 #include "xenia/kernel/xboxkrnl_table.inc"
   };
 #include "xenia/kernel/util/export_table_post.inc"

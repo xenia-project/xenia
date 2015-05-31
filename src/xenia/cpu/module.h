@@ -38,13 +38,13 @@ class Module {
   virtual bool ContainsAddress(uint32_t address);
 
   SymbolInfo* LookupSymbol(uint32_t address, bool wait = true);
-  virtual SymbolInfo::Status DeclareFunction(uint32_t address,
-                                             FunctionInfo** out_symbol_info);
-  virtual SymbolInfo::Status DeclareVariable(uint32_t address,
-                                             VariableInfo** out_symbol_info);
+  virtual SymbolStatus DeclareFunction(uint32_t address,
+                                       FunctionInfo** out_symbol_info);
+  virtual SymbolStatus DeclareVariable(uint32_t address,
+                                       VariableInfo** out_symbol_info);
 
-  SymbolInfo::Status DefineFunction(FunctionInfo* symbol_info);
-  SymbolInfo::Status DefineVariable(VariableInfo* symbol_info);
+  SymbolStatus DefineFunction(FunctionInfo* symbol_info);
+  SymbolStatus DefineVariable(VariableInfo* symbol_info);
 
   void ForEachFunction(std::function<void(FunctionInfo*)> callback);
   void ForEachFunction(size_t since, size_t& version,
@@ -53,9 +53,9 @@ class Module {
   bool ReadMap(const char* file_name);
 
  private:
-  SymbolInfo::Status DeclareSymbol(SymbolInfo::Type type, uint32_t address,
-                                   SymbolInfo** out_symbol_info);
-  SymbolInfo::Status DefineSymbol(SymbolInfo* symbol_info);
+  SymbolStatus DeclareSymbol(SymbolType type, uint32_t address,
+                             SymbolInfo** out_symbol_info);
+  SymbolStatus DefineSymbol(SymbolInfo* symbol_info);
 
  protected:
   Processor* processor_;

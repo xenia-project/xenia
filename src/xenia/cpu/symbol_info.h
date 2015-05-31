@@ -13,59 +13,61 @@
 #include <cstdint>
 #include <string>
 
+#include "xenia/cpu/frontend/ppc_context.h"
+
 namespace xe {
 namespace cpu {
 
 class Function;
 class Module;
 
+enum class SymbolType {
+  kFunction,
+  kVariable,
+};
+
+enum class SymbolStatus {
+  kNew,
+  kDeclaring,
+  kDeclared,
+  kDefining,
+  kDefined,
+  kFailed,
+};
+
 class SymbolInfo {
  public:
-  enum Type {
-    TYPE_FUNCTION,
-    TYPE_VARIABLE,
-  };
-  enum Status {
-    STATUS_NEW,
-    STATUS_DECLARING,
-    STATUS_DECLARED,
-    STATUS_DEFINING,
-    STATUS_DEFINED,
-    STATUS_FAILED,
-  };
-
- public:
-  SymbolInfo(Type type, Module* module, uint32_t address);
+  SymbolInfo(SymbolType type, Module* module, uint32_t address);
   virtual ~SymbolInfo();
 
-  Type type() const { return type_; }
+  SymbolType type() const { return type_; }
   Module* module() const { return module_; }
-  Status status() const { return status_; }
-  void set_status(Status value) { status_ = value; }
+  SymbolStatus status() const { return status_; }
+  void set_status(SymbolStatus value) { status_ = value; }
   uint32_t address() const { return address_; }
 
   const std::string& name() const { return name_; }
   void set_name(const std::string& value) { name_ = value; }
 
  protected:
-  Type type_;
+  SymbolType type_;
   Module* module_;
-  Status status_;
+  SymbolStatus status_;
   uint32_t address_;
 
   std::string name_;
 };
 
-class FunctionInfo : public SymbolInfo {
- public:
-  enum Behavior {
-    BEHAVIOR_DEFAULT = 0,
-    BEHAVIOR_PROLOG,
-    BEHAVIOR_EPILOG,
-    BEHAVIOR_EPILOG_RETURN,
-    BEHAVIOR_EXTERN,
-  };
+enum class FunctionBehavior {
+  kDefault = 0,
+  kProlog,
+  kEpilog,
+  kEpilogReturn,
+  kBuiltin,
+  kExtern,
+};
 
+class FunctionInfo : public SymbolInfo {
  public:
   FunctionInfo(Module* module, uint32_t address);
   ~FunctionInfo() override;
@@ -74,27 +76,38 @@ class FunctionInfo : public SymbolInfo {
   uint32_t end_address() const { return end_address_; }
   void set_end_address(uint32_t value) { end_address_ = value; }
 
-  Behavior behavior() const { return behavior_; }
-  void set_behavior(Behavior value) { behavior_ = value; }
+  FunctionBehavior behavior() const { return behavior_; }
+  void set_behavior(FunctionBehavior value) { behavior_ = value; }
 
   Function* function() const { return function_; }
   void set_function(Function* value) { function_ = value; }
 
-  typedef void (*ExternHandler)(void* context, void* arg0, void* arg1);
-  void SetupExtern(ExternHandler handler, void* arg0, void* arg1);
+  typedef void (*BuiltinHandler)(frontend::PPCContext* ppc_context, void* arg0,
+                                 void* arg1);
+  void SetupBuiltin(BuiltinHandler handler, void* arg0, void* arg1);
+  BuiltinHandler builtin_handler() const { return builtin_info_.handler; }
+  void* builtin_arg0() const { return builtin_info_.arg0; }
+  void* builtin_arg1() const { return builtin_info_.arg1; }
+
+  typedef void (*ExternHandler)(frontend::PPCContext* ppc_context,
+                                kernel::KernelState* kernel_state);
+  void SetupExtern(ExternHandler handler);
   ExternHandler extern_handler() const { return extern_info_.handler; }
-  void* extern_arg0() const { return extern_info_.arg0; }
-  void* extern_arg1() const { return extern_info_.arg1; }
 
  private:
   uint32_t end_address_;
-  Behavior behavior_;
+  FunctionBehavior behavior_;
   Function* function_;
-  struct {
-    ExternHandler handler;
-    void* arg0;
-    void* arg1;
-  } extern_info_;
+  union {
+    struct {
+      ExternHandler handler;
+    } extern_info_;
+    struct {
+      BuiltinHandler handler;
+      void* arg0;
+      void* arg1;
+    } builtin_info_;
+  };
 };
 
 class VariableInfo : public SymbolInfo {

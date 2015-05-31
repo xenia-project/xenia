@@ -58,7 +58,7 @@ class Processor {
 
   Module* builtin_module() const { return builtin_module_; }
   FunctionInfo* DefineBuiltin(const std::string& name,
-                              FunctionInfo::ExternHandler handler, void* arg0,
+                              FunctionInfo::BuiltinHandler handler, void* arg0,
                               void* arg1);
 
   std::vector<Function*> FindFunctionsWithAddress(uint32_t address);
@@ -74,10 +74,6 @@ class Processor {
 
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
-
-  // DEPRECATED: will be removed.
-  uint64_t ExecuteInterrupt(uint32_t address, uint64_t args[],
-                            size_t arg_count);
 
  private:
   bool DemandFunction(FunctionInfo* symbol_info, Function** out_function);
@@ -98,9 +94,6 @@ class Processor {
   uint32_t next_builtin_address_;
 
   Irql irql_;
-  xe::mutex interrupt_thread_lock_;
-  ThreadState* interrupt_thread_state_;
-  uint32_t interrupt_thread_block_;
 };
 
 }  // namespace cpu

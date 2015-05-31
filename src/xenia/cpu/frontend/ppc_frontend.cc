@@ -78,12 +78,10 @@ void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
 bool PPCFrontend::Initialize() {
   void* arg0 = reinterpret_cast<void*>(&builtins_.global_lock);
   void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_taken);
-  builtins_.check_global_lock = processor_->DefineBuiltin(
-      "CheckGlobalLock", (FunctionInfo::ExternHandler)CheckGlobalLock, arg0,
-      arg1);
+  builtins_.check_global_lock =
+      processor_->DefineBuiltin("CheckGlobalLock", CheckGlobalLock, arg0, arg1);
   builtins_.handle_global_lock = processor_->DefineBuiltin(
-      "HandleGlobalLock", (FunctionInfo::ExternHandler)HandleGlobalLock, arg0,
-      arg1);
+      "HandleGlobalLock", HandleGlobalLock, arg0, arg1);
 
   return true;
 }

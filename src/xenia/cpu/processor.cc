@@ -76,18 +76,11 @@ Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
       debug_info_flags_(0),
       builtin_module_(nullptr),
       next_builtin_address_(0xFFFF0000ul),
-      export_resolver_(export_resolver),
-      interrupt_thread_state_(nullptr),
-      interrupt_thread_block_(0) {
+      export_resolver_(export_resolver) {
   InitializeIfNeeded();
 }
 
 Processor::~Processor() {
-  if (interrupt_thread_block_) {
-    memory_->SystemHeapFree(interrupt_thread_block_);
-    delete interrupt_thread_state_;
-  }
-
   {
     std::lock_guard<xe::mutex> guard(modules_lock_);
     modules_.clear();
@@ -144,18 +137,6 @@ bool Processor::Setup() {
   backend_ = std::move(backend);
   frontend_ = std::move(frontend);
 
-  // DEPRECATED: will be removed.
-  interrupt_thread_state_ =
-      new ThreadState(this, 0, ThreadStackType::kKernelStack, 0, 128 * 1024, 0);
-  interrupt_thread_state_->set_name("Interrupt");
-  interrupt_thread_block_ = memory_->SystemHeapAlloc(2048);
-  interrupt_thread_state_->context()->r[13] = interrupt_thread_block_;
-  XELOGI("Interrupt Thread %X Stack: %.8X-%.8X",
-         interrupt_thread_state_->thread_id(),
-         interrupt_thread_state_->stack_address(),
-         interrupt_thread_state_->stack_address() +
-             interrupt_thread_state_->stack_size());
-
   return true;
 }
 
@@ -185,7 +166,7 @@ std::vector<Module*> Processor::GetModules() {
 }
 
 FunctionInfo* Processor::DefineBuiltin(const std::string& name,
-                                       FunctionInfo::ExternHandler handler,
+                                       FunctionInfo::BuiltinHandler handler,
                                        void* arg0, void* arg1) {
   uint32_t address = next_builtin_address_;
   next_builtin_address_ += 4;
@@ -194,8 +175,8 @@ FunctionInfo* Processor::DefineBuiltin(const std::string& name,
   builtin_module_->DeclareFunction(address, &fn_info);
   fn_info->set_end_address(address + 4);
   fn_info->set_name(name);
-  fn_info->SetupExtern(handler, arg0, arg1);
-  fn_info->set_status(SymbolInfo::STATUS_DECLARED);
+  fn_info->SetupBuiltin(handler, arg0, arg1);
+  fn_info->set_status(SymbolStatus::kDeclared);
 
   return fn_info;
 }
@@ -266,15 +247,14 @@ bool Processor::LookupFunctionInfo(Module* module, uint32_t address,
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
   FunctionInfo* symbol_info = nullptr;
-  SymbolInfo::Status symbol_status =
-      module->DeclareFunction(address, &symbol_info);
-  if (symbol_status == SymbolInfo::STATUS_NEW) {
+  SymbolStatus symbol_status = module->DeclareFunction(address, &symbol_info);
+  if (symbol_status == SymbolStatus::kNew) {
     // Symbol is undeclared, so declare now.
     if (!frontend_->DeclareFunction(symbol_info)) {
-      symbol_info->set_status(SymbolInfo::STATUS_FAILED);
+      symbol_info->set_status(SymbolStatus::kFailed);
       return false;
     }
-    symbol_info->set_status(SymbolInfo::STATUS_DECLARED);
+    symbol_info->set_status(SymbolStatus::kDeclared);
   }
 
   *out_symbol_info = symbol_info;
@@ -288,12 +268,12 @@ bool Processor::DemandFunction(FunctionInfo* symbol_info,
   // Lock function for generation. If it's already being generated
   // by another thread this will block and return DECLARED.
   Module* module = symbol_info->module();
-  SymbolInfo::Status symbol_status = module->DefineFunction(symbol_info);
-  if (symbol_status == SymbolInfo::STATUS_NEW) {
+  SymbolStatus symbol_status = module->DefineFunction(symbol_info);
+  if (symbol_status == SymbolStatus::kNew) {
     // Symbol is undefined, so define now.
     Function* function = nullptr;
     if (!frontend_->DefineFunction(symbol_info, debug_info_flags_, &function)) {
-      symbol_info->set_status(SymbolInfo::STATUS_FAILED);
+      symbol_info->set_status(SymbolStatus::kFailed);
       return false;
     }
     symbol_info->set_function(function);
@@ -303,11 +283,11 @@ bool Processor::DemandFunction(FunctionInfo* symbol_info,
       debugger_->OnFunctionDefined(symbol_info, function);
     }
 
-    symbol_info->set_status(SymbolInfo::STATUS_DEFINED);
+    symbol_info->set_status(SymbolStatus::kDefined);
     symbol_status = symbol_info->status();
   }
 
-  if (symbol_status == SymbolInfo::STATUS_FAILED) {
+  if (symbol_status == SymbolStatus::kFailed) {
     // Symbol likely failed.
     return false;
   }
@@ -372,19 +352,6 @@ Irql Processor::RaiseIrql(Irql new_value) {
 void Processor::LowerIrql(Irql old_value) {
   xe::atomic_exchange(static_cast<uint32_t>(old_value),
                       reinterpret_cast<volatile uint32_t*>(&irql_));
-}
-
-uint64_t Processor::ExecuteInterrupt(uint32_t address, uint64_t args[],
-                                     size_t arg_count) {
-  SCOPE_profile_cpu_f("cpu");
-
-  // Acquire lock on interrupt thread (we can only dispatch one at a time).
-  std::lock_guard<xe::mutex> lock(interrupt_thread_lock_);
-
-  // Execute interrupt.
-  uint64_t result = Execute(interrupt_thread_state_, address, args, arg_count);
-
-  return result;
 }
 
 }  // namespace cpu

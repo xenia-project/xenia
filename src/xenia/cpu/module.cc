@@ -31,7 +31,7 @@ SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
   const auto it = map_.find(address);
   SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
   if (symbol_info) {
-    if (symbol_info->status() == SymbolInfo::STATUS_DECLARING) {
+    if (symbol_info->status() == SymbolStatus::kDeclaring) {
       // Some other thread is declaring the symbol - wait.
       if (wait) {
         do {
@@ -39,7 +39,7 @@ SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
           // TODO(benvanik): sleep for less time?
           xe::threading::Sleep(std::chrono::microseconds(100));
           lock_.lock();
-        } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
+        } while (symbol_info->status() == SymbolStatus::kDeclaring);
       } else {
         // Immediate request, just return.
         symbol_info = nullptr;
@@ -50,89 +50,88 @@ SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
   return symbol_info;
 }
 
-SymbolInfo::Status Module::DeclareSymbol(SymbolInfo::Type type,
-                                         uint32_t address,
-                                         SymbolInfo** out_symbol_info) {
+SymbolStatus Module::DeclareSymbol(SymbolType type, uint32_t address,
+                                   SymbolInfo** out_symbol_info) {
   *out_symbol_info = nullptr;
   lock_.lock();
   auto it = map_.find(address);
   SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
-  SymbolInfo::Status status;
+  SymbolStatus status;
   if (symbol_info) {
     // If we exist but are the wrong type, die.
     if (symbol_info->type() != type) {
       lock_.unlock();
-      return SymbolInfo::STATUS_FAILED;
+      return SymbolStatus::kFailed;
     }
     // If we aren't ready yet spin and wait.
-    if (symbol_info->status() == SymbolInfo::STATUS_DECLARING) {
+    if (symbol_info->status() == SymbolStatus::kDeclaring) {
       // Still declaring, so spin.
       do {
         lock_.unlock();
         // TODO(benvanik): sleep for less time?
         xe::threading::Sleep(std::chrono::microseconds(100));
         lock_.lock();
-      } while (symbol_info->status() == SymbolInfo::STATUS_DECLARING);
+      } while (symbol_info->status() == SymbolStatus::kDeclaring);
     }
     status = symbol_info->status();
   } else {
     // Create and return for initialization.
     switch (type) {
-      case SymbolInfo::TYPE_FUNCTION:
+      case SymbolType::kFunction:
         symbol_info = new FunctionInfo(this, address);
         break;
-      case SymbolInfo::TYPE_VARIABLE:
+      case SymbolType::kVariable:
         symbol_info = new VariableInfo(this, address);
         break;
     }
     map_[address] = symbol_info;
     list_.emplace_back(symbol_info);
-    status = SymbolInfo::STATUS_NEW;
+    status = SymbolStatus::kNew;
   }
   lock_.unlock();
   *out_symbol_info = symbol_info;
 
   // Get debug info from providers, if this is new.
-  if (status == SymbolInfo::STATUS_NEW) {
+  if (status == SymbolStatus::kNew) {
     // TODO(benvanik): lookup in map data/dwarf/etc?
   }
 
   return status;
 }
 
-SymbolInfo::Status Module::DeclareFunction(uint32_t address,
-                                           FunctionInfo** out_symbol_info) {
+SymbolStatus Module::DeclareFunction(uint32_t address,
+                                     FunctionInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
-  SymbolInfo::Status status =
-      DeclareSymbol(SymbolInfo::TYPE_FUNCTION, address, &symbol_info);
+  SymbolStatus status =
+      DeclareSymbol(SymbolType::kFunction, address, &symbol_info);
   *out_symbol_info = (FunctionInfo*)symbol_info;
   return status;
 }
 
-SymbolInfo::Status Module::DeclareVariable(uint32_t address,
-                                           VariableInfo** out_symbol_info) {
+SymbolStatus Module::DeclareVariable(uint32_t address,
+                                     VariableInfo** out_symbol_info) {
   SymbolInfo* symbol_info;
-  SymbolInfo::Status status =
-      DeclareSymbol(SymbolInfo::TYPE_VARIABLE, address, &symbol_info);
+  SymbolStatus status =
+      DeclareSymbol(SymbolType::kVariable, address, &symbol_info);
   *out_symbol_info = (VariableInfo*)symbol_info;
   return status;
 }
 
-SymbolInfo::Status Module::DefineSymbol(SymbolInfo* symbol_info) {
+SymbolStatus Module::DefineSymbol(SymbolInfo* symbol_info) {
   lock_.lock();
-  SymbolInfo::Status status;
-  if (symbol_info->status() == SymbolInfo::STATUS_DECLARED) {
+  SymbolStatus status;
+  if (symbol_info->status() == SymbolStatus::kDeclared) {
     // Declared but undefined, so request caller define it.
-    symbol_info->set_status(SymbolInfo::STATUS_DEFINING);
-    status = SymbolInfo::STATUS_NEW;
-  } else if (symbol_info->status() == SymbolInfo::STATUS_DEFINING) {
+    symbol_info->set_status(SymbolStatus::kDefining);
+    status = SymbolStatus::kNew;
+  } else if (symbol_info->status() == SymbolStatus::kDefining) {
     // Still defining, so spin.
     do {
       lock_.unlock();
       // TODO(benvanik): sleep for less time?
       xe::threading::Sleep(std::chrono::microseconds(100));
       lock_.lock();
-    } while (symbol_info->status() == SymbolInfo::STATUS_DEFINING);
+    } while (symbol_info->status() == SymbolStatus::kDefining);
     status = symbol_info->status();
   } else {
     status = symbol_info->status();
@@ -141,11 +140,11 @@ SymbolInfo::Status Module::DefineSymbol(SymbolInfo* symbol_info) {
   return status;
 }
 
-SymbolInfo::Status Module::DefineFunction(FunctionInfo* symbol_info) {
+SymbolStatus Module::DefineFunction(FunctionInfo* symbol_info) {
   return DefineSymbol((SymbolInfo*)symbol_info);
 }
 
-SymbolInfo::Status Module::DefineVariable(VariableInfo* symbol_info) {
+SymbolStatus Module::DefineVariable(VariableInfo* symbol_info) {
   return DefineSymbol((SymbolInfo*)symbol_info);
 }
 
@@ -153,7 +152,7 @@ void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
   SCOPE_profile_cpu_f("cpu");
   std::lock_guard<xe::mutex> guard(lock_);
   for (auto& symbol_info : list_) {
-    if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
+    if (symbol_info->type() == SymbolType::kFunction) {
       FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
       callback(info);
     }
@@ -168,7 +167,7 @@ void Module::ForEachFunction(size_t since, size_t& version,
   version = count;
   for (size_t n = since; n < count; n++) {
     auto& symbol_info = list_[n];
-    if (symbol_info->type() == SymbolInfo::TYPE_FUNCTION) {
+    if (symbol_info->type() == SymbolType::kFunction) {
       FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
       callback(info);
     }

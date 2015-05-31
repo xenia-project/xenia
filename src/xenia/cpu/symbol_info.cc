@@ -12,34 +12,40 @@
 namespace xe {
 namespace cpu {
 
-SymbolInfo::SymbolInfo(Type type, Module* module, uint32_t address)
+SymbolInfo::SymbolInfo(SymbolType type, Module* module, uint32_t address)
     : type_(type),
       module_(module),
-      status_(STATUS_DEFINING),
+      status_(SymbolStatus::kDefining),
       address_(address),
       name_("") {}
 
 SymbolInfo::~SymbolInfo() = default;
 
 FunctionInfo::FunctionInfo(Module* module, uint32_t address)
-    : SymbolInfo(SymbolInfo::TYPE_FUNCTION, module, address),
+    : SymbolInfo(SymbolType::kFunction, module, address),
       end_address_(0),
-      behavior_(BEHAVIOR_DEFAULT),
-      function_(0) {
+      behavior_(FunctionBehavior::kDefault),
+      function_(nullptr) {
   std::memset(&extern_info_, 0, sizeof(extern_info_));
 }
 
 FunctionInfo::~FunctionInfo() = default;
 
-void FunctionInfo::SetupExtern(ExternHandler handler, void* arg0, void* arg1) {
-  behavior_ = BEHAVIOR_EXTERN;
+void FunctionInfo::SetupBuiltin(BuiltinHandler handler, void* arg0,
+                                void* arg1) {
+  behavior_ = FunctionBehavior::kBuiltin;
+  builtin_info_.handler = handler;
+  builtin_info_.arg0 = arg0;
+  builtin_info_.arg1 = arg1;
+}
+
+void FunctionInfo::SetupExtern(ExternHandler handler) {
+  behavior_ = FunctionBehavior::kExtern;
   extern_info_.handler = handler;
-  extern_info_.arg0 = arg0;
-  extern_info_.arg1 = arg1;
 }
 
 VariableInfo::VariableInfo(Module* module, uint32_t address)
-    : SymbolInfo(SymbolInfo::TYPE_VARIABLE, module, address) {}
+    : SymbolInfo(SymbolType::kVariable, module, address) {}
 
 VariableInfo::~VariableInfo() = default;
 

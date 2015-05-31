@@ -38,7 +38,7 @@ bool PPCScanner::IsRestGprLr(uint32_t address) {
   if (!frontend_->processor()->LookupFunctionInfo(address, &symbol_info)) {
     return false;
   }
-  return symbol_info->behavior() == FunctionInfo::BEHAVIOR_EPILOG_RETURN;
+  return symbol_info->behavior() == FunctionBehavior::kEpilogReturn;
 }
 
 bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {

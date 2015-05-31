@@ -33,8 +33,8 @@ class TestModule : public Module {
 
   bool ContainsAddress(uint32_t address) override;
 
-  SymbolInfo::Status DeclareFunction(uint32_t address,
-                                     FunctionInfo** out_symbol_info) override;
+  SymbolStatus DeclareFunction(uint32_t address,
+                               FunctionInfo** out_symbol_info) override;
 
  private:
   std::string name_;

@@ -417,18 +417,27 @@ uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
 }
 void X64Emitter::CallExtern(const hir::Instr* instr,
                             const FunctionInfo* symbol_info) {
-  assert_true(symbol_info->behavior() == FunctionInfo::BEHAVIOR_EXTERN);
-
   if (!symbol_info->extern_handler()) {
     CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
-  } else {
+  } else if (symbol_info->behavior() == FunctionBehavior::kBuiltin) {
     // rcx = context
     // rdx = target host function
     // r8  = arg0
     // r9  = arg1
+    mov(rdx, reinterpret_cast<uint64_t>(symbol_info->builtin_handler()));
+    mov(r8, reinterpret_cast<uint64_t>(symbol_info->builtin_arg0()));
+    mov(r9, reinterpret_cast<uint64_t>(symbol_info->builtin_arg1()));
+    auto thunk = backend()->guest_to_host_thunk();
+    mov(rax, reinterpret_cast<uint64_t>(thunk));
+    call(rax);
+    ReloadECX();
+    ReloadEDX();
+    // rax = host return
+  } else if (symbol_info->behavior() == FunctionBehavior::kExtern) {
+    // rcx = context
+    // rdx = target host function
     mov(rdx, reinterpret_cast<uint64_t>(symbol_info->extern_handler()));
-    mov(r8, reinterpret_cast<uint64_t>(symbol_info->extern_arg0()));
-    mov(r9, reinterpret_cast<uint64_t>(symbol_info->extern_arg1()));
+    mov(r8, qword[rcx + offsetof(cpu::frontend::PPCContext, kernel_state)]);
     auto thunk = backend()->guest_to_host_thunk();
     mov(rax, reinterpret_cast<uint64_t>(thunk));
     call(rax);

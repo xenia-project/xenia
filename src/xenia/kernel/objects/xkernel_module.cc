@@ -34,7 +34,7 @@ uint32_t XKernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
     // Export (or its parent library) not found.
     return 0;
   }
-  if (export->type == cpu::KernelExport::ExportType::Variable) {
+  if (export->type == cpu::Export::Type::kVariable) {
     if (export->variable_ptr) {
       return export->variable_ptr;
     } else {

@@ -338,11 +338,11 @@ void XUserModule::Dump() {
         const xe_xex2_import_info_t* info = &import_infos[m];
 
         if (kernel_state_->IsKernelModule(library->name)) {
-          KernelExport* kernel_export =
+          auto kernel_export =
               export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
             known_count++;
-            if (kernel_export->is_implemented) {
+            if (kernel_export->is_implemented()) {
               impl_count++;
             } else {
               unimpl_count++;
@@ -384,13 +384,13 @@ void XUserModule::Dump() {
         const char* name = "UNKNOWN";
         bool implemented = false;
 
-        KernelExport* kernel_export = nullptr;
+        Export* kernel_export = nullptr;
         if (kernel_state_->IsKernelModule(library->name)) {
           kernel_export =
               export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
-            name = kernel_export->name;
-            implemented = kernel_export->is_implemented;
+            name = kernel_export->name.c_str();
+            implemented = kernel_export->is_implemented();
           }
         } else {
           auto module = kernel_state_->GetModule(library->name);
@@ -399,7 +399,7 @@ void XUserModule::Dump() {
             implemented = true;
           }
         }
-        if (kernel_export && kernel_export->type == KernelExport::Variable) {
+        if (kernel_export && kernel_export->type == Export::Type::kVariable) {
           printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
                  info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {

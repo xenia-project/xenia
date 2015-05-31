@@ -21,7 +21,7 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 #define SHIM_CALL void _cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
   export_resolver->SetFunctionMapping(                         \
-      library_name, ordinals::##export_name, shim_data,        \
+      library_name, ordinals::##export_name,                   \
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
 
 #define SHIM_MEM_BASE ppc_state->virtual_membase

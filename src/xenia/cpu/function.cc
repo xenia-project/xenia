@@ -75,14 +75,17 @@ bool Function::Call(ThreadState* thread_state, uint32_t return_address) {
 
   bool result = true;
 
-  if (symbol_info_->behavior() == FunctionInfo::BEHAVIOR_EXTERN) {
+  if (symbol_info_->behavior() == FunctionBehavior::kBuiltin) {
+    auto handler = symbol_info_->builtin_handler();
+    assert_not_null(handler);
+    handler(thread_state->context(), symbol_info_->builtin_arg0(),
+            symbol_info_->builtin_arg1());
+  } else if (symbol_info_->behavior() == FunctionBehavior::kExtern) {
     auto handler = symbol_info_->extern_handler();
-
     if (handler) {
-      handler(thread_state->context(), symbol_info_->extern_arg0(),
-              symbol_info_->extern_arg1());
+      handler(thread_state->context(), thread_state->context()->kernel_state);
     } else {
-      XELOGW("undefined extern call to %.8llX %s", symbol_info_->address(),
+      XELOGW("undefined extern call to %.8X %s", symbol_info_->address(),
              symbol_info_->name().c_str());
       result = false;
     }

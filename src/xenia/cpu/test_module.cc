@@ -71,10 +71,10 @@ bool TestModule::ContainsAddress(uint32_t address) {
   return contains_address_(address);
 }
 
-SymbolInfo::Status TestModule::DeclareFunction(uint32_t address,
-                                               FunctionInfo** out_symbol_info) {
-  SymbolInfo::Status status = Module::DeclareFunction(address, out_symbol_info);
-  if (status == SymbolInfo::STATUS_NEW) {
+SymbolStatus TestModule::DeclareFunction(uint32_t address,
+                                         FunctionInfo** out_symbol_info) {
+  SymbolStatus status = Module::DeclareFunction(address, out_symbol_info);
+  if (status == SymbolStatus::kNew) {
     auto symbol_info = *out_symbol_info;
 
     // Reset() all caching when we leave.
@@ -82,8 +82,8 @@ SymbolInfo::Status TestModule::DeclareFunction(uint32_t address,
     xe::make_reset_scope(assembler_);
 
     if (!generate_(*builder_.get())) {
-      symbol_info->set_status(SymbolInfo::STATUS_FAILED);
-      return SymbolInfo::STATUS_FAILED;
+      symbol_info->set_status(SymbolStatus::kFailed);
+      return SymbolStatus::kFailed;
     }
 
     compiler_->Compile(builder_.get());
@@ -92,7 +92,7 @@ SymbolInfo::Status TestModule::DeclareFunction(uint32_t address,
     assembler_->Assemble(symbol_info, builder_.get(), 0, nullptr, &fn);
 
     symbol_info->set_function(fn);
-    status = SymbolInfo::STATUS_DEFINED;
+    status = SymbolStatus::kDefined;
     symbol_info->set_status(status);
   }
   return status;
