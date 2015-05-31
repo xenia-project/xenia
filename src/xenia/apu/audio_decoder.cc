@@ -84,7 +84,7 @@ int AudioDecoder::Initialize() {
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
   current_frame_ =
-      new uint8_t[XMAContextData::kSamplesPerFrame * 2 * (bits / 8)];
+      new uint8_t[XMAContextData::kSamplesPerFrame * 2 * 2];
   current_frame_pos_ = 0;
   frame_samples_size_ = 0;
 
@@ -196,7 +196,8 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
       float *sample_array = (float *)decoded_frame_->data[0];
 
       // Loop through every sample, convert and drop it into the output array.
-      for (int i = 0; i < decoded_frame_->nb_samples; i++) {
+      for (int i = 0; i < context_->channels * decoded_frame_->nb_samples;
+           i++) {
         // Raw sample should be within [-1, 1].
         // Clamp it, just in case.
         float raw_sample = xe::saturate(sample_array[i]);
