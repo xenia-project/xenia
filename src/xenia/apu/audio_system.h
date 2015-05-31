@@ -44,9 +44,8 @@ struct XMAContextData {
   static const uint32_t kSamplesPerSubframe = 128;
 
   // DWORD 0
-  uint32_t input_buffer_0_block_count : 12;  // XMASetInputBuffer0, number of
-                                             // 2KB blocks. AKA SizeRead0
-                                             // Maximum 4095 packets.
+  uint32_t input_buffer_0_packet_count : 12; // XMASetInputBuffer0, number of
+                                             // 2KB packets. Max 4095 packets.
   uint32_t loop_count : 8;                   // +12bit, XMASetLoopData NumLoops
   uint32_t input_buffer_0_valid : 1;         // +20bit, XMAIsInputBuffer0Valid
   uint32_t input_buffer_1_valid : 1;         // +21bit, XMAIsInputBuffer1Valid
@@ -56,8 +55,8 @@ struct XMAContextData {
                                        // AKA OffsetWrite
 
   // DWORD 1
-  uint32_t input_buffer_1_block_count : 12;  // XMASetInputBuffer1, number of
-                                             // 2KB blocks.
+  uint32_t input_buffer_1_packet_count : 12; // XMASetInputBuffer1, number of
+                                             // 2KB packets. Max 4095 packets.
   uint32_t loop_subframe_end : 2;            // +12bit, XMASetLoopData
   uint32_t unk_dword_1_a : 3;                // ? might be loop_subframe_skip
   uint32_t loop_subframe_skip : 3;           // +17bit, XMASetLoopData might be

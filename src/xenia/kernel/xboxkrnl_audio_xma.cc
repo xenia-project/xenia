@@ -104,9 +104,9 @@ SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
   XMAContextData context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_0_ptr = SHIM_MEM_32(context_init_ptr + 0 * 4);
-  context.input_buffer_0_block_count = SHIM_MEM_32(context_init_ptr + 1 * 4);
+  context.input_buffer_0_packet_count = SHIM_MEM_32(context_init_ptr + 1 * 4);
   context.input_buffer_1_ptr = SHIM_MEM_32(context_init_ptr + 2 * 4);
-  context.input_buffer_1_block_count = SHIM_MEM_32(context_init_ptr + 3 * 4);
+  context.input_buffer_1_packet_count = SHIM_MEM_32(context_init_ptr + 3 * 4);
   context.input_buffer_read_offset = SHIM_MEM_32(context_init_ptr + 4 * 4);
   context.output_buffer_ptr = SHIM_MEM_32(context_init_ptr + 5 * 4);
   context.output_buffer_block_count = SHIM_MEM_32(context_init_ptr + 6 * 4);
@@ -191,7 +191,7 @@ SHIM_CALL XMASetInputBuffer0_shim(PPCContext* ppc_context,
   XMAContextData context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_0_ptr = buffer_ptr;
-  context.input_buffer_0_block_count = block_count;
+  context.input_buffer_0_packet_count = block_count;
   context.input_buffer_read_offset = 32;  // in bits
   context.input_buffer_0_valid = buffer_ptr ? 1 : 0;
 
@@ -240,7 +240,7 @@ SHIM_CALL XMASetInputBuffer1_shim(PPCContext* ppc_context,
   XMAContextData context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_1_ptr = buffer_ptr;
-  context.input_buffer_1_block_count = block_count;
+  context.input_buffer_1_packet_count = block_count;
   context.input_buffer_read_offset = 32;  // in bits
   context.input_buffer_1_valid = buffer_ptr ? 1 : 0;
 
@@ -419,17 +419,21 @@ void xe::kernel::xboxkrnl::RegisterAudioXmaExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetLoopData, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetInputBufferReadOffset, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBufferReadOffset, state);
+
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer0, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsInputBuffer0Valid, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer0Valid, state);
+
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer1, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsInputBuffer1Valid, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer1Valid, state);
+
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsOutputBufferValid, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetOutputBufferValid, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetOutputBufferReadOffset, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetOutputBufferReadOffset, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetOutputBufferWriteOffset, state);
+
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetPacketMetadata, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAEnableContext, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMADisableContext, state);

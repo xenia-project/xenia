@@ -389,7 +389,7 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
         // Sometimes the decoder will fail on a packet. I think it's
         // looking for cross-packet frames and failing. If you run it again
         // on the same packet it'll work though.
-        XELOGAPU("APU failed to decode packet (returned %.8X)", -read_bytes);
+        XELOGAPU("AudioSystem: libav failed to decode packet (returned %.8X)", -read_bytes);
         --decode_attempts_remaining;
       }
     }
@@ -426,10 +426,8 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
 
       // See if we've finished with the input.
       // Block count is in packets, so expand by packet size.
-      uint32_t input_size_0_bytes =
-          (data.input_buffer_0_block_count) * 2048;
-      uint32_t input_size_1_bytes =
-          (data.input_buffer_1_block_count) * 2048;
+      uint32_t input_size_0_bytes = (data.input_buffer_0_packet_count) * 2048;
+      uint32_t input_size_1_bytes = (data.input_buffer_1_packet_count) * 2048;
 
       // Total input size
       uint32_t input_size_bytes = input_size_0_bytes + input_size_1_bytes;
@@ -529,10 +527,9 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
 
-        XELOGAPU(
-            "AudioSystem: kicking context %d (%d/%d bytes)", context_id,
+        XELOGAPU("AudioSystem: kicking context %d (%d/%d bytes)", context_id,
             (data.input_buffer_read_offset & ~0x7FF) / 8,
-            (data.input_buffer_0_block_count + data.input_buffer_1_block_count)
+            (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count)
             * XMAContextData::kBytesPerBlock);
 
         // Reset valid flags so our audio decoder knows to process this one.
