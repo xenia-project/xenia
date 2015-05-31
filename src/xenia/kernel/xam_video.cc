@@ -18,7 +18,8 @@ namespace kernel {
 
 // TODO(benvanik): actually check to see if these are the same.
 void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode);
-SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_context,
+                             KernelState* kernel_state) {
   uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);
   X_VIDEO_MODE* video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
 
@@ -27,7 +28,8 @@ SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
   xeVdQueryVideoMode(video_mode);
 }
 
-SHIM_CALL XGetVideoCapabilities_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetVideoCapabilities_shim(PPCContext* ppc_context,
+                                     KernelState* kernel_state) {
   XELOGD("XGetVideoCapabilities()");
   SHIM_SET_RETURN_32(0);
 }
@@ -36,7 +38,7 @@ SHIM_CALL XGetVideoCapabilities_shim(PPCContext* ppc_state, KernelState* state) 
 }  // namespace xe
 
 void xe::kernel::xam::RegisterVideoExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", XGetVideoCapabilities, state);
   SHIM_SET_MAPPING("xam.xex", XGetVideoMode, state);
 }

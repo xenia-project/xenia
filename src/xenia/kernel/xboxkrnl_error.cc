@@ -983,8 +983,8 @@ const error_lookup_table error_tables[] = {
 };
 #undef MAKE_ENTRY
 
-SHIM_CALL RtlNtStatusToDosError_shim(PPCContext* ppc_state,
-                                     KernelState* state) {
+SHIM_CALL RtlNtStatusToDosError_shim(PPCContext* ppc_context,
+                                     KernelState* kernel_state) {
   uint32_t status = SHIM_GET_ARG_32(0);
 
   XELOGD("RtlNtStatusToDosError(%.4X)", status);
@@ -1035,6 +1035,6 @@ SHIM_CALL RtlNtStatusToDosError_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterErrorExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlNtStatusToDosError, state);
 }

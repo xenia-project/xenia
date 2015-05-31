@@ -36,8 +36,8 @@ using xe::gpu::GraphicsSystem;
 // http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-SHIM_CALL VdGetCurrentDisplayGamma_shim(PPCContext* ppc_state,
-                                        KernelState* state) {
+SHIM_CALL VdGetCurrentDisplayGamma_shim(PPCContext* ppc_context,
+                                        KernelState* kernel_state) {
   uint32_t arg0_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg1_ptr = SHIM_GET_ARG_32(1);
 
@@ -47,8 +47,8 @@ SHIM_CALL VdGetCurrentDisplayGamma_shim(PPCContext* ppc_state,
   xe::store_and_swap<float>(SHIM_MEM_ADDR(arg1_ptr), 2.22222233f);
 }
 
-SHIM_CALL VdGetCurrentDisplayInformation_shim(PPCContext* ppc_state,
-                                              KernelState* state) {
+SHIM_CALL VdGetCurrentDisplayInformation_shim(PPCContext* ppc_context,
+                                              KernelState* kernel_state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("VdGetCurrentDisplayInformation(%.8X)", ptr);
@@ -80,7 +80,8 @@ SHIM_CALL VdGetCurrentDisplayInformation_shim(PPCContext* ppc_state,
 
 void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode);
 
-SHIM_CALL VdQueryVideoFlags_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdQueryVideoFlags_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   XELOGD("VdQueryVideoFlags()");
 
   X_VIDEO_MODE mode;
@@ -106,14 +107,15 @@ void xeVdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->is_widescreen = 1;
   video_mode->is_hi_def = 1;
   video_mode->refresh_rate = 60.0f;
-  video_mode->video_standard = 1;   // NTSC
+  video_mode->video_standard = 1;  // NTSC
   video_mode->unknown_0x8a = 0x4A;
   video_mode->unknown_0x01 = 0x01;
   video_mode->reserved[0] = video_mode->reserved[1] = video_mode->reserved[2] =
       0;
 }
 
-SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);
   X_VIDEO_MODE* video_mode = (X_VIDEO_MODE*)SHIM_MEM_ADDR(video_mode_ptr);
 
@@ -122,7 +124,8 @@ SHIM_CALL VdQueryVideoMode_shim(PPCContext* ppc_state, KernelState* state) {
   xeVdQueryVideoMode(video_mode);
 }
 
-SHIM_CALL VdSetDisplayMode_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdSetDisplayMode_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t mode = SHIM_GET_ARG_32(0);
 
   // 40000000
@@ -131,11 +134,11 @@ SHIM_CALL VdSetDisplayMode_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_state,
-                                        KernelState* state) {
+SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_context,
+                                        KernelState* kernel_state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t unk1 = SHIM_GET_ARG_32(1);
-  double refresh_rate = ppc_state->f[1];  // 0, 50, 59.9, etc.
+  double refresh_rate = ppc_context->f[1];  // 0, 50, 59.9, etc.
   uint32_t unk3 = SHIM_GET_ARG_32(3);
   uint32_t unk4 = SHIM_GET_ARG_32(4);
 
@@ -146,7 +149,8 @@ SHIM_CALL VdSetDisplayModeOverride_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t callback = SHIM_GET_ARG_32(1);
   uint32_t unk1 = SHIM_GET_ARG_32(2);
@@ -164,7 +168,8 @@ SHIM_CALL VdInitializeEngines_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(1);
 }
 
-SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   XELOGD("VdShutdownEngines()");
 
   // Ignored for now.
@@ -172,7 +177,8 @@ SHIM_CALL VdShutdownEngines_shim(PPCContext* ppc_state, KernelState* state) {
   // re-initialize.
 }
 
-SHIM_CALL VdGetGraphicsAsicID_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdGetGraphicsAsicID_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   XELOGD("VdGetGraphicsAsicID()");
 
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
@@ -180,8 +186,8 @@ SHIM_CALL VdGetGraphicsAsicID_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0x11);
 }
 
-SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_state,
-                                          KernelState* state) {
+SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_context,
+                                          KernelState* kernel_state) {
   uint32_t enabled = SHIM_GET_ARG_32(0);
 
   XELOGD("VdEnableDisableClockGating(%d)", enabled);
@@ -191,14 +197,14 @@ SHIM_CALL VdEnableDisableClockGating_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL VdSetGraphicsInterruptCallback_shim(PPCContext* ppc_state,
-                                              KernelState* state) {
+SHIM_CALL VdSetGraphicsInterruptCallback_shim(PPCContext* ppc_context,
+                                              KernelState* kernel_state) {
   uint32_t callback = SHIM_GET_ARG_32(0);
   uint32_t user_data = SHIM_GET_ARG_32(1);
 
   XELOGD("VdSetGraphicsInterruptCallback(%.8X, %.8X)", callback, user_data);
 
-  GraphicsSystem* gs = state->emulator()->graphics_system();
+  GraphicsSystem* gs = kernel_state->emulator()->graphics_system();
   if (!gs) {
     return;
   }
@@ -210,14 +216,14 @@ SHIM_CALL VdSetGraphicsInterruptCallback_shim(PPCContext* ppc_state,
   gs->SetInterruptCallback(callback, user_data);
 }
 
-SHIM_CALL VdInitializeRingBuffer_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL VdInitializeRingBuffer_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
   uint32_t page_count = SHIM_GET_ARG_32(1);
 
   XELOGD("VdInitializeRingBuffer(%.8X, %.8X)", ptr, page_count);
 
-  GraphicsSystem* gs = state->emulator()->graphics_system();
+  GraphicsSystem* gs = kernel_state->emulator()->graphics_system();
   if (!gs) {
     return;
   }
@@ -232,14 +238,14 @@ SHIM_CALL VdInitializeRingBuffer_shim(PPCContext* ppc_state,
   gs->InitializeRingBuffer(ptr, page_count);
 }
 
-SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(PPCContext* ppc_state,
-                                               KernelState* state) {
+SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(PPCContext* ppc_context,
+                                               KernelState* kernel_state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
   uint32_t block_size = SHIM_GET_ARG_32(1);
 
   XELOGD("VdEnableRingBufferRPtrWriteBack(%.8X, %.8X)", ptr, block_size);
 
-  GraphicsSystem* gs = state->emulator()->graphics_system();
+  GraphicsSystem* gs = kernel_state->emulator()->graphics_system();
   if (!gs) {
     return;
   }
@@ -270,8 +276,8 @@ SHIM_CALL VdEnableRingBufferRPtrWriteBack_shim(PPCContext* ppc_state,
   // TODO(benvanik): something?
 }
 
-SHIM_CALL VdGetSystemCommandBuffer_shim(PPCContext* ppc_state,
-                                        KernelState* state) {
+SHIM_CALL VdGetSystemCommandBuffer_shim(PPCContext* ppc_context,
+                                        KernelState* kernel_state) {
   uint32_t p0_ptr = SHIM_GET_ARG_32(0);
   uint32_t p1_ptr = SHIM_GET_ARG_32(1);
 
@@ -283,7 +289,7 @@ SHIM_CALL VdGetSystemCommandBuffer_shim(PPCContext* ppc_state,
 }
 
 SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
-    PPCContext* ppc_state, KernelState* state) {
+    PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
 
   XELOGD("VdSetSystemCommandBufferGpuIdentifierAddress(%.8X)", unk);
@@ -296,8 +302,8 @@ SHIM_CALL VdSetSystemCommandBufferGpuIdentifierAddress_shim(
 // r4 = 19
 // no op?
 
-SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
-                                               KernelState* state) {
+SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_context,
+                                               KernelState* kernel_state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);  // 0?
   uint32_t unk1 = SHIM_GET_ARG_32(1);  // 0x050002d0 size of ?
   uint32_t unk2 = SHIM_GET_ARG_32(2);  // 0?
@@ -307,7 +313,7 @@ SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
   uint32_t unk6 = SHIM_GET_ARG_32(6);  // 0x2004909c <-- points to zeros?
   uint32_t unk7 = SHIM_GET_ARG_32(7);  // 7?
   // arg8 is in stack!
-  uint32_t sp = (uint32_t)ppc_state->r[1];
+  uint32_t sp = (uint32_t)ppc_context->r[1];
   // Points to the first 80000000h where the memcpy sources from.
   uint32_t dest_ptr = SHIM_MEM_32(sp + 0x54);
 
@@ -334,8 +340,8 @@ SHIM_CALL VdInitializeScalerCommandBuffer_shim(PPCContext* ppc_state,
 static uint32_t last_frontbuffer_width_ = 1280;
 static uint32_t last_frontbuffer_height_ = 720;
 
-SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
-                                                  KernelState* state) {
+SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_context,
+                                                  KernelState* kernel_state) {
   uint32_t unk_1 = SHIM_GET_ARG_32(0);
   uint32_t args_ptr = SHIM_GET_ARG_32(1);
 
@@ -359,8 +365,8 @@ SHIM_CALL VdCallGraphicsNotificationRoutines_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
-                                         KernelState* state) {
+SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_context,
+                                         KernelState* kernel_state) {
   XELOGD("VdIsHSIOTrainingSucceeded()");
 
   // Not really sure what this should be - code does weird stuff here:
@@ -368,7 +374,8 @@ SHIM_CALL VdIsHSIOTrainingSucceeded_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(1);
 }
 
-SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t unk1_ptr = SHIM_GET_ARG_32(1);
 
@@ -377,7 +384,7 @@ SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
-    auto heap = state->memory()->LookupHeapByType(true, 16 * 1024);
+    auto heap = kernel_state->memory()->LookupHeapByType(true, 16 * 1024);
     uint32_t unk1_value;
     heap->Alloc(64, 32, kMemoryAllocationReserve | kMemoryAllocationCommit,
                 kMemoryProtectNoAccess, false, &unk1_value);
@@ -388,7 +395,8 @@ SHIM_CALL VdPersistDisplay_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(1);
 }
 
-SHIM_CALL VdRetrainEDRAMWorker_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdRetrainEDRAMWorker_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
 
   XELOGD("VdRetrainEDRAMWorker(%.8X)", unk0);
@@ -396,7 +404,8 @@ SHIM_CALL VdRetrainEDRAMWorker_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_context,
+                              KernelState* kernel_state) {
   uint32_t unk0 = SHIM_GET_ARG_32(0);
   uint32_t unk1 = SHIM_GET_ARG_32(1);
   uint32_t unk2 = SHIM_GET_ARG_32(2);
@@ -410,12 +419,13 @@ SHIM_CALL VdRetrainEDRAM_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);       // ptr into primary ringbuffer
-  uint32_t fetch_ptr = SHIM_GET_ARG_32(1);        // frontbuffer texture fetch
+SHIM_CALL VdSwap_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);  // ptr into primary ringbuffer
+  uint32_t fetch_ptr = SHIM_GET_ARG_32(1);   // frontbuffer texture fetch
   uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t unk3 = SHIM_GET_ARG_32(3);             // buffer from VdGetSystemCommandBuffer
-  uint32_t unk4 = SHIM_GET_ARG_32(4);             // pointer from VdGetSystemCommandBuffer (0xBEEF0001)
+  uint32_t unk3 = SHIM_GET_ARG_32(3);  // buffer from VdGetSystemCommandBuffer
+  uint32_t unk4 =
+      SHIM_GET_ARG_32(4);  // pointer from VdGetSystemCommandBuffer (0xBEEF0001)
   uint32_t frontbuffer_ptr = SHIM_GET_ARG_32(5);  // ptr to frontbuffer address
   uint32_t color_format_ptr = SHIM_GET_ARG_32(6);
   uint32_t color_space_ptr = SHIM_GET_ARG_32(7);
@@ -423,7 +433,8 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t frontbuffer = SHIM_MEM_32(frontbuffer_ptr);
 
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
-  xe::copy_and_swap_32_unaligned((uint32_t*)&fetch, (uint32_t*)SHIM_MEM_ADDR(fetch_ptr), 6);
+  xe::copy_and_swap_32_unaligned((uint32_t*)&fetch,
+                                 (uint32_t*)SHIM_MEM_ADDR(fetch_ptr), 6);
 
   auto color_format = (gpu::xenos::ColorFormat)SHIM_MEM_32(color_format_ptr);
   auto color_space = SHIM_MEM_32(color_space_ptr);
@@ -433,8 +444,9 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
   assert_true(last_frontbuffer_width_ == 1 + fetch.size_2d.width);
   assert_true(last_frontbuffer_height_ == 1 + fetch.size_2d.height);
 
-  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X(%.8X), %.8X(%u), %.8X(%u))", buffer_ptr,
-         fetch_ptr, unk2, unk3, unk4, frontbuffer_ptr, frontbuffer, color_format_ptr, color_format, color_space_ptr, color_space);
+  XELOGD("VdSwap(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X(%.8X), %.8X(%u), %.8X(%u))",
+         buffer_ptr, fetch_ptr, unk2, unk3, unk4, frontbuffer_ptr, frontbuffer,
+         color_format_ptr, color_format, color_space_ptr, color_space);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
   // for this method to do what it needs. We just zero them out and send a
@@ -457,7 +469,7 @@ SHIM_CALL VdSwap_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterVideoExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayGamma, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdGetCurrentDisplayInformation, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdQueryVideoFlags, state);
@@ -482,7 +494,7 @@ void xe::kernel::xboxkrnl::RegisterVideoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", VdRetrainEDRAM, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", VdSwap, state);
 
-  Memory* memory = state->memory();
+  Memory* memory = kernel_state->memory();
 
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't

@@ -24,10 +24,6 @@
 
 
 #define XE_EXPORT(module, ordinal, name, type) \
-  { \
-    ordinal, \
-    xe::cpu::Export::Type::type, \
-    #name, \
-  }
+  xe::cpu::Export(ordinal, xe::cpu::Export::Type::type, #name)
 
 #define FLAG(t)             kXEKernelExportFlag##t

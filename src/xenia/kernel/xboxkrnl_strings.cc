@@ -19,7 +19,7 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL sprintf_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
 
@@ -34,7 +34,7 @@ SHIM_CALL sprintf_shim(PPCContext* ppc_state, KernelState* state) {
   const char* format = (const char*)SHIM_MEM_ADDR(format_ptr);
 
   int arg_index = 2;
-  uint32_t sp = (uint32_t)ppc_state->r[1];
+  uint32_t sp = (uint32_t)ppc_context->r[1];
 #define LOAD_SPRINTF_ARG(ARG) \
   (ARG < 8) ? SHIM_GET_ARG_32(ARG) : SHIM_MEM_64(sp + 0x54 + 8)
 
@@ -201,7 +201,7 @@ SHIM_CALL sprintf_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 // TODO: clean me up!
-SHIM_CALL vsprintf_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
@@ -409,7 +409,7 @@ SHIM_CALL vsprintf_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 // TODO: clean me up!
-SHIM_CALL _vsnprintf_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
@@ -812,7 +812,7 @@ uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
 }
 
 // TODO: clean me up!
-SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL _vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
@@ -834,7 +834,7 @@ SHIM_CALL _vswprintf_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(ret);
 }
 
-SHIM_CALL _vscwprintf_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg_ptr = SHIM_GET_ARG_32(1);
 
@@ -858,7 +858,7 @@ SHIM_CALL _vscwprintf_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterStringExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", sprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);

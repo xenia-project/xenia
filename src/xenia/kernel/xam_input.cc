@@ -20,7 +20,8 @@ namespace kernel {
 
 using xe::hid::InputSystem;
 
-SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
 
   XELOGD("XamResetInactivity(%d)", unk);
@@ -29,8 +30,8 @@ SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_state,
-                                             KernelState* state) {
+SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_context,
+                                             KernelState* kernel_state) {
   uint32_t zero = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(1);
 
@@ -41,8 +42,8 @@ SHIM_CALL XamEnableInactivityProcessing_shim(PPCContext* ppc_state,
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
-SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t caps_ptr = SHIM_GET_ARG_32(2);
@@ -55,15 +56,15 @@ SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_state,
     return;
   }
 
-  InputSystem* input_system = state->emulator()->input_system();
+  InputSystem* input_system = kernel_state->emulator()->input_system();
 
   auto caps = SHIM_STRUCT(X_INPUT_CAPABILITIES, caps_ptr);
   X_RESULT result = input_system->GetCapabilities(user_index, flags, caps);
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_state,
-                                         KernelState* state) {
+SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_context,
+                                         KernelState* kernel_state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
   uint32_t user_index = SHIM_GET_ARG_32(1);
   uint32_t flags = SHIM_GET_ARG_32(2);
@@ -77,7 +78,7 @@ SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_state,
     return;
   }
 
-  InputSystem* input_system = state->emulator()->input_system();
+  InputSystem* input_system = kernel_state->emulator()->input_system();
 
   auto caps = SHIM_STRUCT(X_INPUT_CAPABILITIES, caps_ptr);
   X_RESULT result = input_system->GetCapabilities(user_index, flags, caps);
@@ -85,7 +86,8 @@ SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_state,
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
-SHIM_CALL XamInputGetState_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputGetState_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t one = SHIM_GET_ARG_32(1);
   uint32_t state_ptr = SHIM_GET_ARG_32(2);
@@ -94,7 +96,7 @@ SHIM_CALL XamInputGetState_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Games call this with a NULL state ptr, probably as a query.
 
-  InputSystem* input_system = state->emulator()->input_system();
+  InputSystem* input_system = kernel_state->emulator()->input_system();
 
   auto input_state = SHIM_STRUCT(X_INPUT_STATE, state_ptr);
   X_RESULT result = input_system->GetState(user_index, input_state);
@@ -102,7 +104,8 @@ SHIM_CALL XamInputGetState_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
-SHIM_CALL XamInputSetState_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputSetState_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(1);
   uint32_t vibration_ptr = SHIM_GET_ARG_32(2);
@@ -114,7 +117,7 @@ SHIM_CALL XamInputSetState_shim(PPCContext* ppc_state, KernelState* state) {
     return;
   }
 
-  InputSystem* input_system = state->emulator()->input_system();
+  InputSystem* input_system = kernel_state->emulator()->input_system();
 
   auto vibration = SHIM_STRUCT(X_INPUT_VIBRATION, vibration_ptr);
   X_RESULT result = input_system->SetState(user_index, vibration);
@@ -122,7 +125,8 @@ SHIM_CALL XamInputSetState_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
-SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t keystroke_ptr = SHIM_GET_ARG_32(2);
@@ -139,7 +143,7 @@ SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_state, KernelState* state) {
     return;
   }
 
-  InputSystem* input_system = state->emulator()->input_system();
+  InputSystem* input_system = kernel_state->emulator()->input_system();
 
   auto keystroke = SHIM_STRUCT(X_INPUT_KEYSTROKE, keystroke_ptr);
   X_RESULT result = input_system->GetKeystroke(user_index, flags, keystroke);
@@ -147,8 +151,8 @@ SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_state, KernelState* state) {
 }
 
 // Same as non-ex, just takes a pointer to user index.
-SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t user_index_ptr = SHIM_GET_ARG_32(0);
   uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t keystroke_ptr = SHIM_GET_ARG_32(2);
@@ -163,7 +167,7 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_state,
     return;
   }
 
-  InputSystem* input_system = state->emulator()->input_system();
+  InputSystem* input_system = kernel_state->emulator()->input_system();
 
   auto keystroke = SHIM_STRUCT(X_INPUT_KEYSTROKE, keystroke_ptr);
   X_RESULT result = input_system->GetKeystroke(user_index, flags, keystroke);
@@ -173,8 +177,8 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XamUserGetDeviceContext_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XamUserGetDeviceContext_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t unk = SHIM_GET_ARG_32(1);
   uint32_t out_ptr = SHIM_GET_ARG_32(2);
@@ -196,7 +200,7 @@ SHIM_CALL XamUserGetDeviceContext_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xam::RegisterInputExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", XamResetInactivity, state);
   SHIM_SET_MAPPING("xam.xex", XamEnableInactivityProcessing, state);
   SHIM_SET_MAPPING("xam.xex", XamInputGetCapabilities, state);

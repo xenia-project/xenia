@@ -40,6 +40,8 @@ struct ExportTag {
 // DEPRECATED
 typedef void (*xe_kernel_export_shim_fn)(void*, void*);
 
+typedef void (*ExportTrampoline)(xe::cpu::frontend::PPCContext* ppc_context);
+
 class Export {
  public:
   enum class Type {
@@ -47,13 +49,18 @@ class Export {
     kVariable = 1,
   };
 
-  uint32_t ordinal;
+  Export(uint16_t ordinal, Type type, std::string name)
+      : ordinal(ordinal),
+        type(type),
+        name(name),
+        tags(0),
+        variable_ptr(0),
+        function_data({nullptr, nullptr, 0}) {}
+
+  uint16_t ordinal;
   Type type;
   std::string name;
   ExportTag::type tags;
-
-  void (*trampoline)(xe::cpu::frontend::PPCContext* ppc_context);
-  uint64_t call_count;
 
   bool is_implemented() const {
     return (tags & ExportTag::kImplemented) == ExportTag::kImplemented;
@@ -66,10 +73,13 @@ class Export {
     uint32_t variable_ptr;
 
     struct {
-      // Shimmed implementation.
-      // This is called directly from generated code.
-      // It should parse args, do fixups, and call the impl.
+      // DEPRECATED
       xe_kernel_export_shim_fn shim;
+
+      // Trampoline that is called from the guest-to-host thunk.
+      // Expects only PPC context as first arg.
+      ExportTrampoline trampoline;
+      uint64_t call_count;
     } function_data;
   };
 };
@@ -82,14 +92,14 @@ class ExportResolver {
   void RegisterTable(const std::string& library_name, Export* exports,
                      const size_t count);
 
-  Export* GetExportByOrdinal(const std::string& library_name,
-                             const uint32_t ordinal);
+  Export* GetExportByOrdinal(const std::string& library_name, uint16_t ordinal);
 
-  void SetVariableMapping(const std::string& library_name,
-                          const uint32_t ordinal, uint32_t value);
-  void SetFunctionMapping(const std::string& library_name,
-                          const uint32_t ordinal,
+  void SetVariableMapping(const std::string& library_name, uint16_t ordinal,
+                          uint32_t value);
+  void SetFunctionMapping(const std::string& library_name, uint16_t ordinal,
                           xe_kernel_export_shim_fn shim);
+  void SetFunctionMapping(const std::string& library_name, uint16_t ordinal,
+                          ExportTrampoline trampoline);
 
  private:
   struct ExportTable {

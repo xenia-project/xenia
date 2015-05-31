@@ -21,25 +21,25 @@ class KernelState;
 namespace xam {
 // Registration functions, one per file.
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
-                            KernelState* state);
+                            KernelState* kernel_state);
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* state);
+                         KernelState* kernel_state);
 void RegisterInputExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* state);
+                          KernelState* kernel_state);
 void RegisterMsgExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* state);
+                        KernelState* kernel_state);
 void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* state);
+                        KernelState* kernel_state);
 void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* state);
+                           KernelState* kernel_state);
 void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
-                       KernelState* state);
+                       KernelState* kernel_state);
 void RegisterUserExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* state);
+                         KernelState* kernel_state);
 void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* state);
+                          KernelState* kernel_state);
 void RegisterVoiceExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* state);
+                          KernelState* kernel_state);
 }  // namespace xam
 
 }  // namespace kernel

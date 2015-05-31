@@ -22,15 +22,10 @@ ExportResolver::~ExportResolver() {}
 void ExportResolver::RegisterTable(const std::string& library_name,
                                    Export* exports, const size_t count) {
   tables_.emplace_back(library_name, exports, count);
-
-  for (size_t n = 0; n < count; n++) {
-    exports[n].variable_ptr = 0;
-    exports[n].function_data.shim = nullptr;
-  }
 }
 
 Export* ExportResolver::GetExportByOrdinal(const std::string& library_name,
-                                           const uint32_t ordinal) {
+                                           uint16_t ordinal) {
   for (const auto& table : tables_) {
     if (table.name == library_name || table.simple_name == library_name) {
       // TODO(benvanik): binary search?
@@ -46,8 +41,7 @@ Export* ExportResolver::GetExportByOrdinal(const std::string& library_name,
 }
 
 void ExportResolver::SetVariableMapping(const std::string& library_name,
-                                        const uint32_t ordinal,
-                                        uint32_t value) {
+                                        uint16_t ordinal, uint32_t value) {
   auto export = GetExportByOrdinal(library_name, ordinal);
   assert_not_null(export);
   export->tags |= ExportTag::kImplemented;
@@ -55,12 +49,21 @@ void ExportResolver::SetVariableMapping(const std::string& library_name,
 }
 
 void ExportResolver::SetFunctionMapping(const std::string& library_name,
-                                        const uint32_t ordinal,
+                                        uint16_t ordinal,
                                         xe_kernel_export_shim_fn shim) {
   auto export = GetExportByOrdinal(library_name, ordinal);
   assert_not_null(export);
   export->tags |= ExportTag::kImplemented;
   export->function_data.shim = shim;
+}
+
+void ExportResolver::SetFunctionMapping(const std::string& library_name,
+                                        uint16_t ordinal,
+                                        ExportTrampoline trampoline) {
+  auto export = GetExportByOrdinal(library_name, ordinal);
+  assert_not_null(export);
+  export->tags |= ExportTag::kImplemented;
+  export->function_data.trampoline = trampoline;
 }
 
 }  // namespace cpu

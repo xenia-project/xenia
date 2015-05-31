@@ -17,10 +17,10 @@
 namespace xe {
 namespace kernel {
 
-#define SHIM_GPR_32(n) (uint32_t)(ppc_state->r[n])
+#define SHIM_GPR_32(n) (uint32_t)(ppc_context->r[n])
 
 // TODO: clean me up!
-SHIM_CALL DbgPrint_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   if (format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -209,7 +209,8 @@ SHIM_CALL DbgPrint_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("(DbgPrint) %s", buffer);
 }
 
-SHIM_CALL DbgBreakPoint_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL DbgBreakPoint_shim(PPCContext* ppc_context,
+                             KernelState* kernel_state) {
   XELOGD("DbgBreakPoint()");
   DebugBreak();
 }
@@ -234,7 +235,8 @@ typedef struct {
 } X_EXCEPTION_RECORD;
 static_assert_size(X_EXCEPTION_RECORD, 0x50);
 
-SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   uint32_t record_ptr = SHIM_GET_ARG_32(0);
 
   auto record = reinterpret_cast<X_EXCEPTION_RECORD*>(SHIM_MEM_ADDR(record_ptr));
@@ -257,7 +259,7 @@ SHIM_CALL RtlRaiseException_shim(PPCContext* ppc_state, KernelState* state) {
       thread = retain_object(XThread::GetCurrentThread());
     } else {
       // Lookup thread by ID.
-      thread = state->GetThreadByID(thread_info->thread_id);
+      thread = kernel_state->GetThreadByID(thread_info->thread_id);
     }
 
     if (thread) {
@@ -290,12 +292,13 @@ void xeKeBugCheckEx(uint32_t code, uint32_t param1, uint32_t param2,
   assert_always();
 }
 
-SHIM_CALL KeBugCheck_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL KeBugCheck_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t code = SHIM_GET_ARG_32(0);
   xeKeBugCheckEx(code, 0, 0, 0, 0);
 }
 
-SHIM_CALL KeBugCheckEx_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL KeBugCheckEx_shim(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   uint32_t code = SHIM_GET_ARG_32(0);
   uint32_t param1 = SHIM_GET_ARG_32(1);
   uint32_t param2 = SHIM_GET_ARG_32(2);
@@ -308,7 +311,7 @@ SHIM_CALL KeBugCheckEx_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterDebugExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgBreakPoint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlRaiseException, state);

@@ -100,7 +100,8 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   return X_STATUS_SUCCESS;
 }
 
-SHIM_CALL ExGetXConfigSetting_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ExGetXConfigSetting_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   uint16_t category = SHIM_GET_ARG_16(0);
   uint16_t setting = SHIM_GET_ARG_16(1);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
@@ -122,8 +123,8 @@ SHIM_CALL ExGetXConfigSetting_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_state,
-                                           KernelState* state) {
+SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_context,
+                                           KernelState* kernel_state) {
   uint32_t privilege = SHIM_GET_ARG_32(0);
 
   XELOGD("XexCheckExecutablePrivilege(%.8X)", privilege);
@@ -135,7 +136,7 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_state,
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
-  auto module = state->GetExecutableModule();
+  auto module = kernel_state->GetExecutableModule();
   if (!module) {
     SHIM_SET_RETURN_32(0);
     return;
@@ -148,7 +149,8 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
   const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
   uint32_t module_handle_ptr = SHIM_GET_ARG_32(1);
@@ -157,9 +159,9 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
 
   object_ref<XModule> module;
   if (!module_name) {
-    module = state->GetExecutableModule();
+    module = kernel_state->GetExecutableModule();
   } else {
-    module = state->GetModule(module_name);
+    module = kernel_state->GetModule(module_name);
   }
   if (!module) {
     SHIM_SET_MEM_32(module_handle_ptr, 0);
@@ -173,7 +175,8 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t name_ptr = SHIM_GET_ARG_32(1);
   const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
@@ -185,7 +188,7 @@ SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto module = state->object_table()->LookupObject<XModule>(handle);
+  auto module = kernel_state->object_table()->LookupObject<XModule>(handle);
   if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
@@ -201,7 +204,8 @@ SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
   const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
   uint32_t module_flags = SHIM_GET_ARG_32(1);
@@ -214,13 +218,14 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   X_HANDLE module_handle = X_INVALID_HANDLE_VALUE;
-  auto module = state->GetModule(module_name);
+  auto module = kernel_state->GetModule(module_name);
   if (module) {
     // Existing module found, just add a reference and obtain a handle.
-    result = state->object_table()->AddHandle(module.get(), &module_handle);
+    result =
+        kernel_state->object_table()->AddHandle(module.get(), &module_handle);
   } else {
     // Not found; attempt to load as a user module.
-    auto user_module = state->LoadUserModule(module_name);
+    auto user_module = kernel_state->LoadUserModule(module_name);
     if (user_module) {
       user_module->RetainHandle();
       module_handle = user_module->handle();
@@ -232,20 +237,21 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_context,
+                              KernelState* kernel_state) {
   uint32_t module_handle = SHIM_GET_ARG_32(0);
 
   XELOGD("XexUnloadImage(%.8X)", module_handle);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
-  result = state->object_table()->RemoveHandle(module_handle);
+  result = kernel_state->object_table()->RemoveHandle(module_handle);
 
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t module_handle = SHIM_GET_ARG_32(0);
   uint32_t ordinal = SHIM_GET_ARG_32(1);
   uint32_t out_function_ptr = SHIM_GET_ARG_32(2);
@@ -268,9 +274,9 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
 
   object_ref<XModule> module;
   if (!module_handle) {
-    module = state->GetExecutableModule();
+    module = kernel_state->GetExecutableModule();
   } else {
-    module = state->object_table()->LookupObject<XModule>(module_handle);
+    module = kernel_state->object_table()->LookupObject<XModule>(module_handle);
   }
   if (module) {
     uint32_t ptr;
@@ -292,8 +298,8 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL ExRegisterTitleTerminateNotification_shim(PPCContext* ppc_state,
-                                                    KernelState* state) {
+SHIM_CALL ExRegisterTitleTerminateNotification_shim(PPCContext* ppc_context,
+                                                    KernelState* kernel_state) {
   uint32_t registration_ptr = SHIM_GET_ARG_32(0);
   uint32_t create = SHIM_GET_ARG_32(1);
 
@@ -318,7 +324,7 @@ SHIM_CALL ExRegisterTitleTerminateNotification_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterModuleExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExGetXConfigSetting, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", XexCheckExecutablePrivilege, state);

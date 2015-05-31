@@ -72,7 +72,7 @@ struct FileAccess {
   static const uint32_t X_FILE_APPEND_DATA = 0x00000004;
 };
 
-X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
+X_STATUS NtCreateFile(PPCContext* ppc_context, KernelState* kernel_state,
                       uint32_t handle_ptr, uint32_t desired_access,
                       X_OBJECT_ATTRIBUTES* object_attrs,
                       const char* object_name, uint32_t io_status_block_ptr,
@@ -87,13 +87,13 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
   uint32_t info = X_FILE_DOES_NOT_EXIST;
   uint32_t handle;
 
-  FileSystem* fs = state->file_system();
+  FileSystem* fs = kernel_state->file_system();
   std::unique_ptr<Entry> entry;
 
   object_ref<XFile> root_file;
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
-    root_file = state->object_table()->LookupObject<XFile>(
+    root_file = kernel_state->object_table()->LookupObject<XFile>(
         object_attrs->root_directory);
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::kTypeFile);
@@ -134,7 +134,7 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
       mode = fs::Mode::READ;
     }
     XFile* file_ptr = nullptr;
-    result = fs->Open(std::move(entry), state, mode,
+    result = fs->Open(std::move(entry), kernel_state, mode,
                       false,  // TODO(benvanik): pick async mode, if needed.
                       &file_ptr);
     file = object_ref<XFile>(file_ptr);
@@ -160,7 +160,8 @@ X_STATUS NtCreateFile(PPCContext* ppc_state, KernelState* state,
   return result;
 }
 
-SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtCreateFile_shim(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t desired_access = SHIM_GET_ARG_32(1);
   uint32_t object_attributes_ptr = SHIM_GET_ARG_32(2);
@@ -179,16 +180,16 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_state, KernelState* state) {
          allocation_size_ptr, file_attributes, share_access,
          creation_disposition);
 
-  auto result =
-      NtCreateFile(ppc_state, state, handle_ptr, desired_access, &object_attrs,
-                   object_name, io_status_block_ptr, allocation_size_ptr,
-                   file_attributes, share_access, creation_disposition);
+  auto result = NtCreateFile(
+      ppc_context, kernel_state, handle_ptr, desired_access, &object_attrs,
+      object_name, io_status_block_ptr, allocation_size_ptr, file_attributes,
+      share_access, creation_disposition);
 
   free(object_name);
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtOpenFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtOpenFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t desired_access = SHIM_GET_ARG_32(1);
   uint32_t object_attributes_ptr = SHIM_GET_ARG_32(2);
@@ -203,9 +204,9 @@ SHIM_CALL NtOpenFile_shim(PPCContext* ppc_state, KernelState* state) {
          !object_name ? "(null)" : object_name, io_status_block_ptr,
          open_options);
 
-  auto result = NtCreateFile(ppc_state, state, handle_ptr, desired_access,
-                             &object_attrs, object_name, io_status_block_ptr, 0,
-                             0, 0, FileDisposition::X_FILE_OPEN);
+  auto result = NtCreateFile(
+      ppc_context, kernel_state, handle_ptr, desired_access, &object_attrs,
+      object_name, io_status_block_ptr, 0, 0, 0, FileDisposition::X_FILE_OPEN);
 
   free(object_name);
   SHIM_SET_RETURN_32(result);
@@ -221,7 +222,7 @@ void xeNtReadFileCompleted(XAsyncRequest* request, xeNtReadFileState* state) {
   delete state;
 }
 
-SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtReadFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t event_handle = SHIM_GET_ARG_32(1);
   uint32_t apc_routine_ptr = SHIM_GET_ARG_32(2);
@@ -242,15 +243,16 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Grab event to signal.
   bool signal_event = false;
-  auto ev = event_handle
-                ? state->object_table()->LookupObject<XEvent>(event_handle)
-                : object_ref<XEvent>();
+  auto ev =
+      event_handle
+          ? kernel_state->object_table()->LookupObject<XEvent>(event_handle)
+          : object_ref<XEvent>();
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
   // Grab file.
-  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -316,7 +318,7 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtWriteFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtWriteFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t event_handle = SHIM_GET_ARG_32(1);
   uint32_t apc_routine_ptr = SHIM_GET_ARG_32(2);
@@ -340,15 +342,16 @@ SHIM_CALL NtWriteFile_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Grab event to signal.
   bool signal_event = false;
-  auto ev = event_handle
-                ? state->object_table()->LookupObject<XEvent>(event_handle)
-                : object_ref<XEvent>();
+  auto ev =
+      event_handle
+          ? kernel_state->object_table()->LookupObject<XEvent>(event_handle)
+          : object_ref<XEvent>();
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
   // Grab file.
-  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (!ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -398,7 +401,8 @@ SHIM_CALL NtWriteFile_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
   uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
@@ -412,7 +416,7 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t info = 0;
 
   // Grab file.
-  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (file) {
     switch (file_info_class) {
       case XFileDispositionInformation: {
@@ -455,8 +459,8 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
   uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
@@ -470,7 +474,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
   uint32_t info = 0;
 
   // Grab file.
-  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (file) {
     switch (file_info_class) {
       case XFileInternalInformation:
@@ -478,8 +482,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
         assert_true(length == 8);
         info = 8;
         // TODO(benvanik): use pointer to fs:: entry?
-        SHIM_SET_MEM_64(file_info_ptr,
-                        xe::hash_combine(0, file->path()));
+        SHIM_SET_MEM_64(file_info_ptr, xe::hash_combine(0, file->path()));
         break;
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {
@@ -511,14 +514,16 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
       case XFileXctdCompressionInformation:
         assert_true(length == 4);
         /*
-        // This is wrong and puts files into wrong states for games that use XctdDecompression.
+        // This is wrong and puts files into wrong states for games that use
+        XctdDecompression.
         uint32_t magic;
         size_t bytes_read;
         result = file->Read(&magic, sizeof(magic), 0, &bytes_read);
         if (XSUCCEEDED(result)) {
           if (bytes_read == sizeof(magic)) {
             info = 4;
-            SHIM_SET_MEM_32(file_info_ptr, magic == xe::byte_swap(0x0FF512ED) ? 1 : 0);
+            SHIM_SET_MEM_32(file_info_ptr, magic == xe::byte_swap(0x0FF512ED) ?
+        1 : 0);
           } else {
             result = X_STATUS_UNSUCCESSFUL;
           }
@@ -544,8 +549,8 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
-                                         KernelState* state) {
+SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
+                                         KernelState* kernel_state) {
   uint32_t object_attributes_ptr = SHIM_GET_ARG_32(0);
   uint32_t file_info_ptr = SHIM_GET_ARG_32(1);
 
@@ -561,14 +566,14 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
   object_ref<XFile> root_file;
   if (attrs.root_directory != 0xFFFFFFFD) {  // ObDosDevices
     root_file =
-        state->object_table()->LookupObject<XFile>(attrs.root_directory);
+        kernel_state->object_table()->LookupObject<XFile>(attrs.root_directory);
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::kTypeFile);
     assert_always();
   }
 
   // Resolve the file using the virtual file system.
-  FileSystem* fs = state->file_system();
+  FileSystem* fs = kernel_state->file_system();
   auto entry = fs->ResolvePath(object_name);
   if (entry) {
     // Found.
@@ -583,8 +588,8 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
-                                            KernelState* state) {
+SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_context,
+                                            KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
   uint32_t fs_info_ptr = SHIM_GET_ARG_32(2);
@@ -598,7 +603,7 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
   uint32_t info = 0;
 
   // Grab file.
-  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (file) {
     switch (fs_info_class) {
       case 1: {  // FileFsVolumeInformation
@@ -622,7 +627,8 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
         break;
       }
       case 5: {  // FileFsAttributeInformation
-        auto fs_attribute_info = (X_FILE_FS_ATTRIBUTE_INFORMATION*)calloc(length, 1);
+        auto fs_attribute_info =
+            (X_FILE_FS_ATTRIBUTE_INFORMATION*)calloc(length, 1);
         result = file->device()->QueryAttributeInfo(fs_attribute_info, length);
         if (XSUCCEEDED(result)) {
           fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);
@@ -657,7 +663,8 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t event_handle = SHIM_GET_ARG_32(1);
   uint32_t apc_routine = SHIM_GET_ARG_32(2);
@@ -666,7 +673,7 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t file_info_ptr = SHIM_GET_ARG_32(5);
   uint32_t length = SHIM_GET_ARG_32(6);
   uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
-  uint32_t sp = (uint32_t)ppc_state->r[1];
+  uint32_t sp = (uint32_t)ppc_context->r[1];
   uint32_t restart_scan = SHIM_MEM_32(sp + 0x54);
 
   char* file_name = NULL;
@@ -691,9 +698,10 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   uint32_t info = 0;
 
-  auto file = state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (file) {
-    X_FILE_DIRECTORY_INFORMATION* dir_info = (X_FILE_DIRECTORY_INFORMATION*)calloc(length, 1);
+    X_FILE_DIRECTORY_INFORMATION* dir_info =
+        (X_FILE_DIRECTORY_INFORMATION*)calloc(length, 1);
     result =
         file->QueryDirectory(dir_info, length, file_name, restart_scan != 0);
     if (XSUCCEEDED(result)) {
@@ -717,7 +725,8 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtFlushBuffersFile_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtFlushBuffersFile_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
   uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
 
@@ -733,8 +742,8 @@ SHIM_CALL NtFlushBuffersFile_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL FscSetCacheElementCount_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL FscSetCacheElementCount_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);
   uint32_t unk_1 = SHIM_GET_ARG_32(1);
   // unk_0 = 0
@@ -749,7 +758,7 @@ SHIM_CALL FscSetCacheElementCount_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterIoExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtOpenFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReadFile, state);

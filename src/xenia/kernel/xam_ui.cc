@@ -19,13 +19,15 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
+                             KernelState* kernel_state) {
   XELOGD("XamIsUIActive()");
   SHIM_SET_RETURN_32(0);
 }
 
 // http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
-SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
   uint32_t title_ptr = SHIM_GET_ARG_32(1);
   uint32_t text_ptr = SHIM_GET_ARG_32(2);
@@ -35,7 +37,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
   uint32_t flags = SHIM_GET_ARG_32(6);
   uint32_t result_ptr = SHIM_GET_ARG_32(7);
   // arg8 is in stack!
-  uint32_t sp = (uint32_t)ppc_state->r[1];
+  uint32_t sp = (uint32_t)ppc_context->r[1];
   uint32_t overlapped_ptr = SHIM_MEM_32(sp + 0x54);
 
   auto title = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
@@ -67,7 +69,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
     TASKDIALOGCONFIG config = {0};
     config.cbSize = sizeof(config);
     config.hInstance = GetModuleHandle(nullptr);
-    config.hwndParent = state->emulator()->main_window()->hwnd();
+    config.hwndParent = kernel_state->emulator()->main_window()->hwnd();
     config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION |   // esc to exit
                      TDF_POSITION_RELATIVE_TO_WINDOW;  // center in window
     config.dwCommonButtons = 0;
@@ -109,19 +111,19 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_state, KernelState* state) {
   }
   SHIM_SET_MEM_32(result_ptr, chosen_button);
 
-  state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+  kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
-SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
 
   XELOGD("XamShowDirtyDiscErrorUI(%d)", user_index);
 
   int button_pressed = 0;
-  TaskDialog(state->emulator()->main_window()->hwnd(), GetModuleHandle(nullptr),
-             L"Disc Read Error",
+  TaskDialog(kernel_state->emulator()->main_window()->hwnd(),
+             GetModuleHandle(nullptr), L"Disc Read Error",
              L"Game is claiming to be unable to read game data!", nullptr,
              TDCBF_CLOSE_BUTTON, TD_ERROR_ICON, &button_pressed);
 
@@ -133,7 +135,7 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xam::RegisterUIExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", XamIsUIActive, state);
   SHIM_SET_MAPPING("xam.xex", XamShowMessageBoxUI, state);
   SHIM_SET_MAPPING("xam.xex", XamShowDirtyDiscErrorUI, state);

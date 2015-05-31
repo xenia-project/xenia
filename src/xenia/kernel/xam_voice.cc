@@ -17,7 +17,8 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL XamVoiceCreate_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamVoiceCreate_shim(PPCContext* ppc_context,
+                              KernelState* kernel_state) {
   uint32_t unk1 = SHIM_GET_ARG_32(0);  // 0
   uint32_t unk2 = SHIM_GET_ARG_32(1);  // 0xF
   uint32_t out_voice_ptr = SHIM_GET_ARG_32(2);
@@ -30,7 +31,8 @@ SHIM_CALL XamVoiceCreate_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(X_ERROR_ACCESS_DENIED);
 }
 
-SHIM_CALL XamVoiceClose_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamVoiceClose_shim(PPCContext* ppc_context,
+                             KernelState* kernel_state) {
   uint32_t voice_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XamVoiceClose(%.8X)", voice_ptr);
@@ -38,8 +40,8 @@ SHIM_CALL XamVoiceClose_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XamVoiceHeadsetPresent_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XamVoiceHeadsetPresent_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t voice_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XamVoiceHeadsetPresent(%.8X)", voice_ptr);
@@ -51,7 +53,7 @@ SHIM_CALL XamVoiceHeadsetPresent_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xam::RegisterVoiceExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", XamVoiceCreate, state);
   SHIM_SET_MAPPING("xam.xex", XamVoiceClose, state);
   SHIM_SET_MAPPING("xam.xex", XamVoiceHeadsetPresent, state);

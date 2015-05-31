@@ -34,10 +34,10 @@ void UndefinedImport(PPCContext* ppc_context,
   XELOGE("call to undefined import");
 }
 
-XexModule::XexModule(Processor* processor, KernelState* state)
+XexModule::XexModule(Processor* processor, KernelState* kernel_state)
     : Module(processor),
       processor_(processor),
-      kernel_state_(state),
+      kernel_state_(kernel_state),
       xex_(nullptr),
       base_address_(0),
       low_address_(0),

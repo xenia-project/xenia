@@ -26,7 +26,7 @@ class Runtime;
 
 class XexModule : public xe::cpu::Module {
  public:
-  XexModule(Processor* processor, kernel::KernelState* state);
+  XexModule(Processor* processor, kernel::KernelState* kernel_state);
   virtual ~XexModule();
 
   xe_xex2_ref xex() const { return xex_; }

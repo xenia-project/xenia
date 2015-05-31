@@ -28,6 +28,7 @@ class XboxkrnlModule : public XKernelModule {
   virtual ~XboxkrnlModule();
 
   static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
+  static void RegisterExport(xe::cpu::Export* export);
 
   int LaunchModule(const char* path);
 

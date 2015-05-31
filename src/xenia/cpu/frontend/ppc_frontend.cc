@@ -57,18 +57,18 @@ PPCFrontend::~PPCFrontend() {
 
 Memory* PPCFrontend::memory() const { return processor_->memory(); }
 
-void CheckGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
-  ppc_state->scratch = 0x8000;
+void CheckGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
+  ppc_context->scratch = 0x8000;
 }
-void HandleGlobalLock(PPCContext* ppc_state, void* arg0, void* arg1) {
+void HandleGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
   auto global_lock = reinterpret_cast<xe::mutex*>(arg0);
   volatile bool* global_lock_taken = reinterpret_cast<bool*>(arg1);
-  uint64_t value = ppc_state->scratch;
+  uint64_t value = ppc_context->scratch;
   if (value == 0x8000) {
     global_lock->lock();
     *global_lock_taken = false;
     global_lock->unlock();
-  } else if (value == ppc_state->r[13]) {
+  } else if (value == ppc_context->r[13]) {
     global_lock->lock();
     *global_lock_taken = true;
     global_lock->unlock();

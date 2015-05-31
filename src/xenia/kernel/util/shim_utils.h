@@ -24,8 +24,8 @@ using PPCContext = xe::cpu::frontend::PPCContext;
       library_name, ordinals::##export_name,                   \
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
 
-#define SHIM_MEM_BASE ppc_state->virtual_membase
-#define SHIM_MEM_ADDR(a) (a ? (ppc_state->virtual_membase + a) : nullptr)
+#define SHIM_MEM_BASE ppc_context->virtual_membase
+#define SHIM_MEM_ADDR(a) (a ? (ppc_context->virtual_membase + a) : nullptr)
 
 #define SHIM_MEM_8(a) xe::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a) xe::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
@@ -36,11 +36,11 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 #define SHIM_SET_MEM_32(a, v) xe::store_and_swap<uint32_t>(SHIM_MEM_ADDR(a), v)
 #define SHIM_SET_MEM_64(a, v) xe::store_and_swap<uint64_t>(SHIM_MEM_ADDR(a), v)
 
-#define SHIM_GET_ARG_8(n) (uint8_t)(ppc_state->r[3 + n])
-#define SHIM_GET_ARG_16(n) (uint16_t)(ppc_state->r[3 + n])
-#define SHIM_GET_ARG_32(n) (uint32_t)(ppc_state->r[3 + n])
-#define SHIM_GET_ARG_64(n) ppc_state->r[3 + n]
-#define SHIM_SET_RETURN_32(v) ppc_state->r[3] = (uint64_t)((int32_t)v)
+#define SHIM_GET_ARG_8(n) (uint8_t)(ppc_context->r[3 + n])
+#define SHIM_GET_ARG_16(n) (uint16_t)(ppc_context->r[3 + n])
+#define SHIM_GET_ARG_32(n) (uint32_t)(ppc_context->r[3 + n])
+#define SHIM_GET_ARG_64(n) ppc_context->r[3 + n]
+#define SHIM_SET_RETURN_32(v) ppc_context->r[3] = (uint64_t)((int32_t)v)
 
 #define SHIM_STRUCT(type, address) \
   reinterpret_cast<type*>(SHIM_MEM_ADDR(address))

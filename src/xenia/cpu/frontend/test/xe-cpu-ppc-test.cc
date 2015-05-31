@@ -233,13 +233,13 @@ class TestRunner {
   }
 
   bool SetupTestState(TestCase& test_case) {
-    auto ppc_state = thread_state->context();
+    auto ppc_context = thread_state->context();
     for (auto& it : test_case.annotations) {
       if (it.first == "REGISTER_IN") {
         size_t space_pos = it.second.find(" ");
         auto reg_name = it.second.substr(0, space_pos);
         auto reg_value = it.second.substr(space_pos + 1);
-        ppc_state->SetRegFromString(reg_name.c_str(), reg_value.c_str());
+        ppc_context->SetRegFromString(reg_name.c_str(), reg_value.c_str());
       } else if (it.first == "MEMORY_IN") {
         size_t space_pos = it.second.find(" ");
         auto address_str = it.second.substr(0, space_pos);
@@ -264,7 +264,7 @@ class TestRunner {
   }
 
   bool CheckTestResults(TestCase& test_case) {
-    auto ppc_state = thread_state->context();
+    auto ppc_context = thread_state->context();
 
     char actual_value[2048];
 
@@ -274,9 +274,9 @@ class TestRunner {
         size_t space_pos = it.second.find(" ");
         auto reg_name = it.second.substr(0, space_pos);
         auto reg_value = it.second.substr(space_pos + 1);
-        if (!ppc_state->CompareRegWithString(reg_name.c_str(),
-                                             reg_value.c_str(), actual_value,
-                                             xe::countof(actual_value))) {
+        if (!ppc_context->CompareRegWithString(reg_name.c_str(),
+                                               reg_value.c_str(), actual_value,
+                                               xe::countof(actual_value))) {
           any_failed = true;
           printf("Register %s assert failed:\n", reg_name.c_str());
           printf("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());

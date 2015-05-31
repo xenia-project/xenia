@@ -23,6 +23,7 @@ class XamModule : public XKernelModule {
   virtual ~XamModule();
 
   static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
+  static void RegisterExport(xe::cpu::Export* export);
 
  private:
 };

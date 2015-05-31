@@ -17,8 +17,8 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL KeEnableFpuExceptions_shim(PPCContext* ppc_state,
-                                     KernelState* state) {
+SHIM_CALL KeEnableFpuExceptions_shim(PPCContext* ppc_context,
+                                     KernelState* kernel_state) {
   uint32_t enabled = SHIM_GET_ARG_32(0);
   XELOGD("KeEnableFpuExceptions(%d)", enabled);
   // TODO(benvanik): can we do anything about exceptions?
@@ -28,6 +28,6 @@ SHIM_CALL KeEnableFpuExceptions_shim(PPCContext* ppc_state,
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterMiscExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnableFpuExceptions, state);
 }

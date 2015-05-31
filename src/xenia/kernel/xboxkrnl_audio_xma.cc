@@ -53,12 +53,13 @@ namespace kernel {
 // restrictions of frame/subframe/etc:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
-SHIM_CALL XMACreateContext_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMACreateContext_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t context_out_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMACreateContext(%.8X)", context_out_ptr);
 
-  auto audio_system = state->emulator()->audio_system();
+  auto audio_system = kernel_state->emulator()->audio_system();
   uint32_t context_ptr = audio_system->AllocateXmaContext();
   SHIM_SET_MEM_32(context_out_ptr, context_ptr);
   if (!context_ptr) {
@@ -69,20 +70,21 @@ SHIM_CALL XMACreateContext_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL XMAReleaseContext_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMAReleaseContext_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAReleaseContext(%.8X)", context_ptr);
 
-  auto audio_system = state->emulator()->audio_system();
+  auto audio_system = kernel_state->emulator()->audio_system();
   audio_system->ReleaseXmaContext(context_ptr);
 
   SHIM_SET_RETURN_32(0);
 }
 
-void StoreXmaContextIndexedRegister(KernelState* state, uint32_t base_reg,
-                                    uint32_t context_ptr) {
-  auto audio_system = state->emulator()->audio_system();
+void StoreXmaContextIndexedRegister(KernelState* kernel_state,
+                                    uint32_t base_reg, uint32_t context_ptr) {
+  auto audio_system = kernel_state->emulator()->audio_system();
   uint32_t hw_index = (context_ptr - audio_system->xma_context_array_ptr()) /
                       XMAContextData::kSize;
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
@@ -90,7 +92,8 @@ void StoreXmaContextIndexedRegister(KernelState* state, uint32_t base_reg,
   audio_system->WriteRegister(reg_num, xe::byte_swap(reg_value));
 }
 
-SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t context_init_ptr = SHIM_GET_ARG_32(1);
 
@@ -122,12 +125,13 @@ SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_state, KernelState* state) {
 
   context.Store(SHIM_MEM_ADDR(context_ptr));
 
-  StoreXmaContextIndexedRegister(state, 0x1A80, context_ptr);
+  StoreXmaContextIndexedRegister(kernel_state, 0x1A80, context_ptr);
 
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
+                              KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t loop_data_ptr = SHIM_GET_ARG_32(1);
 
@@ -146,8 +150,8 @@ SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAGetInputBufferReadOffset_shim(PPCContext* ppc_state,
-                                           KernelState* state) {
+SHIM_CALL XMAGetInputBufferReadOffset_shim(PPCContext* ppc_context,
+                                           KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAGetInputBufferReadOffset(%.8X)", context_ptr);
@@ -159,8 +163,8 @@ SHIM_CALL XMAGetInputBufferReadOffset_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMASetInputBufferReadOffset_shim(PPCContext* ppc_state,
-                                           KernelState* state) {
+SHIM_CALL XMASetInputBufferReadOffset_shim(PPCContext* ppc_context,
+                                           KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t value = SHIM_GET_ARG_32(1);
 
@@ -175,7 +179,8 @@ SHIM_CALL XMASetInputBufferReadOffset_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMASetInputBuffer0_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMASetInputBuffer0_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
   uint32_t block_count = SHIM_GET_ARG_32(2);
@@ -195,8 +200,8 @@ SHIM_CALL XMASetInputBuffer0_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAIsInputBuffer0Valid_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XMAIsInputBuffer0Valid_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAIsInputBuffer0Valid(%.8X)", context_ptr);
@@ -208,8 +213,8 @@ SHIM_CALL XMAIsInputBuffer0Valid_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMASetInputBuffer0Valid_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XMASetInputBuffer0Valid_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMASetInputBuffer0Valid(%.8X)", context_ptr);
@@ -223,7 +228,8 @@ SHIM_CALL XMASetInputBuffer0Valid_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMASetInputBuffer1_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMASetInputBuffer1_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
   uint32_t block_count = SHIM_GET_ARG_32(2);
@@ -243,8 +249,8 @@ SHIM_CALL XMASetInputBuffer1_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAIsInputBuffer1Valid_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XMAIsInputBuffer1Valid_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAIsInputBuffer1Valid(%.8X)", context_ptr);
@@ -256,8 +262,8 @@ SHIM_CALL XMAIsInputBuffer1Valid_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMASetInputBuffer1Valid_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XMASetInputBuffer1Valid_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMASetInputBuffer1Valid(%.8X)", context_ptr);
@@ -271,8 +277,8 @@ SHIM_CALL XMASetInputBuffer1Valid_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAIsOutputBufferValid_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XMAIsOutputBufferValid_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAIsOutputBufferValid(%.8X)", context_ptr);
@@ -284,8 +290,8 @@ SHIM_CALL XMAIsOutputBufferValid_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMASetOutputBufferValid_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XMASetOutputBufferValid_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMASetOutputBufferValid(%.8X)", context_ptr);
@@ -299,8 +305,8 @@ SHIM_CALL XMASetOutputBufferValid_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAGetOutputBufferReadOffset_shim(PPCContext* ppc_state,
-                                            KernelState* state) {
+SHIM_CALL XMAGetOutputBufferReadOffset_shim(PPCContext* ppc_context,
+                                            KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAGetOutputBufferReadOffset(%.8X)", context_ptr);
@@ -312,8 +318,8 @@ SHIM_CALL XMAGetOutputBufferReadOffset_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMASetOutputBufferReadOffset_shim(PPCContext* ppc_state,
-                                            KernelState* state) {
+SHIM_CALL XMASetOutputBufferReadOffset_shim(PPCContext* ppc_context,
+                                            KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t value = SHIM_GET_ARG_32(1);
 
@@ -328,8 +334,8 @@ SHIM_CALL XMASetOutputBufferReadOffset_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAGetOutputBufferWriteOffset_shim(PPCContext* ppc_state,
-                                             KernelState* state) {
+SHIM_CALL XMAGetOutputBufferWriteOffset_shim(PPCContext* ppc_context,
+                                             KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAGetOutputBufferWriteOffset(%.8X)", context_ptr);
@@ -341,7 +347,8 @@ SHIM_CALL XMAGetOutputBufferWriteOffset_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMAGetPacketMetadata_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMAGetPacketMetadata_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAGetPacketMetadata(%.8X)", context_ptr);
@@ -353,32 +360,36 @@ SHIM_CALL XMAGetPacketMetadata_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMAEnableContext_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMAEnableContext_shim(PPCContext* ppc_context,
+                                KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMAEnableContext(%.8X)", context_ptr);
 
-  StoreXmaContextIndexedRegister(state, 0x1940, context_ptr);
+  StoreXmaContextIndexedRegister(kernel_state, 0x1940, context_ptr);
 
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMADisableContext_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMADisableContext_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
   uint32_t wait = SHIM_GET_ARG_32(1);
 
   XELOGD("XMADisableContext(%.8X, %d)", context_ptr, wait);
 
   X_HRESULT result = X_E_SUCCESS;
-  StoreXmaContextIndexedRegister(state, 0x1A40, context_ptr);
-  if (!state->emulator()->audio_system()->BlockOnXmaContext(context_ptr, !wait)) {
+  StoreXmaContextIndexedRegister(kernel_state, 0x1A40, context_ptr);
+  if (!kernel_state->emulator()->audio_system()->BlockOnXmaContext(context_ptr,
+                                                                   !wait)) {
     result = X_E_FALSE;
   }
 
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL XMABlockWhileInUse_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XMABlockWhileInUse_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   uint32_t context_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XMABlockWhileInUse(%.8X)", context_ptr);
@@ -398,7 +409,7 @@ SHIM_CALL XMABlockWhileInUse_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterAudioXmaExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   // Used for both XMA* methods and direct register access.
   SHIM_SET_MAPPING("xboxkrnl.exe", XMACreateContext, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAReleaseContext, state);

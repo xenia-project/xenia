@@ -19,7 +19,8 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   XELOGD("XamGetSystemVersion()");
   // eh, just picking one. If we go too low we may break new games, but
   // this value seems to be used for conditionally loading symbols and if
@@ -29,7 +30,7 @@ SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XGetAVPack_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetAVPack_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   // DWORD
   // Not sure what the values are for this, but 6 is VGA.
   // Other likely values are 3/4/8 for HDMI or something.
@@ -38,13 +39,15 @@ SHIM_CALL XGetAVPack_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(6);
 }
 
-SHIM_CALL XGetGameRegion_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetGameRegion_shim(PPCContext* ppc_context,
+                              KernelState* kernel_state) {
   XELOGD("XGetGameRegion()");
 
   SHIM_SET_RETURN_32(0xFFFF);
 }
 
-SHIM_CALL XGetLanguage_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XGetLanguage_shim(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   XELOGD("XGetLanguage()");
 
   uint32_t desired_language = X_LANGUAGE_ENGLISH;
@@ -62,19 +65,20 @@ SHIM_CALL XGetLanguage_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(desired_language);
 }
 
-SHIM_CALL XamVoiceIsActiveProcess_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XamVoiceIsActiveProcess_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   XELOGD("XamVoiceIsActiveProcess()");
   // Returning 0 here will short-circuit a bunch of voice stuff.
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   uint32_t info_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XamGetExecutionId(%.8X)", info_ptr);
 
-  auto module = state->GetExecutableModule();
+  auto module = kernel_state->GetExecutableModule();
   assert_not_null(module);
 
   SHIM_SET_MEM_32(info_ptr, module->execution_info_ptr());
@@ -82,8 +86,8 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XamLoaderSetLaunchData_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XamLoaderSetLaunchData_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t data_ptr = SHIM_GET_ARG_32(0);
   uint32_t data_size = SHIM_GET_ARG_32(1);
 
@@ -93,8 +97,8 @@ SHIM_CALL XamLoaderSetLaunchData_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_state,
-                                          KernelState* state) {
+SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_context,
+                                          KernelState* kernel_state) {
   uint32_t size_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XamLoaderGetLaunchDataSize(%.8X)", size_ptr);
@@ -104,8 +108,8 @@ SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(1);
 }
 
-SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_state,
-                                      KernelState* state) {
+SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_context,
+                                      KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t buffer_size = SHIM_GET_ARG_32(1);
 
@@ -114,7 +118,8 @@ SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_context,
+                                    KernelState* kernel_state) {
   uint32_t name_ptr = SHIM_GET_ARG_32(0);
   const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
   uint32_t unk2 = SHIM_GET_ARG_32(1);
@@ -123,13 +128,13 @@ SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_state, KernelState* state) {
   assert_always();
 }
 
-SHIM_CALL XamLoaderTerminateTitle_shim(PPCContext* ppc_state,
-                                       KernelState* state) {
+SHIM_CALL XamLoaderTerminateTitle_shim(PPCContext* ppc_context,
+                                       KernelState* kernel_state) {
   XELOGD("XamLoaderTerminateTitle()");
   assert_always();
 }
 
-SHIM_CALL XamAlloc_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamAlloc_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
   uint32_t size = SHIM_GET_ARG_32(1);
   uint32_t out_ptr = SHIM_GET_ARG_32(2);
@@ -140,23 +145,24 @@ SHIM_CALL XamAlloc_shim(PPCContext* ppc_state, KernelState* state) {
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
-  uint32_t ptr = state->memory()->SystemHeapAlloc(size);
+  uint32_t ptr = kernel_state->memory()->SystemHeapAlloc(size);
   SHIM_SET_MEM_32(out_ptr, ptr);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XamFree_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamFree_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("XamFree(%.8X)", ptr);
 
-  state->memory()->SystemHeapFree(ptr);
+  kernel_state->memory()->SystemHeapFree(ptr);
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL XamEnumerate_shim(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t zero = SHIM_GET_ARG_32(1);
   uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
@@ -169,11 +175,11 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
   XELOGD("XamEnumerate(%.8X, %d, %.8X, %d, %.8X, %.8X)", handle, zero,
          buffer_ptr, buffer_length, item_count_ptr, overlapped_ptr);
 
-  auto e = state->object_table()->LookupObject<XEnumerator>(handle);
+  auto e = kernel_state->object_table()->LookupObject<XEnumerator>(handle);
   if (!e) {
     if (overlapped_ptr) {
-      state->CompleteOverlappedImmediateEx(overlapped_ptr, 0,
-                                           X_ERROR_INVALID_HANDLE, 0);
+      kernel_state->CompleteOverlappedImmediateEx(overlapped_ptr, 0,
+                                                  X_ERROR_INVALID_HANDLE, 0);
       SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
     } else {
       SHIM_SET_RETURN_32(X_ERROR_INVALID_HANDLE);
@@ -190,8 +196,8 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
     SHIM_SET_MEM_32(item_count_ptr, item_count);
   } else if (overlapped_ptr) {
     assert_zero(item_count_ptr);
-    state->CompleteOverlappedImmediateEx(overlapped_ptr, result, result,
-                                         item_count);
+    kernel_state->CompleteOverlappedImmediateEx(overlapped_ptr, result, result,
+                                                item_count);
     result = X_ERROR_IO_PENDING;
   } else {
     assert_always();
@@ -205,7 +211,7 @@ SHIM_CALL XamEnumerate_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xam::RegisterInfoExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", XamGetSystemVersion, state);
   SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
   SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);

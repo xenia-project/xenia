@@ -18,7 +18,8 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL ObOpenObjectByName_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ObOpenObjectByName_shim(PPCContext* ppc_context,
+                                  KernelState* kernel_state) {
   // r3 = ptr to info?
   //   +0 = -4
   //   +4 = name ptr
@@ -39,7 +40,8 @@ SHIM_CALL ObOpenObjectByName_shim(PPCContext* ppc_state, KernelState* state) {
          obj_attributes_ptr, name.c_str(), object_type_ptr, unk, handle_ptr);
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  X_STATUS result = state->object_table()->GetObjectByName(name, &handle);
+  X_STATUS result =
+      kernel_state->object_table()->GetObjectByName(name, &handle);
   if (XSUCCEEDED(result)) {
     SHIM_SET_MEM_32(handle_ptr, handle);
   }
@@ -47,8 +49,8 @@ SHIM_CALL ObOpenObjectByName_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
-                                         KernelState* state) {
+SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
+                                         KernelState* kernel_state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t object_type_ptr = SHIM_GET_ARG_32(1);
   uint32_t out_object_ptr = SHIM_GET_ARG_32(2);
@@ -58,7 +60,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto object = state->object_table()->LookupObject<XObject>(handle);
+  auto object = kernel_state->object_table()->LookupObject<XObject>(handle);
   if (object) {
     // TODO(benvanik): verify type with object_type_ptr
 
@@ -110,7 +112,8 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_state,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   uint32_t native_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("ObDereferenceObject(%.8X)", native_ptr);
@@ -122,7 +125,7 @@ SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_state, KernelState* state) {
   }
 
   void* object_ptr = SHIM_MEM_ADDR(native_ptr);
-  auto object = XObject::GetNativeObject<XObject>(state, object_ptr);
+  auto object = XObject::GetNativeObject<XObject>(kernel_state, object_ptr);
   if (object) {
     object->Release();
   }
@@ -130,7 +133,8 @@ SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
   uint32_t new_handle_ptr = SHIM_GET_ARG_32(1);
   uint32_t options = SHIM_GET_ARG_32(2);
@@ -148,7 +152,7 @@ SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto object = state->object_table()->LookupObject<XObject>(handle);
+  auto object = kernel_state->object_table()->LookupObject<XObject>(handle);
   if (object) {
     object->Retain();
     object->RetainHandle();
@@ -158,7 +162,7 @@ SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
     }
     if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
       // Always close the source object.
-      state->object_table()->RemoveHandle(handle);
+      kernel_state->object_table()->RemoveHandle(handle);
     }
   } else {
     result = X_STATUS_INVALID_HANDLE;
@@ -167,14 +171,14 @@ SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_state, KernelState* state) {
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtClose_shim(PPCContext* ppc_state, KernelState* state) {
+SHIM_CALL NtClose_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t handle = SHIM_GET_ARG_32(0);
 
   XELOGD("NtClose(%.8X)", handle);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
-  result = state->object_table()->RemoveHandle(handle);
+  result = kernel_state->object_table()->RemoveHandle(handle);
 
   SHIM_SET_RETURN_32(result);
 }
@@ -183,7 +187,7 @@ SHIM_CALL NtClose_shim(PPCContext* ppc_state, KernelState* state) {
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterObExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ObOpenObjectByName, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObReferenceObjectByHandle, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObDereferenceObject, state);
