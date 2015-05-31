@@ -36,10 +36,44 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 #define SHIM_SET_MEM_32(a, v) xe::store_and_swap<uint32_t>(SHIM_MEM_ADDR(a), v)
 #define SHIM_SET_MEM_64(a, v) xe::store_and_swap<uint64_t>(SHIM_MEM_ADDR(a), v)
 
-#define SHIM_GET_ARG_8(n) (uint8_t)(ppc_context->r[3 + n])
-#define SHIM_GET_ARG_16(n) (uint16_t)(ppc_context->r[3 + n])
-#define SHIM_GET_ARG_32(n) (uint32_t)(ppc_context->r[3 + n])
-#define SHIM_GET_ARG_64(n) ppc_context->r[3 + n]
+namespace util {
+  inline uint32_t get_arg_stack_ptr(PPCContext* ppc_context, uint8_t index) {
+    return ((uint32_t)ppc_context->r[1]) + 0x54 + index * 8;
+  }
+
+  inline uint8_t get_arg_8(PPCContext* ppc_context, uint8_t index) {
+    if (index <= 7) {
+      return (uint8_t)ppc_context->r[3 + index];
+    }
+    return SHIM_MEM_8(get_arg_stack_ptr(ppc_context, index - 7));
+  }
+
+  inline uint16_t get_arg_16(PPCContext* ppc_context, uint8_t index) {
+    if (index <= 7) {
+      return (uint16_t)ppc_context->r[3 + index];
+    }
+    return SHIM_MEM_16(get_arg_stack_ptr(ppc_context, index - 7));
+  }
+
+  inline uint32_t get_arg_32(PPCContext* ppc_context, uint8_t index) {
+    if (index <= 7) {
+      return (uint32_t)ppc_context->r[3 + index];
+    }
+    return SHIM_MEM_32(get_arg_stack_ptr(ppc_context, index - 7));
+  }
+
+  inline uint64_t get_arg_64(PPCContext* ppc_context, uint8_t index) {
+    if (index <= 7) {
+      return ppc_context->r[3 + index];
+    }
+    return SHIM_MEM_64(get_arg_stack_ptr(ppc_context, index - 7));
+  }
+}
+
+#define SHIM_GET_ARG_8(n) util::get_arg_8(ppc_context, n)
+#define SHIM_GET_ARG_16(n) util::get_arg_16(ppc_context, n)
+#define SHIM_GET_ARG_32(n) util::get_arg_32(ppc_context, n)
+#define SHIM_GET_ARG_64(n) util::get_arg_64(ppc_context, n)
 #define SHIM_SET_RETURN_32(v) ppc_context->r[3] = (uint64_t)((int32_t)v)
 
 #define SHIM_STRUCT(type, address) \
