@@ -195,10 +195,10 @@ void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
                                StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
 
-  string_buffer->Append("%s fn %.8X-%.8X %s\n",
-                        symbol_info->module()->name().c_str(),
-                        symbol_info->address(), symbol_info->end_address(),
-                        symbol_info->name().c_str());
+  string_buffer->AppendFormat(
+      "%s fn %.8X-%.8X %s\n", symbol_info->module()->name().c_str(),
+      symbol_info->address(), symbol_info->end_address(),
+      symbol_info->name().c_str());
 
   auto blocks = scanner_->FindBlocks(symbol_info);
 
@@ -215,13 +215,14 @@ void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
 
     // Check labels.
     if (block_it != blocks.end() && block_it->start_address == address) {
-      string_buffer->Append("%.8X          loc_%.8X:\n", address, address);
+      string_buffer->AppendFormat("%.8X          loc_%.8X:\n", address,
+                                  address);
       ++block_it;
     }
 
-    string_buffer->Append("%.8X %.8X   ", address, i.code);
+    string_buffer->AppendFormat("%.8X %.8X   ", address, i.code);
     DisasmPPC(i, string_buffer);
-    string_buffer->Append("\n");
+    string_buffer->Append('\n');
   }
 }
 

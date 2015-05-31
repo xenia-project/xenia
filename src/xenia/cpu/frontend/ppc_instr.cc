@@ -28,7 +28,8 @@ void DumpAllInstrCounts() {
   sb.Append("Instruction translation counts:\n");
   for (auto instr_type : all_instrs_) {
     if (instr_type->translation_count) {
-      sb.Append("%8d : %s\n", instr_type->translation_count, instr_type->name);
+      sb.AppendFormat("%8d : %s\n", instr_type->translation_count,
+                      instr_type->name);
     }
   }
   fprintf(stdout, sb.GetString());

@@ -38,6 +38,7 @@
 #include <string.h>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/string_buffer.h"
 
 namespace xe {
 namespace gpu {
@@ -45,28 +46,10 @@ namespace gpu {
 using namespace xe::gpu::ucode;
 using namespace xe::gpu::xenos;
 
-const int OUTPUT_CAPACITY = 256 * 1024;
-struct Output {
-  char buffer[OUTPUT_CAPACITY];
-  size_t capacity;
-  size_t offset;
-  Output() : capacity(OUTPUT_CAPACITY), offset(0) { buffer[0] = 0; }
-  void append(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    int len = vsnprintf(buffer + offset, capacity - offset, format, args);
-    va_end(args);
-    assert_true(offset + len < capacity);
-    offset += len;
-    buffer[offset] = 0;
-  }
-};
-
 static const char* levels[] = {
-    "",                 "\t",                 "\t\t",         "\t\t\t",
-    "\t\t\t\t",         "\t\t\t\t\t",         "\t\t\t\t\t\t", "\t\t\t\t\t\t\t",
-    "\t\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t\t", "x",            "x",
-    "x",                "x",                  "x",            "x",
+    "", "\t", "\t\t", "\t\t\t", "\t\t\t\t", "\t\t\t\t\t", "\t\t\t\t\t\t",
+    "\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t\t", "x", "x", "x",
+    "x", "x", "x",
 };
 
 /*
@@ -79,52 +62,52 @@ static const char chan_names[] = {
     '0', '1', '?', '_',
 };
 
-void print_srcreg(Output* output, uint32_t num, uint32_t type, uint32_t swiz,
-                  uint32_t negate, uint32_t abs_constants,
+void print_srcreg(StringBuffer* output, uint32_t num, uint32_t type,
+                  uint32_t swiz, uint32_t negate, uint32_t abs_constants,
                   ShaderType shader_type) {
   if (negate) {
-    output->append("-");
+    output->Append('-');
   }
   if (type) {
     if (num & 0x80) {
-      output->append("abs(");
+      output->Append("abs(");
     }
-    output->append("R%u", num & 0x7F);
+    output->AppendFormat("R%u", num & 0x7F);
     if (num & 0x80) {
-      output->append(")");
+      output->Append(')');
     }
   } else {
     if (abs_constants) {
-      output->append("|");
+      output->Append('|');
     }
     num += shader_type == ShaderType::kPixel ? 256 : 0;
-    output->append("C%u", num);
+    output->AppendFormat("C%u", num);
     if (abs_constants) {
-      output->append("|");
+      output->Append('|');
     }
   }
   if (swiz) {
-    output->append(".");
+    output->Append('.');
     for (int i = 0; i < 4; i++) {
-      output->append("%c", chan_names[(swiz + i) & 0x3]);
+      output->Append(chan_names[(swiz + i) & 0x3]);
       swiz >>= 2;
     }
   }
 }
 
-void print_dstreg(Output* output, uint32_t num, uint32_t mask,
+void print_dstreg(StringBuffer* output, uint32_t num, uint32_t mask,
                   uint32_t dst_exp) {
-  output->append("%s%u", dst_exp ? "export" : "R", num);
+  output->AppendFormat("%s%u", dst_exp ? "export" : "R", num);
   if (mask != 0xf) {
-    output->append(".");
+    output->Append('.');
     for (int i = 0; i < 4; i++) {
-      output->append("%c", (mask & 0x1) ? chan_names[i] : '_');
+      output->Append((mask & 0x1) ? chan_names[i] : '_');
       mask >>= 1;
     }
   }
 }
 
-void print_export_comment(Output* output, uint32_t num, ShaderType type) {
+void print_export_comment(StringBuffer* output, uint32_t num, ShaderType type) {
   const char* name = NULL;
   switch (type) {
     case ShaderType::kVertex:
@@ -149,46 +132,47 @@ void print_export_comment(Output* output, uint32_t num, ShaderType type) {
    * up the name of the varying..
    */
   if (name) {
-    output->append("\t; %s", name);
+    output->AppendFormat("\t; %s", name);
   }
 }
 
 struct {
   uint32_t num_srcs;
   const char* name;
-} vector_instructions[0x20] = {
+} vector_instructions[0x20] =
+    {
 #define INSTR(opc, num_srcs) \
   { num_srcs, #opc }
-      INSTR(ADDv, 2),               // 0
-      INSTR(MULv, 2),               // 1
-      INSTR(MAXv, 2),               // 2
-      INSTR(MINv, 2),               // 3
-      INSTR(SETEv, 2),              // 4
-      INSTR(SETGTv, 2),             // 5
-      INSTR(SETGTEv, 2),            // 6
-      INSTR(SETNEv, 2),             // 7
-      INSTR(FRACv, 1),              // 8
-      INSTR(TRUNCv, 1),             // 9
-      INSTR(FLOORv, 1),             // 10
-      INSTR(MULADDv, 3),            // 111
-      INSTR(CNDEv, 3),              // 12
-      INSTR(CNDGTEv, 3),            // 13
-      INSTR(CNDGTv, 3),             // 14
-      INSTR(DOT4v, 2),              // 15
-      INSTR(DOT3v, 2),              // 16
-      INSTR(DOT2ADDv, 3),           // 17 -- ???
-      INSTR(CUBEv, 2),              // 18
-      INSTR(MAX4v, 1),              // 19
-      INSTR(PRED_SETE_PUSHv, 2),    // 20
-      INSTR(PRED_SETNE_PUSHv, 2),   // 21
-      INSTR(PRED_SETGT_PUSHv, 2),   // 22
-      INSTR(PRED_SETGTE_PUSHv, 2),  // 23
-      INSTR(KILLEv, 2),             // 24
-      INSTR(KILLGTv, 2),            // 25
-      INSTR(KILLGTEv, 2),           // 26
-      INSTR(KILLNEv, 2),            // 27
-      INSTR(DSTv, 2),               // 28
-      INSTR(MOVAv, 1),              // 29
+     INSTR(ADDv, 2),               // 0
+     INSTR(MULv, 2),               // 1
+     INSTR(MAXv, 2),               // 2
+     INSTR(MINv, 2),               // 3
+     INSTR(SETEv, 2),              // 4
+     INSTR(SETGTv, 2),             // 5
+     INSTR(SETGTEv, 2),            // 6
+     INSTR(SETNEv, 2),             // 7
+     INSTR(FRACv, 1),              // 8
+     INSTR(TRUNCv, 1),             // 9
+     INSTR(FLOORv, 1),             // 10
+     INSTR(MULADDv, 3),            // 111
+     INSTR(CNDEv, 3),              // 12
+     INSTR(CNDGTEv, 3),            // 13
+     INSTR(CNDGTv, 3),             // 14
+     INSTR(DOT4v, 2),              // 15
+     INSTR(DOT3v, 2),              // 16
+     INSTR(DOT2ADDv, 3),           // 17 -- ???
+     INSTR(CUBEv, 2),              // 18
+     INSTR(MAX4v, 1),              // 19
+     INSTR(PRED_SETE_PUSHv, 2),    // 20
+     INSTR(PRED_SETNE_PUSHv, 2),   // 21
+     INSTR(PRED_SETGT_PUSHv, 2),   // 22
+     INSTR(PRED_SETGTE_PUSHv, 2),  // 23
+     INSTR(KILLEv, 2),             // 24
+     INSTR(KILLGTv, 2),            // 25
+     INSTR(KILLGTEv, 2),           // 26
+     INSTR(KILLNEv, 2),            // 27
+     INSTR(DSTv, 2),               // 28
+     INSTR(MOVAv, 1),              // 29
 },
   scalar_instructions[0x40] = {
       INSTR(ADDs, 1),               // 0
@@ -245,77 +229,77 @@ struct {
 #undef INSTR
 };
 
-int disasm_alu(Output* output, const uint32_t* dwords, uint32_t alu_off,
+int disasm_alu(StringBuffer* output, const uint32_t* dwords, uint32_t alu_off,
                int level, int sync, ShaderType type) {
   const instr_alu_t* alu = (const instr_alu_t*)dwords;
 
-  output->append("%s", levels[level]);
-  output->append("%02x: %08x %08x %08x\t", alu_off, dwords[0], dwords[1],
-                 dwords[2]);
+  output->Append(levels[level]);
+  output->AppendFormat("%02x: %08x %08x %08x\t", alu_off, dwords[0], dwords[1],
+                       dwords[2]);
 
-  output->append("   %sALU:\t", sync ? "(S)" : "   ");
+  output->AppendFormat("   %sALU:\t", sync ? "(S)" : "   ");
 
   if (!alu->scalar_write_mask && !alu->vector_write_mask) {
-    output->append("   <nop>\n");
+    output->Append("   <nop>\n");
   }
 
   if (alu->vector_write_mask) {
-    output->append("%s", vector_instructions[alu->vector_opc].name);
+    output->Append(vector_instructions[alu->vector_opc].name);
 
     if (alu->pred_select & 0x2) {
       // seems to work similar to conditional execution in ARM instruction
       // set, so let's use a similar syntax for now:
-      output->append((alu->pred_select & 0x1) ? "EQ" : "NE");
+      output->Append((alu->pred_select & 0x1) ? "EQ" : "NE");
     }
 
-    output->append("\t");
+    output->Append("\t");
 
     print_dstreg(output, alu->vector_dest, alu->vector_write_mask,
                  alu->export_data);
-    output->append(" = ");
+    output->Append(" = ");
     if (vector_instructions[alu->vector_opc].num_srcs == 3) {
       print_srcreg(output, alu->src3_reg, alu->src3_sel, alu->src3_swiz,
                    alu->src3_reg_negate, alu->abs_constants, type);
-      output->append(", ");
+      output->Append(", ");
     }
     print_srcreg(output, alu->src1_reg, alu->src1_sel, alu->src1_swiz,
                  alu->src1_reg_negate, alu->abs_constants, type);
     if (vector_instructions[alu->vector_opc].num_srcs > 1) {
-      output->append(", ");
+      output->Append(", ");
       print_srcreg(output, alu->src2_reg, alu->src2_sel, alu->src2_swiz,
                    alu->src2_reg_negate, alu->abs_constants, type);
     }
 
     if (alu->vector_clamp) {
-      output->append(" CLAMP");
+      output->Append(" CLAMP");
     }
     if (alu->pred_select) {
-      output->append(" COND(%d)", alu->pred_condition);
+      output->AppendFormat(" COND(%d)", alu->pred_condition);
     }
     if (alu->export_data) {
       print_export_comment(output, alu->vector_dest, type);
     }
 
-    output->append("\n");
+    output->Append('\n');
   }
 
   if (alu->scalar_write_mask || !alu->vector_write_mask) {
     // 2nd optional scalar op:
 
     if (alu->vector_write_mask) {
-      output->append("%s", levels[level]);
-      output->append("                          \t\t\t\t\t\t    \t");
+      output->Append(levels[level]);
+      output->AppendFormat("                          \t\t\t\t\t\t    \t");
     }
 
     if (scalar_instructions[alu->scalar_opc].name) {
-      output->append("%s\t", scalar_instructions[alu->scalar_opc].name);
+      output->AppendFormat("%s\t", scalar_instructions[alu->scalar_opc].name);
     } else {
-      output->append("OP(%u)\t", alu->scalar_opc);
+      output->AppendFormat("OP(%u)\t", alu->scalar_opc);
     }
 
     print_dstreg(output, alu->scalar_dest, alu->scalar_write_mask,
                  alu->export_data);
-    output->append(" = ");
+    output->Append(" = ");
     if (scalar_instructions[alu->scalar_opc].num_srcs == 2) {
       // MUL/ADD/etc
       // Clever, CONST_0 and CONST_1 are just an extra storage bit.
@@ -325,24 +309,24 @@ int disasm_alu(Output* output, const uint32_t* dwords, uint32_t alu_off,
       uint32_t swiz_b = (src3_swiz & 0x3);
       print_srcreg(output, alu->src3_reg, 0, 0, alu->src3_reg_negate,
                    alu->abs_constants, type);
-      output->append(".%c", chan_names[swiz_a]);
-      output->append(", ");
+      output->AppendFormat(".%c", chan_names[swiz_a]);
+      output->Append(", ");
       uint32_t reg2 = (alu->scalar_opc & 1) | (alu->src3_swiz & 0x3C) |
                       (alu->src3_sel << 1);
       print_srcreg(output, reg2, 1, 0, alu->src3_reg_negate, alu->abs_constants,
                    type);
-      output->append(".%c", chan_names[swiz_b]);
+      output->AppendFormat(".%c", chan_names[swiz_b]);
     } else {
       print_srcreg(output, alu->src3_reg, alu->src3_sel, alu->src3_swiz,
                    alu->src3_reg_negate, alu->abs_constants, type);
     }
     if (alu->scalar_clamp) {
-      output->append(" CLAMP");
+      output->Append(" CLAMP");
     }
     if (alu->export_data) {
       print_export_comment(output, alu->scalar_dest, type);
     }
-    output->append("\n");
+    output->Append('\n');
   }
 
   return 0;
@@ -353,115 +337,117 @@ struct {
 } fetch_types[0xff] = {
 #define TYPE(id) \
   { #id }
-      TYPE(FMT_1_REVERSE),  // 0
-      {0},
-      TYPE(FMT_8),  // 2
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_8_8_8_8),     // 6
-      TYPE(FMT_2_10_10_10),  // 7
-      {0},
-      {0},
-      TYPE(FMT_8_8),  // 10
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_16),           // 24
-      TYPE(FMT_16_16),        // 25
-      TYPE(FMT_16_16_16_16),  // 26
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_32),                 // 33
-      TYPE(FMT_32_32),              // 34
-      TYPE(FMT_32_32_32_32),        // 35
-      TYPE(FMT_32_FLOAT),           // 36
-      TYPE(FMT_32_32_FLOAT),        // 37
-      TYPE(FMT_32_32_32_32_FLOAT),  // 38
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      {0},
-      TYPE(FMT_32_32_32_FLOAT),  // 57
+    TYPE(FMT_1_REVERSE),  // 0
+    {0},
+    TYPE(FMT_8),  // 2
+    {0},
+    {0},
+    {0},
+    TYPE(FMT_8_8_8_8),     // 6
+    TYPE(FMT_2_10_10_10),  // 7
+    {0},
+    {0},
+    TYPE(FMT_8_8),  // 10
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    TYPE(FMT_16),           // 24
+    TYPE(FMT_16_16),        // 25
+    TYPE(FMT_16_16_16_16),  // 26
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    TYPE(FMT_32),                 // 33
+    TYPE(FMT_32_32),              // 34
+    TYPE(FMT_32_32_32_32),        // 35
+    TYPE(FMT_32_FLOAT),           // 36
+    TYPE(FMT_32_32_FLOAT),        // 37
+    TYPE(FMT_32_32_32_32_FLOAT),  // 38
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    {0},
+    TYPE(FMT_32_32_32_FLOAT),  // 57
 #undef TYPE
 };
 
-void print_fetch_dst(Output* output, uint32_t dst_reg, uint32_t dst_swiz) {
-  output->append("\tR%u.", dst_reg);
+void print_fetch_dst(StringBuffer* output, uint32_t dst_reg,
+                     uint32_t dst_swiz) {
+  output->AppendFormat("\tR%u.", dst_reg);
   for (int i = 0; i < 4; i++) {
-    output->append("%c", chan_names[dst_swiz & 0x7]);
+    output->Append(chan_names[dst_swiz & 0x7]);
     dst_swiz >>= 3;
   }
 }
 
-void print_fetch_vtx(Output* output, const instr_fetch_t* fetch) {
+void print_fetch_vtx(StringBuffer* output, const instr_fetch_t* fetch) {
   const instr_fetch_vtx_t* vtx = &fetch->vtx;
 
   if (vtx->pred_select) {
     // seems to work similar to conditional execution in ARM instruction
     // set, so let's use a similar syntax for now:
-    output->append(vtx->pred_condition ? "EQ" : "NE");
+    output->Append(vtx->pred_condition ? "EQ" : "NE");
   }
 
   print_fetch_dst(output, vtx->dst_reg, vtx->dst_swiz);
-  output->append(" = R%u.", vtx->src_reg);
-  output->append("%c", chan_names[vtx->src_swiz & 0x3]);
+  output->AppendFormat(" = R%u.", vtx->src_reg);
+  output->Append(chan_names[vtx->src_swiz & 0x3]);
   if (fetch_types[vtx->format].name) {
-    output->append(" %s", fetch_types[vtx->format].name);
+    output->AppendFormat(" %s", fetch_types[vtx->format].name);
   } else {
-    output->append(" TYPE(0x%x)", vtx->format);
+    output->AppendFormat(" TYPE(0x%x)", vtx->format);
   }
-  output->append(" %s", vtx->format_comp_all ? "SIGNED" : "UNSIGNED");
+  output->AppendFormat(" %s", vtx->format_comp_all ? "SIGNED" : "UNSIGNED");
   if (!vtx->num_format_all) {
-    output->append(" NORMALIZED");
+    output->Append(" NORMALIZED");
   }
-  output->append(" STRIDE(%u)", vtx->stride);
+  output->AppendFormat(" STRIDE(%u)", vtx->stride);
   if (vtx->offset) {
-    output->append(" OFFSET(%u)", vtx->offset);
+    output->AppendFormat(" OFFSET(%u)", vtx->offset);
   }
-  output->append(" CONST(%u, %u)", vtx->const_index, vtx->const_index_sel);
+  output->AppendFormat(" CONST(%u, %u)", vtx->const_index,
+                       vtx->const_index_sel);
   if (vtx->pred_select) {
-    output->append(" COND(%d)", vtx->pred_condition);
+    output->AppendFormat(" COND(%d)", vtx->pred_condition);
   }
   if (1) {
     // XXX
-    output->append(" src_reg_am=%u", vtx->src_reg_am);
-    output->append(" dst_reg_am=%u", vtx->dst_reg_am);
-    output->append(" num_format_all=%u", vtx->num_format_all);
-    output->append(" signed_rf_mode_all=%u", vtx->signed_rf_mode_all);
-    output->append(" exp_adjust_all=%u", vtx->exp_adjust_all);
+    output->AppendFormat(" src_reg_am=%u", vtx->src_reg_am);
+    output->AppendFormat(" dst_reg_am=%u", vtx->dst_reg_am);
+    output->AppendFormat(" num_format_all=%u", vtx->num_format_all);
+    output->AppendFormat(" signed_rf_mode_all=%u", vtx->signed_rf_mode_all);
+    output->AppendFormat(" exp_adjust_all=%u", vtx->exp_adjust_all);
   }
 }
 
-void print_fetch_tex(Output* output, const instr_fetch_t* fetch) {
+void print_fetch_tex(StringBuffer* output, const instr_fetch_t* fetch) {
   static const char* filter[] = {
       "POINT",    // TEX_FILTER_POINT
       "LINEAR",   // TEX_FILTER_LINEAR
@@ -493,219 +479,215 @@ void print_fetch_tex(Output* output, const instr_fetch_t* fetch) {
   if (tex->pred_select) {
     // seems to work similar to conditional execution in ARM instruction
     // set, so let's use a similar syntax for now:
-    output->append(tex->pred_condition ? "EQ" : "NE");
+    output->Append(tex->pred_condition ? "EQ" : "NE");
   }
 
   print_fetch_dst(output, tex->dst_reg, tex->dst_swiz);
-  output->append(" = R%u.", tex->src_reg);
+  output->AppendFormat(" = R%u.", tex->src_reg);
   for (int i = 0; i < 3; i++) {
-    output->append("%c", chan_names[src_swiz & 0x3]);
+    output->Append(chan_names[src_swiz & 0x3]);
     src_swiz >>= 2;
   }
-  output->append(" CONST(%u)", tex->const_idx);
+  output->AppendFormat(" CONST(%u)", tex->const_idx);
   if (tex->fetch_valid_only) {
-    output->append(" VALID_ONLY");
+    output->Append(" VALID_ONLY");
   }
   if (tex->tx_coord_denorm) {
-    output->append(" DENORM");
+    output->Append(" DENORM");
   }
   if (tex->mag_filter != TEX_FILTER_USE_FETCH_CONST) {
-    output->append(" MAG(%s)", filter[tex->mag_filter]);
+    output->AppendFormat(" MAG(%s)", filter[tex->mag_filter]);
   }
   if (tex->min_filter != TEX_FILTER_USE_FETCH_CONST) {
-    output->append(" MIN(%s)", filter[tex->min_filter]);
+    output->AppendFormat(" MIN(%s)", filter[tex->min_filter]);
   }
   if (tex->mip_filter != TEX_FILTER_USE_FETCH_CONST) {
-    output->append(" MIP(%s)", filter[tex->mip_filter]);
+    output->AppendFormat(" MIP(%s)", filter[tex->mip_filter]);
   }
   if (tex->aniso_filter != ANISO_FILTER_USE_FETCH_CONST) {
-    output->append(" ANISO(%s)", aniso_filter[tex->aniso_filter]);
+    output->AppendFormat(" ANISO(%s)", aniso_filter[tex->aniso_filter]);
   }
   if (tex->arbitrary_filter != ARBITRARY_FILTER_USE_FETCH_CONST) {
-    output->append(" ARBITRARY(%s)", arbitrary_filter[tex->arbitrary_filter]);
+    output->AppendFormat(" ARBITRARY(%s)",
+                         arbitrary_filter[tex->arbitrary_filter]);
   }
   if (tex->vol_mag_filter != TEX_FILTER_USE_FETCH_CONST) {
-    output->append(" VOL_MAG(%s)", filter[tex->vol_mag_filter]);
+    output->AppendFormat(" VOL_MAG(%s)", filter[tex->vol_mag_filter]);
   }
   if (tex->vol_min_filter != TEX_FILTER_USE_FETCH_CONST) {
-    output->append(" VOL_MIN(%s)", filter[tex->vol_min_filter]);
+    output->AppendFormat(" VOL_MIN(%s)", filter[tex->vol_min_filter]);
   }
   if (!tex->use_comp_lod) {
-    output->append(" LOD(%u)", tex->use_comp_lod);
-    output->append(" LOD_BIAS(%u)", tex->lod_bias);
+    output->AppendFormat(" LOD(%u)", tex->use_comp_lod);
+    output->AppendFormat(" LOD_BIAS(%u)", tex->lod_bias);
   }
   if (tex->use_reg_lod) {
-    output->append(" REG_LOD(%u)", tex->use_reg_lod);
+    output->AppendFormat(" REG_LOD(%u)", tex->use_reg_lod);
   }
   if (tex->use_reg_gradients) {
-    output->append(" USE_REG_GRADIENTS");
+    output->Append(" USE_REG_GRADIENTS");
   }
-  output->append(" LOCATION(%s)", sample_loc[tex->sample_location]);
+  output->AppendFormat(" LOCATION(%s)", sample_loc[tex->sample_location]);
   if (tex->offset_x || tex->offset_y || tex->offset_z) {
-    output->append(" OFFSET(%u,%u,%u)", tex->offset_x, tex->offset_y,
-                   tex->offset_z);
+    output->AppendFormat(" OFFSET(%u,%u,%u)", tex->offset_x, tex->offset_y,
+                         tex->offset_z);
   }
   if (tex->pred_select) {
-    output->append(" COND(%d)", tex->pred_condition);
+    output->AppendFormat(" COND(%d)", tex->pred_condition);
   }
 }
 
 struct {
   const char* name;
-  void (*fxn)(Output* output, const instr_fetch_t* cf);
+  void (*fxn)(StringBuffer* output, const instr_fetch_t* cf);
 } fetch_instructions[] = {
 #define INSTR(opc, name, fxn) \
   { name, fxn }
-      INSTR(VTX_FETCH, "VERTEX", print_fetch_vtx),  // 0
-      INSTR(TEX_FETCH, "SAMPLE", print_fetch_tex),  // 1
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      INSTR(TEX_GET_BORDER_COLOR_FRAC, "?", print_fetch_tex),  // 16
-      INSTR(TEX_GET_COMP_TEX_LOD, "?", print_fetch_tex),       // 17
-      INSTR(TEX_GET_GRADIENTS, "?", print_fetch_tex),          // 18
-      INSTR(TEX_GET_WEIGHTS, "?", print_fetch_tex),            // 19
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      {0, 0},
-      INSTR(TEX_SET_TEX_LOD, "SET_TEX_LOD", print_fetch_tex),  // 24
-      INSTR(TEX_SET_GRADIENTS_H, "?", print_fetch_tex),        // 25
-      INSTR(TEX_SET_GRADIENTS_V, "?", print_fetch_tex),        // 26
-      INSTR(TEX_RESERVED_4, "?", print_fetch_tex),             // 27
+    INSTR(VTX_FETCH, "VERTEX", print_fetch_vtx),  // 0
+    INSTR(TEX_FETCH, "SAMPLE", print_fetch_tex),  // 1
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    INSTR(TEX_GET_BORDER_COLOR_FRAC, "?", print_fetch_tex),  // 16
+    INSTR(TEX_GET_COMP_TEX_LOD, "?", print_fetch_tex),       // 17
+    INSTR(TEX_GET_GRADIENTS, "?", print_fetch_tex),          // 18
+    INSTR(TEX_GET_WEIGHTS, "?", print_fetch_tex),            // 19
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    {0, 0},
+    INSTR(TEX_SET_TEX_LOD, "SET_TEX_LOD", print_fetch_tex),  // 24
+    INSTR(TEX_SET_GRADIENTS_H, "?", print_fetch_tex),        // 25
+    INSTR(TEX_SET_GRADIENTS_V, "?", print_fetch_tex),        // 26
+    INSTR(TEX_RESERVED_4, "?", print_fetch_tex),             // 27
 #undef INSTR
 };
 
-int disasm_fetch(Output* output, const uint32_t* dwords, uint32_t alu_off,
+int disasm_fetch(StringBuffer* output, const uint32_t* dwords, uint32_t alu_off,
                  int level, int sync) {
   const instr_fetch_t* fetch = (const instr_fetch_t*)dwords;
 
-  output->append("%s", levels[level]);
-  output->append("%02x: %08x %08x %08x\t", alu_off, dwords[0], dwords[1],
-                 dwords[2]);
+  output->Append(levels[level]);
+  output->AppendFormat("%02x: %08x %08x %08x\t", alu_off, dwords[0], dwords[1],
+                       dwords[2]);
 
-  output->append("   %sFETCH:\t", sync ? "(S)" : "   ");
+  output->AppendFormat("   %sFETCH:\t", sync ? "(S)" : "   ");
   if (fetch_instructions[fetch->opc].fxn) {
-    output->append("%s", fetch_instructions[fetch->opc].name);
+    output->Append(fetch_instructions[fetch->opc].name);
     fetch_instructions[fetch->opc].fxn(output, fetch);
   } else {
-    output->append("???");
+    output->Append("???");
   }
-  output->append("\n");
+  output->Append('\n');
 
   return 0;
 }
 
-void print_cf_nop(Output* output, const instr_cf_t* cf) {}
+void print_cf_nop(StringBuffer* output, const instr_cf_t* cf) {}
 
-void print_cf_exec(Output* output, const instr_cf_t* cf) {
-  output->append(" ADDR(0x%x) CNT(0x%x)", cf->exec.address, cf->exec.count);
+void print_cf_exec(StringBuffer* output, const instr_cf_t* cf) {
+  output->AppendFormat(" ADDR(0x%x) CNT(0x%x)", cf->exec.address,
+                       cf->exec.count);
   if (cf->exec.yeild) {
-    output->append(" YIELD");
+    output->Append(" YIELD");
   }
   uint8_t vc = cf->exec.vc_hi | (cf->exec.vc_lo << 2);
   if (vc) {
-    output->append(" VC(0x%x)", vc);
+    output->AppendFormat(" VC(0x%x)", vc);
   }
   if (cf->exec.bool_addr) {
-    output->append(" BOOL_ADDR(0x%x)", cf->exec.bool_addr);
+    output->AppendFormat(" BOOL_ADDR(0x%x)", cf->exec.bool_addr);
   }
   if (cf->exec.address_mode == ABSOLUTE_ADDR) {
-    output->append(" ABSOLUTE_ADDR");
+    output->Append(" ABSOLUTE_ADDR");
   }
   if (cf->is_cond_exec()) {
-    output->append(" COND(%d)", cf->exec.pred_condition);
+    output->AppendFormat(" COND(%d)", cf->exec.pred_condition);
   }
 }
 
-void print_cf_loop(Output* output, const instr_cf_t* cf) {
-  output->append(" ADDR(0x%x) LOOP_ID(%d)", cf->loop.address, cf->loop.loop_id);
+void print_cf_loop(StringBuffer* output, const instr_cf_t* cf) {
+  output->AppendFormat(" ADDR(0x%x) LOOP_ID(%d)", cf->loop.address,
+                       cf->loop.loop_id);
   if (cf->loop.address_mode == ABSOLUTE_ADDR) {
-    output->append(" ABSOLUTE_ADDR");
+    output->Append(" ABSOLUTE_ADDR");
   }
 }
 
-void print_cf_jmp_call(Output* output, const instr_cf_t* cf) {
-  output->append(" ADDR(0x%x) DIR(%d)", cf->jmp_call.address,
-                 cf->jmp_call.direction);
+void print_cf_jmp_call(StringBuffer* output, const instr_cf_t* cf) {
+  output->AppendFormat(" ADDR(0x%x) DIR(%d)", cf->jmp_call.address,
+                       cf->jmp_call.direction);
   if (cf->jmp_call.force_call) {
-    output->append(" FORCE_CALL");
+    output->Append(" FORCE_CALL");
   }
   if (cf->jmp_call.predicated_jmp) {
-    output->append(" COND(%d)", cf->jmp_call.condition);
+    output->AppendFormat(" COND(%d)", cf->jmp_call.condition);
   }
   if (cf->jmp_call.bool_addr) {
-    output->append(" BOOL_ADDR(0x%x)", cf->jmp_call.bool_addr);
+    output->AppendFormat(" BOOL_ADDR(0x%x)", cf->jmp_call.bool_addr);
   }
   if (cf->jmp_call.address_mode == ABSOLUTE_ADDR) {
-    output->append(" ABSOLUTE_ADDR");
+    output->Append(" ABSOLUTE_ADDR");
   }
 }
 
-void print_cf_alloc(Output* output, const instr_cf_t* cf) {
+void print_cf_alloc(StringBuffer* output, const instr_cf_t* cf) {
   static const char* bufname[] = {
       "NO ALLOC",     // SQ_NO_ALLOC
       "POSITION",     // SQ_POSITION
       "PARAM/PIXEL",  // SQ_PARAMETER_PIXEL
       "MEMORY",       // SQ_MEMORY
   };
-  output->append(" %s SIZE(0x%x)", bufname[cf->alloc.buffer_select],
-                 cf->alloc.size);
+  output->AppendFormat(" %s SIZE(0x%x)", bufname[cf->alloc.buffer_select],
+                       cf->alloc.size);
   if (cf->alloc.no_serial) {
-    output->append(" NO_SERIAL");
+    output->Append(" NO_SERIAL");
   }
   if (cf->alloc.alloc_mode) {
     // ???
-    output->append(" ALLOC_MODE");
+    output->Append(" ALLOC_MODE");
   }
 }
 
 struct {
   const char* name;
-  void (*fxn)(Output* output, const instr_cf_t* cf);
+  void (*fxn)(StringBuffer* output, const instr_cf_t* cf);
 } cf_instructions[] = {
 #define INSTR(opc, fxn) \
   { #opc, fxn }
-      INSTR(NOP, print_cf_nop),
-      INSTR(EXEC, print_cf_exec),
-      INSTR(EXEC_END, print_cf_exec),
-      INSTR(COND_EXEC, print_cf_exec),
-      INSTR(COND_EXEC_END, print_cf_exec),
-      INSTR(COND_PRED_EXEC, print_cf_exec),
-      INSTR(COND_PRED_EXEC_END, print_cf_exec),
-      INSTR(LOOP_START, print_cf_loop),
-      INSTR(LOOP_END, print_cf_loop),
-      INSTR(COND_CALL, print_cf_jmp_call),
-      INSTR(RETURN, print_cf_jmp_call),
-      INSTR(COND_JMP, print_cf_jmp_call),
-      INSTR(ALLOC, print_cf_alloc),
-      INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
-      INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
-      INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
+    INSTR(NOP, print_cf_nop), INSTR(EXEC, print_cf_exec),
+    INSTR(EXEC_END, print_cf_exec), INSTR(COND_EXEC, print_cf_exec),
+    INSTR(COND_EXEC_END, print_cf_exec), INSTR(COND_PRED_EXEC, print_cf_exec),
+    INSTR(COND_PRED_EXEC_END, print_cf_exec), INSTR(LOOP_START, print_cf_loop),
+    INSTR(LOOP_END, print_cf_loop), INSTR(COND_CALL, print_cf_jmp_call),
+    INSTR(RETURN, print_cf_jmp_call), INSTR(COND_JMP, print_cf_jmp_call),
+    INSTR(ALLOC, print_cf_alloc), INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
+    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
+    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
 #undef INSTR
 };
 
-static void print_cf(Output* output, const instr_cf_t* cf, int level) {
-  output->append("%s", levels[level]);
+static void print_cf(StringBuffer* output, const instr_cf_t* cf, int level) {
+  output->Append(levels[level]);
 
   const uint16_t* words = (uint16_t*)cf;
-  output->append("    %04x %04x %04x            \t", words[0], words[1],
-                 words[2]);
+  output->AppendFormat("    %04x %04x %04x            \t", words[0], words[1],
+                       words[2]);
 
-  output->append("%s", cf_instructions[cf->opc].name);
+  output->AppendFormat(cf_instructions[cf->opc].name);
   cf_instructions[cf->opc].fxn(output, cf);
-  output->append("\n");
+  output->Append('\n');
 }
 
 /*
@@ -714,8 +696,9 @@ static void print_cf(Output* output, const instr_cf_t* cf, int level) {
  *      which refers to ALU/FETCH instructions that follow it by address.
  *   2) ALU and FETCH instructions
  */
-void disasm_exec(Output* output, const uint32_t* dwords, size_t dword_count,
-                 int level, ShaderType type, const instr_cf_t* cf) {
+void disasm_exec(StringBuffer* output, const uint32_t* dwords,
+                 size_t dword_count, int level, ShaderType type,
+                 const instr_cf_t* cf) {
   uint32_t sequence = cf->exec.serialize;
   for (uint32_t i = 0; i < cf->exec.count; i++) {
     uint32_t alu_off = (cf->exec.address + i);
@@ -732,7 +715,7 @@ void disasm_exec(Output* output, const uint32_t* dwords, size_t dword_count,
 
 std::string DisassembleShader(ShaderType type, const uint32_t* dwords,
                               size_t dword_count) {
-  Output* output = new Output();
+  StringBuffer string_buffer(256 * 1024);
 
   instr_cf_t cfa;
   instr_cf_t cfb;
@@ -744,22 +727,20 @@ std::string DisassembleShader(ShaderType type, const uint32_t* dwords,
     cfa.dword_1 = dword_1 & 0xFFFF;
     cfb.dword_0 = (dword_1 >> 16) | (dword_2 << 16);
     cfb.dword_1 = dword_2 >> 16;
-    print_cf(output, &cfa, 0);
+    print_cf(&string_buffer, &cfa, 0);
     if (cfa.is_exec()) {
-      disasm_exec(output, dwords, dword_count, 0, type, &cfa);
+      disasm_exec(&string_buffer, dwords, dword_count, 0, type, &cfa);
     }
-    print_cf(output, &cfb, 0);
+    print_cf(&string_buffer, &cfb, 0);
     if (cfb.is_exec()) {
-      disasm_exec(output, dwords, dword_count, 0, type, &cfb);
+      disasm_exec(&string_buffer, dwords, dword_count, 0, type, &cfb);
     }
     if (cfa.opc == EXEC_END || cfb.opc == EXEC_END) {
       break;
     }
   }
 
-  auto result = std::string(output->buffer);
-  delete output;
-  return result;
+  return string_buffer.to_string();
 }
 
 }  // namespace gpu

@@ -117,7 +117,7 @@ void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
       if (map_entry->source_offset == prev_source_offset) {
         str->Append("         ");
       } else {
-        str->Append("%.8X ", map_entry->source_offset);
+        str->AppendFormat("%.8X ", map_entry->source_offset);
         prev_source_offset = map_entry->source_offset;
       }
     } else {
@@ -128,7 +128,7 @@ void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
     if (len == BE::UNKNOWN_OPCODE) {
       break;
     }
-    str->Append("%p  %s\n", disasm.EIP, disasm.CompleteInstr);
+    str->AppendFormat("%p  %s\n", disasm.EIP, disasm.CompleteInstr);
     disasm.EIP += len;
   }
 }

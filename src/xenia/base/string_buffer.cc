@@ -32,11 +32,19 @@ void StringBuffer::Grow(size_t additional_length) {
   buffer_.reserve(new_capacity);
 }
 
+void StringBuffer::Append(char c) {
+  AppendBytes(reinterpret_cast<const uint8_t*>(&c), 1);
+}
+
+void StringBuffer::Append(const char* value) {
+  AppendBytes(reinterpret_cast<const uint8_t*>(value), std::strlen(value));
+}
+
 void StringBuffer::Append(const std::string& value) {
   AppendBytes(reinterpret_cast<const uint8_t*>(value.data()), value.size());
 }
 
-void StringBuffer::Append(const char* format, ...) {
+void StringBuffer::AppendFormat(const char* format, ...) {
   va_list args;
   va_start(args, format);
   AppendVarargs(format, args);

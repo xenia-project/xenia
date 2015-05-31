@@ -25,8 +25,10 @@ class StringBuffer {
 
   void Reset();
 
+  void Append(char c);
+  void Append(const char* value);
   void Append(const std::string& value);
-  void Append(const char* format, ...);
+  void AppendFormat(const char* format, ...);
   void AppendVarargs(const char* format, va_list args);
   void AppendBytes(const uint8_t* buffer, size_t length);
 
