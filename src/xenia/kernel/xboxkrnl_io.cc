@@ -564,7 +564,8 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   object_ref<XFile> root_file;
-  if (attrs.root_directory != 0xFFFFFFFD) {  // ObDosDevices
+  if (attrs.root_directory != 0xFFFFFFFD &&  // ObDosDevices
+      attrs.root_directory != 0) {
     root_file =
         kernel_state->object_table()->LookupObject<XFile>(attrs.root_directory);
     assert_not_null(root_file);
