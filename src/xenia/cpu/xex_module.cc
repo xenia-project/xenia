@@ -234,8 +234,13 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
 
         FunctionInfo::ExternHandler handler = 0;
         if (kernel_export) {
-          handler =
-              (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
+          if (kernel_export->function_data.trampoline) {
+            handler = (FunctionInfo::ExternHandler)
+                          kernel_export->function_data.trampoline;
+          } else {
+            handler =
+                (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
+          }
         } else {
           handler = UndefinedImport;
         }

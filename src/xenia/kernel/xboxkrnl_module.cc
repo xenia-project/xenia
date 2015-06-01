@@ -149,13 +149,19 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
       WT_EXECUTEINTIMERTHREAD);
 }
 
+std::vector<xe::cpu::Export*> xboxkrnl_exports;
+
+xe::cpu::Export* RegisterExport_xboxkrnl(xe::cpu::Export* export) {
+  if (xboxkrnl_exports.size() <= export->ordinal) {
+    xboxkrnl_exports.resize(xe::round_up(export->ordinal, 256));
+  }
+  xboxkrnl_exports[export->ordinal] = export;
+  return export;
+}
+
 void XboxkrnlModule::RegisterExportTable(
     xe::cpu::ExportResolver* export_resolver) {
   assert_not_null(export_resolver);
-
-  if (!export_resolver) {
-    return;
-  }
 
 // Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
@@ -163,8 +169,16 @@ void XboxkrnlModule::RegisterExportTable(
 #include "xenia/kernel/xboxkrnl_table.inc"
   };
 #include "xenia/kernel/util/export_table_post.inc"
-  export_resolver->RegisterTable("xboxkrnl.exe", xboxkrnl_export_table,
-                                 xe::countof(xboxkrnl_export_table));
+  for (size_t i = 0; i < xe::countof(xboxkrnl_export_table); ++i) {
+    auto& export = xboxkrnl_export_table[i];
+    if (xboxkrnl_exports.size() <= export.ordinal) {
+      xboxkrnl_exports.resize(xe::round_up(export.ordinal, 256));
+    }
+    if (!xboxkrnl_exports[export.ordinal]) {
+      xboxkrnl_exports[export.ordinal] = &export;
+    }
+  }
+  export_resolver->RegisterTable("xboxkrnl.exe", &xboxkrnl_exports);
 }
 
 XboxkrnlModule::~XboxkrnlModule() {

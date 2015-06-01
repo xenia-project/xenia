@@ -17,6 +17,8 @@ namespace kernel {
 
 class KernelState;
 
+xe::cpu::Export* RegisterExport_xboxkrnl(xe::cpu::Export* export);
+
 namespace xboxkrnl {
 // Registration functions, one per file.
 void RegisterAudioExports(xe::cpu::ExportResolver* export_resolver,

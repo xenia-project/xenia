@@ -33,12 +33,18 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   xam::RegisterVoiceExports(export_resolver_, kernel_state_);
 }
 
+std::vector<xe::cpu::Export*> xam_exports;
+
+xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export) {
+  if (xam_exports.size() <= export->ordinal) {
+    xam_exports.resize(xe::round_up(export->ordinal, 256));
+  }
+  xam_exports[export->ordinal] = export;
+  return export;
+}
+
 void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
   assert_not_null(export_resolver);
-
-  if (!export_resolver) {
-    return;
-  }
 
 // Build the export table used for resolution.
 #include "xenia/kernel/util/export_table_pre.inc"
@@ -46,8 +52,16 @@ void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
 #include "xenia/kernel/xam_table.inc"
   };
 #include "xenia/kernel/util/export_table_post.inc"
-  export_resolver->RegisterTable("xam.xex", xam_export_table,
-                                 xe::countof(xam_export_table));
+  for (size_t i = 0; i < xe::countof(xam_export_table); ++i) {
+    auto& export = xam_export_table[i];
+    if (xam_exports.size() <= export.ordinal) {
+      xam_exports.resize(xe::round_up(export.ordinal, 256));
+    }
+    if (!xam_exports[export.ordinal]) {
+      xam_exports[export.ordinal] = &export;
+    }
+  }
+  export_resolver->RegisterTable("xam.xex", &xam_exports);
 }
 
 XamModule::~XamModule() {}

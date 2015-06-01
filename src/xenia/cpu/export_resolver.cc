@@ -19,22 +19,20 @@ ExportResolver::ExportResolver() {}
 
 ExportResolver::~ExportResolver() {}
 
-void ExportResolver::RegisterTable(const std::string& library_name,
-                                   Export* exports, const size_t count) {
-  tables_.emplace_back(library_name, exports, count);
+void ExportResolver::RegisterTable(
+    const std::string& library_name,
+    const std::vector<xe::cpu::Export*>* exports) {
+  tables_.emplace_back(library_name, exports);
 }
 
 Export* ExportResolver::GetExportByOrdinal(const std::string& library_name,
                                            uint16_t ordinal) {
   for (const auto& table : tables_) {
     if (table.name == library_name || table.simple_name == library_name) {
-      // TODO(benvanik): binary search?
-      for (size_t n = 0; n < table.count; n++) {
-        if (table.exports[n].ordinal == ordinal) {
-          return &table.exports[n];
-        }
+      if (ordinal > table.exports->size()) {
+        return nullptr;
       }
-      return nullptr;
+      return table.exports->at(ordinal);
     }
   }
   return nullptr;

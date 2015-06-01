@@ -417,9 +417,8 @@ uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
 }
 void X64Emitter::CallExtern(const hir::Instr* instr,
                             const FunctionInfo* symbol_info) {
-  if (!symbol_info->extern_handler()) {
-    CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
-  } else if (symbol_info->behavior() == FunctionBehavior::kBuiltin) {
+  if (symbol_info->behavior() == FunctionBehavior::kBuiltin &&
+      symbol_info->builtin_handler()) {
     // rcx = context
     // rdx = target host function
     // r8  = arg0
@@ -433,7 +432,8 @@ void X64Emitter::CallExtern(const hir::Instr* instr,
     ReloadECX();
     ReloadEDX();
     // rax = host return
-  } else if (symbol_info->behavior() == FunctionBehavior::kExtern) {
+  } else if (symbol_info->behavior() == FunctionBehavior::kExtern &&
+             symbol_info->extern_handler()) {
     // rcx = context
     // rdx = target host function
     mov(rdx, reinterpret_cast<uint64_t>(symbol_info->extern_handler()));
@@ -444,6 +444,8 @@ void X64Emitter::CallExtern(const hir::Instr* instr,
     ReloadECX();
     ReloadEDX();
     // rax = host return
+  } else {
+    CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
   }
 }
 

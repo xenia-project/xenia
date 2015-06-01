@@ -89,8 +89,8 @@ class ExportResolver {
   ExportResolver();
   ~ExportResolver();
 
-  void RegisterTable(const std::string& library_name, Export* exports,
-                     const size_t count);
+  void RegisterTable(const std::string& library_name,
+                     const std::vector<Export*>* exports);
 
   Export* GetExportByOrdinal(const std::string& library_name, uint16_t ordinal);
 
@@ -105,10 +105,9 @@ class ExportResolver {
   struct ExportTable {
     std::string name;
     std::string simple_name;  // without extension
-    Export* exports;
-    size_t count;
-    ExportTable(const std::string& name, Export* exports, size_t count)
-        : name(name), exports(exports), count(count) {
+    const std::vector<Export*>* exports;
+    ExportTable(const std::string& name, const std::vector<Export*>* exports)
+        : name(name), exports(exports) {
       auto dot_pos = name.find_last_of('.');
       if (dot_pos != std::string::npos) {
         simple_name = name.substr(0, dot_pos);
