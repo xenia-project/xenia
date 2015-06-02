@@ -911,12 +911,12 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
-SHIM_CALL _vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("_vswprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
+  XELOGD("vswprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
 
   if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -969,6 +969,6 @@ void xe::kernel::xboxkrnl::RegisterStringExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", sprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", _vswprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", vswprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vscwprintf, state);
 }
