@@ -49,28 +49,32 @@ inline uint8_t get_arg_8(PPCContext* ppc_context, uint8_t index) {
   if (index <= 7) {
     return (uint8_t)ppc_context->r[3 + index];
   }
-  return SHIM_MEM_8(get_arg_stack_ptr(ppc_context, index - 7));
+  uint32_t stack_address = get_arg_stack_ptr(ppc_context, index - 8);
+  return SHIM_MEM_8(stack_address);
 }
 
 inline uint16_t get_arg_16(PPCContext* ppc_context, uint8_t index) {
   if (index <= 7) {
     return (uint16_t)ppc_context->r[3 + index];
   }
-  return SHIM_MEM_16(get_arg_stack_ptr(ppc_context, index - 7));
+  uint32_t stack_address = get_arg_stack_ptr(ppc_context, index - 8);
+  return SHIM_MEM_16(stack_address);
 }
 
 inline uint32_t get_arg_32(PPCContext* ppc_context, uint8_t index) {
   if (index <= 7) {
     return (uint32_t)ppc_context->r[3 + index];
   }
-  return SHIM_MEM_32(get_arg_stack_ptr(ppc_context, index - 7));
+  uint32_t stack_address = get_arg_stack_ptr(ppc_context, index - 8);
+  return SHIM_MEM_32(stack_address);
 }
 
 inline uint64_t get_arg_64(PPCContext* ppc_context, uint8_t index) {
   if (index <= 7) {
     return ppc_context->r[3 + index];
   }
-  return SHIM_MEM_64(get_arg_stack_ptr(ppc_context, index - 7));
+  uint32_t stack_address = get_arg_stack_ptr(ppc_context, index - 8);
+  return SHIM_MEM_64(stack_address);
 }
 }
 

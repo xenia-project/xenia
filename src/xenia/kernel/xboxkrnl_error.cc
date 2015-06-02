@@ -796,7 +796,7 @@ const error_lookup_table error_tables[] = {
 dword_result_t RtlNtStatusToDosError(dword_t source_status) {
   uint32_t status = source_status;
   if (!status || (status & 0x20000000)) {
-    return status & 0xFFFF;
+    return status;
   }
 
   if ((status >> 16) == 0x8007) {
