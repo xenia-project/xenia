@@ -746,7 +746,7 @@ public:
     if (result) {
       input_++;
     }
-    return result;
+    return xe::byte_swap(result);
   }
 
   uint16_t peek(int32_t offset) {
@@ -787,7 +787,7 @@ public:
     if (result) {
       input_++;
     }
-    return result;
+    return xe::byte_swap(result);
   }
 
   uint16_t peek(int32_t offset) {
