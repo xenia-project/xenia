@@ -24,8 +24,8 @@ class RingBuffer {
 
     size_t DistanceToOffset(size_t offset);
 
-    void SetWriteOffset(size_t write_offset) { write_offset_ = write_offset; }
-    size_t GetWriteOffset() { return write_offset_; }
+    void set_write_offset(size_t write_offset) { write_offset_ = write_offset; }
+    size_t write_offset() { return write_offset_; }
 
   private:
     uint8_t *raw_buffer_;
