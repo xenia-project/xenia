@@ -206,7 +206,7 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
           float raw_sample = xe::saturate(sample_array[i]);
 
           // Convert the sample and output it in big endian.
-          float scaled_sample = raw_sample * (1 << 15);
+          float scaled_sample = raw_sample * ((1 << 15) - 1);
           int sample = static_cast<int>(scaled_sample);
           xe::store_and_swap<uint16_t>(&current_frame_[o++ * 2],
                                         sample & 0xFFFF);
