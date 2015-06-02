@@ -15,6 +15,7 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/kernel/kernel_state.h"
 
 namespace xe {
 namespace kernel {
@@ -275,7 +276,7 @@ using pointer_result_t = shim::Result<uint32_t>;
 
 namespace shim {
 
-  inline void AppendParam(StringBuffer& string_buffer, int_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, int_param_t param) {
   string_buffer.AppendFormat("%d", int32_t(param));
 }
 inline void AppendParam(StringBuffer& string_buffer, dword_param_t param) {
@@ -317,21 +318,16 @@ enum class KernelModuleId {
   xam,
 };
 
-template <typename F, typename Tuple, std::size_t... I>
-auto KernelTrampoline(F&& f, PPCContext* ppc_context, KernelState* kernel_state,
-                      Tuple&& t, std::index_sequence<I...>) {
-  return std::forward<F>(f)(ppc_context, kernel_state,
-                            std::get<I>(std::forward<Tuple>(t))...);
-}
-
 template <size_t I = 0, typename... Ps>
 typename std::enable_if<I == sizeof...(Ps)>::type AppendKernelCallParams(
-  StringBuffer& string_buffer, xe::cpu::Export* export, const std::tuple<Ps...>&) {}
+    StringBuffer& string_buffer, xe::cpu::Export* export,
+    const std::tuple<Ps...>&) {}
 
 template <size_t I = 0, typename... Ps>
     typename std::enable_if <
     I<sizeof...(Ps)>::type AppendKernelCallParams(
-      StringBuffer& string_buffer, xe::cpu::Export* export, const std::tuple<Ps...>& params) {
+        StringBuffer& string_buffer, xe::cpu::Export* export,
+        const std::tuple<Ps...>& params) {
   if (I) {
     string_buffer.Append(", ");
   }
@@ -358,17 +354,18 @@ void PrintKernelCall(cpu::Export* export, const Tuple& params) {
   }
 }
 
+template <typename F, typename Tuple, std::size_t... I>
+auto KernelTrampoline(F&& f, Tuple&& t, std::index_sequence<I...>) {
+  return std::forward<F>(f)(std::get<I>(std::forward<Tuple>(t))...);
+}
+
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
-xe::cpu::Export* RegisterExport(R (*fn)(PPCContext* ppc_context,
-                                        xe::kernel::KernelState* kernel_state,
-                                        Ps&...),
-                                std::string name,
+xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), std::string name,
                                 xe::cpu::ExportTag::type tags) {
   static const auto export =
       new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
                       tags | ExportTag::kImplemented | ExportTag::kLog);
-  static R (*FN)(PPCContext* ppc_context, xe::kernel::KernelState* kernel_state,
-                 Ps&...) = fn;
+  static R (*FN)(Ps&...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
       ++export->function_data.call_count;
@@ -379,9 +376,9 @@ xe::cpu::Export* RegisterExport(R (*fn)(PPCContext* ppc_context,
       if (export->tags & ExportTag::kLog) {
         PrintKernelCall(export, params);
       }
-      auto result = KernelTrampoline(FN, ppc_context, ppc_context->kernel_state,
-                                     std::forward<std::tuple<Ps...>>(params),
-                                     std::make_index_sequence<sizeof...(Ps)>());
+      auto result =
+          KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
+                           std::make_index_sequence<sizeof...(Ps)>());
       result.Store(ppc_context);
       if (export->tags & (ExportTag::kLog | ExportTag::kLogResult)) {
         // TODO(benvanik): log result.
@@ -393,15 +390,12 @@ xe::cpu::Export* RegisterExport(R (*fn)(PPCContext* ppc_context,
 }
 
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename... Ps>
-xe::cpu::Export* RegisterExport(
-    void (*fn)(PPCContext* ppc_context, xe::kernel::KernelState* kernel_state,
-               Ps&...),
-    std::string name, xe::cpu::ExportTag::type tags) {
+xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), std::string name,
+                                xe::cpu::ExportTag::type tags) {
   static const auto export =
       new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
                       tags | ExportTag::kImplemented | ExportTag::kLog);
-  static void (*FN)(PPCContext* ppc_context,
-                    xe::kernel::KernelState* kernel_state, Ps&...) = fn;
+  static void (*FN)(Ps&...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
       ++export->function_data.call_count;
@@ -412,8 +406,7 @@ xe::cpu::Export* RegisterExport(
       if (export->tags & ExportTag::kLog) {
         PrintKernelCall(export, params);
       }
-      KernelTrampoline(FN, ppc_context, ppc_context->kernel_state,
-                       std::forward<std::tuple<Ps...>>(params),
+      KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
                        std::make_index_sequence<sizeof...(Ps)>());
     }
   };
@@ -424,11 +417,19 @@ xe::cpu::Export* RegisterExport(
 }  // namespace shim
 
 using xe::cpu::ExportTag;
+
 #define DECLARE_EXPORT(module_name, name, tags)                             \
   auto EXPORT_##module_name##_##name =                                      \
       RegisterExport_##module_name(xe::kernel::shim::RegisterExport<        \
           xe::kernel::shim::KernelModuleId::module_name, ordinals::##name>( \
           &name, std::string(#name), tags));
+
+#define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)
+#define DECLARE_XBOXKRNL_EXPORT(name, tags) DECLARE_EXPORT(xboxkrnl, name, tags)
+
+// Exported from kernel_state.cc.
+KernelState* kernel_state();
+inline Memory* kernel_memory() { return kernel_state()->memory(); }
 
 }  // namespace kernel
 }  // namespace xe

@@ -21,8 +21,6 @@
 namespace xe {
 namespace kernel {
 
-using xe::gpu::GraphicsSystem;
-
 // http://www.tweakoz.com/orkid/
 // http://www.tweakoz.com/orkid/dox/d3/d52/xb360init_8cpp_source.html
 // https://github.com/Free60Project/xenosfb/
@@ -36,18 +34,14 @@ using xe::gpu::GraphicsSystem;
 // http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-void VdGetCurrentDisplayGamma(PPCContext* ppc_context,
-                              KernelState* kernel_state,
-                              lpdword_param_t arg0_ptr,
+void VdGetCurrentDisplayGamma(lpdword_param_t arg0_ptr,
                               lpfloat_param_t arg1_ptr) {
   *arg0_ptr = 2;
   *arg1_ptr = 2.22222233f;
 }
-DECLARE_EXPORT(xboxkrnl, VdGetCurrentDisplayGamma, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
-void VdGetCurrentDisplayInformation(PPCContext* ppc_context,
-                                    KernelState* kernel_state,
-                                    lpvoid_param_t info_ptr) {
+void VdGetCurrentDisplayInformation(lpvoid_param_t info_ptr) {
   auto info = info_ptr.as_array<uint32_t>();
   // Expecting a length 0x58 struct of stuff.
   info[0 / 4] = (1280 << 16) | 720;
@@ -73,10 +67,9 @@ void VdGetCurrentDisplayInformation(PPCContext* ppc_context,
   info[80 / 4] = 0;
   info[84 / 4] = 1280;  // display width
 }
-DECLARE_EXPORT(xboxkrnl, VdGetCurrentDisplayInformation, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
-void VdQueryVideoMode(PPCContext* ppc_context, KernelState* kernel_state,
-                      typed_param_t<X_VIDEO_MODE> video_mode) {
+void VdQueryVideoMode(typed_param_t<X_VIDEO_MODE> video_mode) {
   // TODO: get info from actual display
   video_mode.Zero();
   video_mode->display_width = 1280;
@@ -92,12 +85,11 @@ void VdQueryVideoMode(PPCContext* ppc_context, KernelState* kernel_state,
   video_mode->reserved[1] = 0;
   video_mode->reserved[2] = 0;
 }
-DECLARE_EXPORT(xboxkrnl, VdQueryVideoMode, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdQueryVideoMode, ExportTag::kVideo);
 
-dword_result_t VdQueryVideoFlags(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
+dword_result_t VdQueryVideoFlags() {
   X_VIDEO_MODE mode;
-  VdQueryVideoMode(ppc_context, kernel_state, &mode);
+  VdQueryVideoMode(&mode);
 
   uint32_t flags = 0;
   flags |= mode.is_widescreen ? 1 : 0;
@@ -106,29 +98,26 @@ dword_result_t VdQueryVideoFlags(PPCContext* ppc_context,
 
   return flags;
 }
-DECLARE_EXPORT(xboxkrnl, VdQueryVideoFlags, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdQueryVideoFlags, ExportTag::kVideo);
 
-dword_result_t VdSetDisplayMode(PPCContext* ppc_context,
-                                KernelState* kernel_state, dword_param_t mode) {
+dword_result_t VdSetDisplayMode(dword_param_t mode) {
   // Often 0x40000000.
   return 0;
 }
-DECLARE_EXPORT(xboxkrnl, VdSetDisplayMode,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdSetDisplayMode, ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdSetDisplayModeOverride(
-    PPCContext* ppc_context, KernelState* kernel_state, unknown_param_t unk0,
-    unknown_param_t unk1, double_param_t refresh_rate, unknown_param_t unk3,
-    unknown_param_t unk4) {
+dword_result_t VdSetDisplayModeOverride(unknown_param_t unk0,
+                                        unknown_param_t unk1,
+                                        double_param_t refresh_rate,
+                                        unknown_param_t unk3,
+                                        unknown_param_t unk4) {
   // refresh_rate = 0, 50, 59.9, etc.
   return 0;
 }
-DECLARE_EXPORT(xboxkrnl, VdSetDisplayModeOverride,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
+                        ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdInitializeEngines(PPCContext* ppc_context,
-                                   KernelState* kernel_state,
-                                   unknown_param_t unk0, fn_param_t callback,
+dword_result_t VdInitializeEngines(unknown_param_t unk0, fn_param_t callback,
                                    unknown_param_t unk1,
                                    unknown_pointer_param_t unk2_ptr,
                                    unknown_pointer_param_t unk3_ptr) {
@@ -138,94 +127,74 @@ dword_result_t VdInitializeEngines(PPCContext* ppc_context,
   // r6/r7 = some binary data in .data
   return 1;
 }
-DECLARE_EXPORT(xboxkrnl, VdInitializeEngines,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdInitializeEngines,
+                        ExportTag::kVideo | ExportTag::kStub);
 
-void VdShutdownEngines(PPCContext* ppc_context, KernelState* kernel_state) {
+void VdShutdownEngines() {
   // Ignored for now.
   // Games seem to call an Initialize/Shutdown pair to query info, then
   // re-initialize.
 }
-DECLARE_EXPORT(xboxkrnl, VdShutdownEngines,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdShutdownEngines,
+                        ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdGetGraphicsAsicID(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
+dword_result_t VdGetGraphicsAsicID() {
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
   // (retrain/etc).
   return 0x11;
 }
-DECLARE_EXPORT(xboxkrnl, VdGetGraphicsAsicID, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdGetGraphicsAsicID, ExportTag::kVideo);
 
-dword_result_t VdEnableDisableClockGating(PPCContext* ppc_context,
-                                          KernelState* kernel_state,
-                                          dword_param_t enabled) {
+dword_result_t VdEnableDisableClockGating(dword_param_t enabled) {
   // Ignored, as it really doesn't matter.
   return 0;
 }
-DECLARE_EXPORT(xboxkrnl, VdEnableDisableClockGating, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdEnableDisableClockGating, ExportTag::kVideo);
 
-void VdSetGraphicsInterruptCallback(PPCContext* ppc_context,
-                                    KernelState* kernel_state,
-                                    fn_param_t callback,
+void VdSetGraphicsInterruptCallback(fn_param_t callback,
                                     lpvoid_param_t user_data) {
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
-  auto gs = kernel_state->emulator()->graphics_system();
-  if (gs) {
-    gs->SetInterruptCallback(callback, user_data);
-  }
+  auto graphics_system = kernel_state()->emulator()->graphics_system();
+  graphics_system->SetInterruptCallback(callback, user_data);
 }
-DECLARE_EXPORT(xboxkrnl, VdSetGraphicsInterruptCallback, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdSetGraphicsInterruptCallback, ExportTag::kVideo);
 
-void VdInitializeRingBuffer(PPCContext* ppc_context, KernelState* kernel_state,
-                            lpvoid_param_t ptr, int_param_t page_count) {
+void VdInitializeRingBuffer(lpvoid_param_t ptr, int_param_t page_count) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = number of pages? page size?
   //      0x8000 -> cntlzw=16 -> 0x1C - 16 = 12
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
   // Sizes could be zero? XBLA games seem to do this. Default sizes?
   // D3D does size / region_count - must be > 1024
-  auto gs = kernel_state->emulator()->graphics_system();
-  if (gs) {
-    gs->InitializeRingBuffer(ptr, page_count);
-  }
+  auto graphics_system = kernel_state()->emulator()->graphics_system();
+  graphics_system->InitializeRingBuffer(ptr, page_count);
 }
-DECLARE_EXPORT(xboxkrnl, VdInitializeRingBuffer, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdInitializeRingBuffer, ExportTag::kVideo);
 
-void VdEnableRingBufferRPtrWriteBack(PPCContext* ppc_context,
-                                     KernelState* kernel_state,
-                                     lpvoid_param_t ptr,
+void VdEnableRingBufferRPtrWriteBack(lpvoid_param_t ptr,
                                      int_param_t block_size) {
-  auto gs = kernel_state->emulator()->graphics_system();
-  if (!gs) {
-    return;
-  }
-
   // r4 = 6, usually --- <=19
-  gs->EnableReadPointerWriteBack(ptr, block_size);
+  auto graphics_system = kernel_state()->emulator()->graphics_system();
+  graphics_system->EnableReadPointerWriteBack(ptr, block_size);
 }
-DECLARE_EXPORT(xboxkrnl, VdEnableRingBufferRPtrWriteBack, ExportTag::kVideo);
+DECLARE_XBOXKRNL_EXPORT(VdEnableRingBufferRPtrWriteBack, ExportTag::kVideo);
 
-void VdGetSystemCommandBuffer(PPCContext* ppc_context,
-                              KernelState* kernel_state,
-                              unknown_pointer_param_t p0_ptr,
+void VdGetSystemCommandBuffer(unknown_pointer_param_t p0_ptr,
                               unknown_pointer_param_t p1_ptr) {
   p0_ptr.Zero(0x94);
   xe::store_and_swap<uint32_t>(p0_ptr, 0xBEEF0000);
   xe::store_and_swap<uint32_t>(p1_ptr, 0xBEEF0001);
 }
-DECLARE_EXPORT(xboxkrnl, VdGetSystemCommandBuffer,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdGetSystemCommandBuffer,
+                        ExportTag::kVideo | ExportTag::kStub);
 
-void VdSetSystemCommandBufferGpuIdentifierAddress(PPCContext* ppc_context,
-                                                  KernelState* kernel_state,
-                                                  unknown_pointer_param_t unk) {
+void VdSetSystemCommandBufferGpuIdentifierAddress(unknown_pointer_param_t unk) {
   // r3 = 0x2B10(d3d?) + 8
 }
-DECLARE_EXPORT(xboxkrnl, VdSetSystemCommandBufferGpuIdentifierAddress,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
+                        ExportTag::kVideo | ExportTag::kStub);
 
 // VdVerifyMEInitCommand
 // r3
@@ -233,7 +202,7 @@ DECLARE_EXPORT(xboxkrnl, VdSetSystemCommandBufferGpuIdentifierAddress,
 // no op?
 
 dword_result_t VdInitializeScalerCommandBuffer(
-    PPCContext* ppc_context, KernelState* kernel_state,
+
     unknown_param_t unk0,          // 0?
     unknown_param_t unk1,          // 0x050002d0 size of ?
     unknown_param_t unk2,          // 0?
@@ -257,8 +226,8 @@ dword_result_t VdInitializeScalerCommandBuffer(
   // returns memcpy size >> 2 for memcpy(...,...,ret << 2)
   return total_words >> 2;
 }
-DECLARE_EXPORT(xboxkrnl, VdInitializeScalerCommandBuffer,
-               ExportTag::kVideo | ExportTag::kSketchy);
+DECLARE_XBOXKRNL_EXPORT(VdInitializeScalerCommandBuffer,
+                        ExportTag::kVideo | ExportTag::kSketchy);
 
 // We use these to shuffle data to VdSwap.
 // This way it gets properly stored in the command buffer (for replay/etc).
@@ -280,8 +249,7 @@ void AppendParam(StringBuffer& string_buffer,
 }
 
 dword_result_t VdCallGraphicsNotificationRoutines(
-    PPCContext* ppc_context, KernelState* kernel_state, unknown_param_t unk0,
-    typed_param_t<BufferScaling> args_ptr) {
+    unknown_param_t unk0, typed_param_t<BufferScaling> args_ptr) {
   assert_true(unk0 == 1);
 
   // TODO(benvanik): what does this mean, I forget:
@@ -293,25 +261,23 @@ dword_result_t VdCallGraphicsNotificationRoutines(
 
   return 0;
 }
-DECLARE_EXPORT(xboxkrnl, VdCallGraphicsNotificationRoutines,
-               ExportTag::kVideo | ExportTag::kSketchy);
+DECLARE_XBOXKRNL_EXPORT(VdCallGraphicsNotificationRoutines,
+                        ExportTag::kVideo | ExportTag::kSketchy);
 
-dword_result_t VdIsHSIOTrainingSucceeded(PPCContext* ppc_context,
-                                         KernelState* kernel_state) {
+dword_result_t VdIsHSIOTrainingSucceeded() {
   // Not really sure what this should be - code does weird stuff here:
   // (cntlzw    r11, r3  / extrwi    r11, r11, 1, 26)
   return 1;
 }
-DECLARE_EXPORT(xboxkrnl, VdIsHSIOTrainingSucceeded,
-               ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdIsHSIOTrainingSucceeded,
+                        ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdPersistDisplay(PPCContext* ppc_context,
-                                KernelState* kernel_state, unknown_param_t unk0,
+dword_result_t VdPersistDisplay(unknown_param_t unk0,
                                 lpdword_param_t unk1_ptr) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
-    auto heap = kernel_state->memory()->LookupHeapByType(true, 16 * 1024);
+    auto heap = kernel_memory()->LookupHeapByType(true, 16 * 1024);
     uint32_t unk1_value;
     heap->Alloc(64, 32, kMemoryAllocationReserve | kMemoryAllocationCommit,
                 kMemoryProtectNoAccess, false, &unk1_value);
@@ -320,28 +286,22 @@ dword_result_t VdPersistDisplay(PPCContext* ppc_context,
 
   return 1;
 }
-DECLARE_EXPORT(xboxkrnl, VdPersistDisplay,
-               ExportTag::kVideo | ExportTag::kSketchy);
+DECLARE_XBOXKRNL_EXPORT(VdPersistDisplay,
+                        ExportTag::kVideo | ExportTag::kSketchy);
 
-dword_result_t VdRetrainEDRAMWorker(PPCContext* ppc_context,
-                                    KernelState* kernel_state,
-                                    unknown_param_t unk0) {
+dword_result_t VdRetrainEDRAMWorker(unknown_param_t unk0) { return 0; }
+DECLARE_XBOXKRNL_EXPORT(VdRetrainEDRAMWorker,
+                        ExportTag::kVideo | ExportTag::kStub);
+
+dword_result_t VdRetrainEDRAM(unknown_param_t unk0, unknown_param_t unk1,
+                              unknown_param_t unk2, unknown_param_t unk3,
+                              unknown_param_t unk4, unknown_param_t unk5) {
   return 0;
 }
-DECLARE_EXPORT(xboxkrnl, VdRetrainEDRAMWorker,
-               ExportTag::kVideo | ExportTag::kStub);
-
-dword_result_t VdRetrainEDRAM(PPCContext* ppc_context,
-                              KernelState* kernel_state, unknown_param_t unk0,
-                              unknown_param_t unk1, unknown_param_t unk2,
-                              unknown_param_t unk3, unknown_param_t unk4,
-                              unknown_param_t unk5) {
-  return 0;
-}
-DECLARE_EXPORT(xboxkrnl, VdRetrainEDRAM, ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(VdRetrainEDRAM, ExportTag::kVideo | ExportTag::kStub);
 
 void VdSwap(
-    PPCContext* ppc_context, KernelState* kernel_state,
+
     lpvoid_param_t buffer_ptr,     // ptr into primary ringbuffer
     lpvoid_param_t fetch_ptr,      // frontbuffer texture fetch
     unknown_param_t unk2,          //
@@ -379,14 +339,14 @@ void VdSwap(
   dwords[3] = last_frontbuffer_width_;
   dwords[4] = last_frontbuffer_height_;
 }
-DECLARE_EXPORT(xboxkrnl, VdSwap, ExportTag::kVideo | ExportTag::kImportant);
+DECLARE_XBOXKRNL_EXPORT(VdSwap, ExportTag::kVideo | ExportTag::kImportant);
 
 }  // namespace kernel
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterVideoExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
-  Memory* memory = kernel_state->memory();
+  auto memory = kernel_state->memory();
 
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't

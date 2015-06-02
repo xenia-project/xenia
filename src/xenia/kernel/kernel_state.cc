@@ -15,17 +15,18 @@
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/dispatcher.h"
-#include "xenia/kernel/xam_module.h"
-#include "xenia/kernel/xboxkrnl_module.h"
-#include "xenia/kernel/xboxkrnl_private.h"
-#include "xenia/kernel/xobject.h"
 #include "xenia/kernel/apps/apps.h"
+#include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xmodule.h"
 #include "xenia/kernel/objects/xnotify_listener.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xam_module.h"
+#include "xenia/kernel/xboxkrnl_module.h"
+#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/xobject.h"
 
 DEFINE_bool(headless, false,
             "Don't display any UI, using defaults for prompts as needed.");
@@ -39,6 +40,8 @@ namespace kernel {
 // It references the current kernel state object that all kernel methods should
 // be using to stash their variables.
 KernelState* shared_kernel_state_ = nullptr;
+
+KernelState* kernel_state() { return shared_kernel_state_; }
 
 KernelState::KernelState(Emulator* emulator)
     : emulator_(emulator),
