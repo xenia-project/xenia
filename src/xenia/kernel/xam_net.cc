@@ -55,7 +55,7 @@ void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
   }
 }
 
-//typedef struct {
+// typedef struct {
 //  BYTE cfgSizeOfStruct;
 //  BYTE cfgFlags;
 //  BYTE cfgSockMaxDgramSockets;
@@ -108,7 +108,7 @@ SHIM_CALL NetDll_XNetRandom_shim(PPCContext* ppc_context,
 
 SHIM_CALL NetDll_WSAStartup_shim(PPCContext* ppc_context,
                                  KernelState* kernel_state) {
-  uint32_t arg0 = SHIM_GET_ARG_32(0); // always 1?
+  uint32_t arg0 = SHIM_GET_ARG_32(0);  // always 1?
   uint32_t version = SHIM_GET_ARG_16(1);
   uint32_t data_ptr = SHIM_GET_ARG_32(2);
 
@@ -157,8 +157,10 @@ SHIM_CALL NetDll_WSAGetLastError_shim(PPCContext* ppc_context,
 }
 
 // typedef struct {
-// 	IN_ADDR     ina;                            // IP address (zero if not static/DHCP)
-// 	IN_ADDR     inaOnline;                      // Online IP address (zero if not online)
+// 	IN_ADDR     ina;                            // IP address (zero if not
+// static/DHCP)
+// 	IN_ADDR     inaOnline;                      // Online IP address (zero
+// if not online)
 // 	WORD        wPortOnline;                    // Online port
 // 	BYTE        abEnet[6];                      // Ethernet MAC address
 // 	BYTE        abOnline[20];                   // Online identification
@@ -166,8 +168,8 @@ SHIM_CALL NetDll_WSAGetLastError_shim(PPCContext* ppc_context,
 
 SHIM_CALL NetDll_XNetGetTitleXnAddr_shim(PPCContext* ppc_context,
                                          KernelState* kernel_state) {
-  uint32_t arg0 = SHIM_GET_ARG_32(0); // constant 1?
-  uint32_t addr_ptr = SHIM_GET_ARG_32(1); // XNADDR
+  uint32_t arg0 = SHIM_GET_ARG_32(0);      // constant 1?
+  uint32_t addr_ptr = SHIM_GET_ARG_32(1);  // XNADDR
 
   XELOGD("NetDll_XNetGetTitleXnAddr(%d, %.8X)", arg0, addr_ptr);
 
@@ -179,7 +181,7 @@ SHIM_CALL NetDll_XNetGetTitleXnAddr_shim(PPCContext* ppc_context,
   std::memset(addr + 0xA, 0, 6);
   std::memset(addr + 0x10, 0, 20);
 
-  SHIM_SET_RETURN_32(0x00000004); // XNET_GET_XNADDR_STATIC
+  SHIM_SET_RETURN_32(0x00000004);  // XNET_GET_XNADDR_STATIC
 }
 
 SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(PPCContext* ppc_context,
@@ -191,6 +193,20 @@ SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(PPCContext* ppc_context,
   XELOGD("NetDll_XNetGetEthernetLinkStatus(%d)", arg0);
 
   SHIM_SET_RETURN_32(0);
+}
+
+SHIM_CALL NetDll_XNetQosServiceLookup_shim(PPCContext* ppc_context,
+                                           KernelState* kernel_state) {
+  uint32_t one = SHIM_GET_ARG_32(0);
+  uint32_t zero = SHIM_GET_ARG_32(1);
+  uint32_t event_handle = SHIM_GET_ARG_32(2);
+  uint32_t out_ptr = SHIM_GET_ARG_32(3);
+
+  XELOGD("NetDll_XNetQosServiceLookup(%d, %d, %.8X, %.8X)", one, zero,
+         event_handle, out_ptr);
+
+  // Non-zero is error.
+  SHIM_SET_RETURN_32(1);
 }
 
 SHIM_CALL NetDll_inet_addr_shim(PPCContext* ppc_context,
@@ -503,6 +519,7 @@ void xe::kernel::xam::RegisterNetExports(
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAGetLastError, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetTitleXnAddr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
+  SHIM_SET_MAPPING("xam.xex", NetDll_XNetQosServiceLookup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_inet_addr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_socket, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_closesocket, state);
