@@ -152,7 +152,9 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
         return count;
       } else if (c != '%') {
       output:
-        data.put(c);
+        if (!data.put(c)) {
+          return -1;
+        }
         ++count;
         continue;
       }
@@ -585,7 +587,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
       auto b = &prefix.buffer[0];
       while (remaining-- > 0) {
         if (!data.put(*b++)) {
-          return false;
+          return -1;
         }
       }
     }
