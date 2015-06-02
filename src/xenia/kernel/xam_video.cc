@@ -17,7 +17,7 @@ namespace xe {
 namespace kernel {
 
 // TODO(benvanik): actually check to see if these are the same.
-void VdQueryVideoMode(typed_param_t<X_VIDEO_MODE> video_mode);
+void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode);
 SHIM_CALL XGetVideoMode_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
   uint32_t video_mode_ptr = SHIM_GET_ARG_32(0);

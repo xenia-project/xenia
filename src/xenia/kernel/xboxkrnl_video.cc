@@ -34,14 +34,13 @@ namespace kernel {
 // http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-void VdGetCurrentDisplayGamma(lpdword_param_t arg0_ptr,
-                              lpfloat_param_t arg1_ptr) {
+void VdGetCurrentDisplayGamma(lpdword_t arg0_ptr, lpfloat_t arg1_ptr) {
   *arg0_ptr = 2;
   *arg1_ptr = 2.22222233f;
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
-void VdGetCurrentDisplayInformation(lpvoid_param_t info_ptr) {
+void VdGetCurrentDisplayInformation(lpvoid_t info_ptr) {
   auto info = info_ptr.as_array<uint32_t>();
   // Expecting a length 0x58 struct of stuff.
   info[0 / 4] = (1280 << 16) | 720;
@@ -69,7 +68,7 @@ void VdGetCurrentDisplayInformation(lpvoid_param_t info_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
-void VdQueryVideoMode(typed_param_t<X_VIDEO_MODE> video_mode) {
+void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
   // TODO: get info from actual display
   video_mode.Zero();
   video_mode->display_width = 1280;
@@ -100,27 +99,24 @@ dword_result_t VdQueryVideoFlags() {
 }
 DECLARE_XBOXKRNL_EXPORT(VdQueryVideoFlags, ExportTag::kVideo);
 
-dword_result_t VdSetDisplayMode(dword_param_t mode) {
+dword_result_t VdSetDisplayMode(dword_t mode) {
   // Often 0x40000000.
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetDisplayMode, ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdSetDisplayModeOverride(unknown_param_t unk0,
-                                        unknown_param_t unk1,
-                                        double_param_t refresh_rate,
-                                        unknown_param_t unk3,
-                                        unknown_param_t unk4) {
+dword_result_t VdSetDisplayModeOverride(unknown_t unk0, unknown_t unk1,
+                                        double_t refresh_rate, unknown_t unk3,
+                                        unknown_t unk4) {
   // refresh_rate = 0, 50, 59.9, etc.
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
                         ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdInitializeEngines(unknown_param_t unk0, fn_param_t callback,
-                                   unknown_param_t unk1,
-                                   unknown_pointer_param_t unk2_ptr,
-                                   unknown_pointer_param_t unk3_ptr) {
+dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
+                                   unknown_t unk1, unknown_pointer_t unk2_ptr,
+                                   unknown_pointer_t unk3_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = 0
@@ -145,14 +141,13 @@ dword_result_t VdGetGraphicsAsicID() {
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetGraphicsAsicID, ExportTag::kVideo);
 
-dword_result_t VdEnableDisableClockGating(dword_param_t enabled) {
+dword_result_t VdEnableDisableClockGating(dword_t enabled) {
   // Ignored, as it really doesn't matter.
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdEnableDisableClockGating, ExportTag::kVideo);
 
-void VdSetGraphicsInterruptCallback(fn_param_t callback,
-                                    lpvoid_param_t user_data) {
+void VdSetGraphicsInterruptCallback(function_t callback, lpvoid_t user_data) {
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
@@ -161,7 +156,7 @@ void VdSetGraphicsInterruptCallback(fn_param_t callback,
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetGraphicsInterruptCallback, ExportTag::kVideo);
 
-void VdInitializeRingBuffer(lpvoid_param_t ptr, int_param_t page_count) {
+void VdInitializeRingBuffer(lpvoid_t ptr, int_t page_count) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = number of pages? page size?
   //      0x8000 -> cntlzw=16 -> 0x1C - 16 = 12
@@ -173,16 +168,15 @@ void VdInitializeRingBuffer(lpvoid_param_t ptr, int_param_t page_count) {
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeRingBuffer, ExportTag::kVideo);
 
-void VdEnableRingBufferRPtrWriteBack(lpvoid_param_t ptr,
-                                     int_param_t block_size) {
+void VdEnableRingBufferRPtrWriteBack(lpvoid_t ptr, int_t block_size) {
   // r4 = 6, usually --- <=19
   auto graphics_system = kernel_state()->emulator()->graphics_system();
   graphics_system->EnableReadPointerWriteBack(ptr, block_size);
 }
 DECLARE_XBOXKRNL_EXPORT(VdEnableRingBufferRPtrWriteBack, ExportTag::kVideo);
 
-void VdGetSystemCommandBuffer(unknown_pointer_param_t p0_ptr,
-                              unknown_pointer_param_t p1_ptr) {
+void VdGetSystemCommandBuffer(unknown_pointer_t p0_ptr,
+                              unknown_pointer_t p1_ptr) {
   p0_ptr.Zero(0x94);
   xe::store_and_swap<uint32_t>(p0_ptr, 0xBEEF0000);
   xe::store_and_swap<uint32_t>(p1_ptr, 0xBEEF0001);
@@ -190,7 +184,7 @@ void VdGetSystemCommandBuffer(unknown_pointer_param_t p0_ptr,
 DECLARE_XBOXKRNL_EXPORT(VdGetSystemCommandBuffer,
                         ExportTag::kVideo | ExportTag::kStub);
 
-void VdSetSystemCommandBufferGpuIdentifierAddress(unknown_pointer_param_t unk) {
+void VdSetSystemCommandBufferGpuIdentifierAddress(unknown_pointer_t unk) {
   // r3 = 0x2B10(d3d?) + 8
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
@@ -202,16 +196,15 @@ DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
 // no op?
 
 dword_result_t VdInitializeScalerCommandBuffer(
-
-    unknown_param_t unk0,          // 0?
-    unknown_param_t unk1,          // 0x050002d0 size of ?
-    unknown_param_t unk2,          // 0?
-    unknown_param_t unk3,          // 0x050002d0 size of ?
-    unknown_param_t unk4,          // 0x050002d0 size of ?
-    unknown_param_t unk5,          // 7?
-    unknown_pointer_param_t unk6,  // 0x2004909c <-- points to zeros?
-    unknown_param_t unk7,          // 7?
-    lpvoid_param_t dest_ptr  // Points to the first 80000000h where the memcpy
+    unknown_t unk0,          // 0?
+    unknown_t unk1,          // 0x050002d0 size of ?
+    unknown_t unk2,          // 0?
+    unknown_t unk3,          // 0x050002d0 size of ?
+    unknown_t unk4,          // 0x050002d0 size of ?
+    unknown_t unk5,          // 7?
+    unknown_pointer_t unk6,  // 0x2004909c <-- points to zeros?
+    unknown_t unk7,          // 7?
+    lpvoid_t dest_ptr        // Points to the first 80000000h where the memcpy
                              // sources from.
     ) {
   // We could fake the commands here, but I'm not sure the game checks for
@@ -240,8 +233,7 @@ struct BufferScaling {
   xe::be<uint16_t> bb_width;
   xe::be<uint16_t> bb_height;
 };
-void AppendParam(StringBuffer& string_buffer,
-                 typed_param_t<BufferScaling> param) {
+void AppendParam(StringBuffer& string_buffer, pointer_t<BufferScaling> param) {
   string_buffer.AppendFormat(
       "%.8X(scale %dx%d -> %dx%d))", param.guest_address(),
       uint16_t(param->bb_width), uint16_t(param->bb_height),
@@ -249,7 +241,7 @@ void AppendParam(StringBuffer& string_buffer,
 }
 
 dword_result_t VdCallGraphicsNotificationRoutines(
-    unknown_param_t unk0, typed_param_t<BufferScaling> args_ptr) {
+    unknown_t unk0, pointer_t<BufferScaling> args_ptr) {
   assert_true(unk0 == 1);
 
   // TODO(benvanik): what does this mean, I forget:
@@ -272,8 +264,7 @@ dword_result_t VdIsHSIOTrainingSucceeded() {
 DECLARE_XBOXKRNL_EXPORT(VdIsHSIOTrainingSucceeded,
                         ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdPersistDisplay(unknown_param_t unk0,
-                                lpdword_param_t unk1_ptr) {
+dword_result_t VdPersistDisplay(unknown_t unk0, lpdword_t unk1_ptr) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
@@ -289,26 +280,24 @@ dword_result_t VdPersistDisplay(unknown_param_t unk0,
 DECLARE_XBOXKRNL_EXPORT(VdPersistDisplay,
                         ExportTag::kVideo | ExportTag::kSketchy);
 
-dword_result_t VdRetrainEDRAMWorker(unknown_param_t unk0) { return 0; }
+dword_result_t VdRetrainEDRAMWorker(unknown_t unk0) { return 0; }
 DECLARE_XBOXKRNL_EXPORT(VdRetrainEDRAMWorker,
                         ExportTag::kVideo | ExportTag::kStub);
 
-dword_result_t VdRetrainEDRAM(unknown_param_t unk0, unknown_param_t unk1,
-                              unknown_param_t unk2, unknown_param_t unk3,
-                              unknown_param_t unk4, unknown_param_t unk5) {
+dword_result_t VdRetrainEDRAM(unknown_t unk0, unknown_t unk1, unknown_t unk2,
+                              unknown_t unk3, unknown_t unk4, unknown_t unk5) {
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdRetrainEDRAM, ExportTag::kVideo | ExportTag::kStub);
 
 void VdSwap(
-
-    lpvoid_param_t buffer_ptr,     // ptr into primary ringbuffer
-    lpvoid_param_t fetch_ptr,      // frontbuffer texture fetch
-    unknown_param_t unk2,          //
-    unknown_pointer_param_t unk3,  // buffer from VdGetSystemCommandBuffer
-    unknown_pointer_param_t unk4,  // from VdGetSystemCommandBuffer (0xBEEF0001)
-    lpdword_param_t frontbuffer_ptr,  // ptr to frontbuffer address
-    lpdword_param_t color_format_ptr, lpdword_param_t color_space_ptr) {
+    lpvoid_t buffer_ptr,        // ptr into primary ringbuffer
+    lpvoid_t fetch_ptr,         // frontbuffer texture fetch
+    unknown_t unk2,             //
+    unknown_pointer_t unk3,     // buffer from VdGetSystemCommandBuffer
+    unknown_pointer_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
+    lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
+    lpdword_t color_format_ptr, lpdword_t color_space_ptr) {
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
       reinterpret_cast<uint32_t*>(&fetch),

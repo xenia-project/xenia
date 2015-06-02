@@ -255,61 +255,61 @@ class Result {
 
 }  // namespace shim
 
-using int_param_t = const shim::ParamBase<int32_t>&;
-using dword_param_t = const shim::ParamBase<uint32_t>&;
-using qword_param_t = const shim::ParamBase<uint64_t>&;
-using float_param_t = const shim::ParamBase<float>&;
-using double_param_t = const shim::ParamBase<double>&;
-using lpvoid_param_t = const shim::PointerParam&;
-using lpdword_param_t = const shim::PrimitivePointerParam<uint32_t>&;
-using lpqword_param_t = const shim::PrimitivePointerParam<uint64_t>&;
-using lpfloat_param_t = const shim::PrimitivePointerParam<float>&;
-using lpdouble_param_t = const shim::PrimitivePointerParam<double>&;
-using fn_param_t = const shim::ParamBase<uint32_t>&;
-using unknown_param_t = const shim::ParamBase<uint32_t>&;
-using unknown_pointer_param_t = const shim::PointerParam&;
+using int_t = const shim::ParamBase<int32_t>&;
+using dword_t = const shim::ParamBase<uint32_t>&;
+using qword_t = const shim::ParamBase<uint64_t>&;
+using float_t = const shim::ParamBase<float>&;
+using double_t = const shim::ParamBase<double>&;
+using lpvoid_t = const shim::PointerParam&;
+using lpdword_t = const shim::PrimitivePointerParam<uint32_t>&;
+using lpqword_t = const shim::PrimitivePointerParam<uint64_t>&;
+using lpfloat_t = const shim::PrimitivePointerParam<float>&;
+using lpdouble_t = const shim::PrimitivePointerParam<double>&;
+using function_t = const shim::ParamBase<uint32_t>&;
+using unknown_t = const shim::ParamBase<uint32_t>&;
+using unknown_pointer_t = const shim::PointerParam&;
 template <typename T>
-using typed_param_t = const shim::TypedPointerParam<T>&;
+using pointer_t = const shim::TypedPointerParam<T>&;
 
 using dword_result_t = shim::Result<uint32_t>;
 using pointer_result_t = shim::Result<uint32_t>;
 
 namespace shim {
 
-inline void AppendParam(StringBuffer& string_buffer, int_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, int_t param) {
   string_buffer.AppendFormat("%d", int32_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, dword_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, dword_t param) {
   string_buffer.AppendFormat("%.8X", uint32_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, qword_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, qword_t param) {
   string_buffer.AppendFormat("%.16llX", uint64_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, float_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, float_t param) {
   string_buffer.AppendFormat("%G", float(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, double_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, double_t param) {
   string_buffer.AppendFormat("%G", double(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, lpvoid_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, lpvoid_t param) {
   string_buffer.AppendFormat("%.8X", uint32_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, lpdword_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, lpdword_t param) {
   string_buffer.AppendFormat("%.8X(%.8X)", param.guest_address(),
                              param.value());
 }
-inline void AppendParam(StringBuffer& string_buffer, lpqword_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, lpqword_t param) {
   string_buffer.AppendFormat("%.8X(%.16llX)", param.guest_address(),
                              param.value());
 }
-inline void AppendParam(StringBuffer& string_buffer, lpfloat_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, lpfloat_t param) {
   string_buffer.AppendFormat("%.8X(%G)", param.guest_address(), param.value());
 }
-inline void AppendParam(StringBuffer& string_buffer, lpdouble_param_t param) {
+inline void AppendParam(StringBuffer& string_buffer, lpdouble_t param) {
   string_buffer.AppendFormat("%.8X(%G)", param.guest_address(), param.value());
 }
 template <typename T>
-void AppendParam(StringBuffer& string_buffer, typed_param_t<T> param) {
+void AppendParam(StringBuffer& string_buffer, pointer_t<T> param) {
   string_buffer.AppendFormat("%.8X", param.guest_address());
 }
 
