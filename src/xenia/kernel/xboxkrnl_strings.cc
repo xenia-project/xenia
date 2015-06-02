@@ -787,6 +787,28 @@ class WideCountFormatData : public FormatData {
   int32_t count_;
 };
 
+SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t format_ptr = SHIM_GET_ARG_32(0);
+  if (!format_ptr) {
+    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
+    return;
+  }
+  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
+
+  StackArgList args(ppc_context);
+  StringFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count <= 0) {
+    SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+    return;
+  }
+
+  XELOGD("(DbgPrint) %s", data.str().c_str());
+
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+}
+
 // https://msdn.microsoft.com/en-us/library/ybk95axf.aspx
 SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
@@ -803,35 +825,6 @@ SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
 
   StackArgList args(ppc_context);
-  StringFormatData data(format);
-
-  int32_t count = format_core(ppc_context, data, args, false);
-  if (count <= 0) {
-    buffer[0] = '\0';
-  } else {
-    std::memcpy(buffer, data.str().c_str(), count);
-    buffer[count] = '\0';
-  }
-  SHIM_SET_RETURN_32(count);
-}
-
-// https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
-SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
-  uint32_t format_ptr = SHIM_GET_ARG_32(1);
-  uint32_t arg_ptr = SHIM_GET_ARG_32(2);
-
-  XELOGD("vsprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
-
-  if (buffer_ptr == 0 || format_ptr == 0) {
-    SHIM_SET_RETURN_32(-1);
-    return;
-  }
-
-  auto buffer = (uint8_t*)SHIM_MEM_ADDR(buffer_ptr);
-  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
-
-  ArrayArgList args(ppc_context, arg_ptr);
   StringFormatData data(format);
 
   int32_t count = format_core(ppc_context, data, args, false);
@@ -883,6 +876,57 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
+SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
+  uint32_t format_ptr = SHIM_GET_ARG_32(1);
+  uint32_t arg_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD("vsprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
+
+  if (buffer_ptr == 0 || format_ptr == 0) {
+    SHIM_SET_RETURN_32(-1);
+    return;
+  }
+
+  auto buffer = (uint8_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
+
+  ArrayArgList args(ppc_context, arg_ptr);
+  StringFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    std::memcpy(buffer, data.str().c_str(), count);
+    buffer[count] = '\0';
+  }
+  SHIM_SET_RETURN_32(count);
+}
+
+// https://msdn.microsoft.com/en-us/library/w05tbk72.aspx
+SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t format_ptr = SHIM_GET_ARG_32(0);
+  uint32_t arg_ptr = SHIM_GET_ARG_32(1);
+
+  XELOGD("_vscwprintf(%08X, %08X)", format_ptr, arg_ptr);
+
+  if (format_ptr == 0) {
+    SHIM_SET_RETURN_32(-1);
+    return;
+  }
+
+  auto format = (const uint16_t*)SHIM_MEM_ADDR(format_ptr);
+
+  ArrayArgList args(ppc_context, arg_ptr);
+  WideCountFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, true);
+  assert_true(count < 0 || data.count() == count);
+  SHIM_SET_RETURN_32(count);
+}
+
+// https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
 SHIM_CALL vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
@@ -911,59 +955,15 @@ SHIM_CALL vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   SHIM_SET_RETURN_32(count);
 }
 
-// https://msdn.microsoft.com/en-us/library/w05tbk72.aspx
-SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t format_ptr = SHIM_GET_ARG_32(0);
-  uint32_t arg_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("_vscwprintf(%08X, %08X)", format_ptr, arg_ptr);
-
-  if (format_ptr == 0) {
-    SHIM_SET_RETURN_32(-1);
-    return;
-  }
-
-  auto format = (const uint16_t*)SHIM_MEM_ADDR(format_ptr);
-
-  ArrayArgList args(ppc_context, arg_ptr);
-  WideCountFormatData data(format);
-
-  int32_t count = format_core(ppc_context, data, args, true);
-  assert_true(count < 0 || data.count() == count);
-  SHIM_SET_RETURN_32(count);
-}
-
-SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t format_ptr = SHIM_GET_ARG_32(0);
-  if (!format_ptr) {
-    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
-    return;
-  }
-  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
-
-  StackArgList args(ppc_context);
-  StringFormatData data(format);
-
-  int32_t count = format_core(ppc_context, data, args, false);
-  if (count <= 0) {
-    SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
-    return;
-  }
-
-  XELOGD("(DbgPrint) %s", data.str().c_str());
-
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
-}
-
 }  // namespace kernel
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterStringExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* state) {
-  SHIM_SET_MAPPING("xboxkrnl.exe", sprintf, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", vswprintf, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", _vscwprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", sprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", _vscwprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", vswprintf, state);
 }
