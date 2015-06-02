@@ -16,12 +16,7 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL HalReturnToFirmware_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  uint32_t routine = SHIM_GET_ARG_32(0);
-
-  XELOGD("HalReturnToFirmware(%d)", routine);
-
+void HalReturnToFirmware(dword_t routine) {
   // void
   // IN FIRMWARE_REENTRY  Routine
 
@@ -33,11 +28,7 @@ SHIM_CALL HalReturnToFirmware_shim(PPCContext* ppc_context,
   XELOGE("Game requested shutdown via HalReturnToFirmware");
   exit(0);
 }
+DECLARE_XBOXKRNL_EXPORT(HalReturnToFirmware, ExportTag::kImportant);
 
 }  // namespace kernel
 }  // namespace xe
-
-void xe::kernel::xboxkrnl::RegisterHalExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xboxkrnl.exe", HalReturnToFirmware, state);
-}

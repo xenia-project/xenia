@@ -65,13 +65,6 @@ SHIM_CALL XGetLanguage_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(desired_language);
 }
 
-SHIM_CALL XamVoiceIsActiveProcess_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  XELOGD("XamVoiceIsActiveProcess()");
-  // Returning 0 here will short-circuit a bunch of voice stuff.
-  SHIM_SET_RETURN_32(0);
-}
-
 SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
                                  KernelState* kernel_state) {
   uint32_t info_ptr = SHIM_GET_ARG_32(0);
@@ -217,7 +210,6 @@ void xe::kernel::xam::RegisterInfoExports(
   SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);
   SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
 
-  SHIM_SET_MAPPING("xam.xex", XamVoiceIsActiveProcess, state);
   SHIM_SET_MAPPING("xam.xex", XamGetExecutionId, state);
 
   SHIM_SET_MAPPING("xam.xex", XamLoaderSetLaunchData, state);

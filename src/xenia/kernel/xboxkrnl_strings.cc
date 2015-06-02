@@ -961,6 +961,28 @@ SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   SHIM_SET_RETURN_32(count);
 }
 
+SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t format_ptr = SHIM_GET_ARG_32(0);
+  if (!format_ptr) {
+    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
+    return;
+  }
+  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
+
+  StackArgList args(ppc_context);
+  StringFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count <= 0) {
+    SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+    return;
+  }
+
+  XELOGD("(DbgPrint) %s", data.str().c_str());
+
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+}
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -971,4 +993,5 @@ void xe::kernel::xboxkrnl::RegisterStringExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", vswprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vscwprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
 }

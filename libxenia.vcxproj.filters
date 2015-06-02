@@ -1341,9 +1341,6 @@
     <ClInclude Include="third_party\xbyak\xbyak\xbyak.h">
       <Filter>third_party\xbyak\xbyak</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_error.h">
-      <Filter>src\xenia\kernel</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\apu\audio_decoder.h">
       <Filter>src\xenia\apu</Filter>
     </ClInclude>

@@ -388,7 +388,6 @@
     <ClInclude Include="src\xenia\kernel\xboxkrnl_ordinals.h" />
     <ClInclude Include="src\xenia\kernel\xboxkrnl_private.h" />
     <ClInclude Include="src\xenia\kernel\xboxkrnl_rtl.h" />
-    <ClInclude Include="src\xenia\kernel\xboxkrnl_error.h" />
     <ClInclude Include="src\xenia\kernel\xobject.h" />
     <ClInclude Include="src\xenia\memory.h" />
     <ClInclude Include="src\xenia\profiling.h" />

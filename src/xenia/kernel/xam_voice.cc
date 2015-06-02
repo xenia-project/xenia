@@ -17,44 +17,26 @@
 namespace xe {
 namespace kernel {
 
-SHIM_CALL XamVoiceCreate_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  uint32_t unk1 = SHIM_GET_ARG_32(0);  // 0
-  uint32_t unk2 = SHIM_GET_ARG_32(1);  // 0xF
-  uint32_t out_voice_ptr = SHIM_GET_ARG_32(2);
+dword_result_t XamVoiceIsActiveProcess() {
+  // Returning 0 here will short-circuit a bunch of voice stuff.
+  return 0;
+}
+DECLARE_XAM_EXPORT(XamVoiceIsActiveProcess, ExportTag::kStub);
 
-  XELOGD("XamVoiceCreate(%.8X, %.8X, %.8X)", unk1, unk2, out_voice_ptr);
-
+dword_result_t XamVoiceCreate(unknown_t unk1,  // 0
+                              unknown_t unk2,  // 0xF
+                              lpdword_t out_voice_ptr) {
   // Null out the ptr.
-  SHIM_SET_MEM_32(out_voice_ptr, 0);
-
-  SHIM_SET_RETURN_32(X_ERROR_ACCESS_DENIED);
+  out_voice_ptr.Zero();
+  return X_ERROR_ACCESS_DENIED;
 }
+DECLARE_XAM_EXPORT(XamVoiceCreate, ExportTag::kStub);
 
-SHIM_CALL XamVoiceClose_shim(PPCContext* ppc_context,
-                             KernelState* kernel_state) {
-  uint32_t voice_ptr = SHIM_GET_ARG_32(0);
+dword_result_t XamVoiceClose(lpunknown_t voice_ptr) { return 0; }
+DECLARE_XAM_EXPORT(XamVoiceClose, ExportTag::kStub);
 
-  XELOGD("XamVoiceClose(%.8X)", voice_ptr);
-
-  SHIM_SET_RETURN_32(0);
-}
-
-SHIM_CALL XamVoiceHeadsetPresent_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t voice_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XamVoiceHeadsetPresent(%.8X)", voice_ptr);
-
-  SHIM_SET_RETURN_32(0);
-}
+dword_result_t XamVoiceHeadsetPresent(lpunknown_t voice_ptr) { return 0; }
+DECLARE_XAM_EXPORT(XamVoiceHeadsetPresent, ExportTag::kStub);
 
 }  // namespace kernel
 }  // namespace xe
-
-void xe::kernel::xam::RegisterVoiceExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xam.xex", XamVoiceCreate, state);
-  SHIM_SET_MAPPING("xam.xex", XamVoiceClose, state);
-  SHIM_SET_MAPPING("xam.xex", XamVoiceHeadsetPresent, state);
-}

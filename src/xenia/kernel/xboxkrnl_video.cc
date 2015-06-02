@@ -115,8 +115,8 @@ DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
                         ExportTag::kVideo | ExportTag::kStub);
 
 dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
-                                   unknown_t unk1, unknown_pointer_t unk2_ptr,
-                                   unknown_pointer_t unk3_ptr) {
+                                   unknown_t unk1, lpunknown_t unk2_ptr,
+                                   lpunknown_t unk3_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = 0
@@ -175,8 +175,7 @@ void VdEnableRingBufferRPtrWriteBack(lpvoid_t ptr, int_t block_size) {
 }
 DECLARE_XBOXKRNL_EXPORT(VdEnableRingBufferRPtrWriteBack, ExportTag::kVideo);
 
-void VdGetSystemCommandBuffer(unknown_pointer_t p0_ptr,
-                              unknown_pointer_t p1_ptr) {
+void VdGetSystemCommandBuffer(lpunknown_t p0_ptr, lpunknown_t p1_ptr) {
   p0_ptr.Zero(0x94);
   xe::store_and_swap<uint32_t>(p0_ptr, 0xBEEF0000);
   xe::store_and_swap<uint32_t>(p1_ptr, 0xBEEF0001);
@@ -184,7 +183,7 @@ void VdGetSystemCommandBuffer(unknown_pointer_t p0_ptr,
 DECLARE_XBOXKRNL_EXPORT(VdGetSystemCommandBuffer,
                         ExportTag::kVideo | ExportTag::kStub);
 
-void VdSetSystemCommandBufferGpuIdentifierAddress(unknown_pointer_t unk) {
+void VdSetSystemCommandBufferGpuIdentifierAddress(lpunknown_t unk) {
   // r3 = 0x2B10(d3d?) + 8
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
@@ -196,16 +195,16 @@ DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
 // no op?
 
 dword_result_t VdInitializeScalerCommandBuffer(
-    unknown_t unk0,          // 0?
-    unknown_t unk1,          // 0x050002d0 size of ?
-    unknown_t unk2,          // 0?
-    unknown_t unk3,          // 0x050002d0 size of ?
-    unknown_t unk4,          // 0x050002d0 size of ?
-    unknown_t unk5,          // 7?
-    unknown_pointer_t unk6,  // 0x2004909c <-- points to zeros?
-    unknown_t unk7,          // 7?
-    lpvoid_t dest_ptr        // Points to the first 80000000h where the memcpy
-                             // sources from.
+    unknown_t unk0,    // 0?
+    unknown_t unk1,    // 0x050002d0 size of ?
+    unknown_t unk2,    // 0?
+    unknown_t unk3,    // 0x050002d0 size of ?
+    unknown_t unk4,    // 0x050002d0 size of ?
+    unknown_t unk5,    // 7?
+    lpunknown_t unk6,  // 0x2004909c <-- points to zeros?
+    unknown_t unk7,    // 7?
+    lpvoid_t dest_ptr  // Points to the first 80000000h where the memcpy
+                       // sources from.
     ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
@@ -290,14 +289,13 @@ dword_result_t VdRetrainEDRAM(unknown_t unk0, unknown_t unk1, unknown_t unk2,
 }
 DECLARE_XBOXKRNL_EXPORT(VdRetrainEDRAM, ExportTag::kVideo | ExportTag::kStub);
 
-void VdSwap(
-    lpvoid_t buffer_ptr,        // ptr into primary ringbuffer
-    lpvoid_t fetch_ptr,         // frontbuffer texture fetch
-    unknown_t unk2,             //
-    unknown_pointer_t unk3,     // buffer from VdGetSystemCommandBuffer
-    unknown_pointer_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
-    lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
-    lpdword_t color_format_ptr, lpdword_t color_space_ptr) {
+void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
+            lpvoid_t fetch_ptr,   // frontbuffer texture fetch
+            unknown_t unk2,       //
+            lpunknown_t unk3,     // buffer from VdGetSystemCommandBuffer
+            lpunknown_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
+            lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
+            lpdword_t color_format_ptr, lpdword_t color_space_ptr) {
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
       reinterpret_cast<uint32_t*>(&fetch),

@@ -107,6 +107,7 @@ template <typename T>
 class ParamBase : public Param {
  public:
   ParamBase() : Param(), value_(0) {}
+  ParamBase(T value) : Param(), value_(value) {}
   ParamBase(Init& init) : Param(init) { LoadValue<T>(init); }
   ParamBase& operator=(const T& other) {
     value_ = other;
@@ -206,6 +207,31 @@ class PrimitivePointerParam : public ParamBase<uint32_t> {
   xe::be<T>* host_ptr_;
 };
 
+template <typename CHAR, typename STR>
+class StringPointerParam : public ParamBase<uint32_t> {
+ public:
+  StringPointerParam(Init& init) : ParamBase(init) {
+    host_ptr_ = value_ ? reinterpret_cast<CHAR*>(
+                             init.ppc_context->virtual_membase + value_)
+                       : nullptr;
+  }
+  StringPointerParam(CHAR* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
+  StringPointerParam& operator=(const CHAR*& other) {
+    host_ptr_ = other;
+    return *this;
+  }
+  uint32_t guest_address() const { return value_; }
+  uintptr_t host_address() const {
+    return reinterpret_cast<uintptr_t>(host_ptr_);
+  }
+  STR value() const { return STR(host_ptr_); }
+  operator CHAR*() const { return host_ptr_; }
+  operator bool() const { return host_ptr_ != nullptr; }
+
+ protected:
+  CHAR* host_ptr_;
+};
+
 template <typename T>
 class TypedPointerParam : public ParamBase<uint32_t> {
  public:
@@ -265,9 +291,11 @@ using lpdword_t = const shim::PrimitivePointerParam<uint32_t>&;
 using lpqword_t = const shim::PrimitivePointerParam<uint64_t>&;
 using lpfloat_t = const shim::PrimitivePointerParam<float>&;
 using lpdouble_t = const shim::PrimitivePointerParam<double>&;
+using lpstring_t = const shim::StringPointerParam<char, std::string>&;
+using lpwstring_t = const shim::StringPointerParam<wchar_t, std::wstring>&;
 using function_t = const shim::ParamBase<uint32_t>&;
 using unknown_t = const shim::ParamBase<uint32_t>&;
-using unknown_pointer_t = const shim::PointerParam&;
+using lpunknown_t = const shim::PointerParam&;
 template <typename T>
 using pointer_t = const shim::TypedPointerParam<T>&;
 
