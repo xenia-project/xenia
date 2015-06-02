@@ -10,6 +10,9 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
+#include "xenia/base/byte_order.h"
+#include "xenia/base/memory.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 
@@ -37,37 +40,37 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 #define SHIM_SET_MEM_64(a, v) xe::store_and_swap<uint64_t>(SHIM_MEM_ADDR(a), v)
 
 namespace util {
-  inline uint32_t get_arg_stack_ptr(PPCContext* ppc_context, uint8_t index) {
-    return ((uint32_t)ppc_context->r[1]) + 0x54 + index * 8;
-  }
+inline uint32_t get_arg_stack_ptr(PPCContext* ppc_context, uint8_t index) {
+  return ((uint32_t)ppc_context->r[1]) + 0x54 + index * 8;
+}
 
-  inline uint8_t get_arg_8(PPCContext* ppc_context, uint8_t index) {
-    if (index <= 7) {
-      return (uint8_t)ppc_context->r[3 + index];
-    }
-    return SHIM_MEM_8(get_arg_stack_ptr(ppc_context, index - 7));
+inline uint8_t get_arg_8(PPCContext* ppc_context, uint8_t index) {
+  if (index <= 7) {
+    return (uint8_t)ppc_context->r[3 + index];
   }
+  return SHIM_MEM_8(get_arg_stack_ptr(ppc_context, index - 7));
+}
 
-  inline uint16_t get_arg_16(PPCContext* ppc_context, uint8_t index) {
-    if (index <= 7) {
-      return (uint16_t)ppc_context->r[3 + index];
-    }
-    return SHIM_MEM_16(get_arg_stack_ptr(ppc_context, index - 7));
+inline uint16_t get_arg_16(PPCContext* ppc_context, uint8_t index) {
+  if (index <= 7) {
+    return (uint16_t)ppc_context->r[3 + index];
   }
+  return SHIM_MEM_16(get_arg_stack_ptr(ppc_context, index - 7));
+}
 
-  inline uint32_t get_arg_32(PPCContext* ppc_context, uint8_t index) {
-    if (index <= 7) {
-      return (uint32_t)ppc_context->r[3 + index];
-    }
-    return SHIM_MEM_32(get_arg_stack_ptr(ppc_context, index - 7));
+inline uint32_t get_arg_32(PPCContext* ppc_context, uint8_t index) {
+  if (index <= 7) {
+    return (uint32_t)ppc_context->r[3 + index];
   }
+  return SHIM_MEM_32(get_arg_stack_ptr(ppc_context, index - 7));
+}
 
-  inline uint64_t get_arg_64(PPCContext* ppc_context, uint8_t index) {
-    if (index <= 7) {
-      return ppc_context->r[3 + index];
-    }
-    return SHIM_MEM_64(get_arg_stack_ptr(ppc_context, index - 7));
+inline uint64_t get_arg_64(PPCContext* ppc_context, uint8_t index) {
+  if (index <= 7) {
+    return ppc_context->r[3 + index];
   }
+  return SHIM_MEM_64(get_arg_stack_ptr(ppc_context, index - 7));
+}
 }
 
 #define SHIM_GET_ARG_8(n) util::get_arg_8(ppc_context, n)
@@ -78,6 +81,354 @@ namespace util {
 
 #define SHIM_STRUCT(type, address) \
   reinterpret_cast<type*>(SHIM_MEM_ADDR(address))
+
+namespace shim {
+
+class Param {
+ public:
+  struct Init {
+    PPCContext* ppc_context;
+    int ordinal;
+    int float_ordinal;
+  };
+
+  Param& operator=(const Param&) = delete;
+
+  int ordinal() const { return ordinal_; }
+
+ protected:
+  Param() : ordinal_(-1) {}
+  explicit Param(Init& init) : ordinal_(--init.ordinal) {}
+
+  int ordinal_;
+};
+template <typename T>
+class ParamBase : public Param {
+ public:
+  ParamBase() : Param(), value_(0) {}
+  ParamBase(Init& init) : Param(init) { LoadValue<T>(init); }
+  ParamBase& operator=(const T& other) {
+    value_ = other;
+    return *this;
+  }
+  operator T() const { return value_; }
+
+ private:
+  template <typename V>
+  void LoadValue(Init& init) {
+    if (ordinal_ <= 7) {
+      value_ = V(init.ppc_context->r[3 + ordinal_]);
+    } else {
+      uint32_t stack_ptr =
+          uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 7) * 8;
+      value_ =
+          xe::load_and_swap<T>(init.ppc_context->virtual_membase + stack_ptr);
+    }
+  }
+  template <>
+  void LoadValue<float>(Init& init) {
+    value_ = init.ppc_context->f[1 + ++init.float_ordinal];
+  }
+  template <>
+  void LoadValue<double>(Init& init) {
+    value_ = init.ppc_context->f[1 + ++init.float_ordinal];
+  }
+
+ protected:
+  T value_;
+};
+
+class PointerParam : public ParamBase<uint32_t> {
+ public:
+  PointerParam(Init& init) : ParamBase(init) {
+    host_ptr_ = value_ ? init.ppc_context->virtual_membase + value_ : nullptr;
+  }
+  PointerParam(void* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
+  PointerParam& operator=(void*& other) {
+    host_ptr_ = other;
+    return *this;
+  }
+  uint32_t guest_address() const { return value_; }
+  uintptr_t host_address() const {
+    return reinterpret_cast<uintptr_t>(host_ptr_);
+  }
+  template <typename T>
+  T as() const {
+    return reinterpret_cast<T>(host_ptr_);
+  }
+  template <typename T>
+  xe::be<T>* as_array() const {
+    return reinterpret_cast<xe::be<T>*>(host_ptr_);
+  }
+  operator void*() const { return host_ptr_; }
+  operator uint8_t*() const { return reinterpret_cast<uint8_t*>(host_ptr_); }
+  operator bool() const { return host_ptr_ != nullptr; }
+  void* operator+(int offset) const {
+    return reinterpret_cast<uint8_t*>(host_ptr_) + offset;
+  }
+  void Zero(size_t size) const {
+    assert_not_null(host_ptr_);
+    std::memset(host_ptr_, 0, size);
+  }
+
+ protected:
+  void* host_ptr_;
+};
+
+template <typename T>
+class PrimitivePointerParam : public ParamBase<uint32_t> {
+ public:
+  PrimitivePointerParam(Init& init) : ParamBase(init) {
+    host_ptr_ = value_ ? reinterpret_cast<xe::be<T>*>(
+                             init.ppc_context->virtual_membase + value_)
+                       : nullptr;
+  }
+  PrimitivePointerParam(T* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
+  PrimitivePointerParam& operator=(const T*& other) {
+    host_ptr_ = other;
+    return *this;
+  }
+  uint32_t guest_address() const { return value_; }
+  uintptr_t host_address() const {
+    return reinterpret_cast<uintptr_t>(host_ptr_);
+  }
+  T value() const { return *host_ptr_; }
+  operator T() const { return *host_ptr_; }
+  operator xe::be<T>*() const { return host_ptr_; }
+  operator bool() const { return host_ptr_ != nullptr; }
+  void Zero() const {
+    assert_not_null(host_ptr_);
+    *host_ptr_ = 0;
+  }
+
+ protected:
+  xe::be<T>* host_ptr_;
+};
+
+template <typename T>
+class TypedPointerParam : public ParamBase<uint32_t> {
+ public:
+  TypedPointerParam(Init& init) : ParamBase(init) {
+    host_ptr_ =
+        value_
+            ? reinterpret_cast<T*>(init.ppc_context->virtual_membase + value_)
+            : nullptr;
+  }
+  TypedPointerParam(T* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
+  TypedPointerParam& operator=(const T*& other) {
+    host_ptr_ = other;
+    return *this;
+  }
+  uint32_t guest_address() const { return value_; }
+  uintptr_t host_address() const {
+    return reinterpret_cast<uintptr_t>(host_ptr_);
+  }
+  operator T*() const { return host_ptr_; }
+  operator bool() const { return host_ptr_ != nullptr; }
+  T* operator->() const {
+    assert_not_null(host_ptr_);
+    return host_ptr_;
+  }
+  void Zero() const {
+    assert_not_null(host_ptr_);
+    std::memset(host_ptr_, 0, sizeof(T));
+  }
+
+ protected:
+  T* host_ptr_;
+};
+
+template <typename T>
+class Result {
+ public:
+  Result(T value) : value_(value) {}
+  void Store(PPCContext* ppc_context) {
+    ppc_context->r[3] = uint64_t(int32_t(value_));
+  }
+  Result() = delete;
+  Result& operator=(const Result&) = delete;
+
+ private:
+  T value_;
+};
+
+}  // namespace shim
+
+using int_param_t = const shim::ParamBase<int32_t>&;
+using dword_param_t = const shim::ParamBase<uint32_t>&;
+using qword_param_t = const shim::ParamBase<uint64_t>&;
+using float_param_t = const shim::ParamBase<float>&;
+using double_param_t = const shim::ParamBase<double>&;
+using lpvoid_param_t = const shim::PointerParam&;
+using lpdword_param_t = const shim::PrimitivePointerParam<uint32_t>&;
+using lpqword_param_t = const shim::PrimitivePointerParam<uint64_t>&;
+using lpfloat_param_t = const shim::PrimitivePointerParam<float>&;
+using lpdouble_param_t = const shim::PrimitivePointerParam<double>&;
+using fn_param_t = const shim::ParamBase<uint32_t>&;
+using unknown_param_t = const shim::ParamBase<uint32_t>&;
+using unknown_pointer_param_t = const shim::PointerParam&;
+template <typename T>
+using typed_param_t = const shim::TypedPointerParam<T>&;
+
+using dword_result_t = shim::Result<uint32_t>;
+using pointer_result_t = shim::Result<uint32_t>;
+
+namespace shim {
+
+  inline void AppendParam(StringBuffer& string_buffer, int_param_t param) {
+  string_buffer.AppendFormat("%d", int32_t(param));
+}
+inline void AppendParam(StringBuffer& string_buffer, dword_param_t param) {
+  string_buffer.AppendFormat("%.8X", uint32_t(param));
+}
+inline void AppendParam(StringBuffer& string_buffer, qword_param_t param) {
+  string_buffer.AppendFormat("%.16llX", uint64_t(param));
+}
+inline void AppendParam(StringBuffer& string_buffer, float_param_t param) {
+  string_buffer.AppendFormat("%G", float(param));
+}
+inline void AppendParam(StringBuffer& string_buffer, double_param_t param) {
+  string_buffer.AppendFormat("%G", double(param));
+}
+inline void AppendParam(StringBuffer& string_buffer, lpvoid_param_t param) {
+  string_buffer.AppendFormat("%.8X", uint32_t(param));
+}
+inline void AppendParam(StringBuffer& string_buffer, lpdword_param_t param) {
+  string_buffer.AppendFormat("%.8X(%.8X)", param.guest_address(),
+                             param.value());
+}
+inline void AppendParam(StringBuffer& string_buffer, lpqword_param_t param) {
+  string_buffer.AppendFormat("%.8X(%.16llX)", param.guest_address(),
+                             param.value());
+}
+inline void AppendParam(StringBuffer& string_buffer, lpfloat_param_t param) {
+  string_buffer.AppendFormat("%.8X(%G)", param.guest_address(), param.value());
+}
+inline void AppendParam(StringBuffer& string_buffer, lpdouble_param_t param) {
+  string_buffer.AppendFormat("%.8X(%G)", param.guest_address(), param.value());
+}
+template <typename T>
+void AppendParam(StringBuffer& string_buffer, typed_param_t<T> param) {
+  string_buffer.AppendFormat("%.8X", param.guest_address());
+}
+
+enum class KernelModuleId {
+  xboxkrnl,
+  xam,
+};
+
+template <typename F, typename Tuple, std::size_t... I>
+auto KernelTrampoline(F&& f, PPCContext* ppc_context, KernelState* kernel_state,
+                      Tuple&& t, std::index_sequence<I...>) {
+  return std::forward<F>(f)(ppc_context, kernel_state,
+                            std::get<I>(std::forward<Tuple>(t))...);
+}
+
+template <size_t I = 0, typename... Ps>
+typename std::enable_if<I == sizeof...(Ps)>::type AppendKernelCallParams(
+  StringBuffer& string_buffer, xe::cpu::Export* export, const std::tuple<Ps...>&) {}
+
+template <size_t I = 0, typename... Ps>
+    typename std::enable_if <
+    I<sizeof...(Ps)>::type AppendKernelCallParams(
+      StringBuffer& string_buffer, xe::cpu::Export* export, const std::tuple<Ps...>& params) {
+  if (I) {
+    string_buffer.Append(", ");
+  }
+  auto param = std::get<I>(params);
+  AppendParam(string_buffer, param);
+  AppendKernelCallParams<I + 1>(string_buffer, export, params);
+}
+
+StringBuffer* thread_local_string_buffer();
+
+template <typename Tuple>
+void PrintKernelCall(cpu::Export* export, const Tuple& params) {
+  auto& string_buffer = *thread_local_string_buffer();
+  string_buffer.Reset();
+  string_buffer.Append(export->name);
+  string_buffer.Append('(');
+  AppendKernelCallParams(string_buffer, export, params);
+  string_buffer.Append(')');
+  auto str = string_buffer.GetString();
+  if (export->tags & ExportTag::kImportant) {
+    XELOGI(str);
+  } else {
+    XELOGD(str);
+  }
+}
+
+template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
+xe::cpu::Export* RegisterExport(R (*fn)(PPCContext* ppc_context,
+                                        xe::kernel::KernelState* kernel_state,
+                                        Ps&...),
+                                std::string name,
+                                xe::cpu::ExportTag::type tags) {
+  static const auto export =
+      new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
+                      tags | ExportTag::kImplemented | ExportTag::kLog);
+  static R (*FN)(PPCContext* ppc_context, xe::kernel::KernelState* kernel_state,
+                 Ps&...) = fn;
+  struct X {
+    static void Trampoline(PPCContext* ppc_context) {
+      ++export->function_data.call_count;
+      Param::Init init = {
+          ppc_context, sizeof...(Ps), 0,
+      };
+      auto params = std::make_tuple<Ps...>(Ps(init)...);
+      if (export->tags & ExportTag::kLog) {
+        PrintKernelCall(export, params);
+      }
+      auto result = KernelTrampoline(FN, ppc_context, ppc_context->kernel_state,
+                                     std::forward<std::tuple<Ps...>>(params),
+                                     std::make_index_sequence<sizeof...(Ps)>());
+      result.Store(ppc_context);
+      if (export->tags & (ExportTag::kLog | ExportTag::kLogResult)) {
+        // TODO(benvanik): log result.
+      }
+    }
+  };
+  export->function_data.trampoline = &X::Trampoline;
+  return export;
+}
+
+template <KernelModuleId MODULE, uint16_t ORDINAL, typename... Ps>
+xe::cpu::Export* RegisterExport(
+    void (*fn)(PPCContext* ppc_context, xe::kernel::KernelState* kernel_state,
+               Ps&...),
+    std::string name, xe::cpu::ExportTag::type tags) {
+  static const auto export =
+      new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
+                      tags | ExportTag::kImplemented | ExportTag::kLog);
+  static void (*FN)(PPCContext* ppc_context,
+                    xe::kernel::KernelState* kernel_state, Ps&...) = fn;
+  struct X {
+    static void Trampoline(PPCContext* ppc_context) {
+      ++export->function_data.call_count;
+      Param::Init init = {
+          ppc_context, sizeof...(Ps),
+      };
+      auto params = std::make_tuple<Ps...>(Ps(init)...);
+      if (export->tags & ExportTag::kLog) {
+        PrintKernelCall(export, params);
+      }
+      KernelTrampoline(FN, ppc_context, ppc_context->kernel_state,
+                       std::forward<std::tuple<Ps...>>(params),
+                       std::make_index_sequence<sizeof...(Ps)>());
+    }
+  };
+  export->function_data.trampoline = &X::Trampoline;
+  return export;
+}
+
+}  // namespace shim
+
+using xe::cpu::ExportTag;
+#define DECLARE_EXPORT(module_name, name, tags)                             \
+  auto EXPORT_##module_name##_##name =                                      \
+      RegisterExport_##module_name(xe::kernel::shim::RegisterExport<        \
+          xe::kernel::shim::KernelModuleId::module_name, ordinals::##name>( \
+          &name, std::string(#name), tags));
 
 }  // namespace kernel
 }  // namespace xe

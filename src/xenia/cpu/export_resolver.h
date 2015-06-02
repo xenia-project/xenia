@@ -21,10 +21,16 @@ namespace cpu {
 struct ExportTag {
   typedef uint32_t type;
 
+  // Export is implemented in some form and can be used.
   static const type kImplemented = 1 << 0;
-  static const type kSketchy = 1 << 1;
-  static const type kHighFrequency = 1 << 2;
-  static const type kImportant = 1 << 3;
+  // Export is a stub and is probably bad.
+  static const type kStub = 1 << 1;
+  // Export is known to cause problems, or may not be complete.
+  static const type kSketchy = 1 << 2;
+  // Export is called *a lot*.
+  static const type kHighFrequency = 1 << 3;
+  // Export is important and should always be logged.
+  static const type kImportant = 1 << 4;
 
   static const type kThreading = 1 << 10;
   static const type kInput = 1 << 11;
@@ -34,7 +40,10 @@ struct ExportTag {
   static const type kModules = 1 << 15;
   static const type kUserProfiles = 1 << 16;
 
-  static const type kLog = 1 << 31;
+  // Export will be logged on each call.
+  static const type kLog = 1 << 30;
+  // Export's result will be logged on each call.
+  static const type kLogResult = 1 << 31;
 };
 
 // DEPRECATED
@@ -49,11 +58,12 @@ class Export {
     kVariable = 1,
   };
 
-  Export(uint16_t ordinal, Type type, std::string name)
+  Export(uint16_t ordinal, Type type, std::string name,
+         ExportTag::type tags = 0)
       : ordinal(ordinal),
         type(type),
         name(name),
-        tags(0),
+        tags(tags),
         variable_ptr(0),
         function_data({nullptr, nullptr, 0}) {}
 

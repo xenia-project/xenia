@@ -159,6 +159,7 @@
     <ClCompile Include="src\xenia\kernel\objects\xuser_module.cc" />
     <ClCompile Include="src\xenia\kernel\object_table.cc" />
     <ClCompile Include="src\xenia\kernel\user_profile.cc" />
+    <ClCompile Include="src\xenia\kernel\util\shim_utils.cc" />
     <ClCompile Include="src\xenia\kernel\util\xex2.cc" />
     <ClCompile Include="src\xenia\kernel\xam_content.cc" />
     <ClCompile Include="src\xenia\kernel\xam_info.cc" />

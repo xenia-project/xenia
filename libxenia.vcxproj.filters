@@ -709,6 +709,9 @@
     <ClCompile Include="src\xenia\base\clock.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\kernel\util\shim_utils.cc">
+      <Filter>src\xenia\kernel\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
