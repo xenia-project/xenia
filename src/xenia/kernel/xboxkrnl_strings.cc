@@ -868,8 +868,7 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
     if (buffer_count > 0) {
       buffer[0] = '\0';  // write a null, just to be safe
     }
-  }
-  if (count <= buffer_count) {
+  } else if (count <= buffer_count) {
     std::memcpy(buffer, data.str().c_str(), count);
     if (count < buffer_count) {
       buffer[count] = '\0';
