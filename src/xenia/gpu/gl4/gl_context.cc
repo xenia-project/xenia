@@ -332,7 +332,9 @@ bool GLContext::MakeCurrent() {
 }
 
 void GLContext::ClearCurrent() {
-  wglMakeCurrent(nullptr, nullptr);
+  if (!FLAGS_disable_gl_context_reset) {
+    wglMakeCurrent(nullptr, nullptr);
+  }
   tls_glew_context_ = nullptr;
   tls_wglew_context_ = nullptr;
 
