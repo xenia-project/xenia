@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/math.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 
 namespace xe {
@@ -58,18 +59,19 @@ class Export {
     kVariable = 1,
   };
 
-  Export(uint16_t ordinal, Type type, std::string name,
+  Export(uint16_t ordinal, Type type, const char* name,
          ExportTag::type tags = 0)
       : ordinal(ordinal),
         type(type),
-        name(name),
         tags(tags),
         variable_ptr(0),
-        function_data({nullptr, nullptr, 0}) {}
+        function_data({nullptr, nullptr, 0}) {
+    std::strncpy(this->name, name, xe::countof(this->name));
+  }
 
   uint16_t ordinal;
   Type type;
-  std::string name;
+  char name[96];
   ExportTag::type tags;
 
   bool is_implemented() const {

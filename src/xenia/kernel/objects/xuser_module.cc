@@ -389,7 +389,7 @@ void XUserModule::Dump() {
           kernel_export =
               export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
-            name = kernel_export->name.c_str();
+            name = kernel_export->name;
             implemented = kernel_export->is_implemented();
           }
         } else {

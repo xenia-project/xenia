@@ -388,7 +388,7 @@ auto KernelTrampoline(F&& f, Tuple&& t, std::index_sequence<I...>) {
 }
 
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
-xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), std::string name,
+xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
   static const auto export =
       new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
@@ -418,7 +418,7 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), std::string name,
 }
 
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename... Ps>
-xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), std::string name,
+xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
   static const auto export =
       new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
@@ -450,7 +450,7 @@ using xe::cpu::ExportTag;
   const auto EXPORT_##module_name##_##name =                                \
       RegisterExport_##module_name(xe::kernel::shim::RegisterExport<        \
           xe::kernel::shim::KernelModuleId::module_name, ordinals::##name>( \
-          &name, std::string(#name), tags));
+          &name, #name, tags));
 
 #define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)
 #define DECLARE_XBOXKRNL_EXPORT(name, tags) DECLARE_EXPORT(xboxkrnl, name, tags)
