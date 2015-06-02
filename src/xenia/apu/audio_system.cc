@@ -13,6 +13,7 @@
 #include "xenia/apu/audio_decoder.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/ring_buffer.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/emulator.h"
@@ -360,8 +361,6 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   // 3 - 48 kHz ?
 
   // SPUs also support stereo decoding. (data.is_stereo)
-  bool output_written_bytes = false;
-
   while (data.output_buffer_valid) {
     // Check the output buffer - we cannot decode anything else if it's
     // unavailable.
@@ -372,25 +371,9 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
     uint32_t output_write_offset_bytes = data.output_buffer_write_offset * 256;
     uint32_t output_read_offset_bytes = data.output_buffer_read_offset * 256;
 
-    uint32_t output_remaining_bytes = 0;
-    bool output_wraparound = false;
-    bool output_all = false;
-
-    if (output_write_offset_bytes < output_read_offset_bytes) {
-      // Case 1: write -> read
-      output_remaining_bytes =
-                      output_read_offset_bytes - output_write_offset_bytes;
-    } else if (output_read_offset_bytes < output_write_offset_bytes) {
-      // Case 2: write -> end -> read
-      output_remaining_bytes = output_size_bytes - output_write_offset_bytes;
-      output_remaining_bytes += output_read_offset_bytes;
-
-      // Doesn't count if it's 0!
-      output_wraparound = true;
-    } else if (!output_written_bytes) {
-      output_remaining_bytes = output_size_bytes;
-      output_all = true;
-    }
+    RingBuffer out_buffer(out, output_size_bytes, output_write_offset_bytes);
+    size_t output_remaining_bytes
+                    = out_buffer.DistanceToOffset(output_read_offset_bytes);
 
     if (!output_remaining_bytes) {
       // Can't write any more data. Break.
@@ -404,47 +387,13 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
     // Copies one frame at a time, so keep calling this until size == 0
     int read_bytes = 0;
     int decode_attempts_remaining = 3;
+    uint8_t tmp_buff[XMAContextData::kOutputMaxSizeBytes];
     while (decode_attempts_remaining) {
-      // TODO: We need a ringbuffer util class!
-      if (output_all) {
-        read_bytes = context.decoder->DecodePacket(out,
-                                                   output_write_offset_bytes,
-                                                   output_size_bytes
-                                                   - output_write_offset_bytes);
-      } else if (output_wraparound) {
-        // write -> end
-        int r1 = context.decoder->DecodePacket(out,
-                                               output_write_offset_bytes,
-                                               output_size_bytes
-                                               - output_write_offset_bytes);
-        if (r1 < 0) {
-          --decode_attempts_remaining;
-          continue;
-        }
-
-        // begin -> read
-        // FIXME: If it fails here this'll break stuff
-        int r2 = context.decoder->DecodePacket(out, 0,
-                                               output_read_offset_bytes);
-        if (r2 < 0) {
-          --decode_attempts_remaining;
-          continue;
-        }
-
-        read_bytes = r1 + r2;
-      } else {
-        // write -> read
-        read_bytes = context.decoder->DecodePacket(out,
-                                                   output_write_offset_bytes,
-                                                   output_read_offset_bytes
-                                                   - output_write_offset_bytes);
-      }
-
-      if (read_bytes > 0) {
-        output_written_bytes = true;
-      }
-
+      read_bytes = context.decoder->DecodePacket(tmp_buff, 0,
+                                                 output_remaining_bytes);
       if (read_bytes >= 0) {
+        out_buffer.Write(tmp_buff, read_bytes);
+
         // Ok.
         break;
       } else {

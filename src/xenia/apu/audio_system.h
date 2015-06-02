@@ -43,6 +43,9 @@ struct XMAContextData {
   static const uint32_t kSamplesPerFrame = 512;
   static const uint32_t kSamplesPerSubframe = 128;
 
+  static const uint32_t kOutputBytesPerBlock = 256;
+  static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
+
   // DWORD 0
   uint32_t input_buffer_0_packet_count : 12; // XMASetInputBuffer0, number of
                                              // 2KB packets. Max 4095 packets.
