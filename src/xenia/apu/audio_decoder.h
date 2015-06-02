@@ -45,12 +45,12 @@ class AudioDecoder {
     int DecodePacket(uint8_t* output, size_t offset, size_t size);
 
   private:
+    // libav structures
     AVCodec* codec_;
     AVCodecContext* context_;
     AVFrame* decoded_frame_;
     AVPacket* packet_;
 
-    uint8_t bits_per_frame_;
     size_t current_frame_pos_;
     uint8_t* current_frame_;
     uint32_t frame_samples_size_;

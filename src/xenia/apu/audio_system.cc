@@ -360,13 +360,38 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   // 3 - 48 kHz ?
 
   // SPUs also support stereo decoding. (data.is_stereo)
+  bool output_written_bytes = false;
+
   while (data.output_buffer_valid) {
     // Check the output buffer - we cannot decode anything else if it's
     // unavailable.
     // Output buffers are in raw PCM samples, 256 bytes per block.
+    // Output buffer is a ring buffer. We need to write from the write offset
+    // to the read offset.
     uint32_t output_size_bytes = data.output_buffer_block_count * 256;
-    uint32_t output_offset_bytes = data.output_buffer_write_offset * 256;
-    uint32_t output_remaining_bytes = output_size_bytes - output_offset_bytes;
+    uint32_t output_write_offset_bytes = data.output_buffer_write_offset * 256;
+    uint32_t output_read_offset_bytes = data.output_buffer_read_offset * 256;
+
+    uint32_t output_remaining_bytes = 0;
+    bool output_wraparound = false;
+    bool output_all = false;
+
+    if (output_write_offset_bytes < output_read_offset_bytes) {
+      // Case 1: write -> read
+      output_remaining_bytes =
+                      output_read_offset_bytes - output_write_offset_bytes;
+    } else if (output_read_offset_bytes < output_write_offset_bytes) {
+      // Case 2: write -> end -> read
+      output_remaining_bytes = output_size_bytes - output_write_offset_bytes;
+      output_remaining_bytes += output_read_offset_bytes;
+
+      // Doesn't count if it's 0!
+      output_wraparound = true;
+    } else if (!output_written_bytes) {
+      output_remaining_bytes = output_size_bytes;
+      output_all = true;
+    }
+
     if (!output_remaining_bytes) {
       // Can't write any more data. Break.
       // The game will kick us again with a new output buffer later.
@@ -380,8 +405,45 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
     int read_bytes = 0;
     int decode_attempts_remaining = 3;
     while (decode_attempts_remaining) {
-      read_bytes = context.decoder->DecodePacket(out, output_offset_bytes,
-                                                 output_remaining_bytes);
+      // TODO: We need a ringbuffer util class!
+      if (output_all) {
+        read_bytes = context.decoder->DecodePacket(out,
+                                                   output_write_offset_bytes,
+                                                   output_size_bytes
+                                                   - output_write_offset_bytes);
+      } else if (output_wraparound) {
+        // write -> end
+        int r1 = context.decoder->DecodePacket(out,
+                                               output_write_offset_bytes,
+                                               output_size_bytes
+                                               - output_write_offset_bytes);
+        if (r1 < 0) {
+          --decode_attempts_remaining;
+          continue;
+        }
+
+        // begin -> read
+        // FIXME: If it fails here this'll break stuff
+        int r2 = context.decoder->DecodePacket(out, 0,
+                                               output_read_offset_bytes);
+        if (r2 < 0) {
+          --decode_attempts_remaining;
+          continue;
+        }
+
+        read_bytes = r1 + r2;
+      } else {
+        // write -> read
+        read_bytes = context.decoder->DecodePacket(out,
+                                                   output_write_offset_bytes,
+                                                   output_read_offset_bytes
+                                                   - output_write_offset_bytes);
+      }
+
+      if (read_bytes > 0) {
+        output_written_bytes = true;
+      }
+
       if (read_bytes >= 0) {
         // Ok.
         break;
@@ -389,11 +451,13 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
         // Sometimes the decoder will fail on a packet. I think it's
         // looking for cross-packet frames and failing. If you run it again
         // on the same packet it'll work though.
-        XELOGAPU("APU failed to decode packet (returned %.8X)", -read_bytes);
         --decode_attempts_remaining;
       }
     }
+
     if (!decode_attempts_remaining) {
+      XELOGAPU("AudioSystem: libav failed to decode packet (returned %.8X)", -read_bytes);
+
       // Failed out.
       if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
         // There's new data available - maybe we'll be ok if we decode it?
@@ -404,7 +468,12 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
         break;
       }
     }
+
     data.output_buffer_write_offset += uint32_t(read_bytes) / 256;
+    if (data.output_buffer_write_offset > data.output_buffer_block_count) {
+      // Wraparound!
+      data.output_buffer_write_offset -= data.output_buffer_block_count;
+    }
 
     // If we need more data and the input buffers have it, grab it.
     if (read_bytes) {
@@ -426,10 +495,8 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
 
       // See if we've finished with the input.
       // Block count is in packets, so expand by packet size.
-      uint32_t input_size_0_bytes =
-          (data.input_buffer_0_block_count) * 2048;
-      uint32_t input_size_1_bytes =
-          (data.input_buffer_1_block_count) * 2048;
+      uint32_t input_size_0_bytes = (data.input_buffer_0_packet_count) * 2048;
+      uint32_t input_size_1_bytes = (data.input_buffer_1_packet_count) * 2048;
 
       // Total input size
       uint32_t input_size_bytes = input_size_0_bytes + input_size_1_bytes;
@@ -437,8 +504,7 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
       // Input read offset is in bits. Typically starts at 32 (4 bytes).
       // "Sequence" offset - used internally for WMA Pro decoder.
       // Just the read offset.
-      uint32_t seq_offset_bytes =
-          (data.input_buffer_read_offset & ~0x7FF) / 8;
+      uint32_t seq_offset_bytes = (data.input_buffer_read_offset & ~0x7FF) / 8;
 
       if (seq_offset_bytes < input_size_bytes) {
         // Setup input offset and input buffer.
@@ -529,16 +595,15 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
 
-        XELOGAPU(
-            "AudioSystem: kicking context %d (%d/%d bytes)", context_id,
+        XELOGAPU("AudioSystem: kicking context %d (%d/%d bytes)", context_id,
             (data.input_buffer_read_offset & ~0x7FF) / 8,
-            (data.input_buffer_0_block_count + data.input_buffer_1_block_count)
+            (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count)
             * XMAContextData::kBytesPerBlock);
 
         // Reset valid flags so our audio decoder knows to process this one.
         data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
         data.input_buffer_1_valid = data.input_buffer_1_ptr != 0;
-        data.output_buffer_write_offset = 0;
+        //data.output_buffer_write_offset = 0;
 
         data.Store(context_ptr);
 
