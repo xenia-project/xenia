@@ -131,7 +131,7 @@ void XThread::set_name(const std::string& name) {
   xe::threading::set_name(thread_handle_, name);
 }
 
-uint8_t fake_CPU_number(uint8_t proc_mask) {
+uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   if (!proc_mask) {
     return 0;  // is this reasonable?
   }
@@ -220,8 +220,8 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(pcr + 0x074, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(pcr + 0x100, thread_state_address_);
   xe::store_and_swap<uint8_t>(pcr + 0x10C,
-                              fake_CPU_number(proc_mask));  // Current CPU(?)
-  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);             // DPC active bool?
+                              GetFakeCpuNumber(proc_mask));  // Current CPU(?)
+  xe::store_and_swap<uint32_t>(pcr + 0x150, 0);              // DPC active bool?
 
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
@@ -526,9 +526,8 @@ void XThread::DeliverAPCs(void* data) {
       // kernel_routine(apc_address, &normal_routine, &normal_context,
       // &system_arg1, &system_arg2)
       uint64_t kernel_args[] = {
-          apc_ptr,                       thread->scratch_address_ + 0,
-          thread->scratch_address_ + 4,  thread->scratch_address_ + 8,
-          thread->scratch_address_ + 12,
+          apc_ptr, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
+          thread->scratch_address_ + 8, thread->scratch_address_ + 12,
       };
       processor->Execute(thread->thread_state(), apc->kernel_routine,
                          kernel_args, xe::countof(kernel_args));
@@ -624,8 +623,8 @@ void XThread::SetAffinity(uint32_t affinity) {
   if (system_info.dwNumberOfProcessors < 6) {
     XELOGW("Too few processors - scheduling will be wonky");
   }
+  SetActiveCpu(GetFakeCpuNumber(affinity));
   if (!FLAGS_ignore_thread_affinities) {
-    SetActiveCpu(fake_CPU_number(affinity));
     SetThreadAffinityMask(reinterpret_cast<HANDLE>(thread_handle_), affinity);
   }
 }
