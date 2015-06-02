@@ -712,6 +712,9 @@
     <ClCompile Include="src\xenia\kernel\util\shim_utils.cc">
       <Filter>src\xenia\kernel\util</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\base\ring_buffer.cpp">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
     <ClCompile Include="src\xenia\kernel\xam_nui.cc">
       <Filter>src\xenia\kernel</Filter>
     </ClCompile>
@@ -1369,6 +1372,9 @@
       <Filter>src\xenia\base</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\base\clock.h">
+      <Filter>src\xenia\base</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\base\ring_buffer.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
   </ItemGroup>

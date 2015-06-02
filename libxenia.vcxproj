@@ -33,6 +33,7 @@
     <ClCompile Include="src\xenia\base\mapped_memory_win.cc" />
     <ClCompile Include="src\xenia\base\math.cc" />
     <ClCompile Include="src\xenia\base\memory_generic.cc" />
+    <ClCompile Include="src\xenia\base\ring_buffer.cpp" />
     <ClCompile Include="src\xenia\base\string.cc" />
     <ClCompile Include="src\xenia\base\string_buffer.cc" />
     <ClCompile Include="src\xenia\base\threading_win.cc" />
@@ -231,6 +232,7 @@
     <ClInclude Include="src\xenia\base\mutex.h" />
     <ClInclude Include="src\xenia\base\platform.h" />
     <ClInclude Include="src\xenia\base\reset_scope.h" />
+    <ClInclude Include="src\xenia\base\ring_buffer.h" />
     <ClInclude Include="src\xenia\base\string.h" />
     <ClInclude Include="src\xenia\base\string_buffer.h" />
     <ClInclude Include="src\xenia\base\threading.h" />
