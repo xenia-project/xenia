@@ -411,7 +411,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
   auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
-  XELOGW("undefined extern call to %.8llX %s", symbol_info->address(),
+  XELOGW("undefined extern call to %.8X %s", symbol_info->address(),
          symbol_info->name().c_str());
   return 0;
 }

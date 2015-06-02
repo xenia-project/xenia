@@ -40,3 +40,6 @@ DECLARE_XAM_EXPORT(XamVoiceHeadsetPresent, ExportTag::kStub);
 
 }  // namespace kernel
 }  // namespace xe
+
+void xe::kernel::xam::RegisterVoiceExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}

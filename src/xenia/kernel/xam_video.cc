@@ -29,3 +29,6 @@ DECLARE_XAM_EXPORT(XGetVideoCapabilities, ExportTag::kVideo | ExportTag::kStub);
 
 }  // namespace kernel
 }  // namespace xe
+
+void xe::kernel::xam::RegisterVideoExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}

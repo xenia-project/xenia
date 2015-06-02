@@ -447,7 +447,7 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), std::string name,
 using xe::cpu::ExportTag;
 
 #define DECLARE_EXPORT(module_name, name, tags)                             \
-  auto EXPORT_##module_name##_##name =                                      \
+  const auto EXPORT_##module_name##_##name =                                \
       RegisterExport_##module_name(xe::kernel::shim::RegisterExport<        \
           xe::kernel::shim::KernelModuleId::module_name, ordinals::##name>( \
           &name, std::string(#name), tags));

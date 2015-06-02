@@ -32,3 +32,6 @@ DECLARE_XBOXKRNL_EXPORT(XUsbcamGetState, ExportTag::kStub);
 
 }  // namespace kernel
 }  // namespace xe
+
+void xe::kernel::xboxkrnl::RegisterUsbcamExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}

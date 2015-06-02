@@ -837,3 +837,6 @@ DECLARE_XBOXKRNL_EXPORT(RtlNtStatusToDosError,
 
 }  // namespace kernel
 }  // namespace xe
+
+void xe::kernel::xboxkrnl::RegisterErrorExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}

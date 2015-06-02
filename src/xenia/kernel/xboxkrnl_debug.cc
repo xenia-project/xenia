@@ -104,3 +104,6 @@ DECLARE_XBOXKRNL_EXPORT(KeBugCheck, ExportTag::kImportant);
 
 }  // namespace kernel
 }  // namespace xe
+
+void xe::kernel::xboxkrnl::RegisterDebugExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}

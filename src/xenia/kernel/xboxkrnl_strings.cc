@@ -58,7 +58,7 @@ enum ArgumentSize {
 };
 
 class FormatData {
-public:
+ public:
   virtual uint16_t get() = 0;
   virtual uint16_t peek(int32_t offset) = 0;
   virtual void skip(int32_t count) = 0;
@@ -66,19 +66,21 @@ public:
 };
 
 class ArgList {
-public:
+ public:
   virtual uint32_t get32() = 0;
   virtual uint64_t get64() = 0;
 };
 
-/* Making the assumption that the Xbox 360's implementation of the printf-functions
+/* Making the assumption that the Xbox 360's implementation of the
+ *printf-functions
  * matches what is described on MSDN's documentation for the Windows CRT:
  *
  * "Format Specification Syntax: printf and wprintf Functions"
  * https://msdn.microsoft.com/en-us/library/56e442dc.aspx
  */
 
-std::string format_double(double value, int32_t precision, uint16_t c, uint32_t flags) {
+std::string format_double(double value, int32_t precision, uint16_t c,
+                          uint32_t flags) {
   if (precision < 0) {
     precision = 6;
   } else if (precision == 0 && c == 'g') {
@@ -110,7 +112,8 @@ std::string format_double(double value, int32_t precision, uint16_t c, uint32_t 
   return temp.str();
 }
 
-int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args, const bool wide) {
+int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
+                    const bool wide) {
   int32_t count = 0;
 
   char work[512];
@@ -143,12 +146,12 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args, co
   prefix.buffer[0] = '\0';
   prefix.length = 0;
 
-  for (uint16_t c = data.get(); ; c = data.get()) {
+  for (uint16_t c = data.get();; c = data.get()) {
     if (state == FS_Unknown) {
-      if (!c) { // the end
+      if (!c) {  // the end
         return count;
       } else if (c != '%') {
-output:
+      output:
         data.put(c);
         ++count;
         continue;
@@ -164,7 +167,7 @@ output:
       return -1;
     }
 
-restart:
+  restart:
     switch (state) {
       case FS_Start: {
         if (c == '%') {
@@ -295,8 +298,7 @@ restart:
             data.skip(2);
             state = FS_Type;
             continue;
-          }
-          else {
+          } else {
             state = FS_Type;
             continue;
           }
@@ -344,7 +346,7 @@ restart:
             digits = "0123456789";
             radix = 10;
 
-        integer:
+          integer:
             assert_not_null(digits);
             assert_not_zero(radix);
 
@@ -390,7 +392,8 @@ restart:
               *--start = digits[digit];
             }
 
-            if ((flags & FF_ForceLeadingZero) && (start == end || *start != '0')) {
+            if ((flags & FF_ForceLeadingZero) &&
+                (start == end || *start != '0')) {
               *--start = '0';
             }
 
@@ -440,7 +443,7 @@ restart:
 
           // floating-point without exponent
           case 'f': {
-        floatingpoint:
+          floatingpoint:
             flags |= FF_IsSigned;
 
             int64_t dummy = args.get64();
@@ -547,9 +550,7 @@ restart:
             assert_always();
           }
 
-          default: {
-            assert_always();
-          }
+          default: { assert_always(); }
         }
       }
     }
@@ -589,7 +590,8 @@ restart:
       }
     }
 
-    if ((flags & FF_AddLeadingZeros) && !(flags & (FF_LeftJustify)) && padding > 0) {
+    if ((flags & FF_AddLeadingZeros) && !(flags & (FF_LeftJustify)) &&
+        padding > 0) {
       count += padding;
       while (padding-- > 0) {
         if (!data.put('0')) {
@@ -643,16 +645,10 @@ restart:
 }
 
 class StackArgList : public ArgList {
-public:
-  StackArgList(PPCContext* ppc_context)
-    : ppc_context(ppc_context)
-    , index_(2)
-  {
-  }
+ public:
+  StackArgList(PPCContext* ppc_context) : ppc_context(ppc_context), index_(2) {}
 
-  uint32_t get32() {
-    return (uint32_t)get64();
-  }
+  uint32_t get32() { return (uint32_t)get64(); }
 
   uint64_t get64() {
     auto value = SHIM_GET_ARG_64(2 + index_);
@@ -660,23 +656,17 @@ public:
     return value;
   }
 
-private:
+ private:
   PPCContext* ppc_context;
   int32_t index_;
 };
 
 class ArrayArgList : public ArgList {
-public:
+ public:
   ArrayArgList(PPCContext* ppc_context, uint32_t arg_ptr)
-    : ppc_context(ppc_context)
-    , arg_ptr_(arg_ptr)
-    , index_(0)
-  {
-  }
+      : ppc_context(ppc_context), arg_ptr_(arg_ptr), index_(0) {}
 
-  uint32_t get32() {
-    return (uint32_t)get64();
-  }
+  uint32_t get32() { return (uint32_t)get64(); }
 
   uint64_t get64() {
     auto value = SHIM_MEM_64(arg_ptr_ + (8 * index_));
@@ -684,18 +674,15 @@ public:
     return value;
   }
 
-private:
+ private:
   PPCContext* ppc_context;
   uint32_t arg_ptr_;
   int32_t index_;
 };
 
 class StringFormatData : public FormatData {
-public:
-  StringFormatData(const uint8_t* input)
-    : input_(input)
-  {
-  }
+ public:
+  StringFormatData(const uint8_t* input) : input_(input) {}
 
   uint16_t get() {
     uint16_t result = *input_;
@@ -705,9 +692,7 @@ public:
     return result;
   }
 
-  uint16_t peek(int32_t offset) {
-    return input_[offset];
-  }
+  uint16_t peek(int32_t offset) { return input_[offset]; }
 
   void skip(int32_t count) {
     while (count-- > 0) {
@@ -725,21 +710,16 @@ public:
     return true;
   }
 
-  const std::string& str() const {
-    return output_.str();
-  }
+  std::string str() const { return output_.str(); }
 
-private:
+ private:
   const uint8_t* input_;
   std::ostringstream output_;
 };
 
 class WideStringFormatData : public FormatData {
-public:
-  WideStringFormatData(const uint16_t* input)
-    : input_(input)
-  {
-  }
+ public:
+  WideStringFormatData(const uint16_t* input) : input_(input) {}
 
   uint16_t get() {
     uint16_t result = *input_;
@@ -749,9 +729,7 @@ public:
     return xe::byte_swap(result);
   }
 
-  uint16_t peek(int32_t offset) {
-    return input_[offset];
-  }
+  uint16_t peek(int32_t offset) { return input_[offset]; }
 
   void skip(int32_t count) {
     while (count-- > 0) {
@@ -766,21 +744,16 @@ public:
     return true;
   }
 
-  const std::wstring& wstr() const {
-    return output_.str();
-  }
+  std::wstring wstr() const { return output_.str(); }
 
-private:
+ private:
   const uint16_t* input_;
   std::wostringstream output_;
 };
 
 class WideCountFormatData : public FormatData {
-public:
-  WideCountFormatData(const uint16_t* input)
-    : input_(input), count_(0)
-  {
-  }
+ public:
+  WideCountFormatData(const uint16_t* input) : input_(input), count_(0) {}
 
   uint16_t get() {
     uint16_t result = *input_;
@@ -790,9 +763,7 @@ public:
     return xe::byte_swap(result);
   }
 
-  uint16_t peek(int32_t offset) {
-    return input_[offset];
-  }
+  uint16_t peek(int32_t offset) { return input_[offset]; }
 
   void skip(int32_t count) {
     while (count-- > 0) {
@@ -807,11 +778,9 @@ public:
     return true;
   }
 
-  const int32_t count() const {
-    return count_;
-  }
+  const int32_t count() const { return count_; }
 
-private:
+ private:
   const uint16_t* input_;
   int32_t count_;
 };
@@ -880,9 +849,10 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
   uint32_t arg_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD("_vsnprintf(%08X, %i, %08X, %08X)", buffer_ptr, buffer_count, format_ptr, arg_ptr);
+  XELOGD("_vsnprintf(%08X, %i, %08X, %08X)", buffer_ptr, buffer_count,
+         format_ptr, arg_ptr);
 
-  if (buffer_ptr == 0 || buffer_count<= 0 || format_ptr == 0) {
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
   }
@@ -896,16 +866,17 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   int32_t count = format_core(ppc_context, data, args, false);
   if (count < 0) {
     if (buffer_count > 0) {
-      buffer[0] = '\0'; // write a null, just to be safe
+      buffer[0] = '\0';  // write a null, just to be safe
     }
-  } if (count <= buffer_count) {
+  }
+  if (count <= buffer_count) {
     std::memcpy(buffer, data.str().c_str(), count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
     std::memcpy(buffer, data.str().c_str(), buffer_count);
-    count = -1; // for return value
+    count = -1;  // for return value
   }
   SHIM_SET_RETURN_32(count);
 }

@@ -32,3 +32,6 @@ DECLARE_XBOXKRNL_EXPORT(HalReturnToFirmware, ExportTag::kImportant);
 
 }  // namespace kernel
 }  // namespace xe
+
+void xe::kernel::xboxkrnl::RegisterHalExports(
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}

@@ -38,6 +38,10 @@ void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state);
 void RegisterUserExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state);
+void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
+                          KernelState* kernel_state);
+void RegisterVoiceExports(xe::cpu::ExportResolver* export_resolver,
+                          KernelState* kernel_state);
 }  // namespace xam
 
 }  // namespace kernel
