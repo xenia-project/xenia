@@ -55,21 +55,24 @@ void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
   }
 }
 
-// typedef struct {
-//  BYTE cfgSizeOfStruct;
-//  BYTE cfgFlags;
-//  BYTE cfgSockMaxDgramSockets;
-//  BYTE cfgSockMaxStreamSockets;
-//  BYTE cfgSockDefaultRecvBufsizeInK;
-//  BYTE cfgSockDefaultSendBufsizeInK;
-//  BYTE cfgKeyRegMax;
-//  BYTE cfgSecRegMax;
-//  BYTE cfgQosDataLimitDiv4;
-//  BYTE cfgQosProbeTimeoutInSeconds;
-//  BYTE cfgQosProbeRetries;
-//  BYTE cfgQosSrvMaxSimultaneousResponses;
-//  BYTE cfgQosPairWaitTimeInSeconds;
-//} XNetStartupParams;
+// https://github.com/joolswills/mameox/blob/master/MAMEoX/Sources/xbox_Network.cpp#L136
+struct XNetStartupParams {
+  BYTE cfgSizeOfStruct;
+  BYTE cfgFlags;
+  BYTE cfgSockMaxDgramSockets;
+  BYTE cfgSockMaxStreamSockets;
+  BYTE cfgSockDefaultRecvBufsizeInK;
+  BYTE cfgSockDefaultSendBufsizeInK;
+  BYTE cfgKeyRegMax;
+  BYTE cfgSecRegMax;
+  BYTE cfgQosDataLimitDiv4;
+  BYTE cfgQosProbeTimeoutInSeconds;
+  BYTE cfgQosProbeRetries;
+  BYTE cfgQosSrvMaxSimultaneousResponses;
+  BYTE cfgQosPairWaitTimeInSeconds;
+};
+
+XNetStartupParams xnet_startup_params = {0};
 
 SHIM_CALL NetDll_XNetStartup_shim(PPCContext* ppc_context,
                                   KernelState* kernel_state) {
@@ -77,6 +80,13 @@ SHIM_CALL NetDll_XNetStartup_shim(PPCContext* ppc_context,
   uint32_t params_ptr = SHIM_GET_ARG_32(1);
 
   XELOGD("NetDll_XNetStartup(%d, %.8X)", arg0, params_ptr);
+
+  if (params_ptr) {
+    auto params =
+        kernel_memory()->TranslateVirtual<XNetStartupParams*>(params_ptr);
+    assert_true(params->cfgSizeOfStruct == sizeof(XNetStartupParams));
+    std::memcpy(&xnet_startup_params, params, sizeof(XNetStartupParams));
+  }
 
   SHIM_SET_RETURN_32(0);
 }
@@ -90,6 +100,24 @@ SHIM_CALL NetDll_XNetCleanup_shim(PPCContext* ppc_context,
 
   SHIM_SET_RETURN_32(0);
 }
+
+dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
+                                 lpvoid_t buffer_ptr, lpdword_t buffer_size) {
+  assert_true(one == 1);
+  switch (option_id) {
+    case 1:
+      if (*buffer_size < sizeof(XNetStartupParams)) {
+        *buffer_size = sizeof(XNetStartupParams);
+        return WSAEMSGSIZE;
+      }
+      std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
+      return 0;
+    default:
+      XELOGE("NetDll_XNetGetOpt: option %d unimplemented", option_id);
+      return WSAEINVAL;
+  }
+}
+DECLARE_XAM_EXPORT(NetDll_XNetGetOpt, ExportTag::kNetworking);
 
 SHIM_CALL NetDll_XNetRandom_shim(PPCContext* ppc_context,
                                  KernelState* kernel_state) {

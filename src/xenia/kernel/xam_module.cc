@@ -27,6 +27,7 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   xam::RegisterMsgExports(export_resolver_, kernel_state_);
   xam::RegisterNetExports(export_resolver_, kernel_state_);
   xam::RegisterNotifyExports(export_resolver_, kernel_state_);
+  xam::RegisterNuiExports(export_resolver_, kernel_state_);
   xam::RegisterUIExports(export_resolver_, kernel_state_);
   xam::RegisterUserExports(export_resolver_, kernel_state_);
   xam::RegisterVideoExports(export_resolver_, kernel_state_);

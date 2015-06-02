@@ -34,6 +34,8 @@ void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state);
 void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state);
+void RegisterNuiExports(xe::cpu::ExportResolver* export_resolver,
+                        KernelState* kernel_state);
 void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state);
 void RegisterUserExports(xe::cpu::ExportResolver* export_resolver,

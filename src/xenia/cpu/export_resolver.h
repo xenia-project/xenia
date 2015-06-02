@@ -40,6 +40,7 @@ struct ExportTag {
   static const type kFileSystem = 1 << 14;
   static const type kModules = 1 << 15;
   static const type kUserProfiles = 1 << 16;
+  static const type kNetworking = 1 << 17;
 
   // Export will be logged on each call.
   static const type kLog = 1 << 30;
