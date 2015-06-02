@@ -731,7 +731,7 @@ public:
 
 private:
   const uint8_t* input_;
-  std::stringstream output_;
+  std::ostringstream output_;
 };
 
 class WideStringFormatData : public FormatData {
@@ -772,7 +772,7 @@ public:
 
 private:
   const uint16_t* input_;
-  std::wstringstream output_;
+  std::wostringstream output_;
 };
 
 class WideCountFormatData : public FormatData {
