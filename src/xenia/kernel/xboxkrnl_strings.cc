@@ -7,6 +7,9 @@
  ******************************************************************************
  */
 
+#include <iomanip>
+#include <sstream>
+
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xthread.h"
@@ -19,846 +22,950 @@
 namespace xe {
 namespace kernel {
 
+enum FormatState {
+  FS_Invalid = 0,
+  FS_Unknown,
+  FS_Start,
+  FS_Flags,
+  FS_Width,
+  FS_PrecisionStart,
+  FS_Precision,
+  FS_Size,
+  FS_Type,
+  FS_End,
+};
+
+enum FormatFlags {
+  FF_LeftJustify = 1 << 0,
+  FF_AddLeadingZeros = 1 << 1,
+  FF_AddPositive = 1 << 2,
+  FF_AddPositiveAsSpace = 1 << 3,
+  FF_AddNegative = 1 << 4,
+  FF_AddPrefix = 1 << 5,
+  FF_IsShort = 1 << 6,
+  FF_IsLong = 1 << 7,
+  FF_IsLongLong = 1 << 8,
+  FF_IsWide = 1 << 9,
+  FF_IsSigned = 1 << 10,
+  FF_ForceLeadingZero = 1 << 11,
+};
+
+enum ArgumentSize {
+  AS_Default = 0,
+  AS_Short,
+  AS_Long,
+  AS_LongLong,
+};
+
+class FormatData {
+public:
+  virtual uint16_t get() = 0;
+  virtual uint16_t peek(int32_t offset) = 0;
+  virtual void skip(int32_t count) = 0;
+  virtual bool put(uint16_t c) = 0;
+};
+
+class ArgList {
+public:
+  virtual uint32_t get32() = 0;
+  virtual uint64_t get64() = 0;
+};
+
+/* Making the assumption that the Xbox 360's implementation of the printf-functions
+ * matches what is described on MSDN's documentation for the Windows CRT:
+ *
+ * "Format Specification Syntax: printf and wprintf Functions"
+ * https://msdn.microsoft.com/en-us/library/56e442dc.aspx
+ */
+
+std::string format_double(double value, int32_t precision, uint16_t c, uint32_t flags) {
+  if (precision < 0) {
+    precision = 6;
+  } else if (precision == 0 && c == 'g') {
+    precision = 1;
+  }
+
+  std::ostringstream temp;
+  temp << std::setprecision(precision);
+
+  if (c == 'f') {
+    temp << std::fixed;
+  } else if (c == 'e' || c == 'E') {
+    temp << std::scientific;
+  } else if (c == 'a' || c == 'A') {
+    temp << std::hexfloat;
+  } else if (c == 'g' || c == 'G') {
+    temp << std::defaultfloat;
+  }
+
+  if (c == 'E' || c == 'G' || c == 'A') {
+    temp << std::uppercase;
+  }
+
+  if (flags & FF_AddPrefix) {
+    temp << std::showpoint;
+  }
+
+  temp << value;
+  return temp.str();
+}
+
+int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args, const bool wide) {
+  int32_t count = 0;
+
+  char work[512];
+  wchar_t wwork[4];
+
+  struct {
+    const void* buffer;
+    int32_t length;
+    bool is_wide;
+    bool swap_wide;
+  } text;
+
+  struct {
+    char buffer[2];
+    int32_t length;
+  } prefix;
+
+  auto state = FS_Unknown;
+  uint32_t flags = 0;
+  int32_t width = 0;
+  int32_t precision = -1;
+  ArgumentSize size = AS_Default;
+  int32_t radix = 0;
+  const char* digits = nullptr;
+
+  text.buffer = nullptr;
+  text.is_wide = false;
+  text.swap_wide = true;
+  text.length = 0;
+  prefix.buffer[0] = '\0';
+  prefix.length = 0;
+
+  for (uint16_t c = data.get(); ; c = data.get()) {
+    if (state == FS_Unknown) {
+      if (!c) { // the end
+        return count;
+      } else if (c != '%') {
+output:
+        data.put(c);
+        ++count;
+        continue;
+      }
+
+      state = FS_Start;
+      c = data.get();
+      // fall through
+    }
+
+    // in any state, if c is \0, it's bad
+    if (!c) {
+      return -1;
+    }
+
+restart:
+    switch (state) {
+      case FS_Start: {
+        if (c == '%') {
+          state = FS_Unknown;
+          goto output;
+        }
+
+        state = FS_Flags;
+
+        // reset to defaults
+        flags = 0;
+        width = 0;
+        precision = -1;
+        size = AS_Default;
+        radix = 0;
+        digits = nullptr;
+
+        text.buffer = nullptr;
+        text.is_wide = false;
+        text.swap_wide = true;
+        text.length = 0;
+        prefix.buffer[0] = '\0';
+        prefix.length = 0;
+
+        // fall through, don't need to goto restart
+      }
+
+      // https://msdn.microsoft.com/en-us/library/8aky45ct.aspx
+      case FS_Flags: {
+        if (c == '-') {
+          flags |= FF_LeftJustify;
+          continue;
+        } else if (c == '+') {
+          flags |= FF_AddPositive;
+          continue;
+        } else if (c == '0') {
+          flags |= FF_AddLeadingZeros;
+          continue;
+        } else if (c == ' ') {
+          flags |= FF_AddPositiveAsSpace;
+          continue;
+        } else if (c == '#') {
+          flags |= FF_AddPrefix;
+          continue;
+        }
+
+        state = FS_Width;
+        // fall through, don't need to goto restart
+      }
+
+      // https://msdn.microsoft.com/en-us/library/25366k66.aspx
+      case FS_Width: {
+        if (c == '*') {
+          width = (int32_t)args.get32();
+          if (width < 0) {
+            flags |= FF_LeftJustify;
+            width = -width;
+          }
+          state = FS_PrecisionStart;
+          continue;
+        } else if (c >= '0' && c <= '9') {
+          width *= 10;
+          width += c - '0';
+          continue;
+        }
+
+        state = FS_PrecisionStart;
+        // fall through, don't need to goto restart
+      }
+
+      // https://msdn.microsoft.com/en-us/library/0ecbz014.aspx
+      case FS_PrecisionStart: {
+        if (c == '.') {
+          state = FS_Precision;
+          precision = 0;
+          continue;
+        }
+
+        state = FS_Size;
+        goto restart;
+      }
+
+      // https://msdn.microsoft.com/en-us/library/0ecbz014.aspx
+      case FS_Precision: {
+        if (c == '*') {
+          precision = (int32_t)args.get32();
+          if (precision < 0) {
+            precision = -1;
+          }
+          state = FS_Size;
+          continue;
+        } else if (c >= '0' && c <= '9') {
+          precision *= 10;
+          precision += c - '0';
+          continue;
+        }
+
+        state = FS_Size;
+        // fall through
+      }
+
+      // https://msdn.microsoft.com/en-us/library/tcxf1dw6.aspx
+      case FS_Size: {
+        if (c == 'l') {
+          if (data.peek(0) == 'l') {
+            data.skip(1);
+            flags |= FF_IsLongLong;
+          } else {
+            flags |= FF_IsLong;
+          }
+          state = FS_Type;
+          continue;
+        } else if (c == 'h') {
+          flags |= FF_IsShort;
+          state = FS_Type;
+          continue;
+        } else if (c == 'w') {
+          flags |= FF_IsWide;
+          state = FS_Type;
+          continue;
+        } else if (c == 'I') {
+          if (data.peek(0) == '6' && data.peek(1) == '4') {
+            data.skip(2);
+            flags |= FF_IsLongLong;
+            state = FS_Type;
+            continue;
+          } else if (data.peek(0) == '3' && data.peek(1) == '2') {
+            data.skip(2);
+            state = FS_Type;
+            continue;
+          }
+          else {
+            state = FS_Type;
+            continue;
+          }
+        }
+
+        // fall through
+      }
+
+      // https://msdn.microsoft.com/en-us/library/hf4y5e3w.aspx
+      case FS_Type: {
+        // wide character
+        switch (c) {
+          case 'C': {
+            if (!(flags & (FF_IsShort | FF_IsLong | FF_IsWide))) {
+              flags |= FF_IsWide;
+            }
+            // fall through
+          }
+
+          // character
+          case 'c': {
+            bool is_wide = ((flags & (FF_IsLong | FF_IsWide)) != 0) ^ wide;
+            auto value = args.get32();
+
+            if (!is_wide) {
+              work[0] = (uint8_t)value;
+              text.buffer = &work[0];
+              text.length = 1;
+              text.is_wide = false;
+            } else {
+              wwork[0] = (uint16_t)value;
+              text.buffer = &wwork[0];
+              text.length = 1;
+              text.is_wide = true;
+              text.swap_wide = false;
+            }
+
+            break;
+          }
+
+          // signed decimal integer
+          case 'd':
+          case 'i': {
+            flags |= FF_IsSigned;
+            digits = "0123456789";
+            radix = 10;
+
+        integer:
+            assert_not_null(digits);
+            assert_not_zero(radix);
+
+            int64_t value;
+
+            if (flags & FF_IsLongLong) {
+              value = (int64_t)args.get64();
+            } else if (flags & FF_IsLong) {
+              value = (int32_t)args.get32();
+            } else if (flags & FF_IsShort) {
+              value = (int16_t)args.get32();
+            } else {
+              value = (int32_t)args.get32();
+            }
+
+            if (precision >= 0) {
+              precision = std::min(precision, (int32_t)xe::countof(work));
+            } else {
+              precision = 1;
+            }
+
+            if ((flags & FF_IsSigned) && value < 0) {
+              value = -value;
+              flags |= FF_AddNegative;
+            }
+
+            if (!(flags & FF_IsLongLong)) {
+              value &= UINT32_MAX;
+            }
+
+            if (value == 0) {
+              prefix.length = 0;
+            }
+
+            char* end = &work[xe::countof(work) - 1];
+            char* start = end;
+            start[0] = '\0';
+
+            while (precision-- > 0 || value != 0) {
+              auto digit = (int32_t)(value % radix);
+              value /= radix;
+              assert_true(digit < strlen(digits));
+              *--start = digits[digit];
+            }
+
+            if ((flags & FF_ForceLeadingZero) && (start == end || *start != '0')) {
+              *--start = '0';
+            }
+
+            text.buffer = start;
+            text.length = (int32_t)(end - start);
+            text.is_wide = false;
+            break;
+          }
+
+          // unsigned octal integer
+          case 'o': {
+            digits = "01234567";
+            radix = 8;
+            if (flags & FF_AddPrefix) {
+              flags |= FF_ForceLeadingZero;
+            }
+            goto integer;
+          }
+
+          // unsigned decimal integer
+          case 'u': {
+            digits = "0123456789";
+            radix = 10;
+            goto integer;
+          }
+
+          // unsigned hexadecimal integer
+          case 'x':
+          case 'X': {
+            digits = c == 'x' ? "0123456789abcdef" : "0123456789ABCDEF";
+            radix = 16;
+
+            if (flags & FF_AddPrefix) {
+              prefix.buffer[0] = '0';
+              prefix.buffer[1] = c == 'x' ? 'x' : 'X';
+              prefix.length = 2;
+            }
+
+            goto integer;
+          }
+
+          // floating-point with exponent
+          case 'e':
+          case 'E': {
+            // fall through
+          }
+
+          // floating-point without exponent
+          case 'f': {
+        floatingpoint:
+            flags |= FF_IsSigned;
+
+            int64_t dummy = args.get64();
+            double value = *(double*)&dummy;
+
+            if (value < 0) {
+              value = -value;
+              flags |= FF_AddNegative;
+            }
+
+            auto s = format_double(value, precision, c, flags);
+            auto length = (int32_t)s.size();
+            assert_true(length < xe::countof(work));
+
+            auto start = &work[0];
+            auto end = &start[length];
+
+            std::memcpy(start, s.c_str(), length);
+            end[0] = '\0';
+
+            text.buffer = start;
+            text.length = (int32_t)(end - start);
+            text.is_wide = false;
+            break;
+          }
+
+          // floating-point with or without exponent
+          case 'g':
+          case 'G': {
+            goto floatingpoint;
+          }
+
+          // floating-point in hexadecimal
+          case 'a':
+          case 'A': {
+            goto floatingpoint;
+          }
+
+          // pointer to integer
+          case 'n': {
+            auto pointer = (uint32_t)args.get32();
+            if (flags & FF_IsShort) {
+              SHIM_SET_MEM_16(pointer, (uint16_t)count);
+            } else {
+              SHIM_SET_MEM_32(pointer, (uint32_t)count);
+            }
+            continue;
+          }
+
+          // pointer
+          case 'p': {
+            digits = "0123456789ABCDEF";
+            radix = 16;
+            precision = 8;
+            flags &= ~(FF_IsLongLong | FF_IsShort);
+            flags |= FF_IsLong;
+            goto integer;
+          }
+
+          // wide string
+          case 'S': {
+            if (!(flags & (FF_IsShort | FF_IsLong | FF_IsWide))) {
+              flags |= FF_IsWide;
+            }
+            // fall through
+          }
+
+          // string
+          case 's': {
+            uint32_t pointer = args.get32();
+            int32_t cap = precision < 0 ? INT32_MAX : precision;
+
+            if (pointer == 0) {
+              auto nullstr = "(null)";
+              text.buffer = nullstr;
+              text.length = std::min((int32_t)strlen(nullstr), cap);
+              text.is_wide = false;
+            } else {
+              void* str = SHIM_MEM_ADDR(pointer);
+              bool is_wide = ((flags & (FF_IsLong | FF_IsWide)) != 0) ^ wide;
+              int32_t length;
+
+              if (!is_wide) {
+                length = 0;
+                for (auto s = (const uint8_t*)str; cap > 0 && *s; ++s, cap--) {
+                  length++;
+                }
+              } else {
+                length = 0;
+                for (auto s = (const uint16_t*)str; cap > 0 && *s; ++s, cap--) {
+                  length++;
+                }
+              }
+
+              text.buffer = str;
+              text.length = length;
+              text.is_wide = is_wide;
+            }
+            break;
+          }
+
+          // ANSI_STRING / UNICODE_STRING
+          case 'Z': {
+            assert_always();
+          }
+
+          default: {
+            assert_always();
+          }
+        }
+      }
+    }
+
+    if (flags & FF_IsSigned) {
+      if (flags & FF_AddNegative) {
+        prefix.buffer[0] = '-';
+        prefix.length = 1;
+      } else if (flags & FF_AddPositive) {
+        prefix.buffer[0] = '+';
+        prefix.length = 1;
+      } else if (flags & FF_AddPositiveAsSpace) {
+        prefix.buffer[0] = ' ';
+        prefix.length = 1;
+      }
+    }
+
+    int32_t padding = width - text.length - prefix.length;
+
+    if (!(flags & (FF_LeftJustify | FF_AddLeadingZeros)) && padding > 0) {
+      count += padding;
+      while (padding-- > 0) {
+        if (!data.put(' ')) {
+          return -1;
+        }
+      }
+    }
+
+    if (prefix.length > 0) {
+      int32_t remaining = prefix.length;
+      count += prefix.length;
+      auto b = &prefix.buffer[0];
+      while (remaining-- > 0) {
+        if (!data.put(*b++)) {
+          return false;
+        }
+      }
+    }
+
+    if ((flags & FF_AddLeadingZeros) && !(flags & (FF_LeftJustify)) && padding > 0) {
+      count += padding;
+      while (padding-- > 0) {
+        if (!data.put('0')) {
+          return -1;
+        }
+      }
+    }
+
+    int32_t remaining = text.length;
+    if (!text.is_wide) {
+      // it's a const char*
+      auto b = (const uint8_t*)text.buffer;
+      while (remaining-- > 0) {
+        if (!data.put(*b++)) {
+          return -1;
+        }
+      }
+    } else {
+      // it's a const wchar_t*
+      auto b = (const uint16_t*)text.buffer;
+      if (text.swap_wide) {
+        while (remaining-- > 0) {
+          if (!data.put(xe::byte_swap(*b++))) {
+            return -1;
+          }
+        }
+      } else {
+        while (remaining-- > 0) {
+          if (!data.put(*b++)) {
+            return -1;
+          }
+        }
+      }
+    }
+    count += text.length;
+
+    // right padding
+    if ((flags & FF_LeftJustify) && padding > 0) {
+      count += padding;
+      while (padding-- > 0) {
+        if (!data.put(' ')) {
+          return -1;
+        }
+      }
+    }
+
+    state = FS_Unknown;
+  }
+
+  return count;
+}
+
+class StackArgList : public ArgList {
+public:
+  StackArgList(PPCContext* ppc_context)
+    : ppc_context(ppc_context)
+    , index_(2)
+  {
+  }
+
+  uint32_t get32() {
+    return (uint32_t)get64();
+  }
+
+  uint64_t get64() {
+    auto value = SHIM_GET_ARG_64(2 + index_);
+    ++index_;
+    return value;
+  }
+
+private:
+  PPCContext* ppc_context;
+  int32_t index_;
+};
+
+class ArrayArgList : public ArgList {
+public:
+  ArrayArgList(PPCContext* ppc_context, uint32_t arg_ptr)
+    : ppc_context(ppc_context)
+    , arg_ptr_(arg_ptr)
+    , index_(0)
+  {
+  }
+
+  uint32_t get32() {
+    return (uint32_t)get64();
+  }
+
+  uint64_t get64() {
+    auto value = SHIM_MEM_64(arg_ptr_ + (8 * index_));
+    ++index_;
+    return value;
+  }
+
+private:
+  PPCContext* ppc_context;
+  uint32_t arg_ptr_;
+  int32_t index_;
+};
+
+class StringFormatData : public FormatData {
+public:
+  StringFormatData(const uint8_t* input)
+    : input_(input)
+  {
+  }
+
+  uint16_t get() {
+    uint16_t result = *input_;
+    if (result) {
+      input_++;
+    }
+    return result;
+  }
+
+  uint16_t peek(int32_t offset) {
+    return input_[offset];
+  }
+
+  void skip(int32_t count) {
+    while (count-- > 0) {
+      if (!*input_) {
+        break;
+      }
+    }
+  }
+
+  bool put(uint16_t c) {
+    if (c >= 0x100) {
+      return false;
+    }
+    output_ << (char)c;
+    return true;
+  }
+
+  const std::string& str() const {
+    return output_.str();
+  }
+
+private:
+  const uint8_t* input_;
+  std::stringstream output_;
+};
+
+class WideStringFormatData : public FormatData {
+public:
+  WideStringFormatData(const uint16_t* input)
+    : input_(input)
+  {
+  }
+
+  uint16_t get() {
+    uint16_t result = *input_;
+    if (result) {
+      input_++;
+    }
+    return result;
+  }
+
+  uint16_t peek(int32_t offset) {
+    return input_[offset];
+  }
+
+  void skip(int32_t count) {
+    while (count-- > 0) {
+      if (!*input_) {
+        break;
+      }
+    }
+  }
+
+  bool put(uint16_t c) {
+    output_ << (wchar_t)c;
+    return true;
+  }
+
+  const std::wstring& wstr() const {
+    return output_.str();
+  }
+
+private:
+  const uint16_t* input_;
+  std::wstringstream output_;
+};
+
+class WideCountFormatData : public FormatData {
+public:
+  WideCountFormatData(const uint16_t* input)
+    : input_(input), count_(0)
+  {
+  }
+
+  uint16_t get() {
+    uint16_t result = *input_;
+    if (result) {
+      input_++;
+    }
+    return result;
+  }
+
+  uint16_t peek(int32_t offset) {
+    return input_[offset];
+  }
+
+  void skip(int32_t count) {
+    while (count-- > 0) {
+      if (!*input_) {
+        break;
+      }
+    }
+  }
+
+  bool put(uint16_t c) {
+    ++count_;
+    return true;
+  }
+
+  const int32_t count() const {
+    return count_;
+  }
+
+private:
+  const uint16_t* input_;
+  int32_t count_;
+};
+
+// https://msdn.microsoft.com/en-us/library/ybk95axf.aspx
 SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("sprintf(...)");
+  XELOGD("sprintf(%08X, %08X, ...)", buffer_ptr, format_ptr);
 
-  if (format_ptr == 0) {
+  if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
   }
 
-  char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);
-  const char* format = (const char*)SHIM_MEM_ADDR(format_ptr);
+  auto buffer = (uint8_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
 
-  int arg_index = 2;
-  uint32_t sp = (uint32_t)ppc_context->r[1];
-#define LOAD_SPRINTF_ARG(ARG) \
-  (ARG < 8) ? SHIM_GET_ARG_32(ARG) : SHIM_MEM_64(sp + 0x54 + 8)
+  StackArgList args(ppc_context);
+  StringFormatData data(format);
 
-  char* b = buffer;
-  for (; *format != '\0'; ++format) {
-    const char* start = format;
-
-    if (*format != '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    ++format;
-    if (*format == '\0') {
-      break;
-    }
-
-    if (*format == '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    const char* end;
-    end = format;
-
-    // skip flags
-    while (*end == '-' || *end == '+' || *end == ' ' || *end == '#' ||
-           *end == '0') {
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    int arg_extras = 0;
-
-    // skip width
-    if (*end == '*') {
-      ++end;
-      arg_extras++;
-    } else {
-      while (*end >= '0' && *end <= '9') {
-        ++end;
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // skip precision
-    if (*end == '.') {
-      ++end;
-
-      if (*end == '*') {
-        ++end;
-        ++arg_extras;
-      } else {
-        while (*end >= '0' && *end <= '9') {
-          ++end;
-        }
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // get length
-    int arg_size = 4;
-
-    if (*end == 'h') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'h') {
-        ++end;
-      }
-    } else if (*end == 'l') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'l') {
-        ++end;
-        arg_size = 8;
-      }
-    } else if (*end == 'j') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'z') {
-      arg_size = 4;
-      ++end;
-    } else if (*end == 't') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'L') {
-      arg_size = 8;
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    if (*end == 'd' || *end == 'i' || *end == 'u' || *end == 'o' ||
-        *end == 'x' || *end == 'X' || *end == 'f' || *end == 'F' ||
-        *end == 'e' || *end == 'E' || *end == 'g' || *end == 'G' ||
-        *end == 'a' || *end == 'A' || *end == 'c') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 8 || arg_size == 4);
-      if (arg_size == 8) {
-        if (arg_extras == 0) {
-          uint64_t value = LOAD_SPRINTF_ARG(arg_index);
-          int result = sprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      } else if (arg_size == 4) {
-        if (arg_extras == 0) {
-          uint32_t value = uint32_t(LOAD_SPRINTF_ARG(arg_index));
-          int result = sprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      }
-    } else if (*end == 'n') {
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = uint32_t(LOAD_SPRINTF_ARG(arg_index));
-        SHIM_SET_MEM_32(value, (uint32_t)((b - buffer) / sizeof(char)));
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else if (*end == 's' || *end == 'p') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = uint32_t(LOAD_SPRINTF_ARG(arg_index));
-        const void* pointer = (const void*)SHIM_MEM_ADDR(value);
-        int result = sprintf(b, local, pointer);
-        b += result;
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else {
-      assert_true(false);
-      break;
-    }
-    format = end;
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    std::memcpy(buffer, data.str().c_str(), count);
+    buffer[count] = '\0';
   }
-  *b = '\0';
-  SHIM_SET_RETURN_32((uint32_t)(b - buffer));
+  SHIM_SET_RETURN_32(count);
 }
 
-// TODO: clean me up!
+// https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
 SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("_vsprintf(...)");
+  XELOGD("vsprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
 
-  if (format_ptr == 0) {
+  if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
   }
 
-  char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);
-  const char* format = (const char*)SHIM_MEM_ADDR(format_ptr);
+  auto buffer = (uint8_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
 
-  int arg_index = 0;
+  ArrayArgList args(ppc_context, arg_ptr);
+  StringFormatData data(format);
 
-  char* b = buffer;
-  for (; *format != '\0'; ++format) {
-    const char* start = format;
-
-    if (*format != '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    ++format;
-    if (*format == '\0') {
-      break;
-    }
-
-    if (*format == '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    const char* end;
-    end = format;
-
-    // skip flags
-    while (*end == '-' || *end == '+' || *end == ' ' || *end == '#' ||
-           *end == '0') {
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    int arg_extras = 0;
-
-    // skip width
-    if (*end == '*') {
-      ++end;
-      arg_extras++;
-    } else {
-      while (*end >= '0' && *end <= '9') {
-        ++end;
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // skip precision
-    if (*end == '.') {
-      ++end;
-
-      if (*end == '*') {
-        ++end;
-        ++arg_extras;
-      } else {
-        while (*end >= '0' && *end <= '9') {
-          ++end;
-        }
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // get length
-    int arg_size = 4;
-
-    if (*end == 'h') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'h') {
-        ++end;
-      }
-    } else if (*end == 'l') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'l') {
-        ++end;
-        arg_size = 8;
-      }
-    } else if (*end == 'j') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'z') {
-      arg_size = 4;
-      ++end;
-    } else if (*end == 't') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'L') {
-      arg_size = 8;
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    if (*end == 'd' || *end == 'i' || *end == 'u' || *end == 'o' ||
-        *end == 'x' || *end == 'X' || *end == 'f' || *end == 'F' ||
-        *end == 'e' || *end == 'E' || *end == 'g' || *end == 'G' ||
-        *end == 'a' || *end == 'A' || *end == 'c') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 8 || arg_size == 4);
-      if (arg_size == 8) {
-        if (arg_extras == 0) {
-          uint64_t value = SHIM_MEM_64(
-              arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-          int result = sprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      } else if (arg_size == 4) {
-        if (arg_extras == 0) {
-          uint32_t value = (uint32_t)SHIM_MEM_64(
-              arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-          int result = sprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      }
-    } else if (*end == 'n') {
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        SHIM_SET_MEM_32(value, (uint32_t)((b - buffer) / sizeof(char)));
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else if (*end == 's' || *end == 'p') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const void* pointer = (const void*)SHIM_MEM_ADDR(value);
-        int result = sprintf(b, local, pointer);
-        b += result;
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else if (*end == 'S') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const wchar_t* data = (const wchar_t*)SHIM_MEM_ADDR(value);
-        size_t data_length = wcslen(data);
-        wchar_t* swapped_data =
-            (wchar_t*)malloc((data_length + 1) * sizeof(wchar_t));
-        for (size_t i = 0; i < data_length; ++i) {
-          swapped_data[i] = xe::byte_swap(data[i]);
-        }
-        swapped_data[data_length] = '\0';
-        int result = sprintf(b, local, swapped_data);
-        free(swapped_data);
-        b += result;
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else {
-      assert_true(false);
-      break;
-    }
-    format = end;
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    std::memcpy(buffer, data.str().c_str(), count);
+    buffer[count] = '\0';
   }
-  *b = '\0';
-  SHIM_SET_RETURN_32((uint32_t)(b - buffer));
+  SHIM_SET_RETURN_32(count);
 }
 
-// TODO: clean me up!
+// https://msdn.microsoft.com/en-us/library/1kt27hek.aspx
 SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
-  uint32_t count = SHIM_GET_ARG_32(1);
+  int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
   uint32_t arg_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD("_vsnprintf(...)");
+  XELOGD("_vsnprintf(%08X, %i, %08X, %08X)", buffer_ptr, buffer_count, format_ptr, arg_ptr);
 
-  if (format_ptr == 0) {
+  if (buffer_ptr == 0 || buffer_count<= 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
   }
 
-  char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);  // TODO: ensure it never
-                                                    // writes past the end of
-                                                    // the buffer (count)...
-  const char* format = (const char*)SHIM_MEM_ADDR(format_ptr);
+  auto buffer = (uint8_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint8_t*)SHIM_MEM_ADDR(format_ptr);
 
-  int arg_index = 0;
+  ArrayArgList args(ppc_context, arg_ptr);
+  StringFormatData data(format);
 
-  char* b = buffer;
-  for (; *format != '\0'; ++format) {
-    const char* start = format;
-
-    if (*format != '%') {
-      *b++ = *format;
-      continue;
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count < 0) {
+    if (buffer_count > 0) {
+      buffer[0] = '\0'; // write a null, just to be safe
     }
-
-    ++format;
-    if (*format == '\0') {
-      break;
+  } if (count <= buffer_count) {
+    std::memcpy(buffer, data.str().c_str(), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
     }
-
-    if (*format == '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    const char* end;
-    end = format;
-
-    // skip flags
-    while (*end == '-' || *end == '+' || *end == ' ' || *end == '#' ||
-           *end == '0') {
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    int arg_extras = 0;
-
-    // skip width
-    if (*end == '*') {
-      ++end;
-      arg_extras++;
-    } else {
-      while (*end >= '0' && *end <= '9') {
-        ++end;
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // skip precision
-    if (*end == '.') {
-      ++end;
-
-      if (*end == '*') {
-        ++end;
-        ++arg_extras;
-      } else {
-        while (*end >= '0' && *end <= '9') {
-          ++end;
-        }
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // get length
-    int arg_size = 4;
-
-    if (*end == 'h') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'h') {
-        ++end;
-      }
-    } else if (*end == 'l') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'l') {
-        ++end;
-        arg_size = 8;
-      }
-    } else if (*end == 'j') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'z') {
-      arg_size = 4;
-      ++end;
-    } else if (*end == 't') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'L') {
-      arg_size = 8;
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    if (*end == 'd' || *end == 'i' || *end == 'u' || *end == 'o' ||
-        *end == 'x' || *end == 'X' || *end == 'f' || *end == 'F' ||
-        *end == 'e' || *end == 'E' || *end == 'g' || *end == 'G' ||
-        *end == 'a' || *end == 'A' || *end == 'c') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 8 || arg_size == 4);
-      if (arg_size == 8) {
-        if (arg_extras == 0) {
-          uint64_t value = SHIM_MEM_64(
-              arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-          int result = sprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      } else if (arg_size == 4) {
-        if (arg_extras == 0) {
-          uint32_t value = (uint32_t)SHIM_MEM_64(
-              arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-          int result = sprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      }
-    } else if (*end == 'n') {
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        SHIM_SET_MEM_32(value, (uint32_t)(b - buffer));
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else if (*end == 's' || *end == 'p') {
-      char local[512];
-      local[0] = '\0';
-      strncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)SHIM_MEM_64(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const void* pointer = (const void*)SHIM_MEM_ADDR(value);
-        int result = sprintf(b, local, pointer);
-        b += result;
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else {
-      assert_true(false);
-      break;
-    }
-    format = end;
+  } else {
+    std::memcpy(buffer, data.str().c_str(), buffer_count);
+    count = -1; // for return value
   }
-  *b = '\0';
-  SHIM_SET_RETURN_32((uint32_t)(b - buffer));
+  SHIM_SET_RETURN_32(count);
 }
 
-uint32_t vswprintf_core(wchar_t* buffer, const wchar_t* format,
-                        const uint8_t* arg_ptr, uint8_t* membase) {
-  // this will work since a null is the same regardless of endianness
-  size_t format_length = wcslen(format);
-
-  // swap the format buffer
-  wchar_t* swapped_format =
-      (wchar_t*)malloc((format_length + 1) * sizeof(wchar_t));
-  for (size_t i = 0; i < format_length; ++i) {
-    swapped_format[i] = xe::byte_swap(format[i]);
-  }
-  swapped_format[format_length] = '\0';
-
-  // be sneaky
-  format = swapped_format;
-
-  int arg_index = 0;
-
-  wchar_t* b = buffer;
-  for (; *format != '\0'; ++format) {
-    const wchar_t* start = format;
-
-    if (*format != '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    ++format;
-    if (*format == '\0') {
-      break;
-    }
-
-    if (*format == '%') {
-      *b++ = *format;
-      continue;
-    }
-
-    const wchar_t* end;
-    end = format;
-
-    // skip flags
-    while (*end == '-' || *end == '+' || *end == ' ' || *end == '#' ||
-           *end == '0') {
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    int arg_extras = 0;
-
-    // skip width
-    if (*end == '*') {
-      ++end;
-      arg_extras++;
-    } else {
-      while (*end >= '0' && *end <= '9') {
-        ++end;
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // skip precision
-    if (*end == '.') {
-      ++end;
-
-      if (*end == '*') {
-        ++end;
-        ++arg_extras;
-      } else {
-        while (*end >= '0' && *end <= '9') {
-          ++end;
-        }
-      }
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    // get length
-    int arg_size = 4;
-
-    if (*end == 'h') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'h') {
-        ++end;
-      }
-    } else if (*end == 'l') {
-      ++end;
-      arg_size = 4;
-      if (*end == 'l') {
-        ++end;
-        arg_size = 8;
-      }
-    } else if (*end == 'j') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'z') {
-      arg_size = 4;
-      ++end;
-    } else if (*end == 't') {
-      arg_size = 8;
-      ++end;
-    } else if (*end == 'L') {
-      arg_size = 8;
-      ++end;
-    }
-
-    if (*end == '\0') {
-      break;
-    }
-
-    if (*end == 'd' || *end == 'i' || *end == 'u' || *end == 'o' ||
-        *end == 'x' || *end == 'X' || *end == 'f' || *end == 'F' ||
-        *end == 'e' || *end == 'E' || *end == 'g' || *end == 'G' ||
-        *end == 'a' || *end == 'A' || *end == 'c') {
-      wchar_t local[512];
-      local[0] = '\0';
-      wcsncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 8 || arg_size == 4);
-      if (arg_size == 8) {
-        if (arg_extras == 0) {
-          uint64_t value = xe::load_and_swap<uint64_t>(
-              arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-          int result = wsprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      } else if (arg_size == 4) {
-        if (arg_extras == 0) {
-          uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
-              arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-          int result = wsprintf(b, local, value);
-          b += result;
-          arg_index++;
-        } else {
-          assert_true(false);
-        }
-      }
-    } else if (*end == 'n') {
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        xe::store_and_swap<uint32_t>(membase + value, (uint32_t)(b - buffer));
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else if (*end == 'p') {
-      wchar_t local[512];
-      local[0] = '\0';
-      wcsncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const void* pointer = (void*)(membase + value);
-        int result = wsprintf(b, local, pointer);
-        b += result;
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else if (*end == 's') {
-      wchar_t local[512];
-      local[0] = '\0';
-      wcsncat(local, start, end + 1 - start);
-
-      assert_true(arg_size == 4);
-      if (arg_extras == 0) {
-        uint32_t value = (uint32_t)xe::load_and_swap<uint64_t>(
-            arg_ptr + (arg_index * 8));  // TODO: check if this is correct...
-        const wchar_t* data = (const wchar_t*)(membase + value);
-        size_t data_length = wcslen(data);
-        wchar_t* swapped_data =
-            (wchar_t*)malloc((data_length + 1) * sizeof(wchar_t));
-        for (size_t i = 0; i < data_length; ++i) {
-          swapped_data[i] = xe::byte_swap(data[i]);
-        }
-        swapped_data[data_length] = '\0';
-        int result = wsprintf(b, local, swapped_data);
-        free(swapped_data);
-        b += result;
-        arg_index++;
-      } else {
-        assert_true(false);
-      }
-    } else {
-      assert_true(false);
-      break;
-    }
-    format = end;
-  }
-  *b = '\0';
-
-  free(swapped_format);
-
-  // swap the result buffer
-  for (wchar_t* swap = buffer; swap != b; ++swap) {
-    *swap = xe::byte_swap(*swap);
-  }
-
-  return uint32_t(b - buffer);
-}
-
-// TODO: clean me up!
+// https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
 SHIM_CALL _vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("_vswprintf(...)");
+  XELOGD("_vswprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
 
-  if (format_ptr == 0) {
+  if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
   }
-  const wchar_t* format = (const wchar_t*)SHIM_MEM_ADDR(format_ptr);
 
-  wchar_t* buffer =
-      (wchar_t*)SHIM_MEM_ADDR(buffer_ptr);  // TODO: ensure it never writes past
-                                            // the end of the buffer (count)...
+  auto buffer = (uint16_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint16_t*)SHIM_MEM_ADDR(format_ptr);
 
-  uint32_t ret =
-      vswprintf_core(buffer, format, SHIM_MEM_ADDR(arg_ptr), SHIM_MEM_BASE);
-  SHIM_SET_RETURN_32(ret);
+  ArrayArgList args(ppc_context, arg_ptr);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, true);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    xe::copy_and_swap(buffer, (uint16_t*)data.wstr().c_str(), count);
+    buffer[count] = '\0';
+  }
+  SHIM_SET_RETURN_32(count);
 }
 
+// https://msdn.microsoft.com/en-us/library/w05tbk72.aspx
 SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("_vscwprintf(...)");
+  XELOGD("_vscwprintf(%08X, %08X)", format_ptr, arg_ptr);
 
   if (format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
     return;
   }
-  const wchar_t* format = (const wchar_t*)SHIM_MEM_ADDR(format_ptr);
 
-  // HACK: this is the worst.
-  auto temp = new wchar_t[2048];
-  uint32_t ret =
-      vswprintf_core(temp, format, SHIM_MEM_ADDR(arg_ptr), SHIM_MEM_BASE);
-  delete[] temp;
-  SHIM_SET_RETURN_32(ret);
+  auto format = (const uint16_t*)SHIM_MEM_ADDR(format_ptr);
+
+  ArrayArgList args(ppc_context, arg_ptr);
+  WideCountFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, true);
+  assert_true(count < 0 || data.count() == count);
+  SHIM_SET_RETURN_32(count);
 }
 
 }  // namespace kernel
 }  // namespace xe
 
 void xe::kernel::xboxkrnl::RegisterStringExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
+    xe::cpu::ExportResolver* export_resolver, KernelState* state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", sprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
