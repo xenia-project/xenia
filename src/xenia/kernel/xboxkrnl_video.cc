@@ -295,7 +295,10 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
             lpunknown_t unk3,     // buffer from VdGetSystemCommandBuffer
             lpunknown_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
             lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
-            lpdword_t color_format_ptr, lpdword_t color_space_ptr) {
+            lpdword_t color_format_ptr,
+            lpdword_t color_space_ptr,
+            lpunknown_t unk8,
+            unknown_t unk9) {
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
       reinterpret_cast<uint32_t*>(&fetch),
@@ -316,9 +319,10 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   // use this method.
   buffer_ptr.Zero(64 * 4);
 
+  namespace xenos = xe::gpu::xenos;
+
   auto dwords = buffer_ptr.as_array<uint32_t>();
-  dwords[0] =
-      (0x3 << 30) | ((63 - 1) << 16) | (xe::gpu::xenos::PM4_XE_SWAP << 8);
+  dwords[0] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 63>();
   dwords[1] = 'SWAP';
   dwords[2] = *frontbuffer_ptr;
 
