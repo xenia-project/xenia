@@ -20,7 +20,7 @@ class RingBuffer {
   public:
     RingBuffer(uint8_t *raw_buffer, size_t size, size_t write_offset = 0);
 
-    int Write(uint8_t *buffer, size_t num_bytes);
+    size_t Write(uint8_t *buffer, size_t num_bytes);
 
     size_t DistanceToOffset(size_t offset);
 

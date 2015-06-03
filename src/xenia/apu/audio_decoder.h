@@ -55,7 +55,7 @@ class AudioDecoder {
     uint8_t* current_frame_;
     uint32_t frame_samples_size_;
 
-    uint8_t packet_data_[XMAContextData::kBytesPerBlock];
+    uint8_t packet_data_[XMAContextData::kBytesPerPacket];
 };
 
 } // namespace apu

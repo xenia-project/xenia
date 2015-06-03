@@ -16,7 +16,7 @@ RingBuffer::RingBuffer(uint8_t *raw_buffer, size_t size, size_t write_offset)
       size_(size),
       write_offset_(write_offset) {}
 
-int RingBuffer::Write(uint8_t *buffer, size_t num_bytes) {
+size_t RingBuffer::Write(uint8_t *buffer, size_t num_bytes) {
   size_t bytes_written = 0;
   size_t input_offset = 0;
   size_t bytes_to_write = 0;
@@ -29,18 +29,27 @@ int RingBuffer::Write(uint8_t *buffer, size_t num_bytes) {
   input_offset = bytes_to_write;
   write_offset_ += bytes_to_write;
 
+  bytes_written += bytes_to_write;
+
   // Wraparound (begin -> num_bytes)
   if (input_offset < num_bytes) {
     bytes_to_write = num_bytes - input_offset;
 
     std::memcpy(raw_buffer_, buffer + input_offset, bytes_to_write);
     write_offset_ = bytes_to_write;
+
+    bytes_written += bytes_to_write;
   }
 
-  return 0;
+  return bytes_written;
 }
 
 size_t RingBuffer::DistanceToOffset(size_t offset) {
+  // Make sure the offset is in range.
+  if (offset > size_) {
+    offset %= size_;
+  }
+
   if (offset < size_ && offset >= write_offset_) {
     // Doesn't wraparound.
     return offset - write_offset_;

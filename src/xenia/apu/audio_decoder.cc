@@ -75,7 +75,7 @@ int AudioDecoder::Initialize() {
   // Initialize these to 0. They'll actually be set later.
   context_->channels = 0;
   context_->sample_rate = 0;
-  context_->block_align = XMAContextData::kBytesPerBlock;
+  context_->block_align = XMAContextData::kBytesPerPacket;
 
   // Extra data passed to the decoder
   context_->extradata_size = 18;
@@ -99,7 +99,7 @@ int AudioDecoder::Initialize() {
 
 int AudioDecoder::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
                                 int sample_rate, int channels) {
-  if (size != XMAContextData::kBytesPerBlock) {
+  if (size != XMAContextData::kBytesPerPacket) {
     // Invalid packet size!
     assert_always();
     return 1;
@@ -116,7 +116,7 @@ int AudioDecoder::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
                            (*((int *)packet_data_) & 0xFFFEFF08);
 
   packet_->data = packet_data_;
-  packet_->size = XMAContextData::kBytesPerBlock;
+  packet_->size = XMAContextData::kBytesPerPacket;
 
   // Re-initialize the context with new sample rate and channels
   if (context_->sample_rate != sample_rate || context_->channels != channels) {
