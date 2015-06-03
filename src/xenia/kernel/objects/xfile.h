@@ -22,27 +22,15 @@ class XAsyncRequest;
 class XEvent;
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff545822.aspx
-class X_FILE_NETWORK_OPEN_INFORMATION {
- public:
-  // FILE_NETWORK_OPEN_INFORMATION
-  uint64_t creation_time;
-  uint64_t last_access_time;
-  uint64_t last_write_time;
-  uint64_t change_time;
-  uint64_t allocation_size;
-  uint64_t file_length;
-  X_FILE_ATTRIBUTES attributes;
-
-  void Write(uint8_t* base, uint32_t p) {
-    xe::store_and_swap<uint64_t>(base + p, creation_time);
-    xe::store_and_swap<uint64_t>(base + p + 8, last_access_time);
-    xe::store_and_swap<uint64_t>(base + p + 16, last_write_time);
-    xe::store_and_swap<uint64_t>(base + p + 24, change_time);
-    xe::store_and_swap<uint64_t>(base + p + 32, allocation_size);
-    xe::store_and_swap<uint64_t>(base + p + 40, file_length);
-    xe::store_and_swap<uint32_t>(base + p + 48, attributes);
-    xe::store_and_swap<uint32_t>(base + p + 52, 0);  // pad
-  }
+struct X_FILE_NETWORK_OPEN_INFORMATION {
+  xe::be<uint64_t> creation_time;
+  xe::be<uint64_t> last_access_time;
+  xe::be<uint64_t> last_write_time;
+  xe::be<uint64_t> change_time;
+  xe::be<uint64_t> allocation_size;
+  xe::be<uint64_t> end_of_file;  // size in bytes
+  xe::be<X_FILE_ATTRIBUTES> attributes;
+  xe::be<uint32_t> pad;
 };
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff540248.aspx
@@ -55,7 +43,7 @@ class X_FILE_DIRECTORY_INFORMATION {
   uint64_t last_access_time;
   uint64_t last_write_time;
   uint64_t change_time;
-  uint64_t end_of_file;
+  uint64_t end_of_file;  // size in bytes
   uint64_t allocation_size;
   X_FILE_ATTRIBUTES attributes;
   uint32_t file_name_length;

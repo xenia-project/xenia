@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/fs/devices/stfs_container_entry.h"
 
+#include "xenia/base/math.h"
 #include "xenia/kernel/fs/devices/stfs_container_file.h"
 
 namespace xe {
@@ -21,7 +22,7 @@ STFSContainerEntry::STFSContainerEntry(Device* device, const char* path,
     : Entry(device, path),
       mmap_(mmap),
       stfs_entry_(stfs_entry),
-      it_(stfs_entry_->children.end()) {}
+      it_(stfs_entry_->children.begin()) {}
 
 STFSContainerEntry::~STFSContainerEntry() = default;
 
@@ -31,8 +32,8 @@ X_STATUS STFSContainerEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info
   out_info->last_access_time = stfs_entry_->access_timestamp;
   out_info->last_write_time = stfs_entry_->update_timestamp;
   out_info->change_time = stfs_entry_->update_timestamp;
-  out_info->allocation_size = 4096;
-  out_info->file_length = stfs_entry_->size;
+  out_info->allocation_size = xe::round_up(stfs_entry_->size, 4096);
+  out_info->end_of_file = stfs_entry_->size;
   out_info->attributes = stfs_entry_->attributes;
   return X_STATUS_SUCCESS;
 }
@@ -64,13 +65,13 @@ X_STATUS STFSContainerEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_in
 
     entry = stfs_entry_->GetChild(find_engine_, it_);
     if (!entry) {
-      return X_STATUS_UNSUCCESSFUL;
+      return X_STATUS_NO_SUCH_FILE;
     }
 
     auto end = (uint8_t*)out_info + length;
     auto entry_name = entry->name;
     if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
-      return X_STATUS_NO_MORE_FILES;
+      return X_STATUS_NO_SUCH_FILE;
     }
   }
 
@@ -80,7 +81,7 @@ X_STATUS STFSContainerEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_in
   out_info->last_write_time = entry->update_timestamp;
   out_info->change_time = entry->update_timestamp;
   out_info->end_of_file = entry->size;
-  out_info->allocation_size = 4096;
+  out_info->allocation_size = xe::round_up(entry->size, 4096);
   out_info->attributes = entry->attributes;
   out_info->file_name_length = static_cast<uint32_t>(entry->name.size());
   memcpy(out_info->file_name, entry->name.c_str(), entry->name.size());

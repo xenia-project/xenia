@@ -10,6 +10,7 @@
 #include "xenia/kernel/fs/devices/host_path_entry.h"
 
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/math.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/fs/devices/host_path_file.h"
 
@@ -48,13 +49,14 @@ X_STATUS HostPathEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
     return X_STATUS_ACCESS_DENIED;
   }
 
+  uint64_t file_size = ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+
   out_info->creation_time = COMBINE_TIME(data.ftCreationTime);
   out_info->last_access_time = COMBINE_TIME(data.ftLastAccessTime);
   out_info->last_write_time = COMBINE_TIME(data.ftLastWriteTime);
   out_info->change_time = COMBINE_TIME(data.ftLastWriteTime);
-  out_info->allocation_size = 4096;
-  out_info->file_length =
-      ((uint64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+  out_info->allocation_size = xe::round_up(file_size, 4096);
+  out_info->end_of_file = file_size;
   out_info->attributes = (X_FILE_ATTRIBUTES)data.dwFileAttributes;
   return X_STATUS_SUCCESS;
 }
@@ -90,7 +92,7 @@ X_STATUS HostPathEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, s
     if (FindNextFile(handle, &ffd) == FALSE) {
       FindClose(handle);
       find_file_ = INVALID_HANDLE_VALUE;
-      return X_STATUS_NO_MORE_FILES;
+      return X_STATUS_NO_SUCH_FILE;
     }
   }
 
@@ -102,15 +104,16 @@ X_STATUS HostPathEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, s
     return X_STATUS_BUFFER_OVERFLOW;
   }
 
+  uint64_t file_size = ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
+
   out_info->next_entry_offset = 0;
   out_info->file_index = 0xCDCDCDCD;
   out_info->creation_time = COMBINE_TIME(ffd.ftCreationTime);
   out_info->last_access_time = COMBINE_TIME(ffd.ftLastAccessTime);
   out_info->last_write_time = COMBINE_TIME(ffd.ftLastWriteTime);
   out_info->change_time = COMBINE_TIME(ffd.ftLastWriteTime);
-  out_info->end_of_file =
-      ((uint64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
-  out_info->allocation_size = 4096;
+  out_info->end_of_file = file_size;
+  out_info->allocation_size = xe::round_up(file_size, 4096);
   out_info->attributes = (X_FILE_ATTRIBUTES)ffd.dwFileAttributes;
 
   out_info->file_name_length = (uint32_t)entry_name_length;

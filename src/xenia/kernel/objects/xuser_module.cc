@@ -56,13 +56,13 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     // Load the module.
     result = LoadFromMemory(mmap->address(), mmap->length());
   } else {
-    X_FILE_NETWORK_OPEN_INFORMATION file_info;
+    X_FILE_NETWORK_OPEN_INFORMATION file_info = {0};
     result = fs_entry->QueryInfo(&file_info);
     if (result) {
       return result;
     }
 
-    std::vector<uint8_t> buffer(file_info.file_length);
+    std::vector<uint8_t> buffer(file_info.end_of_file);
 
     // Open file for reading.
     XFile* file_ptr = nullptr;

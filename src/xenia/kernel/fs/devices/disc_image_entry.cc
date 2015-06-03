@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include "xenia/base/math.h"
 #include "xenia/kernel/fs/devices/disc_image_file.h"
 
 namespace xe {
@@ -30,7 +31,7 @@ DiscImageEntry::DiscImageEntry(Device* device, const char* path,
     : Entry(device, path),
       mmap_(mmap),
       gdfx_entry_(gdfx_entry),
-      it_(gdfx_entry->children.end()) {}
+      it_(gdfx_entry->children.begin()) {}
 
 DiscImageEntry::~DiscImageEntry() {}
 
@@ -40,8 +41,8 @@ X_STATUS DiscImageEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   out_info->last_access_time = 0;
   out_info->last_write_time = 0;
   out_info->change_time = 0;
-  out_info->allocation_size = 2048;
-  out_info->file_length = gdfx_entry_->size;
+  out_info->allocation_size = xe::round_up(gdfx_entry_->size, 2048);
+  out_info->end_of_file = gdfx_entry_->size;
   out_info->attributes = gdfx_entry_->attributes;
   return X_STATUS_SUCCESS;
 }
@@ -71,13 +72,13 @@ X_STATUS DiscImageEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, 
 
     entry = gdfx_entry_->GetChild(find_engine_, it_);
     if (!entry) {
-      return X_STATUS_UNSUCCESSFUL;
+      return X_STATUS_NO_SUCH_FILE;
     }
 
     auto end = (uint8_t*)out_info + length;
     auto entry_name = entry->name;
     if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
-      return X_STATUS_NO_MORE_FILES;
+      return X_STATUS_NO_SUCH_FILE;
     }
   }
 
@@ -88,7 +89,7 @@ X_STATUS DiscImageEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, 
   out_info->last_write_time = 0;
   out_info->change_time = 0;
   out_info->end_of_file = entry->size;
-  out_info->allocation_size = 2048;
+  out_info->allocation_size = xe::round_up(entry->size, 2048);
   out_info->attributes = entry->attributes;
   out_info->file_name_length = static_cast<uint32_t>(entry->name.size());
   memcpy(out_info->file_name, entry->name.c_str(), entry->name.size());

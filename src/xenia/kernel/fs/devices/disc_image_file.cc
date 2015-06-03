@@ -48,7 +48,7 @@ X_STATUS DiscImageFile::ReadSync(void* buffer, size_t buffer_length,
   }
   size_t real_offset = gdfx_entry->offset + byte_offset;
   size_t real_length = std::min(buffer_length, gdfx_entry->size - byte_offset);
-  memcpy(buffer, entry_->mmap()->data() + real_offset, real_length);
+  std::memcpy(buffer, entry_->mmap()->data() + real_offset, real_length);
   *out_bytes_read = real_length;
   return X_STATUS_SUCCESS;
 }

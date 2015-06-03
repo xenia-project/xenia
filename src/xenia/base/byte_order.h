@@ -68,6 +68,14 @@ inline double byte_swap(double value) {
   uint64_t temp = byte_swap(*reinterpret_cast<uint64_t *>(&value));
   return *reinterpret_cast<double *>(&temp);
 }
+template <typename T>
+inline T byte_swap(T value) {
+  if (sizeof(T) == 4) {
+    return static_cast<T>(byte_swap(static_cast<uint32_t>(value)));
+  } else {
+    assert_always("not handled");
+  }
+}
 
 template <typename T>
 struct be {

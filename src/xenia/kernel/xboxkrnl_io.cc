@@ -492,7 +492,7 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
         info = 8;
         SHIM_SET_MEM_64(file_info_ptr, file->position());
         break;
-      case XFileNetworkOpenInformation:
+      case XFileNetworkOpenInformation: {
         // struct FILE_NETWORK_OPEN_INFORMATION {
         //   LARGE_INTEGER CreationTime;
         //   LARGE_INTEGER LastAccessTime;
@@ -504,13 +504,15 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
         //   ULONG         Unknown;
         // };
         assert_true(length == 56);
-        X_FILE_NETWORK_OPEN_INFORMATION file_info;
-        result = file->QueryInfo(&file_info);
+        auto file_info =
+            kernel_memory()->TranslateVirtual<X_FILE_NETWORK_OPEN_INFORMATION*>(
+                file_info_ptr);
+        result = file->QueryInfo(file_info);
         if (XSUCCEEDED(result)) {
           info = 56;
-          file_info.Write(SHIM_MEM_BASE, file_info_ptr);
         }
         break;
+      }
       case XFileXctdCompressionInformation:
         assert_true(length == 4);
         /*
@@ -578,11 +580,10 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
   auto entry = fs->ResolvePath(object_name);
   if (entry) {
     // Found.
-    X_FILE_NETWORK_OPEN_INFORMATION file_info;
-    result = entry->QueryInfo(&file_info);
-    if (XSUCCEEDED(result)) {
-      file_info.Write(SHIM_MEM_BASE, file_info_ptr);
-    }
+    auto file_info =
+        kernel_memory()->TranslateVirtual<X_FILE_NETWORK_OPEN_INFORMATION*>(
+            file_info_ptr);
+    result = entry->QueryInfo(file_info);
   }
 
   free(object_name);

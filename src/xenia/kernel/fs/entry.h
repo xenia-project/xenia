@@ -19,7 +19,7 @@ namespace xe {
 namespace kernel {
 class KernelState;
 class XFile;
-class X_FILE_NETWORK_OPEN_INFORMATION;
+struct X_FILE_NETWORK_OPEN_INFORMATION;
 class X_FILE_DIRECTORY_INFORMATION;
 class X_FILE_FS_ATTRIBUTE_INFORMATION;
 class X_FILE_FS_SIZE_INFORMATION;
