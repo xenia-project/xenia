@@ -458,6 +458,35 @@ enum Type3Opcode {
   PM4_SET_BIN_SELECT_HI     = 0x63,
 };
 
+template<uint16_t index, uint16_t count, bool one_reg = false>
+constexpr inline uint32_t MakePacketType0() {
+  // ttcccccc cccccccc oiiiiiii iiiiiiii
+  static_assert(index <= 0x7FFF, "index must be <= 0x7FFF");
+  static_assert(count >= 1 && count <= 0x4000, "count must be >= 1 and <= 0x4000");
+  return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (index & 0x7FFF);
+}
+
+template<uint16_t index_1, uint16_t index_2>
+constexpr inline uint32_t MakePacketType1() {
+  // tt?????? ??222222 22222111 11111111
+  static_assert(index_1 <= 0x7FF, "index_1 must be <= 0x7FF");
+  static_assert(index_2 <= 0x7FF, "index_2 must be <= 0x7FF");
+  return (1u << 30) | ((index_2 & 0x7FF) << 11) | (index_1 & 0x7FF);
+}
+
+constexpr inline uint32_t MakePacketType2() {
+  // tt?????? ???????? ???????? ????????
+  return (2u << 30);
+}
+
+template<Type3Opcode opcode, uint16_t count, bool predicate = false>
+constexpr inline uint32_t MakePacketType3() {
+  // ttcccccc cccccccc ?ooooooo ???????p
+  static_assert(opcode <= 0x7F, "opcode must be <= 0x7F");
+  static_assert(count >= 1 && count <= 0x4000, "count must be >= 1 and <= 0x4000");
+  return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) | (predicate ? 1 : 0);
+}
+
 }  // namespace xenos
 }  // namespace gpu
 }  // namespace xe
