@@ -75,6 +75,9 @@ SHIM_CALL XNotifyGetNext_shim(PPCContext* ppc_context,
   if (dequeued) {
     SHIM_SET_MEM_32(id_ptr, id);
     SHIM_SET_MEM_32(param_ptr, param);
+  } else {
+    SHIM_SET_MEM_32(id_ptr, 0);
+    SHIM_SET_MEM_32(param_ptr, 0);
   }
 
   SHIM_SET_RETURN_32(dequeued ? 1 : 0);

@@ -77,9 +77,9 @@ bool XNotifyListener::DequeueNotification(XNotificationID id,
   std::lock_guard<xe::mutex> lock(lock_);
   bool dequeued = false;
   if (notification_count_) {
-    dequeued = true;
     auto it = notifications_.find(id);
     if (it != notifications_.end()) {
+      dequeued = true;
       *out_data = it->second;
       notifications_.erase(it);
       notification_count_--;

@@ -130,6 +130,7 @@ X_RESULT XXMPApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
   active_song_index_ = 0;
   state_ = State::kPlaying;
   OnStateChanged();
+  kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
   return X_ERROR_SUCCESS;
 }
 
