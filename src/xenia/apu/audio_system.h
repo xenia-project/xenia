@@ -39,7 +39,7 @@ class AudioDecoder;
 // http://pastebin.com/9amqJ2kQ
 struct XMAContextData {
   static const uint32_t kSize = 64;
-  static const uint32_t kBytesPerBlock = 2048;
+  static const uint32_t kBytesPerPacket = 2048;
   static const uint32_t kSamplesPerFrame = 512;
   static const uint32_t kSamplesPerSubframe = 128;
 
@@ -155,6 +155,7 @@ class AudioSystem {
   void DecoderThreadMain();
 
   void ProcessXmaContext(XMAContext& context, XMAContextData& data);
+  int PrepareXMAPacket(XMAContext& context, XMAContextData& data);
 
   static uint64_t MMIOReadRegisterThunk(void* ppc_context, AudioSystem* as,
                                         uint32_t addr) {
