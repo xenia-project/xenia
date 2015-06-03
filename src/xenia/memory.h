@@ -195,6 +195,7 @@ class Memory {
                              uint32_t size, void* context,
                              cpu::MMIOReadCallback read_callback,
                              cpu::MMIOWriteCallback write_callback);
+  cpu::MMIORange* LookupVirtualMappedRange(uint32_t virtual_address);
 
   uintptr_t AddPhysicalWriteWatch(uint32_t physical_address, uint32_t length,
                                   cpu::WriteWatchCallback callback,

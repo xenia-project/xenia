@@ -1087,6 +1087,23 @@ void HIRBuilder::StoreContext(size_t offset, Value* value) {
   i->src3.value = NULL;
 }
 
+Value* HIRBuilder::LoadMmio(cpu::MMIORange* mmio_range, uint32_t address,
+                            TypeName type) {
+  Instr* i = AppendInstr(OPCODE_LOAD_MMIO_info, 0, AllocValue(type));
+  i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
+  i->src2.offset = address;
+  i->src3.value = NULL;
+  return i->dest;
+}
+
+void HIRBuilder::StoreMmio(cpu::MMIORange* mmio_range, uint32_t address,
+                           Value* value) {
+  Instr* i = AppendInstr(OPCODE_STORE_MMIO_info, 0);
+  i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
+  i->src2.offset = address;
+  i->set_src3(value);
+}
+
 Value* HIRBuilder::Load(Value* address, TypeName type, uint32_t load_flags) {
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(OPCODE_LOAD_info, load_flags, AllocValue(type));

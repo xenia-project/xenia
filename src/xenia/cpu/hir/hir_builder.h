@@ -19,6 +19,7 @@
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/hir/opcodes.h"
 #include "xenia/cpu/hir/value.h"
+#include "xenia/cpu/mmio_handler.h"
 
 namespace xe {
 namespace cpu {
@@ -129,6 +130,9 @@ class HIRBuilder {
 
   Value* LoadContext(size_t offset, TypeName type);
   void StoreContext(size_t offset, Value* value);
+
+  Value* LoadMmio(cpu::MMIORange* mmio_range, uint32_t address, TypeName type);
+  void StoreMmio(cpu::MMIORange* mmio_range, uint32_t address, Value* value);
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);

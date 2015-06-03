@@ -97,6 +97,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   // rdx = target function
   // r8  = arg0
   // r9  = arg1
+  // r10 = arg2
 
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
   // rsp + 0 = return address

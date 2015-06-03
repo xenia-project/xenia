@@ -54,11 +54,12 @@ class GL4GraphicsSystem : public GraphicsSystem {
   uint64_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint64_t value);
 
-  static uint64_t MMIOReadRegisterThunk(GL4GraphicsSystem* gs, uint32_t addr) {
+  static uint64_t MMIOReadRegisterThunk(void* ppc_context,
+                                        GL4GraphicsSystem* gs, uint32_t addr) {
     return gs->ReadRegister(addr);
   }
-  static void MMIOWriteRegisterThunk(GL4GraphicsSystem* gs, uint32_t addr,
-                                     uint64_t value) {
+  static void MMIOWriteRegisterThunk(void* ppc_context, GL4GraphicsSystem* gs,
+                                     uint32_t addr, uint64_t value) {
     gs->WriteRegister(addr, value);
   }
 

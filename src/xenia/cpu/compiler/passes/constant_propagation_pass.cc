@@ -174,6 +174,51 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
 
+        case OPCODE_LOAD:
+          if (i->src1.value->IsConstant()) {
+            auto memory = processor_->memory();
+            auto address = i->src1.value->constant.i32;
+            auto mmio_range =
+                processor_->memory()->LookupVirtualMappedRange(address);
+            if (mmio_range) {
+              i->Replace(&OPCODE_LOAD_MMIO_info, 0);
+              i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
+              i->src2.offset = address;
+            } else {
+              auto heap = memory->LookupHeap(address);
+              uint32_t protect;
+              if (heap->QueryProtect(address, &protect) &&
+                  !(protect & kMemoryProtectWrite)) {
+                // Memory is readonly - can just return the value.
+                switch (v->type) {
+                  case INT32_TYPE:
+                    v->set_constant(xe::load_and_swap<uint32_t>(
+                        memory->TranslateVirtual(address)));
+                    break;
+                  default:
+                    assert_unhandled_case(v->type);
+                    break;
+                }
+                i->Remove();
+              }
+            }
+          }
+          break;
+        case OPCODE_STORE:
+          if (i->src1.value->IsConstant()) {
+            auto address = i->src1.value->constant.i32;
+            auto mmio_range =
+                processor_->memory()->LookupVirtualMappedRange(address);
+            if (mmio_range) {
+              auto value = i->src2.value;
+              i->Replace(&OPCODE_STORE_MMIO_info, 0);
+              i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
+              i->src2.offset = address;
+              i->set_src3(value);
+            }
+          }
+          break;
+
         case OPCODE_SELECT:
           if (i->src1.value->IsConstant()) {
             if (i->src1.value->IsConstantTrue()) {

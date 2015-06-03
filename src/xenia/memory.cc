@@ -362,6 +362,10 @@ bool Memory::AddVirtualMappedRange(uint32_t virtual_address, uint32_t mask,
                                       read_callback, write_callback);
 }
 
+cpu::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
+  return mmio_handler_->LookupRange(virtual_address);
+}
+
 uintptr_t Memory::AddPhysicalWriteWatch(uint32_t physical_address,
                                         uint32_t length,
                                         cpu::WriteWatchCallback callback,

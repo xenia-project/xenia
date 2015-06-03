@@ -20,11 +20,22 @@
 namespace xe {
 namespace cpu {
 
-typedef uint64_t (*MMIOReadCallback)(void* context, uint32_t addr);
-typedef void (*MMIOWriteCallback)(void* context, uint32_t addr, uint64_t value);
+typedef uint64_t (*MMIOReadCallback)(void* ppc_context, void* callback_context,
+                                     uint32_t addr);
+typedef void (*MMIOWriteCallback)(void* ppc_context, void* callback_context,
+                                  uint32_t addr, uint64_t value);
 
 typedef void (*WriteWatchCallback)(void* context_ptr, void* data_ptr,
                                    uint32_t address);
+
+struct MMIORange {
+  uint32_t address;
+  uint32_t mask;
+  uint32_t size;
+  void* callback_context;
+  MMIOReadCallback read;
+  MMIOWriteCallback write;
+};
 
 // NOTE: only one can exist at a time!
 class MMIOHandler {
@@ -38,6 +49,7 @@ class MMIOHandler {
   bool RegisterRange(uint32_t virtual_address, uint32_t mask, uint32_t size,
                      void* context, MMIOReadCallback read_callback,
                      MMIOWriteCallback write_callback);
+  MMIORange* LookupRange(uint32_t virtual_address);
 
   bool CheckLoad(uint32_t virtual_address, uint64_t* out_value);
   bool CheckStore(uint32_t virtual_address, uint64_t value);
@@ -76,14 +88,6 @@ class MMIOHandler {
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;
 
-  struct MMIORange {
-    uint32_t address;
-    uint32_t mask;
-    uint32_t size;
-    void* context;
-    MMIOReadCallback read;
-    MMIOWriteCallback write;
-  };
   std::vector<MMIORange> mapped_ranges_;
 
   // TODO(benvanik): data structure magic.

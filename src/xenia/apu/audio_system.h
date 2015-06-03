@@ -156,11 +156,12 @@ class AudioSystem {
 
   void ProcessXmaContext(XMAContext& context, XMAContextData& data);
 
-  static uint64_t MMIOReadRegisterThunk(AudioSystem* as, uint32_t addr) {
+  static uint64_t MMIOReadRegisterThunk(void* ppc_context, AudioSystem* as,
+                                        uint32_t addr) {
     return as->ReadRegister(addr);
   }
-  static void MMIOWriteRegisterThunk(AudioSystem* as, uint32_t addr,
-                                     uint64_t value) {
+  static void MMIOWriteRegisterThunk(void* ppc_context, AudioSystem* as,
+                                     uint32_t addr, uint64_t value) {
     as->WriteRegister(addr, value);
   }
 

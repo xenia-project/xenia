@@ -1425,6 +1425,68 @@ EMITTER_OPCODE_TABLE(
     STORE_CONTEXT_V128);
 
 
+
+
+// ============================================================================
+// OPCODE_LOAD_MMIO
+// ============================================================================
+// Note: all types are always aligned in the context.
+EMITTER(LOAD_MMIO_I32, MATCH(I<OPCODE_LOAD_MMIO, I32<>, OffsetOp, OffsetOp>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // uint64_t (context, addr)
+    auto mmio_range = reinterpret_cast<MMIORange*>(i.src1.value);
+    auto read_address = uint32_t(i.src2.value);
+    e.mov(e.r8, uint64_t(mmio_range->callback_context));
+    e.mov(e.r9d, read_address);
+    e.CallNativeSafe(mmio_range->read);
+    e.bswap(e.eax);
+    e.mov(i.dest, e.eax);
+    if (IsTracingData()) {
+      e.mov(e.r8, i.dest);
+      e.mov(e.edx, read_address);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI32));
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_LOAD_MMIO,
+    LOAD_MMIO_I32);
+
+
+// ============================================================================
+// OPCODE_STORE_MMIO
+// ============================================================================
+// Note: all types are always aligned on the stack.
+EMITTER(STORE_MMIO_I32, MATCH(I<OPCODE_STORE_MMIO, VoidOp, OffsetOp, OffsetOp, I32<>>)) {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // void (context, addr, value)
+    auto mmio_range = reinterpret_cast<MMIORange*>(i.src1.value);
+    auto write_address = uint32_t(i.src2.value);
+    e.mov(e.r8, uint64_t(mmio_range->callback_context));
+    e.mov(e.r9d, write_address);
+    if (i.src3.is_constant) {
+      e.mov(e.r10d, xe::byte_swap(i.src3.constant()));
+    } else {
+      e.mov(e.r10d, i.src3);
+      e.bswap(e.r10d);
+    }
+    e.CallNativeSafe(mmio_range->write);
+    if (IsTracingData()) {
+      if (i.src3.is_constant) {
+        e.mov(e.r8d, i.src3.constant());
+      } else {
+        e.mov(e.r8d, i.src3);
+      }
+      e.mov(e.edx, write_address);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI32));
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(
+    OPCODE_STORE_MMIO,
+    STORE_MMIO_I32);
+
+
 // ============================================================================
 // OPCODE_LOAD
 // ============================================================================
@@ -6374,6 +6436,8 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE_LOCAL);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_LOAD_CONTEXT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE_CONTEXT);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_LOAD_MMIO);
+  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE_MMIO);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_LOAD);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_STORE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_MEMSET);

@@ -63,6 +63,11 @@ WinMMIOHandler::~WinMMIOHandler() {
 // addresses in our range and call into the registered handlers, if any.
 // If there are none, we continue.
 LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info) {
+  // Fast path for SetThreadName.
+  if (ex_info->ExceptionRecord->ExceptionCode == 0x406D1388) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+
   SCOPE_profile_cpu_i("cpu", "MMIOExceptionHandler");
 
   // http://msdn.microsoft.com/en-us/library/ms679331(v=vs.85).aspx

@@ -62,11 +62,20 @@ bool MMIOHandler::RegisterRange(uint32_t virtual_address, uint32_t mask,
   return true;
 }
 
+MMIORange* MMIOHandler::LookupRange(uint32_t virtual_address) {
+  for (auto& range : mapped_ranges_) {
+    if ((virtual_address & range.mask) == range.address) {
+      return &range;
+    }
+  }
+  return nullptr;
+}
+
 bool MMIOHandler::CheckLoad(uint32_t virtual_address, uint64_t* out_value) {
   for (const auto& range : mapped_ranges_) {
     if ((virtual_address & range.mask) == range.address) {
-      *out_value =
-          static_cast<uint32_t>(range.read(range.context, virtual_address));
+      *out_value = static_cast<uint32_t>(
+          range.read(nullptr, range.callback_context, virtual_address));
       return true;
     }
   }
@@ -76,7 +85,7 @@ bool MMIOHandler::CheckLoad(uint32_t virtual_address, uint64_t* out_value) {
 bool MMIOHandler::CheckStore(uint32_t virtual_address, uint64_t value) {
   for (const auto& range : mapped_ranges_) {
     if ((virtual_address & range.mask) == range.address) {
-      range.write(range.context, virtual_address, value);
+      range.write(nullptr, range.callback_context, virtual_address, value);
       return true;
     }
   }
@@ -243,7 +252,8 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
   if (is_load) {
     // Load of a memory value - read from range, swap, and store in the
     // register.
-    uint64_t value = range->read(range->context, fault_address & 0xFFFFFFFF);
+    uint64_t value = range->read(nullptr, range->callback_context,
+                                 fault_address & 0xFFFFFFFF);
     uint32_t be_reg_index;
     if (!xe::bit_scan_forward(arg1_type & 0xFFFF, &be_reg_index)) {
       be_reg_index = 0;
@@ -293,7 +303,8 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
         value = xe::byte_swap(static_cast<uint64_t>(value));
         break;
     }
-    range->write(range->context, fault_address & 0xFFFFFFFF, value);
+    range->write(nullptr, range->callback_context, fault_address & 0xFFFFFFFF,
+                 value);
   } else {
     assert_always("Unknown MMIO instruction type");
     return false;

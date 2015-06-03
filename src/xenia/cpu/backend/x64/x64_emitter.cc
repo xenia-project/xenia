@@ -481,9 +481,10 @@ void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
 
 void X64Emitter::CallNativeSafe(void* fn) {
   // rcx = context
-  // rdx = target host function
+  // rdx = target function
   // r8  = arg0
   // r9  = arg1
+  // r10 = arg2
   mov(rdx, reinterpret_cast<uint64_t>(fn));
   auto thunk = backend()->guest_to_host_thunk();
   mov(rax, reinterpret_cast<uint64_t>(thunk));
