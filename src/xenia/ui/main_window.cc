@@ -50,7 +50,7 @@ bool MainWindow::Initialize() {
   if (!PlatformWindow::Initialize()) {
     return false;
   }
-  Resize(1280, 720);
+  
   UpdateTitle();
   on_key_down.AddListener([this](KeyEvent& e) {
     bool handled = true;
@@ -94,10 +94,9 @@ bool MainWindow::Initialize() {
 
   main_menu_.AddChild(std::move(file));
 
-  auto debug =
-      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Debug");
-
   SetMenu(&main_menu_);
+
+  Resize(1280, 720);
 
   return true;
 }
