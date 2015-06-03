@@ -71,13 +71,12 @@ class ArgList {
   virtual uint64_t get64() = 0;
 };
 
-/* Making the assumption that the Xbox 360's implementation of the
- *printf-functions
- * matches what is described on MSDN's documentation for the Windows CRT:
- *
- * "Format Specification Syntax: printf and wprintf Functions"
- * https://msdn.microsoft.com/en-us/library/56e442dc.aspx
- */
+// Making the assumption that the Xbox 360's implementation of the
+// printf-functions matches what is described on MSDN's documentation for the
+// Windows CRT:
+//
+// "Format Specification Syntax: printf and wprintf Functions"
+// https://msdn.microsoft.com/en-us/library/56e442dc.aspx
 
 std::string format_double(double value, int32_t precision, uint16_t c,
                           uint32_t flags) {
