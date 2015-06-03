@@ -81,8 +81,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       quad_list_geometry_program_(0),
       draw_index_count_(0),
       draw_batcher_(graphics_system_->register_file()),
-      scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {
-}
+      scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {}
 
 CommandProcessor::~CommandProcessor() { CloseHandle(write_ptr_index_event_); }
 
@@ -93,9 +92,9 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(graphics_system_->emulator()->kernel_state(),
                               128 * 1024, 0, [this]() {
-        WorkerThreadMain();
-        return 0;
-      }));
+    WorkerThreadMain();
+    return 0;
+  }));
   worker_thread_->set_name("GL4 Worker");
   worker_thread_->Create();
 
@@ -904,7 +903,6 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_ME_INIT(RingbufferReader* reader,
-
                                                   uint32_t packet,
                                                   uint32_t count) {
   // initialize CP's micro-engine
@@ -913,7 +911,6 @@ bool CommandProcessor::ExecutePacketType3_ME_INIT(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_NOP(RingbufferReader* reader,
-
                                               uint32_t packet, uint32_t count) {
   // skip N 32-bit words to get to the next packet
   // No-op, ignore some data.
@@ -922,7 +919,6 @@ bool CommandProcessor::ExecutePacketType3_NOP(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_INTERRUPT(RingbufferReader* reader,
-
                                                     uint32_t packet,
                                                     uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
@@ -938,7 +934,6 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
-
                                                   uint32_t packet,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
@@ -993,7 +988,6 @@ bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(
 }
 
 bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
-
                                                        uint32_t packet,
                                                        uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
@@ -1098,7 +1092,6 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingbufferReader* reader,
-
                                                      uint32_t packet,
                                                      uint32_t count) {
   // conditional write to memory or register
@@ -1283,7 +1276,6 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
-
                                                       uint32_t packet,
                                                       uint32_t count) {
   // draw using supplied indices in packet
@@ -2651,6 +2643,10 @@ bool CommandProcessor::IssueCopy() {
     case ColorFormat::k_32_32_FLOAT:
       read_format = GL_RG32F;
       read_type = GL_FLOAT;
+      break;
+    case ColorFormat::k_10_11_11:
+      read_format = GL_R11F_G11F_B10F;
+      read_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
       break;
     default:
       assert_unhandled_case(copy_dest_format);
