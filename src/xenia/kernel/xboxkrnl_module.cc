@@ -30,6 +30,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // Register all exported functions.
   xboxkrnl::RegisterAudioExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterAudioXmaExports(export_resolver_, kernel_state_);
+  xboxkrnl::RegisterCryptExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterDebugExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterErrorExports(export_resolver_, kernel_state_);
   xboxkrnl::RegisterHalExports(export_resolver_, kernel_state_);
