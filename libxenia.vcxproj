@@ -176,6 +176,7 @@
     <ClCompile Include="src\xenia\kernel\xam_voice.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_audio.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_audio_xma.cc" />
+    <ClCompile Include="src\xenia\kernel\xboxkrnl_crypt.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_debug.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_hal.cc" />
     <ClCompile Include="src\xenia\kernel\xboxkrnl_io.cc" />
