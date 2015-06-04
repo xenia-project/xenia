@@ -33,6 +33,9 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
 
+// For OPCODE_PACK/OPCODE_UNPACK
+#include "third_party/half/include/half.hpp"
+
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -5972,22 +5975,60 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>, V128<>>)) {
     //     ((src1.uy & 0xFF) << 8) | (src1.uz & 0xFF)
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
+  static __m128i EmulateFLOAT16_2(void*, __m128 src1) {
+    alignas(16) float    a[4];
+    alignas(16) uint16_t b[8];
+    _mm_store_ps(a, src1);
+    std::memset(b, 0, sizeof(b));
+
+    for (int i = 0; i < 2; i++) {
+      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+    }
+
+    return _mm_load_si128(reinterpret_cast<__m128i*>(b));
+  }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
-    // 0|0|0|0|W|Z|Y|X
-    e.vcvtps2ph(i.dest, i.dest, B00000011);
-    // Shuffle to X|Y|0|0|0|0|0|0
-    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
+
+    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      // 0|0|0|0|W|Z|Y|X
+      e.vcvtps2ph(i.dest, i.dest, B00000011);
+      // Shuffle to X|Y|0|0|0|0|0|0
+      e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
+    } else {
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(EmulateFLOAT16_2);
+      e.vmovaps(i.dest, e.xmm0);
+    }
+  }
+  static __m128i EmulateFLOAT16_4(void*, __m128 src1) {
+    alignas(16) float    a[4];
+    alignas(16) uint16_t b[8];
+    _mm_store_ps(a, src1);
+    std::memset(b, 0, sizeof(b));
+
+    for (int i = 0; i < 4; i++) {
+      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+    }
+
+    return _mm_load_si128(reinterpret_cast<__m128i*>(b));
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
     // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
-    // 0|0|0|0|W|Z|Y|X
-    e.vcvtps2ph(i.dest, i.src1, B00000011);
-    // Shuffle to X|Y|Z|W|0|0|0|0
-    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
+
+    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      // 0|0|0|0|W|Z|Y|X
+      e.vcvtps2ph(i.dest, i.src1, B00000011);
+      // Shuffle to X|Y|Z|W|0|0|0|0
+      e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
+    } else {
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(EmulateFLOAT16_4);
+      e.vmovaps(i.dest, e.xmm0);
+    }
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
@@ -6161,6 +6202,21 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // Add 1.0f to each.
     e.vpor(i.dest, e.GetXmmConstPtr(XMMOne));
   }
+  static __m128 EmulateFLOAT16_2(void*, __m128i src1) {
+    alignas(16) uint16_t a[8];
+    alignas(16) float    b[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
+
+    for (int i = 0; i < 2; i++) {
+      b[i] = half_float::detail::half2float(a[7 - i]);
+    }
+
+    // Constants, or something
+    b[2] = 0.f;
+    b[3] = 1.f;
+
+    return _mm_load_ps(b);
+  }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     // 1 bit sign, 5 bit exponent, 10 bit mantissa
     // D3D10 half float format
@@ -6172,23 +6228,57 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
 
-    // sx = src.iw >> 16;
-    // sy = src.iw & 0xFFFF;
-    // dest = { XMConvertHalfToFloat(sx),
-    //          XMConvertHalfToFloat(sy),
-    //          0.0,
-    //          1.0 };
-    // Shuffle to 0|0|0|0|0|0|Y|X
-    e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
-    e.vcvtph2ps(i.dest, i.dest);
-    e.vpshufd(i.dest, i.dest, B10100100);
-    e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
+    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      // sx = src.iw >> 16;
+      // sy = src.iw & 0xFFFF;
+      // dest = { XMConvertHalfToFloat(sx),
+      //          XMConvertHalfToFloat(sy),
+      //          0.0,
+      //          1.0 };
+      // Shuffle to 0|0|0|0|0|0|Y|X
+      e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
+      e.vcvtph2ps(i.dest, i.dest);
+      e.vpshufd(i.dest, i.dest, B10100100);
+      e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
+    } else {
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(EmulateFLOAT16_2);
+      e.vmovaps(i.dest, e.xmm0);
+    }
+  }
+  static __m128 EmulateFLOAT16_4(void*, __m128i src1) {
+    alignas(16) uint16_t a[8];
+    alignas(16) float    b[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
+
+    // The floats come in swapped for some reason. Swap them back.
+    for (int i = 0; i < 2; i++) {
+      uint16_t &n1 = a[7 - (i * 2)];
+      uint16_t &n2 = a[6 - (i * 2)];
+
+      uint16_t tmp = n1;
+      n1 = n2;
+      n2 = tmp;
+    }
+
+    for (int i = 0; i < 4; i++) {
+      b[3 - i] = half_float::detail::half2float(a[7 - i]);
+    }
+
+    return _mm_load_ps(b);
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
-    // Shuffle to 0|0|0|0|W|Z|Y|X
-    e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_4));
-    e.vcvtph2ps(i.dest, i.dest);
+
+    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      // Shuffle to 0|0|0|0|W|Z|Y|X
+      e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_4));
+      e.vcvtph2ps(i.dest, i.dest);
+    } else {
+      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.CallNativeSafe(EmulateFLOAT16_4);
+      e.vmovaps(i.dest, e.xmm0);
+    }
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     // (VD.x) = 3.0 + (VB.x>>16)*2^-22
