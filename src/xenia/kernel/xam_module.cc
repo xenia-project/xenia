@@ -35,12 +35,10 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   xam::RegisterVoiceExports(export_resolver_, kernel_state_);
 }
 
-std::vector<xe::cpu::Export*> xam_exports;
+std::vector<xe::cpu::Export*> xam_exports(4096);
 
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export) {
-  if (xam_exports.size() <= export->ordinal) {
-    xam_exports.resize(xe::round_up(export->ordinal, 256));
-  }
+  assert_true(export->ordinal < xam_exports.size());
   xam_exports[export->ordinal] = export;
   return export;
 }
@@ -56,9 +54,7 @@ void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
 #include "xenia/kernel/util/export_table_post.inc"
   for (size_t i = 0; i < xe::countof(xam_export_table); ++i) {
     auto& export = xam_export_table[i];
-    if (xam_exports.size() <= export.ordinal) {
-      xam_exports.resize(xe::round_up(export.ordinal, 256));
-    }
+    assert_true(export.ordinal < xam_exports.size());
     if (!xam_exports[export.ordinal]) {
       xam_exports[export.ordinal] = &export;
     }
