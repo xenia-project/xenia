@@ -101,6 +101,14 @@ SHIM_CALL NetDll_XNetCleanup_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
+dword_result_t NetDll_XNetGetDebugXnAddr(lpunknown_t out_address) {
+  out_address.Zero(36);
+  // 1 causes caller to gracefully return.
+  return 1;
+}
+DECLARE_XAM_EXPORT(NetDll_XNetGetDebugXnAddr,
+                   ExportTag::kNetworking | ExportTag::kStub);
+
 dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
                                  lpvoid_t buffer_ptr, lpdword_t buffer_size) {
   assert_true(one == 1);
