@@ -401,6 +401,13 @@ SHIM_CALL NtWriteFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   SHIM_SET_RETURN_32(result);
 }
 
+dword_result_t NtCreateIoCompletion(lpvoid_t out_handle, dword_t desired_access,
+                                    lpvoid_t object_attribs,
+                                    dword_t num_concurrent_threads) {
+  return X_STATUS_UNSUCCESSFUL;
+}
+DECLARE_XBOXKRNL_EXPORT(NtCreateIoCompletion, ExportTag::kStub);
+
 SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
   uint32_t file_handle = SHIM_GET_ARG_32(0);
@@ -440,6 +447,9 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_context,
         assert_true(length == 8);
         info = 8;
         XELOGW("NtSetInformationFile ignoring alloc/eof");
+        break;
+      case XFileCompletionInformation:
+        // Games appear to call NtCreateIoCompletion right before this
         break;
       default:
         // Unsupported, for now.
