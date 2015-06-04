@@ -173,28 +173,35 @@ X_STATUS XThread::Create() {
   scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
 
   // Allocate TLS block.
-  uint32_t tls_size = 32;  // Default 32 (is this OK?)
+  // Games will specify a certain number of 4b slots that each thread will get.
+  const uint32_t kDefaultTlsSlotCount = 32;
+  uint32_t tls_slots = 0;
+  uint32_t tls_extended_size = 0;
   if (module && module->xex_header()) {
     const xe_xex2_header_t* header = module->xex_header();
-
-    // FIXME: Is this correct?
-    tls_size = header->tls_info.data_size;
+    tls_slots = header->tls_info.slot_count ? header->tls_info.slot_count : kDefaultTlsSlotCount;
+    tls_extended_size = header->tls_info.data_size;
+  } else {
+    tls_slots = kDefaultTlsSlotCount;
   }
 
+  // Allocate both the slots and the extended data.
+  uint32_t tls_size = tls_slots * 4 + tls_extended_size;
   tls_address_ = memory()->SystemHeapAlloc(tls_size);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     return X_STATUS_NO_MEMORY;
   }
 
-  // Copy in default TLS info (or zero it out)
-  if (module && module->xex_header()) {
+  // Zero all of TLS.
+  memory()->Fill(tls_address_, tls_size, 0);
+  if (tls_extended_size) {
+    // If game has extended data, copy in the default values.
     const xe_xex2_header_t* header = module->xex_header();
-
-    // Copy in default TLS info.
-    memory()->Copy(tls_address_, header->tls_info.raw_data_address, header->tls_info.data_size);
-  } else {
-    memory()->Fill(tls_address_, tls_size, 0);
+    assert_not_zero(header->tls_info.raw_data_address);
+    // TODO(benvanik): verify location relative to slots.
+    memory()->Copy(tls_address_ + tls_size, header->tls_info.raw_data_address,
+                   header->tls_info.raw_data_size);
   }
 
   // Allocate processor thread state.
