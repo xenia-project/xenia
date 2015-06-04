@@ -47,12 +47,6 @@ class GL4ShaderTranslator {
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
 
   void Reset(GL4Shader* shader);
-  void Append(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    output_.AppendVarargs(format, args);
-    va_end(args);
-  }
 
   void AppendSrcReg(const ucode::instr_alu_t& op, int i);
   void AppendSrcReg(const ucode::instr_alu_t& op, uint32_t num, uint32_t type,

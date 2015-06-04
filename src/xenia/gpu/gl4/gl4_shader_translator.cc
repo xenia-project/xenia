@@ -21,6 +21,8 @@ namespace gl4 {
 using namespace xe::gpu::ucode;
 using namespace xe::gpu::xenos;
 
+#define Append(...) output_.AppendFormat(__VA_ARGS__)
+
 static const char chan_names[] = {
     'x', 'y', 'z', 'w',
     // these only apply to FETCH dst's, and we shouldn't be using them:

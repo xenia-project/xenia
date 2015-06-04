@@ -35,7 +35,6 @@ class StringBuffer {
   const char* GetString() const;
   std::string to_string();
   char* ToString();
-  char* EncodeBase64();
 
  private:
   void Grow(size_t additional_length);
