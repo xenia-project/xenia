@@ -357,6 +357,14 @@ SHIM_CALL MmQueryAddressProtect_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(access);
 }
 
+void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
+                         dword_t protect_bits) {
+  uint32_t protect = FromXdkProtectFlags(protect_bits);
+  auto heap = kernel_memory()->LookupHeap(base_address);
+  heap->Protect(base_address.guest_address(), region_size, protect);
+}
+DECLARE_XBOXKRNL_EXPORT(MmSetAddressProtect, ExportTag::kMemory);
+
 SHIM_CALL MmQueryAllocationSize_shim(PPCContext* ppc_context,
                                      KernelState* kernel_state) {
   uint32_t base_address = SHIM_GET_ARG_32(0);

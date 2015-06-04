@@ -679,7 +679,11 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
         bool is_free = page_table_[page_number].state == 0;
         if (!is_free) {
           // At least one page in the range is used, skip to next.
+          // We know we'll be starting at least before this page.
           any_taken = true;
+          base_page_number = page_number - page_count;
+          base_page_number -= base_page_number % page_scan_stride;
+          base_page_number += page_scan_stride;  // cancel out loop logic
           break;
         }
       }
@@ -708,7 +712,10 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
         bool is_free = page_table_[page_number].state == 0;
         if (!is_free) {
           // At least one page in the range is used, skip to next.
+          // We know we'll be starting at least after this page.
           any_taken = true;
+          base_page_number = xe::round_up(page_number + 1, page_scan_stride);
+          base_page_number -= page_scan_stride;  // cancel out loop logic
           break;
         }
       }
