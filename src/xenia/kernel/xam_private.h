@@ -22,6 +22,8 @@ xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export);
 
 namespace xam {
 // Registration functions, one per file.
+void RegisterAvatarExports(xe::cpu::ExportResolver* export_resolver,
+                           KernelState* kernel_state);
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
                             KernelState* kernel_state);
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,

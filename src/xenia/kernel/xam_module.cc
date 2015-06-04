@@ -21,6 +21,7 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   RegisterExportTable(export_resolver_);
 
   // Register all exported functions.
+  xam::RegisterAvatarExports(export_resolver_, kernel_state_);
   xam::RegisterContentExports(export_resolver_, kernel_state_);
   xam::RegisterInfoExports(export_resolver_, kernel_state_);
   xam::RegisterInputExports(export_resolver_, kernel_state_);

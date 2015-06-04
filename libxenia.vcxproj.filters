@@ -721,6 +721,9 @@
     <ClCompile Include="src\xenia\kernel\xboxkrnl_crypt.cc">
       <Filter>src\xenia\kernel</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\kernel\xam_avatar.cc">
+      <Filter>src\xenia\kernel</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
