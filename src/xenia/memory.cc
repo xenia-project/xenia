@@ -179,8 +179,7 @@ int Memory::Initialize() {
   heaps_.v00000000.AllocFixed(
       0x00000000, 4096, 4096,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
-      // 0u);
-      kMemoryProtectRead | kMemoryProtectWrite);
+      kMemoryProtectNoAccess);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
