@@ -510,7 +510,6 @@
     </Link>
     <Lib>
       <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\$(Configuration);$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">
@@ -528,7 +527,6 @@
     </Link>
     <Lib>
       <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\$(Configuration);$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -550,7 +548,6 @@
     </Link>
     <Lib>
       <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\$(Configuration);$(SolutionDir)build\bin\$(Configuration)\</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
