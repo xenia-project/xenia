@@ -509,7 +509,7 @@ SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
   uint32_t cs_ptr = SHIM_GET_ARG_32(0);
   uint32_t spin_count = SHIM_GET_ARG_32(1);
 
-  XELOGD("RtlInitializeCriticalSectionAndSpinCount(%.8X, %d)", cs_ptr,
+  XELOGD("RtlInitializeCriticalSectionAndSpinCount(%.8X, %u)", cs_ptr,
          spin_count);
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
