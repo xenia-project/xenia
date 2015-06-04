@@ -14,11 +14,16 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/ring_buffer.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
+
+extern "C" {
+#include "libavutil/log.h"
+}
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -76,6 +81,13 @@ AudioSystem::~AudioSystem() {
   }
 }
 
+void av_log_callback(void *avcl, int level, const char *fmt, va_list va) {
+  StringBuffer buff;
+  buff.AppendVarargs(fmt, va);
+
+  xe::log_line(__FILE__, __LINE__, 'i', "libav: %s", buff.GetString());
+}
+
 X_STATUS AudioSystem::Setup() {
   processor_ = emulator_->processor();
 
@@ -106,6 +118,9 @@ X_STATUS AudioSystem::Setup() {
     context.decoder->Initialize();
   }
   registers_.next_context = 1;
+
+  // Setup libav logging callback
+  av_log_set_callback(av_log_callback);
 
   worker_running_ = true;
   worker_thread_ =
@@ -569,7 +584,6 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         // Reset valid flags so our audio decoder knows to process this one.
         data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
         data.input_buffer_1_valid = data.input_buffer_1_ptr != 0;
-        //data.output_buffer_write_offset = 0;
 
         data.Store(context_ptr);
 
@@ -614,7 +628,9 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         data.input_buffer_0_valid = 0;
         data.input_buffer_1_valid = 0;
         data.output_buffer_valid = 0;
-        data.output_buffer_read_offset = 31;
+
+        data.output_buffer_read_offset = 0;
+        data.output_buffer_write_offset = 0;
 
         data.Store(context_ptr);
         context.lock.unlock();
