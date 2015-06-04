@@ -1325,31 +1325,41 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
 xe::mutex global_list_mutex_;
 
 // http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
-SHIM_CALL InterlockedPopEntrySList_shim(PPCContext* ppc_context,
-                                        KernelState* kernel_state) {
-  uint32_t plist_ptr = SHIM_GET_ARG_32(0);
+struct SLIST_HEADER {
+  xe::be<uint32_t> next;
+  xe::be<uint16_t> depth;
+  xe::be<uint16_t> sequence;
+};
 
-  XELOGD("InterlockedPopEntrySList(%.8X)", plist_ptr);
-
+pointer_result_t InterlockedPopEntrySList(pointer_t<SLIST_HEADER> plist_ptr) {
   std::lock_guard<xe::mutex> lock(global_list_mutex_);
 
-  uint8_t* p = kernel_state->memory()->TranslateVirtual(plist_ptr);
-  auto first = xe::load_and_swap<uint32_t>(p);
+  uint32_t first = plist_ptr->next;
   if (first == 0) {
     // List empty!
-    SHIM_SET_RETURN_32(0);
-    return;
+    return 0;
   }
 
-  uint8_t* p2 = kernel_state->memory()->TranslateVirtual(first);
-  auto second = xe::load_and_swap<uint32_t>(p2);
+  // Get the second element.
+  uint8_t* p = kernel_memory()->TranslateVirtual(first);
+  auto second = xe::load_and_swap<uint32_t>(p);
 
-  // Now drop the first element
-  xe::store_and_swap<uint32_t>(p, second);
+  plist_ptr->next = second;
 
   // Return the one we popped
-  SHIM_SET_RETURN_32(first);
+  return first;
 }
+DECLARE_XBOXKRNL_EXPORT(InterlockedPopEntrySList, ExportTag::kImplemented);
+
+pointer_result_t InterlockedFlushSList(pointer_t<SLIST_HEADER> plist_ptr) {
+  std::lock_guard<xe::mutex> lock(global_list_mutex_);
+
+  uint32_t next = plist_ptr->next;
+  plist_ptr->next = 0;
+
+  return next;
+}
+DECLARE_XBOXKRNL_EXPORT(InterlockedFlushSList, ExportTag::kImplemented);
 
 }  // namespace kernel
 }  // namespace xe
@@ -1426,6 +1436,4 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInsertQueueDpc, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeRemoveQueueDpc, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", InterlockedPopEntrySList, state);
 }
