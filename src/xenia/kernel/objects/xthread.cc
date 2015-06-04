@@ -510,6 +510,8 @@ void XThread::DeliverAPCs(void* data) {
     auto apc = reinterpret_cast<XAPC*>(memory->TranslateVirtual(apc_ptr));
     bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
+    XELOGD("Delivering APC to %.8X", uint32_t(apc->normal_routine));
+
     // Mark as uninserted so that it can be reinserted again by the routine.
     apc->enqueued = 0;
 
@@ -542,11 +544,13 @@ void XThread::DeliverAPCs(void* data) {
     if (normal_routine) {
       thread->UnlockApc(false);
       // normal_routine(normal_context, system_arg1, system_arg2)
-      uint64_t normal_args[] = {normal_context, apc->arg1, apc->arg2};
+      uint64_t normal_args[] = {normal_context, arg1, arg2};
       processor->Execute(thread->thread_state(), normal_routine, normal_args,
                          xe::countof(normal_args));
       thread->LockApc();
     }
+
+    XELOGD("Completed delivery of APC to %.8X", uint32_t(apc->normal_routine));
 
     // If special, free it.
     if (needs_freeing) {
