@@ -176,7 +176,9 @@ X_STATUS XThread::Create() {
   uint32_t tls_size = 32;  // Default 32 (is this OK?)
   if (module && module->xex_header()) {
     const xe_xex2_header_t* header = module->xex_header();
-    tls_size = header->tls_info.slot_count * header->tls_info.data_size;
+
+    // FIXME: Is this correct?
+    tls_size = header->tls_info.data_size;
   }
 
   tls_address_ = memory()->SystemHeapAlloc(tls_size);
@@ -190,8 +192,7 @@ X_STATUS XThread::Create() {
     const xe_xex2_header_t* header = module->xex_header();
 
     // Copy in default TLS info.
-    // TODO(benvanik): is this correct?
-    memory()->Copy(tls_address_, header->tls_info.raw_data_address, tls_size);
+    memory()->Copy(tls_address_, header->tls_info.raw_data_address, header->tls_info.data_size);
   } else {
     memory()->Fill(tls_address_, tls_size, 0);
   }
