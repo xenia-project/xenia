@@ -180,7 +180,7 @@ struct SavedState {
     glGetIntegerv(GL_PROGRAM_PIPELINE_BINDING, &program_pipeline);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vertex_array);
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture_0);
-    glGetIntegeri_v(GL_SAMPLER_BINDING, 0, &sampler_0);
+    glGetIntegerv(GL_SAMPLER_BINDING, &sampler_0);
   }
 
   void Restore() {
