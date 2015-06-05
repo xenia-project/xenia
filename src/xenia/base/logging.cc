@@ -44,7 +44,7 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
 
     // Format string - add a trailing newline if required.
     const char* outfmt = "%c> %.2X %s:%d: ";
-    buffer_ptr = buffer + snprintf(buffer, buffer_count - 1, outfmt, level_char,
+    buffer_ptr = buffer + snprintf(buffer, buffer_count - 2, outfmt, level_char,
                                    xe::threading::current_thread_id(), filename,
                                    line_number);
   } else {
@@ -59,7 +59,7 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
 
   // Scribble args into the print buffer.
   buffer_ptr = buffer_ptr + vsnprintf(buffer_ptr,
-                                      buffer_count - (buffer_ptr - buffer) - 1,
+                                      buffer_count - (buffer_ptr - buffer) - 2,
                                       fmt, args);
 
   // Add a trailing newline.
@@ -69,7 +69,7 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
   }
 }
 
-thread_local char log_buffer[16 * 1024];
+thread_local char log_buffer[4 * 1024];
 
 void log_line(const char* file_path, const uint32_t line_number,
               const char level_char, const char* fmt, ...) {
