@@ -186,21 +186,23 @@ X_STATUS XThread::Create() {
   }
 
   // Allocate both the slots and the extended data.
-  uint32_t tls_size = tls_slots * 4 + tls_extended_size;
-  tls_address_ = memory()->SystemHeapAlloc(tls_size);
+  uint32_t tls_slot_size = tls_slots * 4;
+  uint32_t tls_total_size = tls_slot_size + tls_extended_size;
+  tls_address_ = memory()->SystemHeapAlloc(tls_total_size);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     return X_STATUS_NO_MEMORY;
   }
 
   // Zero all of TLS.
-  memory()->Fill(tls_address_, tls_size, 0);
+  memory()->Fill(tls_address_, tls_total_size, 0);
   if (tls_extended_size) {
     // If game has extended data, copy in the default values.
     const xe_xex2_header_t* header = module->xex_header();
     assert_not_zero(header->tls_info.raw_data_address);
     // TODO(benvanik): verify location relative to slots.
-    memory()->Copy(tls_address_ + tls_size, header->tls_info.raw_data_address,
+    memory()->Copy(tls_address_ + tls_slot_size,
+                   header->tls_info.raw_data_address,
                    header->tls_info.raw_data_size);
   }
 
