@@ -27,6 +27,9 @@
 #include <sys/mman.h>
 #endif  // WIN32
 
+DEFINE_bool(protect_zero, false,
+            "Protect the zero page from reads and writes.");
+
 DEFINE_bool(scribble_heap, false,
             "Scribble 0xCD into all allocated heap memory.");
 
@@ -179,7 +182,7 @@ int Memory::Initialize() {
   heaps_.v00000000.AllocFixed(
       0x00000000, 4096, 4096,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
-      kMemoryProtectRead | kMemoryProtectWrite);
+      !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite : kMemoryProtectNoAccess);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
