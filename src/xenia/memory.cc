@@ -398,7 +398,7 @@ void Memory::SystemHeapFree(uint32_t address) {
     return;
   }
   // TODO(benvanik): lightweight pool.
-  auto heap = LookupHeapByType(false, 4096);
+  auto heap = LookupHeap(address);
   heap->Release(address);
 }
 
