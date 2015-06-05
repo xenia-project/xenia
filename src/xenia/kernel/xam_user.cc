@@ -96,6 +96,23 @@ SHIM_CALL XamUserGetName_shim(PPCContext* ppc_context,
   }
 }
 
+typedef struct {
+  xe::be<uint32_t> setting_count;
+  xe::be<uint32_t> settings_ptr;
+} X_USER_READ_PROFILE_SETTINGS;
+static_assert_size(X_USER_READ_PROFILE_SETTINGS, 8);
+
+typedef struct {
+  xe::be<uint32_t> from;
+  xe::be<uint32_t> unk04;
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> unk0C;
+  xe::be<uint32_t> setting_id;
+  xe::be<uint32_t> unk14;
+  uint8_t setting_data[16];
+} X_USER_READ_PROFILE_SETTING;
+static_assert_size(X_USER_READ_PROFILE_SETTING, 40);
+
 // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/xboxtools.cpp
 SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
                                           KernelState* kernel_state) {
@@ -109,7 +126,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
   uint32_t buffer_ptr = SHIM_GET_ARG_32(7);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(8);
 
-  uint32_t buffer_size = SHIM_MEM_32(buffer_size_ptr);
+  uint32_t buffer_size = !buffer_size_ptr ? 0 : SHIM_MEM_32(buffer_size_ptr);
 
   XELOGD(
       "XamUserReadProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, "
@@ -117,12 +134,11 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
       title_id, user_index, unk_0, unk_1, setting_count, setting_ids_ptr,
       buffer_size_ptr, buffer_size, buffer_ptr, overlapped_ptr);
 
+  assert_zero(unk_0);
+  assert_zero(unk_1);
+
   // Title ID = 0 means us.
   // 0xfffe07d1 = profile?
-
-  if (user_index == 255) {
-    user_index = 0;
-  }
 
   if (user_index) {
     // Only support user 0.
@@ -135,30 +151,23 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     }
     return;
   }
+
   const auto& user_profile = kernel_state->user_profile();
 
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.
 
-  // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
-  // Result buffer is:
-  // uint32_t setting_count
-  // struct {
-  //   uint32_t source;
-  //   (4b pad)
-  //   uint32_t user_index;
-  //   (4b pad)
-  //   uint32_t setting_id;
-  //   (4b pad)
-  //   <data>
-  // } settings[setting_count]
-  const size_t kSettingSize = 4 + 4 + 4 + 4 + 4 + 4 + 16;
+  auto setting_ids = (xe::be<uint32_t>*)SHIM_MEM_ADDR(setting_ids_ptr);
 
-  // Compute required size.
+  // Compute required base size.
+  uint32_t base_size_needed = sizeof(X_USER_READ_PROFILE_SETTINGS);
+  base_size_needed += setting_count * sizeof(X_USER_READ_PROFILE_SETTING);
+
+  // Compute required extra size.
+  uint32_t size_needed = base_size_needed;
   bool any_missing = false;
-  uint32_t size_needed = 4 + 4 + setting_count * kSettingSize;
   for (uint32_t n = 0; n < setting_count; ++n) {
-    uint32_t setting_id = SHIM_MEM_32(setting_ids_ptr + n * 4);
+    uint32_t setting_id = setting_ids[n];
     auto setting = user_profile->GetSetting(setting_id);
     if (setting) {
       auto extra_size = static_cast<uint32_t>(setting->extra_size());
@@ -169,6 +178,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
              setting_id);
     }
   }
+
   if (any_missing) {
     // TODO(benvanik): don't fail? most games don't even check!
     if (overlapped_ptr) {
@@ -180,6 +190,7 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     }
     return;
   }
+
   SHIM_SET_MEM_32(buffer_size_ptr, size_needed);
   if (!buffer_ptr || buffer_size < size_needed) {
     if (overlapped_ptr) {
@@ -192,28 +203,29 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     return;
   }
 
-  SHIM_SET_MEM_32(buffer_ptr + 0, setting_count);
-  SHIM_SET_MEM_32(buffer_ptr + 4, buffer_ptr + 8);
+  auto out_header = (X_USER_READ_PROFILE_SETTINGS*)SHIM_MEM_ADDR(buffer_ptr);
+  out_header->setting_count = setting_count;
+  out_header->settings_ptr = buffer_ptr + 8;
 
-  size_t buffer_offset = 4 + setting_count * kSettingSize;
-  size_t user_data_ptr = buffer_ptr + 8;
+  auto out_setting = (X_USER_READ_PROFILE_SETTING*)SHIM_MEM_ADDR(out_header->settings_ptr);
+
+  size_t buffer_offset = base_size_needed;
   for (uint32_t n = 0; n < setting_count; ++n) {
-    uint32_t setting_id = SHIM_MEM_32(setting_ids_ptr + n * 4);
+    uint32_t setting_id = setting_ids[n];
     auto setting = user_profile->GetSetting(setting_id);
+
+    std::memset(out_setting, 0, sizeof(X_USER_READ_PROFILE_SETTING));
+    out_setting->from = !setting ? 0 : setting->is_title_specific() ? 2 : 1;
+    out_setting->user_index = user_index;
+    out_setting->setting_id = setting_id;
+
     if (setting) {
-      SHIM_SET_MEM_32(user_data_ptr + 0, setting->is_title_specific() ? 2 : 1);
-    } else {
-      SHIM_SET_MEM_32(user_data_ptr + 0, 0);
-    }
-    SHIM_SET_MEM_32(user_data_ptr + 8, user_index);
-    SHIM_SET_MEM_32(user_data_ptr + 16, setting_id);
-    if (setting) {
-      buffer_offset = setting->Append(SHIM_MEM_ADDR(user_data_ptr + 24),
-                                      SHIM_MEM_ADDR(buffer_ptr), buffer_offset);
-    } else {
-      std::memset(SHIM_MEM_ADDR(user_data_ptr + 24), 0, 16);
-    }
-    user_data_ptr += kSettingSize;
+      buffer_offset = setting->Append(&out_setting->setting_data[0],
+                                      SHIM_MEM_ADDR(buffer_ptr), buffer_ptr, buffer_offset);
+    } /*else {
+      std::memset(&out_setting->setting_data[0], 0, sizeof(out_setting->setting_data));
+    }*/
+    ++out_setting;
   }
 
   if (overlapped_ptr) {
