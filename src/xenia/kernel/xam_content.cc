@@ -38,7 +38,7 @@ SHIM_CALL XamContentGetLicenseMask_shim(PPCContext* ppc_context,
   // Arcade games seem to call this and check the result mask for random bits.
   // If we fail, the games seem to use a hardcoded mask, which is likely trial.
   // To be clever, let's just try setting all the bits.
-  SHIM_SET_MEM_32(mask_ptr, 0xFFFFFFFF);
+  SHIM_SET_MEM_32(mask_ptr, 0);
 
   if (overlapped_ptr) {
     kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
