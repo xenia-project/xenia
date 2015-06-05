@@ -69,7 +69,7 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
   }
 }
 
-thread_local char log_buffer[2048];
+thread_local char log_buffer[16 * 1024];
 
 void log_line(const char* file_path, const uint32_t line_number,
               const char level_char, const char* fmt, ...) {
