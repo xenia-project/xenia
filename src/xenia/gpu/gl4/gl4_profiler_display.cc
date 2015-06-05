@@ -252,44 +252,39 @@ precision highp float; \n\
 precision highp int; \n\
 layout(std140, column_major) uniform; \n\
 layout(std430, column_major) buffer; \n\
-struct VertexData { \n\
-  vec4 color; \n\
-  vec2 uv; \n\
-};\n\
 ";
   const std::string vertex_shader_source = header +
                                            "\n\
 layout(location = 0) uniform mat4 projection_matrix; \n\
-struct VertexFetch { \n\
-  vec2 pos; \n\
-  vec4 color; \n\
-  vec2 uv; \n\
-}; \n\
-layout(location = 0) in VertexFetch vfetch; \n\
-layout(location = 0) out VertexData vtx; \n\
+layout(location = 0) in vec2 in_pos; \n\
+layout(location = 1) in vec4 in_color; \n\
+layout(location = 2) in vec2 in_uv; \n\
+layout(location = 0) out vec4 vtx_color; \n\
+layout(location = 1) out vec2 vtx_uv; \n\
 void main() { \n\
-  gl_Position = projection_matrix * vec4(vfetch.pos.xy, 0.0, 1.0); \n\
-	vtx.color = vfetch.color; \n\
-	vtx.uv = vfetch.uv; \n\
+  gl_Position = projection_matrix * vec4(in_pos.xy, 0.0, 1.0); \n\
+  vtx_color = in_color; \n\
+  vtx_uv = in_uv; \n\
 } \n\
 ";
   const std::string fragment_shader_source = header +
                                              "\n\
 layout(location = 1, bindless_sampler) uniform sampler2D font_texture; \n\
 layout(location = 2) uniform float font_height; \n\
-layout(location = 0) in VertexData vtx; \n\
+layout(location = 0) in vec4 vtx_color; \n\
+layout(location = 1) in vec2 vtx_uv; \n\
 layout(location = 0) out vec4 oC; \n\
 void main() { \n\
-	if (vtx.uv.x > 1.0) { \n\
-		oC = vtx.color; \n\
-	} else { \n\
-	  vec4 color = texture(font_texture, vtx.uv); \n\
-		oC = color.rgba * vtx.color; \n\
-		if (color.a < 0.5) { \n\
-		  vec4 c1 = texture(font_texture, vtx.uv + vec2(0.0, font_height)); \n\
-			oC = vec4(0, 0, 0, c1.a); \n\
-		} \n\
-	} \n\
+  if (vtx_uv.x > 1.0) { \n\
+    oC = vtx_color; \n\
+  } else { \n\
+    vec4 color = texture(font_texture, vtx_uv); \n\
+    oC = color.rgba * vtx_color; \n\
+    if (color.a < 0.5) { \n\
+      vec4 c1 = texture(font_texture, vtx_uv + vec2(0.0, font_height)); \n\
+      oC = vec4(0, 0, 0, c1.a); \n\
+    } \n\
+  } \n\
 } \n\
 ";
 
