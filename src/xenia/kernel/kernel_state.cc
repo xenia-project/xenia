@@ -48,7 +48,8 @@ KernelState::KernelState(Emulator* emulator)
       memory_(emulator->memory()),
       object_table_(nullptr),
       has_notified_startup_(false),
-      process_type_(X_PROCTYPE_USER) {
+      process_type_(X_PROCTYPE_USER),
+      process_info_block_address_(0) {
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
 
@@ -66,11 +67,28 @@ KernelState::KernelState(Emulator* emulator)
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
 
+  process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
+  auto pib =
+      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+  // TODO(benvanik): figure out what this list is.
+  pib->unk_04 = pib->unk_08 = 0;
+  pib->unk_0C = 0x0000007F;
+  pib->unk_10 = 0x001F0000;
+  pib->thread_count = 0;
+  pib->unk_1B = 0x06;
+  pib->kernel_stack_size = 16 * 1024;
+  // TODO(benvanik): figure out what this list is.
+  pib->unk_54 = pib->unk_58 = 0;
+
   apps::RegisterApps(this, app_manager_.get());
 }
 
 KernelState::~KernelState() {
   SetExecutableModule(nullptr);
+
+  if (process_info_block_address_) {
+    memory_->SystemHeapFree(process_info_block_address_);
+  }
 
   executable_module_.reset();
   user_modules_.clear();
@@ -93,6 +111,18 @@ KernelState* KernelState::shared() { return shared_kernel_state_; }
 uint32_t KernelState::title_id() const {
   assert_not_null(executable_module_);
   return executable_module_->xex_header()->execution_info.title_id;
+}
+
+uint32_t KernelState::process_type() const {
+  auto pib =
+      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+  return pib->process_type;
+}
+
+void KernelState::set_process_type(uint32_t value) {
+  auto pib =
+      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+  pib->process_type = uint8_t(value);
 }
 
 void KernelState::RegisterModule(XModule* module) {}
@@ -148,6 +178,15 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
     return;
   }
   executable_module_ = std::move(module);
+
+  auto header = executable_module_->xex_header();
+  if (header) {
+    auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
+        process_info_block_address_);
+    pib->tls_data_size = header->tls_info.data_size;
+    pib->tls_raw_data_size = header->tls_info.raw_data_size;
+    pib->tls_slot_size = header->tls_info.slot_count * 4;
+  }
 }
 
 void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
@@ -209,6 +248,10 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 void KernelState::RegisterThread(XThread* thread) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   threads_by_id_[thread->thread_id()] = thread;
+
+  auto pib =
+      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+  pib->thread_count = pib->thread_count + 1;
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
@@ -217,6 +260,10 @@ void KernelState::UnregisterThread(XThread* thread) {
   if (it != threads_by_id_.end()) {
     threads_by_id_.erase(it);
   }
+
+  auto pib =
+      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+  pib->thread_count = pib->thread_count - 1;
 }
 
 void KernelState::OnThreadExecute(XThread* thread) {

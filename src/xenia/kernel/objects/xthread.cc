@@ -253,6 +253,8 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x078, thread_state_address_ + 0x074);
   xe::store_and_swap<uint32_t>(p + 0x07C, thread_state_address_ + 0x07C);
   xe::store_and_swap<uint32_t>(p + 0x080, thread_state_address_ + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x084,
+                               kernel_state_->process_info_block_address());
   xe::store_and_swap<uint8_t>(p + 0x08B, 1);
   // D4 = APC
   // FC = semaphore (ptr, 0, 2)

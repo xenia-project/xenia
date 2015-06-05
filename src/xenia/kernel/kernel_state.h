@@ -44,6 +44,31 @@ class XNotifyListener;
 class XThread;
 class XUserModule;
 
+struct ProcessInfoBlock {
+  xe::be<uint32_t> unk_00;
+  xe::be<uint32_t> unk_04;  // blink
+  xe::be<uint32_t> unk_08;  // flink
+  xe::be<uint32_t> unk_0C;
+  xe::be<uint32_t> unk_10;
+  xe::be<uint32_t> thread_count;
+  xe::be<uint8_t> unk_18;
+  xe::be<uint8_t> unk_19;
+  xe::be<uint8_t> unk_1A;
+  xe::be<uint8_t> unk_1B;
+  xe::be<uint32_t> kernel_stack_size;
+  xe::be<uint32_t> unk_20;
+  xe::be<uint32_t> tls_data_size;
+  xe::be<uint32_t> tls_raw_data_size;
+  xe::be<uint16_t> tls_slot_size;
+  xe::be<uint8_t> unk_2E;
+  xe::be<uint8_t> process_type;
+  xe::be<uint32_t> bitmap[0x20 / 4];
+  xe::be<uint32_t> unk_50;
+  xe::be<uint32_t> unk_54;  // blink
+  xe::be<uint32_t> unk_58;  // flink
+  xe::be<uint32_t> unk_5C;
+};
+
 class KernelState {
  public:
   KernelState(Emulator* emulator);
@@ -67,8 +92,11 @@ class KernelState {
   ObjectTable* object_table() const { return object_table_; }
   xe::recursive_mutex& object_mutex() { return object_mutex_; }
 
-  uint32_t process_type() const { return process_type_; }
-  void set_process_type(uint32_t value) { process_type_ = value; }
+  uint32_t process_type() const;
+  void set_process_type(uint32_t value);
+  uint32_t process_info_block_address() const {
+    return process_info_block_address_;
+  }
 
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
@@ -125,6 +153,8 @@ class KernelState {
   object_ref<XUserModule> executable_module_;
   std::vector<object_ref<XKernelModule>> kernel_modules_;
   std::vector<object_ref<XUserModule>> user_modules_;
+
+  uint32_t process_info_block_address_;
 
   friend class XObject;
 };
