@@ -469,30 +469,34 @@ SHIM_CALL NtSetInformationFile_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t file_handle = SHIM_GET_ARG_32(0);
-  uint32_t io_status_block_ptr = SHIM_GET_ARG_32(1);
-  uint32_t file_info_ptr = SHIM_GET_ARG_32(2);
-  uint32_t length = SHIM_GET_ARG_32(3);
-  uint32_t file_info_class = SHIM_GET_ARG_32(4);
+struct X_IO_STATUS_BLOCK {
+  union {
+    xe::be<uint32_t> status;
+    xe::be<uint32_t> pointer;
+  };
+  xe::be<uint32_t> information;
+};
 
-  XELOGD("NtQueryInformationFile(%.8X, %.8X, %.8X, %.8X, %.8X)", file_handle,
-         io_status_block_ptr, file_info_ptr, length, file_info_class);
-
+dword_result_t NtQueryInformationFile(dword_t file_handle,
+                                      pointer_t<X_IO_STATUS_BLOCK>
+                                      io_status_block_ptr,
+                                      lpvoid_t file_info_ptr, dword_t length,
+                                      dword_t file_info_class) {
   X_STATUS result = X_STATUS_SUCCESS;
   uint32_t info = 0;
 
   // Grab file.
-  auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
+  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
   if (file) {
     switch (file_info_class) {
       case XFileInternalInformation:
         // Internal unique file pointer. Not sure why anyone would want this.
         assert_true(length == 8);
         info = 8;
+
         // TODO(benvanik): use pointer to fs:: entry?
-        SHIM_SET_MEM_64(file_info_ptr, xe::hash_combine(0, file->path()));
+        xe::store_and_swap<uint64_t>(file_info_ptr,
+                                     xe::hash_combine(0, file->path()));
         break;
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {
@@ -500,7 +504,8 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
         // };
         assert_true(length == 8);
         info = 8;
-        SHIM_SET_MEM_64(file_info_ptr, file->position());
+
+        xe::store_and_swap<uint64_t>(file_info_ptr, file->position());
         break;
       case XFileNetworkOpenInformation: {
         // struct FILE_NETWORK_OPEN_INFORMATION {
@@ -514,9 +519,8 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
         //   ULONG         Unknown;
         // };
         assert_true(length == 56);
-        auto file_info =
-            kernel_memory()->TranslateVirtual<X_FILE_NETWORK_OPEN_INFORMATION*>(
-                file_info_ptr);
+
+        auto file_info = file_info_ptr.as<X_FILE_NETWORK_OPEN_INFORMATION*>();
         result = file->QueryInfo(file_info);
         if (XSUCCEEDED(result)) {
           info = 56;
@@ -554,12 +558,14 @@ SHIM_CALL NtQueryInformationFile_shim(PPCContext* ppc_context,
   }
 
   if (io_status_block_ptr) {
-    SHIM_SET_MEM_32(io_status_block_ptr, result);    // Status
-    SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
+    io_status_block_ptr->status = result;
+    io_status_block_ptr->information = info; // # bytes written
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtQueryInformationFile, ExportTag::kImplemented |
+                                                ExportTag::kFileSystem);
 
 SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
                                          KernelState* kernel_state) {
@@ -774,7 +780,6 @@ void xe::kernel::xboxkrnl::RegisterIoExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", NtOpenFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReadFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWriteFile, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetInformationFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryFullAttributesFile, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVolumeInformationFile, state);
