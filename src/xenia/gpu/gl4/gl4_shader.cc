@@ -424,7 +424,11 @@ bool GL4Shader::CompileProgram(std::string source) {
       search_offset = p - search_start;
       ++search_offset;
     }
-    host_disassembly_ = std::string(disasm_start);
+    if (disasm_start) {
+      host_disassembly_ = std::string(disasm_start);
+    } else {
+      host_disassembly_ = std::string("Shader disassembly not available.");
+    }
 
     // Append to shader dump.
     if (FLAGS_dump_shaders.size()) {
