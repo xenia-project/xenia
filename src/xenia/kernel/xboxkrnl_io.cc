@@ -551,6 +551,7 @@ dword_result_t NtQueryInformationFile(dword_t file_handle,
         // Unsupported, for now.
         assert_always();
         info = 0;
+        result = X_STATUS_UNSUCCESSFUL;
         break;
     }
   } else {
