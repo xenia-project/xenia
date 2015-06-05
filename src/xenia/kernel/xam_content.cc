@@ -35,9 +35,9 @@ SHIM_CALL XamContentGetLicenseMask_shim(PPCContext* ppc_context,
 
   XELOGD("XamContentGetLicenseMask(%.8X, %.8X)", mask_ptr, overlapped_ptr);
 
-  // Arcade games seem to call this and check the result mask for random bits.
-  // If we fail, the games seem to use a hardcoded mask, which is likely trial.
-  // To be clever, let's just try setting all the bits.
+  // Each bit in the mask represents a granted license. Available licenses
+  // seems to vary from game to game, but most appear to use bit 0 to indicate
+  // if the game is purchased or not.
   SHIM_SET_MEM_32(mask_ptr, 0);
 
   if (overlapped_ptr) {
