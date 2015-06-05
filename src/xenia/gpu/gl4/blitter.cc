@@ -45,9 +45,6 @@ precision highp float; \n\
 precision highp int; \n\
 layout(std140, column_major) uniform; \n\
 layout(std430, column_major) buffer; \n\
-struct VertexData { \n\
-  vec2 uv; \n\
-}; \n\
 ";
   const std::string vs_source = header +
                                 "\n\
@@ -57,32 +54,29 @@ out gl_PerVertex { \n\
   float gl_PointSize; \n\
   float gl_ClipDistance[]; \n\
 }; \n\
-struct VertexFetch { \n\
-  vec2 pos; \n\
-};\n\
-layout(location = 0) in VertexFetch vfetch; \n\
-layout(location = 0) out VertexData vtx; \n\
+layout(location = 0) in vec2 vfetch_pos; \n\
+layout(location = 0) out vec2 vtx_uv; \n\
 void main() { \n\
-  gl_Position = vec4(vfetch.pos.xy * vec2(2.0, -2.0) - vec2(1.0, -1.0), 0.0, 1.0); \n\
-  vtx.uv = vfetch.pos.xy * src_uv.zw + src_uv.xy; \n\
+  gl_Position = vec4(vfetch_pos.xy * vec2(2.0, -2.0) - vec2(1.0, -1.0), 0.0, 1.0); \n\
+  vtx_uv = vfetch_pos.xy * src_uv.zw + src_uv.xy; \n\
 } \n\
 ";
   const std::string color_fs_source = header +
                                       "\n\
 layout(location = 1) uniform sampler2D src_texture; \n\
-layout(location = 0) in VertexData vtx; \n\
+layout(location = 0) in vec2 vtx_uv; \n\
 layout(location = 0) out vec4 oC; \n\
 void main() { \n\
-  oC = texture(src_texture, vtx.uv); \n\
+  oC = texture(src_texture, vtx_uv); \n\
 } \n\
 ";
   const std::string depth_fs_source = header +
                                       "\n\
 layout(location = 1) uniform sampler2D src_texture; \n\
-layout(location = 0) in VertexData vtx; \n\
+layout(location = 0) in vec2 vtx_uv; \n\
 layout(location = 0) out vec4 oC; \n\
 void main() { \n\
-  gl_FragDepth = texture(src_texture, vtx.uv).r; \n\
+  gl_FragDepth = texture(src_texture, vtx_uv).r; \n\
 } \n\
 ";
 
