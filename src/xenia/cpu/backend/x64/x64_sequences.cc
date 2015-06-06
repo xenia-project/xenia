@@ -3927,11 +3927,17 @@ EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) 
         e.vfmadd213ps(i.dest, i.src2, i.src3);
       }
     } else {
-      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
-      Xmm src3 = i.src3;
-      if (i.dest == i.src3) {
-        e.vmovdqa(e.xmm0, i.src3);
+      Xmm src3;
+      if (i.src3.is_constant) {
+        e.LoadConstantXmm(e.xmm0, i.src3.constant());
         src3 = e.xmm0;
+      } else {
+        // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+        src3 = i.src3;
+        if (i.dest == i.src3) {
+          e.vmovdqa(e.xmm0, i.src3);
+          src3 = e.xmm0;
+        }
       }
 
       e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
@@ -4030,11 +4036,17 @@ EMITTER(MUL_SUB_V128, MATCH(I<OPCODE_MUL_SUB, V128<>, V128<>, V128<>, V128<>>)) 
         e.vfmsub213ps(i.dest, i.src2, i.src3);
       }
     } else {
-      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
-      Xmm src3 = i.src3;
-      if (i.dest == i.src3) {
-        e.vmovdqa(e.xmm0, i.src3);
+      Xmm src3;
+      if (i.src3.is_constant) {
+        e.LoadConstantXmm(e.xmm0, i.src3.constant());
         src3 = e.xmm0;
+      } else {
+        // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
+        src3 = i.src3;
+        if (i.dest == i.src3) {
+          e.vmovdqa(e.xmm0, i.src3);
+          src3 = e.xmm0;
+        }
       }
 
       e.vmulps(i.dest, i.src1, i.src2); // $0 = $1 * $2
@@ -5918,7 +5930,14 @@ EMITTER(SWIZZLE, MATCH(I<OPCODE_SWIZZLE, V128<>, V128<>, OffsetOp>)) {
       assert_always();
     } else if (element_type == INT32_TYPE || element_type == FLOAT32_TYPE) {
       uint8_t swizzle_mask = static_cast<uint8_t>(i.src2.value);
-      e.vpshufd(i.dest, i.src1, swizzle_mask);
+      Xmm src1;
+      if (i.src1.is_constant) {
+        e.LoadConstantXmm(e.xmm0, i.src1.constant());
+        src1 = e.xmm0;
+      } else {
+        src1 = i.src1;
+      }
+      e.vpshufd(i.dest, src1, swizzle_mask);
     } else if (element_type == INT64_TYPE || element_type == FLOAT64_TYPE) {
       assert_always();
     } else {
