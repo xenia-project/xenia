@@ -13,6 +13,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -33,6 +34,9 @@
 DEFINE_bool(
     enable_haswell_instructions, true,
     "Uses the AVX2/FMA/etc instructions on Haswell processors, if available.");
+
+DEFINE_bool(enable_debugprint_log, false,
+            "Log debugprint traps to the active debugger");
 
 namespace xe {
 namespace cpu {
@@ -292,6 +296,11 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   auto str = thread_state->memory()->TranslateVirtual<const char*>(str_ptr);
   // TODO(benvanik): truncate to length?
   XELOGD("(DebugPrint) %s", str);
+
+  if (FLAGS_enable_debugprint_log) {
+    debugging::DebugPrint("(DebugPrint) %s\n", str);
+  }
+
   return 0;
 }
 

@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/debugging.h"
+#include "xenia/base/string_buffer.h"
 
 #include <Windows.h>
 
@@ -17,6 +18,17 @@ namespace debugging {
 bool IsDebuggerAttached() { return IsDebuggerPresent() ? true : false; }
 
 void Break() { __debugbreak(); }
+
+void DebugPrint(const char *fmt, ...) {
+  StringBuffer buff;
+
+  va_list va;
+  va_start(va, fmt);
+  buff.AppendVarargs(fmt, va);
+  va_end(va);
+
+  OutputDebugStringA(buff.GetString());
+}
 
 }  // namespace debugging
 }  // namespace xe
