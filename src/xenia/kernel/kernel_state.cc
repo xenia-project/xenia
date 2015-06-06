@@ -77,6 +77,7 @@ KernelState::KernelState(Emulator* emulator)
   pib->thread_count = 0;
   pib->unk_1B = 0x06;
   pib->kernel_stack_size = 16 * 1024;
+  pib->process_type = process_type_;
   // TODO(benvanik): figure out what this list is.
   pib->unk_54 = pib->unk_58 = 0;
 
