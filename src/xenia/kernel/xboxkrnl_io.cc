@@ -547,6 +547,13 @@ dword_result_t NtQueryInformationFile(dword_t file_handle,
         */
         result = X_STATUS_UNSUCCESSFUL;
         break;
+      case XFileSectorInformation:
+        // TODO: Return sector this file's on.
+        assert_true(length == 4);
+
+        result = X_STATUS_UNSUCCESSFUL;
+        info = 0;
+        break;
       default:
         // Unsupported, for now.
         assert_always();
