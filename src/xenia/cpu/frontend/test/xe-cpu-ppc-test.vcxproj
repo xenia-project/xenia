@@ -208,6 +208,7 @@
     <None Include="instr_vupkd3d128.s" />
     <None Include="instr_vupkhsh.s" />
     <None Include="instr_vupklsh.s" />
+    <None Include="sequence_branch_carry.s" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\base\main.h" />

@@ -177,6 +177,7 @@ class TestRunner {
 
     processor.reset(new Processor(memory.get(), nullptr, nullptr));
     processor->Setup();
+    processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
   }
 
   ~TestRunner() {
@@ -228,6 +229,10 @@ class TestRunner {
 
     // Assert test state expectations.
     bool result = CheckTestResults(test_case);
+    if (!result) {
+      // Also dump all disasm/etc.
+      fn->debug_info()->Dump();
+    }
 
     return result;
   }

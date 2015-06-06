@@ -71,5 +71,21 @@ SourceMapEntry* DebugInfo::LookupCodeOffset(uint32_t offset) {
   return nullptr;
 }
 
+void DebugInfo::Dump() {
+  if (source_disasm_) {
+    printf("PPC:\n%s\n", source_disasm_);
+  }
+  if (raw_hir_disasm_) {
+    printf("Unoptimized HIR:\n%s\n", raw_hir_disasm_);
+  }
+  if (hir_disasm_) {
+    printf("Optimized HIR:\n%s\n", hir_disasm_);
+  }
+  if (machine_code_disasm_) {
+    printf("Machine Code:\n%s\n", machine_code_disasm_);
+  }
+  fflush(stdout);
+}
+
 }  // namespace cpu
 }  // namespace xe

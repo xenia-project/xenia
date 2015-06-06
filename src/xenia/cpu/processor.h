@@ -51,6 +51,10 @@ class Processor {
 
   bool Setup();
 
+  void set_debug_info_flags(uint32_t debug_info_flags) {
+    debug_info_flags_ = debug_info_flags;
+  }
+
   bool AddModule(std::unique_ptr<Module> module);
   Module* GetModule(const char* name);
   Module* GetModule(const std::string& name) { return GetModule(name.c_str()); }

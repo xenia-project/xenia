@@ -124,6 +124,11 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
     return false;
   }
 
+  auto debugger = frontend_->processor()->debugger();
+  if (!debugger) {
+    debug_info_flags &= ~DebugInfoFlags::kDebugInfoAllTracing;
+  }
+
   // Setup trace data, if needed.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctions) {
     // Base trace data.
@@ -133,9 +138,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
       trace_data_size += debug::FunctionTraceData::SizeOfInstructionCounts(
           symbol_info->address(), symbol_info->end_address());
     }
-    uint8_t* trace_data =
-        frontend_->processor()->debugger()->AllocateFunctionTraceData(
-            trace_data_size);
+    uint8_t* trace_data = debugger->AllocateFunctionTraceData(trace_data_size);
     if (trace_data) {
       debug_info->trace_data().Reset(trace_data, trace_data_size,
                                      symbol_info->address(),

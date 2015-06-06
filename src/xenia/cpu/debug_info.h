@@ -31,6 +31,10 @@ enum DebugInfoFlags {
   kDebugInfoTraceFunctionCoverage = (1 << 7) | kDebugInfoTraceFunctions,
   kDebugInfoTraceFunctionReferences = (1 << 8) | kDebugInfoTraceFunctions,
   kDebugInfoTraceFunctionData = (1 << 9) | kDebugInfoTraceFunctions,
+
+  kDebugInfoAllTracing =
+      kDebugInfoTraceFunctions | kDebugInfoTraceFunctionCoverage |
+      kDebugInfoTraceFunctionReferences | kDebugInfoTraceFunctionData,
   kDebugInfoAll = 0xFFFFFFFF,
 };
 
@@ -71,6 +75,8 @@ class DebugInfo {
   SourceMapEntry* LookupSourceOffset(uint32_t offset);
   SourceMapEntry* LookupHIROffset(uint32_t offset);
   SourceMapEntry* LookupCodeOffset(uint32_t offset);
+
+  void Dump();
 
  private:
   uint32_t address_reference_count_;
