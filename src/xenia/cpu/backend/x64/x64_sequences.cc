@@ -2404,14 +2404,14 @@ EMITTER_OPCODE_TABLE(
         COMPARE_##op##_I16, \
         COMPARE_##op##_I32, \
         COMPARE_##op##_I64);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SLT, setl, setge);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SLE, setle, setg);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SGT, setg, setle);
-EMITTER_ASSOCIATIVE_COMPARE_XX(SGE, setge, setl);
-EMITTER_ASSOCIATIVE_COMPARE_XX(ULT, setb, setae);
-EMITTER_ASSOCIATIVE_COMPARE_XX(ULE, setbe, seta);
-EMITTER_ASSOCIATIVE_COMPARE_XX(UGT, seta, setbe);
-EMITTER_ASSOCIATIVE_COMPARE_XX(UGE, setae, setb);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SLT, setl, setg);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SLE, setle, setge);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SGT, setg, setl);
+EMITTER_ASSOCIATIVE_COMPARE_XX(SGE, setge, setle);
+EMITTER_ASSOCIATIVE_COMPARE_XX(ULT, setb, seta);
+EMITTER_ASSOCIATIVE_COMPARE_XX(ULE, setbe, setae);
+EMITTER_ASSOCIATIVE_COMPARE_XX(UGT, seta, setb);
+EMITTER_ASSOCIATIVE_COMPARE_XX(UGE, setae, setbe);
 
 // http://x86.renejeschke.de/html/file_module_x86_id_288.html
 #define EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(op, instr) \
@@ -2447,61 +2447,6 @@ EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(ULT, setb);
 EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(ULE, setbe);
 EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGT, seta);
 EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGE, setae);
-
-
-// ============================================================================
-// OPCODE_DID_CARRY
-// ============================================================================
-// TODO(benvanik): salc/setalc
-// https://code.google.com/p/corkami/wiki/x86oddities
-EMITTER(DID_CARRY_I8, MATCH(I<OPCODE_DID_CARRY, I8<>, I8<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(!i.src1.is_constant);
-    e.LoadEflags();
-    e.setc(i.dest);
-  }
-};
-EMITTER(DID_CARRY_I16, MATCH(I<OPCODE_DID_CARRY, I8<>, I16<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(!i.src1.is_constant);
-    e.LoadEflags();
-    e.setc(i.dest);
-  }
-};
-EMITTER(DID_CARRY_I32, MATCH(I<OPCODE_DID_CARRY, I8<>, I32<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(!i.src1.is_constant);
-    e.LoadEflags();
-    e.setc(i.dest);
-  }
-};
-EMITTER(DID_CARRY_I64, MATCH(I<OPCODE_DID_CARRY, I8<>, I64<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(!i.src1.is_constant);
-    e.LoadEflags();
-    e.setc(i.dest);
-  }
-};
-EMITTER_OPCODE_TABLE(
-    OPCODE_DID_CARRY,
-    DID_CARRY_I8,
-    DID_CARRY_I16,
-    DID_CARRY_I32,
-    DID_CARRY_I64);
-
-
-// ============================================================================
-// OPCODE_DID_OVERFLOW
-// ============================================================================
-EMITTER(DID_OVERFLOW, MATCH(I<OPCODE_DID_OVERFLOW, I8<>>)) {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.LoadEflags();
-    e.seto(i.dest);
-  }
-};
-EMITTER_OPCODE_TABLE(
-    OPCODE_DID_OVERFLOW,
-    DID_OVERFLOW);
 
 
 // ============================================================================
@@ -2736,10 +2681,6 @@ void EmitAddXX(X64Emitter& e, const ARGS& i) {
       e, i,
       [](X64Emitter& e, const REG& dest_src, const REG& src) { e.add(dest_src, src); },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) { e.add(dest_src, constant); });
-  if (i.instr->flags & ARITHMETIC_SET_CARRY) {
-    // CF is set if carried.
-    e.StoreEflags();
-  }
 }
 EMITTER(ADD_I8, MATCH(I<OPCODE_ADD, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -2817,10 +2758,6 @@ void EmitAddCarryXX(X64Emitter& e, const ARGS& i) {
   }, [](X64Emitter& e, const REG& dest_src, int32_t constant) {
     e.adc(dest_src, constant);
   });
-  if (i.instr->flags & ARITHMETIC_SET_CARRY) {
-    // CF is set if carried.
-    e.StoreEflags();
-  }
 }
 EMITTER(ADD_CARRY_I8, MATCH(I<OPCODE_ADD_CARRY, I8<>, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -3009,31 +2946,10 @@ EMITTER_OPCODE_TABLE(
 // TODO(benvanik): put dest/src1|2 together.
 template <typename SEQ, typename REG, typename ARGS>
 void EmitSubXX(X64Emitter& e, const ARGS& i) {
-  if (i.instr->flags & ARITHMETIC_SET_CARRY) {
-    // TODO(benvanik): faster way of doing sub with CF set?
-    SEQ::EmitAssociativeBinaryOp(
-        e, i,
-        [](X64Emitter& e, const REG& dest_src, const REG& src) {
-          auto temp = GetTempReg<REG>(e);
-          e.mov(temp, src);
-          e.not(temp);
-          e.stc();
-          e.adc(dest_src, temp);
-        },
-        [](X64Emitter& e, const REG& dest_src, int32_t constant) {
-          auto temp = GetTempReg<REG>(e);
-          e.mov(temp, constant);
-          e.not(temp);
-          e.stc();
-          e.adc(dest_src, temp);
-        });
-    e.StoreEflags();
-  } else {
-    SEQ::EmitAssociativeBinaryOp(
-        e, i,
-        [](X64Emitter& e, const REG& dest_src, const REG& src) { e.sub(dest_src, src); },
-        [](X64Emitter& e, const REG& dest_src, int32_t constant) { e.sub(dest_src, constant); });
-  }
+  SEQ::EmitAssociativeBinaryOp(
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) { e.sub(dest_src, src); },
+      [](X64Emitter& e, const REG& dest_src, int32_t constant) { e.sub(dest_src, constant); });
 }
 EMITTER(SUB_I8, MATCH(I<OPCODE_SUB, I8<>, I8<>, I8<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -6576,8 +6492,6 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_ULE_FLT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGT_FLT);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_UGE_FLT);
-  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_CARRY);
-  REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_OVERFLOW);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_EQ);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_SGT);

@@ -33,7 +33,7 @@ test_equiv_2:
   li r12, 1
   blr
   #_ REGISTER_OUT r7 0xffffffffffffffff
-  #_ REGISTER_OUT r8 0xffffffff00000000
+  #_ REGISTER_OUT r8 0
   #_ REGISTER_OUT r9 0xffffffff9e2a0000
   #_ REGISTER_OUT r30 0xffffffff9e2a83c1
   #_ REGISTER_OUT r31 0

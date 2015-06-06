@@ -198,6 +198,11 @@ class TestRunner {
     processor->backend()->CommitExecutableRange(START_ADDRESS,
                                                 START_ADDRESS + 1024 * 1024);
 
+    // Add dummy space for memory.
+    processor->memory()->LookupHeap(0)->AllocFixed(
+        0x1000, 0xEFFF, 0, kMemoryAllocationReserve | kMemoryAllocationCommit,
+        kMemoryProtectRead | kMemoryProtectWrite);
+
     // Simulate a thread.
     uint32_t stack_size = 64 * 1024;
     uint32_t stack_address = START_ADDRESS - stack_size;

@@ -1287,20 +1287,6 @@ Value* HIRBuilder::CompareUGE(Value* value1, Value* value2) {
   return CompareXX(OPCODE_COMPARE_UGE_info, value1, value2);
 }
 
-Value* HIRBuilder::DidCarry(Value* value) {
-  Instr* i = AppendInstr(OPCODE_DID_CARRY_info, 0, AllocValue(INT8_TYPE));
-  i->set_src1(value);
-  i->src2.value = i->src3.value = NULL;
-  return i->dest;
-}
-
-Value* HIRBuilder::DidOverflow(Value* value) {
-  Instr* i = AppendInstr(OPCODE_DID_OVERFLOW_info, 0, AllocValue(INT8_TYPE));
-  i->set_src1(value);
-  i->src2.value = i->src3.value = NULL;
-  return i->dest;
-}
-
 Value* HIRBuilder::DidSaturate(Value* value) {
   Instr* i = AppendInstr(OPCODE_DID_SATURATE_info, 0, AllocValue(INT8_TYPE));
   i->set_src1(value);

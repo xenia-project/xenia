@@ -81,47 +81,6 @@ TEST_CASE("ADD_I8", "[instr]") {
            });
 }
 
-TEST_CASE("ADD_I8_CARRY", "[instr]") {
-  TestFunction test([](HIRBuilder& b) {
-    auto v = b.Add(b.Truncate(LoadGPR(b, 4), INT8_TYPE),
-                   b.Truncate(LoadGPR(b, 5), INT8_TYPE), ARITHMETIC_SET_CARRY);
-    StoreGPR(b, 3, b.ZeroExtend(b.DidCarry(v), INT64_TYPE));
-    b.Return();
-  });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 0);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT8_MAX;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT8_MAX;
-             ctx->r[5] = UINT8_MAX;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = INT8_MIN;
-             ctx->r[5] = -1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-}
-
 TEST_CASE("ADD_I16", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
     StoreGPR(b, 3, b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT16_TYPE),
@@ -184,47 +143,6 @@ TEST_CASE("ADD_I16", "[instr]") {
            [](PPCContext* ctx) {
              auto result = static_cast<int16_t>(ctx->r[3]);
              REQUIRE(result == 0);
-           });
-}
-
-TEST_CASE("ADD_I16_CARRY", "[instr]") {
-  TestFunction test([](HIRBuilder& b) {
-    auto v = b.Add(b.Truncate(LoadGPR(b, 4), INT16_TYPE),
-                   b.Truncate(LoadGPR(b, 5), INT16_TYPE), ARITHMETIC_SET_CARRY);
-    StoreGPR(b, 3, b.ZeroExtend(b.DidCarry(v), INT64_TYPE));
-    b.Return();
-  });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 0);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT16_MAX;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT16_MAX;
-             ctx->r[5] = UINT16_MAX;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = INT16_MIN;
-             ctx->r[5] = -1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
            });
 }
 
@@ -293,47 +211,6 @@ TEST_CASE("ADD_I32", "[instr]") {
            });
 }
 
-TEST_CASE("ADD_I32_CARRY", "[instr]") {
-  TestFunction test([](HIRBuilder& b) {
-    auto v = b.Add(b.Truncate(LoadGPR(b, 4), INT32_TYPE),
-                   b.Truncate(LoadGPR(b, 5), INT32_TYPE), ARITHMETIC_SET_CARRY);
-    StoreGPR(b, 3, b.ZeroExtend(b.DidCarry(v), INT64_TYPE));
-    b.Return();
-  });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 0);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT32_MAX;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT32_MAX;
-             ctx->r[5] = UINT32_MAX;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = INT32_MIN;
-             ctx->r[5] = -1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-}
-
 TEST_CASE("ADD_I64", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
     StoreGPR(b, 3, b.Add(LoadGPR(b, 4), LoadGPR(b, 5)));
@@ -394,47 +271,6 @@ TEST_CASE("ADD_I64", "[instr]") {
            [](PPCContext* ctx) {
              auto result = ctx->r[3];
              REQUIRE(result == 0);
-           });
-}
-
-TEST_CASE("ADD_I64_CARRY", "[instr]") {
-  TestFunction test([](HIRBuilder& b) {
-    auto v = b.Add(b.Truncate(LoadGPR(b, 4), INT64_TYPE),
-                   b.Truncate(LoadGPR(b, 5), INT64_TYPE), ARITHMETIC_SET_CARRY);
-    StoreGPR(b, 3, b.ZeroExtend(b.DidCarry(v), INT64_TYPE));
-    b.Return();
-  });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 0);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT64_MAX;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = UINT64_MAX;
-             ctx->r[5] = UINT64_MAX;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = INT64_MIN;
-             ctx->r[5] = -1;
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->r[3];
-             REQUIRE(result == 1);
            });
 }
 

@@ -158,8 +158,6 @@ class HIRBuilder {
   Value* CompareULE(Value* value1, Value* value2);
   Value* CompareUGT(Value* value1, Value* value2);
   Value* CompareUGE(Value* value1, Value* value2);
-  Value* DidCarry(Value* value);
-  Value* DidOverflow(Value* value);
   Value* DidSaturate(Value* value);
   Value* VectorCompareEQ(Value* value1, Value* value2, TypeName part_type);
   Value* VectorCompareSGT(Value* value1, Value* value2, TypeName part_type);

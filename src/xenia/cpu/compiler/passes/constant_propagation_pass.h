@@ -25,7 +25,6 @@ class ConstantPropagationPass : public CompilerPass {
   bool Run(hir::HIRBuilder* builder) override;
 
  private:
-  void PropagateCarry(hir::Value* v, bool did_carry);
 };
 
 }  // namespace passes

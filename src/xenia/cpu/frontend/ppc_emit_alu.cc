@@ -24,6 +24,27 @@ using xe::cpu::hir::Value;
 
 // Integer arithmetic (A-3)
 
+Value* AddDidCarry(PPCHIRBuilder& f, Value* v1, Value* v2) {
+  return f.CompareUGT(f.Truncate(v2, INT32_TYPE),
+                      f.Not(f.Truncate(v1, INT32_TYPE)));
+}
+
+Value* SubDidCarry(PPCHIRBuilder& f, Value* v1, Value* v2) {
+  return f.Or(f.CompareUGT(f.Truncate(v1, INT32_TYPE),
+                           f.Not(f.Neg(f.Truncate(v2, INT32_TYPE)))),
+              f.IsFalse(f.Truncate(v2, INT32_TYPE)));
+}
+
+// https://github.com/sebastianbiallas/pearpc/blob/0b3c823f61456faa677f6209545a7b906e797421/src/cpu/cpu_generic/ppc_tools.h#L26
+Value* AddWithCarryDidCarry(PPCHIRBuilder& f, Value* v1, Value* v2, Value* v3) {
+  v1 = f.Truncate(v1, INT32_TYPE);
+  v2 = f.Truncate(v2, INT32_TYPE);
+  assert_true(v3->type == INT8_TYPE);
+  v3 = f.ZeroExtend(v3, INT32_TYPE);
+  return f.Or(f.CompareULT(f.Add(f.Add(v1, v2), v3), v3),
+              f.CompareULT(f.Add(v1, v2), v1));
+}
+
 XEEMITTER(addx, 0x7C000214, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB)
   Value* v = f.Add(f.LoadGPR(i.XO.RA), f.LoadGPR(i.XO.RB));
@@ -41,13 +62,15 @@ XEEMITTER(addx, 0x7C000214, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(addcx, 0x7C000014, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB)
   // CA <- carry bit
-  Value* v =
-      f.Add(f.LoadGPR(i.XO.RA), f.LoadGPR(i.XO.RB), ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* ra = f.LoadGPR(i.XO.RA);
+  Value* rb = f.LoadGPR(i.XO.RB);
+  Value* v = f.Add(ra, rb);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow(EFLAGS OF?);
+  } else {
+    f.StoreCA(AddDidCarry(f, ra, rb));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -58,13 +81,15 @@ XEEMITTER(addcx, 0x7C000014, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(addex, 0x7C000114, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RD <- (RA) + (RB) + XER[CA]
   // CA <- carry bit
-  Value* v = f.AddWithCarry(f.LoadGPR(i.XO.RA), f.LoadGPR(i.XO.RB), f.LoadCA(),
-                            ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* ra = f.LoadGPR(i.XO.RA);
+  Value* rb = f.LoadGPR(i.XO.RB);
+  Value* v = f.AddWithCarry(ra, rb, f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow(EFLAGS OF?);
+  } else {
+    f.StoreCA(AddWithCarryDidCarry(f, ra, rb, f.LoadCA()));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -89,20 +114,20 @@ XEEMITTER(addi, 0x38000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(addic, 0x30000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
   // CA <- carry bit
-  Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)),
-                   ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* v = f.Add(ra, f.LoadConstant(XEEXTS16(i.D.DS)));
   f.StoreGPR(i.D.RT, v);
+  f.StoreCA(AddDidCarry(f, ra, f.LoadConstant(XEEXTS16(i.D.DS))));
   return 0;
 }
 
 XEEMITTER(addicx, 0x34000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
   // CA <- carry bit
-  Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)),
-                   ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)));
   f.StoreGPR(i.D.RT, v);
+  f.StoreCA(AddDidCarry(f, ra, f.LoadConstant(XEEXTS16(i.D.DS))));
   f.UpdateCR(0, v);
   return 0;
 }
@@ -124,17 +149,18 @@ XEEMITTER(addis, 0x3C000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(addmex, 0x7C0001D4, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA - 1
   // CA <- carry bit
-  Value* v = f.AddWithCarry(f.LoadGPR(i.XO.RA), f.LoadConstant((int64_t)-1),
-                            f.LoadCA(), ARITHMETIC_SET_CARRY);
+  Value* ra = f.LoadGPR(i.XO.RA);
+  Value* v = f.AddWithCarry(ra, f.LoadConstant((int64_t)-1), f.LoadCA());
+  f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // With XER[SO] update too.
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
     assert_always();
   } else {
     // Just CA update.
-    f.StoreCA(f.DidCarry(v));
+    f.StoreCA(
+        AddWithCarryDidCarry(f, ra, f.LoadConstant((int64_t)-1), f.LoadCA()));
   }
-  f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
   }
@@ -144,17 +170,17 @@ XEEMITTER(addmex, 0x7C0001D4, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(addzex, 0x7C000194, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA
   // CA <- carry bit
-  Value* v = f.AddWithCarry(f.LoadGPR(i.XO.RA), f.LoadZero(INT64_TYPE),
-                            f.LoadCA(), ARITHMETIC_SET_CARRY);
+  Value* ra = f.LoadGPR(i.XO.RA);
+  Value* v = f.AddWithCarry(ra, f.LoadZero(INT64_TYPE), f.LoadCA());
+  f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // With XER[SO] update too.
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
     assert_always();
   } else {
     // Just CA update.
-    f.StoreCA(f.DidCarry(v));
+    f.StoreCA(AddWithCarryDidCarry(f, ra, f.LoadZero(INT64_TYPE), f.LoadCA()));
   }
-  f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
   }
@@ -425,13 +451,15 @@ XEEMITTER(subfx, 0x7C000050, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(subfcx, 0x7C000010, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + (RB) + 1
-  Value* v =
-      f.Sub(f.LoadGPR(i.XO.RB), f.LoadGPR(i.XO.RA), ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* ra = f.LoadGPR(i.XO.RA);
+  Value* rb = f.LoadGPR(i.XO.RB);
+  Value* v = f.Sub(rb, ra);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow(EFLAGS??);
+  } else {
+    f.StoreCA(SubDidCarry(f, rb, ra));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -441,22 +469,24 @@ XEEMITTER(subfcx, 0x7C000010, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(subficx, 0x20000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + EXTS(SI) + 1
-  Value* v = f.Sub(f.LoadConstant(XEEXTS16(i.D.DS)), f.LoadGPR(i.D.RA),
-                   ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* v = f.Sub(f.LoadConstant(XEEXTS16(i.D.DS)), ra);
   f.StoreGPR(i.D.RT, v);
+  f.StoreCA(SubDidCarry(f, f.LoadConstant(XEEXTS16(i.D.DS)), ra));
   return 0;
 }
 
 XEEMITTER(subfex, 0x7C000110, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + (RB) + CA
-  Value* v = f.AddWithCarry(f.Not(f.LoadGPR(i.XO.RA)), f.LoadGPR(i.XO.RB),
-                            f.LoadCA(), ARITHMETIC_SET_CARRY);
-  f.StoreCA(f.DidCarry(v));
+  Value* not_ra = f.Not(f.LoadGPR(i.XO.RA));
+  Value* rb = f.LoadGPR(i.XO.RB);
+  Value* v = f.AddWithCarry(not_ra, rb, f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
+  } else {
+    f.StoreCA(AddWithCarryDidCarry(f, not_ra, rb, f.LoadCA()));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -466,16 +496,16 @@ XEEMITTER(subfex, 0x7C000110, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(subfmex, 0x7C0001D0, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA - 1
-  Value* v =
-      f.AddWithCarry(f.Not(f.LoadGPR(i.XO.RA)), f.LoadConstant((int64_t)-1),
-                     f.LoadCA(), ARITHMETIC_SET_CARRY);
+  Value* not_ra = f.Not(f.LoadGPR(i.XO.RA));
+  Value* v = f.AddWithCarry(not_ra, f.LoadConstant((int64_t)-1), f.LoadCA());
+  f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
   } else {
-    f.StoreCA(f.DidCarry(v));
+    f.StoreCA(AddWithCarryDidCarry(f, not_ra, f.LoadConstant((int64_t)-1),
+                                   f.LoadCA()));
   }
-  f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
   }
@@ -484,15 +514,16 @@ XEEMITTER(subfmex, 0x7C0001D0, XO)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(subfzex, 0x7C000190, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA
-  Value* v = f.AddWithCarry(f.Not(f.LoadGPR(i.XO.RA)), f.LoadZero(INT64_TYPE),
-                            f.LoadCA(), ARITHMETIC_SET_CARRY);
+  Value* not_ra = f.Not(f.LoadGPR(i.XO.RA));
+  Value* v = f.AddWithCarry(not_ra, f.LoadZero(INT64_TYPE), f.LoadCA());
+  f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
   } else {
-    f.StoreCA(f.DidCarry(v));
+    f.StoreCA(
+        AddWithCarryDidCarry(f, not_ra, f.LoadZero(INT64_TYPE), f.LoadCA()));
   }
-  f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
   }
