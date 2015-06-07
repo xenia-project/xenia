@@ -23,9 +23,6 @@ using namespace xe::gpu::xenos;
 
 extern "C" GLEWContext* glewGetContext();
 
-// Stateful, but minimally.
-thread_local GL4ShaderTranslator shader_translator_;
-
 GL4Shader::GL4Shader(ShaderType shader_type, uint64_t data_hash,
                      const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count),
@@ -224,6 +221,7 @@ bool GL4Shader::PrepareVertexArrayObject() {
 }
 
 bool GL4Shader::PrepareVertexShader(
+    GL4ShaderTranslator* shader_translator,
     const xenos::xe_gpu_program_cntl_t& program_cntl) {
   if (has_prepared_) {
     return is_valid_;
@@ -277,7 +275,7 @@ bool GL4Shader::PrepareVertexShader(
       GetFooter();
 
   std::string translated_source =
-      shader_translator_.TranslateVertexShader(this, program_cntl);
+      shader_translator->TranslateVertexShader(this, program_cntl);
   if (translated_source.empty()) {
     XELOGE("Vertex shader failed translation");
     return false;
@@ -293,6 +291,7 @@ bool GL4Shader::PrepareVertexShader(
 }
 
 bool GL4Shader::PreparePixelShader(
+    GL4ShaderTranslator* shader_translator,
     const xenos::xe_gpu_program_cntl_t& program_cntl) {
   if (has_prepared_) {
     return is_valid_;
@@ -330,7 +329,7 @@ bool GL4Shader::PreparePixelShader(
       GetFooter();
 
   std::string translated_source =
-      shader_translator_.TranslatePixelShader(this, program_cntl);
+      shader_translator->TranslatePixelShader(this, program_cntl);
   if (translated_source.empty()) {
     XELOGE("Pixel shader failed translation");
     return false;

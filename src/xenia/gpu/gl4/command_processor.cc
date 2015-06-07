@@ -1596,7 +1596,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = regs.sq_program_cntl;
   if (!active_vertex_shader_->has_prepared()) {
-    if (!active_vertex_shader_->PrepareVertexShader(program_cntl)) {
+    if (!active_vertex_shader_->PrepareVertexShader(&shader_translator_,
+                                                    program_cntl)) {
       XELOGE("Unable to prepare vertex shader");
       return UpdateStatus::kError;
     }
@@ -1606,7 +1607,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
   }
 
   if (!active_pixel_shader_->has_prepared()) {
-    if (!active_pixel_shader_->PreparePixelShader(program_cntl)) {
+    if (!active_pixel_shader_->PreparePixelShader(&shader_translator_,
+                                                  program_cntl)) {
       XELOGE("Unable to prepare pixel shader");
       return UpdateStatus::kError;
     }

@@ -21,6 +21,7 @@
 #include "xenia/gpu/gl4/draw_batcher.h"
 #include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
+#include "xenia/gpu/gl4/gl4_shader_translator.h"
 #include "xenia/gpu/gl4/texture_cache.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/tracing.h"
@@ -259,6 +260,7 @@ class CommandProcessor {
 
   bool has_bindless_vbos_;
 
+  GL4ShaderTranslator shader_translator_;
   std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
   GL4Shader* active_vertex_shader_;

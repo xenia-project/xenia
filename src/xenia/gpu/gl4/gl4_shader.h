@@ -19,6 +19,8 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
+class GL4ShaderTranslator;
+
 class GL4Shader : public Shader {
  public:
   GL4Shader(ShaderType shader_type, uint64_t data_hash,
@@ -28,8 +30,10 @@ class GL4Shader : public Shader {
   GLuint program() const { return program_; }
   GLuint vao() const { return vao_; }
 
-  bool PrepareVertexShader(const xenos::xe_gpu_program_cntl_t& program_cntl);
-  bool PreparePixelShader(const xenos::xe_gpu_program_cntl_t& program_cntl);
+  bool PrepareVertexShader(GL4ShaderTranslator* shader_translator,
+                           const xenos::xe_gpu_program_cntl_t& program_cntl);
+  bool PreparePixelShader(GL4ShaderTranslator* shader_translator,
+                          const xenos::xe_gpu_program_cntl_t& program_cntl);
 
  protected:
   std::string GetHeader();
