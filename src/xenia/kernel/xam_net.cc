@@ -21,7 +21,7 @@ namespace xe {
 namespace kernel {
 
 // https://github.com/G91/TitanOffLine/blob/1e692d9bb9dfac386d08045ccdadf4ae3227bb5e/xkelib/xam/xamNet.h
-enum XNCALLER_TYPE {
+enum {
   XNCALLER_INVALID = 0x0,
   XNCALLER_TITLE = 0x1,
   XNCALLER_SYSAPP = 0x2,
@@ -29,6 +29,16 @@ enum XNCALLER_TYPE {
   XNCALLER_TEST = 0x4,
   NUM_XNCALLER_TYPES = 0x4,
 };
+
+// https://github.com/pmrowla/hl2sdk-csgo/blob/master/common/xbox/xboxstubs.h
+typedef struct {
+  // FYI: IN_ADDR should be in network-byte order.
+  IN_ADDR           ina;           // IP address (zero if not static/DHCP)
+  IN_ADDR           inaOnline;     // Online IP address (zero if not online)
+  xe::be<uint16_t>  wPortOnline;   // Online port
+  uint8_t           abEnet[6];     // Ethernet MAC address
+  uint8_t           abOnline[20];  // Online identification
+} XNADDR;
 
 void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
   out_addr->sa_family = xe::load_and_swap<uint16_t>(ptr + 0);
@@ -110,16 +120,6 @@ SHIM_CALL NetDll_XNetCleanup_shim(PPCContext* ppc_context,
 
   SHIM_SET_RETURN_32(0);
 }
-
-dword_result_t NetDll_XNetGetDebugXnAddr(dword_t caller,
-                                         lpunknown_t out_address) {
-  out_address.Zero(36);
-
-  // 1 causes caller to gracefully return.
-  return 1;
-}
-DECLARE_XAM_EXPORT(NetDll_XNetGetDebugXnAddr,
-                   ExportTag::kNetworking | ExportTag::kStub);
 
 dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
                                  lpvoid_t buffer_ptr, lpdword_t buffer_size) {
@@ -204,33 +204,52 @@ SHIM_CALL NetDll_WSAGetLastError_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(err);
 }
 
-// typedef struct {
-// 	IN_ADDR     ina;                            // IP address (zero if not
-// static/DHCP)
-// 	IN_ADDR     inaOnline;                      // Online IP address (zero
-// if not online)
-// 	WORD        wPortOnline;                    // Online port
-// 	BYTE        abEnet[6];                      // Ethernet MAC address
-// 	BYTE        abOnline[20];                   // Online identification
-// } XNADDR;
+struct XnAddrStatus {
+  // Address acquisition is not yet complete
+  const static uint32_t XNET_GET_XNADDR_PENDING   = 0x00000000;
+  // XNet is uninitialized or no debugger found
+  const static uint32_t XNET_GET_XNADDR_NONE      = 0x00000001;
+  // Host has ethernet address (no IP address)
+  const static uint32_t XNET_GET_XNADDR_ETHERNET  = 0x00000002;
+  // Host has statically assigned IP address
+  const static uint32_t XNET_GET_XNADDR_STATIC    = 0x00000004;
+  // Host has DHCP assigned IP address
+  const static uint32_t XNET_GET_XNADDR_DHCP      = 0x00000008;
+  // Host has PPPoE assigned IP address
+  const static uint32_t XNET_GET_XNADDR_PPPOE     = 0x00000010;
+  // Host has one or more gateways configured
+  const static uint32_t XNET_GET_XNADDR_GATEWAY   = 0x00000020;
+  // Host has one or more DNS servers configured
+  const static uint32_t XNET_GET_XNADDR_DNS       = 0x00000040;
+  // Host is currently connected to online service
+  const static uint32_t XNET_GET_XNADDR_ONLINE    = 0x00000080;
+  // Network configuration requires troubleshooting
+  const static uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
+};
 
-SHIM_CALL NetDll_XNetGetTitleXnAddr_shim(PPCContext* ppc_context,
-                                         KernelState* kernel_state) {
-  uint32_t caller = SHIM_GET_ARG_32(0);
-  uint32_t addr_ptr = SHIM_GET_ARG_32(1);  // XNADDR
+dword_result_t NetDll_XNetGetTitleXnAddr(dword_t caller,
+                                         pointer_t<XNADDR> addr_ptr) {
+  // Just return a loopback address atm.
+  addr_ptr->ina.S_un.S_addr = htonl(INADDR_LOOPBACK);
+  addr_ptr->inaOnline.S_un.S_addr = 0;
+  addr_ptr->wPortOnline = 0;
+  std::memset(addr_ptr->abEnet, 0, 6);
+  std::memset(addr_ptr->abOnline, 0, 20);
 
-  XELOGD("NetDll_XNetGetTitleXnAddr(%d, %.8X)", caller, addr_ptr);
-
-  auto addr = kernel_state->memory()->TranslateVirtual(addr_ptr);
-
-  xe::store<uint32_t>(addr + 0x0, htonl(INADDR_LOOPBACK));
-  xe::store_and_swap<uint32_t>(addr + 0x4, 0);
-  xe::store_and_swap<uint16_t>(addr + 0x8, 0);
-  std::memset(addr + 0xA, 0, 6);
-  std::memset(addr + 0x10, 0, 20);
-
-  SHIM_SET_RETURN_32(0x00000004);  // XNET_GET_XNADDR_STATIC
+  return XnAddrStatus::XNET_GET_XNADDR_STATIC;
 }
+DECLARE_XAM_EXPORT(NetDll_XNetGetTitleXnAddr,
+                   ExportTag::kNetworking | ExportTag::kStub);
+
+dword_result_t NetDll_XNetGetDebugXnAddr(dword_t caller,
+                                         pointer_t<XNADDR> addr_ptr) {
+  addr_ptr.Zero();
+
+  // XNET_GET_XNADDR_NONE causes caller to gracefully return.
+  return XnAddrStatus::XNET_GET_XNADDR_NONE;
+}
+DECLARE_XAM_EXPORT(NetDll_XNetGetDebugXnAddr,
+                   ExportTag::kNetworking | ExportTag::kStub);
 
 SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(PPCContext* ppc_context,
                                                 KernelState* kernel_state) {
@@ -565,7 +584,6 @@ void xe::kernel::xam::RegisterNetExports(
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAStartup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSACleanup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAGetLastError, state);
-  SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetTitleXnAddr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetQosServiceLookup, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_inet_addr, state);
