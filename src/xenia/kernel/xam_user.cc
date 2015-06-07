@@ -137,6 +137,11 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
   assert_zero(unk_0);
   assert_zero(unk_1);
 
+  // TODO(gibbed): why is this a thing?
+  if (user_index == 255) {
+    user_index = 0;
+  }
+
   // Title ID = 0 means us.
   // 0xfffe07d1 = profile?
 
