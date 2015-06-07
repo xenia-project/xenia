@@ -297,8 +297,13 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       xe::store_and_swap<uint32_t>(
           memory_->TranslateVirtual(playlist_handle_ptr), storage_ptr);
       assert_true(xmp_client == 0x00000002);
-      auto playlist_name = xe::load_and_swap<std::wstring>(
+      std::wstring playlist_name;
+      if (!playlist_name_ptr) {
+        playlist_name = L"";
+      } else {
+        playlist_name = xe::load_and_swap<std::wstring>(
           memory_->TranslateVirtual(playlist_name_ptr));
+      }
       // dummy_alloc_ptr is the result of a XamAlloc of storage_size.
       assert_true(storage_size == 4 + song_count * 128);
       return XMPCreateTitlePlaylist(songs_ptr, song_count, playlist_name_ptr,
