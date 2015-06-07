@@ -111,8 +111,10 @@ SHIM_CALL NetDll_XNetCleanup_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
-dword_result_t NetDll_XNetGetDebugXnAddr(lpunknown_t out_address) {
+dword_result_t NetDll_XNetGetDebugXnAddr(dword_t caller,
+                                         lpunknown_t out_address) {
   out_address.Zero(36);
+
   // 1 causes caller to gracefully return.
   return 1;
 }
