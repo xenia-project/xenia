@@ -1,10 +1,10 @@
 the_function:
   cmpwi cr6, r3, 3
   bgt .case_3
-  lis r12, .the_table@h
-  addi r12, r12, .the_table@l
+  lis r11, .the_table@h
+  addi r11, r11, .the_table@l
   slwi r3, r3, 2
-  lwzx r3, r12, r3
+  lwzx r3, r11, r3
   mtspr ctr, r3
   bctr
 .the_table:
@@ -30,6 +30,7 @@ the_function:
   blr
 
 test_jumptable_constants:
+  mfspr r12, lr
   li r3, 0
   li r4, 1024
   bl the_function
@@ -42,4 +43,5 @@ test_jumptable_constants:
   li r3, 3
   li r4, 1024
   bl the_function
+  mtspr lr, r12
   blr
