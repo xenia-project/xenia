@@ -329,8 +329,10 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 X_STATUS XThread::PlatformCreate() {
   Retain();
   bool suspended = creation_params_.creation_flags & 0x1;
+  const size_t kStackSize = 16 * 1024 * 1024; // let's do the stupid thing
   thread_handle_ =
-      CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
+      CreateThread(NULL, kStackSize,
+                   (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
                    this, suspended ? CREATE_SUSPENDED : 0, NULL);
   if (!thread_handle_) {
     uint32_t last_error = GetLastError();
