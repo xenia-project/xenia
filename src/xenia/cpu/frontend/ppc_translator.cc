@@ -50,7 +50,6 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   // The CFG is required for simplification and dirtied by it.
   compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
   compiler_->AddPass(std::make_unique<passes::ControlFlowSimplificationPass>());
-  compiler_->AddPass(std::make_unique<passes::ControlFlowAnalysisPass>());
 
   // Passes are executed in the order they are added. Multiple of the same
   // pass type may be used.

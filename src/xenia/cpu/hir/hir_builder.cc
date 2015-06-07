@@ -379,6 +379,8 @@ void HIRBuilder::InsertLabel(Label* label, Instr* prev_instr) {
   Block* next_block = prev_instr->block->next;
 
   Block* new_block = arena_->Alloc<Block>();
+  new_block->ordinal = -1;
+  new_block->incoming_values = nullptr;
   new_block->arena = arena_;
   new_block->prev = prev_block;
   new_block->next = next_block;
@@ -433,16 +435,96 @@ void HIRBuilder::ResetLabelTags() {
 }
 
 void HIRBuilder::AddEdge(Block* src, Block* dest, uint32_t flags) {
+  bool dest_was_dominated =
+      dest->incoming_edge_head && !dest->incoming_edge_head->incoming_next;
+
   Edge* edge = arena_->Alloc<Edge>();
   edge->src = src;
   edge->dest = dest;
   edge->flags = flags;
-  edge->outgoing_prev = NULL;
+  edge->outgoing_prev = nullptr;
   edge->outgoing_next = src->outgoing_edge_head;
+  if (edge->outgoing_next) {
+    edge->outgoing_next->outgoing_prev = edge;
+  }
   src->outgoing_edge_head = edge;
-  edge->incoming_prev = NULL;
+  edge->incoming_prev = nullptr;
   edge->incoming_next = dest->incoming_edge_head;
+  if (edge->incoming_next) {
+    edge->incoming_next->incoming_prev = edge;
+  }
   dest->incoming_edge_head = edge;
+
+  if (dest_was_dominated) {
+    // If dest was previously dominated it no longer is.
+    auto edge = dest->incoming_edge_head;
+    while (edge) {
+      edge->flags &= ~Edge::DOMINATES;
+      edge = edge->incoming_next;
+    }
+  }
+}
+
+void HIRBuilder::RemoveEdge(Block* src, Block* dest) {
+  auto edge = src->outgoing_edge_head;
+  while (edge) {
+    if (edge->dest == dest) {
+      RemoveEdge(edge);
+      break;
+    }
+    edge = edge->outgoing_next;
+  }
+}
+
+void HIRBuilder::RemoveEdge(Edge* edge) {
+  if (edge->outgoing_prev) {
+    edge->outgoing_prev->outgoing_next = edge->outgoing_next;
+  }
+  if (edge->outgoing_next) {
+    edge->outgoing_next->outgoing_prev = edge->outgoing_prev;
+  }
+  if (edge == edge->src->outgoing_edge_head) {
+    edge->src->outgoing_edge_head = edge->outgoing_next;
+  }
+  if (edge->incoming_prev) {
+    edge->incoming_prev->incoming_next = edge->incoming_next;
+  }
+  if (edge->incoming_next) {
+    edge->incoming_next->incoming_prev = edge->incoming_prev;
+  }
+  if (edge == edge->dest->incoming_edge_head) {
+    edge->dest->incoming_edge_head = edge->incoming_next;
+  }
+  edge->incoming_next = edge->incoming_prev = nullptr;
+  edge->outgoing_next = edge->outgoing_prev = nullptr;
+
+  if (edge->dest->incoming_edge_head &&
+      !edge->dest->incoming_edge_head->incoming_next) {
+    // Dest is now dominated by the last remaining edge.
+    edge->dest->incoming_edge_head->flags |= Edge::DOMINATES;
+  }
+}
+
+void HIRBuilder::RemoveBlock(Block* block) {
+  while (block->incoming_edge_head) {
+    RemoveEdge(block->incoming_edge_head);
+  }
+  while (block->outgoing_edge_head) {
+    RemoveEdge(block->outgoing_edge_head);
+  }
+  if (block->prev) {
+    block->prev->next = block->next;
+  }
+  if (block->next) {
+    block->next->prev = block->prev;
+  }
+  if (block == block_head_) {
+    block_head_ = block->next;
+  }
+  if (block == block_tail_) {
+    block_tail_ = block->prev;
+  }
+  block->next = block->prev = nullptr;
 }
 
 void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
@@ -481,7 +563,7 @@ void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
     }
     left->instr_tail = instr;
 
-    // Unlink from old block list;
+    // Unlink from old block list.
     right->instr_head = next;
     if (right->instr_tail == instr) {
       right->instr_tail = nullptr;
@@ -517,6 +599,19 @@ void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
     label->next = nullptr;
   }
 
+  // Remove edge between left and right.
+  RemoveEdge(left, right);
+
+  // Move right's outgoing edges to left.
+  assert_null(right->incoming_edge_head);
+  auto edge = right->outgoing_edge_head;
+  while (edge) {
+    auto next_edge = edge->outgoing_next;
+    RemoveEdge(edge);
+    AddEdge(left, edge->dest, edge->flags);
+    edge = next_edge;
+  }
+
   // Remove the right block from the block list.
   left->next = right->next;
   if (right->next) {
@@ -529,6 +624,8 @@ void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
 
 Block* HIRBuilder::AppendBlock() {
   Block* block = arena_->Alloc<Block>();
+  block->ordinal = -1;
+  block->incoming_values = nullptr;
   block->arena = arena_;
   block->next = NULL;
   block->prev = block_tail_;

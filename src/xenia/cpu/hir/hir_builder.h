@@ -60,6 +60,9 @@ class HIRBuilder {
   void ResetLabelTags();
 
   void AddEdge(Block* src, Block* dest, uint32_t flags);
+  void RemoveEdge(Block* src, Block* dest);
+  void RemoveEdge(Edge* edge);
+  void RemoveBlock(Block* block);
   void MergeAdjacentBlocks(Block* left, Block* right);
 
   // static allocations:
