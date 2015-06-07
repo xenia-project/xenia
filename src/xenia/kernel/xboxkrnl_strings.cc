@@ -647,7 +647,8 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
 
 class StackArgList : public ArgList {
  public:
-  StackArgList(PPCContext* ppc_context, int32_t index) : ppc_context(ppc_context), index_(index) {}
+  StackArgList(PPCContext* ppc_context, int32_t index)
+      : ppc_context(ppc_context), index_(index) {}
 
   uint32_t get32() { return (uint32_t)get64(); }
 
@@ -924,17 +925,19 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 
   int32_t count = format_core(ppc_context, data, args, false);
   if (count < 0) {
+    // Error.
     if (buffer_count > 0) {
       buffer[0] = '\0';  // write a null, just to be safe
     }
   } else if (count <= buffer_count) {
+    // Fit within the buffer.
     std::memcpy(buffer, data.str().c_str(), count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
+    // Overflowed buffer. We still return the count we would have written.
     std::memcpy(buffer, data.str().c_str(), buffer_count);
-    count = -1;  // for return value
   }
   SHIM_SET_RETURN_32(count);
 }

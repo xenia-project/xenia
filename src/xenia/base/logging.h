@@ -36,24 +36,21 @@ namespace xe {
 #else
 #define XE_LOG_LINE_ATTRIBUTE
 #endif  // XE_COMPILER_GNUC
-void log_line(const char* file_path, const uint32_t line_number,
-              const char level_char, const char* fmt,
+void log_line(const char level_char, const char* fmt,
               ...) XE_LOG_LINE_ATTRIBUTE;
 #undef XE_LOG_LINE_ATTRIBUTE
 
-void handle_fatal(const char* file_path, const uint32_t line_number,
-                  const char* fmt, ...);
+void handle_fatal(const char* fmt, ...);
 
 #if XE_OPTION_ENABLE_LOGGING
-#define XELOGCORE(level, fmt, ...) \
-  xe::log_line(__FILE__, __LINE__, level, fmt, ##__VA_ARGS__)
+#define XELOGCORE(level, fmt, ...) xe::log_line(level, fmt, ##__VA_ARGS__)
 #else
 #define XELOGCORE(level, fmt, ...) XE_EMPTY_MACRO
 #endif  // ENABLE_LOGGING
 
-#define XEFATAL(fmt, ...)                                     \
-  do {                                                        \
-    xe::handle_fatal(__FILE__, __LINE__, fmt, ##__VA_ARGS__); \
+#define XEFATAL(fmt, ...)                 \
+  do {                                    \
+    xe::handle_fatal(fmt, ##__VA_ARGS__); \
   } while (false)
 
 #if XE_OPTION_LOG_ERROR

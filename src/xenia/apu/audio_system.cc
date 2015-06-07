@@ -85,7 +85,7 @@ void av_log_callback(void *avcl, int level, const char *fmt, va_list va) {
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
 
-  xe::log_line(__FILE__, __LINE__, 'i', "libav: %s", buff.GetString());
+  xe::log_line('i', "libav: %s", buff.GetString());
 }
 
 X_STATUS AudioSystem::Setup() {

@@ -20,47 +20,31 @@
 DEFINE_bool(fast_stdout, false,
             "Don't lock around stdout/stderr. May introduce weirdness.");
 DEFINE_bool(flush_stdout, true, "Flush stdout after each log line.");
-DEFINE_bool(log_filenames, false,
-            "Log filenames/line numbers in log statements.");
 
 namespace xe {
 
 std::mutex log_lock;
 
-void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
-                     const uint32_t line_number, const char level_char,
-                     const char* fmt, va_list args) {
-  char* buffer_ptr;
-  if (FLAGS_log_filenames) {
-    // Strip out just the filename from the path.
-    const char* filename = strrchr(file_path, xe::path_separator);
-    if (filename) {
-      // Slash - skip over it.
-      filename++;
-    } else {
-      // No slash, entire thing is filename.
-      filename = file_path;
-    }
+thread_local std::vector<char> log_buffer(16 * 1024);
 
-    // Format string - add a trailing newline if required.
-    const char* outfmt = "%c> %.2X %s:%d: ";
-    buffer_ptr = buffer + snprintf(buffer, buffer_count - 2, outfmt, level_char,
-                                   xe::threading::current_thread_id(), filename,
-                                   line_number);
-  } else {
-    buffer_ptr = buffer;
-    *(buffer_ptr++) = level_char;
-    *(buffer_ptr++) = '>';
-    *(buffer_ptr++) = ' ';
-    buffer_ptr +=
-        sprintf(buffer_ptr, "%.4X", xe::threading::current_thread_id());
-    *(buffer_ptr++) = ' ';
-  }
+void format_log_line(char* buffer, size_t buffer_capacity,
+                     const char level_char, const char* fmt, va_list args) {
+  char* buffer_ptr;
+  buffer_ptr = buffer;
+  *(buffer_ptr++) = level_char;
+  *(buffer_ptr++) = '>';
+  *(buffer_ptr++) = ' ';
+  buffer_ptr += sprintf(buffer_ptr, "%.4X", xe::threading::current_thread_id());
+  *(buffer_ptr++) = ' ';
 
   // Scribble args into the print buffer.
-  buffer_ptr = buffer_ptr + vsnprintf(buffer_ptr,
-                                      buffer_count - (buffer_ptr - buffer) - 2,
-                                      fmt, args);
+  size_t remaining_capacity = buffer_capacity - (buffer_ptr - buffer) - 3;
+  size_t chars_written = vsnprintf(buffer_ptr, remaining_capacity, fmt, args);
+  if (chars_written >= remaining_capacity) {
+    buffer_ptr += remaining_capacity - 1;
+  } else {
+    buffer_ptr += chars_written;
+  }
 
   // Add a trailing newline.
   if (buffer_ptr[-1] != '\n') {
@@ -69,25 +53,22 @@ void format_log_line(char* buffer, size_t buffer_count, const char* file_path,
   }
 }
 
-thread_local char log_buffer[4 * 1024];
-
-void log_line(const char* file_path, const uint32_t line_number,
-              const char level_char, const char* fmt, ...) {
+void log_line(const char level_char, const char* fmt, ...) {
   // SCOPE_profile_cpu_i("emu", "log_line");
 
   va_list args;
   va_start(args, fmt);
-  format_log_line(log_buffer, xe::countof(log_buffer), file_path, line_number,
-                  level_char, fmt, args);
+  format_log_line(log_buffer.data(), log_buffer.capacity(), level_char, fmt,
+                  args);
   va_end(args);
 
   if (!FLAGS_fast_stdout) {
     log_lock.lock();
   }
 #if 0  // defined(OutputDebugString)
-  OutputDebugStringA(log_buffer);
+  OutputDebugStringA(log_buffer.data());
 #else
-  fprintf(stdout, "%s", log_buffer);
+  fprintf(stdout, "%s", log_buffer.data());
   if (FLAGS_flush_stdout) {
     fflush(stdout);
   }
@@ -97,22 +78,19 @@ void log_line(const char* file_path, const uint32_t line_number,
   }
 }
 
-void handle_fatal(const char* file_path, const uint32_t line_number,
-                  const char* fmt, ...) {
-  char buffer[2048];
+void handle_fatal(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  format_log_line(buffer, xe::countof(buffer), file_path, line_number, 'X', fmt,
-                  args);
+  format_log_line(log_buffer.data(), log_buffer.capacity(), 'X', fmt, args);
   va_end(args);
 
   if (!FLAGS_fast_stdout) {
     log_lock.lock();
   }
 #if defined(OutputDebugString)
-  OutputDebugStringA(buffer);
+  OutputDebugStringA(log_buffer.data());
 #else
-  fprintf(stderr, "%s", buffer);
+  fprintf(stderr, "%s", log_buffer.data());
   fflush(stderr);
 #endif  // OutputDebugString
   if (!FLAGS_fast_stdout) {
@@ -121,7 +99,7 @@ void handle_fatal(const char* file_path, const uint32_t line_number,
 
 #if XE_PLATFORM_WIN32
   if (!xe::has_console_attached()) {
-    MessageBoxA(NULL, buffer, "Xenia Error",
+    MessageBoxA(NULL, log_buffer.data(), "Xenia Error",
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
   }
 #endif  // WIN32
