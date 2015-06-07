@@ -1,7 +1,7 @@
 the_function:
   cmpwi cr6, r3, 3
   bgt .case_3
-  lis r12, .the_table@ha
+  lis r12, .the_table@h
   addi r12, r12, .the_table@l
   slwi r3, r3, 2
   lwzx r3, r12, r3
