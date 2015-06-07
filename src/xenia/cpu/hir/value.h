@@ -121,32 +121,32 @@ class Value {
   void set_constant(int8_t value) {
     type = INT8_TYPE;
     flags |= VALUE_IS_CONSTANT;
-    constant.i8 = value;
+    constant.i64 = int64_t(value);
   }
   void set_constant(uint8_t value) {
     type = INT8_TYPE;
     flags |= VALUE_IS_CONSTANT;
-    constant.i8 = value;
+    constant.i64 = uint64_t(value);
   }
   void set_constant(int16_t value) {
     type = INT16_TYPE;
     flags |= VALUE_IS_CONSTANT;
-    constant.i16 = value;
+    constant.i64 = int64_t(value);
   }
   void set_constant(uint16_t value) {
     type = INT16_TYPE;
     flags |= VALUE_IS_CONSTANT;
-    constant.i16 = value;
+    constant.i64 = uint64_t(value);
   }
   void set_constant(int32_t value) {
     type = INT32_TYPE;
     flags |= VALUE_IS_CONSTANT;
-    constant.i32 = value;
+    constant.i64 = int64_t(value);
   }
   void set_constant(uint32_t value) {
     type = INT32_TYPE;
     flags |= VALUE_IS_CONSTANT;
-    constant.i32 = value;
+    constant.i64 = uint64_t(value);
   }
   void set_constant(int64_t value) {
     type = INT64_TYPE;
@@ -184,34 +184,130 @@ class Value {
     if (type == VEC128_TYPE) {
       assert_always();
     }
-    return (flags & VALUE_IS_CONSTANT) && !!constant.i64;
+    if (flags & VALUE_IS_CONSTANT) {
+      switch (type) {
+        case INT8_TYPE:
+          return !!constant.i8;
+        case INT16_TYPE:
+          return !!constant.i16;
+        case INT32_TYPE:
+          return !!constant.i32;
+        case INT64_TYPE:
+          return !!constant.i64;
+        case FLOAT32_TYPE:
+          return !!constant.f32;
+        case FLOAT64_TYPE:
+          return !!constant.f64;
+        default:
+          assert_unhandled_case(type);
+          return false;
+      }
+    } else {
+      return false;
+    }
   }
   bool IsConstantFalse() const {
     if (type == VEC128_TYPE) {
       assert_always();
     }
-    return (flags & VALUE_IS_CONSTANT) && !constant.i64;
+    if (flags & VALUE_IS_CONSTANT) {
+      switch (type) {
+        case INT8_TYPE:
+          return !constant.i8;
+        case INT16_TYPE:
+          return !constant.i16;
+        case INT32_TYPE:
+          return !constant.i32;
+        case INT64_TYPE:
+          return !constant.i64;
+        case FLOAT32_TYPE:
+          return !constant.f32;
+        case FLOAT64_TYPE:
+          return !constant.f64;
+        default:
+          assert_unhandled_case(type);
+          return false;
+      }
+    } else {
+      return false;
+    }
   }
   bool IsConstantZero() const {
-    if (type == VEC128_TYPE) {
-      return (flags & VALUE_IS_CONSTANT) && !constant.v128.low &&
-             !constant.v128.high;
+    if (flags & VALUE_IS_CONSTANT) {
+      switch (type) {
+        case INT8_TYPE:
+          return !constant.i8;
+        case INT16_TYPE:
+          return !constant.i16;
+        case INT32_TYPE:
+          return !constant.i32;
+        case INT64_TYPE:
+          return !constant.i64;
+        case FLOAT32_TYPE:
+          return !constant.f32;
+        case FLOAT64_TYPE:
+          return !constant.f64;
+        case VEC128_TYPE:
+          return !constant.v128.low && !constant.v128.high;
+        default:
+          assert_unhandled_case(type);
+          return false;
+      }
+    } else {
+      return false;
     }
-    return (flags & VALUE_IS_CONSTANT) && !constant.i64;
   }
   bool IsConstantEQ(Value* other) const {
     if (type == VEC128_TYPE) {
       assert_always();
     }
-    return (flags & VALUE_IS_CONSTANT) && (other->flags & VALUE_IS_CONSTANT) &&
-           constant.i64 == other->constant.i64;
+    if ((flags & VALUE_IS_CONSTANT) && (other->flags & VALUE_IS_CONSTANT)) {
+      switch (type) {
+        case INT8_TYPE:
+          return constant.i8 == other->constant.i8;
+        case INT16_TYPE:
+          return constant.i16 == other->constant.i16;
+        case INT32_TYPE:
+          return constant.i32 == other->constant.i32;
+        case INT64_TYPE:
+          return constant.i64 == other->constant.i64;
+        case FLOAT32_TYPE:
+          return constant.f32 == other->constant.f32;
+        case FLOAT64_TYPE:
+          return constant.f64 == other->constant.f64;
+        default:
+          assert_unhandled_case(type);
+          return false;
+      }
+    } else {
+      return false;
+    }
   }
   bool IsConstantNE(Value* other) const {
     if (type == VEC128_TYPE) {
       assert_always();
     }
-    return (flags & VALUE_IS_CONSTANT) && (other->flags & VALUE_IS_CONSTANT) &&
-           constant.i64 != other->constant.i64;
+    if ((flags & VALUE_IS_CONSTANT) && (other->flags & VALUE_IS_CONSTANT)) {
+      switch (type) {
+        case INT8_TYPE:
+          return constant.i8 != other->constant.i8;
+        case INT16_TYPE:
+          return constant.i16 != other->constant.i16;
+        case INT32_TYPE:
+          return constant.i32 != other->constant.i32;
+        case INT64_TYPE:
+          return constant.i64 != other->constant.i64;
+        case FLOAT32_TYPE:
+          return constant.f32 != other->constant.f32;
+        case FLOAT64_TYPE:
+          return constant.f64 != other->constant.f64;
+        default:
+          assert_unhandled_case(type);
+          return false;
+      }
+    } else {
+      return false;
+    }
   }
   bool IsConstantSLT(Value* other) const {
     assert_true(flags & VALUE_IS_CONSTANT && other->flags & VALUE_IS_CONSTANT);
