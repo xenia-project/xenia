@@ -71,13 +71,17 @@ X_RESULT XXGIApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340
       uint32_t user_index = xe::load_and_swap<uint32_t>(buffer + 0);
       uint32_t context_ptr = xe::load_and_swap<uint32_t>(buffer + 16);
-      auto context = memory_->TranslateVirtual(context_ptr);
-      uint32_t context_id = xe::load_and_swap<uint32_t>(context + 0);
+      auto context =
+          context_ptr ? memory_->TranslateVirtual(context_ptr) : nullptr;
+      uint32_t context_id =
+          context ? xe::load_and_swap<uint32_t>(context + 0) : 0;
       XELOGD("XUserGetContext(%.8X, %.8X(%.8X))", user_index, context_ptr,
              context_id);
       uint32_t value = 0;
-      xe::store_and_swap<uint32_t>(context + 4, value);
-      return X_ERROR_SUCCESS;
+      if (context) {
+        xe::store_and_swap<uint32_t>(context + 4, value);
+      }
+      return X_ERROR_FUNCTION_FAILED;
     }
     case 0x000B0071: {
       XELOGD("XGI 0x000B0071, unimplemented");
