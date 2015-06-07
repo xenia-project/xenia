@@ -129,7 +129,18 @@ bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
 
     if (i.address == FLAGS_break_on_instruction) {
       Comment("--break-on-instruction target");
-      DebugBreak();
+
+      if (FLAGS_break_condition_gpr < 0) {
+        DebugBreak();
+      } else {
+        auto left = LoadGPR(FLAGS_break_condition_gpr);
+        auto right = LoadConstant(FLAGS_break_condition_value);
+        if (FLAGS_break_condition_truncate) {
+          left = Truncate(left, INT32_TYPE);
+          right = Truncate(right, INT32_TYPE);
+        }
+        TrapTrue(CompareEQ(left, right));
+      }
     }
 
     if (!i.type->emit || emit(*this, i)) {

@@ -28,6 +28,10 @@ DECLARE_bool(trace_function_data);
 DECLARE_bool(validate_hir);
 
 DECLARE_uint64(break_on_instruction);
+DECLARE_int32(break_condition_gpr);
+DECLARE_uint64(break_condition_value);
+DECLARE_bool(break_condition_truncate);
+
 DECLARE_bool(break_on_debugbreak);
 
 #endif  // XENIA_CPU_PRIVATE_H_
