@@ -64,7 +64,7 @@ X_RESULT XXGIApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // - [this]
       // - CloseHandle
       XELOGD("XSessionCreateImpl(...)");
-      return X_ERROR_FUNCTION_FAILED;
+      return X_STATUS_UNSUCCESSFUL;
     }
     case 0x000B0041: {
       assert_true(!buffer_length || buffer_length == 32);
@@ -90,7 +90,7 @@ X_RESULT XXGIApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
   }
   XELOGE("Unimplemented XGI message app=%.8X, msg=%.8X, arg1=%.8X, arg2=%.8X",
          app_id(), message, buffer_ptr, buffer_length);
-  return X_ERROR_NOT_FOUND;
+  return X_STATUS_UNSUCCESSFUL;
 }
 
 }  // namespace apps
