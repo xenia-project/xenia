@@ -188,18 +188,19 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
               auto heap = memory->LookupHeap(address);
               uint32_t protect;
               if (heap->QueryProtect(address, &protect) &&
-                  !(protect & kMemoryProtectWrite)) {
+                  !(protect & kMemoryProtectWrite) &&
+                  (protect & kMemoryProtectRead)) {
                 // Memory is readonly - can just return the value.
                 switch (v->type) {
                   case INT32_TYPE:
                     v->set_constant(xe::load_and_swap<uint32_t>(
                         memory->TranslateVirtual(address)));
+                    i->Remove();
                     break;
                   default:
                     assert_unhandled_case(v->type);
                     break;
                 }
-                i->Remove();
               }
             }
           }
