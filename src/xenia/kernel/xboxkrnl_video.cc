@@ -306,7 +306,8 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
 
   auto color_format = gpu::xenos::ColorFormat(color_format_ptr.value());
   auto color_space = *color_space_ptr;
-  assert_true(color_format == gpu::xenos::ColorFormat::k_8_8_8_8);
+  assert_true(color_format == gpu::xenos::ColorFormat::k_8_8_8_8 ||
+              color_format == gpu::xenos::ColorFormat::kUnknown0x36);
   assert_true(color_space == 0);
   assert_true(*frontbuffer_ptr == fetch.address << 12);
   assert_true(last_frontbuffer_width_ == 1 + fetch.size_2d.width);
