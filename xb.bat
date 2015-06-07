@@ -334,7 +334,7 @@ FOR %%G in (*.s) DO (
   REM Eat the first 4 lines to kill the file path that'll differ across machines.
   MORE +4 %TEST_BIN_WIN%\!SRC_NAME!.dis.tmp > %TEST_BIN_WIN%\!SRC_NAME!.dis
   DEL %TEST_BIN_WIN%\!SRC_NAME!.dis.tmp
-  %PPC_LD% -A powerpc:common32 -melf32ppc -EB -nostdlib --oformat binary -Ttext 0x80000000 -e 0x80000000 -o %TEST_BIN%/!SRC_NAME!.bin !OBJ_FILE!
+  CMD /c %PPC_LD% -A powerpc:common32 -melf32ppc -EB -nostdlib --oformat binary -Ttext 0x80000000 -e 0x80000000 -o %TEST_BIN%/!SRC_NAME!.bin !OBJ_FILE! 2>&1
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
