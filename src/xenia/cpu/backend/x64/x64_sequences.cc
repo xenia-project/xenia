@@ -5884,6 +5884,9 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>, V128<>>)) {
     case PACK_TYPE_SHORT_2:
       EmitSHORT_2(e, i);
       break;
+    case PACK_TYPE_UINT_2101010:
+      EmitUINT_2101010(e, i);
+      break;
     case PACK_TYPE_8_IN_16:
       Emit8_IN_16(e, i, i.instr->flags);
       break;
@@ -5972,6 +5975,60 @@ EMITTER(PACK, MATCH(I<OPCODE_PACK, V128<>, V128<>, V128<>>)) {
     e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2Max));
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2));
+  }
+  static __m128i EmulatePackUINT_2101010(void*, __m128i src1) {
+    // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
+    union {
+      alignas(16) int32_t a_i[4];
+      alignas(16) uint32_t a_u[4];
+      alignas(16) float a_f[4];
+    };
+    alignas(16) uint32_t b[4];
+    alignas(16) uint32_t c[4];
+    _mm_store_si128(reinterpret_cast<__m128i*>(a_u), src1);
+    // XYZ are 10 bits, signed and saturated.
+    for (int i = 0; i < 3; ++i) {
+      static const int32_t kMinValueXYZ = 0x403FFE01;  // 3 - 1FF / (1 << 22)
+      static const int32_t kMaxValueXYZ = 0x404001FF;  // 3 + 1FF / (1 << 22)
+      uint32_t exponent = (a_u[i] >> 23) & 0xFF;
+      uint32_t fractional = a_u[i] & 0x007FFFFF;
+      if ((exponent == 0xFF) && fractional) {
+        b[i] = 0x200;
+      } else if (a_i[i] > kMaxValueXYZ) {
+        b[i] = 0x1FF;  // INT_MAX
+      } else if (a_i[i] < kMinValueXYZ) {
+        b[i] = 0x201;  // -INT_MAX
+      } else {
+        b[i] = a_u[i] & 0x3FF;
+      }
+    }
+    // W is 2 bits, unsigned and saturated.
+    static const int32_t kMinValueW = 0x40400000;  // 3
+    static const int32_t kMaxValueW = 0x40400003;  // 3 + 3 / (1 << 22)
+    uint32_t w_exponent = (a_u[3] >> 23) & 0xFF;
+    uint32_t w_fractional = a_u[3] & 0x007FFFFF;
+    if ((w_exponent == 0xFF) && w_fractional) {
+      b[3] = 0x0;
+    } else if (a_i[3] > kMaxValueW) {
+      b[3] = 0x3;
+    } else if (a_i[3] < kMinValueW) {
+      b[3] = 0x0;
+    } else {
+      b[3] = a_u[3] & 0x3;
+    }
+    // Combine in 2101010 WZYX.
+    c[0] = c[1] = c[2] = 0;
+    c[3] = ((b[3] & 0x3) << 30) | ((b[2] & 0x3FF) << 20) |
+           ((b[1] & 0x3FF) << 10) | ((b[0] & 0x3FF));
+    return _mm_load_si128(reinterpret_cast<__m128i*>(c));
+  }
+  static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    // dest = [(b2(src1.w), b10(src1.z), b10(src1.y), b10(src1.x)), 0, 0, 0]
+    // TODO(benvanik): optimized version.
+    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulatePackUINT_2101010));
+    e.vmovaps(i.dest, e.xmm0);
   }
   static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i src1,
                                               __m128i src2) {
@@ -6111,6 +6168,9 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     case PACK_TYPE_SHORT_2:
       EmitSHORT_2(e, i);
       break;
+    case PACK_TYPE_UINT_2101010:
+      EmitUINT_2101010(e, i);
+      break;
     case PACK_TYPE_8_IN_16:
       Emit8_IN_16(e, i, i.instr->flags);
       break;
@@ -6244,6 +6304,9 @@ EMITTER(UNPACK, MATCH(I<OPCODE_UNPACK, V128<>, V128<>>)) {
     e.vpsrad(i.dest, 16);
     // Add 3,3,0,1.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
+  }
+  static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
+    assert_always("not implemented");
   }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     assert_false(IsPackOutSaturate(flags));

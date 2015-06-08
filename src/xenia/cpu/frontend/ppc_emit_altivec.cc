@@ -2027,6 +2027,9 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
     case 1:  // VPACK_NORMSHORT2
       v = f.Pack(v, PACK_TYPE_SHORT_2);
       break;
+    case 2:  // VPACK_... 2_10_10_10 w_z_y_x
+      v = f.Pack(v, PACK_TYPE_UINT_2101010);
+      break;
     case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
       v = f.Pack(v, PACK_TYPE_FLOAT16_2);
       break;
@@ -2124,6 +2127,9 @@ XEEMITTER(vupkd3d128, VX128_3(6, 2032), VX128_3)(PPCHIRBuilder& f,
       break;
     case 1:  // VPACK_NORMSHORT2
       v = f.Unpack(v, PACK_TYPE_SHORT_2);
+      break;
+    case 2:  // VPACK_... 2_10_10_10 w_z_y_x
+      v = f.Unpack(v, PACK_TYPE_UINT_2101010);
       break;
     case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_2);
