@@ -402,12 +402,11 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
   // We set the XexExecutableModuleHandle pointer to a block that has at offset
   // 0x58 a pointer to our XexHeaderBase. If the value passed doesn't match
   // then die.
-  // The only ImageField I've seen in the wild is
-  // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
 
   // TODO(benvanik): use xex_header_base to dereference this.
   // Right now we are only concerned with games making this call on their main
   // module, so this hack is fine.
+  assert_true(xex_header_base == 0x80101100);
   auto module = kernel_state->GetExecutableModule();
 
   const xe_xex2_header_t* xex_header = module->xex_header();
@@ -419,7 +418,16 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
     }
   }
 
-  SHIM_SET_RETURN_32(0);
+  // Some games seem to expect 0xC0000225 for not-found results, while
+  // others will explode if it's not zero. Maybe there are default headers?
+  switch (image_field) {
+    case 0x20401:  // XEX_HEADER_DEFAULT_HEAP_SIZE
+      SHIM_SET_RETURN_32(0);
+      break;
+    default:
+      SHIM_SET_RETURN_32(0xC0000225);
+      break;
+  }
 }
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
