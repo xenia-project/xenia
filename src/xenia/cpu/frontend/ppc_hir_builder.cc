@@ -448,11 +448,7 @@ Value* PPCHIRBuilder::LoadAcquire(Value* address, TypeName type,
                                   uint32_t load_flags) {
   AtomicExchange(LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
                  Truncate(address, INT32_TYPE));
-  Value* value = Load(address, type, load_flags);
-  // Save the value so that we can compare it later in StoreRelease.
-  AtomicExchange(LoadContext(offsetof(PPCContext, reserve_value), INT64_TYPE),
-                 value);
-  return value;
+  return Load(address, type, load_flags);
 }
 
 Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
@@ -460,13 +456,8 @@ Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
   Value* old_address = AtomicExchange(
       LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
       LoadZero(INT32_TYPE));
-  // HACK: ensure the reservation addresses match AND the value hasn't changed.
-  Value* old_value = AtomicExchange(
-      LoadContext(offsetof(PPCContext, reserve_value), INT64_TYPE),
-      LoadZero(value->type));
-  Value* current_value = Load(address, value->type);
-  Value* eq = And(CompareEQ(Truncate(address, INT32_TYPE), old_address),
-                  CompareEQ(current_value, old_value));
+  // Ensure the reservation addresses match.
+  Value* eq = CompareEQ(Truncate(address, INT32_TYPE), old_address);
   StoreContext(offsetof(PPCContext, cr0.cr0_eq), eq);
   StoreContext(offsetof(PPCContext, cr0.cr0_lt), LoadZero(INT8_TYPE));
   StoreContext(offsetof(PPCContext, cr0.cr0_gt), LoadZero(INT8_TYPE));
