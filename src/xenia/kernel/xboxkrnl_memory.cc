@@ -518,6 +518,35 @@ SHIM_CALL KeUnlockL2_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   XELOGD("KeUnlockL2(?)");
 }
 
+SHIM_CALL MmCreateKernelStack_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  auto stack_size = SHIM_GET_ARG_32(0);
+  auto unk1 = SHIM_GET_ARG_32(1);
+
+  XELOGD("MmCreateKernelStack(%.8X, %.8X)", stack_size, unk1);
+
+  stack_size = (stack_size + 0xFFF) & 0xFFFFF000;
+  uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
+
+  uint32_t stack_address;
+  kernel_state->memory()
+      ->LookupHeap(0x70000000)
+      ->AllocRange(0x70000000, 0x7FFFFFFF, stack_size, stack_alignment,
+          kMemoryAllocationReserve | kMemoryAllocationCommit,
+          kMemoryProtectRead | kMemoryProtectWrite, false,
+          &stack_address);
+  SHIM_SET_RETURN_32(stack_address + stack_size);
+}
+
+SHIM_CALL MmDeleteKernelStack_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  auto unk0 = SHIM_GET_ARG_32(0);
+  auto unk1 = SHIM_GET_ARG_32(1);
+
+  XELOGD("MmDeleteKernelStack(%.8X, %.8X)", unk0, unk1);
+
+  assert_always();
+  SHIM_SET_RETURN_32(0);
+}
+
 }  // namespace kernel
 }  // namespace xe
 
@@ -540,4 +569,7 @@ void xe::kernel::xboxkrnl::RegisterMemoryExports(
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLockL2, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeUnlockL2, state);
+
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmCreateKernelStack, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", MmDeleteKernelStack, state);
 }
