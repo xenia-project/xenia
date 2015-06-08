@@ -858,8 +858,19 @@ SHIM_CALL KeWaitForSingleObject_shim(PPCContext* ppc_context,
   XELOGD("KeWaitForSingleObject(%.8X, %.8X, %.8X, %.1X, %.8X)", object_ptr,
          wait_reason, processor_mode, alertable, timeout_ptr);
 
-  auto object = XObject::GetNativeObject<XObject>(kernel_state,
-                                                  SHIM_MEM_ADDR(object_ptr));
+  object_ref<XObject> object;
+  if (object_ptr < 0x1000) {
+      // They passed in a handle (for some reason)
+      object = kernel_state->object_table()->LookupObject<XObject>(object_ptr);
+
+      // Log it in case this is the source of any problems in the future
+      XELOGD("KeWaitForSingleObject - Interpreting object ptr as handle!");
+  }
+  else {
+    object = XObject::GetNativeObject<XObject>(kernel_state,
+                                               SHIM_MEM_ADDR(object_ptr));
+  }
+
   if (!object) {
     // The only kind-of failure code.
     SHIM_SET_RETURN_32(X_STATUS_ABANDONED_WAIT_0);
