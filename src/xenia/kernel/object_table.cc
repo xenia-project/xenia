@@ -112,6 +112,21 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
   return result;
 }
 
+X_STATUS ObjectTable::DuplicateHandle(X_HANDLE handle, X_HANDLE* out_handle) {
+  X_STATUS result = X_STATUS_SUCCESS;
+  handle = TranslateHandle(handle);
+
+  XObject* object = LookupObject(handle, false);
+  if (object) {
+    result = AddHandle(object, out_handle);
+    object->Release(); // Release the ref that LookupObject took
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  return result;
+}
+
 X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
