@@ -157,7 +157,7 @@ X_STATUS XThread::Create() {
   // structure.
   pcr_address_ = memory()->SystemHeapAlloc(0x2D8 + 0xAB0);
   thread_state_address_ = pcr_address_ + 0x2D8;
-  if (!thread_state_address_) {
+  if (!pcr_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
