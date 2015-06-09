@@ -287,8 +287,10 @@ BaseHeap* Memory::LookupHeap(uint32_t address) {
     return &heaps_.vA0000000;
   } else if (address < 0xE0000000) {
     return &heaps_.vC0000000;
-  } else {
+  } else if (address < 0xFFD00000) {
     return &heaps_.vE0000000;
+  } else {
+    return nullptr;
   }
 }
 
