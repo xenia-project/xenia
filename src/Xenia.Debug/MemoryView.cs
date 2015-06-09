@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-  public class MemoryView : Changeable {
+  public class MemoryView : Changeable<MemoryView> {
     private readonly Memory memory;
 
     public MemoryView(Memory memory) {
+      this.self = this;
       this.memory = memory;
     }
 

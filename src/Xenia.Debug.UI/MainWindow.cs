@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeifenLuo.WinFormsUI.Docking;
+using Xenia.Debug.UI.Controls;
 using Xenia.Debug.UI.Views;
 using Xenia.Debug.Utilities;
 
@@ -35,6 +36,9 @@ namespace Xenia.Debug.UI {
 
     public MainWindow() {
       InitializeComponent();
+
+      BasePanel.MainWindow = this;
+      BaseDocument.MainWindow = this;
 
       dockPanel = new DockPanel();
       dockPanel.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -76,7 +80,7 @@ namespace Xenia.Debug.UI {
       Debugger.StateChanged += Debugger_StateChanged;
       Debugger_StateChanged(this, Debugger.CurrentState);
       Debugger.CurrentContext.Changed += CurrentContext_Changed;
-      CurrentContext_Changed();
+      CurrentContext_Changed(Debugger.CurrentContext);
 
       Debugger.Attach();
     }
@@ -102,7 +106,7 @@ namespace Xenia.Debug.UI {
       controlToolStrip.Enabled = enabled;
     }
 
-    private void CurrentContext_Changed() {
+    private void CurrentContext_Changed(Context sender) {
       bool enabled = false;
       switch (Debugger.CurrentContext.RunState) {
       case RunState.Updating:
@@ -155,6 +159,11 @@ namespace Xenia.Debug.UI {
       statisticsDocument.Show(tracePanel.Pane, tracePanel);
 
       dockPanel.ResumeLayout(true, true);
+    }
+
+    public void OpenFunction(Function function) {
+      var document = codeDocuments[0];
+      document.Show(function);
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {

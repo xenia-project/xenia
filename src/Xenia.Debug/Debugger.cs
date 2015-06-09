@@ -193,14 +193,19 @@ namespace Xenia.Debug {
 
       // Read body.
       var bodyBuffer = new byte[length];
-      receiveLength = await Task.Factory.FromAsync(
-          (callback, state) => socket.BeginReceive(bodyBuffer, 0, bodyBuffer.Length, SocketFlags.None, callback, state),
-          asyncResult => socket.EndReceive(asyncResult),
-          null);
-      if (receiveLength == 0 || receiveLength != bodyBuffer.Length) {
-        // Failed?
-        ReceivePump();
-        return;
+      int bodyOffset = 0;
+      while (bodyOffset != bodyBuffer.Length) {
+        receiveLength = await Task.Factory.FromAsync(
+            (callback, state) => socket.BeginReceive(
+                bodyBuffer, bodyOffset, bodyBuffer.Length - bodyOffset,
+                SocketFlags.None, callback, state),
+            asyncResult => socket.EndReceive(asyncResult), null);
+        if (receiveLength == 0) {
+          // Failed?
+          ReceivePump();
+          return;
+        }
+        bodyOffset += receiveLength;
       }
 
       // Emit message.

@@ -11,6 +11,8 @@ using WeifenLuo.WinFormsUI.Docking;
 
 namespace Xenia.Debug.UI.Controls {
   public partial class BasePanel : DockContent {
+    public static MainWindow MainWindow;
+
     public BasePanel() {
       InitializeComponent();
     }

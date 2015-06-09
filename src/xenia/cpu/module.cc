@@ -149,7 +149,6 @@ SymbolStatus Module::DefineVariable(VariableInfo* symbol_info) {
 }
 
 void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
-  SCOPE_profile_cpu_f("cpu");
   std::lock_guard<xe::mutex> guard(lock_);
   for (auto& symbol_info : list_) {
     if (symbol_info->type() == SymbolType::kFunction) {
@@ -159,19 +158,20 @@ void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
   }
 }
 
-void Module::ForEachFunction(size_t since, size_t& version,
-                             std::function<void(FunctionInfo*)> callback) {
-  SCOPE_profile_cpu_f("cpu");
+void Module::ForEachSymbol(size_t start_index, size_t end_index,
+                           std::function<void(SymbolInfo*)> callback) {
   std::lock_guard<xe::mutex> guard(lock_);
-  size_t count = list_.size();
-  version = count;
-  for (size_t n = since; n < count; n++) {
-    auto& symbol_info = list_[n];
-    if (symbol_info->type() == SymbolType::kFunction) {
-      FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
-      callback(info);
-    }
+  start_index = std::min(start_index, list_.size());
+  end_index = std::min(end_index, list_.size());
+  for (size_t i = start_index; i <= end_index; ++i) {
+    auto& symbol_info = list_[i];
+    callback(symbol_info.get());
   }
+}
+
+size_t Module::QuerySymbolCount() {
+  std::lock_guard<xe::mutex> guard(lock_);
+  return list_.size();
 }
 
 bool Module::ReadMap(const char* file_name) {

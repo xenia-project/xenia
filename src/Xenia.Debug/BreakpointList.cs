@@ -7,11 +7,12 @@ using System.Threading.Tasks;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-  public class BreakpointList : Changeable, IReadOnlyCollection<Breakpoint> {
+  public class BreakpointList : Changeable<BreakpointList>, IReadOnlyCollection<Breakpoint> {
     private readonly Debugger debugger;
     private readonly List<Breakpoint> breakpoints = new List<Breakpoint>();
 
     public BreakpointList(Debugger debugger) {
+      this.self = this;
       this.debugger = debugger;
     }
 

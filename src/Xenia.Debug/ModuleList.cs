@@ -8,11 +8,12 @@ using xe.debug.proto;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-  public class ModuleList : Changeable, IReadOnlyCollection<Module> {
+  public class ModuleList : Changeable<ModuleList>, IReadOnlyCollection<Module> {
     private readonly Debugger debugger;
     private readonly List<Module> modules = new List<Module>();
 
     public ModuleList(Debugger debugger) {
+      this.self = this;
       this.debugger = debugger;
     }
 
@@ -26,20 +27,23 @@ namespace Xenia.Debug {
       response.GetResponseData(responseData);
 
       var pendingTasks = new List<Task>();
-      for (int i = 0; i < responseData.ModuleIdsLength; ++i) {
-        uint moduleHandle = responseData.GetModuleIds(i);
-        var module = modules.Find((m) => m.Handle == moduleHandle);
+      for (int i = 0; i < responseData.EntryLength; ++i) {
+        var moduleEntry = responseData.GetEntry(i);
+        var module = modules.Find((m) => m.Handle == moduleEntry.Handle);
         if (module == null) {
           // Module not found.
-          module = new Module(debugger, moduleHandle);
-          pendingTasks.Add(module.Invalidate());
+          module = new Module(debugger, moduleEntry.Handle);
+          pendingTasks.Add(module.Invalidate(moduleEntry.FunctionCount));
+          modules.Add(module);
         } else {
           // Module already present.
-          // Modules are immutable, so ignore?
+          pendingTasks.Add(module.Invalidate(moduleEntry.FunctionCount));
         }
       }
 
       await Task.WhenAll(pendingTasks);
+
+      OnChanged();
     }
 
     public int Count {

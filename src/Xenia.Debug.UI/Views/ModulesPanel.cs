@@ -19,14 +19,21 @@ namespace Xenia.Debug.UI.Views {
       this.debugger = debugger;
 
       debugger.ModuleList.Changed += UpdateModulesList;
-      UpdateModulesList();
+      UpdateModulesList(debugger.ModuleList);
     }
 
-    private void UpdateModulesList() {
+    private void UpdateModulesList(ModuleList sender) {
       modulesListView.BeginUpdate();
       modulesListView.Items.Clear();
       foreach (Module module in debugger.ModuleList) {
-        modulesListView.Items.Add("Module A");
+        var item = new ListViewItem(new string[]{
+            module.Handle.ToString("X4"),
+            module.ModuleType == xe.debug.proto.ModuleType.Kernel ? "Kernel"
+                                                                  : "User",
+            module.Name,
+            module.Path,
+        });
+        modulesListView.Items.Add(item);
       }
       modulesListView.EndUpdate();
     }

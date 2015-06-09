@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-  public class Memory : Changeable, IDisposable {
+  public class Memory : Changeable<Memory>, IDisposable {
     private readonly Debugger debugger;
 
     private class MapInfo {
@@ -41,6 +41,7 @@ namespace Xenia.Debug {
     public UIntPtr PhysicalMembase;
 
     public Memory(Debugger debugger) {
+      this.self = this;
       this.debugger = debugger;
     }
 

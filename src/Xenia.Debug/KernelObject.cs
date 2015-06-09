@@ -6,11 +6,12 @@ using System.Threading.Tasks;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-  public class KernelObject : Changeable {
+  public class KernelObject : Changeable<KernelObject> {
     public readonly Debugger Debugger;
     public readonly uint Handle;
 
     public KernelObject(Debugger debugger, uint handle) {
+      this.self = this;
       this.Debugger = debugger;
       this.Handle = handle;
     }

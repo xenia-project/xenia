@@ -15,8 +15,12 @@
 namespace xe {
 namespace kernel {
 
-XModule::XModule(KernelState* kernel_state, const std::string& path)
-    : XObject(kernel_state, kTypeModule), path_(path) {
+XModule::XModule(KernelState* kernel_state, ModuleType module_type,
+                 const std::string& path)
+    : XObject(kernel_state, kTypeModule),
+      module_type_(module_type),
+      path_(path),
+      processor_module_(nullptr) {
   auto last_slash = path.find_last_of('/');
   if (last_slash == path.npos) {
     last_slash = path.find_last_of('\\');

@@ -19,10 +19,10 @@ namespace Xenia.Debug.UI.Views {
       this.debugger = debugger;
 
       debugger.BreakpointList.Changed += UpdateBreakpointsList;
-      UpdateBreakpointsList();
+      UpdateBreakpointsList(debugger.BreakpointList);
     }
 
-    private void UpdateBreakpointsList() {
+    private void UpdateBreakpointsList(BreakpointList sender) {
       breakpointsListView.BeginUpdate();
       breakpointsListView.Items.Clear();
       foreach (Breakpoint breakpoint in debugger.BreakpointList) {

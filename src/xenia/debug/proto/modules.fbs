@@ -3,8 +3,8 @@ include "common.fbs";
 namespace xe.debug.proto;
 
 enum ModuleType:byte {
-  Kernel,
-  User,
+  Kernel = 0,
+  User = 1,
 }
 
 table Module {
@@ -18,8 +18,12 @@ table Module {
 
 table ListModulesRequest {
 }
+struct ListModuleEntry {
+  handle:uint;
+  function_count:uint;
+}
 table ListModulesResponse {
-  module_ids:[uint];
+  entry:[ListModuleEntry];
 }
 
 table GetModuleRequest {
@@ -29,3 +33,36 @@ table GetModuleResponse {
   module:Module;
 }
 
+table FunctionEntry {
+  identifier:ulong;
+  address_start:uint;
+  address_end:uint;
+  name:string;
+}
+table Function {
+  identifier:ulong;
+  address_start:uint;
+  address_end:uint;
+  name:string;
+
+  disasm_ppc:string;
+  disasm_hir_raw:string;
+  disasm_hir_opt:string;
+  disasm_machine_code:string;
+}
+
+table ListFunctionsRequest {
+  module_id:uint;
+  function_index_start:uint;
+  function_index_end:uint;
+}
+table ListFunctionsResponse {
+  entry:[FunctionEntry];
+}
+
+table GetFunctionRequest {
+  identifier:ulong;
+}
+table GetFunctionResponse {
+  function:Function;
+}

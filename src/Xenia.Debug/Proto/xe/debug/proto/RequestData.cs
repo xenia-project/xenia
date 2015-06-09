@@ -13,10 +13,12 @@ public enum RequestData : byte
  RemoveBreakpointsRequest = 5,
  ListModulesRequest = 6,
  GetModuleRequest = 7,
- StopRequest = 8,
- BreakRequest = 9,
- ContinueRequest = 10,
- StepRequest = 11,
+ ListFunctionsRequest = 8,
+ GetFunctionRequest = 9,
+ StopRequest = 10,
+ BreakRequest = 11,
+ ContinueRequest = 12,
+ StepRequest = 13,
 };
 
 

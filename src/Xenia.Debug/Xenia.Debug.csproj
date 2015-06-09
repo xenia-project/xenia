@@ -84,10 +84,17 @@
     <Compile Include="Proto\xe\debug\proto\ContinueAction.cs" />
     <Compile Include="Proto\xe\debug\proto\ContinueRequest.cs" />
     <Compile Include="Proto\xe\debug\proto\ContinueResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\Function.cs" />
+    <Compile Include="Proto\xe\debug\proto\FunctionEntry.cs" />
+    <Compile Include="Proto\xe\debug\proto\GetFunctionRequest.cs" />
+    <Compile Include="Proto\xe\debug\proto\GetFunctionResponse.cs" />
     <Compile Include="Proto\xe\debug\proto\GetModuleRequest.cs" />
     <Compile Include="Proto\xe\debug\proto\GetModuleResponse.cs" />
     <Compile Include="Proto\xe\debug\proto\ListBreakpointsRequest.cs" />
     <Compile Include="Proto\xe\debug\proto\ListBreakpointsResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\ListFunctionsRequest.cs" />
+    <Compile Include="Proto\xe\debug\proto\ListFunctionsResponse.cs" />
+    <Compile Include="Proto\xe\debug\proto\ListModuleEntry.cs" />
     <Compile Include="Proto\xe\debug\proto\ListModulesRequest.cs" />
     <Compile Include="Proto\xe\debug\proto\ListModulesResponse.cs" />
     <Compile Include="Proto\xe\debug\proto\ListThreadsRequest.cs" />

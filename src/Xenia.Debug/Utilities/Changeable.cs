@@ -5,11 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Xenia.Debug.Utilities {
-  public delegate void ChangedEventHandler();
+  public delegate void ChangedEventHandler<T>(T sender);
 
-  public class Changeable {
+  public class Changeable<T> {
+    protected T self;
     private int changeDepth;
-    public event ChangedEventHandler Changed;
+
+    public event ChangedEventHandler<T> Changed;
 
     protected void BeginChanging() {
       ++changeDepth;
@@ -24,7 +26,7 @@ namespace Xenia.Debug.Utilities {
     protected void OnChanged() {
       System.Diagnostics.Debug.Assert(changeDepth == 0);
       if (Changed != null) {
-        Changed();
+        Changed(self);
       }
     }
   }

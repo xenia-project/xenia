@@ -13,12 +13,14 @@ public enum ResponseData : byte
  RemoveBreakpointsResponse = 5,
  ListModulesResponse = 6,
  GetModuleResponse = 7,
- StopResponse = 8,
- BreakResponse = 9,
- ContinueResponse = 10,
- StepResponse = 11,
- BreakpointEvent = 12,
- AccessViolationEvent = 13,
+ ListFunctionsResponse = 8,
+ GetFunctionResponse = 9,
+ StopResponse = 10,
+ BreakResponse = 11,
+ ContinueResponse = 12,
+ StepResponse = 13,
+ BreakpointEvent = 14,
+ AccessViolationEvent = 15,
 };
 
 

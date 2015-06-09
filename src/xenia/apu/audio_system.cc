@@ -201,7 +201,7 @@ void AudioSystem::WorkerThreadMain() {
 void AudioSystem::DecoderThreadMain() {
   while (decoder_running_) {
     // Wait for a kick from WriteRegister.
-    decoder_fence_.Wait();
+    //decoder_fence_.Wait();
 
     // Check to see if we're supposed to exit
     if (!decoder_running_) {

@@ -12,10 +12,11 @@ namespace Xenia.Debug {
     Paused,
   }
 
-  public class Context : Changeable {
+  public class Context : Changeable<Context> {
     private readonly Debugger debugger;
 
     public Context(Debugger debugger) {
+      this.self = this;
       this.debugger = debugger;
     }
 

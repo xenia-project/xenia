@@ -18,7 +18,7 @@ namespace xe {
 namespace kernel {
 
 XKernelModule::XKernelModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, path) {
+    : XModule(kernel_state, ModuleType::kKernelModule, path) {
   emulator_ = kernel_state->emulator();
   memory_ = emulator_->memory();
   export_resolver_ = kernel_state->emulator()->export_resolver();

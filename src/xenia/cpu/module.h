@@ -47,8 +47,9 @@ class Module {
   SymbolStatus DefineVariable(VariableInfo* symbol_info);
 
   void ForEachFunction(std::function<void(FunctionInfo*)> callback);
-  void ForEachFunction(size_t since, size_t& version,
-                       std::function<void(FunctionInfo*)> callback);
+  void ForEachSymbol(size_t start_index, size_t end_index,
+                     std::function<void(SymbolInfo*)> callback);
+  size_t QuerySymbolCount();
 
   bool ReadMap(const char* file_name);
 

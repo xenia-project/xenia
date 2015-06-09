@@ -25,6 +25,8 @@ union RequestData {
 
   ListModulesRequest,
   GetModuleRequest,
+  ListFunctionsRequest,
+  GetFunctionRequest,
 
   StopRequest,
   BreakRequest,
@@ -47,6 +49,8 @@ union ResponseData {
   
   ListModulesResponse,
   GetModuleResponse,
+  ListFunctionsResponse,
+  GetFunctionResponse,
 
   StopResponse,
   BreakResponse,

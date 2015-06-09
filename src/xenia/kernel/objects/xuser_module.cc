@@ -21,7 +21,9 @@ namespace kernel {
 using namespace xe::cpu;
 
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, path), xex_(nullptr), execution_info_ptr_(0) {}
+    : XModule(kernel_state, ModuleType::kUserModule, path),
+      xex_(nullptr),
+      execution_info_ptr_(0) {}
 
 XUserModule::~XUserModule() {
   kernel_state()->memory()->SystemHeapFree(execution_info_ptr_);
@@ -119,6 +121,7 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   if (!xex_module->Load(name_, path_, xex_)) {
     return X_STATUS_UNSUCCESSFUL;
   }
+  processor_module_ = xex_module.get();
   if (!processor->AddModule(std::move(xex_module))) {
     return X_STATUS_UNSUCCESSFUL;
   }

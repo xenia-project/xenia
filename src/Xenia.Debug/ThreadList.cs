@@ -7,11 +7,12 @@ using System.Threading.Tasks;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
-  public class ThreadList : Changeable, IReadOnlyCollection<Thread> {
+  public class ThreadList : Changeable<ThreadList>, IReadOnlyCollection<Thread> {
     private readonly Debugger debugger;
     private readonly List<Thread> threads = new List<Thread>();
 
     public ThreadList(Debugger debugger) {
+      this.self = this;
       this.debugger = debugger;
     }
 

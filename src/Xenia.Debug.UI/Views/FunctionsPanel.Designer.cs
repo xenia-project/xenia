@@ -28,15 +28,17 @@
       this.functionsListBox = new System.Windows.Forms.ListBox();
       this.SuspendLayout();
       // 
-      // moduleComboBox
+      // modulesComboBox
       // 
       this.modulesComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+      this.modulesComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
       this.modulesComboBox.FormattingEnabled = true;
       this.modulesComboBox.Location = new System.Drawing.Point(12, 12);
-      this.modulesComboBox.Name = "moduleComboBox";
+      this.modulesComboBox.Name = "modulesComboBox";
       this.modulesComboBox.Size = new System.Drawing.Size(234, 21);
       this.modulesComboBox.TabIndex = 0;
+      this.modulesComboBox.SelectedIndexChanged += new System.EventHandler(this.modulesComboBox_SelectedIndexChanged);
       // 
       // filterTextBox
       // 
@@ -48,6 +50,7 @@
       this.filterTextBox.Name = "filterTextBox";
       this.filterTextBox.Size = new System.Drawing.Size(234, 20);
       this.filterTextBox.TabIndex = 1;
+      this.filterTextBox.TextChanged += new System.EventHandler(this.filterTextBox_TextChanged);
       // 
       // functionsListBox
       // 
@@ -59,6 +62,7 @@
       this.functionsListBox.Name = "functionsListBox";
       this.functionsListBox.Size = new System.Drawing.Size(234, 524);
       this.functionsListBox.TabIndex = 2;
+      this.functionsListBox.SelectedIndexChanged += new System.EventHandler(this.functionsListBox_SelectedIndexChanged);
       // 
       // FunctionsPanel
       // 
@@ -68,6 +72,7 @@
       this.Controls.Add(this.functionsListBox);
       this.Controls.Add(this.filterTextBox);
       this.Controls.Add(this.modulesComboBox);
+      this.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
       this.Name = "FunctionsPanel";
       this.Text = "Functions";
       this.ResumeLayout(false);

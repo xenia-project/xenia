@@ -19,10 +19,10 @@ namespace Xenia.Debug.UI.Views {
       this.debugger = debugger;
 
       debugger.ThreadList.Changed += UpdateThreadList;
-      UpdateThreadList();
+      UpdateThreadList(debugger.ThreadList);
     }
 
-    private void UpdateThreadList() {
+    private void UpdateThreadList(ThreadList sender) {
       threadsListView.BeginUpdate();
       threadsListView.Items.Clear();
       foreach (Thread thread in debugger.ThreadList) {
