@@ -65,6 +65,7 @@ class Processor {
                               FunctionInfo::BuiltinHandler handler, void* arg0,
                               void* arg1);
 
+  Function* QueryFunction(uint32_t address);
   std::vector<Function*> FindFunctionsWithAddress(uint32_t address);
 
   bool LookupFunctionInfo(uint32_t address, FunctionInfo** out_symbol_info);

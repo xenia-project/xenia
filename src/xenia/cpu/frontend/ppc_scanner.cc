@@ -34,14 +34,9 @@ PPCScanner::PPCScanner(PPCFrontend* frontend) : frontend_(frontend) {}
 PPCScanner::~PPCScanner() {}
 
 bool PPCScanner::IsRestGprLr(uint32_t address) {
-  auto functions = frontend_->processor()->FindFunctionsWithAddress(address);
-  for (auto& function : functions) {
-    if (function->symbol_info()->behavior() ==
-        FunctionBehavior::kEpilogReturn) {
-      return true;
-    }
-  }
-  return false;
+  auto function = frontend_->processor()->QueryFunction(address);
+  return function &&
+         function->symbol_info()->behavior() == FunctionBehavior::kEpilogReturn;
 }
 
 bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {

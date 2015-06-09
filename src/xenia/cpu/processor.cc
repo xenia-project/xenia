@@ -181,6 +181,14 @@ FunctionInfo* Processor::DefineBuiltin(const std::string& name,
   return fn_info;
 }
 
+Function* Processor::QueryFunction(uint32_t address) {
+  auto entry = entry_table_.Get(address);
+  if (!entry) {
+    return nullptr;
+  }
+  return entry->function;
+}
+
 std::vector<Function*> Processor::FindFunctionsWithAddress(uint32_t address) {
   return entry_table_.FindWithAddress(address);
 }
