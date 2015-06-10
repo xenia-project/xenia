@@ -56,9 +56,9 @@ bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
 
   with_debug_info_ = (flags & EMIT_DEBUG_COMMENTS) == EMIT_DEBUG_COMMENTS;
   if (with_debug_info_) {
-    Comment("%s fn %.8X-%.8X %s", symbol_info->module()->name().c_str(),
-            symbol_info->address(), symbol_info->end_address(),
-            symbol_info->name().c_str());
+    CommentFormat("%s fn %.8X-%.8X %s", symbol_info->module()->name().c_str(),
+                  symbol_info->address(), symbol_info->end_address(),
+                  symbol_info->name().c_str());
   }
 
   // Allocate offset list.
@@ -101,8 +101,9 @@ bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
         AnnotateLabel(address, label);
       }
       comment_buffer_.Reset();
+      comment_buffer_.AppendFormat("%.8X %.8X ", address, i.code);
       DisasmPPC(i, &comment_buffer_);
-      Comment("%.8X %.8X %s", address, i.code, comment_buffer_.GetString());
+      Comment(comment_buffer_);
       first_instr = last_instr();
     }
 

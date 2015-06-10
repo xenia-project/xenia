@@ -16,6 +16,9 @@
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/profiling.h"
 
+// Will scribble arena memory to hopefully find use before clears.
+//#define SCRIBBLE_ARENA_ON_RESET
+
 namespace xe {
 namespace cpu {
 namespace hir {
@@ -57,7 +60,7 @@ void HIRBuilder::Reset() {
   locals_.clear();
   block_head_ = block_tail_ = NULL;
   current_block_ = NULL;
-#if XE_DEBUG
+#if SCRIBBLE_ARENA_ON_RESET
   arena_->DebugFill();
 #endif
   arena_->Reset();
@@ -727,18 +730,38 @@ Value* HIRBuilder::CloneValue(Value* source) {
   return value;
 }
 
-void HIRBuilder::Comment(const char* format, ...) {
-  char buffer[1024];
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buffer, 1024, format, args);
-  va_end(args);
-  size_t len = strlen(buffer);
-  if (!len) {
+void HIRBuilder::Comment(const char* value) {
+  size_t length = std::strlen(value);
+  if (!length) {
     return;
   }
-  void* p = arena_->Alloc(len + 1);
-  memcpy(p, buffer, len + 1);
+  void* p = arena_->Alloc(length + 1);
+  std::memcpy(p, value, length + 1);
+  Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
+  i->src1.offset = (uint64_t)p;
+  i->src2.value = i->src3.value = NULL;
+}
+
+void HIRBuilder::Comment(const StringBuffer& value) {
+  if (!value.length()) {
+    return;
+  }
+  void* p = arena_->Alloc(value.length() + 1);
+  std::memcpy(p, value.GetString(), value.length() + 1);
+  Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
+  i->src1.offset = (uint64_t)p;
+  i->src2.value = i->src3.value = NULL;
+}
+
+void HIRBuilder::CommentFormat(const char* format, ...) {
+  static const uint32_t kMaxCommentSize = 1024;
+  char* p = reinterpret_cast<char*>(arena_->Alloc(kMaxCommentSize));
+  va_list args;
+  va_start(args, format);
+  size_t chars_written = vsnprintf(p, kMaxCommentSize - 1, format, args);
+  va_end(args);
+  size_t rewind = kMaxCommentSize - chars_written;
+  arena_->Rewind(rewind);
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
   i->src2.value = i->src3.value = NULL;

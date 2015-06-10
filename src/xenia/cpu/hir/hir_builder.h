@@ -68,7 +68,9 @@ class HIRBuilder {
   // static allocations:
   // Value* AllocStatic(size_t length);
 
-  void Comment(const char* format, ...);
+  void Comment(const char* value);
+  void Comment(const StringBuffer& value);
+  void CommentFormat(const char* format, ...);
 
   void Nop();
 
