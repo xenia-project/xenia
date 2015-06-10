@@ -179,7 +179,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 
     bool Open(const std::wstring& path, bool low_address_space) {
       DWORD file_access = GENERIC_READ | GENERIC_WRITE;
-      DWORD file_share = 0;
+      DWORD file_share = FILE_SHARE_READ;
       DWORD create_mode = CREATE_ALWAYS;
       DWORD mapping_protect = PAGE_READWRITE;
       DWORD view_access = FILE_MAP_READ | FILE_MAP_WRITE;

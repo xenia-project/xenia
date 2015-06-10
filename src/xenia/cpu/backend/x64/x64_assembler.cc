@@ -83,20 +83,18 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   }
 
   // Dump debug data.
-  //auto fn_data = backend_->processor()->debugger()->
   if (FLAGS_disassemble_functions) {
     if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmSource) {
-      //
+      // auto fn_data = backend_->processor()->debugger()->AllocateFunctionData(
+      //    xe::debug::FunctionDisasmData::SizeOfHeader());
     }
   }
 
-  {
-    X64Function* fn = new X64Function(symbol_info);
-    fn->set_debug_info(std::move(debug_info));
-    fn->Setup(machine_code, code_size);
+  X64Function* fn = new X64Function(symbol_info);
+  fn->set_debug_info(std::move(debug_info));
+  fn->Setup(machine_code, code_size);
 
-    *out_function = fn;
-  }
+  *out_function = fn;
 
   return true;
 }
