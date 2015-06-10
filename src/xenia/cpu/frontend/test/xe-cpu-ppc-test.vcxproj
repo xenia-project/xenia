@@ -227,6 +227,7 @@
     <None Include="instr_vspltish.s" />
     <None Include="instr_vspltisw.s" />
     <None Include="instr_vspltw.s" />
+    <None Include="instr_vsr.s" />
     <None Include="instr_vsubshs.s" />
     <None Include="instr_vsubuhm.s" />
     <None Include="instr_vupkd3d128.s" />

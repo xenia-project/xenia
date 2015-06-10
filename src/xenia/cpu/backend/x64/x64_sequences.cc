@@ -4568,11 +4568,11 @@ EMITTER(SHR_V128, MATCH(I<OPCODE_SHR, V128<>, V128<>, I8<>>)) {
     uint8_t shamt = src2 & 0x7;
     alignas(16) vec128_t value;
     _mm_store_si128(reinterpret_cast<__m128i*>(&value), src1);
-    value.u8[0 ^ 0x3] = value.u8[0 ^ 0x3] >> shamt;
     for (int i = 15; i > 0; --i) {
       value.u8[i ^ 0x3] = (value.u8[i ^ 0x3] >> shamt) |
                           (value.u8[(i - 1) ^ 0x3] << (8 - shamt));
     }
+    value.u8[0 ^ 0x3] = value.u8[0 ^ 0x3] >> shamt;
     return _mm_load_si128(reinterpret_cast<__m128i*>(&value));
   }
 };
