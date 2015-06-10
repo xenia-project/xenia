@@ -37,6 +37,7 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
 
+    # Launch the 'Developer Command Prompt for VS2015' command environment
     > git clone https://github.com/benvanik/xenia.git
     > cd xenia
     > xb setup
@@ -51,8 +52,8 @@ update gyp files/etc.
 ## Building
 
 See [building](docs/building.md) for setup and information about the
-`xenia-build` script. When writing code, check the [style guide](docs/style_guide.md)
-and be sure to clang-format!
+`xb` script. When writing code, check the [style guide](docs/style_guide.md)
+and be sure to run clang-format!
 
 ## Contributors Wanted!
 
@@ -81,9 +82,9 @@ Come on people. Jeez.
 
 ### What kind of machine do I need to run this?
 
-You'll need 64-bit Windows 8 with a processor supporting at least AVX2 - in
-other words, a Haswell. In general if you have to ask if your machine is good
-enough to run games at a decent speed the answer is no.
+You'll need 64-bit Windows 8.1 or 10 with a processor supporting at least AVX -
+in other words, Intel Sandy Bridge or newer. In general if you have to ask
+if your machine is good enough to run games at a decent speed the answer is no.
 
 ### What about Linux/OSX?
 
@@ -93,8 +94,9 @@ until Apple supports OpenGL 4.3 or higher.
 
 ### What kind of GPU do I need?
 
-OpenGL 4.5 support and drivers are required. To get full speed and compatibility
-Vulkan/D3D12 may eventually be required.
+OpenGL 4.5 support and drivers are required. This includes Nvidia's GeForce 400
+series and above, and AMD's 5000 series and above.
+To get full speed and compatibility Vulkan/D3D12 may eventually be required.
 
 ### Have you heard of LLVM/asmjit/jitasm/luajit/etc?
 
@@ -139,19 +141,9 @@ If you really do have a better way of doing something and can show it, do so.
 
 Here's a short list of common ones:
 
-* 'Why Python 2.7? 3 is awesome!' -- agreed, but gyp needs 2.7.
-* 'Why this GYP stuff?' -- CMake sucks, managing Xcode projects by hand sucks,
-and for the large cross-platform project this will become I'm not interested
-in keeping all the platforms building any other way.
-* 'Why this xenia-build.py stuff?' -- I like it, it helps me. If you want to
+* 'Why Python 2.7? 3 is awesome!' -- agreed, but git-clang-format needs 2.7.
+* 'Why this xb stuff?' -- I like it, it helps me. If you want to
 manually execute commands have fun, nothing is stopping you.
 * 'Why not just take the code from project X?' -- the point of this project
 is to build something better than previous emulator projects, and learn while
 doing it. The easy way is almost never the best way, and is never as fun.
-
-## Known Issues
-
-### Use of stdout
-
-Currently everything is traced to stdout, which is slow and silly. A better
-tracing format is being worked on.
