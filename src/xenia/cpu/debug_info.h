@@ -71,6 +71,8 @@ class DebugInfo {
   const char* machine_code_disasm() const { return machine_code_disasm_; }
   void set_machine_code_disasm(char* value) { machine_code_disasm_ = value; }
 
+  size_t source_map_count() const { return source_map_count_; }
+  SourceMapEntry* source_map_entries() const { return source_map_entries_; }
   void InitializeSourceMap(size_t source_map_count, SourceMapEntry* source_map);
   SourceMapEntry* LookupSourceOffset(uint32_t offset);
   SourceMapEntry* LookupHIROffset(uint32_t offset);
@@ -90,7 +92,7 @@ class DebugInfo {
   char* machine_code_disasm_;
 
   size_t source_map_count_;
-  SourceMapEntry* source_map_;
+  SourceMapEntry* source_map_entries_;
 };
 
 }  // namespace cpu

@@ -101,6 +101,11 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
 
 void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
                                    size_t code_size, StringBuffer* str) {
+  auto source_map_entries = debug_info->source_map_entries();
+  auto source_map_count = debug_info->source_map_count();
+  auto source_map_index = 0;
+  uint32_t next_code_offset = source_map_entries[0].code_offset;
+
   BE::DISASM disasm = {0};
   disasm.Archi = 64;
   disasm.Options = BE::Tabulation + BE::MasmSyntax + BE::PrefixedNumeral;
@@ -109,24 +114,23 @@ void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
   uint64_t prev_source_offset = 0;
   while (disasm.EIP < eip_end) {
     // Look up source offset.
-    auto map_entry = debug_info->LookupCodeOffset(
-        static_cast<uint32_t>(disasm.EIP - (BE::UIntPtr)machine_code));
-    if (map_entry) {
-      if (map_entry->source_offset == prev_source_offset) {
-        str->Append("         ");
-      } else {
-        str->AppendFormat("%.8X ", map_entry->source_offset);
-        prev_source_offset = map_entry->source_offset;
-      }
+    auto code_offset =
+        static_cast<uint32_t>(disasm.EIP - (BE::UIntPtr)machine_code);
+    if (code_offset >= next_code_offset &&
+        source_map_index < source_map_count) {
+      auto& source_map_entry = source_map_entries[source_map_index];
+      str->AppendFormat("%.8X ", source_map_entry.source_offset);
+      ++source_map_index;
+      next_code_offset = source_map_entries[source_map_index].code_offset;
     } else {
-      str->Append("?        ");
+      str->Append("         ");
     }
 
     size_t len = BE::Disasm(&disasm);
     if (len == BE::UNKNOWN_OPCODE) {
       break;
     }
-    str->AppendFormat("%p  %s\n", disasm.EIP, disasm.CompleteInstr);
+    str->AppendFormat("%.8X  %s\n", uint32_t(disasm.EIP), disasm.CompleteInstr);
     disasm.EIP += len;
   }
 }
