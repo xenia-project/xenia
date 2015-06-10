@@ -145,6 +145,10 @@ dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
   X_STATUS result =
       kernel_state()->object_table()->DuplicateHandle(handle, &new_handle);
 
+  if (new_handle_ptr) {
+    *new_handle_ptr = new_handle;
+  }
+
   if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
     // Always close the source object.
     kernel_state()->object_table()->RemoveHandle(handle);
