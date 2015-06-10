@@ -81,11 +81,9 @@ class Debugger {
   uint8_t* AllocateFunctionData(size_t size);
   uint8_t* AllocateFunctionTraceData(size_t size);
 
-  int SuspendAllThreads(uint32_t timeout_ms = UINT_MAX);
-  int ResumeThread(uint32_t thread_id);
-  int ResumeAllThreads(bool force = false);
-
-  void ForEachThread(std::function<void(cpu::ThreadState*)> callback);
+  bool SuspendAllThreads();
+  bool ResumeThread(uint32_t thread_id);
+  bool ResumeAllThreads();
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
@@ -120,9 +118,6 @@ class Debugger {
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_file_;
   std::wstring functions_trace_path_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_trace_file_;
-
-  std::mutex threads_lock_;
-  std::unordered_map<uint32_t, cpu::ThreadState*> threads_;
 
   std::mutex breakpoints_lock_;
   std::multimap<uint32_t, Breakpoint*> breakpoints_;
