@@ -121,6 +121,7 @@
     <None Include="instr_vmsum4fp128.s" />
     <None Include="jumptable_constants.s" />
     <None Include="instr_vsr.s" />
+    <None Include="instr_vsl.s" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

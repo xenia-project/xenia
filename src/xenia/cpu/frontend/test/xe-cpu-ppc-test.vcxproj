@@ -217,6 +217,7 @@
     <None Include="instr_vrfin.s" />
     <None Include="instr_vrlimi128.s" />
     <None Include="instr_vsel.s" />
+    <None Include="instr_vsl.s" />
     <None Include="instr_vslb.s" />
     <None Include="instr_vsldoi.s" />
     <None Include="instr_vslh.s" />

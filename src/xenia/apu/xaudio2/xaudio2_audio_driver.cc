@@ -10,6 +10,7 @@
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
 #include "xenia/apu/apu-private.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 
@@ -35,15 +36,15 @@ class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
 };
 
 XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait)
-    : audio_(0),
-      mastering_voice_(0),
-      pcm_voice_(0),
+    : audio_(nullptr),
+      mastering_voice_(nullptr),
+      pcm_voice_(nullptr),
       wait_handle_(wait),
-      voice_callback_(0),
+      voice_callback_(nullptr),
       current_frame_(0),
       AudioDriver(emulator) {}
 
-XAudio2AudioDriver::~XAudio2AudioDriver() {}
+XAudio2AudioDriver::~XAudio2AudioDriver() = default;
 
 const DWORD ChannelMasks[] = {
     0,  // TODO: fixme
@@ -102,9 +103,10 @@ void XAudio2AudioDriver::Initialize() {
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
   waveformat.dwChannelMask = ChannelMasks[waveformat.Format.nChannels];
 
-  hr = audio_->CreateSourceVoice(&pcm_voice_, &waveformat.Format,
-                                 0, // XAUDIO2_VOICE_NOSRC | XAUDIO2_VOICE_NOPITCH,
-                                 XAUDIO2_DEFAULT_FREQ_RATIO, voice_callback_);
+  hr = audio_->CreateSourceVoice(
+      &pcm_voice_, &waveformat.Format,
+      0,  // XAUDIO2_VOICE_NOSRC | XAUDIO2_VOICE_NOPITCH,
+      XAUDIO2_MAX_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
     assert_always();
@@ -163,6 +165,10 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   }
 
   current_frame_ = (current_frame_ + 1) % frame_count_;
+
+  // Update playback ratio to our time scalar.
+  // This will keep audio in sync with the game clock.
+  pcm_voice_->SetFrequencyRatio(float(xe::Clock::guest_time_scalar()));
 
   XAUDIO2_VOICE_STATE state2;
   pcm_voice_->GetState(&state2, XAUDIO2_VOICE_NOSAMPLESPLAYED);
