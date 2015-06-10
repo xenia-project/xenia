@@ -28,6 +28,7 @@ class Arena {
   T* Alloc() {
     return reinterpret_cast<T*>(Alloc(sizeof(T)));
   }
+  void Rewind(size_t size);
 
   void* CloneContents();
 

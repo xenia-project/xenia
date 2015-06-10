@@ -12,7 +12,6 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
 
 namespace xe {
 
@@ -21,7 +20,7 @@ class StringBuffer {
   StringBuffer(size_t initial_capacity = 0);
   ~StringBuffer();
 
-  size_t length() const { return buffer_.size(); }
+  size_t length() const { return buffer_offset_; }
 
   void Reset();
 
@@ -39,7 +38,9 @@ class StringBuffer {
  private:
   void Grow(size_t additional_length);
 
-  std::vector<char> buffer_;
+  char* buffer_;
+  size_t buffer_offset_;
+  size_t buffer_capacity_;
 };
 
 }  // namespace xe

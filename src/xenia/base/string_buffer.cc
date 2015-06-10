@@ -12,24 +12,29 @@
 #include <algorithm>
 #include <cstdarg>
 
+#include "xenia/base/math.h"
+
 namespace xe {
 
-StringBuffer::StringBuffer(size_t initial_capacity) {
-  buffer_.reserve(std::max(initial_capacity, static_cast<size_t>(1024)));
+StringBuffer::StringBuffer(size_t initial_capacity) : buffer_offset_(0) {
+  buffer_capacity_ = std::max(initial_capacity, static_cast<size_t>(16 * 1024));
+  buffer_ = reinterpret_cast<char*>(malloc(buffer_capacity_));
 }
 
-StringBuffer::~StringBuffer() = default;
+StringBuffer::~StringBuffer() { free(buffer_); }
 
-void StringBuffer::Reset() { buffer_.resize(0); }
+void StringBuffer::Reset() { buffer_offset_ = 0; }
 
 void StringBuffer::Grow(size_t additional_length) {
-  size_t old_capacity = buffer_.capacity();
-  if (buffer_.size() + additional_length <= old_capacity) {
+  if (buffer_offset_ + additional_length <= buffer_capacity_) {
     return;
   }
+  size_t old_capacity = buffer_capacity_;
   size_t new_capacity =
-      std::max(buffer_.size() + additional_length, old_capacity * 2);
-  buffer_.reserve(new_capacity);
+      std::max(xe::round_up(buffer_offset_ + additional_length, 16 * 1024),
+               old_capacity * 2);
+  buffer_ = reinterpret_cast<char*>(realloc(buffer_, new_capacity));
+  buffer_capacity_ = new_capacity;
 }
 
 void StringBuffer::Append(char c) {
@@ -53,29 +58,25 @@ void StringBuffer::AppendFormat(const char* format, ...) {
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
   int length = vsnprintf(nullptr, 0, format, args);
-  auto offset = buffer_.size();
   Grow(length + 1);
-  buffer_.resize(buffer_.size() + length + 1);
-  vsnprintf(buffer_.data() + offset, buffer_.capacity(), format, args);
-  buffer_[buffer_.size() - 1] = 0;
-  buffer_.resize(buffer_.size() - 1);
+  vsnprintf(buffer_ + buffer_offset_, buffer_capacity_, format, args);
+  buffer_offset_ += length;
+  buffer_[buffer_offset_] = 0;
 }
 
 void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
-  auto offset = buffer_.size();
   Grow(length + 1);
-  buffer_.resize(buffer_.size() + length + 1);
-  memcpy(buffer_.data() + offset, buffer, length);
-  buffer_[buffer_.size() - 1] = 0;
-  buffer_.resize(buffer_.size() - 1);
+  memcpy(buffer_ + buffer_offset_, buffer, length);
+  buffer_offset_ += length;
+  buffer_[buffer_offset_] = 0;
 }
 
-const char* StringBuffer::GetString() const { return buffer_.data(); }
+const char* StringBuffer::GetString() const { return buffer_; }
 
 std::string StringBuffer::to_string() {
-  return std::string(buffer_.data(), buffer_.size());
+  return std::string(buffer_, buffer_offset_);
 }
 
-char* StringBuffer::ToString() { return strdup(buffer_.data()); }
+char* StringBuffer::ToString() { return strdup(buffer_); }
 
 }  // namespace xe

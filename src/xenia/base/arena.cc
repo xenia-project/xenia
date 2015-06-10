@@ -65,6 +65,10 @@ void* Arena::Alloc(size_t size) {
   return p;
 }
 
+void Arena::Rewind(size_t size) {
+  active_chunk_->offset -= size;
+}
+
 void* Arena::CloneContents() {
   size_t total_length = 0;
   Chunk* chunk = head_chunk_;
