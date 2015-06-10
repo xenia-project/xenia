@@ -27,6 +27,7 @@ class ObjectTable {
   ~ObjectTable();
 
   X_STATUS AddHandle(XObject* object, X_HANDLE* out_handle);
+  X_STATUS DuplicateHandle(X_HANDLE orig, X_HANDLE* out_handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
   template <typename T>
   object_ref<T> LookupObject(X_HANDLE handle) {

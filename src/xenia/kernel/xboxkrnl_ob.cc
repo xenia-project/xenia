@@ -133,55 +133,35 @@ SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL NtDuplicateObject_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
-  uint32_t new_handle_ptr = SHIM_GET_ARG_32(1);
-  uint32_t options = SHIM_GET_ARG_32(2);
-
-  XELOGD("NtDuplicateObject(%.8X, %.8X, %.8X)", handle, new_handle_ptr,
-         options);
-
+dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
+                                 dword_t options) {
   // NOTE: new_handle_ptr can be zero to just close a handle.
   // NOTE: this function seems to be used to get the current thread handle
   //       (passed handle=-2).
-  // Because this function is not like the NT version (with cross process
-  // mumble), my guess is that it's just use for getting real handles.
-  // So we just fake it and properly reference count but not actually make
-  // different handles.
+  // This function actually just creates a new handle to the same object.
+  // Most games use it to get real handles to the current thread or whatever.
 
-  X_STATUS result = X_STATUS_SUCCESS;
+  X_HANDLE new_handle = X_INVALID_HANDLE_VALUE;
+  X_STATUS result =
+      kernel_state()->object_table()->DuplicateHandle(handle, &new_handle);
 
-  auto object = kernel_state->object_table()->LookupObject<XObject>(handle);
-  if (object) {
-    object->Retain();
-    object->RetainHandle();
-    uint32_t new_handle = object->handle();
-    if (new_handle_ptr) {
-      SHIM_SET_MEM_32(new_handle_ptr, new_handle);
-    }
-    if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
-      // Always close the source object.
-      kernel_state->object_table()->RemoveHandle(handle);
-    }
-  } else {
-    result = X_STATUS_INVALID_HANDLE;
+  if (new_handle_ptr) {
+    *new_handle_ptr = new_handle;
   }
 
-  SHIM_SET_RETURN_32(result);
+  if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
+    // Always close the source object.
+    kernel_state()->object_table()->RemoveHandle(handle);
+  }
+
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtDuplicateObject, ExportTag::kImplemented);
 
-SHIM_CALL NtClose_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
-
-  XELOGD("NtClose(%.8X)", handle);
-
-  X_STATUS result = X_STATUS_INVALID_HANDLE;
-
-  result = kernel_state->object_table()->RemoveHandle(handle);
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t NtClose(dword_t handle) {
+  return kernel_state()->object_table()->RemoveHandle(handle);
 }
+DECLARE_XBOXKRNL_EXPORT(NtClose, ExportTag::kImplemented);
 
 }  // namespace kernel
 }  // namespace xe
@@ -191,6 +171,4 @@ void xe::kernel::xboxkrnl::RegisterObExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", ObOpenObjectByName, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObReferenceObjectByHandle, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", ObDereferenceObject, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtDuplicateObject, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtClose, state);
 }
