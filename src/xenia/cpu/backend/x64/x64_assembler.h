@@ -46,6 +46,7 @@ class X64Assembler : public Assembler {
   X64Backend* x64_backend_;
   std::unique_ptr<X64Emitter> emitter_;
   std::unique_ptr<XbyakAllocator> allocator_;
+  uintptr_t capstone_handle_;
 
   StringBuffer string_buffer_;
 };

@@ -125,6 +125,12 @@
     <Compile Include="Utilities\FileMapping.cs" />
     <Compile Include="Utilities\TaskExtensions.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Xenia.Debug.Native\Xenia.Debug.Native.vcxproj">
+      <Project>{5ae85790-f2ea-4077-8953-825e9c0aade9}</Project>
+      <Name>Xenia.Debug.Native</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

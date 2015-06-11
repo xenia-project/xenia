@@ -25,3 +25,6 @@
 [submodule "third_party/libav-bin"]
 	path = third_party/libav-bin
 	url = https://github.com/DrChat/xenia-libav-bin.git
+[submodule "third_party/capstone"]
+	path = third_party/capstone
+	url = https://github.com/xenia-project/capstone.git

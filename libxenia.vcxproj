@@ -204,6 +204,61 @@
     <ClCompile Include="src\xenia\ui\win32\win32_menu_item.cc" />
     <ClCompile Include="src\xenia\ui\win32\win32_window.cc" />
     <ClCompile Include="third_party\beaengine\beaengineSources\BeaEngine.c" />
+    <ClCompile Include="third_party\capstone\arch\X86\X86Disassembler.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86DisassemblerDecoder.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86IntelInstPrinter.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86Mapping.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86Module.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\cs.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\MCInst.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\MCInstrDesc.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\MCRegisterInfo.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\SStream.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\utils.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">CompileAsCpp</CompileAs>
+    </ClCompile>
     <ClCompile Include="third_party\mspack\lzxd.c" />
     <ClCompile Include="third_party\xxhash\xxhash.c" />
   </ItemGroup>
@@ -412,6 +467,26 @@
     <ClInclude Include="third_party\beaengine\include\beaengine\BeaEngine.h" />
     <ClInclude Include="third_party\beaengine\include\beaengine\export.h" />
     <ClInclude Include="third_party\beaengine\include\beaengine\macros.h" />
+    <ClInclude Include="third_party\capstone\arch\X86\X86BaseInfo.h" />
+    <ClInclude Include="third_party\capstone\arch\X86\X86Disassembler.h" />
+    <ClInclude Include="third_party\capstone\arch\X86\X86DisassemblerDecoder.h" />
+    <ClInclude Include="third_party\capstone\arch\X86\X86DisassemblerDecoderCommon.h" />
+    <ClInclude Include="third_party\capstone\arch\X86\X86InstPrinter.h" />
+    <ClInclude Include="third_party\capstone\arch\X86\X86Mapping.h" />
+    <ClInclude Include="third_party\capstone\cs_priv.h" />
+    <ClInclude Include="third_party\capstone\include\capstone.h" />
+    <ClInclude Include="third_party\capstone\include\platform.h" />
+    <ClInclude Include="third_party\capstone\include\x86.h" />
+    <ClInclude Include="third_party\capstone\LEB128.h" />
+    <ClInclude Include="third_party\capstone\MathExtras.h" />
+    <ClInclude Include="third_party\capstone\MCDisassembler.h" />
+    <ClInclude Include="third_party\capstone\MCFixedLenDisassembler.h" />
+    <ClInclude Include="third_party\capstone\MCInst.h" />
+    <ClInclude Include="third_party\capstone\MCInstrDesc.h" />
+    <ClInclude Include="third_party\capstone\MCRegisterInfo.h" />
+    <ClInclude Include="third_party\capstone\myinttypes.h" />
+    <ClInclude Include="third_party\capstone\SStream.h" />
+    <ClInclude Include="third_party\capstone\utils.h" />
     <ClInclude Include="third_party\flatbuffers\include\flatbuffers\flatbuffers.h" />
     <ClInclude Include="third_party\llvm\include\llvm\ADT\BitVector.h" />
     <ClInclude Include="third_party\llvm\include\llvm\Support\Compiler.h" />
@@ -444,6 +519,15 @@
     <None Include="src\xenia\kernel\util\ordinal_table_pre.inc" />
     <None Include="src\xenia\kernel\xam_table.inc" />
     <None Include="src\xenia\kernel\xboxkrnl_table.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter1.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter1_reduce.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter_reduce.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenDisassemblerTables.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenDisassemblerTables_reduce.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenInstrInfo.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenInstrInfo_reduce.inc" />
+    <None Include="third_party\capstone\arch\X86\X86GenRegisterInfo.inc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{0CE149F6-41C3-4224-9E57-C02E8C7CD312}</ProjectGuid>
@@ -502,7 +586,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -518,8 +602,8 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -537,8 +621,8 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

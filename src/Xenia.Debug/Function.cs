@@ -113,7 +113,17 @@ namespace Xenia.Debug {
         DisasmMachineCode = DisasmMachineCode.Replace("\n", "\r\n");
       }
 
+      DisassembleX64();
+
       OnChanged();
+    }
+
+    private static Native.X64Disassembler disassembler = new Native.X64Disassembler();
+
+    private void DisassembleX64() {
+      var str = disassembler.GenerateString(IntPtr.Zero, 0);
+      System.Diagnostics.Debug.WriteLine(str);
+      disassembler.Dispose();
     }
   }
 }

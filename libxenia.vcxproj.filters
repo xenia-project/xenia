@@ -149,6 +149,18 @@
     <Filter Include="third_party\xbyak\xbyak">
       <UniqueIdentifier>{d1405e1d-d9b0-4d8d-89ce-29d43698c415}</UniqueIdentifier>
     </Filter>
+    <Filter Include="third_party\capstone">
+      <UniqueIdentifier>{49d9a353-9cc1-4ca3-95a1-9db2bd2d0eca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\capstone\include">
+      <UniqueIdentifier>{56f75ad9-d903-475a-a68c-0f7892e24808}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\capstone\arch">
+      <UniqueIdentifier>{23674cd7-7387-4947-baa5-5216f6a08830}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\capstone\arch\X86">
+      <UniqueIdentifier>{00596876-a323-4570-a5fb-71343024d429}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\emulator.cc">
@@ -723,6 +735,39 @@
     </ClCompile>
     <ClCompile Include="src\xenia\kernel\xam_avatar.cc">
       <Filter>src\xenia\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86Disassembler.c">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86DisassemblerDecoder.c">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86IntelInstPrinter.c">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86Mapping.c">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\arch\X86\X86Module.c">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\cs.c">
+      <Filter>third_party\capstone</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\MCInst.c">
+      <Filter>third_party\capstone</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\MCInstrDesc.c">
+      <Filter>third_party\capstone</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\MCRegisterInfo.c">
+      <Filter>third_party\capstone</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\SStream.c">
+      <Filter>third_party\capstone</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\capstone\utils.c">
+      <Filter>third_party\capstone</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\gpu\tracing.cc">
       <Filter>src\xenia\gpu</Filter>
@@ -1386,6 +1431,66 @@
     <ClInclude Include="src\xenia\base\ring_buffer.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\capstone\include\capstone.h">
+      <Filter>third_party\capstone\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\include\platform.h">
+      <Filter>third_party\capstone\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\include\x86.h">
+      <Filter>third_party\capstone\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\arch\X86\X86BaseInfo.h">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\arch\X86\X86Disassembler.h">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\arch\X86\X86DisassemblerDecoder.h">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\arch\X86\X86DisassemblerDecoderCommon.h">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\arch\X86\X86InstPrinter.h">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\arch\X86\X86Mapping.h">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\cs_priv.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\LEB128.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\MathExtras.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\MCDisassembler.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\MCFixedLenDisassembler.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\MCInst.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\MCInstrDesc.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\MCRegisterInfo.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\myinttypes.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\SStream.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\capstone\utils.h">
+      <Filter>third_party\capstone</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl">
@@ -1432,6 +1537,33 @@
     </None>
     <None Include="src\xenia\debug\proto\threads.fbs">
       <Filter>src\xenia\debug\proto</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter_reduce.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter1.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenAsmWriter1_reduce.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenDisassemblerTables.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenDisassemblerTables_reduce.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenInstrInfo.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenInstrInfo_reduce.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
+    </None>
+    <None Include="third_party\capstone\arch\X86\X86GenRegisterInfo.inc">
+      <Filter>third_party\capstone\arch\X86</Filter>
     </None>
   </ItemGroup>
 </Project>
