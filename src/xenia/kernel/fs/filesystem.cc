@@ -76,15 +76,15 @@ int FileSystem::InitializeFromPath(fs::FileSystemType type,
 
       // Register the local directory in the virtual filesystem.
       int result_code = RegisterHostPathDevice(
-          "\\Device\\Harddisk1\\Partition0", parent_path, true);
+          "\\Device\\Harddisk0\\Partition0", parent_path, true);
       if (result_code) {
         XELOGE("Unable to mount local directory");
         return result_code;
       }
 
       // Create symlinks to the device.
-      CreateSymbolicLink("game:", "\\Device\\Harddisk1\\Partition0");
-      CreateSymbolicLink("d:", "\\Device\\Harddisk1\\Partition0");
+      CreateSymbolicLink("game:", "\\Device\\Harddisk0\\Partition0");
+      CreateSymbolicLink("d:", "\\Device\\Harddisk0\\Partition0");
       break;
     }
     case FileSystemType::DISC_IMAGE: {
