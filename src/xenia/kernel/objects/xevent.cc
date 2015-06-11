@@ -7,28 +7,29 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
 #include "xenia/kernel/objects/xevent.h"
 
 namespace xe {
 namespace kernel {
 
 XEvent::XEvent(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeEvent), handle_(NULL) {}
+    : XObject(kernel_state, kTypeEvent), native_handle_(NULL) {}
 
 XEvent::~XEvent() {
-  if (handle_) {
-    CloseHandle(handle_);
+  if (native_handle_) {
+    CloseHandle(native_handle_);
   }
 }
 
 void XEvent::Initialize(bool manual_reset, bool initial_state) {
-  assert_null(handle_);
+  assert_null(native_handle_);
 
-  handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
+  native_handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
 }
 
 void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
-  assert_null(handle_);
+  assert_null(native_handle_);
 
   bool manual_reset;
   switch ((header.type_flags >> 24) & 0xFF) {
@@ -45,20 +46,20 @@ void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
 
   bool initial_state = header.signal_state ? true : false;
 
-  handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
+  native_handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
 }
 
 int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
-  return SetEvent(handle_) ? 1 : 0;
+  return SetEvent(native_handle_) ? 1 : 0;
 }
 
 int32_t XEvent::Pulse(uint32_t priority_increment, bool wait) {
-  return PulseEvent(handle_) ? 1 : 0;
+  return PulseEvent(native_handle_) ? 1 : 0;
 }
 
-int32_t XEvent::Reset() { return ResetEvent(handle_) ? 1 : 0; }
+int32_t XEvent::Reset() { return ResetEvent(native_handle_) ? 1 : 0; }
 
-void XEvent::Clear() { ResetEvent(handle_); }
+void XEvent::Clear() { ResetEvent(native_handle_); }
 
 }  // namespace kernel
 }  // namespace xe

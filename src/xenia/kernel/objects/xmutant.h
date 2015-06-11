@@ -26,10 +26,10 @@ class XMutant : public XObject {
 
   X_STATUS ReleaseMutant(uint32_t priority_increment, bool abandon, bool wait);
 
-  virtual void* GetWaitHandle() { return handle_; }
+  virtual void* GetWaitHandle() { return native_handle_; }
 
  private:
-  HANDLE handle_;
+  HANDLE native_handle_;
 };
 
 }  // namespace kernel

@@ -17,16 +17,16 @@ namespace xe {
 namespace kernel {
 
 XTimer::XTimer(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeTimer), handle_(NULL) {}
+    : XObject(kernel_state, kTypeTimer), native_handle_(NULL) {}
 
 XTimer::~XTimer() {
-  if (handle_) {
-    CloseHandle(handle_);
+  if (native_handle_) {
+    CloseHandle(native_handle_);
   }
 }
 
 void XTimer::Initialize(uint32_t timer_type) {
-  assert_null(handle_);
+  assert_null(native_handle_);
 
   bool manual_reset = false;
   switch (timer_type) {
@@ -41,7 +41,7 @@ void XTimer::Initialize(uint32_t timer_type) {
       break;
   }
 
-  handle_ = CreateWaitableTimer(NULL, manual_reset, NULL);
+  native_handle_ = CreateWaitableTimer(NULL, manual_reset, NULL);
 }
 
 X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
@@ -56,7 +56,7 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
   LARGE_INTEGER due_time_li;
   due_time_li.QuadPart = due_time;
   BOOL result =
-      SetWaitableTimer(handle_, &due_time_li, period_ms,
+      SetWaitableTimer(native_handle_, &due_time_li, period_ms,
                        routine ? (PTIMERAPCROUTINE)CompletionRoutine : NULL,
                        this, resume ? TRUE : FALSE);
 
@@ -81,8 +81,8 @@ void XTimer::CompletionRoutine(XTimer* timer, DWORD timer_low,
 }
 
 X_STATUS XTimer::Cancel() {
-  return CancelWaitableTimer(handle_) == 0 ? X_STATUS_SUCCESS
-                                           : X_STATUS_UNSUCCESSFUL;
+  return CancelWaitableTimer(native_handle_) == 0 ? X_STATUS_SUCCESS
+                                                  : X_STATUS_UNSUCCESSFUL;
 }
 
 }  // namespace kernel

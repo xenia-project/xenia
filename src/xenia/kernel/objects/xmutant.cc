@@ -13,22 +13,22 @@ namespace xe {
 namespace kernel {
 
 XMutant::XMutant(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeMutant), handle_(NULL) {}
+    : XObject(kernel_state, kTypeMutant), native_handle_(NULL) {}
 
 XMutant::~XMutant() {
-  if (handle_) {
-    CloseHandle(handle_);
+  if (native_handle_) {
+    CloseHandle(native_handle_);
   }
 }
 
 void XMutant::Initialize(bool initial_owner) {
-  assert_null(handle_);
+  assert_null(native_handle_);
 
-  handle_ = CreateMutex(NULL, initial_owner ? TRUE : FALSE, NULL);
+  native_handle_ = CreateMutex(NULL, initial_owner ? TRUE : FALSE, NULL);
 }
 
 void XMutant::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
-  assert_null(handle_);
+  assert_null(native_handle_);
 
   // Haven't seen this yet, but it's possible.
   assert_always();
@@ -38,7 +38,7 @@ X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon,
                                 bool wait) {
   // TODO(benvanik): abandoning.
   assert_false(abandon);
-  BOOL result = ReleaseMutex(handle_);
+  BOOL result = ReleaseMutex(native_handle_);
   if (result) {
     return X_STATUS_SUCCESS;
   } else {

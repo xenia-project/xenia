@@ -28,10 +28,10 @@ class XTimer : public XObject {
                     uint32_t routine_arg, bool resume);
   X_STATUS Cancel();
 
-  virtual void* GetWaitHandle() { return handle_; }
+  virtual void* GetWaitHandle() { return native_handle_; }
 
  private:
-  HANDLE handle_;
+  HANDLE native_handle_;
 
   uint32_t current_routine_;
   uint32_t current_routine_arg_;

@@ -29,10 +29,10 @@ class XEvent : public XObject {
   int32_t Reset();
   void Clear();
 
-  virtual void* GetWaitHandle() { return handle_; }
+  virtual void* GetWaitHandle() { return native_handle_; }
 
  private:
-  HANDLE handle_;
+  HANDLE native_handle_;
 };
 
 }  // namespace kernel
