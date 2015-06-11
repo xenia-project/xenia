@@ -724,6 +724,9 @@
     <ClCompile Include="src\xenia\kernel\xam_avatar.cc">
       <Filter>src\xenia\kernel</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\gpu\tracing.cc">
+      <Filter>src\xenia\gpu</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">

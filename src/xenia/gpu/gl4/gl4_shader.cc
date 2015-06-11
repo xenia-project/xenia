@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/gl4/gl4_shader.h"
 
+#include "xenia/base/fs.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"
@@ -357,7 +358,14 @@ bool GL4Shader::CompileProgram(std::string source) {
   snprintf(file_name, xe::countof(file_name), "%s/gl4_gen_%.16llX.%s",
            base_path, data_hash_,
            shader_type_ == ShaderType::kVertex ? "vert" : "frag");
-  if (FLAGS_dump_shaders.size()) {
+  if (!FLAGS_dump_shaders.empty()) {
+    // Ensure shader dump path exists.
+    auto dump_shaders_path = xe::to_wstring(FLAGS_dump_shaders);
+    if (!dump_shaders_path.empty()) {
+      dump_shaders_path = xe::to_absolute_path(dump_shaders_path);
+      xe::fs::CreateFolder(dump_shaders_path);
+    }
+
     // Note that we put the translated source first so we get good line numbers.
     FILE* f = fopen(file_name, "w");
     fprintf(f, translated_disassembly_.c_str());
@@ -430,7 +438,7 @@ bool GL4Shader::CompileProgram(std::string source) {
     }
 
     // Append to shader dump.
-    if (FLAGS_dump_shaders.size()) {
+    if (!FLAGS_dump_shaders.empty()) {
       if (disasm_start) {
         FILE* f = fopen(file_name, "a");
         fprintf(f, "\n\n/*\n");

@@ -50,6 +50,7 @@ std::wstring find_name_from_path(const std::wstring& path);
 
 // Get parent path of the given directory or filename.
 std::string find_base_path(const std::string& path);
+std::wstring find_base_path(const std::wstring& path);
 
 }  // namespace xe
 

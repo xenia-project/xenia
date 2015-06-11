@@ -221,6 +221,7 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t> buffer) {
   std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
   auto package_path = ResolvePackagePath(data);
+  xe::fs::CreateFolder(package_path);
   if (xe::fs::PathExists(package_path)) {
     auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
     auto file = _wfopen(thumb_path.c_str(), L"wb");

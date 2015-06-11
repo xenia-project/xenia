@@ -196,4 +196,20 @@ std::string find_base_path(const std::string& path) {
   }
 }
 
+std::wstring find_base_path(const std::wstring& path) {
+  auto last_slash = path.find_last_of('\\');
+  if (last_slash == std::wstring::npos) {
+    return path;
+  } else if (last_slash == path.length() - 1) {
+    auto prev_slash = path.find_last_of('\\', last_slash - 1);
+    if (prev_slash == std::wstring::npos) {
+      return L"";
+    } else {
+      return path.substr(0, prev_slash + 1);
+    }
+  } else {
+    return path.substr(0, last_slash + 1);
+  }
+}
+
 }  // namespace xe

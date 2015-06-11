@@ -113,6 +113,7 @@
     <ClCompile Include="src\xenia\gpu\sampler_info.cc" />
     <ClCompile Include="src\xenia\gpu\shader.cc" />
     <ClCompile Include="src\xenia\gpu\texture_info.cc" />
+    <ClCompile Include="src\xenia\gpu\tracing.cc" />
     <ClCompile Include="src\xenia\gpu\ucode_disassembler.cc" />
     <ClCompile Include="src\xenia\hid\hid.cc" />
     <ClCompile Include="src\xenia\hid\input_driver.cc" />

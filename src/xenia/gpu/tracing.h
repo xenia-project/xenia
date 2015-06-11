@@ -82,30 +82,14 @@ struct EventCommand {
 
 class TraceWriter {
  public:
-  TraceWriter(uint8_t* membase) : membase_(membase), file_(nullptr) {}
-  ~TraceWriter() = default;
+  TraceWriter(uint8_t* membase);
+  ~TraceWriter();
 
   bool is_open() const { return file_ != nullptr; }
 
-  bool Open(const std::wstring& path) {
-    Close();
-    file_ = _wfopen(path.c_str(), L"wb");
-    return file_ != nullptr;
-  }
-
-  void Flush() {
-    if (file_) {
-      fflush(file_);
-    }
-  }
-
-  void Close() {
-    if (file_) {
-      fflush(file_);
-      fclose(file_);
-      file_ = nullptr;
-    }
-  }
+  bool Open(const std::wstring& path);
+  void Flush();
+  void Close();
 
   void WritePrimaryBufferStart(uint32_t base_ptr, uint32_t count) {
     if (!file_) {
