@@ -436,7 +436,7 @@ SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_context,
   stats->total_physical_pages = 0x00020000;
   stats->kernel_pages = 0x00000300;
 
-  stats->title.available_pages = 0x00020000;
+  stats->title.available_pages = 0x00013300;
   stats->title.total_virtual_memory_bytes = 0x2FFF0000;
   stats->title.reserved_virtual_memory_bytes = 0x00160000;
   stats->title.physical_pages = 0x00001000;
