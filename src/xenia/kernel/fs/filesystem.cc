@@ -165,6 +165,16 @@ std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
     }
   }
 
+  // Not to fret, check to see if the path is fully qualified.
+  if (device_path.empty()) {
+    for (auto& device : devices_) {
+      if (xe::find_first_of_case(normalized_path, device->path()) == 0) {
+        device_path = device->path();
+        relative_path = normalized_path.substr(device_path.size());
+      }
+    }
+  }
+
   if (device_path.empty()) {
     XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
     return nullptr;
