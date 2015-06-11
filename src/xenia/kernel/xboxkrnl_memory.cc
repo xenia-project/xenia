@@ -380,60 +380,89 @@ SHIM_CALL MmQueryAllocationSize_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(size);
 }
 
+// https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
+struct X_MM_QUERY_STATISTICS_SECTION {
+  xe::be<uint32_t> available_pages;
+  xe::be<uint32_t> total_virtual_memory_bytes;
+  xe::be<uint32_t> reserved_virtual_memory_bytes;
+  xe::be<uint32_t> physical_pages;
+  xe::be<uint32_t> pool_pages;
+  xe::be<uint32_t> stack_pages;
+  xe::be<uint32_t> image_pages;
+  xe::be<uint32_t> heap_pages;
+  xe::be<uint32_t> virtual_pages;
+  xe::be<uint32_t> page_table_pages;
+  xe::be<uint32_t> cache_pages;
+};
+
+struct X_MM_QUERY_STATISTICS_RESULT {
+  xe::be<uint32_t> size;
+  xe::be<uint32_t> total_physical_pages;
+  xe::be<uint32_t> kernel_pages;
+  X_MM_QUERY_STATISTICS_SECTION title;
+  X_MM_QUERY_STATISTICS_SECTION system;
+  xe::be<uint32_t> highest_physical_page;
+};
+static_assert_size(X_MM_QUERY_STATISTICS_RESULT, 104);
+
 SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_context,
                                  KernelState* kernel_state) {
   uint32_t stats_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("MmQueryStatistics(%.8X)", stats_ptr);
 
-  uint32_t size = SHIM_MEM_32(stats_ptr + 0);
-  if (size != 104) {
+  if (stats_ptr == 0) {
+    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
+    return;
+  }
+
+  const uint32_t size = sizeof(X_MM_QUERY_STATISTICS_RESULT);
+
+  auto stats = (X_MM_QUERY_STATISTICS_RESULT*)SHIM_MEM_ADDR(stats_ptr);
+  if (stats->size != size) {
     SHIM_SET_RETURN_32(X_STATUS_BUFFER_TOO_SMALL);
     return;
   }
 
-  X_STATUS result = X_STATUS_SUCCESS;
-
   // Zero out the struct.
-  std::memset(SHIM_MEM_ADDR(stats_ptr), 0, 104);
-  SHIM_SET_MEM_32(stats_ptr + 0, 104);
+  std::memset(stats, 0, size);
 
   // Set the constants the game is likely asking for.
   // These numbers are mostly guessed. If the game is just checking for
   // memory, this should satisfy it. If it's actually verifying things
   // this won't work :/
-  // https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
-  SHIM_SET_MEM_32(stats_ptr + 4 * 1, 0x00020000);  // TotalPhysicalPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 2, 0x00000300);  // KernelPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 3, 0x00020000);  // TitleAvailablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 4,
-                  0x2FFF0000);  // TitleTotalVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 * 5,
-                  0x00160000);  // TitleReservedVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 * 6, 0x00001000);   // TitlePhysicalPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 7, 0x00000010);   // TitlePoolPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 8, 0x00000100);   // TitleStackPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 9, 0x00000100);   // TitleImagePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 10, 0x00000100);  // TitleHeapPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 11, 0x00000100);  // TitleVirtualPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 12, 0x00000100);  // TitlePageTablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 13, 0x00000100);  // TitleCachePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 14, 0x00000000);  // SystemAvailablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 15,
-                  0x00000000);  // SystemTotalVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 * 16,
-                  0x00000000);  // SystemReservedVirtualMemoryBytes
-  SHIM_SET_MEM_32(stats_ptr + 4 * 17, 0x00000000);  // SystemPhysicalPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 18, 0x00000000);  // SystemPoolPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 19, 0x00000000);  // SystemStackPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 20, 0x00000000);  // SystemImagePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 21, 0x00000000);  // SystemHeapPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 22, 0x00000000);  // SystemVirtualPages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 23, 0x00000000);  // SystemPageTablePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 24, 0x00000000);  // SystemCachePages
-  SHIM_SET_MEM_32(stats_ptr + 4 * 25, 0x0001FFFF);  // HighestPhysicalPage
+  stats->size = size;
 
-  SHIM_SET_RETURN_32(result);
+  stats->total_physical_pages = 0x00020000;
+  stats->kernel_pages = 0x00000300;
+
+  stats->title.available_pages = 0x00020000;
+  stats->title.total_virtual_memory_bytes = 0x2FFF0000;
+  stats->title.reserved_virtual_memory_bytes = 0x00160000;
+  stats->title.physical_pages = 0x00001000;
+  stats->title.pool_pages = 0x00000010;
+  stats->title.stack_pages = 0x00000100;
+  stats->title.image_pages = 0x00000100;
+  stats->title.heap_pages = 0x00000100;
+  stats->title.virtual_pages = 0x00000100;
+  stats->title.page_table_pages = 0x00000100;
+  stats->title.cache_pages = 0x00000100;
+
+  stats->system.available_pages = 0x00000000;
+  stats->system.total_virtual_memory_bytes = 0x00000000;
+  stats->system.reserved_virtual_memory_bytes = 0x00000000;
+  stats->system.physical_pages = 0x00000000;
+  stats->system.pool_pages = 0x00000000;
+  stats->system.stack_pages = 0x00000000;
+  stats->system.image_pages = 0x00000000;
+  stats->system.heap_pages = 0x00000000;
+  stats->system.virtual_pages = 0x00000000;
+  stats->system.page_table_pages = 0x00000000;
+  stats->system.cache_pages = 0x00000000;
+
+  stats->highest_physical_page = 0x0001FFFF;
+
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
