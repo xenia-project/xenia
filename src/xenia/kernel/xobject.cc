@@ -165,7 +165,7 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   std::lock_guard<xe::recursive_mutex> lock(kernel_state_->object_mutex());
 
   auto header =
-      kernel_state_->memory()->TranslateVirtual<DISPATCH_HEADER*>(native_ptr);
+      kernel_state_->memory()->TranslateVirtual<X_DISPATCH_HEADER*>(native_ptr);
 
   // Memory uninitialized, so don't bother with the check.
   if (!uninitialized) {
@@ -195,7 +195,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
 
   std::lock_guard<xe::recursive_mutex> lock(kernel_state->object_mutex());
 
-  auto header = reinterpret_cast<DISPATCH_HEADER*>(native_ptr);
+  auto header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
 
   if (as_type == -1) {
     as_type = (header->type_flags >> 24) & 0xFF;

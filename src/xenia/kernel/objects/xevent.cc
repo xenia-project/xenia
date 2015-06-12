@@ -28,7 +28,7 @@ void XEvent::Initialize(bool manual_reset, bool initial_state) {
   native_handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
 }
 
-void XEvent::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
+void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
   assert_null(native_handle_);
 
   bool manual_reset;

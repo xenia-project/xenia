@@ -33,7 +33,7 @@ typedef struct {
   xe::be<uint32_t> signal_state;
   xe::be<uint32_t> wait_list_flink;
   xe::be<uint32_t> wait_list_blink;
-} DISPATCH_HEADER;
+} X_DISPATCH_HEADER;
 
 class XObject {
  public:

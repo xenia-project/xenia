@@ -27,7 +27,7 @@ void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   native_handle_ = CreateSemaphore(NULL, initial_count, maximum_count, NULL);
 }
 
-void XSemaphore::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
+void XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
   assert_null(native_handle_);
 
   // NOT IMPLEMENTED
