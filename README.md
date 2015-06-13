@@ -37,7 +37,6 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
 
-    # Launch the 'Developer Command Prompt for VS2015' command environment
     > git clone https://github.com/benvanik/xenia.git
     > cd xenia
     > xb setup

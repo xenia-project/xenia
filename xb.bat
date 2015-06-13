@@ -577,20 +577,45 @@ SET _RESULT=%ERRORLEVEL%
 GOTO :eof
 
 :check_msvc
+SETLOCAL EnableDelayedExpansion
 1>NUL 2>NUL CMD /c where devenv
-SET _RESULT=%ERRORLEVEL%
-IF %_RESULT% NEQ 0 GOTO :eof
-SET _RESULT=1
+SET VS14_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat"
+SET VS15_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\vcvarsall.bat"
+IF %ERRORLEVEL% NEQ 0 (
+  IF EXIST %VS15_VCVARSALL% (
+    REM VS2015
+    ECHO Sourcing Visual Studio settings from %VS15_VCVARSALL%...
+    CALL %VS15_VCVARSALL% amd64
+  ) ELSE (
+    IF EXIST %VS14_VCVARSALL% (
+      REM VS2015 CTP/RC
+      ECHO Sourcing Visual Studio settings from %VS14_VCVARSALL%...
+      CALL %VS14_VCVARSALL% amd64
+    )
+  )
+)
+1>NUL 2>NUL CMD /c where devenv
+IF %ERRORLEVEL% NEQ 0 (
+  REM Still no devenv!
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+SET HAVE_TOOLS=0
 IF "%VS140COMNTOOLS%" NEQ "" (
   IF EXIST "%VS140COMNTOOLS%" (
     REM VS2015 CTP/RC
-    SET _RESULT=0
+    SET HAVE_TOOLS=1
   )
 )
 IF "%VS150COMNTOOLS%" NEQ "" (
   IF EXIST "%VS150COMNTOOLS%" (
     REM VS2015
-    SET _RESULT=0
+    SET HAVE_TOOLS=1
   )
 )
+IF %HAVE_TOOLS% NEQ 1 (
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+ENDLOCAL & SET _RESULT=0
 GOTO :eof
