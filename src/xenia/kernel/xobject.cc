@@ -39,6 +39,13 @@ XObject::~XObject() {
 
   if (allocated_guest_object_) {
     uint32_t ptr = guest_object_ptr_ - sizeof(X_OBJECT_HEADER);
+    auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(ptr);
+
+    // Free the object creation info
+    if (header->object_create_info) {
+      memory()->SystemHeapFree(header->object_create_info);
+    }
+
     memory()->SystemHeapFree(ptr);
   }
 }
