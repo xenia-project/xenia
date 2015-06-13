@@ -531,7 +531,7 @@ dword_result_t NtQueryInformationFile(dword_t file_handle,
         assert_true(length == 4);
         /*
         // This is wrong and puts files into wrong states for games that use
-        XctdDecompression.
+        // XctdDecompression.
         uint32_t magic;
         size_t bytes_read;
         result = file->Read(&magic, sizeof(magic), 0, &bytes_read);
