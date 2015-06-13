@@ -233,7 +233,7 @@ SHIM_CALL NtReadFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t byte_offset_ptr = SHIM_GET_ARG_32(7);
   size_t byte_offset = byte_offset_ptr ? SHIM_MEM_64(byte_offset_ptr) : 0;
 
-  XELOGD("NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X(%d))",
+  XELOGD("NtReadFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X(%llu))",
          file_handle, event_handle, apc_routine_ptr, apc_context,
          io_status_block_ptr, buffer, buffer_length, byte_offset_ptr,
          byte_offset);
