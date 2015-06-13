@@ -17,6 +17,7 @@ namespace xe {
 namespace kernel {
 
 struct X_SEMAPHORE {
+  X_DISPATCH_HEADER header;
   // TODO: Make this not empty!
 };
 
