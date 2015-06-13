@@ -54,6 +54,42 @@ typedef struct {
   xe::be<uint32_t> wait_list_blink;
 } X_DISPATCH_HEADER;
 
+// http://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
+struct X_OBJECT_HEADER {
+  xe::be<uint32_t> pointer_count;
+  union {
+    xe::be<uint32_t> handle_count;
+    xe::be<uint32_t> next_to_free;
+  };
+  xe::be<uint32_t> object_type_ptr;
+  uint8_t name_info_offset;
+  uint8_t handle_info_offset;
+  uint8_t quota_info_offset;
+  uint8_t flags;
+  union {
+    xe::be<uint32_t> object_create_info; // X_OBJECT_CREATE_INFORMATION
+    xe::be<uint32_t> quota_block_charged;
+  };
+  xe::be<uint32_t> security_descriptor;
+
+  // Object lives after this header.
+  // (There's actually a body field here which is the object itself)
+};
+
+struct X_OBJECT_CREATE_INFORMATION {
+  xe::be<uint32_t> attributes;
+  xe::be<uint32_t> root_directory_ptr;
+  xe::be<uint32_t> parse_context_ptr;
+  xe::be<uint32_t> probe_mode;
+  xe::be<uint32_t> paged_pool_charge;
+  xe::be<uint32_t> non_paged_pool_charge;
+  xe::be<uint32_t> security_descriptor_charge;
+  xe::be<uint32_t> security_descriptor;
+  xe::be<uint32_t> security_qos_ptr;
+
+  // Security QoS here (SECURITY_QUALITY_OF_SERVICE) too!
+};
+
 class XObject {
  public:
   enum Type {
