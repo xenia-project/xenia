@@ -198,7 +198,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   auto header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
 
   if (as_type == -1) {
-    as_type = (header->type_flags >> 24) & 0xFF;
+    as_type = header->type;
   }
 
   if (header->wait_list_blink & 0x1) {

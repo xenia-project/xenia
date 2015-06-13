@@ -29,7 +29,26 @@ class object_ref;
 
 // http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
-  xe::be<uint32_t> type_flags;
+  struct {
+    uint8_t type;
+
+    union {
+      uint8_t abandoned;
+      uint8_t absolute;
+      uint8_t npx_irql;
+      uint8_t signalling;
+    };
+    union {
+      uint8_t size;
+      uint8_t hand;
+    };
+    union {
+      uint8_t inserted;
+      uint8_t debug_active;
+      uint8_t dpc_active;
+    };
+  };
+
   xe::be<uint32_t> signal_state;
   xe::be<uint32_t> wait_list_flink;
   xe::be<uint32_t> wait_list_blink;
