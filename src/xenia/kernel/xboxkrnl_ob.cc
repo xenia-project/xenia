@@ -90,10 +90,6 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
         auto sem = object.get<XSemaphore>();
 
         native_ptr = sem->guest_object();
-
-        // TODO(benvanik): implement.
-        assert_unhandled_case(object_type_ptr);
-        native_ptr = 0xDEADF00D;
       } break;
       case 0xD01BBEEF: {  // ExThreadObjectType
         assert(object->type() == XObject::kTypeThread);
