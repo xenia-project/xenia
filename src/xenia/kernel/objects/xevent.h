@@ -22,7 +22,7 @@ class XEvent : public XObject {
   virtual ~XEvent();
 
   void Initialize(bool manual_reset, bool initial_state);
-  void InitializeNative(void* native_ptr, DISPATCH_HEADER& header);
+  void InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header);
 
   int32_t Set(uint32_t priority_increment, bool wait);
   int32_t Pulse(uint32_t priority_increment, bool wait);

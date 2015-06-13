@@ -27,7 +27,7 @@ void XMutant::Initialize(bool initial_owner) {
   native_handle_ = CreateMutex(NULL, initial_owner ? TRUE : FALSE, NULL);
 }
 
-void XMutant::InitializeNative(void* native_ptr, DISPATCH_HEADER& header) {
+void XMutant::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
   assert_null(native_handle_);
 
   // Haven't seen this yet, but it's possible.

@@ -29,11 +29,67 @@ class object_ref;
 
 // http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
-  xe::be<uint32_t> type_flags;
+  struct {
+    uint8_t type;
+
+    union {
+      uint8_t abandoned;
+      uint8_t absolute;
+      uint8_t npx_irql;
+      uint8_t signalling;
+    };
+    union {
+      uint8_t size;
+      uint8_t hand;
+    };
+    union {
+      uint8_t inserted;
+      uint8_t debug_active;
+      uint8_t dpc_active;
+    };
+  };
+
   xe::be<uint32_t> signal_state;
   xe::be<uint32_t> wait_list_flink;
   xe::be<uint32_t> wait_list_blink;
-} DISPATCH_HEADER;
+} X_DISPATCH_HEADER;
+
+// http://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
+struct X_OBJECT_HEADER {
+  xe::be<uint32_t> pointer_count;
+  union {
+    xe::be<uint32_t> handle_count;
+    xe::be<uint32_t> next_to_free;
+  };
+  xe::be<uint32_t> object_type_ptr;
+  uint8_t name_info_offset;
+  uint8_t handle_info_offset;
+  uint8_t quota_info_offset;
+  uint8_t flags;
+  union {
+    xe::be<uint32_t> object_create_info; // X_OBJECT_CREATE_INFORMATION
+    xe::be<uint32_t> quota_block_charged;
+  };
+  xe::be<uint32_t> security_descriptor;
+
+  // Object lives after this header.
+  // (There's actually a body field here which is the object itself)
+};
+
+// http://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
+struct X_OBJECT_CREATE_INFORMATION {
+  xe::be<uint32_t> attributes;
+  xe::be<uint32_t> root_directory_ptr;
+  xe::be<uint32_t> parse_context_ptr;
+  xe::be<uint32_t> probe_mode;
+  xe::be<uint32_t> paged_pool_charge;
+  xe::be<uint32_t> non_paged_pool_charge;
+  xe::be<uint32_t> security_descriptor_charge;
+  xe::be<uint32_t> security_descriptor;
+  xe::be<uint32_t> security_qos_ptr;
+
+  // Security QoS here (SECURITY_QUALITY_OF_SERVICE) too!
+};
 
 class XObject {
  public:
@@ -59,6 +115,7 @@ class XObject {
   Type type();
   X_HANDLE handle() const;
   const std::string& name() const { return name_; }
+  uint32_t guest_object() const { return guest_object_ptr_; }
 
   void RetainHandle();
   bool ReleaseHandle();
@@ -94,6 +151,8 @@ class XObject {
   virtual void* GetWaitHandle() { return 0; }
 
  protected:
+  // Creates the kernel object for guest code to use. Typically not needed.
+  uint8_t* CreateNative(uint32_t size);
   void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
@@ -107,6 +166,11 @@ class XObject {
   Type type_;
   X_HANDLE handle_;
   std::string name_;  // May be zero length.
+
+  // Guest pointer for kernel object. Remember: X_OBJECT_HEADER precedes this
+  // if we allocated it!
+  uint32_t guest_object_ptr_;
+  bool allocated_guest_object_;
 };
 
 template <typename T>

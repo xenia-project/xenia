@@ -60,6 +60,19 @@ struct XAPC {
   }
 };
 
+// http://www.nirsoft.net/kernel_struct/vista/KTHREAD.html
+struct X_THREAD {
+  X_DISPATCH_HEADER header;
+  xe::be<uint64_t> cycle_time;
+  xe::be<uint32_t> high_cycle_time; // FIXME: Needed?
+  xe::be<uint64_t> quantum_target;
+  xe::be<uint32_t> initial_stack_ptr;
+  xe::be<uint32_t> stack_limit_ptr;
+  xe::be<uint32_t> kernel_stack_ptr;
+
+  // This struct is actually quite long... so uh, not filling this out!
+};
+
 class XThread : public XObject {
  public:
   XThread(KernelState* kernel_state, uint32_t stack_size,
@@ -74,6 +87,7 @@ class XThread : public XObject {
 
   uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }
+
   cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
   uint32_t last_error();

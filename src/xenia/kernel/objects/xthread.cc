@@ -143,6 +143,14 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 }
 
 X_STATUS XThread::Create() {
+  // Thread kernel object
+  // This call will also setup the native pointer for us.
+  uint8_t* guest_object = CreateNative(sizeof(X_THREAD));
+  if (!guest_object) {
+    XELOGW("Unable to allocate thread object");
+    return X_STATUS_NO_MEMORY;
+  }
+
   // Allocate thread state block from heap.
   // This is set as r13 for user code and some special inlined Win32 calls
   // (like GetLastError/etc) will poke it directly.
@@ -161,9 +169,6 @@ X_STATUS XThread::Create() {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
-
-  // Set native info.
-  SetNativePointer(thread_state_address_, true);
 
   auto module = kernel_state()->GetExecutableModule();
 
@@ -275,8 +280,6 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
   xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
   xe::store_and_swap<uint32_t>(p + 0x17C, 1);
-
-  SetNativePointer(thread_state_address_);
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {

@@ -10,6 +10,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/objects/xsemaphore.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/xobject.h"
@@ -76,7 +77,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
           } break;*/
           case XObject::kTypeThread: {
             auto thread = object.get<XThread>();
-            native_ptr = thread->thread_state_ptr();
+            native_ptr = thread->guest_object();
           } break;
           default: {
             assert_unhandled_case(object->type());
@@ -85,13 +86,16 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
         }
       } break;
       case 0xD017BEEF: {  // ExSemaphoreObjectType
-        // TODO(benvanik): implement.
-        assert_unhandled_case(object_type_ptr);
-        native_ptr = 0xDEADF00D;
+        assert(object->type() == XObject::kTypeSemaphore);
+        auto sem = object.get<XSemaphore>();
+
+        native_ptr = sem->guest_object();
       } break;
       case 0xD01BBEEF: {  // ExThreadObjectType
+        assert(object->type() == XObject::kTypeThread);
         auto thread = object.get<XThread>();
-        native_ptr = thread->thread_state_ptr();
+
+        native_ptr = thread->guest_object();
       } break;
       default: {
         assert_unhandled_case(object_type_ptr);

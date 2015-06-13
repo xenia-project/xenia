@@ -16,13 +16,18 @@
 namespace xe {
 namespace kernel {
 
+struct X_SEMAPHORE {
+  X_DISPATCH_HEADER header;
+  // TODO: Make this not empty!
+};
+
 class XSemaphore : public XObject {
  public:
   XSemaphore(KernelState* kernel_state);
   virtual ~XSemaphore();
 
   void Initialize(int32_t initial_count, int32_t maximum_count);
-  void InitializeNative(void* native_ptr, DISPATCH_HEADER& header);
+  void InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header);
 
   int32_t ReleaseSemaphore(int32_t release_count);
 
