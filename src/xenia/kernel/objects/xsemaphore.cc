@@ -24,6 +24,8 @@ XSemaphore::~XSemaphore() {
 void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   assert_null(native_handle_);
 
+  CreateNative(sizeof(X_SEMAPHORE));
+
   native_handle_ = CreateSemaphore(NULL, initial_count, maximum_count, NULL);
 }
 

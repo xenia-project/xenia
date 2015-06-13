@@ -16,6 +16,10 @@
 namespace xe {
 namespace kernel {
 
+struct X_SEMAPHORE {
+  // TODO: Make this not empty!
+};
+
 class XSemaphore : public XObject {
  public:
   XSemaphore(KernelState* kernel_state);
