@@ -76,6 +76,7 @@ struct X_OBJECT_HEADER {
   // (There's actually a body field here which is the object itself)
 };
 
+// http://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
 struct X_OBJECT_CREATE_INFORMATION {
   xe::be<uint32_t> attributes;
   xe::be<uint32_t> root_directory_ptr;
@@ -114,6 +115,7 @@ class XObject {
   Type type();
   X_HANDLE handle() const;
   const std::string& name() const { return name_; }
+  uint32_t guest_object() const { return guest_object_ptr_; }
 
   void RetainHandle();
   bool ReleaseHandle();
@@ -149,6 +151,8 @@ class XObject {
   virtual void* GetWaitHandle() { return 0; }
 
  protected:
+  // Creates the kernel object for guest code to use. Typically not needed.
+  uint8_t* CreateNative(uint32_t size);
   void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
@@ -162,6 +166,11 @@ class XObject {
   Type type_;
   X_HANDLE handle_;
   std::string name_;  // May be zero length.
+
+  // Guest pointer for kernel object. Remember: X_OBJECT_HEADER precedes this
+  // if we allocated it!
+  uint32_t guest_object_ptr_;
+  bool allocated_guest_object_;
 };
 
 template <typename T>

@@ -24,7 +24,9 @@ XObject::XObject(KernelState* kernel_state, Type type)
       handle_ref_count_(0),
       pointer_ref_count_(1),
       type_(type),
-      handle_(X_INVALID_HANDLE_VALUE) {
+      handle_(X_INVALID_HANDLE_VALUE),
+      guest_object_ptr_(0),
+      allocated_guest_object_(false) {
   // Added pointer check to support usage without a kernel_state
   if (kernel_state != nullptr) {
     kernel_state->object_table()->AddHandle(this, &handle_);
@@ -34,6 +36,11 @@ XObject::XObject(KernelState* kernel_state, Type type)
 XObject::~XObject() {
   assert_zero(handle_ref_count_);
   assert_zero(pointer_ref_count_);
+
+  if (allocated_guest_object_) {
+    uint32_t ptr = guest_object_ptr_ - sizeof(X_OBJECT_HEADER);
+    memory()->SystemHeapFree(ptr);
+  }
 }
 
 Emulator* XObject::emulator() const { return kernel_state_->emulator_; }
@@ -161,6 +168,38 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
   return result;
 }
 
+uint8_t* XObject::CreateNative(uint32_t size) {
+  std::lock_guard<xe::recursive_mutex> lock(kernel_state_->object_mutex());
+
+  uint32_t total_size = size + sizeof(X_OBJECT_HEADER);
+
+  auto mem = memory()->SystemHeapAlloc(total_size);
+  if (!mem) {
+    // Out of memory!
+    return nullptr;
+  }
+
+  allocated_guest_object_ = true;
+  memory()->Zero(mem, total_size);
+  guest_object_ptr_ = mem + sizeof(X_OBJECT_HEADER);
+  SetNativePointer(guest_object_ptr_, true);
+
+  auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(mem);
+
+  auto creation_info =
+      memory()->SystemHeapAlloc(sizeof(X_OBJECT_CREATE_INFORMATION));
+  if (creation_info) {
+    memory()->Zero(creation_info, sizeof(X_OBJECT_CREATE_INFORMATION));
+
+    // Set it up in the header.
+    // Some kernel method is accessing this struct and dereferencing a member.
+    // With our current definition that member is non_paged_pool_charge.
+    header->object_create_info = creation_info;
+  }
+
+  return memory()->TranslateVirtual(guest_object_ptr_);
+}
+
 void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   std::lock_guard<xe::recursive_mutex> lock(kernel_state_->object_mutex());
 
@@ -173,6 +212,7 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   }
 
   // Stash pointer in struct.
+  // FIXME: This assumes the object has a dispatch header (some don't!)
   uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
   object_ptr |= 0x1;
   header->wait_list_flink = (uint32_t)(object_ptr >> 32);
@@ -251,6 +291,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     }
 
     // Stash pointer in struct.
+    // FIXME: This assumes the object contains a dispatch header (some don't!)
     uint64_t object_ptr = reinterpret_cast<uint64_t>(object);
     object_ptr |= 0x1;
     header->wait_list_flink = (uint32_t)(object_ptr >> 32);

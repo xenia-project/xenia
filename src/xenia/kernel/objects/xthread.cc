@@ -144,16 +144,12 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 
 X_STATUS XThread::Create() {
   // Thread kernel object
-  // TODO: This is supposed to be preceded by X_OBJECT_HEADER, need to see if
-  // that's absolutely necessary.
-  thread_object_address_ = memory()->SystemHeapAlloc(sizeof(X_THREAD));
-  if (!thread_object_address_) {
+  // This call will also setup the native pointer for us.
+  uint8_t* guest_object = CreateNative(sizeof(X_THREAD));
+  if (!guest_object) {
     XELOGW("Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
-
-  // Set native info.
-  SetNativePointer(thread_object_address_, true);
 
   // Allocate thread state block from heap.
   // This is set as r13 for user code and some special inlined Win32 calls

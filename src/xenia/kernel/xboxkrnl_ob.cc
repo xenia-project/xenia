@@ -77,7 +77,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
           } break;*/
           case XObject::kTypeThread: {
             auto thread = object.get<XThread>();
-            native_ptr = thread->object_ptr();
+            native_ptr = thread->guest_object();
           } break;
           default: {
             assert_unhandled_case(object->type());
@@ -89,6 +89,8 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
         assert(object->type() == XObject::kTypeSemaphore);
         auto sem = object.get<XSemaphore>();
 
+        native_ptr = sem->guest_object();
+
         // TODO(benvanik): implement.
         assert_unhandled_case(object_type_ptr);
         native_ptr = 0xDEADF00D;
@@ -97,7 +99,7 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
         assert(object->type() == XObject::kTypeThread);
         auto thread = object.get<XThread>();
 
-        native_ptr = thread->object_ptr();
+        native_ptr = thread->guest_object();
       } break;
       default: {
         assert_unhandled_case(object_type_ptr);

@@ -87,7 +87,6 @@ class XThread : public XObject {
 
   uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }
-  uint32_t object_ptr() const { return thread_object_address_; }
 
   cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
@@ -148,7 +147,6 @@ class XThread : public XObject {
   uint32_t tls_address_;
   uint32_t pcr_address_;
   uint32_t thread_state_address_;
-  uint32_t thread_object_address_; // Kernel object
   cpu::ThreadState* thread_state_;
 
   std::string name_;
