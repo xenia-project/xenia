@@ -188,8 +188,7 @@ uint8_t* XObject::CreateNative(uint32_t size) {
 
   allocated_guest_object_ = true;
   memory()->Zero(mem, total_size);
-  guest_object_ptr_ = mem + sizeof(X_OBJECT_HEADER);
-  SetNativePointer(guest_object_ptr_, true);
+  SetNativePointer(mem + sizeof(X_OBJECT_HEADER), true);
 
   auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(mem);
 
@@ -210,6 +209,9 @@ uint8_t* XObject::CreateNative(uint32_t size) {
 void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   std::lock_guard<xe::recursive_mutex> lock(kernel_state_->object_mutex());
 
+  // If hit: We've already setup the native ptr with CreateNative!
+  assert_zero(guest_object_ptr_);
+
   auto header =
       kernel_state_->memory()->TranslateVirtual<X_DISPATCH_HEADER*>(native_ptr);
 
@@ -224,6 +226,8 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   object_ptr |= 0x1;
   header->wait_list_flink = (uint32_t)(object_ptr >> 32);
   header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
+
+  guest_object_ptr_ = native_ptr;
 }
 
 object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
