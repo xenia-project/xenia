@@ -64,7 +64,7 @@ bool MainWindow::Initialize() {
         emulator()->graphics_system()->ClearCaches();
         break;
       }
-      case 0x75: { // VK_F6
+      case 0x7A: { // VK_F11
         ToggleFullscreen();
         break;
       }
@@ -110,7 +110,7 @@ bool MainWindow::Initialize() {
       std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Window");
   window->AddChild(std::make_unique<PlatformMenu>(
       MenuItem::Type::kString, Commands::IDC_WINDOW_FULLSCREEN,
-      L"Fullscreen\tF6"));
+      L"Fullscreen\tF11"));
 
   main_menu_.AddChild(std::move(window));
 
