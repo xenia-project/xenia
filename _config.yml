@@ -1,9 +1,56 @@
 # Set by github - do not change.
 safe: true
 lsi: false
-pygments: true
+highlighter: pygments
+
+exclude:
+- bower.json
+- bower_components
+- Gemfile
+- Gemfile.lock
+
+title: xenia
+description: >
+  xenia is a BSD licensed open source research project for emulating Xbox 360
+  games on modern PCs.
+baseurl: /xenia
+url: "http://xenia.jp"
+twitter_username: xeniaproject
+github_username:  xenia-project
+
+markdown: kramdown
 
 gems:
 - jemoji
-- jeykll-mentions
-- jeykll-redirect-from
+- jekyll-mentions
+- jekyll-redirect-from
+- jekyll-sitemap
+
+navigation:
+  - pages:
+    - title: Home
+      path: index.html
+    - path: about.md
+    - path: faq.md
+    - path: roadmap.md
+    - path: compatibility.html
+    - path: gallery.html
+  - title: Community
+    pages:
+    - title: /r/xenia
+      url: https://www.reddit.com/r/xenia
+      icon: communication:forum
+    - title: YouTube
+      url: https://www.youtube.com/channel/UC6bJhkUUHE18HVG2mpbygSQ
+      icon: av:videocam
+  - title: Development
+    pages:
+    - path: development/quickstart.md
+    - path: development/debugging.md
+    - title: Source Code
+      url: https://github.com/benvanik/xenia
+      icon: code
+    - title: Issues
+      url: https://github.com/benvanik/xenia/issues
+      icon: bug-report
+    - path: development/irc.md

@@ -1,0 +1,57 @@
+---
+layout: page
+title: Compatibility
+icon: editor:insert-chart
+permalink: /compatibility/
+---
+
+<a href="https://github.com/xenia-project/game-compatibility/issues">Compatibility Tracker</a>
+<br/>
+If filing new issues, please follow the style of the existing ones.
+<br/>
+<br/>
+TODO: a fancy sortable/searchable table.
+<br/>
+<br/>
+<div id="issuesList">
+</div>
+
+<script>
+  var issueDataString = localStorage.getItem('game-compatibility-issues');
+  if (!issueDataString) {
+    // No cached data, fetch new.
+    fetchIssueData(renderIssues);
+  } else {
+    var issueData = JSON.parse(issueDataString);
+    if (Date.now() - issueData.__cache_time__ > 5 * 60 * 1000) {
+      // Expired - refetch.
+      fetchIssueData(renderIssues);
+    } else {
+      // Cache is valid, draw.
+      renderIssues(issueData);
+    }
+  }
+
+  function fetchIssueData(callback) {
+    var gh = new Github({});
+    var issueAdapter = gh.getIssues('xenia-project', 'game-compatibility');
+    issueAdapter.list({}, function(err, issueData) {
+      // Store with timestamp for expiration.
+      issueData.__cache_time__ = Date.now();
+      localStorage.setItem('game-compatibility-issues',
+                           JSON.stringify(issueData));
+      renderIssues(issueData);
+    });
+  }
+
+  function renderIssues(issueData) {
+    var issuesList = document.getElementById('issuesList');
+    for (var i = 0; i < issueData.length; ++i) {
+      var issue = issueData[i];
+      var el = document.createElement('div');
+      el.innerText = issue.title;
+      issuesList.appendChild(el);
+    }
+  }
+
+</script>

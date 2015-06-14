@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  {% include head.html %}
+  <body class="fullbleed layout vertical">
+    <paper-drawer-panel id="paperDrawerPanel">
+      <div drawer>
+        <!-- Drawer Toolbar -->
+        <paper-toolbar id="drawerToolbar">
+          <img src="{{ site.baseurl }}/images/logo-256x256.png">
+          <span class="paper-font-title">xenia</span>
+        </paper-toolbar>
+
+        <!-- Drawer Content -->
+        {% for category in site.navigation %}
+          {% if category.title %}
+            <div class="menu-subheader">{{ category.title }}</div>
+          {% endif %}
+          <paper-menu>
+            {% for page_entry in category.pages %}
+              {% if page_entry.url %}
+                <a href="{{ page_entry.url }}">
+                  <iron-icon icon="{{ page_entry.icon }}"></iron-icon>
+                  <span>{{ page_entry.title }}</span>
+                  <paper-ripple fit/>
+                </a>
+              {% else %}
+                {% for page_item in site.pages %}
+                  {% if page_item.path == page_entry.path %}
+                    {% assign nav_page = page_item %}
+                    <a href="{{ nav_page.url | prepend: site.baseurl }}"
+                        {% if nav_page.url == page.url %}class="iron-selected"{% endif %}>
+                      <iron-icon icon="{{ nav_page.icon }}"></iron-icon>
+                      <span>{% if page_entry.title %}{{ page_entry.title }}{% else %}{{ nav_page.title }}{% endif %}</span>
+                      <paper-ripple fit/>
+                    </a>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </paper-menu>
+        {% endfor %}
+      </div>
+      <paper-header-panel main
+          {% if page.tall_header == true %}mode="waterfall-tall"{% else %}mode="waterfall"{% endif %}>
+        <paper-toolbar>
+          <paper-icon-button icon="menu" paper-drawer-toggle></paper-icon-button>
+          <div><h3>{{ page.title }}</h3></div>
+        </paper-toolbar>
+
+        <div class="content fit page-content">
+          {% include page-header.html %}
+
+          <div class="wrapper">
+            {{ content }}
+          </div>
+
+          {% include page-footer.html %}
+        </div>
+      </paper-header-panel>
+    </paper-drawer-panel>
+
+    <script type="text/javascript">
+      var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+      document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+    </script>
+    <script type="text/javascript">
+      try {
+        var pageTracker = _gat._getTracker("UA-541992-12");
+        pageTracker._trackPageview();
+      } catch(err) {}
+    </script>
+  </body>
+</html>
