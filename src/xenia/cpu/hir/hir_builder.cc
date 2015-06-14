@@ -26,6 +26,9 @@ namespace hir {
 #define ASSERT_ADDRESS_TYPE(value) \
   \
 assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
+#define ASSERT_CALL_ADDRESS_TYPE(value) \
+  \
+assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
 #define ASSERT_INTEGER_TYPE(value)                                       \
   \
 assert_true((value->type) == INT8_TYPE || (value->type) == INT16_TYPE || \
@@ -842,7 +845,7 @@ void HIRBuilder::CallTrue(Value* cond, FunctionInfo* symbol_info,
 }
 
 void HIRBuilder::CallIndirect(Value* value, uint32_t call_flags) {
-  ASSERT_ADDRESS_TYPE(value);
+  ASSERT_CALL_ADDRESS_TYPE(value);
   Instr* i = AppendInstr(OPCODE_CALL_INDIRECT_info, call_flags);
   i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
@@ -858,7 +861,7 @@ void HIRBuilder::CallIndirectTrue(Value* cond, Value* value,
     return;
   }
 
-  ASSERT_ADDRESS_TYPE(value);
+  ASSERT_CALL_ADDRESS_TYPE(value);
   Instr* i = AppendInstr(OPCODE_CALL_INDIRECT_TRUE_info, call_flags);
   i->set_src1(cond);
   i->set_src2(value);
@@ -895,6 +898,7 @@ void HIRBuilder::ReturnTrue(Value* cond) {
 }
 
 void HIRBuilder::SetReturnAddress(Value* value) {
+  ASSERT_CALL_ADDRESS_TYPE(value);
   Instr* i = AppendInstr(OPCODE_SET_RETURN_ADDRESS_info, 0);
   i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
