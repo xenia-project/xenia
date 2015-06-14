@@ -13,7 +13,7 @@ will be banned from IRC/GitHub/etc.
 Before joining to ask a question, make sure it's not already answered in the
 [FAQ]({{ site.baseurl }}/faq/).
 
-If you have *development related questions* or what to watch the progress of
+If you have *development related questions* or want to watch the progress of
 the emulator, join up to `#xenia` on freenode.
 
 You can use the web chat, however note that most of us have day jobs and will
