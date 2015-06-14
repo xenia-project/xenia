@@ -35,6 +35,8 @@ class Win32Window : public Window<Win32Control> {
   void ResizeToFill(int32_t pad_left, int32_t pad_top, int32_t pad_right,
                     int32_t pad_bottom) override;
 
+  void SetFullscreen(bool fullscreen) override;
+
  protected:
   bool Create() override;
   void OnClose() override;
@@ -48,6 +50,9 @@ class Win32Window : public Window<Win32Control> {
   void EnableMMCSS();
 
   bool closing_;
+
+  bool fullscreen_;
+  WINDOWPLACEMENT windowed_pos_;
 };
 
 }  // namespace win32

@@ -20,7 +20,7 @@ namespace ui {
 namespace win32 {
 
 Win32Window::Win32Window(const std::wstring& title)
-    : Window(title), closing_(false) {
+    : Window(title), closing_(false), fullscreen_(false) {
   menu_ = nullptr;
 }
 
@@ -159,6 +159,36 @@ void Win32Window::ResizeToFill(int32_t pad_left, int32_t pad_top,
   // TODO(benvanik): fullscreen.
 }
 
+void Win32Window::SetFullscreen(bool fullscreen) {
+  fullscreen_ = fullscreen;
+
+  DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
+  if (fullscreen) {
+    // Kill our borders and resize to take up entire primary monitor
+    // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
+    MONITORINFO mi = {sizeof(mi)};
+    if (GetWindowPlacement(hwnd_, &windowed_pos_) &&
+        GetMonitorInfo(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY),
+                       &mi)) {
+      SetWindowLong(hwnd_, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
+      ::SetMenu(hwnd_, NULL);
+
+      // Call into parent class to get around menu resizing code
+      Window::Resize(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right,
+                     mi.rcMonitor.bottom);
+    }
+  } else {
+    // Reinstate borders, resize to 1280x720
+    SetWindowLong(hwnd_, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+    SetWindowPlacement(hwnd_, &windowed_pos_);
+
+    Win32MenuItem* win_menu = reinterpret_cast<Win32MenuItem*>(menu_);
+    if (win_menu) {
+      ::SetMenu(hwnd_, win_menu->handle());
+    }
+  }
+}
+
 void Win32Window::OnClose() {
   if (!closing_ && hwnd_) {
     closing_ = true;
@@ -168,7 +198,8 @@ void Win32Window::OnClose() {
 
 void Win32Window::OnSetMenu(MenuItem* menu) {
   Win32MenuItem* win_menu = reinterpret_cast<Win32MenuItem*>(menu);
-  if (win_menu) {
+  // Don't actually set the menu if we're fullscreen. We'll do that later.
+  if (win_menu && !fullscreen_) {
     ::SetMenu(hwnd_, win_menu->handle());
   }
 }
@@ -203,6 +234,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
              TABLET_DISABLE_TOUCHUIFORCEON | TABLET_ENABLE_MULTITOUCHDATA;
 
     case WM_COMMAND: {
+      // TODO: Redirect this to MenuItem's on_selected delegate.
       OnCommand(LOWORD(wParam));
     } break;
   }

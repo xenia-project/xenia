@@ -24,7 +24,8 @@ const std::wstring kBaseTitle = L"xenia";
 MainWindow::MainWindow(Emulator* emulator)
     : PlatformWindow(kBaseTitle),
       emulator_(emulator),
-      main_menu_(MenuItem::Type::kNormal) {}
+      main_menu_(MenuItem::Type::kNormal),
+      fullscreen_(false) {}
 
 MainWindow::~MainWindow() = default;
 
@@ -63,6 +64,16 @@ bool MainWindow::Initialize() {
         emulator()->graphics_system()->ClearCaches();
         break;
       }
+      case 0x7A: { // VK_F11
+        ToggleFullscreen();
+        break;
+      }
+      case 0x1B: { // VK_ESCAPE
+        // Allow users to escape fullscreen (but not enter it)
+        if (fullscreen_) {
+          ToggleFullscreen();
+        }
+      }
       case 0x6D: {  // numpad minus
         Clock::set_guest_time_scalar(Clock::guest_time_scalar() / 2.0);
         UpdateTitle();
@@ -94,6 +105,15 @@ bool MainWindow::Initialize() {
 
   main_menu_.AddChild(std::move(file));
 
+  // Window submenu
+  auto window =
+      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Window");
+  window->AddChild(std::make_unique<PlatformMenu>(
+      MenuItem::Type::kString, Commands::IDC_WINDOW_FULLSCREEN,
+      L"Fullscreen\tF11"));
+
+  main_menu_.AddChild(std::move(window));
+
   SetMenu(&main_menu_);
 
   Resize(1280, 720);
@@ -111,6 +131,11 @@ void MainWindow::UpdateTitle() {
   set_title(title);
 }
 
+void MainWindow::ToggleFullscreen() {
+  fullscreen_ = !fullscreen_;
+  SetFullscreen(fullscreen_);
+}
+
 void MainWindow::OnClose() {
   loop_.Quit();
 
@@ -119,7 +144,15 @@ void MainWindow::OnClose() {
   exit(1);
 }
 
-void MainWindow::OnCommand(int id) {}
+void MainWindow::OnCommand(int id) {
+  switch (id) {
+    // TODO: Setup delegates to MenuItems so we don't have to do this
+    case IDC_WINDOW_FULLSCREEN: {
+      ToggleFullscreen();
+      break;
+    }
+  }
+}
 
 X_STATUS MainWindow::LaunchPath(std::wstring path) {
   X_STATUS result;
