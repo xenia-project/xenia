@@ -45,17 +45,21 @@ class MainWindow : public PlatformWindow {
   bool Initialize();
 
   void UpdateTitle();
+  void ToggleFullscreen();
 
   void OnClose() override;
   void OnCommand(int id) override;
 
   enum Commands {
     IDC_FILE_OPEN,
+
+    IDC_WINDOW_FULLSCREEN,
   };
 
   Emulator* emulator_;
   PlatformLoop loop_;
   PlatformMenu main_menu_;
+  bool fullscreen_;
 };
 
 }  // namespace ui

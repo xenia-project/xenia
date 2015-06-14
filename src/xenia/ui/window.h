@@ -52,6 +52,8 @@ class Window : public T {
     OnSetMenu(menu);
   }
 
+  virtual void SetFullscreen(bool fullscreen) {}
+
  public:
   Delegate<UIEvent> on_shown;
   Delegate<UIEvent> on_hidden;
