@@ -5519,10 +5519,18 @@ EMITTER(EXTRACT_I32, MATCH(I<OPCODE_EXTRACT, I32<>, V128<>, I8<>>)) {
       vec128b(15, 14, 13, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
     };
     if (i.src2.is_constant) {
-      if (i.src2.constant() == 0) {
-        e.vmovd(i.dest, i.src1);
+      // TODO(gibbed): add support to constant propagation pass for OPCODE_EXTRACT.
+      Xmm src1;
+      if (i.src1.is_constant) {
+        src1 = e.xmm0;
+        e.LoadConstantXmm(src1, i.src1.constant());
       } else {
-        e.vpextrd(i.dest, i.src1, VEC128_D(i.src2.constant()));
+        src1 = i.src1;
+      }
+      if (i.src2.constant() == 0) {
+        e.vmovd(i.dest, src1);
+      } else {
+        e.vpextrd(i.dest, src1, VEC128_D(i.src2.constant()));
       }
     } else {
       // TODO(benvanik): try out hlide's version:
