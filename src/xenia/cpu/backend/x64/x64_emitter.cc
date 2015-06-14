@@ -361,6 +361,7 @@ extern "C" uint64_t ResolveFunction(void* raw_context,
 }
 
 void X64Emitter::Call(const hir::Instr* instr, FunctionInfo* symbol_info) {
+  assert_not_null(symbol_info);
   auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
   // Resolve address to the function to call and store in rax.
   if (fn) {
