@@ -33,7 +33,7 @@ int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
   // Note that we do the update before we branch/call as we need it to
   // be correct for returns.
   if (lk) {
-    Value* return_address = f.LoadConstant(cia + 4);
+    Value* return_address = f.LoadConstantUint64(cia + 4);
     f.SetReturnAddress(return_address);
     f.StoreLR(return_address);
   }
@@ -156,7 +156,8 @@ XEEMITTER(bx, 0x48000000, I)(PPCHIRBuilder& f, InstrData& i) {
     nia = (uint32_t)(i.address + XEEXTS26(i.I.LI << 2));
   }
 
-  return InstrEmit_branch(f, "bx", i.address, f.LoadConstant(nia), i.I.LK);
+  return InstrEmit_branch(f, "bx", i.address, f.LoadConstantUint32(nia),
+                          i.I.LK);
 }
 
 XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
@@ -182,7 +183,7 @@ XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
   } else {
     // Decrement counter.
     Value* ctr = f.LoadCTR();
-    ctr = f.Sub(ctr, f.LoadConstant((int64_t)1));
+    ctr = f.Sub(ctr, f.LoadConstantUint64(1));
     f.StoreCTR(ctr);
     // Ctr check.
     ctr = f.Truncate(ctr, INT32_TYPE);
@@ -232,8 +233,8 @@ XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
   } else {
     nia = (uint32_t)(i.address + XEEXTS16(i.B.BD << 2));
   }
-  return InstrEmit_branch(f, "bcx", i.address, f.LoadConstant(nia), i.B.LK, ok,
-                          expect_true);
+  return InstrEmit_branch(f, "bcx", i.address, f.LoadConstantUint32(nia),
+                          i.B.LK, ok, expect_true);
 }
 
 XEEMITTER(bcctrx, 0x4C000420, XL)(PPCHIRBuilder& f, InstrData& i) {
@@ -288,7 +289,7 @@ XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
   } else {
     // Decrement counter.
     Value* ctr = f.LoadCTR();
-    ctr = f.Sub(ctr, f.LoadConstant((int64_t)1));
+    ctr = f.Sub(ctr, f.LoadConstantUint64(1));
     f.StoreCTR(ctr);
     // Ctr check.
     ctr = f.Truncate(ctr, INT32_TYPE);
@@ -490,7 +491,7 @@ XEEMITTER(tdi, 0x08000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // if (a <u EXTS(SI)) & TO[3] then TRAP
   // if (a >u EXTS(SI)) & TO[4] then TRAP
   Value* ra = f.LoadGPR(i.D.RA);
-  Value* rb = f.LoadConstant(XEEXTS16(i.D.DS));
+  Value* rb = f.LoadConstantInt64(XEEXTS16(i.D.DS));
   return InstrEmit_trap(f, i, ra, rb, i.D.RT);
 }
 
@@ -524,7 +525,7 @@ XEEMITTER(twi, 0x0C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   }
   Value* ra =
       f.SignExtend(f.Truncate(f.LoadGPR(i.D.RA), INT32_TYPE), INT64_TYPE);
-  Value* rb = f.LoadConstant(XEEXTS16(i.D.DS));
+  Value* rb = f.LoadConstantInt64(XEEXTS16(i.D.DS));
   return InstrEmit_trap(f, i, ra, rb, i.D.RT);
 }
 
@@ -562,7 +563,7 @@ XEEMITTER(mfcr, 0x7C000026, XFX)(PPCHIRBuilder& f, InstrData& i) {
     if (count == 1) {
       v = f.LoadCR(cri);
     } else {
-      v = f.LoadZero(INT64_TYPE);
+      v = f.LoadZeroInt64();
     }
   } else {
     v = f.LoadCR();
@@ -646,7 +647,7 @@ XEEMITTER(mtcrf, 0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
       f.StoreCR(cri, v);
     } else {
       // Invalid; store zero to CR.
-      f.StoreCR(f.LoadZero(INT64_TYPE));
+      f.StoreCR(f.LoadZeroInt64());
     }
   } else {
     f.StoreCR(v);

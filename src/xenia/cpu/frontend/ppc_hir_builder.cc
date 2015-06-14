@@ -135,7 +135,7 @@ bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
         DebugBreak();
       } else {
         auto left = LoadGPR(FLAGS_break_condition_gpr);
-        auto right = LoadConstant(FLAGS_break_condition_value);
+        auto right = LoadConstantUint64(FLAGS_break_condition_value);
         if (FLAGS_break_condition_truncate) {
           left = Truncate(left, INT32_TYPE);
           right = Truncate(right, INT32_TYPE);
@@ -289,16 +289,16 @@ void PPCHIRBuilder::StoreCR(uint32_t n, Value* value) {
   // Optimization passes will kill any unneeded stores (mostly).
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 0,
                And(Truncate(Shr(value, 4 * (7 - n) + 3), INT8_TYPE),
-                   LoadConstant(uint8_t(1))));
+                   LoadConstantUint8(1)));
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 1,
                And(Truncate(Shr(value, 4 * (7 - n) + 2), INT8_TYPE),
-                   LoadConstant(uint8_t(1))));
+                   LoadConstantUint8(1)));
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 2,
                And(Truncate(Shr(value, 4 * (7 - n) + 1), INT8_TYPE),
-                   LoadConstant(uint8_t(1))));
+                   LoadConstantUint8(1)));
   StoreContext(offsetof(PPCContext, cr0) + (4 * n) + 3,
                And(Truncate(Shr(value, 4 * (7 - n) + 0), INT8_TYPE),
-                   LoadConstant(uint8_t(1))));
+                   LoadConstantUint8(1)));
 }
 
 void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
@@ -308,7 +308,7 @@ void PPCHIRBuilder::StoreCRField(uint32_t n, uint32_t bit, Value* value) {
 }
 
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, bool is_signed) {
-  UpdateCR(n, Truncate(lhs, INT32_TYPE), LoadZero(INT32_TYPE), is_signed);
+  UpdateCR(n, Truncate(lhs, INT32_TYPE), LoadZeroInt32(), is_signed);
 }
 
 void PPCHIRBuilder::UpdateCR(uint32_t n, Value* lhs, Value* rhs,
@@ -337,8 +337,8 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   // Testing for all 1's and all 0's.
   // if (Rc) CR6 = all_equal | 0 | none_equal | 0
   // TODO(benvanik): efficient instruction?
-  StoreContext(offsetof(PPCContext, cr6.cr6_1), LoadZero(INT8_TYPE));
-  StoreContext(offsetof(PPCContext, cr6.cr6_3), LoadZero(INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr6.cr6_1), LoadZeroInt8());
+  StoreContext(offsetof(PPCContext, cr6.cr6_3), LoadZeroInt8());
   StoreContext(offsetof(PPCContext, cr6.cr6_all_equal),
                IsFalse(Not(src_value)));
   StoreContext(offsetof(PPCContext, cr6.cr6_none_equal), IsFalse(src_value));
@@ -456,12 +456,12 @@ Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
                                    uint32_t store_flags) {
   Value* old_address = AtomicExchange(
       LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
-      LoadZero(INT32_TYPE));
+      LoadZeroInt32());
   // Ensure the reservation addresses match.
   Value* eq = CompareEQ(Truncate(address, INT32_TYPE), old_address);
   StoreContext(offsetof(PPCContext, cr0.cr0_eq), eq);
-  StoreContext(offsetof(PPCContext, cr0.cr0_lt), LoadZero(INT8_TYPE));
-  StoreContext(offsetof(PPCContext, cr0.cr0_gt), LoadZero(INT8_TYPE));
+  StoreContext(offsetof(PPCContext, cr0.cr0_lt), LoadZeroInt8());
+  StoreContext(offsetof(PPCContext, cr0.cr0_gt), LoadZeroInt8());
   auto skip_label = NewLabel();
   BranchFalse(eq, skip_label, BRANCH_UNLIKELY);
   Store(address, value, store_flags);

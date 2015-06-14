@@ -58,7 +58,7 @@ Value* CalculateEA_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm) {
                             f.LoadConstant((int32_t)imm)),
                       INT64_TYPE);
 #else
-  return f.Add(f.LoadGPR(ra), f.LoadConstant(imm));
+  return f.Add(f.LoadGPR(ra), f.LoadConstantUint64(imm));
 #endif  // TRUNCATE_ADDRESSES
 }
 
@@ -73,9 +73,9 @@ Value* CalculateEA_0_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm) {
   }
 #else
   if (ra) {
-    return f.Add(f.LoadGPR(ra), f.LoadConstant(imm));
+    return f.Add(f.LoadGPR(ra), f.LoadConstantUint64(imm));
   } else {
-    return f.LoadConstant(imm);
+    return f.LoadConstantUint64(imm);
   }
 #endif  // TRUNCATE_ADDRESSES
 }
@@ -1000,8 +1000,8 @@ XEEMITTER(dcbz, 0x7C0007EC, X)(PPCHIRBuilder& f, InstrData& i) {
     block_size = 32;
     address_mask = ~31;
   }
-  f.Memset(f.And(ea, f.LoadConstant(int64_t(address_mask))),
-           f.LoadZero(INT8_TYPE), f.LoadConstant(int64_t(block_size)));
+  f.Memset(f.And(ea, f.LoadConstantInt64(address_mask)), f.LoadZeroInt8(),
+           f.LoadConstantInt64(block_size));
   return 0;
 }
 

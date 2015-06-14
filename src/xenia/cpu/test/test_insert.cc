@@ -20,7 +20,7 @@ using xe::cpu::frontend::PPCContext;
 TEST_CASE("INSERT_INT8", "[instr]") {
   for (int i = 0; i < 16; ++i) {
     TestFunction test([i](HIRBuilder& b) {
-      StoreVR(b, 3, b.Insert(LoadVR(b, 4), b.LoadConstant(i),
+      StoreVR(b, 3, b.Insert(LoadVR(b, 4), b.LoadConstantInt32(i),
                              b.Truncate(LoadGPR(b, 5), INT8_TYPE)));
       b.Return();
     });
@@ -43,7 +43,7 @@ TEST_CASE("INSERT_INT8", "[instr]") {
 TEST_CASE("INSERT_INT16", "[instr]") {
   for (int i = 0; i < 8; ++i) {
     TestFunction test([i](HIRBuilder& b) {
-      StoreVR(b, 3, b.Insert(LoadVR(b, 4), b.LoadConstant(i),
+      StoreVR(b, 3, b.Insert(LoadVR(b, 4), b.LoadConstantInt32(i),
                              b.Truncate(LoadGPR(b, 5), INT16_TYPE)));
       b.Return();
     });
@@ -64,7 +64,7 @@ TEST_CASE("INSERT_INT16", "[instr]") {
 TEST_CASE("INSERT_INT32", "[instr]") {
   for (int i = 0; i < 4; ++i) {
     TestFunction test([i](HIRBuilder& b) {
-      StoreVR(b, 3, b.Insert(LoadVR(b, 4), b.LoadConstant(i),
+      StoreVR(b, 3, b.Insert(LoadVR(b, 4), b.LoadConstantInt32(i),
                              b.Truncate(LoadGPR(b, 5), INT32_TYPE)));
       b.Return();
     });

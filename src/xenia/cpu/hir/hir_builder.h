@@ -112,17 +112,25 @@ class HIRBuilder {
   Value* VectorConvertF2I(Value* value, uint32_t arithmetic_flags = 0);
 
   Value* LoadZero(TypeName type);
-  Value* LoadConstant(int8_t value);
-  Value* LoadConstant(uint8_t value);
-  Value* LoadConstant(int16_t value);
-  Value* LoadConstant(uint16_t value);
-  Value* LoadConstant(int32_t value);
-  Value* LoadConstant(uint32_t value);
-  Value* LoadConstant(int64_t value);
-  Value* LoadConstant(uint64_t value);
-  Value* LoadConstant(float value);
-  Value* LoadConstant(double value);
-  Value* LoadConstant(const vec128_t& value);
+  Value* LoadZeroInt8() { return LoadZero(INT8_TYPE); }
+  Value* LoadZeroInt16() { return LoadZero(INT16_TYPE); }
+  Value* LoadZeroInt32() { return LoadZero(INT32_TYPE); }
+  Value* LoadZeroInt64() { return LoadZero(INT64_TYPE); }
+  Value* LoadZeroFloat32() { return LoadZero(FLOAT32_TYPE); }
+  Value* LoadZeroFloat64() { return LoadZero(FLOAT64_TYPE); }
+  Value* LoadZeroVec128() { return LoadZero(VEC128_TYPE); }
+
+  Value* LoadConstantInt8(int8_t value);
+  Value* LoadConstantUint8(uint8_t value);
+  Value* LoadConstantInt16(int16_t value);
+  Value* LoadConstantUint16(uint16_t value);
+  Value* LoadConstantInt32(int32_t value);
+  Value* LoadConstantUint32(uint32_t value);
+  Value* LoadConstantInt64(int64_t value);
+  Value* LoadConstantUint64(uint64_t value);
+  Value* LoadConstantFloat32(float value);
+  Value* LoadConstantFloat64(double value);
+  Value* LoadConstantVec128(const vec128_t& value);
 
   Value* LoadVectorShl(Value* sh);
   Value* LoadVectorShr(Value* sh);

@@ -1083,67 +1083,67 @@ Value* HIRBuilder::LoadZero(TypeName type) {
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(int8_t value) {
+Value* HIRBuilder::LoadConstantInt8(int8_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(uint8_t value) {
+Value* HIRBuilder::LoadConstantUint8(uint8_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(int16_t value) {
+Value* HIRBuilder::LoadConstantInt16(int16_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(uint16_t value) {
+Value* HIRBuilder::LoadConstantUint16(uint16_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(int32_t value) {
+Value* HIRBuilder::LoadConstantInt32(int32_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(uint32_t value) {
+Value* HIRBuilder::LoadConstantUint32(uint32_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(int64_t value) {
+Value* HIRBuilder::LoadConstantInt64(int64_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(uint64_t value) {
+Value* HIRBuilder::LoadConstantUint64(uint64_t value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(float value) {
+Value* HIRBuilder::LoadConstantFloat32(float value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(double value) {
+Value* HIRBuilder::LoadConstantFloat64(double value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
 }
 
-Value* HIRBuilder::LoadConstant(const vec128_t& value) {
+Value* HIRBuilder::LoadConstantVec128(const vec128_t& value) {
   Value* dest = AllocValue();
   dest->set_constant(value);
   return dest;
@@ -1332,7 +1332,7 @@ Value* HIRBuilder::Select(Value* cond, Value* value1, Value* value2) {
 
 Value* HIRBuilder::IsTrue(Value* value) {
   if (value->IsConstant()) {
-    return LoadConstant(value->IsConstantTrue() ? 1 : 0);
+    return LoadConstantInt8(value->IsConstantTrue() ? 1 : 0);
   }
 
   Instr* i = AppendInstr(OPCODE_IS_TRUE_info, 0, AllocValue(INT8_TYPE));
@@ -1343,7 +1343,7 @@ Value* HIRBuilder::IsTrue(Value* value) {
 
 Value* HIRBuilder::IsFalse(Value* value) {
   if (value->IsConstant()) {
-    return LoadConstant(value->IsConstantFalse() ? 1 : 0);
+    return LoadConstantInt8(value->IsConstantFalse() ? 1 : 0);
   }
 
   Instr* i = AppendInstr(OPCODE_IS_FALSE_info, 0, AllocValue(INT8_TYPE));
@@ -1356,8 +1356,7 @@ Value* HIRBuilder::CompareXX(const OpcodeInfo& opcode, Value* value1,
                              Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
   if (value1->IsConstant() && value2->IsConstant()) {
-    return LoadConstant(value1->Compare(opcode.num, value2) ? int8_t(1)
-                                                            : int8_t(0));
+    return LoadConstantInt8(value1->Compare(opcode.num, value2) ? 1 : 0);
   }
 
   Instr* i = AppendInstr(opcode, 0, AllocValue(INT8_TYPE));
@@ -1785,7 +1784,7 @@ Value* HIRBuilder::Shl(Value* value1, Value* value2) {
   return i->dest;
 }
 Value* HIRBuilder::Shl(Value* value1, int8_t value2) {
-  return Shl(value1, LoadConstant(value2));
+  return Shl(value1, LoadConstantInt8(value2));
 }
 
 Value* HIRBuilder::VectorShl(Value* value1, Value* value2, TypeName part_type) {
@@ -1818,7 +1817,7 @@ Value* HIRBuilder::Shr(Value* value1, Value* value2) {
   return i->dest;
 }
 Value* HIRBuilder::Shr(Value* value1, int8_t value2) {
-  return Shr(value1, LoadConstant(value2));
+  return Shr(value1, LoadConstantInt8(value2));
 }
 
 Value* HIRBuilder::VectorShr(Value* value1, Value* value2, TypeName part_type) {
@@ -1851,7 +1850,7 @@ Value* HIRBuilder::Sha(Value* value1, Value* value2) {
   return i->dest;
 }
 Value* HIRBuilder::Sha(Value* value1, int8_t value2) {
-  return Sha(value1, LoadConstant(value2));
+  return Sha(value1, LoadConstantInt8(value2));
 }
 
 Value* HIRBuilder::VectorSha(Value* value1, Value* value2, TypeName part_type) {
@@ -1935,7 +1934,7 @@ Value* HIRBuilder::CountLeadingZeros(Value* value) {
         8, 16, 32, 64,
     };
     assert_true(value->type <= INT64_TYPE);
-    return LoadConstant(zeros[value->type]);
+    return LoadConstantUint8(zeros[value->type]);
   }
 
   Instr* i = AppendInstr(OPCODE_CNTLZ_info, 0, AllocValue(INT8_TYPE));
@@ -1958,7 +1957,7 @@ Value* HIRBuilder::Insert(Value* value, Value* index, Value* part) {
 }
 
 Value* HIRBuilder::Insert(Value* value, uint64_t index, Value* part) {
-  return Insert(value, LoadConstant(index), part);
+  return Insert(value, LoadConstantUint64(index), part);
 }
 
 Value* HIRBuilder::Extract(Value* value, Value* index, TypeName target_type) {
@@ -1975,7 +1974,7 @@ Value* HIRBuilder::Extract(Value* value, Value* index, TypeName target_type) {
 }
 
 Value* HIRBuilder::Extract(Value* value, uint8_t index, TypeName target_type) {
-  return Extract(value, LoadConstant(index), target_type);
+  return Extract(value, LoadConstantUint8(index), target_type);
 }
 
 Value* HIRBuilder::Splat(Value* value, TypeName target_type) {
@@ -2022,7 +2021,7 @@ Value* HIRBuilder::Swizzle(Value* value, TypeName part_type,
 }
 
 Value* HIRBuilder::Pack(Value* value, uint32_t pack_flags) {
-  return Pack(value, LoadZero(VEC128_TYPE), pack_flags);
+  return Pack(value, LoadZeroVec128(), pack_flags);
 }
 
 Value* HIRBuilder::Pack(Value* value1, Value* value2, uint32_t pack_flags) {

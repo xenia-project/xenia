@@ -37,7 +37,7 @@ TEST_CASE("VECTOR_SHA_I8", "[instr]") {
 
 TEST_CASE("VECTOR_SHA_I8_CONSTANT", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorSha(LoadVR(b, 4), b.LoadConstant(vec128b(
+    StoreVR(b, 3, b.VectorSha(LoadVR(b, 4), b.LoadConstantVec128(vec128b(
                                                 0, 1, 2, 8, 4, 4, 6, 7, 8, 9,
                                                 10, 11, 12, 13, 14, 15)),
                               INT8_TYPE));
@@ -75,7 +75,7 @@ TEST_CASE("VECTOR_SHA_I16", "[instr]") {
 
 TEST_CASE("VECTOR_SHA_I16_CONSTANT", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorSha(LoadVR(b, 4), b.LoadConstant(vec128s(
+    StoreVR(b, 3, b.VectorSha(LoadVR(b, 4), b.LoadConstantVec128(vec128s(
                                                 0, 1, 8, 15, 15, 8, 1, 16)),
                               INT16_TYPE));
     b.Return();
@@ -120,12 +120,12 @@ TEST_CASE("VECTOR_SHA_I32", "[instr]") {
 
 TEST_CASE("VECTOR_SHA_I32_CONSTANT", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3,
-            b.VectorSha(LoadVR(b, 4), b.LoadConstant(vec128i(0, 1, 16, 31)),
-                        INT32_TYPE));
-    StoreVR(b, 4,
-            b.VectorSha(LoadVR(b, 5), b.LoadConstant(vec128i(31, 16, 1, 32)),
-                        INT32_TYPE));
+    StoreVR(b, 3, b.VectorSha(LoadVR(b, 4),
+                              b.LoadConstantVec128(vec128i(0, 1, 16, 31)),
+                              INT32_TYPE));
+    StoreVR(b, 4, b.VectorSha(LoadVR(b, 5),
+                              b.LoadConstantVec128(vec128i(31, 16, 1, 32)),
+                              INT32_TYPE));
     b.Return();
   });
   test.Run(

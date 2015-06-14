@@ -85,14 +85,16 @@ XEEMITTER(dss, 0x7C00066C, XDSS)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(lvebx, 0x7C00000E, X)(PPCHIRBuilder& f, InstrData& i) {
   // Same as lvx.
-  Value* ea = f.And(CalculateEA_0(f, i.X.RA, i.X.RB), f.LoadConstant(~0xFull));
+  Value* ea =
+      f.And(CalculateEA_0(f, i.X.RA, i.X.RB), f.LoadConstantUint64(~0xFull));
   f.StoreVR(i.X.RT, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
 
 XEEMITTER(lvehx, 0x7C00004E, X)(PPCHIRBuilder& f, InstrData& i) {
   // Same as lvx.
-  Value* ea = f.And(CalculateEA_0(f, i.X.RA, i.X.RB), f.LoadConstant(~0xFull));
+  Value* ea =
+      f.And(CalculateEA_0(f, i.X.RA, i.X.RB), f.LoadConstantUint64(~0xFull));
   f.StoreVR(i.X.RT, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
@@ -100,7 +102,7 @@ XEEMITTER(lvehx, 0x7C00004E, X)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_lvewx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                      uint32_t rb) {
   // Same as lvx.
-  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstant(~0xFull));
+  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstantUint64(~0xFull));
   f.StoreVR(vd, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
@@ -114,7 +116,7 @@ XEEMITTER(lvewx128, VX128_1(4, 131), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_lvsl_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                     uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
-  Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
+  Value* sh = f.Truncate(f.And(ea, f.LoadConstantInt64(0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShl(sh);
   f.StoreVR(vd, v);
   return 0;
@@ -129,7 +131,7 @@ XEEMITTER(lvsl128, VX128_1(4, 3), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_lvsr_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                     uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
-  Value* sh = f.Truncate(f.And(ea, f.LoadConstant((int64_t)0xF)), INT8_TYPE);
+  Value* sh = f.Truncate(f.And(ea, f.LoadConstantInt64(0xF)), INT8_TYPE);
   Value* v = f.LoadVectorShr(sh);
   f.StoreVR(vd, v);
   return 0;
@@ -143,7 +145,7 @@ XEEMITTER(lvsr128, VX128_1(4, 67), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 
 int InstrEmit_lvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                    uint32_t rb) {
-  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstant(~0xFull));
+  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstantInt64(~0xFull));
   f.StoreVR(vd, f.ByteSwap(f.Load(ea, VEC128_TYPE)));
   return 0;
 }
@@ -162,7 +164,7 @@ XEEMITTER(lvxl128, VX128_1(4, 707), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(stvebx, 0x7C00010E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  Value* el = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant(uint8_t(0xF)));
+  Value* el = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantUint8(0xF));
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT8_TYPE);
   f.Store(ea, v);
   return 0;
@@ -170,9 +172,9 @@ XEEMITTER(stvebx, 0x7C00010E, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(stvehx, 0x7C00014E, X)(PPCHIRBuilder& f, InstrData& i) {
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  ea = f.And(ea, f.LoadConstant(~0x1ull));
+  ea = f.And(ea, f.LoadConstantUint64(~0x1ull));
   Value* el =
-      f.Shr(f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant(uint8_t(0xF))), 1);
+      f.Shr(f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantUint8(0xF)), 1);
   Value* v = f.Extract(f.LoadVR(i.X.RT), el, INT16_TYPE);
   f.Store(ea, f.ByteSwap(v));
   return 0;
@@ -181,9 +183,9 @@ XEEMITTER(stvehx, 0x7C00014E, X)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_stvewx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                       uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
-  ea = f.And(ea, f.LoadConstant(~0x3ull));
+  ea = f.And(ea, f.LoadConstantUint64(~0x3ull));
   Value* el =
-      f.Shr(f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant(uint8_t(0xF))), 2);
+      f.Shr(f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantUint8(0xF)), 2);
   Value* v = f.Extract(f.LoadVR(vd), el, INT32_TYPE);
   f.Store(ea, f.ByteSwap(v));
   return 0;
@@ -197,7 +199,7 @@ XEEMITTER(stvewx128, VX128_1(4, 387), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 
 int InstrEmit_stvx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                     uint32_t rb) {
-  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstant(~0xFull));
+  Value* ea = f.And(CalculateEA_0(f, ra, rb), f.LoadConstantUint64(~0xFull));
   f.Store(ea, f.ByteSwap(f.LoadVR(vd)));
   return 0;
 }
@@ -219,12 +221,12 @@ XEEMITTER(stvxl128, VX128_1(4, 963), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_lvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                     uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
-  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
-  ea = f.And(ea, f.LoadConstant(~0xFull));
+  ea = f.And(ea, f.LoadConstantUint64(~0xFull));
   // v = (new << eb)
   Value* v = f.Permute(f.LoadVectorShl(eb), f.ByteSwap(f.Load(ea, VEC128_TYPE)),
-                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
+                       f.LoadZeroVec128(), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -244,11 +246,11 @@ XEEMITTER(lvlxl128, VX128_1(4, 1539), VX128_1)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_lvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
                     uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
-  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
-  ea = f.And(ea, f.LoadConstant(~0xFull));
+  ea = f.And(ea, f.LoadConstantUint64(~0xFull));
   // v = (new >> (16 - eb))
-  Value* v = f.Permute(f.LoadVectorShl(eb), f.LoadZero(VEC128_TYPE),
+  Value* v = f.Permute(f.LoadVectorShl(eb), f.LoadZeroVec128(),
                        f.ByteSwap(f.Load(ea, VEC128_TYPE)), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
@@ -271,16 +273,16 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = CalculateEA_0(f, ra, rb);
-  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
-  ea = f.And(ea, f.LoadConstant(~0xFull));
+  ea = f.And(ea, f.LoadConstantUint64(~0xFull));
   // v = (old & ~mask) | ((new >> eb) & mask)
-  Value* new_value = f.Permute(f.LoadVectorShr(eb), f.LoadZero(VEC128_TYPE),
+  Value* new_value = f.Permute(f.LoadVectorShr(eb), f.LoadZeroVec128(),
                                f.LoadVR(vd), INT8_TYPE);
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // mask = FFFF... >> eb
-  Value* mask = f.Permute(f.LoadVectorShr(eb), f.LoadZero(VEC128_TYPE),
-                          f.Not(f.LoadZero(VEC128_TYPE)), INT8_TYPE);
+  Value* mask = f.Permute(f.LoadVectorShr(eb), f.LoadZeroVec128(),
+                          f.Not(f.LoadZeroVec128()), INT8_TYPE);
   Value* v = f.Or(f.And(old_value, f.Not(mask)), f.And(new_value, mask));
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
@@ -305,16 +307,16 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t ra,
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
   Value* ea = CalculateEA_0(f, ra, rb);
-  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstant((int8_t)0xF));
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
-  ea = f.And(ea, f.LoadConstant(~0xFull));
+  ea = f.And(ea, f.LoadConstantUint64(~0xFull));
   // v = (old & ~mask) | ((new << eb) & mask)
   Value* new_value = f.Permute(f.LoadVectorShr(eb), f.LoadVR(vd),
-                               f.LoadZero(VEC128_TYPE), INT8_TYPE);
+                               f.LoadZeroVec128(), INT8_TYPE);
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // mask = ~FFFF... >> eb
-  Value* mask = f.Permute(f.LoadVectorShr(eb), f.Not(f.LoadZero(VEC128_TYPE)),
-                          f.LoadZero(VEC128_TYPE), INT8_TYPE);
+  Value* mask = f.Permute(f.LoadVectorShr(eb), f.Not(f.LoadZeroVec128()),
+                          f.LoadZeroVec128(), INT8_TYPE);
   Value* v = f.Or(f.And(old_value, f.Not(mask)), f.And(new_value, mask));
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
@@ -511,7 +513,7 @@ int InstrEmit_vcfsx_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
   // (VD) <- float(VB as signed) / 2^uimm
   float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v = f.Div(f.VectorConvertI2F(f.LoadVR(vb)),
-                   f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
+                   f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -528,7 +530,7 @@ int InstrEmit_vcfux_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
   // (VD) <- float(VB as unsigned) / 2^uimm
   float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v = f.Div(f.VectorConvertI2F(f.LoadVR(vb), ARITHMETIC_UNSIGNED),
-                   f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
+                   f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -544,7 +546,8 @@ int InstrEmit_vctsxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                       uint32_t uimm) {
   // (VD) <- int_sat(VB as signed * 2^uimm)
   float fuimm = static_cast<float>(std::exp2(uimm));
-  Value* v = f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
+  Value* v =
+      f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
   v = f.VectorConvertF2I(v, ARITHMETIC_SATURATE);
   f.StoreVR(vd, v);
   return 0;
@@ -561,7 +564,8 @@ int InstrEmit_vctuxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                       uint32_t uimm) {
   // (VD) <- int_sat(VB as unsigned * 2^uimm)
   float fuimm = static_cast<float>(std::exp2(uimm));
-  Value* v = f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstant(fuimm), VEC128_TYPE));
+  Value* v =
+      f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
   v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
   f.StoreVR(vd, v);
   return 0;
@@ -581,10 +585,11 @@ int InstrEmit_vcmpbfp_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t va,
   Value* gt = f.VectorCompareSGT(va_value, vb_value, FLOAT32_TYPE);
   Value* lt =
       f.Not(f.VectorCompareSGE(va_value, f.Neg(vb_value), FLOAT32_TYPE));
-  Value* v = f.Or(f.And(gt, f.LoadConstant(vec128i(0x80000000, 0x80000000,
-                                                   0x80000000, 0x80000000))),
-                  f.And(lt, f.LoadConstant(vec128i(0x40000000, 0x40000000,
-                                                   0x40000000, 0x40000000))));
+  Value* v =
+      f.Or(f.And(gt, f.LoadConstantVec128(vec128i(0x80000000, 0x80000000,
+                                                  0x80000000, 0x80000000))),
+           f.And(lt, f.LoadConstantVec128(vec128i(0x40000000, 0x40000000,
+                                                  0x40000000, 0x40000000))));
   f.StoreVR(vd, v);
   if (rc) {
     // CR0:4 = 0; CR0:5 = VT == 0; CR0:6 = CR0:7 = 0;
@@ -958,9 +963,10 @@ XEEMITTER(vmrghb, 0x1000000C, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD.b[i]) = (VA.b[i])
   // (VD.b[i+1]) = (VB.b[i+1])
   // ...
-  Value* v = f.Permute(f.LoadConstant(vec128b(0, 16, 1, 17, 2, 18, 3, 19, 4, 20,
-                                              5, 21, 6, 22, 7, 23)),
-                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  Value* v =
+      f.Permute(f.LoadConstantVec128(vec128b(0, 16, 1, 17, 2, 18, 3, 19, 4, 20,
+                                             5, 21, 6, 22, 7, 23)),
+                f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -969,7 +975,7 @@ XEEMITTER(vmrghh, 0x1000004C, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD.w[i]) = (VA.w[i])
   // (VD.w[i+1]) = (VB.w[i+1])
   // ...
-  Value* v = f.Permute(f.LoadConstant(vec128s(0, 8, 1, 9, 2, 10, 3, 11)),
+  Value* v = f.Permute(f.LoadConstantVec128(vec128s(0, 8, 1, 9, 2, 10, 3, 11)),
                        f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
@@ -980,8 +986,9 @@ int InstrEmit_vmrghw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.y) = (VB.x)
   // (VD.z) = (VA.y)
   // (VD.w) = (VB.y)
-  Value* v = f.Permute(f.LoadConstant(PERMUTE_MASK(0, 0, 1, 0, 0, 1, 1, 1)),
-                       f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
+  Value* v =
+      f.Permute(f.LoadConstantUint32(PERMUTE_MASK(0, 0, 1, 0, 0, 1, 1, 1)),
+                f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -996,9 +1003,10 @@ XEEMITTER(vmrglb, 0x1000010C, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD.b[i]) = (VA.b[i])
   // (VD.b[i+1]) = (VB.b[i+1])
   // ...
-  Value* v = f.Permute(f.LoadConstant(vec128b(8, 24, 9, 25, 10, 26, 11, 27, 12,
-                                              28, 13, 29, 14, 30, 15, 31)),
-                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
+  Value* v =
+      f.Permute(f.LoadConstantVec128(vec128b(8, 24, 9, 25, 10, 26, 11, 27, 12,
+                                             28, 13, 29, 14, 30, 15, 31)),
+                f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT8_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1007,8 +1015,9 @@ XEEMITTER(vmrglh, 0x1000014C, VX)(PPCHIRBuilder& f, InstrData& i) {
   // (VD.w[i]) = (VA.w[i])
   // (VD.w[i+1]) = (VB.w[i+1])
   // ...
-  Value* v = f.Permute(f.LoadConstant(vec128s(4, 12, 5, 13, 6, 14, 7, 15)),
-                       f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
+  Value* v =
+      f.Permute(f.LoadConstantVec128(vec128s(4, 12, 5, 13, 6, 14, 7, 15)),
+                f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT16_TYPE);
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1018,8 +1027,9 @@ int InstrEmit_vmrglw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.y) = (VB.z)
   // (VD.z) = (VA.w)
   // (VD.w) = (VB.w)
-  Value* v = f.Permute(f.LoadConstant(PERMUTE_MASK(0, 2, 1, 2, 0, 3, 1, 3)),
-                       f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
+  Value* v =
+      f.Permute(f.LoadConstantUint32(PERMUTE_MASK(0, 2, 1, 2, 0, 3, 1, 3)),
+                f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1205,7 +1215,7 @@ XEEMITTER(vpermwi128, VX128_P(6, 528), VX128_P)(PPCHIRBuilder& f,
 int InstrEmit_vrefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- 1/(VB)
   vec128_t one = vec128f(1.0f);
-  Value* v = f.Div(f.LoadConstant(one), f.LoadVR(vb));
+  Value* v = f.Div(f.LoadConstantVec128(one), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1338,7 +1348,8 @@ XEEMITTER(vrlimi128, VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f,
     v = f.LoadVR(vb);
   }
   if (blend_mask != PERMUTE_IDENTITY) {
-    v = f.Permute(f.LoadConstant(blend_mask), v, f.LoadVR(vd), INT32_TYPE);
+    v = f.Permute(f.LoadConstantUint32(blend_mask), v, f.LoadVR(vd),
+                  INT32_TYPE);
   }
   f.StoreVR(vd, v);
   return 0;
@@ -1379,7 +1390,7 @@ XEEMITTER(vsel128, VX128(5, 848), VX128)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(vsl, 0x100001C4, VX)(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.Shl(f.LoadVR(i.VX.VA),
                    f.And(f.Extract(f.LoadVR(i.VX.VB), 15, INT8_TYPE),
-                         f.LoadConstant(int8_t(0x7F))));
+                         f.LoadConstantInt8(0x7F)));
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1443,7 +1454,7 @@ int InstrEmit_vsldoi_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
   // vsldoi128 vr63,vr63,vr63,4
   // (ABCD ABCD) << 4b = (BCDA)
   // (VA << SH) OR (VB >> (16 - SH))
-  Value* control = f.LoadConstant(__vsldoi_table[sh]);
+  Value* control = f.LoadConstantVec128(__vsldoi_table[sh]);
   Value* v = f.Permute(control, f.LoadVR(va), f.LoadVR(vb), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
@@ -1459,10 +1470,10 @@ XEEMITTER(vsldoi128, VX128_5(4, 16), VX128_5)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vslo_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) << (VB.b[F] & 0x78) (by octet)
   // TODO(benvanik): flag for shift-by-octet as optimization.
-  Value* sh = f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE),
-                    f.LoadConstant(int8_t(0x78)));
-  Value* v = f.Permute(f.LoadVectorShl(sh), f.LoadVR(va),
-                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
+  Value* sh =
+      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstantInt8(0x78));
+  Value* v = f.Permute(f.LoadVectorShl(sh), f.LoadVR(va), f.LoadZeroVec128(),
+                       INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -1513,10 +1524,10 @@ XEEMITTER(vspltisb, 0x1000030C, VX)(PPCHIRBuilder& f, InstrData& i) {
   if (i.VX.VA) {
     // Sign extend from 5bits -> 8 and load.
     int8_t simm = (i.VX.VA & 0x10) ? (i.VX.VA | 0xF0) : i.VX.VA;
-    v = f.Splat(f.LoadConstant(simm), VEC128_TYPE);
+    v = f.Splat(f.LoadConstantInt8(simm), VEC128_TYPE);
   } else {
     // Zero out the register.
-    v = f.LoadZero(VEC128_TYPE);
+    v = f.LoadZeroVec128();
   }
   f.StoreVR(i.VX.VD, v);
   return 0;
@@ -1528,10 +1539,10 @@ XEEMITTER(vspltish, 0x1000034C, VX)(PPCHIRBuilder& f, InstrData& i) {
   if (i.VX.VA) {
     // Sign extend from 5bits -> 16 and load.
     int16_t simm = (i.VX.VA & 0x10) ? (i.VX.VA | 0xFFF0) : i.VX.VA;
-    v = f.Splat(f.LoadConstant(simm), VEC128_TYPE);
+    v = f.Splat(f.LoadConstantInt16(simm), VEC128_TYPE);
   } else {
     // Zero out the register.
-    v = f.LoadZero(VEC128_TYPE);
+    v = f.LoadZeroVec128();
   }
   f.StoreVR(i.VX.VD, v);
   return 0;
@@ -1543,10 +1554,10 @@ int InstrEmit_vspltisw_(PPCHIRBuilder& f, uint32_t vd, uint32_t uimm) {
   if (uimm) {
     // Sign extend from 5bits -> 32 and load.
     int32_t simm = (uimm & 0x10) ? (uimm | 0xFFFFFFF0) : uimm;
-    v = f.Splat(f.LoadConstant(simm), VEC128_TYPE);
+    v = f.Splat(f.LoadConstantInt32(simm), VEC128_TYPE);
   } else {
     // Zero out the register.
-    v = f.LoadZero(VEC128_TYPE);
+    v = f.LoadZeroVec128();
   }
   f.StoreVR(vd, v);
   return 0;
@@ -1562,7 +1573,7 @@ XEEMITTER(vspltisw128, VX128_3(6, 1904), VX128_3)(PPCHIRBuilder& f,
 XEEMITTER(vsr, 0x100002C4, VX)(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.Shr(f.LoadVR(i.VX.VA),
                    f.And(f.Extract(f.LoadVR(i.VX.VB), 15, INT8_TYPE),
-                         f.LoadConstant(int8_t(0x7F))));
+                         f.LoadConstantInt8(0x7F)));
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1611,10 +1622,10 @@ XEEMITTER(vsrh, 0x10000244, VX)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vsro_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) >> (VB.b[F] & 0x78) (by octet)
   // TODO(benvanik): flag for shift-by-octet as optimization.
-  Value* sh = f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE),
-                    f.LoadConstant(uint8_t(0x78)));
-  Value* v = f.Permute(f.LoadVectorShr(sh), f.LoadVR(va),
-                       f.LoadZero(VEC128_TYPE), INT8_TYPE);
+  Value* sh =
+      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstantInt8(0x78));
+  Value* v = f.Permute(f.LoadVectorShr(sh), f.LoadVR(va), f.LoadZeroVec128(),
+                       INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -2106,7 +2117,7 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
       assert_unhandled_case(pack);
       return 1;
   }
-  v = f.Permute(f.LoadConstant(control), f.LoadVR(vd), v, INT32_TYPE);
+  v = f.Permute(f.LoadConstantUint32(control), f.LoadVR(vd), v, INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
 }
@@ -2150,7 +2161,7 @@ int InstrEmit_vxor_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   Value* v;
   if (va == vb) {
     // Fast clear.
-    v = f.LoadZero(VEC128_TYPE);
+    v = f.LoadZeroVec128();
   } else {
     v = f.Xor(f.LoadVR(va), f.LoadVR(vb));
   }

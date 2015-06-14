@@ -123,7 +123,6 @@ namespace Xenia.Debug {
     private void DisassembleX64() {
       var str = disassembler.GenerateString(IntPtr.Zero, 0);
       System.Diagnostics.Debug.WriteLine(str);
-      disassembler.Dispose();
     }
   }
 }

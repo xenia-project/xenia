@@ -102,7 +102,7 @@ XEEMITTER(addi, 0x38000000, D)(PPCHIRBuilder& f, InstrData& i) {
   //   RT <- EXTS(SI)
   // else
   //   RT <- (RA) + EXTS(SI)
-  Value* si = f.LoadConstant(XEEXTS16(i.D.DS));
+  Value* si = f.LoadConstantInt64(XEEXTS16(i.D.DS));
   Value* v = si;
   if (i.D.RA) {
     v = f.Add(f.LoadGPR(i.D.RA), si);
@@ -115,9 +115,9 @@ XEEMITTER(addic, 0x30000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
   // CA <- carry bit
   Value* ra = f.LoadGPR(i.D.RA);
-  Value* v = f.Add(ra, f.LoadConstant(XEEXTS16(i.D.DS)));
+  Value* v = f.Add(ra, f.LoadConstantInt64(XEEXTS16(i.D.DS)));
   f.StoreGPR(i.D.RT, v);
-  f.StoreCA(AddDidCarry(f, ra, f.LoadConstant(XEEXTS16(i.D.DS))));
+  f.StoreCA(AddDidCarry(f, ra, f.LoadConstantInt64(XEEXTS16(i.D.DS))));
   return 0;
 }
 
@@ -125,9 +125,9 @@ XEEMITTER(addicx, 0x34000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + EXTS(SI)
   // CA <- carry bit
   Value* ra = f.LoadGPR(i.D.RA);
-  Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)));
+  Value* v = f.Add(f.LoadGPR(i.D.RA), f.LoadConstantInt64(XEEXTS16(i.D.DS)));
   f.StoreGPR(i.D.RT, v);
-  f.StoreCA(AddDidCarry(f, ra, f.LoadConstant(XEEXTS16(i.D.DS))));
+  f.StoreCA(AddDidCarry(f, ra, f.LoadConstantInt64(XEEXTS16(i.D.DS))));
   f.UpdateCR(0, v);
   return 0;
 }
@@ -137,7 +137,7 @@ XEEMITTER(addis, 0x3C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   //   RT <- EXTS(SI) || i16.0
   // else
   //   RT <- (RA) + EXTS(SI) || i16.0
-  Value* si = f.LoadConstant(XEEXTS16(i.D.DS) << 16);
+  Value* si = f.LoadConstantInt64(XEEXTS16(i.D.DS) << 16);
   Value* v = si;
   if (i.D.RA) {
     v = f.Add(f.LoadGPR(i.D.RA), si);
@@ -150,7 +150,7 @@ XEEMITTER(addmex, 0x7C0001D4, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA - 1
   // CA <- carry bit
   Value* ra = f.LoadGPR(i.XO.RA);
-  Value* v = f.AddWithCarry(ra, f.LoadConstant((int64_t)-1), f.LoadCA());
+  Value* v = f.AddWithCarry(ra, f.LoadConstantInt64(-1), f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // With XER[SO] update too.
@@ -158,8 +158,7 @@ XEEMITTER(addmex, 0x7C0001D4, XO)(PPCHIRBuilder& f, InstrData& i) {
     assert_always();
   } else {
     // Just CA update.
-    f.StoreCA(
-        AddWithCarryDidCarry(f, ra, f.LoadConstant((int64_t)-1), f.LoadCA()));
+    f.StoreCA(AddWithCarryDidCarry(f, ra, f.LoadConstantInt64(-1), f.LoadCA()));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -171,7 +170,7 @@ XEEMITTER(addzex, 0x7C000194, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- (RA) + CA
   // CA <- carry bit
   Value* ra = f.LoadGPR(i.XO.RA);
-  Value* v = f.AddWithCarry(ra, f.LoadZero(INT64_TYPE), f.LoadCA());
+  Value* v = f.AddWithCarry(ra, f.LoadZeroInt64(), f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     // With XER[SO] update too.
@@ -179,7 +178,7 @@ XEEMITTER(addzex, 0x7C000194, XO)(PPCHIRBuilder& f, InstrData& i) {
     assert_always();
   } else {
     // Just CA update.
-    f.StoreCA(AddWithCarryDidCarry(f, ra, f.LoadZero(INT64_TYPE), f.LoadCA()));
+    f.StoreCA(AddWithCarryDidCarry(f, ra, f.LoadZeroInt64(), f.LoadCA()));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -380,7 +379,7 @@ XEEMITTER(mulldx, 0x7C0001D2, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(mulli, 0x1C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // prod[0:127] <- (RA) × EXTS(SI)
   // RT <- prod[64:127]
-  Value* v = f.Mul(f.LoadGPR(i.D.RA), f.LoadConstant(XEEXTS16(i.D.DS)));
+  Value* v = f.Mul(f.LoadGPR(i.D.RA), f.LoadConstantInt64(XEEXTS16(i.D.DS)));
   f.StoreGPR(i.D.RT, v);
   return 0;
 }
@@ -470,9 +469,9 @@ XEEMITTER(subfcx, 0x7C000010, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(subficx, 0x20000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + EXTS(SI) + 1
   Value* ra = f.LoadGPR(i.D.RA);
-  Value* v = f.Sub(f.LoadConstant(XEEXTS16(i.D.DS)), ra);
+  Value* v = f.Sub(f.LoadConstantInt64(XEEXTS16(i.D.DS)), ra);
   f.StoreGPR(i.D.RT, v);
-  f.StoreCA(SubDidCarry(f, f.LoadConstant(XEEXTS16(i.D.DS)), ra));
+  f.StoreCA(SubDidCarry(f, f.LoadConstantInt64(XEEXTS16(i.D.DS)), ra));
   return 0;
 }
 
@@ -497,14 +496,14 @@ XEEMITTER(subfex, 0x7C000110, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(subfmex, 0x7C0001D0, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA - 1
   Value* not_ra = f.Not(f.LoadGPR(i.XO.RA));
-  Value* v = f.AddWithCarry(not_ra, f.LoadConstant((int64_t)-1), f.LoadCA());
+  Value* v = f.AddWithCarry(not_ra, f.LoadConstantInt64(-1), f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
   } else {
-    f.StoreCA(AddWithCarryDidCarry(f, not_ra, f.LoadConstant((int64_t)-1),
-                                   f.LoadCA()));
+    f.StoreCA(
+        AddWithCarryDidCarry(f, not_ra, f.LoadConstantInt64(-1), f.LoadCA()));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -515,14 +514,13 @@ XEEMITTER(subfmex, 0x7C0001D0, XO)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(subfzex, 0x7C000190, XO)(PPCHIRBuilder& f, InstrData& i) {
   // RT <- ¬(RA) + CA
   Value* not_ra = f.Not(f.LoadGPR(i.XO.RA));
-  Value* v = f.AddWithCarry(not_ra, f.LoadZero(INT64_TYPE), f.LoadCA());
+  Value* v = f.AddWithCarry(not_ra, f.LoadZeroInt64(), f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.OE) {
     assert_always();
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
   } else {
-    f.StoreCA(
-        AddWithCarryDidCarry(f, not_ra, f.LoadZero(INT64_TYPE), f.LoadCA()));
+    f.StoreCA(AddWithCarryDidCarry(f, not_ra, f.LoadZeroInt64(), f.LoadCA()));
   }
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -579,10 +577,10 @@ XEEMITTER(cmpi, 0x2C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* rhs;
   if (L) {
     lhs = f.LoadGPR(i.D.RA);
-    rhs = f.LoadConstant(XEEXTS16(i.D.DS));
+    rhs = f.LoadConstantInt64(XEEXTS16(i.D.DS));
   } else {
     lhs = f.Truncate(f.LoadGPR(i.D.RA), INT32_TYPE);
-    rhs = f.LoadConstant((int32_t)XEEXTS16(i.D.DS));
+    rhs = f.LoadConstantInt32(int32_t(XEEXTS16(i.D.DS)));
   }
   f.UpdateCR(BF, lhs, rhs);
   return 0;
@@ -635,10 +633,10 @@ XEEMITTER(cmpli, 0x28000000, D)(PPCHIRBuilder& f, InstrData& i) {
   Value* rhs;
   if (L) {
     lhs = f.LoadGPR(i.D.RA);
-    rhs = f.LoadConstant((uint64_t)i.D.DS);
+    rhs = f.LoadConstantUint64(i.D.DS);
   } else {
     lhs = f.Truncate(f.LoadGPR(i.D.RA), INT32_TYPE);
-    rhs = f.LoadConstant((uint32_t)i.D.DS);
+    rhs = f.LoadConstantUint32(i.D.DS);
   }
   f.UpdateCR(BF, lhs, rhs, false);
   return 0;
@@ -668,7 +666,7 @@ XEEMITTER(andcx, 0x7C000078, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(andix, 0x70000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i48.0 || UI)
-  Value* ra = f.And(f.LoadGPR(i.D.RT), f.LoadConstant((uint64_t)i.D.DS));
+  Value* ra = f.And(f.LoadGPR(i.D.RT), f.LoadConstantUint64(i.D.DS));
   f.StoreGPR(i.D.RA, ra);
   f.UpdateCR(0, ra);
   return 0;
@@ -677,7 +675,7 @@ XEEMITTER(andix, 0x70000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(andisx, 0x74000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i32.0 || UI || i16.0)
   Value* ra =
-      f.And(f.LoadGPR(i.D.RT), f.LoadConstant((uint64_t(i.D.DS) << 16)));
+      f.And(f.LoadGPR(i.D.RT), f.LoadConstantUint64(uint64_t(i.D.DS) << 16));
   f.StoreGPR(i.D.RA, ra);
   f.UpdateCR(0, ra);
   return 0;
@@ -819,14 +817,15 @@ XEEMITTER(ori, 0x60000000, D)(PPCHIRBuilder& f, InstrData& i) {
     f.Nop();
     return 0;
   }
-  Value* ra = f.Or(f.LoadGPR(i.D.RT), f.LoadConstant((uint64_t)i.D.DS));
+  Value* ra = f.Or(f.LoadGPR(i.D.RT), f.LoadConstantUint64(i.D.DS));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
 
 XEEMITTER(oris, 0x64000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | (i32.0 || UI || i16.0)
-  Value* ra = f.Or(f.LoadGPR(i.D.RT), f.LoadConstant((uint64_t(i.D.DS) << 16)));
+  Value* ra =
+      f.Or(f.LoadGPR(i.D.RT), f.LoadConstantUint64(uint64_t(i.D.DS) << 16));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -843,7 +842,7 @@ XEEMITTER(xorx, 0x7C000278, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(xori, 0x68000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i48.0 || UI)
-  Value* ra = f.Xor(f.LoadGPR(i.D.RT), f.LoadConstant((uint64_t)i.D.DS));
+  Value* ra = f.Xor(f.LoadGPR(i.D.RT), f.LoadConstantUint64(i.D.DS));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -851,7 +850,7 @@ XEEMITTER(xori, 0x68000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(xoris, 0x6C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i32.0 || UI || i16.0)
   Value* ra =
-      f.Xor(f.LoadGPR(i.D.RT), f.LoadConstant((uint64_t(i.D.DS) << 16)));
+      f.Xor(f.LoadGPR(i.D.RT), f.LoadConstantUint64(uint64_t(i.D.DS) << 16));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -875,10 +874,10 @@ XEEMITTER(rld, 0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
       v = f.Shr(v, int8_t(mb));
     } else {
       if (sh) {
-        v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+        v = f.RotateLeft(v, f.LoadConstantInt8(sh));
       }
       if (m != 0xFFFFFFFFFFFFFFFF) {
-        v = f.And(v, f.LoadConstant(m));
+        v = f.And(v, f.LoadConstantUint64(m));
       }
     }
     f.StoreGPR(i.MD.RA, v);
@@ -902,10 +901,10 @@ XEEMITTER(rld, 0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
       v = f.Shl(v, int8_t(sh));
     } else {
       if (sh) {
-        v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+        v = f.RotateLeft(v, f.LoadConstantInt8(sh));
       }
       if (m != 0xFFFFFFFFFFFFFFFF) {
-        v = f.And(v, f.LoadConstant(m));
+        v = f.And(v, f.LoadConstantUint64(m));
       }
     }
     f.StoreGPR(i.MD.RA, v);
@@ -937,11 +936,12 @@ XEEMITTER(rld, 0x78000000, MDS)(PPCHIRBuilder& f, InstrData& i) {
     uint64_t m = XEMASK(mb, ~sh);
     Value* v = f.LoadGPR(i.MD.RT);
     if (sh) {
-      v = f.RotateLeft(v, f.LoadConstant((int8_t)sh));
+      v = f.RotateLeft(v, f.LoadConstantInt8(sh));
     }
     if (m != 0xFFFFFFFFFFFFFFFF) {
       Value* ra = f.LoadGPR(i.MD.RA);
-      v = f.Or(f.And(v, f.LoadConstant(m)), f.And(ra, f.LoadConstant(~m)));
+      v = f.Or(f.And(v, f.LoadConstantUint64(m)),
+               f.And(ra, f.LoadConstantUint64(~m)));
     }
     f.StoreGPR(i.MD.RA, v);
     if (i.MD.Rc) {
@@ -961,16 +961,16 @@ XEEMITTER(rlwimix, 0x50000000, M)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- r&m | (RA)&¬m
   Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
   if (i.M.SH) {
-    v = f.RotateLeft(v, f.LoadConstant(i.M.SH));
+    v = f.RotateLeft(v, f.LoadConstantUint32(i.M.SH));
   }
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
   uint32_t m = (uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32);
   if (!(i.M.MB == 0 && i.M.ME == 31)) {
-    v = f.And(v, f.LoadConstant(m));
+    v = f.And(v, f.LoadConstantUint32(m));
   }
   v = f.ZeroExtend(v, INT64_TYPE);
-  v = f.Or(v, f.And(f.LoadGPR(i.M.RA), f.LoadConstant((~(uint64_t)m))));
+  v = f.Or(v, f.And(f.LoadGPR(i.M.RA), f.LoadConstantUint64(~(uint64_t)m)));
   f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
@@ -990,12 +990,13 @@ XEEMITTER(rlwinmx, 0x54000000, M)(PPCHIRBuilder& f, InstrData& i) {
   // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.
   if (i.M.SH) {
-    v = f.RotateLeft(v, f.LoadConstant(i.M.SH));
+    v = f.RotateLeft(v, f.LoadConstantUint32(i.M.SH));
   }
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
   if (!(i.M.MB == 0 && i.M.ME == 31)) {
-    v = f.And(v, f.LoadConstant((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
+    v = f.And(v,
+              f.LoadConstantUint32(uint32_t(XEMASK(i.M.MB + 32, i.M.ME + 32))));
   }
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.M.RA, v);
@@ -1011,13 +1012,14 @@ XEEMITTER(rlwnmx, 0x5C000000, M)(PPCHIRBuilder& f, InstrData& i) {
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
   Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
-  Value* sh =
-      f.And(f.Truncate(f.LoadGPR(i.M.SH), INT32_TYPE), f.LoadConstant(0x1F));
+  Value* sh = f.And(f.Truncate(f.LoadGPR(i.M.SH), INT32_TYPE),
+                    f.LoadConstantUint32(0x1F));
   v = f.RotateLeft(v, sh);
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
   if (!(i.M.MB == 0 && i.M.ME == 31)) {
-    v = f.And(v, f.LoadConstant((uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32)));
+    v = f.And(v,
+              f.LoadConstantUint32(uint32_t(XEMASK(i.M.MB + 32, i.M.ME + 32))));
   }
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.M.RA, v);
@@ -1037,9 +1039,9 @@ XEEMITTER(sldx, 0x7C000036, X)(PPCHIRBuilder& f, InstrData& i) {
   // else
   //   m <- i64.0
   // RA <- r & m
-  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
-                    f.LoadConstant(int8_t(0x7F)));
-  Value* v = f.Select(f.IsTrue(f.Shr(sh, 6)), f.LoadConstant(int64_t(0)),
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x7F));
+  Value* v = f.Select(f.IsTrue(f.Shr(sh, 6)), f.LoadZeroInt64(),
                       f.Shl(f.LoadGPR(i.X.RT), sh));
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
@@ -1056,9 +1058,9 @@ XEEMITTER(slwx, 0x7C000030, X)(PPCHIRBuilder& f, InstrData& i) {
   // else
   //   m <- i64.0
   // RA <- r & m
-  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
-                    f.LoadConstant(int8_t(0x3F)));
-  Value* v = f.Select(f.IsTrue(f.Shr(sh, 5)), f.LoadConstant(int32_t(0)),
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x3F));
+  Value* v = f.Select(f.IsTrue(f.Shr(sh, 5)), f.LoadZeroInt32(),
                       f.Shl(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), sh));
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.X.RA, v);
@@ -1078,8 +1080,8 @@ XEEMITTER(srdx, 0x7C000436, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- r & m
   // TODO(benvanik): if >3F, zero out the result.
   Value* sh = f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE);
-  Value* v = f.Select(f.IsTrue(f.And(sh, f.LoadConstant(int8_t(0x40)))),
-                      f.LoadConstant(int64_t(0)), f.Shr(f.LoadGPR(i.X.RT), sh));
+  Value* v = f.Select(f.IsTrue(f.And(sh, f.LoadConstantInt8(0x40))),
+                      f.LoadZeroInt64(), f.Shr(f.LoadGPR(i.X.RT), sh));
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
     f.UpdateCR(0, v);
@@ -1097,9 +1099,9 @@ XEEMITTER(srwx, 0x7C000430, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- r & m
   // TODO(benvanik): if >1F, zero out the result.
   Value* sh = f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE);
-  Value* v = f.Select(f.IsTrue(f.And(sh, f.LoadConstant(int8_t(0x20)))),
-                      f.LoadConstant(int32_t(0)),
-                      f.Shr(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), sh));
+  Value* v =
+      f.Select(f.IsTrue(f.And(sh, f.LoadConstantInt8(0x20))), f.LoadZeroInt32(),
+               f.Shr(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), sh));
   v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.X.RA, v);
   if (i.X.Rc) {
@@ -1119,9 +1121,9 @@ XEEMITTER(sradx, 0x7C000634, X)(PPCHIRBuilder& f, InstrData& i) {
   // if n == 0: rA <- rS, XER[CA] = 0
   // if n >= 64: rA <- 64 sign bits of rS, XER[CA] = sign bit of rS
   Value* rt = f.LoadGPR(i.X.RT);
-  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
-                    f.LoadConstant(int8_t(0x7F)));
-  Value* clamp_sh = f.Min(sh, f.LoadConstant(int8_t(0x3F)));
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x7F));
+  Value* clamp_sh = f.Min(sh, f.LoadConstantInt8(0x3F));
   Value* v = f.Sha(rt, clamp_sh);
 
   // CA is set if any bits are shifted out of the right and if the result
@@ -1154,12 +1156,12 @@ XEEMITTER(sradix, 0x7C000674, XS)(PPCHIRBuilder& f, InstrData& i) {
   if (sh) {
     uint64_t mask = XEMASK(64 - sh, 63);
     Value* ca = f.And(f.Truncate(f.Shr(v, 63), INT8_TYPE),
-                      f.IsTrue(f.And(v, f.LoadConstant(mask))));
+                      f.IsTrue(f.And(v, f.LoadConstantUint64(mask))));
     f.StoreCA(ca);
 
     v = f.Sha(v, sh);
   } else {
-    f.StoreCA(f.LoadZero(INT8_TYPE));
+    f.StoreCA(f.LoadZeroInt8());
   }
 
   f.StoreGPR(i.XS.RA, v);
@@ -1179,9 +1181,9 @@ XEEMITTER(srawx, 0x7C000630, X)(PPCHIRBuilder& f, InstrData& i) {
   // if n == 0: rA <- sign_extend(rS), XER[CA] = 0
   // if n >= 32: rA <- 64 sign bits of rS, XER[CA] = sign bit of lo_32(rS)
   Value* rt = f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE);
-  Value* sh = f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE),
-                    f.LoadConstant(int8_t(0x3F)));
-  Value* clamp_sh = f.Min(sh, f.LoadConstant(int8_t(0x1F)));
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x3F));
+  Value* clamp_sh = f.Min(sh, f.LoadConstantInt8(0x1F));
   Value* v = f.Sha(rt, f.Min(sh, clamp_sh));
 
   // CA is set if any bits are shifted out of the right and if the result
@@ -1212,13 +1214,13 @@ XEEMITTER(srawix, 0x7C000670, X)(PPCHIRBuilder& f, InstrData& i) {
   if (!i.X.RB) {
     // No shift, just a fancy sign extend and CA clearer.
     v = f.SignExtend(v, INT64_TYPE);
-    ca = f.LoadZero(INT8_TYPE);
+    ca = f.LoadZeroInt8();
   } else {
     // CA is set if any bits are shifted out of the right and if the result
     // is negative.
     uint32_t mask = (uint32_t)XEMASK(64 - i.X.RB, 63);
     ca = f.And(f.Truncate(f.Shr(v, 31), INT8_TYPE),
-               f.IsTrue(f.And(v, f.LoadConstant(mask))));
+               f.IsTrue(f.And(v, f.LoadConstantUint32(mask))));
 
     v = f.Sha(v, (int8_t)i.X.RB), v = f.SignExtend(v, INT64_TYPE);
   }

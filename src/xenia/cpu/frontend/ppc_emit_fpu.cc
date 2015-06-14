@@ -116,9 +116,9 @@ XEEMITTER(fmulsx, 0xEC000032, A)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(fresx, 0xEC000030, A)(PPCHIRBuilder& f, InstrData& i) {
   // frD <- 1.0 / (frB)
-  Value* v = f.Convert(
-      f.Div(f.LoadConstant(1.0f), f.Convert(f.LoadFPR(i.A.FRB), FLOAT32_TYPE)),
-      FLOAT64_TYPE);
+  Value* v = f.Convert(f.Div(f.LoadConstantFloat32(1.0f),
+                             f.Convert(f.LoadFPR(i.A.FRB), FLOAT32_TYPE)),
+                       FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
   // f.UpdateFPRF(v);
   if (i.A.Rc) {
@@ -174,7 +174,7 @@ XEEMITTER(fselx, 0xFC00002E, A)(PPCHIRBuilder& f, InstrData& i) {
   // if (frA) >= 0.0
   // then frD <- (frC)
   // else frD <- (frB)
-  Value* ge = f.CompareSGE(f.LoadFPR(i.A.FRA), f.LoadConstant(0.0));
+  Value* ge = f.CompareSGE(f.LoadFPR(i.A.FRA), f.LoadZeroFloat64());
   Value* v = f.Select(ge, f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
   if (i.A.Rc) {

@@ -43,8 +43,8 @@ TEST_CASE("EXTRACT_INT8_CONSTANT", "[instr]") {
     TestFunction(
         [i](HIRBuilder& b) {
           StoreGPR(b, 3,
-                   b.ZeroExtend(b.Extract(LoadVR(b, 4),
-                                          b.LoadConstant(int8_t(i)), INT8_TYPE),
+                   b.ZeroExtend(b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i),
+                                          INT8_TYPE),
                                 INT64_TYPE));
           b.Return();
         }).Run([i](PPCContext* ctx) {
@@ -83,11 +83,10 @@ TEST_CASE("EXTRACT_INT16", "[instr]") {
 TEST_CASE("EXTRACT_INT16_CONSTANT", "[instr]") {
   for (int i = 0; i < 8; ++i) {
     TestFunction([i](HIRBuilder& b) {
-                   StoreGPR(b, 3,
-                            b.ZeroExtend(b.Extract(LoadVR(b, 4),
-                                                   b.LoadConstant(int8_t(i)),
-                                                   INT16_TYPE),
-                                         INT64_TYPE));
+                   StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4),
+                                                         b.LoadConstantInt8(i),
+                                                         INT16_TYPE),
+                                               INT64_TYPE));
                    b.Return();
                  }).Run([i](PPCContext* ctx) {
                           ctx->r[4] = i;
@@ -123,11 +122,10 @@ TEST_CASE("EXTRACT_INT32", "[instr]") {
 TEST_CASE("EXTRACT_INT32_CONSTANT", "[instr]") {
   for (int i = 0; i < 4; ++i) {
     TestFunction([i](HIRBuilder& b) {
-                   StoreGPR(b, 3,
-                            b.ZeroExtend(b.Extract(LoadVR(b, 4),
-                                                   b.LoadConstant(int8_t(i)),
-                                                   INT32_TYPE),
-                                         INT64_TYPE));
+                   StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4),
+                                                         b.LoadConstantInt8(i),
+                                                         INT32_TYPE),
+                                               INT64_TYPE));
                    b.Return();
                  }).Run([i](PPCContext* ctx) {
                           ctx->r[4] = i;
