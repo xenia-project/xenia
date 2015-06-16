@@ -56,6 +56,7 @@
     <ClCompile Include="src\xenia\cpu\compiler\passes\data_flow_analysis_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\dead_code_elimination_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\finalization_pass.cc" />
+    <ClCompile Include="src\xenia\cpu\compiler\passes\memory_sequence_combination_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\register_allocation_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\simplification_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\validation_pass.cc" />
@@ -317,6 +318,7 @@
     <ClInclude Include="src\xenia\cpu\compiler\passes\data_flow_analysis_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\dead_code_elimination_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\finalization_pass.h" />
+    <ClInclude Include="src\xenia\cpu\compiler\passes\memory_sequence_combination_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\register_allocation_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\simplification_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\validation_pass.h" />

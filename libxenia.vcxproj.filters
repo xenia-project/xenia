@@ -772,6 +772,9 @@
     <ClCompile Include="src\xenia\gpu\tracing.cc">
       <Filter>src\xenia\gpu</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\cpu\compiler\passes\memory_sequence_combination_pass.cc">
+      <Filter>src\xenia\cpu\compiler\passes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
@@ -1490,6 +1493,9 @@
     </ClInclude>
     <ClInclude Include="third_party\capstone\utils.h">
       <Filter>third_party\capstone</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\cpu\compiler\passes\memory_sequence_combination_pass.h">
+      <Filter>src\xenia\cpu\compiler\passes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

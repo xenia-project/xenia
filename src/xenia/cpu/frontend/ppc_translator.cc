@@ -60,6 +60,8 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
   compiler_->AddPass(std::make_unique<passes::ConstantPropagationPass>());
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::make_unique<passes::MemorySequenceCombinationPass>());
+  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
   compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
   // compiler_->AddPass(std::make_unique<passes::DeadStoreEliminationPass>());
