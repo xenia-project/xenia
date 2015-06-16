@@ -31,17 +31,8 @@ enum RoundMode {
   ROUND_TO_MINUS_INFINITY,
   ROUND_TO_POSITIVE_INFINITY,
 };
-enum LoadFlags {
-  LOAD_NO_ALIAS = (1 << 1),
-  LOAD_ALIGNED = (1 << 2),
-  LOAD_UNALIGNED = (1 << 3),
-  LOAD_VOLATILE = (1 << 4),
-};
-enum StoreFlags {
-  STORE_NO_ALIAS = (1 << 1),
-  STORE_ALIGNED = (1 << 2),
-  STORE_UNALIGNED = (1 << 3),
-  STORE_VOLATILE = (1 << 4),
+enum LoadStoreFlags {
+  LOAD_STORE_BYTE_SWAP = 1 << 0,
 };
 enum PrefetchFlags {
   PREFETCH_LOAD = (1 << 1),
