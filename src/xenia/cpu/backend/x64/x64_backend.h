@@ -33,6 +33,7 @@ class X64Backend : public Backend {
   ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_; }
+  uint32_t emitter_data() const { return emitter_data_; }
   HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
   GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
   ResolveFunctionThunk resolve_function_thunk() const {
@@ -47,6 +48,8 @@ class X64Backend : public Backend {
 
  private:
   X64CodeCache* code_cache_;
+
+  uint32_t emitter_data_;
 
   HostToGuestThunk host_to_guest_thunk_;
   GuestToHostThunk guest_to_host_thunk_;

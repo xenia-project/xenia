@@ -36,13 +36,14 @@ class X64CodeCache {
   // TODO(benvanik): padding/guards/etc
 
   void set_indirection_default(uint32_t default_value);
-
   void AddIndirection(uint32_t guest_address, uint32_t host_address);
 
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high);
 
   void* PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
                   size_t stack_size);
+
+  uint32_t PlaceData(const void* data, size_t length);
 
  private:
   const static uint64_t kIndirectionTableBase = 0x80000000;

@@ -583,7 +583,7 @@ void X64Emitter::MovMem64(const RegExp& addr, uint64_t v) {
   }
 }
 
-Address X64Emitter::GetXmmConstPtr(XmmConst id) {
+uint32_t X64Emitter::PlaceData(Memory* memory) {
   static const vec128_t xmm_consts[] = {
       /* XMMZero                */ vec128f(0.0f),
       /* XMMOne                 */ vec128f(1.0f),
@@ -659,12 +659,14 @@ Address X64Emitter::GetXmmConstPtr(XmmConst id) {
       /* XMMShortMinPS          */ vec128f(SHRT_MIN),
       /* XMMShortMaxPS          */ vec128f(SHRT_MAX),
   };
-  // TODO(benvanik): cache base pointer somewhere? stack? It'd be nice to
-  // prevent this move.
-  // TODO(benvanik): move to predictable location in PPCContext? could then
-  // just do rcx relative addression with no rax overwriting.
-  mov(rax, (uint64_t)&xmm_consts[id]);
-  return ptr[rax];
+  uint32_t ptr = memory->SystemHeapAlloc(sizeof(xmm_consts));
+  std::memcpy(memory->TranslateVirtual(ptr), xmm_consts, sizeof(xmm_consts));
+  return ptr;
+}
+
+Address X64Emitter::GetXmmConstPtr(XmmConst id) {
+  // Load through fixed constant table setup by PlaceData.
+  return ptr[rdx + backend_->emitter_data() + sizeof(vec128_t) * id];
 }
 
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {

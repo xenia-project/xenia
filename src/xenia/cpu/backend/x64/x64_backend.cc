@@ -13,6 +13,7 @@
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_thunk_emitter.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -20,9 +21,15 @@ namespace backend {
 namespace x64 {
 
 X64Backend::X64Backend(Processor* processor)
-    : Backend(processor), code_cache_(nullptr) {}
+    : Backend(processor), code_cache_(nullptr), emitter_data_(0) {}
 
-X64Backend::~X64Backend() { delete code_cache_; }
+X64Backend::~X64Backend() {
+  if (emitter_data_) {
+    processor()->memory()->SystemHeapFree(emitter_data_);
+    emitter_data_ = 0;
+  }
+  delete code_cache_;
+}
 
 bool X64Backend::Initialize() {
   if (!Backend::Initialize()) {
@@ -60,6 +67,9 @@ bool X64Backend::Initialize() {
 
   // Allocate some special indirections.
   code_cache_->CommitExecutableRange(0x9FFF0000, 0x9FFFFFFF);
+
+  // Allocate emitter constant data.
+  emitter_data_ = X64Emitter::PlaceData(processor()->memory());
 
   return true;
 }

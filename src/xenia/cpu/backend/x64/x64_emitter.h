@@ -16,6 +16,7 @@
 #include "xenia/base/arena.h"
 #include "xenia/cpu/hir/value.h"
 #include "xenia/debug/function_trace_data.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {
@@ -116,6 +117,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   bool Emit(uint32_t guest_address, hir::HIRBuilder* builder,
             uint32_t debug_info_flags, DebugInfo* debug_info,
             void*& out_code_address, size_t& out_code_size);
+
+  static uint32_t PlaceData(Memory* memory);
 
  public:
   // Reserved:  rsp

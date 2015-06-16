@@ -300,6 +300,40 @@ void X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
   fn_entry.UnwindData = (DWORD)(unwind_entry_address - generated_code_base_);
 }
 
+uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
+  // Hold a lock while we bump the pointers up.
+  size_t high_mark;
+  uint8_t* data_address = nullptr;
+  size_t unwind_table_slot = 0;
+  {
+    std::lock_guard<xe::mutex> allocation_lock(allocation_mutex_);
+
+    // Reserve code.
+    // Always move the code to land on 16b alignment.
+    data_address = generated_code_base_ + generated_code_offset_;
+    generated_code_offset_ += xe::round_up(length, 16);
+
+    high_mark = generated_code_offset_;
+  }
+
+  // If we are going above the high water mark of committed memory, commit some
+  // more. It's ok if multiple threads do this, as redundant commits aren't
+  // harmful.
+  size_t old_commit_mark = generated_code_commit_mark_;
+  if (high_mark > old_commit_mark) {
+    size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
+    VirtualAlloc(generated_code_base_, new_commit_mark, MEM_COMMIT,
+                 PAGE_EXECUTE_READWRITE);
+    generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
+                                                        new_commit_mark);
+  }
+
+  // Copy code.
+  std::memcpy(data_address, data, length);
+
+  return uint32_t(uintptr_t(data_address));
+}
+
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu
