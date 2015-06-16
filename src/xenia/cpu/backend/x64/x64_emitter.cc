@@ -88,6 +88,9 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
   }
+
+  // Need movbe.
+  assert_true(cpu_.has(Xbyak::util::Cpu::tMOVBE));
 }
 
 X64Emitter::~X64Emitter() = default;
