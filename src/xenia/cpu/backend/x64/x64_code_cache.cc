@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 
+#include <cstring>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"

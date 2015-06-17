@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 
+#include <cstring>
+
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"

@@ -10,6 +10,7 @@
 #include "xenia/kernel/util/xex2.h"
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include <gflags/gflags.h>

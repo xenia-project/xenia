@@ -9,6 +9,7 @@
 
 #include "xenia/base/arena.h"
 
+#include <cstring>
 #include <memory>
 
 #include "xenia/base/assert.h"

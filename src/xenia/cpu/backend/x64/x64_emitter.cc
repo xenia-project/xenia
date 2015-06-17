@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
+#include <cstring>
+
 #include <gflags/gflags.h>
 
 #include "xenia/base/assert.h"

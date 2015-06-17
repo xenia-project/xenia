@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/register_file.h"
 
+#include <cstring>
+
 #include "xenia/base/math.h"
 
 namespace xe {

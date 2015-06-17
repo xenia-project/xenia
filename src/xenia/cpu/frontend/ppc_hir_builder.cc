@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 
+#include <cstring>
+
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"

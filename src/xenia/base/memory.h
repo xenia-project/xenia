@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_MEMORY_H_
 #define XENIA_BASE_MEMORY_H_
 
+#include <cstring>
 #include <functional>
 #include <string>
 

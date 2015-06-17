@@ -10,6 +10,8 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 #include <winsock2.h>
 
+#include <cstring>
+
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"

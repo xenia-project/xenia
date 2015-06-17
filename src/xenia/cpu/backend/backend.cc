@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/backend.h"
 
+#include <cstring>
+
 namespace xe {
 namespace cpu {
 namespace backend {

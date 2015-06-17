@@ -11,6 +11,7 @@
 #define XENIA_GPU_GL4_COMMAND_PROCESSOR_H_
 
 #include <atomic>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <queue>

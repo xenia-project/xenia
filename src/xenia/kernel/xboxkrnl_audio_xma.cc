@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include <cstring>
+
 #include "xenia/apu/apu.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"

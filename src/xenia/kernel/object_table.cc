@@ -10,6 +10,7 @@
 #include "xenia/kernel/object_table.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/objects/xthread.h"

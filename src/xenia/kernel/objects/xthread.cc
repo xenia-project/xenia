@@ -9,6 +9,8 @@
 
 #include "xenia/kernel/objects/xthread.h"
 
+#include <cstring>
+
 #include <gflags/gflags.h>
 
 #include "xenia/base/clock.h"
