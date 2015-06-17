@@ -85,6 +85,7 @@ class XThread : public XObject {
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId(const uint8_t* pcr);
 
+  uint32_t tls_ptr() const { return tls_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }
 
@@ -112,9 +113,12 @@ class XThread : public XObject {
   void EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
                   uint32_t arg1, uint32_t arg2);
 
+  int32_t priority() const { return priority_; }
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
+  uint32_t affinity() const { return affinity_; }
   void SetAffinity(uint32_t affinity);
+  uint32_t active_cpu() const;
   void SetActiveCpu(uint32_t cpu_index);
 
   X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
@@ -150,6 +154,9 @@ class XThread : public XObject {
   cpu::ThreadState* thread_state_;
 
   std::string name_;
+
+  int32_t priority_;
+  uint32_t affinity_;
 
   std::atomic<uint32_t> irql_;
   xe::mutex apc_lock_;

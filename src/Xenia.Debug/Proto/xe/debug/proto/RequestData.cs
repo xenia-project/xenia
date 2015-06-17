@@ -15,10 +15,11 @@ public enum RequestData : byte
  GetModuleRequest = 7,
  ListFunctionsRequest = 8,
  GetFunctionRequest = 9,
- StopRequest = 10,
- BreakRequest = 11,
- ContinueRequest = 12,
- StepRequest = 13,
+ ListThreadsRequest = 10,
+ StopRequest = 11,
+ BreakRequest = 12,
+ ContinueRequest = 13,
+ StepRequest = 14,
 };
 
 

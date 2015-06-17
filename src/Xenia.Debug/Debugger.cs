@@ -312,6 +312,7 @@ namespace Xenia.Debug {
     private async Task CompleteRunStateTransition(RunState newRunState) {
       await Task.WhenAll(new Task[] {
         ModuleList.Invalidate(),
+        ThreadList.Invalidate(),
       });
 
       CurrentContext.SetRunState(newRunState);

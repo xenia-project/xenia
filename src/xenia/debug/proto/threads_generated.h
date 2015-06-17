@@ -36,10 +36,39 @@ inline const char *EnumNameThreadType(ThreadType e) { return EnumNamesThreadType
 struct Thread FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const xe::debug::proto::XObject *object() const { return GetStruct<const xe::debug::proto::XObject *>(4); }
   ThreadType type() const { return static_cast<ThreadType>(GetField<int8_t>(6, 0)); }
+  uint32_t stack_size() const { return GetField<uint32_t>(8, 0); }
+  uint32_t xapi_thread_startup() const { return GetField<uint32_t>(10, 0); }
+  uint32_t start_address() const { return GetField<uint32_t>(12, 0); }
+  uint32_t start_context() const { return GetField<uint32_t>(14, 0); }
+  uint32_t creation_flags() const { return GetField<uint32_t>(16, 0); }
+  uint32_t tls_address() const { return GetField<uint32_t>(18, 0); }
+  uint32_t pcr_address() const { return GetField<uint32_t>(20, 0); }
+  uint32_t thread_state_address() const { return GetField<uint32_t>(22, 0); }
+  uint32_t thread_id() const { return GetField<uint32_t>(24, 0); }
+  const flatbuffers::String *name() const {
+    return GetPointer<const flatbuffers::String *>(26);
+  }
+  uint32_t priority() const { return GetField<uint32_t>(28, 0); }
+  uint32_t affinity() const { return GetField<uint32_t>(30, 0); }
+  uint32_t state() const { return GetField<uint32_t>(32, 0); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<xe::debug::proto::XObject>(verifier, 4 /* object */) &&
            VerifyField<int8_t>(verifier, 6 /* type */) &&
+           VerifyField<uint32_t>(verifier, 8 /* stack_size */) &&
+           VerifyField<uint32_t>(verifier, 10 /* xapi_thread_startup */) &&
+           VerifyField<uint32_t>(verifier, 12 /* start_address */) &&
+           VerifyField<uint32_t>(verifier, 14 /* start_context */) &&
+           VerifyField<uint32_t>(verifier, 16 /* creation_flags */) &&
+           VerifyField<uint32_t>(verifier, 18 /* tls_address */) &&
+           VerifyField<uint32_t>(verifier, 20 /* pcr_address */) &&
+           VerifyField<uint32_t>(verifier, 22 /* thread_state_address */) &&
+           VerifyField<uint32_t>(verifier, 24 /* thread_id */) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 26 /* name */) &&
+           verifier.Verify(name()) &&
+           VerifyField<uint32_t>(verifier, 28 /* priority */) &&
+           VerifyField<uint32_t>(verifier, 30 /* affinity */) &&
+           VerifyField<uint32_t>(verifier, 32 /* state */) &&
            verifier.EndTable();
   }
 };
@@ -49,18 +78,75 @@ struct ThreadBuilder {
   flatbuffers::uoffset_t start_;
   void add_object(const xe::debug::proto::XObject *object) { fbb_.AddStruct(4, object); }
   void add_type(ThreadType type) { fbb_.AddElement<int8_t>(6, static_cast<int8_t>(type), 0); }
+  void add_stack_size(uint32_t stack_size) {
+    fbb_.AddElement<uint32_t>(8, stack_size, 0);
+  }
+  void add_xapi_thread_startup(uint32_t xapi_thread_startup) {
+    fbb_.AddElement<uint32_t>(10, xapi_thread_startup, 0);
+  }
+  void add_start_address(uint32_t start_address) {
+    fbb_.AddElement<uint32_t>(12, start_address, 0);
+  }
+  void add_start_context(uint32_t start_context) {
+    fbb_.AddElement<uint32_t>(14, start_context, 0);
+  }
+  void add_creation_flags(uint32_t creation_flags) {
+    fbb_.AddElement<uint32_t>(16, creation_flags, 0);
+  }
+  void add_tls_address(uint32_t tls_address) {
+    fbb_.AddElement<uint32_t>(18, tls_address, 0);
+  }
+  void add_pcr_address(uint32_t pcr_address) {
+    fbb_.AddElement<uint32_t>(20, pcr_address, 0);
+  }
+  void add_thread_state_address(uint32_t thread_state_address) {
+    fbb_.AddElement<uint32_t>(22, thread_state_address, 0);
+  }
+  void add_thread_id(uint32_t thread_id) {
+    fbb_.AddElement<uint32_t>(24, thread_id, 0);
+  }
+  void add_name(flatbuffers::Offset<flatbuffers::String> name) {
+    fbb_.AddOffset(26, name);
+  }
+  void add_priority(uint32_t priority) {
+    fbb_.AddElement<uint32_t>(28, priority, 0);
+  }
+  void add_affinity(uint32_t affinity) {
+    fbb_.AddElement<uint32_t>(30, affinity, 0);
+  }
+  void add_state(uint32_t state) { fbb_.AddElement<uint32_t>(32, state, 0); }
   ThreadBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   ThreadBuilder &operator=(const ThreadBuilder &);
   flatbuffers::Offset<Thread> Finish() {
-    auto o = flatbuffers::Offset<Thread>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<Thread>(fbb_.EndTable(start_, 15));
     return o;
   }
 };
 
-inline flatbuffers::Offset<Thread> CreateThread(flatbuffers::FlatBufferBuilder &_fbb,
-   const xe::debug::proto::XObject *object = 0,
-   ThreadType type = ThreadType_Kernel) {
+inline flatbuffers::Offset<Thread> CreateThread(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    const xe::debug::proto::XObject *object = 0,
+    ThreadType type = ThreadType_Kernel, uint32_t stack_size = 0,
+    uint32_t xapi_thread_startup = 0, uint32_t start_address = 0,
+    uint32_t start_context = 0, uint32_t creation_flags = 0,
+    uint32_t tls_address = 0, uint32_t pcr_address = 0,
+    uint32_t thread_state_address = 0, uint32_t thread_id = 0,
+    flatbuffers::Offset<flatbuffers::String> name = 0, uint32_t priority = 0,
+    uint32_t affinity = 0, uint32_t state = 0) {
   ThreadBuilder builder_(_fbb);
+  builder_.add_state(state);
+  builder_.add_affinity(affinity);
+  builder_.add_priority(priority);
+  builder_.add_name(name);
+  builder_.add_thread_id(thread_id);
+  builder_.add_thread_state_address(thread_state_address);
+  builder_.add_pcr_address(pcr_address);
+  builder_.add_tls_address(tls_address);
+  builder_.add_creation_flags(creation_flags);
+  builder_.add_start_context(start_context);
+  builder_.add_start_address(start_address);
+  builder_.add_xapi_thread_startup(xapi_thread_startup);
+  builder_.add_stack_size(stack_size);
   builder_.add_object(object);
   builder_.add_type(type);
   return builder_.Finish();
@@ -90,25 +176,39 @@ inline flatbuffers::Offset<ListThreadsRequest> CreateListThreadsRequest(flatbuff
 }
 
 struct ListThreadsResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  const flatbuffers::Vector<flatbuffers::Offset<Thread>> *thread() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Thread>> *>(
+        4);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           verifier.EndTable();
+           VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* thread */) &&
+           verifier.Verify(thread()) &&
+           verifier.VerifyVectorOfTables(thread()) && verifier.EndTable();
   }
 };
 
 struct ListThreadsResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
+  void add_thread(flatbuffers::Offset<
+      flatbuffers::Vector<flatbuffers::Offset<Thread>>> thread) {
+    fbb_.AddOffset(4, thread);
+  }
   ListThreadsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   ListThreadsResponseBuilder &operator=(const ListThreadsResponseBuilder &);
   flatbuffers::Offset<ListThreadsResponse> Finish() {
-    auto o = flatbuffers::Offset<ListThreadsResponse>(fbb_.EndTable(start_, 0));
+    auto o = flatbuffers::Offset<ListThreadsResponse>(fbb_.EndTable(start_, 1));
     return o;
   }
 };
 
-inline flatbuffers::Offset<ListThreadsResponse> CreateListThreadsResponse(flatbuffers::FlatBufferBuilder &_fbb) {
+inline flatbuffers::Offset<ListThreadsResponse> CreateListThreadsResponse(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Thread>>>
+        thread = 0) {
   ListThreadsResponseBuilder builder_(_fbb);
+  builder_.add_thread(thread);
   return builder_.Finish();
 }
 

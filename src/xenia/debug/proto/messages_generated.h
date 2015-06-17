@@ -91,14 +91,23 @@ enum RequestData {
   RequestData_GetModuleRequest = 7,
   RequestData_ListFunctionsRequest = 8,
   RequestData_GetFunctionRequest = 9,
-  RequestData_StopRequest = 10,
-  RequestData_BreakRequest = 11,
-  RequestData_ContinueRequest = 12,
-  RequestData_StepRequest = 13
+  RequestData_ListThreadsRequest = 10,
+  RequestData_StopRequest = 11,
+  RequestData_BreakRequest = 12,
+  RequestData_ContinueRequest = 13,
+  RequestData_StepRequest = 14
 };
 
 inline const char **EnumNamesRequestData() {
-  static const char *names[] = { "NONE", "AttachRequest", "ListBreakpointsRequest", "AddBreakpointsRequest", "UpdateBreakpointsRequest", "RemoveBreakpointsRequest", "ListModulesRequest", "GetModuleRequest", "ListFunctionsRequest", "GetFunctionRequest", "StopRequest", "BreakRequest", "ContinueRequest", "StepRequest", nullptr };
+  static const char *names[] = {
+      "NONE",                     "AttachRequest",
+      "ListBreakpointsRequest",   "AddBreakpointsRequest",
+      "UpdateBreakpointsRequest", "RemoveBreakpointsRequest",
+      "ListModulesRequest",       "GetModuleRequest",
+      "ListFunctionsRequest",     "GetFunctionRequest",
+      "ListThreadsRequest",       "StopRequest",
+      "BreakRequest",             "ContinueRequest",
+      "StepRequest",              nullptr};
   return names;
 }
 
@@ -117,16 +126,26 @@ enum ResponseData {
   ResponseData_GetModuleResponse = 7,
   ResponseData_ListFunctionsResponse = 8,
   ResponseData_GetFunctionResponse = 9,
-  ResponseData_StopResponse = 10,
-  ResponseData_BreakResponse = 11,
-  ResponseData_ContinueResponse = 12,
-  ResponseData_StepResponse = 13,
-  ResponseData_BreakpointEvent = 14,
-  ResponseData_AccessViolationEvent = 15
+  ResponseData_ListThreadsResponse = 10,
+  ResponseData_StopResponse = 11,
+  ResponseData_BreakResponse = 12,
+  ResponseData_ContinueResponse = 13,
+  ResponseData_StepResponse = 14,
+  ResponseData_BreakpointEvent = 15,
+  ResponseData_AccessViolationEvent = 16
 };
 
 inline const char **EnumNamesResponseData() {
-  static const char *names[] = { "NONE", "AttachResponse", "ListBreakpointsResponse", "AddBreakpointsResponse", "UpdateBreakpointsResponse", "RemoveBreakpointsResponse", "ListModulesResponse", "GetModuleResponse", "ListFunctionsResponse", "GetFunctionResponse", "StopResponse", "BreakResponse", "ContinueResponse", "StepResponse", "BreakpointEvent", "AccessViolationEvent", nullptr };
+  static const char *names[] = {
+      "NONE",                      "AttachResponse",
+      "ListBreakpointsResponse",   "AddBreakpointsResponse",
+      "UpdateBreakpointsResponse", "RemoveBreakpointsResponse",
+      "ListModulesResponse",       "GetModuleResponse",
+      "ListFunctionsResponse",     "GetFunctionResponse",
+      "ListThreadsResponse",       "StopResponse",
+      "BreakResponse",             "ContinueResponse",
+      "StepResponse",              "BreakpointEvent",
+      "AccessViolationEvent",      nullptr};
   return names;
 }
 
@@ -304,6 +323,10 @@ inline bool VerifyRequestData(flatbuffers::Verifier &verifier, const void *union
     case RequestData_GetModuleRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetModuleRequest *>(union_obj));
     case RequestData_ListFunctionsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListFunctionsRequest *>(union_obj));
     case RequestData_GetFunctionRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetFunctionRequest *>(union_obj));
+    case RequestData_ListThreadsRequest:
+      return verifier.VerifyTable(
+          reinterpret_cast<const xe::debug::proto::ListThreadsRequest *>(
+              union_obj));
     case RequestData_StopRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StopRequest *>(union_obj));
     case RequestData_BreakRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakRequest *>(union_obj));
     case RequestData_ContinueRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ContinueRequest *>(union_obj));
@@ -324,6 +347,10 @@ inline bool VerifyResponseData(flatbuffers::Verifier &verifier, const void *unio
     case ResponseData_GetModuleResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetModuleResponse *>(union_obj));
     case ResponseData_ListFunctionsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListFunctionsResponse *>(union_obj));
     case ResponseData_GetFunctionResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetFunctionResponse *>(union_obj));
+    case ResponseData_ListThreadsResponse:
+      return verifier.VerifyTable(
+          reinterpret_cast<const xe::debug::proto::ListThreadsResponse *>(
+              union_obj));
     case ResponseData_StopResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StopResponse *>(union_obj));
     case ResponseData_BreakResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakResponse *>(union_obj));
     case ResponseData_ContinueResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ContinueResponse *>(union_obj));

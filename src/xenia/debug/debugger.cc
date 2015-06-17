@@ -35,6 +35,7 @@
 #include "xenia/debug/proto/control_generated.h"
 #include "xenia/debug/proto/messages_generated.h"
 #include "xenia/debug/proto/modules_generated.h"
+#include "xenia/debug/proto/threads_generated.h"
 
 DEFINE_string(debug_session_path, "", "Debug output path.");
 DEFINE_int32(debug_port, 19000, "Port the debugger listens on.");
@@ -397,6 +398,38 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
       response_data_type = proto::ResponseData_GetFunctionResponse;
       auto response_data = proto::GetFunctionResponseBuilder(fbb);
       response_data.add_function(function_offset);
+      response_data_offset = response_data.Finish().Union();
+    } break;
+
+    case proto::RequestData_ListThreadsRequest: {
+      response_data_type = proto::ResponseData_ListThreadsResponse;
+      auto threads =
+          emulator()->kernel_state()->object_table()->GetObjectsByType<XThread>(
+              XObject::kTypeThread);
+      std::vector<flatbuffers::Offset<proto::Thread>> thread_list;
+      for (size_t i = 0; i < threads.size(); ++i) {
+        auto& thread = threads[i];
+        auto thread_name_string = fbb.CreateString(thread->name());
+        auto thread_builder = proto::ThreadBuilder(fbb);
+        // thread_builder.add_type();
+        // thread_builder.add_stack_size();
+        // thread_builder.add_xapi_thread_startup();
+        // thread_builder.add_start_address();
+        // thread_builder.add_start_context();
+        // thread_builder.add_creation_flags();
+        thread_builder.add_tls_address(thread->tls_ptr());
+        thread_builder.add_pcr_address(thread->pcr_ptr());
+        thread_builder.add_thread_state_address(thread->thread_state_ptr());
+        thread_builder.add_thread_id(thread->thread_id());
+        thread_builder.add_name(thread_name_string);
+        thread_builder.add_priority(thread->priority());
+        thread_builder.add_affinity(thread->affinity());
+        // thread_builder.add_state(thread->);
+        thread_list.push_back(thread_builder.Finish());
+      }
+      auto threads_offset = fbb.CreateVector(thread_list);
+      auto response_data = proto::ListThreadsResponseBuilder(fbb);
+      response_data.add_thread(threads_offset);
       response_data_offset = response_data.Finish().Union();
     } break;
 

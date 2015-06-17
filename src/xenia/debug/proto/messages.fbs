@@ -31,6 +31,8 @@ union RequestData {
   ListFunctionsRequest,
   GetFunctionRequest,
 
+  ListThreadsRequest,
+
   StopRequest,
   BreakRequest,
   ContinueRequest,
@@ -54,6 +56,8 @@ union ResponseData {
   GetModuleResponse,
   ListFunctionsResponse,
   GetFunctionResponse,
+
+  ListThreadsResponse,
 
   StopResponse,
   BreakResponse,

@@ -46,6 +46,8 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
       pcr_address_(0),
       thread_state_address_(0),
       thread_state_(0),
+      priority_(0),
+      affinity_(0),
       irql_(0) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
@@ -613,6 +615,7 @@ void XThread::RundownAPCs() {
 int32_t XThread::QueryPriority() { return GetThreadPriority(thread_handle_); }
 
 void XThread::SetPriority(int32_t increment) {
+  priority_ = increment;
   int target_priority = 0;
   if (increment > 0x22) {
     target_priority = THREAD_PRIORITY_HIGHEST;
@@ -647,9 +650,15 @@ void XThread::SetAffinity(uint32_t affinity) {
     XELOGW("Too few processors - scheduling will be wonky");
   }
   SetActiveCpu(GetFakeCpuNumber(affinity));
+  affinity_ = affinity;
   if (!FLAGS_ignore_thread_affinities) {
     SetThreadAffinityMask(reinterpret_cast<HANDLE>(thread_handle_), affinity);
   }
+}
+
+uint32_t XThread::active_cpu() const {
+  uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
+  return xe::load_and_swap<uint8_t>(pcr + 0x10C);
 }
 
 void XThread::SetActiveCpu(uint32_t cpu_index) {

@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using xe.debug.proto;
 using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
@@ -23,6 +24,23 @@ namespace Xenia.Debug {
     public ThreadList(Debugger debugger) {
       this.self = this;
       this.debugger = debugger;
+    }
+
+    public async Task Invalidate() {
+      var fbb = debugger.BeginRequest();
+      ListThreadsRequest.StartListThreadsRequest(fbb);
+      int requestDataOffset = ListThreadsRequest.EndListThreadsRequest(fbb);
+      var response = await debugger.CommitRequest(
+          fbb, RequestData.ListThreadsRequest, requestDataOffset);
+      ListThreadsResponse responseData = new ListThreadsResponse();
+      response.GetResponseData(responseData);
+
+      for (int i = 0; i < responseData.ThreadLength; ++i) {
+        var threadData = responseData.GetThread(i);
+        // threadData.Name;
+      }
+
+      OnChanged();
     }
 
     public int Count {
