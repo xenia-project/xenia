@@ -486,6 +486,22 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
+SHIM_CALL KeInitializeEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+  uint32_t event_type = SHIM_GET_ARG_32(1);
+  uint32_t initial_state = SHIM_GET_ARG_32(2);
+
+  XELOGD("KeInitializeEvent(%.8X, %.8X, %.8X)", handle_ptr, event_type, initial_state);
+
+  XEvent* ev = new XEvent(kernel_state);
+  ev->Initialize(!event_type, !!initial_state);
+
+  if (handle_ptr) {
+    SHIM_SET_MEM_32(handle_ptr, ev->handle());
+  }
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+}
+
 SHIM_CALL KeSetEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t event_ref = SHIM_GET_ARG_32(0);
   uint32_t increment = SHIM_GET_ARG_32(1);
@@ -1401,6 +1417,7 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KePulseEvent, state);
