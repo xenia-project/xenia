@@ -10,26 +10,30 @@
 #ifndef XENIA_BACKEND_X64_X64_CODE_CACHE_H_
 #define XENIA_BACKEND_X64_X64_CODE_CACHE_H_
 
-// For RUNTIME_FUNCTION:
-#include "xenia/base/platform.h"
-
 #include <atomic>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include "xenia/base/mutex.h"
+#include "xenia/base/platform.h"
+#include "xenia/cpu/backend/code_cache.h"
 
 namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
 
-class X64CodeCache {
+class X64CodeCache : public CodeCache {
  public:
   X64CodeCache();
-  virtual ~X64CodeCache();
+  ~X64CodeCache() override;
 
   bool Initialize();
+
+  std::wstring file_name() const override { return file_name_; }
+  uint32_t base_address() const override { return kGeneratedCodeBase; }
+  uint32_t total_size() const override { return kGeneratedCodeSize; }
 
   // TODO(benvanik): ELF serialization/etc
   // TODO(benvanik): keep track of code blocks
@@ -54,6 +58,9 @@ class X64CodeCache {
   void InitializeUnwindEntry(uint8_t* unwind_entry_address,
                              size_t unwind_table_slot, uint8_t* code_address,
                              size_t code_size, size_t stack_size);
+
+  std::wstring file_name_;
+  HANDLE mapping_;
 
   // Must be held when manipulating the offsets or counts of anything, to keep
   // the tables consistent and ordered.

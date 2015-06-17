@@ -10,6 +10,7 @@
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -24,7 +25,8 @@ namespace x64 {
 const static uint32_t kUnwindInfoSize = 4 + (2 * 1 + 2 + 2);
 
 X64CodeCache::X64CodeCache()
-    : indirection_default_value_(0xFEEDF00D),
+    : mapping_(nullptr),
+      indirection_default_value_(0xFEEDF00D),
       indirection_table_base_(nullptr),
       generated_code_base_(nullptr),
       generated_code_offset_(0),
@@ -39,8 +41,11 @@ X64CodeCache::~X64CodeCache() {
   if (indirection_table_base_) {
     VirtualFree(indirection_table_base_, 0, MEM_RELEASE);
   }
-  if (generated_code_base_) {
-    VirtualFree(generated_code_base_, 0, MEM_RELEASE);
+  // Unmap all views and close mapping.
+  if (mapping_) {
+    UnmapViewOfFile(generated_code_base_);
+    CloseHandle(mapping_);
+    mapping_ = 0;
   }
 }
 
@@ -57,9 +62,22 @@ bool X64CodeCache::Initialize() {
     return false;
   }
 
-  generated_code_base_ = reinterpret_cast<uint8_t*>(
-      VirtualAlloc(reinterpret_cast<void*>(kGeneratedCodeBase),
-                   kGeneratedCodeSize, MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+  // Create mmap file. This allows us to share the code cache with the debugger.
+  wchar_t file_name[256];
+  wsprintf(file_name, L"Local\\xenia_code_cache_%p", Clock::QueryHostTickCount());
+  file_name_ = file_name;
+  mapping_ = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
+                               PAGE_EXECUTE_READWRITE | SEC_RESERVE, 0,
+                               kGeneratedCodeSize, file_name_.c_str());
+  if (!mapping_) {
+    XELOGE("Unable to create code cache mmap");
+    return false;
+  }
+
+  // Mapp generated code region into the file. Pages are committed as required.
+  generated_code_base_ = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
+      mapping_, FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE, 0, 0,
+      kGeneratedCodeSize, reinterpret_cast<void*>(kGeneratedCodeBase)));
   if (!generated_code_base_) {
     XELOGE("Unable to allocate code cache generated code storage");
     XELOGE(
@@ -103,7 +121,7 @@ void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
                                          uint32_t guest_high) {
   // Commit the memory.
   VirtualAlloc(indirection_table_base_ + (guest_low - kIndirectionTableBase),
-               guest_high - guest_low, MEM_COMMIT, PAGE_READWRITE);
+               guest_high - guest_low, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 
   // Fill memory with the default value.
   uint32_t* p = reinterpret_cast<uint32_t*>(indirection_table_base_);

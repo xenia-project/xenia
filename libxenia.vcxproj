@@ -299,6 +299,7 @@
     <ClInclude Include="src\xenia\base\vec128.h" />
     <ClInclude Include="src\xenia\cpu\backend\assembler.h" />
     <ClInclude Include="src\xenia\cpu\backend\backend.h" />
+    <ClInclude Include="src\xenia\cpu\backend\code_cache.h" />
     <ClInclude Include="src\xenia\cpu\backend\machine_info.h" />
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_assembler.h" />
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_backend.h" />

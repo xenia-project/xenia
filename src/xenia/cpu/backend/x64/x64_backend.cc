@@ -62,6 +62,7 @@ bool X64Backend::Initialize() {
   };
 
   code_cache_ = new X64CodeCache();
+  Backend::code_cache_ = code_cache_;
   if (!code_cache_->Initialize()) {
     return false;
   }

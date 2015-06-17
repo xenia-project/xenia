@@ -2,30 +2,32 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2015 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/cpu/backend/backend.h"
+#ifndef XENIA_BACKEND_CODE_CACHE_H_
+#define XENIA_BACKEND_CODE_CACHE_H_
+
+#include <string>
 
 namespace xe {
 namespace cpu {
 namespace backend {
 
-Backend::Backend(Processor* processor)
-    : processor_(processor), code_cache_(nullptr) {
-  std::memset(&machine_info_, 0, sizeof(machine_info_));
-}
+class CodeCache {
+ public:
+  CodeCache() = default;
+  virtual ~CodeCache() = default;
 
-Backend::~Backend() = default;
-
-bool Backend::Initialize() { return true; }
-
-void* Backend::AllocThreadData() { return nullptr; }
-
-void Backend::FreeThreadData(void* thread_data) {}
+  virtual std::wstring file_name() const = 0;
+  virtual uint32_t base_address() const = 0;
+  virtual uint32_t total_size() const = 0;
+};
 
 }  // namespace backend
 }  // namespace cpu
 }  // namespace xe
+
+#endif  // XENIA_BACKEND_CODE_CACHE_H_

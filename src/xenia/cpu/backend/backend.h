@@ -25,6 +25,7 @@ namespace cpu {
 namespace backend {
 
 class Assembler;
+class CodeCache;
 
 class Backend {
  public:
@@ -33,6 +34,7 @@ class Backend {
 
   Processor* processor() const { return processor_; }
   const MachineInfo* machine_info() const { return &machine_info_; }
+  CodeCache* code_cache() const { return code_cache_; }
 
   virtual bool Initialize();
 
@@ -47,6 +49,7 @@ class Backend {
  protected:
   Processor* processor_;
   MachineInfo machine_info_;
+  CodeCache* code_cache_;
 };
 
 }  // namespace backend
