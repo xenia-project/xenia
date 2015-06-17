@@ -104,6 +104,7 @@ enum X64EmitterFeatureFlags {
   kX64EmitLZCNT = 1 << 3,
   kX64EmitBMI2 = 1 << 4,
   kX64EmitF16C = 1 << 5,
+  kX64EmitMovbe = 1 << 6,
 };
 
 class X64Emitter : public Xbyak::CodeGenerator {

@@ -1524,7 +1524,12 @@ EMITTER(LOAD_I16, MATCH(I<OPCODE_LOAD, I16<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     auto addr = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      e.movbe(i.dest, e.word[addr]);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.word[addr]);
+      } else {
+        e.mov(i.dest, e.word[addr]);
+        e.ror(i.dest, 8);
+      }
     } else {
       e.mov(i.dest, e.word[addr]);
     }
@@ -1539,7 +1544,12 @@ EMITTER(LOAD_I32, MATCH(I<OPCODE_LOAD, I32<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     auto addr = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      e.movbe(i.dest, e.dword[addr]);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.dword[addr]);
+      } else {
+        e.mov(i.dest, e.dword[addr]);
+        e.bswap(i.dest);
+      }
     } else {
       e.mov(i.dest, e.dword[addr]);
     }
@@ -1554,7 +1564,12 @@ EMITTER(LOAD_I64, MATCH(I<OPCODE_LOAD, I64<>, I64<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     auto addr = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      e.movbe(i.dest, e.qword[addr]);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.qword[addr]);
+      } else {
+        e.mov(i.dest, e.qword[addr]);
+        e.bswap(i.dest);
+      }
     } else {
       e.mov(i.dest, e.qword[addr]);
     }
@@ -1645,7 +1660,11 @@ EMITTER(STORE_I16, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I16<>>)) {
     auto addr = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       assert_false(i.src2.is_constant);
-      e.movbe(e.word[addr], i.src2);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.word[addr], i.src2);
+      } else {
+        assert_always("not implemented");
+      }
     } else {
       if (i.src2.is_constant) {
         e.mov(e.word[addr], i.src2.constant());
@@ -1666,7 +1685,11 @@ EMITTER(STORE_I32, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I32<>>)) {
     auto addr = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       assert_false(i.src2.is_constant);
-      e.movbe(e.dword[addr], i.src2);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.dword[addr], i.src2);
+      } else {
+        assert_always("not implemented");
+      }
     } else {
       if (i.src2.is_constant) {
         e.mov(e.dword[addr], i.src2.constant());
@@ -1687,7 +1710,11 @@ EMITTER(STORE_I64, MATCH(I<OPCODE_STORE, VoidOp, I64<>, I64<>>)) {
     auto addr = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       assert_false(i.src2.is_constant);
-      e.movbe(e.qword[addr], i.src2);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.qword[addr], i.src2);
+      } else {
+        assert_always("not implemented");
+      }
     } else {
       if (i.src2.is_constant) {
         e.MovMem64(addr, i.src2.constant());

@@ -14,6 +14,11 @@
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_thunk_emitter.h"
 #include "xenia/cpu/processor.h"
+#include "third_party/xbyak/xbyak/xbyak_util.h"
+
+DEFINE_bool(
+    enable_haswell_instructions, true,
+    "Uses the AVX2/FMA/etc instructions on Haswell processors, if available.");
 
 namespace xe {
 namespace cpu {
@@ -37,6 +42,15 @@ bool X64Backend::Initialize() {
   }
 
   RegisterSequences();
+
+  // Need movbe to do advanced LOAD/STORE tricks.
+  if (FLAGS_enable_haswell_instructions) {
+    Xbyak::util::Cpu cpu;
+    machine_info_.supports_extended_load_store =
+        cpu.has(Xbyak::util::Cpu::tMOVBE);
+  } else {
+    machine_info_.supports_extended_load_store = false;
+  }
 
   machine_info_.register_sets[0] = {
       0, "gpr", MachineInfo::RegisterSet::INT_TYPES, X64Emitter::GPR_COUNT,

@@ -31,10 +31,6 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/profiling.h"
 
-DEFINE_bool(
-    enable_haswell_instructions, true,
-    "Uses the AVX2/FMA/etc instructions on Haswell processors, if available.");
-
 DEFINE_bool(enable_debugprint_log, false,
             "Log debugprint traps to the active debugger");
 
@@ -87,10 +83,10 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tMOVBE) ? kX64EmitMovbe : 0;
   }
 
-  if (!cpu_.has(Xbyak::util::Cpu::tAVX) ||
-      !cpu_.has(Xbyak::util::Cpu::tMOVBE)) {
+  if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
     XEFATAL(
         "Your CPU is too old to support Xenia. See the FAQ for system "
         "requirements at http://xenia.jp");

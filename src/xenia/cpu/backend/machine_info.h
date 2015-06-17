@@ -17,6 +17,8 @@ namespace cpu {
 namespace backend {
 
 struct MachineInfo {
+  bool supports_extended_load_store;
+
   struct RegisterSet {
     enum Types {
       INT_TYPES = (1 << 1),
