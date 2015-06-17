@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
+#include <cstring>
+
 #include "xenia/base/byte_order.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/string_buffer.h"

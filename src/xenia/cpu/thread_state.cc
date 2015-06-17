@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/thread_state.h"
 
+#include <cstring>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"

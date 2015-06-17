@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/gl4/draw_batcher.h"
 
+#include <cstring>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu-private.h"

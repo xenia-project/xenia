@@ -9,6 +9,8 @@
 
 #include "xenia/apu/audio_decoder.h"
 
+#include <cstring>
+
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/logging.h"
 

@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/shader.h"
 
+#include <cstring>
+
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/gpu/ucode_disassembler.h"

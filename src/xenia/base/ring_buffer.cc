@@ -9,6 +9,8 @@
 
 #include "xenia/base/ring_buffer.h"
 
+#include <cstring>
+
 namespace xe {
 
 RingBuffer::RingBuffer(uint8_t *raw_buffer, size_t size, size_t write_offset)

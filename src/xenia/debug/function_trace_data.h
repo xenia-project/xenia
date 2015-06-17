@@ -11,6 +11,7 @@
 #define XENIA_DEBUG_FUNCTION_TRACE_DATA_H_
 
 #include <cstdint>
+#include <cstring>
 
 #include "xenia/base/memory.h"
 

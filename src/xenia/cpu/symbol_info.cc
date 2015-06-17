@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/symbol_info.h"
 
+#include <cstring>
+
 namespace xe {
 namespace cpu {
 

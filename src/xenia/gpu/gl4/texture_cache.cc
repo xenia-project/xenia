@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/gl4/texture_cache.h"
 
+#include <cstring>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"

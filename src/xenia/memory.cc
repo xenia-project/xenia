@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <algorithm>
+#include <cstring>
 #include <mutex>
 
 #include "xenia/base/clock.h"
