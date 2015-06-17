@@ -89,8 +89,13 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
   }
 
-  // Need movbe.
-  assert_true(cpu_.has(Xbyak::util::Cpu::tMOVBE));
+  if (!cpu_.has(Xbyak::util::Cpu::tAVX) ||
+      !cpu_.has(Xbyak::util::Cpu::tMOVBE)) {
+    XEFATAL(
+        "Your CPU is too old to support Xenia. See the FAQ for system "
+        "requirements at http://xenia.jp");
+    return;
+  }
 }
 
 X64Emitter::~X64Emitter() = default;
