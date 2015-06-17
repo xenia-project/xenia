@@ -11,6 +11,9 @@ table AttachRequest {
 }
 table AttachResponse {
   memory_file:string;
+  code_cache_file:string;
+  code_cache_base:uint;
+  code_cache_size:uint;
   functions_file:string;
   functions_trace_file:string;
 }

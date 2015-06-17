@@ -7,10 +7,12 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_NATIVE_X64_DISASSEMBLER_H_
-#define XENIA_DEBUG_NATIVE_X64_DISASSEMBLER_H_
+#ifndef XENIA_DEBUG_NATIVE_DISASSEMBLER_H_
+#define XENIA_DEBUG_NATIVE_DISASSEMBLER_H_
 
 #include <cstdint>
+
+#include "xenia/base/string_buffer.h"
 
 namespace Xenia {
 namespace Debug {
@@ -19,20 +21,21 @@ namespace Native {
 using namespace System;
 using namespace System::Text;
 
-public ref class X64Disassembler {
+public ref class Disassembler {
  public:
-  X64Disassembler();
-  ~X64Disassembler();
+  Disassembler();
+  ~Disassembler();
 
-  String^ GenerateString(IntPtr code_address, size_t code_size);
+  String^ DisassemblePPC(IntPtr code_address, size_t code_size);
+  String^ DisassembleX64(IntPtr code_address, size_t code_size);
 
  private:
   uintptr_t capstone_handle_;
-  StringBuilder^ string_builder_;
+  xe::StringBuffer* string_buffer_;
 };
 
 }  // namespace Native
 }  // namespace Debug
 }  // namespace Xenia
 
-#endif  // XENIA_DEBUG_NATIVE_X64_DISASSEMBLER_H_
+#endif  // XENIA_DEBUG_NATIVE_DISASSEMBLER_H_

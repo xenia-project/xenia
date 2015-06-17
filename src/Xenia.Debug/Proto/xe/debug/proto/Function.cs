@@ -14,26 +14,26 @@ public sealed class Function : Table {
   public uint AddressStart { get { int o = __offset(6); return o != 0 ? bb.GetUint(o + bb_pos) : (uint)0; } }
   public uint AddressEnd { get { int o = __offset(8); return o != 0 ? bb.GetUint(o + bb_pos) : (uint)0; } }
   public string Name { get { int o = __offset(10); return o != 0 ? __string(o + bb_pos) : null; } }
-  public string DisasmPpc { get { int o = __offset(12); return o != 0 ? __string(o + bb_pos) : null; } }
-  public string DisasmHirRaw { get { int o = __offset(14); return o != 0 ? __string(o + bb_pos) : null; } }
-  public string DisasmHirOpt { get { int o = __offset(16); return o != 0 ? __string(o + bb_pos) : null; } }
-  public string DisasmMachineCode { get { int o = __offset(18); return o != 0 ? __string(o + bb_pos) : null; } }
+  public uint MachineCodeStart { get { int o = __offset(12); return o != 0 ? bb.GetUint(o + bb_pos) : (uint)0; } }
+  public uint MachineCodeEnd { get { int o = __offset(14); return o != 0 ? bb.GetUint(o + bb_pos) : (uint)0; } }
+  public string DisasmHirRaw { get { int o = __offset(16); return o != 0 ? __string(o + bb_pos) : null; } }
+  public string DisasmHirOpt { get { int o = __offset(18); return o != 0 ? __string(o + bb_pos) : null; } }
 
   public static int CreateFunction(FlatBufferBuilder builder,
       ulong identifier = 0,
       uint address_start = 0,
       uint address_end = 0,
       int name = 0,
-      int disasm_ppc = 0,
+      uint machine_code_start = 0,
+      uint machine_code_end = 0,
       int disasm_hir_raw = 0,
-      int disasm_hir_opt = 0,
-      int disasm_machine_code = 0) {
+      int disasm_hir_opt = 0) {
     builder.StartObject(8);
     Function.AddIdentifier(builder, identifier);
-    Function.AddDisasmMachineCode(builder, disasm_machine_code);
     Function.AddDisasmHirOpt(builder, disasm_hir_opt);
     Function.AddDisasmHirRaw(builder, disasm_hir_raw);
-    Function.AddDisasmPpc(builder, disasm_ppc);
+    Function.AddMachineCodeEnd(builder, machine_code_end);
+    Function.AddMachineCodeStart(builder, machine_code_start);
     Function.AddName(builder, name);
     Function.AddAddressEnd(builder, address_end);
     Function.AddAddressStart(builder, address_start);
@@ -45,10 +45,10 @@ public sealed class Function : Table {
   public static void AddAddressStart(FlatBufferBuilder builder, uint addressStart) { builder.AddUint(1, addressStart, 0); }
   public static void AddAddressEnd(FlatBufferBuilder builder, uint addressEnd) { builder.AddUint(2, addressEnd, 0); }
   public static void AddName(FlatBufferBuilder builder, int nameOffset) { builder.AddOffset(3, nameOffset, 0); }
-  public static void AddDisasmPpc(FlatBufferBuilder builder, int disasmPpcOffset) { builder.AddOffset(4, disasmPpcOffset, 0); }
-  public static void AddDisasmHirRaw(FlatBufferBuilder builder, int disasmHirRawOffset) { builder.AddOffset(5, disasmHirRawOffset, 0); }
-  public static void AddDisasmHirOpt(FlatBufferBuilder builder, int disasmHirOptOffset) { builder.AddOffset(6, disasmHirOptOffset, 0); }
-  public static void AddDisasmMachineCode(FlatBufferBuilder builder, int disasmMachineCodeOffset) { builder.AddOffset(7, disasmMachineCodeOffset, 0); }
+  public static void AddMachineCodeStart(FlatBufferBuilder builder, uint machineCodeStart) { builder.AddUint(4, machineCodeStart, 0); }
+  public static void AddMachineCodeEnd(FlatBufferBuilder builder, uint machineCodeEnd) { builder.AddUint(5, machineCodeEnd, 0); }
+  public static void AddDisasmHirRaw(FlatBufferBuilder builder, int disasmHirRawOffset) { builder.AddOffset(6, disasmHirRawOffset, 0); }
+  public static void AddDisasmHirOpt(FlatBufferBuilder builder, int disasmHirOptOffset) { builder.AddOffset(7, disasmHirOptOffset, 0); }
   public static int EndFunction(FlatBufferBuilder builder) {
     int o = builder.EndObject();
     return o;

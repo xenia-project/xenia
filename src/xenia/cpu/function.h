@@ -37,6 +37,9 @@ class Function {
     debug_info_ = std::move(debug_info);
   }
 
+  virtual uint8_t* machine_code() const = 0;
+  virtual size_t machine_code_length() const = 0;
+
   bool AddBreakpoint(debug::Breakpoint* breakpoint);
   bool RemoveBreakpoint(debug::Breakpoint* breakpoint);
 

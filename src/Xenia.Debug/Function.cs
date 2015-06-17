@@ -17,6 +17,8 @@ using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug {
   public class Function : Changeable<Function> {
+    private static Native.Disassembler disassembler = new Native.Disassembler();
+
     // status: declared, defined, failed
     // behavior: default, prolog, epilog, epilog_return, extern
     // extern info?
@@ -25,7 +27,16 @@ namespace Xenia.Debug {
     public readonly Module Module;
     public readonly ulong Identifier;
     public readonly uint AddressStart;
-    public readonly uint AddressEnd;
+    public uint AddressEnd {
+      get; private set;
+    }
+
+    public uint MachineCodeStart {
+      get; private set;
+    }
+    public uint MachineCodeEnd {
+      get; private set;
+    }
 
     // source map
 
@@ -42,17 +53,43 @@ namespace Xenia.Debug {
     //   caller history
     //   instruction execution counts
 
-    public string DisasmPpc {
-      get; private set;
+    private string disasmPpc;
+    public unsafe string DisasmPpc {
+      get {
+        if (disasmPpc != null) {
+          return disasmPpc;
+        }
+        if (AddressEnd == 0) {
+          return "(unavailable)";
+        }
+        disasmPpc = disassembler.DisassemblePPC(
+            new IntPtr(Debugger.TranslateVirtual(AddressStart)),
+            AddressEnd - AddressStart + 4);
+        return disasmPpc;
+      }
     }
+
     public string DisasmHirUnoptimized {
       get; private set;
     }
     public string DisasmHirOptimized {
       get; private set;
     }
+
+    private string disasmMachineCode;
     public string DisasmMachineCode {
-      get; private set;
+      get {
+        if (disasmMachineCode != null) {
+          return disasmMachineCode;
+        }
+        if (MachineCodeStart == 0) {
+          return null;
+        }
+        disasmMachineCode = disassembler.DisassembleX64(
+            new IntPtr(MachineCodeStart), MachineCodeEnd - MachineCodeStart + 1);
+        disasmMachineCode = disasmMachineCode.Replace("\n", "\r\n");
+        return disasmMachineCode;
+      }
     }
 
     public Function(Debugger debugger, Module module, xe.debug.proto.FunctionEntry functionEntry) {
@@ -96,33 +133,21 @@ namespace Xenia.Debug {
       response.GetResponseData(responseData);
       var functionData = responseData.Function;
 
-      this.DisasmPpc = functionData.DisasmPpc;
+      this.AddressEnd = functionData.AddressEnd;
+
+      this.MachineCodeStart = functionData.MachineCodeStart;
+      this.MachineCodeEnd = functionData.MachineCodeEnd;
+
       this.DisasmHirUnoptimized = functionData.DisasmHirRaw;
       this.DisasmHirOptimized = functionData.DisasmHirOpt;
-      this.DisasmMachineCode = functionData.DisasmMachineCode;
-      if (DisasmPpc != null) {
-        DisasmPpc = DisasmPpc.Replace("\n", "\r\n");
-      }
       if (DisasmHirUnoptimized != null) {
         DisasmHirUnoptimized = DisasmHirUnoptimized.Replace("\n", "\r\n");
       }
       if (DisasmHirOptimized != null) {
         DisasmHirOptimized = DisasmHirOptimized.Replace("\n", "\r\n");
       }
-      if (DisasmMachineCode != null) {
-        DisasmMachineCode = DisasmMachineCode.Replace("\n", "\r\n");
-      }
-
-      DisassembleX64();
 
       OnChanged();
-    }
-
-    private static Native.X64Disassembler disassembler = new Native.X64Disassembler();
-
-    private void DisassembleX64() {
-      var str = disassembler.GenerateString(IntPtr.Zero, 0);
-      System.Diagnostics.Debug.WriteLine(str);
     }
   }
 }

@@ -20,6 +20,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
+#include "xenia/cpu/backend/code_cache.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
@@ -211,11 +212,14 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
   switch (request->request_data_type()) {
     case proto::RequestData_AttachRequest: {
       // Send debug info.
+      auto code_cache = emulator()->processor()->backend()->code_cache();
       response_data_type = proto::ResponseData_AttachResponse;
       response_data_offset =
           proto::CreateAttachResponse(
               fbb, fbb.CreateString(
                        xe::to_string(emulator()->memory()->file_name())),
+              fbb.CreateString(xe::to_string(code_cache->file_name())),
+              code_cache->base_address(), code_cache->total_size(),
               fbb.CreateString(xe::to_string(functions_path_)),
               fbb.CreateString(xe::to_string(functions_trace_path_))).Union();
 
@@ -355,19 +359,19 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
       auto function_info =
           reinterpret_cast<xe::cpu::FunctionInfo*>(request_data->identifier());
       auto function = function_info->function();
+      if (!function) {
+        // Attempt to resolve.
+        emulator_->processor()->ResolveFunction(function_info->address(),
+                                                &function);
+      }
       flatbuffers::Offset<flatbuffers::String> name_offset;
       if (!function_info->name().empty()) {
         name_offset = fbb.CreateString(function_info->name());
       }
-      flatbuffers::Offset<flatbuffers::String> disasm_ppc_offset;
       flatbuffers::Offset<flatbuffers::String> disasm_hir_raw_offset;
       flatbuffers::Offset<flatbuffers::String> disasm_hir_opt_offset;
-      flatbuffers::Offset<flatbuffers::String> disasm_machine_code_offset;
       if (function && function->debug_info()) {
         auto debug_info = function->debug_info();
-        if (debug_info->source_disasm()) {
-          disasm_ppc_offset = fbb.CreateString(debug_info->source_disasm());
-        }
         if (debug_info->raw_hir_disasm()) {
           disasm_hir_raw_offset =
               fbb.CreateString(debug_info->raw_hir_disasm());
@@ -375,20 +379,20 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
         if (debug_info->hir_disasm()) {
           disasm_hir_opt_offset = fbb.CreateString(debug_info->hir_disasm());
         }
-        if (debug_info->machine_code_disasm()) {
-          disasm_machine_code_offset =
-              fbb.CreateString(debug_info->machine_code_disasm());
-        }
       }
       auto function_data = proto::FunctionBuilder(fbb);
       function_data.add_identifier(request_data->identifier());
       function_data.add_address_start(function_info->address());
       function_data.add_address_end(function_info->end_address());
       function_data.add_name(name_offset);
-      function_data.add_disasm_ppc(disasm_ppc_offset);
+      if (function) {
+        function_data.add_machine_code_start(
+            uint32_t(uintptr_t(function->machine_code())));
+        function_data.add_machine_code_end(uint32_t(uintptr_t(
+            function->machine_code() + function->machine_code_length())));
+      }
       function_data.add_disasm_hir_raw(disasm_hir_raw_offset);
       function_data.add_disasm_hir_opt(disasm_hir_opt_offset);
-      function_data.add_disasm_machine_code(disasm_machine_code_offset);
       auto function_offset = function_data.Finish();
       response_data_type = proto::ResponseData_GetFunctionResponse;
       auto response_data = proto::GetFunctionResponseBuilder(fbb);

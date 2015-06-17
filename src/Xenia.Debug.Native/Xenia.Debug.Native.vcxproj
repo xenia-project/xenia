@@ -106,7 +106,14 @@
     <ClInclude Include="..\..\third_party\capstone\myinttypes.h" />
     <ClInclude Include="..\..\third_party\capstone\SStream.h" />
     <ClInclude Include="..\..\third_party\capstone\utils.h" />
-    <ClInclude Include="x64_disassembler.h" />
+    <ClInclude Include="..\xenia\base\assert.h" />
+    <ClInclude Include="..\xenia\base\byte_order.h" />
+    <ClInclude Include="..\xenia\base\math.h" />
+    <ClInclude Include="..\xenia\base\string_buffer.h" />
+    <ClInclude Include="..\xenia\cpu\frontend\ppc_disasm.h" />
+    <ClInclude Include="..\xenia\cpu\frontend\ppc_instr.h" />
+    <ClInclude Include="..\xenia\cpu\frontend\ppc_instr_tables.h" />
+    <ClInclude Include="disassembler.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third_party\capstone\arch\X86\X86Disassembler.c" />
@@ -120,8 +127,11 @@
     <ClCompile Include="..\..\third_party\capstone\MCRegisterInfo.c" />
     <ClCompile Include="..\..\third_party\capstone\SStream.c" />
     <ClCompile Include="..\..\third_party\capstone\utils.c" />
+    <ClCompile Include="..\xenia\base\string_buffer.cc" />
+    <ClCompile Include="..\xenia\cpu\frontend\ppc_disasm.cc" />
+    <ClCompile Include="..\xenia\cpu\frontend\ppc_instr.cc" />
     <ClCompile Include="assembly_info.cc" />
-    <ClCompile Include="x64_disassembler.cc" />
+    <ClCompile Include="disassembler.cc" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\third_party\capstone\arch\X86\X86GenAsmWriter.inc" />

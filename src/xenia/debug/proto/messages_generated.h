@@ -98,15 +98,7 @@ enum RequestData {
 };
 
 inline const char **EnumNamesRequestData() {
-  static const char *names[] = {
-      "NONE",                     "AttachRequest",
-      "ListBreakpointsRequest",   "AddBreakpointsRequest",
-      "UpdateBreakpointsRequest", "RemoveBreakpointsRequest",
-      "ListModulesRequest",       "GetModuleRequest",
-      "ListFunctionsRequest",     "GetFunctionRequest",
-      "StopRequest",              "BreakRequest",
-      "ContinueRequest",          "StepRequest",
-      nullptr};
+  static const char *names[] = { "NONE", "AttachRequest", "ListBreakpointsRequest", "AddBreakpointsRequest", "UpdateBreakpointsRequest", "RemoveBreakpointsRequest", "ListModulesRequest", "GetModuleRequest", "ListFunctionsRequest", "GetFunctionRequest", "StopRequest", "BreakRequest", "ContinueRequest", "StepRequest", nullptr };
   return names;
 }
 
@@ -134,16 +126,7 @@ enum ResponseData {
 };
 
 inline const char **EnumNamesResponseData() {
-  static const char *names[] = {
-      "NONE",                      "AttachResponse",
-      "ListBreakpointsResponse",   "AddBreakpointsResponse",
-      "UpdateBreakpointsResponse", "RemoveBreakpointsResponse",
-      "ListModulesResponse",       "GetModuleResponse",
-      "ListFunctionsResponse",     "GetFunctionResponse",
-      "StopResponse",              "BreakResponse",
-      "ContinueResponse",          "StepResponse",
-      "BreakpointEvent",           "AccessViolationEvent",
-      nullptr};
+  static const char *names[] = { "NONE", "AttachResponse", "ListBreakpointsResponse", "AddBreakpointsResponse", "UpdateBreakpointsResponse", "RemoveBreakpointsResponse", "ListModulesResponse", "GetModuleResponse", "ListFunctionsResponse", "GetFunctionResponse", "StopResponse", "BreakResponse", "ContinueResponse", "StepResponse", "BreakpointEvent", "AccessViolationEvent", nullptr };
   return names;
 }
 
@@ -176,15 +159,22 @@ inline flatbuffers::Offset<AttachRequest> CreateAttachRequest(flatbuffers::FlatB
 
 struct AttachResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::String *memory_file() const { return GetPointer<const flatbuffers::String *>(4); }
-  const flatbuffers::String *functions_file() const { return GetPointer<const flatbuffers::String *>(6); }
-  const flatbuffers::String *functions_trace_file() const { return GetPointer<const flatbuffers::String *>(8); }
+  const flatbuffers::String *code_cache_file() const { return GetPointer<const flatbuffers::String *>(6); }
+  uint32_t code_cache_base() const { return GetField<uint32_t>(8, 0); }
+  uint32_t code_cache_size() const { return GetField<uint32_t>(10, 0); }
+  const flatbuffers::String *functions_file() const { return GetPointer<const flatbuffers::String *>(12); }
+  const flatbuffers::String *functions_trace_file() const { return GetPointer<const flatbuffers::String *>(14); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* memory_file */) &&
            verifier.Verify(memory_file()) &&
-           VerifyField<flatbuffers::uoffset_t>(verifier, 6 /* functions_file */) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 6 /* code_cache_file */) &&
+           verifier.Verify(code_cache_file()) &&
+           VerifyField<uint32_t>(verifier, 8 /* code_cache_base */) &&
+           VerifyField<uint32_t>(verifier, 10 /* code_cache_size */) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 12 /* functions_file */) &&
            verifier.Verify(functions_file()) &&
-           VerifyField<flatbuffers::uoffset_t>(verifier, 8 /* functions_trace_file */) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, 14 /* functions_trace_file */) &&
            verifier.Verify(functions_trace_file()) &&
            verifier.EndTable();
   }
@@ -194,23 +184,32 @@ struct AttachResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
   void add_memory_file(flatbuffers::Offset<flatbuffers::String> memory_file) { fbb_.AddOffset(4, memory_file); }
-  void add_functions_file(flatbuffers::Offset<flatbuffers::String> functions_file) { fbb_.AddOffset(6, functions_file); }
-  void add_functions_trace_file(flatbuffers::Offset<flatbuffers::String> functions_trace_file) { fbb_.AddOffset(8, functions_trace_file); }
+  void add_code_cache_file(flatbuffers::Offset<flatbuffers::String> code_cache_file) { fbb_.AddOffset(6, code_cache_file); }
+  void add_code_cache_base(uint32_t code_cache_base) { fbb_.AddElement<uint32_t>(8, code_cache_base, 0); }
+  void add_code_cache_size(uint32_t code_cache_size) { fbb_.AddElement<uint32_t>(10, code_cache_size, 0); }
+  void add_functions_file(flatbuffers::Offset<flatbuffers::String> functions_file) { fbb_.AddOffset(12, functions_file); }
+  void add_functions_trace_file(flatbuffers::Offset<flatbuffers::String> functions_trace_file) { fbb_.AddOffset(14, functions_trace_file); }
   AttachResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AttachResponseBuilder &operator=(const AttachResponseBuilder &);
   flatbuffers::Offset<AttachResponse> Finish() {
-    auto o = flatbuffers::Offset<AttachResponse>(fbb_.EndTable(start_, 3));
+    auto o = flatbuffers::Offset<AttachResponse>(fbb_.EndTable(start_, 6));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AttachResponse> CreateAttachResponse(flatbuffers::FlatBufferBuilder &_fbb,
    flatbuffers::Offset<flatbuffers::String> memory_file = 0,
+   flatbuffers::Offset<flatbuffers::String> code_cache_file = 0,
+   uint32_t code_cache_base = 0,
+   uint32_t code_cache_size = 0,
    flatbuffers::Offset<flatbuffers::String> functions_file = 0,
    flatbuffers::Offset<flatbuffers::String> functions_trace_file = 0) {
   AttachResponseBuilder builder_(_fbb);
   builder_.add_functions_trace_file(functions_trace_file);
   builder_.add_functions_file(functions_file);
+  builder_.add_code_cache_size(code_cache_size);
+  builder_.add_code_cache_base(code_cache_base);
+  builder_.add_code_cache_file(code_cache_file);
   builder_.add_memory_file(memory_file);
   return builder_.Finish();
 }
@@ -303,14 +302,8 @@ inline bool VerifyRequestData(flatbuffers::Verifier &verifier, const void *union
     case RequestData_RemoveBreakpointsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::RemoveBreakpointsRequest *>(union_obj));
     case RequestData_ListModulesRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListModulesRequest *>(union_obj));
     case RequestData_GetModuleRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetModuleRequest *>(union_obj));
-    case RequestData_ListFunctionsRequest:
-      return verifier.VerifyTable(
-          reinterpret_cast<const xe::debug::proto::ListFunctionsRequest *>(
-              union_obj));
-    case RequestData_GetFunctionRequest:
-      return verifier.VerifyTable(
-          reinterpret_cast<const xe::debug::proto::GetFunctionRequest *>(
-              union_obj));
+    case RequestData_ListFunctionsRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListFunctionsRequest *>(union_obj));
+    case RequestData_GetFunctionRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetFunctionRequest *>(union_obj));
     case RequestData_StopRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StopRequest *>(union_obj));
     case RequestData_BreakRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakRequest *>(union_obj));
     case RequestData_ContinueRequest: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ContinueRequest *>(union_obj));
@@ -329,14 +322,8 @@ inline bool VerifyResponseData(flatbuffers::Verifier &verifier, const void *unio
     case ResponseData_RemoveBreakpointsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::RemoveBreakpointsResponse *>(union_obj));
     case ResponseData_ListModulesResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListModulesResponse *>(union_obj));
     case ResponseData_GetModuleResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetModuleResponse *>(union_obj));
-    case ResponseData_ListFunctionsResponse:
-      return verifier.VerifyTable(
-          reinterpret_cast<const xe::debug::proto::ListFunctionsResponse *>(
-              union_obj));
-    case ResponseData_GetFunctionResponse:
-      return verifier.VerifyTable(
-          reinterpret_cast<const xe::debug::proto::GetFunctionResponse *>(
-              union_obj));
+    case ResponseData_ListFunctionsResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ListFunctionsResponse *>(union_obj));
+    case ResponseData_GetFunctionResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::GetFunctionResponse *>(union_obj));
     case ResponseData_StopResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::StopResponse *>(union_obj));
     case ResponseData_BreakResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::BreakResponse *>(union_obj));
     case ResponseData_ContinueResponse: return verifier.VerifyTable(reinterpret_cast<const xe::debug::proto::ContinueResponse *>(union_obj));

@@ -44,6 +44,8 @@ namespace Xenia.Debug {
     private uint nextRequestId = 1;
 
     private FileMappingHandle memoryHandle;
+    private FileMappingHandle codeCacheHandle;
+    private IntPtr codeCachePtr;
 
     public unsafe byte* TranslateVirtual(uint address) {
       return (byte*)Memory.VirtualMembase.ToPointer() + address;
@@ -140,7 +142,7 @@ namespace Xenia.Debug {
       var attachResponse = new AttachResponse();
       response.GetResponseData(attachResponse);
 
-      // Open mmap to share memroy.
+      // Open mmap to share memory.
       memoryHandle = FileMapping.OpenFileMapping(
           FileMapAccess.FILE_MAP_ALL_ACCESS, false, attachResponse.MemoryFile);
       if (memoryHandle.IsInvalid) {
@@ -148,6 +150,19 @@ namespace Xenia.Debug {
         Detach();
         return;
       }
+
+      // Open mmap to code cache.
+      codeCacheHandle =
+          FileMapping.OpenFileMapping(FileMapAccess.FILE_MAP_ALL_ACCESS, false,
+                                      attachResponse.CodeCacheFile);
+      if (codeCacheHandle.IsInvalid) {
+        System.Diagnostics.Debug.Fail("Unable to open target code cache");
+        Detach();
+        return;
+      }
+      codeCachePtr = FileMapping.MapViewOfFileEx(
+          codeCacheHandle, FileMapAccess.FILE_MAP_ALL_ACCESS, 0, 0,
+          attachResponse.CodeCacheSize, attachResponse.CodeCacheBase);
 
       // Setup the memory system. This maps the emulator memory into our address
       // space.
@@ -166,6 +181,11 @@ namespace Xenia.Debug {
 
       Memory.UninitializeMapping();
 
+      if (codeCacheHandle != null) {
+        FileMapping.UnmapViewOfFile(codeCachePtr);
+        codeCacheHandle.Close();
+        codeCacheHandle = null;
+      }
       if (memoryHandle != null) {
         memoryHandle.Close();
         memoryHandle = null;

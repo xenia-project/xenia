@@ -24,10 +24,10 @@ class X64Function : public Function {
   X64Function(FunctionInfo* symbol_info);
   virtual ~X64Function();
 
-  void* machine_code() const { return machine_code_; }
-  size_t code_size() const { return code_size_; }
+  uint8_t* machine_code() const override { return machine_code_; }
+  size_t machine_code_length() const override { return machine_code_length_; }
 
-  void Setup(void* machine_code, size_t code_size);
+  void Setup(uint8_t* machine_code, size_t machine_code_length);
 
  protected:
   virtual bool AddBreakpointImpl(debug::Breakpoint* breakpoint);
@@ -35,8 +35,8 @@ class X64Function : public Function {
   virtual bool CallImpl(ThreadState* thread_state, uint32_t return_address);
 
  private:
-  void* machine_code_;
-  size_t code_size_;
+  uint8_t* machine_code_;
+  size_t machine_code_length_;
 };
 
 }  // namespace x64
