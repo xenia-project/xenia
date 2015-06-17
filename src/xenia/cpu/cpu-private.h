@@ -17,7 +17,6 @@ DECLARE_string(cpu);
 DECLARE_string(load_module_map);
 
 DECLARE_bool(debug);
-DECLARE_bool(always_disasm);
 DECLARE_bool(disassemble_functions);
 
 DECLARE_bool(trace_functions);

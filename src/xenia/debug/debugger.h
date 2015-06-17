@@ -81,6 +81,8 @@ class Debugger {
   uint8_t* AllocateFunctionData(size_t size);
   uint8_t* AllocateFunctionTraceData(size_t size);
 
+  bool is_attached() const { return client_socket_ != ~0; }
+
   bool SuspendAllThreads();
   bool ResumeThread(uint32_t thread_id);
   bool ResumeAllThreads();
@@ -108,10 +110,10 @@ class Debugger {
 
   Emulator* emulator_;
 
-  UINT_PTR listen_socket_;
+  uintptr_t listen_socket_;
   std::thread accept_thread_;
   xe::threading::Fence accept_fence_;
-  UINT_PTR client_socket_;
+  uintptr_t client_socket_;
   std::thread receive_thread_;
 
   std::wstring functions_path_;

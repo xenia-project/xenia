@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/frontend/ppc_translator.h"
 
+#include <gflags/gflags.h>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/memory.h"
@@ -23,6 +25,9 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
+
+DEFINE_bool(preserve_hir_disasm, true,
+            "Preserves HIR disassembly for the debugger when it is attached.");
 
 namespace xe {
 namespace cpu {
@@ -104,7 +109,12 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   xe::make_reset_scope(&string_buffer_);
 
   // NOTE: we only want to do this when required, as it's expensive to build.
-  if (FLAGS_always_disasm) {
+  if (FLAGS_preserve_hir_disasm &&
+      frontend_->processor()->debugger()->is_attached()) {
+    debug_info_flags |= DebugInfoFlags::kDebugInfoDisasmRawHir |
+                        DebugInfoFlags::kDebugInfoDisasmHir;
+  }
+  if (FLAGS_disassemble_functions) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoAllDisasm;
   }
   if (FLAGS_trace_functions) {
