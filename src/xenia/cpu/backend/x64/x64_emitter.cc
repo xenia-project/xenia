@@ -92,8 +92,9 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   if (!cpu_.has(Xbyak::util::Cpu::tAVX) ||
       !cpu_.has(Xbyak::util::Cpu::tMOVBE)) {
     XEFATAL(
-        "Your CPU is too old to support Xenia. See the FAQ for system "
-        "requirements at http://xenia.jp");
+        "YOUR CPU IS TOO DAMN OLD TO SUPPORT Xenia!!!\n"
+        "Seriously though. Check out the FAQ for system requirements at"
+        "http://xenia.jp");
     return;
   }
 }
