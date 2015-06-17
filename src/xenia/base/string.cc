@@ -10,6 +10,7 @@
 #include "xenia/base/string.h"
 
 #include <codecvt>
+#include <cstring>
 #include <locale>
 
 namespace xe {
