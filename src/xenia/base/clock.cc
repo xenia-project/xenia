@@ -10,6 +10,7 @@
 #include "xenia/base/clock.h"
 
 #include <algorithm>
+#include <climits>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
