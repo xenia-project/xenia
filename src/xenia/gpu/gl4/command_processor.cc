@@ -276,8 +276,8 @@ bool CommandProcessor::SetupGL() {
       "  vec4 o[16];\n"
       "};\n"
       "\n"
-      "layout(location = 0) in VertexData in_vtx[];\n"
-      "layout(location = 0) out VertexData out_vtx;\n";
+      "layout(location = 1) in VertexData in_vtx[];\n"
+      "layout(location = 1) out VertexData out_vtx;\n";
   // TODO(benvanik): fetch default point size from register and use that if
   //     the VS doesn't write oPointSize.
   // TODO(benvanik): clamp to min/max.
