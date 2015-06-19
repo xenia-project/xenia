@@ -349,6 +349,7 @@ class CommandProcessor {
   struct UpdateDepthStencilStateRegisters {
     uint32_t rb_depthcontrol;
     uint32_t rb_stencilrefmask;
+    uint32_t rb_stencilrefmaskbf;
 
     UpdateDepthStencilStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

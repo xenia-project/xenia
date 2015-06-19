@@ -1728,8 +1728,7 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
   dirty |= SetShadowRegister(regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
   dirty |= SetShadowRegister(regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |= SetShadowRegister(regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+  dirty |= SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
   dirty |= SetShadowRegister(regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -2187,8 +2186,9 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
 
   bool dirty = false;
   dirty |= SetShadowRegister(regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+  dirty |= SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+  dirty |= SetShadowRegister(regs.rb_stencilrefmaskbf, XE_GPU_REG_RB_STENCILREFMASK_BF);
+   
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -2241,39 +2241,36 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
   // RB_STENCILREFMASK_STENCILMASK
   uint32_t stencil_read_mask = (regs.rb_stencilrefmask & 0x0000FF00) >> 8;
   // RB_STENCILREFMASK_STENCILWRITEMASK
-  glStencilMask((regs.rb_stencilrefmask & 0x00FF0000) >> 16);
-  // A2XX_RB_DEPTHCONTROL_BACKFACE_ENABLE
+  uint32_t stencil_write_mask = (regs.rb_stencilrefmask & 0x00FF0000) >> 16;
+
+  uint32_t stencil_write_mask_bf = (regs.rb_stencilrefmaskbf & 0x00FF0000) >> 16;
+
+  // A2XX_RB_DEPTHCONTROL_STENCILFUNC
+  glStencilFunc(compare_func_map[(regs.rb_depthcontrol & 0x00000700) >> 8],
+	  stencil_ref, stencil_read_mask);
+  glStencilMask(stencil_write_mask);
+  // A2XX_RB_DEPTHCONTROL_STENCILFAIL
+  // A2XX_RB_DEPTHCONTROL_STENCILZFAIL
+  // A2XX_RB_DEPTHCONTROL_STENCILZPASS
+  glStencilOp(stencil_op_map[(regs.rb_depthcontrol & 0x00003800) >> 11],
+	  stencil_op_map[(regs.rb_depthcontrol & 0x000E0000) >> 17],
+	  stencil_op_map[(regs.rb_depthcontrol & 0x0001C000) >> 14]);
+
   bool backface_enabled = (regs.rb_depthcontrol & 0x00000080) != 0;
   if (backface_enabled) {
-    // A2XX_RB_DEPTHCONTROL_STENCILFUNC
-    glStencilFuncSeparate(
-        GL_FRONT, compare_func_map[(regs.rb_depthcontrol & 0x00000700) >> 8],
-        stencil_ref, stencil_read_mask);
-    // A2XX_RB_DEPTHCONTROL_STENCILFAIL
-    // A2XX_RB_DEPTHCONTROL_STENCILZFAIL
-    // A2XX_RB_DEPTHCONTROL_STENCILZPASS
-    glStencilOpSeparate(
-        GL_FRONT, stencil_op_map[(regs.rb_depthcontrol & 0x00003800) >> 11],
-        stencil_op_map[(regs.rb_depthcontrol & 0x000E0000) >> 17],
-        stencil_op_map[(regs.rb_depthcontrol & 0x0001C000) >> 14]);
-    // A2XX_RB_DEPTHCONTROL_STENCILFUNC_BF
-    glStencilFuncSeparate(
-        GL_BACK, compare_func_map[(regs.rb_depthcontrol & 0x00700000) >> 20],
-        stencil_ref, stencil_read_mask);
-    // A2XX_RB_DEPTHCONTROL_STENCILFAIL_BF
-    // A2XX_RB_DEPTHCONTROL_STENCILZFAIL_BF
-    // A2XX_RB_DEPTHCONTROL_STENCILZPASS_BF
-    glStencilOpSeparate(
-        GL_BACK, stencil_op_map[(regs.rb_depthcontrol & 0x03800000) >> 23],
-        stencil_op_map[(regs.rb_depthcontrol & 0xE0000000) >> 29],
-        stencil_op_map[(regs.rb_depthcontrol & 0x1C000000) >> 26]);
-  } else {
-    // Backfaces disabled - treat backfaces as frontfaces.
-    glStencilFunc(compare_func_map[(regs.rb_depthcontrol & 0x00000700) >> 8],
-                  stencil_ref, stencil_read_mask);
-    glStencilOp(stencil_op_map[(regs.rb_depthcontrol & 0x00003800) >> 11],
-                stencil_op_map[(regs.rb_depthcontrol & 0x000E0000) >> 17],
-                stencil_op_map[(regs.rb_depthcontrol & 0x0001C000) >> 14]);
+	  // A2XX_RB_DEPTHCONTROL_STENCILFUNC_BF
+	  glStencilFuncSeparate(GL_BACK,
+		  compare_func_map[(regs.rb_depthcontrol & 0x00700000) >> 20],
+		  stencil_ref, stencil_read_mask);
+	  glStencilMaskSeparate(GL_BACK,
+		  stencil_write_mask_bf);
+	  // A2XX_RB_DEPTHCONTROL_STENCILFAIL_BF
+	  // A2XX_RB_DEPTHCONTROL_STENCILZFAIL_BF
+	  // A2XX_RB_DEPTHCONTROL_STENCILZPASS_BF
+	  glStencilOpSeparate(GL_BACK,
+		  stencil_op_map[(regs.rb_depthcontrol & 0x03800000) >> 23],
+		  stencil_op_map[(regs.rb_depthcontrol & 0xE0000000) >> 29],
+		  stencil_op_map[(regs.rb_depthcontrol & 0x1C000000) >> 26]);
   }
 
   return UpdateStatus::kMismatch;
