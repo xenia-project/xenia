@@ -2598,6 +2598,10 @@ bool CommandProcessor::IssueCopy() {
   GLenum read_format;
   GLenum read_type;
   switch (copy_dest_format) {
+    case ColorFormat::k_1_5_5_5:
+      read_format = GL_RGB5_A1;
+      read_type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+      break;
     case ColorFormat::k_2_10_10_10:
       read_format = GL_RGB10_A2;
       read_type = GL_UNSIGNED_INT_10_10_10_2;
@@ -2612,6 +2616,10 @@ bool CommandProcessor::IssueCopy() {
       break;
     case ColorFormat::k_8:
       read_format = GL_R8;
+      read_type = GL_UNSIGNED_BYTE;
+      break;
+    case ColorFormat::k_8_8:
+      read_format = GL_RG8;
       read_type = GL_UNSIGNED_BYTE;
       break;
     case ColorFormat::k_8_8_8_8:
@@ -2650,7 +2658,12 @@ bool CommandProcessor::IssueCopy() {
       read_format = GL_RG32F;
       read_type = GL_FLOAT;
       break;
+    case ColorFormat::k_32_32_32_32_FLOAT:
+      read_format = GL_RGBA32F;
+      read_type = GL_FLOAT;
+      break;
     case ColorFormat::k_10_11_11:
+    case ColorFormat::k_11_11_10:
       read_format = GL_R11F_G11F_B10F;
       read_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
       break;
