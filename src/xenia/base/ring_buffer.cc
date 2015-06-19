@@ -9,59 +9,65 @@
 
 #include "xenia/base/ring_buffer.h"
 
+#include <algorithm>
 #include <cstring>
 
 namespace xe {
 
-RingBuffer::RingBuffer(uint8_t *raw_buffer, size_t size, size_t write_offset)
-    : raw_buffer_(raw_buffer),
-      size_(size),
-      write_offset_(write_offset) {}
+RingBuffer::RingBuffer(uint8_t* raw_buffer, size_t size, size_t read_offset, size_t write_offset)
+    : raw_buffer_(raw_buffer)
+    , size_(size)
+    , read_offset_(read_offset)
+    , write_offset_(write_offset) {}
 
-size_t RingBuffer::Write(uint8_t *buffer, size_t num_bytes) {
-  size_t bytes_written = 0;
-  size_t input_offset = 0;
-  size_t bytes_to_write = 0;
-
-  // write offset -> end
-  bytes_to_write =
-        num_bytes < size_ - write_offset_ ? num_bytes : size_ - write_offset_;
-
-  std::memcpy(raw_buffer_ + write_offset_, buffer, bytes_to_write);
-  input_offset = bytes_to_write;
-  write_offset_ += bytes_to_write;
-
-  bytes_written += bytes_to_write;
-
-  // Wraparound (begin -> num_bytes)
-  if (input_offset < num_bytes) {
-    bytes_to_write = num_bytes - input_offset;
-
-    std::memcpy(raw_buffer_, buffer + input_offset, bytes_to_write);
-    write_offset_ = bytes_to_write;
-
-    bytes_written += bytes_to_write;
+size_t RingBuffer::Skip(size_t num_bytes) {
+  num_bytes = std::min(read_size(), num_bytes);
+  if (read_offset_ + num_bytes < size_) {
+    read_offset_ += num_bytes;
+  } else {
+    read_offset_ = num_bytes - (size_ - read_offset_);
   }
-
-  return bytes_written;
+  return num_bytes;
 }
 
-size_t RingBuffer::DistanceToOffset(size_t offset) {
-  // Make sure the offset is in range.
-  if (offset > size_) {
-    offset %= size_;
+size_t RingBuffer::Read(uint8_t* buffer, size_t num_bytes) {
+  num_bytes = std::min(read_size(), num_bytes);
+  if (!num_bytes) {
+    return 0;
   }
 
-  if (offset < size_ && offset >= write_offset_) {
-    // Doesn't wraparound.
-    return offset - write_offset_;
+  if (read_offset_ + num_bytes < size_) {
+    std::memcpy(buffer, raw_buffer_ + read_offset_, num_bytes);
+    read_offset_ += num_bytes;
   } else {
-    // Wraparound.
-    size_t dist = size_ - write_offset_;
-    dist += offset;
-
-    return dist;
+    size_t left_half = size_ - read_offset_;
+    size_t right_half = size_ - left_half;
+    std::memcpy(buffer, raw_buffer_ + read_offset_, left_half);
+    std::memcpy(buffer + left_half, raw_buffer_, right_half);
+    read_offset_ = right_half;
   }
+
+  return num_bytes;
+}
+
+size_t RingBuffer::Write(uint8_t* buffer, size_t num_bytes) {
+  num_bytes = std::min(num_bytes, write_size());
+  if (!num_bytes) {
+    return 0;
+  }
+
+  if (write_offset_ + num_bytes < size_) {
+    std::memcpy(raw_buffer_ + write_offset_, buffer, num_bytes);
+    write_offset_ += num_bytes;
+  } else {
+    size_t left_half = size_ - write_offset_;
+    size_t right_half = size_ - left_half;
+    std::memcpy(raw_buffer_ + write_offset_, buffer, left_half);
+    std::memcpy(raw_buffer_, buffer + left_half, right_half);
+    write_offset_ = right_half;
+  }
+
+  return num_bytes;
 }
 
 } // namespace xe
