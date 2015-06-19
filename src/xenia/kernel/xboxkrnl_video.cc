@@ -72,6 +72,8 @@ struct X_DISPLAY_INFO {
 };
 static_assert_size(X_DISPLAY_INFO, 88);
 
+void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode);
+
 void VdGetCurrentDisplayInformation(pointer_t<X_DISPLAY_INFO> display_info) {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
@@ -91,10 +93,10 @@ void VdGetCurrentDisplayInformation(pointer_t<X_DISPLAY_INFO> display_info) {
   display_info->unk42 = 180; // display_height / 4?
   display_info->unk44 = 320;
   display_info->unk46 = 180;
-  display_info->unk48 = (xe::be<uint16_t>)mode.display_width;
-  display_info->unk4A = (xe::be<uint16_t>)mode.display_height;
+  display_info->unk48 = (xe::be<uint16_t>)mode.display_width; // actual display size?
+  display_info->unk4A = (xe::be<uint16_t>)mode.display_height; // actual display size?
   display_info->unk4C = mode.refresh_rate;
-  display_info->unk56 = (xe::be<uint16_t>)mode.display_width;
+  display_info->unk56 = (xe::be<uint16_t>)mode.display_width; // display width
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
