@@ -38,7 +38,6 @@ class AudioDecoder;
 
 // http://pastebin.com/9amqJ2kQ
 struct XMAContextData {
-  static const uint32_t kSize = 64;
   static const uint32_t kBytesPerPacket = 2048;
   static const uint32_t kSamplesPerFrame = 512;
   static const uint32_t kSamplesPerSubframe = 128;
@@ -100,6 +99,9 @@ struct XMAContextData {
   uint32_t output_buffer_read_offset : 5;
   uint32_t unk_dword_9 : 27;  // StopWhenDone/InterruptWhenDone(?)
 
+  // DWORD 10-15
+  uint32_t unk_dwords_10_15[6]; // reserved?
+
   XMAContextData(const void* ptr) {
     xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(this),
                                  reinterpret_cast<const uint32_t*>(ptr),
@@ -112,7 +114,7 @@ struct XMAContextData {
                                  sizeof(XMAContextData) / 4);
   }
 };
-static_assert(sizeof(XMAContextData) == 4 * 10, "Must be packed");
+static_assert_size(XMAContextData, 64);
 
 class AudioSystem {
  protected:
@@ -211,7 +213,8 @@ class AudioSystem {
     AudioDecoder* decoder;
   };
 
-  XMAContext xma_context_array_[320];
+  static const uint32_t kXmaContextCount = 320; // // Total number of XMA contexts available.
+  XMAContext xma_context_array_[kXmaContextCount];
   std::vector<uint32_t> xma_context_free_list_;
   std::vector<uint32_t> xma_context_used_list_;  // XMA contexts in use
 

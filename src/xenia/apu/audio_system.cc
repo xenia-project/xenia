@@ -56,11 +56,6 @@ namespace apu {
 
 using namespace xe::cpu;
 
-// Size of a hardware XMA context.
-const uint32_t kXmaContextSize = 64;
-// Total number of XMA contexts available.
-const uint32_t kXmaContextCount = 320;
-
 AudioSystem::AudioSystem(Emulator* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
@@ -99,10 +94,10 @@ X_STATUS AudioSystem::Setup() {
 
   // Setup XMA contexts ptr.
   registers_.xma_context_array_ptr = memory()->SystemHeapAlloc(
-      kXmaContextSize * kXmaContextCount, 256, kSystemHeapPhysical);
+      sizeof(XMAContextData) * kXmaContextCount, 256, kSystemHeapPhysical);
   // Add all contexts to the free list.
   for (int i = kXmaContextCount - 1; i >= 0; --i) {
-    uint32_t ptr = registers_.xma_context_array_ptr + i * kXmaContextSize;
+    uint32_t ptr = registers_.xma_context_array_ptr + i * sizeof(XMAContextData);
 
     XMAContext& context = xma_context_array_[i];
 
@@ -268,7 +263,7 @@ void AudioSystem::ReleaseXmaContext(uint32_t guest_ptr) {
 
       context.in_use = false;
       auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-      std::memset(context_ptr, 0, kXmaContextSize);  // Zero it.
+      std::memset(context_ptr, 0, sizeof(XMAContextData));  // Zero it.
       context.decoder->DiscardPacket();
 
       context.lock.unlock();
@@ -380,9 +375,8 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
     uint32_t output_write_offset_bytes = data.output_buffer_write_offset * 256;
     uint32_t output_read_offset_bytes = data.output_buffer_read_offset * 256;
 
-    RingBuffer output_buffer(out, output_size_bytes, output_write_offset_bytes);
-    size_t output_remaining_bytes
-                    = output_buffer.DistanceToOffset(output_read_offset_bytes);
+    RingBuffer output_buffer(out, output_size_bytes, output_read_offset_bytes, output_write_offset_bytes);
+    size_t output_remaining_bytes = output_buffer.write_size();
 
     if (!output_remaining_bytes) {
       // Can't write any more data. Break.
@@ -618,8 +612,8 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         XMAContext& context = xma_context_array_[context_id];
         XELOGAPU("AudioSystem: reset context %d", context_id);
 
-        uint32_t guest_ptr =
-            registers_.xma_context_array_ptr + context_id * kXmaContextSize;
+        uint32_t guest_ptr = registers_.xma_context_array_ptr +
+            context_id * sizeof(XMAContextData);
         context.lock.lock();
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);

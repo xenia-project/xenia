@@ -88,11 +88,35 @@ void StoreXmaContextIndexedRegister(KernelState* kernel_state,
                                     uint32_t base_reg, uint32_t context_ptr) {
   auto audio_system = kernel_state->emulator()->audio_system();
   uint32_t hw_index = (context_ptr - audio_system->xma_context_array_ptr()) /
-                      XMAContextData::kSize;
+                      sizeof(XMAContextData);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
   audio_system->WriteRegister(reg_num, xe::byte_swap(reg_value));
 }
+
+struct X_XMA_CONTEXT_INIT_LOOP_DATA {
+  xe::be<uint32_t> loop_start;
+  xe::be<uint32_t> loop_end;
+  xe::be<uint8_t> loop_count;
+  xe::be<uint8_t> loop_subframe_end;
+  xe::be<uint8_t> loop_subframe_skip;
+};
+
+struct X_XMA_CONTEXT_INIT {
+  xe::be<uint32_t> input_buffer_0_ptr;
+  xe::be<uint32_t> input_buffer_0_packet_count;
+  xe::be<uint32_t> input_buffer_1_ptr;
+  xe::be<uint32_t> input_buffer_1_packet_count;
+  xe::be<uint32_t> input_buffer_read_offset;
+  xe::be<uint32_t> output_buffer_ptr;
+  xe::be<uint32_t> output_buffer_block_count;
+  xe::be<uint32_t> work_buffer;
+  xe::be<uint32_t> subframe_decode_count;
+  xe::be<uint32_t> channel_count;
+  xe::be<uint32_t> sample_rate;
+  X_XMA_CONTEXT_INIT_LOOP_DATA loop_data;
+};
+static_assert_size(X_XMA_CONTEXT_INIT, 56);
 
 SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
@@ -101,29 +125,29 @@ SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
 
   XELOGD("XMAInitializeContext(%.8X, %.8X)", context_ptr, context_init_ptr);
 
-  std::memset(SHIM_MEM_ADDR(context_ptr), 0, XMAContextData::kSize);
+  std::memset(SHIM_MEM_ADDR(context_ptr), 0, sizeof(XMAContextData));
 
   XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  auto context_init = (X_XMA_CONTEXT_INIT*)SHIM_MEM_ADDR(context_init_ptr);
 
-  context.input_buffer_0_ptr = SHIM_MEM_32(context_init_ptr + 0 * 4);
-  context.input_buffer_0_packet_count = SHIM_MEM_32(context_init_ptr + 1 * 4);
-  context.input_buffer_1_ptr = SHIM_MEM_32(context_init_ptr + 2 * 4);
-  context.input_buffer_1_packet_count = SHIM_MEM_32(context_init_ptr + 3 * 4);
-  context.input_buffer_read_offset = SHIM_MEM_32(context_init_ptr + 4 * 4);
-  context.output_buffer_ptr = SHIM_MEM_32(context_init_ptr + 5 * 4);
-  context.output_buffer_block_count = SHIM_MEM_32(context_init_ptr + 6 * 4);
+  context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
+  context.input_buffer_0_packet_count = context_init->input_buffer_0_packet_count;
+  context.input_buffer_1_ptr = context_init->input_buffer_1_ptr;
+  context.input_buffer_1_packet_count = context_init->input_buffer_1_packet_count;
+  context.input_buffer_read_offset = context_init->input_buffer_read_offset;
+  context.output_buffer_ptr = context_init->output_buffer_ptr;
+  context.output_buffer_block_count = context_init->output_buffer_block_count;
 
-  // context.work_buffer = SHIM_MEM_32(context_init_ptr + 7 * 4);  // ?
-  context.subframe_decode_count = SHIM_MEM_32(context_init_ptr + 8 * 4);
-  context.is_stereo = SHIM_MEM_32(context_init_ptr + 9 * 4) == 2;
-  context.sample_rate = SHIM_MEM_32(context_init_ptr + 10 * 4);
+  // context.work_buffer = context_init->work_buffer;  // ?
+  context.subframe_decode_count = context_init->subframe_decode_count;
+  context.is_stereo = context_init->channel_count == 2;
+  context.sample_rate = context_init->sample_rate;
 
-  uint32_t loop_data_ptr = context_init_ptr + 11 * 4;
-  context.loop_start = SHIM_MEM_32(loop_data_ptr + 0);
-  context.loop_end = SHIM_MEM_32(loop_data_ptr + 4);
-  context.loop_count = SHIM_MEM_8(loop_data_ptr + 6);
-  context.loop_subframe_end = SHIM_MEM_8(loop_data_ptr + 6);
-  context.loop_subframe_skip = SHIM_MEM_8(loop_data_ptr + 7);
+  context.loop_start = context_init->loop_data.loop_start;
+  context.loop_end = context_init->loop_data.loop_end;
+  context.loop_count = context_init->loop_data.loop_count;
+  context.loop_subframe_end = context_init->loop_data.loop_subframe_end;
+  context.loop_subframe_skip = context_init->loop_data.loop_subframe_skip;
 
   context.Store(SHIM_MEM_ADDR(context_ptr));
 
