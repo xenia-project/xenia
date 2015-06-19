@@ -40,31 +40,61 @@ void VdGetCurrentDisplayGamma(lpdword_t arg0_ptr, lpfloat_t arg1_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
-void VdGetCurrentDisplayInformation(lpvoid_t info_ptr) {
-  auto info = info_ptr.as_array<uint32_t>();
-  // Expecting a length 0x58 struct of stuff.
-  info[0 / 4] = (1280 << 16) | 720;
-  info[4 / 4] = 0;
-  info[8 / 4] = 0;
-  info[12 / 4] = 0;
-  info[16 / 4] = 1280;  // backbuffer width?
-  info[20 / 4] = 720;   // backbuffer height?
-  info[24 / 4] = 1280;
-  info[28 / 4] = 720;
-  info[32 / 4] = 1;
-  info[36 / 4] = 0;
-  info[40 / 4] = 0;
-  info[44 / 4] = 0;
-  info[48 / 4] = 1;
-  info[52 / 4] = 0;
-  info[56 / 4] = 0;
-  info[60 / 4] = 0;
-  info[64 / 4] = 0x014000B4;          // ?
-  info[68 / 4] = 0x014000B4;          // ?
-  info[72 / 4] = (1280 << 16) | 720;  // actual display size?
-  info[76 / 4] = 0x42700000;
-  info[80 / 4] = 0;
-  info[84 / 4] = 1280;  // display width
+struct X_DISPLAY_INFO {
+  xe::be<uint16_t> unk00;
+  xe::be<uint16_t> unk02;
+  xe::be<uint8_t> unk04;
+  xe::be<uint8_t> unk05;
+  xe::be<uint32_t> unk08;
+  xe::be<uint32_t> unk0C;
+  xe::be<uint32_t> unk10;
+  xe::be<uint32_t> unk14;
+  xe::be<uint32_t> unk18;
+  xe::be<uint32_t> unk1C;
+  xe::be<uint32_t> unk20;
+  xe::be<uint32_t> unk24;
+  xe::be<uint32_t> unk28;
+  xe::be<uint32_t> unk2C;
+  xe::be<uint32_t> unk30;
+  xe::be<uint32_t> unk34;
+  xe::be<uint32_t> unk38;
+  xe::be<uint32_t> unk3C;
+  xe::be<uint16_t> unk40;
+  xe::be<uint16_t> unk42;
+  xe::be<uint16_t> unk44;
+  xe::be<uint16_t> unk46;
+  xe::be<uint16_t> unk48;
+  xe::be<uint16_t> unk4A;
+  xe::be<float> unk4C;
+  xe::be<uint32_t> unk50;
+  xe::be<uint16_t> unk54;
+  xe::be<uint16_t> unk56;
+};
+static_assert_size(X_DISPLAY_INFO, 88);
+
+void VdGetCurrentDisplayInformation(pointer_t<X_DISPLAY_INFO> display_info) {
+  X_VIDEO_MODE mode;
+  VdQueryVideoMode(&mode);
+
+  display_info.Zero();
+  display_info->unk00 = (xe::be<uint16_t>)mode.display_width;
+  display_info->unk02 = (xe::be<uint16_t>)mode.display_height;
+  display_info->unk08 = 0;
+  display_info->unk0C = 0;
+  display_info->unk10 = mode.display_width; // backbuffer width?
+  display_info->unk14 = mode.display_height; // backbuffer height?
+  display_info->unk18 = mode.display_width;
+  display_info->unk1C = mode.display_height;
+  display_info->unk20 = 1;
+  display_info->unk30 = 1;
+  display_info->unk40 = 320; // display_width / 4?
+  display_info->unk42 = 180; // display_height / 4?
+  display_info->unk44 = 320;
+  display_info->unk46 = 180;
+  display_info->unk48 = (xe::be<uint16_t>)mode.display_width;
+  display_info->unk4A = (xe::be<uint16_t>)mode.display_height;
+  display_info->unk4C = mode.refresh_rate;
+  display_info->unk56 = (xe::be<uint16_t>)mode.display_width;
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
@@ -80,9 +110,6 @@ void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
   video_mode->video_standard = 1;  // NTSC
   video_mode->unknown_0x8a = 0x4A;
   video_mode->unknown_0x01 = 0x01;
-  video_mode->reserved[0] = 0;
-  video_mode->reserved[1] = 0;
-  video_mode->reserved[2] = 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdQueryVideoMode, ExportTag::kVideo);
 
