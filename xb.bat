@@ -5,6 +5,9 @@ SET DIR=%~dp0
 
 SET XENIA_SLN=xenia.sln
 
+SET VS14_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat"
+SET VS15_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\vcvarsall.bat"
+
 REM ============================================================================
 REM Environment Validation
 REM ============================================================================
@@ -283,7 +286,17 @@ IF %FORCE% EQU 1 (
 )
 ECHO.
 ECHO ^> devenv %XENIA_SLN% %DEVENV_COMMAND% %CONFIG%
-devenv %XENIA_SLN% /nologo %DEVENV_COMMAND% %CONFIG%
+
+CALL %VS14_VCVARSALL% amd64
+
+1>NUL 2>NUL CMD /c where devenv
+IF %ERRORLEVEL% NEQ 0 (
+  REM devenv not found
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
+CMD /C devenv %XENIA_SLN% /nologo %DEVENV_COMMAND% %CONFIG%
 
 IF %ERRORLEVEL% NEQ 0 (
   ECHO.
@@ -427,11 +440,20 @@ SETLOCAL
 ECHO Cleaning normal build outputs...
 ECHO (use nuke to kill all artifacts)
 
+CALL %VS14_VCVARSALL% amd64
+
+1>NUL 2>NUL CMD /c where devenv
+IF %ERRORLEVEL% NEQ 0 (
+  REM devenv not found
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
 SET CONFIG_NAMES=Checked Debug Release
 FOR %%G IN (%CONFIG_NAMES%) DO (
   ECHO.
   ECHO ^> devenv %XENIA_SLN% /clean %%G
-  devenv %XENIA_SLN% /nologo /clean %%G
+  CMD /C devenv %XENIA_SLN% /nologo /clean %%G
 )
 
 ENDLOCAL & SET _RESULT=0
@@ -579,8 +601,6 @@ GOTO :eof
 :check_msvc
 SETLOCAL EnableDelayedExpansion
 1>NUL 2>NUL CMD /c where devenv
-SET VS14_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat"
-SET VS15_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\vcvarsall.bat"
 IF %ERRORLEVEL% NEQ 0 (
   IF EXIST %VS15_VCVARSALL% (
     REM VS2015
