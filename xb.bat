@@ -393,7 +393,7 @@ GOTO :perform_test_args
 :perform_test_parsed
 ECHO Running automated testing for config %CONFIG%...
 
-SET TEST_NAMES=xe-cpu-hir-test xe-cpu-ppc-test
+SET TEST_NAMES=xe-cpu-ppc-test
 FOR %%G IN (%TEST_NAMES%) DO (
   IF NOT EXIST build\bin\%CONFIG%\%%G.exe (
     ECHO.
