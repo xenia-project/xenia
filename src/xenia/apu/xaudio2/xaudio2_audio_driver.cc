@@ -20,26 +20,26 @@ namespace xaudio2 {
 
 class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
  public:
-  VoiceCallback(HANDLE wait_handle) : wait_handle_(wait_handle) {}
+  VoiceCallback(HANDLE semaphore) : semaphore_(semaphore) {}
   ~VoiceCallback() {}
 
   void OnStreamEnd() {}
   void OnVoiceProcessingPassEnd() {}
   void OnVoiceProcessingPassStart(uint32_t samples_required) {}
-  void OnBufferEnd(void* context) { SetEvent(wait_handle_); }
+  void OnBufferEnd(void* context) { assert_true(ReleaseSemaphore(semaphore_, 1, NULL) == TRUE); }
   void OnBufferStart(void* context) {}
   void OnLoopEnd(void* context) {}
   void OnVoiceError(void* context, HRESULT result) {}
 
  private:
-  HANDLE wait_handle_;
+  HANDLE semaphore_;
 };
 
-XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE wait)
+XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE semaphore)
     : audio_(nullptr),
       mastering_voice_(nullptr),
       pcm_voice_(nullptr),
-      wait_handle_(wait),
+      semaphore_(semaphore),
       voice_callback_(nullptr),
       current_frame_(0),
       AudioDriver(emulator) {}
@@ -61,7 +61,7 @@ const DWORD ChannelMasks[] = {
 void XAudio2AudioDriver::Initialize() {
   HRESULT hr;
 
-  voice_callback_ = new VoiceCallback(wait_handle_);
+  voice_callback_ = new VoiceCallback(semaphore_);
 
   hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
@@ -123,8 +123,6 @@ void XAudio2AudioDriver::Initialize() {
   if (FLAGS_mute) {
     pcm_voice_->SetVolume(0.0f);
   }
-
-  SetEvent(wait_handle_);
 }
 
 void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
@@ -169,13 +167,6 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   // Update playback ratio to our time scalar.
   // This will keep audio in sync with the game clock.
   pcm_voice_->SetFrequencyRatio(float(xe::Clock::guest_time_scalar()));
-
-  XAUDIO2_VOICE_STATE state2;
-  pcm_voice_->GetState(&state2, XAUDIO2_VOICE_NOSAMPLESPLAYED);
-
-  if (state2.BuffersQueued >= frame_count_) {
-    ResetEvent(wait_handle_);
-  }
 }
 
 void XAudio2AudioDriver::Shutdown() {

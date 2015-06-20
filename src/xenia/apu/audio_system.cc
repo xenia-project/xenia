@@ -62,18 +62,22 @@ AudioSystem::AudioSystem(Emulator* emulator)
       worker_running_(false),
       decoder_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
-  for (size_t i = 0; i < maximum_client_count_; ++i) {
+  for (size_t i = 0; i < kMaximumClientCount; ++i) {
     unused_clients_.push(i);
   }
-  for (size_t i = 0; i < xe::countof(client_wait_handles_); ++i) {
-    client_wait_handles_[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
+  for (size_t i = 0; i < kMaximumClientCount; ++i) {
+    client_semaphores_[i] = CreateSemaphore(NULL, 0, kMaximumQueuedFrames, NULL);
+    wait_handles_[i] = client_semaphores_[i];
   }
+  shutdown_event_ = CreateEvent(NULL, TRUE, FALSE, NULL);
+  wait_handles_[kMaximumClientCount] = shutdown_event_;
 }
 
 AudioSystem::~AudioSystem() {
-  for (size_t i = 0; i < xe::countof(client_wait_handles_); ++i) {
-    CloseHandle(client_wait_handles_[i]);
+  for (size_t i = 0; i < kMaximumClientCount; ++i) {
+    CloseHandle(client_semaphores_[i]);
   }
+  CloseHandle(shutdown_event_);
 }
 
 void av_log_callback(void *avcl, int level, const char *fmt, va_list va) {
@@ -149,16 +153,16 @@ void AudioSystem::WorkerThreadMain() {
   // Main run loop.
   while (worker_running_) {
     auto result =
-        WaitForMultipleObjectsEx(DWORD(xe::countof(client_wait_handles_)),
-                                 client_wait_handles_, FALSE, INFINITE, FALSE);
+        WaitForMultipleObjectsEx(DWORD(xe::countof(wait_handles_)),
+                                 wait_handles_, FALSE, INFINITE, FALSE);
     if (result == WAIT_FAILED ||
-        result == WAIT_OBJECT_0 + maximum_client_count_) {
+        result == WAIT_OBJECT_0 + kMaximumClientCount) {
       continue;
     }
 
     size_t pumped = 0;
     if (result >= WAIT_OBJECT_0 &&
-        result <= WAIT_OBJECT_0 + (maximum_client_count_ - 1)) {
+        result <= WAIT_OBJECT_0 + (kMaximumClientCount - 1)) {
       size_t index = result - WAIT_OBJECT_0;
       do {
         lock_.lock();
@@ -174,8 +178,8 @@ void AudioSystem::WorkerThreadMain() {
         }
         pumped++;
         index++;
-      } while (index < maximum_client_count_ &&
-               WaitForSingleObject(client_wait_handles_[index], 0) ==
+      } while (index < kMaximumClientCount &&
+               WaitForSingleObject(client_semaphores_[index], 0) ==
                    WAIT_OBJECT_0);
     }
 
@@ -225,7 +229,7 @@ void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
   worker_running_ = false;
-  SetEvent(client_wait_handles_[maximum_client_count_]);
+  SetEvent(shutdown_event_);
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
 
@@ -297,10 +301,10 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
 
   auto index = unused_clients_.front();
 
-  auto wait_handle = client_wait_handles_[index];
-  ResetEvent(wait_handle);
+  auto client_semaphore = client_semaphores_[index];
+  assert_true(ReleaseSemaphore(client_semaphore, kMaximumQueuedFrames, NULL) == TRUE);
   AudioDriver* driver;
-  auto result = CreateDriver(index, wait_handle, &driver);
+  auto result = CreateDriver(index, client_semaphore, &driver);
   if (XFAILED(result)) {
     return result;
   }
@@ -324,7 +328,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
   SCOPE_profile_cpu_f("apu");
 
   std::lock_guard<xe::mutex> lock(lock_);
-  assert_true(index < maximum_client_count_);
+  assert_true(index < kMaximumClientCount);
   assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
 }
@@ -333,18 +337,25 @@ void AudioSystem::UnregisterClient(size_t index) {
   SCOPE_profile_cpu_f("apu");
 
   std::lock_guard<xe::mutex> lock(lock_);
-  assert_true(index < maximum_client_count_);
+  assert_true(index < kMaximumClientCount);
   DestroyDriver(clients_[index].driver);
   clients_[index] = {0};
   unused_clients_.push(index);
-  ResetEvent(client_wait_handles_[index]);
+
+  // drain the semaphore of its count
+  auto client_semaphore = client_semaphores_[index];
+  DWORD wait_result;
+  do {
+    wait_result = WaitForSingleObject(client_semaphore, 0);
+  } while (wait_result == WAIT_OBJECT_0);
+  assert_true(wait_result == WAIT_TIMEOUT);
 }
 
 void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   SCOPE_profile_cpu_f("apu");
 
   // Translate this for future use.
-  uint8_t* out = memory()->TranslatePhysical(data.output_buffer_ptr);
+  uint8_t* output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
 
   // What I see:
   // XMA outputs 2 bytes per sample
@@ -371,13 +382,15 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
     // Output buffers are in raw PCM samples, 256 bytes per block.
     // Output buffer is a ring buffer. We need to write from the write offset
     // to the read offset.
-    uint32_t output_size_bytes = data.output_buffer_block_count * 256;
-    uint32_t output_write_offset_bytes = data.output_buffer_write_offset * 256;
-    uint32_t output_read_offset_bytes = data.output_buffer_read_offset * 256;
+    uint32_t output_capacity = data.output_buffer_block_count * 256;
+    uint32_t output_read_offset = data.output_buffer_read_offset * 256;
+    uint32_t output_write_offset = data.output_buffer_write_offset * 256;
 
-    RingBuffer output_buffer(out, output_size_bytes, output_read_offset_bytes, output_write_offset_bytes);
-    size_t output_remaining_bytes = output_buffer.write_size();
+    RingBuffer output_rb(output_buffer, output_capacity);
+    output_rb.set_read_offset(output_read_offset);
+    output_rb.set_write_offset(output_write_offset);
 
+    size_t output_remaining_bytes = output_rb.write_count();
     if (!output_remaining_bytes) {
       // Can't write any more data. Break.
       // The game will kick us again with a new output buffer later.
@@ -395,7 +408,9 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
       read_bytes = context.decoder->DecodePacket(tmp_buff, 0,
                                                  output_remaining_bytes);
       if (read_bytes >= 0) {
-        output_buffer.Write(tmp_buff, read_bytes);
+        assert_true((read_bytes % 256) == 0);
+        auto written_bytes = output_rb.Write(tmp_buff, read_bytes);
+        assert_true(read_bytes == written_bytes);
 
         // Ok.
         break;
@@ -421,11 +436,7 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
       }
     }
 
-    data.output_buffer_write_offset += uint32_t(read_bytes) / 256;
-    if (data.output_buffer_write_offset > data.output_buffer_block_count) {
-      // Wraparound!
-      data.output_buffer_write_offset -= data.output_buffer_block_count;
-    }
+    data.output_buffer_write_offset = output_rb.write_offset() / 256;
 
     // If we need more data and the input buffers have it, grab it.
     if (read_bytes) {

@@ -24,7 +24,7 @@ class XAudio2AudioSystem : public AudioSystem {
   XAudio2AudioSystem(Emulator* emulator);
   virtual ~XAudio2AudioSystem();
 
-  virtual X_RESULT CreateDriver(size_t index, HANDLE wait,
+  virtual X_RESULT CreateDriver(size_t index, HANDLE semaphore,
                                 AudioDriver** out_driver);
   virtual void DestroyDriver(AudioDriver* driver);
 

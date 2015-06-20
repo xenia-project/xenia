@@ -142,12 +142,15 @@ class AudioSystem {
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
-  virtual X_STATUS CreateDriver(size_t index, HANDLE wait_handle,
+  virtual X_STATUS CreateDriver(size_t index, HANDLE semaphore,
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
   virtual uint64_t ReadRegister(uint32_t addr);
   virtual void WriteRegister(uint32_t addr, uint64_t value);
+
+  // TODO(gibbed): respect XAUDIO2_MAX_QUEUED_BUFFERS somehow (ie min(64, XAUDIO2_MAX_QUEUED_BUFFERS))
+  static const size_t kMaximumQueuedFrames = 64;
 
  protected:
   virtual void Initialize();
@@ -204,6 +207,7 @@ class AudioSystem {
     } registers_;
     uint32_t register_file_[0xFFFF / 4];
   };
+
   struct XMAContext {
     uint32_t guest_ptr;
     xe::mutex lock;
@@ -218,16 +222,18 @@ class AudioSystem {
   std::vector<uint32_t> xma_context_free_list_;
   std::vector<uint32_t> xma_context_used_list_;  // XMA contexts in use
 
-  static const size_t maximum_client_count_ = 8;
+  static const size_t kMaximumClientCount = 8;
 
   struct {
     AudioDriver* driver;
     uint32_t callback;
     uint32_t callback_arg;
     uint32_t wrapped_callback_arg;
-  } clients_[maximum_client_count_];
-  // Last handle is always there in case we have no clients.
-  HANDLE client_wait_handles_[maximum_client_count_ + 1];
+  } clients_[kMaximumClientCount];
+
+  HANDLE client_semaphores_[kMaximumClientCount];
+  HANDLE shutdown_event_; // Event is always there in case we have no clients.
+  HANDLE wait_handles_[kMaximumClientCount + 1];
   std::queue<size_t> unused_clients_;
 };
 

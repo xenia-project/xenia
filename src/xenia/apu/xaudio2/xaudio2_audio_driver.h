@@ -21,7 +21,7 @@ namespace xaudio2 {
 
 class XAudio2AudioDriver : public AudioDriver {
  public:
-  XAudio2AudioDriver(Emulator* emulator, HANDLE wait);
+  XAudio2AudioDriver(Emulator* emulator, HANDLE semaphore);
   virtual ~XAudio2AudioDriver();
 
   virtual void Initialize();
@@ -32,7 +32,7 @@ class XAudio2AudioDriver : public AudioDriver {
   IXAudio2* audio_;
   IXAudio2MasteringVoice* mastering_voice_;
   IXAudio2SourceVoice* pcm_voice_;
-  HANDLE wait_handle_;
+  HANDLE semaphore_;
 
   class VoiceCallback;
   VoiceCallback* voice_callback_;
