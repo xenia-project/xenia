@@ -64,7 +64,7 @@ std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
       type_name = L"00000003";
       break;
     case 0x000D0000:
-      // ???
+      // Demos
       type_name = L"000D0000";
       break;
     default:
