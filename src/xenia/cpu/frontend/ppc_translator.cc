@@ -109,7 +109,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   xe::make_reset_scope(&string_buffer_);
 
   // NOTE: we only want to do this when required, as it's expensive to build.
-  if (FLAGS_preserve_hir_disasm &&
+  if (FLAGS_preserve_hir_disasm && frontend_->processor()->debugger() &&
       frontend_->processor()->debugger()->is_attached()) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoDisasmRawHir |
                         DebugInfoFlags::kDebugInfoDisasmHir;
