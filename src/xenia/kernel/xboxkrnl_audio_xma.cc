@@ -94,13 +94,14 @@ void StoreXmaContextIndexedRegister(KernelState* kernel_state,
   audio_system->WriteRegister(reg_num, xe::byte_swap(reg_value));
 }
 
-struct X_XMA_CONTEXT_INIT_LOOP_DATA {
+struct X_XMA_LOOP_DATA {
   xe::be<uint32_t> loop_start;
   xe::be<uint32_t> loop_end;
   xe::be<uint8_t> loop_count;
   xe::be<uint8_t> loop_subframe_end;
   xe::be<uint8_t> loop_subframe_skip;
 };
+static_assert_size(X_XMA_LOOP_DATA, 12);
 
 struct X_XMA_CONTEXT_INIT {
   xe::be<uint32_t> input_buffer_0_ptr;
@@ -114,7 +115,7 @@ struct X_XMA_CONTEXT_INIT {
   xe::be<uint32_t> subframe_decode_count;
   xe::be<uint32_t> channel_count;
   xe::be<uint32_t> sample_rate;
-  X_XMA_CONTEXT_INIT_LOOP_DATA loop_data;
+  X_XMA_LOOP_DATA loop_data;
 };
 static_assert_size(X_XMA_CONTEXT_INIT, 56);
 
@@ -164,12 +165,13 @@ SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
   XELOGD("XMASetLoopData(%.8X, %.8X)", context_ptr, loop_data_ptr);
 
   XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  auto loop_data = (X_XMA_LOOP_DATA*)SHIM_MEM_ADDR(loop_data_ptr);
 
-  context.loop_start = SHIM_MEM_32(loop_data_ptr + 0);
-  context.loop_end = SHIM_MEM_32(loop_data_ptr + 4);
-  context.loop_count = SHIM_MEM_8(loop_data_ptr + 6);
-  context.loop_subframe_end = SHIM_MEM_8(loop_data_ptr + 6);
-  context.loop_subframe_skip = SHIM_MEM_8(loop_data_ptr + 7);
+  context.loop_start = loop_data->loop_start;
+  context.loop_end = loop_data->loop_end;
+  context.loop_count = loop_data->loop_count;
+  context.loop_subframe_end = loop_data->loop_subframe_end;
+  context.loop_subframe_skip = loop_data->loop_subframe_end;
 
   context.Store(SHIM_MEM_ADDR(context_ptr));
 
