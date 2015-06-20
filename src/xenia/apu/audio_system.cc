@@ -376,40 +376,41 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   // 3 - 48 kHz ?
 
   // SPUs also support stereo decoding. (data.is_stereo)
-  while (data.output_buffer_valid) {
-    // Check the output buffer - we cannot decode anything else if it's
-    // unavailable.
-    // Output buffers are in raw PCM samples, 256 bytes per block.
-    // Output buffer is a ring buffer. We need to write from the write offset
-    // to the read offset.
-    uint32_t output_capacity = data.output_buffer_block_count * 256;
-    uint32_t output_read_offset = data.output_buffer_read_offset * 256;
-    uint32_t output_write_offset = data.output_buffer_write_offset * 256;
 
-    RingBuffer output_rb(output_buffer, output_capacity);
-    output_rb.set_read_offset(output_read_offset);
-    output_rb.set_write_offset(output_write_offset);
+  // Check the output buffer - we cannot decode anything else if it's
+  // unavailable.
+  if (!data.output_buffer_valid) {
+    return;
+  }
 
-    size_t output_remaining_bytes = output_rb.write_count();
-    if (!output_remaining_bytes) {
-      // Can't write any more data. Break.
-      // The game will kick us again with a new output buffer later.
-      data.output_buffer_valid = 0;
-      break;
-    }
+  // Output buffers are in raw PCM samples, 256 bytes per block.
+  // Output buffer is a ring buffer. We need to write from the write offset
+  // to the read offset.
+  uint32_t output_capacity = data.output_buffer_block_count * 256;
+  uint32_t output_read_offset = data.output_buffer_read_offset * 256;
+  uint32_t output_write_offset = data.output_buffer_write_offset * 256;
 
+  RingBuffer output_rb(output_buffer, output_capacity);
+  output_rb.set_read_offset(output_read_offset);
+  output_rb.set_write_offset(output_write_offset);
+
+  size_t output_remaining_bytes = output_rb.write_count();
+
+  // Decode until we can't write any more data.
+  while (output_remaining_bytes > 0) {
     // This'll copy audio samples into the output buffer.
     // The samples need to be 2 bytes long!
     // Copies one frame at a time, so keep calling this until size == 0
     int read_bytes = 0;
     int decode_attempts_remaining = 3;
-    uint8_t tmp_buff[XMAContextData::kOutputMaxSizeBytes];
+
+    uint8_t work_buffer[XMAContextData::kOutputMaxSizeBytes];
     while (decode_attempts_remaining) {
-      read_bytes = context.decoder->DecodePacket(tmp_buff, 0,
+      read_bytes = context.decoder->DecodePacket(work_buffer, 0,
                                                  output_remaining_bytes);
       if (read_bytes >= 0) {
-        assert_true((read_bytes % 256) == 0);
-        auto written_bytes = output_rb.Write(tmp_buff, read_bytes);
+        //assert_true((read_bytes % 256) == 0);
+        auto written_bytes = output_rb.Write(work_buffer, read_bytes);
         assert_true(read_bytes == written_bytes);
 
         // Ok.
@@ -437,6 +438,7 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
     }
 
     data.output_buffer_write_offset = output_rb.write_offset() / 256;
+    output_remaining_bytes -= read_bytes;
 
     // If we need more data and the input buffers have it, grab it.
     if (read_bytes) {
@@ -455,6 +457,9 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
       break;
     }
   }
+
+  // The game will kick us again with a new output buffer later.
+  data.output_buffer_valid = 0;
 }
 
 int AudioSystem::PrepareXMAPacket(XMAContext &context, XMAContextData &data) {
