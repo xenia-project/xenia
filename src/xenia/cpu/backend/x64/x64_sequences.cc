@@ -3911,8 +3911,10 @@ EMITTER(MUL_ADD_F64, MATCH(I<OPCODE_MUL_ADD, F64<>, F64<>, F64<>, F64<>>)) {
 };
 EMITTER(MUL_ADD_V128, MATCH(I<OPCODE_MUL_ADD, V128<>, V128<>, V128<>, V128<>>)) {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // FMA extension
-    if (e.IsFeatureEnabled(kX64EmitFMA)) {
+    // TODO(benvanik): the vfmadd sequence produces slightly different results
+    // than vmul+vadd and it'd be nice to know why. Until we know, it's
+    // disabled so tests pass.
+    if (false && e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
         e.vfmadd213ps(i.dest, i.src2, i.src3);
       } else if (i.dest == i.src2) {
