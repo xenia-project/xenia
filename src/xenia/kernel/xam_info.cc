@@ -115,9 +115,9 @@ SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
   uint32_t name_ptr = SHIM_GET_ARG_32(0);
   const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
-  uint32_t unk2 = SHIM_GET_ARG_32(1);
+  uint32_t flags = SHIM_GET_ARG_32(1);
 
-  XELOGD("XamLoaderLaunchTitle(%.8X(%s), %.8X)", name_ptr, name, unk2);
+  XELOGD("XamLoaderLaunchTitle(%.8X(%s), %.8X)", name_ptr, name, flags);
   assert_always();
 }
 
