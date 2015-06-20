@@ -2843,7 +2843,8 @@ bool CommandProcessor::IssueCopy() {
   uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
   uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
   assert_true(copy_color_clear == copy_color_clear_low);
-
+  GLbitfield f = 0;
+  
   if (color_clear_enabled) {
     // Clear the render target we selected for copy.
     assert_true(copy_src_select < 3);
@@ -2860,6 +2861,7 @@ bool CommandProcessor::IssueCopy() {
                               copy_src_select, color);
     glColorMaski(copy_src_select, old_color_mask[0], old_color_mask[1],
                  old_color_mask[2], old_color_mask[3]);
+    f |= GL_COLOR_BUFFER_BIT;
   }
 
   // TODO(benvanik): figure out real condition here (maybe when color cleared?)
@@ -2888,8 +2890,11 @@ bool CommandProcessor::IssueCopy() {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, old_draw_framebuffer);
     glDepthMask(old_depth_mask);
     glStencilMask(old_stencil_mask);
+    f |= GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
   }
-
+  
+  glClear(f);
+  
   return true;
 }
 
