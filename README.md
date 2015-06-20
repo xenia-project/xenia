@@ -19,7 +19,7 @@ Discussing illegal activities will get you banned. No warnings.
 ## Status
 
 Buildbot:
-[![Build status](https://badge.buildkite.com/0c382884111ea2bc85e97d1db04aba9712a0776d15195712a4.svg)](https://buildkite.com/benvanik/xenia)
+[![Build status](http://build.xenia.jp/png?builder=auto-builds)](http://build.xenia.jp/waterfall)
 
 Project tracker:
 [![Stories in Ready](https://badge.waffle.io/benvanik/xenia.svg?label=ready&title=Ready)](http://waffle.io/benvanik/xenia)
