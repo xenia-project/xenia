@@ -14,9 +14,8 @@
     <Link>
       <GenerateDebugInformation>Debug</GenerateDebugInformation>
     </Link>
-    <Lib>
-      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\Debug\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Lib>
+    <Lib />
+    <Lib />
   </ItemDefinitionGroup>
   <ItemGroup />
 </Project>

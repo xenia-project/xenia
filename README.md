@@ -37,8 +37,6 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-*Do not check out into a path with spaces*.
-
 Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
 
     > git clone https://github.com/benvanik/xenia.git

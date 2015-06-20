@@ -87,7 +87,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>PATH_SEPARATOR=%27\\%27;GFLAGS_DLL_DECL=;GFLAGS_DLL_DEFINE_FLAG=;GFLAGS_DLL_DECLARE_FLAG=;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\gflags\src\windows\;$(SolutionDir)\third_party\gflags\src\;$(SolutionDir)\src\;$(SolutionDir)\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)third_party\gflags\src\windows;$(SolutionDir)third_party\gflags\src</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
