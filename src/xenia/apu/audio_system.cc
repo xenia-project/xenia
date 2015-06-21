@@ -302,7 +302,9 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   auto index = unused_clients_.front();
 
   auto client_semaphore = client_semaphores_[index];
-  assert_true(ReleaseSemaphore(client_semaphore, kMaximumQueuedFrames, NULL) == TRUE);
+  BOOL ret = ReleaseSemaphore(client_semaphore, kMaximumQueuedFrames, NULL);
+  assert_true(ret == TRUE);
+
   AudioDriver* driver;
   auto result = CreateDriver(index, client_semaphore, &driver);
   if (XFAILED(result)) {
@@ -511,6 +513,7 @@ int AudioSystem::PrepareXMAPacket(XMAContext &context, XMAContextData &data) {
 
     // Still have data to read.
     auto packet = input_buffer + input_offset_bytes;
+    assert_true(input_offset_bytes % 2048 == 0);
     context.decoder->PreparePacket(packet, seq_offset_bytes,
                                    XMAContextData::kBytesPerPacket,
                                    sample_rate, channels);

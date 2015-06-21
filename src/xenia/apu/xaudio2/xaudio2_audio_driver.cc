@@ -26,7 +26,10 @@ class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
   void OnStreamEnd() {}
   void OnVoiceProcessingPassEnd() {}
   void OnVoiceProcessingPassStart(uint32_t samples_required) {}
-  void OnBufferEnd(void* context) { assert_true(ReleaseSemaphore(semaphore_, 1, NULL) == TRUE); }
+  void OnBufferEnd(void* context) {
+    BOOL ret = ReleaseSemaphore(semaphore_, 1, NULL);
+    assert_true(ret == TRUE);
+  }
   void OnBufferStart(void* context) {}
   void OnLoopEnd(void* context) {}
   void OnVoiceError(void* context, HRESULT result) {}
