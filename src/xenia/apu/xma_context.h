@@ -44,13 +44,6 @@ namespace apu {
 // Appears to be dumped in order (for the most part)
 
 struct XMA_CONTEXT_DATA {
-  static const uint32_t kBytesPerPacket = 2048;
-  static const uint32_t kSamplesPerFrame = 512;
-  static const uint32_t kSamplesPerSubframe = 128;
-
-  static const uint32_t kOutputBytesPerBlock = 256;
-  static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
-
   // DWORD 0
   uint32_t input_buffer_0_packet_count : 12; // XMASetInputBuffer0, number of
                                              // 2KB packets. Max 4095 packets.
@@ -122,8 +115,29 @@ struct XMA_CONTEXT_DATA {
 };
 static_assert_size(XMA_CONTEXT_DATA, 64);
 
+#pragma pack(push, 1)
+struct WmaProExtraData {
+    uint16_t bits_per_sample;
+    uint32_t channel_mask;
+    uint8_t unk06[8];
+    uint16_t decode_flags;
+    uint8_t unk10[2];
+};
+static_assert_size(WmaProExtraData, 18);
+#pragma pack(pop)
+
 class XmaContext {
   public:
+    static const uint32_t kBytesPerPacket = 2048;
+
+    static const uint32_t kBytesPerSample = 2;
+    static const uint32_t kSamplesPerFrame = 512;
+    static const uint32_t kSamplesPerSubframe = 128;
+    static const uint32_t kBytesPerSubframe = kSamplesPerSubframe * kBytesPerSample;
+
+    static const uint32_t kOutputBytesPerBlock = 256;
+    static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
+
     XmaContext();
     ~XmaContext();
 
@@ -147,8 +161,10 @@ class XmaContext {
     void set_is_enabled(bool is_enabled) { is_enabled_ = is_enabled; }
 
   private:
-    void Process(XMA_CONTEXT_DATA& data);
-    int PreparePacket(XMA_CONTEXT_DATA &data);
+    static int GetSampleRate(int id);
+
+    void DecodePackets(XMA_CONTEXT_DATA& data);
+    int StartPacket(XMA_CONTEXT_DATA &data);
 
     int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
                       int sample_rate, int channels);
@@ -164,17 +180,20 @@ class XmaContext {
     bool is_allocated_;
     bool is_enabled_;
 
+    bool decoding_packet_;
+
     // libav structures
     AVCodec* codec_;
     AVCodecContext* context_;
     AVFrame* decoded_frame_;
     AVPacket* packet_;
+    WmaProExtraData extra_data_;
 
     size_t current_frame_pos_;
     uint8_t* current_frame_;
     uint32_t frame_samples_size_;
 
-    uint8_t packet_data_[XMA_CONTEXT_DATA::kBytesPerPacket];
+    uint8_t packet_data_[kBytesPerPacket];
 };
 
 } // namespace apu

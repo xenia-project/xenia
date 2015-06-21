@@ -58,9 +58,6 @@ class XmaDecoder {
  private:
   void WorkerThreadMain();
 
-  void ProcessContext(XmaContext& context, XMA_CONTEXT_DATA& data);
-  int PreparePacket(XmaContext& context, XMA_CONTEXT_DATA& data);
-
   static uint64_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as,
                                         uint32_t addr) {
     return as->ReadRegister(addr);
