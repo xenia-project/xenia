@@ -69,12 +69,12 @@ struct XMAContextData {
   uint32_t unk_dword_1_b : 3;          // ? NumSubframesToSkip/NumChannels(?)
   uint32_t sample_rate : 2;            // +27bit enum of sample rates
   uint32_t is_stereo : 1;              // +29bit
-  uint32_t unk_dword_1_c : 1;          // +29bit
+  uint32_t unk_dword_1_c : 1;          // +30bit
   uint32_t output_buffer_valid : 1;    // +31bit, XMAIsOutputBufferValid
 
   // DWORD 2
-  uint32_t input_buffer_read_offset : 30;  // XMAGetInputBufferReadOffset
-  uint32_t unk_dword_2 : 2;                // ErrorStatus/ErrorSet (?)
+  uint32_t input_buffer_read_offset : 26;  // XMAGetInputBufferReadOffset
+  uint32_t unk_dword_2 : 6;                // ErrorStatus/ErrorSet (?)
 
   // DWORD 3
   uint32_t loop_start : 26;  // XMASetLoopData LoopStartOffset
