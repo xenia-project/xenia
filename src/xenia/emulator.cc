@@ -161,7 +161,7 @@ X_STATUS Emulator::Setup() {
 
   result = xma_decoder_->Setup();
   if (result) {
-      return result;
+    return result;
   }
 
   // HLE kernel modules.
