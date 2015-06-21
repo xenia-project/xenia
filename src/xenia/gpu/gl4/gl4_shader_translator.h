@@ -156,6 +156,8 @@ class GL4ShaderTranslator {
   bool TranslateBlocks(GL4Shader* shader);
   bool TranslateExec(const ucode::instr_cf_exec_t& cf);
   bool TranslateJmp(const ucode::instr_cf_jmp_call_t& cf);
+  bool TranslateLoopStart(const ucode::instr_cf_loop_t& cf);
+  bool TranslateLoopEnd(const ucode::instr_cf_loop_t& cf);
   bool TranslateVertexFetch(const ucode::instr_fetch_vtx_t* vtx, int sync);
   bool TranslateTextureFetch(const ucode::instr_fetch_tex_t* tex, int sync);
 };
