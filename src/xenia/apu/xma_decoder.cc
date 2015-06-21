@@ -31,10 +31,8 @@ extern "C" {
 // structures (as opposed to the XMA* calls), meaning that we have to support
 // both.
 //
-// For ease of implementation, most audio related processing is handled in
-// AudioSystem, and the functions here call off to it.
 // The XMA*() functions just manipulate the audio system in the guest context
-// and let the normal AudioSystem handling take it, to prevent duplicate
+// and let the normal XmaDecoder handling take it, to prevent duplicate
 // implementations. They can be found in xboxkrnl_audio_xma.cc
 //
 // XMA details:
@@ -57,9 +55,11 @@ namespace apu {
 using namespace xe::cpu;
 
 XmaDecoder::XmaDecoder(Emulator* emulator)
-    : emulator_(emulator),
-      memory_(emulator->memory()),
-      worker_running_(false) {
+    : emulator_(emulator)
+    , memory_(emulator->memory())
+    , worker_running_(false)
+    , context_data_first_ptr_(0)
+    , context_data_last_ptr_(0) {
 }
 
 XmaDecoder::~XmaDecoder() {
@@ -85,12 +85,15 @@ X_STATUS XmaDecoder::Setup() {
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup XMA contexts ptr.
-  registers_.context_array_ptr = memory()->SystemHeapAlloc(
+  context_data_first_ptr_ = memory()->SystemHeapAlloc(
       sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical);
+  context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
+  registers_.context_array_ptr = context_data_first_ptr_;
+
   // Add all contexts to the free list.
   for (int i = kContextCount - 1; i >= 0; --i) {
     uint32_t ptr = registers_.context_array_ptr + i * sizeof(XMA_CONTEXT_DATA);
-    XmaContext& context = context_array_[i];
+    XmaContext& context = contexts_[i];
     context.set_guest_ptr(ptr);
     context.Initialize();
   }
@@ -103,7 +106,7 @@ X_STATUS XmaDecoder::Setup() {
             WorkerThreadMain();
             return 0;
           }));
-  worker_thread_->set_name("XMA Decoder");
+  worker_thread_->set_name("XMA Decoder Worker");
   worker_thread_->Create();
 
   return X_STATUS_SUCCESS;
@@ -113,7 +116,7 @@ void XmaDecoder::WorkerThreadMain() {
   while (worker_running_) {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     for (uint32_t n = 0; n < kContextCount; n++) {
-      XmaContext& context = context_array_[n];
+      XmaContext& context = contexts_[n];
       if (context.in_use() && context.kicked()) {
         context.lock().lock();
         context.set_kicked(false);
@@ -129,8 +132,6 @@ void XmaDecoder::WorkerThreadMain() {
   }
 }
 
-void XmaDecoder::Initialize() {}
-
 void XmaDecoder::Shutdown() {
   worker_running_ = false;
   worker_fence_.Signal();
@@ -139,11 +140,21 @@ void XmaDecoder::Shutdown() {
   memory()->SystemHeapFree(registers_.context_array_ptr);
 }
 
+int XmaDecoder::GetContextId(uint32_t guest_ptr) {
+  static_assert(sizeof(XMA_CONTEXT_DATA) == 64, "FIXME");
+  if (guest_ptr < context_data_first_ptr_ ||
+      guest_ptr > context_data_last_ptr_) {
+    return -1;
+  }
+  assert_zero(guest_ptr & 0x3F);
+  return (guest_ptr - context_data_first_ptr_) >> 6;
+}
+
 uint32_t XmaDecoder::AllocateContext() {
   std::lock_guard<xe::mutex> lock(lock_);
 
   for (uint32_t n = 0; n < kContextCount; n++) {
-    XmaContext& context = context_array_[n];
+    XmaContext& context = contexts_[n];
     if (!context.in_use()) {
       context.set_in_use(true);
       return context.guest_ptr();
@@ -156,40 +167,36 @@ uint32_t XmaDecoder::AllocateContext() {
 void XmaDecoder::ReleaseContext(uint32_t guest_ptr) {
   std::lock_guard<xe::mutex> lock(lock_);
 
-  // Find it in the list.
-  for (uint32_t n = 0; n < kContextCount; n++) {
-    XmaContext& context = context_array_[n];
-    if (context.guest_ptr() == guest_ptr) {
-      // Found it!
-      // Lock it in case the decoder thread is working on it now
-      context.lock().lock();
+  auto context_id = GetContextId(guest_ptr);
+  assert_true(context_id >= 0);
 
-      context.set_in_use(false);
-      auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-      std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));  // Zero it.
-      context.DiscardPacket();
+  XmaContext& context = contexts_[context_id];
 
-      context.lock().unlock();
-      break;
-    }
-  }
+  // Lock it in case the decoder thread is working on it now
+  context.lock().lock();
+
+  context.set_in_use(false);
+  auto context_ptr = memory()->TranslateVirtual(guest_ptr);
+  std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));  // Zero it.
+  context.DiscardPacket();
+
+  context.lock().unlock();
 }
 
 bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
   std::lock_guard<xe::mutex> lock(lock_);
-  for (uint32_t n = 0; n < kContextCount; n++) {
-    XmaContext& context = context_array_[n];
-    if (context.guest_ptr() == guest_ptr) {
-      if (!context.lock().try_lock()) {
-        if (poll) {
-          return false;
-        }
-        context.lock().lock();
-      }
-      context.lock().unlock();
-      return true;
+
+  auto context_id = GetContextId(guest_ptr);
+  assert_true(context_id >= 0);
+
+  XmaContext& context = contexts_[context_id];
+  if (!context.lock().try_lock()) {
+    if (poll) {
+      return false;
     }
+    context.lock().lock();
   }
+  context.lock().unlock();
   return true;
 }
 
@@ -266,7 +273,7 @@ void XmaDecoder::ProcessContext(XmaContext& context, XMA_CONTEXT_DATA& data) {
     }
 
     if (!decode_attempts_remaining) {
-      XELOGAPU("AudioSystem: libav failed to decode packet (returned %.8X)", -read_bytes);
+      XELOGAPU("XmaDecoder: libav failed to decode packet (returned %.8X)", -read_bytes);
 
       // Failed out.
       if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
@@ -419,16 +426,17 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
     // XMAEnableContext
 
     // The context ID is a bit in the range of the entire context array.
-    for (int i = 0; value && i < 32; ++i) {
+    uint32_t base_context_id = (r - 0x1940) / 4 * 32;
+    for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
-        uint32_t context_id = i + (r - 0x1940) / 4 * 32;
-        XmaContext& context = context_array_[context_id];
+        uint32_t context_id = base_context_id + i;
+        XmaContext& context = contexts_[context_id];
 
         context.lock().lock();
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr());
         XMA_CONTEXT_DATA data(context_ptr);
 
-        XELOGAPU("AudioSystem: kicking context %d (%d/%d bytes)", context_id,
+        XELOGAPU("XmaDecoder: kicking context %d (%d/%d bytes)", context_id,
             (data.input_buffer_read_offset & ~0x7FF) / 8,
             (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count)
             * XMA_CONTEXT_DATA::kBytesPerPacket);
@@ -442,7 +450,6 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
         context.set_kicked(true);
         context.lock().unlock();
       }
-      value >>= 1;
     }
 
     // Signal the decoder thread to start processing.
@@ -451,12 +458,12 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
     // Context lock command.
     // This requests a lock by flagging the context.
     // XMADisableContext
-    for (int i = 0; value && i < 32; ++i) {
+    uint32_t base_context_id = (r - 0x1A40) / 4 * 32;
+    for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
-        uint32_t context_id = i + (r - 0x1A40) / 4 * 32;
-        XELOGAPU("AudioSystem: set context lock %d", context_id);
+        uint32_t context_id = base_context_id + i;
+        XELOGAPU("XmaDecoder: set context lock %d", context_id);
       }
-      value >>= 1;
     }
 
     // Signal the decoder thread to start processing.
@@ -464,11 +471,12 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
   } else if (r >= 0x1A80 && r <= 0x1A80 + 9 * 4) {
     // Context clear command.
     // This will reset the given hardware contexts.
-    for (int i = 0; value && i < 32; ++i) {
+    uint32_t base_context_id = (r - 0x1A80) / 4 * 32;
+    for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
-        uint32_t context_id = i + (r - 0x1A80) / 4 * 32;
-        XmaContext& context = context_array_[context_id];
-        XELOGAPU("AudioSystem: reset context %d", context_id);
+        uint32_t context_id = base_context_id + i;
+        XmaContext& context = contexts_[context_id];
+        XELOGAPU("XmaDecoder: reset context %d", context_id);
 
         context.lock().lock();
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr());
@@ -485,7 +493,6 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
         data.Store(context_ptr);
         context.lock().unlock();
       }
-      value >>= 1;
     }
   } else {
     value = value;

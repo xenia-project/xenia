@@ -53,7 +53,7 @@ class XmaDecoder {
   virtual void WriteRegister(uint32_t addr, uint64_t value);
 
  protected:
-  virtual void Initialize();
+  int GetContextId(uint32_t guest_ptr);
 
  private:
   void WorkerThreadMain();
@@ -103,9 +103,10 @@ class XmaDecoder {
   };
 
   static const uint32_t kContextCount = 320;
-  XmaContext context_array_[kContextCount];
-  std::vector<uint32_t> xma_context_free_list_;
-  std::vector<uint32_t> xma_context_used_list_;  // XMA contexts in use
+  XmaContext contexts_[kContextCount];
+
+  uint32_t context_data_first_ptr_;
+  uint32_t context_data_last_ptr_;
 };
 
 }  // namespace apu
