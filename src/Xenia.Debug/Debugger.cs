@@ -307,6 +307,7 @@ namespace Xenia.Debug {
 
     private async Task BeginRunStateTransition() {
       CurrentContext.SetRunState(RunState.Updating);
+      await Task.FromResult<int>(0);
     }
 
     private async Task CompleteRunStateTransition(RunState newRunState) {

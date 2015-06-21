@@ -23,7 +23,7 @@ using Xenia.Debug.Utilities;
 
 namespace Xenia.Debug.UI {
   public partial class MainWindow : Form {
-    private DeserializeDockContent deserializeDockContent;
+    // private DeserializeDockContent deserializeDockContent;
 
     private BreakpointsPanel breakpointsPanel;
     private CallstackPanel callstackPanel;
