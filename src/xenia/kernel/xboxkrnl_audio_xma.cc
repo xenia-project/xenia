@@ -61,8 +61,8 @@ SHIM_CALL XMACreateContext_shim(PPCContext* ppc_context,
 
   XELOGD("XMACreateContext(%.8X)", context_out_ptr);
 
-  auto audio_system = kernel_state->emulator()->audio_system();
-  uint32_t context_ptr = audio_system->AllocateXmaContext();
+  auto xma_decoder = kernel_state->emulator()->xma_decoder();
+  uint32_t context_ptr = xma_decoder->AllocateContext();
   SHIM_SET_MEM_32(context_out_ptr, context_ptr);
   if (!context_ptr) {
     SHIM_SET_RETURN_32(X_STATUS_NO_MEMORY);
@@ -78,32 +78,32 @@ SHIM_CALL XMAReleaseContext_shim(PPCContext* ppc_context,
 
   XELOGD("XMAReleaseContext(%.8X)", context_ptr);
 
-  auto audio_system = kernel_state->emulator()->audio_system();
-  audio_system->ReleaseXmaContext(context_ptr);
+  auto xma_decoder = kernel_state->emulator()->xma_decoder();
+  xma_decoder->ReleaseContext(context_ptr);
 
   SHIM_SET_RETURN_32(0);
 }
 
 void StoreXmaContextIndexedRegister(KernelState* kernel_state,
                                     uint32_t base_reg, uint32_t context_ptr) {
-  auto audio_system = kernel_state->emulator()->audio_system();
-  uint32_t hw_index = (context_ptr - audio_system->xma_context_array_ptr()) /
-                      sizeof(XMAContextData);
+  auto xma_decoder = kernel_state->emulator()->xma_decoder();
+  uint32_t hw_index = (context_ptr - xma_decoder->context_array_ptr()) /
+                      sizeof(XMA_CONTEXT_DATA);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
-  audio_system->WriteRegister(reg_num, xe::byte_swap(reg_value));
+  xma_decoder->WriteRegister(reg_num, xe::byte_swap(reg_value));
 }
 
-struct X_XMA_LOOP_DATA {
+struct XMA_LOOP_DATA {
   xe::be<uint32_t> loop_start;
   xe::be<uint32_t> loop_end;
   xe::be<uint8_t> loop_count;
   xe::be<uint8_t> loop_subframe_end;
   xe::be<uint8_t> loop_subframe_skip;
 };
-static_assert_size(X_XMA_LOOP_DATA, 12);
+static_assert_size(XMA_LOOP_DATA, 12);
 
-struct X_XMA_CONTEXT_INIT {
+struct XMA_CONTEXT_INIT {
   xe::be<uint32_t> input_buffer_0_ptr;
   xe::be<uint32_t> input_buffer_0_packet_count;
   xe::be<uint32_t> input_buffer_1_ptr;
@@ -115,9 +115,9 @@ struct X_XMA_CONTEXT_INIT {
   xe::be<uint32_t> subframe_decode_count;
   xe::be<uint32_t> channel_count;
   xe::be<uint32_t> sample_rate;
-  X_XMA_LOOP_DATA loop_data;
+  XMA_LOOP_DATA loop_data;
 };
-static_assert_size(X_XMA_CONTEXT_INIT, 56);
+static_assert_size(XMA_CONTEXT_INIT, 56);
 
 SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
@@ -126,10 +126,10 @@ SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
 
   XELOGD("XMAInitializeContext(%.8X, %.8X)", context_ptr, context_init_ptr);
 
-  std::memset(SHIM_MEM_ADDR(context_ptr), 0, sizeof(XMAContextData));
+  std::memset(SHIM_MEM_ADDR(context_ptr), 0, sizeof(XMA_CONTEXT_DATA));
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
-  auto context_init = (X_XMA_CONTEXT_INIT*)SHIM_MEM_ADDR(context_init_ptr);
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
+  auto context_init = (XMA_CONTEXT_INIT*)SHIM_MEM_ADDR(context_init_ptr);
 
   context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
   context.input_buffer_0_packet_count = context_init->input_buffer_0_packet_count;
@@ -164,8 +164,8 @@ SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
 
   XELOGD("XMASetLoopData(%.8X, %.8X)", context_ptr, loop_data_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
-  auto loop_data = (X_XMA_LOOP_DATA*)SHIM_MEM_ADDR(loop_data_ptr);
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
+  auto loop_data = (XMA_CONTEXT_DATA*)SHIM_MEM_ADDR(loop_data_ptr);
 
   context.loop_start = loop_data->loop_start;
   context.loop_end = loop_data->loop_end;
@@ -184,7 +184,7 @@ SHIM_CALL XMAGetInputBufferReadOffset_shim(PPCContext* ppc_context,
 
   XELOGD("XMAGetInputBufferReadOffset(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.input_buffer_read_offset;
 
@@ -198,7 +198,7 @@ SHIM_CALL XMASetInputBufferReadOffset_shim(PPCContext* ppc_context,
 
   XELOGD("XMASetInputBufferReadOffset(%.8X, %.8X)", context_ptr, value);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_read_offset = value;
 
@@ -216,7 +216,7 @@ SHIM_CALL XMASetInputBuffer0_shim(PPCContext* ppc_context,
   XELOGD("XMASetInputBuffer0(%.8X, %.8X, %d)", context_ptr, buffer_ptr,
          block_count);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_0_ptr = buffer_ptr;
   context.input_buffer_0_packet_count = block_count;
@@ -234,7 +234,7 @@ SHIM_CALL XMAIsInputBuffer0Valid_shim(PPCContext* ppc_context,
 
   XELOGD("XMAIsInputBuffer0Valid(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.input_buffer_0_valid;
 
@@ -247,7 +247,7 @@ SHIM_CALL XMASetInputBuffer0Valid_shim(PPCContext* ppc_context,
 
   XELOGD("XMASetInputBuffer0Valid(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_0_valid = 1;
 
@@ -265,7 +265,7 @@ SHIM_CALL XMASetInputBuffer1_shim(PPCContext* ppc_context,
   XELOGD("XMASetInputBuffer1(%.8X, %.8X, %d)", context_ptr, buffer_ptr,
          block_count);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_1_ptr = buffer_ptr;
   context.input_buffer_1_packet_count = block_count;
@@ -283,7 +283,7 @@ SHIM_CALL XMAIsInputBuffer1Valid_shim(PPCContext* ppc_context,
 
   XELOGD("XMAIsInputBuffer1Valid(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.input_buffer_1_valid;
 
@@ -296,7 +296,7 @@ SHIM_CALL XMASetInputBuffer1Valid_shim(PPCContext* ppc_context,
 
   XELOGD("XMASetInputBuffer1Valid(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.input_buffer_1_valid = 1;
 
@@ -311,7 +311,7 @@ SHIM_CALL XMAIsOutputBufferValid_shim(PPCContext* ppc_context,
 
   XELOGD("XMAIsOutputBufferValid(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.output_buffer_valid;
 
@@ -324,7 +324,7 @@ SHIM_CALL XMASetOutputBufferValid_shim(PPCContext* ppc_context,
 
   XELOGD("XMASetOutputBufferValid(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.output_buffer_valid = 1;
 
@@ -339,7 +339,7 @@ SHIM_CALL XMAGetOutputBufferReadOffset_shim(PPCContext* ppc_context,
 
   XELOGD("XMAGetOutputBufferReadOffset(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.output_buffer_read_offset;
 
@@ -353,7 +353,7 @@ SHIM_CALL XMASetOutputBufferReadOffset_shim(PPCContext* ppc_context,
 
   XELOGD("XMASetOutputBufferReadOffset(%.8X, %.8X)", context_ptr, value);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   context.output_buffer_read_offset = value;
 
@@ -368,7 +368,7 @@ SHIM_CALL XMAGetOutputBufferWriteOffset_shim(PPCContext* ppc_context,
 
   XELOGD("XMAGetOutputBufferWriteOffset(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.output_buffer_write_offset;
 
@@ -381,7 +381,7 @@ SHIM_CALL XMAGetPacketMetadata_shim(PPCContext* ppc_context,
 
   XELOGD("XMAGetPacketMetadata(%.8X)", context_ptr);
 
-  XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
 
   uint32_t result = context.packet_metadata;
 
@@ -408,8 +408,8 @@ SHIM_CALL XMADisableContext_shim(PPCContext* ppc_context,
 
   X_HRESULT result = X_E_SUCCESS;
   StoreXmaContextIndexedRegister(kernel_state, 0x1A40, context_ptr);
-  if (!kernel_state->emulator()->audio_system()->BlockOnXmaContext(context_ptr,
-                                                                   !wait)) {
+  if (!kernel_state->emulator()->xma_decoder()->BlockOnContext(context_ptr,
+                                                               !wait)) {
     result = X_E_FALSE;
   }
 
@@ -423,7 +423,7 @@ SHIM_CALL XMABlockWhileInUse_shim(PPCContext* ppc_context,
   XELOGD("XMABlockWhileInUse(%.8X)", context_ptr);
 
   do {
-    XMAContextData context(SHIM_MEM_ADDR(context_ptr));
+    XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
       break;
     }

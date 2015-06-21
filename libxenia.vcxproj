@@ -16,7 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\apu\apu.cc" />
-    <ClCompile Include="src\xenia\apu\audio_decoder.cc" />
     <ClCompile Include="src\xenia\apu\audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\audio_system.cc" />
     <ClCompile Include="src\xenia\apu\nop\nop_apu.cc" />
@@ -24,6 +23,8 @@
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu.cc" />
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc" />
+    <ClCompile Include="src\xenia\apu\xma_context.cc" />
+    <ClCompile Include="src\xenia\apu\xma_decoder.cc" />
     <ClCompile Include="src\xenia\base\arena.cc" />
     <ClCompile Include="src\xenia\base\clock.cc" />
     <ClCompile Include="src\xenia\base\debugging_win.cc" />
@@ -266,7 +267,6 @@
   <ItemGroup>
     <ClInclude Include="src\xenia\apu\apu-private.h" />
     <ClInclude Include="src\xenia\apu\apu.h" />
-    <ClInclude Include="src\xenia\apu\audio_decoder.h" />
     <ClInclude Include="src\xenia\apu\audio_driver.h" />
     <ClInclude Include="src\xenia\apu\audio_system.h" />
     <ClInclude Include="src\xenia\apu\nop\nop_apu-private.h" />
@@ -276,6 +276,8 @@
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu.h" />
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.h" />
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_system.h" />
+    <ClInclude Include="src\xenia\apu\xma_context.h" />
+    <ClInclude Include="src\xenia\apu\xma_decoder.h" />
     <ClInclude Include="src\xenia\base\arena.h" />
     <ClInclude Include="src\xenia\base\assert.h" />
     <ClInclude Include="src\xenia\base\atomic.h" />

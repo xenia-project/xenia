@@ -709,9 +709,6 @@
     <ClCompile Include="src\xenia\kernel\xboxkrnl_error.cc">
       <Filter>src\xenia\kernel</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\apu\audio_decoder.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
@@ -774,6 +771,12 @@
     </ClCompile>
     <ClCompile Include="src\xenia\cpu\compiler\passes\memory_sequence_combination_pass.cc">
       <Filter>src\xenia\cpu\compiler\passes</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\apu\xma_decoder.cc">
+      <Filter>src\xenia\apu</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\apu\xma_context.cc">
+      <Filter>src\xenia\apu</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1404,9 +1407,6 @@
     <ClInclude Include="third_party\xbyak\xbyak\xbyak.h">
       <Filter>third_party\xbyak\xbyak</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\apu\audio_decoder.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\debug\proto\breakpoints_generated.h">
       <Filter>src\xenia\debug\proto</Filter>
     </ClInclude>
@@ -1499,6 +1499,12 @@
     </ClInclude>
     <ClInclude Include="src\xenia\cpu\backend\code_cache.h">
       <Filter>src\xenia\cpu\backend</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\apu\xma_decoder.h">
+      <Filter>src\xenia\apu</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\apu\xma_context.h">
+      <Filter>src\xenia\apu</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

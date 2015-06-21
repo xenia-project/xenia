@@ -49,10 +49,12 @@ Emulator::~Emulator() {
   // Give the systems time to shutdown before we delete them.
   graphics_system_->Shutdown();
   audio_system_->Shutdown();
+  xma_decoder_->Shutdown();
 
   input_system_.reset();
   graphics_system_.reset();
   audio_system_.reset();
+  xma_decoder_.reset();
 
   kernel_state_.reset();
   file_system_.reset();
@@ -117,6 +119,8 @@ X_STATUS Emulator::Setup() {
     return X_STATUS_NOT_IMPLEMENTED;
   }
 
+  xma_decoder_ = std::move(std::make_unique<XmaDecoder>(this));
+
   // Initialize the GPU.
   graphics_system_ = std::move(xe::gpu::Create(this));
   if (!graphics_system_) {
@@ -153,6 +157,11 @@ X_STATUS Emulator::Setup() {
   result = audio_system_->Setup();
   if (result) {
     return result;
+  }
+
+  result = xma_decoder_->Setup();
+  if (result) {
+      return result;
   }
 
   // HLE kernel modules.

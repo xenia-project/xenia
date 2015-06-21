@@ -7,12 +7,11 @@
 ******************************************************************************
 */
 
-#include "xenia/apu/audio_decoder.h"
+#include "xenia/apu/xma_context.h"
+#include "xenia/apu/xma_decoder.h"
+#include "xenia/base/logging.h"
 
 #include <cstring>
-
-#include "xenia/apu/audio_system.h"
-#include "xenia/base/logging.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -24,13 +23,13 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-AudioDecoder::AudioDecoder()
+XmaContext::XmaContext()
     : codec_(nullptr),
       context_(nullptr),
       decoded_frame_(nullptr),
       packet_(nullptr) {}
 
-AudioDecoder::~AudioDecoder() {
+XmaContext::~XmaContext() {
   if (context_) {
     if (context_->extradata) {
       delete context_->extradata;
@@ -48,7 +47,7 @@ AudioDecoder::~AudioDecoder() {
   }
 }
 
-int AudioDecoder::Initialize() {
+int XmaContext::Initialize() {
   static bool avcodec_initialized = false;
   if (!avcodec_initialized) {
     avcodec_register_all();
@@ -77,7 +76,7 @@ int AudioDecoder::Initialize() {
   // Initialize these to 0. They'll actually be set later.
   context_->channels = 0;
   context_->sample_rate = 0;
-  context_->block_align = XMAContextData::kBytesPerPacket;
+  context_->block_align = XMA_CONTEXT_DATA::kBytesPerPacket;
 
   // Extra data passed to the decoder
   context_->extradata_size = 18;
@@ -86,7 +85,7 @@ int AudioDecoder::Initialize() {
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
   current_frame_ =
-      new uint8_t[XMAContextData::kSamplesPerFrame * 2 * 2];
+      new uint8_t[XMA_CONTEXT_DATA::kSamplesPerFrame * 2 * 2];
   current_frame_pos_ = 0;
   frame_samples_size_ = 0;
 
@@ -99,9 +98,9 @@ int AudioDecoder::Initialize() {
   return 0;
 }
 
-int AudioDecoder::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
+int XmaContext::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
                                 int sample_rate, int channels) {
-  if (size != XMAContextData::kBytesPerPacket) {
+  if (size != XMA_CONTEXT_DATA::kBytesPerPacket) {
     // Invalid packet size!
     assert_always();
     return 1;
@@ -118,7 +117,7 @@ int AudioDecoder::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
                            (*((int *)packet_data_) & 0xFFFEFF08);
 
   packet_->data = packet_data_;
-  packet_->size = XMAContextData::kBytesPerPacket;
+  packet_->size = XMA_CONTEXT_DATA::kBytesPerPacket;
 
   // Re-initialize the context with new sample rate and channels
   if (context_->sample_rate != sample_rate || context_->channels != channels) {
@@ -137,7 +136,7 @@ int AudioDecoder::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
   return 0;
 }
 
-void AudioDecoder::DiscardPacket() {
+void XmaContext::DiscardPacket() {
   if (packet_->size > 0 || current_frame_pos_ != frame_samples_size_) {
     packet_->data = 0;
     packet_->size = 0;
@@ -145,7 +144,7 @@ void AudioDecoder::DiscardPacket() {
   }
 }
 
-int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
+int XmaContext::DecodePacket(uint8_t *output, size_t output_offset,
                                size_t output_size) {
   size_t to_copy = 0;
   size_t original_offset = output_offset;
@@ -180,7 +179,7 @@ int AudioDecoder::DecodePacket(uint8_t *output, size_t output_offset,
     // Successfully decoded a frame
     if (got_frame) {
       // Validity checks.
-      if (decoded_frame_->nb_samples > XMAContextData::kSamplesPerFrame) {
+      if (decoded_frame_->nb_samples > XMA_CONTEXT_DATA::kSamplesPerFrame) {
         return -2;
       } else if (context_->sample_fmt != AV_SAMPLE_FMT_FLTP) {
         return -3;

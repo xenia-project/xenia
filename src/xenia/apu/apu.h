@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/apu/audio_system.h"
+#include "xenia/apu/xma_decoder.h"
 
 namespace xe {
 class Emulator;
