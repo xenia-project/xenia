@@ -356,9 +356,6 @@ void AudioSystem::UnregisterClient(size_t index) {
 void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   SCOPE_profile_cpu_f("apu");
 
-  // Translate this for future use.
-  uint8_t* output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
-
   // What I see:
   // XMA outputs 2 bytes per sample
   // 512 samples per frame (128 per subframe)
@@ -384,6 +381,9 @@ void AudioSystem::ProcessXmaContext(XMAContext& context, XMAContextData& data) {
   if (!data.output_buffer_valid) {
     return;
   }
+
+  // Translate this for future use.
+  uint8_t* output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
 
   // Output buffers are in raw PCM samples, 256 bytes per block.
   // Output buffer is a ring buffer. We need to write from the write offset
@@ -529,7 +529,6 @@ int AudioSystem::PrepareXMAPacket(XMAContext &context, XMAContextData &data) {
     return -1;
   }
 
-
   return input_remaining_bytes;
 }
 
@@ -631,8 +630,6 @@ void AudioSystem::WriteRegister(uint32_t addr, uint64_t value) {
         XMAContext& context = xma_context_array_[context_id];
         XELOGAPU("AudioSystem: reset context %d", context_id);
 
-        uint32_t guest_ptr = registers_.xma_context_array_ptr +
-            context_id * sizeof(XMAContextData);
         context.lock.lock();
         auto context_ptr = memory()->TranslateVirtual(context.guest_ptr);
         XMAContextData data(context_ptr);
