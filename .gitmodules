@@ -22,9 +22,9 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin
-[submodule "third_party/libav-bin"]
-	path = third_party/libav-bin
-	url = https://github.com/DrChat/xenia-libav-bin.git
 [submodule "third_party/capstone"]
 	path = third_party/capstone
 	url = https://github.com/xenia-project/capstone.git
+[submodule "third_party/libav-xma-bin"]
+	path = third_party/libav-xma-bin
+	url = https://github.com/xenia-project/libav-xma-bin.git

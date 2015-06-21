@@ -14,8 +14,9 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <BufferSecurityCheck>true</BufferSecurityCheck>
     </ClCompile>
+    <Lib />
     <Lib>
-      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-bin\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-xma-bin\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup />

@@ -589,7 +589,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-xma-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -597,6 +597,7 @@
     </Link>
     <Lib>
       <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-xma-bin\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">
@@ -606,7 +607,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-xma-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -625,7 +626,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-xma-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

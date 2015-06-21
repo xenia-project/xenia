@@ -15,7 +15,9 @@
       <GenerateDebugInformation>Debug</GenerateDebugInformation>
     </Link>
     <Lib />
-    <Lib />
+    <Lib>
+      <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-xma-bin\lib\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup />
 </Project>
