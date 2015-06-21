@@ -127,7 +127,28 @@ class XmaContext {
     XmaContext();
     ~XmaContext();
 
-    int Initialize();
+    int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr);
+    void Work();
+
+    void Enable();
+    bool Block(bool poll);
+    void Clear();
+    void Disable();
+    void Release();
+
+    Memory* memory() const { return memory_; }
+
+    uint32_t id() { return id_; }
+    uint32_t guest_ptr() { return guest_ptr_; }
+    bool is_allocated() { return is_allocated_; }
+    bool is_enabled() { return is_enabled_; }
+
+    void set_is_allocated(bool is_allocated) { is_allocated_ = is_allocated; }
+    void set_is_enabled(bool is_enabled) { is_enabled_ = is_enabled; }
+
+  private:
+    void Process(XMA_CONTEXT_DATA& data);
+    int PreparePacket(XMA_CONTEXT_DATA &data);
 
     int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
                       int sample_rate, int channels);
@@ -135,20 +156,13 @@ class XmaContext {
 
     int DecodePacket(uint8_t* output, size_t offset, size_t size);
 
-    uint32_t guest_ptr() { return guest_ptr_; }
-    xe::mutex& lock() { return lock_; } // TODO(gibbed): remove this
-    bool in_use() { return in_use_; }
-    bool kicked() { return kicked_; }
+    Memory* memory_;
 
-    void set_guest_ptr(uint32_t guest_ptr) { guest_ptr_ = guest_ptr; }
-    void set_in_use(bool in_use) { in_use_ = in_use; }
-    void set_kicked(bool kicked) { kicked_ = kicked; }
-
-  private:
+    uint32_t id_;
     uint32_t guest_ptr_;
     xe::mutex lock_;
-    bool in_use_;
-    bool kicked_;
+    bool is_allocated_;
+    bool is_enabled_;
 
     // libav structures
     AVCodec* codec_;

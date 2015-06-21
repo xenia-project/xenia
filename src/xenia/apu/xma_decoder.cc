@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include "xenia/apu/audio_system.h"
-
 #include "xenia/apu/xma_context.h"
 #include "xenia/apu/xma_decoder.h"
 #include "xenia/base/logging.h"
@@ -57,24 +55,21 @@ using namespace xe::cpu;
 XmaDecoder::XmaDecoder(Emulator* emulator)
     : emulator_(emulator)
     , memory_(emulator->memory())
+    , processor_(emulator->processor())
     , worker_running_(false)
     , context_data_first_ptr_(0)
     , context_data_last_ptr_(0) {
 }
 
-XmaDecoder::~XmaDecoder() {
-}
+XmaDecoder::~XmaDecoder() {}
 
 void av_log_callback(void *avcl, int level, const char *fmt, va_list va) {
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-
   xe::log_line('i', "libav: %s", buff.GetString());
 }
 
 X_STATUS XmaDecoder::Setup() {
-  processor_ = emulator_->processor();
-
   // Setup libav logging callback
   av_log_set_callback(av_log_callback);
 
@@ -84,18 +79,19 @@ X_STATUS XmaDecoder::Setup() {
       reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
-  // Setup XMA contexts ptr.
+  // Setup XMA context data.
   context_data_first_ptr_ = memory()->SystemHeapAlloc(
       sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical);
   context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   registers_.context_array_ptr = context_data_first_ptr_;
 
-  // Add all contexts to the free list.
-  for (int i = kContextCount - 1; i >= 0; --i) {
-    uint32_t ptr = registers_.context_array_ptr + i * sizeof(XMA_CONTEXT_DATA);
+  // Setup XMA contexts.
+  for (int i = 0; i < kContextCount; ++i) {
+    uint32_t guest_ptr = registers_.context_array_ptr + i * sizeof(XMA_CONTEXT_DATA);
     XmaContext& context = contexts_[i];
-    context.set_guest_ptr(ptr);
-    context.Initialize();
+    if (context.Setup(i, memory(), guest_ptr)) {
+      assert_always();
+    }
   }
   registers_.next_context = 1;
 
@@ -117,17 +113,7 @@ void XmaDecoder::WorkerThreadMain() {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     for (uint32_t n = 0; n < kContextCount; n++) {
       XmaContext& context = contexts_[n];
-      if (context.in_use() && context.kicked()) {
-        context.lock().lock();
-        context.set_kicked(false);
-
-        auto context_ptr = memory()->TranslateVirtual(context.guest_ptr());
-        XMA_CONTEXT_DATA data(context_ptr);
-        ProcessContext(context, data);
-        data.Store(context_ptr);
-
-        context.lock().unlock();
-      }
+      context.Work();
     }
   }
 }
@@ -155,8 +141,8 @@ uint32_t XmaDecoder::AllocateContext() {
 
   for (uint32_t n = 0; n < kContextCount; n++) {
     XmaContext& context = contexts_[n];
-    if (!context.in_use()) {
-      context.set_in_use(true);
+    if (!context.is_allocated()) {
+      context.set_is_allocated(true);
       return context.guest_ptr();
     }
   }
@@ -171,16 +157,7 @@ void XmaDecoder::ReleaseContext(uint32_t guest_ptr) {
   assert_true(context_id >= 0);
 
   XmaContext& context = contexts_[context_id];
-
-  // Lock it in case the decoder thread is working on it now
-  context.lock().lock();
-
-  context.set_in_use(false);
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr);
-  std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));  // Zero it.
-  context.DiscardPacket();
-
-  context.lock().unlock();
+  context.Release();
 }
 
 bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
@@ -190,193 +167,7 @@ bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
   assert_true(context_id >= 0);
 
   XmaContext& context = contexts_[context_id];
-  if (!context.lock().try_lock()) {
-    if (poll) {
-      return false;
-    }
-    context.lock().lock();
-  }
-  context.lock().unlock();
-  return true;
-}
-
-void XmaDecoder::ProcessContext(XmaContext& context, XMA_CONTEXT_DATA& data) {
-  SCOPE_profile_cpu_f("apu");
-
-  // What I see:
-  // XMA outputs 2 bytes per sample
-  // 512 samples per frame (128 per subframe)
-  // Max output size is data.output_buffer_block_count * 256
-
-  // This decoder is fed packets (max 4095 per buffer)
-  // Packets contain "some" frames
-  // 32bit header (big endian)
-
-  // Frames are the smallest thing the SPUs can decode.
-  // They usually can span packets (libav handles this)
-
-  // Sample rates (data.sample_rate):
-  // 0 - 24 kHz ?
-  // 1 - 32 kHz
-  // 2 - 44.1 kHz ?
-  // 3 - 48 kHz ?
-
-  // SPUs also support stereo decoding. (data.is_stereo)
-
-  // Check the output buffer - we cannot decode anything else if it's
-  // unavailable.
-  if (!data.output_buffer_valid) {
-    return;
-  }
-
-  // Translate this for future use.
-  uint8_t* output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
-
-  // Output buffers are in raw PCM samples, 256 bytes per block.
-  // Output buffer is a ring buffer. We need to write from the write offset
-  // to the read offset.
-  uint32_t output_capacity = data.output_buffer_block_count * 256;
-  uint32_t output_read_offset = data.output_buffer_read_offset * 256;
-  uint32_t output_write_offset = data.output_buffer_write_offset * 256;
-
-  RingBuffer output_rb(output_buffer, output_capacity);
-  output_rb.set_read_offset(output_read_offset);
-  output_rb.set_write_offset(output_write_offset);
-
-  size_t output_remaining_bytes = output_rb.write_count();
-
-  // Decode until we can't write any more data.
-  while (output_remaining_bytes > 0) {
-    // This'll copy audio samples into the output buffer.
-    // The samples need to be 2 bytes long!
-    // Copies one frame at a time, so keep calling this until size == 0
-    int read_bytes = 0;
-    int decode_attempts_remaining = 3;
-
-    uint8_t work_buffer[XMA_CONTEXT_DATA::kOutputMaxSizeBytes];
-    while (decode_attempts_remaining) {
-      read_bytes = context.DecodePacket(work_buffer, 0,
-                                        output_remaining_bytes);
-      if (read_bytes >= 0) {
-        //assert_true((read_bytes % 256) == 0);
-        auto written_bytes = output_rb.Write(work_buffer, read_bytes);
-        assert_true(read_bytes == written_bytes);
-
-        // Ok.
-        break;
-      } else {
-        // Sometimes the decoder will fail on a packet. I think it's
-        // looking for cross-packet frames and failing. If you run it again
-        // on the same packet it'll work though.
-        --decode_attempts_remaining;
-      }
-    }
-
-    if (!decode_attempts_remaining) {
-      XELOGAPU("XmaDecoder: libav failed to decode packet (returned %.8X)", -read_bytes);
-
-      // Failed out.
-      if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
-        // There's new data available - maybe we'll be ok if we decode it?
-        read_bytes = 0;
-        context.DiscardPacket();
-      } else {
-        // No data and hosed - bail.
-        break;
-      }
-    }
-
-    data.output_buffer_write_offset = output_rb.write_offset() / 256;
-    output_remaining_bytes -= read_bytes;
-
-    // If we need more data and the input buffers have it, grab it.
-    if (read_bytes) {
-      // Haven't finished with current packet.
-      continue;
-    } else if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
-      // Done with previous packet, so grab a new one.
-      int ret = PreparePacket(context, data);
-      if (ret <= 0) {
-        // No more data (but may have prepared a packet)
-        data.input_buffer_0_valid = 0;
-        data.input_buffer_1_valid = 0;
-      }
-    } else {
-      // Decoder is out of data and there's no more to give.
-      break;
-    }
-  }
-
-  // The game will kick us again with a new output buffer later.
-  data.output_buffer_valid = 0;
-}
-
-int XmaDecoder::PreparePacket(XmaContext &context, XMA_CONTEXT_DATA &data) {
-  // Translate pointers for future use.
-  uint8_t* in0 = data.input_buffer_0_valid
-                     ? memory()->TranslatePhysical(data.input_buffer_0_ptr)
-                     : nullptr;
-  uint8_t* in1 = data.input_buffer_1_valid
-                     ? memory()->TranslatePhysical(data.input_buffer_1_ptr)
-                     : nullptr;
-
-  int sample_rate = 0;
-  if (data.sample_rate == 0) {
-    sample_rate = 24000;
-  } else if (data.sample_rate == 1) {
-    sample_rate = 32000;
-  } else if (data.sample_rate == 2) {
-    sample_rate = 44100;
-  } else if (data.sample_rate == 3) {
-    sample_rate = 48000;
-  }
-  int channels = data.is_stereo ? 2 : 1;
-
-  // See if we've finished with the input.
-  // Block count is in packets, so expand by packet size.
-  uint32_t input_size_0_bytes = (data.input_buffer_0_packet_count) * 2048;
-  uint32_t input_size_1_bytes = (data.input_buffer_1_packet_count) * 2048;
-
-  // Total input size
-  uint32_t input_size_bytes = input_size_0_bytes + input_size_1_bytes;
-
-  // Input read offset is in bits. Typically starts at 32 (4 bytes).
-  // "Sequence" offset - used internally for WMA Pro decoder.
-  // Just the read offset.
-  uint32_t seq_offset_bytes = (data.input_buffer_read_offset & ~0x7FF) / 8;
-  uint32_t input_remaining_bytes = input_size_bytes - seq_offset_bytes;
-
-  if (seq_offset_bytes < input_size_bytes) {
-    // Setup input offset and input buffer.
-    uint32_t input_offset_bytes = seq_offset_bytes;
-    auto input_buffer = in0;
-
-    if (seq_offset_bytes >= input_size_0_bytes) {
-      // Size overlap, select input buffer 1.
-      // TODO: This needs testing.
-      input_offset_bytes -= input_size_0_bytes;
-      input_buffer = in1;
-    }
-
-    // Still have data to read.
-    auto packet = input_buffer + input_offset_bytes;
-    assert_true(input_offset_bytes % 2048 == 0);
-    context.PreparePacket(packet, seq_offset_bytes,
-                          XMA_CONTEXT_DATA::kBytesPerPacket,
-                          sample_rate, channels);
-    data.input_buffer_read_offset += XMA_CONTEXT_DATA::kBytesPerPacket * 8;
-
-    input_remaining_bytes -= XMA_CONTEXT_DATA::kBytesPerPacket;
-    if (input_remaining_bytes <= 0) {
-      // Used the last of the data but prepared a packet
-      return 0;
-    }
-  } else {
-    // No more data available and no packet prepared.
-    return -1;
-  }
-
-  return input_remaining_bytes;
+  return context.Block(poll);
 }
 
 // free60 may be useful here, however it looks like it's using a different
@@ -431,24 +222,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
         XmaContext& context = contexts_[context_id];
-
-        context.lock().lock();
-        auto context_ptr = memory()->TranslateVirtual(context.guest_ptr());
-        XMA_CONTEXT_DATA data(context_ptr);
-
-        XELOGAPU("XmaDecoder: kicking context %d (%d/%d bytes)", context_id,
-            (data.input_buffer_read_offset & ~0x7FF) / 8,
-            (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count)
-            * XMA_CONTEXT_DATA::kBytesPerPacket);
-
-        // Reset valid flags so our audio decoder knows to process this one.
-        data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
-        data.input_buffer_1_valid = data.input_buffer_1_ptr != 0;
-
-        data.Store(context_ptr);
-
-        context.set_kicked(true);
-        context.lock().unlock();
+        context.Enable();
       }
     }
 
@@ -462,7 +236,8 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
-        XELOGAPU("XmaDecoder: set context lock %d", context_id);
+        XmaContext& context = contexts_[context_id];
+        context.Disable();
       }
     }
 
@@ -476,22 +251,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
         XmaContext& context = contexts_[context_id];
-        XELOGAPU("XmaDecoder: reset context %d", context_id);
-
-        context.lock().lock();
-        auto context_ptr = memory()->TranslateVirtual(context.guest_ptr());
-        XMA_CONTEXT_DATA data(context_ptr);
-
-        context.DiscardPacket();
-        data.input_buffer_0_valid = 0;
-        data.input_buffer_1_valid = 0;
-        data.output_buffer_valid = 0;
-
-        data.output_buffer_read_offset = 0;
-        data.output_buffer_write_offset = 0;
-
-        data.Store(context_ptr);
-        context.lock().unlock();
+        context.Clear();
       }
     }
   } else {
