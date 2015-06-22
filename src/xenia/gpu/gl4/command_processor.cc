@@ -2878,9 +2878,9 @@ bool CommandProcessor::IssueCopy() {
     glDepthMask(GL_TRUE);
     glStencilMask(0xFF);
     glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_DEPTH,
-                              0, @depth);
+                              0, &depth);
     glClearNamedFramebufferiv(source_framebuffer->framebuffer, GL_STENCIL,
-                              0, #stencil);                           
+                              0, &stencil);                           
     glDepthMask(old_depth_mask);
     glStencilMask(old_stencil_mask);
   }
