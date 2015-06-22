@@ -2877,6 +2877,10 @@ bool CommandProcessor::IssueCopy() {
     glGetIntegerv(GL_STENCIL_WRITEMASK, &old_stencil_mask);
     glDepthMask(GL_TRUE);
     glStencilMask(0xFF);
+    // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
+    /* glClearNamedFramebufferfi(source_framebuffer->framebuffer,
+                             GL_DEPTH_STENCIL,
+                             depth, stencil);*/
     glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_DEPTH,
                               0, &depth);
     glClearNamedFramebufferiv(source_framebuffer->framebuffer, GL_STENCIL,
