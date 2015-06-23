@@ -220,9 +220,6 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
 
-  // Zero everything
-  memory()->Zero(pcr_address_, 0x2D8 + 0xAB0);
-
   // Allocate processor thread state.
   // This is thread safe.
   thread_state_ = new ThreadState(kernel_state()->processor(), thread_id_,
@@ -275,7 +272,7 @@ X_STATUS XThread::Create() {
     X_LIST_ENTRY unk_10;      // 0x10
   };
 
-  // Setup the thread state block (last error/etc)
+  // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   xe::store_and_swap<uint32_t>(p + 0x000, 6);
   xe::store_and_swap<uint32_t>(p + 0x008, thread_state_address_ + 0x008);
@@ -343,10 +340,11 @@ X_STATUS XThread::Exit(int exit_code) {
   }
   RundownAPCs();
 
+  kernel_state()->OnThreadExit(this);
+
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_thread_tls = nullptr;
   xe::Profiler::ThreadExit();
-  kernel_state()->OnThreadExit(this);
 
   Release();
   X_STATUS return_code = PlatformExit(exit_code);
