@@ -15,10 +15,7 @@
 namespace xe {
 
 RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity)
-    : buffer_(buffer)
-    , capacity_(capacity)
-    , read_offset_(0)
-    , write_offset_(0) {}
+    : buffer_(buffer), capacity_(capacity), read_offset_(0), write_offset_(0) {}
 
 size_t RingBuffer::Read(uint8_t* buffer, size_t count) {
   count = std::min(count, capacity_);
@@ -60,4 +57,4 @@ size_t RingBuffer::Write(uint8_t* buffer, size_t count) {
   return count;
 }
 
-} // namespace xe
+}  // namespace xe

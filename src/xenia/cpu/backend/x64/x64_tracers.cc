@@ -205,7 +205,7 @@ void TraceMemoryStoreV128(void* raw_context, uint32_t address, __m128 value) {
 }
 
 void TraceMemset(void* raw_context, uint32_t address, uint8_t value,
-  uint32_t length) {
+                 uint32_t length) {
   auto thread_state = *((ThreadState**)raw_context);
   DPRINT("memset %.8X-%.8X (%d) = %.2X", address, address + length, length,
          value);

@@ -77,14 +77,14 @@ void InstrOperand::Dump(std::string& out_str) {
       switch (imm.width) {
         case 1:
           if (imm.is_signed) {
-            snprintf(buffer, max_count, "%d", (int32_t)(int8_t) imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)(int8_t)imm.value);
           } else {
             snprintf(buffer, max_count, "0x%.2X", (uint8_t)imm.value);
           }
           break;
         case 2:
           if (imm.is_signed) {
-            snprintf(buffer, max_count, "%d", (int32_t)(int16_t) imm.value);
+            snprintf(buffer, max_count, "%d", (int32_t)(int16_t)imm.value);
           } else {
             snprintf(buffer, max_count, "0x%.4X", (uint16_t)imm.value);
           }

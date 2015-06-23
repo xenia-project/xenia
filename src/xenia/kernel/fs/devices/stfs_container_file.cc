@@ -31,13 +31,14 @@ const std::string& STFSContainerFile::name() const { return entry_->name(); }
 
 Device* STFSContainerFile::device() const { return entry_->device(); }
 
-X_STATUS STFSContainerFile::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
+X_STATUS STFSContainerFile::QueryInfo(
+    X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
   return entry_->QueryInfo(out_info);
 }
 
-X_STATUS STFSContainerFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
-                                           size_t length, const char* file_name,
-                                           bool restart) {
+X_STATUS STFSContainerFile::QueryDirectory(
+    X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
+    const char* file_name, bool restart) {
   return entry_->QueryDirectory(out_info, length, file_name, restart);
 }
 

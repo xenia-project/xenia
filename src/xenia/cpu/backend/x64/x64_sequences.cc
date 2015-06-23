@@ -7,6 +7,9 @@
  ******************************************************************************
  */
 
+// TODO(benvanik): fix this so we can auto format.
+// clang-format off
+
 // A note about vectors:
 // Xenia represents vectors as xyzw pairs, with indices 0123.
 // XMM registers are xyzw pairs with indices 3210, making them more like wzyx.

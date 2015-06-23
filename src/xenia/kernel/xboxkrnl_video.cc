@@ -83,20 +83,22 @@ void VdGetCurrentDisplayInformation(pointer_t<X_DISPLAY_INFO> display_info) {
   display_info->unk02 = (xe::be<uint16_t>)mode.display_height;
   display_info->unk08 = 0;
   display_info->unk0C = 0;
-  display_info->unk10 = mode.display_width; // backbuffer width?
-  display_info->unk14 = mode.display_height; // backbuffer height?
+  display_info->unk10 = mode.display_width;   // backbuffer width?
+  display_info->unk14 = mode.display_height;  // backbuffer height?
   display_info->unk18 = mode.display_width;
   display_info->unk1C = mode.display_height;
   display_info->unk20 = 1;
   display_info->unk30 = 1;
-  display_info->unk40 = 320; // display_width / 4?
-  display_info->unk42 = 180; // display_height / 4?
+  display_info->unk40 = 320;  // display_width / 4?
+  display_info->unk42 = 180;  // display_height / 4?
   display_info->unk44 = 320;
   display_info->unk46 = 180;
-  display_info->unk48 = (xe::be<uint16_t>)mode.display_width; // actual display size?
-  display_info->unk4A = (xe::be<uint16_t>)mode.display_height; // actual display size?
+  display_info->unk48 =
+      (xe::be<uint16_t>)mode.display_width;  // actual display size?
+  display_info->unk4A =
+      (xe::be<uint16_t>)mode.display_height;  // actual display size?
   display_info->unk4C = mode.refresh_rate;
-  display_info->unk56 = (xe::be<uint16_t>)mode.display_width; // display width
+  display_info->unk56 = (xe::be<uint16_t>)mode.display_width;  // display width
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
@@ -324,10 +326,8 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
             lpunknown_t unk3,     // buffer from VdGetSystemCommandBuffer
             lpunknown_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
             lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
-            lpdword_t color_format_ptr,
-            lpdword_t color_space_ptr,
-            lpunknown_t unk8,
-            unknown_t unk9) {
+            lpdword_t color_format_ptr, lpdword_t color_space_ptr,
+            lpunknown_t unk8, unknown_t unk9) {
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
       reinterpret_cast<uint32_t*>(&fetch),

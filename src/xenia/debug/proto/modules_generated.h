@@ -30,17 +30,16 @@ struct ListFunctionsResponse;
 struct GetFunctionRequest;
 struct GetFunctionResponse;
 
-enum ModuleType {
-  ModuleType_Kernel = 0,
-  ModuleType_User = 1
-};
+enum ModuleType { ModuleType_Kernel = 0, ModuleType_User = 1 };
 
 inline const char **EnumNamesModuleType() {
-  static const char *names[] = { "Kernel", "User", nullptr };
+  static const char *names[] = {"Kernel", "User", nullptr};
   return names;
 }
 
-inline const char *EnumNameModuleType(ModuleType e) { return EnumNamesModuleType()[e]; }
+inline const char *EnumNameModuleType(ModuleType e) {
+  return EnumNamesModuleType()[e];
+}
 
 MANUALLY_ALIGNED_STRUCT(4) ListModuleEntry FLATBUFFERS_FINAL_CLASS {
  private:
@@ -49,18 +48,29 @@ MANUALLY_ALIGNED_STRUCT(4) ListModuleEntry FLATBUFFERS_FINAL_CLASS {
 
  public:
   ListModuleEntry(uint32_t handle, uint32_t function_count)
-    : handle_(flatbuffers::EndianScalar(handle)), function_count_(flatbuffers::EndianScalar(function_count)) { }
+      : handle_(flatbuffers::EndianScalar(handle)),
+        function_count_(flatbuffers::EndianScalar(function_count)) {}
 
   uint32_t handle() const { return flatbuffers::EndianScalar(handle_); }
-  uint32_t function_count() const { return flatbuffers::EndianScalar(function_count_); }
+  uint32_t function_count() const {
+    return flatbuffers::EndianScalar(function_count_);
+  }
 };
 STRUCT_END(ListModuleEntry, 8);
 
 struct Module FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  const xe::debug::proto::XObject *object() const { return GetStruct<const xe::debug::proto::XObject *>(4); }
-  ModuleType type() const { return static_cast<ModuleType>(GetField<int8_t>(6, 0)); }
-  const flatbuffers::String *name() const { return GetPointer<const flatbuffers::String *>(8); }
-  const flatbuffers::String *path() const { return GetPointer<const flatbuffers::String *>(10); }
+  const xe::debug::proto::XObject *object() const {
+    return GetStruct<const xe::debug::proto::XObject *>(4);
+  }
+  ModuleType type() const {
+    return static_cast<ModuleType>(GetField<int8_t>(6, 0));
+  }
+  const flatbuffers::String *name() const {
+    return GetPointer<const flatbuffers::String *>(8);
+  }
+  const flatbuffers::String *path() const {
+    return GetPointer<const flatbuffers::String *>(10);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<xe::debug::proto::XObject>(verifier, 4 /* object */) &&
@@ -68,19 +78,28 @@ struct Module FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<flatbuffers::uoffset_t>(verifier, 8 /* name */) &&
            verifier.Verify(name()) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 10 /* path */) &&
-           verifier.Verify(path()) &&
-           verifier.EndTable();
+           verifier.Verify(path()) && verifier.EndTable();
   }
 };
 
 struct ModuleBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_object(const xe::debug::proto::XObject *object) { fbb_.AddStruct(4, object); }
-  void add_type(ModuleType type) { fbb_.AddElement<int8_t>(6, static_cast<int8_t>(type), 0); }
-  void add_name(flatbuffers::Offset<flatbuffers::String> name) { fbb_.AddOffset(8, name); }
-  void add_path(flatbuffers::Offset<flatbuffers::String> path) { fbb_.AddOffset(10, path); }
-  ModuleBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_object(const xe::debug::proto::XObject *object) {
+    fbb_.AddStruct(4, object);
+  }
+  void add_type(ModuleType type) {
+    fbb_.AddElement<int8_t>(6, static_cast<int8_t>(type), 0);
+  }
+  void add_name(flatbuffers::Offset<flatbuffers::String> name) {
+    fbb_.AddOffset(8, name);
+  }
+  void add_path(flatbuffers::Offset<flatbuffers::String> path) {
+    fbb_.AddOffset(10, path);
+  }
+  ModuleBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ModuleBuilder &operator=(const ModuleBuilder &);
   flatbuffers::Offset<Module> Finish() {
     auto o = flatbuffers::Offset<Module>(fbb_.EndTable(start_, 4));
@@ -88,11 +107,12 @@ struct ModuleBuilder {
   }
 };
 
-inline flatbuffers::Offset<Module> CreateModule(flatbuffers::FlatBufferBuilder &_fbb,
-   const xe::debug::proto::XObject *object = 0,
-   ModuleType type = ModuleType_Kernel,
-   flatbuffers::Offset<flatbuffers::String> name = 0,
-   flatbuffers::Offset<flatbuffers::String> path = 0) {
+inline flatbuffers::Offset<Module> CreateModule(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    const xe::debug::proto::XObject *object = 0,
+    ModuleType type = ModuleType_Kernel,
+    flatbuffers::Offset<flatbuffers::String> name = 0,
+    flatbuffers::Offset<flatbuffers::String> path = 0) {
   ModuleBuilder builder_(_fbb);
   builder_.add_path(path);
   builder_.add_name(name);
@@ -103,15 +123,16 @@ inline flatbuffers::Offset<Module> CreateModule(flatbuffers::FlatBufferBuilder &
 
 struct ListModulesRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   bool Verify(flatbuffers::Verifier &verifier) const {
-    return VerifyTableStart(verifier) &&
-           verifier.EndTable();
+    return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct ListModulesRequestBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  ListModulesRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  ListModulesRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ListModulesRequestBuilder &operator=(const ListModulesRequestBuilder &);
   flatbuffers::Offset<ListModulesRequest> Finish() {
     auto o = flatbuffers::Offset<ListModulesRequest>(fbb_.EndTable(start_, 0));
@@ -119,26 +140,35 @@ struct ListModulesRequestBuilder {
   }
 };
 
-inline flatbuffers::Offset<ListModulesRequest> CreateListModulesRequest(flatbuffers::FlatBufferBuilder &_fbb) {
+inline flatbuffers::Offset<ListModulesRequest> CreateListModulesRequest(
+    flatbuffers::FlatBufferBuilder &_fbb) {
   ListModulesRequestBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
-struct ListModulesResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  const flatbuffers::Vector<const ListModuleEntry *> *entry() const { return GetPointer<const flatbuffers::Vector<const ListModuleEntry *> *>(4); }
+struct ListModulesResponse FLATBUFFERS_FINAL_CLASS
+    : private flatbuffers::Table {
+  const flatbuffers::Vector<const ListModuleEntry *> *entry() const {
+    return GetPointer<const flatbuffers::Vector<const ListModuleEntry *> *>(4);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* entry */) &&
-           verifier.Verify(entry()) &&
-           verifier.EndTable();
+           verifier.Verify(entry()) && verifier.EndTable();
   }
 };
 
 struct ListModulesResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_entry(flatbuffers::Offset<flatbuffers::Vector<const ListModuleEntry *>> entry) { fbb_.AddOffset(4, entry); }
-  ListModulesResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_entry(
+      flatbuffers::Offset<flatbuffers::Vector<const ListModuleEntry *>> entry) {
+    fbb_.AddOffset(4, entry);
+  }
+  ListModulesResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+      : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ListModulesResponseBuilder &operator=(const ListModulesResponseBuilder &);
   flatbuffers::Offset<ListModulesResponse> Finish() {
     auto o = flatbuffers::Offset<ListModulesResponse>(fbb_.EndTable(start_, 1));
@@ -146,8 +176,10 @@ struct ListModulesResponseBuilder {
   }
 };
 
-inline flatbuffers::Offset<ListModulesResponse> CreateListModulesResponse(flatbuffers::FlatBufferBuilder &_fbb,
-   flatbuffers::Offset<flatbuffers::Vector<const ListModuleEntry *>> entry = 0) {
+inline flatbuffers::Offset<ListModulesResponse> CreateListModulesResponse(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<flatbuffers::Vector<const ListModuleEntry *>> entry =
+        0) {
   ListModulesResponseBuilder builder_(_fbb);
   builder_.add_entry(entry);
   return builder_.Finish();
@@ -165,8 +197,12 @@ struct GetModuleRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct GetModuleRequestBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_module_id(uint32_t module_id) { fbb_.AddElement<uint32_t>(4, module_id, 0); }
-  GetModuleRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_module_id(uint32_t module_id) {
+    fbb_.AddElement<uint32_t>(4, module_id, 0);
+  }
+  GetModuleRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   GetModuleRequestBuilder &operator=(const GetModuleRequestBuilder &);
   flatbuffers::Offset<GetModuleRequest> Finish() {
     auto o = flatbuffers::Offset<GetModuleRequest>(fbb_.EndTable(start_, 1));
@@ -174,8 +210,8 @@ struct GetModuleRequestBuilder {
   }
 };
 
-inline flatbuffers::Offset<GetModuleRequest> CreateGetModuleRequest(flatbuffers::FlatBufferBuilder &_fbb,
-   uint32_t module_id = 0) {
+inline flatbuffers::Offset<GetModuleRequest> CreateGetModuleRequest(
+    flatbuffers::FlatBufferBuilder &_fbb, uint32_t module_id = 0) {
   GetModuleRequestBuilder builder_(_fbb);
   builder_.add_module_id(module_id);
   return builder_.Finish();
@@ -186,16 +222,19 @@ struct GetModuleResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* module */) &&
-           verifier.VerifyTable(module()) &&
-           verifier.EndTable();
+           verifier.VerifyTable(module()) && verifier.EndTable();
   }
 };
 
 struct GetModuleResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_module(flatbuffers::Offset<Module> module) { fbb_.AddOffset(4, module); }
-  GetModuleResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_module(flatbuffers::Offset<Module> module) {
+    fbb_.AddOffset(4, module);
+  }
+  GetModuleResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   GetModuleResponseBuilder &operator=(const GetModuleResponseBuilder &);
   flatbuffers::Offset<GetModuleResponse> Finish() {
     auto o = flatbuffers::Offset<GetModuleResponse>(fbb_.EndTable(start_, 1));
@@ -203,8 +242,9 @@ struct GetModuleResponseBuilder {
   }
 };
 
-inline flatbuffers::Offset<GetModuleResponse> CreateGetModuleResponse(flatbuffers::FlatBufferBuilder &_fbb,
-   flatbuffers::Offset<Module> module = 0) {
+inline flatbuffers::Offset<GetModuleResponse> CreateGetModuleResponse(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<Module> module = 0) {
   GetModuleResponseBuilder builder_(_fbb);
   builder_.add_module(module);
   return builder_.Finish();
@@ -214,26 +254,37 @@ struct FunctionEntry FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint64_t identifier() const { return GetField<uint64_t>(4, 0); }
   uint32_t address_start() const { return GetField<uint32_t>(6, 0); }
   uint32_t address_end() const { return GetField<uint32_t>(8, 0); }
-  const flatbuffers::String *name() const { return GetPointer<const flatbuffers::String *>(10); }
+  const flatbuffers::String *name() const {
+    return GetPointer<const flatbuffers::String *>(10);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, 4 /* identifier */) &&
            VerifyField<uint32_t>(verifier, 6 /* address_start */) &&
            VerifyField<uint32_t>(verifier, 8 /* address_end */) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 10 /* name */) &&
-           verifier.Verify(name()) &&
-           verifier.EndTable();
+           verifier.Verify(name()) && verifier.EndTable();
   }
 };
 
 struct FunctionEntryBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_identifier(uint64_t identifier) { fbb_.AddElement<uint64_t>(4, identifier, 0); }
-  void add_address_start(uint32_t address_start) { fbb_.AddElement<uint32_t>(6, address_start, 0); }
-  void add_address_end(uint32_t address_end) { fbb_.AddElement<uint32_t>(8, address_end, 0); }
-  void add_name(flatbuffers::Offset<flatbuffers::String> name) { fbb_.AddOffset(10, name); }
-  FunctionEntryBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_identifier(uint64_t identifier) {
+    fbb_.AddElement<uint64_t>(4, identifier, 0);
+  }
+  void add_address_start(uint32_t address_start) {
+    fbb_.AddElement<uint32_t>(6, address_start, 0);
+  }
+  void add_address_end(uint32_t address_end) {
+    fbb_.AddElement<uint32_t>(8, address_end, 0);
+  }
+  void add_name(flatbuffers::Offset<flatbuffers::String> name) {
+    fbb_.AddOffset(10, name);
+  }
+  FunctionEntryBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   FunctionEntryBuilder &operator=(const FunctionEntryBuilder &);
   flatbuffers::Offset<FunctionEntry> Finish() {
     auto o = flatbuffers::Offset<FunctionEntry>(fbb_.EndTable(start_, 4));
@@ -241,11 +292,10 @@ struct FunctionEntryBuilder {
   }
 };
 
-inline flatbuffers::Offset<FunctionEntry> CreateFunctionEntry(flatbuffers::FlatBufferBuilder &_fbb,
-   uint64_t identifier = 0,
-   uint32_t address_start = 0,
-   uint32_t address_end = 0,
-   flatbuffers::Offset<flatbuffers::String> name = 0) {
+inline flatbuffers::Offset<FunctionEntry> CreateFunctionEntry(
+    flatbuffers::FlatBufferBuilder &_fbb, uint64_t identifier = 0,
+    uint32_t address_start = 0, uint32_t address_end = 0,
+    flatbuffers::Offset<flatbuffers::String> name = 0) {
   FunctionEntryBuilder builder_(_fbb);
   builder_.add_identifier(identifier);
   builder_.add_name(name);
@@ -258,11 +308,17 @@ struct Function FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint64_t identifier() const { return GetField<uint64_t>(4, 0); }
   uint32_t address_start() const { return GetField<uint32_t>(6, 0); }
   uint32_t address_end() const { return GetField<uint32_t>(8, 0); }
-  const flatbuffers::String *name() const { return GetPointer<const flatbuffers::String *>(10); }
+  const flatbuffers::String *name() const {
+    return GetPointer<const flatbuffers::String *>(10);
+  }
   uint32_t machine_code_start() const { return GetField<uint32_t>(12, 0); }
   uint32_t machine_code_end() const { return GetField<uint32_t>(14, 0); }
-  const flatbuffers::String *disasm_hir_raw() const { return GetPointer<const flatbuffers::String *>(16); }
-  const flatbuffers::String *disasm_hir_opt() const { return GetPointer<const flatbuffers::String *>(18); }
+  const flatbuffers::String *disasm_hir_raw() const {
+    return GetPointer<const flatbuffers::String *>(16);
+  }
+  const flatbuffers::String *disasm_hir_opt() const {
+    return GetPointer<const flatbuffers::String *>(18);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, 4 /* identifier */) &&
@@ -272,26 +328,47 @@ struct Function FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.Verify(name()) &&
            VerifyField<uint32_t>(verifier, 12 /* machine_code_start */) &&
            VerifyField<uint32_t>(verifier, 14 /* machine_code_end */) &&
-           VerifyField<flatbuffers::uoffset_t>(verifier, 16 /* disasm_hir_raw */) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier,
+                                               16 /* disasm_hir_raw */) &&
            verifier.Verify(disasm_hir_raw()) &&
-           VerifyField<flatbuffers::uoffset_t>(verifier, 18 /* disasm_hir_opt */) &&
-           verifier.Verify(disasm_hir_opt()) &&
-           verifier.EndTable();
+           VerifyField<flatbuffers::uoffset_t>(verifier,
+                                               18 /* disasm_hir_opt */) &&
+           verifier.Verify(disasm_hir_opt()) && verifier.EndTable();
   }
 };
 
 struct FunctionBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_identifier(uint64_t identifier) { fbb_.AddElement<uint64_t>(4, identifier, 0); }
-  void add_address_start(uint32_t address_start) { fbb_.AddElement<uint32_t>(6, address_start, 0); }
-  void add_address_end(uint32_t address_end) { fbb_.AddElement<uint32_t>(8, address_end, 0); }
-  void add_name(flatbuffers::Offset<flatbuffers::String> name) { fbb_.AddOffset(10, name); }
-  void add_machine_code_start(uint32_t machine_code_start) { fbb_.AddElement<uint32_t>(12, machine_code_start, 0); }
-  void add_machine_code_end(uint32_t machine_code_end) { fbb_.AddElement<uint32_t>(14, machine_code_end, 0); }
-  void add_disasm_hir_raw(flatbuffers::Offset<flatbuffers::String> disasm_hir_raw) { fbb_.AddOffset(16, disasm_hir_raw); }
-  void add_disasm_hir_opt(flatbuffers::Offset<flatbuffers::String> disasm_hir_opt) { fbb_.AddOffset(18, disasm_hir_opt); }
-  FunctionBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_identifier(uint64_t identifier) {
+    fbb_.AddElement<uint64_t>(4, identifier, 0);
+  }
+  void add_address_start(uint32_t address_start) {
+    fbb_.AddElement<uint32_t>(6, address_start, 0);
+  }
+  void add_address_end(uint32_t address_end) {
+    fbb_.AddElement<uint32_t>(8, address_end, 0);
+  }
+  void add_name(flatbuffers::Offset<flatbuffers::String> name) {
+    fbb_.AddOffset(10, name);
+  }
+  void add_machine_code_start(uint32_t machine_code_start) {
+    fbb_.AddElement<uint32_t>(12, machine_code_start, 0);
+  }
+  void add_machine_code_end(uint32_t machine_code_end) {
+    fbb_.AddElement<uint32_t>(14, machine_code_end, 0);
+  }
+  void add_disasm_hir_raw(
+      flatbuffers::Offset<flatbuffers::String> disasm_hir_raw) {
+    fbb_.AddOffset(16, disasm_hir_raw);
+  }
+  void add_disasm_hir_opt(
+      flatbuffers::Offset<flatbuffers::String> disasm_hir_opt) {
+    fbb_.AddOffset(18, disasm_hir_opt);
+  }
+  FunctionBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   FunctionBuilder &operator=(const FunctionBuilder &);
   flatbuffers::Offset<Function> Finish() {
     auto o = flatbuffers::Offset<Function>(fbb_.EndTable(start_, 8));
@@ -299,15 +376,13 @@ struct FunctionBuilder {
   }
 };
 
-inline flatbuffers::Offset<Function> CreateFunction(flatbuffers::FlatBufferBuilder &_fbb,
-   uint64_t identifier = 0,
-   uint32_t address_start = 0,
-   uint32_t address_end = 0,
-   flatbuffers::Offset<flatbuffers::String> name = 0,
-   uint32_t machine_code_start = 0,
-   uint32_t machine_code_end = 0,
-   flatbuffers::Offset<flatbuffers::String> disasm_hir_raw = 0,
-   flatbuffers::Offset<flatbuffers::String> disasm_hir_opt = 0) {
+inline flatbuffers::Offset<Function> CreateFunction(
+    flatbuffers::FlatBufferBuilder &_fbb, uint64_t identifier = 0,
+    uint32_t address_start = 0, uint32_t address_end = 0,
+    flatbuffers::Offset<flatbuffers::String> name = 0,
+    uint32_t machine_code_start = 0, uint32_t machine_code_end = 0,
+    flatbuffers::Offset<flatbuffers::String> disasm_hir_raw = 0,
+    flatbuffers::Offset<flatbuffers::String> disasm_hir_opt = 0) {
   FunctionBuilder builder_(_fbb);
   builder_.add_identifier(identifier);
   builder_.add_disasm_hir_opt(disasm_hir_opt);
@@ -320,7 +395,8 @@ inline flatbuffers::Offset<Function> CreateFunction(flatbuffers::FlatBufferBuild
   return builder_.Finish();
 }
 
-struct ListFunctionsRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+struct ListFunctionsRequest FLATBUFFERS_FINAL_CLASS
+    : private flatbuffers::Table {
   uint32_t module_id() const { return GetField<uint32_t>(4, 0); }
   uint32_t function_index_start() const { return GetField<uint32_t>(6, 0); }
   uint32_t function_index_end() const { return GetField<uint32_t>(8, 0); }
@@ -336,21 +412,30 @@ struct ListFunctionsRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table
 struct ListFunctionsRequestBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_module_id(uint32_t module_id) { fbb_.AddElement<uint32_t>(4, module_id, 0); }
-  void add_function_index_start(uint32_t function_index_start) { fbb_.AddElement<uint32_t>(6, function_index_start, 0); }
-  void add_function_index_end(uint32_t function_index_end) { fbb_.AddElement<uint32_t>(8, function_index_end, 0); }
-  ListFunctionsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_module_id(uint32_t module_id) {
+    fbb_.AddElement<uint32_t>(4, module_id, 0);
+  }
+  void add_function_index_start(uint32_t function_index_start) {
+    fbb_.AddElement<uint32_t>(6, function_index_start, 0);
+  }
+  void add_function_index_end(uint32_t function_index_end) {
+    fbb_.AddElement<uint32_t>(8, function_index_end, 0);
+  }
+  ListFunctionsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+      : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ListFunctionsRequestBuilder &operator=(const ListFunctionsRequestBuilder &);
   flatbuffers::Offset<ListFunctionsRequest> Finish() {
-    auto o = flatbuffers::Offset<ListFunctionsRequest>(fbb_.EndTable(start_, 3));
+    auto o =
+        flatbuffers::Offset<ListFunctionsRequest>(fbb_.EndTable(start_, 3));
     return o;
   }
 };
 
-inline flatbuffers::Offset<ListFunctionsRequest> CreateListFunctionsRequest(flatbuffers::FlatBufferBuilder &_fbb,
-   uint32_t module_id = 0,
-   uint32_t function_index_start = 0,
-   uint32_t function_index_end = 0) {
+inline flatbuffers::Offset<ListFunctionsRequest> CreateListFunctionsRequest(
+    flatbuffers::FlatBufferBuilder &_fbb, uint32_t module_id = 0,
+    uint32_t function_index_start = 0, uint32_t function_index_end = 0) {
   ListFunctionsRequestBuilder builder_(_fbb);
   builder_.add_function_index_end(function_index_end);
   builder_.add_function_index_start(function_index_start);
@@ -358,13 +443,16 @@ inline flatbuffers::Offset<ListFunctionsRequest> CreateListFunctionsRequest(flat
   return builder_.Finish();
 }
 
-struct ListFunctionsResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  const flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>> *entry() const { return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>> *>(4); }
+struct ListFunctionsResponse FLATBUFFERS_FINAL_CLASS
+    : private flatbuffers::Table {
+  const flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>> *entry() const {
+    return GetPointer<
+        const flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>> *>(4);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* entry */) &&
-           verifier.Verify(entry()) &&
-           verifier.VerifyVectorOfTables(entry()) &&
+           verifier.Verify(entry()) && verifier.VerifyVectorOfTables(entry()) &&
            verifier.EndTable();
   }
 };
@@ -372,17 +460,26 @@ struct ListFunctionsResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Tabl
 struct ListFunctionsResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_entry(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>>> entry) { fbb_.AddOffset(4, entry); }
-  ListFunctionsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_entry(flatbuffers::Offset<
+      flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>>> entry) {
+    fbb_.AddOffset(4, entry);
+  }
+  ListFunctionsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+      : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ListFunctionsResponseBuilder &operator=(const ListFunctionsResponseBuilder &);
   flatbuffers::Offset<ListFunctionsResponse> Finish() {
-    auto o = flatbuffers::Offset<ListFunctionsResponse>(fbb_.EndTable(start_, 1));
+    auto o =
+        flatbuffers::Offset<ListFunctionsResponse>(fbb_.EndTable(start_, 1));
     return o;
   }
 };
 
-inline flatbuffers::Offset<ListFunctionsResponse> CreateListFunctionsResponse(flatbuffers::FlatBufferBuilder &_fbb,
-   flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>>> entry = 0) {
+inline flatbuffers::Offset<ListFunctionsResponse> CreateListFunctionsResponse(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>>>
+        entry = 0) {
   ListFunctionsResponseBuilder builder_(_fbb);
   builder_.add_entry(entry);
   return builder_.Finish();
@@ -400,8 +497,12 @@ struct GetFunctionRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct GetFunctionRequestBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_identifier(uint64_t identifier) { fbb_.AddElement<uint64_t>(4, identifier, 0); }
-  GetFunctionRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_identifier(uint64_t identifier) {
+    fbb_.AddElement<uint64_t>(4, identifier, 0);
+  }
+  GetFunctionRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   GetFunctionRequestBuilder &operator=(const GetFunctionRequestBuilder &);
   flatbuffers::Offset<GetFunctionRequest> Finish() {
     auto o = flatbuffers::Offset<GetFunctionRequest>(fbb_.EndTable(start_, 1));
@@ -409,28 +510,33 @@ struct GetFunctionRequestBuilder {
   }
 };
 
-inline flatbuffers::Offset<GetFunctionRequest> CreateGetFunctionRequest(flatbuffers::FlatBufferBuilder &_fbb,
-   uint64_t identifier = 0) {
+inline flatbuffers::Offset<GetFunctionRequest> CreateGetFunctionRequest(
+    flatbuffers::FlatBufferBuilder &_fbb, uint64_t identifier = 0) {
   GetFunctionRequestBuilder builder_(_fbb);
   builder_.add_identifier(identifier);
   return builder_.Finish();
 }
 
-struct GetFunctionResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+struct GetFunctionResponse FLATBUFFERS_FINAL_CLASS
+    : private flatbuffers::Table {
   const Function *function() const { return GetPointer<const Function *>(4); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* function */) &&
-           verifier.VerifyTable(function()) &&
-           verifier.EndTable();
+           verifier.VerifyTable(function()) && verifier.EndTable();
   }
 };
 
 struct GetFunctionResponseBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_function(flatbuffers::Offset<Function> function) { fbb_.AddOffset(4, function); }
-  GetFunctionResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  void add_function(flatbuffers::Offset<Function> function) {
+    fbb_.AddOffset(4, function);
+  }
+  GetFunctionResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+      : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   GetFunctionResponseBuilder &operator=(const GetFunctionResponseBuilder &);
   flatbuffers::Offset<GetFunctionResponse> Finish() {
     auto o = flatbuffers::Offset<GetFunctionResponse>(fbb_.EndTable(start_, 1));
@@ -438,8 +544,9 @@ struct GetFunctionResponseBuilder {
   }
 };
 
-inline flatbuffers::Offset<GetFunctionResponse> CreateGetFunctionResponse(flatbuffers::FlatBufferBuilder &_fbb,
-   flatbuffers::Offset<Function> function = 0) {
+inline flatbuffers::Offset<GetFunctionResponse> CreateGetFunctionResponse(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<Function> function = 0) {
   GetFunctionResponseBuilder builder_(_fbb);
   builder_.add_function(function);
   return builder_.Finish();

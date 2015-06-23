@@ -209,7 +209,8 @@ void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, uint32_t num,
     }
     Append("state.float_consts[");
 #if FLOW_CONTROL
-    // NOTE(dariosamo): Some games don't seem to take into account the relative a0
+    // NOTE(dariosamo): Some games don't seem to take into account the relative
+    // a0
     // offset even when they should due to const_slot being a different value.
     if (op.const_0_rel_abs || op.const_1_rel_abs) {
 #else
@@ -1528,22 +1529,22 @@ static const struct {
 } cf_instructions[] = {
 #define INSTR(opc, fxn) \
   { #opc }
-      INSTR(NOP, print_cf_nop),
-      INSTR(EXEC, print_cf_exec),
-      INSTR(EXEC_END, print_cf_exec),
-      INSTR(COND_EXEC, print_cf_exec),
-      INSTR(COND_EXEC_END, print_cf_exec),
-      INSTR(COND_PRED_EXEC, print_cf_exec),
-      INSTR(COND_PRED_EXEC_END, print_cf_exec),
-      INSTR(LOOP_START, print_cf_loop),
-      INSTR(LOOP_END, print_cf_loop),
-      INSTR(COND_CALL, print_cf_jmp_call),
-      INSTR(RETURN, print_cf_jmp_call),
-      INSTR(COND_JMP, print_cf_jmp_call),
-      INSTR(ALLOC, print_cf_alloc),
-      INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
-      INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
-      INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
+    INSTR(NOP, print_cf_nop),                        //
+    INSTR(EXEC, print_cf_exec),                      //
+    INSTR(EXEC_END, print_cf_exec),                  //
+    INSTR(COND_EXEC, print_cf_exec),                 //
+    INSTR(COND_EXEC_END, print_cf_exec),             //
+    INSTR(COND_PRED_EXEC, print_cf_exec),            //
+    INSTR(COND_PRED_EXEC_END, print_cf_exec),        //
+    INSTR(LOOP_START, print_cf_loop),                //
+    INSTR(LOOP_END, print_cf_loop),                  //
+    INSTR(COND_CALL, print_cf_jmp_call),             //
+    INSTR(RETURN, print_cf_jmp_call),                //
+    INSTR(COND_JMP, print_cf_jmp_call),              //
+    INSTR(ALLOC, print_cf_alloc),                    //
+    INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),      //
+    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),  //
+    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),         // ??
 #undef INSTR
 };
 
@@ -1699,7 +1700,8 @@ bool GL4ShaderTranslator::TranslateLoopEnd(const ucode::instr_cf_loop_t& cf) {
   Append("  // %s", cf_instructions[cf.opc].name);
   Append(" ADDR(0x%x) LOOP ID(%d)\n", cf.address, cf.loop_id);
   Append(" i%d_cnt = i%d_cnt + 1;\n", cf.loop_id, cf.loop_id);
-  Append(" pc = (i%d_cnt < state.loop_consts[%d]) ? i%d_addr : pc;\n", cf.loop_id, cf.loop_id, cf.loop_id);
+  Append(" pc = (i%d_cnt < state.loop_consts[%d]) ? i%d_addr : pc;\n",
+         cf.loop_id, cf.loop_id, cf.loop_id);
   return true;
 }
 
@@ -1710,66 +1712,66 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
   } fetch_types[0xff] = {
 #define TYPE(id) \
   { #id }
-        TYPE(FMT_1_REVERSE),  // 0
-        {0},
-        TYPE(FMT_8),  // 2
-        {0},
-        {0},
-        {0},
-        TYPE(FMT_8_8_8_8),     // 6
-        TYPE(FMT_2_10_10_10),  // 7
-        {0},
-        {0},
-        TYPE(FMT_8_8),  // 10
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        TYPE(FMT_16),           // 24
-        TYPE(FMT_16_16),        // 25
-        TYPE(FMT_16_16_16_16),  // 26
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        TYPE(FMT_32),                 // 33
-        TYPE(FMT_32_32),              // 34
-        TYPE(FMT_32_32_32_32),        // 35
-        TYPE(FMT_32_FLOAT),           // 36
-        TYPE(FMT_32_32_FLOAT),        // 37
-        TYPE(FMT_32_32_32_32_FLOAT),  // 38
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        {0},
-        TYPE(FMT_32_32_32_FLOAT),  // 57
+      TYPE(FMT_1_REVERSE),  // 0
+      {0},
+      TYPE(FMT_8),  // 2
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_8_8_8_8),     // 6
+      TYPE(FMT_2_10_10_10),  // 7
+      {0},
+      {0},
+      TYPE(FMT_8_8),  // 10
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_16),           // 24
+      TYPE(FMT_16_16),        // 25
+      TYPE(FMT_16_16_16_16),  // 26
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_32),                 // 33
+      TYPE(FMT_32_32),              // 34
+      TYPE(FMT_32_32_32_32),        // 35
+      TYPE(FMT_32_FLOAT),           // 36
+      TYPE(FMT_32_32_FLOAT),        // 37
+      TYPE(FMT_32_32_32_32_FLOAT),  // 38
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      {0},
+      TYPE(FMT_32_32_32_FLOAT),  // 57
 #undef TYPE
-    };
+  };
 
   // Disassemble.
   Append("  //   %sFETCH:\t", sync ? "(S)" : "   ");

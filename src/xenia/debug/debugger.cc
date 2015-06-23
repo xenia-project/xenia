@@ -328,26 +328,27 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
                                   request_data->function_index_start() + 1;
       std::vector<flatbuffers::Offset<proto::FunctionEntry>> function_list;
       function_list.reserve(max_function_count);
-      processor_module->ForEachSymbol(request_data->function_index_start(),
-                                      request_data->function_index_end(),
-                                      [&](xe::cpu::SymbolInfo* symbol_info) {
-        if (symbol_info->type() != xe::cpu::SymbolType::kFunction) {
-          return;
-        }
-        auto function_info =
-            reinterpret_cast<xe::cpu::FunctionInfo*>(symbol_info);
-        flatbuffers::Offset<flatbuffers::String> name_offset;
-        if (!function_info->name().empty()) {
-          name_offset = fbb.CreateString(function_info->name());
-        }
-        auto function_entry = proto::FunctionEntryBuilder(fbb);
-        function_entry.add_identifier(
-            reinterpret_cast<uintptr_t>(function_info));
-        function_entry.add_address_start(function_info->address());
-        function_entry.add_address_end(function_info->end_address());
-        function_entry.add_name(name_offset);
-        function_list.push_back(function_entry.Finish());
-      });
+      processor_module->ForEachSymbol(
+          request_data->function_index_start(),
+          request_data->function_index_end(),
+          [&](xe::cpu::SymbolInfo* symbol_info) {
+            if (symbol_info->type() != xe::cpu::SymbolType::kFunction) {
+              return;
+            }
+            auto function_info =
+                reinterpret_cast<xe::cpu::FunctionInfo*>(symbol_info);
+            flatbuffers::Offset<flatbuffers::String> name_offset;
+            if (!function_info->name().empty()) {
+              name_offset = fbb.CreateString(function_info->name());
+            }
+            auto function_entry = proto::FunctionEntryBuilder(fbb);
+            function_entry.add_identifier(
+                reinterpret_cast<uintptr_t>(function_info));
+            function_entry.add_address_start(function_info->address());
+            function_entry.add_address_end(function_info->end_address());
+            function_entry.add_name(name_offset);
+            function_list.push_back(function_entry.Finish());
+          });
       auto function_list_data = fbb.CreateVector(function_list);
       response_data_type = proto::ResponseData_ListFunctionsResponse;
       auto response_data = proto::ListFunctionsResponseBuilder(fbb);

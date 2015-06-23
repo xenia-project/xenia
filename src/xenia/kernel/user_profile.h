@@ -66,9 +66,10 @@ class UserProfile {
     Int32Setting(uint32_t setting_id, int32_t value)
         : Setting(setting_id, Type::INT32, 4), value(value) {}
     int32_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       xe::store_and_swap<int32_t>(user_data + kValueOffset, value);
       return buffer_offset;
     }
@@ -77,9 +78,10 @@ class UserProfile {
     Int64Setting(uint32_t setting_id, int64_t value)
         : Setting(setting_id, Type::INT64, 8), value(value) {}
     int64_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       xe::store_and_swap<int64_t>(user_data + kValueOffset, value);
       return buffer_offset;
     }
@@ -88,9 +90,10 @@ class UserProfile {
     DoubleSetting(uint32_t setting_id, double value)
         : Setting(setting_id, Type::DOUBLE, 8), value(value) {}
     double value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       xe::store_and_swap<double>(user_data + kValueOffset, value);
       return buffer_offset;
     }
@@ -102,9 +105,10 @@ class UserProfile {
     size_t extra_size() const override {
       return value.empty() ? 0 : 2 * (static_cast<int32_t>(value.size()) + 1);
     }
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       int32_t length;
       if (value.empty()) {
         length = 0;
@@ -113,8 +117,9 @@ class UserProfile {
       } else {
         length = 2 * (static_cast<int32_t>(value.size()) + 1);
         xe::store_and_swap<int32_t>(user_data + kValueOffset, length);
-        xe::store_and_swap<uint32_t>(user_data + kPointerOffset,
-                                     buffer_ptr + static_cast<uint32_t>(buffer_offset));
+        xe::store_and_swap<uint32_t>(
+            user_data + kPointerOffset,
+            buffer_ptr + static_cast<uint32_t>(buffer_offset));
         memcpy(buffer + buffer_offset, value.data(), length);
       }
       return buffer_offset + length;
@@ -124,9 +129,10 @@ class UserProfile {
     FloatSetting(uint32_t setting_id, float value)
         : Setting(setting_id, Type::FLOAT, 4), value(value) {}
     float value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       xe::store_and_swap<float>(user_data + kValueOffset, value);
       return buffer_offset;
     }
@@ -138,9 +144,10 @@ class UserProfile {
     size_t extra_size() const override {
       return static_cast<int32_t>(value.size());
     }
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       int32_t length;
       if (value.empty()) {
         length = 0;
@@ -149,8 +156,9 @@ class UserProfile {
       } else {
         length = static_cast<int32_t>(value.size());
         xe::store_and_swap<int32_t>(user_data + kValueOffset, length);
-        xe::store_and_swap<uint32_t>(user_data + kPointerOffset,
-                                     buffer_ptr + static_cast<uint32_t>(buffer_offset));
+        xe::store_and_swap<uint32_t>(
+            user_data + kPointerOffset,
+            buffer_ptr + static_cast<uint32_t>(buffer_offset));
         memcpy(buffer + buffer_offset, value.data(), length);
       }
       return buffer_offset + length;
@@ -160,9 +168,10 @@ class UserProfile {
     DateTimeSetting(uint32_t setting_id, int64_t value)
         : Setting(setting_id, Type::DATETIME, 8), value(value) {}
     int64_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer,
-                  uint32_t buffer_ptr, size_t buffer_offset) override {
-      buffer_offset = Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
+    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
+                  size_t buffer_offset) override {
+      buffer_offset =
+          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
       xe::store_and_swap<int64_t>(user_data + kValueOffset, value);
       return buffer_offset;
     }

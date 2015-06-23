@@ -21,46 +21,51 @@ TEST_CASE("SHA_I8", "[instr]") {
                                 INT64_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xF0;
-             ctx->r[5] = 4;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint8_t>(ctx->r[3]);
-             REQUIRE(result == 0xFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFF;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint8_t>(ctx->r[3]);
-             REQUIRE(result == 0xFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFF;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint8_t>(ctx->r[3]);
-             REQUIRE(result == 0xFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x80;
-             ctx->r[5] = 8;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint8_t>(ctx->r[3]);
-             REQUIRE(result == 0xFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x7F;
-             ctx->r[5] = 7;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint8_t>(ctx->r[3]);
-             REQUIRE(result == 0);
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xF0;
+        ctx->r[5] = 4;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint8_t>(ctx->r[3]);
+        REQUIRE(result == 0xFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFF;
+        ctx->r[5] = 0;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint8_t>(ctx->r[3]);
+        REQUIRE(result == 0xFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFF;
+        ctx->r[5] = 1;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint8_t>(ctx->r[3]);
+        REQUIRE(result == 0xFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x80;
+        ctx->r[5] = 8;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint8_t>(ctx->r[3]);
+        REQUIRE(result == 0xFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x7F;
+        ctx->r[5] = 7;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint8_t>(ctx->r[3]);
+        REQUIRE(result == 0);
+      });
 }
 
 TEST_CASE("SHA_I16", "[instr]") {
@@ -70,46 +75,51 @@ TEST_CASE("SHA_I16", "[instr]") {
                                 INT64_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFF00;
-             ctx->r[5] = 8;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint16_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFF;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint16_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFE;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint16_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x8000;
-             ctx->r[5] = 16;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint16_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x7FFF;
-             ctx->r[5] = 15;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint16_t>(ctx->r[3]);
-             REQUIRE(result == 0);
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFF00;
+        ctx->r[5] = 8;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint16_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFF;
+        ctx->r[5] = 0;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint16_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFE;
+        ctx->r[5] = 1;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint16_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x8000;
+        ctx->r[5] = 16;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint16_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x7FFF;
+        ctx->r[5] = 15;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint16_t>(ctx->r[3]);
+        REQUIRE(result == 0);
+      });
 }
 
 TEST_CASE("SHA_I32", "[instr]") {
@@ -119,46 +129,51 @@ TEST_CASE("SHA_I32", "[instr]") {
                                 INT64_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFF0000;
-             ctx->r[5] = 16;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint32_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFFFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFFFFFF;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint32_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFFFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFFFFFE;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint32_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFFFFFF);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x80000000;
-             ctx->r[5] = 32;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint32_t>(ctx->r[3]);
-             REQUIRE(result == 0x80000000);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x7FFFFFFF;
-             ctx->r[5] = 31;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint32_t>(ctx->r[3]);
-             REQUIRE(result == 0);
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFF0000;
+        ctx->r[5] = 16;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint32_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFFFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFFFFFF;
+        ctx->r[5] = 0;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint32_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFFFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFFFFFE;
+        ctx->r[5] = 1;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint32_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFFFFFF);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x80000000;
+        ctx->r[5] = 32;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint32_t>(ctx->r[3]);
+        REQUIRE(result == 0x80000000);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x7FFFFFFF;
+        ctx->r[5] = 31;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint32_t>(ctx->r[3]);
+        REQUIRE(result == 0);
+      });
 }
 
 TEST_CASE("SHA_I64", "[instr]") {
@@ -167,44 +182,49 @@ TEST_CASE("SHA_I64", "[instr]") {
                          b.Truncate(LoadGPR(b, 5), INT8_TYPE)));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFFFFFF00000000ull;
-             ctx->r[5] = 32;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint64_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFFFFFFFFFFFFFFull);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFFFFFFFFFFFFFFull;
-             ctx->r[5] = 0;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint64_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFFFFFFFFFFFFFFull);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0xFFFFFFFFFFFFFFFEull;
-             ctx->r[5] = 1;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint64_t>(ctx->r[3]);
-             REQUIRE(result == 0xFFFFFFFFFFFFFFFFull);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x8000000000000000ull;
-             ctx->r[5] = 64;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint64_t>(ctx->r[3]);
-             REQUIRE(result == 0x8000000000000000ull);
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->r[4] = 0x7FFFFFFFFFFFFFFFull;
-             ctx->r[5] = 63;
-           },
-           [](PPCContext* ctx) {
-             auto result = static_cast<uint64_t>(ctx->r[3]);
-             REQUIRE(result == 0);
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFFFFFF00000000ull;
+        ctx->r[5] = 32;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint64_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFFFFFFFFFFFFFFull);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFFFFFFFFFFFFFFull;
+        ctx->r[5] = 0;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint64_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFFFFFFFFFFFFFFull);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0xFFFFFFFFFFFFFFFEull;
+        ctx->r[5] = 1;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint64_t>(ctx->r[3]);
+        REQUIRE(result == 0xFFFFFFFFFFFFFFFFull);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x8000000000000000ull;
+        ctx->r[5] = 64;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint64_t>(ctx->r[3]);
+        REQUIRE(result == 0x8000000000000000ull);
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->r[4] = 0x7FFFFFFFFFFFFFFFull;
+        ctx->r[5] = 63;
+      },
+      [](PPCContext* ctx) {
+        auto result = static_cast<uint64_t>(ctx->r[3]);
+        REQUIRE(result == 0);
+      });
 }

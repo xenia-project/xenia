@@ -14,6 +14,9 @@
 
 #include "xenia/base/memory.h"
 
+// TODO(benvanik): split this header, cleanup, etc.
+// clang-format off
+
 namespace xe {
 
 #pragma pack(push, 4)
@@ -134,27 +137,23 @@ typedef uint32_t X_HRESULT;
 
 
 // (?), used by KeGetCurrentProcessType
-#define X_PROCTYPE_IDLE   0
-#define X_PROCTYPE_USER   1
+#define X_PROCTYPE_IDLE 0
+#define X_PROCTYPE_USER 1
 #define X_PROCTYPE_SYSTEM 2
 
-
 // Sockets/networking.
-#define X_INVALID_SOCKET          (uint32_t)(~0)
-#define X_SOCKET_ERROR            (uint32_t)(-1)
-
+#define X_INVALID_SOCKET (uint32_t)(~0)
+#define X_SOCKET_ERROR (uint32_t)(-1)
 
 // Thread enums.
-#define X_CREATE_SUSPENDED        0x00000004
-
+#define X_CREATE_SUSPENDED 0x00000004
 
 // TLS specials.
-#define X_TLS_OUT_OF_INDEXES      UINT32_MAX  // (-1)
-
+#define X_TLS_OUT_OF_INDEXES UINT32_MAX  // (-1)
 
 // Languages.
-#define X_LANGUAGE_ENGLISH        1
-#define X_LANGUAGE_JAPANESE       2
+#define X_LANGUAGE_ENGLISH 1
+#define X_LANGUAGE_JAPANESE 2
 
 enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_NONE = 0x0000,
@@ -375,13 +374,15 @@ struct X_INPUT_KEYSTROKE {
 static_assert_size(X_INPUT_KEYSTROKE, 8);
 
 struct X_LIST_ENTRY {
-  be<uint32_t> flink_ptr; // next entry / head
-  be<uint32_t> blink_ptr; // previous entry / head
+  be<uint32_t> flink_ptr;  // next entry / head
+  be<uint32_t> blink_ptr;  // previous entry / head
 };
 static_assert_size(X_LIST_ENTRY, 8);
 
 #pragma pack(pop)
 
 }  // namespace xe
+
+// clang-format on
 
 #endif  // XENIA_XBOX_H_

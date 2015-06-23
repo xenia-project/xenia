@@ -17,9 +17,9 @@ namespace xe {
 namespace kernel {
 
 typedef struct {
-  xe::be<DWORD>             count;
-  xe::be<DWORD>             state[5];
-  xe::be<BYTE>              buffer[64];
+  xe::be<DWORD> count;
+  xe::be<DWORD> state[5];
+  xe::be<BYTE> buffer[64];
 } XECRYPT_SHA_STATE;
 
 void XeCryptShaInit(pointer_t<XECRYPT_SHA_STATE> sha_state) {
@@ -27,20 +27,16 @@ void XeCryptShaInit(pointer_t<XECRYPT_SHA_STATE> sha_state) {
 }
 DECLARE_XBOXKRNL_EXPORT(XeCryptShaInit, ExportTag::kStub);
 
-void XeCryptShaUpdate(pointer_t<XECRYPT_SHA_STATE> sha_state,
-                      lpvoid_t input, dword_t input_size) {
-
-}
+void XeCryptShaUpdate(pointer_t<XECRYPT_SHA_STATE> sha_state, lpvoid_t input,
+                      dword_t input_size) {}
 DECLARE_XBOXKRNL_EXPORT(XeCryptShaUpdate, ExportTag::kStub);
 
 void XeCryptShaFinal(pointer_t<XECRYPT_SHA_STATE> sha_state, lpvoid_t out,
-                     dword_t out_size) {
-
-}
+                     dword_t out_size) {}
 DECLARE_XBOXKRNL_EXPORT(XeCryptShaFinal, ExportTag::kStub);
 
 void xe::kernel::xboxkrnl::RegisterCryptExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}
 
-} // namespace kernel
-} // namespace xe
+}  // namespace kernel
+}  // namespace xe

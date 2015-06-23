@@ -53,17 +53,16 @@ namespace apu {
 using namespace xe::cpu;
 
 XmaDecoder::XmaDecoder(Emulator* emulator)
-    : emulator_(emulator)
-    , memory_(emulator->memory())
-    , processor_(emulator->processor())
-    , worker_running_(false)
-    , context_data_first_ptr_(0)
-    , context_data_last_ptr_(0) {
-}
+    : emulator_(emulator),
+      memory_(emulator->memory()),
+      processor_(emulator->processor()),
+      worker_running_(false),
+      context_data_first_ptr_(0),
+      context_data_last_ptr_(0) {}
 
 XmaDecoder::~XmaDecoder() {}
 
-void av_log_callback(void *avcl, int level, const char *fmt, va_list va) {
+void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
   xe::log_line('i', "libav: %s", buff.GetString());
@@ -82,12 +81,14 @@ X_STATUS XmaDecoder::Setup() {
   // Setup XMA context data.
   context_data_first_ptr_ = memory()->SystemHeapAlloc(
       sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical);
-  context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
+  context_data_last_ptr_ =
+      context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   registers_.context_array_ptr = context_data_first_ptr_;
 
   // Setup XMA contexts.
   for (int i = 0; i < kContextCount; ++i) {
-    uint32_t guest_ptr = registers_.context_array_ptr + i * sizeof(XMA_CONTEXT_DATA);
+    uint32_t guest_ptr =
+        registers_.context_array_ptr + i * sizeof(XMA_CONTEXT_DATA);
     XmaContext& context = contexts_[i];
     if (context.Setup(i, memory(), guest_ptr)) {
       assert_always();

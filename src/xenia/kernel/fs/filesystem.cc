@@ -187,7 +187,8 @@ std::unique_ptr<Entry> FileSystem::ResolvePath(const std::string& path) {
     }
   }
 
-  XELOGE("ResolvePath(%s) failed - device not found (%s)", path.c_str(), device_path.c_str());
+  XELOGE("ResolvePath(%s) failed - device not found (%s)", path.c_str(),
+         device_path.c_str());
   return nullptr;
 }
 

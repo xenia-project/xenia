@@ -19,14 +19,14 @@ namespace xe {
 namespace kernel {
 namespace fs {
 
-#define XEGETUINT24BE(p)                                 \
-  (((uint32_t)xe::load_and_swap<uint8_t>((p)+0) << 16) | \
-   ((uint32_t)xe::load_and_swap<uint8_t>((p)+1) << 8) |  \
-   (uint32_t)xe::load_and_swap<uint8_t>((p)+2))
-#define XEGETUINT24LE(p)                        \
-  (((uint32_t)xe::load<uint8_t>((p)+2) << 16) | \
-   ((uint32_t)xe::load<uint8_t>((p)+1) << 8) |  \
-   (uint32_t)xe::load<uint8_t>((p)+0))
+#define XEGETUINT24BE(p)                                   \
+  (((uint32_t)xe::load_and_swap<uint8_t>((p) + 0) << 16) | \
+   ((uint32_t)xe::load_and_swap<uint8_t>((p) + 1) << 8) |  \
+   (uint32_t)xe::load_and_swap<uint8_t>((p) + 2))
+#define XEGETUINT24LE(p)                          \
+  (((uint32_t)xe::load<uint8_t>((p) + 2) << 16) | \
+   ((uint32_t)xe::load<uint8_t>((p) + 1) << 8) |  \
+   (uint32_t)xe::load<uint8_t>((p) + 0))
 
 bool STFSVolumeDescriptor::Read(const uint8_t* p) {
   descriptor_size = xe::load_and_swap<uint8_t>(p + 0x00);

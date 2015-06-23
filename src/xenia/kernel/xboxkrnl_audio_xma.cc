@@ -132,9 +132,11 @@ SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
   auto context_init = (XMA_CONTEXT_INIT*)SHIM_MEM_ADDR(context_init_ptr);
 
   context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
-  context.input_buffer_0_packet_count = context_init->input_buffer_0_packet_count;
+  context.input_buffer_0_packet_count =
+      context_init->input_buffer_0_packet_count;
   context.input_buffer_1_ptr = context_init->input_buffer_1_ptr;
-  context.input_buffer_1_packet_count = context_init->input_buffer_1_packet_count;
+  context.input_buffer_1_packet_count =
+      context_init->input_buffer_1_packet_count;
   context.input_buffer_read_offset = context_init->input_buffer_read_offset;
   context.output_buffer_ptr = context_init->output_buffer_ptr;
   context.output_buffer_block_count = context_init->output_buffer_block_count;

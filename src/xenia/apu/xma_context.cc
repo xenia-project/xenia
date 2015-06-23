@@ -27,15 +27,15 @@ namespace xe {
 namespace apu {
 
 XmaContext::XmaContext()
-    : id_(0)
-    , guest_ptr_(0)
-    , is_allocated_(false)
-    , is_enabled_(false)
-    , decoding_packet_(false)
-    , codec_(nullptr)
-    , context_(nullptr)
-    , decoded_frame_(nullptr)
-    , packet_(nullptr) {}
+    : id_(0),
+      guest_ptr_(0),
+      is_allocated_(false),
+      is_enabled_(false),
+      decoding_packet_(false),
+      codec_(nullptr),
+      context_(nullptr),
+      decoded_frame_(nullptr),
+      packet_(nullptr) {}
 
 XmaContext::~XmaContext() {
   if (context_) {
@@ -48,11 +48,11 @@ XmaContext::~XmaContext() {
     av_frame_free(&decoded_frame_);
   }
   if (current_frame_) {
-    delete [] current_frame_;
+    delete[] current_frame_;
   }
 }
 
-int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
+int XmaContext::Setup(uint32_t id, Memory *memory, uint32_t guest_ptr) {
   id_ = id;
   memory_ = memory;
   guest_ptr_ = guest_ptr;
@@ -94,7 +94,7 @@ int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
   extra_data_.decode_flags = 0x10D6;
 
   context_->extradata_size = sizeof(extra_data_);
-  context_->extradata = (uint8_t*)&extra_data_;
+  context_->extradata = (uint8_t *)&extra_data_;
 
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
@@ -126,10 +126,11 @@ void XmaContext::Enable() {
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   XMA_CONTEXT_DATA data(context_ptr);
 
-  XELOGAPU("XmaContext: kicking context %d (%d/%d bytes)", id(),
+  XELOGAPU(
+      "XmaContext: kicking context %d (%d/%d bytes)", id(),
       (data.input_buffer_read_offset & ~0x7FF) / 8,
-      (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count)
-      * kBytesPerPacket);
+      (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count) *
+          kBytesPerPacket);
 
   // Reset valid flags so our audio decoder knows to process this one.
   data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
@@ -190,16 +191,20 @@ void XmaContext::Release() {
 
 int XmaContext::GetSampleRate(int id) {
   switch (id) {
-    case 0: return 24000;
-    case 1: return 32000;
-    case 2: return 44100;
-    case 3: return 48000;
+    case 0:
+      return 24000;
+    case 1:
+      return 32000;
+    case 2:
+      return 44100;
+    case 3:
+      return 48000;
   }
   assert_always();
   return 0;
 }
 
-void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
+void XmaContext::DecodePackets(XMA_CONTEXT_DATA &data) {
   SCOPE_profile_cpu_f("apu");
 
   // What I see:
@@ -231,10 +236,12 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
   // Output buffers are in raw PCM samples, 256 bytes per block.
   // Output buffer is a ring buffer. We need to write from the write offset
   // to the read offset.
-  uint8_t* output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
+  uint8_t *output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
   uint32_t output_capacity = data.output_buffer_block_count * kBytesPerSubframe;
-  uint32_t output_read_offset = data.output_buffer_read_offset * kBytesPerSubframe;
-  uint32_t output_write_offset = data.output_buffer_write_offset * kBytesPerSubframe;
+  uint32_t output_read_offset =
+      data.output_buffer_read_offset * kBytesPerSubframe;
+  uint32_t output_write_offset =
+      data.output_buffer_write_offset * kBytesPerSubframe;
 
   RingBuffer output_rb(output_buffer, output_capacity);
   output_rb.set_read_offset(output_read_offset);
@@ -254,7 +261,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
     while (decode_attempts_remaining) {
       read_bytes = DecodePacket(work_buffer, 0, output_remaining_bytes);
       if (read_bytes >= 0) {
-        //assert_true((read_bytes % 256) == 0);
+        // assert_true((read_bytes % 256) == 0);
         auto written_bytes = output_rb.Write(work_buffer, read_bytes);
         assert_true(read_bytes == written_bytes);
 
@@ -269,7 +276,8 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
     }
 
     if (!decode_attempts_remaining) {
-      XELOGAPU("XmaContext: libav failed to decode packet (returned %.8X)", -read_bytes);
+      XELOGAPU("XmaContext: libav failed to decode packet (returned %.8X)",
+               -read_bytes);
 
       // Failed out.
       if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
@@ -309,10 +317,10 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
 
 int XmaContext::StartPacket(XMA_CONTEXT_DATA &data) {
   // Translate pointers for future use.
-  uint8_t* in0 = data.input_buffer_0_valid
+  uint8_t *in0 = data.input_buffer_0_valid
                      ? memory()->TranslatePhysical(data.input_buffer_0_ptr)
                      : nullptr;
-  uint8_t* in1 = data.input_buffer_1_valid
+  uint8_t *in1 = data.input_buffer_1_valid
                      ? memory()->TranslatePhysical(data.input_buffer_1_ptr)
                      : nullptr;
 
@@ -348,9 +356,8 @@ int XmaContext::StartPacket(XMA_CONTEXT_DATA &data) {
     // Still have data to read.
     auto packet = input_buffer + input_offset_bytes;
     assert_true(input_offset_bytes % 2048 == 0);
-    PreparePacket(packet, seq_offset_bytes,
-                  kBytesPerPacket,
-                  sample_rate, channels);
+    PreparePacket(packet, seq_offset_bytes, kBytesPerPacket, sample_rate,
+                  channels);
     data.input_buffer_read_offset += kBytesPerPacket * 8;
 
     input_remaining_bytes -= kBytesPerPacket;
@@ -395,7 +402,8 @@ int XmaContext::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
 
     context_->sample_rate = sample_rate;
     context_->channels = channels;
-    extra_data_.channel_mask = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_MONO;
+    extra_data_.channel_mask =
+        channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_MONO;
 
     if (avcodec_open2(context_, codec_, NULL) < 0) {
       XELOGE("XmaContext: Failed to reopen libav context");
@@ -487,8 +495,7 @@ int XmaContext::DecodePacket(uint8_t *output, size_t output_offset,
 
       // Total size of the frame's samples
       // Magic number 2 is sizeof an output sample
-      frame_samples_size_ =
-          context_->channels * decoded_frame_->nb_samples * 2;
+      frame_samples_size_ = context_->channels * decoded_frame_->nb_samples * 2;
 
       to_copy = std::min(output_size, (size_t)(frame_samples_size_));
       std::memcpy(output + output_offset, current_frame_, to_copy);

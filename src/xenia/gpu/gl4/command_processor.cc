@@ -92,9 +92,9 @@ bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(graphics_system_->emulator()->kernel_state(),
                               128 * 1024, 0, [this]() {
-    WorkerThreadMain();
-    return 0;
-  }));
+                                WorkerThreadMain();
+                                return 0;
+                              }));
   worker_thread_->set_name("GL4 Worker");
   worker_thread_->Create();
 
@@ -2881,10 +2881,10 @@ bool CommandProcessor::IssueCopy() {
     /* glClearNamedFramebufferfi(source_framebuffer->framebuffer,
                              GL_DEPTH_STENCIL,
                              depth, stencil);*/
-    glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_DEPTH,
-                              0, &depth);
-    glClearNamedFramebufferiv(source_framebuffer->framebuffer, GL_STENCIL,
-                              0, &stencil);                           
+    glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_DEPTH, 0,
+                              &depth);
+    glClearNamedFramebufferiv(source_framebuffer->framebuffer, GL_STENCIL, 0,
+                              &stencil);
     glDepthMask(old_depth_mask);
     glStencilMask(old_stencil_mask);
   }

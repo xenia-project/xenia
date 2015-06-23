@@ -21,13 +21,14 @@ namespace Native {
 using namespace System;
 using namespace System::Text;
 
-public ref class Disassembler {
+public
+ref class Disassembler {
  public:
   Disassembler();
   ~Disassembler();
 
-  String^ DisassemblePPC(IntPtr code_address, size_t code_size);
-  String^ DisassembleX64(IntPtr code_address, size_t code_size);
+  String ^ DisassemblePPC(IntPtr code_address, size_t code_size);
+  String ^ DisassembleX64(IntPtr code_address, size_t code_size);
 
  private:
   uintptr_t capstone_handle_;

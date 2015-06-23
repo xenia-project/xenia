@@ -66,7 +66,8 @@ bool X64CodeCache::Initialize() {
 
   // Create mmap file. This allows us to share the code cache with the debugger.
   wchar_t file_name[256];
-  wsprintf(file_name, L"Local\\xenia_code_cache_%p", Clock::QueryHostTickCount());
+  wsprintf(file_name, L"Local\\xenia_code_cache_%p",
+           Clock::QueryHostTickCount());
   file_name_ = file_name;
   mapping_ = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
                                PAGE_EXECUTE_READWRITE | SEC_RESERVE, 0,

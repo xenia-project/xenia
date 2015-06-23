@@ -5,7 +5,6 @@
 
 #include "flatbuffers/flatbuffers.h"
 
-
 namespace xe {
 namespace debug {
 namespace proto {
@@ -17,8 +16,7 @@ MANUALLY_ALIGNED_STRUCT(4) XObject FLATBUFFERS_FINAL_CLASS {
   uint32_t handle_;
 
  public:
-  XObject(uint32_t handle)
-    : handle_(flatbuffers::EndianScalar(handle)) { }
+  XObject(uint32_t handle) : handle_(flatbuffers::EndianScalar(handle)) {}
 
   uint32_t handle() const { return flatbuffers::EndianScalar(handle_); }
 };

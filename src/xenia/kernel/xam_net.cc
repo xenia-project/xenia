@@ -35,11 +35,11 @@ enum {
 // https://github.com/pmrowla/hl2sdk-csgo/blob/master/common/xbox/xboxstubs.h
 typedef struct {
   // FYI: IN_ADDR should be in network-byte order.
-  IN_ADDR           ina;           // IP address (zero if not static/DHCP)
-  IN_ADDR           inaOnline;     // Online IP address (zero if not online)
-  xe::be<uint16_t>  wPortOnline;   // Online port
-  uint8_t           abEnet[6];     // Ethernet MAC address
-  uint8_t           abOnline[20];  // Online identification
+  IN_ADDR ina;                   // IP address (zero if not static/DHCP)
+  IN_ADDR inaOnline;             // Online IP address (zero if not online)
+  xe::be<uint16_t> wPortOnline;  // Online port
+  uint8_t abEnet[6];             // Ethernet MAC address
+  uint8_t abOnline[20];          // Online identification
 } XNADDR;
 
 void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
@@ -208,23 +208,23 @@ SHIM_CALL NetDll_WSAGetLastError_shim(PPCContext* ppc_context,
 
 struct XnAddrStatus {
   // Address acquisition is not yet complete
-  const static uint32_t XNET_GET_XNADDR_PENDING   = 0x00000000;
+  const static uint32_t XNET_GET_XNADDR_PENDING = 0x00000000;
   // XNet is uninitialized or no debugger found
-  const static uint32_t XNET_GET_XNADDR_NONE      = 0x00000001;
+  const static uint32_t XNET_GET_XNADDR_NONE = 0x00000001;
   // Host has ethernet address (no IP address)
-  const static uint32_t XNET_GET_XNADDR_ETHERNET  = 0x00000002;
+  const static uint32_t XNET_GET_XNADDR_ETHERNET = 0x00000002;
   // Host has statically assigned IP address
-  const static uint32_t XNET_GET_XNADDR_STATIC    = 0x00000004;
+  const static uint32_t XNET_GET_XNADDR_STATIC = 0x00000004;
   // Host has DHCP assigned IP address
-  const static uint32_t XNET_GET_XNADDR_DHCP      = 0x00000008;
+  const static uint32_t XNET_GET_XNADDR_DHCP = 0x00000008;
   // Host has PPPoE assigned IP address
-  const static uint32_t XNET_GET_XNADDR_PPPOE     = 0x00000010;
+  const static uint32_t XNET_GET_XNADDR_PPPOE = 0x00000010;
   // Host has one or more gateways configured
-  const static uint32_t XNET_GET_XNADDR_GATEWAY   = 0x00000020;
+  const static uint32_t XNET_GET_XNADDR_GATEWAY = 0x00000020;
   // Host has one or more DNS servers configured
-  const static uint32_t XNET_GET_XNADDR_DNS       = 0x00000040;
+  const static uint32_t XNET_GET_XNADDR_DNS = 0x00000040;
   // Host is currently connected to online service
-  const static uint32_t XNET_GET_XNADDR_ONLINE    = 0x00000080;
+  const static uint32_t XNET_GET_XNADDR_ONLINE = 0x00000080;
   // Network configuration requires troubleshooting
   const static uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
 };
@@ -563,8 +563,8 @@ SHIM_CALL NetDll_sendto_shim(PPCContext* ppc_context,
   uint32_t to_ptr = SHIM_GET_ARG_32(5);
   uint32_t tolen = SHIM_GET_ARG_32(6);
 
-  XELOGD("NetDll_sendto(%d, %.8X, %.8X, %d, %d, %.8X, %d)", caller, socket_handle,
-         buf_ptr, len, flags, to_ptr, tolen);
+  XELOGD("NetDll_sendto(%d, %.8X, %.8X, %d, %d, %.8X, %d)", caller,
+         socket_handle, buf_ptr, len, flags, to_ptr, tolen);
 
   sockaddr to;
   LoadSockaddr(SHIM_MEM_ADDR(to_ptr), &to);

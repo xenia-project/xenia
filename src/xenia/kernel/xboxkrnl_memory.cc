@@ -549,7 +549,8 @@ SHIM_CALL KeUnlockL2_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   XELOGD("KeUnlockL2(?)");
 }
 
-SHIM_CALL MmCreateKernelStack_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL MmCreateKernelStack_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   auto stack_size = SHIM_GET_ARG_32(0);
   auto unk1 = SHIM_GET_ARG_32(1);
 
@@ -562,13 +563,14 @@ SHIM_CALL MmCreateKernelStack_shim(PPCContext* ppc_context, KernelState* kernel_
   kernel_state->memory()
       ->LookupHeap(0x70000000)
       ->AllocRange(0x70000000, 0x7FFFFFFF, stack_size, stack_alignment,
-          kMemoryAllocationReserve | kMemoryAllocationCommit,
-          kMemoryProtectRead | kMemoryProtectWrite, false,
-          &stack_address);
+                   kMemoryAllocationReserve | kMemoryAllocationCommit,
+                   kMemoryProtectRead | kMemoryProtectWrite, false,
+                   &stack_address);
   SHIM_SET_RETURN_32(stack_address + stack_size);
 }
 
-SHIM_CALL MmDeleteKernelStack_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL MmDeleteKernelStack_shim(PPCContext* ppc_context,
+                                   KernelState* kernel_state) {
   auto unk0 = SHIM_GET_ARG_32(0);
   auto unk1 = SHIM_GET_ARG_32(1);
 

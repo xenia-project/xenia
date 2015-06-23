@@ -38,15 +38,14 @@ namespace apu {
 using namespace xe::cpu;
 
 AudioSystem::AudioSystem(Emulator* emulator)
-    : emulator_(emulator),
-      memory_(emulator->memory()),
-      worker_running_(false) {
+    : emulator_(emulator), memory_(emulator->memory()), worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     unused_clients_.push(i);
   }
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    client_semaphores_[i] = CreateSemaphore(NULL, 0, kMaximumQueuedFrames, NULL);
+    client_semaphores_[i] =
+        CreateSemaphore(NULL, 0, kMaximumQueuedFrames, NULL);
     wait_handles_[i] = client_semaphores_[i];
   }
   shutdown_event_ = CreateEvent(NULL, TRUE, FALSE, NULL);

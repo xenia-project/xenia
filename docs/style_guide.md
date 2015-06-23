@@ -15,6 +15,16 @@ Code that really breaks from the formatting rules will not be accepted, as then
 no one else can use clang-format on the code without also touching all your
 lines.
 
+The buildbot runs `xb lint --all` on the master branch, and will run
+`xb lint --origin` on pull requests. Run `xb format` before you commit each
+local change so that you are consistently clean, otherwise you may have to
+rebase. If you forget, run `xb format --origin` and rebase your changes (so you
+don't end up with 5 changes and then a 6th 'whoops' one - that's nasty).
+
+The buildbot is running LLVM 3.6.1. If you are noticing style differences
+between your local lint/format and the buildbot, ensure you are running that
+version.
+
 ## Tools
 
 ### clang-format

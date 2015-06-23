@@ -182,7 +182,8 @@ int Memory::Initialize() {
   heaps_.v00000000.AllocFixed(
       0x00000000, 4096, 4096,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
-      !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite : kMemoryProtectNoAccess);
+      !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
+                          : kMemoryProtectNoAccess);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
@@ -771,7 +772,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     page_entry.state = kMemoryAllocationReserve | allocation_type;
   }
 
-  *out_address = heap_base_ + start_page_number * page_size_;
+  *out_address = heap_base_ + start_page_number* page_size_;
   return true;
 }
 
@@ -818,7 +819,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   }
 
   if (out_region_size) {
-    *out_region_size = base_page_entry.region_page_count * page_size_;
+    *out_region_size = base_page_entry.region_page_count* page_size_;
   }
 
   // Release from host not needed as mapping reserves the range for us.
@@ -968,7 +969,7 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
   }
   std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
   auto page_entry = page_table_[page_number];
-  *out_size = page_entry.region_page_count * page_size_;
+  *out_size = page_entry.region_page_count* page_size_;
   return true;
 }
 

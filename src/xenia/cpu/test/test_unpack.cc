@@ -20,23 +20,25 @@ TEST_CASE("UNPACK_D3DCOLOR", "[instr]") {
     StoreVR(b, 3, b.Unpack(LoadVR(b, 4), PACK_TYPE_D3DCOLOR));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             uint32_t value = 0;
-             ctx->v[4] = vec128i(0, 0, 0, value);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result == vec128f(1.0f, 1.0f, 1.0f, 1.0f));
-           });
-  test.Run([](PPCContext* ctx) {
-             uint32_t value = 0x80506070;
-             ctx->v[4] = vec128i(0, 0, 0, value);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result ==
-                     vec128i(0x3F800050, 0x3F800060, 0x3F800070, 0x3F800080));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        uint32_t value = 0;
+        ctx->v[4] = vec128i(0, 0, 0, value);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result == vec128f(1.0f, 1.0f, 1.0f, 1.0f));
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        uint32_t value = 0x80506070;
+        ctx->v[4] = vec128i(0, 0, 0, value);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result ==
+                vec128i(0x3F800050, 0x3F800060, 0x3F800070, 0x3F800080));
+      });
 }
 
 TEST_CASE("UNPACK_FLOAT16_2", "[instr]") {
@@ -73,14 +75,15 @@ TEST_CASE("UNPACK_FLOAT16_4", "[instr]") {
              auto result = ctx->v[3];
              REQUIRE(result == vec128i(0));
            });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] = vec128s(0, 0, 0, 0, 0x64D2, 0x6D8B, 0x4881, 0x4491);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result ==
-                     vec128i(0x449A4000, 0x45B16000, 0x41102000, 0x40922000));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128s(0, 0, 0, 0, 0x64D2, 0x6D8B, 0x4881, 0x4491);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result ==
+                vec128i(0x449A4000, 0x45B16000, 0x41102000, 0x40922000));
+      });
 }
 
 TEST_CASE("UNPACK_SHORT_2", "[instr]") {
@@ -94,23 +97,24 @@ TEST_CASE("UNPACK_SHORT_2", "[instr]") {
              REQUIRE(result ==
                      vec128i(0x40400000, 0x40400000, 0x00000000, 0x3F800000));
            });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] =
-                 vec128i(0x7004FD60, 0x8201C990, 0x00000000, 0x7FFF8001);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result ==
-                     vec128i(0x40407FFF, 0x403F8001, 0x00000000, 0x3F800000));
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] = vec128i(0, 0, 0, (0x1234u << 16) | 0x5678u);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result ==
-                     vec128i(0x40401234, 0x40405678, 0x00000000, 0x3F800000));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128i(0x7004FD60, 0x8201C990, 0x00000000, 0x7FFF8001);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result ==
+                vec128i(0x40407FFF, 0x403F8001, 0x00000000, 0x3F800000));
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128i(0, 0, 0, (0x1234u << 16) | 0x5678u);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result ==
+                vec128i(0x40401234, 0x40405678, 0x00000000, 0x3F800000));
+      });
 }
 
 // TEST_CASE("UNPACK_S8_IN_16_LO", "[instr]") {

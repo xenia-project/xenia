@@ -65,41 +65,41 @@ void Disasm_X_FRT_RA0_RB(InstrData& i, StringBuffer* str) {
 }
 void Disasm_D_RT_RA_I(InstrData& i, StringBuffer* str) {
   str->AppendFormat("%-8s r%d, r%d, %d", i.type->name, i.D.RT, i.D.RA,
-                    (int32_t)(int16_t) XEEXTS16(i.D.DS));
+                    (int32_t)(int16_t)XEEXTS16(i.D.DS));
 }
 void Disasm_D_RT_RA0_I(InstrData& i, StringBuffer* str) {
   if (i.D.RA) {
     str->AppendFormat("%-8s r%d, r%d, %d", i.type->name, i.D.RT, i.D.RA,
-                      (int32_t)(int16_t) XEEXTS16(i.D.DS));
+                      (int32_t)(int16_t)XEEXTS16(i.D.DS));
   } else {
     str->AppendFormat("%-8s r%d, 0, %d", i.type->name, i.D.RT,
-                      (int32_t)(int16_t) XEEXTS16(i.D.DS));
+                      (int32_t)(int16_t)XEEXTS16(i.D.DS));
   }
 }
 void Disasm_D_FRT_RA_I(InstrData& i, StringBuffer* str) {
   str->AppendFormat("%-8s f%d, r%d, %d", i.type->name, i.D.RT, i.D.RA,
-                    (int32_t)(int16_t) XEEXTS16(i.D.DS));
+                    (int32_t)(int16_t)XEEXTS16(i.D.DS));
 }
 void Disasm_D_FRT_RA0_I(InstrData& i, StringBuffer* str) {
   if (i.D.RA) {
     str->AppendFormat("%-8s f%d, r%d, %d", i.type->name, i.D.RT, i.D.RA,
-                      (int32_t)(int16_t) XEEXTS16(i.D.DS));
+                      (int32_t)(int16_t)XEEXTS16(i.D.DS));
   } else {
     str->AppendFormat("%-8s f%d, 0, %d", i.type->name, i.D.RT,
-                      (int32_t)(int16_t) XEEXTS16(i.D.DS));
+                      (int32_t)(int16_t)XEEXTS16(i.D.DS));
   }
 }
 void Disasm_DS_RT_RA_I(InstrData& i, StringBuffer* str) {
   str->AppendFormat("%-8s r%d, r%d, %d", i.type->name, i.DS.RT, i.DS.RA,
-                    (int32_t)(int16_t) XEEXTS16(i.DS.DS << 2));
+                    (int32_t)(int16_t)XEEXTS16(i.DS.DS << 2));
 }
 void Disasm_DS_RT_RA0_I(InstrData& i, StringBuffer* str) {
   if (i.DS.RA) {
     str->AppendFormat("%-8s r%d, r%d, %d", i.type->name, i.DS.RT, i.DS.RA,
-                      (int32_t)(int16_t) XEEXTS16(i.DS.DS << 2));
+                      (int32_t)(int16_t)XEEXTS16(i.DS.DS << 2));
   } else {
     str->AppendFormat("%-8s r%d, 0, %d", i.type->name, i.DS.RT,
-                      (int32_t)(int16_t) XEEXTS16(i.DS.DS << 2));
+                      (int32_t)(int16_t)XEEXTS16(i.DS.DS << 2));
   }
 }
 void Disasm_D_RA(InstrData& i, StringBuffer* str) {

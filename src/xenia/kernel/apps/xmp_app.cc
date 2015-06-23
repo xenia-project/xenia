@@ -302,7 +302,7 @@ X_RESULT XXMPApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         playlist_name = L"";
       } else {
         playlist_name = xe::load_and_swap<std::wstring>(
-          memory_->TranslateVirtual(playlist_name_ptr));
+            memory_->TranslateVirtual(playlist_name_ptr));
       }
       // dummy_alloc_ptr is the result of a XamAlloc of storage_size.
       assert_true(storage_size == 4 + song_count * 128);

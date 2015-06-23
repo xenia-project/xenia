@@ -214,7 +214,8 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
   out_header->setting_count = setting_count;
   out_header->settings_ptr = buffer_ptr + 8;
 
-  auto out_setting = (X_USER_READ_PROFILE_SETTING*)SHIM_MEM_ADDR(out_header->settings_ptr);
+  auto out_setting =
+      (X_USER_READ_PROFILE_SETTING*)SHIM_MEM_ADDR(out_header->settings_ptr);
 
   size_t buffer_offset = base_size_needed;
   for (uint32_t n = 0; n < setting_count; ++n) {
@@ -227,10 +228,12 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     out_setting->setting_id = setting_id;
 
     if (setting) {
-      buffer_offset = setting->Append(&out_setting->setting_data[0],
-                                      SHIM_MEM_ADDR(buffer_ptr), buffer_ptr, buffer_offset);
+      buffer_offset =
+          setting->Append(&out_setting->setting_data[0],
+                          SHIM_MEM_ADDR(buffer_ptr), buffer_ptr, buffer_offset);
     } /*else {
-      std::memset(&out_setting->setting_data[0], 0, sizeof(out_setting->setting_data));
+      std::memset(&out_setting->setting_data[0], 0,
+    sizeof(out_setting->setting_data));
     }*/
     ++out_setting;
   }

@@ -64,7 +64,7 @@ struct XAPC {
 struct X_THREAD {
   X_DISPATCH_HEADER header;
   xe::be<uint64_t> cycle_time;
-  xe::be<uint32_t> high_cycle_time; // FIXME: Needed?
+  xe::be<uint32_t> high_cycle_time;  // FIXME: Needed?
   xe::be<uint64_t> quantum_target;
   xe::be<uint32_t> initial_stack_ptr;
   xe::be<uint32_t> stack_limit_ptr;
@@ -166,14 +166,14 @@ class XThread : public XObject {
 };
 
 class XHostThread : public XThread {
-  public:
-    XHostThread(KernelState* kernel_state, uint32_t stack_size,
-                uint32_t creation_flags, std::function<int()> host_fn);
+ public:
+  XHostThread(KernelState* kernel_state, uint32_t stack_size,
+              uint32_t creation_flags, std::function<int()> host_fn);
 
-    virtual void Execute();
+  virtual void Execute();
 
-  private:
-    std::function<int()> host_fn_;
+ private:
+  std::function<int()> host_fn_;
 };
 
 }  // namespace kernel

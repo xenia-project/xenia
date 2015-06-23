@@ -20,19 +20,19 @@ TEST_CASE("VECTOR_SHR_I8", "[instr]") {
     StoreVR(b, 3, b.VectorShr(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] =
-                 vec128b(0x7E, 0x7E, 0x7E, 0x7F, 0x80, 0xFF, 0x01, 0x12, 0x00,
-                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-             ctx->v[5] =
-                 vec128b(0, 1, 2, 8, 4, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result == vec128b(0x7E, 0x3F, 0x1F, 0x7F, 0x08, 0x0F, 0x00,
-                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                       0x00, 0x00));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128b(0x7E, 0x7E, 0x7E, 0x7F, 0x80, 0xFF, 0x01, 0x12,
+                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+        ctx->v[5] =
+            vec128b(0, 1, 2, 8, 4, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result == vec128b(0x7E, 0x3F, 0x1F, 0x7F, 0x08, 0x0F, 0x00,
+                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                  0x00, 0x00));
+      });
 }
 
 TEST_CASE("VECTOR_SHR_I8_CONSTANT", "[instr]") {
@@ -43,17 +43,17 @@ TEST_CASE("VECTOR_SHR_I8_CONSTANT", "[instr]") {
                               INT8_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] =
-                 vec128b(0x7E, 0x7E, 0x7E, 0x7F, 0x80, 0xFF, 0x01, 0x12, 0x00,
-                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result == vec128b(0x7E, 0x3F, 0x1F, 0x7F, 0x08, 0x0F, 0x00,
-                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                       0x00, 0x00));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128b(0x7E, 0x7E, 0x7E, 0x7F, 0x80, 0xFF, 0x01, 0x12,
+                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result == vec128b(0x7E, 0x3F, 0x1F, 0x7F, 0x08, 0x0F, 0x00,
+                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                  0x00, 0x00));
+      });
 }
 
 TEST_CASE("VECTOR_SHR_I16", "[instr]") {
@@ -61,16 +61,17 @@ TEST_CASE("VECTOR_SHR_I16", "[instr]") {
     StoreVR(b, 3, b.VectorShr(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] = vec128s(0x7FFE, 0x7FFE, 0x7FFE, 0x7FFF, 0x8000, 0xFFFF,
-                                 0x0001, 0x1234);
-             ctx->v[5] = vec128s(0, 1, 8, 15, 15, 8, 1, 16);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result == vec128s(0x7FFE, 0x3FFF, 0x007F, 0x0000, 0x0001,
-                                       0x00FF, 0x0000, 0x1234));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128s(0x7FFE, 0x7FFE, 0x7FFE, 0x7FFF, 0x8000, 0xFFFF,
+                            0x0001, 0x1234);
+        ctx->v[5] = vec128s(0, 1, 8, 15, 15, 8, 1, 16);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result == vec128s(0x7FFE, 0x3FFF, 0x007F, 0x0000, 0x0001,
+                                  0x00FF, 0x0000, 0x1234));
+      });
 }
 
 TEST_CASE("VECTOR_SHR_I16_CONSTANT", "[instr]") {
@@ -80,15 +81,16 @@ TEST_CASE("VECTOR_SHR_I16_CONSTANT", "[instr]") {
                               INT16_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] = vec128s(0x7FFE, 0x7FFE, 0x7FFE, 0x7FFF, 0x8000, 0xFFFF,
-                                 0x0001, 0x1234);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result == vec128s(0x7FFE, 0x3FFF, 0x007F, 0x0000, 0x0001,
-                                       0x00FF, 0x0000, 0x1234));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128s(0x7FFE, 0x7FFE, 0x7FFE, 0x7FFF, 0x8000, 0xFFFF,
+                            0x0001, 0x1234);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result == vec128s(0x7FFE, 0x3FFF, 0x007F, 0x0000, 0x0001,
+                                  0x00FF, 0x0000, 0x1234));
+      });
 }
 
 TEST_CASE("VECTOR_SHR_I32", "[instr]") {
@@ -96,26 +98,26 @@ TEST_CASE("VECTOR_SHR_I32", "[instr]") {
     StoreVR(b, 3, b.VectorShr(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE));
     b.Return();
   });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] =
-                 vec128i(0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFF);
-             ctx->v[5] = vec128i(0, 1, 16, 31);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result ==
-                     vec128i(0x7FFFFFFE, 0x3FFFFFFF, 0x00007FFF, 0x00000000));
-           });
-  test.Run([](PPCContext* ctx) {
-             ctx->v[4] =
-                 vec128i(0x80000000, 0xFFFFFFFF, 0x00000001, 0x12345678);
-             ctx->v[5] = vec128i(31, 16, 1, 32);
-           },
-           [](PPCContext* ctx) {
-             auto result = ctx->v[3];
-             REQUIRE(result ==
-                     vec128i(0x00000001, 0x0000FFFF, 0x00000000, 0x12345678));
-           });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128i(0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFE, 0x7FFFFFFF);
+        ctx->v[5] = vec128i(0, 1, 16, 31);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result ==
+                vec128i(0x7FFFFFFE, 0x3FFFFFFF, 0x00007FFF, 0x00000000));
+      });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128i(0x80000000, 0xFFFFFFFF, 0x00000001, 0x12345678);
+        ctx->v[5] = vec128i(31, 16, 1, 32);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result ==
+                vec128i(0x00000001, 0x0000FFFF, 0x00000000, 0x12345678));
+      });
 }
 
 TEST_CASE("VECTOR_SHR_I32_CONSTANT", "[instr]") {

@@ -70,7 +70,7 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
   // Zero out new memory.
   if (new_table_size > old_table_size) {
     std::memset(reinterpret_cast<uint8_t*>(new_table) + old_table_size, 0,
-           new_table_size - old_table_size);
+                new_table_size - old_table_size);
   }
   last_free_entry_ = table_capacity_;
   table_capacity_ = new_table_capacity;
@@ -120,7 +120,7 @@ X_STATUS ObjectTable::DuplicateHandle(X_HANDLE handle, X_HANDLE* out_handle) {
   XObject* object = LookupObject(handle, false);
   if (object) {
     result = AddHandle(object, out_handle);
-    object->Release(); // Release the ref that LookupObject took
+    object->Release();  // Release the ref that LookupObject took
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }

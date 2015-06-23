@@ -486,12 +486,14 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL KeInitializeEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL KeInitializeEvent_shim(PPCContext* ppc_context,
+                                 KernelState* kernel_state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
   uint32_t event_type = SHIM_GET_ARG_32(1);
   uint32_t initial_state = SHIM_GET_ARG_32(2);
 
-  XELOGD("KeInitializeEvent(%.8X, %.8X, %.8X)", handle_ptr, event_type, initial_state);
+  XELOGD("KeInitializeEvent(%.8X, %.8X, %.8X)", handle_ptr, event_type,
+         initial_state);
 
   XEvent* ev = new XEvent(kernel_state);
   ev->Initialize(!event_type, !!initial_state);
@@ -876,13 +878,12 @@ SHIM_CALL KeWaitForSingleObject_shim(PPCContext* ppc_context,
 
   object_ref<XObject> object;
   if (object_ptr < 0x1000) {
-      // They passed in a handle (for some reason)
-      object = kernel_state->object_table()->LookupObject<XObject>(object_ptr);
+    // They passed in a handle (for some reason)
+    object = kernel_state->object_table()->LookupObject<XObject>(object_ptr);
 
-      // Log it in case this is the source of any problems in the future
-      XELOGD("KeWaitForSingleObject - Interpreting object ptr as handle!");
-  }
-  else {
+    // Log it in case this is the source of any problems in the future
+    XELOGD("KeWaitForSingleObject - Interpreting object ptr as handle!");
+  } else {
     object = XObject::GetNativeObject<XObject>(kernel_state,
                                                SHIM_MEM_ADDR(object_ptr));
   }

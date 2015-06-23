@@ -41,9 +41,7 @@ class XmaDecoder {
   virtual X_STATUS Setup();
   virtual void Shutdown();
 
-  uint32_t context_array_ptr() const {
-    return registers_.context_array_ptr;
-  }
+  uint32_t context_array_ptr() const { return registers_.context_array_ptr; }
 
   uint32_t AllocateContext();
   void ReleaseContext(uint32_t guest_ptr);

@@ -477,11 +477,9 @@ struct X_IO_STATUS_BLOCK {
   xe::be<uint32_t> information;
 };
 
-dword_result_t NtQueryInformationFile(dword_t file_handle,
-                                      pointer_t<X_IO_STATUS_BLOCK>
-                                      io_status_block_ptr,
-                                      lpvoid_t file_info_ptr, dword_t length,
-                                      dword_t file_info_class) {
+dword_result_t NtQueryInformationFile(
+    dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
+    lpvoid_t file_info_ptr, dword_t length, dword_t file_info_class) {
   X_STATUS result = X_STATUS_SUCCESS;
   uint32_t info = 0;
 
@@ -567,13 +565,13 @@ dword_result_t NtQueryInformationFile(dword_t file_handle,
 
   if (io_status_block_ptr) {
     io_status_block_ptr->status = result;
-    io_status_block_ptr->information = info; // # bytes written
+    io_status_block_ptr->information = info;  // # bytes written
   }
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtQueryInformationFile, ExportTag::kImplemented |
-                                                ExportTag::kFileSystem);
+DECLARE_XBOXKRNL_EXPORT(NtQueryInformationFile,
+                        ExportTag::kImplemented | ExportTag::kFileSystem);
 
 SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
                                          KernelState* kernel_state) {

@@ -48,7 +48,8 @@ class AudioSystem {
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
-  // TODO(gibbed): respect XAUDIO2_MAX_QUEUED_BUFFERS somehow (ie min(64, XAUDIO2_MAX_QUEUED_BUFFERS))
+  // TODO(gibbed): respect XAUDIO2_MAX_QUEUED_BUFFERS somehow (ie min(64,
+  // XAUDIO2_MAX_QUEUED_BUFFERS))
   static const size_t kMaximumQueuedFrames = 64;
 
  protected:
@@ -79,7 +80,7 @@ class AudioSystem {
   } clients_[kMaximumClientCount];
 
   HANDLE client_semaphores_[kMaximumClientCount];
-  HANDLE shutdown_event_; // Event is always there in case we have no clients.
+  HANDLE shutdown_event_;  // Event is always there in case we have no clients.
   HANDLE wait_handles_[kMaximumClientCount + 1];
   std::queue<size_t> unused_clients_;
 };

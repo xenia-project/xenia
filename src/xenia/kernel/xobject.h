@@ -67,7 +67,7 @@ struct X_OBJECT_HEADER {
   uint8_t quota_info_offset;
   uint8_t flags;
   union {
-    xe::be<uint32_t> object_create_info; // X_OBJECT_CREATE_INFORMATION
+    xe::be<uint32_t> object_create_info;  // X_OBJECT_CREATE_INFORMATION
     xe::be<uint32_t> quota_block_charged;
   };
   xe::be<uint32_t> security_descriptor;

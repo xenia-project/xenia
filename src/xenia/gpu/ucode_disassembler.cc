@@ -666,15 +666,22 @@ struct {
 } cf_instructions[] = {
 #define INSTR(opc, fxn) \
   { #opc, fxn }
-    INSTR(NOP, print_cf_nop), INSTR(EXEC, print_cf_exec),
-    INSTR(EXEC_END, print_cf_exec), INSTR(COND_EXEC, print_cf_exec),
-    INSTR(COND_EXEC_END, print_cf_exec), INSTR(COND_PRED_EXEC, print_cf_exec),
-    INSTR(COND_PRED_EXEC_END, print_cf_exec), INSTR(LOOP_START, print_cf_loop),
-    INSTR(LOOP_END, print_cf_loop), INSTR(COND_CALL, print_cf_jmp_call),
-    INSTR(RETURN, print_cf_jmp_call), INSTR(COND_JMP, print_cf_jmp_call),
-    INSTR(ALLOC, print_cf_alloc), INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),
-    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),
-    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),  // ??
+    INSTR(NOP, print_cf_nop),                        //
+    INSTR(EXEC, print_cf_exec),                      //
+    INSTR(EXEC_END, print_cf_exec),                  //
+    INSTR(COND_EXEC, print_cf_exec),                 //
+    INSTR(COND_EXEC_END, print_cf_exec),             //
+    INSTR(COND_PRED_EXEC, print_cf_exec),            //
+    INSTR(COND_PRED_EXEC_END, print_cf_exec),        //
+    INSTR(LOOP_START, print_cf_loop),                //
+    INSTR(LOOP_END, print_cf_loop),                  //
+    INSTR(COND_CALL, print_cf_jmp_call),             //
+    INSTR(RETURN, print_cf_jmp_call),                //
+    INSTR(COND_JMP, print_cf_jmp_call),              //
+    INSTR(ALLOC, print_cf_alloc),                    //
+    INSTR(COND_EXEC_PRED_CLEAN, print_cf_exec),      //
+    INSTR(COND_EXEC_PRED_CLEAN_END, print_cf_exec),  //
+    INSTR(MARK_VS_FETCH_DONE, print_cf_nop),         // ??
 #undef INSTR
 };
 

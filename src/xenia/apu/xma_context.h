@@ -45,25 +45,25 @@ namespace apu {
 
 struct XMA_CONTEXT_DATA {
   // DWORD 0
-  uint32_t input_buffer_0_packet_count : 12; // XMASetInputBuffer0, number of
-                                             // 2KB packets. Max 4095 packets.
-                                             // These packets form a block.
-  uint32_t loop_count : 8;                   // +12bit, XMASetLoopData NumLoops
-  uint32_t input_buffer_0_valid : 1;         // +20bit, XMAIsInputBuffer0Valid
-  uint32_t input_buffer_1_valid : 1;         // +21bit, XMAIsInputBuffer1Valid
-  uint32_t output_buffer_block_count : 5;    // +22bit SizeWrite 256byte blocks
-  uint32_t output_buffer_write_offset : 5;   // +27bit
-                                             // XMAGetOutputBufferWriteOffset
-                                             // AKA OffsetWrite
+  uint32_t input_buffer_0_packet_count : 12;  // XMASetInputBuffer0, number of
+                                              // 2KB packets. Max 4095 packets.
+                                              // These packets form a block.
+  uint32_t loop_count : 8;                    // +12bit, XMASetLoopData NumLoops
+  uint32_t input_buffer_0_valid : 1;          // +20bit, XMAIsInputBuffer0Valid
+  uint32_t input_buffer_1_valid : 1;          // +21bit, XMAIsInputBuffer1Valid
+  uint32_t output_buffer_block_count : 5;     // +22bit SizeWrite 256byte blocks
+  uint32_t output_buffer_write_offset : 5;    // +27bit
+                                              // XMAGetOutputBufferWriteOffset
+                                              // AKA OffsetWrite
 
   // DWORD 1
-  uint32_t input_buffer_1_packet_count : 12; // XMASetInputBuffer1, number of
-                                             // 2KB packets. Max 4095 packets.
-                                             // These packets form a block.
-  uint32_t loop_subframe_end : 2;            // +12bit, XMASetLoopData
-  uint32_t unk_dword_1_a : 3;                // ? might be loop_subframe_skip
-  uint32_t loop_subframe_skip : 3;           // +17bit, XMASetLoopData might be
-                                             // subframe_decode_count
+  uint32_t input_buffer_1_packet_count : 12;  // XMASetInputBuffer1, number of
+                                              // 2KB packets. Max 4095 packets.
+                                              // These packets form a block.
+  uint32_t loop_subframe_end : 2;             // +12bit, XMASetLoopData
+  uint32_t unk_dword_1_a : 3;                 // ? might be loop_subframe_skip
+  uint32_t loop_subframe_skip : 3;            // +17bit, XMASetLoopData might be
+                                              // subframe_decode_count
   uint32_t subframe_decode_count : 4;  // +20bit might be subframe_skip_count
   uint32_t unk_dword_1_b : 3;          // ? NumSubframesToSkip/NumChannels(?)
   uint32_t sample_rate : 2;            // +27bit enum of sample rates
@@ -99,7 +99,7 @@ struct XMA_CONTEXT_DATA {
   uint32_t unk_dword_9 : 27;  // StopWhenDone/InterruptWhenDone(?)
 
   // DWORD 10-15
-  uint32_t unk_dwords_10_15[6]; // reserved?
+  uint32_t unk_dwords_10_15[6];  // reserved?
 
   XMA_CONTEXT_DATA(const void* ptr) {
     xe::copy_and_swap(reinterpret_cast<uint32_t*>(this),
@@ -117,86 +117,87 @@ static_assert_size(XMA_CONTEXT_DATA, 64);
 
 #pragma pack(push, 1)
 struct WmaProExtraData {
-    uint16_t bits_per_sample;
-    uint32_t channel_mask;
-    uint8_t unk06[8];
-    uint16_t decode_flags;
-    uint8_t unk10[2];
+  uint16_t bits_per_sample;
+  uint32_t channel_mask;
+  uint8_t unk06[8];
+  uint16_t decode_flags;
+  uint8_t unk10[2];
 };
 static_assert_size(WmaProExtraData, 18);
 #pragma pack(pop)
 
 class XmaContext {
-  public:
-    static const uint32_t kBytesPerPacket = 2048;
+ public:
+  static const uint32_t kBytesPerPacket = 2048;
 
-    static const uint32_t kBytesPerSample = 2;
-    static const uint32_t kSamplesPerFrame = 512;
-    static const uint32_t kSamplesPerSubframe = 128;
-    static const uint32_t kBytesPerSubframe = kSamplesPerSubframe * kBytesPerSample;
+  static const uint32_t kBytesPerSample = 2;
+  static const uint32_t kSamplesPerFrame = 512;
+  static const uint32_t kSamplesPerSubframe = 128;
+  static const uint32_t kBytesPerSubframe =
+      kSamplesPerSubframe * kBytesPerSample;
 
-    static const uint32_t kOutputBytesPerBlock = 256;
-    static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
+  static const uint32_t kOutputBytesPerBlock = 256;
+  static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
 
-    XmaContext();
-    ~XmaContext();
+  XmaContext();
+  ~XmaContext();
 
-    int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr);
-    void Work();
+  int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr);
+  void Work();
 
-    void Enable();
-    bool Block(bool poll);
-    void Clear();
-    void Disable();
-    void Release();
+  void Enable();
+  bool Block(bool poll);
+  void Clear();
+  void Disable();
+  void Release();
 
-    Memory* memory() const { return memory_; }
+  Memory* memory() const { return memory_; }
 
-    uint32_t id() { return id_; }
-    uint32_t guest_ptr() { return guest_ptr_; }
-    bool is_allocated() { return is_allocated_; }
-    bool is_enabled() { return is_enabled_; }
+  uint32_t id() { return id_; }
+  uint32_t guest_ptr() { return guest_ptr_; }
+  bool is_allocated() { return is_allocated_; }
+  bool is_enabled() { return is_enabled_; }
 
-    void set_is_allocated(bool is_allocated) { is_allocated_ = is_allocated; }
-    void set_is_enabled(bool is_enabled) { is_enabled_ = is_enabled; }
+  void set_is_allocated(bool is_allocated) { is_allocated_ = is_allocated; }
+  void set_is_enabled(bool is_enabled) { is_enabled_ = is_enabled; }
 
-  private:
-    static int GetSampleRate(int id);
+ private:
+  static int GetSampleRate(int id);
 
-    void DecodePackets(XMA_CONTEXT_DATA& data);
-    int StartPacket(XMA_CONTEXT_DATA &data);
+  void DecodePackets(XMA_CONTEXT_DATA& data);
+  int StartPacket(XMA_CONTEXT_DATA& data);
 
-    int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
-                      int sample_rate, int channels);
-    void DiscardPacket();
+  int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
+                    int sample_rate, int channels);
+  void DiscardPacket();
 
-    int DecodePacket(uint8_t* output, size_t offset, size_t size);
+  int DecodePacket(uint8_t* output, size_t offset, size_t size);
 
-    Memory* memory_;
+  Memory* memory_;
 
-    uint32_t id_;
-    uint32_t guest_ptr_;
-    xe::mutex lock_;
-    bool is_allocated_;
-    bool is_enabled_;
+  uint32_t id_;
+  uint32_t guest_ptr_;
+  xe::mutex lock_;
+  bool is_allocated_;
+  bool is_enabled_;
 
-    bool decoding_packet_;
+  bool decoding_packet_;
 
-    // libav structures
-    AVCodec* codec_;
-    AVCodecContext* context_;
-    AVFrame* decoded_frame_;
-    AVPacket* packet_;
-    WmaProExtraData extra_data_;
+  // libav structures
+  AVCodec* codec_;
+  AVCodecContext* context_;
+  AVFrame* decoded_frame_;
+  AVPacket* packet_;
+  WmaProExtraData extra_data_;
 
-    size_t current_frame_pos_;
-    uint8_t* current_frame_;
-    uint32_t frame_samples_size_;
+  size_t current_frame_pos_;
+  uint8_t* current_frame_;
+  uint32_t frame_samples_size_;
 
-    uint8_t packet_data_[kBytesPerPacket];
+  uint8_t packet_data_[kBytesPerPacket];
 };
 
-} // namespace apu
-} // namespace xe
+}  // namespace apu
+}  // namespace xe
 
 #endif  // XENIA_APU_XMA_CONTEXT_H_

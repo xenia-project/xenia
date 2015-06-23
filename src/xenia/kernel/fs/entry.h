@@ -65,8 +65,9 @@ class Entry {
   bool is_read_only() const;
 
   virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
-  virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                                  const char* file_name, bool restart) = 0;
+  virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
+                                  size_t length, const char* file_name,
+                                  bool restart) = 0;
 
   virtual bool can_map() { return false; }
 

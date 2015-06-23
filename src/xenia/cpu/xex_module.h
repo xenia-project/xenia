@@ -18,7 +18,9 @@
 namespace xe {
 
 // KernelState forward decl.
-namespace kernel { class KernelState; }
+namespace kernel {
+class KernelState;
+}
 
 namespace cpu {
 

@@ -42,7 +42,7 @@ Disassembler::~Disassembler() {
   delete string_buffer_;
 }
 
-String^ Disassembler::DisassemblePPC(IntPtr code_address, size_t code_size) {
+String ^ Disassembler::DisassemblePPC(IntPtr code_address, size_t code_size) {
   string_buffer_->Reset();
 
   auto code_base = reinterpret_cast<const uint32_t*>(code_address.ToPointer());
@@ -59,7 +59,7 @@ String^ Disassembler::DisassemblePPC(IntPtr code_address, size_t code_size) {
   return gcnew String(string_buffer_->ToString());
 }
 
-String^ Disassembler::DisassembleX64(IntPtr code_address, size_t code_size) {
+String ^ Disassembler::DisassembleX64(IntPtr code_address, size_t code_size) {
   string_buffer_->Reset();
 
   auto code_base = reinterpret_cast<const uint8_t*>(code_address.ToPointer());

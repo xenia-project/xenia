@@ -21,21 +21,24 @@ struct Thread;
 struct ListThreadsRequest;
 struct ListThreadsResponse;
 
-enum ThreadType {
-  ThreadType_Kernel = 0,
-  ThreadType_User = 1
-};
+enum ThreadType { ThreadType_Kernel = 0, ThreadType_User = 1 };
 
 inline const char **EnumNamesThreadType() {
-  static const char *names[] = { "Kernel", "User", nullptr };
+  static const char *names[] = {"Kernel", "User", nullptr};
   return names;
 }
 
-inline const char *EnumNameThreadType(ThreadType e) { return EnumNamesThreadType()[e]; }
+inline const char *EnumNameThreadType(ThreadType e) {
+  return EnumNamesThreadType()[e];
+}
 
 struct Thread FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  const xe::debug::proto::XObject *object() const { return GetStruct<const xe::debug::proto::XObject *>(4); }
-  ThreadType type() const { return static_cast<ThreadType>(GetField<int8_t>(6, 0)); }
+  const xe::debug::proto::XObject *object() const {
+    return GetStruct<const xe::debug::proto::XObject *>(4);
+  }
+  ThreadType type() const {
+    return static_cast<ThreadType>(GetField<int8_t>(6, 0));
+  }
   uint32_t stack_size() const { return GetField<uint32_t>(8, 0); }
   uint32_t xapi_thread_startup() const { return GetField<uint32_t>(10, 0); }
   uint32_t start_address() const { return GetField<uint32_t>(12, 0); }
@@ -76,8 +79,12 @@ struct Thread FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ThreadBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_object(const xe::debug::proto::XObject *object) { fbb_.AddStruct(4, object); }
-  void add_type(ThreadType type) { fbb_.AddElement<int8_t>(6, static_cast<int8_t>(type), 0); }
+  void add_object(const xe::debug::proto::XObject *object) {
+    fbb_.AddStruct(4, object);
+  }
+  void add_type(ThreadType type) {
+    fbb_.AddElement<int8_t>(6, static_cast<int8_t>(type), 0);
+  }
   void add_stack_size(uint32_t stack_size) {
     fbb_.AddElement<uint32_t>(8, stack_size, 0);
   }
@@ -115,7 +122,9 @@ struct ThreadBuilder {
     fbb_.AddElement<uint32_t>(30, affinity, 0);
   }
   void add_state(uint32_t state) { fbb_.AddElement<uint32_t>(32, state, 0); }
-  ThreadBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  ThreadBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ThreadBuilder &operator=(const ThreadBuilder &);
   flatbuffers::Offset<Thread> Finish() {
     auto o = flatbuffers::Offset<Thread>(fbb_.EndTable(start_, 15));
@@ -154,15 +163,16 @@ inline flatbuffers::Offset<Thread> CreateThread(
 
 struct ListThreadsRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   bool Verify(flatbuffers::Verifier &verifier) const {
-    return VerifyTableStart(verifier) &&
-           verifier.EndTable();
+    return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct ListThreadsRequestBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  ListThreadsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  ListThreadsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ListThreadsRequestBuilder &operator=(const ListThreadsRequestBuilder &);
   flatbuffers::Offset<ListThreadsRequest> Finish() {
     auto o = flatbuffers::Offset<ListThreadsRequest>(fbb_.EndTable(start_, 0));
@@ -170,12 +180,14 @@ struct ListThreadsRequestBuilder {
   }
 };
 
-inline flatbuffers::Offset<ListThreadsRequest> CreateListThreadsRequest(flatbuffers::FlatBufferBuilder &_fbb) {
+inline flatbuffers::Offset<ListThreadsRequest> CreateListThreadsRequest(
+    flatbuffers::FlatBufferBuilder &_fbb) {
   ListThreadsRequestBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
-struct ListThreadsResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+struct ListThreadsResponse FLATBUFFERS_FINAL_CLASS
+    : private flatbuffers::Table {
   const flatbuffers::Vector<flatbuffers::Offset<Thread>> *thread() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Thread>> *>(
         4);
@@ -195,7 +207,10 @@ struct ListThreadsResponseBuilder {
       flatbuffers::Vector<flatbuffers::Offset<Thread>>> thread) {
     fbb_.AddOffset(4, thread);
   }
-  ListThreadsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  ListThreadsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+      : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
   ListThreadsResponseBuilder &operator=(const ListThreadsResponseBuilder &);
   flatbuffers::Offset<ListThreadsResponse> Finish() {
     auto o = flatbuffers::Offset<ListThreadsResponse>(fbb_.EndTable(start_, 1));

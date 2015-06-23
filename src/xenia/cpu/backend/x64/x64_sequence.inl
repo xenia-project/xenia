@@ -358,8 +358,9 @@ template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2>
 struct I<OPCODE, DEST, SRC1, SRC2> : DestField<DEST> {
   typedef DestField<DEST> BASE;
   static const hir::Opcode opcode = OPCODE;
-  static const uint32_t key = InstrKey::Construct<
-      OPCODE, DEST::key_type, SRC1::key_type, SRC2::key_type>::value;
+  static const uint32_t key =
+      InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type,
+                          SRC2::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
   static const KeyType src1_type = SRC1::key_type;
   static const KeyType src2_type = SRC2::key_type;

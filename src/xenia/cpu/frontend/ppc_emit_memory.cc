@@ -994,8 +994,7 @@ XEEMITTER(dcbz, 0x7C0007EC, X)(PPCHIRBuilder& f, InstrData& i) {
     // dcbz128 - 128 byte set
     block_size = 128;
     address_mask = ~127;
-  }
-  else {
+  } else {
     // dcbz - 32 byte set
     block_size = 32;
     address_mask = ~31;

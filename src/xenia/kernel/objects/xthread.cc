@@ -169,7 +169,8 @@ X_STATUS XThread::Create() {
   uint32_t tls_extended_size = 0;
   if (module && module->xex_header()) {
     const xe_xex2_header_t* header = module->xex_header();
-    tls_slots = header->tls_info.slot_count ? header->tls_info.slot_count : kDefaultTlsSlotCount;
+    tls_slots = header->tls_info.slot_count ? header->tls_info.slot_count
+                                            : kDefaultTlsSlotCount;
     tls_extended_size = header->tls_info.data_size;
   } else {
     tls_slots = kDefaultTlsSlotCount;
@@ -179,7 +180,7 @@ X_STATUS XThread::Create() {
   // HACK: we're currently not using the extra memory allocated for TLS slots
   // and instead relying on native TLS slots, so don't allocate anything for
   // the slots.
-  uint32_t tls_slot_size = 0; // tls_slots * 4;
+  uint32_t tls_slot_size = 0;  // tls_slots * 4;
   uint32_t tls_total_size = tls_slot_size + tls_extended_size;
   tls_address_ = memory()->SystemHeapAlloc(tls_total_size);
   if (!tls_address_) {
@@ -193,8 +194,7 @@ X_STATUS XThread::Create() {
     // If game has extended data, copy in the default values.
     const xe_xex2_header_t* header = module->xex_header();
     assert_not_zero(header->tls_info.raw_data_address);
-    memory()->Copy(tls_address_,
-                   header->tls_info.raw_data_address,
+    memory()->Copy(tls_address_, header->tls_info.raw_data_address,
                    header->tls_info.raw_data_size);
   }
 
@@ -271,8 +271,8 @@ X_STATUS XThread::Create() {
   struct XTEB {
     xe::be<uint32_t> unk_00;  // 0x0
     xe::be<uint32_t> unk_04;  // 0x4
-    X_LIST_ENTRY     unk_08;  // 0x8
-    X_LIST_ENTRY     unk_10;  // 0x10
+    X_LIST_ENTRY unk_08;      // 0x8
+    X_LIST_ENTRY unk_10;      // 0x10
   };
 
   // Setup the thread state block (last error/etc)
@@ -373,11 +373,10 @@ static uint32_t __stdcall XThreadStartCallbackWin32(void* param) {
 X_STATUS XThread::PlatformCreate() {
   Retain();
   bool suspended = creation_params_.creation_flags & 0x1;
-  const size_t kStackSize = 16 * 1024 * 1024; // let's do the stupid thing
-  thread_handle_ =
-      CreateThread(NULL, kStackSize,
-                   (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32,
-                   this, suspended ? CREATE_SUSPENDED : 0, NULL);
+  const size_t kStackSize = 16 * 1024 * 1024;  // let's do the stupid thing
+  thread_handle_ = CreateThread(
+      NULL, kStackSize, (LPTHREAD_START_ROUTINE)XThreadStartCallbackWin32, this,
+      suspended ? CREATE_SUSPENDED : 0, NULL);
   if (!thread_handle_) {
     uint32_t last_error = GetLastError();
     // TODO(benvanik): translate?

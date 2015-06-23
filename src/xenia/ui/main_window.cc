@@ -51,7 +51,7 @@ bool MainWindow::Initialize() {
   if (!PlatformWindow::Initialize()) {
     return false;
   }
-  
+
   UpdateTitle();
   on_key_down.AddListener([this](KeyEvent& e) {
     bool handled = true;
@@ -64,11 +64,11 @@ bool MainWindow::Initialize() {
         emulator()->graphics_system()->ClearCaches();
         break;
       }
-      case 0x7A: { // VK_F11
+      case 0x7A: {  // VK_F11
         ToggleFullscreen();
         break;
       }
-      case 0x1B: { // VK_ESCAPE
+      case 0x1B: {  // VK_ESCAPE
         // Allow users to escape fullscreen (but not enter it)
         if (fullscreen_) {
           ToggleFullscreen();
