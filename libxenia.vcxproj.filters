@@ -712,9 +712,6 @@
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\apu\audio_decoder.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\base\clock.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
@@ -777,6 +774,9 @@
     </ClCompile>
     <ClCompile Include="src\xenia\apu\xma_context.cc">
       <Filter>src\xenia\apu</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\base\platform_win.cc">
+      <Filter>src\xenia\base</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

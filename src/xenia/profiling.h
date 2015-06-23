@@ -176,6 +176,8 @@ class Profiler {
   static void OnMouseUp();
   static void OnMouseMove(int x, int y);
   static void OnMouseWheel(int x, int y, int dy);
+  static void ToggleDisplay();
+  static void TogglePause();
 
   // Gets the current display, if any.
   static ProfilerDisplay* display() { return display_.get(); }
@@ -183,8 +185,6 @@ class Profiler {
   static void set_display(std::unique_ptr<ProfilerDisplay> display);
   // Presents the profiler to the bound display, if any.
   static void Present();
-
-  // TODO(benvanik): display mode/pause/etc?
 
  private:
   static std::unique_ptr<ProfilerDisplay> display_;

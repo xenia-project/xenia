@@ -14,8 +14,9 @@ namespace ui {
 
 MenuItem::MenuItem(Type type) : type_(type), parent_item_(nullptr) {}
 
-MenuItem::MenuItem(Type type, const std::wstring& text)
-    : type_(type), parent_item_(nullptr), text_(text) {}
+MenuItem::MenuItem(Type type, const std::wstring& text,
+                   const std::wstring& hotkey)
+    : type_(type), parent_item_(nullptr), text_(text), hotkey_(hotkey) {}
 
 MenuItem::~MenuItem() = default;
 

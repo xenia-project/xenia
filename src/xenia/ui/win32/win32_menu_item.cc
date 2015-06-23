@@ -15,8 +15,9 @@ namespace xe {
 namespace ui {
 namespace win32 {
 
-Win32MenuItem::Win32MenuItem(Type type, int id, const std::wstring& text)
-    : id_(id), MenuItem(type, text) {
+Win32MenuItem::Win32MenuItem(Type type, int id, const std::wstring& text,
+                             const std::wstring& hotkey)
+    : id_(id), MenuItem(type, text, hotkey) {
   switch (type) {
     case MenuItem::Type::kNormal:
       handle_ = CreateMenu();
@@ -29,8 +30,9 @@ Win32MenuItem::Win32MenuItem(Type type, int id, const std::wstring& text)
 
 Win32MenuItem::Win32MenuItem(Type type) : Win32MenuItem(type, 0, L"") {}
 
-Win32MenuItem::Win32MenuItem(Type type, const std::wstring& text)
-    : Win32MenuItem(type, 0, text) {}
+Win32MenuItem::Win32MenuItem(Type type, const std::wstring& text,
+                             const std::wstring& hotkey)
+    : Win32MenuItem(type, 0, text, hotkey) {}
 
 Win32MenuItem::~Win32MenuItem() {
   if (handle_) {
@@ -51,8 +53,11 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
       AppendMenuW(handle_, MF_SEPARATOR, child_item->id(), 0);
       break;
     case MenuItem::Type::kString:
-      AppendMenuW(handle_, MF_STRING, child_item->id(),
-                  child_item->text().c_str());
+      auto full_name = child_item->text();
+      if (!child_item->hotkey().empty()) {
+        full_name += L"\t" + child_item->hotkey();
+      }
+      AppendMenuW(handle_, MF_STRING, child_item->id(), full_name.c_str());
       break;
   }
 }

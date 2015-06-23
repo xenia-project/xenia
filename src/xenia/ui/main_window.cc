@@ -11,6 +11,7 @@
 
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/emulator.h"
@@ -18,6 +19,25 @@
 
 namespace xe {
 namespace ui {
+
+enum Commands {
+  IDC_FILE_EXIT,
+
+  IDC_CPU_TIME_SCALAR_RESET,
+  IDC_CPU_TIME_SCALAR_HALF,
+  IDC_CPU_TIME_SCALAR_DOUBLE,
+
+  IDC_CPU_PROFILER_TOGGLE_DISPLAY,
+  IDC_CPU_PROFILER_TOGGLE_PAUSE,
+
+  IDC_GPU_TRACE_FRAME,
+  IDC_GPU_CLEAR_CACHES,
+
+  IDC_WINDOW_FULLSCREEN,
+
+  IDC_HELP_WEBSITE,
+  IDC_HELP_ABOUT,
+};
 
 const std::wstring kBaseTitle = L"xenia";
 
@@ -56,63 +76,116 @@ bool MainWindow::Initialize() {
   on_key_down.AddListener([this](KeyEvent& e) {
     bool handled = true;
     switch (e.key_code()) {
+      case 0x0D: {  // numpad enter
+        OnCommand(Commands::IDC_CPU_TIME_SCALAR_RESET);
+      } break;
+      case 0x6D: {  // numpad minus
+        OnCommand(Commands::IDC_CPU_TIME_SCALAR_HALF);
+      } break;
+      case 0x6B: {  // numpad plus
+        OnCommand(Commands::IDC_CPU_TIME_SCALAR_DOUBLE);
+      } break;
+
       case 0x73: {  // VK_F4
-        emulator()->graphics_system()->RequestFrameTrace();
-        break;
-      }
+        OnCommand(Commands::IDC_GPU_TRACE_FRAME);
+      } break;
       case 0x74: {  // VK_F5
-        emulator()->graphics_system()->ClearCaches();
-        break;
-      }
+        OnCommand(Commands::IDC_GPU_CLEAR_CACHES);
+      } break;
+
       case 0x7A: {  // VK_F11
-        ToggleFullscreen();
-        break;
-      }
+        OnCommand(Commands::IDC_WINDOW_FULLSCREEN);
+      } break;
       case 0x1B: {  // VK_ESCAPE
-        // Allow users to escape fullscreen (but not enter it)
+                    // Allow users to escape fullscreen (but not enter it).
         if (fullscreen_) {
           ToggleFullscreen();
         }
-      }
-      case 0x6D: {  // numpad minus
-        Clock::set_guest_time_scalar(Clock::guest_time_scalar() / 2.0);
-        UpdateTitle();
-        break;
-      }
-      case 0x6B: {  // numpad plus
-        Clock::set_guest_time_scalar(Clock::guest_time_scalar() * 2.0);
-        UpdateTitle();
-        break;
-      }
-      case 0x0D: {  // numpad enter
-        Clock::set_guest_time_scalar(1.0);
-        UpdateTitle();
-        break;
-      }
-      default: {
-        handled = false;
-        break;
-      }
+      } break;
+
+      case 0x70: {  // VK_F1
+        OnCommand(Commands::IDC_HELP_WEBSITE);
+      } break;
+
+      default: { handled = false; } break;
     }
     e.set_handled(handled);
   });
 
-  // Main menu
+  // Main menu.
   // FIXME: This code is really messy.
-  auto file = std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&File");
-  file->AddChild(std::make_unique<PlatformMenu>(
-      MenuItem::Type::kString, Commands::IDC_FILE_OPEN, L"&Open"));
+  auto file_menu =
+      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&File");
+  {
+    file_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_FILE_EXIT, L"E&xit", L"Alt+F4"));
+  }
+  main_menu_.AddChild(std::move(file_menu));
 
-  main_menu_.AddChild(std::move(file));
+  // CPU menu.
+  auto cpu_menu =
+      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&CPU");
+  {
+    cpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_CPU_TIME_SCALAR_RESET,
+        L"&Reset Time Scalar", L"Numpad Enter"));
+    cpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_CPU_TIME_SCALAR_HALF,
+        L"Time Scalar /= 2", L"Numpad -"));
+    cpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_CPU_TIME_SCALAR_DOUBLE,
+        L"Time Scalar *= 2", L"Numpad +"));
+  }
+  cpu_menu->AddChild(
+      std::make_unique<PlatformMenu>(MenuItem::Type::kSeparator));
+  {
+    cpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_CPU_PROFILER_TOGGLE_DISPLAY,
+        L"Toggle Profiler &Display", L"Tab"));
+    cpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_CPU_PROFILER_TOGGLE_PAUSE,
+        L"&Pause/Resume Profiler", L"`"));
+  }
+  main_menu_.AddChild(std::move(cpu_menu));
 
-  // Window submenu
-  auto window =
+  // GPU menu.
+  auto gpu_menu =
+      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&GPU");
+  {
+    gpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_GPU_TRACE_FRAME, L"&Trace Frame",
+        L"F4"));
+  }
+  gpu_menu->AddChild(
+      std::make_unique<PlatformMenu>(MenuItem::Type::kSeparator));
+  {
+    gpu_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_GPU_CLEAR_CACHES,
+        L"&Clear Caches", L"F5"));
+  }
+  main_menu_.AddChild(std::move(gpu_menu));
+
+  // Window menu.
+  auto window_menu =
       std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Window");
-  window->AddChild(std::make_unique<PlatformMenu>(
-      MenuItem::Type::kString, Commands::IDC_WINDOW_FULLSCREEN,
-      L"Fullscreen\tF11"));
+  {
+    window_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_WINDOW_FULLSCREEN,
+        L"&Fullscreen", L"F11"));
+  }
+  main_menu_.AddChild(std::move(window_menu));
 
-  main_menu_.AddChild(std::move(window));
+  // Help menu.
+  auto help_menu =
+      std::make_unique<PlatformMenu>(MenuItem::Type::kPopup, L"&Help");
+  {
+    help_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_HELP_WEBSITE, L"&Website...",
+        L"F1"));
+    help_menu->AddChild(std::make_unique<PlatformMenu>(
+        MenuItem::Type::kString, Commands::IDC_HELP_ABOUT, L"&About..."));
+  }
+  main_menu_.AddChild(std::move(help_menu));
 
   SetMenu(&main_menu_);
 
@@ -146,11 +219,46 @@ void MainWindow::OnClose() {
 
 void MainWindow::OnCommand(int id) {
   switch (id) {
-    // TODO: Setup delegates to MenuItems so we don't have to do this
+    case IDC_FILE_EXIT: {
+      Close();
+    } break;
+
+    case IDC_CPU_TIME_SCALAR_RESET: {
+      Clock::set_guest_time_scalar(1.0);
+      UpdateTitle();
+    } break;
+    case IDC_CPU_TIME_SCALAR_HALF: {
+      Clock::set_guest_time_scalar(Clock::guest_time_scalar() / 2.0);
+      UpdateTitle();
+    } break;
+    case IDC_CPU_TIME_SCALAR_DOUBLE: {
+      Clock::set_guest_time_scalar(Clock::guest_time_scalar() * 2.0);
+      UpdateTitle();
+    } break;
+    case IDC_CPU_PROFILER_TOGGLE_DISPLAY: {
+      Profiler::ToggleDisplay();
+    } break;
+    case IDC_CPU_PROFILER_TOGGLE_PAUSE: {
+      Profiler::TogglePause();
+    } break;
+
+    case IDC_GPU_TRACE_FRAME: {
+      emulator()->graphics_system()->RequestFrameTrace();
+    } break;
+    case IDC_GPU_CLEAR_CACHES: {
+      emulator()->graphics_system()->ClearCaches();
+    } break;
+
     case IDC_WINDOW_FULLSCREEN: {
       ToggleFullscreen();
-      break;
-    }
+    } break;
+
+    case IDC_HELP_WEBSITE: {
+      LaunchBrowser("http://xenia.jp");
+    } break;
+    case IDC_HELP_ABOUT: {
+      LaunchBrowser("http://xenia.jp/about/");
+    } break;
   }
 }
 

@@ -22,8 +22,10 @@ namespace win32 {
 class Win32MenuItem : public MenuItem {
  public:
   Win32MenuItem(Type type);
-  Win32MenuItem(Type type, const std::wstring& text);
-  Win32MenuItem(Type type, int id, const std::wstring& text);
+  Win32MenuItem(Type type, const std::wstring& text,
+                const std::wstring& hotkey = L"");
+  Win32MenuItem(Type type, int id, const std::wstring& text,
+                const std::wstring& hotkey = L"");
   ~Win32MenuItem() override;
 
   HMENU handle() { return handle_; }

@@ -129,6 +129,10 @@ void Profiler::OnMouseWheel(int x, int y, int dy) {
   MicroProfileMousePosition(x, y, dy);
 }
 
+void Profiler::ToggleDisplay() { MicroProfileToggleDisplayMode(); }
+
+void Profiler::TogglePause() { MicroProfileTogglePause(); }
+
 #else
 
 void Profiler::OnMouseDown(bool left_button, bool right_button) {}
@@ -138,6 +142,10 @@ void Profiler::OnMouseUp() {}
 void Profiler::OnMouseMove(int x, int y) {}
 
 void Profiler::OnMouseWheel(int x, int y, int dy) {}
+
+void Profiler::ToggleDisplay() {}
+
+void Profiler::TogglePause() {}
 
 #endif  // XE_OPTION_PROFILING_UI
 

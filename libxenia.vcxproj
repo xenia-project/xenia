@@ -34,6 +34,7 @@
     <ClCompile Include="src\xenia\base\mapped_memory_win.cc" />
     <ClCompile Include="src\xenia\base\math.cc" />
     <ClCompile Include="src\xenia\base\memory_generic.cc" />
+    <ClCompile Include="src\xenia\base\platform_win.cc" />
     <ClCompile Include="src\xenia\base\ring_buffer.cc" />
     <ClCompile Include="src\xenia\base\string.cc" />
     <ClCompile Include="src\xenia\base\string_buffer.cc" />

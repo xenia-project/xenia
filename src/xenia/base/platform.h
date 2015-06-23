@@ -71,6 +71,8 @@ const char path_separator = '/';
 const size_t max_path = 1024;  // PATH_MAX
 #endif  // XE_PLATFORM_WIN32
 
+void LaunchBrowser(const char* url);
+
 }  // namespace xe
 
 #endif  // XENIA_BASE_PLATFORM_H_
