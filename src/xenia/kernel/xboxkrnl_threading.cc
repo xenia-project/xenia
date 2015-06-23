@@ -41,14 +41,14 @@ namespace kernel {
 
 // RtlGetLastError:
 // lwz r11, 0x150(r13)
-// if (r11 != 0) {
+// if (r11 == 0) {
 //   lwz r11, 0x100(r13)
 //   stw r3, 0x160(r11)
 // }
 
 // RtlSetLastError:
 // lwz r11, 0x150(r13)
-// if (r11 != 0) {
+// if (r11 == 0) {
 //   lwz r11, 0x100(r13)
 //   stw r3, 0x160(r11)
 // }
@@ -56,7 +56,7 @@ namespace kernel {
 // RtlSetLastNTError:
 // r3 = RtlNtStatusToDosError(r3)
 // lwz r11, 0x150(r13)
-// if (r11 != 0) {
+// if (r11 == 0) {
 //   lwz r11, 0x100(r13)
 //   stw r3, 0x160(r11)
 // }
