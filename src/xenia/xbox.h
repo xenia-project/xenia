@@ -292,7 +292,7 @@ class X_ANSI_STRING {
 };
 // static_assert_size(X_ANSI_STRING, 8);
 
-// Values seem to be all over the place - GUIDs?
+// http://pastebin.com/SMypYikG
 typedef uint32_t XNotificationID;
 
 // http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
@@ -373,6 +373,12 @@ struct X_INPUT_KEYSTROKE {
   be<uint8_t> hid_code;
 };
 static_assert_size(X_INPUT_KEYSTROKE, 8);
+
+struct X_LIST_ENTRY {
+  be<uint32_t> flink_ptr; // next entry / head
+  be<uint32_t> blink_ptr; // previous entry / head
+};
+static_assert_size(X_LIST_ENTRY, 8);
 
 #pragma pack(pop)
 
