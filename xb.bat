@@ -41,6 +41,17 @@ IF %_RESULT% NEQ 0 (
   GOTO :exit_error
 )
 
+SET CLANG_FORMAT=""
+SET LLVM_CLANG_FORMAT="C:\Program Files (x86)\LLVM\bin\clang-format.exe"
+IF EXIST %LLVM_CLANG_FORMAT% (
+  SET CLANG_FORMAT=%LLVM_CLANG_FORMAT%
+) ELSE (
+  1>NUL 2>NUL CMD /c where clang-format
+  IF %ERRORLEVEL% NEQ 0 (
+    SET CLANG_FORMAT="clang-format"
+  )
+)
+
 REM ============================================================================
 REM Command Parsing
 REM ============================================================================
@@ -108,10 +119,10 @@ ECHO.
 ECHO   xb nuke
 ECHO     Resets branch and build environment to defaults to unhose state.
 ECHO.
-ECHO   xb lint [--all]
+ECHO   xb lint [--all] [--origin]
 ECHO     Runs linter on local changes (or entire codebase).
 ECHO.
-ECHO   xb format [--all]
+ECHO   xb format [--all] [--origin]
 ECHO     Runs linter/auto-formatter on local changes (or entire codebase).
 ECHO.
 ENDLOCAL & SET _RESULT=0
@@ -480,13 +491,15 @@ REM ============================================================================
 REM xb lint
 REM ============================================================================
 :perform_lint
-SETLOCAL
+SETLOCAL EnableDelayedExpansion
 SET ALL=0
+SET HEAD=HEAD
 SHIFT
 :perform_lint_args
 IF "%~1"=="" GOTO :perform_lint_parsed
 IF "%~1"=="--" GOTO :perform_lint_parsed
 IF "%~1"=="--all" (SET ALL=1)
+IF "%~1"=="--origin" (SET HEAD=origin/master)
 SHIFT
 GOTO :perform_lint_args
 :perform_lint_parsed
@@ -496,45 +509,6 @@ IF %ALL% EQU 1 (
   ECHO Running code linter on code staged in git index...
 )
 
-ECHO.
-REM --all
-REM run lint
-ECHO TODO(benvanik): just `xb format`
-
-ENDLOCAL & SET _RESULT=0
-GOTO :eof
-
-
-REM ============================================================================
-REM xb format
-REM ============================================================================
-:perform_format
-SETLOCAL EnableDelayedExpansion
-SET ALL=0
-SHIFT
-:perform_format_args
-IF "%~1"=="" GOTO :perform_format_parsed
-IF "%~1"=="--" GOTO :perform_format_parsed
-IF "%~1"=="--all" (SET ALL=1)
-SHIFT
-GOTO :perform_format_args
-:perform_format_parsed
-IF %ALL% EQU 1 (
-  ECHO Running code formatter on all code...
-) ELSE (
-  ECHO Running code formatter on code staged in git index...
-)
-
-SET CLANG_FORMAT=""
-SET LLVM_CLANG_FORMAT="C:\Program Files (x86)\LLVM\bin\clang-format.exe"
-IF EXIST %LLVM_CLANG_FORMAT% (
-  SET CLANG_FORMAT=%LLVM_CLANG_FORMAT%
-) ELSE (
-  1>NUL 2>NUL CMD /c where clang-format
-  IF %ERRORLEVEL% NEQ 0 (
-    SET CLANG_FORMAT="clang-format"
-  )
-)
 IF %CLANG_FORMAT%=="" (
   ECHO.
   ECHO ERROR: clang-format is not on PATH or the standard location.
@@ -548,7 +522,78 @@ SET ANY_ERRORS=0
 IF %ALL% NEQ 1 (
   ECHO.
   ECHO ^> git-clang-format
-  CMD /c python third_party/clang-format/git-clang-format --binary=%CLANG_FORMAT% --commit=HEAD
+  CMD /c python third_party/clang-format/git-clang-format --binary=%CLANG_FORMAT% --commit=%HEAD% --diff >.difftemp.txt
+  FIND /C "did not modify any files" .difftemp.txt >nul
+  IF !ERRORLEVEL! EQU 1 (
+    SET ANY_ERRORS=1
+    CMD /c python third_party/clang-format/git-clang-format --binary=%CLANG_FORMAT% --commit=%HEAD% --diff
+  )
+  DEL .difftemp.txt
+) ELSE (
+  PUSHD src
+  FOR /R %%G in (*.cc *.c *.h *.inl) DO (
+    %CLANG_FORMAT% -output-replacements-xml -style=file %%G >.difftemp.txt
+    FIND /C "<replacement " .difftemp.txt >nul
+    IF !ERRORLEVEL! EQU 0 (
+      SET ANY_ERRORS=1
+      ECHO ^> clang-format %%G
+      DEL .difftemp.txt
+      %CLANG_FORMAT% -style=file %%G > .difftemp.txt
+      python ..\tools\diff.py "%%G" .difftemp.txt .difftemp.txt
+      TYPE .difftemp.txt
+      DEL .difftemp.txt
+    )
+    DEL .difftemp.txt
+  )
+  POPD
+)
+IF %ANY_ERRORS% NEQ 0 (
+  ECHO.
+  ECHO ERROR: 1+ diffs. Stage changes and run 'xb format' to fix.
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
+ENDLOCAL & SET _RESULT=0
+GOTO :eof
+
+
+REM ============================================================================
+REM xb format
+REM ============================================================================
+:perform_format
+SETLOCAL EnableDelayedExpansion
+SET ALL=0
+SET HEAD=HEAD
+SHIFT
+:perform_format_args
+IF "%~1"=="" GOTO :perform_format_parsed
+IF "%~1"=="--" GOTO :perform_format_parsed
+IF "%~1"=="--all" (SET ALL=1)
+IF "%~1"=="--origin" (SET HEAD=origin/master)
+SHIFT
+GOTO :perform_format_args
+:perform_format_parsed
+IF %ALL% EQU 1 (
+  ECHO Running code formatter on all code...
+) ELSE (
+  ECHO Running code formatter on code staged in git index...
+)
+
+IF %CLANG_FORMAT%=="" (
+  ECHO.
+  ECHO ERROR: clang-format is not on PATH or the standard location.
+  ECHO LLVM is available from http://llvm.org/releases/download.html
+  ECHO See docs/style_guide.md for instructions on how to get it.
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
+SET ANY_ERRORS=0
+IF %ALL% NEQ 1 (
+  ECHO.
+  ECHO ^> git-clang-format
+  CMD /c python third_party/clang-format/git-clang-format --binary=%CLANG_FORMAT% --commit=%HEAD%
   IF %ERRORLEVEL% NEQ 0 (
     SET ANY_ERRORS=1
   )
