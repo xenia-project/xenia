@@ -76,7 +76,7 @@
                     travisUrl = "https://travis-ci.org/"+vendorName+"/"+repoName+"/builds",
                     buildkiteImgUrl = "https://badge.buildkite.com/" + buildkite + ".svg",
                     buildkiteUrl = "https://buildkite.com/" + vendorName + '/' + repoName;
-
+                var buildbot = true;
                 $widget = $(
                     '<div class="github-box repo">'
                         +'<div class="github-box-title">'
@@ -102,6 +102,10 @@
                         )
                         +(buildkite
                           ? '<a href="' + buildkiteUrl + '" style="position: absolute; right: 10px; display: inline;"><img src="' + buildkiteImgUrl + '" alt="Build Status" style="max-width:100%;"></a>'
+                          : ''
+                        )
+                        +(buildbot
+                          ? '<a href="http://build.xenia.jp/waterfall" style="position: absolute; right: 10px; display: inline;"><img src="http://build.xenia.jp/png?builder=auto-builds" alt="Build Status" style="max-width:100%;"></a>'
                           : ''
                         )
                         +'</div>'
