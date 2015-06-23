@@ -115,6 +115,13 @@ bool GLContext::Initialize(HWND hwnd) {
     return false;
   }
 
+  XELOGI("Successfully created OpenGL context:");
+  XELOGI("  GL_VENDOR: %s", glGetString(GL_VENDOR));
+  XELOGI("  GL_VERSION: %s", glGetString(GL_VERSION));
+  XELOGI("  GL_RENDERER: %s", glGetString(GL_RENDERER));
+  XELOGI("  GL_SHADING_LANGUAGE_VERSION: %s",
+         glGetString(GL_SHADING_LANGUAGE_VERSION));
+
   while (glGetError()) {
     // Clearing errors.
   }

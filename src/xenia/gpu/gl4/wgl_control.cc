@@ -60,7 +60,10 @@ bool WGLControl::Create() {
   }
 
   if (!context_.Initialize(hwnd_)) {
-    XEFATAL("Unable to initialize GL context");
+    XEFATAL(
+        "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
+        "you have the latest drivers for your GPU and that it supports OpenGL "
+        "4.5.");
     return false;
   }
 
