@@ -104,7 +104,9 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
   // This means we need to round up, which will cause spurious access
   // violations and invalidations.
   // TODO(benvanik): only invalidate if actually within the region?
-  length = xe::round_up(length, xe::page_size());
+  length =
+      xe::round_up(length + (base_address % xe::page_size()), xe::page_size());
+  base_address = base_address - (base_address % xe::page_size());
 
   // Add to table. The slot reservation may evict a previous watch, which
   // could include our target, so we do it first.
