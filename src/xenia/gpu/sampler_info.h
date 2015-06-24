@@ -23,6 +23,7 @@ struct SamplerInfo {
   uint32_t clamp_u;
   uint32_t clamp_v;
   uint32_t clamp_w;
+  ucode::instr_aniso_filter_t aniso_filter;
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       const ucode::instr_fetch_tex_t& fetch_instr,
@@ -32,7 +33,8 @@ struct SamplerInfo {
   bool operator==(const SamplerInfo& other) const {
     return min_filter == other.min_filter && mag_filter == other.mag_filter &&
            mip_filter == other.mip_filter && clamp_u == other.clamp_u &&
-           clamp_v == other.clamp_v && clamp_w == other.clamp_w;
+           clamp_v == other.clamp_v && clamp_w == other.clamp_w &&
+           aniso_filter == other.aniso_filter;
   }
 };
 
