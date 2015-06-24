@@ -31,6 +31,7 @@ bool SamplerInfo::Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
   out_info->clamp_v = fetch.clamp_y;
   out_info->clamp_w = fetch.clamp_z;
   out_info->aniso_filter = static_cast<ucode::instr_aniso_filter_t>(
+      fetch_instr.aniso_filter == 7 ? fetch.aniso_filter : 
       fetch_instr.aniso_filter);
  
   return true;
