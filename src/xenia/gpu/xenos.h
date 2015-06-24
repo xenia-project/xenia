@@ -342,7 +342,8 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t mag_filter : 2;
     uint32_t min_filter : 2;
     uint32_t mip_filter : 2;
-    uint32_t unk3_2 : 6;
+	uint32_t aniso_filter : 3; // correct ?
+	uint32_t arbitrary_filter : 3; // correct ?
     uint32_t border : 1;
     uint32_t unk4_0 : 2;  // dword_4
     uint32_t mip_min_level : 4;
