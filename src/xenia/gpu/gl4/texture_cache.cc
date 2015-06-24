@@ -365,6 +365,9 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
   // Texture Max AnisoTropy
   GLfloat aniso;
   switch (sampler_info.aniso_filter) {
+    case ucode::ANISO_FILTER_DISABLED:
+      aniso = 0.0f;
+      break;
     case ucode::ANISO_FILTER_MAX_1_1:
       aniso = 1.0f;
       break;
@@ -384,7 +387,8 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
       assert_unhandled_case(aniso);
       return nullptr;
   }
-  glSamplerParameterf(entry->handle, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
+  if (aniso)
+    glSamplerParameterf(entry->handle, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
 
   // Add to map - map takes ownership.
   auto entry_ptr = entry.get();
