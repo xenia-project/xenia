@@ -180,7 +180,7 @@ int Memory::Initialize() {
 
   // Take the first page at 0 so we can check for writes.
   heaps_.v00000000.AllocFixed(
-      0x00000000, 4096, 4096,
+      0x00000000, 64 * 1024, 64 * 1024,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
       !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
                           : kMemoryProtectNoAccess);
