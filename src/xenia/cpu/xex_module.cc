@@ -139,7 +139,7 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
         snprintf(name, xe::countof(name), "%s", kernel_export->name);
       }
     } else {
-      snprintf(name, xe::countof(name), "__imp_%s_%.3X", libname,
+      snprintf(name, xe::countof(name), "__imp_%s_%.3X", libname.c_str(),
                info->ordinal);
     }
 
@@ -192,9 +192,10 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
       if (kernel_export) {
         snprintf(name, xe::countof(name), "%s", kernel_export->name);
       } else if (user_export_addr) {
-        snprintf(name, xe::countof(name), "__%s_%.3X", libname, info->ordinal);
+        snprintf(name, xe::countof(name), "__%s_%.3X", libname.c_str(),
+                 info->ordinal);
       } else {
-        snprintf(name, xe::countof(name), "__kernel_%s_%.3X", libname,
+        snprintf(name, xe::countof(name), "__kernel_%s_%.3X", libname.c_str(),
                  info->ordinal);
       }
 
