@@ -362,8 +362,33 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
   glSamplerParameteri(entry->handle, GL_TEXTURE_MIN_FILTER, min_filter);
   glSamplerParameteri(entry->handle, GL_TEXTURE_MAG_FILTER, mag_filter);
 
-  // TODO(benvanik): anisotropic filtering.
-  // GL_TEXTURE_MAX_ANISOTROPY_EXT
+  GLfloat aniso;
+  switch (sampler_info.aniso_filter) {
+    case ucode::ANISO_FILTER_DISABLED:
+	  aniso = 0.0f;
+	  break;
+	case ucode::ANISO_FILTER_MAX_1_1:
+	  aniso = 1.0f;
+	  break;
+	case ucode::ANISO_FILTER_MAX_2_1:
+	  aniso = 2.0f;
+	  break;
+	case ucode::ANISO_FILTER_MAX_4_1:
+	  aniso = 4.0f;
+	  break;
+	case ucode::ANISO_FILTER_MAX_8_1:
+	  aniso = 8.0f;
+	  break;
+	case ucode::ANISO_FILTER_MAX_16_1:
+      aniso = 16.0f;
+	  break;
+	default:
+	  assert_unhandled_case(aniso);
+      return nullptr;
+  }
+
+  if (aniso)
+    glSamplerParameterf(entry->handle, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
 
   // Add to map - map takes ownership.
   auto entry_ptr = entry.get();
