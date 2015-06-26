@@ -387,8 +387,9 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
       return nullptr;
   }
 
-  if (aniso)
+  if (aniso) {
     glSamplerParameterf(entry->handle, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
+  }
 
   // Add to map - map takes ownership.
   auto entry_ptr = entry.get();
