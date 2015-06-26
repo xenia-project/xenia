@@ -329,18 +329,28 @@ inline void AppendParam(StringBuffer& string_buffer, lpvoid_t param) {
   string_buffer.AppendFormat("%.8X", uint32_t(param));
 }
 inline void AppendParam(StringBuffer& string_buffer, lpdword_t param) {
-  string_buffer.AppendFormat("%.8X(%.8X)", param.guest_address(),
-                             param.value());
+  string_buffer.AppendFormat("%.8X", param.guest_address());
+  if (param) {
+    string_buffer.AppendFormat("(%.8X)", param.value());
+  }
 }
 inline void AppendParam(StringBuffer& string_buffer, lpqword_t param) {
-  string_buffer.AppendFormat("%.8X(%.16llX)", param.guest_address(),
-                             param.value());
+  string_buffer.AppendFormat("%.8X", param.guest_address());
+  if (param) {
+    string_buffer.AppendFormat("(%.16llX)", param.value());
+  }
 }
 inline void AppendParam(StringBuffer& string_buffer, lpfloat_t param) {
-  string_buffer.AppendFormat("%.8X(%G)", param.guest_address(), param.value());
+  string_buffer.AppendFormat("%.8X", param.guest_address());
+  if (param) {
+    string_buffer.AppendFormat("(%G)", param.value());
+  }
 }
 inline void AppendParam(StringBuffer& string_buffer, lpdouble_t param) {
-  string_buffer.AppendFormat("%.8X(%G)", param.guest_address(), param.value());
+  string_buffer.AppendFormat("%.8X", param.guest_address());
+  if (param) {
+    string_buffer.AppendFormat("(%G)", param.value());
+  }
 }
 template <typename T>
 void AppendParam(StringBuffer& string_buffer, pointer_t<T> param) {
