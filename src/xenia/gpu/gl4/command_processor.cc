@@ -2631,7 +2631,7 @@ bool CommandProcessor::IssueCopy() {
       read_type = GL_UNSIGNED_SHORT;
       break;
     case ColorFormat::k_16_FLOAT:
-      read_format = GL_R16;
+      read_format = GL_R16F;
       read_type = GL_HALF_FLOAT;
       break;
     case ColorFormat::k_16_16:
@@ -2639,15 +2639,15 @@ bool CommandProcessor::IssueCopy() {
       read_type = GL_UNSIGNED_SHORT;
       break;
     case ColorFormat::k_16_16_FLOAT:
-      read_format = GL_RG16;
+      read_format = GL_RG16F;
       read_type = GL_HALF_FLOAT;
       break;
     case ColorFormat::k_16_16_16_16:
-      read_format = GL_RGBA;
+      read_format = GL_RGBA16;
       read_type = GL_UNSIGNED_SHORT;
       break;
     case ColorFormat::k_16_16_16_16_FLOAT:
-      read_format = GL_RGBA;
+      read_format = GL_RGBA16F;
       read_type = GL_HALF_FLOAT;
       break;
     case ColorFormat::k_32_FLOAT:
