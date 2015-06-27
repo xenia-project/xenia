@@ -58,6 +58,7 @@ class X64CodeCache : public CodeCache {
   void InitializeUnwindEntry(uint8_t* unwind_entry_address,
                              size_t unwind_table_slot, uint8_t* code_address,
                              size_t code_size, size_t stack_size);
+  void* LookupUnwindEntry(uintptr_t host_address);
 
   std::wstring file_name_;
   HANDLE mapping_;

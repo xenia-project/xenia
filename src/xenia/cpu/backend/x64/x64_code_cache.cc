@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 
+#include <cstdlib>
 #include <cstring>
 
 #include "xenia/base/assert.h"
@@ -16,6 +17,10 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+
+// When enabled, this will use Windows 8 APIs to get unwind info.
+// TODO(benvanik): figure out why the callback variant doesn't work.
+#define USE_GROWABLE_FUNCTION_TABLE
 
 namespace xe {
 namespace cpu {
@@ -37,12 +42,21 @@ X64CodeCache::X64CodeCache()
       unwind_table_count_(0) {}
 
 X64CodeCache::~X64CodeCache() {
-  if (unwind_table_handle_) {
-    RtlDeleteGrowableFunctionTable(unwind_table_handle_);
-  }
   if (indirection_table_base_) {
     VirtualFree(indirection_table_base_, 0, MEM_RELEASE);
   }
+
+#ifdef USE_GROWABLE_FUNCTION_TABLE
+  if (unwind_table_handle_) {
+    RtlDeleteGrowableFunctionTable(unwind_table_handle_);
+  }
+#else
+  if (generated_code_base_) {
+    RtlDeleteFunctionTable(reinterpret_cast<PRUNTIME_FUNCTION>(
+        reinterpret_cast<DWORD64>(generated_code_base_) | 0x3));
+  }
+#endif  // USE_GROWABLE_FUNCTION_TABLE
+
   // Unmap all views and close mapping.
   if (mapping_) {
     UnmapViewOfFile(generated_code_base_);
@@ -94,6 +108,7 @@ bool X64CodeCache::Initialize() {
   // We don't support reallocing right now, so this should be high.
   unwind_table_.resize(30000);
 
+#ifdef USE_GROWABLE_FUNCTION_TABLE
   // Create table and register with the system. It's empty now, but we'll grow
   // it as functions are added.
   if (RtlAddGrowableFunctionTable(
@@ -105,6 +120,21 @@ bool X64CodeCache::Initialize() {
     XELOGE("Unable to create unwind function table");
     return false;
   }
+#else
+  // Install a callback that the debugger will use to lookup unwind info on
+  // demand.
+  if (!RtlInstallFunctionTableCallback(
+          reinterpret_cast<DWORD64>(generated_code_base_) | 0x3,
+          reinterpret_cast<DWORD64>(generated_code_base_),
+          kGeneratedCodeSize, [](uintptr_t control_pc, void* context) {
+            auto code_cache = reinterpret_cast<X64CodeCache*>(context);
+            return reinterpret_cast<PRUNTIME_FUNCTION>(
+                code_cache->LookupUnwindEntry(control_pc));
+          }, this, nullptr)) {
+    XELOGE("Unable to install function table callback");
+    return false;
+  }
+#endif  // USE_GROWABLE_FUNCTION_TABLE
 
   return true;
 }
@@ -181,9 +211,11 @@ void* X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   InitializeUnwindEntry(unwind_entry_address, unwind_table_slot, code_address,
                         code_size, stack_size);
 
+#ifdef USE_GROWABLE_FUNCTION_TABLE
   // Notify that the unwind table has grown.
   // We do this outside of the lock, but with the latest total count.
   RtlGrowFunctionTable(unwind_table_handle_, unwind_table_count_);
+#endif  // USE_GROWABLE_FUNCTION_TABLE
 
   // This isn't needed on x64 (probably), but is convention.
   FlushInstructionCache(GetCurrentProcess(), code_address, code_size);
@@ -319,6 +351,25 @@ void X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
   fn_entry.BeginAddress = (DWORD)(code_address - generated_code_base_);
   fn_entry.EndAddress = (DWORD)(fn_entry.BeginAddress + code_size);
   fn_entry.UnwindData = (DWORD)(unwind_entry_address - generated_code_base_);
+}
+
+void* X64CodeCache::LookupUnwindEntry(uintptr_t host_address) {
+  void* fn_entry = std::bsearch(
+      &host_address, unwind_table_.data(), unwind_table_count_ + 1,
+      sizeof(RUNTIME_FUNCTION),
+      [](const void* key_ptr, const void* element_ptr) {
+        auto key =
+            *reinterpret_cast<const uintptr_t*>(key_ptr) - kGeneratedCodeBase;
+        auto element = reinterpret_cast<const RUNTIME_FUNCTION*>(element_ptr);
+        if (key < element->BeginAddress) {
+          return -1;
+        } else if (key > element->EndAddress) {
+          return 1;
+        } else {
+          return 0;
+        }
+      });
+  return reinterpret_cast<RUNTIME_FUNCTION*>(fn_entry);
 }
 
 uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
