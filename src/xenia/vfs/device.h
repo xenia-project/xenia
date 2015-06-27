@@ -23,7 +23,7 @@ class Device {
   Device(const std::string& path);
   virtual ~Device();
 
-  const std::string& path() const { return path_; }
+  const std::string& mount_path() const { return mount_path_; }
 
   virtual bool is_read_only() const { return true; }
 
@@ -37,7 +37,7 @@ class Device {
                                       size_t length);
 
  protected:
-  std::string path_;
+  std::string mount_path_;
 };
 
 }  // namespace vfs

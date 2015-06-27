@@ -23,10 +23,11 @@ class GDFX;
 
 class DiscImageDevice : public Device {
  public:
-  DiscImageDevice(const std::string& path, const std::wstring& local_path);
+  DiscImageDevice(const std::string& mount_path,
+                  const std::wstring& local_path);
   ~DiscImageDevice() override;
 
-  int Init();
+  bool Initialize();
 
   std::unique_ptr<Entry> ResolvePath(const char* path) override;
 

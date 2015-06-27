@@ -19,7 +19,7 @@ namespace vfs {
 
 class HostPathDevice : public Device {
  public:
-  HostPathDevice(const std::string& path, const std::wstring& local_path,
+  HostPathDevice(const std::string& mount_path, const std::wstring& local_path,
                  bool read_only);
   ~HostPathDevice() override;
 

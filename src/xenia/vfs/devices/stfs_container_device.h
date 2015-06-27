@@ -23,10 +23,11 @@ class STFS;
 
 class STFSContainerDevice : public Device {
  public:
-  STFSContainerDevice(const std::string& path, const std::wstring& local_path);
+  STFSContainerDevice(const std::string& mount_path,
+                      const std::wstring& local_path);
   ~STFSContainerDevice() override;
 
-  int Init();
+  bool Initialize();
 
   std::unique_ptr<Entry> ResolvePath(const char* path) override;
 

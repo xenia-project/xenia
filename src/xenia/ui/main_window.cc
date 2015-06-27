@@ -262,27 +262,5 @@ void MainWindow::OnCommand(int id) {
   }
 }
 
-X_STATUS MainWindow::LaunchPath(std::wstring path) {
-  X_STATUS result;
-
-  // Launch based on file type.
-  // This is a silly guess based on file extension.
-  // NOTE: this blocks!
-  auto file_system_type = emulator_->file_system()->InferType(path);
-  switch (file_system_type) {
-    case vfs::FileSystemType::STFS_TITLE:
-      result = emulator_->LaunchSTFSTitle(path);
-      break;
-    case vfs::FileSystemType::XEX_FILE:
-      result = emulator_->LaunchXexFile(path);
-      break;
-    case vfs::FileSystemType::DISC_IMAGE:
-      result = emulator_->LaunchDiscImage(path);
-      break;
-  }
-
-  return result;
-}
-
 }  // namespace ui
 }  // namespace xe

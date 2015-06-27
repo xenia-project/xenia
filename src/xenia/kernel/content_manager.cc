@@ -14,6 +14,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xobject.h"
+#include "xenia/vfs/devices/host_path_device.h"
 
 namespace xe {
 namespace kernel {
@@ -28,14 +29,16 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
     : kernel_state_(kernel_state), root_name_(std::move(root_name)) {
   device_path_ = std::string("\\Device\\Content\\") +
                  std::to_string(++content_device_id_) + "\\";
-  kernel_state_->file_system()->RegisterHostPathDevice(device_path_,
-                                                       package_path, false);
-  kernel_state_->file_system()->CreateSymbolicLink(root_name_ + ":",
-                                                   device_path_);
+
+  auto fs = kernel_state_->file_system();
+  auto device =
+      std::make_unique<vfs::HostPathDevice>(device_path_, package_path, false);
+  fs->RegisterDevice(std::move(device));
+  fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
 }
 
 ContentPackage::~ContentPackage() {
-  kernel_state_->file_system()->DeleteSymbolicLink(root_name_ + ":");
+  kernel_state_->file_system()->UnregisterSymbolicLink(root_name_ + ":");
   // TODO(benvanik): unregister device.
 }
 

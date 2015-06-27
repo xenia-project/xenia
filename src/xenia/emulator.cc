@@ -15,6 +15,7 @@
 #include "xenia/apu/xma_decoder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
@@ -24,6 +25,9 @@
 #include "xenia/memory.h"
 #include "xenia/ui/main_window.h"
 #include "xenia/vfs/virtual_file_system.h"
+#include "xenia/vfs/devices/disc_image_device.h"
+#include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
@@ -171,7 +175,27 @@ X_STATUS Emulator::Setup() {
   return result;
 }
 
-X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {
+X_STATUS Emulator::LaunchPath(std::wstring path) {
+  // Launch based on file type.
+  // This is a silly guess based on file extension.
+  auto last_slash = path.find_last_of(xe::path_separator);
+  auto last_dot = path.find_last_of('.');
+  if (last_dot < last_slash) {
+    last_dot = std::wstring::npos;
+  }
+  if (last_dot == std::wstring::npos) {
+    // Likely an STFS container.
+    return LaunchStfsContainer(path);
+  } else if (path.substr(last_dot) == L".xex") {
+    // Treat as a naked xex file.
+    return LaunchXexFile(path);
+  } else {
+    // Assume a disc image.
+    return LaunchDiscImage(path);
+  }
+}
+
+X_STATUS Emulator::LaunchXexFile(std::wstring path) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.
   // e.g., /my/files/foo.xex will get a local fs at:
@@ -179,45 +203,67 @@ X_STATUS Emulator::LaunchXexFile(const std::wstring& path) {
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
-  int result_code =
-      file_system_->InitializeFromPath(FileSystemType::XEX_FILE, path);
-  if (result_code) {
-    return X_STATUS_INVALID_PARAMETER;
+  auto mount_path = "\\Device\\Harddisk0\\Partition0";
+
+  // Register the local directory in the virtual filesystem.
+  auto parent_path = xe::find_base_path(path);
+  auto device =
+      std::make_unique<vfs::HostPathDevice>(mount_path, parent_path, true);
+  if (!file_system_->RegisterDevice(std::move(device))) {
+    XELOGE("Unable to register host path");
+    return X_STATUS_NO_SUCH_FILE;
   }
 
+  // Create symlinks to the device.
+  file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("d:", mount_path);
+
   // Get just the filename (foo.xex).
-  std::wstring file_name;
-  auto last_slash = path.find_last_of(xe::path_separator);
-  if (last_slash == std::string::npos) {
-    // No slash found, whole thing is a file.
-    file_name = path;
-  } else {
-    // Skip slash.
-    file_name = path.substr(last_slash + 1);
-  }
+  auto file_name = xe::find_name_from_path(path);
 
   // Launch the game.
   std::string fs_path = "game:\\" + xe::to_string(file_name);
   return CompleteLaunch(path, fs_path);
 }
 
-X_STATUS Emulator::LaunchDiscImage(const std::wstring& path) {
-  int result_code =
-      file_system_->InitializeFromPath(FileSystemType::DISC_IMAGE, path);
-  if (result_code) {
-    return X_STATUS_INVALID_PARAMETER;
+X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
+  auto mount_path = "\\Device\\Cdrom0";
+
+  // Register the disc image in the virtual filesystem.
+  auto device = std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+  if (!device->Initialize()) {
+    XELOGE("Unable to mount disc image");
+    return X_STATUS_NO_SUCH_FILE;
   }
+  if (!file_system_->RegisterDevice(std::move(device))) {
+    XELOGE("Unable to register disc image");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  // Create symlinks to the device.
+  file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
   return CompleteLaunch(path, "game:\\default.xex");
 }
 
-X_STATUS Emulator::LaunchSTFSTitle(const std::wstring& path) {
-  int result_code =
-      file_system_->InitializeFromPath(FileSystemType::STFS_TITLE, path);
-  if (result_code) {
-    return X_STATUS_INVALID_PARAMETER;
+X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
+  auto mount_path = "\\Device\\Cdrom0";
+
+  // Register the container in the virtual filesystem.
+  auto device = std::make_unique<vfs::STFSContainerDevice>(mount_path, path);
+  if (!device->Initialize()) {
+    XELOGE("Unable to mount STFS container");
+    return X_STATUS_NO_SUCH_FILE;
   }
+  if (!file_system_->RegisterDevice(std::move(device))) {
+    XELOGE("Unable to register STFS container");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
   return CompleteLaunch(path, "game:\\default.xex");

@@ -17,29 +17,29 @@
 namespace xe {
 namespace vfs {
 
-DiscImageDevice::DiscImageDevice(const std::string& path,
+DiscImageDevice::DiscImageDevice(const std::string& mount_path,
                                  const std::wstring& local_path)
-    : Device(path), local_path_(local_path), gdfx_(nullptr) {}
+    : Device(mount_path), local_path_(local_path), gdfx_(nullptr) {}
 
 DiscImageDevice::~DiscImageDevice() { delete gdfx_; }
 
-int DiscImageDevice::Init() {
+bool DiscImageDevice::Initialize() {
   mmap_ = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
-    return 1;
+    return false;
   }
 
   gdfx_ = new GDFX(mmap_.get());
   GDFX::Error error = gdfx_->Load();
   if (error != GDFX::kSuccess) {
     XELOGE("GDFX init failed: %d", error);
-    return 1;
+    return false;
   }
 
   // gdfx_->Dump();
 
-  return 0;
+  return true;
 }
 
 std::unique_ptr<Entry> DiscImageDevice::ResolvePath(const char* path) {

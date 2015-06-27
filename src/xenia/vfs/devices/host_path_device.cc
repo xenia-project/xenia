@@ -17,9 +17,9 @@
 namespace xe {
 namespace vfs {
 
-HostPathDevice::HostPathDevice(const std::string& path,
+HostPathDevice::HostPathDevice(const std::string& mount_path,
                                const std::wstring& local_path, bool read_only)
-    : Device(path), local_path_(local_path), read_only_(read_only) {}
+    : Device(mount_path), local_path_(local_path), read_only_(read_only) {}
 
 HostPathDevice::~HostPathDevice() {}
 

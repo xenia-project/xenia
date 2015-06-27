@@ -18,29 +18,29 @@
 namespace xe {
 namespace vfs {
 
-STFSContainerDevice::STFSContainerDevice(const std::string& path,
+STFSContainerDevice::STFSContainerDevice(const std::string& mount_path,
                                          const std::wstring& local_path)
-    : Device(path), local_path_(local_path), stfs_(nullptr) {}
+    : Device(mount_path), local_path_(local_path), stfs_(nullptr) {}
 
 STFSContainerDevice::~STFSContainerDevice() { delete stfs_; }
 
-int STFSContainerDevice::Init() {
+bool STFSContainerDevice::Initialize() {
   mmap_ = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("STFS container could not be mapped");
-    return 1;
+    return false;
   }
 
   stfs_ = new STFS(mmap_.get());
   STFS::Error error = stfs_->Load();
   if (error != STFS::kSuccess) {
     XELOGE("STFS init failed: %d", error);
-    return 1;
+    return false;
   }
 
   // stfs_->Dump();
 
-  return 0;
+  return true;
 }
 
 std::unique_ptr<Entry> STFSContainerDevice::ResolvePath(const char* path) {

@@ -41,8 +41,6 @@ class MainWindow : public PlatformWindow {
 
   void Start();
 
-  X_STATUS LaunchPath(std::wstring path);
-
  private:
   bool Initialize();
 

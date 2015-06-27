@@ -14,7 +14,7 @@
 namespace xe {
 namespace vfs {
 
-Device::Device(const std::string& path) : path_(path) {}
+Device::Device(const std::string& mount_path) : mount_path_(mount_path) {}
 
 Device::~Device() = default;
 

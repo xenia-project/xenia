@@ -72,10 +72,10 @@ class Emulator {
 
   X_STATUS Setup();
 
-  // TODO(benvanik): raw binary.
-  X_STATUS LaunchXexFile(const std::wstring& path);
-  X_STATUS LaunchDiscImage(const std::wstring& path);
-  X_STATUS LaunchSTFSTitle(const std::wstring& path);
+  X_STATUS LaunchPath(std::wstring path);
+  X_STATUS LaunchXexFile(std::wstring path);
+  X_STATUS LaunchDiscImage(std::wstring path);
+  X_STATUS LaunchStfsContainer(std::wstring path);
 
  private:
   X_STATUS CompleteLaunch(const std::wstring& path,
