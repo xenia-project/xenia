@@ -859,7 +859,7 @@ void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::SetTooltip("Reset to first frame");
   }
   ImGui::SameLine();
-  if (ImGui::Button(">>", ImVec2(0, 0), true)) {
+  if (ImGui::Button(">>", ImVec2(0, 0))) {
     if (target_frame + 1 < player.frame_count()) {
       ++target_frame;
     }
@@ -913,7 +913,7 @@ void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::SetTooltip("Reset to before any frame commands");
   }
   ImGui::SameLine();
-  if (ImGui::Button("prev", ImVec2(0, 0), true)) {
+  if (ImGui::Button("prev", ImVec2(0, 0))) {
     if (target_command >= 0) {
       --target_command;
     }
@@ -922,7 +922,7 @@ void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::SetTooltip("Move to the previous command (hold)");
   }
   ImGui::SameLine();
-  if (ImGui::Button("next", ImVec2(0, 0), true)) {
+  if (ImGui::Button("next", ImVec2(0, 0))) {
     if (target_command < command_count - 1) {
       ++target_command;
     }
@@ -2173,7 +2173,7 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
 }
 
 void DrawUI(xe::ui::MainWindow* window, TracePlayer& player, Memory* memory) {
-  ImGui::ShowTestWindow();
+  // ImGui::ShowTestWindow();
 
   DrawControllerUI(window, player, memory);
   DrawCommandListUI(window, player, memory);
