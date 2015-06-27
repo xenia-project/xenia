@@ -10,6 +10,7 @@
 #include "xenia/gpu/gl4/gl_context.h"
 
 #include <mutex>
+#include <string>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -194,6 +195,42 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
   new_context->ClearCurrent();
 
   return new_context;
+}
+
+void FatalGLError(std::string error) {
+  XEFATAL(
+      (error +
+       "\nEnsure you have the latest drivers for your GPU and that it supports "
+       "OpenGL 4.5. See http://xenia.jp/faq/ for more information.").c_str());
+}
+
+void GLContext::AssertExtensionsPresent() {
+  if (!MakeCurrent()) {
+    XEFATAL("Unable to make GL context current");
+    return;
+  }
+
+  // Check shader version at least 4.5 (matching GL 4.5).
+  auto glsl_version_start =
+      reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
+  auto glsl_version_end = std::strchr(glsl_version_start, ' ');
+  std::string glsl_version(glsl_version_start, glsl_version_end);
+  if (glsl_version.compare("4.50") != 0) {
+    FatalGLError("OpenGL GLSL version 4.50 is required.");
+    return;
+  }
+
+  if (!GLEW_ARB_bindless_texture) {
+    FatalGLError("OpenGL extension ARB_bindless_texture is required.");
+    return;
+  }
+
+  // TODO(benvanik): figure out why this query fails.
+  // if (!GLEW_ARB_fragment_coord_conventions) {
+  //   FatalGLError(
+  //       "OpenGL extension ARB_fragment_coord_conventions is required.");
+  //   return;
+  // }
 }
 
 void GLContext::DebugMessage(GLenum source, GLenum type, GLuint id,

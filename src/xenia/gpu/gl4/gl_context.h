@@ -28,6 +28,7 @@ class GLContext {
   ~GLContext();
 
   bool Initialize(HWND hwnd);
+  void AssertExtensionsPresent();
 
   HDC dc() const { return dc_; }
 
