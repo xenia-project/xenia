@@ -1,0 +1,79 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#ifndef XENIA_UI_FILE_PICKER_H_
+#define XENIA_UI_FILE_PICKER_H_
+
+#include <string>
+#include <vector>
+
+namespace xe {
+namespace ui {
+
+class FilePicker {
+ public:
+  enum class Mode {
+    kOpen = 0,
+    kSave = 1,
+  };
+  enum class Type {
+    kFile = 0,
+    kDirectory = 1,
+  };
+
+  FilePicker()
+      : mode_(Mode::kOpen),
+        type_(Type::kFile),
+        title_(L"Select Files"),
+        multi_selection_(false) {}
+  virtual ~FilePicker() = default;
+
+  Mode mode() const { return mode_; }
+  void set_mode(Mode mode) { mode_ = mode; }
+
+  Type type() const { return type_; }
+  void set_type(Type type) { type_ = type; }
+
+  std::wstring title() const { return title_; }
+  void set_title(std::wstring title) { title_ = std::move(title); }
+
+  std::vector<std::pair<std::wstring, std::wstring>> extensions() const {
+    return extensions_;
+  }
+  void set_extensions(
+      std::vector<std::pair<std::wstring, std::wstring>> extensions) {
+    extensions_ = std::move(extensions);
+  }
+
+  bool multi_selection() const { return multi_selection_; }
+  void set_multi_selection(bool multi_selection) {
+    multi_selection_ = multi_selection;
+  }
+
+  std::vector<std::wstring> selected_files() const { return selected_files_; }
+  void set_selected_files(std::vector<std::wstring> selected_files) {
+    selected_files_ = std::move(selected_files);
+  }
+
+  virtual bool Show(void* parent_window_handle = nullptr) = 0;
+
+ private:
+  Mode mode_;
+  Type type_;
+  std::wstring title_;
+  std::vector<std::pair<std::wstring, std::wstring>> extensions_;
+  bool multi_selection_;
+
+  std::vector<std::wstring> selected_files_;
+};
+
+}  // namespace ui
+}  // namespace xe
+
+#endif  // XENIA_UI_FILE_PICKER_H_

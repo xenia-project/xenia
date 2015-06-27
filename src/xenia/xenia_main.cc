@@ -14,6 +14,7 @@
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel.h"
 #include "xenia/profiling.h"
+#include "xenia/ui/file_picker.h"
 #include "xenia/ui/main_window.h"
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
@@ -33,8 +34,8 @@ int xenia_main(std::vector<std::wstring>& args) {
   }
 
   // Grab path from the flag or unnamed argument.
+  std::wstring path;
   if (!FLAGS_target.empty() || args.size() >= 2) {
-    std::wstring path;
     if (!FLAGS_target.empty()) {
       // Passed as a named argument.
       // TODO(benvanik): find something better than gflags that supports
@@ -44,6 +45,31 @@ int xenia_main(std::vector<std::wstring>& args) {
       // Passed as an unnamed argument.
       path = args[1];
     }
+  }
+
+  // If no path passed, ask the user.
+  if (path.empty()) {
+    ui::PlatformFilePicker file_picker;
+    file_picker.set_mode(ui::FilePicker::Mode::kOpen);
+    file_picker.set_type(ui::FilePicker::Type::kFile);
+    file_picker.set_multi_selection(false);
+    file_picker.set_title(L"Select Content Package");
+    file_picker.set_extensions({
+        {L"Supported Files", L"*.iso;*.xex;*.xcp;*.*"},
+        {L"Disc Image (*.iso)", L"*.iso"},
+        {L"Xbox Executable (*.xex)", L"*.xex"},
+        //{ L"Content Package (*.xcp)", L"*.xcp" },
+        {L"All Files (*.*)", L"*.*"},
+    });
+    if (file_picker.Show(emulator->main_window()->hwnd())) {
+      auto selected_files = file_picker.selected_files();
+      if (!selected_files.empty()) {
+        path = selected_files[0];
+      }
+    }
+  }
+
+  if (!path.empty()) {
     // Normalize the path and make absolute.
     std::wstring abs_path = xe::to_absolute_path(path);
 

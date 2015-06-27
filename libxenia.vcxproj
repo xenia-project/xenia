@@ -203,6 +203,7 @@
     <ClCompile Include="src\xenia\ui\main_window.cc" />
     <ClCompile Include="src\xenia\ui\menu_item.cc" />
     <ClCompile Include="src\xenia\ui\win32\win32_control.cc" />
+    <ClCompile Include="src\xenia\ui\win32\win32_file_picker.cc" />
     <ClCompile Include="src\xenia\ui\win32\win32_loop.cc" />
     <ClCompile Include="src\xenia\ui\win32\win32_menu_item.cc" />
     <ClCompile Include="src\xenia\ui\win32\win32_window.cc" />
@@ -459,11 +460,13 @@
     <ClInclude Include="src\xenia\memory.h" />
     <ClInclude Include="src\xenia\profiling.h" />
     <ClInclude Include="src\xenia\ui\control.h" />
+    <ClInclude Include="src\xenia\ui\file_picker.h" />
     <ClInclude Include="src\xenia\ui\loop.h" />
     <ClInclude Include="src\xenia\ui\main_window.h" />
     <ClInclude Include="src\xenia\ui\menu_item.h" />
     <ClInclude Include="src\xenia\ui\ui_event.h" />
     <ClInclude Include="src\xenia\ui\win32\win32_control.h" />
+    <ClInclude Include="src\xenia\ui\win32\win32_file_picker.h" />
     <ClInclude Include="src\xenia\ui\win32\win32_loop.h" />
     <ClInclude Include="src\xenia\ui\win32\win32_menu_item.h" />
     <ClInclude Include="src\xenia\ui\win32\win32_window.h" />

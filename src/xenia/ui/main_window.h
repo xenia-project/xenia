@@ -14,6 +14,7 @@
 #include "xenia/xbox.h"
 
 // TODO(benvanik): only on windows.
+#include "xenia/ui/win32/win32_file_picker.h"
 #include "xenia/ui/win32/win32_loop.h"
 #include "xenia/ui/win32/win32_menu_item.h"
 #include "xenia/ui/win32/win32_window.h"
@@ -28,6 +29,7 @@ namespace ui {
 using PlatformLoop = xe::ui::win32::Win32Loop;
 using PlatformWindow = xe::ui::win32::Win32Window;
 using PlatformMenu = xe::ui::win32::Win32MenuItem;
+using PlatformFilePicker = xe::ui::win32::Win32FilePicker;
 
 class MainWindow : public PlatformWindow {
  public:
