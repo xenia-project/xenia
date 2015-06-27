@@ -211,11 +211,10 @@ void GLContext::AssertExtensionsPresent() {
   }
 
   // Check shader version at least 4.5 (matching GL 4.5).
-  auto glsl_version_start =
+  auto glsl_version_raw =
       reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
-  auto glsl_version_end = std::strchr(glsl_version_start, ' ');
-  std::string glsl_version(glsl_version_start, glsl_version_end);
-  if (glsl_version.compare("4.50") != 0) {
+  std::string glsl_version(glsl_version_raw);
+  if (glsl_version.find("4.50") != 0) {
     FatalGLError("OpenGL GLSL version 4.50 is required.");
     return;
   }
