@@ -32,6 +32,8 @@ class AudioSystem {
  public:
   virtual ~AudioSystem();
 
+  static std::unique_ptr<AudioSystem> Create(Emulator* emulator);
+
   Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }

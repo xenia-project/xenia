@@ -11,7 +11,6 @@
 #define XENIA_HID_WINKEY_WINKEY_DRIVER_H_
 
 #include "xenia/hid/input_driver.h"
-#include "xenia/hid/nop/nop_hid-private.h"
 
 namespace xe {
 namespace hid {

@@ -7,15 +7,9 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gpu-private.h"
+#ifndef XENIA_APU_NOP_NOP_APU_FLAGS_H_
+#define XENIA_APU_NOP_NOP_APU_FLAGS_H_
 
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
+#include <gflags/gflags.h>
 
-DEFINE_string(trace_gpu_prefix, "scratch/gpu/gpu_trace_",
-              "Prefix path for GPU trace files.");
-DEFINE_bool(trace_gpu_stream, false, "Trace all GPU packets.");
-
-DEFINE_string(dump_shaders, "",
-              "Path to write GPU shaders to as they are compiled.");
-
-DEFINE_bool(vsync, true, "Enable VSYNC.");
+#endif  // XENIA_APU_NOP_NOP_APU_FLAGS_H_

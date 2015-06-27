@@ -7,19 +7,9 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_NOP_NOP_APU_PRIVATE_H_
-#define XENIA_APU_NOP_NOP_APU_PRIVATE_H_
+#ifndef XENIA_APU_XAUDIO2_XAUDIO2_APU_FLAGS_H_
+#define XENIA_APU_XAUDIO2_XAUDIO2_APU_FLAGS_H_
 
-#include "xenia/apu/nop/nop_apu.h"
+#include <gflags/gflags.h>
 
-namespace xe {
-namespace apu {
-namespace nop {
-
-//
-
-}  // namespace nop
-}  // namespace apu
-}  // namespace xe
-
-#endif  // XENIA_APU_NOP_NOP_APU_PRIVATE_H_
+#endif  // XENIA_APU_XAUDIO2_XAUDIO2_APU_FLAGS_H_

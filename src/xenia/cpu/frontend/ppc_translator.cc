@@ -16,7 +16,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/reset_scope.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
-#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_hir_builder.h"

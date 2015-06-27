@@ -13,7 +13,7 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
-#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/processor.h"

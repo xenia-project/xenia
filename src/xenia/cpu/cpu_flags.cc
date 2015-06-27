@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/cpu_flags.h"
 
 DEFINE_string(cpu, "any", "CPU backend [any, x64].");
 

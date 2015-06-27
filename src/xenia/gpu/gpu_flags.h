@@ -7,22 +7,18 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_XAUDIO2_XAUDIO2_APU_H_
-#define XENIA_APU_XAUDIO2_XAUDIO2_APU_H_
+#ifndef XENIA_GPU_GPU_FLAGS_H_
+#define XENIA_GPU_GPU_FLAGS_H_
 
-#include <memory>
+#include <gflags/gflags.h>
 
-#include "xenia/apu/audio_system.h"
-#include "xenia/emulator.h"
+DECLARE_string(gpu);
 
-namespace xe {
-namespace apu {
-namespace xaudio2 {
+DECLARE_string(trace_gpu_prefix);
+DECLARE_bool(trace_gpu_stream);
 
-std::unique_ptr<AudioSystem> Create(Emulator* emulator);
+DECLARE_string(dump_shaders);
 
-}  // namespace xaudio2
-}  // namespace apu
-}  // namespace xe
+DECLARE_bool(vsync);
 
-#endif  // XENIA_APU_XAUDIO2_XAUDIO2_APU_H_
+#endif  // XENIA_GPU_GPU_FLAGS_H_

@@ -2,24 +2,18 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2013 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_HID_WINKEY_WINKEY_HID_PRIVATE_H_
-#define XENIA_HID_WINKEY_WINKEY_HID_PRIVATE_H_
+#ifndef XENIA_APU_APU_FLAGS_H_
+#define XENIA_APU_APU_FLAGS_H_
 
-#include "xenia/hid/winkey/winkey_hid.h"
+#include <gflags/gflags.h>
 
-namespace xe {
-namespace hid {
-namespace winkey {
+DECLARE_string(apu);
 
-//
+DECLARE_bool(mute);
 
-}  // namespace winkey
-}  // namespace hid
-}  // namespace xe
-
-#endif  // XENIA_HID_WINKEY_WINKEY_HID_PRIVATE_H_
+#endif  // XENIA_APU_APU_FLAGS_H_

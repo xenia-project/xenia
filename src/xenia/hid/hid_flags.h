@@ -7,13 +7,11 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_APU_APU_PRIVATE_H_
-#define XENIA_APU_APU_PRIVATE_H_
+#ifndef XENIA_HID_HID_FLAGS_H_
+#define XENIA_HID_HID_FLAGS_H_
 
 #include <gflags/gflags.h>
 
-DECLARE_string(apu);
+DECLARE_string(hid);
 
-DECLARE_bool(mute);
-
-#endif  // XENIA_APU_APU_PRIVATE_H_
+#endif  // XENIA_HID_HID_FLAGS_H_

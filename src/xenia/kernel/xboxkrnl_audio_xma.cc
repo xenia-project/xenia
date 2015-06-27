@@ -9,7 +9,8 @@
 
 #include <cstring>
 
-#include "xenia/apu/apu.h"
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/xma_decoder.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"

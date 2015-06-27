@@ -7,19 +7,4 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HID_NOP_NOP_HID_PRIVATE_H_
-#define XENIA_HID_NOP_NOP_HID_PRIVATE_H_
-
-#include "xenia/hid/nop/nop_hid.h"
-
-namespace xe {
-namespace hid {
-namespace nop {
-
-//
-
-}  // namespace nop
-}  // namespace hid
-}  // namespace xe
-
-#endif  // XENIA_HID_NOP_NOP_HID_PRIVATE_H_
+#include "xenia/apu/xaudio2/xaudio2_apu_flags.h"

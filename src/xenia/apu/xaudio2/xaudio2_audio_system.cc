@@ -8,15 +8,20 @@
  */
 
 #include "xenia/apu/xaudio2/xaudio2_audio_system.h"
+
+#include <xaudio2.h>
+
+#include "xenia/apu/apu_flags.h"
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
-
-#include "xenia/apu/apu-private.h"
-
 #include "xenia/emulator.h"
 
-using namespace xe;
-using namespace xe::apu;
-using namespace xe::apu::xaudio2;
+namespace xe {
+namespace apu {
+namespace xaudio2 {
+
+std::unique_ptr<AudioSystem> XAudio2AudioSystem::Create(Emulator* emulator) {
+  return std::make_unique<XAudio2AudioSystem>(emulator);
+}
 
 XAudio2AudioSystem::XAudio2AudioSystem(Emulator* emulator)
     : AudioSystem(emulator) {}
@@ -41,3 +46,7 @@ void XAudio2AudioSystem::DestroyDriver(AudioDriver* driver) {
   assert_not_null(xdriver);
   delete xdriver;
 }
+
+}  // namespace xaudio2
+}  // namespace apu
+}  // namespace xe

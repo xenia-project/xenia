@@ -16,9 +16,9 @@
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/gpu/gl4/gl4_profiler_display.h"
-#include "xenia/gpu/gpu-private.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/tracing.h"
 
 namespace xe {

@@ -15,12 +15,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\xenia\apu\apu.cc" />
+    <ClCompile Include="src\xenia\apu\apu_flags.cc" />
     <ClCompile Include="src\xenia\apu\audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\audio_system.cc" />
-    <ClCompile Include="src\xenia\apu\nop\nop_apu.cc" />
+    <ClCompile Include="src\xenia\apu\nop\nop_apu_flags.cc" />
     <ClCompile Include="src\xenia\apu\nop\nop_audio_system.cc" />
-    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu.cc" />
+    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu_flags.cc" />
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.cc" />
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc" />
     <ClCompile Include="src\xenia\apu\xma_context.cc" />
@@ -63,7 +63,7 @@
     <ClCompile Include="src\xenia\cpu\compiler\passes\simplification_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\validation_pass.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\passes\value_reduction_pass.cc" />
-    <ClCompile Include="src\xenia\cpu\cpu.cc" />
+    <ClCompile Include="src\xenia\cpu\cpu_flags.cc" />
     <ClCompile Include="src\xenia\cpu\debug_info.cc" />
     <ClCompile Include="src\xenia\cpu\entry_table.cc" />
     <ClCompile Include="src\xenia\cpu\export_resolver.cc" />
@@ -102,7 +102,7 @@
     <ClCompile Include="src\xenia\gpu\gl4\circular_buffer.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\command_processor.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\draw_batcher.cc" />
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_gpu.cc" />
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_gpu_flags.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\gl4_graphics_system.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\gl4_profiler_display.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\gl4_shader.cc" />
@@ -110,7 +110,7 @@
     <ClCompile Include="src\xenia\gpu\gl4\gl_context.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\texture_cache.cc" />
     <ClCompile Include="src\xenia\gpu\gl4\wgl_control.cc" />
-    <ClCompile Include="src\xenia\gpu\gpu.cc" />
+    <ClCompile Include="src\xenia\gpu\gpu_flags.cc" />
     <ClCompile Include="src\xenia\gpu\graphics_system.cc" />
     <ClCompile Include="src\xenia\gpu\register_file.cc" />
     <ClCompile Include="src\xenia\gpu\sampler_info.cc" />
@@ -118,7 +118,7 @@
     <ClCompile Include="src\xenia\gpu\texture_info.cc" />
     <ClCompile Include="src\xenia\gpu\tracing.cc" />
     <ClCompile Include="src\xenia\gpu\ucode_disassembler.cc" />
-    <ClCompile Include="src\xenia\hid\hid.cc" />
+    <ClCompile Include="src\xenia\hid\hid_flags.cc" />
     <ClCompile Include="src\xenia\hid\input_driver.cc" />
     <ClCompile Include="src\xenia\hid\input_system.cc" />
     <ClCompile Include="src\xenia\hid\nop\nop_hid.cc" />
@@ -267,15 +267,12 @@
     <ClCompile Include="third_party\xxhash\xxhash.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\xenia\apu\apu-private.h" />
-    <ClInclude Include="src\xenia\apu\apu.h" />
+    <ClInclude Include="src\xenia\apu\apu_flags.h" />
     <ClInclude Include="src\xenia\apu\audio_driver.h" />
     <ClInclude Include="src\xenia\apu\audio_system.h" />
-    <ClInclude Include="src\xenia\apu\nop\nop_apu-private.h" />
-    <ClInclude Include="src\xenia\apu\nop\nop_apu.h" />
+    <ClInclude Include="src\xenia\apu\nop\nop_apu_flags.h" />
     <ClInclude Include="src\xenia\apu\nop\nop_audio_system.h" />
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu-private.h" />
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu.h" />
+    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu_flags.h" />
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.h" />
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_system.h" />
     <ClInclude Include="src\xenia\apu\xma_context.h" />
@@ -328,7 +325,7 @@
     <ClInclude Include="src\xenia\cpu\compiler\passes\simplification_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\validation_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\value_reduction_pass.h" />
-    <ClInclude Include="src\xenia\cpu\cpu-private.h" />
+    <ClInclude Include="src\xenia\cpu\cpu_flags.h" />
     <ClInclude Include="src\xenia\cpu\debug_info.h" />
     <ClInclude Include="src\xenia\cpu\entry_table.h" />
     <ClInclude Include="src\xenia\cpu\export_resolver.h" />
@@ -373,7 +370,7 @@
     <ClInclude Include="src\xenia\gpu\gl4\circular_buffer.h" />
     <ClInclude Include="src\xenia\gpu\gl4\command_processor.h" />
     <ClInclude Include="src\xenia\gpu\gl4\draw_batcher.h" />
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu-private.h" />
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu_flags.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_graphics_system.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_profiler_display.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_shader.h" />
@@ -381,7 +378,7 @@
     <ClInclude Include="src\xenia\gpu\gl4\gl_context.h" />
     <ClInclude Include="src\xenia\gpu\gl4\texture_cache.h" />
     <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h" />
-    <ClInclude Include="src\xenia\gpu\gpu-private.h" />
+    <ClInclude Include="src\xenia\gpu\gpu_flags.h" />
     <ClInclude Include="src\xenia\gpu\graphics_system.h" />
     <ClInclude Include="src\xenia\gpu\register_file.h" />
     <ClInclude Include="src\xenia\gpu\sampler_info.h" />
@@ -391,16 +388,13 @@
     <ClInclude Include="src\xenia\gpu\ucode.h" />
     <ClInclude Include="src\xenia\gpu\ucode_disassembler.h" />
     <ClInclude Include="src\xenia\gpu\xenos.h" />
-    <ClInclude Include="src\xenia\hid\hid-private.h" />
+    <ClInclude Include="src\xenia\hid\hid_flags.h" />
     <ClInclude Include="src\xenia\hid\input_driver.h" />
     <ClInclude Include="src\xenia\hid\input_system.h" />
-    <ClInclude Include="src\xenia\hid\nop\nop_hid-private.h" />
     <ClInclude Include="src\xenia\hid\nop\nop_hid.h" />
     <ClInclude Include="src\xenia\hid\nop\nop_input_driver.h" />
-    <ClInclude Include="src\xenia\hid\winkey\winkey_hid-private.h" />
     <ClInclude Include="src\xenia\hid\winkey\winkey_hid.h" />
     <ClInclude Include="src\xenia\hid\winkey\winkey_input_driver.h" />
-    <ClInclude Include="src\xenia\hid\xinput\xinput_hid-private.h" />
     <ClInclude Include="src\xenia\hid\xinput\xinput_hid.h" />
     <ClInclude Include="src\xenia\hid\xinput\xinput_input_driver.h" />
     <ClInclude Include="src\xenia\kernel\app.h" />

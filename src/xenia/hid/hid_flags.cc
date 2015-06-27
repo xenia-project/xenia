@@ -7,6 +7,6 @@
  ******************************************************************************
  */
 
-#include "xenia/hid/hid-private.h"
+#include "xenia/hid/hid_flags.h"
 
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");

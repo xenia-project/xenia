@@ -13,7 +13,6 @@
 #include <xaudio2.h>
 
 #include "xenia/apu/audio_driver.h"
-#include "xenia/apu/xaudio2/xaudio2_apu-private.h"
 
 namespace xe {
 namespace apu {
@@ -22,11 +21,11 @@ namespace xaudio2 {
 class XAudio2AudioDriver : public AudioDriver {
  public:
   XAudio2AudioDriver(Emulator* emulator, HANDLE semaphore);
-  virtual ~XAudio2AudioDriver();
+  ~XAudio2AudioDriver() override;
 
-  virtual void Initialize();
-  virtual void SubmitFrame(uint32_t frame_ptr);
-  virtual void Shutdown();
+  void Initialize();
+  void SubmitFrame(uint32_t frame_ptr) override;
+  void Shutdown();
 
  private:
   IXAudio2* audio_;

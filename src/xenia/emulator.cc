@@ -11,7 +11,8 @@
 
 #include <gflags/gflags.h>
 
-#include "xenia/apu/apu.h"
+#include "xenia/apu/audio_system.h"
+#include "xenia/apu/xma_decoder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/string.h"
@@ -113,15 +114,15 @@ X_STATUS Emulator::Setup() {
       memory_.get(), export_resolver_.get(), debugger_.get());
 
   // Initialize the APU.
-  audio_system_ = std::move(xe::apu::Create(this));
+  audio_system_ = xe::apu::AudioSystem::Create(this);
   if (!audio_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
 
-  xma_decoder_ = std::move(std::make_unique<XmaDecoder>(this));
+  xma_decoder_ = std::make_unique<XmaDecoder>(this);
 
   // Initialize the GPU.
-  graphics_system_ = std::move(xe::gpu::GraphicsSystem::Create(this));
+  graphics_system_ = xe::gpu::GraphicsSystem::Create(this);
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }

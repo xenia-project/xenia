@@ -9,7 +9,7 @@
 
 #include "xenia/hid/winkey/winkey_input_driver.h"
 
-#include "xenia/hid/hid-private.h"
+#include "xenia/hid/hid_flags.h"
 
 namespace xe {
 namespace hid {

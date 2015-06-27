@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gl4/gl4_gpu-private.h"
+#include "xenia/gpu/gl4/gl4_gpu_flags.h"
 
 DEFINE_bool(thread_safe_gl, false,
             "Only allow one GL context to be active at a time.");

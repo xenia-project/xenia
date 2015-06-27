@@ -12,7 +12,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/gpu/gpu-private.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/kernel/objects/xthread.h"
 
 // TODO(benvanik): based on platform/build support.

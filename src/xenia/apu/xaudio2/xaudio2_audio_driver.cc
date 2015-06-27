@@ -9,7 +9,7 @@
 
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
-#include "xenia/apu/apu-private.h"
+#include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"

@@ -172,23 +172,14 @@
     <ClCompile Include="src\xenia\profiling.cc">
       <Filter>src\xenia</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\apu\apu.cc">
-      <Filter>src\xenia\apu</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\apu\audio_driver.cc">
       <Filter>src\xenia\apu</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\apu\audio_system.cc">
       <Filter>src\xenia\apu</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\apu\nop\nop_apu.cc">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\apu\nop\nop_audio_system.cc">
       <Filter>src\xenia\apu\nop</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu.cc">
-      <Filter>src\xenia\apu\xaudio2</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.cc">
       <Filter>src\xenia\apu\xaudio2</Filter>
@@ -198,9 +189,6 @@
     </ClCompile>
     <ClCompile Include="src\xenia\base\arena.cc">
       <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\cpu\cpu.cc">
-      <Filter>src\xenia\cpu</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\base\debugging_win.cc">
       <Filter>src\xenia\base</Filter>
@@ -397,9 +385,6 @@
     <ClCompile Include="src\xenia\cpu\compiler\passes\finalization_pass.cc">
       <Filter>src\xenia\cpu\compiler\passes</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gpu.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\gpu\graphics_system.cc">
       <Filter>src\xenia\gpu</Filter>
     </ClCompile>
@@ -439,9 +424,6 @@
     <ClCompile Include="src\xenia\gpu\gl4\wgl_control.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_gpu.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\gl4_graphics_system.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClCompile>
@@ -453,9 +435,6 @@
     </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\gl4_shader_translator.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\hid\hid.cc">
-      <Filter>src\xenia\hid</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\hid\input_system.cc">
       <Filter>src\xenia\hid</Filter>
@@ -781,6 +760,27 @@
     <ClCompile Include="src\xenia\ui\win32\win32_file_picker.cc">
       <Filter>src\xenia\ui\win32</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\hid\hid_flags.cc">
+      <Filter>src\xenia\hid</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\gpu\gpu_flags.cc">
+      <Filter>src\xenia\gpu</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\gpu\gl4\gl4_gpu_flags.cc">
+      <Filter>src\xenia\gpu\gl4</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\cpu\cpu_flags.cc">
+      <Filter>src\xenia\cpu</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\apu\apu_flags.cc">
+      <Filter>src\xenia\apu</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_apu_flags.cc">
+      <Filter>src\xenia\apu\xaudio2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\apu\nop\nop_apu_flags.cc">
+      <Filter>src\xenia\apu\nop</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
@@ -795,34 +795,16 @@
     <ClInclude Include="src\xenia\memory.h">
       <Filter>src\xenia</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\apu\apu.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\apu-private.h">
-      <Filter>src\xenia\apu</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\apu\audio_driver.h">
       <Filter>src\xenia\apu</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\apu\audio_system.h">
       <Filter>src\xenia\apu</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\apu\nop\nop_apu.h">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\nop\nop_apu-private.h">
-      <Filter>src\xenia\apu\nop</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\apu\nop\nop_audio_system.h">
       <Filter>src\xenia\apu\nop</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_system.h">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu.h">
-      <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu-private.h">
       <Filter>src\xenia\apu\xaudio2</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.h">
@@ -839,9 +821,6 @@
     </ClInclude>
     <ClInclude Include="src\xenia\base\byte_order.h">
       <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\cpu\cpu-private.h">
-      <Filter>src\xenia\cpu</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\base\debugging.h">
       <Filter>src\xenia\base</Filter>
@@ -1059,9 +1038,6 @@
     <ClInclude Include="src\xenia\cpu\compiler\passes\finalization_pass.h">
       <Filter>src\xenia\cpu\compiler\passes</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gpu-private.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\gpu\graphics_system.h">
       <Filter>src\xenia\gpu</Filter>
     </ClInclude>
@@ -1110,9 +1086,6 @@
     <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu-private.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\gl4_graphics_system.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
@@ -1125,9 +1098,6 @@
     <ClInclude Include="src\xenia\gpu\gl4\gl4_shader_translator.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\hid\hid-private.h">
-      <Filter>src\xenia\hid</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\hid\input_driver.h">
       <Filter>src\xenia\hid</Filter>
     </ClInclude>
@@ -1135,9 +1105,6 @@
       <Filter>src\xenia\hid</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\hid\nop\nop_hid.h">
-      <Filter>src\xenia\hid\nop</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\nop\nop_hid-private.h">
       <Filter>src\xenia\hid\nop</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\hid\nop\nop_input_driver.h">
@@ -1149,13 +1116,7 @@
     <ClInclude Include="src\xenia\hid\winkey\winkey_hid.h">
       <Filter>src\xenia\hid\winkey</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\hid\winkey\winkey_hid-private.h">
-      <Filter>src\xenia\hid\winkey</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\hid\xinput\xinput_hid.h">
-      <Filter>src\xenia\hid\xinput</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\hid\xinput\xinput_hid-private.h">
       <Filter>src\xenia\hid\xinput</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\hid\xinput\xinput_input_driver.h">
@@ -1502,6 +1463,27 @@
     </ClInclude>
     <ClInclude Include="src\xenia\ui\win32\win32_file_picker.h">
       <Filter>src\xenia\ui\win32</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\hid\hid_flags.h">
+      <Filter>src\xenia\hid</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\gpu\gpu_flags.h">
+      <Filter>src\xenia\gpu</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu_flags.h">
+      <Filter>src\xenia\gpu\gl4</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\cpu\cpu_flags.h">
+      <Filter>src\xenia\cpu</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\apu\apu_flags.h">
+      <Filter>src\xenia\apu</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_apu_flags.h">
+      <Filter>src\xenia\apu\xaudio2</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\apu\nop\nop_apu_flags.h">
+      <Filter>src\xenia\apu\nop</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

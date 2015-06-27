@@ -15,7 +15,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
-#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"

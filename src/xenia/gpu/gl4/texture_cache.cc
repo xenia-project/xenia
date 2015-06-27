@@ -15,7 +15,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
-#include "xenia/gpu/gpu-private.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/profiling.h"
 
 namespace xe {

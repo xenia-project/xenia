@@ -9,9 +9,9 @@
 
 #include "xenia/hid/xinput/xinput_input_driver.h"
 
-#include "xenia/hid/hid-private.h"
+#include <xinput.h>
 
-#include <Xinput.h>
+#include "xenia/hid/hid_flags.h"
 
 namespace xe {
 namespace hid {

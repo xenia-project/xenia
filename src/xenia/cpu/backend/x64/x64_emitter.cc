@@ -25,7 +25,7 @@
 #include "xenia/cpu/backend/x64/x64_function.h"
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_thunk_emitter.h"
-#include "xenia/cpu/cpu-private.h"
+#include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
