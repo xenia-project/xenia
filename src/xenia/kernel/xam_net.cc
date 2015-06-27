@@ -15,6 +15,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
 #include "xenia/xbox.h"
@@ -41,6 +42,29 @@ typedef struct {
   uint8_t abEnet[6];             // Ethernet MAC address
   uint8_t abOnline[20];          // Online identification
 } XNADDR;
+
+struct Xsockaddr_t {
+  xe::be<uint16_t> sa_family;
+  char sa_data[14];
+};
+
+struct XWSABUF {
+  xe::be<uint32_t> len;
+  xe::be<uint32_t> buf_ptr;
+};
+
+struct XWSAOVERLAPPED {
+  xe::be<uint32_t> internal;
+  xe::be<uint32_t> internal_high;
+  union {
+    struct {
+      xe::be<uint32_t> offset;
+      xe::be<uint32_t> offset_high;
+    };
+    xe::be<uint32_t> pointer;
+  };
+  xe::be<uint32_t> event_handle;
+};
 
 void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
   out_addr->sa_family = xe::load_and_swap<uint16_t>(ptr + 0);
@@ -206,6 +230,27 @@ SHIM_CALL NetDll_WSAGetLastError_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(err);
 }
 
+dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
+                                  pointer_t<XWSABUF> buffers_ptr,
+                                  dword_t buffer_count,
+                                  lpdword_t num_bytes_recv, lpdword_t flags_ptr,
+                                  pointer_t<Xsockaddr_t> from_addr,
+                                  pointer_t<XWSAOVERLAPPED> overlapped_ptr,
+                                  lpvoid_t completion_routine_ptr) {
+  if (overlapped_ptr) {
+    auto evt = kernel_state()->object_table()->LookupObject<XEvent>(
+        overlapped_ptr->event_handle);
+
+    if (evt) {
+      evt->Set(0, false);
+    }
+  }
+
+  return 0;
+}
+DECLARE_XAM_EXPORT(NetDll_WSARecvFrom,
+                   ExportTag::kNetworking | ExportTag::kStub);
+
 struct XnAddrStatus {
   // Address acquisition is not yet complete
   const static uint32_t XNET_GET_XNADDR_PENDING = 0x00000000;
@@ -303,6 +348,8 @@ SHIM_CALL NetDll_socket_shim(PPCContext* ppc_context,
 
   SOCKET socket_handle = socket(af, type, protocol);
   assert_true(socket_handle >> 32 == 0);
+
+  XELOGD("NetDll_socket = %.8X", socket_handle);
 
   SHIM_SET_RETURN_32(static_cast<uint32_t>(socket_handle));
 }

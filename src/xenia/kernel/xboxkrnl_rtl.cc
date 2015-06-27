@@ -409,6 +409,12 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
   assert_true(xex_header_base == 0x80101100);
   auto module = kernel_state->GetExecutableModule();
 
+  // Special case.
+  if (image_field == XEX_HEADER_EXECUTION_INFO) {
+    SHIM_SET_RETURN_32(module->execution_info_ptr());
+    return;
+  }
+
   const xe_xex2_header_t* xex_header = module->xex_header();
   for (size_t n = 0; n < xex_header->header_count; n++) {
     if (xex_header->headers[n].key == image_field) {
@@ -425,7 +431,7 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
       SHIM_SET_RETURN_32(0);
       break;
     default:
-      SHIM_SET_RETURN_32(0xC0000225);
+      SHIM_SET_RETURN_32(X_STATUS_NOT_FOUND);
       break;
   }
 }
