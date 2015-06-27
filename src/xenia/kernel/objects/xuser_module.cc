@@ -10,7 +10,8 @@
 #include "xenia/kernel/objects/xuser_module.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/cpu/cpu.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/cpu/xex_module.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/objects/xfile.h"
 #include "xenia/kernel/objects/xthread.h"

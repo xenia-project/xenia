@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_PRIVATE_H_
-#define XENIA_CPU_PRIVATE_H_
+#ifndef XENIA_CPU_CPU_PRIVATE_H_
+#define XENIA_CPU_CPU_PRIVATE_H_
 
 #include <gflags/gflags.h>
 
@@ -33,4 +33,4 @@ DECLARE_bool(break_condition_truncate);
 
 DECLARE_bool(break_on_debugbreak);
 
-#endif  // XENIA_CPU_PRIVATE_H_
+#endif  // XENIA_CPU_CPU_PRIVATE_H_

@@ -10,10 +10,10 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
-#include "xenia/cpu/cpu.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/cpu/raw_module.h"
 
 #if !XE_PLATFORM_WIN32
@@ -31,7 +31,6 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::frontend::PPCContext;
-using xe::cpu::Runtime;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 

@@ -8,7 +8,6 @@
  */
 
 #include "xenia/base/logging.h"
-#include "xenia/cpu/cpu.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/xenos.h"

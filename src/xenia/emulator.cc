@@ -15,7 +15,6 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/string.h"
-#include "xenia/cpu/cpu.h"
 #include "xenia/gpu/gpu.h"
 #include "xenia/hid/hid.h"
 #include "xenia/kernel/kernel.h"

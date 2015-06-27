@@ -12,10 +12,10 @@
 
 #include "xenia/base/main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
-#include "xenia/cpu/cpu.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/hir/hir_builder.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/cpu/test_module.h"
 
 #include "third_party/catch/single_include/catch.hpp"
@@ -27,7 +27,6 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::frontend::PPCContext;
-using xe::cpu::Runtime;
 
 class TestFunction {
  public:

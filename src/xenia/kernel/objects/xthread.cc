@@ -9,16 +9,16 @@
 
 #include "xenia/kernel/objects/xthread.h"
 
-#include <cstring>
-
 #include <gflags/gflags.h>
+
+#include <cstring>
 
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
-#include "xenia/cpu/cpu.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
