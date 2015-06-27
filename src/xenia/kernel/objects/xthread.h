@@ -24,6 +24,10 @@ namespace kernel {
 class NativeList;
 class XEvent;
 
+constexpr uint32_t X_CREATE_SUSPENDED = 0x00000004;
+
+constexpr uint32_t X_TLS_OUT_OF_INDEXES = UINT32_MAX;
+
 struct XAPC {
   static const uint32_t kSize = 40;
   static const uint32_t kDummyKernelRoutine = 0xF00DFF00;

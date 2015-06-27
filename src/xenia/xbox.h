@@ -135,25 +135,9 @@ typedef uint32_t X_HRESULT;
 #define X_PAGE_NOCACHE            0x00000200
 #define X_PAGE_WRITECOMBINE       0x00000400
 
-
-// (?), used by KeGetCurrentProcessType
-#define X_PROCTYPE_IDLE 0
-#define X_PROCTYPE_USER 1
-#define X_PROCTYPE_SYSTEM 2
-
 // Sockets/networking.
 #define X_INVALID_SOCKET (uint32_t)(~0)
 #define X_SOCKET_ERROR (uint32_t)(-1)
-
-// Thread enums.
-#define X_CREATE_SUSPENDED 0x00000004
-
-// TLS specials.
-#define X_TLS_OUT_OF_INDEXES UINT32_MAX  // (-1)
-
-// Languages.
-#define X_LANGUAGE_ENGLISH 1
-#define X_LANGUAGE_JAPANESE 2
 
 enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_NONE = 0x0000,

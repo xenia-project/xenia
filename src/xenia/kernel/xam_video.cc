@@ -22,7 +22,7 @@ void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode);
 void XGetVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
   VdQueryVideoMode(std::move(video_mode));
 }
-DECLARE_XAM_EXPORT(XGetVideoMode, ExportTag::kVideo | ExportTag::kStub);
+DECLARE_XAM_EXPORT(XGetVideoMode, ExportTag::kVideo | ExportTag::kSketchy);
 
 dword_result_t XGetVideoCapabilities() { return 0; }
 DECLARE_XAM_EXPORT(XGetVideoCapabilities, ExportTag::kVideo | ExportTag::kStub);

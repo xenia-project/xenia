@@ -44,6 +44,11 @@ class XNotifyListener;
 class XThread;
 class XUserModule;
 
+// (?), used by KeGetCurrentProcessType
+constexpr uint32_t X_PROCTYPE_IDLE = 0;
+constexpr uint32_t X_PROCTYPE_USER = 1;
+constexpr uint32_t X_PROCTYPE_SYSTEM = 2;
+
 struct ProcessInfoBlock {
   xe::be<uint32_t> unk_00;
   xe::be<uint32_t> unk_04;  // blink

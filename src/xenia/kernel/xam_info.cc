@@ -19,6 +19,9 @@
 namespace xe {
 namespace kernel {
 
+constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
+constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
+
 SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_context,
                                    KernelState* kernel_state) {
   XELOGD("XamGetSystemVersion()");
