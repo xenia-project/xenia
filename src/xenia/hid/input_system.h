@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "xenia/cpu/processor.h"
+#include "xenia/hid/input.h"
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
 

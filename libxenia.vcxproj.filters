@@ -1485,6 +1485,9 @@
     <ClInclude Include="src\xenia\apu\nop\nop_apu_flags.h">
       <Filter>src\xenia\apu\nop</Filter>
     </ClInclude>
+    <ClInclude Include="src\xenia\hid\input.h">
+      <Filter>src\xenia\hid</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl">
