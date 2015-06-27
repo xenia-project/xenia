@@ -10,8 +10,8 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XFILE_H_
 #define XENIA_KERNEL_XBOXKRNL_XFILE_H_
 
-#include "xenia/kernel/fs/entry.h"
 #include "xenia/kernel/xobject.h"
+#include "xenia/vfs/entry.h"
 
 #include "xenia/xbox.h"
 
@@ -139,7 +139,7 @@ class XFile : public XObject {
   virtual const std::string& path() const = 0;
   virtual const std::string& name() const = 0;
 
-  virtual fs::Device* device() const = 0;
+  virtual vfs::Device* device() const = 0;
 
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
@@ -160,7 +160,7 @@ class XFile : public XObject {
   virtual void* GetWaitHandle();
 
  protected:
-  XFile(KernelState* kernel_state, fs::Mode mode);
+  XFile(KernelState* kernel_state, vfs::Mode mode);
   virtual X_STATUS ReadSync(void* buffer, size_t buffer_length,
                             size_t byte_offset, size_t* out_bytes_read) = 0;
   virtual X_STATUS WriteSync(const void* buffer, size_t buffer_length,
@@ -169,7 +169,7 @@ class XFile : public XObject {
   }
 
  private:
-  fs::Mode mode_;
+  vfs::Mode mode_;
   XEvent* async_event_;
 
   // TODO(benvanik): create flags, open state, etc.

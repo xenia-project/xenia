@@ -16,7 +16,7 @@
 
 #include <mutex>
 
-#include "xenia/base/fs.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
@@ -73,7 +73,7 @@ bool Debugger::StartSession() {
   auto session_path = xe::to_wstring(FLAGS_debug_session_path);
   if (!session_path.empty()) {
     session_path = xe::to_absolute_path(session_path);
-    xe::fs::CreateFolder(session_path);
+    xe::filesystem::CreateFolder(session_path);
   }
 
   functions_path_ = xe::join_paths(session_path, L"functions");

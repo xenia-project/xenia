@@ -51,7 +51,7 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
     // Map.
-    auto mmap = fs_entry->CreateMemoryMapping(fs::Mode::READ, 0, 0);
+    auto mmap = fs_entry->CreateMemoryMapping(vfs::Mode::READ, 0, 0);
     if (!mmap) {
       return result;
     }
@@ -70,7 +70,7 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     // Open file for reading.
     XFile* file_ptr = nullptr;
     result = kernel_state()->file_system()->Open(
-        std::move(fs_entry), kernel_state(), fs::Mode::READ, false, &file_ptr);
+        std::move(fs_entry), kernel_state(), vfs::Mode::READ, false, &file_ptr);
     object_ref<XFile> file(file_ptr);
     if (result) {
       return result;

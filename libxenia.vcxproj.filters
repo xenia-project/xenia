@@ -80,17 +80,11 @@
     <Filter Include="src\xenia\kernel\apps">
       <UniqueIdentifier>{4e0349c4-b0bd-4595-9e83-cb3cbe11a172}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\xenia\kernel\fs">
-      <UniqueIdentifier>{65927db3-9314-4d02-a392-702b09fca341}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\xenia\kernel\objects">
       <UniqueIdentifier>{bb86c40a-ad91-482e-a7c8-ef0a84280c8d}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\xenia\kernel\util">
       <UniqueIdentifier>{447ef539-2dab-4969-a5b0-57c8d6f4c6ec}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\xenia\kernel\fs\devices">
-      <UniqueIdentifier>{cceab7bd-2f0a-4a27-a297-2f89170b8f6b}</UniqueIdentifier>
     </Filter>
     <Filter Include="third_party">
       <UniqueIdentifier>{9194a1f4-9934-465e-adcb-3ac0e337dfe3}</UniqueIdentifier>
@@ -161,6 +155,12 @@
     <Filter Include="third_party\capstone\arch\X86">
       <UniqueIdentifier>{00596876-a323-4570-a5fb-71343024d429}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\xenia\vfs">
+      <UniqueIdentifier>{831bb630-c71e-43c7-abf0-bde923d10e9b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\xenia\vfs\devices">
+      <UniqueIdentifier>{82795389-e855-4cd6-a3b6-9580030cebf2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\emulator.cc">
@@ -191,12 +191,6 @@
       <Filter>src\xenia\base</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\base\debugging_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\fs.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\fs_win.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\base\logging.cc">
@@ -529,48 +523,6 @@
     <ClCompile Include="src\xenia\kernel\apps\xmp_app.cc">
       <Filter>src\xenia\kernel\apps</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\device.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\entry.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\filesystem.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\gdfx.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\stfs.cc">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_device.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_entry.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\disc_image_file.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_device.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_entry.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\host_path_file.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_device.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_entry.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\kernel\fs\devices\stfs_container_file.cc">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\kernel\app.cc">
       <Filter>src\xenia\kernel</Filter>
     </ClCompile>
@@ -781,6 +733,54 @@
     <ClCompile Include="src\xenia\apu\nop\nop_apu_flags.cc">
       <Filter>src\xenia\apu\nop</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\base\filesystem.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\base\filesystem_win.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\device.cc">
+      <Filter>src\xenia\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\entry.cc">
+      <Filter>src\xenia\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\gdfx.cc">
+      <Filter>src\xenia\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\stfs.cc">
+      <Filter>src\xenia\vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\disc_image_device.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\disc_image_entry.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\disc_image_file.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\host_path_device.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\host_path_entry.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\host_path_file.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\stfs_container_device.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\stfs_container_entry.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\devices\stfs_container_file.cc">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\vfs\virtual_file_system.cc">
+      <Filter>src\xenia\vfs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
@@ -826,9 +826,6 @@
       <Filter>src\xenia\base</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\base\delegate.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\fs.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\base\logging.h">
@@ -1206,48 +1203,6 @@
     <ClInclude Include="src\xenia\kernel\apps\xmp_app.h">
       <Filter>src\xenia\kernel\apps</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\device.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\entry.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\filesystem.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\gdfx.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\stfs.h">
-      <Filter>src\xenia\kernel\fs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_device.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_entry.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\disc_image_file.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_device.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_entry.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\host_path_file.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_device.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_entry.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\kernel\fs\devices\stfs_container_file.h">
-      <Filter>src\xenia\kernel\fs\devices</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\kernel\app.h">
       <Filter>src\xenia\kernel</Filter>
     </ClInclude>
@@ -1487,6 +1442,51 @@
     </ClInclude>
     <ClInclude Include="src\xenia\hid\input.h">
       <Filter>src\xenia\hid</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\base\filesystem.h">
+      <Filter>src\xenia\base</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\device.h">
+      <Filter>src\xenia\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\entry.h">
+      <Filter>src\xenia\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\gdfx.h">
+      <Filter>src\xenia\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\stfs.h">
+      <Filter>src\xenia\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\disc_image_device.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\disc_image_entry.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\disc_image_file.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\host_path_device.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\host_path_entry.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\host_path_file.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\stfs_container_device.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\stfs_container_entry.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\devices\stfs_container_file.h">
+      <Filter>src\xenia\vfs\devices</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\vfs\virtual_file_system.h">
+      <Filter>src\xenia\vfs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

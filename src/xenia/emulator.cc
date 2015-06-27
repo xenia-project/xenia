@@ -21,9 +21,9 @@
 #include "xenia/kernel/kernel.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/modules.h"
-#include "xenia/kernel/fs/filesystem.h"
 #include "xenia/memory.h"
 #include "xenia/ui/main_window.h"
+#include "xenia/vfs/virtual_file_system.h"
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
@@ -34,8 +34,8 @@ using namespace xe::apu;
 using namespace xe::cpu;
 using namespace xe::gpu;
 using namespace xe::hid;
-using namespace xe::kernel::fs;
 using namespace xe::ui;
+using namespace xe::vfs;
 
 Emulator::Emulator(const std::wstring& command_line)
     : command_line_(command_line) {}
@@ -139,7 +139,7 @@ X_STATUS Emulator::Setup() {
   }
 
   // Bring up the virtual filesystem used by the kernel.
-  file_system_ = std::make_unique<FileSystem>();
+  file_system_ = std::make_unique<VirtualFileSystem>();
 
   // Shared kernel state.
   kernel_state_ = std::make_unique<kernel::KernelState>(this);

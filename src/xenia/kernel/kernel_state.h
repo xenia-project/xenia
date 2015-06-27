@@ -19,10 +19,10 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/content_manager.h"
-#include "xenia/kernel/fs/filesystem.h"
 #include "xenia/kernel/object_table.h"
 #include "xenia/kernel/user_profile.h"
 #include "xenia/memory.h"
+#include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -84,7 +84,7 @@ class KernelState {
   Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
-  fs::FileSystem* file_system() const { return file_system_; }
+  vfs::VirtualFileSystem* file_system() const { return file_system_; }
 
   uint32_t title_id() const;
 
@@ -140,7 +140,7 @@ class KernelState {
   Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;
-  fs::FileSystem* file_system_;
+  vfs::VirtualFileSystem* file_system_;
 
   Dispatcher* dispatcher_;
 

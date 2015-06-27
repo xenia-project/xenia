@@ -16,6 +16,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
 #include "xenia/ui/main_window.h"
+#include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -65,7 +66,7 @@ class Emulator {
   cpu::ExportResolver* export_resolver() const {
     return export_resolver_.get();
   }
-  kernel::fs::FileSystem* file_system() const { return file_system_.get(); }
+  vfs::VirtualFileSystem* file_system() const { return file_system_.get(); }
 
   kernel::KernelState* kernel_state() const { return kernel_state_.get(); }
 
@@ -95,7 +96,7 @@ class Emulator {
   std::unique_ptr<hid::InputSystem> input_system_;
 
   std::unique_ptr<cpu::ExportResolver> export_resolver_;
-  std::unique_ptr<kernel::fs::FileSystem> file_system_;
+  std::unique_ptr<vfs::VirtualFileSystem> file_system_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
 };

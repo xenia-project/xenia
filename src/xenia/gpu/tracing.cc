@@ -9,7 +9,7 @@
 
 #include "xenia/gpu/tracing.h"
 
-#include "xenia/base/fs.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
 
 namespace xe {
@@ -25,7 +25,7 @@ bool TraceWriter::Open(const std::wstring& path) {
 
   auto canonical_path = xe::to_absolute_path(path);
   auto base_path = xe::find_base_path(canonical_path);
-  xe::fs::CreateFolder(base_path);
+  xe::filesystem::CreateFolder(base_path);
 
   file_ = _wfopen(canonical_path.c_str(), L"wb");
   return file_ != nullptr;

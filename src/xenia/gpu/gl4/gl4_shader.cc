@@ -9,7 +9,7 @@
 
 #include "xenia/gpu/gl4/gl4_shader.h"
 
-#include "xenia/base/fs.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
@@ -363,7 +363,7 @@ bool GL4Shader::CompileProgram(std::string source) {
     auto dump_shaders_path = xe::to_wstring(FLAGS_dump_shaders);
     if (!dump_shaders_path.empty()) {
       dump_shaders_path = xe::to_absolute_path(dump_shaders_path);
-      xe::fs::CreateFolder(dump_shaders_path);
+      xe::filesystem::CreateFolder(dump_shaders_path);
     }
 
     // Note that we put the translated source first so we get good line numbers.

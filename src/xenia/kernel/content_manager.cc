@@ -11,7 +11,7 @@
 
 #include <string>
 
-#include "xenia/base/fs.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xobject.h"
 
@@ -96,9 +96,9 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
   // Search path:
   // content_root/title_id/type_name/*
   auto package_root = ResolvePackageRoot(content_type);
-  auto file_infos = xe::fs::ListFiles(package_root);
+  auto file_infos = xe::filesystem::ListFiles(package_root);
   for (const auto& file_info : file_infos) {
-    if (file_info.type != xe::fs::FileInfo::Type::kDirectory) {
+    if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
       // Directories only.
       continue;
     }
@@ -116,7 +116,7 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
     std::string root_name, const XCONTENT_DATA& data) {
   auto package_path = ResolvePackagePath(data);
-  if (!xe::fs::PathExists(package_path)) {
+  if (!xe::filesystem::PathExists(package_path)) {
     return nullptr;
   }
 
@@ -129,7 +129,7 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
 
 bool ContentManager::ContentExists(const XCONTENT_DATA& data) {
   auto path = ResolvePackagePath(data);
-  return xe::fs::PathExists(path);
+  return xe::filesystem::PathExists(path);
 }
 
 X_RESULT ContentManager::CreateContent(std::string root_name,
@@ -142,12 +142,12 @@ X_RESULT ContentManager::CreateContent(std::string root_name,
   }
 
   auto package_path = ResolvePackagePath(data);
-  if (xe::fs::PathExists(package_path)) {
+  if (xe::filesystem::PathExists(package_path)) {
     // Exists, must not!
     return X_ERROR_ALREADY_EXISTS;
   }
 
-  if (!xe::fs::CreateFolder(package_path)) {
+  if (!xe::filesystem::CreateFolder(package_path)) {
     return X_ERROR_ACCESS_DENIED;
   }
 
@@ -169,7 +169,7 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
   }
 
   auto package_path = ResolvePackagePath(data);
-  if (!xe::fs::PathExists(package_path)) {
+  if (!xe::filesystem::PathExists(package_path)) {
     // Does not exist, must be created.
     return X_ERROR_FILE_NOT_FOUND;
   }
@@ -203,7 +203,7 @@ X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
   std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
   auto package_path = ResolvePackagePath(data);
   auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
-  if (xe::fs::PathExists(thumb_path)) {
+  if (xe::filesystem::PathExists(thumb_path)) {
     auto file = _wfopen(thumb_path.c_str(), L"rb");
     fseek(file, 0, SEEK_END);
     size_t file_len = ftell(file);
@@ -221,8 +221,8 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t> buffer) {
   std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
   auto package_path = ResolvePackagePath(data);
-  xe::fs::CreateFolder(package_path);
-  if (xe::fs::PathExists(package_path)) {
+  xe::filesystem::CreateFolder(package_path);
+  if (xe::filesystem::PathExists(package_path)) {
     auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
     auto file = _wfopen(thumb_path.c_str(), L"wb");
     fwrite(buffer.data(), 1, buffer.size(), file);
@@ -237,8 +237,8 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
   std::lock_guard<xe::recursive_mutex> lock(content_mutex_);
 
   auto package_path = ResolvePackagePath(data);
-  if (xe::fs::PathExists(package_path)) {
-    xe::fs::DeleteFolder(package_path);
+  if (xe::filesystem::PathExists(package_path)) {
+    xe::filesystem::DeleteFolder(package_path);
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;

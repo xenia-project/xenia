@@ -15,7 +15,7 @@
 namespace xe {
 namespace kernel {
 
-XFile::XFile(KernelState* kernel_state, fs::Mode mode)
+XFile::XFile(KernelState* kernel_state, vfs::Mode mode)
     : mode_(mode), position_(0), XObject(kernel_state, kTypeFile) {
   async_event_ = new XEvent(kernel_state);
   async_event_->Initialize(false, false);

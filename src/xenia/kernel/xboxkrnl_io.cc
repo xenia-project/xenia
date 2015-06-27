@@ -12,18 +12,18 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/async_request.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/fs/device.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xfile.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/vfs/device.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-using namespace xe::kernel::fs;
+using namespace xe::vfs;
 
 // TODO(benvanik): replace X_OBJECT_ATTRIBUTES with new style and remove this.
 class X_ANSI_STRING_OLD {
@@ -127,7 +127,7 @@ X_STATUS NtCreateFile(PPCContext* ppc_context, KernelState* kernel_state,
   uint32_t info = X_FILE_DOES_NOT_EXIST;
   uint32_t handle;
 
-  FileSystem* fs = kernel_state->file_system();
+  auto fs = kernel_state->file_system();
   std::unique_ptr<Entry> entry;
 
   object_ref<XFile> root_file;
@@ -165,13 +165,13 @@ X_STATUS NtCreateFile(PPCContext* ppc_context, KernelState* kernel_state,
     info = X_FILE_DOES_NOT_EXIST;
   } else {
     // Open the file/directory.
-    fs::Mode mode;
+    vfs::Mode mode;
     if (desired_access & FileAccess::X_FILE_APPEND_DATA) {
-      mode = fs::Mode::READ_APPEND;
+      mode = vfs::Mode::READ_APPEND;
     } else if (wants_write) {
-      mode = fs::Mode::READ_WRITE;
+      mode = vfs::Mode::READ_WRITE;
     } else {
-      mode = fs::Mode::READ;
+      mode = vfs::Mode::READ;
     }
     XFile* file_ptr = nullptr;
     result = fs->Open(std::move(entry), kernel_state, mode,
@@ -638,7 +638,7 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
   }
 
   // Resolve the file using the virtual file system.
-  FileSystem* fs = kernel_state->file_system();
+  auto fs = kernel_state->file_system();
   auto entry = fs->ResolvePath(object_name);
   if (entry) {
     // Found.
