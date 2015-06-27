@@ -94,9 +94,9 @@ bool GLContext::Initialize(HWND hwnd) {
   }
 
   int context_flags = 0;
-#if DEBUG
-  context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif  // DEBUG
+  if (FLAGS_gl_debug) {
+    context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+  }
 
   int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, 4,      //
                        WGL_CONTEXT_MINOR_VERSION_ARB, 5,      //
@@ -150,9 +150,9 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
     int context_flags = 0;
     // int profile = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
     int profile = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
-#if DEBUG
-    context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif  // DEBUG
+    if (FLAGS_gl_debug) {
+      context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+    }
 
     int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, 4,       //
                          WGL_CONTEXT_MINOR_VERSION_ARB, 5,       //
@@ -290,7 +290,7 @@ GLContext::DebugMessageThunk(GLenum source, GLenum type, GLuint id,
 }
 
 void GLContext::SetupDebugging() {
-  if (!FLAGS_gl_debug_output) {
+  if (!FLAGS_gl_debug || !FLAGS_gl_debug_output) {
     return;
   }
 
