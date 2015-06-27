@@ -25,11 +25,52 @@ namespace kernel {
 
 using namespace xe::kernel::fs;
 
+// TODO(benvanik): replace X_OBJECT_ATTRIBUTES with new style and remove this.
+class X_ANSI_STRING_OLD {
+ private:
+  uint16_t length;
+  uint16_t maximum_length;
+  const char* buffer;
+
+ public:
+  X_ANSI_STRING_OLD() { Zero(); }
+  X_ANSI_STRING_OLD(const uint8_t* base, uint32_t p) { Read(base, p); }
+  void Read(const uint8_t* base, uint32_t p) {
+    length = xe::load_and_swap<uint16_t>(base + p);
+    maximum_length = xe::load_and_swap<uint16_t>(base + p + 2);
+    if (maximum_length) {
+      buffer = (const char*)(base + xe::load_and_swap<uint32_t>(base + p + 4));
+    } else {
+      buffer = 0;
+    }
+  }
+  void Zero() {
+    length = maximum_length = 0;
+    buffer = 0;
+  }
+  char* Duplicate() {
+    if (!buffer || !length) {
+      return nullptr;
+    }
+    auto copy = (char*)calloc(length + 1, sizeof(char));
+    std::strncpy(copy, buffer, length);
+    return copy;
+  }
+  std::string to_string() {
+    if (!buffer || !length) {
+      return "";
+    }
+    std::string result(buffer, length);
+    return result;
+  }
+};
+// static_assert_size(X_ANSI_STRING, 8);
+
 class X_OBJECT_ATTRIBUTES {
  public:
   uint32_t root_directory;
   uint32_t object_name_ptr;
-  X_ANSI_STRING object_name;
+  X_ANSI_STRING_OLD object_name;
   uint32_t attributes;
 
   X_OBJECT_ATTRIBUTES() { Zero(); }
@@ -51,7 +92,6 @@ class X_OBJECT_ATTRIBUTES {
     attributes = 0;
   }
 };
-static_assert_size(X_OBJECT_ATTRIBUTES, 12 + sizeof(X_ANSI_STRING));
 
 struct FileDisposition {
   static const uint32_t X_FILE_SUPERSEDE = 0x00000000;
@@ -699,22 +739,17 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_context,
   uint32_t file_name_ptr = SHIM_GET_ARG_32(7);
   uint32_t restart_scan = SHIM_GET_ARG_32(8);
 
-  char* file_name = NULL;
-  if (file_name_ptr != 0) {
-    X_ANSI_STRING xas(SHIM_MEM_BASE, file_name_ptr);
-    file_name = xas.Duplicate();
-  }
+  auto file_name = X_ANSI_STRING::to_string(SHIM_MEM_BASE, file_name_ptr);
 
   XELOGD(
       "NtQueryDirectoryFile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %d, %.8X(%s), "
       "%d)",
       file_handle, event_handle, apc_routine, apc_context, io_status_block_ptr,
-      file_info_ptr, length, file_name_ptr, !file_name ? "(null)" : file_name,
-      restart_scan);
+      file_info_ptr, length, file_name_ptr,
+      !file_name.empty() ? file_name.c_str() : "(null)", restart_scan);
 
   if (length < 72) {
     SHIM_SET_RETURN_32(X_STATUS_INFO_LENGTH_MISMATCH);
-    free(file_name);
     return;
   }
 
@@ -725,8 +760,8 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_context,
   if (file) {
     X_FILE_DIRECTORY_INFORMATION* dir_info =
         (X_FILE_DIRECTORY_INFORMATION*)calloc(length, 1);
-    result =
-        file->QueryDirectory(dir_info, length, file_name, restart_scan != 0);
+    result = file->QueryDirectory(dir_info, length, file_name.c_str(),
+                                  restart_scan != 0);
     if (XSUCCEEDED(result)) {
       dir_info->Write(SHIM_MEM_BASE, file_info_ptr);
       info = length;
@@ -744,7 +779,6 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_context,
     SHIM_SET_MEM_32(io_status_block_ptr + 4, info);  // Information
   }
 
-  free(file_name);
   SHIM_SET_RETURN_32(result);
 }
 

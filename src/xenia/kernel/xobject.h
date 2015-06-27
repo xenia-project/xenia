@@ -126,7 +126,7 @@ class XObject {
   // Reference()
   // Dereference()
 
-  void SetAttributes(const uint8_t* obj_attrs_ptr);
+  void SetAttributes(uint32_t obj_attributes_ptr);
 
   X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode,
                 uint32_t alertable, uint64_t* opt_timeout);

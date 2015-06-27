@@ -33,9 +33,8 @@ SHIM_CALL ObOpenObjectByName_shim(PPCContext* ppc_context,
   uint32_t unk = SHIM_GET_ARG_32(2);
   uint32_t handle_ptr = SHIM_GET_ARG_32(3);
 
-  uint32_t name_str_ptr = SHIM_MEM_32(obj_attributes_ptr + 4);
-  X_ANSI_STRING name_str(SHIM_MEM_BASE, name_str_ptr);
-  auto name = name_str.to_string();
+  auto name =
+      X_ANSI_STRING::to_string_indirect(SHIM_MEM_BASE, obj_attributes_ptr + 4);
 
   XELOGD("ObOpenObjectByName(%.8X(name=%s), %.8X, %.8X, %.8X)",
          obj_attributes_ptr, name.c_str(), object_type_ptr, unk, handle_ptr);

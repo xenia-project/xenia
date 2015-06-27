@@ -88,15 +88,15 @@ X_STATUS XObject::Delete() {
   }
 }
 
-void XObject::SetAttributes(const uint8_t* obj_attrs_ptr) {
-  if (!obj_attrs_ptr) {
+void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
+  if (!obj_attributes_ptr) {
     return;
   }
 
-  uint32_t name_str_ptr = xe::load_and_swap<uint32_t>(obj_attrs_ptr + 4);
-  if (name_str_ptr) {
-    X_ANSI_STRING name_str(memory()->virtual_membase(), name_str_ptr);
-    name_ = name_str.to_string();
+  auto name = X_ANSI_STRING::to_string_indirect(memory()->virtual_membase(),
+                                                obj_attributes_ptr + 4);
+  if (!name.empty()) {
+    name_ = std::move(name);
     kernel_state_->object_table()->AddNameMapping(name_, handle_);
   }
 }

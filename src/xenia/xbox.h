@@ -139,6 +139,8 @@ typedef uint32_t X_HRESULT;
 #define X_INVALID_SOCKET (uint32_t)(~0)
 #define X_SOCKET_ERROR (uint32_t)(-1)
 
+// clang-format on
+
 enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_NONE = 0x0000,
   X_FILE_ATTRIBUTE_READONLY = 0x0001,
@@ -235,45 +237,53 @@ inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
   xe::store_and_swap<uint32_t>(&p[6], value);
 }
 
-class X_ANSI_STRING {
- private:
-  uint16_t length;
-  uint16_t maximum_length;
-  const char* buffer;
+struct X_ANSI_STRING {
+  xe::be<uint16_t> length;
+  xe::be<uint16_t> maximum_length;
+  xe::be<uint32_t> pointer;
 
- public:
-  X_ANSI_STRING() { Zero(); }
-  X_ANSI_STRING(const uint8_t* base, uint32_t p) { Read(base, p); }
-  void Read(const uint8_t* base, uint32_t p) {
-    length = xe::load_and_swap<uint16_t>(base + p);
-    maximum_length = xe::load_and_swap<uint16_t>(base + p + 2);
-    if (maximum_length) {
-      buffer = (const char*)(base + xe::load_and_swap<uint32_t>(base + p + 4));
-    } else {
-      buffer = 0;
-    }
-  }
-  void Zero() {
-    length = maximum_length = 0;
-    buffer = 0;
-  }
-  char* Duplicate() {
-    if (!buffer || !length) {
+  static X_ANSI_STRING* Translate(uint8_t* membase, uint32_t guest_address) {
+    if (!guest_address) {
       return nullptr;
     }
-    auto copy = (char*)calloc(length + 1, sizeof(char));
-    std::strncpy(copy, buffer, length);
-    return copy;
+    return reinterpret_cast<X_ANSI_STRING*>(membase + guest_address);
   }
-  std::string to_string() {
-    if (!buffer || !length) {
+
+  static X_ANSI_STRING* TranslateIndirect(uint8_t* membase,
+                                          uint32_t guest_address_ptr) {
+    if (!guest_address_ptr) {
+      return nullptr;
+    }
+    uint32_t guest_address =
+        xe::load_and_swap<uint32_t>(membase + guest_address_ptr);
+    return Translate(membase, guest_address);
+  }
+
+  static std::string to_string(uint8_t* membase, uint32_t guest_address) {
+    auto str = Translate(membase, guest_address);
+    return str ? str->to_string(membase) : "";
+  }
+
+  static std::string to_string_indirect(uint8_t* membase,
+                                        uint32_t guest_address_ptr) {
+    auto str = TranslateIndirect(membase, guest_address_ptr);
+    return str ? str->to_string(membase) : "";
+  }
+
+  void reset() {
+    length = 0;
+    maximum_length = 0;
+    pointer = 0;
+  }
+
+  std::string to_string(uint8_t* membase) const {
+    if (!length) {
       return "";
     }
-    std::string result(buffer, length);
-    return result;
+    return std::string(reinterpret_cast<const char*>(membase + pointer),
+                       length);
   }
 };
-// static_assert_size(X_ANSI_STRING, 8);
 
 // http://pastebin.com/SMypYikG
 typedef uint32_t XNotificationID;

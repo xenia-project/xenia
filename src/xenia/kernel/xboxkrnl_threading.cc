@@ -70,12 +70,9 @@ void AssertNoNameCollision(KernelState* kernel_state,
   if (!obj_attributes_ptr) {
     return;
   }
-  uint32_t name_str_ptr = xe::load_and_swap<uint32_t>(
-      kernel_state->memory()->TranslateVirtual(obj_attributes_ptr + 4));
-  if (name_str_ptr) {
-    X_ANSI_STRING name_str(kernel_state->memory()->virtual_membase(),
-                           name_str_ptr);
-    auto name = name_str.to_string();
+  auto name = X_ANSI_STRING::to_string_indirect(
+      kernel_state->memory()->virtual_membase(), obj_attributes_ptr + 4);
+  if (!name.empty()) {
     X_HANDLE handle = X_INVALID_HANDLE_VALUE;
     X_RESULT result =
         kernel_state->object_table()->GetObjectByName(name, &handle);
@@ -477,7 +474,7 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    ev->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
+    ev->SetAttributes(obj_attributes_ptr);
   }
 
   if (handle_ptr) {
@@ -641,7 +638,7 @@ SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    sem->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
+    sem->SetAttributes(obj_attributes_ptr);
   }
 
   if (handle_ptr) {
@@ -738,7 +735,7 @@ SHIM_CALL NtCreateMutant_shim(PPCContext* ppc_context,
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    mutant->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
+    mutant->SetAttributes(obj_attributes_ptr);
   }
 
   if (handle_ptr) {
@@ -800,7 +797,7 @@ SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_context,
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    timer->SetAttributes(SHIM_MEM_ADDR(obj_attributes_ptr));
+    timer->SetAttributes(obj_attributes_ptr);
   }
 
   if (handle_ptr) {
