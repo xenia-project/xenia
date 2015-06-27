@@ -13,8 +13,13 @@
 #include <memory>
 #include <vector>
 
-#include "xenia/emulator.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/memory.h"
 #include "xenia/xbox.h"
+
+namespace xe {
+class Emulator;
+}  // namespace xe
 
 namespace xe {
 namespace hid {
@@ -25,6 +30,8 @@ class InputSystem {
  public:
   InputSystem(Emulator* emulator);
   ~InputSystem();
+
+  static std::unique_ptr<InputSystem> Create(Emulator* emulator);
 
   Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }

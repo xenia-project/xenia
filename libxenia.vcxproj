@@ -392,7 +392,6 @@
     <ClInclude Include="src\xenia\gpu\ucode_disassembler.h" />
     <ClInclude Include="src\xenia\gpu\xenos.h" />
     <ClInclude Include="src\xenia\hid\hid-private.h" />
-    <ClInclude Include="src\xenia\hid\hid.h" />
     <ClInclude Include="src\xenia\hid\input_driver.h" />
     <ClInclude Include="src\xenia\hid\input_system.h" />
     <ClInclude Include="src\xenia\hid\nop\nop_hid-private.h" />

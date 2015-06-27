@@ -1125,9 +1125,6 @@
     <ClInclude Include="src\xenia\gpu\gl4\gl4_shader_translator.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\hid\hid.h">
-      <Filter>src\xenia\hid</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\hid\hid-private.h">
       <Filter>src\xenia\hid</Filter>
     </ClInclude>

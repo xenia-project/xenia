@@ -16,7 +16,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/graphics_system.h"
-#include "xenia/hid/hid.h"
+#include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/modules.h"
@@ -127,7 +127,7 @@ X_STATUS Emulator::Setup() {
   }
 
   // Initialize the HID.
-  input_system_ = std::move(xe::hid::Create(this));
+  input_system_ = std::move(xe::hid::InputSystem::Create(this));
   if (!input_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
