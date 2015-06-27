@@ -27,6 +27,28 @@ namespace gl4 {
 
 extern "C" GLEWContext* glewGetContext();
 
+void InitializeIfNeeded();
+void CleanupOnShutdown();
+
+void InitializeIfNeeded() {
+  static bool has_initialized = false;
+  if (has_initialized) {
+    return;
+  }
+  has_initialized = true;
+
+  //
+
+  atexit(CleanupOnShutdown);
+}
+
+void CleanupOnShutdown() {}
+
+std::unique_ptr<GraphicsSystem> GL4GraphicsSystem::Create(Emulator* emulator) {
+  InitializeIfNeeded();
+  return std::make_unique<GL4GraphicsSystem>(emulator);
+}
+
 GL4GraphicsSystem::GL4GraphicsSystem(Emulator* emulator)
     : GraphicsSystem(emulator), worker_running_(false) {}
 

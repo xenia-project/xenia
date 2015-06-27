@@ -11,6 +11,7 @@
 #define XENIA_GPU_GRAPHICS_SYSTEM_H_
 
 #include <atomic>
+#include <memory>
 #include <thread>
 
 #include "xenia/cpu/processor.h"
@@ -19,11 +20,17 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+class Emulator;
+}  // namespace xe
+
+namespace xe {
 namespace gpu {
 
 class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
+
+  static std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
 
   Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }

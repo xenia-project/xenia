@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_PRIVATE_H_
-#define XENIA_GPU_PRIVATE_H_
+#ifndef XENIA_GPU_GPU_PRIVATE_H_
+#define XENIA_GPU_GPU_PRIVATE_H_
 
 #include <gflags/gflags.h>
 
@@ -21,4 +21,4 @@ DECLARE_string(dump_shaders);
 
 DECLARE_bool(vsync);
 
-#endif  // XENIA_GPU_PRIVATE_H_
+#endif  // XENIA_GPU_GPU_PRIVATE_H_

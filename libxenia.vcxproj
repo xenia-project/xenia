@@ -329,7 +329,6 @@
     <ClInclude Include="src\xenia\cpu\compiler\passes\validation_pass.h" />
     <ClInclude Include="src\xenia\cpu\compiler\passes\value_reduction_pass.h" />
     <ClInclude Include="src\xenia\cpu\cpu-private.h" />
-    <ClInclude Include="src\xenia\cpu\cpu.h" />
     <ClInclude Include="src\xenia\cpu\debug_info.h" />
     <ClInclude Include="src\xenia\cpu\entry_table.h" />
     <ClInclude Include="src\xenia\cpu\export_resolver.h" />
@@ -375,7 +374,6 @@
     <ClInclude Include="src\xenia\gpu\gl4\command_processor.h" />
     <ClInclude Include="src\xenia\gpu\gl4\draw_batcher.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu-private.h" />
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_graphics_system.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_profiler_display.h" />
     <ClInclude Include="src\xenia\gpu\gl4\gl4_shader.h" />
@@ -384,7 +382,6 @@
     <ClInclude Include="src\xenia\gpu\gl4\texture_cache.h" />
     <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h" />
     <ClInclude Include="src\xenia\gpu\gpu-private.h" />
-    <ClInclude Include="src\xenia\gpu\gpu.h" />
     <ClInclude Include="src\xenia\gpu\graphics_system.h" />
     <ClInclude Include="src\xenia\gpu\register_file.h" />
     <ClInclude Include="src\xenia\gpu\sampler_info.h" />

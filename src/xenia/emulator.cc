@@ -15,7 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/string.h"
-#include "xenia/gpu/gpu.h"
+#include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/hid.h"
 #include "xenia/kernel/kernel.h"
 #include "xenia/kernel/kernel_state.h"
@@ -121,7 +121,7 @@ X_STATUS Emulator::Setup() {
   xma_decoder_ = std::move(std::make_unique<XmaDecoder>(this));
 
   // Initialize the GPU.
-  graphics_system_ = std::move(xe::gpu::Create(this));
+  graphics_system_ = std::move(xe::gpu::GraphicsSystem::Create(this));
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }

@@ -12,8 +12,6 @@
 
 #include <gflags/gflags.h>
 
-#include "xenia/gpu/gl4/gl4_gpu.h"
-
 DECLARE_bool(thread_safe_gl);
 DECLARE_bool(disable_gl_context_reset);
 
@@ -27,15 +25,5 @@ DECLARE_bool(disable_framebuffer_readback);
 DECLARE_bool(disable_textures);
 
 #define FINE_GRAINED_DRAW_SCOPES 0
-
-namespace xe {
-namespace gpu {
-namespace gl4 {
-
-//
-
-}  // namespace gl4
-}  // namespace gpu
-}  // namespace xe
 
 #endif  // XENIA_GPU_GL4_GL4_GPU_PRIVATE_H_

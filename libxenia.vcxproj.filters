@@ -840,9 +840,6 @@
     <ClInclude Include="src\xenia\base\byte_order.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\cpu\cpu.h">
-      <Filter>src\xenia\cpu</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\cpu\cpu-private.h">
       <Filter>src\xenia\cpu</Filter>
     </ClInclude>
@@ -1062,9 +1059,6 @@
     <ClInclude Include="src\xenia\cpu\compiler\passes\finalization_pass.h">
       <Filter>src\xenia\cpu\compiler\passes</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gpu.h">
-      <Filter>src\xenia\gpu</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\gpu\gpu-private.h">
       <Filter>src\xenia\gpu</Filter>
     </ClInclude>
@@ -1114,9 +1108,6 @@
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\gl4_gpu-private.h">

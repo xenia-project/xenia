@@ -15,8 +15,28 @@
 #include "xenia/gpu/gpu-private.h"
 #include "xenia/kernel/objects/xthread.h"
 
+// TODO(benvanik): based on platform/build support.
+#include "xenia/gpu/gl4/gl4_graphics_system.h"
+
 namespace xe {
 namespace gpu {
+
+std::unique_ptr<GraphicsSystem> GraphicsSystem::Create(Emulator* emulator) {
+  if (FLAGS_gpu.compare("gl4") == 0) {
+    return xe::gpu::gl4::GL4GraphicsSystem::Create(emulator);
+  } else {
+    // Create best available.
+    std::unique_ptr<GraphicsSystem> best;
+
+    best = xe::gpu::gl4::GL4GraphicsSystem::Create(emulator);
+    if (best) {
+      return best;
+    }
+
+    // Nothing!
+    return nullptr;
+  }
+}
 
 GraphicsSystem::GraphicsSystem(Emulator* emulator)
     : emulator_(emulator),
