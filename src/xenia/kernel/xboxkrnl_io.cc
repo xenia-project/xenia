@@ -758,15 +758,14 @@ SHIM_CALL NtQueryDirectoryFile_shim(PPCContext* ppc_context,
 
   auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
   if (file) {
-    X_FILE_DIRECTORY_INFORMATION* dir_info =
-        (X_FILE_DIRECTORY_INFORMATION*)calloc(length, 1);
-    result = file->QueryDirectory(dir_info, length, file_name.c_str(),
-                                  restart_scan != 0);
+    X_FILE_DIRECTORY_INFORMATION dir_info = {0};
+    result = file->QueryDirectory(
+        &dir_info, length, !file_name.empty() ? file_name.c_str() : nullptr,
+        restart_scan != 0);
     if (XSUCCEEDED(result)) {
-      dir_info->Write(SHIM_MEM_BASE, file_info_ptr);
+      dir_info.Write(SHIM_MEM_BASE, file_info_ptr);
       info = length;
     }
-    free(dir_info);
   } else {
     result = X_STATUS_NO_SUCH_FILE;
   }
