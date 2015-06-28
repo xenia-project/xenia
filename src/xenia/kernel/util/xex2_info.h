@@ -12,6 +12,8 @@
 
 #include <cstdint>
 
+#include "xenia/base/byte_order.h"
+
 typedef enum {
   XEX_HEADER_RESOURCE_INFO = 0x000002FF,
   XEX_HEADER_FILE_FORMAT_INFO = 0x000003FF,
@@ -466,5 +468,57 @@ typedef struct {
   size_t section_count;
   xe_xex2_section_t* sections;
 } xe_xex2_header_t;
+
+namespace xe {
+namespace kernel {
+union xex2_version {
+  uint32_t value;
+  struct {
+    uint32_t major : 4;
+    uint32_t minor : 4;
+    uint32_t build : 16;
+    uint32_t qfe : 8;
+  };
+};
+
+struct xex2_opt_execution_info {
+  xe::be<uint32_t> media_id;          // 0x0
+  xe::be<xex2_version> version;       // 0x4
+  xe::be<xex2_version> base_version;  // 0x8
+  xe::be<uint32_t> title_id;          // 0xC
+  uint8_t platform;                   // 0x10
+  uint8_t executable_table;           // 0x11
+  uint8_t disc_number;                // 0x12
+  uint8_t disc_count;                 // 0x13
+  xe::be<uint32_t> savegame_id;       // 0x14
+};
+
+struct xex2_opt_header {
+  xe::be<uint32_t> key;  // 0x0
+
+  union {
+    xe::be<uint32_t> value;   // 0x4
+    xe::be<uint32_t> offset;  // 0x8
+  };
+};
+
+struct xex2_header {
+  xe::be<uint32_t> magic;                     // 0x0 'XEX2'
+  xe::be<xe_xex2_module_flags> module_flags;  // 0x4
+  xe::be<uint32_t> exe_offset;                // 0x8
+  xe::be<uint32_t> reserved;                  // 0xC
+  xe::be<uint32_t> certificate_offset;        // 0x10
+  xe::be<uint32_t> header_count;              // 0x14
+
+  xex2_opt_header headers[1];  // 0x18
+};
+
+struct xex2_loader_info {
+  xe::be<uint32_t> header_size;
+  xe::be<uint32_t> image_size;
+
+};
+} // namespace kernel
+} // namespace xe
 
 #endif  // XENIA_KERNEL_XEX2_INFO_H_
