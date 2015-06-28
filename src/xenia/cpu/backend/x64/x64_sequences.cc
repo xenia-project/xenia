@@ -6526,11 +6526,6 @@ EMITTER_OPCODE_TABLE(
 
 
 // ============================================================================
-// OPCODE_COMPARE_EXCHANGE
-// ============================================================================
-
-
-// ============================================================================
 // OPCODE_ATOMIC_EXCHANGE
 // ============================================================================
 // Note that the address we use here is a real, host address!
@@ -6586,18 +6581,6 @@ EMITTER_OPCODE_TABLE(
     ATOMIC_EXCHANGE_I16,
     ATOMIC_EXCHANGE_I32,
     ATOMIC_EXCHANGE_I64);
-
-
-// ============================================================================
-// OPCODE_ATOMIC_ADD
-// ============================================================================
-
-
-// ============================================================================
-// OPCODE_ATOMIC_SUB
-// ============================================================================
-
-
 
 
 //SEQUENCE(ADD_ADD_BRANCH, MATCH(
@@ -6723,10 +6706,7 @@ void RegisterSequences() {
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_SWIZZLE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_PACK);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_UNPACK);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_COMPARE_EXCHANGE);
   REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_EXCHANGE);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_ADD);
-  //REGISTER_EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_SUB);
 }
 
 bool SelectSequence(X64Emitter& e, const Instr* i, const Instr** new_tail) {

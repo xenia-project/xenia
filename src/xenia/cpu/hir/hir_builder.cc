@@ -2059,20 +2059,6 @@ Value* HIRBuilder::Unpack(Value* value, uint32_t pack_flags) {
   return i->dest;
 }
 
-Value* HIRBuilder::CompareExchange(Value* address, Value* compare_value,
-                                   Value* exchange_value) {
-  ASSERT_ADDRESS_TYPE(address);
-  ASSERT_INTEGER_TYPE(compare_value);
-  ASSERT_INTEGER_TYPE(exchange_value);
-  ASSERT_TYPES_EQUAL(compare_value, exchange_value);
-  Instr* i = AppendInstr(OPCODE_COMPARE_EXCHANGE_info, 0,
-                         AllocValue(exchange_value->type));
-  i->set_src1(address);
-  i->set_src2(compare_value);
-  i->set_src3(exchange_value);
-  return i->dest;
-}
-
 Value* HIRBuilder::AtomicExchange(Value* address, Value* new_value) {
   ASSERT_ADDRESS_TYPE(address);
   ASSERT_INTEGER_TYPE(new_value);
@@ -2080,26 +2066,6 @@ Value* HIRBuilder::AtomicExchange(Value* address, Value* new_value) {
       AppendInstr(OPCODE_ATOMIC_EXCHANGE_info, 0, AllocValue(new_value->type));
   i->set_src1(address);
   i->set_src2(new_value);
-  i->src3.value = NULL;
-  return i->dest;
-}
-
-Value* HIRBuilder::AtomicAdd(Value* address, Value* value) {
-  ASSERT_ADDRESS_TYPE(address);
-  ASSERT_INTEGER_TYPE(value);
-  Instr* i = AppendInstr(OPCODE_ATOMIC_ADD_info, 0, AllocValue(value->type));
-  i->set_src1(address);
-  i->set_src2(value);
-  i->src3.value = NULL;
-  return i->dest;
-}
-
-Value* HIRBuilder::AtomicSub(Value* address, Value* value) {
-  ASSERT_ADDRESS_TYPE(address);
-  ASSERT_INTEGER_TYPE(value);
-  Instr* i = AppendInstr(OPCODE_ATOMIC_SUB_info, 0, AllocValue(value->type));
-  i->set_src1(address);
-  i->set_src2(value);
   i->src3.value = NULL;
   return i->dest;
 }
