@@ -35,6 +35,7 @@ class XUserModule : public XModule {
   uint32_t GetProcAddressByName(const char* name) override;
   X_STATUS GetSection(const char* name, uint32_t* out_section_data,
                       uint32_t* out_section_size) override;
+  X_STATUS GetOptHeader(xe_xex2_header_keys key, uint32_t* out_header_guest_ptr);
 
   X_STATUS Launch(uint32_t flags);
 

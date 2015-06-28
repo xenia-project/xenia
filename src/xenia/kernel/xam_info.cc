@@ -77,9 +77,16 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
   auto module = kernel_state->GetExecutableModule();
   assert_not_null(module);
 
-  SHIM_SET_MEM_32(info_ptr, module->execution_info_ptr());
+  uint32_t guest_hdr_ptr;
+  X_STATUS result = module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
-  SHIM_SET_RETURN_32(0);
+  if (XFAILED(result)) {
+    SHIM_SET_RETURN_32(result);
+    return;
+  }
+
+  SHIM_SET_MEM_32(info_ptr, guest_hdr_ptr);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 SHIM_CALL XamLoaderSetLaunchData_shim(PPCContext* ppc_context,

@@ -22,14 +22,9 @@ namespace kernel {
 using namespace xe::cpu;
 
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, ModuleType::kUserModule, path),
-      xex_(nullptr),
-      execution_info_ptr_(0) {}
+    : XModule(kernel_state, ModuleType::kUserModule, path), xex_(nullptr) {}
 
-XUserModule::~XUserModule() {
-  kernel_state()->memory()->SystemHeapFree(execution_info_ptr_);
-  xe_xex2_dealloc(xex_);
-}
+XUserModule::~XUserModule() { xe_xex2_dealloc(xex_); }
 
 xe_xex2_ref XUserModule::xex() { return xex_; }
 
@@ -114,7 +109,7 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   auto ldr_data =
       memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
 
-  ldr_data->dll_base = 0; // GetProcAddress will read this.
+  ldr_data->dll_base = 0;  // GetProcAddress will read this.
   ldr_data->xex_header_base = xex_header_;
 
   // Prepare the module for execution.
@@ -154,6 +149,24 @@ X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
     }
   }
   return X_STATUS_UNSUCCESSFUL;
+}
+
+X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
+                                   uint32_t* out_header_guest_ptr) {
+  assert_not_null(out_header_guest_ptr);
+
+  auto header = memory()->TranslateVirtual<xex2_header*>(xex_header_);
+  if (!header) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  auto ptr = xex2_get_opt_header(header, key);
+  if (!ptr) {
+    return X_STATUS_NOT_FOUND;
+  }
+
+  *out_header_guest_ptr = (uint32_t)(ptr - memory()->virtual_membase());
+  return X_STATUS_SUCCESS;
 }
 
 X_STATUS XUserModule::Launch(uint32_t flags) {
