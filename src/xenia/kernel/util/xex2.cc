@@ -29,26 +29,6 @@
 
 namespace xe {
 namespace kernel {
-template <typename T>
-T* xex2_get_opt_header(const xex2_header* header, uint32_t key) {
-  for (int i = 0; i < header->header_count; i++) {
-    const xex2_opt_header* opt_header = header->headers[i];
-    if (opt_header->key != key) {
-      continue;
-    }
-
-    if ((opt_header->key & 0xFF) == 0x01) {
-      // Data is stored in the opt header
-      return (T*)&opt_header->value;
-    } else {
-      // Data stored at offset.
-      return (T*)((uint8_t*)&header->headers[0] + opt_header->offset);
-    }
-  }
-
-  return nullptr;
-}
-
 uint32_t xex2_get_header_size(const xex2_header* header) {
   return header->exe_offset;
 }
