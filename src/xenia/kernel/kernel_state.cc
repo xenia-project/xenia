@@ -180,28 +180,27 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
     return;
   }
   executable_module_ = std::move(module);
-
-  if (executable_module_) {
-    auto header = executable_module_->xex_header();
-    if (header) {
-      auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
-          process_info_block_address_);
-      pib->tls_data_size = header->tls_info.data_size;
-      pib->tls_raw_data_size = header->tls_info.raw_data_size;
-      pib->tls_slot_size = header->tls_info.slot_count * 4;
-    }
+  if (!executable_module_) {
+    return;
   }
 
-  // Setup the kernel's XexExecutableModuleHandle field
-  auto exp = processor()->export_resolver()->GetExportByOrdinal(
+  auto header = executable_module_->xex_header();
+  if (header) {
+    auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
+        process_info_block_address_);
+    pib->tls_data_size = header->tls_info.data_size;
+    pib->tls_raw_data_size = header->tls_info.raw_data_size;
+    pib->tls_slot_size = header->tls_info.slot_count * 4;
+  }
+
+  // Setup the kernel's XexExecutableModuleHandle field.
+  auto export = processor()->export_resolver()->GetExportByOrdinal(
       "xboxkrnl.exe", ordinals::XexExecutableModuleHandle);
-
-  if (exp) {
-    auto variable_ptr =
-        memory()->TranslateVirtual<xe::be<uint32_t>*>(exp->variable_ptr);
-
-    *variable_ptr = module->hmodule_ptr();
-  }
+  assert_not_null(export);
+  assert_not_zero(export->variable_ptr);
+  auto variable_ptr =
+      memory()->TranslateVirtual<xe::be<uint32_t>*>(export->variable_ptr);
+  *variable_ptr = executable_module_->hmodule_ptr();
 }
 
 void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
