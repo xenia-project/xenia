@@ -1475,9 +1475,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </None>
     <None Include="src\xenia\cpu\hir\opcodes.inl">
       <Filter>src\xenia\cpu\hir</Filter>
     </None>

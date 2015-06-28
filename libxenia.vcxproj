@@ -499,7 +499,6 @@
     <ClInclude Include="third_party\xxhash\xxhash.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\xenia\cpu\backend\x64\x64_sequence.inl" />
     <None Include="src\xenia\cpu\hir\opcodes.inl" />
     <None Include="src\xenia\debug\proto\breakpoints.fbs" />
     <None Include="src\xenia\debug\proto\common.fbs" />
