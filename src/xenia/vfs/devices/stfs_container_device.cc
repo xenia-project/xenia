@@ -32,6 +32,50 @@ STFSContainerDevice::STFSContainerDevice(const std::string& mount_path,
 STFSContainerDevice::~STFSContainerDevice() = default;
 
 bool STFSContainerDevice::Initialize() {
+  if (filesystem::IsFolder(local_path_)) {
+    // Was given a folder. Try to find the file in
+    // local_path\TITLE_ID\000D0000\HASH_OF_42_CHARS
+    // We take care to not die if there are additional files around.
+    bool found_alternative = false;
+    auto files = filesystem::ListFiles(local_path_);
+    for (auto& file : files) {
+      if (file.type != filesystem::FileInfo::Type::kDirectory ||
+          file.name.size() != 8) {
+        continue;
+      }
+      auto child_path = xe::join_paths(local_path_, file.name);
+      auto child_files = filesystem::ListFiles(child_path);
+      for (auto& child_file : child_files) {
+        if (child_file.type != filesystem::FileInfo::Type::kDirectory ||
+            child_file.name != L"000D0000") {
+          continue;
+        }
+        auto stfs_path = xe::join_paths(child_path, child_file.name);
+        auto stfs_files = filesystem::ListFiles(stfs_path);
+        for (auto& stfs_file : stfs_files) {
+          if (stfs_file.type != filesystem::FileInfo::Type::kFile ||
+              stfs_file.name.size() != 42) {
+            continue;
+          }
+          // Probably it!
+          local_path_ = xe::join_paths(stfs_path, stfs_file.name);
+          found_alternative = true;
+          break;
+        }
+        if (found_alternative) {
+          break;
+        }
+      }
+      if (found_alternative) {
+        break;
+      }
+    }
+  }
+  if (!filesystem::PathExists(local_path_)) {
+    XELOGE("STFS container does not exist");
+    return false;
+  }
+
   mmap_ = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("STFS container could not be mapped");

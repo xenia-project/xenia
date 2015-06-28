@@ -43,6 +43,12 @@ bool DeleteFolder(const std::wstring& path) {
   return SHFileOperation(&op) == 0;
 }
 
+bool IsFolder(const std::wstring& path) {
+  DWORD attrib = GetFileAttributes(path.c_str());
+  return attrib != INVALID_FILE_ATTRIBUTES &&
+         (attrib & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
+}
+
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
 std::vector<FileInfo> ListFiles(const std::wstring& path) {

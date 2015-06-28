@@ -22,8 +22,8 @@ namespace filesystem {
 bool PathExists(const std::wstring& path);
 
 bool CreateFolder(const std::wstring& path);
-
 bool DeleteFolder(const std::wstring& path);
+bool IsFolder(const std::wstring& path);
 
 struct FileInfo {
   enum class Type {
