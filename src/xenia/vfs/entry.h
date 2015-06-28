@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "xenia/base/mapped_memory.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -37,19 +38,6 @@ enum class Mode {
   READ_APPEND,
 };
 
-class MemoryMapping {
- public:
-  MemoryMapping(uint8_t* address, size_t length);
-  virtual ~MemoryMapping();
-
-  uint8_t* address() const { return address_; }
-  size_t length() const { return length_; }
-
- private:
-  uint8_t* address_;
-  size_t length_;
-};
-
 class Entry {
  public:
   Entry(Device* device, const std::string& path);
@@ -67,15 +55,15 @@ class Entry {
                                   size_t length, const char* file_name,
                                   bool restart) = 0;
 
-  virtual bool can_map() { return false; }
-
-  virtual std::unique_ptr<MemoryMapping> CreateMemoryMapping(
-      Mode map_mode, const size_t offset, const size_t length) {
-    return NULL;
-  }
-
   virtual X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
                         XFile** out_file) = 0;
+
+  virtual bool can_map() const { return false; }
+  virtual std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,
+                                                   size_t offset = 0,
+                                                   size_t length = 0) {
+    return nullptr;
+  }
 
  private:
   Device* device_;

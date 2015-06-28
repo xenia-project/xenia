@@ -17,15 +17,6 @@
 namespace xe {
 namespace vfs {
 
-class HostPathMemoryMapping : public MemoryMapping {
- public:
-  HostPathMemoryMapping(std::unique_ptr<MappedMemory> mmap)
-      : MemoryMapping(mmap->data(), mmap->size()), mmap_(std::move(mmap)) {}
-
- private:
-  std::unique_ptr<MappedMemory> mmap_;
-};
-
 HostPathEntry::HostPathEntry(Device* device, const char* path,
                              const std::wstring& local_path)
     : Entry(device, path),
@@ -125,19 +116,6 @@ X_STATUS HostPathEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
   return X_STATUS_SUCCESS;
 }
 
-std::unique_ptr<MemoryMapping> HostPathEntry::CreateMemoryMapping(
-    Mode map_mode, const size_t offset, const size_t length) {
-  auto mmap = MappedMemory::Open(
-      local_path_, map_mode == Mode::READ ? MappedMemory::Mode::kRead
-                                          : MappedMemory::Mode::kReadWrite,
-      offset, length);
-  if (!mmap) {
-    return nullptr;
-  }
-
-  return std::make_unique<HostPathMemoryMapping>(std::move(mmap));
-}
-
 X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
                              XFile** out_file) {
   // TODO(benvanik): plumb through proper disposition/access mode.
@@ -174,6 +152,12 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
 
   *out_file = new HostPathFile(kernel_state, mode, this, file);
   return X_STATUS_SUCCESS;
+}
+
+std::unique_ptr<MappedMemory> HostPathEntry::OpenMapped(MappedMemory::Mode mode,
+                                                        size_t offset,
+                                                        size_t length) {
+  return MappedMemory::Open(local_path_, mode, offset, length);
 }
 
 }  // namespace vfs

@@ -976,7 +976,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
         info->thunk_address = record;
       } break;
       default:
-        // assert_always();
+        assert_always();
         break;
     }
   }

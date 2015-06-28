@@ -15,11 +15,6 @@
 namespace xe {
 namespace vfs {
 
-MemoryMapping::MemoryMapping(uint8_t* address, size_t length)
-    : address_(address), length_(length) {}
-
-MemoryMapping::~MemoryMapping() {}
-
 Entry::Entry(Device* device, const std::string& path)
     : device_(device), path_(path) {
   assert_not_null(device);

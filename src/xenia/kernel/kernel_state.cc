@@ -180,13 +180,15 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
   }
   executable_module_ = std::move(module);
 
-  auto header = executable_module_->xex_header();
-  if (header) {
-    auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
-        process_info_block_address_);
-    pib->tls_data_size = header->tls_info.data_size;
-    pib->tls_raw_data_size = header->tls_info.raw_data_size;
-    pib->tls_slot_size = header->tls_info.slot_count * 4;
+  if (executable_module_) {
+    auto header = executable_module_->xex_header();
+    if (header) {
+      auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
+          process_info_block_address_);
+      pib->tls_data_size = header->tls_info.data_size;
+      pib->tls_raw_data_size = header->tls_info.raw_data_size;
+      pib->tls_slot_size = header->tls_info.slot_count * 4;
+    }
   }
 }
 

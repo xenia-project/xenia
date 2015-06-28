@@ -51,13 +51,13 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
     // Map.
-    auto mmap = fs_entry->CreateMemoryMapping(vfs::Mode::READ, 0, 0);
+    auto mmap = fs_entry->OpenMapped(MappedMemory::Mode::kRead);
     if (!mmap) {
       return result;
     }
 
     // Load the module.
-    result = LoadFromMemory(mmap->address(), mmap->length());
+    result = LoadFromMemory(mmap->data(), mmap->size());
   } else {
     X_FILE_NETWORK_OPEN_INFORMATION file_info = {0};
     result = fs_entry->QueryInfo(&file_info);

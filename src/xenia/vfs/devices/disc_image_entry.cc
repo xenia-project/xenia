@@ -17,14 +17,6 @@
 namespace xe {
 namespace vfs {
 
-class DiscImageMemoryMapping : public MemoryMapping {
- public:
-  DiscImageMemoryMapping(uint8_t* address, size_t length)
-      : MemoryMapping(address, length) {}
-
-  ~DiscImageMemoryMapping() override = default;
-};
-
 DiscImageEntry::DiscImageEntry(Device* device, const char* path,
                                MappedMemory* mmap, GDFXEntry* gdfx_entry)
     : Entry(device, path),
@@ -97,9 +89,15 @@ X_STATUS DiscImageEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
   return X_STATUS_SUCCESS;
 }
 
-std::unique_ptr<MemoryMapping> DiscImageEntry::CreateMemoryMapping(
-    Mode map_mode, const size_t offset, const size_t length) {
-  if (map_mode != Mode::READ) {
+X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode, bool async,
+                              XFile** out_file) {
+  *out_file = new DiscImageFile(kernel_state, mode, this);
+  return X_STATUS_SUCCESS;
+}
+
+std::unique_ptr<MappedMemory> DiscImageEntry::OpenMapped(
+    MappedMemory::Mode mode, size_t offset, size_t length) {
+  if (mode != MappedMemory::Mode::kRead) {
     // Only allow reads.
     return nullptr;
   }
@@ -107,14 +105,7 @@ std::unique_ptr<MemoryMapping> DiscImageEntry::CreateMemoryMapping(
   size_t real_offset = gdfx_entry_->offset + offset;
   size_t real_length =
       length ? std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
-  return std::make_unique<DiscImageMemoryMapping>(mmap_->data() + real_offset,
-                                                  real_length);
-}
-
-X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode, bool async,
-                              XFile** out_file) {
-  *out_file = new DiscImageFile(kernel_state, mode, this);
-  return X_STATUS_SUCCESS;
+  return mmap_->Slice(mode, real_offset, real_length);
 }
 
 }  // namespace vfs

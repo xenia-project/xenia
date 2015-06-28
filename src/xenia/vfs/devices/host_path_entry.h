@@ -27,12 +27,13 @@ class HostPathEntry : public Entry {
   X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                           const char* file_name, bool restart) override;
 
-  bool can_map() override { return true; }
-  std::unique_ptr<MemoryMapping> CreateMemoryMapping(
-      Mode map_mode, const size_t offset, const size_t length) override;
-
   X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
                 XFile** out_file) override;
+
+  bool can_map() const override { return true; }
+  std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,
+                                           size_t offset,
+                                           size_t length) override;
 
  private:
   std::wstring local_path_;
