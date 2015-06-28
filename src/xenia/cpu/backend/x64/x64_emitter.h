@@ -14,6 +14,8 @@
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 #include "xenia/base/arena.h"
+#include "xenia/cpu/hir/hir_builder.h"
+#include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
 #include "xenia/debug/function_trace_data.h"
 #include "xenia/memory.h"
@@ -24,10 +26,6 @@ class DebugInfo;
 class FunctionInfo;
 class Processor;
 class SymbolInfo;
-namespace hir {
-class HIRBuilder;
-class Instr;
-}  // namespace hir
 }  // namespace cpu
 }  // namespace xe
 
@@ -156,7 +154,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void DebugBreak();
   void Trap(uint16_t trap_type = 0);
   void UnimplementedInstr(const hir::Instr* i);
-  void UnimplementedExtern(const hir::Instr* i);
 
   void Call(const hir::Instr* instr, FunctionInfo* symbol_info);
   void CallIndirect(const hir::Instr* instr, const Xbyak::Reg64& reg);

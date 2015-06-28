@@ -38,8 +38,12 @@ class X64Backend : public Backend {
 
   X64CodeCache* code_cache() const { return code_cache_; }
   uint32_t emitter_data() const { return emitter_data_; }
+
+  // Call a generated function, saving all stack parameters.
   HostToGuestThunk host_to_guest_thunk() const { return host_to_guest_thunk_; }
+  // Function that guest code can call to transition into host code.
   GuestToHostThunk guest_to_host_thunk() const { return guest_to_host_thunk_; }
+  // Function that thunks to the ResolveFunction in X64Emitter.
   ResolveFunctionThunk resolve_function_thunk() const {
     return resolve_function_thunk_;
   }

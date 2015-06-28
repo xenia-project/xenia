@@ -2,13 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2015 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_THUNK_EMITTER_H_
-#define XENIA_BACKEND_X64_X64_THUNK_EMITTER_H_
+#ifndef XENIA_BACKEND_X64_X64_STACK_LAYOUT_H_
+#define XENIA_BACKEND_X64_X64_STACK_LAYOUT_H_
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -123,24 +123,9 @@ class StackLayout {
   const static size_t GUEST_CALL_RET_ADDR = 96;
 };
 
-class X64ThunkEmitter : public X64Emitter {
- public:
-  X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator);
-  virtual ~X64ThunkEmitter();
-
-  // Call a generated function, saving all stack parameters.
-  HostToGuestThunk EmitHostToGuestThunk();
-
-  // Function that guest code can call to transition into host code.
-  GuestToHostThunk EmitGuestToHostThunk();
-
-  // Function that thunks to the ResolveFunction in X64Emitter.
-  ResolveFunctionThunk EmitResolveFunctionThunk();
-};
-
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_THUNK_EMITTER_H_
+#endif  // XENIA_BACKEND_X64_X64_STACK_LAYOUT_H_

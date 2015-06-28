@@ -277,9 +277,6 @@
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_sequences.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.cc">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_tracers.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
@@ -921,9 +918,6 @@
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_sequences.h">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.h">
-      <Filter>src\xenia\cpu\backend\x64</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_tracers.h">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClInclude>
@@ -1475,6 +1469,9 @@
     </ClInclude>
     <ClInclude Include="src\xenia\vfs\virtual_file_system.h">
       <Filter>src\xenia\vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_stack_layout.h">
+      <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

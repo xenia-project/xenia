@@ -47,7 +47,6 @@
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_emitter.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_function.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_sequences.cc" />
-    <ClCompile Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_tracers.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\compiler.cc" />
     <ClCompile Include="src\xenia\cpu\compiler\compiler_pass.cc" />
@@ -306,7 +305,7 @@
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_emitter.h" />
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_function.h" />
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_sequences.h" />
-    <ClInclude Include="src\xenia\cpu\backend\x64\x64_thunk_emitter.h" />
+    <ClInclude Include="src\xenia\cpu\backend\x64\x64_stack_layout.h" />
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_tracers.h" />
     <ClInclude Include="src\xenia\cpu\compiler\compiler.h" />
     <ClInclude Include="src\xenia\cpu\compiler\compiler_pass.h" />
