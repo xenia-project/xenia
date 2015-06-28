@@ -11,38 +11,41 @@
 #define XENIA_VFS_DEVICES_STFS_CONTAINER_ENTRY_H_
 
 #include <vector>
-#include <iterator>
 
 #include "xenia/base/filesystem.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/vfs/entry.h"
-#include "xenia/vfs/stfs.h"
 
 namespace xe {
 namespace vfs {
 
+class STFSContainerDevice;
+
 class STFSContainerEntry : public Entry {
  public:
-  STFSContainerEntry(Device* device, const char* path, MappedMemory* mmap,
-                     STFSEntry* stfs_entry);
+  STFSContainerEntry(Device* device, std::string path, MappedMemory* mmap);
   ~STFSContainerEntry() override;
 
   MappedMemory* mmap() const { return mmap_; }
-  STFSEntry* stfs_entry() const { return stfs_entry_; }
-
-  X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
-  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                          const char* file_name, bool restart) override;
+  size_t data_offset() const { return data_offset_; }
+  size_t data_size() const { return data_size_; }
 
   X_STATUS Open(KernelState* kernel_state, Mode desired_access, bool async,
                 XFile** out_file) override;
 
- private:
-  MappedMemory* mmap_;
-  STFSEntry* stfs_entry_;
+  struct BlockRecord {
+    size_t offset;
+    size_t length;
+  };
+  const std::vector<BlockRecord>& block_list() const { return block_list_; }
 
-  xe::filesystem::WildcardEngine find_engine_;
-  STFSEntry::child_it_t it_;
+ private:
+  friend class STFSContainerDevice;
+
+  MappedMemory* mmap_;
+  size_t data_offset_;
+  size_t data_size_;
+  std::vector<BlockRecord> block_list_;
 };
 
 }  // namespace vfs

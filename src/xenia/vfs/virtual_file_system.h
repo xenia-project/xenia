@@ -31,9 +31,7 @@ class VirtualFileSystem {
   bool RegisterSymbolicLink(std::string path, std::string target);
   bool UnregisterSymbolicLink(std::string path);
 
-  std::unique_ptr<Entry> ResolvePath(const std::string& path);
-  X_STATUS Open(std::unique_ptr<Entry> entry, KernelState* kernel_state,
-                Mode mode, bool async, XFile** out_file);
+  Entry* ResolvePath(std::string path);
 
  private:
   std::vector<std::unique_ptr<Device>> devices_;

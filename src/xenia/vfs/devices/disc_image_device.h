@@ -19,7 +19,7 @@
 namespace xe {
 namespace vfs {
 
-class GDFX;
+class DiscImageEntry;
 
 class DiscImageDevice : public Device {
  public:
@@ -27,9 +27,7 @@ class DiscImageDevice : public Device {
                   const std::wstring& local_path);
   ~DiscImageDevice() override;
 
-  bool Initialize();
-
-  std::unique_ptr<Entry> ResolvePath(const char* path) override;
+  bool Initialize() override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
@@ -40,9 +38,31 @@ class DiscImageDevice : public Device {
   uint32_t bytes_per_sector() const override { return 2 * 1024; }
 
  private:
+  enum class Error {
+    kSuccess = 0,
+    kErrorOutOfMemory = -1,
+    kErrorReadError = -10,
+    kErrorFileMismatch = -30,
+    kErrorDamagedFile = -31,
+  };
+
   std::wstring local_path_;
   std::unique_ptr<MappedMemory> mmap_;
-  GDFX* gdfx_;
+
+  typedef struct {
+    uint8_t* ptr;
+    size_t size;         // Size (bytes) of total image.
+    size_t game_offset;  // Offset (bytes) of game partition.
+    size_t root_sector;  // Offset (sector) of root.
+    size_t root_offset;  // Offset (bytes) of root.
+    size_t root_size;    // Size (bytes) of root.
+  } ParseState;
+
+  Error Verify(ParseState& state);
+  bool VerifyMagic(ParseState& state, size_t offset);
+  Error ReadAllEntries(ParseState& state, const uint8_t* root_buffer);
+  bool ReadEntry(ParseState& state, const uint8_t* buffer,
+                 uint16_t entry_ordinal, DiscImageEntry* parent);
 };
 
 }  // namespace vfs

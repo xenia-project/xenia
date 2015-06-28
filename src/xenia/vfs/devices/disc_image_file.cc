@@ -11,43 +11,25 @@
 
 #include <algorithm>
 
-#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/disc_image_entry.h"
-#include "xenia/vfs/gdfx.h"
 
 namespace xe {
 namespace vfs {
 
 DiscImageFile::DiscImageFile(KernelState* kernel_state, Mode mode,
                              DiscImageEntry* entry)
-    : XFile(kernel_state, mode), entry_(entry) {}
+    : XFile(kernel_state, mode, entry), entry_(entry) {}
 
-DiscImageFile::~DiscImageFile() { delete entry_; }
-
-const std::string& DiscImageFile::path() const { return entry_->path(); }
-
-const std::string& DiscImageFile::name() const { return entry_->name(); }
-
-Device* DiscImageFile::device() const { return entry_->device(); }
-
-X_STATUS DiscImageFile::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
-  return entry_->QueryInfo(out_info);
-}
-
-X_STATUS DiscImageFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
-                                       size_t length, const char* file_name,
-                                       bool restart) {
-  return entry_->QueryDirectory(out_info, length, file_name, restart);
-}
+DiscImageFile::~DiscImageFile() = default;
 
 X_STATUS DiscImageFile::ReadSync(void* buffer, size_t buffer_length,
                                  size_t byte_offset, size_t* out_bytes_read) {
-  GDFXEntry* gdfx_entry = entry_->gdfx_entry();
-  if (byte_offset >= gdfx_entry->size) {
+  if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }
-  size_t real_offset = gdfx_entry->offset + byte_offset;
-  size_t real_length = std::min(buffer_length, gdfx_entry->size - byte_offset);
+  size_t real_offset = entry_->data_offset() + byte_offset;
+  size_t real_length =
+      std::min(buffer_length, entry_->data_size() - byte_offset);
   std::memcpy(buffer, entry_->mmap()->data() + real_offset, real_length);
   *out_bytes_read = real_length;
   return X_STATUS_SUCCESS;

@@ -9,7 +9,6 @@
 
 #include "xenia/vfs/devices/host_path_file.h"
 
-#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/host_path_entry.h"
 
 namespace xe {
@@ -17,28 +16,11 @@ namespace vfs {
 
 HostPathFile::HostPathFile(KernelState* kernel_state, Mode mode,
                            HostPathEntry* entry, HANDLE file_handle)
-    : entry_(entry), file_handle_(file_handle), XFile(kernel_state, mode) {}
+    : XFile(kernel_state, mode, entry),
+      entry_(entry),
+      file_handle_(file_handle) {}
 
-HostPathFile::~HostPathFile() {
-  CloseHandle(file_handle_);
-  delete entry_;
-}
-
-const std::string& HostPathFile::path() const { return entry_->path(); }
-
-const std::string& HostPathFile::name() const { return entry_->name(); }
-
-Device* HostPathFile::device() const { return entry_->device(); }
-
-X_STATUS HostPathFile::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
-  return entry_->QueryInfo(out_info);
-}
-
-X_STATUS HostPathFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
-                                      size_t length, const char* file_name,
-                                      bool restart) {
-  return entry_->QueryDirectory(out_info, length, file_name, restart);
-}
+HostPathFile::~HostPathFile() { CloseHandle(file_handle_); }
 
 X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
                                 size_t byte_offset, size_t* out_bytes_read) {

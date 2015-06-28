@@ -10,22 +10,22 @@
 #ifndef XENIA_VFS_DEVICES_HOST_PATH_ENTRY_H_
 #define XENIA_VFS_DEVICES_HOST_PATH_ENTRY_H_
 
+#include <string>
+
 #include "xenia/vfs/entry.h"
 
 namespace xe {
 namespace vfs {
 
+class HostPathDevice;
+
 class HostPathEntry : public Entry {
  public:
-  HostPathEntry(Device* device, const char* path,
+  HostPathEntry(Device* device, std::string path,
                 const std::wstring& local_path);
   ~HostPathEntry() override;
 
   const std::wstring& local_path() { return local_path_; }
-
-  X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
-  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                          const char* file_name, bool restart) override;
 
   X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
                 XFile** out_file) override;
@@ -36,8 +36,9 @@ class HostPathEntry : public Entry {
                                            size_t length) override;
 
  private:
+  friend class HostPathDevice;
+
   std::wstring local_path_;
-  HANDLE find_file_;
 };
 
 }  // namespace vfs

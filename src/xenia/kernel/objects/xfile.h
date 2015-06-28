@@ -10,7 +10,9 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XFILE_H_
 #define XENIA_KERNEL_XBOXKRNL_XFILE_H_
 
+#include "xenia/base/filesystem.h"
 #include "xenia/kernel/xobject.h"
+#include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
 
 #include "xenia/xbox.h"
@@ -29,7 +31,7 @@ struct X_FILE_NETWORK_OPEN_INFORMATION {
   xe::be<uint64_t> change_time;
   xe::be<uint64_t> allocation_size;
   xe::be<uint64_t> end_of_file;  // size in bytes
-  xe::be<X_FILE_ATTRIBUTES> attributes;
+  xe::be<uint32_t> attributes;
   xe::be<uint32_t> pad;
 };
 
@@ -45,7 +47,7 @@ class X_FILE_DIRECTORY_INFORMATION {
   uint64_t change_time;
   uint64_t end_of_file;  // size in bytes
   uint64_t allocation_size;
-  X_FILE_ATTRIBUTES attributes;
+  uint32_t attributes;  // X_FILE_ATTRIBUTES
   uint32_t file_name_length;
   char file_name[1];
 
@@ -75,20 +77,19 @@ static_assert_size(X_FILE_DIRECTORY_INFORMATION, 72);
 
 class XFile : public XObject {
  public:
-  virtual ~XFile();
+  ~XFile() override;
 
-  virtual const std::string& path() const = 0;
-  virtual const std::string& name() const = 0;
+  vfs::Device* device() const { return entry_->device(); }
+  vfs::Entry* entry() const { return entry_; }
 
-  virtual vfs::Device* device() const = 0;
+  const std::string& path() const { return entry_->path(); }
+  const std::string& name() const { return entry_->name(); }
 
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
 
-  virtual X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) = 0;
-  virtual X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
-                                  size_t length, const char* file_name,
-                                  bool restart) = 0;
+  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
+                          const char* file_name, bool restart);
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);
@@ -101,7 +102,7 @@ class XFile : public XObject {
   virtual void* GetWaitHandle();
 
  protected:
-  XFile(KernelState* kernel_state, vfs::Mode mode);
+  XFile(KernelState* kernel_state, vfs::Mode mode, vfs::Entry* entry);
   virtual X_STATUS ReadSync(void* buffer, size_t buffer_length,
                             size_t byte_offset, size_t* out_bytes_read) = 0;
   virtual X_STATUS WriteSync(const void* buffer, size_t buffer_length,
@@ -110,12 +111,16 @@ class XFile : public XObject {
   }
 
  private:
+  vfs::Entry* entry_;
   vfs::Mode mode_;
   XEvent* async_event_;
 
   // TODO(benvanik): create flags, open state, etc.
 
   size_t position_;
+
+  xe::filesystem::WildcardEngine find_engine_;
+  size_t find_index_;
 };
 
 }  // namespace kernel

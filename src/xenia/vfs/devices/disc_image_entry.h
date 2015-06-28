@@ -15,23 +15,20 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/vfs/entry.h"
-#include "xenia/vfs/gdfx.h"
 
 namespace xe {
 namespace vfs {
 
+class DiscImageDevice;
+
 class DiscImageEntry : public Entry {
  public:
-  DiscImageEntry(Device* device, const char* path, MappedMemory* mmap,
-                 GDFXEntry* gdfx_entry);
+  DiscImageEntry(Device* device, std::string path, MappedMemory* mmap);
   ~DiscImageEntry() override;
 
   MappedMemory* mmap() const { return mmap_; }
-  GDFXEntry* gdfx_entry() const { return gdfx_entry_; }
-
-  X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
-  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                          const char* file_name, bool restart) override;
+  size_t data_offset() const { return data_offset_; }
+  size_t data_size() const { return data_size_; }
 
   X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
                 XFile** out_file) override;
@@ -42,11 +39,11 @@ class DiscImageEntry : public Entry {
                                            size_t length) override;
 
  private:
-  MappedMemory* mmap_;
-  GDFXEntry* gdfx_entry_;
+  friend class DiscImageDevice;
 
-  xe::filesystem::WildcardEngine find_engine_;
-  GDFXEntry::child_it_t it_;
+  MappedMemory* mmap_;
+  size_t data_offset_;
+  size_t data_size_;
 };
 
 }  // namespace vfs

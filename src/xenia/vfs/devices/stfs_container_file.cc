@@ -11,56 +11,36 @@
 
 #include <algorithm>
 
-#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/stfs_container_entry.h"
-#include "xenia/vfs/stfs.h"
 
 namespace xe {
 namespace vfs {
 
 STFSContainerFile::STFSContainerFile(KernelState* kernel_state, Mode mode,
                                      STFSContainerEntry* entry)
-    : XFile(kernel_state, mode), entry_(entry) {}
+    : XFile(kernel_state, mode, entry), entry_(entry) {}
 
-STFSContainerFile::~STFSContainerFile() { delete entry_; }
-
-const std::string& STFSContainerFile::path() const { return entry_->path(); }
-
-const std::string& STFSContainerFile::name() const { return entry_->name(); }
-
-Device* STFSContainerFile::device() const { return entry_->device(); }
-
-X_STATUS STFSContainerFile::QueryInfo(
-    X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
-  return entry_->QueryInfo(out_info);
-}
-
-X_STATUS STFSContainerFile::QueryDirectory(
-    X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-    const char* file_name, bool restart) {
-  return entry_->QueryDirectory(out_info, length, file_name, restart);
-}
+STFSContainerFile::~STFSContainerFile() = default;
 
 X_STATUS STFSContainerFile::ReadSync(void* buffer, size_t buffer_length,
                                      size_t byte_offset,
                                      size_t* out_bytes_read) {
-  STFSEntry* stfs_entry = entry_->stfs_entry();
-  if (byte_offset >= stfs_entry->size) {
+  if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }
 
   // Each block is 4096.
   // Blocks may not be sequential, so we need to read by blocks and handle the
   // offsets.
-  size_t real_length = std::min(buffer_length, stfs_entry->size - byte_offset);
+  size_t real_length = std::min(buffer_length, entry_->size() - byte_offset);
   size_t start_block = byte_offset / 4096;
   size_t end_block =
-      std::min(stfs_entry->block_list.size(),
+      std::min(entry_->block_list().size(),
                (size_t)ceil((byte_offset + real_length) / 4096.0));
   uint8_t* dest_ptr = (uint8_t*)buffer;
   size_t remaining_length = real_length;
   for (size_t n = start_block; n < end_block; n++) {
-    auto& record = stfs_entry->block_list[n];
+    auto& record = entry_->block_list()[n];
     size_t offset = record.offset;
     size_t read_length = std::min(remaining_length, record.length);
     if (n == start_block) {

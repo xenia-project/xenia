@@ -745,12 +745,6 @@
     <ClCompile Include="src\xenia\vfs\entry.cc">
       <Filter>src\xenia\vfs</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\vfs\gdfx.cc">
-      <Filter>src\xenia\vfs</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\vfs\stfs.cc">
-      <Filter>src\xenia\vfs</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\vfs\devices\disc_image_device.cc">
       <Filter>src\xenia\vfs\devices</Filter>
     </ClCompile>
@@ -1450,12 +1444,6 @@
       <Filter>src\xenia\vfs</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\vfs\entry.h">
-      <Filter>src\xenia\vfs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\vfs\gdfx.h">
-      <Filter>src\xenia\vfs</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\vfs\stfs.h">
       <Filter>src\xenia\vfs</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\vfs\devices\disc_image_device.h">

@@ -43,6 +43,8 @@ bool DeleteFolder(const std::wstring& path) {
   return SHFileOperation(&op) == 0;
 }
 
+#define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
+
 std::vector<FileInfo> ListFiles(const std::wstring& path) {
   std::vector<FileInfo> result;
 
@@ -66,6 +68,9 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
           (ffd.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + ffd.nFileSizeLow;
     }
     info.name = ffd.cFileName;
+    info.create_timestamp = COMBINE_TIME(ffd.ftCreationTime);
+    info.access_timestamp = COMBINE_TIME(ffd.ftLastAccessTime);
+    info.write_timestamp = COMBINE_TIME(ffd.ftLastWriteTime);
     result.push_back(info);
   } while (FindNextFile(handle, &ffd) != 0);
   FindClose(handle);

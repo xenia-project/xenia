@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/vfs/entry.h"
 
 namespace xe {
@@ -23,11 +24,14 @@ class Device {
   Device(const std::string& path);
   virtual ~Device();
 
+  virtual bool Initialize() = 0;
+  void Dump(StringBuffer* string_buffer);
+
   const std::string& mount_path() const { return mount_path_; }
 
   virtual bool is_read_only() const { return true; }
 
-  virtual std::unique_ptr<Entry> ResolvePath(const char* path) = 0;
+  Entry* ResolvePath(const char* path);
 
   virtual uint32_t total_allocation_units() const = 0;
   virtual uint32_t available_allocation_units() const = 0;
@@ -36,6 +40,7 @@ class Device {
 
  protected:
   std::string mount_path_;
+  std::unique_ptr<Entry> root_entry_;
 };
 
 }  // namespace vfs

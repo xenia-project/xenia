@@ -33,6 +33,9 @@ struct FileInfo {
   Type type;
   std::wstring name;
   size_t total_size;
+  uint64_t create_timestamp;
+  uint64_t access_timestamp;
+  uint64_t write_timestamp;
 };
 std::vector<FileInfo> ListFiles(const std::wstring& path);
 

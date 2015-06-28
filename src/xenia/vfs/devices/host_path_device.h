@@ -17,15 +17,17 @@
 namespace xe {
 namespace vfs {
 
+class HostPathEntry;
+
 class HostPathDevice : public Device {
  public:
   HostPathDevice(const std::string& mount_path, const std::wstring& local_path,
                  bool read_only);
   ~HostPathDevice() override;
 
-  bool is_read_only() const { return read_only_; }
+  bool Initialize() override;
 
-  std::unique_ptr<Entry> ResolvePath(const char* path) override;
+  bool is_read_only() const { return read_only_; }
 
   uint32_t total_allocation_units() const override { return 128 * 1024; }
   uint32_t available_allocation_units() const override { return 128 * 1024; }
@@ -33,6 +35,8 @@ class HostPathDevice : public Device {
   uint32_t bytes_per_sector() const override { return 2 * 1024; }
 
  private:
+  void PopulateEntry(HostPathEntry* entry);
+
   std::wstring local_path_;
   bool read_only_;
 };

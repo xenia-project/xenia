@@ -45,7 +45,7 @@ bool VirtualFileSystem::UnregisterSymbolicLink(std::string path) {
   return true;
 }
 
-std::unique_ptr<Entry> VirtualFileSystem::ResolvePath(const std::string& path) {
+Entry* VirtualFileSystem::ResolvePath(std::string path) {
   // Resolve relative paths
   std::string normalized_path(xe::filesystem::CanonicalizePath(path));
 
@@ -86,16 +86,6 @@ std::unique_ptr<Entry> VirtualFileSystem::ResolvePath(const std::string& path) {
   XELOGE("ResolvePath(%s) failed - device not found (%s)", path.c_str(),
          device_path.c_str());
   return nullptr;
-}
-
-X_STATUS VirtualFileSystem::Open(std::unique_ptr<Entry> entry,
-                                 KernelState* kernel_state, Mode mode,
-                                 bool async, XFile** out_file) {
-  auto result = entry->Open(kernel_state, mode, async, out_file);
-  if (XSUCCEEDED(result)) {
-    entry.release();
-  }
-  return result;
 }
 
 }  // namespace vfs

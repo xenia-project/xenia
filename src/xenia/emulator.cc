@@ -209,6 +209,10 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
   auto parent_path = xe::find_base_path(path);
   auto device =
       std::make_unique<vfs::HostPathDevice>(mount_path, parent_path, true);
+  if (!device->Initialize()) {
+    XELOGE("Unable to scan host path");
+    return X_STATUS_NO_SUCH_FILE;
+  }
   if (!file_system_->RegisterDevice(std::move(device))) {
     XELOGE("Unable to register host path");
     return X_STATUS_NO_SUCH_FILE;

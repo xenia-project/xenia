@@ -17,77 +17,11 @@
 namespace xe {
 namespace vfs {
 
-DiscImageEntry::DiscImageEntry(Device* device, const char* path,
-                               MappedMemory* mmap, GDFXEntry* gdfx_entry)
-    : Entry(device, path),
-      mmap_(mmap),
-      gdfx_entry_(gdfx_entry),
-      it_(gdfx_entry->children.begin()) {}
+DiscImageEntry::DiscImageEntry(Device* device, std::string path,
+                               MappedMemory* mmap)
+    : Entry(device, path), mmap_(mmap), data_offset_(0), data_size_(0) {}
 
-DiscImageEntry::~DiscImageEntry() {}
-
-X_STATUS DiscImageEntry::QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) {
-  assert_not_null(out_info);
-  out_info->creation_time = 0;
-  out_info->last_access_time = 0;
-  out_info->last_write_time = 0;
-  out_info->change_time = 0;
-  out_info->allocation_size = xe::round_up(gdfx_entry_->size, 2048);
-  out_info->end_of_file = gdfx_entry_->size;
-  out_info->attributes = gdfx_entry_->attributes;
-  return X_STATUS_SUCCESS;
-}
-
-X_STATUS DiscImageEntry::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
-                                        size_t length, const char* file_name,
-                                        bool restart) {
-  assert_not_null(out_info);
-
-  GDFXEntry* entry(nullptr);
-
-  if (file_name != nullptr) {
-    // Only queries in the current directory are supported for now
-    assert_true(std::strchr(file_name, '\\') == nullptr);
-
-    find_engine_.SetRule(file_name);
-
-    // Always restart the search?
-    it_ = gdfx_entry_->children.begin();
-    entry = gdfx_entry_->GetChild(find_engine_, it_);
-    if (!entry) {
-      return X_STATUS_NO_SUCH_FILE;
-    }
-  } else {
-    if (restart) {
-      it_ = gdfx_entry_->children.begin();
-    }
-
-    entry = gdfx_entry_->GetChild(find_engine_, it_);
-    if (!entry) {
-      return X_STATUS_NO_SUCH_FILE;
-    }
-
-    auto end = (uint8_t*)out_info + length;
-    auto entry_name = entry->name;
-    if (((uint8_t*)&out_info->file_name[0]) + entry_name.size() > end) {
-      return X_STATUS_NO_SUCH_FILE;
-    }
-  }
-
-  out_info->next_entry_offset = 0;
-  out_info->file_index = 0xCDCDCDCD;
-  out_info->creation_time = 0;
-  out_info->last_access_time = 0;
-  out_info->last_write_time = 0;
-  out_info->change_time = 0;
-  out_info->end_of_file = entry->size;
-  out_info->allocation_size = xe::round_up(entry->size, 2048);
-  out_info->attributes = entry->attributes;
-  out_info->file_name_length = static_cast<uint32_t>(entry->name.size());
-  memcpy(out_info->file_name, entry->name.c_str(), entry->name.size());
-
-  return X_STATUS_SUCCESS;
-}
+DiscImageEntry::~DiscImageEntry() = default;
 
 X_STATUS DiscImageEntry::Open(KernelState* kernel_state, Mode mode, bool async,
                               XFile** out_file) {
@@ -102,9 +36,8 @@ std::unique_ptr<MappedMemory> DiscImageEntry::OpenMapped(
     return nullptr;
   }
 
-  size_t real_offset = gdfx_entry_->offset + offset;
-  size_t real_length =
-      length ? std::min(length, gdfx_entry_->size) : gdfx_entry_->size;
+  size_t real_offset = data_offset_ + offset;
+  size_t real_length = length ? std::min(length, data_size_) : data_size_;
   return mmap_->Slice(mode, real_offset, real_length);
 }
 

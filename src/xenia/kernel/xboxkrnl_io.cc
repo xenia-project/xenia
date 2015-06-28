@@ -187,7 +187,7 @@ X_STATUS NtCreateFile(PPCContext* ppc_context, KernelState* kernel_state,
   uint32_t handle;
 
   auto fs = kernel_state->file_system();
-  std::unique_ptr<Entry> entry;
+  Entry* entry;
 
   object_ref<XFile> root_file;
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
@@ -233,9 +233,9 @@ X_STATUS NtCreateFile(PPCContext* ppc_context, KernelState* kernel_state,
       mode = vfs::Mode::READ;
     }
     XFile* file_ptr = nullptr;
-    result = fs->Open(std::move(entry), kernel_state, mode,
-                      false,  // TODO(benvanik): pick async mode, if needed.
-                      &file_ptr);
+    result = entry->Open(kernel_state, mode,
+                         false,  // TODO(benvanik): pick async mode, if needed.
+                         &file_ptr);
     file = object_ref<XFile>(file_ptr);
   }
 
@@ -618,10 +618,14 @@ dword_result_t NtQueryInformationFile(
         assert_true(length == 56);
 
         auto file_info = file_info_ptr.as<X_FILE_NETWORK_OPEN_INFORMATION*>();
-        result = file->QueryInfo(file_info);
-        if (XSUCCEEDED(result)) {
-          info = 56;
-        }
+        file_info->creation_time = file->entry()->create_timestamp();
+        file_info->last_access_time = file->entry()->access_timestamp();
+        file_info->last_write_time = file->entry()->write_timestamp();
+        file_info->change_time = file->entry()->write_timestamp();
+        file_info->allocation_size = file->entry()->allocation_size();
+        file_info->end_of_file = file->entry()->size();
+        file_info->attributes = file->entry()->attributes();
+        info = 56;
         break;
       }
       case XFileXctdCompressionInformation:
@@ -701,10 +705,19 @@ SHIM_CALL NtQueryFullAttributesFile_shim(PPCContext* ppc_context,
   auto entry = fs->ResolvePath(object_name);
   if (entry) {
     // Found.
+    result = X_STATUS_SUCCESS;
+
     auto file_info =
         kernel_memory()->TranslateVirtual<X_FILE_NETWORK_OPEN_INFORMATION*>(
             file_info_ptr);
-    result = entry->QueryInfo(file_info);
+
+    file_info->creation_time = entry->create_timestamp();
+    file_info->last_access_time = entry->access_timestamp();
+    file_info->last_write_time = entry->write_timestamp();
+    file_info->change_time = entry->write_timestamp();
+    file_info->allocation_size = entry->allocation_size();
+    file_info->end_of_file = entry->size();
+    file_info->attributes = entry->attributes();
   }
 
   free(object_name);

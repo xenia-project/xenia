@@ -59,18 +59,11 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     // Load the module.
     result = LoadFromMemory(mmap->data(), mmap->size());
   } else {
-    X_FILE_NETWORK_OPEN_INFORMATION file_info = {0};
-    result = fs_entry->QueryInfo(&file_info);
-    if (result) {
-      return result;
-    }
-
-    std::vector<uint8_t> buffer(file_info.end_of_file);
+    std::vector<uint8_t> buffer(fs_entry->size());
 
     // Open file for reading.
     XFile* file_ptr = nullptr;
-    result = kernel_state()->file_system()->Open(
-        std::move(fs_entry), kernel_state(), vfs::Mode::READ, false, &file_ptr);
+    result = fs_entry->Open(kernel_state(), vfs::Mode::READ, false, &file_ptr);
     object_ref<XFile> file(file_ptr);
     if (result) {
       return result;

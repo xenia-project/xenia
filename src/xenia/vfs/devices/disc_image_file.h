@@ -23,15 +23,6 @@ class DiscImageFile : public XFile {
                 DiscImageEntry* entry);
   ~DiscImageFile() override;
 
-  const std::string& path() const override;
-  const std::string& name() const override;
-
-  Device* device() const override;
-
-  X_STATUS QueryInfo(X_FILE_NETWORK_OPEN_INFORMATION* out_info) override;
-  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                          const char* file_name, bool restart) override;
-
  protected:
   X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
                     size_t* out_bytes_read) override;
