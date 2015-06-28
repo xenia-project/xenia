@@ -73,65 +73,6 @@ class X_FILE_DIRECTORY_INFORMATION {
 };
 static_assert_size(X_FILE_DIRECTORY_INFORMATION, 72);
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
-class X_FILE_FS_VOLUME_INFORMATION {
- public:
-  // FILE_FS_VOLUME_INFORMATION
-  uint64_t creation_time;
-  uint32_t serial_number;
-  uint32_t label_length;
-  uint32_t supports_objects;
-  char label[1];
-
-  void Write(uint8_t* base, uint32_t p) {
-    uint8_t* dst = base + p;
-    xe::store_and_swap<uint64_t>(dst + 0, this->creation_time);
-    xe::store_and_swap<uint32_t>(dst + 8, this->serial_number);
-    xe::store_and_swap<uint32_t>(dst + 12, this->label_length);
-    xe::store_and_swap<uint32_t>(dst + 16, this->supports_objects);
-    memcpy(dst + 20, this->label, this->label_length);
-  }
-};
-static_assert_size(X_FILE_FS_VOLUME_INFORMATION, 24);
-
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540282.aspx
-class X_FILE_FS_SIZE_INFORMATION {
- public:
-  // FILE_FS_SIZE_INFORMATION
-  uint64_t total_allocation_units;
-  uint64_t available_allocation_units;
-  uint32_t sectors_per_allocation_unit;
-  uint32_t bytes_per_sector;
-
-  void Write(uint8_t* base, uint32_t p) {
-    uint8_t* dst = base + p;
-    xe::store_and_swap<uint64_t>(dst + 0, this->total_allocation_units);
-    xe::store_and_swap<uint64_t>(dst + 8, this->available_allocation_units);
-    xe::store_and_swap<uint32_t>(dst + 16, this->sectors_per_allocation_unit);
-    xe::store_and_swap<uint32_t>(dst + 20, this->bytes_per_sector);
-  }
-};
-static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
-
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
-class X_FILE_FS_ATTRIBUTE_INFORMATION {
- public:
-  // FILE_FS_ATTRIBUTE_INFORMATION
-  uint32_t attributes;
-  int32_t maximum_component_name_length;
-  uint32_t fs_name_length;
-  char fs_name[1];
-
-  void Write(uint8_t* base, uint32_t p) {
-    uint8_t* dst = base + p;
-    xe::store_and_swap<uint32_t>(dst + 0, this->attributes);
-    xe::store_and_swap<uint32_t>(dst + 4, this->maximum_component_name_length);
-    xe::store_and_swap<uint32_t>(dst + 8, this->fs_name_length);
-    memcpy(dst + 12, this->fs_name, this->fs_name_length);
-  }
-};
-static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
-
 class XFile : public XObject {
  public:
   virtual ~XFile();

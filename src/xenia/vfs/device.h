@@ -29,12 +29,10 @@ class Device {
 
   virtual std::unique_ptr<Entry> ResolvePath(const char* path) = 0;
 
-  virtual X_STATUS QueryVolumeInfo(X_FILE_FS_VOLUME_INFORMATION* out_info,
-                                   size_t length);
-  virtual X_STATUS QuerySizeInfo(X_FILE_FS_SIZE_INFORMATION* out_info,
-                                 size_t length);
-  virtual X_STATUS QueryAttributeInfo(X_FILE_FS_ATTRIBUTE_INFORMATION* out_info,
-                                      size_t length);
+  virtual uint32_t total_allocation_units() const = 0;
+  virtual uint32_t available_allocation_units() const = 0;
+  virtual uint32_t sectors_per_allocation_unit() const = 0;
+  virtual uint32_t bytes_per_sector() const = 0;
 
  protected:
   std::string mount_path_;

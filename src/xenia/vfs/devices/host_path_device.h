@@ -27,6 +27,11 @@ class HostPathDevice : public Device {
 
   std::unique_ptr<Entry> ResolvePath(const char* path) override;
 
+  uint32_t total_allocation_units() const override { return 128 * 1024; }
+  uint32_t available_allocation_units() const override { return 128 * 1024; }
+  uint32_t sectors_per_allocation_unit() const override { return 1; }
+  uint32_t bytes_per_sector() const override { return 2 * 1024; }
+
  private:
   std::wstring local_path_;
   bool read_only_;

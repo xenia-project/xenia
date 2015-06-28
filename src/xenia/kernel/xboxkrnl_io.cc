@@ -93,6 +93,65 @@ class X_OBJECT_ATTRIBUTES {
   }
 };
 
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
+class X_FILE_FS_VOLUME_INFORMATION {
+ public:
+  // FILE_FS_VOLUME_INFORMATION
+  uint64_t creation_time;
+  uint32_t serial_number;
+  uint32_t label_length;
+  uint32_t supports_objects;
+  char label[1];
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    xe::store_and_swap<uint64_t>(dst + 0, this->creation_time);
+    xe::store_and_swap<uint32_t>(dst + 8, this->serial_number);
+    xe::store_and_swap<uint32_t>(dst + 12, this->label_length);
+    xe::store_and_swap<uint32_t>(dst + 16, this->supports_objects);
+    memcpy(dst + 20, this->label, this->label_length);
+  }
+};
+static_assert_size(X_FILE_FS_VOLUME_INFORMATION, 24);
+
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540282.aspx
+class X_FILE_FS_SIZE_INFORMATION {
+ public:
+  // FILE_FS_SIZE_INFORMATION
+  uint64_t total_allocation_units;
+  uint64_t available_allocation_units;
+  uint32_t sectors_per_allocation_unit;
+  uint32_t bytes_per_sector;
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    xe::store_and_swap<uint64_t>(dst + 0, this->total_allocation_units);
+    xe::store_and_swap<uint64_t>(dst + 8, this->available_allocation_units);
+    xe::store_and_swap<uint32_t>(dst + 16, this->sectors_per_allocation_unit);
+    xe::store_and_swap<uint32_t>(dst + 20, this->bytes_per_sector);
+  }
+};
+static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
+
+// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
+class X_FILE_FS_ATTRIBUTE_INFORMATION {
+ public:
+  // FILE_FS_ATTRIBUTE_INFORMATION
+  uint32_t attributes;
+  int32_t maximum_component_name_length;
+  uint32_t fs_name_length;
+  char fs_name[1];
+
+  void Write(uint8_t* base, uint32_t p) {
+    uint8_t* dst = base + p;
+    xe::store_and_swap<uint32_t>(dst + 0, this->attributes);
+    xe::store_and_swap<uint32_t>(dst + 4, this->maximum_component_name_length);
+    xe::store_and_swap<uint32_t>(dst + 8, this->fs_name_length);
+    memcpy(dst + 12, this->fs_name, this->fs_name_length);
+  }
+};
+static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
+
 struct FileDisposition {
   static const uint32_t X_FILE_SUPERSEDE = 0x00000000;
   static const uint32_t X_FILE_OPEN = 0x00000001;
@@ -671,34 +730,41 @@ SHIM_CALL NtQueryVolumeInformationFile_shim(PPCContext* ppc_context,
   if (file) {
     switch (fs_info_class) {
       case 1: {  // FileFsVolumeInformation
-        auto volume_info = (X_FILE_FS_VOLUME_INFORMATION*)calloc(length, 1);
-        result = file->device()->QueryVolumeInfo(volume_info, length);
-        if (XSUCCEEDED(result)) {
-          volume_info->Write(SHIM_MEM_BASE, fs_info_ptr);
-          info = length;
-        }
-        free(volume_info);
+        // TODO(gibbed): actual value
+        std::string name = "test";
+        X_FILE_FS_VOLUME_INFORMATION volume_info = {0};
+        volume_info.creation_time = 0;
+        volume_info.serial_number = 12345678;
+        volume_info.supports_objects = 0;
+        volume_info.label_length = uint32_t(name.size());
+        std::memcpy(volume_info.label, name.data(), name.size());
+        volume_info.Write(SHIM_MEM_BASE, fs_info_ptr);
+        info = length;
         break;
       }
       case 3: {  // FileFsSizeInformation
-        auto fs_attribute_info = (X_FILE_FS_SIZE_INFORMATION*)calloc(length, 1);
-        result = file->device()->QuerySizeInfo(fs_attribute_info, length);
-        if (XSUCCEEDED(result)) {
-          fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);
-          info = length;
-        }
-        free(fs_attribute_info);
+        X_FILE_FS_SIZE_INFORMATION fs_size_info = {0};
+        fs_size_info.total_allocation_units =
+            file->device()->total_allocation_units();
+        fs_size_info.available_allocation_units =
+            file->device()->available_allocation_units();
+        fs_size_info.sectors_per_allocation_unit =
+            file->device()->sectors_per_allocation_unit();
+        fs_size_info.bytes_per_sector = file->device()->bytes_per_sector();
+        fs_size_info.Write(SHIM_MEM_BASE, fs_info_ptr);
+        info = length;
         break;
       }
       case 5: {  // FileFsAttributeInformation
-        auto fs_attribute_info =
-            (X_FILE_FS_ATTRIBUTE_INFORMATION*)calloc(length, 1);
-        result = file->device()->QueryAttributeInfo(fs_attribute_info, length);
-        if (XSUCCEEDED(result)) {
-          fs_attribute_info->Write(SHIM_MEM_BASE, fs_info_ptr);
-          info = length;
-        }
-        free(fs_attribute_info);
+        // TODO(gibbed): actual value
+        std::string name = "test";
+        X_FILE_FS_ATTRIBUTE_INFORMATION fs_attribute_info = {0};
+        fs_attribute_info.attributes = 0;
+        fs_attribute_info.maximum_component_name_length = 255;
+        fs_attribute_info.fs_name_length = uint32_t(name.size());
+        std::memcpy(fs_attribute_info.fs_name, name.data(), name.size());
+        fs_attribute_info.Write(SHIM_MEM_BASE, fs_info_ptr);
+        info = length;
         break;
       }
       case 2:  // FileFsLabelInformation
