@@ -196,11 +196,12 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
   // Setup the kernel's XexExecutableModuleHandle field.
   auto export = processor()->export_resolver()->GetExportByOrdinal(
       "xboxkrnl.exe", ordinals::XexExecutableModuleHandle);
-  assert_not_null(export);
-  assert_not_zero(export->variable_ptr);
-  auto variable_ptr =
-      memory()->TranslateVirtual<xe::be<uint32_t>*>(export->variable_ptr);
-  *variable_ptr = executable_module_->hmodule_ptr();
+  if (export) {
+    assert_not_zero(export->variable_ptr);
+    auto variable_ptr =
+        memory()->TranslateVirtual<xe::be<uint32_t>*>(export->variable_ptr);
+    *variable_ptr = executable_module_->hmodule_ptr();
+  }
 }
 
 void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {

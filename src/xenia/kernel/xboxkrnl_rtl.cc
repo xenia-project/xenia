@@ -390,17 +390,16 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
   auto header =
       kernel_memory()->TranslateVirtual<xex2_header*>(xex_header_base);
   if (!header) {
-    SHIM_SET_RETURN_32(X_STATUS_UNSUCCESSFUL);
+    SHIM_SET_RETURN_32(0);
     return;
   }
 
-  uint8_t* hdr = xex2_get_opt_header(header, image_field);
-  if (!hdr) {
-    SHIM_SET_RETURN_32(X_STATUS_NOT_FOUND);
+  uint8_t* field_ptr = xex2_get_opt_header(header, image_field);
+  if (!field_ptr) {
+    SHIM_SET_RETURN_32(0);
     return;
   }
-
-  SHIM_SET_RETURN_32((uint32_t)(hdr - kernel_memory()->virtual_membase()));
+  SHIM_SET_RETURN_32(uint32_t(field_ptr - kernel_memory()->virtual_membase()));
 }
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
