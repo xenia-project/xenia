@@ -278,8 +278,8 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
   auto string_name = reinterpret_cast<const char*>(SHIM_MEM_ADDR(ordinal));
 
   if (is_string_name) {
-    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", hmodule,
-           ordinal, string_name, out_function_ptr);
+    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", hmodule, ordinal,
+           string_name, out_function_ptr);
   } else {
     XELOGD("XexGetProcedureAddress(%.8X, %.8X, %.8X)", hmodule, ordinal,
            out_function_ptr);

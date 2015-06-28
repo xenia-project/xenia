@@ -516,9 +516,8 @@ struct xex2_header {
 struct xex2_loader_info {
   xe::be<uint32_t> header_size;
   xe::be<uint32_t> image_size;
-
 };
-} // namespace kernel
-} // namespace xe
+}  // namespace kernel
+}  // namespace xe
 
 #endif  // XENIA_KERNEL_XEX2_INFO_H_

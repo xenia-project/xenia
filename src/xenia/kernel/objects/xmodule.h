@@ -80,7 +80,8 @@ class XModule : public XObject {
   virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
                               uint32_t* out_section_size);
 
-  static object_ref<XModule> GetFromHModule(KernelState* kernel_state, void* hmodule);
+  static object_ref<XModule> GetFromHModule(KernelState* kernel_state,
+                                            void* hmodule);
   static uint32_t GetHandleFromHModule(void* hmodule);
 
  protected:
@@ -92,7 +93,7 @@ class XModule : public XObject {
 
   xe::cpu::Module* processor_module_;
 
-  uint32_t hmodule_ptr_; // This points to LDR_DATA_TABLE_ENTRY.
+  uint32_t hmodule_ptr_;  // This points to LDR_DATA_TABLE_ENTRY.
 };
 
 }  // namespace kernel

@@ -84,12 +84,30 @@ struct be {
   be(const be &other) { value = other.value; }
   operator T() const { return xe::byte_swap(value); }
 
-  be<T>& operator+=(int a) { *this = *this + a; return *this; }
-  be<T>& operator-=(int a) { *this = *this - a; return *this; }
-  be<T>& operator++() { *this += 1; return *this; } // ++a
-  be<T> operator++(int) { *this += 1; return (*this - 1); } // a++
-  be<T>& operator--() { *this -= 1; return *this; } // --a
-  be<T> operator--(int) { *this -= 1; return (*this + 1); } // a--
+  be<T> &operator+=(int a) {
+    *this = *this + a;
+    return *this;
+  }
+  be<T> &operator-=(int a) {
+    *this = *this - a;
+    return *this;
+  }
+  be<T> &operator++() {
+    *this += 1;
+    return *this;
+  }  // ++a
+  be<T> operator++(int) {
+    *this += 1;
+    return (*this - 1);
+  }  // a++
+  be<T> &operator--() {
+    *this -= 1;
+    return *this;
+  }  // --a
+  be<T> operator--(int) {
+    *this -= 1;
+    return (*this + 1);
+  }  // a--
 
   T value;
 };
