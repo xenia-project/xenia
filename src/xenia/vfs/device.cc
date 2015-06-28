@@ -31,6 +31,11 @@ Entry* Device::ResolvePath(const char* path) {
 
   XELOGFS("Device::ResolvePath(%s)", path);
 
+  if (!root_entry_) {
+    // No content at all.
+    return nullptr;
+  }
+
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();
   auto path_parts = xe::split_path(path);
