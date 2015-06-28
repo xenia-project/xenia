@@ -146,20 +146,47 @@ X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
 
 X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
                                    uint32_t* out_header_guest_ptr) {
-  assert_not_null(out_header_guest_ptr);
-
   auto header = memory()->TranslateVirtual<xex2_header*>(xex_header_);
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
   }
+  return GetOptHeader(memory()->virtual_membase(), header, key,
+                      out_header_guest_ptr);
+}
 
-  uint32_t field_value =
-      xex2_get_opt_header(memory()->virtual_membase(), header, key);
-  if (!field_value) {
+X_STATUS XUserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
+                                   xe_xex2_header_keys key,
+                                   uint32_t* out_header_guest_ptr) {
+  assert_not_null(out_header_guest_ptr);
+  uint32_t field_value = 0;
+  bool field_found = false;
+  for (uint32_t i = 0; i < header->header_count; i++) {
+    auto& opt_header = header->headers[i];
+    if (opt_header.key != key) {
+      continue;
+    }
+    field_found = true;
+    switch (opt_header.key & 0xFF) {
+      case 0x00:
+        // Return data stored in header value.
+        field_value = opt_header.value;
+        break;
+      case 0x01:
+        // Return pointer to data stored in header value.
+        field_value = uint32_t((uint8_t*)&opt_header.value - membase);
+        break;
+      default:
+        // Data stored at offset to header.
+        field_value = uint32_t((uint8_t*)&header->headers[0] - membase) +
+                      opt_header.offset;
+        break;
+    }
+    break;
+  }
+  *out_header_guest_ptr = field_value;
+  if (!field_found) {
     return X_STATUS_NOT_FOUND;
   }
-
-  *out_header_guest_ptr = field_value;
   return X_STATUS_SUCCESS;
 }
 

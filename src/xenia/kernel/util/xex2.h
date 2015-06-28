@@ -15,8 +15,6 @@
 
 namespace xe {
 namespace kernel {
-uint32_t xex2_get_opt_header(uint8_t* membase, const xex2_header* header,
-                             uint32_t key);
 uint32_t xex2_get_header_size(const xex2_header* header);
 }  // namespace kernel
 }  // namespace xe

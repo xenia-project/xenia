@@ -394,8 +394,9 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
     return;
   }
 
-  uint32_t field_value =
-      xex2_get_opt_header(SHIM_MEM_BASE, header, image_field);
+  uint32_t field_value = 0;
+  XUserModule::GetOptHeader(SHIM_MEM_BASE, header,
+                            xe_xex2_header_keys(image_field), &field_value);
   SHIM_SET_RETURN_32(field_value);
 }
 
