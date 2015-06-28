@@ -196,7 +196,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     static_assert(debug::FunctionTraceData::kFunctionCallerHistoryCount == 4,
                   "bitmask depends on count");
     mov(rax, qword[low_address(&trace_header->function_call_count)]);
-    and(rax, B00000011);
+    and_(rax, B00000011);
 
     // Record call history value into slot (guest addr in RDX).
     mov(dword[RegExp(uint32_t(uint64_t(
