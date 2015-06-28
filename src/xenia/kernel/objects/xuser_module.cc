@@ -101,20 +101,21 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  // Store execution info for later use.
-  // TODO(benvanik): just put entire xex header in memory somewhere?
-  execution_info_ptr_ = memory()->SystemHeapAlloc(24);
-  auto eip = memory()->TranslateVirtual(execution_info_ptr_);
-  const auto& ex = xe_xex2_get_header(xex_)->execution_info;
-  xe::store_and_swap<uint32_t>(eip + 0x00, ex.media_id);
-  xe::store_and_swap<uint32_t>(eip + 0x04, ex.version.value);
-  xe::store_and_swap<uint32_t>(eip + 0x08, ex.base_version.value);
-  xe::store_and_swap<uint32_t>(eip + 0x0C, ex.title_id);
-  xe::store_and_swap<uint8_t>(eip + 0x10, ex.platform);
-  xe::store_and_swap<uint8_t>(eip + 0x11, ex.executable_table);
-  xe::store_and_swap<uint8_t>(eip + 0x12, ex.disc_number);
-  xe::store_and_swap<uint8_t>(eip + 0x13, ex.disc_count);
-  xe::store_and_swap<uint32_t>(eip + 0x14, ex.savegame_id);
+  // Copy the xex2 header into guest memory
+  const xex2_header* header = reinterpret_cast<const xex2_header*>(addr);
+  uint32_t header_size = xex2_get_header_size(header);
+
+  xex_header_ = memory()->SystemHeapAlloc(header_size);
+
+  uint8_t* xex_header_ptr = memory()->TranslateVirtual(xex_header_);
+  std::memcpy(xex_header_ptr, header, header_size);
+
+  // Setup the loader data entry
+  auto ldr_data =
+      memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
+
+  ldr_data->dll_base = 0; // GetProcAddress will read this.
+  ldr_data->xex_header_base = xex_header_;
 
   // Prepare the module for execution.
   // Runtime takes ownership.

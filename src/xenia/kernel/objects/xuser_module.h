@@ -44,6 +44,7 @@ class XUserModule : public XModule {
 
  private:
   xe_xex2_ref xex_;
+  uint32_t xex_header_;
   uint32_t execution_info_ptr_;
 };
 

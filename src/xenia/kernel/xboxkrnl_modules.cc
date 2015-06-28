@@ -153,9 +153,9 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_context,
                                   KernelState* kernel_state) {
   uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
   const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
-  uint32_t module_handle_ptr = SHIM_GET_ARG_32(1);
+  uint32_t hmodule_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("XexGetModuleHandle(%s, %.8X)", module_name, module_handle_ptr);
+  XELOGD("XexGetModuleHandle(%s, %.8X)", module_name, hmodule_ptr);
 
   object_ref<XModule> module;
   if (!module_name) {
@@ -164,31 +164,31 @@ SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_context,
     module = kernel_state->GetModule(module_name);
   }
   if (!module) {
-    SHIM_SET_MEM_32(module_handle_ptr, 0);
+    SHIM_SET_MEM_32(hmodule_ptr, 0);
     SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
     return;
   }
 
   // NOTE: we don't retain the handle for return.
-  SHIM_SET_MEM_32(module_handle_ptr, module->handle());
+  SHIM_SET_MEM_32(hmodule_ptr, module->hmodule_ptr());
 
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_context,
                                    KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
+  uint32_t hmodule = SHIM_GET_ARG_32(0);
   uint32_t name_ptr = SHIM_GET_ARG_32(1);
   const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
   uint32_t data_ptr = SHIM_GET_ARG_32(2);
   uint32_t size_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD("XexGetModuleSection(%.8X, %s, %.8X, %.8X)", handle, name, data_ptr,
+  XELOGD("XexGetModuleSection(%.8X, %s, %.8X, %.8X)", hmodule, name, data_ptr,
          size_ptr);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto module = kernel_state->object_table()->LookupObject<XModule>(handle);
+  auto module = XModule::GetFromHModule(kernel_state, SHIM_MEM_ADDR(hmodule));
   if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
@@ -210,49 +210,64 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
   const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
   uint32_t module_flags = SHIM_GET_ARG_32(1);
   uint32_t min_version = SHIM_GET_ARG_32(2);
-  uint32_t handle_ptr = SHIM_GET_ARG_32(3);
+  uint32_t hmodule_ptr = SHIM_GET_ARG_32(3);
 
   XELOGD("XexLoadImage(%s, %.8X, %.8X, %.8X)", module_name, module_flags,
-         min_version, handle_ptr);
+         min_version, hmodule_ptr);
 
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
-  X_HANDLE module_handle = X_INVALID_HANDLE_VALUE;
+  uint32_t hmodule = 0;
   auto module = kernel_state->GetModule(module_name);
   if (module) {
-    // Existing module found, just add a reference and obtain a handle.
-    result =
-        kernel_state->object_table()->AddHandle(module.get(), &module_handle);
+    // Existing module found.
+    hmodule = module->hmodule_ptr();
   } else {
     // Not found; attempt to load as a user module.
     auto user_module = kernel_state->LoadUserModule(module_name);
     if (user_module) {
       user_module->RetainHandle();
-      module_handle = user_module->handle();
+      hmodule = user_module->hmodule_ptr();
       result = X_STATUS_SUCCESS;
     }
   }
-  SHIM_SET_MEM_32(handle_ptr, module_handle);
+
+  // Increment the module's load count.
+  auto ldr_data =
+      kernel_memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+  ldr_data->load_count++;
+
+  SHIM_SET_MEM_32(hmodule_ptr, hmodule);
 
   SHIM_SET_RETURN_32(result);
 }
 
 SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_context,
                               KernelState* kernel_state) {
-  uint32_t module_handle = SHIM_GET_ARG_32(0);
+  uint32_t hmodule = SHIM_GET_ARG_32(0);
 
-  XELOGD("XexUnloadImage(%.8X)", module_handle);
+  XELOGD("XexUnloadImage(%.8X)", hmodule);
 
-  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  auto module = XModule::GetFromHModule(kernel_state, SHIM_MEM_ADDR(hmodule));
+  if (!module) {
+    SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
+    return;
+  }
 
-  result = kernel_state->object_table()->RemoveHandle(module_handle);
+  auto ldr_data =
+      kernel_state->memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
+          hmodule);
+  if (ldr_data->load_count-- <= 0) {
+    // No more references, free it.
+    kernel_state->object_table()->RemoveHandle(module->handle());
+  }
 
-  SHIM_SET_RETURN_32(result);
+  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
 SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
                                       KernelState* kernel_state) {
-  uint32_t module_handle = SHIM_GET_ARG_32(0);
+  uint32_t hmodule = SHIM_GET_ARG_32(0);
   uint32_t ordinal = SHIM_GET_ARG_32(1);
   uint32_t out_function_ptr = SHIM_GET_ARG_32(2);
 
@@ -263,20 +278,20 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
   auto string_name = reinterpret_cast<const char*>(SHIM_MEM_ADDR(ordinal));
 
   if (is_string_name) {
-    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", module_handle,
+    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", hmodule,
            ordinal, string_name, out_function_ptr);
   } else {
-    XELOGD("XexGetProcedureAddress(%.8X, %.8X, %.8X)", module_handle, ordinal,
+    XELOGD("XexGetProcedureAddress(%.8X, %.8X, %.8X)", hmodule, ordinal,
            out_function_ptr);
   }
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
   object_ref<XModule> module;
-  if (!module_handle) {
+  if (!hmodule) {
     module = kernel_state->GetExecutableModule();
   } else {
-    module = kernel_state->object_table()->LookupObject<XModule>(module_handle);
+    module = XModule::GetFromHModule(kernel_state, SHIM_MEM_ADDR(hmodule));
   }
   if (module) {
     uint32_t ptr;
