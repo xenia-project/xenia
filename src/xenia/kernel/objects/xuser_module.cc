@@ -153,12 +153,13 @@ X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto ptr = xex2_get_opt_header(header, key);
-  if (!ptr) {
+  uint32_t field_value =
+      xex2_get_opt_header(memory()->virtual_membase(), header, key);
+  if (!field_value) {
     return X_STATUS_NOT_FOUND;
   }
 
-  *out_header_guest_ptr = (uint32_t)(ptr - memory()->virtual_membase());
+  *out_header_guest_ptr = field_value;
   return X_STATUS_SUCCESS;
 }
 
