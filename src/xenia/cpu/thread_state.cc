@@ -67,8 +67,8 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
         break;
     }
     memory()
-        ->LookupHeap(0x70000000)
-        ->AllocRange(0x70000000, 0x7FFFFFFF, actual_stack_size, stack_alignment,
+        ->LookupHeap(0x40000000)
+        ->AllocRange(0x40000000, 0x7FFFFFFF, actual_stack_size, stack_alignment,
                      kMemoryAllocationReserve | kMemoryAllocationCommit,
                      kMemoryProtectRead | kMemoryProtectWrite, top_down,
                      &stack_address_);
