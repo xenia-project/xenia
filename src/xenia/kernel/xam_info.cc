@@ -78,7 +78,8 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
   assert_not_null(module);
 
   uint32_t guest_hdr_ptr;
-  X_STATUS result = module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
+  X_STATUS result =
+      module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
     SHIM_SET_RETURN_32(result);
