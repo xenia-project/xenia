@@ -288,6 +288,28 @@ struct X_ANSI_STRING {
   }
 };
 
+struct X_UNICODE_STRING {
+  xe::be<uint16_t> length;
+  xe::be<uint16_t> maximum_length;
+  xe::be<uint32_t> pointer;
+
+  void reset() {
+    length = 0;
+    maximum_length = 0;
+    pointer = 0;
+  }
+
+  std::wstring to_string(uint8_t* membase) const {
+    if (!length) {
+      return L"";
+    }
+
+    return std::wstring(reinterpret_cast<const wchar_t*>(membase + pointer),
+                        length);
+  }
+};
+static_assert_size(X_UNICODE_STRING, 8);
+
 // http://pastebin.com/SMypYikG
 typedef uint32_t XNotificationID;
 

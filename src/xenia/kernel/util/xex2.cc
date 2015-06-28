@@ -27,6 +27,33 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 
+namespace xe {
+namespace kernel {
+uint8_t *xex2_get_opt_header(const xex2_header *header, uint32_t key) {
+  for (uint32_t i = 0; i < header->header_count; i++) {
+    const xex2_opt_header &opt_header = header->headers[i];
+    if (opt_header.key != key) {
+      continue;
+    }
+
+    if ((opt_header.key & 0xFF) == 0x01) {
+      // Data is stored in the opt header
+      return (uint8_t *)&opt_header.value;
+    } else {
+      // Data stored at offset.
+      return ((uint8_t *)&header->headers[0] + opt_header.offset);
+    }
+  }
+
+  return nullptr;
+}
+
+uint32_t xex2_get_header_size(const xex2_header *header) {
+  return header->exe_offset;
+}
+}  // namespace kernel
+}  // namespace xe
+
 // TODO(benvanik): remove.
 #define XEEXPECTZERO(expr) \
   if ((expr) != 0) {       \
@@ -126,7 +153,7 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
   xe_xex2_loader_info_t *ldr;
 
   header->xex2 = xe::load_and_swap<uint32_t>(p + 0x00);
-  if (header->xex2 != 0x58455832) {
+  if (header->xex2 != 'XEX2') {
     return 1;
   }
 
@@ -356,8 +383,8 @@ int xe_xex2_read_header(const uint8_t *addr, const size_t length,
             uint32_t window_size = xe::load_and_swap<uint32_t>(pp + 0x08);
             uint32_t window_bits = 0;
             for (size_t m = 0; m < 32; m++, window_bits++) {
-              window_size <<= 1;
-              if (window_size == 0x80000000) {
+              window_size >>= 1;
+              if (window_size == 0x00000000) {
                 break;
               }
             }

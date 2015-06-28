@@ -68,6 +68,7 @@ KernelState::KernelState(Emulator* emulator)
   shared_kernel_state_ = this;
 
   process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
+
   auto pib =
       memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
   // TODO(benvanik): figure out what this list is.
@@ -189,6 +190,17 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
       pib->tls_raw_data_size = header->tls_info.raw_data_size;
       pib->tls_slot_size = header->tls_info.slot_count * 4;
     }
+  }
+
+  // Setup the kernel's XexExecutableModuleHandle field
+  auto exp = processor()->export_resolver()->GetExportByOrdinal(
+      "xboxkrnl.exe", ordinals::XexExecutableModuleHandle);
+
+  if (exp) {
+    auto variable_ptr =
+        memory()->TranslateVirtual<xe::be<uint32_t>*>(exp->variable_ptr);
+
+    *variable_ptr = module->hmodule_ptr();
   }
 }
 

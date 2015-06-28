@@ -28,8 +28,6 @@ class XUserModule : public XModule {
   xe_xex2_ref xex();
   const xe_xex2_header_t* xex_header();
 
-  uint32_t execution_info_ptr() const { return execution_info_ptr_; }
-
   X_STATUS LoadFromFile(std::string path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
 
@@ -37,6 +35,8 @@ class XUserModule : public XModule {
   uint32_t GetProcAddressByName(const char* name) override;
   X_STATUS GetSection(const char* name, uint32_t* out_section_data,
                       uint32_t* out_section_size) override;
+  X_STATUS GetOptHeader(xe_xex2_header_keys key,
+                        uint32_t* out_header_guest_ptr);
 
   X_STATUS Launch(uint32_t flags);
 
@@ -44,7 +44,7 @@ class XUserModule : public XModule {
 
  private:
   xe_xex2_ref xex_;
-  uint32_t execution_info_ptr_;
+  uint32_t xex_header_;
 };
 
 }  // namespace kernel

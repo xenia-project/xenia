@@ -385,55 +385,22 @@ SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
   uint32_t xex_header_base = SHIM_GET_ARG_32(0);
   uint32_t image_field = SHIM_GET_ARG_32(1);
 
-  // NOTE: this is totally faked!
-  // We set the XexExecutableModuleHandle pointer to a block that has at offset
-  // 0x58 a pointer to our XexHeaderBase. If the value passed doesn't match
-  // then die.
-  // The only ImageField I've seen in the wild is
-  // 0x20401 (XEX_HEADER_DEFAULT_HEAP_SIZE), so that's all we'll support.
-
   XELOGD("RtlImageXexHeaderField(%.8X, %.8X)", xex_header_base, image_field);
 
-  // PVOID
-  // PVOID XexHeaderBase
-  // DWORD ImageField
-
-  // NOTE: this is totally faked!
-  // We set the XexExecutableModuleHandle pointer to a block that has at offset
-  // 0x58 a pointer to our XexHeaderBase. If the value passed doesn't match
-  // then die.
-
-  // TODO(benvanik): use xex_header_base to dereference this.
-  // Right now we are only concerned with games making this call on their main
-  // module, so this hack is fine.
-  assert_true(xex_header_base == 0x80101100);
-  auto module = kernel_state->GetExecutableModule();
-
-  // Special case.
-  if (image_field == XEX_HEADER_EXECUTION_INFO) {
-    SHIM_SET_RETURN_32(module->execution_info_ptr());
+  auto header =
+      kernel_memory()->TranslateVirtual<xex2_header*>(xex_header_base);
+  if (!header) {
+    SHIM_SET_RETURN_32(X_STATUS_UNSUCCESSFUL);
     return;
   }
 
-  const xe_xex2_header_t* xex_header = module->xex_header();
-  for (size_t n = 0; n < xex_header->header_count; n++) {
-    if (xex_header->headers[n].key == image_field) {
-      uint32_t value = xex_header->headers[n].value;
-      SHIM_SET_RETURN_32(value);
-      return;
-    }
+  uint8_t* hdr = xex2_get_opt_header(header, image_field);
+  if (!hdr) {
+    SHIM_SET_RETURN_32(X_STATUS_NOT_FOUND);
+    return;
   }
 
-  // Some games seem to expect 0xC0000225 for not-found results, while
-  // others will explode if it's not zero. Maybe there are default headers?
-  switch (image_field) {
-    case 0x20401:  // XEX_HEADER_DEFAULT_HEAP_SIZE
-      SHIM_SET_RETURN_32(0);
-      break;
-    default:
-      SHIM_SET_RETURN_32(X_STATUS_NOT_FOUND);
-      break;
-  }
+  SHIM_SET_RETURN_32((uint32_t)(hdr - kernel_memory()->virtual_membase()));
 }
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one

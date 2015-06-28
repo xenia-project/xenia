@@ -89,17 +89,9 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
   uint32_t ppXexExecutableModuleHandle = memory_->SystemHeapAlloc(4);
-  auto lppXexExecutableModuleHandle =
-      memory_->TranslateVirtual(ppXexExecutableModuleHandle);
   export_resolver_->SetVariableMapping("xboxkrnl.exe",
                                        ordinals::XexExecutableModuleHandle,
                                        ppXexExecutableModuleHandle);
-  uint32_t pXexExecutableModuleHandle = memory_->SystemHeapAlloc(256);
-  auto lpXexExecutableModuleHandle =
-      memory_->TranslateVirtual(pXexExecutableModuleHandle);
-  xe::store_and_swap<uint32_t>(lppXexExecutableModuleHandle,
-                               pXexExecutableModuleHandle);
-  xe::store_and_swap<uint32_t>(lpXexExecutableModuleHandle + 0x58, 0x80101100);
 
   // ExLoadedCommandLine (char*)
   // The name of the xex. Not sure this is ever really used on real devices.
