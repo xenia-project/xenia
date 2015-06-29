@@ -21,7 +21,6 @@ Device::~Device() = default;
 void Device::Dump(StringBuffer* string_buffer) {
   root_entry_->Dump(string_buffer, 0);
 }
-}
 
 Entry* Device::ResolvePath(const char* path) {
   // The filesystem will have stripped our prefix off already, so the path will
