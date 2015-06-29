@@ -120,7 +120,16 @@ KernelState* KernelState::shared() { return shared_kernel_state_; }
 
 uint32_t KernelState::title_id() const {
   assert_not_null(executable_module_);
-  return executable_module_->xex_header()->execution_info.title_id;
+
+  xex2_opt_execution_info* exec_info = 0;
+  executable_module_->GetOptHeader(XEX_HEADER_EXECUTION_INFO,
+                                   (void**)&exec_info);
+
+  if (exec_info) {
+    return exec_info->title_id;
+  }
+
+  return 0;
 }
 
 uint32_t KernelState::process_type() const {
@@ -192,13 +201,14 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
     return;
   }
 
-  auto header = executable_module_->xex_header();
-  if (header) {
+  xex2_opt_tls_info* tls_header = nullptr;
+  executable_module_->GetOptHeader(XEX_HEADER_TLS_INFO, (void**)&tls_header);
+  if (tls_header) {
     auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
         process_info_block_address_);
-    pib->tls_data_size = header->tls_info.data_size;
-    pib->tls_raw_data_size = header->tls_info.raw_data_size;
-    pib->tls_slot_size = header->tls_info.slot_count * 4;
+    pib->tls_data_size = tls_header->data_size;
+    pib->tls_raw_data_size = tls_header->raw_data_size;
+    pib->tls_slot_size = tls_header->slot_count * 4;
   }
 
   // Setup the kernel's XexExecutableModuleHandle field.
@@ -275,8 +285,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 
   module->Dump();
 
-  auto xex_header = module->xex_header();
-  if (xex_header->exe_entry_point) {
+  if (module->entry_point()) {
     // Call DllMain(DLL_PROCESS_ATTACH):
     // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
     uint64_t args[] = {
@@ -285,7 +294,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
         0,  // 0 because always dynamic
     };
     auto thread_state = XThread::GetCurrentThread()->thread_state();
-    processor()->Execute(thread_state, xex_header->exe_entry_point, args,
+    processor()->Execute(thread_state, module->entry_point(), args,
                          xe::countof(args));
   }
 
@@ -323,14 +332,13 @@ void KernelState::OnThreadExecute(XThread* thread) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
   auto thread_state = thread->thread_state();
   for (auto user_module : user_modules_) {
-    auto xex_header = user_module->xex_header();
-    if (xex_header->exe_entry_point) {
+    if (user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
           2,  // DLL_THREAD_ATTACH
           0,  // 0 because always dynamic
       };
-      processor()->Execute(thread_state, xex_header->exe_entry_point, args,
+      processor()->Execute(thread_state, user_module->entry_point(), args,
                            xe::countof(args));
     }
   }
@@ -346,14 +354,13 @@ void KernelState::OnThreadExit(XThread* thread) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
   auto thread_state = thread->thread_state();
   for (auto user_module : user_modules_) {
-    auto xex_header = user_module->xex_header();
-    if (xex_header->exe_entry_point) {
+    if (user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
           3,  // DLL_THREAD_DETACH
           0,  // 0 because always dynamic
       };
-      processor()->Execute(thread_state, xex_header->exe_entry_point, args,
+      processor()->Execute(thread_state, user_module->entry_point(), args,
                            xe::countof(args));
     }
   }

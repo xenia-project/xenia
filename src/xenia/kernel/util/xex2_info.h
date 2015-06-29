@@ -480,6 +480,26 @@ union xex2_version {
   };
 };
 
+struct xex2_opt_tls_info {
+  xe::be<uint32_t> slot_count;        // 0x0
+  xe::be<uint32_t> raw_data_address;  // 0x4
+  xe::be<uint32_t> data_size;         // 0x8
+  xe::be<uint32_t> raw_data_size;     // 0xC
+};
+static_assert_size(xex2_opt_tls_info, 0x10);
+
+struct xex2_resource {
+  char name[8];              // 0x0
+  xe::be<uint32_t> address;  // 0x8
+  xe::be<uint32_t> size;     // 0xC
+};
+static_assert_size(xex2_resource, 0x10);
+
+struct xex2_opt_resource_info {
+  xe::be<uint32_t> size;       // 0x0 Resource count is (size - 4) / 16
+  xex2_resource resources[1];  // 0x4
+};
+
 struct xex2_opt_delta_patch_descriptor {
   xe::be<uint32_t> size;                         // 0x0
   xex2_version target_version;                   // 0x4

@@ -78,6 +78,18 @@ bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
   return false;
 }
 
+bool XexModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const {
+  return XexModule::GetOptHeader(xex_header_, key, out_ptr);
+}
+
+uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
+  return xe_xex2_lookup_export(xex_, ordinal);
+}
+
+uint32_t XexModule::GetProcAddress(const char* name) const {
+  return xe_xex2_lookup_export(xex_, name);
+}
+
 bool XexModule::ApplyPatch(XexModule* module) {
   auto header = reinterpret_cast<const xex2_header*>(module->xex_header());
   if (!(header->module_flags &

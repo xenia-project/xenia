@@ -22,13 +22,9 @@ namespace kernel {
 using namespace xe::cpu;
 
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, ModuleType::kUserModule, path), xex_(nullptr) {}
+    : XModule(kernel_state, ModuleType::kUserModule, path) {}
 
-XUserModule::~XUserModule() { xe_xex2_dealloc(xex_); }
-
-const xe_xex2_header_t* XUserModule::xex_header() {
-  return xe_xex2_get_header(xex_);
-}
+XUserModule::~XUserModule() {}
 
 X_STATUS XUserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
@@ -86,7 +82,6 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   if (!xex_module->Load(name_, path_, addr, length)) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  xex_ = xex_module->xex();
   processor_module_ = xex_module.get();
   if (!processor->AddModule(std::move(xex_module))) {
     return X_STATUS_UNSUCCESSFUL;
@@ -106,32 +101,58 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   ldr_data->dll_base = 0;  // GetProcAddress will read this.
   ldr_data->xex_header_base = guest_xex_header_;
 
+  // Cache some commonly used headers...
+  this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT,
+                                   (void**)&entry_point_);
+  this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
+                                   (void**)&stack_size_);
+
   OnLoad();
 
   return X_STATUS_SUCCESS;
 }
 
 uint32_t XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
-  return xe_xex2_lookup_export(xex_, ordinal);
+  return xex_module()->GetProcAddress(ordinal);
 }
 
 uint32_t XUserModule::GetProcAddressByName(const char* name) {
-  return xe_xex2_lookup_export(xex_, name);
+  return xex_module()->GetProcAddress(name);
 }
 
 X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
                                  uint32_t* out_section_size) {
-  auto header = xe_xex2_get_header(xex_);
-  for (size_t n = 0; n < header->resource_info_count; n++) {
-    auto& res = header->resource_infos[n];
+  xex2_opt_resource_info* resource_header = nullptr;
+  if (!XexModule::GetOptHeader(xex_header(), XEX_HEADER_RESOURCE_INFO,
+                               (void**)&resource_header)) {
+    // No resources.
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  uint32_t count = (resource_header->size - 4) / 16;
+  for (uint32_t i = 0; i < count; i++) {
+    auto& res = resource_header->resources[i];
     if (strcmp(name, res.name) == 0) {
       // Found!
       *out_section_data = res.address;
       *out_section_size = res.size;
+
       return X_STATUS_SUCCESS;
     }
   }
+
   return X_STATUS_UNSUCCESSFUL;
+}
+
+X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
+  assert_not_null(out_ptr);
+
+  bool ret = xex_module()->GetOptHeader(key, out_ptr);
+  if (!ret) {
+    return X_STATUS_NOT_FOUND;
+  }
+
+  return X_STATUS_SUCCESS;
 }
 
 X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
@@ -180,16 +201,21 @@ X_STATUS XUserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
 }
 
 X_STATUS XUserModule::Launch(uint32_t flags) {
-  const xe_xex2_header_t* header = xex_header();
-
   XELOGI("Launching module...");
-
   Dump();
 
+  // Grab some important variables...
+  auto header = xex_header();
+  uint32_t exe_stack_size = 0;
+  uint32_t exe_entry_point = 0;
+  XexModule::GetOptHeader(xex_header(), XEX_HEADER_DEFAULT_STACK_SIZE,
+                          (void**)&exe_stack_size);
+  XexModule::GetOptHeader(xex_header(), XEX_HEADER_ENTRY_POINT,
+                          (void**)&exe_entry_point);
+
   // Create a thread to run in.
-  auto thread =
-      object_ref<XThread>(new XThread(kernel_state(), header->exe_stack_size, 0,
-                                      header->exe_entry_point, 0, 0));
+  auto thread = object_ref<XThread>(
+      new XThread(kernel_state(), exe_stack_size, 0, exe_entry_point, 0, 0));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -206,11 +232,14 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
 void XUserModule::Dump() {
   xe::cpu::ExportResolver* export_resolver =
       kernel_state_->emulator()->export_resolver();
-  const xe_xex2_header_t* header = xe_xex2_get_header(xex_);
+  auto header = xex_header();
+
+  // TODO: Need to loop through the optional headers one-by-one.
 
   // XEX info.
   printf("Module %s:\n\n", path_.c_str());
   printf("    Module Flags: %.8X\n", header->module_flags);
+  /*
   printf("    System Flags: %.8X\n", header->system_flags);
   printf("\n");
   printf("         Address: %.8X\n", header->exe_address);
@@ -249,7 +278,7 @@ void XUserModule::Dump() {
   printf("\n");
   printf("  Headers:\n");
   for (size_t n = 0; n < header->header_count; n++) {
-    const xe_xex2_opt_header_t* opt_header = &header->headers[n];
+    const xex2_opt_header* opt_header = &header->headers[n];
     printf("    %.8X (%.8X, %4db) %.8X = %11d\n", opt_header->key,
            opt_header->offset, opt_header->length, opt_header->value,
            opt_header->value);
@@ -440,6 +469,7 @@ void XUserModule::Dump() {
 
     printf("\n");
   }
+  */
 }
 
 }  // namespace kernel

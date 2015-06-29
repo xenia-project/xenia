@@ -164,14 +164,18 @@ X_STATUS XThread::Create() {
 
   // Allocate TLS block.
   // Games will specify a certain number of 4b slots that each thread will get.
+  xex2_opt_tls_info* tls_header = nullptr;
+  if (module) {
+    module->GetOptHeader(XEX_HEADER_TLS_INFO, (void**)&tls_header);
+  }
+
   const uint32_t kDefaultTlsSlotCount = 32;
   uint32_t tls_slots = 0;
   uint32_t tls_extended_size = 0;
-  if (module && module->xex_header()) {
-    const xe_xex2_header_t* header = module->xex_header();
-    tls_slots = header->tls_info.slot_count ? header->tls_info.slot_count
-                                            : kDefaultTlsSlotCount;
-    tls_extended_size = header->tls_info.data_size;
+  if (tls_header) {
+    tls_slots =
+        tls_header->slot_count ? tls_header->slot_count : kDefaultTlsSlotCount;
+    tls_extended_size = tls_header->data_size;
   } else {
     tls_slots = kDefaultTlsSlotCount;
   }
@@ -192,10 +196,9 @@ X_STATUS XThread::Create() {
   memory()->Fill(tls_address_, tls_total_size, 0);
   if (tls_extended_size) {
     // If game has extended data, copy in the default values.
-    const xe_xex2_header_t* header = module->xex_header();
-    assert_not_zero(header->tls_info.raw_data_address);
-    memory()->Copy(tls_address_, header->tls_info.raw_data_address,
-                   header->tls_info.raw_data_size);
+    assert_not_zero(tls_header->raw_data_address);
+    memory()->Copy(tls_address_, tls_header->raw_data_address,
+                   tls_header->raw_data_size);
   }
 
   // Allocate thread state block from heap.
@@ -583,8 +586,11 @@ void XThread::DeliverAPCs(void* data) {
       // kernel_routine(apc_address, &normal_routine, &normal_context,
       // &system_arg1, &system_arg2)
       uint64_t kernel_args[] = {
-          apc_ptr, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
-          thread->scratch_address_ + 8, thread->scratch_address_ + 12,
+          apc_ptr,
+          thread->scratch_address_ + 0,
+          thread->scratch_address_ + 4,
+          thread->scratch_address_ + 8,
+          thread->scratch_address_ + 12,
       };
       processor->Execute(thread->thread_state(), apc->kernel_routine,
                          kernel_args, xe::countof(kernel_args));

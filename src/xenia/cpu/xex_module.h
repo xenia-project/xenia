@@ -40,6 +40,10 @@ class XexModule : public xe::cpu::Module {
   // not a pointer!
   static bool GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
                            void** out_ptr);
+  bool GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const;
+
+  uint32_t GetProcAddress(uint16_t ordinal) const;
+  uint32_t GetProcAddress(const char* name) const;
 
   bool ApplyPatch(XexModule* module);
   bool Load(const std::string& name, const std::string& path,
