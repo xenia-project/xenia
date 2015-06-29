@@ -25,21 +25,10 @@ namespace xe {
 namespace kernel {
 
 // http://msdn.microsoft.com/en-us/library/ff561778
-SHIM_CALL RtlCompareMemory_shim(PPCContext* ppc_context,
-                                KernelState* kernel_state) {
-  uint32_t source1_ptr = SHIM_GET_ARG_32(0);
-  uint32_t source2_ptr = SHIM_GET_ARG_32(1);
-  uint32_t length = SHIM_GET_ARG_32(2);
-
-  XELOGD("RtlCompareMemory(%.8X, %.8X, %d)", source1_ptr, source2_ptr, length);
-
-  // SIZE_T
-  // _In_  const VOID *Source1,
-  // _In_  const VOID *Source2,
-  // _In_  SIZE_T Length
-
-  uint8_t* p1 = SHIM_MEM_ADDR(source1_ptr);
-  uint8_t* p2 = SHIM_MEM_ADDR(source2_ptr);
+dword_result_t RtlCompareMemory(lpvoid_t source1, lpvoid_t source2,
+                                dword_t length) {
+  uint8_t* p1 = source1;
+  uint8_t* p2 = source2;
 
   // Note that the return value is the number of bytes that match, so it's best
   // we just do this ourselves vs. using memcmp.
@@ -52,232 +41,120 @@ SHIM_CALL RtlCompareMemory_shim(PPCContext* ppc_context,
     }
   }
 
-  SHIM_SET_RETURN_32(c);
+  return c;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlCompareMemory, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff552123
-SHIM_CALL RtlCompareMemoryUlong_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  uint32_t source_ptr = SHIM_GET_ARG_32(0);
-  uint32_t length = SHIM_GET_ARG_32(1);
-  uint32_t pattern = SHIM_GET_ARG_32(2);
-
-  XELOGD("RtlCompareMemoryUlong(%.8X, %d, %.8X)", source_ptr, length, pattern);
-
-  // SIZE_T
-  // _In_  PVOID Source,
-  // _In_  SIZE_T Length,
-  // _In_  ULONG Pattern
-
-  if ((source_ptr % 4) || (length % 4)) {
-    SHIM_SET_RETURN_32(0);
-    return;
+dword_result_t RtlCompareMemoryUlong(lpvoid_t source, dword_t length,
+                                     dword_t pattern) {
+  // Return 0 if source/length not aligned
+  if (source.guest_address() % 4 || length % 4) {
+    return 0;
   }
 
-  uint8_t* p = SHIM_MEM_ADDR(source_ptr);
-
-  // Swap pattern.
-  // TODO(benvanik): ensure byte order of pattern is correct.
-  // Since we are doing byte-by-byte comparison we may not want to swap.
-  // GET_ARG swaps, so this is a swap back. Ugly.
-  const uint32_t pb32 = xe::byte_swap(pattern);
-  const uint8_t* pb = (uint8_t*)&pb32;
-
-  uint32_t c = 0;
-  for (uint32_t n = 0; n < length; n++, p++) {
-    if (*p == pb[n % 4]) {
-      c++;
+  uint32_t n = 0;
+  for (uint32_t i = 0; i < (length / 4); i++) {
+    // FIXME: This assumes as_array returns xe::be
+    uint32_t val = source.as_array<uint32_t>()[i];
+    if (val == pattern) {
+      n++;
     }
   }
 
-  SHIM_SET_RETURN_32(c);
+  return n;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlCompareMemoryUlong, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff552263
-SHIM_CALL RtlFillMemoryUlong_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
-  uint32_t length = SHIM_GET_ARG_32(1);
-  uint32_t pattern = SHIM_GET_ARG_32(2);
-
-  XELOGD("RtlFillMemoryUlong(%.8X, %d, %.8X)", destination_ptr, length,
-         pattern);
-
-  // VOID
-  // _Out_  PVOID Destination,
-  // _In_   SIZE_T Length,
-  // _In_   ULONG Pattern
-
+void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
   // NOTE: length must be % 4, so we can work on uint32s.
-  uint32_t* p = (uint32_t*)SHIM_MEM_ADDR(destination_ptr);
-
-  // TODO(benvanik): ensure byte order is correct - we're writing back the
-  // swapped arg value.
-
   uint32_t count = length >> 2;
-  uint32_t native_pattern = xe::byte_swap(pattern);
 
-  // TODO: unroll loop?
-
+  uint32_t* p = destination.as<uint32_t*>();
   for (uint32_t n = 0; n < count; n++, p++) {
-    *p = native_pattern;
+    *p = xe::byte_swap((uint32_t)pattern);
   }
 }
+DECLARE_XBOXKRNL_EXPORT(RtlFillMemoryUlong, ExportTag::kImplemented);
 
-SHIM_CALL RtlCompareString_shim(PPCContext* ppc_context,
-                                KernelState* kernel_state) {
-  uint32_t string_1_ptr = SHIM_GET_ARG_32(0);
-  uint32_t string_2_ptr = SHIM_GET_ARG_32(1);
-  uint32_t case_insensitive = SHIM_GET_ARG_32(2);
-
-  XELOGD("RtlCompareString(%.8X, %.8X, %d)", string_1_ptr, string_2_ptr,
-         case_insensitive);
-
-  auto string_1 = reinterpret_cast<const char*>(SHIM_MEM_ADDR(string_1_ptr));
-  auto string_2 = reinterpret_cast<const char*>(SHIM_MEM_ADDR(string_2_ptr));
+dword_result_t RtlCompareString(lpstring_t string_1, lpstring_t string_2,
+                                dword_t case_insensitive) {
   int ret = case_insensitive ? strcasecmp(string_1, string_2)
                              : std::strcmp(string_1, string_2);
 
-  SHIM_SET_RETURN_32(ret);
+  return ret;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlCompareString, ExportTag::kImplemented);
 
-SHIM_CALL RtlCompareStringN_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t string_1_ptr = SHIM_GET_ARG_32(0);
-  uint32_t string_1_len = SHIM_GET_ARG_32(1);
-  uint32_t string_2_ptr = SHIM_GET_ARG_32(2);
-  uint32_t string_2_len = SHIM_GET_ARG_32(3);
-  uint32_t case_insensitive = SHIM_GET_ARG_32(4);
-
-  XELOGD("RtlCompareStringN(%.8X, %d, %.8X, %d, %d)", string_1_ptr,
-         string_1_len, string_2_ptr, string_2_len, case_insensitive);
-
-  auto string_1 = reinterpret_cast<const char*>(SHIM_MEM_ADDR(string_1_ptr));
-  auto string_2 = reinterpret_cast<const char*>(SHIM_MEM_ADDR(string_2_ptr));
+dword_result_t RtlCompareStringN(lpstring_t string_1, dword_t string_1_len,
+                                 lpstring_t string_2, dword_t string_2_len,
+                                 dword_t case_insensitive) {
+  uint32_t len1 = string_1_len;
+  uint32_t len2 = string_2_len;
 
   if (string_1_len == 0xFFFF) {
-    string_1_len = uint32_t(std::strlen(string_1));
+    len1 = uint32_t(std::strlen(string_1));
   }
   if (string_2_len == 0xFFFF) {
-    string_2_len = uint32_t(std::strlen(string_2));
+    len2 = uint32_t(std::strlen(string_2));
   }
   auto len = std::min(string_1_len, string_2_len);
 
   int ret = case_insensitive ? strncasecmp(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);
 
-  SHIM_SET_RETURN_32(ret);
+  return ret;
 }
-
-// typedef struct _STRING {
-//   USHORT Length;
-//   USHORT MaximumLength;
-//   PCHAR  Buffer;
-// } ANSI_STRING, *PANSI_STRING;
+DECLARE_XBOXKRNL_EXPORT(RtlCompareStringN, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff561918
-SHIM_CALL RtlInitAnsiString_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
-  uint32_t source_ptr = SHIM_GET_ARG_32(1);
-
-  const char* source = source_ptr ? (char*)SHIM_MEM_ADDR(source_ptr) : nullptr;
-  XELOGD("RtlInitAnsiString(%.8X, %.8X = %s)", destination_ptr, source_ptr,
-         source ? source : "<null>");
-
-  // VOID
-  // _Out_     PANSI_STRING DestinationString,
-  // _In_opt_  PCSZ SourceString
-
-  if (source_ptr != 0) {
+void RtlInitAnsiString(pointer_t<X_ANSI_STRING> destination,
+                       lpstring_t source) {
+  if (source) {
     uint16_t length = (uint16_t)strlen(source);
-    SHIM_SET_MEM_16(destination_ptr + 0, length);
-    SHIM_SET_MEM_16(destination_ptr + 2, length + 1);
+    destination->length = length;
+    destination->maximum_length = length + 1;
   } else {
-    SHIM_SET_MEM_16(destination_ptr + 0, 0);
-    SHIM_SET_MEM_16(destination_ptr + 2, 0);
+    destination->reset();
   }
-  SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
+
+  destination->pointer = source.guest_address();
 }
+DECLARE_XBOXKRNL_EXPORT(RtlInitAnsiString, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff561899
-SHIM_CALL RtlFreeAnsiString_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t string_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("RtlFreeAnsiString(%.8X)", string_ptr);
-
-  // VOID
-  // _Inout_  PANSI_STRING AnsiString
-
-  uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
-  if (!buffer) {
-    return;
+void RtlFreeAnsiString(pointer_t<X_ANSI_STRING> string) {
+  if (string->pointer) {
+    kernel_memory()->SystemHeapFree(string->pointer);
   }
-  uint32_t length = SHIM_MEM_16(string_ptr + 2);
-  kernel_state->memory()->SystemHeapFree(buffer);
 
-  SHIM_SET_MEM_16(string_ptr + 0, 0);
-  SHIM_SET_MEM_16(string_ptr + 2, 0);
-  SHIM_SET_MEM_32(string_ptr + 4, 0);
+  string->reset();
 }
-
-// typedef struct _UNICODE_STRING {
-//   USHORT Length;
-//   USHORT MaximumLength;
-//   PWSTR  Buffer;
-// } UNICODE_STRING, *PUNICODE_STRING;
+DECLARE_XBOXKRNL_EXPORT(RtlFreeAnsiString, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff561934
-SHIM_CALL RtlInitUnicodeString_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t destination_ptr = SHIM_GET_ARG_32(0);
-  uint32_t source_ptr = SHIM_GET_ARG_32(1);
-
-  auto source = source_ptr
-                    ? xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(source_ptr))
-                    : L"";
-  XELOGD("RtlInitUnicodeString(%.8X, %.8X = %ls)", destination_ptr, source_ptr,
-         source.empty() ? L"<null>" : source.c_str());
-
-  // VOID
-  // _Out_     PUNICODE_STRING DestinationString,
-  // _In_opt_  PCWSTR SourceString
-
-  if (source.size()) {
-    SHIM_SET_MEM_16(destination_ptr + 0,
-                    static_cast<uint16_t>(source.size() * 2));
-    SHIM_SET_MEM_16(destination_ptr + 2,
-                    static_cast<uint16_t>((source.size() + 1) * 2));
-    SHIM_SET_MEM_32(destination_ptr + 4, source_ptr);
+void RtlInitUnicodeString(pointer_t<X_UNICODE_STRING> destination,
+                          lpwstring_t source) {
+  if (source) {
+    destination->length = (uint16_t)source.value().size() * 2;
+    destination->maximum_length = (uint16_t)(source.value().size() + 1) * 2;
+    destination->pointer = source.guest_address();
   } else {
-    SHIM_SET_MEM_16(destination_ptr + 0, 0);
-    SHIM_SET_MEM_16(destination_ptr + 2, 0);
-    SHIM_SET_MEM_32(destination_ptr + 4, 0);
+    destination->reset();
   }
 }
+DECLARE_XBOXKRNL_EXPORT(RtlInitUnicodeString, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff561903
-SHIM_CALL RtlFreeUnicodeString_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t string_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("RtlFreeUnicodeString(%.8X)", string_ptr);
-
-  // VOID
-  // _Inout_  PUNICODE_STRING UnicodeString
-
-  uint32_t buffer = SHIM_MEM_32(string_ptr + 4);
-  if (!buffer) {
-    return;
+void RtlFreeUnicodeString(pointer_t<X_UNICODE_STRING> string) {
+  if (string->pointer) {
+    kernel_memory()->SystemHeapFree(string->pointer);
   }
-  uint32_t length = SHIM_MEM_16(string_ptr + 2);
-  kernel_state->memory()->SystemHeapFree(buffer);
 
-  SHIM_SET_MEM_16(string_ptr + 0, 0);
-  SHIM_SET_MEM_16(string_ptr + 2, 0);
-  SHIM_SET_MEM_32(string_ptr + 4, 0);
+  string->reset();
 }
+DECLARE_XBOXKRNL_EXPORT(RtlFreeUnicodeString, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ff562969
 SHIM_CALL RtlUnicodeStringToAnsiString_shim(PPCContext* ppc_context,
@@ -380,25 +257,17 @@ SHIM_CALL RtlUnicodeToMultiByteN_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL RtlImageXexHeaderField_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t xex_header_base = SHIM_GET_ARG_32(0);
-  uint32_t image_field = SHIM_GET_ARG_32(1);
-
-  XELOGD("RtlImageXexHeaderField(%.8X, %.8X)", xex_header_base, image_field);
-
-  auto header =
-      kernel_memory()->TranslateVirtual<xex2_header*>(xex_header_base);
-  if (!header) {
-    SHIM_SET_RETURN_32(0);
-    return;
-  }
-
+pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
+                                        dword_t field_dword) {
   uint32_t field_value = 0;
-  XUserModule::GetOptHeader(SHIM_MEM_BASE, header,
-                            xe_xex2_header_keys(image_field), &field_value);
-  SHIM_SET_RETURN_32(field_value);
+  uint32_t field = field_dword;  // VS acts weird going from dword_t -> enum
+
+  XUserModule::GetOptHeader(kernel_memory()->virtual_membase(), xex_header,
+                            xe_xex2_header_keys(field), &field_value);
+
+  return field_value;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlImageXexHeaderField, ExportTag::kImplemented);
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
 // on the 360 (32b vs. 28b). This means that we can't do in-place splatting of
@@ -650,25 +519,12 @@ SHIM_CALL RtlTimeFieldsToTime_shim(PPCContext* ppc_context,
 
 void xe::kernel::xboxkrnl::RegisterRtlExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareMemory, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareMemoryUlong, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlFillMemoryUlong, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareString, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlCompareStringN, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitAnsiString, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlFreeAnsiString, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitUnicodeString, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlFreeUnicodeString, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlMultiByteToUnicodeN, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeToMultiByteN, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeToTimeFields, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeFieldsToTime, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlImageXexHeaderField, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSection, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSectionAndSpinCount,
