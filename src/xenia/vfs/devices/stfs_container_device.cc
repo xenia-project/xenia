@@ -25,13 +25,13 @@ namespace vfs {
    ((uint32_t)xe::load<uint8_t>((p) + 1) << 8) |  \
    (uint32_t)xe::load<uint8_t>((p) + 0))
 
-STFSContainerDevice::STFSContainerDevice(const std::string& mount_path,
+StfsContainerDevice::StfsContainerDevice(const std::string& mount_path,
                                          const std::wstring& local_path)
     : Device(mount_path), local_path_(local_path) {}
 
-STFSContainerDevice::~STFSContainerDevice() = default;
+StfsContainerDevice::~StfsContainerDevice() = default;
 
-bool STFSContainerDevice::Initialize() {
+bool StfsContainerDevice::Initialize() {
   if (filesystem::IsFolder(local_path_)) {
     // Was given a folder. Try to find the file in
     // local_path\TITLE_ID\000D0000\HASH_OF_42_CHARS
@@ -99,15 +99,15 @@ bool STFSContainerDevice::Initialize() {
   return true;
 }
 
-STFSContainerDevice::Error STFSContainerDevice::ReadHeaderAndVerify(
+StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
     const uint8_t* map_ptr) {
   // Check signature.
   if (memcmp(map_ptr, "LIVE", 4) == 0) {
-    package_type_ = StfsPackageType::STFS_PACKAGE_LIVE;
+    package_type_ = StfsPackageType::kLive;
   } else if (memcmp(map_ptr, "PIRS", 4) == 0) {
-    package_type_ = StfsPackageType::STFS_PACKAGE_PIRS;
+    package_type_ = StfsPackageType::kPirs;
   } else if (memcmp(map_ptr, "CON", 3) == 0) {
-    package_type_ = StfsPackageType::STFS_PACKAGE_CON;
+    package_type_ = StfsPackageType::kCon;
   } else {
     // Unexpected format.
     return Error::kErrorFileMismatch;
@@ -127,14 +127,14 @@ STFSContainerDevice::Error STFSContainerDevice::ReadHeaderAndVerify(
   return Error::kSuccess;
 }
 
-STFSContainerDevice::Error STFSContainerDevice::ReadAllEntries(
+StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
     const uint8_t* map_ptr) {
-  auto root_entry = new STFSContainerEntry(this, nullptr, "", mmap_.get());
+  auto root_entry = new StfsContainerEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
 
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 
-  std::vector<STFSContainerEntry*> all_entries;
+  std::vector<StfsContainerEntry*> all_entries;
 
   // Load all listings.
   auto& volume_descriptor = header_.volume_descriptor;
@@ -157,14 +157,14 @@ STFSContainerDevice::Error STFSContainerDevice::ReadAllEntries(
       uint32_t access_timestamp = xe::load_and_swap<uint32_t>(p + 0x3C);
       p += 0x40;
 
-      STFSContainerEntry* parent_entry = nullptr;
+      StfsContainerEntry* parent_entry = nullptr;
       if (path_indicator == 0xFFFF) {
         parent_entry = root_entry;
       } else {
         parent_entry = all_entries[path_indicator];
       }
 
-      auto entry = new STFSContainerEntry(
+      auto entry = new StfsContainerEntry(
           this, parent_entry,
           std::string((char*)filename, filename_length_flags & 0x3F),
           mmap_.get());
@@ -222,7 +222,7 @@ STFSContainerDevice::Error STFSContainerDevice::ReadAllEntries(
   return Error::kSuccess;
 }
 
-size_t STFSContainerDevice::BlockToOffset(uint32_t block) {
+size_t StfsContainerDevice::BlockToOffset(uint32_t block) {
   if (block >= 0xFFFFFF) {
     return -1;
   } else {
@@ -230,7 +230,7 @@ size_t STFSContainerDevice::BlockToOffset(uint32_t block) {
   }
 }
 
-uint32_t STFSContainerDevice::ComputeBlockNumber(uint32_t block_index) {
+uint32_t StfsContainerDevice::ComputeBlockNumber(uint32_t block_index) {
   uint32_t block_shift = 0;
   if (((header_.header_size + 0x0FFF) & 0xB000) == 0xB000) {
     block_shift = 1;
@@ -243,19 +243,19 @@ uint32_t STFSContainerDevice::ComputeBlockNumber(uint32_t block_index) {
   }
 
   uint32_t base = (block_index + 0xAA) / 0xAA;
-  if (package_type_ == StfsPackageType::STFS_PACKAGE_CON) {
+  if (package_type_ == StfsPackageType::kCon) {
     base <<= block_shift;
   }
   uint32_t block = base + block_index;
   if (block_index >= 0xAA) {
     base = (block_index + 0x70E4) / 0x70E4;
-    if (package_type_ == StfsPackageType::STFS_PACKAGE_CON) {
+    if (package_type_ == StfsPackageType::kCon) {
       base <<= block_shift;
     }
     block += base;
     if (block_index >= 0x70E4) {
       base = (block_index + 0x4AF768) / 0x4AF768;
-      if (package_type_ == StfsPackageType::STFS_PACKAGE_CON) {
+      if (package_type_ == StfsPackageType::kCon) {
         base <<= block_shift;
       }
       block += base;
@@ -264,7 +264,7 @@ uint32_t STFSContainerDevice::ComputeBlockNumber(uint32_t block_index) {
   return block;
 }
 
-STFSContainerDevice::BlockHash STFSContainerDevice::GetBlockHash(
+StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
     const uint8_t* map_ptr, uint32_t block_index, uint32_t table_offset) {
   static const uint32_t table_spacing[] = {
       0xAB,    0x718F,
@@ -310,7 +310,7 @@ bool StfsHeader::Read(const uint8_t* p) {
   std::memcpy(license_entries, p + 0x22C, 0x100);
   std::memcpy(header_hash, p + 0x32C, 0x14);
   header_size = xe::load_and_swap<uint32_t>(p + 0x340);
-  content_type = (STFSContentType)xe::load_and_swap<uint32_t>(p + 0x344);
+  content_type = (StfsContentType)xe::load_and_swap<uint32_t>(p + 0x344);
   metadata_version = xe::load_and_swap<uint32_t>(p + 0x348);
   if (metadata_version > 1) {
     // This is a variant of thumbnail data/etc.
@@ -332,7 +332,7 @@ bool StfsHeader::Read(const uint8_t* p) {
   data_file_count = xe::load_and_swap<uint32_t>(p + 0x39D);
   data_file_combined_size = xe::load_and_swap<uint64_t>(p + 0x3A1);
   descriptor_type = (StfsDescriptorType)xe::load_and_swap<uint8_t>(p + 0x3A9);
-  if (descriptor_type != StfsDescriptorType::STFS_DESCRIPTOR_STFS) {
+  if (descriptor_type != StfsDescriptorType::kStfs) {
     XELOGE("STFS descriptor format not supported: %d", descriptor_type);
     return false;
   }

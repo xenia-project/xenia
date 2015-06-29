@@ -22,53 +22,53 @@ namespace vfs {
 // http://www.free60.org/STFS
 
 enum class StfsPackageType {
-  STFS_PACKAGE_CON,
-  STFS_PACKAGE_PIRS,
-  STFS_PACKAGE_LIVE,
+  kCon,
+  kPirs,
+  kLive,
 };
 
-enum STFSContentType : uint32_t {
-  STFS_CONTENT_ARCADE_TITLE = 0x000D0000,
-  STFS_CONTENT_AVATAR_ITEM = 0x00009000,
-  STFS_CONTENT_CACHE_FILE = 0x00040000,
-  STFS_CONTENT_COMMUNITY_GAME = 0x02000000,
-  STFS_CONTENT_GAME_DEMO = 0x00080000,
-  STFS_CONTENT_GAMER_PICTURE = 0x00020000,
-  STFS_CONTENT_GAME_TITLE = 0x000A0000,
-  STFS_CONTENT_GAME_TRAILER = 0x000C0000,
-  STFS_CONTENT_GAME_VIDEO = 0x00400000,
-  STFS_CONTENT_INSTALLED_GAME = 0x00004000,
-  STFS_CONTENT_INSTALLER = 0x000B0000,
-  STFS_CONTENT_IPTV_PAUSE_BUFFER = 0x00002000,
-  STFS_CONTENT_LICENSE_STORE = 0x000F0000,
-  STFS_CONTENT_MARKETPLACE_CONTENT = 0x00000002,
-  STFS_CONTENT_MOVIE = 0x00100000,
-  STFS_CONTENT_MUSIC_VIDEO = 0x00300000,
-  STFS_CONTENT_PODCAST_VIDEO = 0x00500000,
-  STFS_CONTENT_PROFILE = 0x00010000,
-  STFS_CONTENT_PUBLISHER = 0x00000003,
-  STFS_CONTENT_SAVED_GAME = 0x00000001,
-  STFS_CONTENT_STORAGE_DOWNLOAD = 0x00050000,
-  STFS_CONTENT_THEME = 0x00030000,
-  STFS_CONTENT_TV = 0x00200000,
-  STFS_CONTENT_VIDEO = 0x00090000,
-  STFS_CONTENT_VIRAL_VIDEO = 0x00600000,
-  STFS_CONTENT_XBOX_DOWNLOAD = 0x00070000,
-  STFS_CONTENT_XBOX_ORIGINAL_GAME = 0x00005000,
-  STFS_CONTENT_XBOX_SAVED_GAME = 0x00060000,
-  STFS_CONTENT_XBOX_360_TITLE = 0x00001000,
-  STFS_CONTENT_XBOX_TITLE = 0x00005000,
-  STFS_CONTENT_XNA = 0x000E0000,
+enum class StfsContentType : uint32_t {
+  kArcadeTitle = 0x000D0000,
+  kAvatarItem = 0x00009000,
+  kCacheFile = 0x00040000,
+  kCommunityGame = 0x02000000,
+  kGameDemo = 0x00080000,
+  kGamerPictuer = 0x00020000,
+  kGameTitle = 0x000A0000,
+  kGameTrailer = 0x000C0000,
+  kGameVideo = 0x00400000,
+  kInstalledGame = 0x00004000,
+  kInstaller = 0x000B0000,
+  kIptvPauseBuffer = 0x00002000,
+  kLicenseStore = 0x000F0000,
+  kMarketplaceContent = 0x00000002,
+  kMovie = 0x00100000,
+  kMusicVideo = 0x00300000,
+  kPodcastVideo = 0x00500000,
+  kProfile = 0x00010000,
+  kPublisher = 0x00000003,
+  kSavedGame = 0x00000001,
+  kStorageDownload = 0x00050000,
+  kTheme = 0x00030000,
+  kTV = 0x00200000,
+  kVideo = 0x00090000,
+  kViralVideo = 0x00600000,
+  kXboxDownload = 0x00070000,
+  kXboxOriginalGame = 0x00005000,
+  kXboxSavedGame = 0x00060000,
+  kXbox360Title = 0x00001000,
+  kXboxTitle = 0x00005000,
+  kXNA = 0x000E0000,
 };
 
 enum class StfsPlatform : uint8_t {
-  STFS_PLATFORM_XBOX_360 = 0x02,
-  STFS_PLATFORM_PC = 0x04,
+  kXbox360 = 0x02,
+  kPc = 0x04,
 };
 
 enum class StfsDescriptorType : uint32_t {
-  STFS_DESCRIPTOR_STFS = 0,
-  STFS_DESCRIPTOR_SVOD = 1,
+  kStfs = 0,
+  kSvod = 1,
 };
 
 struct StfsVolumeDescriptor {
@@ -91,7 +91,7 @@ class StfsHeader {
   uint8_t license_entries[0x100];
   uint8_t header_hash[0x14];
   uint32_t header_size;
-  STFSContentType content_type;
+  StfsContentType content_type;
   uint32_t metadata_version;
   uint64_t content_size;
   uint32_t media_id;
@@ -121,11 +121,11 @@ class StfsHeader {
   uint8_t title_thumbnail_image[0x4000];
 };
 
-class STFSContainerDevice : public Device {
+class StfsContainerDevice : public Device {
  public:
-  STFSContainerDevice(const std::string& mount_path,
+  StfsContainerDevice(const std::string& mount_path,
                       const std::wstring& local_path);
-  ~STFSContainerDevice() override;
+  ~StfsContainerDevice() override;
 
   bool Initialize() override;
 

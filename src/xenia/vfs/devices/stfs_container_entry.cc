@@ -15,20 +15,20 @@
 namespace xe {
 namespace vfs {
 
-STFSContainerEntry::STFSContainerEntry(Device* device, Entry* parent,
+StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent,
                                        std::string path, MappedMemory* mmap)
     : Entry(device, parent, path),
       mmap_(mmap),
       data_offset_(0),
       data_size_(0) {}
 
-STFSContainerEntry::~STFSContainerEntry() = default;
+StfsContainerEntry::~StfsContainerEntry() = default;
 
-X_STATUS STFSContainerEntry::Open(KernelState* kernel_state,
+X_STATUS StfsContainerEntry::Open(KernelState* kernel_state,
                                   uint32_t desired_access,
                                   object_ref<XFile>* out_file) {
   *out_file = object_ref<XFile>(
-      new STFSContainerFile(kernel_state, desired_access, this));
+      new StfsContainerFile(kernel_state, desired_access, this));
   return X_STATUS_SUCCESS;
 }
 

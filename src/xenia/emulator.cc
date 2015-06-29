@@ -256,7 +256,7 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
   auto mount_path = "\\Device\\Cdrom0";
 
   // Register the container in the virtual filesystem.
-  auto device = std::make_unique<vfs::STFSContainerDevice>(mount_path, path);
+  auto device = std::make_unique<vfs::StfsContainerDevice>(mount_path, path);
   if (!device->Initialize()) {
     XELOGE("Unable to mount STFS container");
     return X_STATUS_NO_SUCH_FILE;

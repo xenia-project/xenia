@@ -19,13 +19,13 @@
 namespace xe {
 namespace vfs {
 
-class STFSContainerDevice;
+class StfsContainerDevice;
 
-class STFSContainerEntry : public Entry {
+class StfsContainerEntry : public Entry {
  public:
-  STFSContainerEntry(Device* device, Entry* parent, std::string path,
+  StfsContainerEntry(Device* device, Entry* parent, std::string path,
                      MappedMemory* mmap);
-  ~STFSContainerEntry() override;
+  ~StfsContainerEntry() override;
 
   MappedMemory* mmap() const { return mmap_; }
   size_t data_offset() const { return data_offset_; }
@@ -41,7 +41,7 @@ class STFSContainerEntry : public Entry {
   const std::vector<BlockRecord>& block_list() const { return block_list_; }
 
  private:
-  friend class STFSContainerDevice;
+  friend class StfsContainerDevice;
 
   MappedMemory* mmap_;
   size_t data_offset_;

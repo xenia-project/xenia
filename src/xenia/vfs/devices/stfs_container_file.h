@@ -15,20 +15,20 @@
 namespace xe {
 namespace vfs {
 
-class STFSContainerEntry;
+class StfsContainerEntry;
 
-class STFSContainerFile : public XFile {
+class StfsContainerFile : public XFile {
  public:
-  STFSContainerFile(KernelState* kernel_state, uint32_t file_access,
-                    STFSContainerEntry* entry);
-  ~STFSContainerFile() override;
+  StfsContainerFile(KernelState* kernel_state, uint32_t file_access,
+                    StfsContainerEntry* entry);
+  ~StfsContainerFile() override;
 
  protected:
   X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
                     size_t* out_bytes_read) override;
 
  private:
-  STFSContainerEntry* entry_;
+  StfsContainerEntry* entry_;
 };
 
 }  // namespace vfs
