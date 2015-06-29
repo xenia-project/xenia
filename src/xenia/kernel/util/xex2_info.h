@@ -297,18 +297,6 @@ typedef struct {
   xe_xex2_approval_type approval;
 } xe_xex2_static_library_t;
 
-// credits: some obscure pastebin (http://pastebin.com/ZRvr3Sgj)
-typedef struct {
-  uint32_t magic[3];
-  uint32_t modulenumber[2];
-  uint32_t version[3];
-  uint32_t imagebaseaddr;  // must be <<16 to be accurate
-  uint32_t count;
-  uint32_t base;
-  uint32_t ordOffset[1];  // ordOffset[0] + (imagebaseaddr << 16) = function
-                          // offset of ordinal 1
-} xe_xex2_export_table;
-
 typedef enum {
   XEX_ENCRYPTION_NONE = 0,
   XEX_ENCRYPTION_NORMAL = 1,
@@ -585,6 +573,18 @@ struct xex2_security_info {
   xe::be<uint32_t> allowed_media_types;  // 0x17C
 };
 static_assert_size(xex2_security_info, 0x180);
+
+struct xex2_export_table {
+  xe::be<uint32_t> magic[3];         // 0x0
+  xe::be<uint32_t> modulenumber[2];  // 0xC
+  xe::be<uint32_t> version[3];       // 0x14
+  xe::be<uint32_t> imagebaseaddr;    // 0x20 must be <<16 to be accurate
+  xe::be<uint32_t> count;            // 0x24
+  xe::be<uint32_t> base;             // 0x28
+  xe::be<uint32_t>
+      ordOffset[1];  // 0x2C ordOffset[0] + (imagebaseaddr << 16) = function
+};
+
 }  // namespace xe
 
 #endif  // XENIA_KERNEL_XEX2_INFO_H_
