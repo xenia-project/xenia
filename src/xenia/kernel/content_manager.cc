@@ -33,6 +33,7 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
   auto fs = kernel_state_->file_system();
   auto device =
       std::make_unique<vfs::HostPathDevice>(device_path_, package_path, false);
+  device->Initialize();
   fs->RegisterDevice(std::move(device));
   fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
 }

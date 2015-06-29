@@ -310,8 +310,8 @@ void XamContentCreateCore(PPCContext* ppc_context, KernelState* kernel_state,
   }
 
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediateEx(overlapped_ptr, disposition,
-                                                result, 0);
+    kernel_state->CompleteOverlappedImmediateEx(overlapped_ptr, result,
+                                                disposition, 0);
     SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
   } else {
     SHIM_SET_RETURN_32(result);

@@ -177,8 +177,7 @@ X_STATUS XUserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
         break;
       default:
         // Data stored at offset to header.
-        field_value = uint32_t((uint8_t*)header - membase) +
-                      opt_header.offset;
+        field_value = uint32_t((uint8_t*)header - membase) + opt_header.offset;
         break;
     }
     break;

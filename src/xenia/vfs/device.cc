@@ -19,9 +19,8 @@ Device::Device(const std::string& mount_path) : mount_path_(mount_path) {}
 Device::~Device() = default;
 
 void Device::Dump(StringBuffer* string_buffer) {
-  if (root_entry_) {
-    root_entry_->Dump(string_buffer, 0);
-  }
+  root_entry_->Dump(string_buffer, 0);
+}
 }
 
 Entry* Device::ResolvePath(const char* path) {
@@ -30,11 +29,6 @@ Entry* Device::ResolvePath(const char* path) {
   // some\PATH.foo
 
   XELOGFS("Device::ResolvePath(%s)", path);
-
-  if (!root_entry_) {
-    // No content at all.
-    return nullptr;
-  }
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();

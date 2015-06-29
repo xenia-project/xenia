@@ -25,9 +25,14 @@ HostPathDevice::HostPathDevice(const std::string& mount_path,
 HostPathDevice::~HostPathDevice() = default;
 
 bool HostPathDevice::Initialize() {
-  if (!filesystem::PathExists(local_path_)) {
-    XELOGE("Host path does not exist");
-    return false;
+  if (!xe::filesystem::PathExists(local_path_)) {
+    if (!read_only_) {
+      // Create the path.
+      xe::filesystem::CreateFolder(local_path_);
+    } else {
+      XELOGE("Host path does not exist");
+      return false;
+    }
   }
 
   auto root_entry = new HostPathEntry(this, "", local_path_);
@@ -39,7 +44,7 @@ bool HostPathDevice::Initialize() {
 }
 
 void HostPathDevice::PopulateEntry(HostPathEntry* entry) {
-  auto child_infos = filesystem::ListFiles(entry->local_path());
+  auto child_infos = xe::filesystem::ListFiles(entry->local_path());
   for (auto& child_info : child_infos) {
     auto child =
         new HostPathEntry(this, xe::to_string(child_info.name),
@@ -48,7 +53,7 @@ void HostPathDevice::PopulateEntry(HostPathEntry* entry) {
     child->access_timestamp_ = child_info.access_timestamp;
     child->write_timestamp_ = child_info.write_timestamp;
 
-    if (child_info.type == filesystem::FileInfo::Type::kDirectory) {
+    if (child_info.type == xe::filesystem::FileInfo::Type::kDirectory) {
       child->attributes_ = kFileAttributeDirectory;
     } else {
       child->attributes_ = kFileAttributeNormal;
@@ -62,7 +67,7 @@ void HostPathDevice::PopulateEntry(HostPathEntry* entry) {
 
     entry->children_.push_back(std::unique_ptr<Entry>(child));
 
-    if (child_info.type == filesystem::FileInfo::Type::kDirectory) {
+    if (child_info.type == xe::filesystem::FileInfo::Type::kDirectory) {
       PopulateEntry(child);
     }
   }
