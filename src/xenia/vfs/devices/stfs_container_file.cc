@@ -16,9 +16,10 @@
 namespace xe {
 namespace vfs {
 
-STFSContainerFile::STFSContainerFile(KernelState* kernel_state, Mode mode,
+STFSContainerFile::STFSContainerFile(KernelState* kernel_state,
+                                     uint32_t file_access,
                                      STFSContainerEntry* entry)
-    : XFile(kernel_state, mode, entry), entry_(entry) {}
+    : XFile(kernel_state, file_access, entry), entry_(entry) {}
 
 STFSContainerFile::~STFSContainerFile() = default;
 

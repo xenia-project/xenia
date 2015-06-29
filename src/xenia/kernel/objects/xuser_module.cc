@@ -57,9 +57,9 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
     std::vector<uint8_t> buffer(fs_entry->size());
 
     // Open file for reading.
-    XFile* file_ptr = nullptr;
-    result = fs_entry->Open(kernel_state(), vfs::Mode::READ, false, &file_ptr);
-    object_ref<XFile> file(file_ptr);
+    object_ref<XFile> file;
+    result =
+        fs_entry->Open(kernel_state(), vfs::FileAccess::kGenericRead, &file);
     if (result) {
       return result;
     }

@@ -81,6 +81,7 @@ class XFile : public XObject {
 
   vfs::Device* device() const { return entry_->device(); }
   vfs::Entry* entry() const { return entry_; }
+  uint32_t file_access() const { return file_access_; }
 
   const std::string& path() const { return entry_->path(); }
   const std::string& name() const { return entry_->name(); }
@@ -102,7 +103,7 @@ class XFile : public XObject {
   virtual void* GetWaitHandle();
 
  protected:
-  XFile(KernelState* kernel_state, vfs::Mode mode, vfs::Entry* entry);
+  XFile(KernelState* kernel_state, uint32_t file_access, vfs::Entry* entry);
   virtual X_STATUS ReadSync(void* buffer, size_t buffer_length,
                             size_t byte_offset, size_t* out_bytes_read) = 0;
   virtual X_STATUS WriteSync(const void* buffer, size_t buffer_length,
@@ -112,7 +113,7 @@ class XFile : public XObject {
 
  private:
   vfs::Entry* entry_;
-  vfs::Mode mode_;
+  uint32_t file_access_;
   XEvent* async_event_;
 
   // TODO(benvanik): create flags, open state, etc.

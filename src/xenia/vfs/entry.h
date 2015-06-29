@@ -16,6 +16,7 @@
 
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/string_buffer.h"
+#include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -35,10 +36,41 @@ using namespace xe::kernel;
 
 class Device;
 
-enum class Mode {
-  READ,
-  READ_WRITE,
-  READ_APPEND,
+// Matches http://source.winehq.org/source/include/winternl.h#1591.
+enum class FileAction {
+  kSuperseded = 0,
+  kOpened = 1,
+  kCreated = 2,
+  kOverwritten = 3,
+  kExists = 4,
+  kDoesNotExist = 5,
+};
+
+enum class FileDisposition {
+  // If exist replace, else create.
+  kSuperscede = 0,
+  // If exist open, else error.
+  kOpen = 1,
+  // If exist error, else create.
+  kCreate = 2,
+  // If exist open, else create.
+  kOpenIf = 3,
+  // If exist open and overwrite, else error.
+  kOverwrite = 4,
+  // If exist open and overwrite, else create.
+  kOverwriteIf = 5,
+};
+
+struct FileAccess {
+  // Implies kFileReadData.
+  static const uint32_t kGenericRead = 0x80000000;
+  // Implies kFileWriteData.
+  static const uint32_t kGenericWrite = 0x40000000;
+  static const uint32_t kGenericExecute = 0x20000000;
+  static const uint32_t kGenericAll = 0x10000000;
+  static const uint32_t kFileReadData = 0x00000001;
+  static const uint32_t kFileWriteData = 0x00000002;
+  static const uint32_t kFileAppendData = 0x00000004;
 };
 
 enum FileAttributeFlags : uint32_t {
@@ -81,8 +113,13 @@ class Entry {
   Entry* IterateChildren(const xe::filesystem::WildcardEngine& engine,
                          size_t* current_index);
 
-  virtual X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
-                        XFile** out_file) = 0;
+  Entry* CreateEntry(std::string name, uint32_t attributes);
+  bool Delete(Entry* entry);
+  bool Delete();
+  void Touch();
+
+  virtual X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
+                        object_ref<XFile>* out_file) = 0;
 
   virtual bool can_map() const { return false; }
   virtual std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,
@@ -93,6 +130,12 @@ class Entry {
 
  protected:
   Entry(Device* device, Entry* parent, const std::string& path);
+
+  virtual std::unique_ptr<Entry> CreateEntryInternal(std::string name,
+                                                     uint32_t attributes) {
+    return nullptr;
+  }
+  virtual bool DeleteEntryInternal(Entry* entry) { return false; }
 
   Device* device_;
   Entry* parent_;

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
+#include "xenia/kernel/xobject.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
 
@@ -33,6 +34,15 @@ class VirtualFileSystem {
   bool UnregisterSymbolicLink(std::string path);
 
   Entry* ResolvePath(std::string path);
+  Entry* ResolveBasePath(std::string path);
+
+  Entry* CreatePath(std::string path, uint32_t attributes);
+  bool DeletePath(std::string path);
+
+  X_STATUS OpenFile(KernelState* kernel_state, std::string path,
+                    FileDisposition creation_disposition,
+                    uint32_t desired_access, object_ref<XFile>* out_file,
+                    FileAction* out_action);
 
  private:
   xe::mutex mutex_;

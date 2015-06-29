@@ -21,8 +21,8 @@ class HostPathEntry;
 
 class HostPathFile : public XFile {
  public:
-  HostPathFile(KernelState* kernel_state, Mode mode, HostPathEntry* entry,
-               HANDLE file_handle);
+  HostPathFile(KernelState* kernel_state, uint32_t file_access,
+               HostPathEntry* entry, HANDLE file_handle);
   ~HostPathFile() override;
 
  protected:

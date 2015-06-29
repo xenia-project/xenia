@@ -16,6 +16,9 @@
 
 #include "xenia/base/string.h"
 
+// TOODO(benvanik): remove windows headers.
+#undef DeleteFile
+
 namespace xe {
 namespace filesystem {
 
@@ -28,6 +31,7 @@ bool DeleteFolder(const std::wstring& path);
 bool IsFolder(const std::wstring& path);
 
 FILE* OpenFile(const std::wstring& path, const char* mode);
+bool DeleteFile(const std::wstring& path);
 
 struct FileInfo {
   enum class Type {
@@ -41,6 +45,7 @@ struct FileInfo {
   uint64_t access_timestamp;
   uint64_t write_timestamp;
 };
+bool GetInfo(const std::wstring& path, FileInfo* out_info);
 std::vector<FileInfo> ListFiles(const std::wstring& path);
 
 class WildcardFlags {

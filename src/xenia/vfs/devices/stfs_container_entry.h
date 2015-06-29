@@ -31,8 +31,8 @@ class STFSContainerEntry : public Entry {
   size_t data_offset() const { return data_offset_; }
   size_t data_size() const { return data_size_; }
 
-  X_STATUS Open(KernelState* kernel_state, Mode desired_access, bool async,
-                XFile** out_file) override;
+  X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
+                object_ref<XFile>* out_file) override;
 
   struct BlockRecord {
     size_t offset;

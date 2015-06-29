@@ -24,9 +24,11 @@ STFSContainerEntry::STFSContainerEntry(Device* device, Entry* parent,
 
 STFSContainerEntry::~STFSContainerEntry() = default;
 
-X_STATUS STFSContainerEntry::Open(KernelState* kernel_state, Mode mode,
-                                  bool async, XFile** out_file) {
-  *out_file = new STFSContainerFile(kernel_state, mode, this);
+X_STATUS STFSContainerEntry::Open(KernelState* kernel_state,
+                                  uint32_t desired_access,
+                                  object_ref<XFile>* out_file) {
+  *out_file = object_ref<XFile>(
+      new STFSContainerFile(kernel_state, desired_access, this));
   return X_STATUS_SUCCESS;
 }
 

@@ -46,25 +46,10 @@ bool HostPathDevice::Initialize() {
 void HostPathDevice::PopulateEntry(HostPathEntry* parent_entry) {
   auto child_infos = xe::filesystem::ListFiles(parent_entry->local_path());
   for (auto& child_info : child_infos) {
-    auto child = new HostPathEntry(
-        this, parent_entry, xe::to_string(child_info.name),
-        xe::join_paths(parent_entry->local_path(), child_info.name));
-    child->create_timestamp_ = child_info.create_timestamp;
-    child->access_timestamp_ = child_info.access_timestamp;
-    child->write_timestamp_ = child_info.write_timestamp;
-
-    if (child_info.type == xe::filesystem::FileInfo::Type::kDirectory) {
-      child->attributes_ = kFileAttributeDirectory;
-    } else {
-      child->attributes_ = kFileAttributeNormal;
-      if (read_only_) {
-        child->attributes_ |= kFileAttributeReadOnly;
-      }
-      child->size_ = child_info.total_size;
-      child->allocation_size_ =
-          xe::round_up(child_info.total_size, bytes_per_sector());
-    }
-
+    auto child = HostPathEntry::Create(
+        this, parent_entry,
+        xe::join_paths(parent_entry->local_path(), child_info.name),
+        child_info);
     parent_entry->children_.push_back(std::unique_ptr<Entry>(child));
 
     if (child_info.type == xe::filesystem::FileInfo::Type::kDirectory) {

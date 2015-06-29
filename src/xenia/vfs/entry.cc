@@ -70,5 +70,54 @@ Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
   return nullptr;
 }
 
+Entry* Entry::CreateEntry(std::string name, uint32_t attributes) {
+  if (is_read_only()) {
+    return nullptr;
+  }
+  std::lock_guard<xe::mutex> lock(device_->mutex());
+  if (GetChild(name)) {
+    // Already exists.
+    return nullptr;
+  }
+  auto entry = CreateEntryInternal(name, attributes);
+  if (!entry) {
+    return nullptr;
+  }
+  children_.push_back(std::move(entry));
+  // TODO(benvanik): resort? would break iteration?
+  Touch();
+  return children_.back().get();
+}
+
+bool Entry::Delete(Entry* entry) {
+  if (is_read_only()) {
+    return false;
+  }
+  std::lock_guard<xe::mutex> lock(device_->mutex());
+  if (entry->parent() != this) {
+    return false;
+  }
+  if (!DeleteEntryInternal(entry)) {
+    return false;
+  }
+  for (auto& it = children_.begin(); it != children_.end(); ++it) {
+    if (it->get() == entry) {
+      children_.erase(it);
+      break;
+    }
+  }
+  Touch();
+  return true;
+}
+
+bool Entry::Delete() {
+  assert_not_null(parent_);
+  return parent_->Delete(this);
+}
+
+void Entry::Touch() {
+  // TODO(benvanik): update timestamps.
+}
+
 }  // namespace vfs
 }  // namespace xe

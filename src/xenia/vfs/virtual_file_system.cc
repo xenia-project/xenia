@@ -12,6 +12,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
+#include "xenia/kernel/objects/xfile.h"
 
 namespace xe {
 namespace vfs {
@@ -91,6 +92,162 @@ Entry* VirtualFileSystem::ResolvePath(std::string path) {
   XELOGE("ResolvePath(%s) failed - device not found (%s)", path.c_str(),
          device_path.c_str());
   return nullptr;
+}
+
+Entry* VirtualFileSystem::ResolveBasePath(std::string path) {
+  auto base_path = xe::find_base_path(path);
+  return ResolvePath(base_path);
+}
+
+Entry* VirtualFileSystem::CreatePath(std::string path, uint32_t attributes) {
+  // Create all required directories recursively.
+  auto path_parts = xe::split_path(path);
+  if (path_parts.empty()) {
+    return nullptr;
+  }
+  auto partial_path = path_parts[0];
+  auto partial_entry = ResolvePath(partial_path);
+  if (!partial_entry) {
+    return nullptr;
+  }
+  auto parent_entry = partial_entry;
+  for (size_t i = 1; i < path_parts.size() - 1; ++i) {
+    partial_path = xe::join_paths(partial_path, path_parts[i]);
+    auto child_entry = ResolvePath(partial_path);
+    if (!child_entry) {
+      child_entry =
+          parent_entry->CreateEntry(path_parts[i], kFileAttributeDirectory);
+    }
+    if (!child_entry) {
+      return nullptr;
+    }
+    parent_entry = child_entry;
+  }
+  return parent_entry->CreateEntry(path_parts[path_parts.size() - 1],
+                                   attributes);
+}
+
+bool VirtualFileSystem::DeletePath(std::string path) {
+  auto entry = ResolvePath(path);
+  if (!entry) {
+    return false;
+  }
+  auto parent = entry->parent();
+  if (!parent) {
+    // Can't delete root.
+    return false;
+  }
+  return parent->Delete(entry);
+}
+
+X_STATUS VirtualFileSystem::OpenFile(KernelState* kernel_state,
+                                     std::string path,
+                                     FileDisposition creation_disposition,
+                                     uint32_t desired_access,
+                                     object_ref<XFile>* out_file,
+                                     FileAction* out_action) {
+  // Cleanup access.
+  if (desired_access & FileAccess::kGenericRead) {
+    desired_access |= FileAccess::kFileReadData;
+  }
+  if (desired_access & FileAccess::kGenericWrite) {
+    desired_access |= FileAccess::kFileWriteData;
+  }
+  if (desired_access & FileAccess::kGenericAll) {
+    desired_access |= FileAccess::kFileReadData | FileAccess::kFileWriteData;
+  }
+
+  // Lookup host device/parent path.
+  // If no device or parent, fail.
+  auto parent_entry = ResolveBasePath(path);
+  if (!parent_entry) {
+    *out_action = FileAction::kDoesNotExist;
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  // Check if exists (if we need it to), or that it doesn't (if it shouldn't).
+  auto file_name = xe::find_name_from_path(path);
+  Entry* entry = parent_entry->GetChild(file_name);
+  switch (creation_disposition) {
+    case FileDisposition::kOpen:
+    case FileDisposition::kOverwrite:
+      // Must exist.
+      if (!entry) {
+        *out_action = FileAction::kDoesNotExist;
+        return X_STATUS_NO_SUCH_FILE;
+      }
+      break;
+    case FileDisposition::kCreate:
+      // Must not exist.
+      if (entry) {
+        *out_action = FileAction::kExists;
+        return X_STATUS_OBJECT_NAME_COLLISION;
+      }
+      break;
+    default:
+      // Either way, ok.
+      break;
+  }
+
+  // Verify permissions.
+  bool wants_write = desired_access & FileAccess::kFileWriteData ||
+                     desired_access & FileAccess::kFileAppendData;
+  if (wants_write && parent_entry->is_read_only()) {
+    // Fail if read only device and wants write.
+    // return X_STATUS_ACCESS_DENIED;
+    // TODO(benvanik): figure out why games are opening read-only files with
+    // write modes.
+    assert_always();
+    XELOGW("Attempted to open the file/dir for create/write");
+    desired_access = FileAccess::kGenericRead | FileAccess::kFileReadData;
+  }
+
+  bool created = false;
+  if (!entry) {
+    // Remember that we are creating this new, instead of replacing.
+    created = true;
+    *out_action = FileAction::kCreated;
+  } else {
+    // May need to delete, if it exists.
+    switch (creation_disposition) {
+      case FileDisposition::kSuperscede:
+        // Replace (by delete + recreate).
+        if (!entry->Delete()) {
+          return X_STATUS_ACCESS_DENIED;
+        }
+        entry = nullptr;
+        *out_action = FileAction::kSuperseded;
+        break;
+      case FileDisposition::kOpen:
+      case FileDisposition::kOpenIf:
+        // Normal open.
+        *out_action = FileAction::kOpened;
+        break;
+      case FileDisposition::kOverwrite:
+      case FileDisposition::kOverwriteIf:
+        // Overwrite (we do by delete + recreate).
+        if (!entry->Delete()) {
+          return X_STATUS_ACCESS_DENIED;
+        }
+        entry = nullptr;
+        *out_action = FileAction::kOverwritten;
+        break;
+    }
+  }
+  if (!entry) {
+    // Create if needed (either new or as a replacement).
+    entry = CreatePath(path, kFileAttributeNormal);
+    if (!entry) {
+      return X_STATUS_ACCESS_DENIED;
+    }
+  }
+
+  // Open.
+  auto result = entry->Open(kernel_state, desired_access, out_file);
+  if (XFAILED(result)) {
+    *out_action = FileAction::kDoesNotExist;
+  }
+  return result;
 }
 
 }  // namespace vfs

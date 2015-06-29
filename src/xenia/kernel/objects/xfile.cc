@@ -16,10 +16,10 @@
 namespace xe {
 namespace kernel {
 
-XFile::XFile(KernelState* kernel_state, vfs::Mode mode, vfs::Entry* entry)
+XFile::XFile(KernelState* kernel_state, uint32_t file_access, vfs::Entry* entry)
     : XObject(kernel_state, kTypeFile),
       entry_(entry),
-      mode_(mode),
+      file_access_(file_access),
       position_(0),
       find_index_(0) {
   async_event_ = new XEvent(kernel_state);

@@ -116,15 +116,6 @@ typedef uint32_t X_HRESULT;
 #define X_MEM_HEAP                0x40000000
 #define X_MEM_16MB_PAGES          0x80000000 // from Valve SDK
 
-// FILE_*, used by NtOpenFile
-#define X_FILE_SUPERSEDED         0x00000000
-#define X_FILE_OPENED             0x00000001
-#define X_FILE_CREATED            0x00000002
-#define X_FILE_OVERWRITTEN        0x00000003
-#define X_FILE_EXISTS             0x00000004
-#define X_FILE_DOES_NOT_EXIST     0x00000005
-
-
 // PAGE_*, used by NtAllocateVirtualMemory
 #define X_PAGE_NOACCESS           0x00000001
 #define X_PAGE_READONLY           0x00000002

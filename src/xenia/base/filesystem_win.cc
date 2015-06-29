@@ -54,7 +54,32 @@ FILE* OpenFile(const std::wstring& path, const char* mode) {
   return _wfopen(fixed_path.c_str(), xe::to_wstring(mode).c_str());
 }
 
+bool DeleteFile(const std::wstring& path) {
+  return DeleteFileW(path.c_str()) ? true : false;
+}
+
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
+
+bool GetInfo(const std::wstring& path, FileInfo* out_info) {
+  std::memset(out_info, 0, sizeof(FileInfo));
+  WIN32_FILE_ATTRIBUTE_DATA data = {0};
+  if (!GetFileAttributesEx(path.c_str(), GetFileExInfoStandard, &data)) {
+    return false;
+  }
+  if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+    out_info->type = FileInfo::Type::kDirectory;
+    out_info->total_size = 0;
+  } else {
+    out_info->type = FileInfo::Type::kFile;
+    out_info->total_size =
+        (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
+  }
+  out_info->name = xe::find_name_from_path(path);
+  out_info->create_timestamp = COMBINE_TIME(data.ftCreationTime);
+  out_info->access_timestamp = COMBINE_TIME(data.ftLastAccessTime);
+  out_info->write_timestamp = COMBINE_TIME(data.ftLastWriteTime);
+  return true;
+}
 
 std::vector<FileInfo> ListFiles(const std::wstring& path) {
   std::vector<FileInfo> result;

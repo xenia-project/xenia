@@ -16,9 +16,9 @@
 namespace xe {
 namespace vfs {
 
-DiscImageFile::DiscImageFile(KernelState* kernel_state, Mode mode,
+DiscImageFile::DiscImageFile(KernelState* kernel_state, uint32_t file_access,
                              DiscImageEntry* entry)
-    : XFile(kernel_state, mode, entry), entry_(entry) {}
+    : XFile(kernel_state, file_access, entry), entry_(entry) {}
 
 DiscImageFile::~DiscImageFile() = default;
 

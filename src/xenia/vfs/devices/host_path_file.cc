@@ -14,9 +14,9 @@
 namespace xe {
 namespace vfs {
 
-HostPathFile::HostPathFile(KernelState* kernel_state, Mode mode,
+HostPathFile::HostPathFile(KernelState* kernel_state, uint32_t file_access,
                            HostPathEntry* entry, HANDLE file_handle)
-    : XFile(kernel_state, mode, entry),
+    : XFile(kernel_state, file_access, entry),
       entry_(entry),
       file_handle_(file_handle) {}
 
@@ -24,6 +24,10 @@ HostPathFile::~HostPathFile() { CloseHandle(file_handle_); }
 
 X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
                                 size_t byte_offset, size_t* out_bytes_read) {
+  if (!(file_access() & FileAccess::kFileReadData)) {
+    return X_STATUS_ACCESS_DENIED;
+  }
+
   OVERLAPPED overlapped;
   overlapped.Pointer = (PVOID)byte_offset;
   overlapped.hEvent = NULL;
@@ -41,6 +45,11 @@ X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
 X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
                                  size_t byte_offset,
                                  size_t* out_bytes_written) {
+  if (!(file_access() & FileAccess::kFileWriteData |
+        FileAccess::kFileAppendData)) {
+    return X_STATUS_ACCESS_DENIED;
+  }
+
   OVERLAPPED overlapped;
   overlapped.Pointer = (PVOID)byte_offset;
   overlapped.hEvent = NULL;

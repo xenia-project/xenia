@@ -19,7 +19,7 @@ class DiscImageEntry;
 
 class DiscImageFile : public XFile {
  public:
-  DiscImageFile(KernelState* kernel_state, Mode desired_access,
+  DiscImageFile(KernelState* kernel_state, uint32_t file_access,
                 DiscImageEntry* entry);
   ~DiscImageFile() override;
 

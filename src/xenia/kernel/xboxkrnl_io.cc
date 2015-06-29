@@ -152,98 +152,45 @@ class X_FILE_FS_ATTRIBUTE_INFORMATION {
 };
 static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
-struct FileDisposition {
-  static const uint32_t X_FILE_SUPERSEDE = 0x00000000;
-  static const uint32_t X_FILE_OPEN = 0x00000001;
-  static const uint32_t X_FILE_CREATE = 0x00000002;
-  static const uint32_t X_FILE_OPEN_IF = 0x00000003;
-  static const uint32_t X_FILE_OVERWRITE = 0x00000004;
-  static const uint32_t X_FILE_OVERWRITE_IF = 0x00000005;
-};
-
-struct FileAccess {
-  static const uint32_t X_GENERIC_READ = 0x80000000;
-  static const uint32_t X_GENERIC_WRITE = 0x40000000;
-  static const uint32_t X_GENERIC_EXECUTE = 0x20000000;
-  static const uint32_t X_GENERIC_ALL = 0x10000000;
-  static const uint32_t X_FILE_READ_DATA = 0x00000001;
-  static const uint32_t X_FILE_WRITE_DATA = 0x00000002;
-  static const uint32_t X_FILE_APPEND_DATA = 0x00000004;
-};
-
 X_STATUS NtCreateFile(PPCContext* ppc_context, KernelState* kernel_state,
                       uint32_t handle_ptr, uint32_t desired_access,
                       X_OBJECT_ATTRIBUTES* object_attrs,
                       const char* object_name, uint32_t io_status_block_ptr,
                       uint32_t allocation_size_ptr, uint32_t file_attributes,
-                      uint32_t share_access, uint32_t creation_disposition) {
+                      uint32_t share_access,
+                      FileDisposition creation_disposition) {
   uint64_t allocation_size = 0;  // is this correct???
   if (allocation_size_ptr != 0) {
     allocation_size = SHIM_MEM_64(allocation_size_ptr);
   }
 
-  X_STATUS result = X_STATUS_NO_SUCH_FILE;
-  uint32_t info = X_FILE_DOES_NOT_EXIST;
-  uint32_t handle;
-
-  auto fs = kernel_state->file_system();
-  Entry* entry;
-
-  object_ref<XFile> root_file;
+  // Compute path, possibly attrs relative.
+  std::string target_path = object_name;
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
-    root_file = kernel_state->object_table()->LookupObject<XFile>(
+    auto root_file = kernel_state->object_table()->LookupObject<XFile>(
         object_attrs->root_directory);
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
     // Resolve the file using the device the root directory is part of.
     auto device = root_file->device();
-    auto target_path = xe::join_paths(root_file->path(), object_name);
-    entry = device->ResolvePath(target_path.c_str());
-  } else {
-    // Resolve the file using the virtual file system.
-    entry = fs->ResolvePath(object_name);
+    target_path = xe::join_paths(
+        device->mount_path(), xe::join_paths(root_file->path(), object_name));
   }
 
-  bool wants_write = desired_access & FileAccess::X_GENERIC_WRITE ||
-                     desired_access & FileAccess::X_GENERIC_ALL ||
-                     desired_access & FileAccess::X_FILE_WRITE_DATA ||
-                     desired_access & FileAccess::X_FILE_APPEND_DATA;
-  if (wants_write) {
-    if (entry && entry->is_read_only()) {
-      // We don't support any write modes.
-      XELOGW("Attempted to open the file/dir for create/write");
-      desired_access = FileAccess::X_GENERIC_READ;
-    }
-  }
-
+  // Attempt open (or create).
   object_ref<XFile> file;
-  if (!entry) {
-    result = X_STATUS_NO_SUCH_FILE;
-    info = X_FILE_DOES_NOT_EXIST;
-  } else {
-    // Open the file/directory.
-    vfs::Mode mode;
-    if (desired_access & FileAccess::X_FILE_APPEND_DATA) {
-      mode = vfs::Mode::READ_APPEND;
-    } else if (wants_write) {
-      mode = vfs::Mode::READ_WRITE;
-    } else {
-      mode = vfs::Mode::READ;
-    }
-    XFile* file_ptr = nullptr;
-    result = entry->Open(kernel_state, mode,
-                         false,  // TODO(benvanik): pick async mode, if needed.
-                         &file_ptr);
-    file = object_ref<XFile>(file_ptr);
-  }
+  FileAction file_action;
+  X_STATUS result = kernel_state->file_system()->OpenFile(
+      kernel_state, target_path, creation_disposition, desired_access, &file,
+      &file_action);
+  uint32_t info = uint32_t(file_action);
 
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   if (XSUCCEEDED(result)) {
     // Handle ref is incremented, so return that.
     handle = file->handle();
-    result = X_STATUS_SUCCESS;
-    info = X_FILE_OPENED;
   }
 
   if (io_status_block_ptr) {
@@ -282,7 +229,7 @@ SHIM_CALL NtCreateFile_shim(PPCContext* ppc_context,
   auto result = NtCreateFile(
       ppc_context, kernel_state, handle_ptr, desired_access, &object_attrs,
       object_name, io_status_block_ptr, allocation_size_ptr, file_attributes,
-      share_access, creation_disposition);
+      share_access, FileDisposition(creation_disposition));
 
   free(object_name);
   SHIM_SET_RETURN_32(result);
@@ -305,7 +252,7 @@ SHIM_CALL NtOpenFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 
   auto result = NtCreateFile(
       ppc_context, kernel_state, handle_ptr, desired_access, &object_attrs,
-      object_name, io_status_block_ptr, 0, 0, 0, FileDisposition::X_FILE_OPEN);
+      object_name, io_status_block_ptr, 0, 0, 0, FileDisposition::kOpen);
 
   free(object_name);
   SHIM_SET_RETURN_32(result);
@@ -451,7 +398,7 @@ SHIM_CALL NtWriteFile_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 
   // Grab file.
   auto file = kernel_state->object_table()->LookupObject<XFile>(file_handle);
-  if (!ev) {
+  if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
 

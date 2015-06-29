@@ -19,7 +19,7 @@ class STFSContainerEntry;
 
 class STFSContainerFile : public XFile {
  public:
-  STFSContainerFile(KernelState* kernel_state, Mode mode,
+  STFSContainerFile(KernelState* kernel_state, uint32_t file_access,
                     STFSContainerEntry* entry);
   ~STFSContainerFile() override;
 

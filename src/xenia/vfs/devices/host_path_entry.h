@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include "xenia/base/filesystem.h"
 #include "xenia/vfs/entry.h"
 
 namespace xe {
@@ -25,10 +26,14 @@ class HostPathEntry : public Entry {
                 const std::wstring& local_path);
   ~HostPathEntry() override;
 
+  static HostPathEntry* Create(Device* device, Entry* parent,
+                               const std::wstring& full_path,
+                               xe::filesystem::FileInfo file_info);
+
   const std::wstring& local_path() { return local_path_; }
 
-  X_STATUS Open(KernelState* kernel_state, Mode mode, bool async,
-                XFile** out_file) override;
+  X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
+                object_ref<XFile>* out_file) override;
 
   bool can_map() const override { return true; }
   std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,
@@ -37,6 +42,10 @@ class HostPathEntry : public Entry {
 
  private:
   friend class HostPathDevice;
+
+  std::unique_ptr<Entry> CreateEntryInternal(std::string name,
+                                             uint32_t attributes) override;
+  bool DeleteEntryInternal(Entry* entry) override;
 
   std::wstring local_path_;
 };
