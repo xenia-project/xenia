@@ -18,6 +18,10 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+namespace cpu {
+class XexModule;
+}  // namespace cpu
+
 namespace kernel {
 
 class XUserModule : public XModule {
@@ -25,8 +29,10 @@ class XUserModule : public XModule {
   XUserModule(KernelState* kernel_state, const char* path);
   ~XUserModule() override;
 
-  xe_xex2_ref xex();
   const xe_xex2_header_t* xex_header();
+  const xe::cpu::XexModule* xex_module() const {
+    return reinterpret_cast<xe::cpu::XexModule*>(processor_module_);
+  }
 
   X_STATUS LoadFromFile(std::string path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
@@ -48,7 +54,7 @@ class XUserModule : public XModule {
 
  private:
   xe_xex2_ref xex_;
-  uint32_t xex_header_;
+  uint32_t guest_xex_header_;
 };
 
 }  // namespace kernel

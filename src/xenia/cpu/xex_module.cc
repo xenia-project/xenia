@@ -21,6 +21,8 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xmodule.h"
 
+#include "third_party/crypto/rijndael-alg-fst.h"
+
 namespace xe {
 namespace cpu {
 
@@ -44,6 +46,74 @@ XexModule::XexModule(Processor* processor, KernelState* kernel_state)
       high_address_(0) {}
 
 XexModule::~XexModule() { xe_xex2_dealloc(xex_); }
+
+bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
+                             void** out_ptr) {
+  assert_not_null(header);
+  assert_not_null(out_ptr);
+
+  for (uint32_t i = 0; i < header->header_count; i++) {
+    const xex2_opt_header& opt_header = header->headers[i];
+    if (opt_header.key == key) {
+      // Match!
+      switch (key & 0xFF) {
+        case 0x00: {
+          // We just return the value of the optional header.
+          *out_ptr = (void*)((uint64_t)opt_header.value);
+        } break;
+        case 0x01: {
+          // Pointer to the value on the optional header.
+          *out_ptr = (void*)&opt_header.value;
+        } break;
+        default: {
+          // Pointer to the header.
+          *out_ptr = (void*)((uint8_t*)header + opt_header.offset);
+        } break;
+      }
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool XexModule::ApplyPatch(XexModule* module) {
+  auto header = reinterpret_cast<const xex2_header*>(module->xex_header());
+  if (!(header->module_flags &
+        (XEX_MODULE_MODULE_PATCH | XEX_MODULE_PATCH_DELTA |
+         XEX_MODULE_PATCH_FULL))) {
+    // This isn't a XEX2 patch.
+    return false;
+  }
+
+  // Grab the delta descriptor and get to work.
+  xex2_opt_delta_patch_descriptor* patch_header = nullptr;
+  GetOptHeader(header, XEX_HEADER_DELTA_PATCH_DESCRIPTOR,
+               (void**)&patch_header);
+  assert_not_null(patch_header);
+
+  // TODO!
+
+  return true;
+}
+
+bool XexModule::Load(const std::string& name, const std::string& path,
+                     const void* xex_addr, size_t xex_length) {
+  // TODO: Move loading code here
+  xex_ = xe_xex2_load(memory(), xex_addr, xex_length, {0});
+  if (!xex_) {
+    return false;
+  }
+
+  // Make a copy of the xex header.
+  auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
+  xex_header_ = (xex2_header*)new char[src_header->header_size];
+
+  std::memcpy(xex_header_, src_header, src_header->header_size);
+
+  return Load(name, path, xex_);
+}
 
 bool XexModule::Load(const std::string& name, const std::string& path,
                      xe_xex2_ref xex) {

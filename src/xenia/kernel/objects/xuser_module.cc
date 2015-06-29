@@ -26,8 +26,6 @@ XUserModule::XUserModule(KernelState* kernel_state, const char* path)
 
 XUserModule::~XUserModule() { xe_xex2_dealloc(xex_); }
 
-xe_xex2_ref XUserModule::xex() { return xex_; }
-
 const xe_xex2_header_t* XUserModule::xex_header() {
   return xe_xex2_get_header(xex_);
 }
@@ -82,39 +80,31 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
 X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   Processor* processor = kernel_state()->processor();
 
-  // Load the XEX into memory and decrypt.
-  xe_xex2_options_t xex_options = {0};
-  xex_ = xe_xex2_load(memory(), addr, length, xex_options);
-  if (!xex_) {
+  // Prepare the module for execution.
+  // Runtime takes ownership.
+  auto xex_module = std::make_unique<XexModule>(processor, kernel_state());
+  if (!xex_module->Load(name_, path_, addr, length)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  xex_ = xex_module->xex();
+  processor_module_ = xex_module.get();
+  if (!processor->AddModule(std::move(xex_module))) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  // Copy the xex2 header into guest memory
-  const xex2_header* header = reinterpret_cast<const xex2_header*>(addr);
-  uint32_t header_size = xex2_get_header_size(header);
+  // Copy the xex2 header into guest memory.
+  const xex2_header* header = this->xex_module()->xex_header();
+  guest_xex_header_ = memory()->SystemHeapAlloc(header->header_size);
 
-  xex_header_ = memory()->SystemHeapAlloc(header_size);
-
-  uint8_t* xex_header_ptr = memory()->TranslateVirtual(xex_header_);
-  std::memcpy(xex_header_ptr, header, header_size);
+  uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
+  std::memcpy(xex_header_ptr, header, header->header_size);
 
   // Setup the loader data entry
   auto ldr_data =
       memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
 
   ldr_data->dll_base = 0;  // GetProcAddress will read this.
-  ldr_data->xex_header_base = xex_header_;
-
-  // Prepare the module for execution.
-  // Runtime takes ownership.
-  auto xex_module = std::make_unique<XexModule>(processor, kernel_state());
-  if (!xex_module->Load(name_, path_, xex_)) {
-    return X_STATUS_UNSUCCESSFUL;
-  }
-  processor_module_ = xex_module.get();
-  if (!processor->AddModule(std::move(xex_module))) {
-    return X_STATUS_UNSUCCESSFUL;
-  }
+  ldr_data->xex_header_base = guest_xex_header_;
 
   OnLoad();
 
@@ -146,7 +136,7 @@ X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
 
 X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
                                    uint32_t* out_header_guest_ptr) {
-  auto header = memory()->TranslateVirtual<xex2_header*>(xex_header_);
+  auto header = xex_module()->xex_header();
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
   }
