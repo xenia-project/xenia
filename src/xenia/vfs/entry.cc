@@ -9,6 +9,7 @@
 
 #include "xenia/vfs/entry.h"
 
+#include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
 #include "xenia/vfs/device.h"
 

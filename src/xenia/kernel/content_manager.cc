@@ -79,7 +79,7 @@ std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
   // content_root/title_id/type_name/
   auto package_root =
       xe::join_paths(root_path_, xe::join_paths(title_id, type_name));
-  return package_root + L"\\";
+  return package_root + xe::wpath_separator;
 }
 
 std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
@@ -207,7 +207,7 @@ X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
   auto package_path = ResolvePackagePath(data);
   auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
   if (xe::filesystem::PathExists(thumb_path)) {
-    auto file = _wfopen(thumb_path.c_str(), L"rb");
+    auto file = xe::filesystem::OpenFile(thumb_path, "rb");
     fseek(file, 0, SEEK_END);
     size_t file_len = ftell(file);
     fseek(file, 0, SEEK_SET);
@@ -227,7 +227,7 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
   xe::filesystem::CreateFolder(package_path);
   if (xe::filesystem::PathExists(package_path)) {
     auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
-    auto file = _wfopen(thumb_path.c_str(), L"wb");
+    auto file = xe::filesystem::OpenFile(thumb_path, "wb");
     fwrite(buffer.data(), 1, buffer.size(), file);
     fclose(file);
     return X_ERROR_SUCCESS;

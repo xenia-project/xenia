@@ -12,13 +12,16 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "xenia/base/filesystem.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/xbox.h"
 
 namespace xe {
+namespace filesystem {
+class WildcardEngine;
+}  // namespace filesystem
 namespace kernel {
 class KernelState;
 class XFile;

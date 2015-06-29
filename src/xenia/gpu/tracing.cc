@@ -27,7 +27,7 @@ bool TraceWriter::Open(const std::wstring& path) {
   auto base_path = xe::find_base_path(canonical_path);
   xe::filesystem::CreateFolder(base_path);
 
-  file_ = _wfopen(canonical_path.c_str(), L"wb");
+  file_ = xe::filesystem::OpenFile(canonical_path, "wb");
   return file_ != nullptr;
 }
 

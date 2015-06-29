@@ -25,11 +25,11 @@ bool PathExists(const std::wstring& path) {
 
 bool CreateFolder(const std::wstring& path) {
   wchar_t folder[MAX_PATH] = {0};
-  auto end = std::wcschr(path.c_str(), L'\\');
+  auto end = std::wcschr(path.c_str(), xe::wpath_separator);
   while (end) {
     wcsncpy(folder, path.c_str(), end - path.c_str() + 1);
     CreateDirectory(folder, NULL);
-    end = wcschr(++end, L'\\');
+    end = wcschr(++end, xe::wpath_separator);
   }
   return PathExists(path);
 }
@@ -47,6 +47,11 @@ bool IsFolder(const std::wstring& path) {
   DWORD attrib = GetFileAttributes(path.c_str());
   return attrib != INVALID_FILE_ATTRIBUTES &&
          (attrib & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
+}
+
+FILE* OpenFile(const std::wstring& path, const char* mode) {
+  auto fixed_path = xe::fix_path_separators(path);
+  return _wfopen(fixed_path.c_str(), xe::to_wstring(mode).c_str());
 }
 
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)

@@ -19,11 +19,15 @@
 namespace xe {
 namespace filesystem {
 
+std::string CanonicalizePath(const std::string& original_path);
+
 bool PathExists(const std::wstring& path);
 
 bool CreateFolder(const std::wstring& path);
 bool DeleteFolder(const std::wstring& path);
 bool IsFolder(const std::wstring& path);
+
+FILE* OpenFile(const std::wstring& path, const char* mode);
 
 struct FileInfo {
   enum class Type {
@@ -38,8 +42,6 @@ struct FileInfo {
   uint64_t write_timestamp;
 };
 std::vector<FileInfo> ListFiles(const std::wstring& path);
-
-std::string CanonicalizePath(const std::string& original_path);
 
 class WildcardFlags {
  public:
