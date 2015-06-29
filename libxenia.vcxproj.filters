@@ -1545,4 +1545,7 @@
       <Filter>third_party\capstone\arch\X86</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="xedebugger.natvis" />
+  </ItemGroup>
 </Project>
