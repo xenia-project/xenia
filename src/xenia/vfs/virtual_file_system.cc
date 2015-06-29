@@ -159,15 +159,22 @@ X_STATUS VirtualFileSystem::OpenFile(KernelState* kernel_state,
 
   // Lookup host device/parent path.
   // If no device or parent, fail.
-  auto parent_entry = ResolveBasePath(path);
-  if (!parent_entry) {
-    *out_action = FileAction::kDoesNotExist;
-    return X_STATUS_NO_SUCH_FILE;
+  Entry* parent_entry = nullptr;
+  Entry* entry = nullptr;
+  if (!xe::find_base_path(path).empty()) {
+    parent_entry = ResolveBasePath(path);
+    if (!parent_entry) {
+      *out_action = FileAction::kDoesNotExist;
+      return X_STATUS_NO_SUCH_FILE;
+    }
+
+    auto file_name = xe::find_name_from_path(path);
+    entry = parent_entry->GetChild(file_name);
+  } else {
+    entry = ResolvePath(path);
   }
 
   // Check if exists (if we need it to), or that it doesn't (if it shouldn't).
-  auto file_name = xe::find_name_from_path(path);
-  Entry* entry = parent_entry->GetChild(file_name);
   switch (creation_disposition) {
     case FileDisposition::kOpen:
     case FileDisposition::kOverwrite:
@@ -192,7 +199,8 @@ X_STATUS VirtualFileSystem::OpenFile(KernelState* kernel_state,
   // Verify permissions.
   bool wants_write = desired_access & FileAccess::kFileWriteData ||
                      desired_access & FileAccess::kFileAppendData;
-  if (wants_write && parent_entry->is_read_only()) {
+  if (wants_write && ((parent_entry && parent_entry->is_read_only()) ||
+                      (entry && entry->is_read_only()))) {
     // Fail if read only device and wants write.
     // return X_STATUS_ACCESS_DENIED;
     // TODO(benvanik): figure out why games are opening read-only files with
