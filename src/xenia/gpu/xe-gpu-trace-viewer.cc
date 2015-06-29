@@ -859,11 +859,13 @@ void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::SetTooltip("Reset to first frame");
   }
   ImGui::SameLine();
+  ImGui::PushButtonRepeat(true);
   if (ImGui::Button(">>", ImVec2(0, 0))) {
     if (target_frame + 1 < player.frame_count()) {
       ++target_frame;
     }
   }
+  ImGui::PopButtonRepeat();
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Next frame (hold for continuous)");
   }
@@ -913,6 +915,7 @@ void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
     ImGui::SetTooltip("Reset to before any frame commands");
   }
   ImGui::SameLine();
+  ImGui::PushButtonRepeat(true);
   if (ImGui::Button("prev", ImVec2(0, 0))) {
     if (target_command >= 0) {
       --target_command;
@@ -930,6 +933,7 @@ void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Move to the next command (hold)");
   }
+  ImGui::PopButtonRepeat();
   ImGui::SameLine();
   if (ImGui::Button("end")) {
     target_command = command_count - 1;
