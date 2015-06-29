@@ -89,7 +89,7 @@ bool DiscImageDevice::VerifyMagic(ParseState& state, size_t offset) {
 
 DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
     ParseState& state, const uint8_t* root_buffer) {
-  auto root_entry = new DiscImageEntry(this, "", mmap_.get());
+  auto root_entry = new DiscImageEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 
@@ -117,8 +117,8 @@ bool DiscImageDevice::ReadEntry(ParseState& state, const uint8_t* buffer,
     return false;
   }
 
-  auto entry =
-      new DiscImageEntry(this, std::string(name, name_length), mmap_.get());
+  auto entry = new DiscImageEntry(this, parent, std::string(name, name_length),
+                                  mmap_.get());
   entry->attributes_ = attributes | kFileAttributeReadOnly;
   entry->size_ = length;
   entry->allocation_size_ = xe::round_up(length, bytes_per_sector());

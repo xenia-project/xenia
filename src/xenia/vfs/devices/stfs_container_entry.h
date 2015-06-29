@@ -23,7 +23,8 @@ class STFSContainerDevice;
 
 class STFSContainerEntry : public Entry {
  public:
-  STFSContainerEntry(Device* device, std::string path, MappedMemory* mmap);
+  STFSContainerEntry(Device* device, Entry* parent, std::string path,
+                     MappedMemory* mmap);
   ~STFSContainerEntry() override;
 
   MappedMemory* mmap() const { return mmap_; }

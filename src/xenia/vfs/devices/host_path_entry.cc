@@ -17,9 +17,9 @@
 namespace xe {
 namespace vfs {
 
-HostPathEntry::HostPathEntry(Device* device, std::string path,
+HostPathEntry::HostPathEntry(Device* device, Entry* parent, std::string path,
                              const std::wstring& local_path)
-    : Entry(device, path), local_path_(local_path) {}
+    : Entry(device, parent, path), local_path_(local_path) {}
 
 HostPathEntry::~HostPathEntry() = default;
 
@@ -49,9 +49,9 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, Mode mode, bool async,
   }
   DWORD flags_and_attributes = async ? FILE_FLAG_OVERLAPPED : 0;
   HANDLE file =
-      CreateFile(local_path_.c_str(), desired_access, share_mode, NULL,
-                 creation_disposition,
-                 flags_and_attributes | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+      CreateFileW(local_path_.c_str(), desired_access, share_mode, NULL,
+                  creation_disposition,
+                  flags_and_attributes | FILE_FLAG_BACKUP_SEMANTICS, NULL);
   if (file == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
     return X_STATUS_NO_SUCH_FILE;

@@ -129,7 +129,7 @@ STFSContainerDevice::Error STFSContainerDevice::ReadHeaderAndVerify(
 
 STFSContainerDevice::Error STFSContainerDevice::ReadAllEntries(
     const uint8_t* map_ptr) {
-  auto root_entry = new STFSContainerEntry(this, "", mmap_.get());
+  auto root_entry = new STFSContainerEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
 
   root_entry_ = std::unique_ptr<Entry>(root_entry);
@@ -157,8 +157,16 @@ STFSContainerDevice::Error STFSContainerDevice::ReadAllEntries(
       uint32_t access_timestamp = xe::load_and_swap<uint32_t>(p + 0x3C);
       p += 0x40;
 
+      STFSContainerEntry* parent_entry = nullptr;
+      if (path_indicator == 0xFFFF) {
+        parent_entry = root_entry;
+      } else {
+        parent_entry = all_entries[path_indicator];
+      }
+
       auto entry = new STFSContainerEntry(
-          this, std::string((char*)filename, filename_length_flags & 0x3F),
+          this, parent_entry,
+          std::string((char*)filename, filename_length_flags & 0x3F),
           mmap_.get());
       // bit 0x40 = consecutive blocks (not fragmented?)
       if (filename_length_flags & 0x80) {
@@ -198,14 +206,7 @@ STFSContainerDevice::Error STFSContainerDevice::ReadAllEntries(
         }
       }
 
-      if (path_indicator == 0xFFFF) {
-        // Root entry.
-        root_entry->children_.emplace_back(std::unique_ptr<Entry>(entry));
-      } else {
-        // Lookup and add.
-        auto parent = all_entries[path_indicator];
-        parent->children_.emplace_back(std::unique_ptr<Entry>(entry));
-      }
+      parent_entry->children_.emplace_back(std::unique_ptr<Entry>(entry));
     }
 
     auto block_hash = GetBlockHash(map_ptr, table_block_index, 0);

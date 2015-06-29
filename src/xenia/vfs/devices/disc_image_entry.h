@@ -23,7 +23,8 @@ class DiscImageDevice;
 
 class DiscImageEntry : public Entry {
  public:
-  DiscImageEntry(Device* device, std::string path, MappedMemory* mmap);
+  DiscImageEntry(Device* device, Entry* parent, std::string path,
+                 MappedMemory* mmap);
   ~DiscImageEntry() override;
 
   MappedMemory* mmap() const { return mmap_; }

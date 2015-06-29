@@ -26,17 +26,20 @@ VirtualFileSystem::~VirtualFileSystem() {
 }
 
 bool VirtualFileSystem::RegisterDevice(std::unique_ptr<Device> device) {
+  std::lock_guard<xe::mutex> lock(mutex_);
   devices_.emplace_back(std::move(device));
   return true;
 }
 
 bool VirtualFileSystem::RegisterSymbolicLink(std::string path,
                                              std::string target) {
+  std::lock_guard<xe::mutex> lock(mutex_);
   symlinks_.insert({path, target});
   return true;
 }
 
 bool VirtualFileSystem::UnregisterSymbolicLink(std::string path) {
+  std::lock_guard<xe::mutex> lock(mutex_);
   auto& it = symlinks_.find(path);
   if (it == symlinks_.end()) {
     return false;
@@ -46,6 +49,8 @@ bool VirtualFileSystem::UnregisterSymbolicLink(std::string path) {
 }
 
 Entry* VirtualFileSystem::ResolvePath(std::string path) {
+  std::lock_guard<xe::mutex> lock(mutex_);
+
   // Resolve relative paths
   std::string normalized_path(xe::filesystem::CanonicalizePath(path));
 
@@ -79,7 +84,7 @@ Entry* VirtualFileSystem::ResolvePath(std::string path) {
   // Scan all devices.
   for (auto& device : devices_) {
     if (strcasecmp(device_path.c_str(), device->mount_path().c_str()) == 0) {
-      return device->ResolvePath(relative_path.c_str());
+      return device->ResolvePath(relative_path);
     }
   }
 

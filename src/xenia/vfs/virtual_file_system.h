@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
 
@@ -34,6 +35,7 @@ class VirtualFileSystem {
   Entry* ResolvePath(std::string path);
 
  private:
+  xe::mutex mutex_;
   std::vector<std::unique_ptr<Device>> devices_;
   std::unordered_map<std::string, std::string> symlinks_;
 };

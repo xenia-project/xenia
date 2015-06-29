@@ -16,8 +16,9 @@
 namespace xe {
 namespace vfs {
 
-Entry::Entry(Device* device, const std::string& path)
+Entry::Entry(Device* device, Entry* parent, const std::string& path)
     : device_(device),
+      parent_(parent),
       path_(path),
       attributes_(0),
       size_(0),
@@ -46,6 +47,7 @@ void Entry::Dump(xe::StringBuffer* string_buffer, int indent) {
 bool Entry::is_read_only() const { return device_->is_read_only(); }
 
 Entry* Entry::GetChild(std::string name) {
+  std::lock_guard<xe::mutex> lock(device_->mutex());
   // TODO(benvanik): a faster search
   for (auto& child : children_) {
     if (strcasecmp(child->name().c_str(), name.c_str()) == 0) {
@@ -57,6 +59,7 @@ Entry* Entry::GetChild(std::string name) {
 
 Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
                               size_t* current_index) {
+  std::lock_guard<xe::mutex> lock(device_->mutex());
   while (*current_index < children_.size()) {
     auto& child = children_[*current_index];
     *current_index = *current_index + 1;

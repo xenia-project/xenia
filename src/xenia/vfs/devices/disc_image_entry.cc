@@ -17,9 +17,12 @@
 namespace xe {
 namespace vfs {
 
-DiscImageEntry::DiscImageEntry(Device* device, std::string path,
+DiscImageEntry::DiscImageEntry(Device* device, Entry* parent, std::string path,
                                MappedMemory* mmap)
-    : Entry(device, path), mmap_(mmap), data_offset_(0), data_size_(0) {}
+    : Entry(device, parent, path),
+      mmap_(mmap),
+      data_offset_(0),
+      data_size_(0) {}
 
 DiscImageEntry::~DiscImageEntry() = default;
 

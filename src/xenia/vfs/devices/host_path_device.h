@@ -35,7 +35,7 @@ class HostPathDevice : public Device {
   uint32_t bytes_per_sector() const override { return 2 * 1024; }
 
  private:
-  void PopulateEntry(HostPathEntry* entry);
+  void PopulateEntry(HostPathEntry* parent_entry);
 
   std::wstring local_path_;
   bool read_only_;

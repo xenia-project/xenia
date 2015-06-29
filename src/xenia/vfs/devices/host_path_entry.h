@@ -21,7 +21,7 @@ class HostPathDevice;
 
 class HostPathEntry : public Entry {
  public:
-  HostPathEntry(Device* device, std::string path,
+  HostPathEntry(Device* device, Entry* parent, std::string path,
                 const std::wstring& local_path);
   ~HostPathEntry() override;
 

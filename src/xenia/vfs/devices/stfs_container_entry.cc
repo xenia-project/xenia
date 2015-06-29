@@ -15,9 +15,12 @@
 namespace xe {
 namespace vfs {
 
-STFSContainerEntry::STFSContainerEntry(Device* device, std::string path,
-                                       MappedMemory* mmap)
-    : Entry(device, path), mmap_(mmap), data_offset_(0), data_size_(0) {}
+STFSContainerEntry::STFSContainerEntry(Device* device, Entry* parent,
+                                       std::string path, MappedMemory* mmap)
+    : Entry(device, parent, path),
+      mmap_(mmap),
+      data_offset_(0),
+      data_size_(0) {}
 
 STFSContainerEntry::~STFSContainerEntry() = default;
 

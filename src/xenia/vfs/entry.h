@@ -62,6 +62,7 @@ class Entry {
   void Dump(xe::StringBuffer* string_buffer, int indent);
 
   Device* device() const { return device_; }
+  Entry* parent() const { return parent_; }
   const std::string& path() const { return path_; }
   const std::string& absolute_path() const { return absolute_path_; }
   const std::string& name() const { return name_; }
@@ -91,9 +92,10 @@ class Entry {
   }
 
  protected:
-  Entry(Device* device, const std::string& path);
+  Entry(Device* device, Entry* parent, const std::string& path);
 
   Device* device_;
+  Entry* parent_;
   std::string path_;
   std::string absolute_path_;
   std::string name_;
