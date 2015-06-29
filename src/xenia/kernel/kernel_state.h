@@ -12,6 +12,10 @@
 
 #include <gflags/gflags.h>
 
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <list>
 #include <memory>
 #include <mutex>
 
@@ -38,6 +42,7 @@ namespace xe {
 namespace kernel {
 
 class Dispatcher;
+class XHostThread;
 class XKernelModule;
 class XModule;
 class XNotifyListener;
@@ -133,6 +138,11 @@ class KernelState {
   void CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT result);
   void CompleteOverlappedImmediateEx(uint32_t overlapped_ptr, X_RESULT result,
                                      uint32_t extended_error, uint32_t length);
+  void CompleteOverlappedDeferred(std::function<void()> completion_callback,
+                                  uint32_t overlapped_ptr, X_RESULT result);
+  void CompleteOverlappedDeferredEx(std::function<void()> completion_callback,
+                                    uint32_t overlapped_ptr, X_RESULT result,
+                                    uint32_t extended_error, uint32_t length);
 
  private:
   void LoadKernelModule(object_ref<XKernelModule> kernel_module);
@@ -160,6 +170,12 @@ class KernelState {
   std::vector<object_ref<XUserModule>> user_modules_;
 
   uint32_t process_info_block_address_;
+
+  std::atomic<bool> dispatch_thread_running_ = false;
+  object_ref<XHostThread> dispatch_thread_;
+  std::mutex dispatch_mutex_;
+  std::condition_variable dispatch_cond_;
+  std::list<std::function<void()>> dispatch_queue_;
 
   friend class XObject;
 };

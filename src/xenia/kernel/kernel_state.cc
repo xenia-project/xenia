@@ -36,6 +36,8 @@ DEFINE_string(content_root, "content",
 namespace xe {
 namespace kernel {
 
+constexpr uint32_t kDeferredOverlappedDelayMillis = 100;
+
 // This is a global object initialized with the XboxkrnlModule.
 // It references the current kernel state object that all kernel methods should
 // be using to stash their variables.
@@ -87,6 +89,12 @@ KernelState::KernelState(Emulator* emulator)
 
 KernelState::~KernelState() {
   SetExecutableModule(nullptr);
+
+  if (dispatch_thread_running_) {
+    dispatch_thread_running_ = false;
+    dispatch_cond_.notify_all();
+    dispatch_thread_->Wait(0, 0, 0, nullptr);
+  }
 
   if (process_info_block_address_) {
     memory_->SystemHeapFree(process_info_block_address_);
@@ -202,6 +210,30 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
         memory()->TranslateVirtual<xe::be<uint32_t>*>(export->variable_ptr);
     *variable_ptr = executable_module_->hmodule_ptr();
   }
+
+  // Spin up deferred dispatch worker.
+  // TODO(benvanik): move someplace more appropriate (out of ctor, but around
+  // here).
+  assert_false(dispatch_thread_running_);
+  dispatch_thread_running_ = true;
+  dispatch_thread_ =
+      object_ref<XHostThread>(new XHostThread(this, 128 * 1024, 0, [this]() {
+        while (dispatch_thread_running_) {
+          std::unique_lock<std::mutex> lock(dispatch_mutex_);
+          if (dispatch_queue_.empty()) {
+            dispatch_cond_.wait(lock);
+            if (!dispatch_thread_running_) {
+              break;
+            }
+          }
+          auto fn = std::move(dispatch_queue_.front());
+          dispatch_queue_.pop_front();
+          fn();
+        }
+        return 0;
+      }));
+  dispatch_thread_->set_name("Kernel Dispatch Thread");
+  dispatch_thread_->Create();
 }
 
 void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
@@ -428,6 +460,31 @@ void KernelState::CompleteOverlappedImmediateEx(uint32_t overlapped_ptr,
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
   CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
+}
+
+void KernelState::CompleteOverlappedDeferred(
+    std::function<void()> completion_callback, uint32_t overlapped_ptr,
+    X_RESULT result) {
+  CompleteOverlappedDeferredEx(std::move(completion_callback), overlapped_ptr,
+                               result, result, 0);
+}
+
+void KernelState::CompleteOverlappedDeferredEx(
+    std::function<void()> completion_callback, uint32_t overlapped_ptr,
+    X_RESULT result, uint32_t extended_error, uint32_t length) {
+  auto ptr = memory()->TranslateVirtual(overlapped_ptr);
+  XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
+  XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
+  std::unique_lock<std::mutex> lock(dispatch_mutex_);
+  dispatch_queue_.push_back([this, completion_callback, overlapped_ptr, result,
+                             extended_error, length]() {
+    xe::threading::Sleep(
+        std::chrono::milliseconds::duration(kDeferredOverlappedDelayMillis));
+    completion_callback();
+    auto ptr = memory()->TranslateVirtual(overlapped_ptr);
+    CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
+  });
+  dispatch_cond_.notify_all();
 }
 
 }  // namespace kernel
