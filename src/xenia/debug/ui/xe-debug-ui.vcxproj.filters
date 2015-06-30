@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{52d1c314-7464-4640-bee4-59b30d2b2df4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\xenia">
+      <UniqueIdentifier>{f8d1867c-424d-4942-ba97-a7b29fa8c87c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\xenia\debug">
+      <UniqueIdentifier>{1b70e26e-0024-410f-b27f-ceaba190d5a9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
