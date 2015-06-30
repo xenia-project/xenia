@@ -149,7 +149,8 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
 
   // Set the file types to display only. Notice that this is a 1-based array.
   std::vector<COMDLG_FILTERSPEC> save_types;
-  for (auto& extension : extensions()) {
+  auto extensions = this->extensions();
+  for (auto& extension : extensions) {
     save_types.push_back({extension.first.c_str(), extension.second.c_str()});
   }
   hr = file_dialog->SetFileTypes(static_cast<UINT>(save_types.size()),
