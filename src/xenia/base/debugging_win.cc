@@ -19,7 +19,7 @@ bool IsDebuggerAttached() { return IsDebuggerPresent() ? true : false; }
 
 void Break() { __debugbreak(); }
 
-void DebugPrint(const char *fmt, ...) {
+void DebugPrint(const char* fmt, ...) {
   StringBuffer buff;
 
   va_list va;

@@ -52,7 +52,7 @@ XmaContext::~XmaContext() {
   }
 }
 
-int XmaContext::Setup(uint32_t id, Memory *memory, uint32_t guest_ptr) {
+int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
   id_ = id;
   memory_ = memory;
   guest_ptr_ = guest_ptr;
@@ -94,7 +94,7 @@ int XmaContext::Setup(uint32_t id, Memory *memory, uint32_t guest_ptr) {
   extra_data_.decode_flags = 0x10D6;
 
   context_->extradata_size = sizeof(extra_data_);
-  context_->extradata = (uint8_t *)&extra_data_;
+  context_->extradata = (uint8_t*)&extra_data_;
 
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
@@ -204,7 +204,7 @@ int XmaContext::GetSampleRate(int id) {
   return 0;
 }
 
-void XmaContext::DecodePackets(XMA_CONTEXT_DATA &data) {
+void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
   SCOPE_profile_cpu_f("apu");
 
   // What I see:
@@ -236,7 +236,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA &data) {
   // Output buffers are in raw PCM samples, 256 bytes per block.
   // Output buffer is a ring buffer. We need to write from the write offset
   // to the read offset.
-  uint8_t *output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
+  uint8_t* output_buffer = memory()->TranslatePhysical(data.output_buffer_ptr);
   uint32_t output_capacity = data.output_buffer_block_count * kBytesPerSubframe;
   uint32_t output_read_offset =
       data.output_buffer_read_offset * kBytesPerSubframe;
@@ -315,12 +315,12 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA &data) {
   data.output_buffer_valid = 0;
 }
 
-int XmaContext::StartPacket(XMA_CONTEXT_DATA &data) {
+int XmaContext::StartPacket(XMA_CONTEXT_DATA& data) {
   // Translate pointers for future use.
-  uint8_t *in0 = data.input_buffer_0_valid
+  uint8_t* in0 = data.input_buffer_0_valid
                      ? memory()->TranslatePhysical(data.input_buffer_0_ptr)
                      : nullptr;
-  uint8_t *in1 = data.input_buffer_1_valid
+  uint8_t* in1 = data.input_buffer_1_valid
                      ? memory()->TranslatePhysical(data.input_buffer_1_ptr)
                      : nullptr;
 
@@ -373,7 +373,7 @@ int XmaContext::StartPacket(XMA_CONTEXT_DATA &data) {
   return input_remaining_bytes;
 }
 
-int XmaContext::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
+int XmaContext::PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
                               int sample_rate, int channels) {
   if (size != kBytesPerPacket) {
     // Invalid packet size!
@@ -388,8 +388,8 @@ int XmaContext::PreparePacket(uint8_t *input, size_t seq_offset, size_t size,
   std::memcpy(packet_data_, input, size);
 
   // Modify the packet header so it's WMAPro compatible
-  *((int *)packet_data_) = (((seq_offset & 0x7800) | 0x400) >> 7) |
-                           (*((int *)packet_data_) & 0xFFFEFF08);
+  *((int*)packet_data_) = (((seq_offset & 0x7800) | 0x400) >> 7) |
+                          (*((int*)packet_data_) & 0xFFFEFF08);
 
   packet_->data = packet_data_;
   packet_->size = kBytesPerPacket;
@@ -422,7 +422,7 @@ void XmaContext::DiscardPacket() {
   }
 }
 
-int XmaContext::DecodePacket(uint8_t *output, size_t output_offset,
+int XmaContext::DecodePacket(uint8_t* output, size_t output_offset,
                              size_t output_size) {
   size_t to_copy = 0;
   size_t original_offset = output_offset;
@@ -478,7 +478,7 @@ int XmaContext::DecodePacket(uint8_t *output, size_t output_offset,
       for (int i = 0; i < decoded_frame_->nb_samples; i++) {
         for (int j = 0; j < context_->channels; j++) {
           // Select the appropriate array based on the current channel.
-          float *sample_array = (float *)decoded_frame_->data[j];
+          float* sample_array = (float*)decoded_frame_->data[j];
 
           // Raw sample should be within [-1, 1].
           // Clamp it, just in case.

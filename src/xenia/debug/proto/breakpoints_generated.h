@@ -43,20 +43,20 @@ STRUCT_END(Breakpoint, 4);
 
 struct ListBreakpointsRequest FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct ListBreakpointsRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  ListBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  ListBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  ListBreakpointsRequestBuilder &operator=(
-      const ListBreakpointsRequestBuilder &);
+  ListBreakpointsRequestBuilder& operator=(
+      const ListBreakpointsRequestBuilder&);
   flatbuffers::Offset<ListBreakpointsRequest> Finish() {
     auto o =
         flatbuffers::Offset<ListBreakpointsRequest>(fbb_.EndTable(start_, 0));
@@ -65,17 +65,17 @@ struct ListBreakpointsRequestBuilder {
 };
 
 inline flatbuffers::Offset<ListBreakpointsRequest> CreateListBreakpointsRequest(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   ListBreakpointsRequestBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
 struct ListBreakpointsResponse FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  const flatbuffers::Vector<const Breakpoint *> *breakpoints() const {
-    return GetPointer<const flatbuffers::Vector<const Breakpoint *> *>(4);
+  const flatbuffers::Vector<const Breakpoint*>* breakpoints() const {
+    return GetPointer<const flatbuffers::Vector<const Breakpoint*>*>(4);
   }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* breakpoints */) &&
            verifier.Verify(breakpoints()) && verifier.EndTable();
@@ -83,18 +83,18 @@ struct ListBreakpointsResponse FLATBUFFERS_FINAL_CLASS
 };
 
 struct ListBreakpointsResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  void add_breakpoints(flatbuffers::Offset<
-      flatbuffers::Vector<const Breakpoint *>> breakpoints) {
+  void add_breakpoints(
+      flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints) {
     fbb_.AddOffset(4, breakpoints);
   }
-  ListBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  ListBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  ListBreakpointsResponseBuilder &operator=(
-      const ListBreakpointsResponseBuilder &);
+  ListBreakpointsResponseBuilder& operator=(
+      const ListBreakpointsResponseBuilder&);
   flatbuffers::Offset<ListBreakpointsResponse> Finish() {
     auto o =
         flatbuffers::Offset<ListBreakpointsResponse>(fbb_.EndTable(start_, 1));
@@ -104,8 +104,8 @@ struct ListBreakpointsResponseBuilder {
 
 inline flatbuffers::Offset<ListBreakpointsResponse>
 CreateListBreakpointsResponse(
-    flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint *>> breakpoints =
+    flatbuffers::FlatBufferBuilder& _fbb,
+    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints =
         0) {
   ListBreakpointsResponseBuilder builder_(_fbb);
   builder_.add_breakpoints(breakpoints);
@@ -114,10 +114,10 @@ CreateListBreakpointsResponse(
 
 struct AddBreakpointsRequest FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  const flatbuffers::Vector<const Breakpoint *> *breakpoints() const {
-    return GetPointer<const flatbuffers::Vector<const Breakpoint *> *>(4);
+  const flatbuffers::Vector<const Breakpoint*>* breakpoints() const {
+    return GetPointer<const flatbuffers::Vector<const Breakpoint*>*>(4);
   }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* breakpoints */) &&
            verifier.Verify(breakpoints()) && verifier.EndTable();
@@ -125,17 +125,17 @@ struct AddBreakpointsRequest FLATBUFFERS_FINAL_CLASS
 };
 
 struct AddBreakpointsRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  void add_breakpoints(flatbuffers::Offset<
-      flatbuffers::Vector<const Breakpoint *>> breakpoints) {
+  void add_breakpoints(
+      flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints) {
     fbb_.AddOffset(4, breakpoints);
   }
-  AddBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  AddBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  AddBreakpointsRequestBuilder &operator=(const AddBreakpointsRequestBuilder &);
+  AddBreakpointsRequestBuilder& operator=(const AddBreakpointsRequestBuilder&);
   flatbuffers::Offset<AddBreakpointsRequest> Finish() {
     auto o =
         flatbuffers::Offset<AddBreakpointsRequest>(fbb_.EndTable(start_, 1));
@@ -144,8 +144,8 @@ struct AddBreakpointsRequestBuilder {
 };
 
 inline flatbuffers::Offset<AddBreakpointsRequest> CreateAddBreakpointsRequest(
-    flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint *>> breakpoints =
+    flatbuffers::FlatBufferBuilder& _fbb,
+    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints =
         0) {
   AddBreakpointsRequestBuilder builder_(_fbb);
   builder_.add_breakpoints(breakpoints);
@@ -154,20 +154,20 @@ inline flatbuffers::Offset<AddBreakpointsRequest> CreateAddBreakpointsRequest(
 
 struct AddBreakpointsResponse FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct AddBreakpointsResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  AddBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  AddBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  AddBreakpointsResponseBuilder &operator=(
-      const AddBreakpointsResponseBuilder &);
+  AddBreakpointsResponseBuilder& operator=(
+      const AddBreakpointsResponseBuilder&);
   flatbuffers::Offset<AddBreakpointsResponse> Finish() {
     auto o =
         flatbuffers::Offset<AddBreakpointsResponse>(fbb_.EndTable(start_, 0));
@@ -176,17 +176,17 @@ struct AddBreakpointsResponseBuilder {
 };
 
 inline flatbuffers::Offset<AddBreakpointsResponse> CreateAddBreakpointsResponse(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   AddBreakpointsResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
 struct UpdateBreakpointsRequest FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  const flatbuffers::Vector<const Breakpoint *> *breakpoints() const {
-    return GetPointer<const flatbuffers::Vector<const Breakpoint *> *>(4);
+  const flatbuffers::Vector<const Breakpoint*>* breakpoints() const {
+    return GetPointer<const flatbuffers::Vector<const Breakpoint*>*>(4);
   }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* breakpoints */) &&
            verifier.Verify(breakpoints()) && verifier.EndTable();
@@ -194,18 +194,18 @@ struct UpdateBreakpointsRequest FLATBUFFERS_FINAL_CLASS
 };
 
 struct UpdateBreakpointsRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  void add_breakpoints(flatbuffers::Offset<
-      flatbuffers::Vector<const Breakpoint *>> breakpoints) {
+  void add_breakpoints(
+      flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints) {
     fbb_.AddOffset(4, breakpoints);
   }
-  UpdateBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  UpdateBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  UpdateBreakpointsRequestBuilder &operator=(
-      const UpdateBreakpointsRequestBuilder &);
+  UpdateBreakpointsRequestBuilder& operator=(
+      const UpdateBreakpointsRequestBuilder&);
   flatbuffers::Offset<UpdateBreakpointsRequest> Finish() {
     auto o =
         flatbuffers::Offset<UpdateBreakpointsRequest>(fbb_.EndTable(start_, 1));
@@ -215,8 +215,8 @@ struct UpdateBreakpointsRequestBuilder {
 
 inline flatbuffers::Offset<UpdateBreakpointsRequest>
 CreateUpdateBreakpointsRequest(
-    flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint *>> breakpoints =
+    flatbuffers::FlatBufferBuilder& _fbb,
+    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints =
         0) {
   UpdateBreakpointsRequestBuilder builder_(_fbb);
   builder_.add_breakpoints(breakpoints);
@@ -225,20 +225,20 @@ CreateUpdateBreakpointsRequest(
 
 struct UpdateBreakpointsResponse FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct UpdateBreakpointsResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  UpdateBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  UpdateBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  UpdateBreakpointsResponseBuilder &operator=(
-      const UpdateBreakpointsResponseBuilder &);
+  UpdateBreakpointsResponseBuilder& operator=(
+      const UpdateBreakpointsResponseBuilder&);
   flatbuffers::Offset<UpdateBreakpointsResponse> Finish() {
     auto o = flatbuffers::Offset<UpdateBreakpointsResponse>(
         fbb_.EndTable(start_, 0));
@@ -247,17 +247,17 @@ struct UpdateBreakpointsResponseBuilder {
 };
 
 inline flatbuffers::Offset<UpdateBreakpointsResponse>
-CreateUpdateBreakpointsResponse(flatbuffers::FlatBufferBuilder &_fbb) {
+CreateUpdateBreakpointsResponse(flatbuffers::FlatBufferBuilder& _fbb) {
   UpdateBreakpointsResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
 struct RemoveBreakpointsRequest FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  const flatbuffers::Vector<const Breakpoint *> *breakpoints() const {
-    return GetPointer<const flatbuffers::Vector<const Breakpoint *> *>(4);
+  const flatbuffers::Vector<const Breakpoint*>* breakpoints() const {
+    return GetPointer<const flatbuffers::Vector<const Breakpoint*>*>(4);
   }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, 4 /* breakpoints */) &&
            verifier.Verify(breakpoints()) && verifier.EndTable();
@@ -265,18 +265,18 @@ struct RemoveBreakpointsRequest FLATBUFFERS_FINAL_CLASS
 };
 
 struct RemoveBreakpointsRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  void add_breakpoints(flatbuffers::Offset<
-      flatbuffers::Vector<const Breakpoint *>> breakpoints) {
+  void add_breakpoints(
+      flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints) {
     fbb_.AddOffset(4, breakpoints);
   }
-  RemoveBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  RemoveBreakpointsRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  RemoveBreakpointsRequestBuilder &operator=(
-      const RemoveBreakpointsRequestBuilder &);
+  RemoveBreakpointsRequestBuilder& operator=(
+      const RemoveBreakpointsRequestBuilder&);
   flatbuffers::Offset<RemoveBreakpointsRequest> Finish() {
     auto o =
         flatbuffers::Offset<RemoveBreakpointsRequest>(fbb_.EndTable(start_, 1));
@@ -286,8 +286,8 @@ struct RemoveBreakpointsRequestBuilder {
 
 inline flatbuffers::Offset<RemoveBreakpointsRequest>
 CreateRemoveBreakpointsRequest(
-    flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint *>> breakpoints =
+    flatbuffers::FlatBufferBuilder& _fbb,
+    flatbuffers::Offset<flatbuffers::Vector<const Breakpoint*>> breakpoints =
         0) {
   RemoveBreakpointsRequestBuilder builder_(_fbb);
   builder_.add_breakpoints(breakpoints);
@@ -296,20 +296,20 @@ CreateRemoveBreakpointsRequest(
 
 struct RemoveBreakpointsResponse FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct RemoveBreakpointsResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  RemoveBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  RemoveBreakpointsResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  RemoveBreakpointsResponseBuilder &operator=(
-      const RemoveBreakpointsResponseBuilder &);
+  RemoveBreakpointsResponseBuilder& operator=(
+      const RemoveBreakpointsResponseBuilder&);
   flatbuffers::Offset<RemoveBreakpointsResponse> Finish() {
     auto o = flatbuffers::Offset<RemoveBreakpointsResponse>(
         fbb_.EndTable(start_, 0));
@@ -318,7 +318,7 @@ struct RemoveBreakpointsResponseBuilder {
 };
 
 inline flatbuffers::Offset<RemoveBreakpointsResponse>
-CreateRemoveBreakpointsResponse(flatbuffers::FlatBufferBuilder &_fbb) {
+CreateRemoveBreakpointsResponse(flatbuffers::FlatBufferBuilder& _fbb) {
   RemoveBreakpointsResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }

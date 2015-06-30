@@ -33,12 +33,12 @@ enum ContinueAction {
   ContinueAction_ContinueTo = 1
 };
 
-inline const char **EnumNamesContinueAction() {
-  static const char *names[] = {"Continue", "ContinueTo", nullptr};
+inline const char** EnumNamesContinueAction() {
+  static const char* names[] = {"Continue", "ContinueTo", nullptr};
   return names;
 }
 
-inline const char *EnumNameContinueAction(ContinueAction e) {
+inline const char* EnumNameContinueAction(ContinueAction e) {
   return EnumNamesContinueAction()[e];
 }
 
@@ -48,28 +48,28 @@ enum StepAction {
   StepAction_StepOut = 2
 };
 
-inline const char **EnumNamesStepAction() {
-  static const char *names[] = {"StepIn", "StepOver", "StepOut", nullptr};
+inline const char** EnumNamesStepAction() {
+  static const char* names[] = {"StepIn", "StepOver", "StepOut", nullptr};
   return names;
 }
 
-inline const char *EnumNameStepAction(StepAction e) {
+inline const char* EnumNameStepAction(StepAction e) {
   return EnumNamesStepAction()[e];
 }
 
 struct StopRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct StopRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  StopRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  StopRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  StopRequestBuilder &operator=(const StopRequestBuilder &);
+  StopRequestBuilder& operator=(const StopRequestBuilder&);
   flatbuffers::Offset<StopRequest> Finish() {
     auto o = flatbuffers::Offset<StopRequest>(fbb_.EndTable(start_, 0));
     return o;
@@ -77,24 +77,24 @@ struct StopRequestBuilder {
 };
 
 inline flatbuffers::Offset<StopRequest> CreateStopRequest(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   StopRequestBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
 struct StopResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct StopResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  StopResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  StopResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  StopResponseBuilder &operator=(const StopResponseBuilder &);
+  StopResponseBuilder& operator=(const StopResponseBuilder&);
   flatbuffers::Offset<StopResponse> Finish() {
     auto o = flatbuffers::Offset<StopResponse>(fbb_.EndTable(start_, 0));
     return o;
@@ -102,24 +102,24 @@ struct StopResponseBuilder {
 };
 
 inline flatbuffers::Offset<StopResponse> CreateStopResponse(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   StopResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
 struct BreakRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct BreakRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  BreakRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  BreakRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  BreakRequestBuilder &operator=(const BreakRequestBuilder &);
+  BreakRequestBuilder& operator=(const BreakRequestBuilder&);
   flatbuffers::Offset<BreakRequest> Finish() {
     auto o = flatbuffers::Offset<BreakRequest>(fbb_.EndTable(start_, 0));
     return o;
@@ -127,24 +127,24 @@ struct BreakRequestBuilder {
 };
 
 inline flatbuffers::Offset<BreakRequest> CreateBreakRequest(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   BreakRequestBuilder builder_(_fbb);
   return builder_.Finish();
 }
 
 struct BreakResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct BreakResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  BreakResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  BreakResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  BreakResponseBuilder &operator=(const BreakResponseBuilder &);
+  BreakResponseBuilder& operator=(const BreakResponseBuilder&);
   flatbuffers::Offset<BreakResponse> Finish() {
     auto o = flatbuffers::Offset<BreakResponse>(fbb_.EndTable(start_, 0));
     return o;
@@ -152,7 +152,7 @@ struct BreakResponseBuilder {
 };
 
 inline flatbuffers::Offset<BreakResponse> CreateBreakResponse(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   BreakResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }
@@ -162,7 +162,7 @@ struct ContinueRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return static_cast<ContinueAction>(GetField<int8_t>(4, 0));
   }
   uint32_t target_address() const { return GetField<uint32_t>(6, 0); }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<int8_t>(verifier, 4 /* action */) &&
            VerifyField<uint32_t>(verifier, 6 /* target_address */) &&
@@ -171,7 +171,7 @@ struct ContinueRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 };
 
 struct ContinueRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
   void add_action(ContinueAction action) {
     fbb_.AddElement<int8_t>(4, static_cast<int8_t>(action), 0);
@@ -179,10 +179,10 @@ struct ContinueRequestBuilder {
   void add_target_address(uint32_t target_address) {
     fbb_.AddElement<uint32_t>(6, target_address, 0);
   }
-  ContinueRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  ContinueRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  ContinueRequestBuilder &operator=(const ContinueRequestBuilder &);
+  ContinueRequestBuilder& operator=(const ContinueRequestBuilder&);
   flatbuffers::Offset<ContinueRequest> Finish() {
     auto o = flatbuffers::Offset<ContinueRequest>(fbb_.EndTable(start_, 2));
     return o;
@@ -190,7 +190,7 @@ struct ContinueRequestBuilder {
 };
 
 inline flatbuffers::Offset<ContinueRequest> CreateContinueRequest(
-    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::FlatBufferBuilder& _fbb,
     ContinueAction action = ContinueAction_Continue,
     uint32_t target_address = 0) {
   ContinueRequestBuilder builder_(_fbb);
@@ -200,18 +200,18 @@ inline flatbuffers::Offset<ContinueRequest> CreateContinueRequest(
 }
 
 struct ContinueResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct ContinueResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  ContinueResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  ContinueResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  ContinueResponseBuilder &operator=(const ContinueResponseBuilder &);
+  ContinueResponseBuilder& operator=(const ContinueResponseBuilder&);
   flatbuffers::Offset<ContinueResponse> Finish() {
     auto o = flatbuffers::Offset<ContinueResponse>(fbb_.EndTable(start_, 0));
     return o;
@@ -219,7 +219,7 @@ struct ContinueResponseBuilder {
 };
 
 inline flatbuffers::Offset<ContinueResponse> CreateContinueResponse(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   ContinueResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }
@@ -229,7 +229,7 @@ struct StepRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return static_cast<StepAction>(GetField<int8_t>(4, 0));
   }
   uint32_t thread_id() const { return GetField<uint32_t>(6, 0); }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<int8_t>(verifier, 4 /* action */) &&
            VerifyField<uint32_t>(verifier, 6 /* thread_id */) &&
@@ -238,7 +238,7 @@ struct StepRequest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 };
 
 struct StepRequestBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
   void add_action(StepAction action) {
     fbb_.AddElement<int8_t>(4, static_cast<int8_t>(action), 0);
@@ -246,10 +246,10 @@ struct StepRequestBuilder {
   void add_thread_id(uint32_t thread_id) {
     fbb_.AddElement<uint32_t>(6, thread_id, 0);
   }
-  StepRequestBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  StepRequestBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  StepRequestBuilder &operator=(const StepRequestBuilder &);
+  StepRequestBuilder& operator=(const StepRequestBuilder&);
   flatbuffers::Offset<StepRequest> Finish() {
     auto o = flatbuffers::Offset<StepRequest>(fbb_.EndTable(start_, 2));
     return o;
@@ -257,7 +257,7 @@ struct StepRequestBuilder {
 };
 
 inline flatbuffers::Offset<StepRequest> CreateStepRequest(
-    flatbuffers::FlatBufferBuilder &_fbb, StepAction action = StepAction_StepIn,
+    flatbuffers::FlatBufferBuilder& _fbb, StepAction action = StepAction_StepIn,
     uint32_t thread_id = 0) {
   StepRequestBuilder builder_(_fbb);
   builder_.add_thread_id(thread_id);
@@ -266,18 +266,18 @@ inline flatbuffers::Offset<StepRequest> CreateStepRequest(
 }
 
 struct StepResponse FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) && verifier.EndTable();
   }
 };
 
 struct StepResponseBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  StepResponseBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  StepResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  StepResponseBuilder &operator=(const StepResponseBuilder &);
+  StepResponseBuilder& operator=(const StepResponseBuilder&);
   flatbuffers::Offset<StepResponse> Finish() {
     auto o = flatbuffers::Offset<StepResponse>(fbb_.EndTable(start_, 0));
     return o;
@@ -285,7 +285,7 @@ struct StepResponseBuilder {
 };
 
 inline flatbuffers::Offset<StepResponse> CreateStepResponse(
-    flatbuffers::FlatBufferBuilder &_fbb) {
+    flatbuffers::FlatBufferBuilder& _fbb) {
   StepResponseBuilder builder_(_fbb);
   return builder_.Finish();
 }
@@ -293,7 +293,7 @@ inline flatbuffers::Offset<StepResponse> CreateStepResponse(
 struct BreakpointEvent FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint32_t thread_id() const { return GetField<uint32_t>(4, 0); }
   uint32_t breakpoint_id() const { return GetField<uint32_t>(6, 0); }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, 4 /* thread_id */) &&
            VerifyField<uint32_t>(verifier, 6 /* breakpoint_id */) &&
@@ -302,7 +302,7 @@ struct BreakpointEvent FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 };
 
 struct BreakpointEventBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
   void add_thread_id(uint32_t thread_id) {
     fbb_.AddElement<uint32_t>(4, thread_id, 0);
@@ -310,10 +310,10 @@ struct BreakpointEventBuilder {
   void add_breakpoint_id(uint32_t breakpoint_id) {
     fbb_.AddElement<uint32_t>(6, breakpoint_id, 0);
   }
-  BreakpointEventBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) {
+  BreakpointEventBuilder(flatbuffers::FlatBufferBuilder& _fbb) : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  BreakpointEventBuilder &operator=(const BreakpointEventBuilder &);
+  BreakpointEventBuilder& operator=(const BreakpointEventBuilder&);
   flatbuffers::Offset<BreakpointEvent> Finish() {
     auto o = flatbuffers::Offset<BreakpointEvent>(fbb_.EndTable(start_, 2));
     return o;
@@ -321,7 +321,7 @@ struct BreakpointEventBuilder {
 };
 
 inline flatbuffers::Offset<BreakpointEvent> CreateBreakpointEvent(
-    flatbuffers::FlatBufferBuilder &_fbb, uint32_t thread_id = 0,
+    flatbuffers::FlatBufferBuilder& _fbb, uint32_t thread_id = 0,
     uint32_t breakpoint_id = 0) {
   BreakpointEventBuilder builder_(_fbb);
   builder_.add_breakpoint_id(breakpoint_id);
@@ -333,7 +333,7 @@ struct AccessViolationEvent FLATBUFFERS_FINAL_CLASS
     : private flatbuffers::Table {
   uint32_t thread_id() const { return GetField<uint32_t>(4, 0); }
   uint32_t target_address() const { return GetField<uint32_t>(6, 0); }
-  bool Verify(flatbuffers::Verifier &verifier) const {
+  bool Verify(flatbuffers::Verifier& verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, 4 /* thread_id */) &&
            VerifyField<uint32_t>(verifier, 6 /* target_address */) &&
@@ -342,7 +342,7 @@ struct AccessViolationEvent FLATBUFFERS_FINAL_CLASS
 };
 
 struct AccessViolationEventBuilder {
-  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
   void add_thread_id(uint32_t thread_id) {
     fbb_.AddElement<uint32_t>(4, thread_id, 0);
@@ -350,11 +350,11 @@ struct AccessViolationEventBuilder {
   void add_target_address(uint32_t target_address) {
     fbb_.AddElement<uint32_t>(6, target_address, 0);
   }
-  AccessViolationEventBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+  AccessViolationEventBuilder(flatbuffers::FlatBufferBuilder& _fbb)
       : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
-  AccessViolationEventBuilder &operator=(const AccessViolationEventBuilder &);
+  AccessViolationEventBuilder& operator=(const AccessViolationEventBuilder&);
   flatbuffers::Offset<AccessViolationEvent> Finish() {
     auto o =
         flatbuffers::Offset<AccessViolationEvent>(fbb_.EndTable(start_, 2));
@@ -363,7 +363,7 @@ struct AccessViolationEventBuilder {
 };
 
 inline flatbuffers::Offset<AccessViolationEvent> CreateAccessViolationEvent(
-    flatbuffers::FlatBufferBuilder &_fbb, uint32_t thread_id = 0,
+    flatbuffers::FlatBufferBuilder& _fbb, uint32_t thread_id = 0,
     uint32_t target_address = 0) {
   AccessViolationEventBuilder builder_(_fbb);
   builder_.add_target_address(target_address);

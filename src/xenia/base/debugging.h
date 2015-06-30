@@ -25,7 +25,7 @@ bool IsDebuggerAttached();
 // If no debugger is present, a signal will be raised.
 void Break();
 
-void DebugPrint(const char *fmt, ...);
+void DebugPrint(const char* fmt, ...);
 
 }  // namespace debugging
 }  // namespace xe
