@@ -39,37 +39,50 @@ void VdGetCurrentDisplayGamma(lpdword_t arg0_ptr, lpfloat_t arg1_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
-struct X_DISPLAY_INFO {
-  xe::be<uint16_t> unk00;
-  xe::be<uint16_t> unk02;
-  xe::be<uint8_t> unk04;
-  xe::be<uint8_t> unk05;
-  xe::be<uint32_t> unk08;
-  xe::be<uint32_t> unk0C;
-  xe::be<uint32_t> unk10;
-  xe::be<uint32_t> unk14;
-  xe::be<uint32_t> unk18;
-  xe::be<uint32_t> unk1C;
-  xe::be<uint32_t> unk20;
-  xe::be<uint32_t> unk24;
-  xe::be<uint32_t> unk28;
-  xe::be<uint32_t> unk2C;
-  xe::be<uint32_t> unk30;
-  xe::be<uint32_t> unk34;
-  xe::be<uint32_t> unk38;
-  xe::be<uint32_t> unk3C;
-  xe::be<uint16_t> unk40;
-  xe::be<uint16_t> unk42;
-  xe::be<uint16_t> unk44;
-  xe::be<uint16_t> unk46;
-  xe::be<uint16_t> unk48;
-  xe::be<uint16_t> unk4A;
-  xe::be<float> unk4C;
-  xe::be<uint32_t> unk50;
-  xe::be<uint16_t> unk54;
-  xe::be<uint16_t> unk56;
+struct X_D3DPRIVATE_RECT {
+  xe::be<uint32_t> x1;  // 0x0
+  xe::be<uint32_t> y1;  // 0x4
+  xe::be<uint32_t> x2;  // 0x8
+  xe::be<uint32_t> y2;  // 0xC
 };
-static_assert_size(X_DISPLAY_INFO, 88);
+static_assert_size(X_D3DPRIVATE_RECT, 0x10);
+
+struct X_D3DFILTER_PARAMETERS {
+  xe::be<float> nyquist;         // 0x0
+  xe::be<float> flicker_filter;  // 0x4
+  xe::be<float> beta;            // 0x8
+};
+static_assert_size(X_D3DFILTER_PARAMETERS, 0xC);
+
+struct X_D3DPRIVATE_SCALER_PARAMETERS {
+  X_D3DPRIVATE_RECT scaler_source_rect;                 // 0x0
+  xe::be<uint32_t> scaled_output_width;                 // 0x10
+  xe::be<uint32_t> scaled_output_height;                // 0x14
+  xe::be<uint32_t> vertical_filter_type;                // 0x18
+  X_D3DFILTER_PARAMETERS vertical_filter_parameters;    // 0x1C
+  xe::be<uint32_t> horizontal_filter_type;              // 0x28
+  X_D3DFILTER_PARAMETERS horizontal_filter_parameters;  // 0x2C
+};
+static_assert_size(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
+
+struct X_DISPLAY_INFO {
+  xe::be<uint16_t> front_buffer_width;               // 0x0
+  xe::be<uint16_t> front_buffer_height;              // 0x2
+  xe::be<uint8_t> front_buffer_color_format;         // 0x4
+  xe::be<uint8_t> front_buffer_pixel_format;         // 0x5
+  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x6
+  xe::be<uint16_t> display_window_overscan_left;     // 0x40
+  xe::be<uint16_t> display_window_overscan_top;      // 0x42
+  xe::be<uint16_t> display_window_overscan_right;    // 0x44
+  xe::be<uint16_t> display_window_overscan_bottom;   // 0x46
+  xe::be<uint16_t> display_width;                    // 0x48
+  xe::be<uint16_t> display_height;                   // 0x4A
+  xe::be<float> display_refresh_rate;                // 0x4C
+  xe::be<uint32_t> display_interlaced;               // 0x50
+  xe::be<uint8_t> display_color_format;              // 0x54
+  xe::be<uint16_t> actual_display_width;             // 0x56
+};
+static_assert_size(X_DISPLAY_INFO, 0x58);
 
 void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode);
 
@@ -78,26 +91,24 @@ void VdGetCurrentDisplayInformation(pointer_t<X_DISPLAY_INFO> display_info) {
   VdQueryVideoMode(&mode);
 
   display_info.Zero();
-  display_info->unk00 = (xe::be<uint16_t>)mode.display_width;
-  display_info->unk02 = (xe::be<uint16_t>)mode.display_height;
-  display_info->unk08 = 0;
-  display_info->unk0C = 0;
-  display_info->unk10 = mode.display_width;   // backbuffer width?
-  display_info->unk14 = mode.display_height;  // backbuffer height?
-  display_info->unk18 = mode.display_width;
-  display_info->unk1C = mode.display_height;
-  display_info->unk20 = 1;
-  display_info->unk30 = 1;
-  display_info->unk40 = 320;  // display_width / 4?
-  display_info->unk42 = 180;  // display_height / 4?
-  display_info->unk44 = 320;
-  display_info->unk46 = 180;
-  display_info->unk48 =
-      (xe::be<uint16_t>)mode.display_width;  // actual display size?
-  display_info->unk4A =
-      (xe::be<uint16_t>)mode.display_height;  // actual display size?
-  display_info->unk4C = mode.refresh_rate;
-  display_info->unk56 = (xe::be<uint16_t>)mode.display_width;  // display width
+  display_info->front_buffer_width = (uint16_t)mode.display_width;
+  display_info->front_buffer_height = (uint16_t)mode.display_height;
+
+  display_info->scaler_parameters.scaler_source_rect.x2 = mode.display_width;
+  display_info->scaler_parameters.scaler_source_rect.y2 = mode.display_height;
+  display_info->scaler_parameters.scaled_output_width = mode.display_width;
+  display_info->scaler_parameters.scaled_output_height = mode.display_height;
+  display_info->scaler_parameters.horizontal_filter_type = 1;
+  display_info->scaler_parameters.vertical_filter_type = 1;
+
+  display_info->display_window_overscan_left = 320;
+  display_info->display_window_overscan_top = 180;
+  display_info->display_window_overscan_right = 320;
+  display_info->display_window_overscan_bottom = 180;
+  display_info->display_width = (uint16_t)mode.display_width;
+  display_info->display_height = (uint16_t)mode.display_height;
+  display_info->display_refresh_rate = mode.refresh_rate;
+  display_info->actual_display_width = (uint16_t)mode.display_width;
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
