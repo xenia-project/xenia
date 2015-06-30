@@ -13,9 +13,6 @@
 [submodule "third_party/imgui"]
 	path = third_party/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "third_party/dockpanelsuite"]
-	path = third_party/dockpanelsuite
-	url = https://github.com/xenia-project/dockpanelsuite.git
 [submodule "third_party/flatbuffers"]
 	path = third_party/flatbuffers
 	url = https://github.com/google/flatbuffers.git
