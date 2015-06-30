@@ -583,7 +583,6 @@
       <PrecompiledHeader>
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-xma-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -601,7 +600,6 @@
       <PrecompiledHeader>
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-xma-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -618,9 +616,7 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>BEA_ENGINE_STATIC=1;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\third_party\libav-xma-bin\include\;$(SolutionDir)\third_party\beaengine\include\;$(SolutionDir)\third_party\llvm\include\;$(SolutionDir)\third_party\capstone\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
