@@ -305,7 +305,7 @@ bool CommandProcessor::SetupGL() {
   std::string rect_list_shader =
       geometry_header +
       "layout(triangles) in;\n"
-      "layout(triangle_strip, max_vertices = 4) out;\n"
+      "layout(triangle_strip, max_vertices = 6) out;\n"
       "void main() {\n"
       // Most games use the left-aligned form.
       "  bool left_aligned = gl_in[0].gl_Position.x == \n"
@@ -328,6 +328,15 @@ bool CommandProcessor::SetupGL() {
       "    gl_PointSize = gl_in[2].gl_PointSize;\n"
       "    out_vtx = in_vtx[2];\n"
       "    EmitVertex();\n"
+      "    EndPrimitive();\n"
+      "    gl_Position = gl_in[2].gl_Position;\n"
+      "    gl_PointSize = gl_in[2].gl_PointSize;\n"
+      "    out_vtx = in_vtx[2];\n"
+      "    EmitVertex();\n"
+      "    gl_Position = gl_in[1].gl_Position;\n"
+      "    gl_PointSize = gl_in[1].gl_PointSize;\n"
+      "    out_vtx = in_vtx[1];\n"
+      "    EmitVertex();\n"
       "    gl_Position = \n"
       "       (gl_in[1].gl_Position + gl_in[2].gl_Position) - \n"
       "       gl_in[0].gl_Position;\n"
@@ -337,6 +346,7 @@ bool CommandProcessor::SetupGL() {
       "          in_vtx[2].o[i];\n"
       "    }\n"
       "    EmitVertex();\n"
+      "    EndPrimitive();\n"
       "  } else {\n"
       //  0 ------ 1
       //  | -      |
@@ -351,6 +361,19 @@ bool CommandProcessor::SetupGL() {
       "    gl_PointSize = gl_in[1].gl_PointSize;\n"
       "    out_vtx = in_vtx[1];\n"
       "    EmitVertex();\n"
+      "    gl_Position = gl_in[2].gl_Position;\n"
+      "    gl_PointSize = gl_in[2].gl_PointSize;\n"
+      "    out_vtx = in_vtx[2];\n"
+      "    EmitVertex();\n"
+      "    EndPrimitive();\n"
+      "    gl_Position = gl_in[0].gl_Position;\n"
+      "    gl_PointSize = gl_in[0].gl_PointSize;\n"
+      "    out_vtx = in_vtx[0];\n"
+      "    EmitVertex();\n"
+      "    gl_Position = gl_in[2].gl_Position;\n"
+      "    gl_PointSize = gl_in[2].gl_PointSize;\n"
+      "    out_vtx = in_vtx[2];\n"
+      "    EmitVertex();\n"
       "    gl_Position = gl_in[0].gl_Position + (gl_in[2].gl_Position - \n"
       "        gl_in[1].gl_Position);\n"
       "    gl_PointSize = gl_in[2].gl_PointSize;\n"
@@ -359,12 +382,8 @@ bool CommandProcessor::SetupGL() {
       "          in_vtx[2].o[i];\n"
       "    }\n"
       "    EmitVertex();\n"
-      "    gl_Position = gl_in[2].gl_Position;\n"
-      "    gl_PointSize = gl_in[2].gl_PointSize;\n"
-      "    out_vtx = in_vtx[2];\n"
-      "    EmitVertex();\n"
+      "    EndPrimitive();\n"
       "  }\n"
-      "  EndPrimitive();\n"
       "}\n";
   std::string quad_list_shader =
       geometry_header +

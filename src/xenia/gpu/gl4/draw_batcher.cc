@@ -302,7 +302,7 @@ bool DrawBatcher::Flush(FlushMode mode) {
         prim_type = GL_TRIANGLE_FAN;
         break;
       case PrimitiveType::kRectangleList:
-        prim_type = GL_TRIANGLE_STRIP;
+        prim_type = GL_TRIANGLES;
         // Rect lists aren't culled. There may be other things they skip too.
         // assert_true((register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32
         // &
