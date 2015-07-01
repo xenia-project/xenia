@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/platform.h"
 #include "xenia/cpu/mmio_handler.h"
@@ -179,6 +180,15 @@ class Memory {
   inline T TranslatePhysical(uint32_t guest_address) const {
     return reinterpret_cast<T>(physical_membase_ +
                                (guest_address & 0x1FFFFFFF));
+  }
+
+  inline uint32_t TranslateHost(const uint8_t* host_address) const {
+    assert(host_address > virtual_membase_);
+    return (uint32_t)(host_address - virtual_membase_);
+  }
+  template <typename T>
+  inline uint32_t TranslateHost(const T* host_address) const {
+    return TranslateHost(reinterpret_cast<const uint8_t*>(host_address));
   }
 
   inline uint64_t* reserve_address() { return &reserve_address_; }
