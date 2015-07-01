@@ -67,7 +67,6 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       write_ptr_index_(0),
       bin_select_(0xFFFFFFFFull),
       bin_mask_(0xFFFFFFFFull),
-      has_bindless_vbos_(false),
       active_vertex_shader_(nullptr),
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
@@ -234,10 +233,6 @@ void CommandProcessor::WorkerThreadMain() {
 }
 
 bool CommandProcessor::SetupGL() {
-  if (FLAGS_vendor_gl_extensions && GLEW_NV_vertex_buffer_unified_memory) {
-    has_bindless_vbos_ = true;
-  }
-
   // Circular buffer holding scratch vertex/index data.
   if (!scratch_buffer_.Initialize()) {
     XELOGE("Unable to initialize scratch buffer");
@@ -1554,10 +1549,8 @@ bool CommandProcessor::IssueDraw() {
   if (!draw_batcher_.CommitDraw()) {
     return false;
   }
-  if (!has_bindless_vbos_) {
-    // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
-    draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
-  }
+  // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
+  draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
   return true;
 }
 
@@ -1688,15 +1681,8 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
     cached_pipeline->handles.line_quad_list_pipeline = pipelines[4];
 
     // This can be set once, as the buffer never changes.
-    if (has_bindless_vbos_) {
-      glBindVertexArray(active_vertex_shader_->vao());
-      glBufferAddressRangeNV(GL_ELEMENT_ARRAY_ADDRESS_NV, 0,
-                             scratch_buffer_.gpu_handle(),
-                             scratch_buffer_.capacity());
-    } else {
-      glVertexArrayElementBuffer(active_vertex_shader_->vao(),
-                                 scratch_buffer_.handle());
-    }
+    glVertexArrayElementBuffer(active_vertex_shader_->vao(),
+                               scratch_buffer_.handle());
   }
 
   bool line_mode = false;
@@ -2390,39 +2376,19 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
           memory_->TranslatePhysical<const uint32_t*>(fetch->address << 2),
           valid_range / 4);
 
-      if (!has_bindless_vbos_) {
-        // TODO(benvanik): if we could find a way to avoid this, we could use
-        // multidraw without flushing.
-        glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
-                                  scratch_buffer_.handle(), allocation.offset,
-                                  desc.stride_words * 4);
-      }
-
-      if (has_bindless_vbos_) {
-        for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
-          const auto& el = desc.elements[i];
-          draw_batcher_.set_vertex_buffer(el_index, 0, desc.stride_words * 4,
-                                          allocation);
-        }
-      }
+      // TODO(benvanik): if we could find a way to avoid this, we could use
+      // multidraw without flushing.
+      glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+                                scratch_buffer_.handle(), allocation.offset,
+                                desc.stride_words * 4);
 
       scratch_buffer_.Commit(std::move(allocation));
     } else {
-      if (!has_bindless_vbos_) {
-        // TODO(benvanik): if we could find a way to avoid this, we could use
-        // multidraw without flushing.
-        glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
-                                  scratch_buffer_.handle(), allocation.offset,
-                                  desc.stride_words * 4);
-      }
-
-      if (has_bindless_vbos_) {
-        for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
-          const auto& el = desc.elements[i];
-          draw_batcher_.set_vertex_buffer(el_index, 0, desc.stride_words * 4,
-                                          allocation);
-        }
-      }
+      // TODO(benvanik): if we could find a way to avoid this, we could use
+      // multidraw without flushing.
+      glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+                                scratch_buffer_.handle(), allocation.offset,
+                                desc.stride_words * 4);
     }
   }
 

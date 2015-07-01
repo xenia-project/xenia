@@ -41,12 +41,6 @@ bool CircularBuffer::Initialize() {
     return false;
   }
 
-  if (FLAGS_vendor_gl_extensions && GLEW_NV_shader_buffer_load) {
-    // To use this bindlessly we must make it resident.
-    glMakeNamedBufferResidentNV(buffer_, GL_READ_ONLY);
-    glGetNamedBufferParameterui64vNV(buffer_, GL_BUFFER_GPU_ADDRESS_NV,
-                                     &gpu_base_);
-  }
   return true;
 }
 
@@ -55,9 +49,6 @@ void CircularBuffer::Shutdown() {
     return;
   }
   glUnmapNamedBuffer(buffer_);
-  if (FLAGS_vendor_gl_extensions && GLEW_NV_shader_buffer_load) {
-    glMakeNamedBufferNonResidentNV(buffer_);
-  }
   glDeleteBuffers(1, &buffer_);
   buffer_ = 0;
 }

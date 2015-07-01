@@ -259,8 +259,6 @@ class CommandProcessor {
   uint64_t bin_select_;
   uint64_t bin_mask_;
 
-  bool has_bindless_vbos_;
-
   GL4ShaderTranslator shader_translator_;
   std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;

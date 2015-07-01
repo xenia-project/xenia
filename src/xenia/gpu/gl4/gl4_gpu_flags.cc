@@ -9,9 +9,6 @@
 
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
 
-DEFINE_bool(vendor_gl_extensions, false,
-            "Enable vendor-specific (NV, AMD, etc) GL extensions.");
-
 DEFINE_bool(disable_framebuffer_readback, false,
             "Disable framebuffer readback.");
 DEFINE_bool(disable_textures, false, "Disable textures and use colors only.");

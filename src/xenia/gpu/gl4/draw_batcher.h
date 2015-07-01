@@ -43,24 +43,6 @@ struct DrawElementsIndirectCommand {
   GLint base_vertex;
   GLuint base_instance;
 };
-struct BindlessPtrNV {
-  GLuint index;
-  GLuint reserved_zero;
-  GLuint64 address;
-  GLuint64 length;
-};
-struct DrawArraysIndirectBindlessCommandNV {
-  DrawArraysIndirectCommand cmd;
-  // NOTE: the spec is wrong here. For fucks sake.
-  // GLuint reserved_zero;
-  BindlessPtrNV vertex_buffers[8];
-};
-struct DrawElementsIndirectBindlessCommandNV {
-  DrawElementsIndirectCommand cmd;
-  GLuint reserved_zero;
-  BindlessPtrNV index_buffer;
-  BindlessPtrNV vertex_buffers[8];
-};
 #pragma pack(pop)
 
 class DrawBatcher {
@@ -97,33 +79,10 @@ class DrawBatcher {
     active_draw_.header->texture_samplers[index] = handle;
   }
   void set_index_buffer(const CircularBuffer::Allocation& allocation) {
-    if (has_bindless_mdi_) {
-      auto& ptr = active_draw_.draw_elements_bindless_cmd->index_buffer;
-      ptr.reserved_zero = 0;
-      ptr.index = 0;
-      ptr.address = allocation.gpu_ptr;
-      ptr.length = allocation.length;
-    } else {
-      // Offset is used in glDrawElements.
-      auto& cmd = active_draw_.draw_elements_cmd;
-      size_t index_size = batch_state_.index_type == GL_UNSIGNED_SHORT ? 2 : 4;
-      cmd->first_index = GLuint(allocation.offset / index_size);
-    }
-  }
-  void set_vertex_buffer(int index, GLsizei offset, GLsizei stride,
-                         const CircularBuffer::Allocation& allocation) {
-    if (has_bindless_mdi_) {
-      BindlessPtrNV* ptr;
-      if (batch_state_.indexed) {
-        ptr = &active_draw_.draw_elements_bindless_cmd->vertex_buffers[index];
-      } else {
-        ptr = &active_draw_.draw_arrays_bindless_cmd->vertex_buffers[index];
-      }
-      ptr->reserved_zero = 0;
-      ptr->index = index;
-      ptr->address = allocation.gpu_ptr + offset;
-      ptr->length = allocation.length - offset;
-    }
+    // Offset is used in glDrawElements.
+    auto& cmd = active_draw_.draw_elements_cmd;
+    size_t index_size = batch_state_.index_type == GL_UNSIGNED_SHORT ? 2 : 4;
+    cmd->first_index = GLuint(allocation.offset / index_size);
   }
 
   bool ReconfigurePipeline(GL4Shader* vertex_shader, GL4Shader* pixel_shader,
@@ -144,8 +103,6 @@ class DrawBatcher {
   CircularBuffer command_buffer_;
   CircularBuffer state_buffer_;
   CircularBuffer* array_data_buffer_;
-
-  bool has_bindless_mdi_;
 
   struct BatchState {
     bool needs_reconfigure;
@@ -190,8 +147,6 @@ class DrawBatcher {
     union {
       DrawArraysIndirectCommand* draw_arrays_cmd;
       DrawElementsIndirectCommand* draw_elements_cmd;
-      DrawArraysIndirectBindlessCommandNV* draw_arrays_bindless_cmd;
-      DrawElementsIndirectBindlessCommandNV* draw_elements_bindless_cmd;
       uintptr_t command_address;
     };
 

@@ -126,15 +126,6 @@ std::string GL4Shader::GetFooter() {
 bool GL4Shader::PrepareVertexArrayObject() {
   glCreateVertexArrays(1, &vao_);
 
-  bool has_bindless_vbos = false;
-  if (FLAGS_vendor_gl_extensions && GLEW_NV_vertex_buffer_unified_memory) {
-    has_bindless_vbos = true;
-    // Nasty, but no DSA for this.
-    glBindVertexArray(vao_);
-    glEnableClientState(GL_VERTEX_ATTRIB_ARRAY_UNIFIED_NV);
-    glEnableClientState(GL_ELEMENT_ARRAY_UNIFIED_NV);
-  }
-
   uint32_t el_index = 0;
   for (uint32_t buffer_index = 0; buffer_index < buffer_inputs_.count;
        ++buffer_index) {
@@ -198,22 +189,10 @@ bool GL4Shader::PrepareVertexArrayObject() {
       }
 
       glEnableVertexArrayAttrib(vao_, el_index);
-      if (has_bindless_vbos) {
-        // NOTE: MultiDrawIndirectBindlessMumble doesn't handle separate
-        // vertex bindings/formats.
-        glVertexAttribFormat(el_index, comp_count, comp_type, el.is_normalized,
-                             el.offset_words * 4);
-        glVertexArrayVertexBuffer(vao_, el_index, 0, 0, desc.stride_words * 4);
-      } else {
-        glVertexArrayAttribBinding(vao_, el_index, buffer_index);
-        glVertexArrayAttribFormat(vao_, el_index, comp_count, comp_type,
-                                  el.is_normalized, el.offset_words * 4);
-      }
+      glVertexArrayAttribBinding(vao_, el_index, buffer_index);
+      glVertexArrayAttribFormat(vao_, el_index, comp_count, comp_type,
+                                el.is_normalized, el.offset_words * 4);
     }
-  }
-
-  if (has_bindless_vbos) {
-    glBindVertexArray(0);
   }
 
   return true;

@@ -12,8 +12,6 @@
 
 #include <gflags/gflags.h>
 
-DECLARE_bool(vendor_gl_extensions);
-
 DECLARE_bool(disable_framebuffer_readback);
 DECLARE_bool(disable_textures);
 
