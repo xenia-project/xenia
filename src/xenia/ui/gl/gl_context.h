@@ -7,19 +7,25 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_GL_CONTEXT_H_
-#define XENIA_GPU_GL4_GL_CONTEXT_H_
+#ifndef XENIA_UI_GL_GL_CONTEXT_H_
+#define XENIA_UI_GL_GL_CONTEXT_H_
+
+#include <gflags/gflags.h>
 
 #include <memory>
 
-#include "xenia/gpu/gl4/blitter.h"
-
 #include "third_party/GL/glew.h"
 #include "third_party/GL/wglew.h"
+#include "xenia/ui/gl/blitter.h"
+
+DECLARE_bool(thread_safe_gl);
+
+extern "C" GLEWContext* glewGetContext();
+extern "C" WGLEWContext* wglewGetContext();
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
 class GLContext {
  public:
@@ -67,8 +73,8 @@ struct GLContextLock {
   GLContext* context_;
 };
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_GL_CONTEXT_H_
+#endif  // XENIA_UI_GL_GL_CONTEXT_H_

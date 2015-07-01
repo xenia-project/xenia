@@ -7,23 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_WGL_CONTROL_H_
-#define XENIA_GPU_GL4_WGL_CONTROL_H_
+#ifndef XENIA_UI_GL_WGL_CONTROL_H_
+#define XENIA_UI_GL_WGL_CONTROL_H_
 
 #include <functional>
 
 #include "xenia/base/threading.h"
-#include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/loop.h"
 #include "xenia/ui/win32/win32_control.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
 class WGLControl : public xe::ui::win32::Win32Control {
  public:
-  WGLControl(xe::ui::Loop* loop);
+  WGLControl(Loop* loop);
   ~WGLControl() override;
 
   GLContext* context() { return &context_; }
@@ -33,19 +33,19 @@ class WGLControl : public xe::ui::win32::Win32Control {
  protected:
   bool Create() override;
 
-  void OnLayout(xe::ui::UIEvent& e) override;
+  void OnLayout(UIEvent& e) override;
 
   LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
                   LPARAM lParam) override;
 
  private:
-  xe::ui::Loop* loop_;
+  Loop* loop_;
   GLContext context_;
   std::function<void()> current_paint_callback_;
 };
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_WGL_CONTROL_H_
+#endif  // XENIA_UI_GL_WGL_CONTROL_H_

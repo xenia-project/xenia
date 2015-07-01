@@ -7,21 +7,17 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gl4/wgl_control.h"
+#include "xenia/ui/gl/wgl_control.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
-#include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/profiling.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
-extern "C" GLEWContext* glewGetContext();
-extern "C" WGLEWContext* wglewGetContext();
-
-WGLControl::WGLControl(xe::ui::Loop* loop)
+WGLControl::WGLControl(Loop* loop)
     : xe::ui::win32::Win32Control(Flags::kFlagOwnPaint), loop_(loop) {}
 
 WGLControl::~WGLControl() = default;
@@ -75,7 +71,7 @@ bool WGLControl::Create() {
   return true;
 }
 
-void WGLControl::OnLayout(xe::ui::UIEvent& e) { Control::ResizeToFill(); }
+void WGLControl::OnLayout(UIEvent& e) { Control::ResizeToFill(); }
 
 LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
@@ -94,7 +90,7 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           current_paint_callback_ = nullptr;
         }
 
-        xe::ui::UIEvent e(this);
+        UIEvent e(this);
         OnPaint(e);
 
         // TODO(benvanik): profiler present.
@@ -122,6 +118,6 @@ void WGLControl::SynchronousRepaint(std::function<void()> paint_callback) {
                RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ALLCHILDREN);
 }
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe

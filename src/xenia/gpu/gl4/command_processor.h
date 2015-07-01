@@ -18,9 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/gpu/gl4/circular_buffer.h"
 #include "xenia/gpu/gl4/draw_batcher.h"
-#include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/gl4/gl4_shader_translator.h"
 #include "xenia/gpu/gl4/texture_cache.h"
@@ -29,6 +27,8 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/memory.h"
+#include "xenia/ui/gl/circular_buffer.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
 namespace kernel {
@@ -67,7 +67,7 @@ class CommandProcessor {
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
 
-  bool Initialize(std::unique_ptr<GLContext> context);
+  bool Initialize(std::unique_ptr<xe::ui::gl::GLContext> context);
   void Shutdown();
   void CallInThread(std::function<void()> fn);
 
@@ -238,7 +238,7 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
-  std::unique_ptr<GLContext> context_;
+  std::unique_ptr<xe::ui::gl::GLContext> context_;
   SwapHandler swap_handler_;
   std::queue<std::function<void()>> pending_fns_;
 
@@ -292,7 +292,7 @@ class CommandProcessor {
   TextureCache texture_cache_;
 
   DrawBatcher draw_batcher_;
-  CircularBuffer scratch_buffer_;
+  xe::ui::gl::CircularBuffer scratch_buffer_;
 
  private:
   bool SetShadowRegister(uint32_t& dest, uint32_t register_name);

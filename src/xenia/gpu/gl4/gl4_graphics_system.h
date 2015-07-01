@@ -13,10 +13,10 @@
 #include <memory>
 
 #include "xenia/gpu/gl4/command_processor.h"
-#include "xenia/gpu/gl4/wgl_control.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/kernel/objects/xthread.h"
+#include "xenia/ui/gl/wgl_control.h"
 
 namespace xe {
 namespace gpu {
@@ -67,7 +67,7 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
   RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;
-  std::unique_ptr<WGLControl> control_;
+  std::unique_ptr<xe::ui::gl::WGLControl> control_;
 
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;

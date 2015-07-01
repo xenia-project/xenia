@@ -7,19 +7,15 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gl4/circular_buffer.h"
+#include "xenia/ui/gl/circular_buffer.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
-#include "xenia/gpu/gpu_flags.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
-
-extern "C" GLEWContext* glewGetContext();
-extern "C" WGLEWContext* wglewGetContext();
+namespace ui {
+namespace gl {
 
 CircularBuffer::CircularBuffer(size_t capacity, size_t alignment)
     : capacity_(capacity),
@@ -146,6 +142,6 @@ void CircularBuffer::WaitUntilClean() {
   ClearCache();
 }
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe

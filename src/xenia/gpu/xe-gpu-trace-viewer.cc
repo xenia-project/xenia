@@ -18,12 +18,12 @@
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
 #include "xenia/emulator.h"
-#include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/tracing.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/profiling.h"
+#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/main_window.h"
 
 // HACK: until we have another impl, we just use gl4 directly.
@@ -2316,9 +2316,6 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
 }
 
 // TODO(benvanik): move to another file.
-
-extern "C" GLEWContext* glewGetContext();
-extern "C" WGLEWContext* wglewGetContext();
 
 static int shader_handle, vert_handle, frag_handle;
 static int texture_location, proj_mtx_location;

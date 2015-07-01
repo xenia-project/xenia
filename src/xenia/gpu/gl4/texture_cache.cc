@@ -24,9 +24,6 @@ namespace gl4 {
 
 using namespace xe::gpu::xenos;
 
-extern "C" GLEWContext* glewGetContext();
-extern "C" WGLEWContext* wglewGetContext();
-
 struct TextureConfig {
   TextureFormat texture_format;
   GLenum internal_format;

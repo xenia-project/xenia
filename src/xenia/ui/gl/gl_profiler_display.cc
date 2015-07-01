@@ -7,19 +7,16 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gl4/gl4_profiler_display.h"
+#include "xenia/ui/gl/gl_profiler_display.h"
 
 #include "third_party/microprofile/microprofileui.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-#include "xenia/gpu/gpu_flags.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
-
-extern "C" GLEWContext* glewGetContext();
+namespace ui {
+namespace gl {
 
 #define MICROPROFILE_MAX_VERTICES (16 << 10)
 #define MICROPROFILE_NUM_QUERIES (8 << 10)
@@ -135,7 +132,7 @@ const uint8_t profiler_font[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-GL4ProfilerDisplay::GL4ProfilerDisplay(WGLControl* control)
+GLProfilerDisplay::GLProfilerDisplay(xe::ui::gl::WGLControl* control)
     : control_(control),
       program_(0),
       vao_(0),
@@ -179,7 +176,7 @@ GL4ProfilerDisplay::GL4ProfilerDisplay(WGLControl* control)
   });
 }
 
-bool GL4ProfilerDisplay::SetupFont() {
+bool GLProfilerDisplay::SetupFont() {
   // Setup font lookup table.
   for (uint32_t i = 0; i < xe::countof(font_description_.char_offsets); ++i) {
     font_description_.char_offsets[i] = 206;
@@ -234,14 +231,14 @@ bool GL4ProfilerDisplay::SetupFont() {
   return true;
 }
 
-bool GL4ProfilerDisplay::SetupState() {
+bool GLProfilerDisplay::SetupState() {
   if (!vertex_buffer_.Initialize()) {
     return false;
   }
   return true;
 }
 
-bool GL4ProfilerDisplay::SetupShaders() {
+bool GLProfilerDisplay::SetupShaders() {
   const std::string header =
       "\n\
 #version 450 \n\
@@ -331,7 +328,7 @@ void main() { \n\
   return true;
 }
 
-GL4ProfilerDisplay::~GL4ProfilerDisplay() {
+GLProfilerDisplay::~GLProfilerDisplay() {
   vertex_buffer_.Shutdown();
   glMakeTextureHandleNonResidentARB(font_handle_);
   glDeleteTextures(1, &font_texture_);
@@ -339,11 +336,11 @@ GL4ProfilerDisplay::~GL4ProfilerDisplay() {
   glDeleteProgram(program_);
 }
 
-uint32_t GL4ProfilerDisplay::width() const { return control_->width(); }
+uint32_t GLProfilerDisplay::width() const { return control_->width(); }
 
-uint32_t GL4ProfilerDisplay::height() const { return control_->height(); }
+uint32_t GLProfilerDisplay::height() const { return control_->height(); }
 
-void GL4ProfilerDisplay::Begin() {
+void GLProfilerDisplay::Begin() {
   glEnablei(GL_BLEND, 0);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glDisable(GL_DEPTH_TEST);
@@ -372,13 +369,13 @@ void GL4ProfilerDisplay::Begin() {
   glBindVertexArray(vao_);
 }
 
-void GL4ProfilerDisplay::End() {
+void GLProfilerDisplay::End() {
   Flush();
   glUseProgram(0);
   glBindVertexArray(0);
 }
 
-GL4ProfilerDisplay::Vertex* GL4ProfilerDisplay::BeginVertices(size_t count) {
+GLProfilerDisplay::Vertex* GLProfilerDisplay::BeginVertices(size_t count) {
   if (draw_command_count_ + 1 > kMaxCommands) {
     Flush();
   }
@@ -390,7 +387,7 @@ GL4ProfilerDisplay::Vertex* GL4ProfilerDisplay::BeginVertices(size_t count) {
   return reinterpret_cast<Vertex*>(current_allocation_.host_ptr);
 }
 
-void GL4ProfilerDisplay::EndVertices(GLenum prim_type) {
+void GLProfilerDisplay::EndVertices(GLenum prim_type) {
   size_t vertex_count = current_allocation_.length / sizeof(Vertex);
 
   if (draw_command_count_ &&
@@ -408,7 +405,7 @@ void GL4ProfilerDisplay::EndVertices(GLenum prim_type) {
   vertex_buffer_.Commit(std::move(current_allocation_));
 }
 
-void GL4ProfilerDisplay::Flush() {
+void GLProfilerDisplay::Flush() {
   if (!draw_command_count_) {
     return;
   }
@@ -423,8 +420,8 @@ void GL4ProfilerDisplay::Flush() {
   vertex_buffer_.WaitUntilClean();
 }
 
-void GL4ProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
-                                 BoxType type) {
+void GLProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
+                                BoxType type) {
   auto v = BeginVertices(6);
   if (type == BoxType::kFlat) {
     color =
@@ -489,8 +486,8 @@ void GL4ProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
   EndVertices(GL_TRIANGLES);
 }
 
-void GL4ProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
-                                    uint32_t color) {
+void GLProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
+                                   uint32_t color) {
   if (!count || !vertices) {
     return;
   }
@@ -513,8 +510,8 @@ void GL4ProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
   EndVertices(GL_LINES);
 }
 
-void GL4ProfilerDisplay::DrawText(int x, int y, uint32_t color,
-                                  const char* text, size_t text_length) {
+void GLProfilerDisplay::DrawText(int x, int y, uint32_t color, const char* text,
+                                 size_t text_length) {
   if (!text_length) {
     return;
   }
@@ -563,6 +560,6 @@ void GL4ProfilerDisplay::DrawText(int x, int y, uint32_t color,
   EndVertices(GL_TRIANGLES);
 }
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe

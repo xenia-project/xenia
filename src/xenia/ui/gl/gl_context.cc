@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/ui/gl/gl_context.h"
 
 #include <mutex>
 #include <string>
@@ -15,12 +15,23 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/profiling.h"
 
+DEFINE_bool(thread_safe_gl, false,
+            "Only allow one GL context to be active at a time.");
+
+DEFINE_bool(disable_gl_context_reset, false,
+            "Do not aggressively reset the GL context (helps with capture "
+            "programs such as OBS or FRAPS).");
+
+DEFINE_bool(gl_debug, false, "Enable OpenGL debug validation layer.");
+DEFINE_bool(gl_debug_output, false, "Dump ARB_debug_output to stderr.");
+DEFINE_bool(gl_debug_output_synchronous, true,
+            "ARB_debug_output will synchronize to be thread safe.");
+
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
 static std::recursive_mutex global_gl_mutex_;
 
@@ -388,6 +399,6 @@ void GLContext::ClearCurrent() {
   }
 }
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe

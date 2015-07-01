@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_BLITTER_H_
-#define XENIA_GPU_GL4_BLITTER_H_
+#ifndef XENIA_UI_GL_BLITTER_H_
+#define XENIA_UI_GL_BLITTER_H_
 
 #include <memory>
 
@@ -16,8 +16,8 @@
 #include "third_party/GL/wglew.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
 struct Rect2D {
   int32_t x;
@@ -63,8 +63,8 @@ class Blitter {
   GLuint scratch_framebuffer_;
 };
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_BLITTER_H_
+#endif  // XENIA_UI_GL_BLITTER_H_

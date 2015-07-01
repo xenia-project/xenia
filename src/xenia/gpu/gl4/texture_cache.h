@@ -15,16 +15,20 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
-#include "xenia/gpu/gl4/blitter.h"
-#include "xenia/gpu/gl4/circular_buffer.h"
-#include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/memory.h"
+#include "xenia/ui/gl/blitter.h"
+#include "xenia/ui/gl/circular_buffer.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
+
+using xe::ui::gl::Blitter;
+using xe::ui::gl::CircularBuffer;
+using xe::ui::gl::Rect2D;
 
 class TextureCache {
  public:

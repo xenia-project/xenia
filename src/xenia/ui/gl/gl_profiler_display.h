@@ -7,22 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_GL4_PROFILER_DISPLAY_H_
-#define XENIA_GPU_GL4_GL4_PROFILER_DISPLAY_H_
+#ifndef XENIA_UI_GL_GL_PROFILER_DISPLAY_H_
+#define XENIA_UI_GL_GL_PROFILER_DISPLAY_H_
 
-#include "xenia/gpu/gl4/circular_buffer.h"
-#include "xenia/gpu/gl4/gl_context.h"
-#include "xenia/gpu/gl4/wgl_control.h"
 #include "xenia/profiling.h"
+#include "xenia/ui/gl/circular_buffer.h"
+#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/gl/wgl_control.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
-class GL4ProfilerDisplay : public ProfilerDisplay {
+class GLProfilerDisplay : public ProfilerDisplay {
  public:
-  GL4ProfilerDisplay(WGLControl* control);
-  virtual ~GL4ProfilerDisplay();
+  GLProfilerDisplay(xe::ui::gl::WGLControl* control);
+  virtual ~GLProfilerDisplay();
 
   uint32_t width() const override;
   uint32_t height() const override;
@@ -54,7 +54,7 @@ class GL4ProfilerDisplay : public ProfilerDisplay {
   void EndVertices(GLenum prim_type);
   void Flush();
 
-  WGLControl* control_;
+  xe::ui::gl::WGLControl* control_;
   GLuint program_;
   GLuint vao_;
   GLuint font_texture_;
@@ -76,8 +76,8 @@ class GL4ProfilerDisplay : public ProfilerDisplay {
   } font_description_;
 };
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_GL4_PROFILER_DISPLAY_H_
+#endif  // XENIA_UI_GL_GL_PROFILER_DISPLAY_H_

@@ -12,8 +12,8 @@
 
 #include <string>
 
-#include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
 namespace gpu {

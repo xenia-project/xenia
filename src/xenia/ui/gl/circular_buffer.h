@@ -7,16 +7,16 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
-#define XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
+#ifndef XENIA_UI_GL_CIRCULAR_BUFFER_H_
+#define XENIA_UI_GL_CIRCULAR_BUFFER_H_
 
 #include <unordered_map>
 
-#include "xenia/gpu/gl4/gl_context.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
+namespace ui {
+namespace gl {
 
 // TODO(benvanik): uh, make this circular.
 // TODO(benvanik): fences to prevent this from ever flushing.
@@ -64,8 +64,8 @@ class CircularBuffer {
   std::unordered_map<uint64_t, uintptr_t> allocation_cache_;
 };
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_CIRCULAR_BUFFER_H_
+#endif  // XENIA_UI_GL_CIRCULAR_BUFFER_H_

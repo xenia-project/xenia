@@ -22,8 +22,6 @@ namespace gl4 {
 
 using namespace xe::gpu::xenos;
 
-extern "C" GLEWContext* glewGetContext();
-
 const size_t kCommandBufferCapacity = 16 * (1024 * 1024);
 const size_t kCommandBufferAlignment = 4;
 const size_t kStateBufferCapacity = 64 * (1024 * 1024);

@@ -30,8 +30,6 @@ namespace gl4 {
 
 using namespace xe::gpu::xenos;
 
-extern "C" GLEWContext* glewGetContext();
-
 const GLuint kAnyTarget = UINT_MAX;
 
 // All uncached vertex/index data goes here. If it fills up we need to sync
@@ -85,7 +83,8 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
 
 CommandProcessor::~CommandProcessor() { CloseHandle(write_ptr_index_event_); }
 
-bool CommandProcessor::Initialize(std::unique_ptr<GLContext> context) {
+bool CommandProcessor::Initialize(
+    std::unique_ptr<xe::ui::gl::GLContext> context) {
   context_ = std::move(context);
 
   worker_running_ = true;

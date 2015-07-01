@@ -13,10 +13,10 @@
 #include <string>
 
 #include "xenia/base/string_buffer.h"
-#include "xenia/gpu/gl4/gl_context.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/ucode.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
 namespace gpu {

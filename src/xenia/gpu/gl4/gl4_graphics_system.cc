@@ -17,15 +17,13 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
-#include "xenia/gpu/gl4/gl4_profiler_display.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/tracing.h"
+#include "xenia/ui/gl/gl_profiler_display.h"
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
-
-extern "C" GLEWContext* glewGetContext();
 
 void InitializeIfNeeded();
 void CleanupOnShutdown();
@@ -65,12 +63,12 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
   // Create rendering control.
   // This must happen on the UI thread.
   xe::threading::Fence control_ready_fence;
-  std::unique_ptr<GLContext> processor_context;
+  std::unique_ptr<xe::ui::gl::GLContext> processor_context;
   target_loop_->Post([&]() {
     // Setup the GL control that actually does the drawing.
     // We run here in the loop and only touch it (and its context) on this
     // thread. That means some sync-fu when we want to swap.
-    control_ = std::make_unique<WGLControl>(target_loop_);
+    control_ = std::make_unique<xe::ui::gl::WGLControl>(target_loop_);
     target_window_->AddChild(control_.get());
 
     // Setup the GL context the command processor will do all its drawing in.
@@ -79,9 +77,9 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
     processor_context = control_->context()->CreateShared();
 
     {
-      GLContextLock context_lock(control_->context());
+      xe::ui::gl::GLContextLock context_lock(control_->context());
       auto profiler_display =
-          std::make_unique<GL4ProfilerDisplay>(control_.get());
+          std::make_unique<xe::ui::gl::GLProfilerDisplay>(control_.get());
       Profiler::set_display(std::move(profiler_display));
     }
 

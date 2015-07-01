@@ -158,6 +158,9 @@
     <Filter Include="src\xenia\vfs\devices">
       <UniqueIdentifier>{82795389-e855-4cd6-a3b6-9580030cebf2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\xenia\ui\gl">
+      <UniqueIdentifier>{c38dacd1-1e4c-4cd1-847e-19b394e8313d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\emulator.cc">
@@ -364,31 +367,16 @@
     <ClCompile Include="src\xenia\gpu\ucode_disassembler.cc">
       <Filter>src\xenia\gpu</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\blitter.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\circular_buffer.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\command_processor.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\draw_batcher.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl_context.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\texture_cache.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\wgl_control.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\gl4_graphics_system.cc">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\gpu\gl4\gl4_profiler_display.cc">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\gpu\gl4\gl4_shader.cc">
@@ -727,6 +715,21 @@
     <ClCompile Include="src\xenia\vfs\virtual_file_system.cc">
       <Filter>src\xenia\vfs</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\ui\gl\blitter.cc">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\gl\gl_context.cc">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\gl\wgl_control.cc">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\gl\gl_profiler_display.cc">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\gl\circular_buffer.cc">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\emulator.h">
@@ -954,31 +957,16 @@
     <ClInclude Include="src\xenia\gpu\xenos.h">
       <Filter>src\xenia\gpu</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\blitter.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\circular_buffer.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\command_processor.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\draw_batcher.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl_context.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\texture_cache.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\wgl_control.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\gl4_graphics_system.h">
-      <Filter>src\xenia\gpu\gl4</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\gpu\gl4\gl4_profiler_display.h">
       <Filter>src\xenia\gpu\gl4</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\gpu\gl4\gl4_shader.h">
@@ -1364,6 +1352,21 @@
     </ClInclude>
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_stack_layout.h">
       <Filter>src\xenia\cpu\backend\x64</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\gl\blitter.h">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\gl\gl_context.h">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\gl\wgl_control.h">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\gl\gl_profiler_display.h">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\gl\circular_buffer.h">
+      <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

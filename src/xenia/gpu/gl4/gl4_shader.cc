@@ -22,8 +22,6 @@ namespace gl4 {
 
 using namespace xe::gpu::xenos;
 
-extern "C" GLEWContext* glewGetContext();
-
 GL4Shader::GL4Shader(ShaderType shader_type, uint64_t data_hash,
                      const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count),

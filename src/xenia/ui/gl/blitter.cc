@@ -7,19 +7,17 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/gl4/blitter.h"
+#include "xenia/ui/gl/blitter.h"
 
 #include <string>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
-namespace gpu {
-namespace gl4 {
-
-extern "C" GLEWContext* glewGetContext();
-extern "C" WGLEWContext* wglewGetContext();
+namespace ui {
+namespace gl {
 
 Blitter::Blitter()
     : vertex_program_(0),
@@ -303,6 +301,6 @@ void Blitter::CopyDepthTexture(GLuint src_texture, Rect2D src_rect,
   state.Restore();
 }
 
-}  // namespace gl4
-}  // namespace gpu
+}  // namespace gl
+}  // namespace ui
 }  // namespace xe
