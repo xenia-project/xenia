@@ -42,21 +42,22 @@ enum Commands {
 const std::wstring kBaseTitle = L"xenia";
 
 MainWindow::MainWindow(Emulator* emulator)
-    : PlatformWindow(kBaseTitle),
+    : PlatformWindow(&loop_, kBaseTitle),
       emulator_(emulator),
-      main_menu_(MenuItem::Type::kNormal),
-      fullscreen_(false) {}
+      main_menu_(MenuItem::Type::kNormal) {}
 
 MainWindow::~MainWindow() = default;
 
-void MainWindow::Start() {
+std::unique_ptr<PlatformWindow> MainWindow::Create(Emulator* emulator) {
+  std::unique_ptr<MainWindow> main_window(new MainWindow(emulator));
+
   xe::threading::Fence fence;
 
-  loop_.Post([&]() {
+  main_window->loop()->Post([&main_window, &fence]() {
     xe::threading::set_name("Win32 Loop");
     xe::Profiler::ThreadEnter("Win32 Loop");
 
-    if (!Initialize()) {
+    if (!main_window->Initialize()) {
       XEFATAL("Failed to initialize main window");
       exit(1);
     }
@@ -65,6 +66,8 @@ void MainWindow::Start() {
   });
 
   fence.Wait();
+
+  return std::unique_ptr<PlatformWindow>(main_window.release());
 }
 
 bool MainWindow::Initialize() {
@@ -98,8 +101,8 @@ bool MainWindow::Initialize() {
       } break;
       case 0x1B: {  // VK_ESCAPE
                     // Allow users to escape fullscreen (but not enter it).
-        if (fullscreen_) {
-          ToggleFullscreen();
+        if (is_fullscreen()) {
+          ToggleFullscreen(false);
         }
       } break;
 
@@ -187,7 +190,7 @@ bool MainWindow::Initialize() {
   }
   main_menu_.AddChild(std::move(help_menu));
 
-  SetMenu(&main_menu_);
+  set_menu(&main_menu_);
 
   Resize(1280, 720);
 
@@ -202,11 +205,6 @@ void MainWindow::UpdateTitle() {
     title += L"x)";
   }
   set_title(title);
-}
-
-void MainWindow::ToggleFullscreen() {
-  fullscreen_ = !fullscreen_;
-  SetFullscreen(fullscreen_);
 }
 
 void MainWindow::OnClose() {
@@ -250,7 +248,7 @@ void MainWindow::OnCommand(int id) {
     } break;
 
     case IDC_WINDOW_FULLSCREEN: {
-      ToggleFullscreen();
+      ToggleFullscreen(!is_fullscreen());
     } break;
 
     case IDC_HELP_WEBSITE: {

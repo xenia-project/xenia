@@ -20,12 +20,10 @@ namespace xe {
 namespace ui {
 namespace win32 {
 
-Win32Window::Win32Window(const std::wstring& title)
-    : Window(title), closing_(false), fullscreen_(false) {
-  menu_ = nullptr;
-}
+Win32Window::Win32Window(Loop* loop, const std::wstring& title)
+    : Window(loop, title) {}
 
-Win32Window::~Win32Window() {}
+Win32Window::~Win32Window() = default;
 
 bool Win32Window::Initialize() {
   Create();
@@ -160,8 +158,15 @@ void Win32Window::ResizeToFill(int32_t pad_left, int32_t pad_top,
   // TODO(benvanik): fullscreen.
 }
 
-void Win32Window::SetFullscreen(bool fullscreen) {
-  fullscreen_ = fullscreen;
+bool Win32Window::is_fullscreen() const {
+  DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
+  return (style & WS_OVERLAPPEDWINDOW) != WS_OVERLAPPEDWINDOW;
+}
+
+void Win32Window::ToggleFullscreen(bool fullscreen) {
+  if (fullscreen == is_fullscreen()) {
+    return;
+  }
 
   DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
   if (fullscreen) {
@@ -200,7 +205,7 @@ void Win32Window::OnClose() {
 void Win32Window::OnSetMenu(MenuItem* menu) {
   Win32MenuItem* win_menu = reinterpret_cast<Win32MenuItem*>(menu);
   // Don't actually set the menu if we're fullscreen. We'll do that later.
-  if (win_menu && !fullscreen_) {
+  if (win_menu && !is_fullscreen()) {
     ::SetMenu(hwnd_, win_menu->handle());
   }
 }

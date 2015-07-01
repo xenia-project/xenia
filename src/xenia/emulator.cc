@@ -70,7 +70,7 @@ Emulator::~Emulator() {
   export_resolver_.reset();
 
   // Kill the window last, as until the graphics system/etc is dead it's needed.
-  main_window_.reset();
+  display_window_.reset();
 }
 
 X_STATUS Emulator::Setup() {
@@ -94,8 +94,7 @@ X_STATUS Emulator::Setup() {
   SetProcessAffinityMask(process_handle, system_affinity_mask);
 
   // Create the main window. Other parts will hook into this.
-  main_window_ = std::make_unique<ui::MainWindow>(this);
-  main_window_->Start();
+  display_window_ = ui::MainWindow::Create(this);
 
   // Create memory system first, as it is required for other systems.
   memory_ = std::make_unique<Memory>();
@@ -152,8 +151,8 @@ X_STATUS Emulator::Setup() {
   if (!processor_->Setup()) {
     return result;
   }
-  result = graphics_system_->Setup(processor_.get(), main_window_->loop(),
-                                   main_window_.get());
+  result = graphics_system_->Setup(processor_.get(), display_window_->loop(),
+                                   display_window_.get());
   if (result) {
     return result;
   }

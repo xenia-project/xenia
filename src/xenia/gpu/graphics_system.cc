@@ -38,19 +38,11 @@ std::unique_ptr<GraphicsSystem> GraphicsSystem::Create(Emulator* emulator) {
   }
 }
 
-GraphicsSystem::GraphicsSystem(Emulator* emulator)
-    : emulator_(emulator),
-      memory_(nullptr),
-      processor_(nullptr),
-      target_loop_(nullptr),
-      target_window_(nullptr),
-      interrupt_callback_(0),
-      interrupt_callback_data_(0) {}
+GraphicsSystem::GraphicsSystem(Emulator* emulator) : emulator_(emulator) {}
 
 GraphicsSystem::~GraphicsSystem() = default;
 
-X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
-                               ui::PlatformLoop* target_loop,
+X_STATUS GraphicsSystem::Setup(cpu::Processor* processor, ui::Loop* target_loop,
                                ui::PlatformWindow* target_window) {
   processor_ = processor;
   memory_ = processor->memory();

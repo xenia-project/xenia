@@ -53,7 +53,7 @@ GL4GraphicsSystem::GL4GraphicsSystem(Emulator* emulator)
 GL4GraphicsSystem::~GL4GraphicsSystem() = default;
 
 X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
-                                  ui::PlatformLoop* target_loop,
+                                  ui::Loop* target_loop,
                                   ui::PlatformWindow* target_window) {
   auto result = GraphicsSystem::Setup(processor, target_loop, target_window);
   if (result) {

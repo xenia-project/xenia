@@ -14,6 +14,7 @@
 
 #include "xenia/base/delegate.h"
 #include "xenia/ui/control.h"
+#include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/ui_event.h"
 
@@ -27,6 +28,8 @@ class Window : public T {
 
   virtual bool Initialize() { return true; }
 
+  Loop* loop() const { return loop_; }
+
   const std::wstring& title() const { return title_; }
   virtual bool set_title(const std::wstring& title) {
     if (title == title_) {
@@ -34,6 +37,15 @@ class Window : public T {
     }
     title_ = title;
     return true;
+  }
+
+  MenuItem* menu() const { return menu_; }
+  void set_menu(MenuItem* menu) {
+    if (menu == menu_) {
+      return;
+    }
+    menu_ = menu;
+    OnSetMenu(menu);
   }
 
   void Close() {
@@ -46,13 +58,8 @@ class Window : public T {
     on_closed(e);
   }
 
-  virtual void SetMenu(MenuItem* menu) {
-    menu_ = menu;
-
-    OnSetMenu(menu);
-  }
-
-  virtual void SetFullscreen(bool fullscreen) {}
+  virtual bool is_fullscreen() const { return false; }
+  virtual void ToggleFullscreen(bool fullscreen) {}
 
  public:
   Delegate<UIEvent> on_shown;
@@ -61,7 +68,8 @@ class Window : public T {
   Delegate<UIEvent> on_closed;
 
  protected:
-  Window(const std::wstring& title) : T(0), title_(title) {}
+  Window(Loop* loop, const std::wstring& title)
+      : T(0), loop_(loop), title_(title) {}
 
   void OnShow() {
     if (is_visible_) {
@@ -87,8 +95,9 @@ class Window : public T {
 
   virtual void OnCommand(int id) {}
 
-  MenuItem* menu_;
+  Loop* loop_ = nullptr;
   std::wstring title_;
+  MenuItem* menu_ = nullptr;
 };
 
 }  // namespace ui

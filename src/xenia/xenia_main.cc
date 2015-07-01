@@ -15,7 +15,6 @@
 #include "xenia/kernel/kernel.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/file_picker.h"
-#include "xenia/ui/main_window.h"
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 
@@ -61,7 +60,7 @@ int xenia_main(std::vector<std::wstring>& args) {
         //{ L"Content Package (*.xcp)", L"*.xcp" },
         {L"All Files (*.*)", L"*.*"},
     });
-    if (file_picker.Show(emulator->main_window()->hwnd())) {
+    if (file_picker.Show(emulator->display_window()->hwnd())) {
       auto selected_files = file_picker.selected_files();
       if (!selected_files.empty()) {
         path = selected_files[0];
@@ -80,7 +79,7 @@ int xenia_main(std::vector<std::wstring>& args) {
     }
 
     // Wait until we are exited.
-    emulator->main_window()->loop()->AwaitQuit();
+    emulator->display_window()->loop()->AwaitQuit();
   }
 
   emulator.reset();

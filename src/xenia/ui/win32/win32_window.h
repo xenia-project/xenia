@@ -22,7 +22,7 @@ namespace win32 {
 
 class Win32Window : public Window<Win32Control> {
  public:
-  Win32Window(const std::wstring& title);
+  Win32Window(Loop* loop, const std::wstring& title);
   ~Win32Window() override;
 
   bool Initialize() override;
@@ -35,7 +35,8 @@ class Win32Window : public Window<Win32Control> {
   void ResizeToFill(int32_t pad_left, int32_t pad_top, int32_t pad_right,
                     int32_t pad_bottom) override;
 
-  void SetFullscreen(bool fullscreen) override;
+  bool is_fullscreen() const override;
+  void ToggleFullscreen(bool fullscreen) override;
 
  protected:
   bool Create() override;
@@ -49,9 +50,8 @@ class Win32Window : public Window<Win32Control> {
  private:
   void EnableMMCSS();
 
-  bool closing_;
+  bool closing_ = false;
 
-  bool fullscreen_;
   WINDOWPLACEMENT windowed_pos_;
 };
 

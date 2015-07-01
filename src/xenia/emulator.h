@@ -15,7 +15,7 @@
 #include "xenia/debug/debugger.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
-#include "xenia/ui/main_window.h"
+#include "xenia/ui/platform.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 
@@ -49,7 +49,7 @@ class Emulator {
 
   const std::wstring& command_line() const { return command_line_; }
 
-  ui::MainWindow* main_window() const { return main_window_.get(); }
+  ui::PlatformWindow* display_window() const { return display_window_.get(); }
 
   Memory* memory() const { return memory_.get(); }
 
@@ -83,7 +83,7 @@ class Emulator {
 
   std::wstring command_line_;
 
-  std::unique_ptr<ui::MainWindow> main_window_;
+  std::unique_ptr<ui::PlatformWindow> display_window_;
 
   std::unique_ptr<Memory> memory_;
 

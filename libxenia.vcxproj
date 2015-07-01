@@ -403,6 +403,7 @@
     <ClInclude Include="src\xenia\ui\loop.h" />
     <ClInclude Include="src\xenia\ui\main_window.h" />
     <ClInclude Include="src\xenia\ui\menu_item.h" />
+    <ClInclude Include="src\xenia\ui\platform.h" />
     <ClInclude Include="src\xenia\ui\ui_event.h" />
     <ClInclude Include="src\xenia\ui\win32\win32_control.h" />
     <ClInclude Include="src\xenia\ui\win32\win32_file_picker.h" />

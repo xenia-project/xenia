@@ -29,7 +29,7 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
   static std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
 
-  X_STATUS Setup(cpu::Processor* processor, ui::PlatformLoop* target_loop,
+  X_STATUS Setup(cpu::Processor* processor, ui::Loop* target_loop,
                  ui::PlatformWindow* target_window) override;
   void Shutdown() override;
 

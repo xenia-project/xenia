@@ -16,7 +16,8 @@
 
 #include "xenia/cpu/processor.h"
 #include "xenia/memory.h"
-#include "xenia/ui/main_window.h"
+#include "xenia/ui/loop.h"
+#include "xenia/ui/platform.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -36,8 +37,7 @@ class GraphicsSystem {
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
 
-  virtual X_STATUS Setup(cpu::Processor* processor,
-                         ui::PlatformLoop* target_loop,
+  virtual X_STATUS Setup(cpu::Processor* processor, ui::Loop* target_loop,
                          ui::PlatformWindow* target_window);
   virtual void Shutdown();
 
@@ -64,14 +64,14 @@ class GraphicsSystem {
  protected:
   GraphicsSystem(Emulator* emulator);
 
-  Emulator* emulator_;
-  Memory* memory_;
-  cpu::Processor* processor_;
-  ui::PlatformLoop* target_loop_;
-  ui::PlatformWindow* target_window_;
+  Emulator* emulator_ = nullptr;
+  Memory* memory_ = nullptr;
+  cpu::Processor* processor_ = nullptr;
+  ui::Loop* target_loop_ = nullptr;
+  ui::PlatformWindow* target_window_ = nullptr;
 
-  uint32_t interrupt_callback_;
-  uint32_t interrupt_callback_data_;
+  uint32_t interrupt_callback_ = 0;
+  uint32_t interrupt_callback_data_ = 0;
 };
 
 }  // namespace gpu

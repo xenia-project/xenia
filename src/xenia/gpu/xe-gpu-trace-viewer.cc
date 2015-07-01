@@ -24,7 +24,6 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/gl/gl_context.h"
-#include "xenia/ui/main_window.h"
 
 // HACK: until we have another impl, we just use gl4 directly.
 #include "xenia/gpu/gl4/command_processor.h"
@@ -843,7 +842,7 @@ class TracePlayer : public TraceReader {
   int current_command_index_;
 };
 
-void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
+void DrawControllerUI(xe::ui::PlatformWindow* window, TracePlayer& player,
                       Memory* memory) {
   ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Controller", nullptr, ImVec2(340, 60))) {
@@ -884,7 +883,7 @@ void DrawControllerUI(xe::ui::MainWindow* window, TracePlayer& player,
   ImGui::End();
 }
 
-void DrawCommandListUI(xe::ui::MainWindow* window, TracePlayer& player,
+void DrawCommandListUI(xe::ui::PlatformWindow* window, TracePlayer& player,
                        Memory* memory) {
   ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
@@ -1028,7 +1027,7 @@ ShaderDisplayType DrawShaderTypeUI() {
   return shader_display_type;
 }
 
-void DrawShaderUI(xe::ui::MainWindow* window, TracePlayer& player,
+void DrawShaderUI(xe::ui::PlatformWindow* window, TracePlayer& player,
                   Memory* memory, gl4::GL4Shader* shader,
                   ShaderDisplayType display_type) {
   // Must be prepared for advanced display modes.
@@ -1394,7 +1393,7 @@ static const char* kEndiannessNames[] = {
     "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
 };
 
-void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
+void DrawStateUI(xe::ui::PlatformWindow* window, TracePlayer& player,
                  Memory* memory) {
   auto gs = static_cast<gl4::GL4GraphicsSystem*>(player.graphics_system());
   auto cp = gs->command_processor();
@@ -2034,8 +2033,8 @@ void DrawStateUI(xe::ui::MainWindow* window, TracePlayer& player,
   ImGui::End();
 }
 
-void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
-                              Memory* memory) {
+void DrawPacketDisassemblerUI(xe::ui::PlatformWindow* window,
+                              TracePlayer& player, Memory* memory) {
   ImGui::SetNextWindowCollapsed(true, ImGuiSetCond_FirstUseEver);
   ImGui::SetNextWindowPos(ImVec2(float(window->width()) - 500 - 5, 5),
                           ImGuiSetCond_FirstUseEver);
@@ -2176,7 +2175,8 @@ void DrawPacketDisassemblerUI(xe::ui::MainWindow* window, TracePlayer& player,
   ImGui::End();
 }
 
-void DrawUI(xe::ui::MainWindow* window, TracePlayer& player, Memory* memory) {
+void DrawUI(xe::ui::PlatformWindow* window, TracePlayer& player,
+            Memory* memory) {
   // ImGui::ShowTestWindow();
 
   DrawControllerUI(window, player, memory);
@@ -2212,7 +2212,7 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
     // Normalize the path and make absolute.
     auto abs_path = xe::to_absolute_path(path);
 
-    auto window = emulator->main_window();
+    auto window = emulator->display_window();
     auto loop = window->loop();
     auto file_name = xe::find_name_from_path(path);
     window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
@@ -2306,7 +2306,7 @@ int trace_viewer_main(std::vector<std::wstring>& args) {
     graphics_system->RequestSwap();
 
     // Wait until we are exited.
-    emulator->main_window()->loop()->AwaitQuit();
+    emulator->display_window()->loop()->AwaitQuit();
 
     ImImpl_Shutdown();
   }

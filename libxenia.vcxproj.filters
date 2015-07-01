@@ -1368,6 +1368,9 @@
     <ClInclude Include="src\xenia\ui\gl\circular_buffer.h">
       <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
+    <ClInclude Include="src\xenia\ui\platform.h">
+      <Filter>src\xenia\ui</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\xenia\cpu\hir\opcodes.inl">
