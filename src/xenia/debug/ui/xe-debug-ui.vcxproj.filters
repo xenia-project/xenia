@@ -10,5 +10,30 @@
     <Filter Include="src\xenia\debug">
       <UniqueIdentifier>{1b70e26e-0024-410f-b27f-ceaba190d5a9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\xenia\debug\ui">
+      <UniqueIdentifier>{9b5a4bce-210a-4488-863a-9175f0543d00}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\xenia\base">
+      <UniqueIdentifier>{9a5724c2-5473-4d53-93b4-26531201f38d}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\base\main.h">
+      <Filter>src\xenia\base</Filter>
+    </ClInclude>
+    <ClInclude Include="main_window.h">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\base\main_win.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
+    <ClCompile Include="xe-debug-ui.cc">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="main_window.cc">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
