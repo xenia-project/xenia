@@ -280,9 +280,9 @@ struct X_ANSI_STRING {
 };
 
 struct X_UNICODE_STRING {
-  xe::be<uint16_t> length;
-  xe::be<uint16_t> maximum_length;
-  xe::be<uint32_t> pointer;
+  xe::be<uint16_t> length;          // 0x0
+  xe::be<uint16_t> maximum_length;  // 0x2
+  xe::be<uint32_t> pointer;         // 0x4
 
   void reset() {
     length = 0;
@@ -322,8 +322,19 @@ static_assert_size(X_VIDEO_MODE, 48);
 struct X_LIST_ENTRY {
   be<uint32_t> flink_ptr;  // next entry / head
   be<uint32_t> blink_ptr;  // previous entry / head
+
+  // Assumes X_LIST_ENTRY is within guest memory!
+  void initialize(uint8_t* virtual_membase) {
+    flink_ptr = (uint32_t)((uint8_t*)this - virtual_membase);
+    blink_ptr = (uint32_t)((uint8_t*)this - virtual_membase);
+  }
 };
 static_assert_size(X_LIST_ENTRY, 8);
+
+struct X_SINGLE_LIST_ENTRY {
+  be<uint32_t> next;  // 0x0 pointer to next entry
+};
+static_assert_size(X_SINGLE_LIST_ENTRY, 4);
 
 #pragma pack(pop)
 

@@ -54,30 +54,29 @@ constexpr uint32_t X_PROCTYPE_IDLE = 0;
 constexpr uint32_t X_PROCTYPE_USER = 1;
 constexpr uint32_t X_PROCTYPE_SYSTEM = 2;
 
-struct ProcessInfoBlock {
-  xe::be<uint32_t> unk_00;
-  xe::be<uint32_t> unk_04;  // blink
-  xe::be<uint32_t> unk_08;  // flink
-  xe::be<uint32_t> unk_0C;
-  xe::be<uint32_t> unk_10;
-  xe::be<uint32_t> thread_count;
-  xe::be<uint8_t> unk_18;
-  xe::be<uint8_t> unk_19;
-  xe::be<uint8_t> unk_1A;
-  xe::be<uint8_t> unk_1B;
-  xe::be<uint32_t> kernel_stack_size;
-  xe::be<uint32_t> unk_20;
-  xe::be<uint32_t> tls_data_size;
-  xe::be<uint32_t> tls_raw_data_size;
-  xe::be<uint16_t> tls_slot_size;
-  xe::be<uint8_t> unk_2E;
-  xe::be<uint8_t> process_type;
-  xe::be<uint32_t> bitmap[0x20 / 4];
-  xe::be<uint32_t> unk_50;
-  xe::be<uint32_t> unk_54;  // blink
-  xe::be<uint32_t> unk_58;  // flink
-  xe::be<uint32_t> unk_5C;
+struct X_KPROCESS {
+  xe::be<uint32_t> thread_list_lock;               // 0x0
+  X_LIST_ENTRY thread_list_head;                   // 0x4
+  xe::be<uint32_t> thread_quantum;                 // 0xC
+  xe::be<uint32_t> directory_table_base;           // 0x10
+  xe::be<uint32_t> thread_count;                   // 0x14
+  xe::be<uint8_t> idle_priority_class;             // 0x18
+  xe::be<uint8_t> normal_priority_class;           // 0x19
+  xe::be<uint8_t> time_critical_priority_class;    // 0x1A
+  xe::be<uint8_t> disable_quantum;                 // 0x1B
+  xe::be<uint32_t> default_kernel_stack_size;      // 0x1C
+  xe::be<uint32_t> tls_static_data_image;          // 0x20
+  xe::be<uint32_t> size_of_tls_static_data;        // 0x24
+  xe::be<uint32_t> size_of_tls_static_data_image;  // 0x28
+  xe::be<uint16_t> size_of_tls_slots;              // 0x2C
+  xe::be<uint8_t> terminating;                     // 0x2E
+  xe::be<uint8_t> process_type;                    // 0x2D
+  xe::be<uint32_t> bitmap[8];                      // 0x2C
+  xe::be<uint32_t> file_object_list_lock;          // 0x50
+  X_LIST_ENTRY file_object_list_head;              // 0x54
+  xe::be<uint32_t> win32_default_heap_handle;      // 0x5C
 };
+static_assert_size(X_KPROCESS, 0x60);
 
 class KernelState {
  public:

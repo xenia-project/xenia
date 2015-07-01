@@ -149,8 +149,8 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 X_STATUS XThread::Create() {
   // Thread kernel object
   // This call will also setup the native pointer for us.
-  uint8_t* guest_object = CreateNative(sizeof(X_THREAD));
-  if (!guest_object) {
+  auto kthread = reinterpret_cast<X_KTHREAD*>(CreateNative(sizeof(X_KTHREAD)));
+  if (!kthread) {
     XELOGW("Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
@@ -213,8 +213,7 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  pcr_address_ = memory()->SystemHeapAlloc(0x2D8 + 0xAB0);
-  thread_state_address_ = pcr_address_ + 0x2D8;
+  pcr_address_ = memory()->SystemHeapAlloc(sizeof(X_KPCR));
   if (!pcr_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -235,87 +234,64 @@ X_STATUS XThread::Create() {
   uint8_t proc_mask =
       static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
-  // Processor Control Region
-  struct XPCR {
-    xe::be<uint32_t> tls_ptr;         // 0x0
-    char unk_04[0x2C];                // 0x4
-    xe::be<uint32_t> pcr_ptr;         // 0x30
-    char unk_34[0x3C];                // 0x34
-    xe::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)
-    xe::be<uint32_t> stack_end_ptr;   // 0x74 Stack end (low addr)
-    char unk_78[0x88];                // 0x78
-    xe::be<uint32_t> teb_ptr;         // 0x100
-    char unk_104[0x8];                // 0x104
-    xe::be<uint8_t> current_cpu;      // 0x10C
-    char unk_10D[0x43];               // 0x10D
-    xe::be<uint32_t> dpc_active;      // 0x150
-  };
+  // Setup PCR
+  auto pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
-  XPCR* pcr = memory()->TranslateVirtual<XPCR*>(pcr_address_);
+  pcr->gp_save.gpr_13_save = pcr_address_;
+  pcr->prcb_data.current_thread = guest_object();
 
-  pcr->tls_ptr = tls_address_;
-  pcr->pcr_ptr = pcr_address_;
-  pcr->teb_ptr = thread_state_address_;
-
-  pcr->stack_base_ptr =
+  pcr->stack_base =
       thread_state_->stack_address() + thread_state_->stack_size();
-  pcr->stack_end_ptr = thread_state_->stack_address();
+  pcr->stack_limit = thread_state_->stack_address();
 
-  pcr->current_cpu = GetFakeCpuNumber(proc_mask);  // Current CPU(?)
-  pcr->dpc_active = 0;                             // DPC active bool?
-
-  // Thread state block
-  struct XTEB {
-    xe::be<uint32_t> unk_00;  // 0x0
-    xe::be<uint32_t> unk_04;  // 0x4
-    X_LIST_ENTRY unk_08;      // 0x8
-    X_LIST_ENTRY unk_10;      // 0x10
-  };
+  pcr->prcb_data.number = GetFakeCpuNumber(proc_mask);  // Current CPU
+  pcr->prcb_data.dpc_routine_active = 0;  // Prevents last error getting set
 
   // Setup the thread state block (last error/etc).
-  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  xe::store_and_swap<uint32_t>(p + 0x000, 6);
-  xe::store_and_swap<uint32_t>(p + 0x008, thread_state_address_ + 0x008);
-  xe::store_and_swap<uint32_t>(p + 0x00C, thread_state_address_ + 0x008);
-  xe::store_and_swap<uint32_t>(p + 0x010, thread_state_address_ + 0x010);
-  xe::store_and_swap<uint32_t>(p + 0x014, thread_state_address_ + 0x010);
+  kthread->header.type = 6;
+  kthread->header.wait_list_flink =
+      memory()->TranslateHost(&kthread->header.wait_list_flink);
+  kthread->header.wait_list_blink =
+      memory()->TranslateHost(&kthread->header.wait_list_flink);
 
-  xe::store_and_swap<uint32_t>(p + 0x040, thread_state_address_ + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x044, thread_state_address_ + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x048, thread_state_address_);
-  xe::store_and_swap<uint32_t>(p + 0x04C, thread_state_address_ + 0x018);
+  kthread->mutant_list_head.initialize(memory()->virtual_membase());
 
-  xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
-  xe::store_and_swap<uint16_t>(p + 0x056, 1);
-  xe::store_and_swap<uint32_t>(
-      p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
-  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
-  xe::store_and_swap<uint8_t>(p + 0x06C, 0);
-  xe::store_and_swap<uint32_t>(p + 0x074, thread_state_address_ + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x078, thread_state_address_ + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x07C, thread_state_address_ + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x080, thread_state_address_ + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x084,
-                               kernel_state_->process_info_block_address());
-  xe::store_and_swap<uint8_t>(p + 0x08B, 1);
-  // D4 = APC
-  // FC = semaphore (ptr, 0, 2)
-  // A88 = APC
-  // 18 = timer
-  xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
-  xe::store_and_swap<uint32_t>(
-      p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
-  xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
-  xe::store_and_swap<uint32_t>(p + 0x154, thread_state_address_ + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x158, thread_state_address_ + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
-  xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
-  xe::store_and_swap<uint32_t>(p + 0x17C, 1);
+  kthread->timer_wait_block.wait_list_entry.initialize(
+      memory()->virtual_membase());
+  kthread->timer_wait_block.thread = guest_object();
+  kthread->timer_wait_block.object = memory()->TranslateHost(&kthread->timer);
+  kthread->timer_wait_block.wait_key = 0x102;
+  kthread->timer_wait_block.wait_type = 1;
+
+  kthread->stack_limit = thread_state_->stack_address();
+  kthread->stack_base =
+      thread_state_->stack_address() + thread_state_->stack_size();
+
+  kthread->tls_data = tls_address_;
+
+  kthread->state = 0;
+  kthread->apc_list_head[0].initialize(memory()->virtual_membase());
+  kthread->apc_list_head[1].initialize(memory()->virtual_membase());
+
+  kthread->process_ptr = kernel_state_->process_info_block_address();
+  kthread->apc_queueable = 1;
+
+  kthread->msr.msr_enable_mask = 0xFDFFD7FF;
+
+  kthread->stack_allocated_base =
+      thread_state_->stack_address() + thread_state_->stack_size();
+
+  kthread->thread_list_entry.initialize(memory()->virtual_membase());
+  kthread->queue_list_entry.initialize(memory()->virtual_membase());
+  kthread->create_time = Clock::QueryGuestSystemTime();
+  kthread->active_timer_list_head.initialize(memory()->virtual_membase());
+
+  kthread->thread_id_ptr = thread_id_;  // FIXME: Proper?
+  kthread->start_address = creation_params_.start_address;
+  kthread->irp_list.initialize(memory()->virtual_membase());
+  kthread->create_options = creation_params_.creation_flags;
+
+  // FIXME: Old code set vscr[1] to (int)1. What do we do?
 
   X_STATUS return_code = PlatformCreate();
   if (XFAILED(return_code)) {
@@ -583,8 +559,11 @@ void XThread::DeliverAPCs(void* data) {
       // kernel_routine(apc_address, &normal_routine, &normal_context,
       // &system_arg1, &system_arg2)
       uint64_t kernel_args[] = {
-          apc_ptr, thread->scratch_address_ + 0, thread->scratch_address_ + 4,
-          thread->scratch_address_ + 8, thread->scratch_address_ + 12,
+          apc_ptr,
+          thread->scratch_address_ + 0,
+          thread->scratch_address_ + 4,
+          thread->scratch_address_ + 8,
+          thread->scratch_address_ + 12,
       };
       processor->Execute(thread->thread_state(), apc->kernel_routine,
                          kernel_args, xe::countof(kernel_args));

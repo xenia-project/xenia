@@ -69,20 +69,17 @@ KernelState::KernelState(Emulator* emulator)
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
 
-  process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
+  process_info_block_address_ = memory_->SystemHeapAlloc(sizeof(X_KPROCESS));
 
-  auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
-  // TODO(benvanik): figure out what this list is.
-  pib->unk_04 = pib->unk_08 = 0;
-  pib->unk_0C = 0x0000007F;
-  pib->unk_10 = 0x001F0000;
-  pib->thread_count = 0;
-  pib->unk_1B = 0x06;
-  pib->kernel_stack_size = 16 * 1024;
-  pib->process_type = process_type_;
-  // TODO(benvanik): figure out what this list is.
-  pib->unk_54 = pib->unk_58 = 0;
+  auto kprocess =
+      memory()->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
+  kprocess->thread_list_head.initialize(memory()->virtual_membase());
+  kprocess->thread_quantum = 0x0000007F;
+  kprocess->directory_table_base = 0x001F0000;  // PE table base?
+  kprocess->disable_quantum = 0x06;
+  kprocess->default_kernel_stack_size = 16 * 1024;
+  kprocess->process_type = process_type_;
+  kprocess->file_object_list_head.initialize(memory()->virtual_membase());
 
   apps::RegisterApps(this, app_manager_.get());
 }
@@ -124,15 +121,15 @@ uint32_t KernelState::title_id() const {
 }
 
 uint32_t KernelState::process_type() const {
-  auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
-  return pib->process_type;
+  auto kprocess =
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
+  return kprocess->process_type;
 }
 
 void KernelState::set_process_type(uint32_t value) {
-  auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
-  pib->process_type = uint8_t(value);
+  auto kprocess =
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
+  kprocess->process_type = uint8_t(value);
 }
 
 void KernelState::RegisterModule(XModule* module) {}
@@ -194,11 +191,11 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
 
   auto header = executable_module_->xex_header();
   if (header) {
-    auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
-        process_info_block_address_);
-    pib->tls_data_size = header->tls_info.data_size;
-    pib->tls_raw_data_size = header->tls_info.raw_data_size;
-    pib->tls_slot_size = header->tls_info.slot_count * 4;
+    auto kprocess =
+        memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
+    kprocess->size_of_tls_static_data = header->tls_info.data_size;
+    kprocess->size_of_tls_static_data_image = header->tls_info.raw_data_size;
+    kprocess->size_of_tls_slots = header->tls_info.slot_count * 4;
   }
 
   // Setup the kernel's XexExecutableModuleHandle field.
@@ -296,9 +293,9 @@ void KernelState::RegisterThread(XThread* thread) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   threads_by_id_[thread->thread_id()] = thread;
 
-  auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
-  pib->thread_count = pib->thread_count + 1;
+  auto kprocess =
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
+  kprocess->thread_count++;
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
@@ -308,9 +305,9 @@ void KernelState::UnregisterThread(XThread* thread) {
     threads_by_id_.erase(it);
   }
 
-  auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
-  pib->thread_count = pib->thread_count - 1;
+  auto kprocess =
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
+  kprocess->thread_count--;
 }
 
 void KernelState::OnThreadExecute(XThread* thread) {
