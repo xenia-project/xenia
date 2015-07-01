@@ -27,6 +27,12 @@
     <ClInclude Include="application.h">
       <Filter>src\xenia\debug\ui</Filter>
     </ClInclude>
+    <ClInclude Include="turbo_badger_control.h">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="turbo_badger_renderer.h">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\base\main_win.cc">
@@ -39,6 +45,12 @@
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
     <ClCompile Include="application.cc">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="turbo_badger_control.cc">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="turbo_badger_renderer.cc">
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
   </ItemGroup>

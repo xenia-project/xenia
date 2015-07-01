@@ -58,6 +58,8 @@
 #define strdup _strdup
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#undef DeleteBitmap
+#undef GetFirstChild
 #endif  // XE_PLATFORM_WIN32
 
 #if XE_COMPILER_MSVC

@@ -21,6 +21,7 @@ class Loop {
   virtual ~Loop() = default;
 
   virtual void Post(std::function<void()> fn) = 0;
+  virtual void PostDelayed(std::function<void()> fn, uint64_t delay_millis) = 0;
 
   virtual void Quit() = 0;
   virtual void AwaitQuit() = 0;

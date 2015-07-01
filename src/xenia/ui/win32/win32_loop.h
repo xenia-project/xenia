@@ -10,11 +10,11 @@
 #ifndef XENIA_UI_WIN32_WIN32_LOOP_H_
 #define XENIA_UI_WIN32_WIN32_LOOP_H_
 
-#include <atomic>
-#include <condition_variable>
 #include <mutex>
+#include <list>
 #include <thread>
 
+#include "xenia/base/mutex.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/loop.h"
@@ -29,16 +29,30 @@ class Win32Loop : public Loop {
   ~Win32Loop() override;
 
   void Post(std::function<void()> fn) override;
+  void PostDelayed(std::function<void()> fn, uint64_t delay_millis) override;
 
   void Quit() override;
   void AwaitQuit() override;
 
  private:
+  struct PendingTimer {
+    Win32Loop* loop;
+    HANDLE timer_queue;
+    HANDLE timer_handle;
+    std::function<void()> fn;
+  };
+
   void ThreadMain();
+
+  static void TimerQueueCallback(void* context, uint8_t);
 
   std::thread thread_;
   DWORD thread_id_;
   xe::threading::Fence quit_fence_;
+
+  HANDLE timer_queue_;
+  xe::mutex pending_timers_mutex_;
+  std::list<PendingTimer*> pending_timers_;
 };
 
 }  // namespace win32

@@ -54,7 +54,8 @@ class Win32Control : public Control {
   virtual LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
                           LPARAM lParam);
 
-  HWND hwnd_;
+  HWND hwnd_ = nullptr;
+  bool invalidated_ = true;
 
  private:
   bool HandleMouse(UINT message, WPARAM wParam, LPARAM lParam);

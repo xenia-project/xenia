@@ -121,10 +121,13 @@ void Win32Control::OnResize(UIEvent& e) {
 }
 
 void Win32Control::Invalidate() {
+  if (invalidated_) {
+    return;
+  }
+  invalidated_ = true;
   InvalidateRect(hwnd_, nullptr, FALSE);
   for (auto& child_control : children_) {
-    auto win32_control = static_cast<Win32Control*>(child_control.get());
-    win32_control->Invalidate();
+    child_control->Invalidate();
   }
 }
 
@@ -234,8 +237,15 @@ LRESULT Win32Control::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       break;
     }
 
-    case WM_PAINT:
+    case WM_PAINT: {
+      if (flags_ & kFlagOwnPaint) {
+        return 0;  // ignore
+      }
+      invalidated_ = false;
+      auto e = UIEvent(this);
+      OnPaint(e);
       break;
+    }
     case WM_ERASEBKGND:
       if (flags_ & kFlagOwnPaint) {
         return 0;  // ignore

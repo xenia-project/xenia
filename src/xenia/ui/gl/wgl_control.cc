@@ -77,10 +77,11 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                             LPARAM lParam) {
   switch (message) {
     case WM_PAINT: {
+      invalidated_ = false;
+      ValidateRect(hWnd, nullptr);
       SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::WGLControl::WM_PAINT");
       {
         GLContextLock context_lock(&context_);
-        wglSwapIntervalEXT(0);
 
         float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
         glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
@@ -100,6 +101,7 @@ LRESULT WGLControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
         SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::WGLControl::SwapBuffers");
         SwapBuffers(context_.dc());
       }
+      return 0;
     } break;
   }
   return Win32Control::WndProc(hWnd, message, wParam, lParam);

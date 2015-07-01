@@ -25,6 +25,7 @@ class Application {
   ~Application();
 
   static std::unique_ptr<Application> Create();
+  static Application* current();
 
   xe::ui::Loop* loop() { return &loop_; }
   MainWindow* main_window() const { return main_window_.get(); }
