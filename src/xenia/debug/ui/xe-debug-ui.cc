@@ -12,15 +12,15 @@
 #include <cstring>
 
 #include "xenia/base/main.h"
-#include "xenia/debug/ui/main_window.h"
+#include "xenia/debug/ui/application.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
 
 int main(std::vector<std::wstring>& args) {
-  auto main_window = MainWindow::Create();
-  main_window->loop()->AwaitQuit();
+  auto app = Application::Create();
+  app->loop()->AwaitQuit();
   return 0;
 }
 

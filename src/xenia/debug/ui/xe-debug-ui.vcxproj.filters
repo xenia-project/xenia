@@ -24,6 +24,9 @@
     <ClInclude Include="main_window.h">
       <Filter>src\xenia\debug\ui</Filter>
     </ClInclude>
+    <ClInclude Include="application.h">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\base\main_win.cc">
@@ -33,6 +36,9 @@
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
     <ClCompile Include="main_window.cc">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="application.cc">
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
   </ItemGroup>

@@ -13,7 +13,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace debug {
@@ -32,32 +31,12 @@ enum Commands {
 
 const std::wstring kBaseTitle = L"xenia debugger";
 
-MainWindow::MainWindow()
-    : PlatformWindow(&loop_, kBaseTitle), main_menu_(MenuItem::Type::kNormal) {}
+MainWindow::MainWindow(Application* app)
+    : PlatformWindow(app->loop(), kBaseTitle),
+      app_(app),
+      main_menu_(MenuItem::Type::kNormal) {}
 
 MainWindow::~MainWindow() = default;
-
-std::unique_ptr<MainWindow> MainWindow::Create() {
-  std::unique_ptr<MainWindow> main_window(new MainWindow());
-
-  xe::threading::Fence fence;
-
-  main_window->loop()->Post([&main_window, &fence]() {
-    xe::threading::set_name("Win32 Loop");
-    xe::Profiler::ThreadEnter("Win32 Loop");
-
-    if (!main_window->Initialize()) {
-      XEFATAL("Failed to initialize main window");
-      exit(1);
-    }
-
-    fence.Signal();
-  });
-
-  fence.Wait();
-
-  return main_window;
-}
 
 bool MainWindow::Initialize() {
   if (!PlatformWindow::Initialize()) {
@@ -117,13 +96,7 @@ bool MainWindow::Initialize() {
   return true;
 }
 
-void MainWindow::OnClose() {
-  loop_.Quit();
-
-  // TODO(benvanik): proper exit.
-  XELOGI("User-initiated death!");
-  exit(1);
-}
+void MainWindow::OnClose() { app_->Quit(); }
 
 void MainWindow::OnCommand(int id) {
   switch (id) {

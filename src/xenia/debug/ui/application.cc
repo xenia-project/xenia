@@ -1,0 +1,66 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "xenia/debug/ui/application.h"
+
+#include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
+#include "xenia/base/threading.h"
+#include "xenia/debug/ui/main_window.h"
+#include "xenia/profiling.h"
+
+namespace xe {
+namespace debug {
+namespace ui {
+
+Application::Application() {}
+
+Application::~Application() = default;
+
+std::unique_ptr<Application> Application::Create() {
+  std::unique_ptr<Application> app(new Application());
+
+  xe::threading::Fence fence;
+  app->loop()->Post([&app, &fence]() {
+    xe::threading::set_name("Win32 Loop");
+    xe::Profiler::ThreadEnter("Win32 Loop");
+
+    if (!app->Initialize()) {
+      XEFATAL("Failed to initialize application");
+      exit(1);
+    }
+
+    fence.Signal();
+  });
+  fence.Wait();
+
+  return app;
+}
+
+bool Application::Initialize() {
+  main_window_ = std::make_unique<MainWindow>(this);
+  if (!main_window_->Initialize()) {
+    XELOGE("Unable to initialize main window");
+    return false;
+  }
+
+  return true;
+}
+
+void Application::Quit() {
+  loop_.Quit();
+
+  // TODO(benvanik): proper exit.
+  XELOGI("User-initiated death!");
+  exit(1);
+}
+
+}  // namespace ui
+}  // namespace debug
+}  // namespace xe

@@ -7,40 +7,41 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_UI_MAIN_WINDOW_H_
-#define XENIA_DEBUG_UI_MAIN_WINDOW_H_
+#ifndef XENIA_DEBUG_UI_APPLICATION_H_
+#define XENIA_DEBUG_UI_APPLICATION_H_
 
 #include <memory>
 
-#include "xenia/debug/ui/application.h"
-#include "xenia/ui/gl/wgl_control.h"
 #include "xenia/ui/platform.h"
-#include "xenia/ui/window.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
 
-class MainWindow : public xe::ui::PlatformWindow {
- public:
-  MainWindow(Application* app);
-  ~MainWindow() override;
+class MainWindow;
 
-  Application* app() const { return app_; }
+class Application {
+ public:
+  ~Application();
+
+  static std::unique_ptr<Application> Create();
+
+  xe::ui::Loop* loop() { return &loop_; }
+  MainWindow* main_window() const { return main_window_.get(); }
+
+  void Quit();
+
+ private:
+  Application();
 
   bool Initialize();
 
- private:
-  void OnClose() override;
-  void OnCommand(int id) override;
-
-  Application* app_ = nullptr;
-  xe::ui::PlatformMenu main_menu_;
-  std::unique_ptr<xe::ui::gl::WGLControl> control_;
+  xe::ui::PlatformLoop loop_;
+  std::unique_ptr<MainWindow> main_window_;
 };
 
 }  // namespace ui
 }  // namespace debug
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_UI_MAIN_WINDOW_H_
+#endif  // XENIA_DEBUG_UI_APPLICATION_H_

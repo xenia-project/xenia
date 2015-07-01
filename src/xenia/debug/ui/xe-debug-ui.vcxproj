@@ -75,10 +75,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\base\main.h" />
+    <ClInclude Include="application.h" />
     <ClInclude Include="main_window.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\base\main_win.cc" />
+    <ClCompile Include="application.cc" />
     <ClCompile Include="main_window.cc" />
     <ClCompile Include="xe-debug-ui.cc" />
   </ItemGroup>
