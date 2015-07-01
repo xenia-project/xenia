@@ -10,9 +10,7 @@
 #ifndef XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
 #define XENIA_UI_WIN32_WIN32_MENU_ITEM_H_
 
-#include <windows.h>
-#include <windowsx.h>
-
+#include "xenia/base/platform.h"
 #include "xenia/ui/menu_item.h"
 
 namespace xe {

@@ -397,6 +397,7 @@
     <ClInclude Include="src\xenia\ui\file_picker.h" />
     <ClInclude Include="src\xenia\ui\gl\blitter.h" />
     <ClInclude Include="src\xenia\ui\gl\circular_buffer.h" />
+    <ClInclude Include="src\xenia\ui\gl\gl.h" />
     <ClInclude Include="src\xenia\ui\gl\gl_context.h" />
     <ClInclude Include="src\xenia\ui\gl\gl_profiler_display.h" />
     <ClInclude Include="src\xenia\ui\gl\wgl_control.h" />

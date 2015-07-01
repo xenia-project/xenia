@@ -7,9 +7,6 @@
  ******************************************************************************
  */
 
-#define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
-#include <winsock2.h>
-
 #include <cstring>
 
 #include "xenia/base/clock.h"
@@ -19,6 +16,10 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
 #include "xenia/xbox.h"
+
+// NOTE: must be included last as it expects windows.h to already be included.
+#define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
+#include <winsock2.h>
 
 namespace xe {
 namespace kernel {

@@ -14,14 +14,10 @@
 
 #include <memory>
 
-#include "third_party/GL/glew.h"
-#include "third_party/GL/wglew.h"
 #include "xenia/ui/gl/blitter.h"
+#include "xenia/ui/gl/gl.h"
 
 DECLARE_bool(thread_safe_gl);
-
-extern "C" GLEWContext* glewGetContext();
-extern "C" WGLEWContext* wglewGetContext();
 
 namespace xe {
 namespace ui {

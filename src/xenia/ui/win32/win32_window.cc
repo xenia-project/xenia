@@ -10,9 +10,6 @@
 #include "xenia/ui/win32/win32_window.h"
 
 #include <cstring>
-#include <dwmapi.h>
-#include <tpcshrd.h>
-#include <windowsx.h>
 
 #include "xenia/base/logging.h"
 

@@ -10,14 +10,12 @@
 #ifndef XENIA_UI_WIN32_WIN32_LOOP_H_
 #define XENIA_UI_WIN32_WIN32_LOOP_H_
 
-#include <windows.h>
-#include <windowsx.h>
-
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
+#include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/loop.h"
 

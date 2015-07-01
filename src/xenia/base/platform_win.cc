@@ -9,8 +9,6 @@
 
 #include "xenia/base/platform.h"
 
-#include <shellapi.h>
-
 namespace xe {
 
 void LaunchBrowser(const char* url) {

@@ -9,8 +9,6 @@
 
 #include "xenia/base/filesystem.h"
 
-#include <shellapi.h>
-
 #include <string>
 
 #include "xenia/base/platform.h"

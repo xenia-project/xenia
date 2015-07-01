@@ -12,7 +12,7 @@
 
 #include <unordered_map>
 
-#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/gl/gl.h"
 
 namespace xe {
 namespace ui {

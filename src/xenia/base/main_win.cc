@@ -10,10 +10,9 @@
 #include "xenia/base/main.h"
 
 #include <fcntl.h>
-#include <io.h>
-#include <shellapi.h>
-
 #include <gflags/gflags.h>
+#include <io.h>
+
 #include "xenia/base/string.h"
 
 namespace xe {

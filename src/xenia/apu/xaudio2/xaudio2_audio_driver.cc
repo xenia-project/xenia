@@ -9,6 +9,8 @@
 
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
+#include <xaudio2.h>
+
 #include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -39,13 +41,16 @@ class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
 };
 
 XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE semaphore)
-    : audio_(nullptr),
+    : AudioDriver(emulator),
+      audio_(nullptr),
       mastering_voice_(nullptr),
       pcm_voice_(nullptr),
       semaphore_(semaphore),
       voice_callback_(nullptr),
-      current_frame_(0),
-      AudioDriver(emulator) {}
+      current_frame_(0) {
+  static_assert(frame_count_ == XAUDIO2_MAX_QUEUED_BUFFERS,
+                "xaudio header differs");
+}
 
 XAudio2AudioDriver::~XAudio2AudioDriver() = default;
 

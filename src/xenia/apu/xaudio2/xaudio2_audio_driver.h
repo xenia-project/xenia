@@ -10,9 +10,11 @@
 #ifndef XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 #define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 
-#include <xaudio2.h>
-
 #include "xenia/apu/audio_driver.h"
+
+struct IXAudio2;
+struct IXAudio2MasteringVoice;
+struct IXAudio2SourceVoice;
 
 namespace xe {
 namespace apu {
@@ -36,7 +38,7 @@ class XAudio2AudioDriver : public AudioDriver {
   class VoiceCallback;
   VoiceCallback* voice_callback_;
 
-  static const uint32_t frame_count_ = XAUDIO2_MAX_QUEUED_BUFFERS;
+  static const uint32_t frame_count_ = 64;
   static const uint32_t frame_channels_ = 6;
   static const uint32_t channel_samples_ = 256;
   static const uint32_t frame_samples_ = frame_channels_ * channel_samples_;

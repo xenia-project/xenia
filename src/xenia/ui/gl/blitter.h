@@ -12,8 +12,7 @@
 
 #include <memory>
 
-#include "third_party/GL/glew.h"
-#include "third_party/GL/wglew.h"
+#include "xenia/ui/gl/gl.h"
 
 namespace xe {
 namespace ui {

@@ -1371,6 +1371,9 @@
     <ClInclude Include="src\xenia\ui\platform.h">
       <Filter>src\xenia\ui</Filter>
     </ClInclude>
+    <ClInclude Include="src\xenia\ui\gl\gl.h">
+      <Filter>src\xenia\ui\gl</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\xenia\cpu\hir\opcodes.inl">

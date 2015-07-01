@@ -9,8 +9,7 @@
 
 #include "xenia/cpu/mmio_handler.h"
 
-#include <Windows.h>
-
+#include "xenia/base/platform.h"
 #include "xenia/profiling.h"
 
 namespace xe {

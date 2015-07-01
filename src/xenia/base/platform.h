@@ -45,11 +45,16 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#define NOMINMAX
 #include <SDKDDKVer.h>
 #include <windows.h>
 #include <ObjBase.h>
-#undef min
-#undef max
+#include <shellapi.h>
+#include <shlwapi.h>
+#include <shobjidl.h>
+#include <dwmapi.h>
+#include <tpcshrd.h>
+#include <windowsx.h>
 #define strdup _strdup
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp

@@ -8,9 +8,9 @@
  */
 
 #include "xenia/base/debugging.h"
-#include "xenia/base/string_buffer.h"
 
-#include <Windows.h>
+#include "xenia/base/platform.h"
+#include "xenia/base/string_buffer.h"
 
 namespace xe {
 namespace debugging {

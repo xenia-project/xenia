@@ -9,14 +9,13 @@
 
 #include "xenia/base/mapped_memory.h"
 
-#include <Windows.h>
-
 #include <memory>
 #include <mutex>
 #include <vector>
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform.h"
 
 namespace xe {
 

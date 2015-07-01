@@ -9,12 +9,7 @@
 
 #include "xenia/ui/win32/win32_file_picker.h"
 
-#include <windows.h>
-#include <windowsx.h>
-#include <shellapi.h>
-#include <shlwapi.h>
-#include <shobjidl.h>
-
+#include "xenia/base/platform.h"
 #include "xenia/base/assert.h"
 
 namespace xe {

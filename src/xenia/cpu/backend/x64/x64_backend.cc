@@ -15,7 +15,6 @@
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/processor.h"
-#include "third_party/xbyak/xbyak/xbyak_util.h"
 
 DEFINE_bool(
     enable_haswell_instructions, true,

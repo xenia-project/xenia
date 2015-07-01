@@ -10,15 +10,16 @@
 #ifndef XENIA_BACKEND_X64_X64_EMITTER_H_
 #define XENIA_BACKEND_X64_X64_EMITTER_H_
 
-#include "third_party/xbyak/xbyak/xbyak.h"
-#include "third_party/xbyak/xbyak/xbyak_util.h"
-
 #include "xenia/base/arena.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
 #include "xenia/debug/function_trace_data.h"
 #include "xenia/memory.h"
+
+// NOTE: must be included last as it expects windows.h to already be included.
+#include "third_party/xbyak/xbyak/xbyak.h"
+#include "third_party/xbyak/xbyak/xbyak_util.h"
 
 namespace xe {
 namespace cpu {
