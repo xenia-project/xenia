@@ -25,20 +25,6 @@
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc" />
     <ClCompile Include="src\xenia\apu\xma_context.cc" />
     <ClCompile Include="src\xenia\apu\xma_decoder.cc" />
-    <ClCompile Include="src\xenia\base\arena.cc" />
-    <ClCompile Include="src\xenia\base\clock.cc" />
-    <ClCompile Include="src\xenia\base\debugging_win.cc" />
-    <ClCompile Include="src\xenia\base\filesystem.cc" />
-    <ClCompile Include="src\xenia\base\filesystem_win.cc" />
-    <ClCompile Include="src\xenia\base\logging.cc" />
-    <ClCompile Include="src\xenia\base\mapped_memory_win.cc" />
-    <ClCompile Include="src\xenia\base\math.cc" />
-    <ClCompile Include="src\xenia\base\memory_generic.cc" />
-    <ClCompile Include="src\xenia\base\platform_win.cc" />
-    <ClCompile Include="src\xenia\base\ring_buffer.cc" />
-    <ClCompile Include="src\xenia\base\string.cc" />
-    <ClCompile Include="src\xenia\base\string_buffer.cc" />
-    <ClCompile Include="src\xenia\base\threading_win.cc" />
     <ClCompile Include="src\xenia\cpu\backend\assembler.cc" />
     <ClCompile Include="src\xenia\cpu\backend\backend.cc" />
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_assembler.cc" />
@@ -274,27 +260,6 @@
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_system.h" />
     <ClInclude Include="src\xenia\apu\xma_context.h" />
     <ClInclude Include="src\xenia\apu\xma_decoder.h" />
-    <ClInclude Include="src\xenia\base\arena.h" />
-    <ClInclude Include="src\xenia\base\assert.h" />
-    <ClInclude Include="src\xenia\base\atomic.h" />
-    <ClInclude Include="src\xenia\base\byte_order.h" />
-    <ClInclude Include="src\xenia\base\clock.h" />
-    <ClInclude Include="src\xenia\base\debugging.h" />
-    <ClInclude Include="src\xenia\base\delegate.h" />
-    <ClInclude Include="src\xenia\base\filesystem.h" />
-    <ClInclude Include="src\xenia\base\logging.h" />
-    <ClInclude Include="src\xenia\base\mapped_memory.h" />
-    <ClInclude Include="src\xenia\base\math.h" />
-    <ClInclude Include="src\xenia\base\memory.h" />
-    <ClInclude Include="src\xenia\base\mutex.h" />
-    <ClInclude Include="src\xenia\base\platform.h" />
-    <ClInclude Include="src\xenia\base\reset_scope.h" />
-    <ClInclude Include="src\xenia\base\ring_buffer.h" />
-    <ClInclude Include="src\xenia\base\string.h" />
-    <ClInclude Include="src\xenia\base\string_buffer.h" />
-    <ClInclude Include="src\xenia\base\threading.h" />
-    <ClInclude Include="src\xenia\base\type_pool.h" />
-    <ClInclude Include="src\xenia\base\vec128.h" />
     <ClInclude Include="src\xenia\cpu\backend\assembler.h" />
     <ClInclude Include="src\xenia\cpu\backend\backend.h" />
     <ClInclude Include="src\xenia\cpu\backend\code_cache.h" />
@@ -591,7 +556,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-xma-bin\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
@@ -608,7 +573,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -627,7 +592,7 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib>
-      <AdditionalDependencies>libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

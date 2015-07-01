@@ -14,9 +14,6 @@
     <Filter Include="src\xenia\apu">
       <UniqueIdentifier>{b996d1c8-9a7a-4bf0-8c55-786c15a9a615}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\xenia\base">
-      <UniqueIdentifier>{c3b64a9c-babd-4ed7-a495-b720522b9572}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\xenia\cpu">
       <UniqueIdentifier>{ea01c27b-70c2-4527-b8c5-e3cc5cfc92e1}</UniqueIdentifier>
     </Filter>
@@ -186,33 +183,6 @@
     </ClCompile>
     <ClCompile Include="src\xenia\apu\xaudio2\xaudio2_audio_system.cc">
       <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\arena.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\debugging_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\logging.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\mapped_memory_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\math.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\memory_generic.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\string.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\string_buffer.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\threading_win.cc">
-      <Filter>src\xenia\base</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\cpu\debug_info.cc">
       <Filter>src\xenia\cpu</Filter>
@@ -640,14 +610,8 @@
     <ClCompile Include="src\xenia\cpu\backend\x64\x64_code_cache.cc">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\base\clock.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\kernel\util\shim_utils.cc">
       <Filter>src\xenia\kernel\util</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\ring_buffer.cc">
-      <Filter>src\xenia\base</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\kernel\xam_nui.cc">
       <Filter>src\xenia\kernel</Filter>
@@ -703,9 +667,6 @@
     <ClCompile Include="src\xenia\apu\xma_context.cc">
       <Filter>src\xenia\apu</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\base\platform_win.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\ui\win32\win32_file_picker.cc">
       <Filter>src\xenia\ui\win32</Filter>
     </ClCompile>
@@ -729,12 +690,6 @@
     </ClCompile>
     <ClCompile Include="src\xenia\apu\nop\nop_apu_flags.cc">
       <Filter>src\xenia\apu\nop</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\filesystem.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\base\filesystem_win.cc">
-      <Filter>src\xenia\base</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\vfs\device.cc">
       <Filter>src\xenia\vfs</Filter>
@@ -800,57 +755,6 @@
     </ClInclude>
     <ClInclude Include="src\xenia\apu\xaudio2\xaudio2_audio_driver.h">
       <Filter>src\xenia\apu\xaudio2</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\arena.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\assert.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\atomic.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\byte_order.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\debugging.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\delegate.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\logging.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\mapped_memory.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\math.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\memory.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\platform.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\reset_scope.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\string.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\string_buffer.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\threading.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\type_pool.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\vec128.h">
-      <Filter>src\xenia\base</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\cpu\debug_info.h">
       <Filter>src\xenia\cpu</Filter>
@@ -1320,15 +1224,6 @@
     <ClInclude Include="src\xenia\debug\proto\threads_generated.h">
       <Filter>src\xenia\debug\proto</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\base\mutex.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\clock.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\ring_buffer.h">
-      <Filter>src\xenia\base</Filter>
-    </ClInclude>
     <ClInclude Include="third_party\capstone\include\capstone.h">
       <Filter>third_party\capstone\include</Filter>
     </ClInclude>
@@ -1430,9 +1325,6 @@
     </ClInclude>
     <ClInclude Include="src\xenia\hid\input.h">
       <Filter>src\xenia\hid</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\base\filesystem.h">
-      <Filter>src\xenia\base</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\vfs\device.h">
       <Filter>src\xenia\vfs</Filter>

@@ -25,11 +25,10 @@ and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
 
-## Running
+To redirect output, use the following command flags:
+`--flagfile=$(SolutionDir)scratch\flags.txt 2>&1 1>$(SolutionDir)scratch\stdout.txt`
 
-Use the wrapper shell scripts under `bin/` to run tools. They will ensure the
-tools are built (but not that they are up to date) before running and allow
-switching between the debug and release variants with `--debug`.
+## Running
 
 To make life easier you can use `--flagfile=myflags.txt` to specify all
 arguments, including using `--target=my.xex` to pick an executable.
