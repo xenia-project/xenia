@@ -43,7 +43,14 @@ void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
 
 void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,
                                 size_t count) {
-  for (size_t i = 0; i < count; ++i) {
+  size_t i;
+  for (i = 0; i + 8 <= count; i += 8) {
+    __m128i s = _mm_loadu_si128((__m128i*)&src[i]);
+    __m128i d = _mm_or_si128(_mm_slli_epi16(s, 8), _mm_srli_epi16(s, 8));
+    _mm_storeu_si128((__m128i*)&dest[i], d);
+  }
+
+  for (; i < count; ++i) {  // handle residual elements
     dest[i] = byte_swap(src[i]);
   }
 }
