@@ -100,7 +100,34 @@ void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src,
 
 void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
                                 size_t count) {
-  for (size_t i = 0; i < count; ++i) {
+  size_t i;
+  __m128i input, byte1, byte2, byte3, byte4, output;
+  __m128i byte2mask = _mm_set1_epi32(0x00FF0000);
+  __m128i byte3mask = _mm_set1_epi32(0x0000FF00);
+
+  for (i = 0; i + 2 <= count; i += 2) {
+    input = _mm_loadu_si128((__m128i*)&src[i]);
+
+    // Do the four shifts
+    byte1 = _mm_slli_epi32(input, 24);
+    byte2 = _mm_slli_epi32(input, 8);
+    byte3 = _mm_srli_epi32(input, 8);
+    byte4 = _mm_srli_epi32(input, 24);
+
+    // Or bytes together
+    output = _mm_or_si128(byte1, byte4);
+    byte2 = _mm_and_si128(byte2, byte2mask);
+    output = _mm_or_si128(output, byte2);
+    byte3 = _mm_and_si128(byte3, byte3mask);
+    output = _mm_or_si128(output, byte3);
+
+    // Reorder the two words
+    output = _mm_shuffle_epi32(output, _MM_SHUFFLE(2, 3, 0, 1));
+
+    _mm_storeu_si128((__m128i*)&dest[i], output);
+  }
+
+  for (; i < count; ++i) {  // handle residual elements
     dest[i] = byte_swap(src[i]);
   }
 }
