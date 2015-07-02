@@ -27,11 +27,11 @@ class TurboBadgerControl : public xe::ui::gl::WGLControl {
   TurboBadgerControl(xe::ui::Loop* loop);
   ~TurboBadgerControl() override;
 
-  static bool InitializeTurboBadger(tb::TBRenderer* renderer);
+  static bool InitializeTurboBadger(tb::Renderer* renderer);
   static void ShutdownTurboBadger();
 
-  tb::TBRenderer* renderer() const { return renderer_.get(); }
-  tb::TBWidget* root_widget() const { return root_widget_.get(); }
+  tb::Renderer* renderer() const { return renderer_.get(); }
+  tb::Widget* root_widget() const { return root_widget_.get(); }
 
  protected:
   using super = xe::ui::gl::WGLControl;
@@ -45,10 +45,10 @@ class TurboBadgerControl : public xe::ui::gl::WGLControl {
   void OnGotFocus(xe::ui::UIEvent& e) override;
   void OnLostFocus(xe::ui::UIEvent& e) override;
 
-  tb::MODIFIER_KEYS GetModifierKeys();
+  tb::ModifierKeys GetModifierKeys();
 
   void OnKeyPress(xe::ui::KeyEvent& e, bool is_down);
-  bool CheckShortcutKey(xe::ui::KeyEvent& e, tb::SPECIAL_KEY special_key,
+  bool CheckShortcutKey(xe::ui::KeyEvent& e, tb::SpecialKey special_key,
                         bool is_down);
   void OnKeyDown(xe::ui::KeyEvent& e) override;
   void OnKeyUp(xe::ui::KeyEvent& e) override;
@@ -58,8 +58,8 @@ class TurboBadgerControl : public xe::ui::gl::WGLControl {
   void OnMouseUp(xe::ui::MouseEvent& e) override;
   void OnMouseWheel(xe::ui::MouseEvent& e) override;
 
-  std::unique_ptr<tb::TBRenderer> renderer_;
-  std::unique_ptr<tb::TBWidget> root_widget_;
+  std::unique_ptr<tb::Renderer> renderer_;
+  std::unique_ptr<tb::Widget> root_widget_;
 
   uint32_t frame_count_ = 0;
   uint32_t fps_ = 0;

@@ -82,14 +82,14 @@ void Application::Quit() {
 // This doesn't really belong here (it belongs in tb_system_[linux/windows].cpp.
 // This is here since the proper implementations has not yet been done.
 void tb::TBSystem::RescheduleTimer(uint64_t fire_time) {
-  if (fire_time == tb::TB_NOT_SOON) {
+  if (fire_time == tb::kNotSoon) {
     return;
   }
 
   uint64_t now = tb::TBSystem::GetTimeMS();
   uint64_t delay_millis = fire_time >= now ? fire_time - now : 0;
   xe::debug::ui::Application::current()->loop()->PostDelayed([]() {
-    uint64_t next_fire_time = tb::TBMessageHandler::GetNextMessageFireTime();
+    uint64_t next_fire_time = tb::MessageHandler::GetNextMessageFireTime();
     uint64_t now = tb::TBSystem::GetTimeMS();
     if (now < next_fire_time) {
       // We timed out *before* we were supposed to (the OS is not playing nice).
@@ -99,12 +99,11 @@ void tb::TBSystem::RescheduleTimer(uint64_t fire_time) {
       return;
     }
 
-    tb::TBMessageHandler::ProcessMessages();
+    tb::MessageHandler::ProcessMessages();
 
     // If we still have things to do (because we didn't process all messages,
     // or because there are new messages), we need to rescedule, so call
     // RescheduleTimer.
-    tb::TBSystem::RescheduleTimer(
-        tb::TBMessageHandler::GetNextMessageFireTime());
+    tb::TBSystem::RescheduleTimer(tb::MessageHandler::GetNextMessageFireTime());
   }, delay_millis);
 }

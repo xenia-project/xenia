@@ -22,7 +22,7 @@ namespace xe {
 namespace debug {
 namespace ui {
 
-class TBRendererGL4 : public tb::TBRendererBatcher {
+class TBRendererGL4 : public tb::RendererBatcher {
  public:
   TBRendererGL4();
   ~TBRendererGL4() override;
@@ -32,10 +32,10 @@ class TBRendererGL4 : public tb::TBRendererBatcher {
   void BeginPaint(int render_target_w, int render_target_h) override;
   void EndPaint() override;
 
-  tb::TBBitmap* CreateBitmap(int width, int height, uint32_t* data) override;
+  tb::Bitmap* CreateBitmap(int width, int height, uint32_t* data) override;
 
   void RenderBatch(Batch* batch) override;
-  void SetClipRect(const tb::TBRect& rect) override;
+  void SetClipRect(const tb::Rect& rect) override;
 
  private:
   class TBBitmapGL4;

@@ -22,7 +22,7 @@ namespace ui {
 
 using namespace tb;
 
-class TBRendererGL4::TBBitmapGL4 : public tb::TBBitmap {
+class TBRendererGL4::TBBitmapGL4 : public tb::Bitmap {
  public:
   TBBitmapGL4(TBRendererGL4* renderer);
   ~TBBitmapGL4();
@@ -50,8 +50,8 @@ TBRendererGL4::TBBitmapGL4::~TBBitmapGL4() {
 }
 
 bool TBRendererGL4::TBBitmapGL4::Init(int width, int height, uint32_t* data) {
-  assert(width == TBGetNearestPowerOfTwo(width));
-  assert(height == TBGetNearestPowerOfTwo(height));
+  assert(width == GetNearestPowerOfTwo(width));
+  assert(height == GetNearestPowerOfTwo(height));
   width_ = width;
   height_ = height;
 
@@ -181,7 +181,7 @@ void main() { \n\
   return true;
 }
 
-TBBitmap* TBRendererGL4::CreateBitmap(int width, int height, uint32_t* data) {
+Bitmap* TBRendererGL4::CreateBitmap(int width, int height, uint32_t* data) {
   auto bitmap = std::make_unique<TBBitmapGL4>(this);
   if (!bitmap->Init(width, height, data)) {
     return nullptr;
@@ -189,14 +189,14 @@ TBBitmap* TBRendererGL4::CreateBitmap(int width, int height, uint32_t* data) {
   return bitmap.release();
 }
 
-void TBRendererGL4::SetClipRect(const TBRect& rect) {
+void TBRendererGL4::SetClipRect(const Rect& rect) {
   Flush();
   glScissor(m_clip_rect.x, m_screen_rect.h - (m_clip_rect.y + m_clip_rect.h),
             m_clip_rect.w, m_clip_rect.h);
 }
 
 void TBRendererGL4::BeginPaint(int render_target_w, int render_target_h) {
-  TBRendererBatcher::BeginPaint(render_target_w, render_target_h);
+  RendererBatcher::BeginPaint(render_target_w, render_target_h);
 
   glEnablei(GL_BLEND, 0);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -230,7 +230,7 @@ void TBRendererGL4::BeginPaint(int render_target_w, int render_target_h) {
 }
 
 void TBRendererGL4::EndPaint() {
-  TBRendererBatcher::EndPaint();
+  RendererBatcher::EndPaint();
 
   Flush();
 

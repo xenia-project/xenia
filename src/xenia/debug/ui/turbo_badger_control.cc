@@ -9,6 +9,7 @@
 
 #include "xenia/debug/ui/turbo_badger_control.h"
 
+#include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/debug/ui/turbo_badger_renderer.h"
@@ -25,7 +26,7 @@ namespace xe {
 namespace debug {
 namespace ui {
 
-constexpr bool kContinuousRepaint = true;
+constexpr bool kContinuousRepaint = false;
 
 // Enables long press behaviors (context menu, etc).
 constexpr bool kTouch = false;
@@ -35,7 +36,7 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
-class RootWidget : public tb::TBWidget {
+class RootWidget : public tb::Widget {
  public:
   RootWidget(TurboBadgerControl* owner) : owner_(owner) {}
   void OnInvalid() override { owner_->Invalidate(); }
@@ -44,7 +45,7 @@ class RootWidget : public tb::TBWidget {
   TurboBadgerControl* owner_ = nullptr;
 };
 
-bool TurboBadgerControl::InitializeTurboBadger(tb::TBRenderer* renderer) {
+bool TurboBadgerControl::InitializeTurboBadger(tb::Renderer* renderer) {
   static bool has_initialized = false;
   if (has_initialized) {
     return true;
@@ -95,7 +96,7 @@ bool TurboBadgerControl::InitializeTurboBadger(tb::TBRenderer* renderer) {
 
   // Set the default font description for widgets to one of the fonts we just
   // added.
-  tb::TBFontDescription fd;
+  tb::FontDescription fd;
   fd.SetID(TBIDC("Default"));
   fd.SetSize(tb::g_tb_skin->GetDimensionConverter()->DpToPx(14));
   tb::g_font_manager->SetDefaultFontDescription(fd);
@@ -125,18 +126,18 @@ bool TurboBadgerControl::Create() {
     return false;
   }
 
-  tb::TBWidgetsAnimationManager::Init();
+  tb::WidgetAnimationManager::Init();
 
   // TODO(benvanik): setup widgets.
   root_widget_ = std::make_unique<RootWidget>(this);
   root_widget_->SetSkinBg(TBIDC("background"));
-  root_widget_->SetRect(tb::TBRect(0, 0, 1000, 1000));
+  root_widget_->SetRect(tb::Rect(0, 0, 1000, 1000));
 
   // Block animations during init.
-  tb::TBAnimationBlocker anim_blocker;
+  tb::AnimationBlocker anim_blocker;
 
   // TODO(benvanik): dummy UI.
-  auto message_window = new tb::TBMessageWindow(root_widget(), TBIDC(""));
+  auto message_window = new tb::MessageWindow(root_widget(), TBIDC(""));
   message_window->Show("Title", "Hello!");
 
   // tb::ShowDebugInfoSettingsWindow(root_widget());
@@ -145,7 +146,7 @@ bool TurboBadgerControl::Create() {
 }
 
 void TurboBadgerControl::Destroy() {
-  tb::TBWidgetsAnimationManager::Shutdown();
+  tb::WidgetAnimationManager::Shutdown();
   super::Destroy();
 }
 
@@ -155,11 +156,14 @@ void TurboBadgerControl::OnLayout(xe::ui::UIEvent& e) {
     return;
   }
   // TODO(benvanik): subregion?
-  root_widget()->SetRect(tb::TBRect(0, 0, width(), height()));
+  root_widget()->SetRect(tb::Rect(0, 0, width(), height()));
 }
 
 void TurboBadgerControl::OnPaint(xe::ui::UIEvent& e) {
   super::OnPaint(e);
+  if (!root_widget()) {
+    return;
+  }
 
   ++frame_count_;
   ++fps_frame_count_;
@@ -172,28 +176,28 @@ void TurboBadgerControl::OnPaint(xe::ui::UIEvent& e) {
   }
 
   // Update TB (run animations, handle deferred input, etc).
-  tb::TBAnimationManager::Update();
+  tb::AnimationManager::Update();
   root_widget()->InvokeProcessStates();
   root_widget()->InvokeProcess();
 
   renderer()->BeginPaint(width(), height());
 
   // Render entire control hierarchy.
-  root_widget()->InvokePaint(tb::TBWidget::PaintProps());
+  root_widget()->InvokePaint(tb::Widget::PaintProps());
 
   // Render debug overlay.
   root_widget()->GetFont()->DrawString(
-      5, 5, tb::TBColor(255, 0, 0),
+      5, 5, tb::Color(255, 0, 0),
       tb::format_string("Frame %lld", frame_count_));
   if (kContinuousRepaint) {
-    root_widget()->GetFont()->DrawString(5, 20, tb::TBColor(255, 0, 0),
+    root_widget()->GetFont()->DrawString(5, 20, tb::Color(255, 0, 0),
                                          tb::format_string("FPS: %d", fps_));
   }
 
   renderer()->EndPaint();
 
   // If animations are running, reinvalidate immediately.
-  if (tb::TBAnimationManager::HasAnimationsRunning()) {
+  if (tb::AnimationManager::HasAnimationsRunning()) {
     root_widget()->Invalidate();
   }
   if (kContinuousRepaint) {
@@ -215,109 +219,112 @@ void TurboBadgerControl::OnLostFocus(xe::ui::UIEvent& e) {
   last_click_time_ = 0;
 }
 
-tb::MODIFIER_KEYS TurboBadgerControl::GetModifierKeys() {
-  auto modifiers = tb::TB_MODIFIER_NONE;
+tb::ModifierKeys TurboBadgerControl::GetModifierKeys() {
+  auto modifiers = tb::ModifierKeys::kNone;
   if (modifier_shift_pressed_) {
-    modifiers |= tb::MODIFIER_KEYS::TB_SHIFT;
+    modifiers |= tb::ModifierKeys::kShift;
   }
   if (modifier_cntrl_pressed_) {
-    modifiers |= tb::MODIFIER_KEYS::TB_CTRL;
+    modifiers |= tb::ModifierKeys::kCtrl;
   }
   if (modifier_alt_pressed_) {
-    modifiers |= tb::MODIFIER_KEYS::TB_ALT;
+    modifiers |= tb::ModifierKeys::kAlt;
   }
   if (modifier_super_pressed_) {
-    modifiers |= tb::MODIFIER_KEYS::TB_SUPER;
+    modifiers |= tb::ModifierKeys::kSuper;
   }
   return modifiers;
 }
 
 void TurboBadgerControl::OnKeyPress(xe::ui::KeyEvent& e, bool is_down) {
-  tb::SPECIAL_KEY special_key = tb::SPECIAL_KEY::TB_KEY_UNDEFINED;
+  if (!root_widget()) {
+    return;
+  }
+  auto special_key = tb::SpecialKey::kUndefined;
   switch (e.key_code()) {
     case 38:
-      special_key = tb::SPECIAL_KEY::TB_KEY_UP;
+      special_key = tb::SpecialKey::kUp;
       break;
     case 39:
-      special_key = tb::SPECIAL_KEY::TB_KEY_RIGHT;
+      special_key = tb::SpecialKey::kRight;
       break;
     case 40:
-      special_key = tb::SPECIAL_KEY::TB_KEY_DOWN;
+      special_key = tb::SpecialKey::kDown;
       break;
     case 37:
-      special_key = tb::SPECIAL_KEY::TB_KEY_LEFT;
+      special_key = tb::SpecialKey::kLeft;
       break;
     case 112:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F1;
+      special_key = tb::SpecialKey::kF1;
       break;
     case 113:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F2;
+      special_key = tb::SpecialKey::kF2;
       break;
     case 114:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F3;
+      special_key = tb::SpecialKey::kF3;
       break;
     case 115:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F4;
+      special_key = tb::SpecialKey::kF4;
       break;
     case 116:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F5;
+      special_key = tb::SpecialKey::kF5;
       break;
     case 117:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F6;
+      special_key = tb::SpecialKey::kF6;
       break;
     case 118:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F7;
+      special_key = tb::SpecialKey::kF7;
       break;
     case 119:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F8;
+      special_key = tb::SpecialKey::kF8;
       break;
     case 120:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F9;
+      special_key = tb::SpecialKey::kF9;
       break;
     case 121:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F10;
+      special_key = tb::SpecialKey::kF10;
       break;
     case 122:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F11;
+      special_key = tb::SpecialKey::kF11;
       break;
     case 123:
-      special_key = tb::SPECIAL_KEY::TB_KEY_F12;
+      special_key = tb::SpecialKey::kF12;
       break;
     case 33:
-      special_key = tb::SPECIAL_KEY::TB_KEY_PAGE_UP;
+      special_key = tb::SpecialKey::kPageUp;
       break;
     case 34:
-      special_key = tb::SPECIAL_KEY::TB_KEY_PAGE_DOWN;
+      special_key = tb::SpecialKey::kPageDown;
       break;
     case 36:
-      special_key = tb::SPECIAL_KEY::TB_KEY_HOME;
+      special_key = tb::SpecialKey::kHome;
       break;
     case 35:
-      special_key = tb::SPECIAL_KEY::TB_KEY_END;
+      special_key = tb::SpecialKey::kEnd;
       break;
     case 45:
-      special_key = tb::SPECIAL_KEY::TB_KEY_INSERT;
+      special_key = tb::SpecialKey::kInsert;
       break;
     case 9:
-      special_key = tb::SPECIAL_KEY::TB_KEY_TAB;
+      special_key = tb::SpecialKey::kTab;
       break;
     case 46:
-      special_key = tb::SPECIAL_KEY::TB_KEY_DELETE;
+      special_key = tb::SpecialKey::kDelete;
       break;
     case 8:
-      special_key = tb::SPECIAL_KEY::TB_KEY_BACKSPACE;
+      special_key = tb::SpecialKey::kBackspace;
       break;
     case 13:
-      special_key = tb::SPECIAL_KEY::TB_KEY_ENTER;
+      special_key = tb::SpecialKey::kEnter;
       break;
     case 27:
-      special_key = tb::SPECIAL_KEY::TB_KEY_ESC;
+      special_key = tb::SpecialKey::kEsc;
       break;
     case 93:
-      if (!is_down && tb::TBWidget::focused_widget) {
-        tb::TBWidgetEvent ev(tb::EVENT_TYPE_CONTEXT_MENU);
+      if (!is_down && tb::Widget::focused_widget) {
+        tb::WidgetEvent ev(tb::EventType::kContextMenu);
         ev.modifierkeys = GetModifierKeys();
-        tb::TBWidget::focused_widget->InvokeEvent(ev);
+        tb::Widget::focused_widget->InvokeEvent(ev);
         e.set_handled(true);
         return;
       }
@@ -339,16 +346,16 @@ void TurboBadgerControl::OnKeyPress(xe::ui::KeyEvent& e, bool is_down) {
 
   if (!CheckShortcutKey(e, special_key, is_down)) {
     e.set_handled(root_widget()->InvokeKey(
-        special_key != tb::SPECIAL_KEY::TB_KEY_UNDEFINED ? e.key_code() : 0,
+        special_key != tb::SpecialKey::kUndefined ? e.key_code() : 0,
         special_key, GetModifierKeys(), is_down));
   }
 }
 
 bool TurboBadgerControl::CheckShortcutKey(xe::ui::KeyEvent& e,
-                                          tb::SPECIAL_KEY special_key,
+                                          tb::SpecialKey special_key,
                                           bool is_down) {
   bool shortcut_key = modifier_cntrl_pressed_;
-  if (!tb::TBWidget::focused_widget || !is_down || !shortcut_key) {
+  if (!tb::Widget::focused_widget || !is_down || !shortcut_key) {
     return false;
   }
   bool reverse_key = modifier_shift_pressed_;
@@ -359,10 +366,10 @@ bool TurboBadgerControl::CheckShortcutKey(xe::ui::KeyEvent& e,
   tb::TBID id;
   if (upper_key == 'X') {
     id = TBIDC("cut");
-  } else if (upper_key == 'C' || special_key == tb::TB_KEY_INSERT) {
+  } else if (upper_key == 'C' || special_key == tb::SpecialKey::kInsert) {
     id = TBIDC("copy");
   } else if (upper_key == 'V' ||
-             (special_key == tb::TB_KEY_INSERT && reverse_key)) {
+             (special_key == tb::SpecialKey::kInsert && reverse_key)) {
     id = TBIDC("paste");
   } else if (upper_key == 'A') {
     id = TBIDC("selectall");
@@ -380,18 +387,18 @@ bool TurboBadgerControl::CheckShortcutKey(xe::ui::KeyEvent& e,
     id = TBIDC("save");
   } else if (upper_key == 'W') {
     id = TBIDC("close");
-  } else if (special_key == tb::TB_KEY_PAGE_UP) {
+  } else if (special_key == tb::SpecialKey::kPageUp) {
     id = TBIDC("prev_doc");
-  } else if (special_key == tb::TB_KEY_PAGE_DOWN) {
+  } else if (special_key == tb::SpecialKey::kPageDown) {
     id = TBIDC("next_doc");
   } else {
     return false;
   }
 
-  tb::TBWidgetEvent ev(tb::EVENT_TYPE_SHORTCUT);
+  tb::WidgetEvent ev(tb::EventType::kShortcut);
   ev.modifierkeys = GetModifierKeys();
   ev.ref_id = id;
-  if (!tb::TBWidget::focused_widget->InvokeEvent(ev)) {
+  if (!tb::Widget::focused_widget->InvokeEvent(ev)) {
     return false;
   }
   e.set_handled(true);
@@ -410,6 +417,9 @@ void TurboBadgerControl::OnKeyUp(xe::ui::KeyEvent& e) {
 
 void TurboBadgerControl::OnMouseDown(xe::ui::MouseEvent& e) {
   super::OnMouseDown(e);
+  if (!root_widget()) {
+    return;
+  }
   // TODO(benvanik): more button types.
   if (e.button() == xe::ui::MouseEvent::Button::kLeft) {
     // Simulated click count support.
@@ -437,24 +447,30 @@ void TurboBadgerControl::OnMouseDown(xe::ui::MouseEvent& e) {
 
 void TurboBadgerControl::OnMouseMove(xe::ui::MouseEvent& e) {
   super::OnMouseMove(e);
+  if (!root_widget()) {
+    return;
+  }
   root_widget()->InvokePointerMove(e.x(), e.y(), GetModifierKeys(), kTouch);
   e.set_handled(true);
 }
 
 void TurboBadgerControl::OnMouseUp(xe::ui::MouseEvent& e) {
   super::OnMouseUp(e);
+  if (!root_widget()) {
+    return;
+  }
   if (e.button() == xe::ui::MouseEvent::Button::kLeft) {
     e.set_handled(root_widget()->InvokePointerUp(e.x(), e.y(),
                                                  GetModifierKeys(), kTouch));
   } else if (e.button() == xe::ui::MouseEvent::Button::kRight) {
     root_widget()->InvokePointerMove(e.x(), e.y(), GetModifierKeys(), kTouch);
-    if (tb::TBWidget::hovered_widget) {
+    if (tb::Widget::hovered_widget) {
       int x = e.x();
       int y = e.y();
-      tb::TBWidget::hovered_widget->ConvertFromRoot(x, y);
-      tb::TBWidgetEvent ev(tb::EVENT_TYPE_CONTEXT_MENU, x, y, kTouch,
-                           GetModifierKeys());
-      tb::TBWidget::hovered_widget->InvokeEvent(ev);
+      tb::Widget::hovered_widget->ConvertFromRoot(x, y);
+      tb::WidgetEvent ev(tb::EventType::kContextMenu, x, y, kTouch,
+                         GetModifierKeys());
+      tb::Widget::hovered_widget->InvokeEvent(ev);
     }
     e.set_handled(true);
   }
@@ -462,6 +478,9 @@ void TurboBadgerControl::OnMouseUp(xe::ui::MouseEvent& e) {
 
 void TurboBadgerControl::OnMouseWheel(xe::ui::MouseEvent& e) {
   super::OnMouseWheel(e);
+  if (!root_widget()) {
+    return;
+  }
   e.set_handled(root_widget()->InvokeWheel(
       e.x(), e.y(), e.dx(), -e.dy() / kMouseWheelDetent, GetModifierKeys()));
 }
