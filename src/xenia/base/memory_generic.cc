@@ -132,4 +132,18 @@ void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
   }
 }
 
+void copy_and_swap_16_in_32_aligned(uint32_t* dest, const uint32_t* src,
+                                    size_t count) {
+  size_t i;
+  __m128i input, output;
+  for (i = 0; i + 4 <= count; i += 4) {
+    input = _mm_loadu_si128((__m128i*)&src[i]);
+    output = _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
+    _mm_storeu_si128((__m128i*)&dest[i], output);
+  }
+  for (; i < count; ++i) {  // handle residual elements
+    dest[i] = (src[i] >> 16) | (src[i] << 16);
+  }
+}
+
 }  // namespace xe

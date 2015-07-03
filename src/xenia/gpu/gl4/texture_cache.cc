@@ -687,13 +687,10 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
                                    reinterpret_cast<const uint32_t*>(src),
                                    length / 4);
       break;
-    case Endian::k16in32:
-      // TODO(benvanik): make more efficient.
-      /*for (uint32_t i = 0; i < length; i += 4, src += 4, dest += 4) {
-        uint32_t value = *(uint32_t*)src;
-        *(uint32_t*)dest = ((value >> 16) & 0xFFFF) | (value << 16);
-      }*/
-      assert_always("16in32 not supported");
+    case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
+      xe::copy_and_swap_16_in_32_aligned(reinterpret_cast<uint32_t*>(dest),
+                                         reinterpret_cast<const uint32_t*>(src),
+                                         length);
       break;
     default:
     case Endian::kUnspecified:

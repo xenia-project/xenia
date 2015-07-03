@@ -46,6 +46,8 @@ void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src,
                               size_t count);
 void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
                                 size_t count);
+void copy_and_swap_16_in_32_aligned(uint32_t* dest, const uint32_t* src,
+                                    size_t count);
 
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {
