@@ -166,7 +166,7 @@ X_STATUS XThread::Create() {
   // Games will specify a certain number of 4b slots that each thread will get.
   xex2_opt_tls_info* tls_header = nullptr;
   if (module) {
-    module->GetOptHeader(XEX_HEADER_TLS_INFO, (void**)&tls_header);
+    module->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   }
 
   const uint32_t kDefaultTlsSlotCount = 32;

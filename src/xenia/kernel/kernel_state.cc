@@ -123,7 +123,7 @@ uint32_t KernelState::title_id() const {
 
   xex2_opt_execution_info* exec_info = 0;
   executable_module_->GetOptHeader(XEX_HEADER_EXECUTION_INFO,
-                                   (void**)&exec_info);
+                                   &exec_info);
 
   if (exec_info) {
     return exec_info->title_id;
@@ -202,7 +202,7 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
   }
 
   xex2_opt_tls_info* tls_header = nullptr;
-  executable_module_->GetOptHeader(XEX_HEADER_TLS_INFO, (void**)&tls_header);
+  executable_module_->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   if (tls_header) {
     auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
         process_info_block_address_);

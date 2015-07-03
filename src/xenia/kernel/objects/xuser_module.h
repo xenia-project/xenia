@@ -47,6 +47,12 @@ class XUserModule : public XModule {
   // Get optional header - FOR HOST USE ONLY!
   X_STATUS GetOptHeader(xe_xex2_header_keys key, void** out_ptr);
 
+  // Get optional header - FOR HOST USE ONLY!
+  template <typename T>
+  X_STATUS GetOptHeader(xe_xex2_header_keys key, T* out_ptr) {
+    return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
+  }
+
   // Get optional header that can safely be returned to guest code.
   X_STATUS GetOptHeader(xe_xex2_header_keys key,
                         uint32_t* out_header_guest_ptr);
