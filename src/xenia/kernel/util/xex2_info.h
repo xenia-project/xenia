@@ -586,24 +586,36 @@ struct xex2_header {
   xex2_opt_header headers[1];  // 0x18
 };
 
-struct xex2_security_info {
-  xe::be<uint32_t> header_size;          // 0x0
-  xe::be<uint32_t> image_size;           // 0x4
-  char rsa_signature[0x100];             // 0x8
-  xe::be<uint32_t> unk_108;              // 0x108 unk length
-  xe::be<uint32_t> image_flags;          // 0x10C
-  xe::be<uint32_t> load_address;         // 0x110
-  char section_digest[0x14];             // 0x114
-  xe::be<uint32_t> import_table_count;   // 0x128
-  char import_table_digest[0x14];        // 0x12C
-  char xgd2_media_id[0x10];              // 0x140
-  char aes_key[0x10];                    // 0x150
-  xe::be<uint32_t> export_table;         // 0x160
-  char header_digest[0x14];              // 0x164
-  xe::be<uint32_t> region;               // 0x178
-  xe::be<uint32_t> allowed_media_types;  // 0x17C
+struct xex2_page_descriptor {
+  union {
+    struct {
+      uint32_t info : 4;
+      uint32_t size : 28;
+    };
+    xe::be<uint32_t> value;  // 0x0
+  };
+  char data_digest[0x14];  // 0x4
 };
-static_assert_size(xex2_security_info, 0x180);
+
+struct xex2_security_info {
+  xe::be<uint32_t> header_size;              // 0x0
+  xe::be<uint32_t> image_size;               // 0x4
+  char rsa_signature[0x100];                 // 0x8
+  xe::be<uint32_t> unk_108;                  // 0x108 unk length
+  xe::be<uint32_t> image_flags;              // 0x10C
+  xe::be<uint32_t> load_address;             // 0x110
+  char section_digest[0x14];                 // 0x114
+  xe::be<uint32_t> import_table_count;       // 0x128
+  char import_table_digest[0x14];            // 0x12C
+  char xgd2_media_id[0x10];                  // 0x140
+  char aes_key[0x10];                        // 0x150
+  xe::be<uint32_t> export_table;             // 0x160
+  char header_digest[0x14];                  // 0x164
+  xe::be<uint32_t> region;                   // 0x178
+  xe::be<uint32_t> allowed_media_types;      // 0x17C
+  xe::be<uint32_t> page_descriptor_count;    // 0x180
+  xex2_page_descriptor page_descriptors[1];  // 0x184
+};
 
 struct xex2_export_table {
   xe::be<uint32_t> magic[3];         // 0x0
