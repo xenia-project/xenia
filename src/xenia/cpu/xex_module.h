@@ -34,6 +34,9 @@ class XexModule : public xe::cpu::Module {
 
   xe_xex2_ref xex() const { return xex_; }
   const xex2_header* xex_header() const { return xex_header_; }
+  const xex2_security_info* xex_security_info() const {
+    return GetSecurityInfo(xex_header_);
+  }
 
   // Gets an optional header. Returns NULL if not found.
   // Special case: if key & 0xFF == 0x00, this function will return the value,
@@ -41,6 +44,22 @@ class XexModule : public xe::cpu::Module {
   static bool GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
                            void** out_ptr);
   bool GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const;
+
+  // Ultra-cool templated version
+  // Special case: if key & 0xFF == 0x00, this function will return the value,
+  // not a pointer!
+  template <typename T>
+  static bool GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
+                           T* out_ptr) {
+    return GetOptHeader(header, key, reinterpret_cast<void**>(out_ptr));
+  }
+
+  template <typename T>
+  bool GetOptHeader(xe_xex2_header_keys key, T* out_ptr) const {
+    return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
+  }
+
+  static const xex2_security_info* GetSecurityInfo(const xex2_header* header);
 
   uint32_t GetProcAddress(uint16_t ordinal) const;
   uint32_t GetProcAddress(const char* name) const;
@@ -55,8 +74,8 @@ class XexModule : public xe::cpu::Module {
   bool ContainsAddress(uint32_t address) override;
 
  private:
-  bool SetupImports(xe_xex2_ref xex);
-  bool SetupLibraryImports(const xe_xex2_import_library_t* library);
+  bool SetupLibraryImports(const char* name,
+                           const xex2_import_library* library);
   bool FindSaveRest();
 
  private:
