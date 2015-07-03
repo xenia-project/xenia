@@ -90,11 +90,82 @@ const xex2_security_info* XexModule::GetSecurityInfo(
 }
 
 uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
-  return xe_xex2_lookup_export(xex_, ordinal);
+  // First: Check the xex2 export table.
+  if (xex_security_info()->export_table) {
+    auto export_table = memory()->TranslateVirtual<const xex2_export_table*>(
+        xex_security_info()->export_table);
+
+    if (ordinal > export_table->count) {
+      XELOGE("GetProcAddress(%.3X): ordinal out of bounds", ordinal);
+      return 0;
+    }
+
+    uint32_t num = ordinal - export_table->base;
+    uint32_t ordinal_offset = export_table->ordOffset[num];
+    ordinal_offset += export_table->imagebaseaddr << 16;
+    return ordinal_offset;
+  }
+
+  // Second: Check the PE exports.
+  xe::be<uint32_t>* exe_address = nullptr;
+  GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);
+  assert_not_null(exe_address);
+
+  xex2_opt_data_directory* pe_export_directory = 0;
+  if (GetOptHeader(XEX_HEADER_EXPORTS_BY_NAME, &pe_export_directory)) {
+    auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
+      *exe_address + pe_export_directory->offset);
+    assert_not_null(e);
+
+    uint32_t* function_table = (uint32_t*)((uint8_t*)e + e->AddressOfFunctions);
+
+    if (ordinal < e->NumberOfFunctions) {
+      return xex_security_info()->load_address + function_table[ordinal];
+    }
+  }
+
+  return 0;
 }
 
 uint32_t XexModule::GetProcAddress(const char* name) const {
-  return xe_xex2_lookup_export(xex_, name);
+  xe::be<uint32_t>* exe_address = nullptr;
+  GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);
+  assert_not_null(exe_address);
+
+  xex2_opt_data_directory* pe_export_directory = 0;
+  if (!GetOptHeader(XEX_HEADER_EXPORTS_BY_NAME, &pe_export_directory)) {
+    // No exports by name.
+    return 0;
+  }
+
+  auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
+      *exe_address + pe_export_directory->offset);
+  assert_not_null(e);
+
+  // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
+  uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
+
+  // Names relative to directory
+  uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
+
+  // Table of ordinals (by name)
+  uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
+
+  const char* mod_name = (const char*)((uint64_t)e + e->Name);
+
+  for (uint32_t i = 0; i < e->NumberOfNames; i++) {
+    const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
+    uint16_t ordinal = ordinal_table[i];
+    uint32_t addr = *exe_address + function_table[ordinal];
+
+    if (!strcmp(name, fn_name)) {
+      // We have a match!
+      return addr;
+    }
+  }
+
+  // No match
+  return 0;
 }
 
 bool XexModule::ApplyPatch(XexModule* module) {
