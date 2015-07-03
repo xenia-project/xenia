@@ -102,10 +102,8 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   ldr_data->xex_header_base = guest_xex_header_;
 
   // Cache some commonly used headers...
-  this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT,
-                                   &entry_point_);
-  this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
-                                   &stack_size_);
+  this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
+  this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
 
   OnLoad();
 
@@ -266,13 +264,15 @@ void XUserModule::Dump() {
         printf("  XEX_HEADER_BOUNDING_PATH: %s\n", opt_bound_path->path);
       } break;
       case XEX_HEADER_ORIGINAL_BASE_ADDRESS: {
-        printf("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: %.8X\n", (uint32_t)opt_header.value);
+        printf("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: %.8X\n",
+               (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_ENTRY_POINT: {
         printf("  XEX_HEADER_ENTRY_POINT: %.8X\n", (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_IMAGE_BASE_ADDRESS: {
-        printf("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n", (uint32_t)opt_header.value);
+        printf("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n",
+               (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
@@ -298,19 +298,25 @@ void XUserModule::Dump() {
         auto opt_tls_info =
             reinterpret_cast<const xex2_opt_tls_info*>(opt_header_ptr);
 
-        printf("          Slot Count: %d\n", (uint32_t)opt_tls_info->slot_count);
-        printf("    Raw Data Address: %.8X\n", (uint32_t)opt_tls_info->raw_data_address);
+        printf("          Slot Count: %d\n",
+               (uint32_t)opt_tls_info->slot_count);
+        printf("    Raw Data Address: %.8X\n",
+               (uint32_t)opt_tls_info->raw_data_address);
         printf("           Data Size: %d\n", (uint32_t)opt_tls_info->data_size);
-        printf("       Raw Data Size: %d\n", (uint32_t)opt_tls_info->raw_data_size);
+        printf("       Raw Data Size: %d\n",
+               (uint32_t)opt_tls_info->raw_data_size);
       } break;
       case XEX_HEADER_DEFAULT_STACK_SIZE: {
-        printf("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n", (uint32_t)opt_header.value);
+        printf("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n",
+               (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: {
-        printf("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n", (uint32_t)opt_header.value);
+        printf("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n",
+               (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_DEFAULT_HEAP_SIZE: {
-        printf("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n", (uint32_t)opt_header.value);
+        printf("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n",
+               (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS: {
         printf("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
@@ -347,238 +353,6 @@ void XUserModule::Dump() {
       } break;
     }
   }
-
-  /*
-  printf("    System Flags: %.8X\n", header->system_flags);
-  printf("\n");
-  printf("         Address: %.8X\n", header->exe_address);
-  printf("     Entry Point: %.8X\n", header->exe_entry_point);
-  printf("      Stack Size: %.8X\n", header->exe_stack_size);
-  printf("       Heap Size: %.8X\n", header->exe_heap_size);
-  printf("\n");
-  printf("  Execution Info:\n");
-  printf("        Media ID: %.8X\n", header->execution_info.media_id);
-  printf(
-      "         Version: %d.%d.%d.%d\n", header->execution_info.version.major,
-      header->execution_info.version.minor,
-      header->execution_info.version.build, header->execution_info.version.qfe);
-  printf("    Base Version: %d.%d.%d.%d\n",
-         header->execution_info.base_version.major,
-         header->execution_info.base_version.minor,
-         header->execution_info.base_version.build,
-         header->execution_info.base_version.qfe);
-  printf("        Title ID: %.8X\n", header->execution_info.title_id);
-  printf("        Platform: %.8X\n", header->execution_info.platform);
-  printf("      Exec Table: %.8X\n", header->execution_info.executable_table);
-  printf("     Disc Number: %d\n", header->execution_info.disc_number);
-  printf("      Disc Count: %d\n", header->execution_info.disc_count);
-  printf("     Savegame ID: %.8X\n", header->execution_info.savegame_id);
-  printf("\n");
-  printf("  Loader Info:\n");
-  printf("     Image Flags: %.8X\n", header->loader_info.image_flags);
-  printf("    Game Regions: %.8X\n", header->loader_info.game_regions);
-  printf("     Media Flags: %.8X\n", header->loader_info.media_flags);
-  printf("\n");
-  printf("  TLS Info:\n");
-  printf("      Slot Count: %d\n", header->tls_info.slot_count);
-  printf("       Data Size: %db\n", header->tls_info.data_size);
-  printf("         Address: %.8X, %db\n", header->tls_info.raw_data_address,
-         header->tls_info.raw_data_size);
-  printf("\n");
-  printf("  Headers:\n");
-  for (size_t n = 0; n < header->header_count; n++) {
-    const xex2_opt_header* opt_header = &header->headers[n];
-    printf("    %.8X (%.8X, %4db) %.8X = %11d\n", opt_header->key,
-           opt_header->offset, opt_header->length, opt_header->value,
-           opt_header->value);
-  }
-  printf("\n");
-
-  // Resources.
-  printf("Resources:\n");
-  for (size_t n = 0; n < header->resource_info_count; n++) {
-    auto& res = header->resource_infos[n];
-    printf("  %-8s %.8X-%.8X, %db\n", res.name, res.address,
-           res.address + res.size, res.size);
-  }
-  printf("\n");
-
-  // Section info.
-  printf("Sections:\n");
-  for (size_t n = 0, i = 0; n < header->section_count; n++) {
-    const xe_xex2_section_t* section = &header->sections[n];
-    const char* type = "UNKNOWN";
-    switch (section->info.type) {
-      case XEX_SECTION_CODE:
-        type = "CODE   ";
-        break;
-      case XEX_SECTION_DATA:
-        type = "RWDATA ";
-        break;
-      case XEX_SECTION_READONLY_DATA:
-        type = "RODATA ";
-        break;
-    }
-    const size_t start_address = header->exe_address + (i * section->page_size);
-    const size_t end_address =
-        start_address + (section->info.page_count * section->page_size);
-    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n", (int)n, type,
-           section->info.page_count, (int)start_address, (int)end_address,
-           section->info.page_count * section->page_size);
-    i += section->info.page_count;
-  }
-  printf("\n");
-
-  // Static libraries.
-  printf("Static Libraries:\n");
-  for (size_t n = 0; n < header->static_library_count; n++) {
-    const xe_xex2_static_library_t* library = &header->static_libraries[n];
-    printf("  %-8s : %d.%d.%d.%d\n", library->name, library->major,
-           library->minor, library->build, library->qfe);
-  }
-  printf("\n");
-
-  // Exports.
-  printf("Exports:\n");
-  if (header->loader_info.export_table) {
-    printf(" XEX-style Ordinal Exports:\n");
-    auto export_table = reinterpret_cast<const xe_xex2_export_table*>(
-        memory()->TranslateVirtual(header->loader_info.export_table));
-    uint32_t ordinal_count = xe::byte_swap(export_table->count);
-    uint32_t ordinal_base = xe::byte_swap(export_table->base);
-    for (uint32_t i = 0, ordinal = ordinal_base; i < ordinal_count;
-         ++i, ++ordinal) {
-      uint32_t ordinal_offset = xe::byte_swap(export_table->ordOffset[i]);
-      ordinal_offset += xe::byte_swap(export_table->imagebaseaddr) << 16;
-      printf("     %.8X          %.3X (%3d)\n", ordinal_offset, ordinal,
-             ordinal);
-    }
-  }
-  if (header->pe_export_table_offset) {
-    auto e = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(
-        memory()->TranslateVirtual(header->exe_address +
-                                   header->pe_export_table_offset));
-    uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
-    uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
-    uint16_t* ordinal_table =
-        (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
-    const char* mod_name = (const char*)((uint64_t)e + e->Name);
-    printf(" PE %s:\n", mod_name);
-    for (uint32_t i = 0; i < e->NumberOfNames; i++) {
-      const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
-      uint16_t ordinal = ordinal_table[i];
-      uint32_t addr = header->exe_address + function_table[ordinal];
-      printf("     %.8X          %.3X (%3d)    %s\n", addr, ordinal, ordinal,
-             fn_name);
-    }
-  }
-  if (!header->loader_info.export_table && !header->pe_export_table_offset) {
-    printf("  No exports\n");
-  }
-  printf("\n");
-
-  // Imports.
-  printf("Imports:\n");
-  for (size_t n = 0; n < header->import_library_count; n++) {
-    const xe_xex2_import_library_t* library = &header->import_libraries[n];
-
-    xe_xex2_import_info_t* import_infos;
-    size_t import_info_count;
-    if (!xe_xex2_get_import_infos(xex_, library, &import_infos,
-                                  &import_info_count)) {
-      printf(" %s - %d imports\n", library->name, (int)import_info_count);
-      printf("   Version: %d.%d.%d.%d\n", library->version.major,
-             library->version.minor, library->version.build,
-             library->version.qfe);
-      printf("   Min Version: %d.%d.%d.%d\n", library->min_version.major,
-             library->min_version.minor, library->min_version.build,
-             library->min_version.qfe);
-      printf("\n");
-
-      // Counts.
-      int known_count = 0;
-      int unknown_count = 0;
-      int impl_count = 0;
-      int unimpl_count = 0;
-      for (size_t m = 0; m < import_info_count; m++) {
-        const xe_xex2_import_info_t* info = &import_infos[m];
-
-        if (kernel_state_->IsKernelModule(library->name)) {
-          auto kernel_export =
-              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
-          if (kernel_export) {
-            known_count++;
-            if (kernel_export->is_implemented()) {
-              impl_count++;
-            } else {
-              unimpl_count++;
-            }
-          } else {
-            unknown_count++;
-            unimpl_count++;
-          }
-        } else {
-          auto module = kernel_state_->GetModule(library->name);
-          if (module) {
-            uint32_t export_addr =
-                module->GetProcAddressByOrdinal(info->ordinal);
-            if (export_addr) {
-              impl_count++;
-              known_count++;
-            } else {
-              unimpl_count++;
-              unknown_count++;
-            }
-          } else {
-            unimpl_count++;
-            unknown_count++;
-          }
-        }
-      }
-      printf("         Total: %4u\n", uint32_t(import_info_count));
-      printf("         Known:  %3d%% (%d known, %d unknown)\n",
-             (int)(known_count / (float)import_info_count * 100.0f),
-             known_count, unknown_count);
-      printf("   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
-             (int)(impl_count / (float)import_info_count * 100.0f), impl_count,
-             unimpl_count);
-      printf("\n");
-
-      // Listing.
-      for (size_t m = 0; m < import_info_count; m++) {
-        const xe_xex2_import_info_t* info = &import_infos[m];
-        const char* name = "UNKNOWN";
-        bool implemented = false;
-
-        Export* kernel_export = nullptr;
-        if (kernel_state_->IsKernelModule(library->name)) {
-          kernel_export =
-              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
-          if (kernel_export) {
-            name = kernel_export->name;
-            implemented = kernel_export->is_implemented();
-          }
-        } else {
-          auto module = kernel_state_->GetModule(library->name);
-          if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
-            // TODO: Name lookup
-            implemented = true;
-          }
-        }
-        if (kernel_export && kernel_export->type == Export::Type::kVariable) {
-          printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
-                 info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
-        } else if (info->thunk_address) {
-          printf("   F %.8X %.8X %.3X (%3d) %s %s\n", info->value_address,
-                 info->thunk_address, info->ordinal, info->ordinal,
-                 implemented ? "  " : "!!", name);
-        }
-      }
-    }
-
-    printf("\n");
-  }
-  */
 }
 
 }  // namespace kernel
