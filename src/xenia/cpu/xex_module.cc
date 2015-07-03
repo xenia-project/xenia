@@ -361,6 +361,18 @@ bool XexModule::SetupLibraryImports(const char* name,
         uint8_t* p = memory()->TranslateVirtual(record_addr);
         xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
         xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
+      } else {
+        // Import not resolved.
+        // We're gonna rewrite the PPC to trigger a debug trap:
+        //    trap
+        //    blr
+        //    nop
+        //    nop
+        uint8_t* p = memory()->TranslateVirtual(record_addr);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x7FE00008);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
+        xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
+        xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
       }
 
       fn_info->set_status(SymbolStatus::kDeclared);
