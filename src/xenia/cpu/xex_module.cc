@@ -59,7 +59,8 @@ bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
       switch (key & 0xFF) {
         case 0x00: {
           // We just return the value of the optional header.
-          *out_ptr = (void*)((uint64_t)opt_header.value);
+          // Assume that the output pointer points to a uint32_t.
+          *(uint32_t*)out_ptr = (uint32_t)opt_header.value;
         } break;
         case 0x01: {
           // Pointer to the value on the optional header.
@@ -139,8 +140,14 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   auto header = xex_header_;
   auto old_header = xe_xex2_get_header(xex_);
 
+  // Setup debug info.
+  name_ = std::string(name);
+  path_ = std::string(path);
+  // TODO(benvanik): debug info
+
   // Scan and find the low/high addresses.
   // All code sections are continuous, so this should be easy.
+  // TODO: Use the new xex header to do this.
   low_address_ = UINT_MAX;
   high_address_ = 0;
   for (uint32_t n = 0, i = 0; n < old_header->section_count; n++) {
@@ -170,6 +177,7 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 
   // Parse the string table
   for (size_t i = 0, j = 0; i < opt_import_header->string_table_size; j++) {
+    assert_true(j < xe::countof(string_table));
     const char* str = opt_import_header->string_table + i;
 
     string_table[j] = str;
@@ -185,7 +193,8 @@ bool XexModule::Load(const std::string& name, const std::string& path,
       (uint8_t*)opt_import_header + opt_import_header->string_table_size + 12;
   uint32_t library_offset = 0;
   for (uint32_t i = 0; i < opt_import_header->library_count; i++) {
-    auto library = reinterpret_cast<xex2_import_library*>((uint8_t*)libraries + library_offset);
+    auto library = reinterpret_cast<xex2_import_library*>((uint8_t*)libraries +
+                                                          library_offset);
     SetupLibraryImports(string_table[library->name_index], library);
 
     library_offset += library->size;
@@ -196,11 +205,6 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   if (!FindSaveRest()) {
     return false;
   }
-
-  // Setup debug info.
-  name_ = std::string(name);
-  path_ = std::string(path);
-  // TODO(benvanik): debug info
 
   // Load a specified module map and diff.
   if (FLAGS_load_module_map.size()) {
@@ -228,6 +232,7 @@ bool XexModule::SetupLibraryImports(const char* name,
   }
 
   // Imports are stored as {import descriptor, thunk addr, import desc, ...}
+  // Even thunks have an import descriptor (albeit unused/useless)
   for (uint32_t i = 0; i < library->count; i++) {
     uint32_t record_addr = library->import_table[i];
     assert_not_zero(record_addr);
@@ -252,9 +257,9 @@ bool XexModule::SetupLibraryImports(const char* name,
     assert_not_zero(kernel_export || user_export_addr);
     if (!kernel_export && !user_export_addr) {
       XELOGW(
-          "WARNING: an import variable was not resolved! (import lib: %s, "
-          "ordinal: %.3X)",
-          name, ordinal);
+          "WARNING: an import variable was not resolved! (library: %s, import "
+          "lib: %s, ordinal: %.3X)",
+          name_.c_str(), name, ordinal);
     }
 
     StringBuffer import_name;

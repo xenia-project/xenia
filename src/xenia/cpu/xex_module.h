@@ -40,14 +40,14 @@ class XexModule : public xe::cpu::Module {
 
   // Gets an optional header. Returns NULL if not found.
   // Special case: if key & 0xFF == 0x00, this function will return the value,
-  // not a pointer!
+  // not a pointer! This assumes out_ptr points to uint32_t.
   static bool GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
                            void** out_ptr);
   bool GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const;
 
   // Ultra-cool templated version
   // Special case: if key & 0xFF == 0x00, this function will return the value,
-  // not a pointer!
+  // not a pointer! This assumes out_ptr points to uint32_t.
   template <typename T>
   static bool GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
                            T* out_ptr) {
