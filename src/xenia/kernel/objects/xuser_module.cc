@@ -155,7 +155,8 @@ X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
 
 X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
                                    uint32_t* out_header_guest_ptr) {
-  auto header = xex_module()->xex_header();
+  auto header =
+      memory()->TranslateVirtual<const xex2_header*>(guest_xex_header_);
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
   }
