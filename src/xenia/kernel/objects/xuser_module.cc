@@ -224,8 +224,6 @@ void XUserModule::Dump() {
       kernel_state_->emulator()->export_resolver();
   auto header = xex_header();
 
-  // TODO: Need to loop through the optional headers one-by-one.
-
   // XEX header.
   printf("Module %s:\n", path_.c_str());
   printf("    Module Flags: %.8X\n", (uint32_t)header->module_flags);
@@ -274,6 +272,12 @@ void XUserModule::Dump() {
       case XEX_HEADER_IMAGE_BASE_ADDRESS: {
         printf("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n",
                (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_IMPORT_LIBRARIES: {
+        printf("  XEX_HEADER_IMPORT_LIBRARIES (TODO):\n");
+      } break;
+      case XEX_HEADER_CHECKSUM_TIMESTAMP: {
+        printf("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
@@ -350,7 +354,33 @@ void XUserModule::Dump() {
         printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY (TODO):\n");
       } break;
       case XEX_HEADER_EXPORTS_BY_NAME: {
-        printf("  XEX_HEADER_EXPORTS_BY_NAME (TODO):\n");
+        printf("  XEX_HEADER_EXPORTS_BY_NAME:\n");
+        auto dir =
+            reinterpret_cast<const xex2_opt_data_directory*>(opt_header_ptr);
+
+        auto exe_address = xex_module()->xex_security_info()->load_address;
+        auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
+            exe_address + dir->offset);
+
+        // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
+        uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
+
+        // Names relative to directory
+        uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
+
+        // Table of ordinals (by name)
+        uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
+
+        for (uint32_t i = 0; i < e->NumberOfNames; i++) {
+          const char* name = (const char*)((uint8_t*)e + name_table[i]);
+          uint16_t ordinal = ordinal_table[i];
+          uint32_t addr = exe_address + function_table[ordinal];
+
+          printf("    %-28s - %.3X - %.8X\n", name, ordinal, addr);
+        }
+      } break;
+      default: {
+        printf("  Unknown Header %.8X\n", (uint32_t)opt_header.key);
       } break;
     }
   }
