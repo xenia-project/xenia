@@ -468,6 +468,37 @@ union xex2_version {
   };
 };
 
+struct xex2_opt_bound_path {
+  xe::be<uint32_t> size;
+  char path[1];
+};
+
+struct xex2_opt_static_library {
+  char name[8];                    // 0x0
+  xe::be<uint16_t> version_major;  // 0x8
+  xe::be<uint16_t> version_minor;  // 0xA
+  xe::be<uint16_t> version_build;  // 0xC
+  xe::be<uint8_t> approval_type;   // 0xE
+  xe::be<uint8_t> version_qfe;     // 0xF
+};
+static_assert_size(xex2_opt_static_library, 0x10);
+
+struct xex2_opt_static_libraries {
+  xe::be<uint32_t> size;                 // 0x0
+  xex2_opt_static_library libraries[1];  // 0x4
+};
+
+struct xex2_opt_original_pe_name {
+  xe::be<uint32_t> size;
+  char name[1];
+};
+
+struct xex2_opt_data_directory {
+  xe::be<uint32_t> offset;  // 0x0
+  xe::be<uint32_t> size;    // 0x4
+};
+static_assert_size(xex2_opt_data_directory, 0x8);
+
 struct xex2_opt_tls_info {
   xe::be<uint32_t> slot_count;        // 0x0
   xe::be<uint32_t> raw_data_address;  // 0x4

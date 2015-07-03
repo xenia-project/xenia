@@ -103,9 +103,9 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 
   // Cache some commonly used headers...
   this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT,
-                                   (void**)&entry_point_);
+                                   &entry_point_);
   this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
-                                   (void**)&stack_size_);
+                                   &stack_size_);
 
   OnLoad();
 
@@ -124,7 +124,7 @@ X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
                                  uint32_t* out_section_size) {
   xex2_opt_resource_info* resource_header = nullptr;
   if (!XexModule::GetOptHeader(xex_header(), XEX_HEADER_RESOURCE_INFO,
-                               (void**)&resource_header)) {
+                               &resource_header)) {
     // No resources.
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -204,18 +204,9 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
   XELOGI("Launching module...");
   Dump();
 
-  // Grab some important variables...
-  auto header = xex_header();
-  uint32_t exe_stack_size = 0;
-  uint32_t exe_entry_point = 0;
-  XexModule::GetOptHeader(xex_header(), XEX_HEADER_DEFAULT_STACK_SIZE,
-                          (void**)&exe_stack_size);
-  XexModule::GetOptHeader(xex_header(), XEX_HEADER_ENTRY_POINT,
-                          (void**)&exe_entry_point);
-
   // Create a thread to run in.
   auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), exe_stack_size, 0, exe_entry_point, 0, 0));
+      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0, 0));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -236,9 +227,127 @@ void XUserModule::Dump() {
 
   // TODO: Need to loop through the optional headers one-by-one.
 
-  // XEX info.
-  printf("Module %s:\n\n", path_.c_str());
-  printf("    Module Flags: %.8X\n", header->module_flags);
+  // XEX header.
+  printf("Module %s:\n", path_.c_str());
+  printf("    Module Flags: %.8X\n", (uint32_t)header->module_flags);
+
+  // Security header
+  auto security_info = xex_module()->xex_security_info();
+  printf("Security Header:\n");
+  printf("     Image Flags: %.8X\n", (uint32_t)security_info->image_flags);
+  printf("    Load Address: %.8X\n", (uint32_t)security_info->load_address);
+  printf("      Image Size: %.8X\n", (uint32_t)security_info->image_size);
+  printf("    Export Table: %.8X\n", (uint32_t)security_info->export_table);
+
+  // Optional headers
+  printf("Optional Header Count: %d\n", (uint32_t)header->header_count);
+
+  for (uint32_t i = 0; i < header->header_count; i++) {
+    auto& opt_header = header->headers[i];
+
+    // Stash a pointer (although this isn't used in every case)
+    void* opt_header_ptr = (uint8_t*)header + opt_header.offset;
+    switch (opt_header.key) {
+      case XEX_HEADER_RESOURCE_INFO: {
+        printf("  XEX_HEADER_RESOURCE_INFO (TODO):\n");
+        auto opt_resource_info =
+            reinterpret_cast<xex2_opt_resource_info*>(opt_header_ptr);
+
+      } break;
+      case XEX_HEADER_FILE_FORMAT_INFO: {
+        printf("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
+      } break;
+      case XEX_HEADER_DELTA_PATCH_DESCRIPTOR: {
+        printf("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR (TODO):\n");
+      } break;
+      case XEX_HEADER_BOUNDING_PATH: {
+        auto opt_bound_path =
+            reinterpret_cast<xex2_opt_bound_path*>(opt_header_ptr);
+        printf("  XEX_HEADER_BOUNDING_PATH: %s\n", opt_bound_path->path);
+      } break;
+      case XEX_HEADER_ORIGINAL_BASE_ADDRESS: {
+        printf("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: %.8X\n", (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_ENTRY_POINT: {
+        printf("  XEX_HEADER_ENTRY_POINT: %.8X\n", (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_IMAGE_BASE_ADDRESS: {
+        printf("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n", (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_ORIGINAL_PE_NAME: {
+        auto opt_pe_name =
+            reinterpret_cast<xex2_opt_original_pe_name*>(opt_header_ptr);
+        printf("  XEX_HEADER_ORIGINAL_PE_NAME: %s\n", opt_pe_name->name);
+      } break;
+      case XEX_HEADER_STATIC_LIBRARIES: {
+        printf("  XEX_HEADER_STATIC_LIBRARIES:\n");
+        auto opt_static_libraries =
+            reinterpret_cast<const xex2_opt_static_libraries*>(opt_header_ptr);
+
+        uint32_t count = (opt_static_libraries->size - 4) / 0x10;
+        for (uint32_t i = 0; i < count; i++) {
+          auto& library = opt_static_libraries->libraries[i];
+          printf(
+              "    %-8s : %d.%d.%d.%d\n", library.name,
+              (uint16_t)library.version_major, (uint16_t)library.version_minor,
+              (uint16_t)library.version_build, (uint16_t)library.version_qfe);
+        }
+      } break;
+      case XEX_HEADER_TLS_INFO: {
+        printf("  XEX_HEADER_TLS_INFO:\n");
+        auto opt_tls_info =
+            reinterpret_cast<const xex2_opt_tls_info*>(opt_header_ptr);
+
+        printf("          Slot Count: %d\n", (uint32_t)opt_tls_info->slot_count);
+        printf("    Raw Data Address: %.8X\n", (uint32_t)opt_tls_info->raw_data_address);
+        printf("           Data Size: %d\n", (uint32_t)opt_tls_info->data_size);
+        printf("       Raw Data Size: %d\n", (uint32_t)opt_tls_info->raw_data_size);
+      } break;
+      case XEX_HEADER_DEFAULT_STACK_SIZE: {
+        printf("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n", (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: {
+        printf("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n", (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_DEFAULT_HEAP_SIZE: {
+        printf("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n", (uint32_t)opt_header.value);
+      } break;
+      case XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS: {
+        printf("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
+      } break;
+      case XEX_HEADER_SYSTEM_FLAGS: {
+        printf("  XEX_HEADER_SYSTEM_FLAGS (TODO):\n");
+      } break;
+      case XEX_HEADER_EXECUTION_INFO: {
+        printf("  XEX_HEADER_EXECUTION_INFO (TODO):\n");
+      } break;
+      case XEX_HEADER_TITLE_WORKSPACE_SIZE: {
+        printf("  XEX_HEADER_TITLE_WORKSPACE_SIZE (TODO):\n");
+      } break;
+      case XEX_HEADER_GAME_RATINGS: {
+        printf("  XEX_HEADER_GAME_RATINGS (TODO):\n");
+      } break;
+      case XEX_HEADER_LAN_KEY: {
+        printf("  XEX_HEADER_LAN_KEY (TODO):\n");
+      } break;
+      case XEX_HEADER_XBOX360_LOGO: {
+        printf("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
+      } break;
+      case XEX_HEADER_MULTIDISC_MEDIA_IDS: {
+        printf("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
+      } break;
+      case XEX_HEADER_ALTERNATE_TITLE_IDS: {
+        printf("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
+      } break;
+      case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
+        printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY (TODO):\n");
+      } break;
+      case XEX_HEADER_EXPORTS_BY_NAME: {
+        printf("  XEX_HEADER_EXPORTS_BY_NAME (TODO):\n");
+      } break;
+    }
+  }
+
   /*
   printf("    System Flags: %.8X\n", header->system_flags);
   printf("\n");
