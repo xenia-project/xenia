@@ -246,10 +246,22 @@ void XUserModule::Dump() {
     void* opt_header_ptr = (uint8_t*)header + opt_header.offset;
     switch (opt_header.key) {
       case XEX_HEADER_RESOURCE_INFO: {
-        printf("  XEX_HEADER_RESOURCE_INFO (TODO):\n");
+        printf("  XEX_HEADER_RESOURCE_INFO:\n");
         auto opt_resource_info =
             reinterpret_cast<xex2_opt_resource_info*>(opt_header_ptr);
 
+        uint32_t count = (opt_resource_info->size - 4) / 16;
+        for (uint32_t j = 0; j < count; j++) {
+          auto& res = opt_resource_info->resources[j];
+
+          // Manually NULL-terminate the name.
+          char name[9];
+          std::memcpy(name, res.name, sizeof(res.name));
+          name[8] = 0;
+
+          printf("    %-8s %.8X-%.8X, %db\n", name, res.address,
+                 res.address + res.size, res.size);
+        }
       } break;
       case XEX_HEADER_FILE_FORMAT_INFO: {
         printf("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
@@ -441,6 +453,143 @@ void XUserModule::Dump() {
         printf("  Unknown Header %.8X\n", (uint32_t)opt_header.key);
       } break;
     }
+  }
+
+  printf("Sections:\n");
+  for (uint32_t i = 0, page = 0; i < security_info->page_descriptor_count;
+       i++) {
+    // Manually byteswap the bitfield data.
+    xex2_page_descriptor page_descriptor;
+    page_descriptor.value =
+        xe::byte_swap(security_info->page_descriptors[i].value);
+
+    const char* type = "UNKNOWN";
+    switch (page_descriptor.info) {
+      case XEX_SECTION_CODE:
+        type = "CODE   ";
+        break;
+      case XEX_SECTION_DATA:
+        type = "RWDATA ";
+        break;
+      case XEX_SECTION_READONLY_DATA:
+        type = "RODATA ";
+        break;
+    }
+
+    const uint32_t page_size =
+        security_info->load_address < 0x90000000 ? 64 * 1024 : 4 * 1024;
+    uint32_t start_address = security_info->load_address + (page * page_size);
+    uint32_t end_address = start_address + (page_descriptor.size * page_size);
+
+    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n", (int)page, type,
+           page_descriptor.size, (int)start_address, (int)end_address,
+           page_descriptor.size * page_size);
+    page += page_descriptor.size;
+  }
+
+  // Print out imports.
+  // TODO: Figure out a way to remove dependency on old xex header.
+  auto old_header = xe_xex2_get_header(xex_module()->xex());
+
+  printf("Imports:\n");
+  for (size_t n = 0; n < old_header->import_library_count; n++) {
+    const xe_xex2_import_library_t* library = &old_header->import_libraries[n];
+
+    xe_xex2_import_info_t* import_infos;
+    size_t import_info_count;
+    if (!xe_xex2_get_import_infos(xex_module()->xex(), library, &import_infos,
+                                  &import_info_count)) {
+      printf(" %s - %d imports\n", library->name, (int)import_info_count);
+      printf("   Version: %d.%d.%d.%d\n", library->version.major,
+             library->version.minor, library->version.build,
+             library->version.qfe);
+      printf("   Min Version: %d.%d.%d.%d\n", library->min_version.major,
+             library->min_version.minor, library->min_version.build,
+             library->min_version.qfe);
+      printf("\n");
+
+      // Counts.
+      int known_count = 0;
+      int unknown_count = 0;
+      int impl_count = 0;
+      int unimpl_count = 0;
+      for (size_t m = 0; m < import_info_count; m++) {
+        const xe_xex2_import_info_t* info = &import_infos[m];
+
+        if (kernel_state_->IsKernelModule(library->name)) {
+          auto kernel_export =
+              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+          if (kernel_export) {
+            known_count++;
+            if (kernel_export->is_implemented()) {
+              impl_count++;
+            } else {
+              unimpl_count++;
+            }
+          } else {
+            unknown_count++;
+            unimpl_count++;
+          }
+        } else {
+          auto module = kernel_state_->GetModule(library->name);
+          if (module) {
+            uint32_t export_addr =
+                module->GetProcAddressByOrdinal(info->ordinal);
+            if (export_addr) {
+              impl_count++;
+              known_count++;
+            } else {
+              unimpl_count++;
+              unknown_count++;
+            }
+          } else {
+            unimpl_count++;
+            unknown_count++;
+          }
+        }
+      }
+      printf("         Total: %4u\n", uint32_t(import_info_count));
+      printf("         Known:  %3d%% (%d known, %d unknown)\n",
+             (int)(known_count / (float)import_info_count * 100.0f),
+             known_count, unknown_count);
+      printf("   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
+             (int)(impl_count / (float)import_info_count * 100.0f), impl_count,
+             unimpl_count);
+      printf("\n");
+
+      // Listing.
+      for (size_t m = 0; m < import_info_count; m++) {
+        const xe_xex2_import_info_t* info = &import_infos[m];
+        const char* name = "UNKNOWN";
+        bool implemented = false;
+
+        Export* kernel_export = nullptr;
+        if (kernel_state_->IsKernelModule(library->name)) {
+          kernel_export =
+              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+          if (kernel_export) {
+            name = kernel_export->name;
+            implemented = kernel_export->is_implemented();
+          }
+        } else {
+          auto module = kernel_state_->GetModule(library->name);
+          if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
+            // TODO: Name lookup
+            implemented = true;
+          }
+        }
+        if (kernel_export && kernel_export->type == Export::Type::kVariable) {
+          printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
+                 info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
+        } else if (info->thunk_address) {
+          printf("   F %.8X %.8X %.3X (%3d) %s %s\n", info->value_address,
+                 info->thunk_address, info->ordinal, info->ordinal,
+                 implemented ? "  " : "!!", name);
+        }
+      }
+    }
+
+    printf("\n");
   }
 }
 
