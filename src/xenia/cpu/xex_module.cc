@@ -417,6 +417,8 @@ bool XexModule::SetupLibraryImports(const char* name,
                 (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
           }
         } else {
+          XELOGW("WARNING: Imported kernel function %s is unimplemented!",
+                 import_name.GetString());
           handler = UndefinedImport;
         }
 
