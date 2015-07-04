@@ -12,6 +12,7 @@
 
 #include <cstdint>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 
 #if XE_PLATFORM_MAC

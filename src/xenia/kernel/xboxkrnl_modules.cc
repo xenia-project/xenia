@@ -141,12 +141,11 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_context,
     SHIM_SET_RETURN_32(0);
     return;
   }
-  xe_xex2_ref xex = module->xex();
 
-  const xe_xex2_header_t* header = xe_xex2_get_header(xex);
-  uint32_t result = (header->system_flags & mask) > 0;
+  uint32_t flags = 0;
+  module->GetOptHeader<uint32_t>(XEX_HEADER_SYSTEM_FLAGS, &flags);
 
-  SHIM_SET_RETURN_32(result);
+  SHIM_SET_RETURN_32((flags & mask) > 0);
 }
 
 SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_context,

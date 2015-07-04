@@ -13,11 +13,7 @@
 #include "xenia/kernel/util/xex2_info.h"
 #include "xenia/memory.h"
 
-namespace xe {
-namespace kernel {
-uint32_t xex2_get_header_size(const xex2_header* header);
-}  // namespace kernel
-}  // namespace xe
+namespace xe {}  // namespace xe
 
 typedef struct { int reserved; } xe_xex2_options_t;
 

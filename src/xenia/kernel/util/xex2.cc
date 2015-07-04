@@ -27,13 +27,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 
-namespace xe {
-namespace kernel {
-uint32_t xex2_get_header_size(const xex2_header* header) {
-  return header->exe_offset;
-}
-}  // namespace kernel
-}  // namespace xe
+namespace xe {}  // namespace xe
 
 // TODO(benvanik): remove.
 #define XEEXPECTZERO(expr) \
@@ -251,56 +245,59 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
         // size = xe::load_and_swap<uint32_t>(pp + 0x04);
       } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
-        const size_t max_count = xe::countof(header->import_libraries);
-        size_t count = xe::load_and_swap<uint32_t>(pp + 0x08);
+        auto import_libraries =
+            reinterpret_cast<const xe::xex2_opt_import_libraries*>(pp);
+
+        const uint32_t max_count =
+            (uint32_t)xe::countof(header->import_libraries);
+        uint32_t count = import_libraries->library_count;
         assert_true(count <= max_count);
         if (count > max_count) {
           XELOGW("ignoring %zu extra entries in XEX_HEADER_IMPORT_LIBRARIES",
-                 (max_count - count));
+                 (max_count - import_libraries->library_count));
           count = max_count;
         }
         header->import_library_count = count;
 
-        uint32_t string_table_size = xe::load_and_swap<uint32_t>(pp + 0x04);
-        const char* string_table = (const char*)(pp + 0x0C);
+        uint32_t string_table_size = import_libraries->string_table_size;
+        const char* string_table[32];  // Pretend 32 is max_count
+        std::memset(string_table, 0, sizeof(string_table));
 
-        pp += 12 + string_table_size;
+        // Parse the string table
+        for (size_t i = 0, j = 0; i < string_table_size; j++) {
+          const char* str = import_libraries->string_table + i;
+
+          string_table[j] = str;
+          i += std::strlen(str) + 1;
+
+          // Padding
+          if ((i % 4) != 0) {
+            i += 4 - (i % 4);
+          }
+        }
+
+        pp += 12 + import_libraries->string_table_size;
         for (size_t m = 0; m < count; m++) {
           xe_xex2_import_library_t* library = &header->import_libraries[m];
+          auto src_library = (xe::xex2_import_library*)pp;
+
           memcpy(library->digest, pp + 0x04, 20);
-          library->import_id = xe::load_and_swap<uint32_t>(pp + 0x18);
-          library->version.value = xe::load_and_swap<uint32_t>(pp + 0x1C);
-          library->min_version.value = xe::load_and_swap<uint32_t>(pp + 0x20);
+          library->import_id = src_library->id;
+          library->version.value = src_library->version.value;
+          library->min_version.value = src_library->version_min.value;
 
-          const uint16_t name_index =
-              xe::load_and_swap<uint16_t>(pp + 0x24) & 0xFF;
-          for (size_t i = 0, j = 0; i < string_table_size;) {
-            assert_true(j <= 0xFF);
-            if (j == name_index) {
-              std::strncpy(library->name, string_table + i,
-                           xe::countof(library->name));
-              break;
-            }
-            if (string_table[i] == 0) {
-              i++;
-              if (i % 4) {
-                i += 4 - (i % 4);
-              }
-              j++;
-            } else {
-              i++;
-            }
-          }
+          std::strncpy(library->name, string_table[src_library->name_index],
+                       xe::countof(library->name));
 
-          library->record_count = xe::load_and_swap<uint16_t>(pp + 0x26);
+          library->record_count = src_library->count;
           library->records =
               (uint32_t*)calloc(library->record_count, sizeof(uint32_t));
           XEEXPECTNOTNULL(library->records);
-          pp += 0x28;
           for (size_t i = 0; i < library->record_count; i++) {
-            library->records[i] = xe::load_and_swap<uint32_t>(pp);
-            pp += 4;
+            library->records[i] = src_library->import_table[i];
           }
+
+          pp += src_library->size;
         }
       } break;
       case XEX_HEADER_STATIC_LIBRARIES: {
@@ -1058,17 +1055,17 @@ uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, uint16_t ordinal) {
 
   // XEX-style export table.
   if (header->loader_info.export_table) {
-    auto export_table = reinterpret_cast<const xe_xex2_export_table*>(
+    auto export_table = reinterpret_cast<const xe::xex2_export_table*>(
         xex->memory->TranslateVirtual(header->loader_info.export_table));
-    uint32_t ordinal_count = xe::byte_swap(export_table->count);
-    uint32_t ordinal_base = xe::byte_swap(export_table->base);
+    uint32_t ordinal_count = export_table->count;
+    uint32_t ordinal_base = export_table->base;
     if (ordinal > ordinal_count) {
       XELOGE("xe_xex2_lookup_export: ordinal out of bounds");
       return 0;
     }
     uint32_t i = ordinal - ordinal_base;
-    uint32_t ordinal_offset = xe::byte_swap(export_table->ordOffset[i]);
-    ordinal_offset += xe::byte_swap(export_table->imagebaseaddr) << 16;
+    uint32_t ordinal_offset = export_table->ordOffset[i];
+    ordinal_offset += export_table->imagebaseaddr << 16;
     return ordinal_offset;
   }
 

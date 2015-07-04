@@ -297,18 +297,6 @@ typedef struct {
   xe_xex2_approval_type approval;
 } xe_xex2_static_library_t;
 
-// credits: some obscure pastebin (http://pastebin.com/ZRvr3Sgj)
-typedef struct {
-  uint32_t magic[3];
-  uint32_t modulenumber[2];
-  uint32_t version[3];
-  uint32_t imagebaseaddr;  // must be <<16 to be accurate
-  uint32_t count;
-  uint32_t base;
-  uint32_t ordOffset[1];  // ordOffset[0] + (imagebaseaddr << 16) = function
-                          // offset of ordinal 1
-} xe_xex2_export_table;
-
 typedef enum {
   XEX_ENCRYPTION_NONE = 0,
   XEX_ENCRYPTION_NORMAL = 1,
@@ -470,9 +458,8 @@ typedef struct {
 } xe_xex2_header_t;
 
 namespace xe {
-namespace kernel {
 union xex2_version {
-  uint32_t value;
+  xe::be<uint32_t> value;
   struct {
     uint32_t major : 4;
     uint32_t minor : 4;
@@ -480,6 +467,73 @@ union xex2_version {
     uint32_t qfe : 8;
   };
 };
+
+struct xex2_opt_bound_path {
+  xe::be<uint32_t> size;
+  char path[1];
+};
+
+struct xex2_opt_static_library {
+  char name[8];                    // 0x0
+  xe::be<uint16_t> version_major;  // 0x8
+  xe::be<uint16_t> version_minor;  // 0xA
+  xe::be<uint16_t> version_build;  // 0xC
+  xe::be<uint8_t> approval_type;   // 0xE
+  xe::be<uint8_t> version_qfe;     // 0xF
+};
+static_assert_size(xex2_opt_static_library, 0x10);
+
+struct xex2_opt_static_libraries {
+  xe::be<uint32_t> size;                 // 0x0
+  xex2_opt_static_library libraries[1];  // 0x4
+};
+
+struct xex2_opt_original_pe_name {
+  xe::be<uint32_t> size;
+  char name[1];
+};
+
+struct xex2_opt_data_directory {
+  xe::be<uint32_t> offset;  // 0x0
+  xe::be<uint32_t> size;    // 0x4
+};
+static_assert_size(xex2_opt_data_directory, 0x8);
+
+struct xex2_opt_tls_info {
+  xe::be<uint32_t> slot_count;        // 0x0
+  xe::be<uint32_t> raw_data_address;  // 0x4
+  xe::be<uint32_t> data_size;         // 0x8
+  xe::be<uint32_t> raw_data_size;     // 0xC
+};
+static_assert_size(xex2_opt_tls_info, 0x10);
+
+struct xex2_resource {
+  char name[8];              // 0x0
+  xe::be<uint32_t> address;  // 0x8
+  xe::be<uint32_t> size;     // 0xC
+};
+static_assert_size(xex2_resource, 0x10);
+
+struct xex2_opt_resource_info {
+  xe::be<uint32_t> size;       // 0x0 Resource count is (size - 4) / 16
+  xex2_resource resources[1];  // 0x4
+};
+
+struct xex2_opt_delta_patch_descriptor {
+  xe::be<uint32_t> size;                         // 0x0
+  xex2_version target_version;                   // 0x4
+  xex2_version source_version;                   // 0x8
+  char digest_source[0x14];                      // 0xC
+  char image_key_source[0x10];                   // 0x20
+  xe::be<uint32_t> size_of_target_headers;       // 0x30
+  xe::be<uint32_t> delta_headers_source_offset;  // 0x34
+  xe::be<uint32_t> delta_headers_source_size;    // 0x38
+  xe::be<uint32_t> delta_headers_target_offset;  // 0x3C
+  xe::be<uint32_t> delta_image_source_offset;    // 0x40
+  xe::be<uint32_t> delta_image_source_size;      // 0x44
+  xe::be<uint32_t> delta_image_target_offset;    // 0x48
+};
+static_assert_size(xex2_opt_delta_patch_descriptor, 0x4C);
 
 struct xex2_opt_execution_info {
   xe::be<uint32_t> media_id;          // 0x0
@@ -492,32 +546,103 @@ struct xex2_opt_execution_info {
   uint8_t disc_count;                 // 0x13
   xe::be<uint32_t> savegame_id;       // 0x14
 };
+static_assert_size(xex2_opt_execution_info, 0x18);
+
+struct xex2_opt_import_libraries {
+  xe::be<uint32_t> section_size;       // 0x0
+  xe::be<uint32_t> string_table_size;  // 0x4
+  xe::be<uint32_t> library_count;      // 0x8
+  char string_table[1];                // 0xC string_table_size bytes
+};
+
+struct xex2_import_library {
+  xe::be<uint32_t> size;             // 0x0
+  char next_import_digest[0x14];     // 0x4
+  xe::be<uint32_t> id;               // 0x18
+  xex2_version version;              // 0x1C
+  xex2_version version_min;          // 0x20
+  xe::be<uint16_t> name_index;       // 0x24
+  xe::be<uint16_t> count;            // 0x26
+  xe::be<uint32_t> import_table[1];  // 0x28
+};
 
 struct xex2_opt_header {
   xe::be<uint32_t> key;  // 0x0
 
   union {
     xe::be<uint32_t> value;   // 0x4
-    xe::be<uint32_t> offset;  // 0x8
+    xe::be<uint32_t> offset;  // 0x4
   };
 };
 
 struct xex2_header {
   xe::be<uint32_t> magic;                     // 0x0 'XEX2'
   xe::be<xe_xex2_module_flags> module_flags;  // 0x4
-  xe::be<uint32_t> exe_offset;                // 0x8
+  xe::be<uint32_t> header_size;               // 0x8
   xe::be<uint32_t> reserved;                  // 0xC
-  xe::be<uint32_t> certificate_offset;        // 0x10
+  xe::be<uint32_t> security_offset;           // 0x10
   xe::be<uint32_t> header_count;              // 0x14
 
   xex2_opt_header headers[1];  // 0x18
 };
 
-struct xex2_loader_info {
-  xe::be<uint32_t> header_size;
-  xe::be<uint32_t> image_size;
+struct xex2_page_descriptor {
+  union {
+    struct {
+      uint32_t info : 4;
+      uint32_t size : 28;
+    };
+    xe::be<uint32_t> value;  // 0x0
+  };
+  char data_digest[0x14];  // 0x4
 };
-}  // namespace kernel
+
+struct xex2_security_info {
+  xe::be<uint32_t> header_size;              // 0x0
+  xe::be<uint32_t> image_size;               // 0x4
+  char rsa_signature[0x100];                 // 0x8
+  xe::be<uint32_t> unk_108;                  // 0x108 unk length
+  xe::be<uint32_t> image_flags;              // 0x10C
+  xe::be<uint32_t> load_address;             // 0x110
+  char section_digest[0x14];                 // 0x114
+  xe::be<uint32_t> import_table_count;       // 0x128
+  char import_table_digest[0x14];            // 0x12C
+  char xgd2_media_id[0x10];                  // 0x140
+  char aes_key[0x10];                        // 0x150
+  xe::be<uint32_t> export_table;             // 0x160
+  char header_digest[0x14];                  // 0x164
+  xe::be<uint32_t> region;                   // 0x178
+  xe::be<uint32_t> allowed_media_types;      // 0x17C
+  xe::be<uint32_t> page_descriptor_count;    // 0x180
+  xex2_page_descriptor page_descriptors[1];  // 0x184
+};
+
+struct xex2_export_table {
+  xe::be<uint32_t> magic[3];         // 0x0
+  xe::be<uint32_t> modulenumber[2];  // 0xC
+  xe::be<uint32_t> version[3];       // 0x14
+  xe::be<uint32_t> imagebaseaddr;    // 0x20 must be <<16 to be accurate
+  xe::be<uint32_t> count;            // 0x24
+  xe::be<uint32_t> base;             // 0x28
+  xe::be<uint32_t>
+      ordOffset[1];  // 0x2C ordOffset[0] + (imagebaseaddr << 16) = function
+};
+
+// Little endian PE export directory (from winnt.h)
+struct X_IMAGE_EXPORT_DIRECTORY {
+  uint32_t Characteristics;
+  uint32_t TimeDateStamp;
+  uint16_t MajorVersion;
+  uint16_t MinorVersion;
+  uint32_t Name;
+  uint32_t Base;
+  uint32_t NumberOfFunctions;
+  uint32_t NumberOfNames;
+  uint32_t AddressOfFunctions;     // RVA from base of image
+  uint32_t AddressOfNames;         // RVA from base of image
+  uint32_t AddressOfNameOrdinals;  // RVA from base of image
+};
+
 }  // namespace xe
 
 #endif  // XENIA_KERNEL_XEX2_INFO_H_

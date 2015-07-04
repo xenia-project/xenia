@@ -109,8 +109,7 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
 
   // Inherit default stack size
   if (stack_size == 0) {
-    stack_size =
-        kernel_state->GetExecutableModule()->xex_header()->exe_stack_size;
+    stack_size = kernel_state->GetExecutableModule()->stack_size();
   }
 
   // Stack must be aligned to 16kb pages

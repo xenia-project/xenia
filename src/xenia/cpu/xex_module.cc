@@ -21,6 +21,8 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xmodule.h"
 
+#include "third_party/crypto/rijndael-alg-fst.h"
+
 namespace xe {
 namespace cpu {
 
@@ -45,19 +47,184 @@ XexModule::XexModule(Processor* processor, KernelState* kernel_state)
 
 XexModule::~XexModule() { xe_xex2_dealloc(xex_); }
 
+bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
+                             void** out_ptr) {
+  assert_not_null(header);
+  assert_not_null(out_ptr);
+
+  for (uint32_t i = 0; i < header->header_count; i++) {
+    const xex2_opt_header& opt_header = header->headers[i];
+    if (opt_header.key == key) {
+      // Match!
+      switch (key & 0xFF) {
+        case 0x00: {
+          // We just return the value of the optional header.
+          // Assume that the output pointer points to a uint32_t.
+          *(uint32_t*)out_ptr = (uint32_t)opt_header.value;
+        } break;
+        case 0x01: {
+          // Pointer to the value on the optional header.
+          *out_ptr = (void*)&opt_header.value;
+        } break;
+        default: {
+          // Pointer to the header.
+          *out_ptr = (void*)((uint8_t*)header + opt_header.offset);
+        } break;
+      }
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool XexModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const {
+  return XexModule::GetOptHeader(xex_header_, key, out_ptr);
+}
+
+const xex2_security_info* XexModule::GetSecurityInfo(
+    const xex2_header* header) {
+  return reinterpret_cast<const xex2_security_info*>((uint8_t*)header +
+                                                     header->security_offset);
+}
+
+uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
+  // First: Check the xex2 export table.
+  if (xex_security_info()->export_table) {
+    auto export_table = memory()->TranslateVirtual<const xex2_export_table*>(
+        xex_security_info()->export_table);
+
+    if (ordinal > export_table->count) {
+      XELOGE("GetProcAddress(%.3X): ordinal out of bounds", ordinal);
+      return 0;
+    }
+
+    uint32_t num = ordinal - export_table->base;
+    uint32_t ordinal_offset = export_table->ordOffset[num];
+    ordinal_offset += export_table->imagebaseaddr << 16;
+    return ordinal_offset;
+  }
+
+  // Second: Check the PE exports.
+  xe::be<uint32_t>* exe_address = nullptr;
+  GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);
+  assert_not_null(exe_address);
+
+  xex2_opt_data_directory* pe_export_directory = 0;
+  if (GetOptHeader(XEX_HEADER_EXPORTS_BY_NAME, &pe_export_directory)) {
+    auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
+        *exe_address + pe_export_directory->offset);
+    assert_not_null(e);
+
+    uint32_t* function_table = (uint32_t*)((uint8_t*)e + e->AddressOfFunctions);
+
+    if (ordinal < e->NumberOfFunctions) {
+      return xex_security_info()->load_address + function_table[ordinal];
+    }
+  }
+
+  return 0;
+}
+
+uint32_t XexModule::GetProcAddress(const char* name) const {
+  xe::be<uint32_t>* exe_address = nullptr;
+  GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);
+  assert_not_null(exe_address);
+
+  xex2_opt_data_directory* pe_export_directory = 0;
+  if (!GetOptHeader(XEX_HEADER_EXPORTS_BY_NAME, &pe_export_directory)) {
+    // No exports by name.
+    return 0;
+  }
+
+  auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
+      *exe_address + pe_export_directory->offset);
+  assert_not_null(e);
+
+  // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
+  uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
+
+  // Names relative to directory
+  uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
+
+  // Table of ordinals (by name)
+  uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
+
+  const char* mod_name = (const char*)((uint64_t)e + e->Name);
+
+  for (uint32_t i = 0; i < e->NumberOfNames; i++) {
+    const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
+    uint16_t ordinal = ordinal_table[i];
+    uint32_t addr = *exe_address + function_table[ordinal];
+
+    if (!strcmp(name, fn_name)) {
+      // We have a match!
+      return addr;
+    }
+  }
+
+  // No match
+  return 0;
+}
+
+bool XexModule::ApplyPatch(XexModule* module) {
+  auto header = reinterpret_cast<const xex2_header*>(module->xex_header());
+  if (!(header->module_flags &
+        (XEX_MODULE_MODULE_PATCH | XEX_MODULE_PATCH_DELTA |
+         XEX_MODULE_PATCH_FULL))) {
+    // This isn't a XEX2 patch.
+    return false;
+  }
+
+  // Grab the delta descriptor and get to work.
+  xex2_opt_delta_patch_descriptor* patch_header = nullptr;
+  GetOptHeader(header, XEX_HEADER_DELTA_PATCH_DESCRIPTOR,
+               (void**)&patch_header);
+  assert_not_null(patch_header);
+
+  // TODO!
+
+  return true;
+}
+
+bool XexModule::Load(const std::string& name, const std::string& path,
+                     const void* xex_addr, size_t xex_length) {
+  // TODO: Move loading code here
+  xex_ = xe_xex2_load(memory(), xex_addr, xex_length, {0});
+  if (!xex_) {
+    return false;
+  }
+
+  // Make a copy of the xex header.
+  auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
+  xex_header_ = (xex2_header*)new char[src_header->header_size];
+
+  std::memcpy(xex_header_, src_header, src_header->header_size);
+
+  return Load(name, path, xex_);
+}
+
 bool XexModule::Load(const std::string& name, const std::string& path,
                      xe_xex2_ref xex) {
   xex_ = xex;
-  const xe_xex2_header_t* header = xe_xex2_get_header(xex);
+  auto header = xex_header_;
+  auto old_header = xe_xex2_get_header(xex_);
+
+  // Setup debug info.
+  name_ = std::string(name);
+  path_ = std::string(path);
+  // TODO(benvanik): debug info
 
   // Scan and find the low/high addresses.
   // All code sections are continuous, so this should be easy.
+  // TODO: Use the new xex header to do this.
   low_address_ = UINT_MAX;
   high_address_ = 0;
-  for (uint32_t n = 0, i = 0; n < header->section_count; n++) {
-    const xe_xex2_section_t* section = &header->sections[n];
+  for (uint32_t n = 0, i = 0; n < old_header->section_count; n++) {
+    const xe_xex2_section_t* section = &old_header->sections[n];
     const uint32_t start_address =
-        header->exe_address + (i * section->page_size);
+        old_header->exe_address + (i * section->page_size);
     const uint32_t end_address =
         start_address + (section->info.page_count * section->page_size);
     if (section->info.type == XEX_SECTION_CODE) {
@@ -71,10 +238,37 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   processor_->backend()->CommitExecutableRange(low_address_, high_address_);
 
   // Add all imports (variables/functions).
-  for (size_t n = 0; n < header->import_library_count; n++) {
-    if (!SetupLibraryImports(&header->import_libraries[n])) {
-      return false;
+  xex2_opt_import_libraries* opt_import_header = nullptr;
+  GetOptHeader(XEX_HEADER_IMPORT_LIBRARIES, &opt_import_header);
+  assert_not_null(opt_import_header);
+
+  // FIXME: Don't know if 32 is the actual limit, but haven't seen more than 2.
+  const char* string_table[32];
+  std::memset(string_table, 0, sizeof(string_table));
+
+  // Parse the string table
+  for (size_t i = 0, j = 0; i < opt_import_header->string_table_size; j++) {
+    assert_true(j < xe::countof(string_table));
+    const char* str = opt_import_header->string_table + i;
+
+    string_table[j] = str;
+    i += std::strlen(str) + 1;
+
+    // Padding
+    if ((i % 4) != 0) {
+      i += 4 - (i % 4);
     }
+  }
+
+  auto libraries =
+      (uint8_t*)opt_import_header + opt_import_header->string_table_size + 12;
+  uint32_t library_offset = 0;
+  for (uint32_t i = 0; i < opt_import_header->library_count; i++) {
+    auto library = reinterpret_cast<xex2_import_library*>((uint8_t*)libraries +
+                                                          library_offset);
+    SetupLibraryImports(string_table[library->name_index], library);
+
+    library_offset += library->size;
   }
 
   // Find __savegprlr_* and __restgprlr_* and the others.
@@ -82,11 +276,6 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   if (!FindSaveRest()) {
     return false;
   }
-
-  // Setup debug info.
-  name_ = std::string(name);
-  path_ = std::string(path);
-  // TODO(benvanik): debug info
 
   // Load a specified module map and diff.
   if (FLAGS_load_module_map.size()) {
@@ -98,121 +287,106 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   return true;
 }
 
-bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
-  ExportResolver* export_resolver = processor_->export_resolver();
-
-  xe_xex2_import_info_t* import_infos;
-  size_t import_info_count;
-  if (xe_xex2_get_import_infos(xex_, library, &import_infos,
-                               &import_info_count)) {
-    return false;
+bool XexModule::SetupLibraryImports(const char* name,
+                                    const xex2_import_library* library) {
+  ExportResolver* kernel_resolver = nullptr;
+  if (kernel_state_->IsKernelModule(name)) {
+    kernel_resolver = processor_->export_resolver();
   }
 
-  char name[128];
-  for (size_t n = 0; n < import_info_count; n++) {
-    const xe_xex2_import_info_t* info = &import_infos[n];
+  auto user_module = kernel_state_->GetModule(name);
 
-    // Strip off the extension (for the symbol name)
-    std::string libname = library->name;
-    auto dot = libname.find_last_of('.');
-    if (dot != libname.npos) {
-      libname = libname.substr(0, dot);
-    }
+  std::string libbasename = name;
+  auto dot = libbasename.find_last_of('.');
+  if (dot != libbasename.npos) {
+    libbasename = libbasename.substr(0, dot);
+  }
 
-    Export* kernel_export = nullptr;  // kernel export info
-    uint32_t user_export_addr = 0;    // user export address
+  // Imports are stored as {import descriptor, thunk addr, import desc, ...}
+  // Even thunks have an import descriptor (albeit unused/useless)
+  for (uint32_t i = 0; i < library->count; i++) {
+    uint32_t record_addr = library->import_table[i];
+    assert_not_zero(record_addr);
 
-    if (kernel_state_->IsKernelModule(library->name)) {
-      kernel_export =
-          export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+    auto record_slot =
+        memory()->TranslateVirtual<xe::be<uint32_t>*>(record_addr);
+    uint32_t record_value = *record_slot;
+
+    uint16_t record_type = (record_value & 0xFF000000) >> 24;
+    uint16_t ordinal = record_value & 0xFFFF;
+
+    Export* kernel_export = nullptr;
+    uint32_t user_export_addr = 0;
+
+    if (kernel_resolver) {
+      kernel_export = kernel_resolver->GetExportByOrdinal(name, ordinal);
     } else {
-      auto module = kernel_state_->GetModule(library->name);
-      if (module) {
-        user_export_addr = module->GetProcAddressByOrdinal(info->ordinal);
-      }
+      user_export_addr = user_module->GetProcAddressByOrdinal(ordinal);
     }
 
-    if (kernel_export) {
-      if (info->thunk_address) {
-        snprintf(name, xe::countof(name), "__imp_%s", kernel_export->name);
-      } else {
-        snprintf(name, xe::countof(name), "%s", kernel_export->name);
-      }
-    } else {
-      snprintf(name, xe::countof(name), "__imp_%s_%.3X", libname.c_str(),
-               info->ordinal);
+    // Import not resolved?
+    assert_not_zero(kernel_export || user_export_addr);
+    if (!kernel_export && !user_export_addr) {
+      XELOGW(
+          "WARNING: an import variable was not resolved! (library: %s, import "
+          "lib: %s, ordinal: %.3X)",
+          name_.c_str(), name, ordinal);
     }
 
-    VariableInfo* var_info;
-    DeclareVariable(info->value_address, &var_info);
-    // var->set_name(name);
-    var_info->set_status(SymbolStatus::kDeclared);
-    DefineVariable(var_info);
-    // var->kernel_export = kernel_export;
-    var_info->set_status(SymbolStatus::kDefined);
-
-    // Grab, if available.
-    auto slot = memory_->TranslateVirtual<uint32_t*>(info->value_address);
-    if (kernel_export) {
-      if (kernel_export->type == Export::Type::kFunction) {
-        // Not exactly sure what this should be...
-        if (info->thunk_address) {
-          *slot = xe::byte_swap(info->thunk_address);
-        } else {
-          // TODO(benvanik): find out what import variables are.
-          XELOGW("kernel import variable not defined %.8X %s",
-                 info->value_address, kernel_export->name);
-          *slot = xe::byte_swap(0xF00DF00D);
-        }
-      } else {
-        if (kernel_export->is_implemented()) {
-          // Implemented - replace with pointer.
-          xe::store_and_swap<uint32_t>(slot, kernel_export->variable_ptr);
-        } else {
-          // Not implemented - write with a dummy value.
-          xe::store_and_swap<uint32_t>(
-              slot, 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16);
-          XELOGCPU("WARNING: imported a variable with no value: %s",
-                   kernel_export->name);
-        }
-      }
-    } else if (user_export_addr) {
-      xe::store_and_swap<uint32_t>(slot, user_export_addr);
-    } else {
-      // No module found.
-      XELOGE("kernel import not found: %s", name);
-      if (info->thunk_address) {
-        *slot = xe::byte_swap(info->thunk_address);
-      } else {
-        *slot = xe::byte_swap(0xF00DF00D);
-      }
-    }
-
-    if (info->thunk_address) {
+    StringBuffer import_name;
+    if (record_type == 0) {
+      // Variable.
+      import_name.AppendFormat("__imp__");
       if (kernel_export) {
-        snprintf(name, xe::countof(name), "%s", kernel_export->name);
+        import_name.AppendFormat("%s", kernel_export->name);
       } else if (user_export_addr) {
-        snprintf(name, xe::countof(name), "__%s_%.3X", libname.c_str(),
-                 info->ordinal);
-      } else {
-        snprintf(name, xe::countof(name), "__kernel_%s_%.3X", libname.c_str(),
-                 info->ordinal);
+        import_name.AppendFormat("%s_%.3X", libbasename.c_str(), ordinal);
       }
 
-      if (user_export_addr) {
-        // Rewrite PPC code to set r11 to the target address
-        // So we'll have:
-        //    lis r11, user_export_addr
-        //    ori r11, r11, user_export_addr
-        //    mtspr CTR, r11
-        //    bctr
-        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
-        uint16_t low_addr = user_export_addr & 0xFFFF;
-
-        uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
-        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
-        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
+      if (kernel_export) {
+        if (kernel_export->type == Export::Type::kFunction) {
+          // Not exactly sure what this should be...
+          // Appears to be ignored.
+          *record_slot = 0xDEADC0DE;
+        } else if (kernel_export->type == Export::Type::kVariable) {
+          // Kernel import variable
+          if (kernel_export->is_implemented()) {
+            // Implemented - replace with pointer.
+            *record_slot = kernel_export->variable_ptr;
+          } else {
+            // Not implemented - write with a dummy value.
+            *record_slot = 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16;
+            XELOGCPU("WARNING: imported a variable with no value: %s",
+                     kernel_export->name);
+          }
+        }
+      } else if (user_export_addr) {
+        *record_slot = user_export_addr;
       } else {
+        *record_slot = 0xF00DF00D;
+      }
+
+      // Setup a variable and define it.
+      VariableInfo* var_info;
+      DeclareVariable(record_addr, &var_info);
+      var_info->set_name(import_name.GetString());
+      var_info->set_status(SymbolStatus::kDeclared);
+      DefineVariable(var_info);
+      var_info->set_status(SymbolStatus::kDefined);
+    } else if (record_type == 1) {
+      // Thunk.
+      if (kernel_export) {
+        import_name.AppendFormat("%s", kernel_export->name);
+      } else if (user_export_addr) {
+        import_name.AppendFormat("__%s_%.3X", libbasename.c_str(), ordinal);
+      }
+
+      FunctionInfo* fn_info;
+      DeclareFunction(record_addr, &fn_info);
+      fn_info->set_end_address(record_addr + 16 - 4);
+      fn_info->set_name(import_name.GetString());
+
+      if (kernel_export) {
         // On load we have something like this in memory:
         //     li r3, 0
         //     li r4, 0x1F5
@@ -227,7 +401,7 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
         //     blr
         //     nop
         //     nop
-        uint8_t* p = memory()->TranslateVirtual(info->thunk_address);
+        uint8_t* p = memory()->TranslateVirtual(record_addr);
         xe::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
         xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
         xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
@@ -243,16 +417,43 @@ bool XexModule::SetupLibraryImports(const xe_xex2_import_library_t* library) {
                 (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
           }
         } else {
+          XELOGW("WARNING: Imported kernel function %s is unimplemented!",
+                 import_name.GetString());
           handler = UndefinedImport;
         }
 
-        FunctionInfo* fn_info;
-        DeclareFunction(info->thunk_address, &fn_info);
-        fn_info->set_end_address(info->thunk_address + 16 - 4);
-        fn_info->set_name(name);
         fn_info->SetupExtern(handler);
-        fn_info->set_status(SymbolStatus::kDeclared);
+      } else if (user_export_addr) {
+        // Rewrite PPC code to set r11 to the target address
+        // So we'll have:
+        //    lis r11, user_export_addr
+        //    ori r11, r11, user_export_addr
+        //    mtspr CTR, r11
+        //    bctr
+        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
+        uint16_t low_addr = user_export_addr & 0xFFFF;
+
+        uint8_t* p = memory()->TranslateVirtual(record_addr);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
+      } else {
+        // Import not resolved.
+        // We're gonna rewrite the PPC to trigger a debug trap:
+        //    trap
+        //    blr
+        //    nop
+        //    nop
+        uint8_t* p = memory()->TranslateVirtual(record_addr);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x7FE00008);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
+        xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
+        xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
       }
+
+      fn_info->set_status(SymbolStatus::kDeclared);
+    } else {
+      // Bad.
+      assert_always();
     }
   }
 
