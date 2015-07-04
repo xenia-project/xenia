@@ -259,8 +259,9 @@ void XUserModule::Dump() {
           std::memcpy(name, res.name, sizeof(res.name));
           name[8] = 0;
 
-          printf("    %-8s %.8X-%.8X, %db\n", name, res.address,
-                 res.address + res.size, res.size);
+          printf("    %-8s %.8X-%.8X, %db\n", name, (uint32_t)res.address,
+                 (uint32_t)res.address + (uint32_t)res.size,
+                 (uint32_t)res.size);
         }
       } break;
       case XEX_HEADER_FILE_FORMAT_INFO: {
@@ -319,7 +320,7 @@ void XUserModule::Dump() {
           auto name = string_table[library->name_index];
 
           // Okay. Dump it.
-          printf("    %s - %d imports\n", name, library->count);
+          printf("    %s - %d imports\n", name, (uint16_t)library->count);
 
           // Manually byteswap these because of the bitfields.
           xex2_version version, version_min;
