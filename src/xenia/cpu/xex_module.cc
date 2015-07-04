@@ -362,6 +362,8 @@ bool XexModule::SetupLibraryImports(const char* name,
         }
       } else if (user_export_addr) {
         *record_slot = user_export_addr;
+      } else {
+        *record_slot = 0xF00DF00D;
       }
 
       // Setup a variable and define it.
