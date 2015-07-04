@@ -274,7 +274,53 @@ void XUserModule::Dump() {
                (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
-        printf("  XEX_HEADER_IMPORT_LIBRARIES (TODO):\n");
+        printf("  XEX_HEADER_IMPORT_LIBRARIES:\n");
+        auto opt_import_libraries =
+            reinterpret_cast<const xex2_opt_import_libraries*>(opt_header_ptr);
+
+        // FIXME: Don't know if 32 is the actual limit, but haven't seen more
+        // than 2.
+        const char* string_table[32];
+        std::memset(string_table, 0, sizeof(string_table));
+
+        // Parse the string table
+        for (size_t i = 0, j = 0; i < opt_import_libraries->string_table_size;
+             j++) {
+          assert_true(j < xe::countof(string_table));
+          const char* str = opt_import_libraries->string_table + i;
+
+          string_table[j] = str;
+          i += std::strlen(str) + 1;
+
+          // Padding
+          if ((i % 4) != 0) {
+            i += 4 - (i % 4);
+          }
+        }
+
+        auto libraries = (uint8_t*)opt_import_libraries +
+                         opt_import_libraries->string_table_size + 12;
+        uint32_t library_offset = 0;
+        for (uint32_t i = 0; i < opt_import_libraries->library_count; i++) {
+          auto library = reinterpret_cast<xex2_import_library*>(
+              (uint8_t*)libraries + library_offset);
+          auto name = string_table[library->name_index];
+
+          // Okay. Dump it.
+          printf("    %s - %d imports\n", name, library->count);
+
+          // Manually byteswap these because of the bitfields.
+          xex2_version version, version_min;
+          version.value = xe::byte_swap<uint32_t>(library->version.value);
+          version_min.value =
+              xe::byte_swap<uint32_t>(library->version_min.value);
+          printf("      Version: %d.%d.%d.%d\n", version.major, version.minor,
+                 version.build, version.qfe);
+          printf("      Min Version: %d.%d.%d.%d\n", version_min.major,
+                 version_min.minor, version_min.build, version_min.qfe);
+
+          library_offset += library->size;
+        }
       } break;
       case XEX_HEADER_CHECKSUM_TIMESTAMP: {
         printf("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
