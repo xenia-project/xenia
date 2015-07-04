@@ -666,7 +666,7 @@ XEEMITTER(andcx, 0x7C000078, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(andix, 0x70000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i48.0 || UI)
-  Value* ra = f.And(f.LoadGPR(i.D.RT), f.LoadConstantUint64(i.D.DS));
+  Value* ra = f.And(f.LoadGPR(i.D.RT), f.LoadConstantUint64(XEEXTZ16(i.D.DS)));
   f.StoreGPR(i.D.RA, ra);
   f.UpdateCR(0, ra);
   return 0;
@@ -675,7 +675,7 @@ XEEMITTER(andix, 0x70000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(andisx, 0x74000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) & (i32.0 || UI || i16.0)
   Value* ra =
-      f.And(f.LoadGPR(i.D.RT), f.LoadConstantUint64(uint64_t(i.D.DS) << 16));
+      f.And(f.LoadGPR(i.D.RT), f.LoadConstantUint64(XEEXTZ16(i.D.DS) << 16));
   f.StoreGPR(i.D.RA, ra);
   f.UpdateCR(0, ra);
   return 0;
@@ -817,7 +817,7 @@ XEEMITTER(ori, 0x60000000, D)(PPCHIRBuilder& f, InstrData& i) {
     f.Nop();
     return 0;
   }
-  Value* ra = f.Or(f.LoadGPR(i.D.RT), f.LoadConstantUint64(i.D.DS));
+  Value* ra = f.Or(f.LoadGPR(i.D.RT), f.LoadConstantUint64(XEEXTZ16(i.D.DS)));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -825,7 +825,7 @@ XEEMITTER(ori, 0x60000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(oris, 0x64000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) | (i32.0 || UI || i16.0)
   Value* ra =
-      f.Or(f.LoadGPR(i.D.RT), f.LoadConstantUint64(uint64_t(i.D.DS) << 16));
+      f.Or(f.LoadGPR(i.D.RT), f.LoadConstantUint64(XEEXTZ16(i.D.DS) << 16));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -842,7 +842,7 @@ XEEMITTER(xorx, 0x7C000278, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(xori, 0x68000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i48.0 || UI)
-  Value* ra = f.Xor(f.LoadGPR(i.D.RT), f.LoadConstantUint64(i.D.DS));
+  Value* ra = f.Xor(f.LoadGPR(i.D.RT), f.LoadConstantUint64(XEEXTZ16(i.D.DS)));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
@@ -850,7 +850,7 @@ XEEMITTER(xori, 0x68000000, D)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(xoris, 0x6C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) XOR (i32.0 || UI || i16.0)
   Value* ra =
-      f.Xor(f.LoadGPR(i.D.RT), f.LoadConstantUint64(uint64_t(i.D.DS) << 16));
+      f.Xor(f.LoadGPR(i.D.RT), f.LoadConstantUint64(XEEXTZ16(i.D.DS) << 16));
   f.StoreGPR(i.D.RA, ra);
   return 0;
 }
