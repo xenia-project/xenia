@@ -13,8 +13,7 @@
 #include "xenia/kernel/util/xex2_info.h"
 #include "xenia/memory.h"
 
-namespace xe {
-}  // namespace xe
+namespace xe {}  // namespace xe
 
 typedef struct { int reserved; } xe_xex2_options_t;
 

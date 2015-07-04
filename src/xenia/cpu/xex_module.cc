@@ -114,7 +114,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
   xex2_opt_data_directory* pe_export_directory = 0;
   if (GetOptHeader(XEX_HEADER_EXPORTS_BY_NAME, &pe_export_directory)) {
     auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
-      *exe_address + pe_export_directory->offset);
+        *exe_address + pe_export_directory->offset);
     assert_not_null(e);
 
     uint32_t* function_table = (uint32_t*)((uint8_t*)e + e->AddressOfFunctions);

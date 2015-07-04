@@ -27,8 +27,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 
-namespace xe {
-}  // namespace xe
+namespace xe {}  // namespace xe
 
 // TODO(benvanik): remove.
 #define XEEXPECTZERO(expr) \
@@ -247,9 +246,10 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
       } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
         auto import_libraries =
-            reinterpret_cast<const xe::xex2_opt_import_libraries *>(pp);
+            reinterpret_cast<const xe::xex2_opt_import_libraries*>(pp);
 
-        const uint32_t max_count = (uint32_t)xe::countof(header->import_libraries);
+        const uint32_t max_count =
+            (uint32_t)xe::countof(header->import_libraries);
         uint32_t count = import_libraries->library_count;
         assert_true(count <= max_count);
         if (count > max_count) {
@@ -260,7 +260,7 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
         header->import_library_count = count;
 
         uint32_t string_table_size = import_libraries->string_table_size;
-        const char *string_table[32]; // Pretend 32 is max_count
+        const char* string_table[32];  // Pretend 32 is max_count
         std::memset(string_table, 0, sizeof(string_table));
 
         // Parse the string table
@@ -279,15 +279,14 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
         pp += 12 + import_libraries->string_table_size;
         for (size_t m = 0; m < count; m++) {
           xe_xex2_import_library_t* library = &header->import_libraries[m];
-          auto src_library = (xe::xex2_import_library *)pp;
+          auto src_library = (xe::xex2_import_library*)pp;
 
           memcpy(library->digest, pp + 0x04, 20);
           library->import_id = src_library->id;
           library->version.value = src_library->version.value;
           library->min_version.value = src_library->version_min.value;
 
-          std::strncpy(library->name,
-                       string_table[src_library->name_index],
+          std::strncpy(library->name, string_table[src_library->name_index],
                        xe::countof(library->name));
 
           library->record_count = src_library->count;
@@ -1056,7 +1055,7 @@ uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, uint16_t ordinal) {
 
   // XEX-style export table.
   if (header->loader_info.export_table) {
-    auto export_table = reinterpret_cast<const xe::xex2_export_table *>(
+    auto export_table = reinterpret_cast<const xe::xex2_export_table*>(
         xex->memory->TranslateVirtual(header->loader_info.export_table));
     uint32_t ordinal_count = export_table->count;
     uint32_t ordinal_base = export_table->base;

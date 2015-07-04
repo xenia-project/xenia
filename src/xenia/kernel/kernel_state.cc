@@ -122,8 +122,7 @@ uint32_t KernelState::title_id() const {
   assert_not_null(executable_module_);
 
   xex2_opt_execution_info* exec_info = 0;
-  executable_module_->GetOptHeader(XEX_HEADER_EXECUTION_INFO,
-                                   &exec_info);
+  executable_module_->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &exec_info);
 
   if (exec_info) {
     return exec_info->title_id;

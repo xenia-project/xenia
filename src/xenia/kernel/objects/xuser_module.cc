@@ -380,12 +380,9 @@ void XUserModule::Dump() {
         auto opt_exec_info =
             reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
 
-        printf("       Media ID: %.8X\n",
-               (uint32_t)opt_exec_info->media_id);
-        printf("       Title ID: %.8X\n",
-               (uint32_t)opt_exec_info->title_id);
-        printf("    Savegame ID: %.8X\n",
-               (uint32_t)opt_exec_info->title_id);
+        printf("       Media ID: %.8X\n", (uint32_t)opt_exec_info->media_id);
+        printf("       Title ID: %.8X\n", (uint32_t)opt_exec_info->title_id);
+        printf("    Savegame ID: %.8X\n", (uint32_t)opt_exec_info->title_id);
         printf("    Disc Number / Total: %d / %d\n",
                (uint8_t)opt_exec_info->disc_number,
                (uint8_t)opt_exec_info->disc_count);
@@ -422,13 +419,15 @@ void XUserModule::Dump() {
             exe_address + dir->offset);
 
         // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
-        uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
+        uint32_t* function_table =
+            (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
 
         // Names relative to directory
         uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
 
         // Table of ordinals (by name)
-        uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
+        uint16_t* ordinal_table =
+            (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
 
         for (uint32_t i = 0; i < e->NumberOfNames; i++) {
           const char* name = (const char*)((uint8_t*)e + name_table[i]);
