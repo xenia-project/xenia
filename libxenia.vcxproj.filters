@@ -1447,6 +1447,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="xedebugger.natvis" />
+    <Natvis Include="vsdebuggervis.natvis" />
   </ItemGroup>
 </Project>

@@ -491,9 +491,7 @@
     <None Include="third_party\capstone\arch\X86\X86GenRegisterInfo.inc" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="xedebugger.natvis">
-      <SubType>Designer</SubType>
-    </Natvis>
+    <Natvis Include="vsdebuggervis.natvis" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{0CE149F6-41C3-4224-9E57-C02E8C7CD312}</ProjectGuid>
