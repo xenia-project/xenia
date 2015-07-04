@@ -327,13 +327,26 @@ void XUserModule::Dump() {
         printf("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
       } break;
       case XEX_HEADER_SYSTEM_FLAGS: {
-        printf("  XEX_HEADER_SYSTEM_FLAGS (TODO):\n");
+        printf("  XEX_HEADER_SYSTEM_FLAGS: %.8X\n", (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_EXECUTION_INFO: {
-        printf("  XEX_HEADER_EXECUTION_INFO (TODO):\n");
+        printf("  XEX_HEADER_EXECUTION_INFO:\n");
+        auto opt_exec_info =
+            reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
+
+        printf("       Media ID: %.8X\n",
+               (uint32_t)opt_exec_info->media_id);
+        printf("       Title ID: %.8X\n",
+               (uint32_t)opt_exec_info->title_id);
+        printf("    Savegame ID: %.8X\n",
+               (uint32_t)opt_exec_info->title_id);
+        printf("    Disc Number / Total: %d / %d\n",
+               (uint8_t)opt_exec_info->disc_number,
+               (uint8_t)opt_exec_info->disc_count);
       } break;
       case XEX_HEADER_TITLE_WORKSPACE_SIZE: {
-        printf("  XEX_HEADER_TITLE_WORKSPACE_SIZE (TODO):\n");
+        printf("  XEX_HEADER_TITLE_WORKSPACE_SIZE: %d\n",
+               (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_GAME_RATINGS: {
         printf("  XEX_HEADER_GAME_RATINGS (TODO):\n");
@@ -351,7 +364,7 @@ void XUserModule::Dump() {
         printf("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
-        printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY (TODO):\n");
+        printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: %d\n", opt_header.value);
       } break;
       case XEX_HEADER_EXPORTS_BY_NAME: {
         printf("  XEX_HEADER_EXPORTS_BY_NAME:\n");
