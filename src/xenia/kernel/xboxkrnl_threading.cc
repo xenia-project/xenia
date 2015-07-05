@@ -117,7 +117,7 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
 
   auto thread = object_ref<XThread>(
       new XThread(kernel_state, stack_size, xapi_thread_startup, start_address,
-                  start_context, creation_flags));
+                  start_context, creation_flags, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {

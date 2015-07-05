@@ -41,7 +41,8 @@ xe::mutex critical_region_;
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
-                 uint32_t start_context, uint32_t creation_flags)
+                 uint32_t start_context, uint32_t creation_flags,
+                 bool guest_thread)
     : XObject(kernel_state, kTypeThread),
       thread_id_(++next_xthread_id),
       thread_handle_(0),
@@ -50,7 +51,8 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
       thread_state_(0),
       priority_(0),
       affinity_(0),
-      irql_(0) {
+      irql_(0),
+      guest_thread_(guest_thread) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
@@ -758,7 +760,7 @@ void* XThread::GetWaitHandle() { return event_->GetWaitHandle(); }
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
                          uint32_t creation_flags, std::function<int()> host_fn)
-    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags),
+    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags, false),
       host_fn_(host_fn) {}
 
 void XHostThread::Execute() {

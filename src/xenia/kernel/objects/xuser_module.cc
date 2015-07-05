@@ -206,7 +206,7 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
 
   // Create a thread to run in.
   auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0, 0));
+      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0, 0, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
