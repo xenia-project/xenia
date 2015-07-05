@@ -122,6 +122,9 @@ class KernelState {
   }
   object_ref<XUserModule> LoadUserModule(const char* name);
 
+  // Terminates a title: Unloads all modules, and kills all guest threads.
+  void TerminateTitle(bool from_guest_thread = false);
+
   void RegisterThread(XThread* thread);
   void UnregisterThread(XThread* thread);
   void OnThreadExecute(XThread* thread);

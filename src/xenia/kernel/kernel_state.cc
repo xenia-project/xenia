@@ -302,6 +302,49 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
   return module;
 }
 
+void KernelState::TerminateTitle(bool from_guest_thread) {
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+
+  // First: Kill all guest threads.
+  for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
+    if (it->second->guest_thread()) {
+      auto thread = it->second;
+
+      if (from_guest_thread && XThread::IsInThread(thread)) {
+        // Don't terminate ourselves.
+        continue;
+      }
+
+      if (it->second->running()) {
+        thread->Terminate(0);
+      }
+
+      // Erase it from the thread list.
+      it = threads_by_id_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  // Second: Unload all user modules (including the executable)
+  for (int i = 0; i < user_modules_.size(); i++) {
+    X_STATUS status = user_modules_[i]->Unload();
+    assert_true(XSUCCEEDED(status));
+
+    object_table_->RemoveHandle(user_modules_[i]->handle());
+  }
+  user_modules_.clear();
+
+  if (from_guest_thread) {
+    // Now commit suicide (using Terminate, because we can't call into guest
+    // code anymore)
+    // Also, manually invoke the lock guard's destructor, because Terminate
+    // does not return.
+    lock.~lock_guard();
+    XThread::GetCurrentThread()->Terminate(0);
+  }
+}
+
 void KernelState::RegisterThread(XThread* thread) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
   threads_by_id_[thread->thread_id()] = thread;
