@@ -303,7 +303,7 @@ bool XexModule::Unload() {
 
   memory()->LookupHeap(*exe_address)->Release(*exe_address);
 
-  assert_not_null(xex_header_); // Unloading a module that wasn't loaded?
+  assert_not_null(xex_header_);  // Unloading a module that wasn't loaded?
   delete[] xex_header_;
   xex_header_ = nullptr;
 

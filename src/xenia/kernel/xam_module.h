@@ -35,14 +35,14 @@ class XamModule : public XKernelModule {
     uint32_t launch_data_ptr;
     uint32_t launch_data_size;
     uint32_t launch_flags;
-    std::string launch_path; // Full path to next xex
+    std::string launch_path;  // Full path to next xex
   };
 
   const LoaderData& loader_data() const { return loader_data_; }
   LoaderData& loader_data() { return loader_data_; }
 
  private:
-   LoaderData loader_data_;
+  LoaderData loader_data_;
 };
 
 }  // namespace kernel

@@ -160,7 +160,7 @@ class XThread : public XObject {
   uint32_t pcr_address_;
   uint32_t thread_state_address_;
   cpu::ThreadState* thread_state_;
-  bool guest_thread_; // Launched into guest code?
+  bool guest_thread_;  // Launched into guest code?
   bool running_;
 
   std::string name_;

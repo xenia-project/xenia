@@ -125,7 +125,8 @@ dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
 }
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
 
-dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr, dword_t buffer_size) {
+dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
+                                      dword_t buffer_size) {
   auto xam_module = kernel_state()->GetModule("xam.xex");
   auto xam = kernel::object_ref<kernel::XamModule>(
       reinterpret_cast<kernel::XamModule*>(xam_module.release()));
@@ -153,7 +154,7 @@ void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
 
   auto& loader_data = xam->loader_data();
   loader_data.launch_flags = flags;
-  
+
   // Translate the launch path to a full path.
   if (raw_name) {
     std::string name = xe::find_name_from_path(std::string(raw_name));
