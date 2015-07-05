@@ -11,8 +11,10 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xenumerator.h"
 #include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
+#include "xenia/kernel/xam_module.h"
 #include "xenia/kernel/xam_private.h"
 #include "xenia/xbox.h"
 
@@ -90,53 +92,93 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL XamLoaderSetLaunchData_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t data_ptr = SHIM_GET_ARG_32(0);
-  uint32_t data_size = SHIM_GET_ARG_32(1);
+dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
+  auto xam_module = kernel_state()->GetModule("xam.xex");
+  auto xam = kernel::object_ref<kernel::XamModule>(
+      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
 
-  XELOGD("XamLoaderSetLaunchData(%.8X, %d)", data_ptr, data_size);
+  auto& loader_data = xam->loader_data();
+  if (loader_data.launch_data_ptr) {
+    kernel_memory()->SystemHeapFree(loader_data.launch_data_ptr);
+  }
 
-  // Unknown return value.
-  SHIM_SET_RETURN_32(0);
+  loader_data.launch_data_ptr = kernel_memory()->SystemHeapAlloc(size);
+  loader_data.launch_data_size = size;
+
+  std::memcpy(kernel_memory()->TranslateVirtual(loader_data.launch_data_ptr),
+              data, size);
+
+  // FIXME: Unknown return value.
+  return 0;
 }
+DECLARE_XAM_EXPORT(XamLoaderSetLaunchData, ExportTag::kSketchy);
 
-SHIM_CALL XamLoaderGetLaunchDataSize_shim(PPCContext* ppc_context,
-                                          KernelState* kernel_state) {
-  uint32_t size_ptr = SHIM_GET_ARG_32(0);
+dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
+  auto xam_module = kernel_state()->GetModule("xam.xex");
+  auto xam = kernel::object_ref<kernel::XamModule>(
+      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
 
-  XELOGD("XamLoaderGetLaunchDataSize(%.8X)", size_ptr);
+  *size_ptr = xam->loader_data().launch_data_size;
 
-  SHIM_SET_MEM_32(size_ptr, 0);
-
-  SHIM_SET_RETURN_32(1);
+  // FIXME: What do we return?
+  return 1;
 }
+DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
 
-SHIM_CALL XamLoaderGetLaunchData_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
-  uint32_t buffer_size = SHIM_GET_ARG_32(1);
+dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr, dword_t buffer_size) {
+  auto xam_module = kernel_state()->GetModule("xam.xex");
+  auto xam = kernel::object_ref<kernel::XamModule>(
+      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
 
-  XELOGD("XamLoaderGetLaunchData(%.8X, %d)", buffer_ptr, buffer_size);
+  auto& loader_data = xam->loader_data();
+  if (loader_data.launch_data_ptr) {
+    uint8_t* loader_buffer_ptr =
+        kernel_memory()->TranslateVirtual(loader_data.launch_data_ptr);
 
-  SHIM_SET_RETURN_32(0);
+    uint32_t copy_size =
+        std::min(loader_data.launch_data_size, (uint32_t)buffer_size);
+
+    std::memcpy(buffer_ptr, loader_buffer_ptr, copy_size);
+  }
+
+  // FIXME: Unknown return value.
+  return 0;
 }
+DECLARE_XAM_EXPORT(XamLoaderGetLaunchData, ExportTag::kSketchy);
 
-SHIM_CALL XamLoaderLaunchTitle_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t name_ptr = SHIM_GET_ARG_32(0);
-  const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
-  uint32_t flags = SHIM_GET_ARG_32(1);
+void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
+  auto xam_module = kernel_state()->GetModule("xam.xex");
+  auto xam = kernel::object_ref<kernel::XamModule>(
+      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
 
-  XELOGD("XamLoaderLaunchTitle(%.8X(%s), %.8X)", name_ptr, name, flags);
-  assert_always();
+  auto& loader_data = xam->loader_data();
+  loader_data.launch_flags = flags;
+  
+  // Translate the launch path to a full path.
+  if (raw_name) {
+    std::string name = xe::find_name_from_path(std::string(raw_name));
+    std::string path(raw_name);
+    if (name == std::string(raw_name)) {
+      path = xe::join_paths(
+          xe::find_base_path(kernel_state()->GetExecutableModule()->path()),
+          name);
+    }
+
+    loader_data.launch_path = path;
+  } else {
+    assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
+  }
+
+  // This function does not return.
+  XThread::GetCurrentThread()->Exit(0);
 }
+DECLARE_XAM_EXPORT(XamLoaderLaunchTitle, ExportTag::kSketchy);
 
-SHIM_CALL XamLoaderTerminateTitle_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  XELOGD("XamLoaderTerminateTitle()");
-  assert_always();
+void XamLoaderTerminateTitle() {
+  // This function does not return.
+  XThread::GetCurrentThread()->Exit(0);
 }
+DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 
 SHIM_CALL XamAlloc_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
@@ -222,12 +264,6 @@ void xe::kernel::xam::RegisterInfoExports(
   SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
 
   SHIM_SET_MAPPING("xam.xex", XamGetExecutionId, state);
-
-  SHIM_SET_MAPPING("xam.xex", XamLoaderSetLaunchData, state);
-  SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchDataSize, state);
-  SHIM_SET_MAPPING("xam.xex", XamLoaderGetLaunchData, state);
-  SHIM_SET_MAPPING("xam.xex", XamLoaderLaunchTitle, state);
-  SHIM_SET_MAPPING("xam.xex", XamLoaderTerminateTitle, state);
 
   SHIM_SET_MAPPING("xam.xex", XamAlloc, state);
   SHIM_SET_MAPPING("xam.xex", XamFree, state);
