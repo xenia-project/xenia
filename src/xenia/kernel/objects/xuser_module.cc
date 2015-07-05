@@ -211,7 +211,6 @@ X_STATUS XUserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
 
 X_STATUS XUserModule::Launch(uint32_t flags) {
   XELOGI("Launching module...");
-  Dump();
 
   // Create a thread to run in.
   auto thread = object_ref<XThread>(
