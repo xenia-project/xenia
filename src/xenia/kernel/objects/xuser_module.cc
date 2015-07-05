@@ -104,6 +104,7 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   // Cache some commonly used headers...
   this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
   this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
+  dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
 
   OnLoad();
 
