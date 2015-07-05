@@ -67,6 +67,8 @@ bool XModule::Matches(const std::string& name) const {
 
 void XModule::OnLoad() { kernel_state_->RegisterModule(this); }
 
+void XModule::OnUnload() { kernel_state_->UnregisterModule(this); }
+
 X_STATUS XModule::GetSection(const char* name, uint32_t* out_section_data,
                              uint32_t* out_section_size) {
   return X_STATUS_UNSUCCESSFUL;
