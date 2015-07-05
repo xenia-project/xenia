@@ -170,13 +170,13 @@ void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
   }
 
   // This function does not return.
-  XThread::GetCurrentThread()->Exit(0);
+  kernel_state()->TerminateTitle(true);
 }
 DECLARE_XAM_EXPORT(XamLoaderLaunchTitle, ExportTag::kSketchy);
 
 void XamLoaderTerminateTitle() {
   // This function does not return.
-  XThread::GetCurrentThread()->Exit(0);
+  kernel_state()->TerminateTitle(true);
 }
 DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 

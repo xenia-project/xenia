@@ -312,6 +312,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
 
       if (from_guest_thread && XThread::IsInThread(thread)) {
         // Don't terminate ourselves.
+        ++it;
         continue;
       }
 
@@ -336,6 +337,8 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
   user_modules_.clear();
 
   if (from_guest_thread) {
+    threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
+
     // Now commit suicide (using Terminate, because we can't call into guest
     // code anymore)
     // Also, manually invoke the lock guard's destructor, because Terminate
