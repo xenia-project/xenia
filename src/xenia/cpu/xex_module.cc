@@ -297,11 +297,11 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 
 bool XexModule::Unload() {
   // Just deallocate the memory occupied by the exe
-  uint32_t exe_address = 0;
+  xe::be<uint32_t>* exe_address = 0;
   GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);
   assert_not_zero(exe_address);
 
-  memory()->LookupHeap(exe_address)->Release(exe_address);
+  memory()->LookupHeap(*exe_address)->Release(*exe_address);
 
   assert_not_null(xex_header_); // Unloading a module that wasn't loaded?
   delete[] xex_header_;
