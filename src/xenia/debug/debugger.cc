@@ -58,7 +58,8 @@ Breakpoint::~Breakpoint() = default;
 Debugger::Debugger(Emulator* emulator)
     : emulator_(emulator),
       listen_socket_(INVALID_SOCKET),
-      client_socket_(INVALID_SOCKET) {
+      client_socket_(INVALID_SOCKET),
+      accept_thread_running_(false) {
   WSADATA wsa_data;
   WSAStartup(MAKEWORD(2, 2), &wsa_data);
 }
@@ -134,67 +135,70 @@ void SendResponse(SOCKET client_socket, flatbuffers::FlatBufferBuilder& fbb,
 }
 
 void Debugger::PreLaunch() {
-  accept_thread_ = std::thread([this]() {
-    xe::threading::set_name("Debugger Server");
+  if (!accept_thread_running_) {
+    accept_thread_running_ = true;
+    accept_thread_ = std::thread([this]() {
+      xe::threading::set_name("Debugger Server");
 
-    while (listen_socket_ != INVALID_SOCKET) {
-      sockaddr_in6 client_addr;
-      int client_count = sizeof(client_addr);
-      SOCKET client_socket_id =
-          accept(listen_socket_, reinterpret_cast<sockaddr*>(&client_addr),
-                 &client_count);
-      if (client_socket_id == INVALID_SOCKET) {
-        XELOGE("Failed to accept socket");
-        continue;
-      }
-
-      // Only one debugger at a time.
-      if (client_socket_ != INVALID_SOCKET) {
-        XELOGW("Ignoring debugger connection as one is already connected");
-        closesocket(client_socket_id);
-        continue;
-      }
-
-      // Setup recv thread.
-      client_socket_ = client_socket_id;
-      receive_thread_ = std::thread([this]() {
-        xe::threading::set_name("Debugger Connection");
-
-        while (client_socket_ != INVALID_SOCKET) {
-          // Read length prefix.
-          uint32_t length = 0;
-          int r = recv(client_socket_, reinterpret_cast<char*>(&length), 4,
-                       MSG_WAITALL);
-          if (r != 4) {
-            // Failed?
-            XELOGE("Failed to recv debug data length - dead connection?");
-            if (FLAGS_exit_with_debugger) {
-              exit(1);
-            }
-            break;
-          }
-
-          // Read body.
-          std::vector<uint8_t> body(length);
-          r = recv(client_socket_, reinterpret_cast<char*>(body.data()), length,
-                   MSG_WAITALL);
-          if (r != length) {
-            // Failed?
-            XELOGE("Failed to recv debug data body - dead connection?");
-            if (FLAGS_exit_with_debugger) {
-              exit(1);
-            }
-            break;
-          }
-
-          // Read message contents and dispatch.
-          OnMessage(std::move(body));
+      while (listen_socket_ != INVALID_SOCKET) {
+        sockaddr_in6 client_addr;
+        int client_count = sizeof(client_addr);
+        SOCKET client_socket_id =
+            accept(listen_socket_, reinterpret_cast<sockaddr*>(&client_addr),
+                   &client_count);
+        if (client_socket_id == INVALID_SOCKET) {
+          XELOGE("Failed to accept socket");
+          continue;
         }
-      });
 
-      // This will WaitForClient if it was waiting.
-    }
-  });
+        // Only one debugger at a time.
+        if (client_socket_ != INVALID_SOCKET) {
+          XELOGW("Ignoring debugger connection as one is already connected");
+          closesocket(client_socket_id);
+          continue;
+        }
+
+        // Setup recv thread.
+        client_socket_ = client_socket_id;
+        receive_thread_ = std::thread([this]() {
+          xe::threading::set_name("Debugger Connection");
+
+          while (client_socket_ != INVALID_SOCKET) {
+            // Read length prefix.
+            uint32_t length = 0;
+            int r = recv(client_socket_, reinterpret_cast<char*>(&length), 4,
+                         MSG_WAITALL);
+            if (r != 4) {
+              // Failed?
+              XELOGE("Failed to recv debug data length - dead connection?");
+              if (FLAGS_exit_with_debugger) {
+                exit(1);
+              }
+              break;
+            }
+
+            // Read body.
+            std::vector<uint8_t> body(length);
+            r = recv(client_socket_, reinterpret_cast<char*>(body.data()),
+                     length, MSG_WAITALL);
+            if (r != length) {
+              // Failed?
+              XELOGE("Failed to recv debug data body - dead connection?");
+              if (FLAGS_exit_with_debugger) {
+                exit(1);
+              }
+              break;
+            }
+
+            // Read message contents and dispatch.
+            OnMessage(std::move(body));
+          }
+        });
+
+        // This will WaitForClient if it was waiting.
+      }
+    });
+  }
 
   if (FLAGS_wait_for_debugger) {
     // Wait for the first client.
