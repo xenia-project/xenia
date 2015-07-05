@@ -112,15 +112,23 @@ class KernelState {
   void UnregisterModule(XModule* module);
   bool IsKernelModule(const char* name);
   object_ref<XModule> GetModule(const char* name);
+
   object_ref<XUserModule> GetExecutableModule();
   void SetExecutableModule(object_ref<XUserModule> module);
+  object_ref<XUserModule> LoadUserModule(const char* name);
+
+  object_ref<XKernelModule> GetKernelModule(const char* name);
   template <typename T>
   object_ref<XKernelModule> LoadKernelModule() {
     auto kernel_module = object_ref<XKernelModule>(new T(emulator_, this));
     LoadKernelModule(kernel_module);
     return kernel_module;
   }
-  object_ref<XUserModule> LoadUserModule(const char* name);
+  template <typename T>
+  object_ref<T> GetKernelModule(const char* name) {
+    auto module = GetKernelModule(name);
+    return object_ref<T>(reinterpret_cast<T*>(module.release()));
+  }
 
   // Terminates a title: Unloads all modules, and kills all guest threads.
   void TerminateTitle(bool from_guest_thread = false);

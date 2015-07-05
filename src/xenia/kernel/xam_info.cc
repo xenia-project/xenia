@@ -93,9 +93,7 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
 }
 
 dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
-  auto xam_module = kernel_state()->GetModule("xam.xex");
-  auto xam = kernel::object_ref<kernel::XamModule>(
-      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
+  auto xam = kernel_state()->GetKernelModule<kernel::XamModule>("xam.xex");
 
   auto& loader_data = xam->loader_data();
   if (loader_data.launch_data_ptr) {
@@ -114,9 +112,7 @@ dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
 DECLARE_XAM_EXPORT(XamLoaderSetLaunchData, ExportTag::kSketchy);
 
 dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
-  auto xam_module = kernel_state()->GetModule("xam.xex");
-  auto xam = kernel::object_ref<kernel::XamModule>(
-      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
+  auto xam = kernel_state()->GetKernelModule<kernel::XamModule>("xam.xex");
 
   *size_ptr = xam->loader_data().launch_data_size;
 
@@ -126,9 +122,7 @@ DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
 
 dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
                                       dword_t buffer_size) {
-  auto xam_module = kernel_state()->GetModule("xam.xex");
-  auto xam = kernel::object_ref<kernel::XamModule>(
-      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
+  auto xam = kernel_state()->GetKernelModule<kernel::XamModule>("xam.xex");
 
   auto& loader_data = xam->loader_data();
   if (loader_data.launch_data_ptr) {
@@ -146,9 +140,7 @@ dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchData, ExportTag::kSketchy);
 
 void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
-  auto xam_module = kernel_state()->GetModule("xam.xex");
-  auto xam = kernel::object_ref<kernel::XamModule>(
-      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
+  auto xam = kernel_state()->GetKernelModule<kernel::XamModule>("xam.xex");
 
   auto& loader_data = xam->loader_data();
   loader_data.launch_flags = flags;

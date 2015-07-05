@@ -275,13 +275,9 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
   // Allow xam to request module loads.
-  auto xam_module = kernel_state_->GetModule("xam.xex");
-  auto xam = kernel::object_ref<kernel::XamModule>(
-      reinterpret_cast<kernel::XamModule*>(xam_module.release()));
-
-  auto xboxkrnl_module = kernel_state_->GetModule("xboxkrnl.exe");
-  auto xboxkrnl = kernel::object_ref<kernel::XboxkrnlModule>(
-      reinterpret_cast<kernel::XboxkrnlModule*>(xboxkrnl_module.release()));
+  auto xam = kernel_state()->GetKernelModule<kernel::XamModule>("xam.xex");
+  auto xboxkrnl =
+      kernel_state()->GetKernelModule<kernel::XboxkrnlModule>("xboxkrnl.exe");
 
   int result = 0;
   auto next_module = module_path;

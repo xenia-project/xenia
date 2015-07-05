@@ -161,6 +161,18 @@ bool KernelState::IsKernelModule(const char* name) {
   return false;
 }
 
+object_ref<XKernelModule> KernelState::GetKernelModule(const char* name) {
+  assert_true(IsKernelModule(name));
+
+  for (auto kernel_module : kernel_modules_) {
+    if (kernel_module->Matches(name)) {
+      return retain_object(kernel_module.get());
+    }
+  }
+
+  return nullptr;
+}
+
 object_ref<XModule> KernelState::GetModule(const char* name) {
   if (!name) {
     // NULL name = self.
