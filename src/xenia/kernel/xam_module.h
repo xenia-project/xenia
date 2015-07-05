@@ -25,16 +25,9 @@ class XamModule : public XKernelModule {
   static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
 
   struct LoaderData {
-    LoaderData() {
-      launch_data_ptr = 0;
-      launch_data_size = 0;
-      launch_flags = 0;
-      launch_path = "";
-    }
-
-    uint32_t launch_data_ptr;
-    uint32_t launch_data_size;
-    uint32_t launch_flags;
+    uint32_t launch_data_ptr = 0;
+    uint32_t launch_data_size = 0;
+    uint32_t launch_flags = 0;
     std::string launch_path;  // Full path to next xex
   };
 
