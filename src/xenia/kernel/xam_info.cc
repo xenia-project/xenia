@@ -120,8 +120,7 @@ dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
 
   *size_ptr = xam->loader_data().launch_data_size;
 
-  // FIXME: What do we return?
-  return 1;
+  return 0;
 }
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
 
@@ -142,7 +141,6 @@ dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
     std::memcpy(buffer_ptr, loader_buffer_ptr, copy_size);
   }
 
-  // FIXME: Unknown return value.
   return 0;
 }
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchData, ExportTag::kSketchy);
