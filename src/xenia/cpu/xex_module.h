@@ -68,6 +68,7 @@ class XexModule : public xe::cpu::Module {
   bool Load(const std::string& name, const std::string& path,
             const void* xex_addr, size_t xex_length);
   bool Load(const std::string& name, const std::string& path, xe_xex2_ref xex);
+  bool Unload();
 
   const std::string& name() const override { return name_; }
 

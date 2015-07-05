@@ -24,7 +24,7 @@ using namespace xe::cpu;
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
     : XModule(kernel_state, ModuleType::kUserModule, path) {}
 
-XUserModule::~XUserModule() {}
+XUserModule::~XUserModule() { Unload(); }
 
 X_STATUS XUserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
@@ -108,6 +108,15 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 
   OnLoad();
 
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS XUserModule::Unload() {
+  if (!xex_module()->Unload()) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  OnUnload();
   return X_STATUS_SUCCESS;
 }
 
