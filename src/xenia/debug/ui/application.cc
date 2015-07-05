@@ -16,8 +16,9 @@
 #include "xenia/debug/ui/main_window.h"
 #include "xenia/profiling.h"
 
-#include "third_party/turbobadger/src/tb/tb_msg.h"
-#include "third_party/turbobadger/src/tb/tb_system.h"
+#include "third_party/turbobadger/src/tb/message_handler.h"
+#include "third_party/turbobadger/src/tb/util/metrics.h"
+#include "third_party/turbobadger/src/tb/util/timer.h"
 
 namespace xe {
 namespace debug {
@@ -81,16 +82,16 @@ void Application::Quit() {
 
 // This doesn't really belong here (it belongs in tb_system_[linux/windows].cpp.
 // This is here since the proper implementations has not yet been done.
-void tb::TBSystem::RescheduleTimer(uint64_t fire_time) {
-  if (fire_time == tb::kNotSoon) {
+void tb::util::RescheduleTimer(uint64_t fire_time) {
+  if (fire_time == tb::MessageHandler::kNotSoon) {
     return;
   }
 
-  uint64_t now = tb::TBSystem::GetTimeMS();
+  uint64_t now = tb::util::GetTimeMS();
   uint64_t delay_millis = fire_time >= now ? fire_time - now : 0;
   xe::debug::ui::Application::current()->loop()->PostDelayed([]() {
     uint64_t next_fire_time = tb::MessageHandler::GetNextMessageFireTime();
-    uint64_t now = tb::TBSystem::GetTimeMS();
+    uint64_t now = tb::util::GetTimeMS();
     if (now < next_fire_time) {
       // We timed out *before* we were supposed to (the OS is not playing nice).
       // Calling ProcessMessages now won't achieve a thing so force a reschedule
@@ -104,6 +105,6 @@ void tb::TBSystem::RescheduleTimer(uint64_t fire_time) {
     // If we still have things to do (because we didn't process all messages,
     // or because there are new messages), we need to rescedule, so call
     // RescheduleTimer.
-    tb::TBSystem::RescheduleTimer(tb::MessageHandler::GetNextMessageFireTime());
+    tb::util::RescheduleTimer(tb::MessageHandler::GetNextMessageFireTime());
   }, delay_millis);
 }

@@ -10,29 +10,31 @@
 #ifndef XENIA_DEBUG_UI_TURBO_BADGER_RENDERER_H_
 #define XENIA_DEBUG_UI_TURBO_BADGER_RENDERER_H_
 
+#include <cstddef>
 #include <memory>
 
 #include "xenia/ui/gl/circular_buffer.h"
+#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/gl/gl.h"
 
-#include "third_party/turbobadger/src/tb/tb_renderer.h"
-#include "third_party/turbobadger/src/tb/tb_renderer_batcher.h"
+#include "third_party/turbobadger/src/tb/graphics/batching_renderer.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
 
-class TBRendererGL4 : public tb::RendererBatcher {
+class TBRendererGL4 : public tb::graphics::BatchingRenderer {
  public:
-  TBRendererGL4();
+  TBRendererGL4(xe::ui::gl::GLContext* context);
   ~TBRendererGL4() override;
 
-  static std::unique_ptr<TBRendererGL4> Create();
+  static std::unique_ptr<TBRendererGL4> Create(xe::ui::gl::GLContext* context);
 
   void BeginPaint(int render_target_w, int render_target_h) override;
   void EndPaint() override;
 
-  tb::Bitmap* CreateBitmap(int width, int height, uint32_t* data) override;
+  tb::graphics::Bitmap* CreateBitmap(int width, int height,
+                                     uint32_t* data) override;
 
   void RenderBatch(Batch* batch) override;
   void SetClipRect(const tb::Rect& rect) override;
@@ -42,6 +44,8 @@ class TBRendererGL4 : public tb::RendererBatcher {
 
   bool Initialize();
   void Flush();
+
+  xe::ui::gl::GLContext* context_ = nullptr;
 
   GLuint program_ = 0;
   GLuint vao_ = 0;

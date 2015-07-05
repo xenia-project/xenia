@@ -15,8 +15,7 @@
 #include "xenia/ui/gl/wgl_control.h"
 #include "xenia/ui/loop.h"
 
-#include "third_party/turbobadger/src/tb/tb_core.h"
-#include "third_party/turbobadger/src/tb/tb_widgets.h"
+#include "third_party/turbobadger/src/tb/element.h"
 
 namespace xe {
 namespace debug {
@@ -27,11 +26,11 @@ class TurboBadgerControl : public xe::ui::gl::WGLControl {
   TurboBadgerControl(xe::ui::Loop* loop);
   ~TurboBadgerControl() override;
 
-  static bool InitializeTurboBadger(tb::Renderer* renderer);
+  static bool InitializeTurboBadger(tb::graphics::Renderer* renderer);
   static void ShutdownTurboBadger();
 
-  tb::Renderer* renderer() const { return renderer_.get(); }
-  tb::Widget* root_widget() const { return root_widget_.get(); }
+  tb::graphics::Renderer* renderer() const { return renderer_.get(); }
+  tb::Element* root_element() const { return root_element_.get(); }
 
  protected:
   using super = xe::ui::gl::WGLControl;
@@ -58,8 +57,8 @@ class TurboBadgerControl : public xe::ui::gl::WGLControl {
   void OnMouseUp(xe::ui::MouseEvent& e) override;
   void OnMouseWheel(xe::ui::MouseEvent& e) override;
 
-  std::unique_ptr<tb::Renderer> renderer_;
-  std::unique_ptr<tb::Widget> root_widget_;
+  std::unique_ptr<tb::graphics::Renderer> renderer_;
+  std::unique_ptr<tb::Element> root_element_;
 
   uint32_t frame_count_ = 0;
   uint32_t fps_ = 0;

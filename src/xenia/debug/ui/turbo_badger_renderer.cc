@@ -12,9 +12,8 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 
-#include "third_party/turbobadger/src/tb/tb_types.h"
-#include "third_party/turbobadger/src/tb/tb_bitmap_fragment.h"
-#include "third_party/turbobadger/src/tb/tb_system.h"
+#include "third_party/turbobadger/src/tb/graphics/bitmap_fragment.h"
+#include "third_party/turbobadger/src/tb/util/math.h"
 
 namespace xe {
 namespace debug {
@@ -22,9 +21,9 @@ namespace ui {
 
 using namespace tb;
 
-class TBRendererGL4::TBBitmapGL4 : public tb::Bitmap {
+class TBRendererGL4::TBBitmapGL4 : public tb::graphics::Bitmap {
  public:
-  TBBitmapGL4(TBRendererGL4* renderer);
+  TBBitmapGL4(xe::ui::gl::GLContext* context, TBRendererGL4* renderer);
   ~TBBitmapGL4();
 
   bool Init(int width, int height, uint32_t* data);
@@ -32,6 +31,7 @@ class TBRendererGL4::TBBitmapGL4 : public tb::Bitmap {
   int Height() override { return height_; }
   void SetData(uint32_t* data) override;
 
+  xe::ui::gl::GLContext* context_ = nullptr;
   TBRendererGL4* renderer_ = nullptr;
   int width_ = 0;
   int height_ = 0;
@@ -39,19 +39,22 @@ class TBRendererGL4::TBBitmapGL4 : public tb::Bitmap {
   GLuint64 gpu_handle_ = 0;
 };
 
-TBRendererGL4::TBBitmapGL4::TBBitmapGL4(TBRendererGL4* renderer)
-    : renderer_(renderer) {}
+TBRendererGL4::TBBitmapGL4::TBBitmapGL4(xe::ui::gl::GLContext* context,
+                                        TBRendererGL4* renderer)
+    : context_(context), renderer_(renderer) {}
 
 TBRendererGL4::TBBitmapGL4::~TBBitmapGL4() {
-  // Must flush and unbind before we delete the texture
+  xe::ui::gl::GLContextLock lock(context_);
+
+  // Must flush and unbind before we delete the texture.
   renderer_->FlushBitmap(this);
   glMakeTextureHandleNonResidentARB(gpu_handle_);
   glDeleteTextures(1, &handle_);
 }
 
 bool TBRendererGL4::TBBitmapGL4::Init(int width, int height, uint32_t* data) {
-  assert(width == GetNearestPowerOfTwo(width));
-  assert(height == GetNearestPowerOfTwo(height));
+  assert(width == tb::util::GetNearestPowerOfTwo(width));
+  assert(height == tb::util::GetNearestPowerOfTwo(height));
   width_ = width;
   height_ = height;
 
@@ -76,17 +79,21 @@ void TBRendererGL4::TBBitmapGL4::SetData(uint32_t* data) {
                       GL_UNSIGNED_BYTE, data);
 }
 
-TBRendererGL4::TBRendererGL4()
-    : vertex_buffer_(VERTEX_BATCH_SIZE * sizeof(Vertex)) {}
+TBRendererGL4::TBRendererGL4(xe::ui::gl::GLContext* context)
+    : context_(context),
+      vertex_buffer_(graphics::BatchingRenderer::kVertexBatchSize *
+                     sizeof(Vertex)) {}
 
 TBRendererGL4::~TBRendererGL4() {
+  xe::ui::gl::GLContextLock lock(context_);
   vertex_buffer_.Shutdown();
   glDeleteVertexArrays(1, &vao_);
   glDeleteProgram(program_);
 }
 
-std::unique_ptr<TBRendererGL4> TBRendererGL4::Create() {
-  auto renderer = std::make_unique<TBRendererGL4>();
+std::unique_ptr<TBRendererGL4> TBRendererGL4::Create(
+    xe::ui::gl::GLContext* context) {
+  auto renderer = std::make_unique<TBRendererGL4>(context);
   if (!renderer->Initialize()) {
     XELOGE("Failed to initialize TurboBadger GL4 renderer");
     return nullptr;
@@ -181,8 +188,9 @@ void main() { \n\
   return true;
 }
 
-Bitmap* TBRendererGL4::CreateBitmap(int width, int height, uint32_t* data) {
-  auto bitmap = std::make_unique<TBBitmapGL4>(this);
+graphics::Bitmap* TBRendererGL4::CreateBitmap(int width, int height,
+                                              uint32_t* data) {
+  auto bitmap = std::make_unique<TBBitmapGL4>(context_, this);
   if (!bitmap->Init(width, height, data)) {
     return nullptr;
   }
@@ -191,12 +199,12 @@ Bitmap* TBRendererGL4::CreateBitmap(int width, int height, uint32_t* data) {
 
 void TBRendererGL4::SetClipRect(const Rect& rect) {
   Flush();
-  glScissor(m_clip_rect.x, m_screen_rect.h - (m_clip_rect.y + m_clip_rect.h),
-            m_clip_rect.w, m_clip_rect.h);
+  glScissor(clip_rect_.x, screen_rect_.h - (clip_rect_.y + clip_rect_.h),
+            clip_rect_.w, clip_rect_.h);
 }
 
 void TBRendererGL4::BeginPaint(int render_target_w, int render_target_h) {
-  RendererBatcher::BeginPaint(render_target_w, render_target_h);
+  tb::graphics::BatchingRenderer::BeginPaint(render_target_w, render_target_h);
 
   glEnablei(GL_BLEND, 0);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -230,7 +238,7 @@ void TBRendererGL4::BeginPaint(int render_target_w, int render_target_h) {
 }
 
 void TBRendererGL4::EndPaint() {
-  RendererBatcher::EndPaint();
+  tb::graphics::BatchingRenderer::EndPaint();
 
   Flush();
 
