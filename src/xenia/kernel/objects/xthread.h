@@ -103,6 +103,7 @@ class XThread : public XObject {
 
   X_STATUS Create();
   X_STATUS Exit(int exit_code);
+  X_STATUS Terminate(int exit_code);
 
   virtual void Execute();
 
@@ -137,6 +138,7 @@ class XThread : public XObject {
   X_STATUS PlatformCreate();
   void PlatformDestroy();
   X_STATUS PlatformExit(int exit_code);
+  X_STATUS PlatformTerminate(int exit_code);
 
   static void DeliverAPCs(void* data);
   void RundownAPCs();

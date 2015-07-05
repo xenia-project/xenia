@@ -337,6 +337,8 @@ X_STATUS XThread::Create() {
 }
 
 X_STATUS XThread::Exit(int exit_code) {
+  assert_true(XThread::GetCurrentThread() == this);
+
   // TODO(benvanik): set exit code in thread state block
 
   // TODO(benvanik); dispatch events? waiters? etc?
@@ -356,6 +358,21 @@ X_STATUS XThread::Exit(int exit_code) {
   if (XFAILED(return_code)) {
     return return_code;
   }
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS XThread::Terminate(int exit_code) {
+  if (event_) {
+    event_->Set(0, false);
+  }
+  // TODO: Inform the profiler that this thread is exiting.
+
+  Release();
+  X_STATUS status = PlatformTerminate(exit_code);
+  if (XFAILED(status)) {
+    return status;
+  }
+
   return X_STATUS_SUCCESS;
 }
 
@@ -403,6 +420,14 @@ void XThread::PlatformDestroy() {
 X_STATUS XThread::PlatformExit(int exit_code) {
   // NOTE: does not return.
   ExitThread(exit_code);
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS XThread::PlatformTerminate(int exit_code) {
+  if (!TerminateThread(thread_handle_, exit_code)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
   return X_STATUS_SUCCESS;
 }
 
@@ -463,6 +488,11 @@ X_STATUS XThread::PlatformExit(int exit_code) {
   // NOTE: does not return.
   pthread_exit(reinterpret_cast<void*>(exit_code));
   return X_STATUS_SUCCESS;
+}
+
+X_STATUS XThread::PlatformTerminate(int exit_code) {
+  // TODO!
+  assert_always();
 }
 
 #endif  // WIN32
