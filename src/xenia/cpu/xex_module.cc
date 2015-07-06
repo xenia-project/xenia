@@ -44,7 +44,8 @@ XexModule::XexModule(Processor* processor, KernelState* kernel_state)
       xex_header_(nullptr),
       base_address_(0),
       low_address_(0),
-      high_address_(0) {}
+      high_address_(0),
+      loaded_(false) {}
 
 XexModule::~XexModule() {
   xe_xex2_dealloc(xex_);
@@ -215,7 +216,10 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 
 bool XexModule::Load(const std::string& name, const std::string& path,
                      xe_xex2_ref xex) {
+  assert_false(loaded_);
+  loaded_ = true;
   xex_ = xex;
+
   auto header = xex_header_;
   auto old_header = xe_xex2_get_header(xex_);
 
@@ -296,6 +300,11 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 }
 
 bool XexModule::Unload() {
+  if (!loaded_) {
+    return true;
+  }
+  loaded_ = false;
+
   // Just deallocate the memory occupied by the exe
   xe::be<uint32_t>* exe_address = 0;
   GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);

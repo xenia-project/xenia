@@ -33,6 +33,7 @@ class XexModule : public xe::cpu::Module {
   virtual ~XexModule();
 
   xe_xex2_ref xex() const { return xex_; }
+  bool loaded() const { return loaded_; }
   const xex2_header* xex_header() const { return xex_header_; }
   const xex2_security_info* xex_security_info() const {
     return GetSecurityInfo(xex_header_);
@@ -86,6 +87,7 @@ class XexModule : public xe::cpu::Module {
   std::string path_;
   xe_xex2_ref xex_;
   xex2_header* xex_header_;
+  bool loaded_; // Loaded into memory?
 
   uint32_t base_address_;
   uint32_t low_address_;
