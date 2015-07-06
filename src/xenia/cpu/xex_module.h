@@ -87,7 +87,7 @@ class XexModule : public xe::cpu::Module {
   std::string path_;
   xe_xex2_ref xex_;
   xex2_header* xex_header_;
-  bool loaded_; // Loaded into memory?
+  bool loaded_;  // Loaded into memory?
 
   uint32_t base_address_;
   uint32_t low_address_;
