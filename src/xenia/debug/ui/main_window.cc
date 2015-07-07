@@ -13,7 +13,9 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
-#include "xenia/debug/ui/turbo_badger_control.h"
+
+// TODO(benvanik): platform based.
+#include "xenia/ui/gl/wgl_elemental_control.h"
 
 namespace xe {
 namespace debug {
@@ -89,7 +91,7 @@ bool MainWindow::Initialize() {
   // Setup the GL control that actually does the drawing.
   // We run here in the loop and only touch it (and its context) on this
   // thread. That means some sync-fu when we want to swap.
-  control_ = std::make_unique<TurboBadgerControl>(loop());
+  control_ = std::make_unique<xe::ui::gl::WGLElementalControl>(loop());
   AddChild(control_.get());
 
   Resize(1440, 1200);

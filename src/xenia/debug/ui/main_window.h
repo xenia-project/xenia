@@ -13,14 +13,13 @@
 #include <memory>
 
 #include "xenia/debug/ui/application.h"
+#include "xenia/ui/elemental_control.h"
 #include "xenia/ui/platform.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
-
-class TurboBadgerControl;
 
 class MainWindow : public xe::ui::PlatformWindow {
  public:
@@ -37,7 +36,7 @@ class MainWindow : public xe::ui::PlatformWindow {
 
   Application* app_ = nullptr;
   xe::ui::PlatformMenu main_menu_;
-  std::unique_ptr<TurboBadgerControl> control_;
+  std::unique_ptr<xe::ui::ElementalControl> control_;
 };
 
 }  // namespace ui

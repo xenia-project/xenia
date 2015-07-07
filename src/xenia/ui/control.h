@@ -87,7 +87,7 @@ class Control {
  protected:
   explicit Control(uint32_t flags);
 
-  virtual bool Create() = 0;
+  virtual bool Create() { return true; }
   virtual void Destroy() {}
 
   virtual void OnCreate() {}

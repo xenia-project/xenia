@@ -12,6 +12,7 @@
 #define XENIA_UI_PLATFORM_H_
 
 // TODO(benvanik): only on windows.
+#include "xenia/ui/win32/win32_control.h"
 #include "xenia/ui/win32/win32_file_picker.h"
 #include "xenia/ui/win32/win32_loop.h"
 #include "xenia/ui/win32/win32_menu_item.h"
@@ -20,6 +21,7 @@
 namespace xe {
 namespace ui {
 
+using PlatformControl = xe::ui::win32::Win32Control;
 using PlatformFilePicker = xe::ui::win32::Win32FilePicker;
 using PlatformLoop = xe::ui::win32::Win32Loop;
 using PlatformMenu = xe::ui::win32::Win32MenuItem;

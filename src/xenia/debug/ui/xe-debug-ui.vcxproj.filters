@@ -16,6 +16,9 @@
     <Filter Include="src\xenia\base">
       <UniqueIdentifier>{9a5724c2-5473-4d53-93b4-26531201f38d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\xenia\debug\ui\elements">
+      <UniqueIdentifier>{f0ac4999-4700-4b41-b73d-c6dc8b23c5e6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\base\main.h">
@@ -25,12 +28,6 @@
       <Filter>src\xenia\debug\ui</Filter>
     </ClInclude>
     <ClInclude Include="application.h">
-      <Filter>src\xenia\debug\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="turbo_badger_control.h">
-      <Filter>src\xenia\debug\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="turbo_badger_renderer.h">
       <Filter>src\xenia\debug\ui</Filter>
     </ClInclude>
   </ItemGroup>
@@ -45,12 +42,6 @@
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
     <ClCompile Include="application.cc">
-      <Filter>src\xenia\debug\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="turbo_badger_control.cc">
-      <Filter>src\xenia\debug\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="turbo_badger_renderer.cc">
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
   </ItemGroup>

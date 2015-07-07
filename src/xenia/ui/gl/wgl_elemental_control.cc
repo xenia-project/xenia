@@ -7,44 +7,195 @@
  ******************************************************************************
  */
 
-#include "xenia/debug/ui/turbo_badger_renderer.h"
+#include "xenia/ui/gl/wgl_elemental_control.h"
 
+#include <memory>
+
+#include "el/graphics/batching_renderer.h"
+#include "el/graphics/bitmap_fragment.h"
+#include "el/util/math.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
-
-#include "third_party/turbobadger/src/tb/graphics/bitmap_fragment.h"
-#include "third_party/turbobadger/src/tb/util/math.h"
+#include "xenia/profiling.h"
+#include "xenia/ui/gl/circular_buffer.h"
+#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/gl/gl.h"
 
 namespace xe {
-namespace debug {
 namespace ui {
+namespace gl {
 
-using namespace tb;
-
-class TBRendererGL4::TBBitmapGL4 : public tb::graphics::Bitmap {
+class GL4BatchingRenderer : public el::graphics::BatchingRenderer {
  public:
-  TBBitmapGL4(xe::ui::gl::GLContext* context, TBRendererGL4* renderer);
-  ~TBBitmapGL4();
+  GL4BatchingRenderer(GLContext* context);
+  ~GL4BatchingRenderer() override;
 
-  bool Init(int width, int height, uint32_t* data);
-  int Width() override { return width_; }
-  int Height() override { return height_; }
-  void SetData(uint32_t* data) override;
+  static std::unique_ptr<GL4BatchingRenderer> Create(GLContext* context);
 
-  xe::ui::gl::GLContext* context_ = nullptr;
-  TBRendererGL4* renderer_ = nullptr;
-  int width_ = 0;
-  int height_ = 0;
-  GLuint handle_ = 0;
-  GLuint64 gpu_handle_ = 0;
+  void BeginPaint(int render_target_w, int render_target_h) override;
+  void EndPaint() override;
+
+  std::unique_ptr<el::graphics::Bitmap> CreateBitmap(int width, int height,
+                                                     uint32_t* data) override;
+
+  void RenderBatch(Batch* batch) override;
+  void set_clip_rect(const el::Rect& rect) override;
+
+ private:
+  class GL4Bitmap : public el::graphics::Bitmap {
+   public:
+    GL4Bitmap(GLContext* context, GL4BatchingRenderer* renderer);
+    ~GL4Bitmap();
+
+    bool Init(int width, int height, uint32_t* data);
+    int width() override { return width_; }
+    int height() override { return height_; }
+    void set_data(uint32_t* data) override;
+
+    GLContext* context_ = nullptr;
+    GL4BatchingRenderer* renderer_ = nullptr;
+    int width_ = 0;
+    int height_ = 0;
+    GLuint handle_ = 0;
+    GLuint64 gpu_handle_ = 0;
+  };
+
+  bool Initialize();
+  void Flush();
+
+  GLContext* context_ = nullptr;
+
+  GLuint program_ = 0;
+  GLuint vao_ = 0;
+  CircularBuffer vertex_buffer_;
+
+  static const size_t kMaxCommands = 512;
+  struct {
+    GLenum prim_type;
+    size_t vertex_offset;
+    size_t vertex_count;
+  } draw_commands_[kMaxCommands] = {0};
+  uint32_t draw_command_count_ = 0;
+  GL4Bitmap* current_bitmap_ = nullptr;
 };
 
-TBRendererGL4::TBBitmapGL4::TBBitmapGL4(xe::ui::gl::GLContext* context,
-                                        TBRendererGL4* renderer)
+WGLElementalControl::WGLElementalControl(Loop* loop)
+    : ElementalControl(loop, Flags::kFlagOwnPaint), loop_(loop) {}
+
+WGLElementalControl::~WGLElementalControl() = default;
+
+bool WGLElementalControl::Create() {
+  HINSTANCE hInstance = GetModuleHandle(nullptr);
+
+  WNDCLASSEX wcex;
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+  wcex.lpfnWndProc = Win32Control::WndProcThunk;
+  wcex.cbClsExtra = 0;
+  wcex.cbWndExtra = 0;
+  wcex.hInstance = hInstance;
+  wcex.hIcon = nullptr;
+  wcex.hIconSm = nullptr;
+  wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+  wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+  wcex.lpszMenuName = nullptr;
+  wcex.lpszClassName = L"XeniaWglElementalClass";
+  if (!RegisterClassEx(&wcex)) {
+    XELOGE("WGL RegisterClassEx failed");
+    return false;
+  }
+
+  // Create window.
+  DWORD window_style = WS_CHILD | WS_VISIBLE | SS_NOTIFY;
+  DWORD window_ex_style = 0;
+  hwnd_ =
+      CreateWindowEx(window_ex_style, L"XeniaWglElementalClass", L"Xenia",
+                     window_style, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                     CW_USEDEFAULT, parent_hwnd(), nullptr, hInstance, this);
+  if (!hwnd_) {
+    XELOGE("WGL CreateWindow failed");
+    return false;
+  }
+
+  if (!context_.Initialize(hwnd_)) {
+    XEFATAL(
+        "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
+        "you have the latest drivers for your GPU and that it supports OpenGL "
+        "4.5. See http://xenia.jp/faq/ for more information.");
+    return false;
+  }
+
+  context_.AssertExtensionsPresent();
+
+  SetFocus(hwnd_);
+
+  return super::Create();
+}
+
+std::unique_ptr<el::graphics::Renderer> WGLElementalControl::CreateRenderer() {
+  return GL4BatchingRenderer::Create(&context_);
+}
+
+void WGLElementalControl::OnLayout(UIEvent& e) {
+  Control::ResizeToFill();
+  super::OnLayout(e);
+}
+
+LRESULT WGLElementalControl::WndProc(HWND hWnd, UINT message, WPARAM wParam,
+                                     LPARAM lParam) {
+  switch (message) {
+    case WM_PAINT: {
+      invalidated_ = false;
+      ValidateRect(hWnd, nullptr);
+      SCOPE_profile_cpu_i("gpu", "xe::ui::gl::WGLElementalControl::WM_PAINT");
+      {
+        GLContextLock context_lock(&context_);
+
+        float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
+        glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
+
+        if (current_paint_callback_) {
+          current_paint_callback_();
+          current_paint_callback_ = nullptr;
+        }
+
+        UIEvent e(this);
+        OnPaint(e);
+
+        // TODO(benvanik): profiler present.
+        Profiler::Present();
+      }
+      {
+        SCOPE_profile_cpu_i("gpu",
+                            "xe::ui::gl::WGLElementalControl::SwapBuffers");
+        SwapBuffers(context_.dc());
+      }
+      return 0;
+    } break;
+  }
+  return Win32Control::WndProc(hWnd, message, wParam, lParam);
+}
+
+void WGLElementalControl::SynchronousRepaint(
+    std::function<void()> paint_callback) {
+  SCOPE_profile_cpu_f("gpu");
+
+  // We may already have a pending paint from a previous request when we
+  // were minimized. We just overwrite it.
+  current_paint_callback_ = std::move(paint_callback);
+
+  // This will not return until the WM_PAINT has completed.
+  // Note, if we are minimized this won't do anything.
+  RedrawWindow(hwnd(), nullptr, nullptr,
+               RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ALLCHILDREN);
+}
+
+GL4BatchingRenderer::GL4Bitmap::GL4Bitmap(GLContext* context,
+                                          GL4BatchingRenderer* renderer)
     : context_(context), renderer_(renderer) {}
 
-TBRendererGL4::TBBitmapGL4::~TBBitmapGL4() {
-  xe::ui::gl::GLContextLock lock(context_);
+GL4BatchingRenderer::GL4Bitmap::~GL4Bitmap() {
+  GLContextLock lock(context_);
 
   // Must flush and unbind before we delete the texture.
   renderer_->FlushBitmap(this);
@@ -52,9 +203,10 @@ TBRendererGL4::TBBitmapGL4::~TBBitmapGL4() {
   glDeleteTextures(1, &handle_);
 }
 
-bool TBRendererGL4::TBBitmapGL4::Init(int width, int height, uint32_t* data) {
-  assert(width == tb::util::GetNearestPowerOfTwo(width));
-  assert(height == tb::util::GetNearestPowerOfTwo(height));
+bool GL4BatchingRenderer::GL4Bitmap::Init(int width, int height,
+                                          uint32_t* data) {
+  assert(width == el::util::GetNearestPowerOfTwo(width));
+  assert(height == el::util::GetNearestPowerOfTwo(height));
   width_ = width;
   height_ = height;
 
@@ -68,32 +220,30 @@ bool TBRendererGL4::TBBitmapGL4::Init(int width, int height, uint32_t* data) {
   gpu_handle_ = glGetTextureHandleARB(handle_);
   glMakeTextureHandleResidentARB(gpu_handle_);
 
-  SetData(data);
+  set_data(data);
 
   return true;
 }
 
-void TBRendererGL4::TBBitmapGL4::SetData(uint32_t* data) {
+void GL4BatchingRenderer::GL4Bitmap::set_data(uint32_t* data) {
   renderer_->FlushBitmap(this);
   glTextureSubImage2D(handle_, 0, 0, 0, width_, height_, GL_RGBA,
                       GL_UNSIGNED_BYTE, data);
 }
 
-TBRendererGL4::TBRendererGL4(xe::ui::gl::GLContext* context)
-    : context_(context),
-      vertex_buffer_(graphics::BatchingRenderer::kVertexBatchSize *
-                     sizeof(Vertex)) {}
+GL4BatchingRenderer::GL4BatchingRenderer(GLContext* context)
+    : context_(context), vertex_buffer_(kVertexBatchSize * sizeof(Vertex)) {}
 
-TBRendererGL4::~TBRendererGL4() {
-  xe::ui::gl::GLContextLock lock(context_);
+GL4BatchingRenderer::~GL4BatchingRenderer() {
+  GLContextLock lock(context_);
   vertex_buffer_.Shutdown();
   glDeleteVertexArrays(1, &vao_);
   glDeleteProgram(program_);
 }
 
-std::unique_ptr<TBRendererGL4> TBRendererGL4::Create(
-    xe::ui::gl::GLContext* context) {
-  auto renderer = std::make_unique<TBRendererGL4>(context);
+std::unique_ptr<GL4BatchingRenderer> GL4BatchingRenderer::Create(
+    GLContext* context) {
+  auto renderer = std::make_unique<GL4BatchingRenderer>(context);
   if (!renderer->Initialize()) {
     XELOGE("Failed to initialize TurboBadger GL4 renderer");
     return nullptr;
@@ -101,7 +251,7 @@ std::unique_ptr<TBRendererGL4> TBRendererGL4::Create(
   return renderer;
 }
 
-bool TBRendererGL4::Initialize() {
+bool GL4BatchingRenderer::Initialize() {
   if (!vertex_buffer_.Initialize()) {
     XELOGE("Failed to initialize circular buffer");
     return false;
@@ -188,23 +338,23 @@ void main() { \n\
   return true;
 }
 
-graphics::Bitmap* TBRendererGL4::CreateBitmap(int width, int height,
-                                              uint32_t* data) {
-  auto bitmap = std::make_unique<TBBitmapGL4>(context_, this);
+std::unique_ptr<el::graphics::Bitmap> GL4BatchingRenderer::CreateBitmap(
+    int width, int height, uint32_t* data) {
+  auto bitmap = std::make_unique<GL4Bitmap>(context_, this);
   if (!bitmap->Init(width, height, data)) {
     return nullptr;
   }
-  return bitmap.release();
+  return std::unique_ptr<el::graphics::Bitmap>(bitmap.release());
 }
 
-void TBRendererGL4::SetClipRect(const Rect& rect) {
+void GL4BatchingRenderer::set_clip_rect(const el::Rect& rect) {
   Flush();
   glScissor(clip_rect_.x, screen_rect_.h - (clip_rect_.y + clip_rect_.h),
             clip_rect_.w, clip_rect_.h);
 }
 
-void TBRendererGL4::BeginPaint(int render_target_w, int render_target_h) {
-  tb::graphics::BatchingRenderer::BeginPaint(render_target_w, render_target_h);
+void GL4BatchingRenderer::BeginPaint(int render_target_w, int render_target_h) {
+  BatchingRenderer::BeginPaint(render_target_w, render_target_h);
 
   glEnablei(GL_BLEND, 0);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -237,8 +387,8 @@ void TBRendererGL4::BeginPaint(int render_target_w, int render_target_h) {
   glBindVertexArray(vao_);
 }
 
-void TBRendererGL4::EndPaint() {
-  tb::graphics::BatchingRenderer::EndPaint();
+void GL4BatchingRenderer::EndPaint() {
+  BatchingRenderer::EndPaint();
 
   Flush();
 
@@ -246,7 +396,7 @@ void TBRendererGL4::EndPaint() {
   glBindVertexArray(0);
 }
 
-void TBRendererGL4::Flush() {
+void GL4BatchingRenderer::Flush() {
   if (!draw_command_count_) {
     return;
   }
@@ -261,8 +411,8 @@ void TBRendererGL4::Flush() {
   vertex_buffer_.WaitUntilClean();
 }
 
-void TBRendererGL4::RenderBatch(Batch* batch) {
-  auto bitmap = static_cast<TBBitmapGL4*>(batch->bitmap);
+void GL4BatchingRenderer::RenderBatch(Batch* batch) {
+  auto bitmap = static_cast<GL4Bitmap*>(batch->bitmap);
   if (bitmap != current_bitmap_) {
     current_bitmap_ = bitmap;
     Flush();
@@ -300,6 +450,6 @@ void TBRendererGL4::RenderBatch(Batch* batch) {
   vertex_buffer_.Commit(std::move(allocation));
 }
 
+}  // namespace gl
 }  // namespace ui
-}  // namespace debug
 }  // namespace xe

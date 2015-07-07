@@ -77,15 +77,11 @@
     <ClInclude Include="..\..\base\main.h" />
     <ClInclude Include="application.h" />
     <ClInclude Include="main_window.h" />
-    <ClInclude Include="turbo_badger_control.h" />
-    <ClInclude Include="turbo_badger_renderer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\base\main_win.cc" />
     <ClCompile Include="application.cc" />
     <ClCompile Include="main_window.cc" />
-    <ClCompile Include="turbo_badger_control.cc" />
-    <ClCompile Include="turbo_badger_renderer.cc" />
     <ClCompile Include="xe-debug-ui.cc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

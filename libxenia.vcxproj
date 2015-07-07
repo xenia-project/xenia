@@ -166,11 +166,13 @@
     <ClCompile Include="src\xenia\memory.cc" />
     <ClCompile Include="src\xenia\profiling.cc" />
     <ClCompile Include="src\xenia\ui\control.cc" />
+    <ClCompile Include="src\xenia\ui\elemental_control.cc" />
     <ClCompile Include="src\xenia\ui\gl\blitter.cc" />
     <ClCompile Include="src\xenia\ui\gl\circular_buffer.cc" />
     <ClCompile Include="src\xenia\ui\gl\gl_context.cc" />
     <ClCompile Include="src\xenia\ui\gl\gl_profiler_display.cc" />
     <ClCompile Include="src\xenia\ui\gl\wgl_control.cc" />
+    <ClCompile Include="src\xenia\ui\gl\wgl_elemental_control.cc" />
     <ClCompile Include="src\xenia\ui\main_window.cc" />
     <ClCompile Include="src\xenia\ui\menu_item.cc" />
     <ClCompile Include="src\xenia\ui\win32\win32_control.cc" />
@@ -394,6 +396,7 @@
     <ClInclude Include="src\xenia\memory.h" />
     <ClInclude Include="src\xenia\profiling.h" />
     <ClInclude Include="src\xenia\ui\control.h" />
+    <ClInclude Include="src\xenia\ui\elemental_control.h" />
     <ClInclude Include="src\xenia\ui\file_picker.h" />
     <ClInclude Include="src\xenia\ui\gl\blitter.h" />
     <ClInclude Include="src\xenia\ui\gl\circular_buffer.h" />
@@ -401,6 +404,7 @@
     <ClInclude Include="src\xenia\ui\gl\gl_context.h" />
     <ClInclude Include="src\xenia\ui\gl\gl_profiler_display.h" />
     <ClInclude Include="src\xenia\ui\gl\wgl_control.h" />
+    <ClInclude Include="src\xenia\ui\gl\wgl_elemental_control.h" />
     <ClInclude Include="src\xenia\ui\loop.h" />
     <ClInclude Include="src\xenia\ui\main_window.h" />
     <ClInclude Include="src\xenia\ui\menu_item.h" />
@@ -556,7 +560,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libelemental.lib;libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)third_party\libav-xma-bin\lib\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
@@ -573,7 +577,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalDependencies>libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libelemental.lib;libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -592,7 +596,7 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib>
-      <AdditionalDependencies>libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
+      <AdditionalDependencies>libelemental.lib;libxenia-base.lib;libavcodec.a;libavutil.a;libgflags.lib;libglew.lib</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
