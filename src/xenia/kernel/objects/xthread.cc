@@ -41,7 +41,8 @@ xe::mutex critical_region_;
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
-                 uint32_t start_context, uint32_t creation_flags)
+                 uint32_t start_context, uint32_t creation_flags,
+                 bool guest_thread)
     : XObject(kernel_state, kTypeThread),
       thread_id_(++next_xthread_id),
       thread_handle_(0),
@@ -50,7 +51,9 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
       thread_state_(0),
       priority_(0),
       affinity_(0),
-      irql_(0) {
+      irql_(0),
+      guest_thread_(guest_thread),
+      running_(false) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
@@ -67,9 +70,6 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
 
   apc_list_ = new NativeList(kernel_state->memory());
 
-  event_ = object_ref<XEvent>(new XEvent(kernel_state));
-  event_->Initialize(true, false);
-
   char thread_name[32];
   snprintf(thread_name, xe::countof(thread_name), "XThread%04X", handle());
   set_name(thread_name);
@@ -83,8 +83,6 @@ XThread::~XThread() {
   kernel_state_->UnregisterThread(this);
 
   delete apc_list_;
-
-  event_.reset();
 
   PlatformDestroy();
 
@@ -335,12 +333,11 @@ X_STATUS XThread::Create() {
 }
 
 X_STATUS XThread::Exit(int exit_code) {
+  assert_true(XThread::GetCurrentThread() == this);
+
   // TODO(benvanik): set exit code in thread state block
 
   // TODO(benvanik); dispatch events? waiters? etc?
-  if (event_) {
-    event_->Set(0, false);
-  }
   RundownAPCs();
 
   kernel_state()->OnThreadExit(this);
@@ -349,11 +346,25 @@ X_STATUS XThread::Exit(int exit_code) {
   current_thread_tls = nullptr;
   xe::Profiler::ThreadExit();
 
+  running_ = false;
   Release();
   X_STATUS return_code = PlatformExit(exit_code);
   if (XFAILED(return_code)) {
     return return_code;
   }
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS XThread::Terminate(int exit_code) {
+  // TODO: Inform the profiler that this thread is exiting.
+
+  running_ = false;
+  Release();
+  X_STATUS status = PlatformTerminate(exit_code);
+  if (XFAILED(status)) {
+    return status;
+  }
+
   return X_STATUS_SUCCESS;
 }
 
@@ -401,6 +412,14 @@ void XThread::PlatformDestroy() {
 X_STATUS XThread::PlatformExit(int exit_code) {
   // NOTE: does not return.
   ExitThread(exit_code);
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS XThread::PlatformTerminate(int exit_code) {
+  if (!TerminateThread(thread_handle_, exit_code)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
   return X_STATUS_SUCCESS;
 }
 
@@ -463,12 +482,18 @@ X_STATUS XThread::PlatformExit(int exit_code) {
   return X_STATUS_SUCCESS;
 }
 
+X_STATUS XThread::PlatformTerminate(int exit_code) {
+  // TODO!
+  assert_always();
+}
+
 #endif  // WIN32
 
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
               thread_id_, handle(), name_.c_str(),
               xe::threading::current_thread_id());
+  running_ = true;
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
@@ -498,6 +523,7 @@ void XThread::Execute() {
     // Treat the return code as an implicit exit code.
   }
 
+  running_ = false;
   Exit(exit_code);
 }
 
@@ -754,11 +780,11 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
   }
 }
 
-void* XThread::GetWaitHandle() { return event_->GetWaitHandle(); }
+void* XThread::GetWaitHandle() { return thread_handle_; }
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
                          uint32_t creation_flags, std::function<int()> host_fn)
-    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags),
+    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags, false),
       host_fn_(host_fn) {}
 
 void XHostThread::Execute() {

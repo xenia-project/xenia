@@ -111,6 +111,7 @@ class Debugger {
   Emulator* emulator_;
 
   uintptr_t listen_socket_;
+  bool accept_thread_running_;
   std::thread accept_thread_;
   xe::threading::Fence accept_fence_;
   uintptr_t client_socket_;

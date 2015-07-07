@@ -29,15 +29,20 @@ class XUserModule : public XModule {
   const xe::cpu::XexModule* xex_module() const {
     return reinterpret_cast<xe::cpu::XexModule*>(processor_module_);
   }
+  xe::cpu::XexModule* xex_module() {
+    return reinterpret_cast<xe::cpu::XexModule*>(processor_module_);
+  }
 
   const xex2_header* xex_header() const { return xex_module()->xex_header(); }
   uint32_t guest_xex_header() const { return guest_xex_header_; }
+  bool dll_module() const { return dll_module_; }
 
   uint32_t entry_point() const { return entry_point_; }
   uint32_t stack_size() const { return stack_size_; }
 
   X_STATUS LoadFromFile(std::string path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
+  X_STATUS Unload();
 
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
   uint32_t GetProcAddressByName(const char* name) override;
@@ -67,6 +72,7 @@ class XUserModule : public XModule {
  private:
   uint32_t guest_xex_header_;
 
+  bool dll_module_;
   uint32_t entry_point_;
   uint32_t stack_size_;
 };

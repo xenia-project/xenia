@@ -33,9 +33,12 @@ class XexModule : public xe::cpu::Module {
   virtual ~XexModule();
 
   xe_xex2_ref xex() const { return xex_; }
-  const xex2_header* xex_header() const { return xex_header_; }
+  bool loaded() const { return loaded_; }
+  const xex2_header* xex_header() const {
+    return reinterpret_cast<const xex2_header*>(xex_header_mem_.data());
+  }
   const xex2_security_info* xex_security_info() const {
-    return GetSecurityInfo(xex_header_);
+    return GetSecurityInfo(xex_header());
   }
 
   // Gets an optional header. Returns NULL if not found.
@@ -68,6 +71,7 @@ class XexModule : public xe::cpu::Module {
   bool Load(const std::string& name, const std::string& path,
             const void* xex_addr, size_t xex_length);
   bool Load(const std::string& name, const std::string& path, xe_xex2_ref xex);
+  bool Unload();
 
   const std::string& name() const override { return name_; }
 
@@ -84,7 +88,8 @@ class XexModule : public xe::cpu::Module {
   std::string name_;
   std::string path_;
   xe_xex2_ref xex_;
-  xex2_header* xex_header_;
+  std::vector<uint8_t> xex_header_mem_;  // Holds the xex header
+  bool loaded_;                          // Loaded into memory?
 
   uint32_t base_address_;
   uint32_t low_address_;

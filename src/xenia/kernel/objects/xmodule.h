@@ -86,6 +86,7 @@ class XModule : public XObject {
 
  protected:
   void OnLoad();
+  void OnUnload();
 
   ModuleType module_type_;
   std::string name_;

@@ -824,6 +824,9 @@ SHIM_CALL NtFlushBuffersFile_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
+dword_result_t FscGetCacheElementCount(dword_t r3) { return 0; }
+DECLARE_XBOXKRNL_EXPORT(FscGetCacheElementCount, ExportTag::kStub);
+
 SHIM_CALL FscSetCacheElementCount_shim(PPCContext* ppc_context,
                                        KernelState* kernel_state) {
   uint32_t unk_0 = SHIM_GET_ARG_32(0);

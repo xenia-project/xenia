@@ -161,6 +161,18 @@ bool KernelState::IsKernelModule(const char* name) {
   return false;
 }
 
+object_ref<XKernelModule> KernelState::GetKernelModule(const char* name) {
+  assert_true(IsKernelModule(name));
+
+  for (auto kernel_module : kernel_modules_) {
+    if (kernel_module->Matches(name)) {
+      return retain_object(kernel_module.get());
+    }
+  }
+
+  return nullptr;
+}
+
 object_ref<XModule> KernelState::GetModule(const char* name) {
   if (!name) {
     // NULL name = self.
@@ -223,26 +235,27 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
   // Spin up deferred dispatch worker.
   // TODO(benvanik): move someplace more appropriate (out of ctor, but around
   // here).
-  assert_false(dispatch_thread_running_);
-  dispatch_thread_running_ = true;
-  dispatch_thread_ =
-      object_ref<XHostThread>(new XHostThread(this, 128 * 1024, 0, [this]() {
-        while (dispatch_thread_running_) {
-          std::unique_lock<std::mutex> lock(dispatch_mutex_);
-          if (dispatch_queue_.empty()) {
-            dispatch_cond_.wait(lock);
-            if (!dispatch_thread_running_) {
-              break;
+  if (!dispatch_thread_running_) {
+    dispatch_thread_running_ = true;
+    dispatch_thread_ =
+        object_ref<XHostThread>(new XHostThread(this, 128 * 1024, 0, [this]() {
+          while (dispatch_thread_running_) {
+            std::unique_lock<std::mutex> lock(dispatch_mutex_);
+            if (dispatch_queue_.empty()) {
+              dispatch_cond_.wait(lock);
+              if (!dispatch_thread_running_) {
+                break;
+              }
             }
+            auto fn = std::move(dispatch_queue_.front());
+            dispatch_queue_.pop_front();
+            fn();
           }
-          auto fn = std::move(dispatch_queue_.front());
-          dispatch_queue_.pop_front();
-          fn();
-        }
-        return 0;
-      }));
-  dispatch_thread_->set_name("Kernel Dispatch Thread");
-  dispatch_thread_->Create();
+          return 0;
+        }));
+    dispatch_thread_->set_name("Kernel Dispatch Thread");
+    dispatch_thread_->Create();
+  }
 }
 
 void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
@@ -255,6 +268,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
   std::string name = xe::find_name_from_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
+    assert_not_null(executable_module_);
     path = xe::join_paths(xe::find_base_path(executable_module_->path()), name);
   }
 
@@ -284,7 +298,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 
   module->Dump();
 
-  if (module->entry_point()) {
+  if (module->dll_module() && module->entry_point()) {
     // Call DllMain(DLL_PROCESS_ATTACH):
     // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
     uint64_t args[] = {
@@ -298,6 +312,52 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
   }
 
   return module;
+}
+
+void KernelState::TerminateTitle(bool from_guest_thread) {
+  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+
+  // First: Kill all guest threads.
+  for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
+    if (it->second->guest_thread()) {
+      auto thread = it->second;
+
+      if (from_guest_thread && XThread::IsInThread(thread)) {
+        // Don't terminate ourselves.
+        ++it;
+        continue;
+      }
+
+      if (it->second->running()) {
+        thread->Terminate(0);
+      }
+
+      // Erase it from the thread list.
+      it = threads_by_id_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  // Second: Unload all user modules (including the executable)
+  for (int i = 0; i < user_modules_.size(); i++) {
+    X_STATUS status = user_modules_[i]->Unload();
+    assert_true(XSUCCEEDED(status));
+
+    object_table_->RemoveHandle(user_modules_[i]->handle());
+  }
+  user_modules_.clear();
+
+  if (from_guest_thread) {
+    threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
+
+    // Now commit suicide (using Terminate, because we can't call into guest
+    // code anymore)
+    // Also, manually invoke the lock guard's destructor, because Terminate
+    // does not return.
+    lock.~lock_guard();
+    XThread::GetCurrentThread()->Terminate(0);
+  }
 }
 
 void KernelState::RegisterThread(XThread* thread) {
@@ -331,7 +391,7 @@ void KernelState::OnThreadExecute(XThread* thread) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
   auto thread_state = thread->thread_state();
   for (auto user_module : user_modules_) {
-    if (user_module->entry_point()) {
+    if (user_module->dll_module() && user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
           2,  // DLL_THREAD_ATTACH
@@ -353,7 +413,7 @@ void KernelState::OnThreadExit(XThread* thread) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
   auto thread_state = thread->thread_state();
   for (auto user_module : user_modules_) {
-    if (user_module->entry_point()) {
+    if (user_module->dll_module() && user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
           3,  // DLL_THREAD_DETACH

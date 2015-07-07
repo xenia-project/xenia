@@ -221,6 +221,7 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
   if (module) {
     // Existing module found.
     hmodule = module->hmodule_ptr();
+    result = X_STATUS_SUCCESS;
   } else {
     // Not found; attempt to load as a user module.
     auto user_module = kernel_state->LoadUserModule(module_name);
@@ -232,9 +233,11 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
   }
 
   // Increment the module's load count.
-  auto ldr_data =
-      kernel_memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
-  ldr_data->load_count++;
+  if (hmodule) {
+    auto ldr_data =
+        kernel_memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+    ldr_data->load_count++;
+  }
 
   SHIM_SET_MEM_32(hmodule_ptr, hmodule);
 
@@ -253,12 +256,15 @@ SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_context,
     return;
   }
 
-  auto ldr_data =
-      kernel_state->memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
-          hmodule);
-  if (ldr_data->load_count-- <= 0) {
-    // No more references, free it.
-    kernel_state->object_table()->RemoveHandle(module->handle());
+  // Can't unload kernel modules from user code.
+  if (module->module_type() != XModule::ModuleType::kKernelModule) {
+    auto ldr_data =
+        kernel_state->memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
+            hmodule);
+    if (--ldr_data->load_count == 0) {
+      // No more references, free it.
+      kernel_state->object_table()->RemoveHandle(module->handle());
+    }
   }
 
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);

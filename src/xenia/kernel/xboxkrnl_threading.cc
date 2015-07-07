@@ -117,7 +117,7 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
 
   auto thread = object_ref<XThread>(
       new XThread(kernel_state, stack_size, xapi_thread_startup, start_address,
-                  start_context, creation_flags));
+                  start_context, creation_flags, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -1348,38 +1348,31 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
 
 xe::mutex global_list_mutex_;
 
-// http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
-struct SLIST_HEADER {
-  xe::be<uint32_t> next;
-  xe::be<uint16_t> depth;
-  xe::be<uint16_t> sequence;
-};
-
-pointer_result_t InterlockedPopEntrySList(pointer_t<SLIST_HEADER> plist_ptr) {
+pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   std::lock_guard<xe::mutex> lock(global_list_mutex_);
 
-  uint32_t first = plist_ptr->next;
-  if (first == 0) {
+  if (plist_ptr->next.next == 0) {
     // List empty!
     return 0;
   }
 
-  // Get the second element.
-  uint8_t* p = kernel_memory()->TranslateVirtual(first);
-  auto second = xe::load_and_swap<uint32_t>(p);
+  // Get the first element.
+  auto result = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
+      plist_ptr->next.next);
 
-  plist_ptr->next = second;
+  uint32_t popped = plist_ptr->next.next;
+  plist_ptr->next.next = result->next;
 
   // Return the one we popped
-  return first;
+  return popped;
 }
 DECLARE_XBOXKRNL_EXPORT(InterlockedPopEntrySList, ExportTag::kImplemented);
 
-pointer_result_t InterlockedFlushSList(pointer_t<SLIST_HEADER> plist_ptr) {
+pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   std::lock_guard<xe::mutex> lock(global_list_mutex_);
 
-  uint32_t next = plist_ptr->next;
-  plist_ptr->next = 0;
+  uint32_t next = plist_ptr->next.next;
+  plist_ptr->next.next = 0;
 
   return next;
 }

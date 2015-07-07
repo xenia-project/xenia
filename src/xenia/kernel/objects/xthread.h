@@ -81,7 +81,7 @@ class XThread : public XObject {
  public:
   XThread(KernelState* kernel_state, uint32_t stack_size,
           uint32_t xapi_thread_startup, uint32_t start_address,
-          uint32_t start_context, uint32_t creation_flags);
+          uint32_t start_context, uint32_t creation_flags, bool guest_thread);
   virtual ~XThread();
 
   static bool IsInThread(XThread* other);
@@ -92,6 +92,8 @@ class XThread : public XObject {
   uint32_t tls_ptr() const { return tls_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
   uint32_t thread_state_ptr() const { return thread_state_address_; }
+  bool guest_thread() const { return guest_thread_; }
+  bool running() const { return running_; }
 
   cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
@@ -102,6 +104,7 @@ class XThread : public XObject {
 
   X_STATUS Create();
   X_STATUS Exit(int exit_code);
+  X_STATUS Terminate(int exit_code);
 
   virtual void Execute();
 
@@ -136,6 +139,7 @@ class XThread : public XObject {
   X_STATUS PlatformCreate();
   void PlatformDestroy();
   X_STATUS PlatformExit(int exit_code);
+  X_STATUS PlatformTerminate(int exit_code);
 
   static void DeliverAPCs(void* data);
   void RundownAPCs();
@@ -156,6 +160,8 @@ class XThread : public XObject {
   uint32_t pcr_address_;
   uint32_t thread_state_address_;
   cpu::ThreadState* thread_state_;
+  bool guest_thread_;  // Launched into guest code?
+  bool running_;
 
   std::string name_;
 
@@ -165,8 +171,6 @@ class XThread : public XObject {
   std::atomic<uint32_t> irql_;
   xe::mutex apc_lock_;
   NativeList* apc_list_;
-
-  object_ref<XEvent> event_;
 };
 
 class XHostThread : public XThread {

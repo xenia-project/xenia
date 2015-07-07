@@ -43,7 +43,8 @@ XexModule::XexModule(Processor* processor, KernelState* kernel_state)
       xex_(nullptr),
       base_address_(0),
       low_address_(0),
-      high_address_(0) {}
+      high_address_(0),
+      loaded_(false) {}
 
 XexModule::~XexModule() { xe_xex2_dealloc(xex_); }
 
@@ -80,7 +81,7 @@ bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
 }
 
 bool XexModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const {
-  return XexModule::GetOptHeader(xex_header_, key, out_ptr);
+  return XexModule::GetOptHeader(xex_header(), key, out_ptr);
 }
 
 const xex2_security_info* XexModule::GetSecurityInfo(
@@ -198,17 +199,20 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 
   // Make a copy of the xex header.
   auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
-  xex_header_ = (xex2_header*)new char[src_header->header_size];
+  xex_header_mem_.resize(src_header->header_size);
 
-  std::memcpy(xex_header_, src_header, src_header->header_size);
+  std::memcpy(xex_header_mem_.data(), src_header, src_header->header_size);
 
   return Load(name, path, xex_);
 }
 
 bool XexModule::Load(const std::string& name, const std::string& path,
                      xe_xex2_ref xex) {
+  assert_false(loaded_);
+  loaded_ = true;
   xex_ = xex;
-  auto header = xex_header_;
+
+  auto header = xex_header();
   auto old_header = xe_xex2_get_header(xex_);
 
   // Setup debug info.
@@ -283,6 +287,23 @@ bool XexModule::Load(const std::string& name, const std::string& path,
       return false;
     }
   }
+
+  return true;
+}
+
+bool XexModule::Unload() {
+  if (!loaded_) {
+    return true;
+  }
+  loaded_ = false;
+
+  // Just deallocate the memory occupied by the exe
+  xe::be<uint32_t>* exe_address = 0;
+  GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &exe_address);
+  assert_not_zero(exe_address);
+
+  memory()->LookupHeap(*exe_address)->Release(*exe_address);
+  xex_header_mem_.resize(0);
 
   return true;
 }

@@ -24,7 +24,7 @@ using namespace xe::cpu;
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
     : XModule(kernel_state, ModuleType::kUserModule, path) {}
 
-XUserModule::~XUserModule() {}
+XUserModule::~XUserModule() { Unload(); }
 
 X_STATUS XUserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
@@ -104,10 +104,25 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   // Cache some commonly used headers...
   this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
   this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
+  dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
 
   OnLoad();
 
   return X_STATUS_SUCCESS;
+}
+
+X_STATUS XUserModule::Unload() {
+  if (!xex_module()->loaded()) {
+    // Quick abort.
+    return X_STATUS_SUCCESS;
+  }
+
+  if (xex_module()->Unload()) {
+    OnUnload();
+    return X_STATUS_SUCCESS;
+  }
+
+  return X_STATUS_UNSUCCESSFUL;
 }
 
 uint32_t XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
@@ -201,11 +216,10 @@ X_STATUS XUserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
 
 X_STATUS XUserModule::Launch(uint32_t flags) {
   XELOGI("Launching module...");
-  Dump();
 
   // Create a thread to run in.
   auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0, 0));
+      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0, 0, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
