@@ -112,12 +112,17 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
 }
 
 X_STATUS XUserModule::Unload() {
-  if (!xex_module()->Unload()) {
-    return X_STATUS_UNSUCCESSFUL;
+  if (!xex_module()->loaded()) {
+    // Quick abort.
+    return X_STATUS_SUCCESS;
   }
 
-  OnUnload();
-  return X_STATUS_SUCCESS;
+  if (xex_module()->Unload()) {
+    OnUnload();
+    return X_STATUS_SUCCESS;
+  }
+
+  return X_STATUS_UNSUCCESSFUL;
 }
 
 uint32_t XUserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
