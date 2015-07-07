@@ -56,7 +56,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libgflags.lib;libglew.lib;libturbobadger.lib;libxenia.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libgflags.lib;libglew.lib;libxenia.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -70,7 +70,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libgflags.lib;libglew.lib;libturbobadger.lib;libxenia.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libgflags.lib;libglew.lib;libxenia.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
