@@ -29,10 +29,13 @@ class ElementalControl : public PlatformControl {
   el::graphics::Renderer* renderer() const { return renderer_.get(); }
   el::Element* root_element() const { return root_element_.get(); }
 
+  bool LoadLanguage(std::string filename);
+  bool LoadSkin(std::string filename);
+
  protected:
   using super = PlatformControl;
 
-  bool InitializeElemental(el::graphics::Renderer* renderer);
+  bool InitializeElemental(Loop* loop, el::graphics::Renderer* renderer);
   virtual std::unique_ptr<el::graphics::Renderer> CreateRenderer() = 0;
 
   bool Create() override;
@@ -56,6 +59,7 @@ class ElementalControl : public PlatformControl {
   void OnMouseUp(MouseEvent& e) override;
   void OnMouseWheel(MouseEvent& e) override;
 
+  Loop* loop_ = nullptr;
   std::unique_ptr<el::graphics::Renderer> renderer_;
   std::unique_ptr<el::Element> root_element_;
 

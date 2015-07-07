@@ -9,9 +9,6 @@
 
 #include "xenia/debug/ui/application.h"
 
-#include "el/message_handler.h"
-#include "el/util/metrics.h"
-#include "el/util/timer.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
@@ -78,32 +75,3 @@ void Application::Quit() {
 }  // namespace ui
 }  // namespace debug
 }  // namespace xe
-
-// This doesn't really belong here (it belongs in tb_system_[linux/windows].cpp.
-// This is here since the proper implementations has not yet been done.
-void el::util::RescheduleTimer(uint64_t fire_time) {
-  if (fire_time == el::MessageHandler::kNotSoon) {
-    return;
-  }
-
-  uint64_t now = el::util::GetTimeMS();
-  uint64_t delay_millis = fire_time >= now ? fire_time - now : 0;
-  xe::debug::ui::Application::current()->loop()->PostDelayed([]() {
-    uint64_t next_fire_time = el::MessageHandler::GetNextMessageFireTime();
-    uint64_t now = el::util::GetTimeMS();
-    if (now < next_fire_time) {
-      // We timed out *before* we were supposed to (the OS is not playing nice).
-      // Calling ProcessMessages now won't achieve a thing so force a reschedule
-      // of the platform timer again with the same time.
-      // ReschedulePlatformTimer(next_fire_time, true);
-      return;
-    }
-
-    el::MessageHandler::ProcessMessages();
-
-    // If we still have things to do (because we didn't process all messages,
-    // or because there are new messages), we need to rescedule, so call
-    // RescheduleTimer.
-    el::util::RescheduleTimer(el::MessageHandler::GetNextMessageFireTime());
-  }, delay_millis);
-}

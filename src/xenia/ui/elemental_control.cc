@@ -11,7 +11,14 @@
 
 #include "el/animation_manager.h"
 #include "el/elemental_forms.h"
+#include "el/io/embedded_file_system.h"
+#include "el/io/file_manager.h"
+#include "el/io/posix_file_system.h"
+#include "el/message_handler.h"
 #include "el/text/font_manager.h"
+#include "el/util/metrics.h"
+#include "el/util/string_table.h"
+#include "el/util/timer.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -29,6 +36,8 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
+Loop* elemental_loop_ = nullptr;
+
 class RootElement : public el::Element {
  public:
   RootElement(ElementalControl* owner) : owner_(owner) {}
@@ -38,26 +47,39 @@ class RootElement : public el::Element {
   ElementalControl* owner_ = nullptr;
 };
 
-bool ElementalControl::InitializeElemental(el::graphics::Renderer* renderer) {
+bool ElementalControl::InitializeElemental(Loop* loop,
+                                           el::graphics::Renderer* renderer) {
   static bool has_initialized = false;
   if (has_initialized) {
     return true;
   }
   has_initialized = true;
 
-  if (!el::Initialize(
-          renderer,
-          "third_party/turbobadger/resources/language/lng_en.tb.txt")) {
+  // Need to pass off the Loop we want Elemental to use.
+  // TODO(benvanik): give the callback to elemental instead.
+  elemental_loop_ = loop;
+
+  if (!el::Initialize(renderer)) {
     XELOGE("Failed to initialize turbobadger core");
     return false;
   }
 
-  // Load the default skin, and override skin that contains the graphics
-  // specific to the demo.
-  if (!el::Skin::get()->Load(
-          "third_party/elemental-forms/resources/default_skin/skin.tb.txt",
-          "third_party/elemental-forms/testbed/resources/skin/skin.tb.txt")) {
-    XELOGE("Failed to load turbobadger skin");
+  el::io::FileManager::RegisterFileSystem(
+      std::make_unique<el::io::PosixFileSystem>(
+          "third_party/elemental-forms/resources/"));
+  el::io::FileManager::RegisterFileSystem(
+      std::make_unique<el::io::PosixFileSystem>(
+          "third_party/elemental-forms/testbed/resources/"));
+  auto embedded_file_system = std::make_unique<el::io::EmbeddedFileSystem>();
+  // TODO(benvanik): bin2c stuff.
+  el::io::FileManager::RegisterFileSystem(std::move(embedded_file_system));
+
+  // Load default translations.
+  el::util::StringTable::get()->Load("default_language/language_en.tb.txt");
+
+  // Load the default skin. Hosting controls may load additional skins later.
+  if (!LoadSkin("default_skin/skin.tb.txt")) {
+    XELOGE("Failed to load default skin");
     return false;
   }
 
@@ -78,14 +100,10 @@ bool ElementalControl::InitializeElemental(el::graphics::Renderer* renderer) {
 
 // Add fonts we can use to the font manager.
 #if defined(EL_FONT_RENDERER_STB) || defined(EL_FONT_RENDERER_FREETYPE)
-  font_manager->AddFontInfo("third_party/elemental-forms/resources/vera.ttf",
-                            "Default");
+  font_manager->AddFontInfo("fonts/vera.ttf", "Default");
 #endif
 #ifdef EL_FONT_RENDERER_TBBF
-  font_manager->AddFontInfo(
-      "third_party/elemental-forms/resources/default_font/"
-      "segoe_white_with_shadow.tb.txt",
-      "Default");
+  font_manager->AddFontInfo("fonts/segoe_white_with_shadow.tb.txt", "Default");
 #endif
 
   // Set the default font description for elements to one of the fonts we just
@@ -101,7 +119,8 @@ bool ElementalControl::InitializeElemental(el::graphics::Renderer* renderer) {
   return true;
 }
 
-ElementalControl::ElementalControl(Loop* loop, uint32_t flags) : super(flags) {}
+ElementalControl::ElementalControl(Loop* loop, uint32_t flags)
+    : super(flags), loop_(loop) {}
 
 ElementalControl::~ElementalControl() = default;
 
@@ -115,8 +134,8 @@ bool ElementalControl::Create() {
 
   // Initialize elemental.
   // TODO(benvanik): once? Do we care about multiple controls?
-  if (!InitializeElemental(renderer_.get())) {
-    XELOGE("Unable to initialize turbobadger");
+  if (!InitializeElemental(loop_, renderer_.get())) {
+    XELOGE("Unable to initialize elemental-forms");
     return false;
   }
 
@@ -135,6 +154,14 @@ bool ElementalControl::Create() {
   // el::ShowDebugInfoSettingsWindow(root_element());
 
   return true;
+}
+
+bool ElementalControl::LoadLanguage(std::string filename) {
+  return el::util::StringTable::get()->Load(filename.c_str());
+}
+
+bool ElementalControl::LoadSkin(std::string filename) {
+  return el::Skin::get()->Load(filename.c_str());
 }
 
 void ElementalControl::Destroy() {
@@ -476,3 +503,32 @@ void ElementalControl::OnMouseWheel(MouseEvent& e) {
 
 }  // namespace ui
 }  // namespace xe
+
+// This doesn't really belong here (it belongs in tb_system_[linux/windows].cpp.
+// This is here since the proper implementations has not yet been done.
+void el::util::RescheduleTimer(uint64_t fire_time) {
+  if (fire_time == el::MessageHandler::kNotSoon) {
+    return;
+  }
+
+  uint64_t now = el::util::GetTimeMS();
+  uint64_t delay_millis = fire_time >= now ? fire_time - now : 0;
+  xe::ui::elemental_loop_->PostDelayed([]() {
+    uint64_t next_fire_time = el::MessageHandler::GetNextMessageFireTime();
+    uint64_t now = el::util::GetTimeMS();
+    if (now < next_fire_time) {
+      // We timed out *before* we were supposed to (the OS is not playing nice).
+      // Calling ProcessMessages now won't achieve a thing so force a reschedule
+      // of the platform timer again with the same time.
+      // ReschedulePlatformTimer(next_fire_time, true);
+      return;
+    }
+
+    el::MessageHandler::ProcessMessages();
+
+    // If we still have things to do (because we didn't process all messages,
+    // or because there are new messages), we need to rescedule, so call
+    // RescheduleTimer.
+    el::util::RescheduleTimer(el::MessageHandler::GetNextMessageFireTime());
+  }, delay_millis);
+}
