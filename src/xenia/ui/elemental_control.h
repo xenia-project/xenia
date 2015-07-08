@@ -49,10 +49,11 @@ class ElementalControl : public PlatformControl {
 
   el::ModifierKeys GetModifierKeys();
 
-  void OnKeyPress(KeyEvent& e, bool is_down);
+  void OnKeyPress(KeyEvent& e, bool is_down, bool is_char);
   bool CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key, bool is_down);
   void OnKeyDown(KeyEvent& e) override;
   void OnKeyUp(KeyEvent& e) override;
+  void OnKeyChar(KeyEvent& e) override;
 
   void OnMouseDown(MouseEvent& e) override;
   void OnMouseMove(MouseEvent& e) override;

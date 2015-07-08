@@ -45,4 +45,9 @@
       <Filter>src\xenia\debug\ui</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resources.rc">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ResourceCompile>
+  </ItemGroup>
 </Project>

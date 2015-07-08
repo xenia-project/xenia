@@ -84,6 +84,12 @@
     <ClCompile Include="main_window.cc" />
     <ClCompile Include="xe-debug-ui.cc" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resources.rc">
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)third_party/elemental-forms;$(SolutionDir);.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)third_party/elemental-forms;$(SolutionDir);.</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

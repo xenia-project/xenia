@@ -10,10 +10,11 @@
 #include "xenia/ui/elemental_control.h"
 
 #include "el/animation_manager.h"
+#include "el/util/debug.h"
 #include "el/elemental_forms.h"
-#include "el/io/embedded_file_system.h"
 #include "el/io/file_manager.h"
 #include "el/io/posix_file_system.h"
+#include "el/io/win32_res_file_system.h"
 #include "el/message_handler.h"
 #include "el/text/font_manager.h"
 #include "el/util/metrics.h"
@@ -60,19 +61,15 @@ bool ElementalControl::InitializeElemental(Loop* loop,
   elemental_loop_ = loop;
 
   if (!el::Initialize(renderer)) {
-    XELOGE("Failed to initialize turbobadger core");
+    XELOGE("Failed to initialize elemental core");
     return false;
   }
 
   el::io::FileManager::RegisterFileSystem(
-      std::make_unique<el::io::PosixFileSystem>(
-          "third_party/elemental-forms/resources/"));
+      std::make_unique<el::io::Win32ResFileSystem>("IDR_default_resources_"));
   el::io::FileManager::RegisterFileSystem(
       std::make_unique<el::io::PosixFileSystem>(
           "third_party/elemental-forms/testbed/resources/"));
-  auto embedded_file_system = std::make_unique<el::io::EmbeddedFileSystem>();
-  // TODO(benvanik): bin2c stuff.
-  el::io::FileManager::RegisterFileSystem(std::move(embedded_file_system));
 
   // Load default translations.
   el::util::StringTable::get()->Load("default_language/language_en.tb.txt");
@@ -151,7 +148,7 @@ bool ElementalControl::Create() {
   auto message_window = new el::MessageWindow(root_element(), TBIDC(""));
   message_window->Show("Title", "Hello!");
 
-  // el::ShowDebugInfoSettingsWindow(root_element());
+  el::util::ShowDebugInfoSettingsWindow(root_element());
 
   return true;
 }
@@ -253,12 +250,13 @@ el::ModifierKeys ElementalControl::GetModifierKeys() {
   return modifiers;
 }
 
-void ElementalControl::OnKeyPress(KeyEvent& e, bool is_down) {
+void ElementalControl::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
   if (!root_element()) {
     return;
   }
   auto special_key = el::SpecialKey::kUndefined;
-  switch (e.key_code()) {
+  if (!is_char) {
+    switch (e.key_code()) {
     case 38:
       special_key = el::SpecialKey::kUp;
       break;
@@ -359,12 +357,19 @@ void ElementalControl::OnKeyPress(KeyEvent& e, bool is_down) {
     case 91:
       modifier_super_pressed_ = is_down;
       break;
+    }
   }
 
   if (!CheckShortcutKey(e, special_key, is_down)) {
-    e.set_handled(root_element()->InvokeKey(
-        special_key != el::SpecialKey::kUndefined ? e.key_code() : 0,
-        special_key, GetModifierKeys(), is_down));
+    int key_code = 0;
+    if (is_char) {
+      key_code = e.key_code();
+      if (key_code < 32 || (key_code > 126 && key_code < 160)) {
+        key_code = 0;
+      }
+    }
+    e.set_handled(root_element()->InvokeKey(key_code, special_key,
+                                            GetModifierKeys(), is_down));
   }
 }
 
@@ -423,12 +428,18 @@ bool ElementalControl::CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key,
 
 void ElementalControl::OnKeyDown(KeyEvent& e) {
   super::OnKeyDown(e);
-  OnKeyPress(e, true);
+  OnKeyPress(e, true, false);
 }
 
 void ElementalControl::OnKeyUp(KeyEvent& e) {
   super::OnKeyUp(e);
-  OnKeyPress(e, false);
+  OnKeyPress(e, false, false);
+}
+
+void ElementalControl::OnKeyChar(KeyEvent& e) {
+  super::OnKeyChar(e);
+  OnKeyPress(e, true, true);
+  OnKeyPress(e, false, true);
 }
 
 void ElementalControl::OnMouseDown(MouseEvent& e) {
