@@ -43,7 +43,7 @@ static const TextureConfig texture_configs[64] = {
      GL_UNSIGNED_SHORT_1_5_5_5_REV},
     {TextureFormat::k_5_6_5, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
     {TextureFormat::k_6_5_5, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
-    {TextureFormat::k_8_8_8_8, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},
+    {TextureFormat::k_8_8_8_8, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV},
     {TextureFormat::k_2_10_10_10, GL_RGB10_A2, GL_RGBA,
      GL_UNSIGNED_INT_2_10_10_10_REV},
     {TextureFormat::k_8_A, GL_INVALID_ENUM, GL_INVALID_ENUM, GL_INVALID_ENUM},
@@ -477,21 +477,23 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   // Pre-shader swizzle.
   // TODO(benvanik): can this be dynamic? Maybe per view?
   // We may have to emulate this in the shader.
-  uint32_t swizzle_r = texture_info.swizzle & 0x7;
-  uint32_t swizzle_g = (texture_info.swizzle >> 3) & 0x7;
-  uint32_t swizzle_b = (texture_info.swizzle >> 6) & 0x7;
-  uint32_t swizzle_a = (texture_info.swizzle >> 9) & 0x7;
-  static const GLenum swizzle_map[] = {
-      GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO, GL_ONE,
-  };
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_R,
-                      swizzle_map[swizzle_r]);
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_G,
-                      swizzle_map[swizzle_g]);
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_B,
-                      swizzle_map[swizzle_b]);
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_A,
-                      swizzle_map[swizzle_a]);
+  if (texture_info.format_info->format != TextureFormat::k_8_8_8_8) {
+    uint32_t swizzle_r = texture_info.swizzle & 0x7;
+    uint32_t swizzle_g = (texture_info.swizzle >> 3) & 0x7;
+    uint32_t swizzle_b = (texture_info.swizzle >> 6) & 0x7;
+    uint32_t swizzle_a = (texture_info.swizzle >> 9) & 0x7;
+    static const GLenum swizzle_map[] = {
+        GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO, GL_ONE,
+    };
+    glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_R,
+                        swizzle_map[swizzle_r]);
+    glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_G,
+                        swizzle_map[swizzle_g]);
+    glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_B,
+                        swizzle_map[swizzle_b]);
+    glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_A,
+                        swizzle_map[swizzle_a]);
+  }
 
   // Upload/convert.
   bool uploaded = false;
