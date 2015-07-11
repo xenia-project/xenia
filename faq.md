@@ -11,12 +11,21 @@ permalink: /faq/
 ## Can I get an exe?
 
 **NO**, not yet. Xenia is in its extremely early phases and not ready for use by
-non-developers.
+non-developers. If you can't build it yourself using the instructions provided
+it probably means you should wait until alpha/beta/etc.
 
 Don't be an idiot and download a binary claiming to be of this project. In fact,
 don't be an idiot and download *any* binary claiming to be an Xbox 360 or PS3
 emulator from *any* source, especially not YouTube videos and shady websites.
 Come on people. Jeez.
+
+## Xenia crashes when I run it!
+
+This project is in early development phases and is not meant to be used by those
+who aren't comfortable debugging the code. Issues filed with 'it's broken' are
+generally unhelpful, and in most cases the team knows what's broken (the
+assumption is everything). If it doesn't work for you and you cannot figure out
+why, come back in a few months/years when the project is more complete.
 
 ## I have a copy of the XDK. Do you want it?
 
@@ -50,6 +59,12 @@ issues and you'll have better luck with NVIDIA.
 
 To get full speed and compatibility the project will be adopting Vulkan and
 Direct3D 12 so plan accordingly.
+
+### Why do you need OpenGL 4.5? Won't 3.0 work fine?
+
+Nope. Though technically we could software rasterize everything on a 286 that's
+not a good way to go about things and we make use of the latest tech to get the
+best performance and keep the code sane.
 
 ## Why did you do X? Why not just use Y? You should use Y. NIH NIH NIH!
 
