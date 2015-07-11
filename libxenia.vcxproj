@@ -169,6 +169,7 @@
     <ClCompile Include="src\xenia\ui\elemental_control.cc" />
     <ClCompile Include="src\xenia\ui\gl\blitter.cc" />
     <ClCompile Include="src\xenia\ui\gl\circular_buffer.cc" />
+    <ClCompile Include="src\xenia\ui\gl\gl4_elemental_renderer.cc" />
     <ClCompile Include="src\xenia\ui\gl\gl_context.cc" />
     <ClCompile Include="src\xenia\ui\gl\gl_profiler_display.cc" />
     <ClCompile Include="src\xenia\ui\gl\wgl_control.cc" />
@@ -401,6 +402,7 @@
     <ClInclude Include="src\xenia\ui\gl\blitter.h" />
     <ClInclude Include="src\xenia\ui\gl\circular_buffer.h" />
     <ClInclude Include="src\xenia\ui\gl\gl.h" />
+    <ClInclude Include="src\xenia\ui\gl\gl4_elemental_renderer.h" />
     <ClInclude Include="src\xenia\ui\gl\gl_context.h" />
     <ClInclude Include="src\xenia\ui\gl\gl_profiler_display.h" />
     <ClInclude Include="src\xenia\ui\gl\wgl_control.h" />
