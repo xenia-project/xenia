@@ -227,6 +227,11 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
 
   // SPUs also support stereo decoding. (data.is_stereo)
 
+  // Quick die if there's no data.
+  if (!data.input_buffer_0_valid && !data.input_buffer_1_valid) {
+    return;
+  }
+
   // Check the output buffer - we cannot decode anything else if it's
   // unavailable.
   if (!data.output_buffer_valid) {
@@ -329,8 +334,10 @@ int XmaContext::StartPacket(XMA_CONTEXT_DATA& data) {
 
   // See if we've finished with the input.
   // Block count is in packets, so expand by packet size.
-  uint32_t input_size_0_bytes = (data.input_buffer_0_packet_count) * 2048;
-  uint32_t input_size_1_bytes = (data.input_buffer_1_packet_count) * 2048;
+  uint32_t input_size_0_bytes =
+      data.input_buffer_0_valid ? (data.input_buffer_0_packet_count) * 2048 : 0;
+  uint32_t input_size_1_bytes =
+      data.input_buffer_1_valid ? (data.input_buffer_1_packet_count) * 2048 : 0;
 
   // Total input size
   uint32_t input_size_bytes = input_size_0_bytes + input_size_1_bytes;
@@ -346,7 +353,7 @@ int XmaContext::StartPacket(XMA_CONTEXT_DATA& data) {
     uint32_t input_offset_bytes = seq_offset_bytes;
     auto input_buffer = in0;
 
-    if (seq_offset_bytes >= input_size_0_bytes) {
+    if (seq_offset_bytes >= input_size_0_bytes && input_size_1_bytes) {
       // Size overlap, select input buffer 1.
       // TODO: This needs testing.
       input_offset_bytes -= input_size_0_bytes;
