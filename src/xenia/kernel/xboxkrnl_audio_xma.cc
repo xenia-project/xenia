@@ -120,17 +120,10 @@ struct XMA_CONTEXT_INIT {
 };
 static_assert_size(XMA_CONTEXT_INIT, 56);
 
-SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-  uint32_t context_init_ptr = SHIM_GET_ARG_32(1);
+dword_result_t XMAInitializeContext(lpvoid_t context_ptr, pointer_t<XMA_CONTEXT_INIT> context_init) {
+  std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
 
-  XELOGD("XMAInitializeContext(%.8X, %.8X)", context_ptr, context_init_ptr);
-
-  std::memset(SHIM_MEM_ADDR(context_ptr), 0, sizeof(XMA_CONTEXT_DATA));
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-  auto context_init = (XMA_CONTEXT_INIT*)SHIM_MEM_ADDR(context_init_ptr);
+  XMA_CONTEXT_DATA context(context_ptr);
 
   context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
   context.input_buffer_0_packet_count =
@@ -153,12 +146,14 @@ SHIM_CALL XMAInitializeContext_shim(PPCContext* ppc_context,
   context.loop_subframe_end = context_init->loop_data.loop_subframe_end;
   context.loop_subframe_skip = context_init->loop_data.loop_subframe_skip;
 
-  context.Store(SHIM_MEM_ADDR(context_ptr));
+  context.Store(context_ptr);
 
-  StoreXmaContextIndexedRegister(kernel_state, 0x1A80, context_ptr);
+  StoreXmaContextIndexedRegister(kernel_state(), 0x1A80, context_ptr);
 
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAInitializeContext,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
 SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
                               KernelState* kernel_state) {
@@ -181,215 +176,134 @@ SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
-SHIM_CALL XMAGetInputBufferReadOffset_shim(PPCContext* ppc_context,
-                                           KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAGetInputBufferReadOffset(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.input_buffer_read_offset;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAGetInputBufferReadOffset(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.input_buffer_read_offset;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAGetInputBufferReadOffset,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetInputBufferReadOffset_shim(PPCContext* ppc_context,
-                                           KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-  uint32_t value = SHIM_GET_ARG_32(1);
-
-  XELOGD("XMASetInputBufferReadOffset(%.8X, %.8X)", context_ptr, value);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
+dword_result_t XMASetInputBufferReadOffset(lpvoid_t context_ptr,
+                                           dword_t value) {
+  XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_read_offset = value;
+  context.Store(context_ptr);
 
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetInputBufferReadOffset,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetInputBuffer0_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
-  uint32_t block_count = SHIM_GET_ARG_32(2);
+dword_result_t XMASetInputBuffer0(lpvoid_t context_ptr, lpvoid_t buffer,
+                                  dword_t packet_count) {
+  XMA_CONTEXT_DATA context(context_ptr);
 
-  XELOGD("XMASetInputBuffer0(%.8X, %.8X, %d)", context_ptr, buffer_ptr,
-         block_count);
+  context.input_buffer_0_ptr = buffer.guest_address();
+  context.input_buffer_0_packet_count = packet_count;
 
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
+  context.Store(context_ptr);
 
-  context.input_buffer_0_ptr = buffer_ptr;
-  context.input_buffer_0_packet_count = block_count;
-  context.input_buffer_read_offset = 32;  // in bits
-  context.input_buffer_0_valid = buffer_ptr ? 1 : 0;
-
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetInputBuffer0,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMAIsInputBuffer0Valid_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAIsInputBuffer0Valid(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.input_buffer_0_valid;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAIsInputBuffer0Valid(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.input_buffer_0_valid;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAIsInputBuffer0Valid,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetInputBuffer0Valid_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMASetInputBuffer0Valid(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
+dword_result_t XMASetInputBuffer0Valid(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_0_valid = 1;
+  context.Store(context_ptr);
 
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetInputBuffer0Valid,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetInputBuffer1_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(1);
-  uint32_t block_count = SHIM_GET_ARG_32(2);
+dword_result_t XMASetInputBuffer1(lpvoid_t context_ptr, lpvoid_t buffer,
+                                  dword_t packet_count) {
+  XMA_CONTEXT_DATA context(context_ptr);
 
-  XELOGD("XMASetInputBuffer1(%.8X, %.8X, %d)", context_ptr, buffer_ptr,
-         block_count);
+  context.input_buffer_1_ptr = buffer.guest_address();
+  context.input_buffer_1_packet_count = packet_count;
 
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
+  context.Store(context_ptr);
 
-  context.input_buffer_1_ptr = buffer_ptr;
-  context.input_buffer_1_packet_count = block_count;
-  context.input_buffer_read_offset = 32;  // in bits
-  context.input_buffer_1_valid = buffer_ptr ? 1 : 0;
-
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetInputBuffer1,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMAIsInputBuffer1Valid_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAIsInputBuffer1Valid(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.input_buffer_1_valid;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAIsInputBuffer1Valid(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.input_buffer_1_valid;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAIsInputBuffer1Valid,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetInputBuffer1Valid_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMASetInputBuffer1Valid(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
+dword_result_t XMASetInputBuffer1Valid(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_1_valid = 1;
+  context.Store(context_ptr);
 
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetInputBuffer1Valid,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMAIsOutputBufferValid_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAIsOutputBufferValid(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.output_buffer_valid;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAIsOutputBufferValid(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.output_buffer_valid;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAIsOutputBufferValid,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetOutputBufferValid_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMASetOutputBufferValid(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
+dword_result_t XMASetOutputBufferValid(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_valid = 1;
+  context.Store(context_ptr);
 
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetOutputBufferValid,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMAGetOutputBufferReadOffset_shim(PPCContext* ppc_context,
-                                            KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAGetOutputBufferReadOffset(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.output_buffer_read_offset;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAGetOutputBufferReadOffset(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.output_buffer_read_offset;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAGetOutputBufferReadOffset,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMASetOutputBufferReadOffset_shim(PPCContext* ppc_context,
-                                            KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-  uint32_t value = SHIM_GET_ARG_32(1);
-
-  XELOGD("XMASetOutputBufferReadOffset(%.8X, %.8X)", context_ptr, value);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
+dword_result_t XMASetOutputBufferReadOffset(lpvoid_t context_ptr,
+                                            dword_t value) {
+  XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_read_offset = value;
+  context.Store(context_ptr);
 
-  context.Store(SHIM_MEM_ADDR(context_ptr));
-
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XMASetOutputBufferReadOffset,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMAGetOutputBufferWriteOffset_shim(PPCContext* ppc_context,
-                                             KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAGetOutputBufferWriteOffset(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.output_buffer_write_offset;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAGetOutputBufferWriteOffset(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.output_buffer_write_offset;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAGetOutputBufferWriteOffset,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
-SHIM_CALL XMAGetPacketMetadata_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t context_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XMAGetPacketMetadata(%.8X)", context_ptr);
-
-  XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-
-  uint32_t result = context.packet_metadata;
-
-  SHIM_SET_RETURN_32(result);
+dword_result_t XMAGetPacketMetadata(lpvoid_t context_ptr) {
+  XMA_CONTEXT_DATA context(context_ptr);
+  return context.packet_metadata;
 }
+DECLARE_XBOXKRNL_EXPORT(XMAGetPacketMetadata,
+                        ExportTag::kImplemented | ExportTag::kAudio);
 
 SHIM_CALL XMAEnableContext_shim(PPCContext* ppc_context,
                                 KernelState* kernel_state) {
@@ -446,26 +360,8 @@ void xe::kernel::xboxkrnl::RegisterAudioXmaExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAReleaseContext, state);
 
   // Only used in older games.
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAInitializeContext, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMASetLoopData, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetInputBufferReadOffset, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBufferReadOffset, state);
 
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer0, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsInputBuffer0Valid, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer0Valid, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer1, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsInputBuffer1Valid, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetInputBuffer1Valid, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAIsOutputBufferValid, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetOutputBufferValid, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMASetOutputBufferReadOffset, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetOutputBufferReadOffset, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetOutputBufferWriteOffset, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", XMAGetPacketMetadata, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMAEnableContext, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMADisableContext, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XMABlockWhileInUse, state);
