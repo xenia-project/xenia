@@ -1,73 +1,97 @@
 <!DOCTYPE html>
 <html>
   {% include head.html %}
-  <body class="fullbleed layout vertical">
-    <paper-drawer-panel id="paperDrawerPanel">
-      <div drawer>
-        <!-- Drawer Toolbar -->
-        <paper-toolbar id="drawerToolbar">
-          <img src="{{ site.baseurl }}/images/logo-256x256.png">
-          <span class="paper-font-title">xenia</span>
-        </paper-toolbar>
+  <body>
+    <div class="site-layout mdl-layout mdl-js-layout mdl-layout--fixed-drawer mdl-layout--fixed-header">
+      <header class="site-header mdl-layout__header mdl-color-text--white-600">
+        <!--{% if page.tall_header == true %}mode="waterfall-tall"{% else %}mode="waterfall"{% endif %}-->
+        <div class="mdl-layout__header-row">
+          <span class="mdl-layout-title">{{ page.title }}</span>
+          <div class="mdl-layout-spacer"></div>
+          <!--
+          <div class="mdl-textfield mdl-js-textfield mdl-textfield--expandable">
+            <label class="mdl-button mdl-js-button mdl-button--icon" for="search">
+              <i class="material-icons">search</i>
+            </label>
+            <div class="mdl-textfield__expandable-holder">
+              <input class="mdl-textfield__input" type="text" id="search" />
+              <label class="mdl-textfield__label" for="search">Enter your query...</label>
+            </div>
+          </div>-->
+          <!--
+          <button class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon" id="hdrbtn">
+            <i class="material-icons">more_vert</i>
+          </button>
+          <ul class="mdl-menu mdl-js-menu mdl-js-ripple-effect mdl-menu--bottom-right" for="hdrbtn">
+            <li class="mdl-menu__item">About</li>
+            <li class="mdl-menu__item">Contact</li>
+            <li class="mdl-menu__item">Legal information</li>
+          </ul>-->
+        </div>
+      </header>
 
-        <!-- Drawer Content -->
-        {% for category in site.navigation %}
-          {% if category.title %}
-            <div class="menu-subheader">{{ category.title }}</div>
-          {% endif %}
-          <paper-menu>
+      <div class="site-drawer mdl-layout__drawer mdl-color-text--white-500">
+        <header class="mdl-layout-title site-drawer-header">
+          <img src="{{ site.baseurl }}/images/logo-256x256.png">
+          <span>xenia</span>
+        </header>
+        <nav class="site-navigation mdl-navigation mdl-color--white">
+          {% for category in site.navigation %}
+            {% if category.title %}
+              <div class="site-drawer-subheader">{{ category.title }}</div>
+            {% endif %}
             {% for page_entry in category.pages %}
               {% if page_entry.url %}
                 <a href="{{ page_entry.url }}">
-                  <iron-icon icon="{{ page_entry.icon }}"></iron-icon>
+                <button class="mdl-navigation__link mdl-button mdl-js-button mdl-js-ripple-effect">
+                  <i class="material-icons">{{ page_entry.icon }}</i>
                   <span>{{ page_entry.title }}</span>
-                  <paper-ripple fit/>
+                </button>
                 </a>
               {% else %}
                 {% for page_item in site.pages %}
                   {% if page_item.path == page_entry.path %}
                     {% assign nav_page = page_item %}
-                    <a href="{{ nav_page.url | prepend: site.baseurl }}"
-                        {% if nav_page.url == page.url %}class="iron-selected"{% endif %}>
-                      <iron-icon icon="{{ nav_page.icon }}"></iron-icon>
+                    <a href="{{ nav_page.url | prepend: site.baseurl }}">
+                    <button class="mdl-navigation__link mdl-button mdl-js-button mdl-js-ripple-effect {% if nav_page.url == page.url %}selected{% endif %}">
+                      <i class="material-icons {% if nav_page.url == page.url %}selected{% endif %}">{{ nav_page.icon }}</i>
                       <span>{% if page_entry.title %}{{ page_entry.title }}{% else %}{{ nav_page.title }}{% endif %}</span>
-                      <paper-ripple fit/>
+                    </button>
                     </a>
                   {% endif %}
                 {% endfor %}
               {% endif %}
             {% endfor %}
-          </paper-menu>
-        {% endfor %}
+          {% endfor %}
+          <div class="mdl-layout-spacer"></div>
+          <ul class="contact-list">
+            <li><div class="changetip_tipme_button" data-bid="5b12652c-299f-4825-b5fd-b9148865c194" data-uid="fd96d314a2884e28882b1f1e3c2078a7"></div></li>
+            <!--<li><a href="https://www.bountysource.com/teams/xenia-project"><img src="https://img.shields.io/bountysource/team/xenia-project/activity.svg"></a></li>-->
+          </ul>
+        </nav>
       </div>
-      <paper-header-panel main
-          {% if page.tall_header == true %}mode="waterfall-tall"{% else %}mode="waterfall"{% endif %}>
-        <paper-toolbar>
-          <paper-icon-button icon="menu" paper-drawer-toggle></paper-icon-button>
-          <div><h3>{{ page.title }}</h3></div>
-        </paper-toolbar>
-
-        <div class="content fit page-content">
+      <main class="mdl-layout__content">
           {% include page-header.html %}
 
-          <div class="wrapper">
+          <div class="page-content wrapper">
             {{ content }}
           </div>
 
           {% include page-footer.html %}
-        </div>
-      </paper-header-panel>
-    </paper-drawer-panel>
-
-    <script type="text/javascript">
-      var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
-      document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+      </main>
+    </div>
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+      ga('create', 'UA-541992-12', 'auto');
+      ga('send', 'pageview');
     </script>
-    <script type="text/javascript">
-      try {
-        var pageTracker = _gat._getTracker("UA-541992-12");
-        pageTracker._trackPageview();
-      } catch(err) {}
+    <script>
+    window.setTimeout(function() {
+      (function(document,script,id){var js,r=document.getElementsByTagName(script)[0],protocol=/^http:/.test(document.location)?'http':'https';if(!document.getElementById(id)){js=document.createElement(script);js.id=id;js.src=protocol+'://widgets.changetip.com/public/js/widgets.js';r.parentNode.insertBefore(js,r)}}(document,'script','changetip_w_0'));
+    }, 3000);
     </script>
   </body>
 </html>

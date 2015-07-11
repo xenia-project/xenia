@@ -1,7 +1,7 @@
 ---
 layout: page
 title: "#xenia-dev @ freenode"
-icon: social:people
+icon: people
 permalink: /development/irc/
 ---
 

@@ -4,16 +4,13 @@
 * `ruby dk.rb init`
 * `ruby dk.rb install`
 * `gem install bundler`
-* `npm install -g bower vulcanize`
 
 From the repository root:
 
 ```
 bundle install
-bower install
 bundle exec jekyll serve
 ```
 
-If changing anything in `polymer.html`, run `_prepare.bat`.
-
+Theme and such from: http://www.getmdl.io/
 Icons from: https://www.google.com/design/icons/

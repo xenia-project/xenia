@@ -1,7 +1,7 @@
 ---
 layout: page
 title: Debugging
-icon: av:play-arrow
+icon: play_arrow
 permalink: /development/debugging/
 ---
 
