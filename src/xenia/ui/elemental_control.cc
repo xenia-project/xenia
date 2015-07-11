@@ -141,15 +141,6 @@ bool ElementalControl::Create() {
   root_element_->set_background_skin(TBIDC("background"));
   root_element_->set_rect({0, 0, 1000, 1000});
 
-  // Block animations during init.
-  el::AnimationBlocker anim_blocker;
-
-  // TODO(benvanik): dummy UI.
-  auto message_window = new el::MessageWindow(root_element(), TBIDC(""));
-  message_window->Show("Title", "Hello!");
-
-  el::util::ShowDebugInfoSettingsWindow(root_element());
-
   return true;
 }
 
@@ -257,106 +248,106 @@ void ElementalControl::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
   auto special_key = el::SpecialKey::kUndefined;
   if (!is_char) {
     switch (e.key_code()) {
-    case 38:
-      special_key = el::SpecialKey::kUp;
-      break;
-    case 39:
-      special_key = el::SpecialKey::kRight;
-      break;
-    case 40:
-      special_key = el::SpecialKey::kDown;
-      break;
-    case 37:
-      special_key = el::SpecialKey::kLeft;
-      break;
-    case 112:
-      special_key = el::SpecialKey::kF1;
-      break;
-    case 113:
-      special_key = el::SpecialKey::kF2;
-      break;
-    case 114:
-      special_key = el::SpecialKey::kF3;
-      break;
-    case 115:
-      special_key = el::SpecialKey::kF4;
-      break;
-    case 116:
-      special_key = el::SpecialKey::kF5;
-      break;
-    case 117:
-      special_key = el::SpecialKey::kF6;
-      break;
-    case 118:
-      special_key = el::SpecialKey::kF7;
-      break;
-    case 119:
-      special_key = el::SpecialKey::kF8;
-      break;
-    case 120:
-      special_key = el::SpecialKey::kF9;
-      break;
-    case 121:
-      special_key = el::SpecialKey::kF10;
-      break;
-    case 122:
-      special_key = el::SpecialKey::kF11;
-      break;
-    case 123:
-      special_key = el::SpecialKey::kF12;
-      break;
-    case 33:
-      special_key = el::SpecialKey::kPageUp;
-      break;
-    case 34:
-      special_key = el::SpecialKey::kPageDown;
-      break;
-    case 36:
-      special_key = el::SpecialKey::kHome;
-      break;
-    case 35:
-      special_key = el::SpecialKey::kEnd;
-      break;
-    case 45:
-      special_key = el::SpecialKey::kInsert;
-      break;
-    case 9:
-      special_key = el::SpecialKey::kTab;
-      break;
-    case 46:
-      special_key = el::SpecialKey::kDelete;
-      break;
-    case 8:
-      special_key = el::SpecialKey::kBackspace;
-      break;
-    case 13:
-      special_key = el::SpecialKey::kEnter;
-      break;
-    case 27:
-      special_key = el::SpecialKey::kEsc;
-      break;
-    case 93:
-      if (!is_down && el::Element::focused_element) {
-        el::Event ev(el::EventType::kContextMenu);
-        ev.modifierkeys = GetModifierKeys();
-        el::Element::focused_element->InvokeEvent(ev);
-        e.set_handled(true);
-        return;
-      }
-      break;
-    case 16:
-      modifier_shift_pressed_ = is_down;
-      break;
-    case 17:
-      modifier_cntrl_pressed_ = is_down;
-      break;
-    // case xx:
-    //  // alt ??
-    //  modifier_alt_pressed_ = is_down;
-    //  break;
-    case 91:
-      modifier_super_pressed_ = is_down;
-      break;
+      case 38:
+        special_key = el::SpecialKey::kUp;
+        break;
+      case 39:
+        special_key = el::SpecialKey::kRight;
+        break;
+      case 40:
+        special_key = el::SpecialKey::kDown;
+        break;
+      case 37:
+        special_key = el::SpecialKey::kLeft;
+        break;
+      case 112:
+        special_key = el::SpecialKey::kF1;
+        break;
+      case 113:
+        special_key = el::SpecialKey::kF2;
+        break;
+      case 114:
+        special_key = el::SpecialKey::kF3;
+        break;
+      case 115:
+        special_key = el::SpecialKey::kF4;
+        break;
+      case 116:
+        special_key = el::SpecialKey::kF5;
+        break;
+      case 117:
+        special_key = el::SpecialKey::kF6;
+        break;
+      case 118:
+        special_key = el::SpecialKey::kF7;
+        break;
+      case 119:
+        special_key = el::SpecialKey::kF8;
+        break;
+      case 120:
+        special_key = el::SpecialKey::kF9;
+        break;
+      case 121:
+        special_key = el::SpecialKey::kF10;
+        break;
+      case 122:
+        special_key = el::SpecialKey::kF11;
+        break;
+      case 123:
+        special_key = el::SpecialKey::kF12;
+        break;
+      case 33:
+        special_key = el::SpecialKey::kPageUp;
+        break;
+      case 34:
+        special_key = el::SpecialKey::kPageDown;
+        break;
+      case 36:
+        special_key = el::SpecialKey::kHome;
+        break;
+      case 35:
+        special_key = el::SpecialKey::kEnd;
+        break;
+      case 45:
+        special_key = el::SpecialKey::kInsert;
+        break;
+      case 9:
+        special_key = el::SpecialKey::kTab;
+        break;
+      case 46:
+        special_key = el::SpecialKey::kDelete;
+        break;
+      case 8:
+        special_key = el::SpecialKey::kBackspace;
+        break;
+      case 13:
+        special_key = el::SpecialKey::kEnter;
+        break;
+      case 27:
+        special_key = el::SpecialKey::kEsc;
+        break;
+      case 93:
+        if (!is_down && el::Element::focused_element) {
+          el::Event ev(el::EventType::kContextMenu);
+          ev.modifierkeys = GetModifierKeys();
+          el::Element::focused_element->InvokeEvent(ev);
+          e.set_handled(true);
+          return;
+        }
+        break;
+      case 16:
+        modifier_shift_pressed_ = is_down;
+        break;
+      case 17:
+        modifier_cntrl_pressed_ = is_down;
+        break;
+      // case xx:
+      //  // alt ??
+      //  modifier_alt_pressed_ = is_down;
+      //  break;
+      case 91:
+        modifier_super_pressed_ = is_down;
+        break;
     }
   }
 

@@ -19,6 +19,15 @@
     <Filter Include="src\xenia\debug\ui\elements">
       <UniqueIdentifier>{f0ac4999-4700-4b41-b73d-c6dc8b23c5e6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\xenia\debug\ui\views">
+      <UniqueIdentifier>{5601b0a2-a720-4d89-9fca-df1637fce0b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\xenia\debug\ui\views\cpu">
+      <UniqueIdentifier>{5b186e9a-1fef-42f5-b06b-2ac0b10a8a5b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\xenia\debug\ui\views\gpu">
+      <UniqueIdentifier>{c66e9a6b-0947-4610-9b2b-29db99c08e91}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\base\main.h">
@@ -29,6 +38,15 @@
     </ClInclude>
     <ClInclude Include="application.h">
       <Filter>src\xenia\debug\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="view.h">
+      <Filter>src\xenia\debug\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="views\gpu\gpu_view.h">
+      <Filter>src\xenia\debug\ui\views\gpu</Filter>
+    </ClInclude>
+    <ClInclude Include="views\cpu\cpu_view.h">
+      <Filter>src\xenia\debug\ui\views\cpu</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -43,6 +61,12 @@
     </ClCompile>
     <ClCompile Include="application.cc">
       <Filter>src\xenia\debug\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="views\gpu\gpu_view.cc">
+      <Filter>src\xenia\debug\ui\views\gpu</Filter>
+    </ClCompile>
+    <ClCompile Include="views\cpu\cpu_view.cc">
+      <Filter>src\xenia\debug\ui\views\cpu</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

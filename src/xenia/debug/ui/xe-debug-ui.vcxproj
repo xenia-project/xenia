@@ -77,11 +77,16 @@
     <ClInclude Include="..\..\base\main.h" />
     <ClInclude Include="application.h" />
     <ClInclude Include="main_window.h" />
+    <ClInclude Include="view.h" />
+    <ClInclude Include="views\cpu\cpu_view.h" />
+    <ClInclude Include="views\gpu\gpu_view.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\base\main_win.cc" />
     <ClCompile Include="application.cc" />
     <ClCompile Include="main_window.cc" />
+    <ClCompile Include="views\cpu\cpu_view.cc" />
+    <ClCompile Include="views\gpu\gpu_view.cc" />
     <ClCompile Include="xe-debug-ui.cc" />
   </ItemGroup>
   <ItemGroup>

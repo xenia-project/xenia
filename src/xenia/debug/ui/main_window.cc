@@ -9,6 +9,8 @@
 
 #include "xenia/debug/ui/main_window.h"
 
+#include "el/animation_manager.h"
+#include "el/util/debug.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
@@ -96,7 +98,58 @@ bool MainWindow::Initialize() {
 
   Resize(1440, 1200);
 
+  BuildUI();
+
   return true;
+}
+
+void MainWindow::BuildUI() {
+  using namespace el::dsl;
+  el::AnimationBlocker animation_blocker;
+
+  auto root_element = control_->root_element();
+  window_ = std::make_unique<el::Window>();
+  window_->set_settings(el::WindowSettings::kFullScreen);
+  root_element->AddChild(window_.get());
+
+  auto root_node =
+      LayoutBoxNode()
+          .gravity(Gravity::kAll)
+          .distribution(LayoutDistribution::kAvailable)
+          .axis(Axis::kY)
+          .child(LayoutBoxNode()
+                     .id("toolbar_box")
+                     .gravity(Gravity::kTop | Gravity::kLeftRight)
+                     .distribution(LayoutDistribution::kAvailable)
+                     .child(LabelNode("toolbar")))
+          .child(
+              SplitContainerNode()
+                  .id("split_container")
+                  .gravity(Gravity::kAll)
+                  .axis(Axis::kX)
+                  .fixed_pane(FixedPane::kSecond)
+                  .min(128)
+                  .value(250)
+                  .pane(TabContainerNode()
+                            .id("tab_container")
+                            .gravity(Gravity::kAll)
+                            .align(Align::kTop))
+                  .pane(LayoutBoxNode().id("log_box").gravity(Gravity::kAll)));
+
+  window_->LoadNodeTree(root_node);
+  window_->GetElementsById({
+      {TBIDC("split_container"), &ui_.split_container},
+      {TBIDC("toolbar_box"), &ui_.toolbar_box},
+      {TBIDC("tab_container"), &ui_.tab_container},
+  });
+
+  ui_.tab_container->tab_bar()->LoadNodeTree(ButtonNode(cpu_view_.name()));
+  ui_.tab_container->content_root()->AddChild(cpu_view_.BuildUI());
+
+  ui_.tab_container->tab_bar()->LoadNodeTree(ButtonNode(gpu_view_.name()));
+  ui_.tab_container->content_root()->AddChild(gpu_view_.BuildUI());
+
+  el::util::ShowDebugInfoSettingsWindow(root_element);
 }
 
 void MainWindow::OnClose() { app_->Quit(); }
