@@ -132,10 +132,6 @@ void XmaContext::Enable() {
       (data.input_buffer_0_packet_count + data.input_buffer_1_packet_count) *
           kBytesPerPacket);
 
-  // Reset valid flags so our audio decoder knows to process this one.
-  data.input_buffer_0_valid = data.input_buffer_0_ptr != 0;
-  data.input_buffer_1_valid = data.input_buffer_1_ptr != 0;
-
   data.Store(context_ptr);
 
   set_is_enabled(true);
