@@ -120,7 +120,8 @@ struct XMA_CONTEXT_INIT {
 };
 static_assert_size(XMA_CONTEXT_INIT, 56);
 
-dword_result_t XMAInitializeContext(lpvoid_t context_ptr, pointer_t<XMA_CONTEXT_INIT> context_init) {
+dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
+                                    pointer_t<XMA_CONTEXT_INIT> context_init) {
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
 
   XMA_CONTEXT_DATA context(context_ptr);
