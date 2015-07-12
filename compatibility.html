@@ -35,18 +35,19 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
 <script src="{{ site.baseurl }}/scripts/merged-github-underscore.js"></script>
 
 <script>
-  var issueDataString = localStorage.getItem('game-compatibility-issues');
-  if (!issueDataString) {
+  var issueBlobString = localStorage.getItem('game-compatibility-issues');
+  if (!issueBlobString) {
     // No cached data, fetch new.
     fetchIssueData(renderIssues);
   } else {
-    var issueData = JSON.parse(issueDataString);
-    if (Date.now() - issueData.__cache_time__ > 5 * 60 * 1000) {
+    var issueBlob = JSON.parse(issueBlobString);
+    if (!issueBlob.cacheTime ||
+        Date.now() - issueBlob.cacheTime > 5 * 60 * 1000) {
       // Expired - refetch.
       fetchIssueData(renderIssues);
     } else {
       // Cache is valid, draw.
-      renderIssues(issueData);
+      renderIssues(issueBlob.issueData);
     }
   }
 
@@ -55,9 +56,12 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
     var issueAdapter = gh.getIssues('xenia-project', 'game-compatibility');
     issueAdapter.list({}, function(err, issueData) {
       // Store with timestamp for expiration.
-      issueData.__cache_time__ = Date.now();
+      var issueBlob = {
+        cacheTime: Date.now(),
+        issueData: issueData
+      };
       localStorage.setItem('game-compatibility-issues',
-                           JSON.stringify(issueData));
+                           JSON.stringify(issueBlob));
       callback(issueData);
     });
   }
