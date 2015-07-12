@@ -82,7 +82,8 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
       var titleName = issue.title.substr(dash + 3);
 
       var marketplaceLink = 'https://www.google.com/?q=' + titleName + ' Xbox 360 game';
-      var marketplaceBoxSmall = null;
+      var marketplaceBoxSmall = "http://i.imgur.com/G9iNSCA.jpg";
+      // no large link appears to exist for this image
       var marketplaceBoxLarge = null;
       var marketplaceIndex = issue.body.search(/http[s]?:\/\/marketplace/);
       if (marketplaceIndex != -1) {
@@ -97,9 +98,6 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
         } else {
           // TODO: figure out how to craft this ID.
           // storeId = '66acd000-77fe-1000-9115-d802' + titleId.toLowerCase();
-          // For now, use a standard empty box art
-          marketplaceBoxSmall = "http://i.imgur.com/G9iNSCA.jpg";
-         // no large version exists
         }
       }
 
