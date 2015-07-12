@@ -137,8 +137,8 @@ SETLOCAL
 ECHO Setting up the build environment...
 
 ECHO.
-ECHO ^> git submodule update --init
-git submodule update --init
+ECHO ^> git submodule update --init --recursive
+git submodule update --init --recursive
 IF %ERRORLEVEL% NEQ 0 (
   ECHO.
   ECHO ERROR: failed to initialize git submodules
