@@ -87,10 +87,10 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
         var storeIdIndex = marketplaceLink.search(/[0-9a-f]{8}-[0-9a-f]{4}/);
         if (storeIdIndex != -1) {
           var storeId = marketplaceLink.substr(storeIdIndex);
-          var marketplaceBox = 'http://download.xbox.com/content/images/66acd000-77fe-1000-9115-d802' + titleId.toLowerCase() + '/1033/';
-          marketplaceBoxSmall = marketplaceBox + 'boxartsm.jpg';
-          marketplaceBoxLarge = marketplaceBox + 'boxartlg.jpg';
         }
+        var marketplaceBox = 'http://download.xbox.com/content/images/66acd000-77fe-1000-9115-d802' + titleId.toLowerCase() + '/1033/';
+        marketplaceBoxSmall = marketplaceBox + 'boxartsm.jpg';
+        marketplaceBoxLarge = marketplaceBox + 'boxartlg.jpg';
       }
 
       var tr = document.createElement('tr');
