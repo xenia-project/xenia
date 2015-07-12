@@ -13,6 +13,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xevent.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam_private.h"
 #include "xenia/xbox.h"
@@ -250,6 +251,56 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
   return 0;
 }
 DECLARE_XAM_EXPORT(NetDll_WSARecvFrom,
+                   ExportTag::kNetworking | ExportTag::kStub);
+
+dword_result_t NtWaitForMultipleObjectsEx(
+    dword_t count, pointer_t<xe::be<uint32_t>> handles, dword_t wait_type,
+    dword_t wait_mode, dword_t alertable,
+    pointer_t<xe::be<uint64_t>> timeout_ptr);
+dword_result_t RtlNtStatusToDosError(dword_t source_status);
+
+dword_result_t NetDll_WSAWaitForMultipleEvents(
+    dword_t num_events, pointer_t<xe::be<uint32_t>> events, dword_t wait_all,
+    dword_t timeout, dword_t alertable) {
+  if (num_events > 64) {
+    XThread::GetCurrentThread()->set_last_error(87);  // ERROR_INVALID_PARAMETER
+    return -1;
+  }
+
+  xe::be<uint64_t> timeout_wait = (uint64_t)timeout;
+
+  X_STATUS result = 0;
+  do {
+    result =
+        NtWaitForMultipleObjectsEx(num_events, events, wait_all, 1, alertable,
+                                   timeout != -1 ? &timeout_wait : nullptr);
+  } while (result == X_STATUS_ALERTED);
+
+  if (XFAILED(result)) {
+    uint32_t error = RtlNtStatusToDosError(result);
+    XThread::GetCurrentThread()->set_last_error(error);
+    return -1;
+  }
+
+  return 0;
+}
+DECLARE_XAM_EXPORT(NetDll_WSAWaitForMultipleEvents,
+                   ExportTag::kNetworking | ExportTag::kStub);
+
+dword_result_t NtClearEvent(dword_t handle);
+
+dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
+  X_STATUS result = NtClearEvent(event_handle);
+
+  if (XFAILED(result)) {
+    uint32_t error = RtlNtStatusToDosError(result);
+    XThread::GetCurrentThread()->set_last_error(error);
+    return 0;
+  }
+
+  return 1;
+}
+DECLARE_XAM_EXPORT(NetDll_WSAResetEvent,
                    ExportTag::kNetworking | ExportTag::kStub);
 
 struct XnAddrStatus {

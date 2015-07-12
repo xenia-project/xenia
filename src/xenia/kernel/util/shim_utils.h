@@ -280,6 +280,7 @@ class Result {
   }
   Result() = delete;
   Result& operator=(const Result&) = delete;
+  operator T() const { return value_; }
 
  private:
   T value_;

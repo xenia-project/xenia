@@ -598,23 +598,20 @@ SHIM_CALL KeResetEvent_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtClearEvent_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  uint32_t event_handle = SHIM_GET_ARG_32(0);
-
-  XELOGD("NtClearEvent(%.8X)", event_handle);
-
+dword_result_t NtClearEvent(dword_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = kernel_state->object_table()->LookupObject<XEvent>(event_handle);
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
   if (ev) {
     ev->Reset();
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtClearEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
 
 SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
                                  KernelState* kernel_state) {
@@ -964,41 +961,33 @@ SHIM_CALL KeWaitForMultipleObjects_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtWaitForMultipleObjectsEx_shim(PPCContext* ppc_context,
-                                          KernelState* kernel_state) {
-  uint32_t count = SHIM_GET_ARG_32(0);
-  uint32_t handles_ptr = SHIM_GET_ARG_32(1);
-  uint32_t wait_type = SHIM_GET_ARG_32(2);
-  uint8_t wait_mode = SHIM_GET_ARG_8(3);
-  uint32_t alertable = SHIM_GET_ARG_32(4);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(5);
-
-  XELOGD("NtWaitForMultipleObjectsEx(%d, %.8X, %.8X, %.8X, %.8X, %.8X)", count,
-         handles_ptr, wait_type, wait_mode, alertable, timeout_ptr);
-
+dword_result_t NtWaitForMultipleObjectsEx(
+    dword_t count, pointer_t<xe::be<uint32_t>> handles, dword_t wait_type,
+    dword_t wait_mode, dword_t alertable,
+    pointer_t<xe::be<uint64_t>> timeout_ptr) {
   assert_true(wait_type >= 0 && wait_type <= 1);
-
   X_STATUS result = X_STATUS_SUCCESS;
 
   std::vector<object_ref<XObject>> objects(count);
   for (uint32_t n = 0; n < count; n++) {
-    uint32_t object_handle = SHIM_MEM_32(handles_ptr + n * 4);
+    uint32_t object_handle = handles[n];
     auto object =
-        kernel_state->object_table()->LookupObject<XObject>(object_handle);
+        kernel_state()->object_table()->LookupObject<XObject>(object_handle);
     if (!object) {
-      SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
-      return;
+      return X_STATUS_INVALID_PARAMETER;
     }
     objects[n] = std::move(object);
   }
 
-  uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+  uint64_t timeout = timeout_ptr ? *timeout_ptr : 0;
   result = XObject::WaitMultiple(
       count, reinterpret_cast<XObject**>(objects.data()), wait_type, 6,
       wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtWaitForMultipleObjectsEx,
+                        ExportTag::kImplemented | ExportTag::kThreading);
 
 SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(PPCContext* ppc_context,
                                                 KernelState* kernel_state) {
@@ -1413,7 +1402,6 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KePulseEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtPulseEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtClearEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeSemaphore, state);
@@ -1430,7 +1418,6 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForMultipleObjects, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForMultipleObjectsEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSignalAndWaitForSingleObjectEx, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KfAcquireSpinLock, state);
