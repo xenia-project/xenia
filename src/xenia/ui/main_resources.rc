@@ -1,0 +1,5 @@
+//{{NO_DEPENDENCIES}}
+
+#include "third_party\\elemental-forms\\resources.rc"
+
+//IDR_xe_ui_main_resources_skin_bg_tile_png                                   RCDATA ".\\resources\\skin\\bg_tile.png"

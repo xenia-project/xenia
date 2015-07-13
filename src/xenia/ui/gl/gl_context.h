@@ -16,6 +16,7 @@
 
 #include "xenia/ui/gl/blitter.h"
 #include "xenia/ui/gl/gl.h"
+#include "xenia/ui/graphics_context.h"
 
 DECLARE_bool(thread_safe_gl);
 
@@ -23,25 +24,33 @@ namespace xe {
 namespace ui {
 namespace gl {
 
-class GLContext {
+class GLContext : public GraphicsContext {
  public:
-  GLContext();
-  GLContext(HWND hwnd, HGLRC glrc);
-  ~GLContext();
+  static std::unique_ptr<GLContext> Create(Window* target_window);
 
-  bool Initialize(HWND hwnd);
-  void AssertExtensionsPresent();
+  ~GLContext() override;
 
   HDC dc() const { return dc_; }
 
-  std::unique_ptr<GLContext> CreateShared();
+  std::unique_ptr<GraphicsContext> CreateShared() override;
+  std::unique_ptr<ProfilerDisplay> CreateProfilerDisplay() override;
+  std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() override;
 
-  bool MakeCurrent();
-  void ClearCurrent();
+  bool MakeCurrent() override;
+  void ClearCurrent() override;
+
+  void BeginSwap() override;
+  void EndSwap() override;
 
   Blitter* blitter() { return &blitter_; }
 
  private:
+  GLContext(Window* target_window);
+  GLContext(Window* target_window, HGLRC glrc);
+
+  bool Initialize(Window* target_window);
+  void AssertExtensionsPresent();
+
   void SetupDebugging();
   void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
                     GLsizei length, const GLchar* message);
@@ -49,24 +58,13 @@ class GLContext {
   DebugMessageThunk(GLenum source, GLenum type, GLuint id, GLenum severity,
                     GLsizei length, const GLchar* message, GLvoid* user_param);
 
-  HWND hwnd_;
-  HDC dc_;
-  HGLRC glrc_;
+  HDC dc_ = nullptr;
+  HGLRC glrc_ = nullptr;
 
   GLEWContext glew_context_;
   WGLEWContext wglew_context_;
 
   Blitter blitter_;
-};
-
-struct GLContextLock {
-  GLContextLock(GLContext* context) : context_(context) {
-    context_->MakeCurrent();
-  }
-  ~GLContextLock() { context_->ClearCurrent(); }
-
- private:
-  GLContext* context_;
 };
 
 }  // namespace gl

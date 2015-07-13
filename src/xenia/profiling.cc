@@ -33,6 +33,10 @@ std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
 
 #if XE_OPTION_PROFILING
 
+bool Profiler::is_enabled() { return true; }
+
+bool Profiler::is_visible() { return MicroProfileIsDrawing(); }
+
 void Profiler::Initialize() {
   // Custom groups.
   MicroProfileSetEnableAllGroups(false);
@@ -168,6 +172,8 @@ void Profiler::Present() {
 
 #else
 
+bool Profiler::is_enabled() { return false; }
+bool Profiler::is_visible() { return false; }
 void Profiler::Initialize() {}
 void Profiler::Dump() {}
 void Profiler::Shutdown() {}

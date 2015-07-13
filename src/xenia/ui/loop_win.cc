@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
-#include "xenia/ui/win32/win32_loop.h"
+#include "xenia/ui/loop_win.h"
 
 #include "xenia/base/assert.h"
 
 namespace xe {
 namespace ui {
-namespace win32 {
 
 const DWORD kWmWin32LoopPost = WM_APP + 0x100;
 const DWORD kWmWin32LoopQuit = WM_APP + 0x101;
@@ -26,6 +25,8 @@ class PostedFn {
  private:
   std::function<void()> fn_;
 };
+
+std::unique_ptr<Loop> Loop::Create() { return std::make_unique<Win32Loop>(); }
 
 Win32Loop::Win32Loop() : thread_id_(0) {
   timer_queue_ = CreateTimerQueue();
@@ -81,6 +82,9 @@ void Win32Loop::ThreadMain() {
         break;
     }
   }
+
+  UIEvent e(nullptr);
+  on_quit(e);
 }
 
 void Win32Loop::Post(std::function<void()> fn) {
@@ -132,6 +136,5 @@ void Win32Loop::Quit() {
 
 void Win32Loop::AwaitQuit() { quit_fence_.Wait(); }
 
-}  // namespace win32
 }  // namespace ui
 }  // namespace xe

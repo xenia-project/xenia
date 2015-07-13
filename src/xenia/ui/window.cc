@@ -2,12 +2,12 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2014 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/ui/elemental_control.h"
+#include "xenia/ui/window.h"
 
 #include "el/animation_manager.h"
 #include "el/util/debug.h"
@@ -28,6 +28,7 @@ namespace xe {
 namespace ui {
 
 constexpr bool kContinuousRepaint = false;
+constexpr bool kShowPresentFps = kContinuousRepaint;
 
 // Enables long press behaviors (context menu, etc).
 constexpr bool kTouch = false;
@@ -37,19 +38,26 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
-Loop* elemental_loop_ = nullptr;
-
 class RootElement : public el::Element {
  public:
-  RootElement(ElementalControl* owner) : owner_(owner) {}
+  RootElement(Window* owner) : owner_(owner) {}
   void OnInvalid() override { owner_->Invalidate(); }
 
  private:
-  ElementalControl* owner_ = nullptr;
+  Window* owner_ = nullptr;
 };
 
-bool ElementalControl::InitializeElemental(Loop* loop,
-                                           el::graphics::Renderer* renderer) {
+Window::Window(Loop* loop, const std::wstring& title)
+    : loop_(loop), title_(title) {}
+
+Window::~Window() {
+  // Context must have been cleaned up already in OnDestroy.
+  assert_null(context_.get());
+}
+
+bool Window::InitializeElemental(Loop* loop, el::graphics::Renderer* renderer) {
+  GraphicsContextLock context_lock(context_.get());
+
   static bool has_initialized = false;
   if (has_initialized) {
     return true;
@@ -58,7 +66,7 @@ bool ElementalControl::InitializeElemental(Loop* loop,
 
   // Need to pass off the Loop we want Elemental to use.
   // TODO(benvanik): give the callback to elemental instead.
-  elemental_loop_ = loop;
+  Loop::set_elemental_loop(loop);
 
   if (!el::Initialize(renderer)) {
     XELOGE("Failed to initialize elemental core");
@@ -116,18 +124,10 @@ bool ElementalControl::InitializeElemental(Loop* loop,
   return true;
 }
 
-ElementalControl::ElementalControl(Loop* loop, uint32_t flags)
-    : super(flags), loop_(loop) {}
+bool Window::OnCreate() { return true; }
 
-ElementalControl::~ElementalControl() = default;
-
-bool ElementalControl::Create() {
-  if (!super::Create()) {
-    return false;
-  }
-
-  // Create subclass renderer (GL, etc).
-  renderer_ = CreateRenderer();
+bool Window::MakeReady() {
+  renderer_ = context_->CreateElementalRenderer();
 
   // Initialize elemental.
   // TODO(benvanik): once? Do we care about multiple controls?
@@ -139,26 +139,49 @@ bool ElementalControl::Create() {
   // TODO(benvanik): setup elements.
   root_element_ = std::make_unique<RootElement>(this);
   root_element_->set_background_skin(TBIDC("background"));
-  root_element_->set_rect({0, 0, 1000, 1000});
+  root_element_->set_rect({0, 0, width(), height()});
+
+  // el::util::ShowDebugInfoSettingsWindow(root_element_.get());
 
   return true;
 }
 
-bool ElementalControl::LoadLanguage(std::string filename) {
+void Window::OnMainMenuChange() {}
+
+void Window::OnClose() {
+  auto e = UIEvent(this);
+  on_closing(e);
+  on_closed(e);
+}
+
+void Window::OnDestroy() {
+  el::Shutdown();
+
+  // Context must go last.
+  root_element_.reset();
+  renderer_.reset();
+  context_.reset();
+}
+
+bool Window::LoadLanguage(std::string filename) {
   return el::util::StringTable::get()->Load(filename.c_str());
 }
 
-bool ElementalControl::LoadSkin(std::string filename) {
+bool Window::LoadSkin(std::string filename) {
   return el::Skin::get()->Load(filename.c_str());
 }
 
-void ElementalControl::Destroy() {
-  el::Shutdown();
-  super::Destroy();
+void Window::Layout() {
+  auto e = UIEvent(this);
+  OnLayout(e);
 }
 
-void ElementalControl::OnLayout(UIEvent& e) {
-  super::OnLayout(e);
+void Window::Invalidate() {}
+
+void Window::OnResize(UIEvent& e) { on_resize(e); }
+
+void Window::OnLayout(UIEvent& e) {
+  on_layout(e);
   if (!root_element()) {
     return;
   }
@@ -166,9 +189,8 @@ void ElementalControl::OnLayout(UIEvent& e) {
   root_element()->set_rect({0, 0, width(), height()});
 }
 
-void ElementalControl::OnPaint(UIEvent& e) {
-  super::OnPaint(e);
-  if (!root_element()) {
+void Window::OnPaint(UIEvent& e) {
+  if (!renderer()) {
     return;
   }
 
@@ -184,47 +206,74 @@ void ElementalControl::OnPaint(UIEvent& e) {
 
   // Update TB (run animations, handle deferred input, etc).
   el::AnimationManager::Update();
-  root_element()->InvokeProcessStates();
-  root_element()->InvokeProcess();
+  if (root_element()) {
+    root_element()->InvokeProcessStates();
+    root_element()->InvokeProcess();
+  }
+
+  GraphicsContextLock context_lock(context_.get());
+
+  context_->BeginSwap();
+
+  on_painting(e);
 
   renderer()->BeginPaint(width(), height());
 
   // Render entire control hierarchy.
-  root_element()->InvokePaint(el::Element::PaintProps());
+  if (root_element()) {
+    root_element()->InvokePaint(el::Element::PaintProps());
+  }
 
-  // Render debug overlay.
-  root_element()->computed_font()->DrawString(
-      5, 5, el::Color(255, 0, 0),
-      el::format_string("Frame %lld", frame_count_));
-  if (kContinuousRepaint) {
+  on_paint(e);
+
+  if (root_element() && kShowPresentFps) {
+    // Render debug overlay.
     root_element()->computed_font()->DrawString(
-        5, 20, el::Color(255, 0, 0), el::format_string("FPS: %d", fps_));
+        5, 5, el::Color(255, 0, 0),
+        el::format_string("Frame %lld", frame_count_));
+    root_element()->computed_font()->DrawString(
+        5, 20, el::Color(255, 0, 0),
+        el::format_string("Present FPS: %d", fps_));
   }
 
   renderer()->EndPaint();
 
+  on_painted(e);
+
+  context_->EndSwap();
+
   // If animations are running, reinvalidate immediately.
-  if (el::AnimationManager::has_running_animations()) {
-    root_element()->Invalidate();
-  }
-  if (kContinuousRepaint) {
-    // Force an immediate repaint, always.
-    root_element()->Invalidate();
+  if (root_element()) {
+    if (el::AnimationManager::has_running_animations()) {
+      root_element()->Invalidate();
+    }
+    if (kContinuousRepaint) {
+      // Force an immediate repaint, always.
+      root_element()->Invalidate();
+    }
+  } else {
+    if (kContinuousRepaint) {
+      Invalidate();
+    }
   }
 }
 
-void ElementalControl::OnGotFocus(UIEvent& e) { super::OnGotFocus(e); }
+void Window::OnVisible(UIEvent& e) { on_visible(e); }
 
-void ElementalControl::OnLostFocus(UIEvent& e) {
-  super::OnLostFocus(e);
+void Window::OnHidden(UIEvent& e) { on_hidden(e); }
+
+void Window::OnGotFocus(UIEvent& e) { on_got_focus(e); }
+
+void Window::OnLostFocus(UIEvent& e) {
   modifier_shift_pressed_ = false;
   modifier_cntrl_pressed_ = false;
   modifier_alt_pressed_ = false;
   modifier_super_pressed_ = false;
   last_click_time_ = 0;
+  on_lost_focus(e);
 }
 
-el::ModifierKeys ElementalControl::GetModifierKeys() {
+el::ModifierKeys Window::GetModifierKeys() {
   auto modifiers = el::ModifierKeys::kNone;
   if (modifier_shift_pressed_) {
     modifiers |= el::ModifierKeys::kShift;
@@ -241,7 +290,7 @@ el::ModifierKeys ElementalControl::GetModifierKeys() {
   return modifiers;
 }
 
-void ElementalControl::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
+void Window::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
   if (!root_element()) {
     return;
   }
@@ -364,8 +413,8 @@ void ElementalControl::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
   }
 }
 
-bool ElementalControl::CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key,
-                                        bool is_down) {
+bool Window::CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key,
+                              bool is_down) {
   bool shortcut_key = modifier_cntrl_pressed_;
   if (!el::Element::focused_element || !is_down || !shortcut_key) {
     return false;
@@ -417,24 +466,32 @@ bool ElementalControl::CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key,
   return true;
 }
 
-void ElementalControl::OnKeyDown(KeyEvent& e) {
-  super::OnKeyDown(e);
+void Window::OnKeyDown(KeyEvent& e) {
+  on_key_down(e);
+  if (e.is_handled()) {
+    return;
+  }
   OnKeyPress(e, true, false);
 }
 
-void ElementalControl::OnKeyUp(KeyEvent& e) {
-  super::OnKeyUp(e);
+void Window::OnKeyUp(KeyEvent& e) {
+  on_key_up(e);
+  if (e.is_handled()) {
+    return;
+  }
   OnKeyPress(e, false, false);
 }
 
-void ElementalControl::OnKeyChar(KeyEvent& e) {
-  super::OnKeyChar(e);
+void Window::OnKeyChar(KeyEvent& e) {
   OnKeyPress(e, true, true);
   OnKeyPress(e, false, true);
 }
 
-void ElementalControl::OnMouseDown(MouseEvent& e) {
-  super::OnMouseDown(e);
+void Window::OnMouseDown(MouseEvent& e) {
+  on_mouse_down(e);
+  if (e.is_handled()) {
+    return;
+  }
   if (!root_element()) {
     return;
   }
@@ -463,8 +520,11 @@ void ElementalControl::OnMouseDown(MouseEvent& e) {
   }
 }
 
-void ElementalControl::OnMouseMove(MouseEvent& e) {
-  super::OnMouseMove(e);
+void Window::OnMouseMove(MouseEvent& e) {
+  on_mouse_move(e);
+  if (e.is_handled()) {
+    return;
+  }
   if (!root_element()) {
     return;
   }
@@ -472,8 +532,11 @@ void ElementalControl::OnMouseMove(MouseEvent& e) {
   e.set_handled(true);
 }
 
-void ElementalControl::OnMouseUp(MouseEvent& e) {
-  super::OnMouseUp(e);
+void Window::OnMouseUp(MouseEvent& e) {
+  on_mouse_up(e);
+  if (e.is_handled()) {
+    return;
+  }
   if (!root_element()) {
     return;
   }
@@ -494,8 +557,11 @@ void ElementalControl::OnMouseUp(MouseEvent& e) {
   }
 }
 
-void ElementalControl::OnMouseWheel(MouseEvent& e) {
-  super::OnMouseWheel(e);
+void Window::OnMouseWheel(MouseEvent& e) {
+  on_mouse_wheel(e);
+  if (e.is_handled()) {
+    return;
+  }
   if (!root_element()) {
     return;
   }
@@ -505,32 +571,3 @@ void ElementalControl::OnMouseWheel(MouseEvent& e) {
 
 }  // namespace ui
 }  // namespace xe
-
-// This doesn't really belong here (it belongs in tb_system_[linux/windows].cpp.
-// This is here since the proper implementations has not yet been done.
-void el::util::RescheduleTimer(uint64_t fire_time) {
-  if (fire_time == el::MessageHandler::kNotSoon) {
-    return;
-  }
-
-  uint64_t now = el::util::GetTimeMS();
-  uint64_t delay_millis = fire_time >= now ? fire_time - now : 0;
-  xe::ui::elemental_loop_->PostDelayed([]() {
-    uint64_t next_fire_time = el::MessageHandler::GetNextMessageFireTime();
-    uint64_t now = el::util::GetTimeMS();
-    if (now < next_fire_time) {
-      // We timed out *before* we were supposed to (the OS is not playing nice).
-      // Calling ProcessMessages now won't achieve a thing so force a reschedule
-      // of the platform timer again with the same time.
-      // ReschedulePlatformTimer(next_fire_time, true);
-      return;
-    }
-
-    el::MessageHandler::ProcessMessages();
-
-    // If we still have things to do (because we didn't process all messages,
-    // or because there are new messages), we need to rescedule, so call
-    // RescheduleTimer.
-    el::util::RescheduleTimer(el::MessageHandler::GetNextMessageFireTime());
-  }, delay_millis);
-}

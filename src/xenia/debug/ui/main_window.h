@@ -16,18 +16,16 @@
 #include "xenia/debug/ui/application.h"
 #include "xenia/debug/ui/views/cpu/cpu_view.h"
 #include "xenia/debug/ui/views/gpu/gpu_view.h"
-#include "xenia/ui/elemental_control.h"
-#include "xenia/ui/platform.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
 
-class MainWindow : public xe::ui::PlatformWindow {
+class MainWindow {
  public:
   MainWindow(Application* app);
-  ~MainWindow() override;
+  ~MainWindow();
 
   Application* app() const { return app_; }
 
@@ -38,13 +36,11 @@ class MainWindow : public xe::ui::PlatformWindow {
  private:
   void BuildUI();
 
-  void OnClose() override;
-  void OnCommand(int id) override;
+  void OnClose();
 
   Application* app_ = nullptr;
-  xe::ui::PlatformMenu main_menu_;
-  std::unique_ptr<xe::ui::ElementalControl> control_;
 
+  std::unique_ptr<xe::ui::Window> platform_window_;
   std::unique_ptr<el::Window> window_;
   struct {
     el::SplitContainer* split_container;

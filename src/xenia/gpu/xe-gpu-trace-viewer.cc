@@ -24,6 +24,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/window.h"
 
 // HACK: until we have another impl, we just use gl4 directly.
 #include "xenia/gpu/gl4/command_processor.h"
@@ -842,7 +843,7 @@ class TracePlayer : public TraceReader {
   int current_command_index_;
 };
 
-void DrawControllerUI(xe::ui::PlatformWindow* window, TracePlayer& player,
+void DrawControllerUI(xe::ui::Window* window, TracePlayer& player,
                       Memory* memory) {
   ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Controller", nullptr, ImVec2(340, 60))) {
@@ -883,7 +884,7 @@ void DrawControllerUI(xe::ui::PlatformWindow* window, TracePlayer& player,
   ImGui::End();
 }
 
-void DrawCommandListUI(xe::ui::PlatformWindow* window, TracePlayer& player,
+void DrawCommandListUI(xe::ui::Window* window, TracePlayer& player,
                        Memory* memory) {
   ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
@@ -1027,9 +1028,8 @@ ShaderDisplayType DrawShaderTypeUI() {
   return shader_display_type;
 }
 
-void DrawShaderUI(xe::ui::PlatformWindow* window, TracePlayer& player,
-                  Memory* memory, gl4::GL4Shader* shader,
-                  ShaderDisplayType display_type) {
+void DrawShaderUI(xe::ui::Window* window, TracePlayer& player, Memory* memory,
+                  gl4::GL4Shader* shader, ShaderDisplayType display_type) {
   // Must be prepared for advanced display modes.
   if (display_type != ShaderDisplayType::kUcode) {
     if (!shader->has_prepared()) {
@@ -1393,8 +1393,7 @@ static const char* kEndiannessNames[] = {
     "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
 };
 
-void DrawStateUI(xe::ui::PlatformWindow* window, TracePlayer& player,
-                 Memory* memory) {
+void DrawStateUI(xe::ui::Window* window, TracePlayer& player, Memory* memory) {
   auto gs = static_cast<gl4::GL4GraphicsSystem*>(player.graphics_system());
   auto cp = gs->command_processor();
   auto& regs = *gs->register_file();
@@ -2033,8 +2032,8 @@ void DrawStateUI(xe::ui::PlatformWindow* window, TracePlayer& player,
   ImGui::End();
 }
 
-void DrawPacketDisassemblerUI(xe::ui::PlatformWindow* window,
-                              TracePlayer& player, Memory* memory) {
+void DrawPacketDisassemblerUI(xe::ui::Window* window, TracePlayer& player,
+                              Memory* memory) {
   ImGui::SetNextWindowCollapsed(true, ImGuiSetCond_FirstUseEver);
   ImGui::SetNextWindowPos(ImVec2(float(window->width()) - 500 - 5, 5),
                           ImGuiSetCond_FirstUseEver);
@@ -2175,8 +2174,7 @@ void DrawPacketDisassemblerUI(xe::ui::PlatformWindow* window,
   ImGui::End();
 }
 
-void DrawUI(xe::ui::PlatformWindow* window, TracePlayer& player,
-            Memory* memory) {
+void DrawUI(xe::ui::Window* window, TracePlayer& player, Memory* memory) {
   // ImGui::ShowTestWindow();
 
   DrawControllerUI(window, player, memory);
@@ -2189,129 +2187,151 @@ void ImImpl_Setup();
 void ImImpl_Shutdown();
 
 int trace_viewer_main(std::vector<std::wstring>& args) {
-  // Create the emulator.
+  // Create the emulator but don't initialize so we can setup the window.
   auto emulator = std::make_unique<Emulator>(L"");
-  X_STATUS result = emulator->Setup();
+
+  // Main emulator display window.
+  auto loop = ui::Loop::Create();
+  auto window = xe::ui::Window::Create(loop.get(), L"xe-gpu-trace-viewer");
+  loop->PostSynchronous([&window]() {
+    xe::threading::set_name("Win32 Loop");
+    if (!window->Initialize()) {
+      XEFATAL("Failed to initialize main window");
+      exit(1);
+    }
+  });
+  window->on_closed.AddListener([&loop](xe::ui::UIEvent& e) {
+    loop->Quit();
+    XELOGI("User-initiated death!");
+    exit(1);
+  });
+  loop->on_quit.AddListener([&window](xe::ui::UIEvent& e) { window.reset(); });
+  window->Resize(1920, 1200);
+
+  X_STATUS result = emulator->Setup(window.get());
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return 1;
   }
 
   // Grab path from the flag or unnamed argument.
-  if (!FLAGS_target_trace_file.empty() || args.size() >= 2) {
-    std::wstring path;
-    if (!FLAGS_target_trace_file.empty()) {
-      // Passed as a named argument.
-      // TODO(benvanik): find something better than gflags that supports
-      // unicode.
-      path = xe::to_wstring(FLAGS_target_trace_file);
-    } else {
-      // Passed as an unnamed argument.
-      path = args[1];
-    }
-    // Normalize the path and make absolute.
-    auto abs_path = xe::to_absolute_path(path);
-
-    auto window = emulator->display_window();
-    auto loop = window->loop();
-    auto file_name = xe::find_name_from_path(path);
-    window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
-
-    auto graphics_system = emulator->graphics_system();
-    Profiler::set_display(nullptr);
-
-    TracePlayer player(loop, emulator->graphics_system());
-    if (!player.Open(abs_path)) {
-      XELOGE("Could not load trace file");
-      return 1;
-    }
-
-    auto control = window->child(0);
-    control->on_key_char.AddListener([graphics_system](xe::ui::KeyEvent& e) {
-      auto& io = ImGui::GetIO();
-      if (e.key_code() > 0 && e.key_code() < 0x10000) {
-        if (e.key_code() == 0x74 /* VK_F5 */) {
-          graphics_system->ClearCaches();
-        } else {
-          io.AddInputCharacter(e.key_code());
-        }
-      }
-      e.set_handled(true);
-    });
-    control->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
-      auto& io = ImGui::GetIO();
-      io.MousePos = ImVec2(float(e.x()), float(e.y()));
-      switch (e.button()) {
-        case xe::ui::MouseEvent::Button::kLeft:
-          io.MouseDown[0] = true;
-          break;
-        case xe::ui::MouseEvent::Button::kRight:
-          io.MouseDown[1] = true;
-          break;
-      }
-    });
-    control->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
-      auto& io = ImGui::GetIO();
-      io.MousePos = ImVec2(float(e.x()), float(e.y()));
-    });
-    control->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
-      auto& io = ImGui::GetIO();
-      io.MousePos = ImVec2(float(e.x()), float(e.y()));
-      switch (e.button()) {
-        case xe::ui::MouseEvent::Button::kLeft:
-          io.MouseDown[0] = false;
-          break;
-        case xe::ui::MouseEvent::Button::kRight:
-          io.MouseDown[1] = false;
-          break;
-      }
-    });
-    control->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
-      auto& io = ImGui::GetIO();
-      io.MousePos = ImVec2(float(e.x()), float(e.y()));
-      io.MouseWheel += float(e.dy() / 120.0f);
-    });
-
-    control->on_paint.AddListener([&](xe::ui::UIEvent& e) {
-      static bool imgui_setup = false;
-      if (!imgui_setup) {
-        ImImpl_Setup();
-        imgui_setup = true;
-      }
-      auto& io = ImGui::GetIO();
-      auto current_ticks = Clock::QueryHostTickCount();
-      static uint64_t last_ticks = 0;
-      io.DeltaTime =
-          (current_ticks - last_ticks) / float(Clock::host_tick_frequency());
-      last_ticks = current_ticks;
-
-      io.DisplaySize =
-          ImVec2(float(e.control()->width()), float(e.control()->height()));
-
-      BYTE keystate[256];
-      GetKeyboardState(keystate);
-      for (int i = 0; i < 256; i++) io.KeysDown[i] = (keystate[i] & 0x80) != 0;
-      io.KeyCtrl = (keystate[VK_CONTROL] & 0x80) != 0;
-      io.KeyShift = (keystate[VK_SHIFT] & 0x80) != 0;
-
-      ImGui::NewFrame();
-
-      DrawUI(window, player, emulator->memory());
-
-      glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-      ImGui::Render();
-
-      graphics_system->RequestSwap();
-    });
-    graphics_system->RequestSwap();
-
-    // Wait until we are exited.
-    emulator->display_window()->loop()->AwaitQuit();
-
-    ImImpl_Shutdown();
+  if (FLAGS_target_trace_file.empty() && args.size() < 2) {
+    XELOGE("No trace file specified");
+    return 1;
   }
 
+  std::wstring path;
+  if (!FLAGS_target_trace_file.empty()) {
+    // Passed as a named argument.
+    // TODO(benvanik): find something better than gflags that supports
+    // unicode.
+    path = xe::to_wstring(FLAGS_target_trace_file);
+  } else {
+    // Passed as an unnamed argument.
+    path = args[1];
+  }
+  // Normalize the path and make absolute.
+  auto abs_path = xe::to_absolute_path(path);
+
+  auto file_name = xe::find_name_from_path(path);
+  window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
+
+  auto graphics_system = emulator->graphics_system();
+  Profiler::set_display(nullptr);
+
+  TracePlayer player(loop.get(), emulator->graphics_system());
+  if (!player.Open(abs_path)) {
+    XELOGE("Could not load trace file");
+    return 1;
+  }
+
+  window->on_key_char.AddListener([graphics_system](xe::ui::KeyEvent& e) {
+    auto& io = ImGui::GetIO();
+    if (e.key_code() > 0 && e.key_code() < 0x10000) {
+      if (e.key_code() == 0x74 /* VK_F5 */) {
+        graphics_system->ClearCaches();
+      } else {
+        io.AddInputCharacter(e.key_code());
+      }
+    }
+    e.set_handled(true);
+  });
+  window->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
+    auto& io = ImGui::GetIO();
+    io.MousePos = ImVec2(float(e.x()), float(e.y()));
+    switch (e.button()) {
+      case xe::ui::MouseEvent::Button::kLeft:
+        io.MouseDown[0] = true;
+        break;
+      case xe::ui::MouseEvent::Button::kRight:
+        io.MouseDown[1] = true;
+        break;
+    }
+  });
+  window->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
+    auto& io = ImGui::GetIO();
+    io.MousePos = ImVec2(float(e.x()), float(e.y()));
+  });
+  window->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
+    auto& io = ImGui::GetIO();
+    io.MousePos = ImVec2(float(e.x()), float(e.y()));
+    switch (e.button()) {
+      case xe::ui::MouseEvent::Button::kLeft:
+        io.MouseDown[0] = false;
+        break;
+      case xe::ui::MouseEvent::Button::kRight:
+        io.MouseDown[1] = false;
+        break;
+    }
+  });
+  window->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
+    auto& io = ImGui::GetIO();
+    io.MousePos = ImVec2(float(e.x()), float(e.y()));
+    io.MouseWheel += float(e.dy() / 120.0f);
+  });
+
+  window->on_painting.AddListener([&](xe::ui::UIEvent& e) {
+    static bool imgui_setup = false;
+    if (!imgui_setup) {
+      ImImpl_Setup();
+      imgui_setup = true;
+    }
+    auto& io = ImGui::GetIO();
+    auto current_ticks = Clock::QueryHostTickCount();
+    static uint64_t last_ticks = 0;
+    io.DeltaTime =
+        (current_ticks - last_ticks) / float(Clock::host_tick_frequency());
+    last_ticks = current_ticks;
+
+    io.DisplaySize =
+        ImVec2(float(e.target()->width()), float(e.target()->height()));
+
+    BYTE keystate[256];
+    GetKeyboardState(keystate);
+    for (int i = 0; i < 256; i++) io.KeysDown[i] = (keystate[i] & 0x80) != 0;
+    io.KeyCtrl = (keystate[VK_CONTROL] & 0x80) != 0;
+    io.KeyShift = (keystate[VK_SHIFT] & 0x80) != 0;
+
+    ImGui::NewFrame();
+
+    DrawUI(window.get(), player, emulator->memory());
+
+    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+    ImGui::Render();
+
+    // Continuous paint.
+    window->Invalidate();
+  });
+  window->Invalidate();
+
+  // Wait until we are exited.
+  loop->AwaitQuit();
+
+  ImImpl_Shutdown();
+
   emulator.reset();
+  window.reset();
+  loop.reset();
   return 0;
 }
 

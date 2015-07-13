@@ -16,7 +16,7 @@
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/kernel/objects/xthread.h"
-#include "xenia/ui/gl/wgl_control.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
 namespace gpu {
@@ -28,9 +28,11 @@ class GL4GraphicsSystem : public GraphicsSystem {
   ~GL4GraphicsSystem() override;
 
   static std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
+  std::unique_ptr<ui::GraphicsContext> CreateContext(
+      ui::Window* target_window) override;
 
   X_STATUS Setup(cpu::Processor* processor, ui::Loop* target_loop,
-                 ui::PlatformWindow* target_window) override;
+                 ui::Window* target_window) override;
   void Shutdown() override;
 
   RegisterFile* register_file() { return &register_file_; }
@@ -41,8 +43,6 @@ class GL4GraphicsSystem : public GraphicsSystem {
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count) override;
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size) override;
 
-  void RequestSwap() override;
-
   void RequestFrameTrace() override;
   void BeginTracing() override;
   void EndTracing() override;
@@ -52,7 +52,7 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
  private:
   void MarkVblank();
-  void SwapHandler(const SwapParameters& swap_params);
+  void Swap(xe::ui::UIEvent& e);
   uint64_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint64_t value);
 
@@ -67,7 +67,8 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
   RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;
-  std::unique_ptr<xe::ui::gl::WGLControl> control_;
+
+  xe::ui::gl::GLContext* display_context_ = nullptr;
 
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;

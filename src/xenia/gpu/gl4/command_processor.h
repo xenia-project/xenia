@@ -42,13 +42,18 @@ namespace gl4 {
 
 class GL4GraphicsSystem;
 
-struct SwapParameters {
-  uint32_t x;
-  uint32_t y;
-  uint32_t width;
-  uint32_t height;
-
-  GLuint framebuffer_texture;
+struct SwapState {
+  // Lock must be held when changing data in this structure.
+  xe::mutex mutex;
+  // Dimensions of the framebuffer textures. Should match window size.
+  uint32_t width = 0;
+  uint32_t height = 0;
+  // Current front buffer, being drawn to the screen.
+  GLuint front_buffer_texture = 0;
+  // Current back buffer, being updated by the CP.
+  GLuint back_buffer_texture = 0;
+  // Whether the back buffer is dirty and a swap is pending.
+  bool pending = false;
 };
 
 enum class SwapMode {
@@ -61,21 +66,22 @@ class CommandProcessor {
   CommandProcessor(GL4GraphicsSystem* graphics_system);
   ~CommandProcessor();
 
-  typedef std::function<void(const SwapParameters& params)> SwapHandler;
-  void set_swap_handler(SwapHandler fn) { swap_handler_ = fn; }
-
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
 
-  bool Initialize(std::unique_ptr<xe::ui::gl::GLContext> context);
+  bool Initialize(std::unique_ptr<xe::ui::GraphicsContext> context);
   void Shutdown();
   void CallInThread(std::function<void()> fn);
 
   void ClearCaches();
 
+  SwapState& swap_state() { return swap_state_; }
   void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
-  void IssueSwap();
   void IssueSwap(uint32_t frontbuffer_width, uint32_t frontbuffer_height);
+
+  void set_swap_request_handler(std::function<void()> fn) {
+    swap_request_handler_ = fn;
+  }
 
   void RequestFrameTrace(const std::wstring& root_path);
   void BeginTracing(const std::wstring& root_path);
@@ -238,11 +244,11 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
-  std::unique_ptr<xe::ui::gl::GLContext> context_;
-  SwapHandler swap_handler_;
-  std::queue<std::function<void()>> pending_fns_;
-
+  std::unique_ptr<xe::ui::GraphicsContext> context_;
   SwapMode swap_mode_;
+  SwapState swap_state_;
+  std::function<void()> swap_request_handler_;
+  std::queue<std::function<void()>> pending_fns_;
 
   uint32_t counter_;
 
@@ -266,8 +272,6 @@ class CommandProcessor {
   GL4Shader* active_pixel_shader_;
   CachedFramebuffer* active_framebuffer_;
   GLuint last_framebuffer_texture_;
-  uint32_t last_swap_width_;
-  uint32_t last_swap_height_;
 
   std::vector<CachedFramebuffer> cached_framebuffers_;
   std::vector<CachedColorRenderTarget> cached_color_render_targets_;

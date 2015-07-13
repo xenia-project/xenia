@@ -11,7 +11,6 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-#include "xenia/gpu/gl4/gl4_gpu_flags.h"
 
 namespace xe {
 namespace ui {

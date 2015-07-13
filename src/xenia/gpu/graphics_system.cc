@@ -43,7 +43,7 @@ GraphicsSystem::GraphicsSystem(Emulator* emulator) : emulator_(emulator) {}
 GraphicsSystem::~GraphicsSystem() = default;
 
 X_STATUS GraphicsSystem::Setup(cpu::Processor* processor, ui::Loop* target_loop,
-                               ui::PlatformWindow* target_window) {
+                               ui::Window* target_window) {
   processor_ = processor;
   memory_ = processor->memory();
   target_loop_ = target_loop;

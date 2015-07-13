@@ -15,7 +15,7 @@
 #include "xenia/debug/debugger.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
-#include "xenia/ui/platform.h"
+#include "xenia/ui/window.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 
@@ -35,9 +35,6 @@ class GraphicsSystem;
 namespace hid {
 class InputSystem;
 }  // namespace hid
-namespace ui {
-class MainWindow;
-}  // namespace ui
 }  // namespace xe
 
 namespace xe {
@@ -49,7 +46,7 @@ class Emulator {
 
   const std::wstring& command_line() const { return command_line_; }
 
-  ui::PlatformWindow* display_window() const { return display_window_.get(); }
+  ui::Window* display_window() const { return display_window_; }
 
   Memory* memory() const { return memory_.get(); }
 
@@ -70,7 +67,7 @@ class Emulator {
 
   kernel::KernelState* kernel_state() const { return kernel_state_.get(); }
 
-  X_STATUS Setup();
+  X_STATUS Setup(ui::Window* display_window);
 
   X_STATUS LaunchPath(std::wstring path);
   X_STATUS LaunchXexFile(std::wstring path);
@@ -83,7 +80,7 @@ class Emulator {
 
   std::wstring command_line_;
 
-  std::unique_ptr<ui::PlatformWindow> display_window_;
+  ui::Window* display_window_;
 
   std::unique_ptr<Memory> memory_;
 

@@ -148,11 +148,8 @@ class ProfilerDisplay {
 
 class Profiler {
  public:
-#if XE_OPTION_PROFILING
-  static bool is_enabled() { return true; }
-#else
-  static bool is_enabled() { return false; }
-#endif  // XE_OPTION_PROFILING
+  static bool is_enabled();
+  static bool is_visible();
 
   // Initializes the profiler. Call at startup.
   static void Initialize();

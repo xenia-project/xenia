@@ -19,7 +19,8 @@
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/tracing.h"
-#include "xenia/ui/gl/gl_profiler_display.h"
+#include "xenia/profiling.h"
+#include "xenia/ui/window.h"
 
 namespace xe {
 namespace gpu {
@@ -47,6 +48,14 @@ std::unique_ptr<GraphicsSystem> GL4GraphicsSystem::Create(Emulator* emulator) {
   return std::make_unique<GL4GraphicsSystem>(emulator);
 }
 
+std::unique_ptr<ui::GraphicsContext> GL4GraphicsSystem::CreateContext(
+    ui::Window* target_window) {
+  // Setup the GL control that actually does the drawing.
+  // We run here in the loop and only touch it (and its context) on this
+  // thread. That means some sync-fu when we want to swap.
+  return xe::ui::gl::GLContext::Create(target_window);
+}
+
 GL4GraphicsSystem::GL4GraphicsSystem(Emulator* emulator)
     : GraphicsSystem(emulator), worker_running_(false) {}
 
@@ -54,38 +63,36 @@ GL4GraphicsSystem::~GL4GraphicsSystem() = default;
 
 X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
                                   ui::Loop* target_loop,
-                                  ui::PlatformWindow* target_window) {
+                                  ui::Window* target_window) {
   auto result = GraphicsSystem::Setup(processor, target_loop, target_window);
   if (result) {
     return result;
   }
 
+  display_context_ =
+      reinterpret_cast<xe::ui::gl::GLContext*>(target_window->context());
+
+  // Watch for paint requests to do our swap.
+  target_window->on_painting.AddListener(
+      [this](xe::ui::UIEvent& e) { Swap(e); });
+
   // Create rendering control.
   // This must happen on the UI thread.
-  xe::threading::Fence control_ready_fence;
-  std::unique_ptr<xe::ui::gl::GLContext> processor_context;
-  target_loop_->Post([&]() {
-    // Setup the GL control that actually does the drawing.
-    // We run here in the loop and only touch it (and its context) on this
-    // thread. That means some sync-fu when we want to swap.
-    control_ = std::make_unique<xe::ui::gl::WGLControl>(target_loop_);
-    target_window_->AddChild(control_.get());
-
+  std::unique_ptr<xe::ui::GraphicsContext> processor_context;
+  target_loop_->PostSynchronous([&]() {
     // Setup the GL context the command processor will do all its drawing in.
-    // It's shared with the control context so that we can resolve framebuffers
+    // It's shared with the display context so that we can resolve framebuffers
     // from it.
-    processor_context = control_->context()->CreateShared();
-
-    {
-      xe::ui::gl::GLContextLock context_lock(control_->context());
-      auto profiler_display =
-          std::make_unique<xe::ui::gl::GLProfilerDisplay>(control_.get());
-      Profiler::set_display(std::move(profiler_display));
-    }
-
-    control_ready_fence.Signal();
+    processor_context = display_context_->CreateShared();
+    processor_context->ClearCurrent();
   });
-  control_ready_fence.Wait();
+  if (!processor_context) {
+    XEFATAL(
+        "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
+        "you have the latest drivers for your GPU and that it supports OpenGL "
+        "4.5. See http://xenia.jp/faq/ for more information.");
+    return X_STATUS_UNSUCCESSFUL;
+  }
 
   // Create command processor. This will spin up a thread to process all
   // incoming ringbuffer packets.
@@ -94,8 +101,8 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
     XELOGE("Unable to initialize command processor");
     return X_STATUS_UNSUCCESSFUL;
   }
-  command_processor_->set_swap_handler(
-      [this](const SwapParameters& swap_params) { SwapHandler(swap_params); });
+  command_processor_->set_swap_request_handler(
+      [this]() { target_window_->Invalidate(); });
 
   // Let the processor know we want register access callbacks.
   memory_->AddVirtualMappedRange(
@@ -144,7 +151,6 @@ void GL4GraphicsSystem::Shutdown() {
   // TODO(benvanik): remove mapped range.
 
   command_processor_.reset();
-  control_.reset();
 
   GraphicsSystem::Shutdown();
 }
@@ -157,10 +163,6 @@ void GL4GraphicsSystem::InitializeRingBuffer(uint32_t ptr,
 void GL4GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
                                                    uint32_t block_size) {
   command_processor_->EnableReadPointerWriteBack(ptr, block_size);
-}
-
-void GL4GraphicsSystem::RequestSwap() {
-  command_processor_->CallInThread([&]() { command_processor_->IssueSwap(); });
 }
 
 void GL4GraphicsSystem::RequestFrameTrace() {
@@ -268,6 +270,7 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
         }
 
         command_processor_->set_swap_mode(SwapMode::kNormal);
+        command_processor_->IssueSwap(1280, 720);
       });
 }
 
@@ -288,22 +291,29 @@ void GL4GraphicsSystem::MarkVblank() {
   DispatchInterruptCallback(0, 2);
 }
 
-void GL4GraphicsSystem::SwapHandler(const SwapParameters& swap_params) {
-  SCOPE_profile_cpu_f("gpu");
-
-  // Swap requested. Synchronously post a request to the loop so that
-  // we do the swap in the right thread.
-  control_->SynchronousRepaint([this, swap_params]() {
-    if (!swap_params.framebuffer_texture) {
-      // no-op.
-      return;
+void GL4GraphicsSystem::Swap(xe::ui::UIEvent& e) {
+  // Check for pending swap.
+  auto& swap_state = command_processor_->swap_state();
+  {
+    std::lock_guard<xe::mutex> lock(swap_state.mutex);
+    if (swap_state.pending) {
+      swap_state.pending = false;
+      std::swap(swap_state.front_buffer_texture,
+                swap_state.back_buffer_texture);
     }
-    Rect2D src_rect(swap_params.x, swap_params.y, swap_params.width,
-                    swap_params.height);
-    Rect2D dest_rect(0, 0, control_->width(), control_->height());
-    control_->context()->blitter()->BlitTexture2D(
-        swap_params.framebuffer_texture, src_rect, dest_rect, GL_LINEAR);
-  });
+  }
+
+  if (!swap_state.front_buffer_texture) {
+    // Not yet ready.
+    return;
+  }
+
+  // Blit the frontbuffer.
+  display_context_->blitter()->BlitTexture2D(
+      swap_state.front_buffer_texture,
+      Rect2D(0, 0, swap_state.width, swap_state.height),
+      Rect2D(0, 0, target_window_->width(), target_window_->height()),
+      GL_LINEAR);
 }
 
 uint64_t GL4GraphicsSystem::ReadRegister(uint32_t addr) {

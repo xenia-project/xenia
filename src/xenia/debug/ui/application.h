@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include "xenia/ui/platform.h"
+#include "xenia/ui/loop.h"
 
 namespace xe {
 namespace debug {
@@ -27,7 +27,7 @@ class Application {
   static std::unique_ptr<Application> Create();
   static Application* current();
 
-  xe::ui::Loop* loop() { return &loop_; }
+  xe::ui::Loop* loop() { return loop_.get(); }
   MainWindow* main_window() const { return main_window_.get(); }
 
   void Quit();
@@ -37,7 +37,7 @@ class Application {
 
   bool Initialize();
 
-  xe::ui::PlatformLoop loop_;
+  std::unique_ptr<xe::ui::Loop> loop_;
   std::unique_ptr<MainWindow> main_window_;
 };
 

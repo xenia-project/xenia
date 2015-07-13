@@ -68,9 +68,6 @@
     <Filter Include="src\xenia\ui">
       <UniqueIdentifier>{42d47a43-1af4-4e1a-9ed7-afa7f7d18e9f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\xenia\ui\win32">
-      <UniqueIdentifier>{268545c9-fbdf-46d2-96f6-35188cec09d6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\xenia\kernel">
       <UniqueIdentifier>{c1ac0db1-2f4b-4376-b1dc-e6355c99b395}</UniqueIdentifier>
     </Filter>
@@ -159,7 +156,7 @@
       <UniqueIdentifier>{82795389-e855-4cd6-a3b6-9580030cebf2}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\xenia\ui\gl">
-      <UniqueIdentifier>{c38dacd1-1e4c-4cd1-847e-19b394e8313d}</UniqueIdentifier>
+      <UniqueIdentifier>{f598eed5-11dc-4ef8-a7d4-28ec5e43009b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -409,24 +406,6 @@
     <ClCompile Include="src\xenia\hid\xinput\xinput_input_driver.cc">
       <Filter>src\xenia\hid\xinput</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_control.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_loop.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_menu_item.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_window.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\control.cc">
-      <Filter>src\xenia\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\main_window.cc">
-      <Filter>src\xenia\ui</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\ui\menu_item.cc">
       <Filter>src\xenia\ui</Filter>
     </ClCompile>
@@ -655,9 +634,6 @@
     <ClCompile Include="src\xenia\apu\xma_context.cc">
       <Filter>src\xenia\apu</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\ui\win32\win32_file_picker.cc">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\hid\hid_flags.cc">
       <Filter>src\xenia\hid</Filter>
     </ClCompile>
@@ -715,29 +691,38 @@
     <ClCompile Include="src\xenia\vfs\virtual_file_system.cc">
       <Filter>src\xenia\vfs</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\ui\window.cc">
+      <Filter>src\xenia\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\window_win.cc">
+      <Filter>src\xenia\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\loop_win.cc">
+      <Filter>src\xenia\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\loop.cc">
+      <Filter>src\xenia\ui</Filter>
+    </ClCompile>
     <ClCompile Include="src\xenia\ui\gl\blitter.cc">
-      <Filter>src\xenia\ui\gl</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\gl\gl_context.cc">
-      <Filter>src\xenia\ui\gl</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\gl\wgl_control.cc">
-      <Filter>src\xenia\ui\gl</Filter>
-    </ClCompile>
-    <ClCompile Include="src\xenia\ui\gl\gl_profiler_display.cc">
       <Filter>src\xenia\ui\gl</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\ui\gl\circular_buffer.cc">
       <Filter>src\xenia\ui\gl</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\ui\elemental_control.cc">
-      <Filter>src\xenia\ui</Filter>
+    <ClCompile Include="src\xenia\ui\gl\gl_context.cc">
+      <Filter>src\xenia\ui\gl</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\ui\gl\wgl_elemental_control.cc">
+    <ClCompile Include="src\xenia\ui\gl\gl_profiler_display.cc">
       <Filter>src\xenia\ui\gl</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\ui\gl\gl4_elemental_renderer.cc">
       <Filter>src\xenia\ui\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\graphics_context.cc">
+      <Filter>src\xenia\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\ui\file_picker_win.cc">
+      <Filter>src\xenia\ui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1008,25 +993,7 @@
     <ClInclude Include="src\xenia\hid\xinput\xinput_input_driver.h">
       <Filter>src\xenia\hid\xinput</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_window.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_control.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_loop.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_menu_item.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\control.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\ui\loop.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\main_window.h">
       <Filter>src\xenia\ui</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\ui\menu_item.h">
@@ -1296,9 +1263,6 @@
     <ClInclude Include="src\xenia\ui\file_picker.h">
       <Filter>src\xenia\ui</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\ui\win32\win32_file_picker.h">
-      <Filter>src\xenia\ui\win32</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\hid\hid_flags.h">
       <Filter>src\xenia\hid</Filter>
     </ClInclude>
@@ -1362,35 +1326,32 @@
     <ClInclude Include="src\xenia\cpu\backend\x64\x64_stack_layout.h">
       <Filter>src\xenia\cpu\backend\x64</Filter>
     </ClInclude>
+    <ClInclude Include="src\xenia\ui\loop_win.h">
+      <Filter>src\xenia\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\window_win.h">
+      <Filter>src\xenia\ui</Filter>
+    </ClInclude>
     <ClInclude Include="src\xenia\ui\gl\blitter.h">
-      <Filter>src\xenia\ui\gl</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\gl\gl_context.h">
-      <Filter>src\xenia\ui\gl</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\gl\wgl_control.h">
-      <Filter>src\xenia\ui\gl</Filter>
-    </ClInclude>
-    <ClInclude Include="src\xenia\ui\gl\gl_profiler_display.h">
       <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\ui\gl\circular_buffer.h">
       <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\ui\platform.h">
-      <Filter>src\xenia\ui</Filter>
-    </ClInclude>
     <ClInclude Include="src\xenia\ui\gl\gl.h">
       <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\ui\elemental_control.h">
-      <Filter>src\xenia\ui</Filter>
+    <ClInclude Include="src\xenia\ui\gl\gl_context.h">
+      <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
-    <ClInclude Include="src\xenia\ui\gl\wgl_elemental_control.h">
+    <ClInclude Include="src\xenia\ui\gl\gl_profiler_display.h">
       <Filter>src\xenia\ui\gl</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\ui\gl\gl4_elemental_renderer.h">
       <Filter>src\xenia\ui\gl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\ui\graphics_context.h">
+      <Filter>src\xenia\ui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

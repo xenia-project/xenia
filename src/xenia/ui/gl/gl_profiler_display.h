@@ -12,8 +12,7 @@
 
 #include "xenia/profiling.h"
 #include "xenia/ui/gl/circular_buffer.h"
-#include "xenia/ui/gl/gl_context.h"
-#include "xenia/ui/gl/wgl_control.h"
+#include "xenia/ui/window.h"
 
 namespace xe {
 namespace ui {
@@ -21,7 +20,7 @@ namespace gl {
 
 class GLProfilerDisplay : public ProfilerDisplay {
  public:
-  GLProfilerDisplay(xe::ui::gl::WGLControl* control);
+  GLProfilerDisplay(xe::ui::Window* window);
   virtual ~GLProfilerDisplay();
 
   uint32_t width() const override;
@@ -54,11 +53,11 @@ class GLProfilerDisplay : public ProfilerDisplay {
   void EndVertices(GLenum prim_type);
   void Flush();
 
-  xe::ui::gl::WGLControl* control_;
-  GLuint program_;
-  GLuint vao_;
-  GLuint font_texture_;
-  GLuint64 font_handle_;
+  xe::ui::Window* window_ = nullptr;
+  GLuint program_ = 0;
+  GLuint vao_ = 0;
+  GLuint font_texture_ = 0;
+  GLuint64 font_handle_ = 0;
   CircularBuffer vertex_buffer_;
 
   static const size_t kMaxCommands = 32;
@@ -67,13 +66,13 @@ class GLProfilerDisplay : public ProfilerDisplay {
     size_t vertex_offset;
     size_t vertex_count;
   } draw_commands_[kMaxCommands];
-  uint32_t draw_command_count_;
+  uint32_t draw_command_count_ = 0;
 
   CircularBuffer::Allocation current_allocation_;
 
   struct {
     uint16_t char_offsets[256];
-  } font_description_;
+  } font_description_ = {0};
 };
 
 }  // namespace gl

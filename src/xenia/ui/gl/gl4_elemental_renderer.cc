@@ -28,7 +28,7 @@ GL4ElementalRenderer::GL4Bitmap::GL4Bitmap(GLContext* context,
     : context_(context), renderer_(renderer) {}
 
 GL4ElementalRenderer::GL4Bitmap::~GL4Bitmap() {
-  GLContextLock lock(context_);
+  GraphicsContextLock lock(context_);
 
   // Must flush and unbind before we delete the texture.
   renderer_->FlushBitmap(this);
@@ -69,7 +69,7 @@ GL4ElementalRenderer::GL4ElementalRenderer(GLContext* context)
       vertex_buffer_(max_vertex_batch_size() * sizeof(Vertex)) {}
 
 GL4ElementalRenderer::~GL4ElementalRenderer() {
-  GLContextLock lock(context_);
+  GraphicsContextLock lock(context_);
   vertex_buffer_.Shutdown();
   glDeleteVertexArrays(1, &vao_);
   glDeleteProgram(program_);
@@ -77,6 +77,7 @@ GL4ElementalRenderer::~GL4ElementalRenderer() {
 
 std::unique_ptr<GL4ElementalRenderer> GL4ElementalRenderer::Create(
     GLContext* context) {
+  GraphicsContextLock lock(context);
   auto renderer = std::make_unique<GL4ElementalRenderer>(context);
   if (!renderer->Initialize()) {
     XELOGE("Failed to initialize TurboBadger GL4 renderer");

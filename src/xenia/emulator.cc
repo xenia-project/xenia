@@ -23,7 +23,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/modules.h"
 #include "xenia/memory.h"
-#include "xenia/ui/main_window.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
@@ -68,13 +67,12 @@ Emulator::~Emulator() {
   debugger_.reset();
 
   export_resolver_.reset();
-
-  // Kill the window last, as until the graphics system/etc is dead it's needed.
-  display_window_.reset();
 }
 
-X_STATUS Emulator::Setup() {
+X_STATUS Emulator::Setup(ui::Window* display_window) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
+
+  display_window_ = display_window;
 
   // Initialize clock.
   // 360 uses a 50MHz clock.
@@ -92,9 +90,6 @@ X_STATUS Emulator::Setup() {
   GetProcessAffinityMask(process_handle, &process_affinity_mask,
                          &system_affinity_mask);
   SetProcessAffinityMask(process_handle, system_affinity_mask);
-
-  // Create the main window. Other parts will hook into this.
-  display_window_ = ui::MainWindow::Create(this);
 
   // Create memory system first, as it is required for other systems.
   memory_ = std::make_unique<Memory>();
@@ -129,6 +124,10 @@ X_STATUS Emulator::Setup() {
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
+  display_window_->loop()->PostSynchronous([this]() {
+    display_window_->set_context(
+        graphics_system_->CreateContext(display_window_));
+  });
 
   // Initialize the HID.
   input_system_ = std::move(xe::hid::InputSystem::Create(this));
@@ -152,7 +151,7 @@ X_STATUS Emulator::Setup() {
     return result;
   }
   result = graphics_system_->Setup(processor_.get(), display_window_->loop(),
-                                   display_window_.get());
+                                   display_window_);
   if (result) {
     return result;
   }
@@ -170,6 +169,17 @@ X_STATUS Emulator::Setup() {
   // HLE kernel modules.
   kernel_state_->LoadKernelModule<kernel::XboxkrnlModule>();
   kernel_state_->LoadKernelModule<kernel::XamModule>();
+
+  // Finish initializing the display.
+  display_window_->loop()->PostSynchronous([this]() {
+    {
+      xe::ui::GraphicsContextLock context_lock(display_window_->context());
+      auto profiler_display =
+          display_window_->context()->CreateProfilerDisplay();
+      Profiler::set_display(std::move(profiler_display));
+    }
+    display_window_->MakeReady();
+  });
 
   return result;
 }

@@ -132,47 +132,56 @@ const uint8_t profiler_font[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-GLProfilerDisplay::GLProfilerDisplay(xe::ui::gl::WGLControl* control)
-    : control_(control),
-      program_(0),
-      vao_(0),
-      font_texture_(0),
-      font_handle_(0),
+GLProfilerDisplay::GLProfilerDisplay(xe::ui::Window* window)
+    : window_(window),
       vertex_buffer_(MICROPROFILE_MAX_VERTICES * sizeof(Vertex) * 10,
-                     sizeof(Vertex)),
-      draw_command_count_(0) {
+                     sizeof(Vertex)) {
   if (!SetupFont() || !SetupState() || !SetupShaders()) {
     // Hrm.
     assert_always();
   }
 
+  window_->on_painted.AddListener([this](UIEvent& e) { Profiler::Present(); });
+
   // Pass through mouse events.
-  control->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
-    Profiler::OnMouseDown(e.button() == xe::ui::MouseEvent::Button::kLeft,
-                          e.button() == xe::ui::MouseEvent::Button::kRight);
-    e.set_handled(true);
+  window_->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
+    if (Profiler::is_enabled()) {
+      Profiler::OnMouseDown(e.button() == xe::ui::MouseEvent::Button::kLeft,
+                            e.button() == xe::ui::MouseEvent::Button::kRight);
+      e.set_handled(true);
+    }
   });
-  control->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
-    Profiler::OnMouseUp();
-    e.set_handled(true);
+  window_->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
+    if (Profiler::is_enabled()) {
+      Profiler::OnMouseUp();
+      e.set_handled(true);
+    }
   });
-  control->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
-    Profiler::OnMouseMove(e.x(), e.y());
-    e.set_handled(true);
+  window_->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
+    if (Profiler::is_enabled()) {
+      Profiler::OnMouseMove(e.x(), e.y());
+      e.set_handled(true);
+    }
   });
-  control->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
-    Profiler::OnMouseWheel(e.x(), e.y(), -e.dy());
-    e.set_handled(true);
+  window_->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
+    if (Profiler::is_enabled()) {
+      Profiler::OnMouseWheel(e.x(), e.y(), -e.dy());
+      e.set_handled(true);
+    }
   });
 
   // Watch for toggle/mode keys and such.
-  control->on_key_down.AddListener([](xe::ui::KeyEvent& e) {
-    Profiler::OnKeyDown(e.key_code());
-    // e.set_handled(true);
+  window_->on_key_down.AddListener([](xe::ui::KeyEvent& e) {
+    if (Profiler::is_enabled()) {
+      Profiler::OnKeyDown(e.key_code());
+      e.set_handled(true);
+    }
   });
-  control->on_key_up.AddListener([](xe::ui::KeyEvent& e) {
-    Profiler::OnKeyUp(e.key_code());
-    // e.set_handled(true);
+  window_->on_key_up.AddListener([](xe::ui::KeyEvent& e) {
+    if (Profiler::is_enabled()) {
+      Profiler::OnKeyUp(e.key_code());
+      e.set_handled(true);
+    }
   });
 }
 
@@ -336,9 +345,9 @@ GLProfilerDisplay::~GLProfilerDisplay() {
   glDeleteProgram(program_);
 }
 
-uint32_t GLProfilerDisplay::width() const { return control_->width(); }
+uint32_t GLProfilerDisplay::width() const { return window_->width(); }
 
-uint32_t GLProfilerDisplay::height() const { return control_->height(); }
+uint32_t GLProfilerDisplay::height() const { return window_->height(); }
 
 void GLProfilerDisplay::Begin() {
   glEnablei(GL_BLEND, 0);
@@ -347,7 +356,7 @@ void GLProfilerDisplay::Begin() {
   glDisable(GL_STENCIL_TEST);
   glDisable(GL_SCISSOR_TEST);
 
-  glViewport(0, 0, control_->width(), control_->height());
+  glViewport(0, 0, width(), height());
 
   float left = 0.0f;
   float right = float(width());

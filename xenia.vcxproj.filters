@@ -14,6 +14,9 @@
     <Filter Include="src\xenia\base">
       <UniqueIdentifier>{a3d918ab-c42b-469d-9950-ec4656b77b32}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\xenia\ui">
+      <UniqueIdentifier>{81255c06-3cf7-48ad-900a-f7c614d134ac}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xenia\base\main_win.cc">
@@ -22,10 +25,21 @@
     <ClCompile Include="src\xenia\xenia_main.cc">
       <Filter>src\xenia</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\emulator_window.cc">
+      <Filter>src\xenia</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\base\main.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
+    <ClInclude Include="src\xenia\emulator_window.h">
+      <Filter>src\xenia</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\xenia\ui\main_resources.rc">
+      <Filter>src\xenia\ui</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

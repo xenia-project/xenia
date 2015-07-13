@@ -11,20 +11,34 @@
 #define XENIA_UI_LOOP_H_
 
 #include <functional>
+#include <memory>
+
+#include "xenia/base/delegate.h"
+#include "xenia/ui/ui_event.h"
 
 namespace xe {
 namespace ui {
 
 class Loop {
  public:
-  Loop() = default;
-  virtual ~Loop() = default;
+  static std::unique_ptr<Loop> Create();
+
+  static Loop* elemental_loop();
+  // Sets the loop designated as being the main loop elemental-forms will use
+  // for all activity.
+  static void set_elemental_loop(Loop* loop);
+
+  Loop();
+  virtual ~Loop();
 
   virtual void Post(std::function<void()> fn) = 0;
   virtual void PostDelayed(std::function<void()> fn, uint64_t delay_millis) = 0;
+  void PostSynchronous(std::function<void()> fn);
 
   virtual void Quit() = 0;
   virtual void AwaitQuit() = 0;
+
+  Delegate<UIEvent> on_quit;
 };
 
 }  // namespace ui

@@ -71,8 +71,6 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       active_pixel_shader_(nullptr),
       active_framebuffer_(nullptr),
       last_framebuffer_texture_(0),
-      last_swap_width_(0),
-      last_swap_height_(0),
       point_list_geometry_program_(0),
       rect_list_geometry_program_(0),
       quad_list_geometry_program_(0),
@@ -83,7 +81,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
 CommandProcessor::~CommandProcessor() { CloseHandle(write_ptr_index_event_); }
 
 bool CommandProcessor::Initialize(
-    std::unique_ptr<xe::ui::gl::GLContext> context) {
+    std::unique_ptr<xe::ui::GraphicsContext> context) {
   context_ = std::move(context);
 
   worker_running_ = true;
@@ -197,7 +195,7 @@ void CommandProcessor::WorkerThreadMain() {
       // We've run out of commands to execute.
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
-      // PrepareForWait();
+      PrepareForWait();
       do {
         // TODO(benvanik): if we go longer than Nms, switch to waiting?
         // It'll keep us from burning power.
@@ -209,7 +207,7 @@ void CommandProcessor::WorkerThreadMain() {
       } while (worker_running_ && pending_fns_.empty() &&
                (write_ptr_index == 0xBAADF00D ||
                 read_ptr_index_ == write_ptr_index));
-      // ReturnFromWait();
+      ReturnFromWait();
       if (!worker_running_ || !pending_fns_.empty()) {
         continue;
       }
@@ -576,18 +574,50 @@ void CommandProcessor::ReturnFromWait() {
   }
 }
 
-void CommandProcessor::IssueSwap() {
-  IssueSwap(last_swap_width_, last_swap_height_);
-}
-
 void CommandProcessor::IssueSwap(uint32_t frontbuffer_width,
                                  uint32_t frontbuffer_height) {
-  if (!swap_handler_) {
+  SCOPE_profile_cpu_f("gpu");
+  if (!swap_request_handler_) {
     return;
   }
 
-  auto& regs = *register_file_;
-  SwapParameters swap_params;
+  // If there was a swap pending we drop it on the floor.
+  // This prevents the display from pulling the backbuffer out from under us.
+  // If we skip a lot then we may need to buffer more, but as the display
+  // thread should be fairly idle that shouldn't happen.
+  if (!FLAGS_vsync) {
+    std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+    if (swap_state_.pending) {
+      swap_state_.pending = false;
+      // TODO(benvanik): frame skip counter.
+      XELOGW("Skipped frame!");
+    }
+  } else {
+    // Spin until no more pending swap.
+    while (true) {
+      {
+        std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+        if (!swap_state_.pending) {
+          break;
+        }
+      }
+      xe::threading::MaybeYield();
+    }
+  }
+
+  // One-time initialization.
+  // TODO(benvanik): move someplace more sane?
+  if (!swap_state_.front_buffer_texture) {
+    std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+    swap_state_.width = frontbuffer_width;
+    swap_state_.height = frontbuffer_height;
+    glCreateTextures(GL_TEXTURE_2D, 1, &swap_state_.front_buffer_texture);
+    glCreateTextures(GL_TEXTURE_2D, 1, &swap_state_.back_buffer_texture);
+    glTextureStorage2D(swap_state_.front_buffer_texture, 1, GL_RGBA8,
+                       swap_state_.width, swap_state_.height);
+    glTextureStorage2D(swap_state_.back_buffer_texture, 1, GL_RGBA8,
+                       swap_state_.width, swap_state_.height);
+  }
 
   // Lookup the framebuffer in the recently-resolved list.
   // TODO(benvanik): make this much more sophisticated.
@@ -595,20 +625,34 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_width,
   // TODO(benvanik): handle dirty cases (resolved to sysmem, touched).
   // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   // HACK: just use whatever our current framebuffer is.
-  swap_params.framebuffer_texture = last_framebuffer_texture_;
-  /*swap_params.framebuffer_texture = active_framebuffer_
+  GLuint framebuffer_texture = last_framebuffer_texture_;
+  /*GLuint framebuffer_texture = active_framebuffer_
                                         ? active_framebuffer_->color_targets[0]
                                         : last_framebuffer_texture_;*/
 
-  // Frontbuffer dimensions, if valid.
-  swap_params.x = 0;
-  swap_params.y = 0;
-  swap_params.width = frontbuffer_width ? frontbuffer_width : 1280;
-  swap_params.height = frontbuffer_height ? frontbuffer_height : 720;
+  // Copy the the given framebuffer to the current backbuffer.
+  Rect2D src_rect(0, 0, frontbuffer_width ? frontbuffer_width : 1280,
+                  frontbuffer_height ? frontbuffer_height : 720);
+  Rect2D dest_rect(0, 0, swap_state_.width, swap_state_.height);
+  reinterpret_cast<xe::ui::gl::GLContext*>(context_.get())
+      ->blitter()
+      ->CopyColorTexture2D(framebuffer_texture, src_rect,
+                           swap_state_.back_buffer_texture, dest_rect,
+                           GL_LINEAR);
 
-  PrepareForWait();
-  swap_handler_(swap_params);
-  ReturnFromWait();
+  // Need to finish to be sure the other context sees the right data.
+  // TODO(benvanik): prevent this? fences?
+  glFinish();
+
+  {
+    // Set pending so that the display will swap the next time it can.
+    std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+    swap_state_.pending = true;
+  }
+
+  // Notify the display a swap is pending so that our changes are picked up.
+  // It does the actual front/back buffer swap.
+  swap_request_handler_();
 
   // Remove any dead textures, etc.
   texture_cache_.Scavenge();
@@ -964,8 +1008,6 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   uint32_t frontbuffer_width = reader->Read();
   uint32_t frontbuffer_height = reader->Read();
   reader->Advance(count - 4);
-  last_swap_width_ = frontbuffer_width;
-  last_swap_height_ = frontbuffer_height;
 
   // Ensure we issue any pending draws.
   draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
@@ -2757,6 +2799,8 @@ bool CommandProcessor::IssueCopy() {
   // TODO(benvanik): copy to staging texture then PBO back?
   void* ptr = memory_->TranslatePhysical(copy_dest_base);
 
+  auto blitter = static_cast<xe::ui::gl::GLContext*>(context_.get())->blitter();
+
   // Make active so glReadPixels reads from us.
   switch (copy_command) {
     case CopyCommand::kRaw: {
@@ -2766,8 +2810,8 @@ bool CommandProcessor::IssueCopy() {
         // Source from a bound render target.
         // TODO(benvanik): RAW copy.
         last_framebuffer_texture_ = texture_cache_.CopyTexture(
-            context_->blitter(), copy_dest_base, dest_logical_width,
-            dest_logical_height, dest_block_width, dest_block_height,
+            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
+            dest_block_width, dest_block_height,
             ColorFormatToTextureFormat(copy_dest_format),
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
@@ -2777,11 +2821,10 @@ bool CommandProcessor::IssueCopy() {
       } else {
         // Source from the bound depth/stencil target.
         // TODO(benvanik): RAW copy.
-        texture_cache_.CopyTexture(context_->blitter(), copy_dest_base,
-                                   dest_logical_width, dest_logical_height,
-                                   dest_block_width, dest_block_height,
-                                   src_format, copy_dest_swap ? true : false,
-                                   depth_target, src_rect, dest_rect);
+        texture_cache_.CopyTexture(
+            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
+            dest_block_width, dest_block_height, src_format,
+            copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }
@@ -2794,8 +2837,8 @@ bool CommandProcessor::IssueCopy() {
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
         last_framebuffer_texture_ = texture_cache_.ConvertTexture(
-            context_->blitter(), copy_dest_base, dest_logical_width,
-            dest_logical_height, dest_block_width, dest_block_height,
+            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
+            dest_block_width, dest_block_height,
             ColorFormatToTextureFormat(copy_dest_format),
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
@@ -2804,11 +2847,10 @@ bool CommandProcessor::IssueCopy() {
         }
       } else {
         // Source from the bound depth/stencil target.
-        texture_cache_.ConvertTexture(context_->blitter(), copy_dest_base,
-                                      dest_logical_width, dest_logical_height,
-                                      dest_block_width, dest_block_height,
-                                      src_format, copy_dest_swap ? true : false,
-                                      depth_target, src_rect, dest_rect);
+        texture_cache_.ConvertTexture(
+            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
+            dest_block_width, dest_block_height, src_format,
+            copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
         }

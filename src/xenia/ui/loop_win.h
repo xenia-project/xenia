@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_WIN32_WIN32_LOOP_H_
-#define XENIA_UI_WIN32_WIN32_LOOP_H_
+#ifndef XENIA_UI_LOOP_WIN_H_
+#define XENIA_UI_LOOP_WIN_H_
 
 #include <mutex>
 #include <list>
@@ -21,7 +21,6 @@
 
 namespace xe {
 namespace ui {
-namespace win32 {
 
 class Win32Loop : public Loop {
  public:
@@ -55,8 +54,7 @@ class Win32Loop : public Loop {
   std::list<PendingTimer*> pending_timers_;
 };
 
-}  // namespace win32
 }  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_UI_WIN32_WIN32_LOOP_H_
+#endif  // XENIA_UI_LOOP_WIN_H_

@@ -16,6 +16,9 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/profiling.h"
+#include "xenia/ui/gl/gl_profiler_display.h"
+#include "xenia/ui/gl/gl4_elemental_renderer.h"
+#include "xenia/ui/window.h"
 
 DEFINE_bool(thread_safe_gl, false,
             "Only allow one GL context to be active at a time.");
@@ -40,11 +43,20 @@ thread_local WGLEWContext* tls_wglew_context_ = nullptr;
 extern "C" GLEWContext* glewGetContext() { return tls_glew_context_; }
 extern "C" WGLEWContext* wglewGetContext() { return tls_wglew_context_; }
 
-GLContext::GLContext() : hwnd_(nullptr), dc_(nullptr), glrc_(nullptr) {}
+std::unique_ptr<GLContext> GLContext::Create(Window* target_window) {
+  auto context = std::unique_ptr<GLContext>(new GLContext(target_window));
+  if (!context->Initialize(target_window)) {
+    return nullptr;
+  }
+  context->AssertExtensionsPresent();
+  return context;
+}
 
-GLContext::GLContext(HWND hwnd, HGLRC glrc)
-    : hwnd_(hwnd), dc_(nullptr), glrc_(glrc) {
-  dc_ = GetDC(hwnd);
+GLContext::GLContext(Window* target_window) : GraphicsContext(target_window) {}
+
+GLContext::GLContext(Window* target_window, HGLRC glrc)
+    : GraphicsContext(target_window), glrc_(glrc) {
+  dc_ = GetDC(HWND(target_window_->native_handle()));
 }
 
 GLContext::~GLContext() {
@@ -55,13 +67,13 @@ GLContext::~GLContext() {
     wglDeleteContext(glrc_);
   }
   if (dc_) {
-    ReleaseDC(hwnd_, dc_);
+    ReleaseDC(HWND(target_window_->native_handle()), dc_);
   }
 }
 
-bool GLContext::Initialize(HWND hwnd) {
-  hwnd_ = hwnd;
-  dc_ = GetDC(hwnd);
+bool GLContext::Initialize(Window* target_window) {
+  target_window_ = target_window;
+  dc_ = GetDC(HWND(target_window_->native_handle()));
 
   PIXELFORMATDESCRIPTOR pfd = {0};
   pfd.nSize = sizeof(pfd);
@@ -152,12 +164,12 @@ bool GLContext::Initialize(HWND hwnd) {
   return true;
 }
 
-std::unique_ptr<GLContext> GLContext::CreateShared() {
+std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
   assert_not_null(glrc_);
 
   HGLRC new_glrc = nullptr;
   {
-    GLContextLock context_lock(this);
+    GraphicsContextLock context_lock(this);
 
     int context_flags = 0;
     // int profile = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
@@ -178,7 +190,8 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
     }
   }
 
-  auto new_context = std::make_unique<GLContext>(hwnd_, new_glrc);
+  auto new_context =
+      std::unique_ptr<GLContext>(new GLContext(target_window_, new_glrc));
   if (!new_context->MakeCurrent()) {
     XELOGE("Could not make new GL context current");
     return nullptr;
@@ -205,7 +218,7 @@ std::unique_ptr<GLContext> GLContext::CreateShared() {
 
   new_context->ClearCurrent();
 
-  return new_context;
+  return std::unique_ptr<GraphicsContext>(new_context.release());
 }
 
 void FatalGLError(std::string error) {
@@ -369,6 +382,14 @@ void GLContext::SetupDebugging() {
                          this);
 }
 
+std::unique_ptr<ProfilerDisplay> GLContext::CreateProfilerDisplay() {
+  return std::make_unique<GLProfilerDisplay>(target_window_);
+}
+
+std::unique_ptr<el::graphics::Renderer> GLContext::CreateElementalRenderer() {
+  return GL4ElementalRenderer::Create(this);
+}
+
 bool GLContext::MakeCurrent() {
   SCOPE_profile_cpu_f("gpu");
   if (FLAGS_thread_safe_gl) {
@@ -397,6 +418,17 @@ void GLContext::ClearCurrent() {
   if (FLAGS_thread_safe_gl) {
     global_gl_mutex_.unlock();
   }
+}
+
+void GLContext::BeginSwap() {
+  SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLContext::BeginSwap");
+  float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
+  glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
+}
+
+void GLContext::EndSwap() {
+  SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLContext::EndSwap");
+  SwapBuffers(dc());
 }
 
 }  // namespace gl

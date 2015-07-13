@@ -12,6 +12,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/emulator.h"
+#include "xenia/emulator_window.h"
 #include "xenia/kernel/kernel.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/file_picker.h"
@@ -24,9 +25,15 @@ int xenia_main(std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
-  // Create the emulator.
+  // Create the emulator but don't initialize so we can setup the window.
   auto emulator = std::make_unique<Emulator>(L"");
-  X_STATUS result = emulator->Setup();
+
+  // Main emulator display window.
+  auto emulator_window = EmulatorWindow::Create(emulator.get());
+
+  // Setup and initialize all subsystems. If we can't do something
+  // (unsupported system, memory issues, etc) this will fail early.
+  X_STATUS result = emulator->Setup(emulator_window->window());
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return 1;
@@ -48,20 +55,20 @@ int xenia_main(std::vector<std::wstring>& args) {
 
   // If no path passed, ask the user.
   if (path.empty()) {
-    ui::PlatformFilePicker file_picker;
-    file_picker.set_mode(ui::FilePicker::Mode::kOpen);
-    file_picker.set_type(ui::FilePicker::Type::kFile);
-    file_picker.set_multi_selection(false);
-    file_picker.set_title(L"Select Content Package");
-    file_picker.set_extensions({
+    auto file_picker = xe::ui::FilePicker::Create();
+    file_picker->set_mode(ui::FilePicker::Mode::kOpen);
+    file_picker->set_type(ui::FilePicker::Type::kFile);
+    file_picker->set_multi_selection(false);
+    file_picker->set_title(L"Select Content Package");
+    file_picker->set_extensions({
         {L"Supported Files", L"*.iso;*.xex;*.xcp;*.*"},
         {L"Disc Image (*.iso)", L"*.iso"},
         {L"Xbox Executable (*.xex)", L"*.xex"},
         //{ L"Content Package (*.xcp)", L"*.xcp" },
         {L"All Files (*.*)", L"*.*"},
     });
-    if (file_picker.Show(emulator->display_window()->hwnd())) {
-      auto selected_files = file_picker.selected_files();
+    if (file_picker->Show(emulator->display_window()->native_handle())) {
+      auto selected_files = file_picker->selected_files();
       if (!selected_files.empty()) {
         path = selected_files[0];
       }
@@ -83,6 +90,8 @@ int xenia_main(std::vector<std::wstring>& args) {
   }
 
   emulator.reset();
+  emulator_window.reset();
+
   Profiler::Dump();
   Profiler::Shutdown();
   return 0;

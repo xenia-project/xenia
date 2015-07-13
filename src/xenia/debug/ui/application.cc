@@ -27,7 +27,10 @@ Application* Application::current() {
   return current_application_;
 }
 
-Application::Application() { current_application_ = this; }
+Application::Application() {
+  current_application_ = this;
+  loop_ = xe::ui::Loop::Create();
+}
 
 Application::~Application() {
   assert_true(current_application_ == this);
@@ -65,7 +68,7 @@ bool Application::Initialize() {
 }
 
 void Application::Quit() {
-  loop_.Quit();
+  loop_->Quit();
 
   // TODO(benvanik): proper exit.
   XELOGI("User-initiated death!");

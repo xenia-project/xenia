@@ -7,14 +7,27 @@
  ******************************************************************************
  */
 
-#include "xenia/ui/win32/win32_file_picker.h"
+#include "xenia/ui/file_picker.h"
 
 #include "xenia/base/platform.h"
 #include "xenia/base/assert.h"
 
 namespace xe {
 namespace ui {
-namespace win32 {
+
+class Win32FilePicker : public FilePicker {
+ public:
+  Win32FilePicker();
+  ~Win32FilePicker() override;
+
+  bool Show(void* parent_window_handle) override;
+
+ private:
+};
+
+std::unique_ptr<FilePicker> FilePicker::Create() {
+  return std::make_unique<Win32FilePicker>();
+}
 
 class CDialogEventHandler : public IFileDialogEvents,
                             public IFileDialogControlEvents {
@@ -201,6 +214,5 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
   return true;
 }
 
-}  // namespace win32
 }  // namespace ui
 }  // namespace xe

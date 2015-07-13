@@ -13,23 +13,23 @@
 namespace xe {
 namespace ui {
 
-class Control;
+class Window;
 
 class UIEvent {
  public:
-  UIEvent(Control* control = nullptr) : control_(control) {}
+  UIEvent(Window* target = nullptr) : target_(target) {}
   virtual ~UIEvent() = default;
 
-  Control* control() const { return control_; }
+  Window* target() const { return target_; }
 
  private:
-  Control* control_;
+  Window* target_ = nullptr;
 };
 
 class KeyEvent : public UIEvent {
  public:
-  KeyEvent(Control* control, int key_code)
-      : UIEvent(control), handled_(false), key_code_(key_code) {}
+  KeyEvent(Window* target, int key_code)
+      : UIEvent(target), key_code_(key_code) {}
   ~KeyEvent() override = default;
 
   bool is_handled() const { return handled_; }
@@ -38,8 +38,8 @@ class KeyEvent : public UIEvent {
   int key_code() const { return key_code_; }
 
  private:
-  bool handled_;
-  int key_code_;
+  bool handled_ = false;
+  int key_code_ = 0;
 };
 
 class MouseEvent : public UIEvent {
@@ -54,15 +54,9 @@ class MouseEvent : public UIEvent {
   };
 
  public:
-  MouseEvent(Control* control, Button button, int32_t x, int32_t y,
+  MouseEvent(Window* target, Button button, int32_t x, int32_t y,
              int32_t dx = 0, int32_t dy = 0)
-      : UIEvent(control),
-        handled_(false),
-        button_(button),
-        x_(x),
-        y_(y),
-        dx_(dx),
-        dy_(dy) {}
+      : UIEvent(target), button_(button), x_(x), y_(y), dx_(dx), dy_(dy) {}
   ~MouseEvent() override = default;
 
   bool is_handled() const { return handled_; }
@@ -75,12 +69,12 @@ class MouseEvent : public UIEvent {
   int32_t dy() const { return dy_; }
 
  private:
-  bool handled_;
+  bool handled_ = false;
   Button button_;
-  int32_t x_;
-  int32_t y_;
-  int32_t dx_;
-  int32_t dy_;
+  int32_t x_ = 0;
+  int32_t y_ = 0;
+  int32_t dx_ = 0;
+  int32_t dy_ = 0;
 };
 
 }  // namespace ui

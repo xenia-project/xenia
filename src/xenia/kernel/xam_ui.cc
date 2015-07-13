@@ -67,7 +67,8 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     TASKDIALOGCONFIG config = {0};
     config.cbSize = sizeof(config);
     config.hInstance = GetModuleHandle(nullptr);
-    config.hwndParent = kernel_state->emulator()->display_window()->hwnd();
+    config.hwndParent =
+        HWND(kernel_state->emulator()->display_window()->native_handle());
     config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION |   // esc to exit
                      TDF_POSITION_RELATIVE_TO_WINDOW;  // center in window
     config.dwCommonButtons = 0;
@@ -120,7 +121,7 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
   XELOGD("XamShowDirtyDiscErrorUI(%d)", user_index);
 
   int button_pressed = 0;
-  TaskDialog(kernel_state->emulator()->display_window()->hwnd(),
+  TaskDialog(HWND(kernel_state->emulator()->display_window()->native_handle()),
              GetModuleHandle(nullptr), L"Disc Read Error",
              L"Game is claiming to be unable to read game data!", nullptr,
              TDCBF_CLOSE_BUTTON, TD_ERROR_ICON, &button_pressed);
