@@ -243,7 +243,7 @@ void GLContext::AssertExtensionsPresent() {
            glsl_version_raw);
   }
 
-  if (!GLEW_ARB_bindless_texture) {
+  if (!GLEW_ARB_bindless_texture || !glMakeTextureHandleResidentARB) {
     FatalGLError("OpenGL extension ARB_bindless_texture is required.");
     return;
   }
