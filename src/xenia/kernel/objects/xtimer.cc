@@ -46,6 +46,11 @@ void XTimer::Initialize(uint32_t timer_type) {
 
 X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
                           uint32_t routine, uint32_t routine_arg, bool resume) {
+  // Caller is checking for STATUS_TIMER_RESUME_IGNORED.
+  if (resume) {
+    return X_STATUS_TIMER_RESUME_IGNORED;
+  }
+
   // Stash routine for callback.
   current_routine_ = routine;
   current_routine_arg_ = routine_arg;
@@ -59,12 +64,6 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
       SetWaitableTimer(native_handle_, &due_time_li, period_ms,
                        routine ? (PTIMERAPCROUTINE)CompletionRoutine : NULL,
                        this, resume ? TRUE : FALSE);
-
-  // Caller is checking for STATUS_TIMER_RESUME_IGNORED.
-  // This occurs if result == TRUE but error is set.
-  if (!result && GetLastError() == ERROR_NOT_SUPPORTED) {
-    return X_STATUS_TIMER_RESUME_IGNORED;
-  }
 
   return result ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
