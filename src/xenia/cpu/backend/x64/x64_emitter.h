@@ -173,9 +173,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   // TODO(benvanik): Label for epilog (don't use strings).
 
-  void LoadEflags();
-  void StoreEflags();
-
   // Moves a 64bit immediate into memory.
   bool ConstantFitsIn32Reg(uint64_t v);
   void MovMem64(const Xbyak::RegExp& addr, uint64_t v);

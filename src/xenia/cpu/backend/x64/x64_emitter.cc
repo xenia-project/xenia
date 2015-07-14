@@ -53,11 +53,6 @@ static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
 static const size_t STASH_OFFSET = 32;
 static const size_t STASH_OFFSET_HIGH = 32 + 32;
 
-// If we are running with tracing on we have to store the EFLAGS in the stack,
-// otherwise our calls out to C to print will clear it before DID_CARRY/etc
-// can get the value.
-#define STORE_EFLAGS 1
-
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
     Operand::RBX, Operand::R12, Operand::R13, Operand::R14, Operand::R15,
 };
@@ -537,25 +532,6 @@ void X64Emitter::nop(size_t length) {
   for (size_t i = 0; i < length; ++i) {
     db(0x90);
   }
-}
-
-void X64Emitter::LoadEflags() {
-#if STORE_EFLAGS
-  mov(eax, dword[rsp + STASH_OFFSET]);
-  btr(eax, 0);
-#else
-// EFLAGS already present.
-#endif  // STORE_EFLAGS
-}
-
-void X64Emitter::StoreEflags() {
-#if STORE_EFLAGS
-  pushf();
-  pop(dword[rsp + STASH_OFFSET]);
-#else
-// EFLAGS should have CA set?
-// (so long as we don't fuck with it)
-#endif  // STORE_EFLAGS
 }
 
 bool X64Emitter::ConstantFitsIn32Reg(uint64_t v) {
