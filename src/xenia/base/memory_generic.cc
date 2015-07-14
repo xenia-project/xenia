@@ -11,25 +11,7 @@
 
 #include <algorithm>
 
-#if !XE_PLATFORM_WIN32
-#include <unistd.h>
-#endif  // !XE_PLATFORM_WIN32
-
 namespace xe {
-
-size_t page_size() {
-  static size_t value = 0;
-  if (!value) {
-#if XE_PLATFORM_WIN32
-    SYSTEM_INFO si;
-    GetSystemInfo(&si);
-    value = si.dwAllocationGranularity;
-#else
-    value = getpagesize();
-#endif  // XE_PLATFORM_WIN32
-  }
-  return value;
-}
 
 // TODO(benvanik): fancy AVX versions.
 // http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/cb32b70b79f430456208a2cd521d028e0ece5d5b/entry/volk/kernels/volk/volk_16u_byteswap.h

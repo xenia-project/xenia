@@ -9,6 +9,7 @@
 
 #include "xenia/hid/winkey/winkey_input_driver.h"
 
+#include "xenia/base/platform_win.h"
 #include "xenia/hid/hid_flags.h"
 
 namespace xe {

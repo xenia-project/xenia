@@ -11,7 +11,7 @@
 
 #include <string>
 
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 
 namespace xe {
 namespace filesystem {

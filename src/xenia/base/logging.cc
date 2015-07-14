@@ -11,11 +11,18 @@
 
 #include <gflags/gflags.h>
 
+#include <cstdarg>
 #include <mutex>
 
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
 #include "xenia/base/threading.h"
+
+// For MessageBox:
+// TODO(benvanik): generic API? logging_win.cc?
+#if XE_PLATFORM_WIN32
+#include "xenia/base/platform_win.h"
+#endif  // XE_PLATFORM_WIN32
 
 DEFINE_bool(fast_stdout, false,
             "Don't lock around stdout/stderr. May introduce weirdness.");

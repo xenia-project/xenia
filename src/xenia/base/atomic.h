@@ -60,39 +60,40 @@ inline bool atomic_cas(int64_t old_value, int64_t new_value,
 #elif XE_PLATFORM_WIN32
 
 inline int32_t atomic_inc(volatile int32_t* value) {
-  return InterlockedIncrement(reinterpret_cast<volatile LONG*>(value));
+  return _InterlockedIncrement(reinterpret_cast<volatile long*>(value));
 }
 inline int32_t atomic_dec(volatile int32_t* value) {
-  return InterlockedDecrement(reinterpret_cast<volatile LONG*>(value));
+  return _InterlockedDecrement(reinterpret_cast<volatile long*>(value));
 }
 
 inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
-  return InterlockedExchange(reinterpret_cast<volatile LONG*>(value),
-                             new_value);
+  return _InterlockedExchange(reinterpret_cast<volatile long*>(value),
+                              new_value);
 }
 inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
-  return InterlockedExchange64(reinterpret_cast<volatile LONGLONG*>(value),
-                               new_value);
+  return _InterlockedExchange64(reinterpret_cast<volatile long long*>(value),
+                                new_value);
 }
 
 inline int32_t atomic_exchange_add(int32_t amount, volatile int32_t* value) {
-  return InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(value),
-                                amount);
+  return _InterlockedExchangeAdd(reinterpret_cast<volatile long*>(value),
+                                 amount);
 }
 inline int64_t atomic_exchange_add(int64_t amount, volatile int64_t* value) {
-  return InterlockedExchangeAdd64(reinterpret_cast<volatile LONGLONG*>(value),
-                                  amount);
+  return _InterlockedExchangeAdd64(reinterpret_cast<volatile long long*>(value),
+                                   amount);
 }
 
 inline bool atomic_cas(int32_t old_value, int32_t new_value,
                        volatile int32_t* value) {
-  return InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(value),
-                                    new_value, old_value) == old_value;
+  return _InterlockedCompareExchange(reinterpret_cast<volatile long*>(value),
+                                     new_value, old_value) == old_value;
 }
 inline bool atomic_cas(int64_t old_value, int64_t new_value,
                        volatile int64_t* value) {
-  return InterlockedCompareExchange64(reinterpret_cast<volatile LONG64*>(value),
-                                      new_value, old_value) == old_value;
+  return _InterlockedCompareExchange64(
+             reinterpret_cast<volatile long long*>(value), new_value,
+             old_value) == old_value;
 }
 
 #elif XE_PLATFORM_LINUX

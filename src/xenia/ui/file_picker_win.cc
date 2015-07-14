@@ -9,8 +9,8 @@
 
 #include "xenia/ui/file_picker.h"
 
-#include "xenia/base/platform.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/platform_win.h"
 
 namespace xe {
 namespace ui {

@@ -20,6 +20,10 @@
 #include "xenia/ui/gl/gl4_elemental_renderer.h"
 #include "xenia/ui/window.h"
 
+// TODO(benvanik): move win32 code to _win?
+#include "xenia/base/platform_win.h"
+#include "third_party/GL/wglew.h"
+
 DEFINE_bool(thread_safe_gl, false,
             "Only allow one GL context to be active at a time.");
 
@@ -52,11 +56,16 @@ std::unique_ptr<GLContext> GLContext::Create(Window* target_window) {
   return context;
 }
 
-GLContext::GLContext(Window* target_window) : GraphicsContext(target_window) {}
+GLContext::GLContext(Window* target_window) : GraphicsContext(target_window) {
+  glew_context_.reset(new GLEWContext());
+  wglew_context_.reset(new WGLEWContext());
+}
 
 GLContext::GLContext(Window* target_window, HGLRC glrc)
     : GraphicsContext(target_window), glrc_(glrc) {
   dc_ = GetDC(HWND(target_window_->native_handle()));
+  glew_context_.reset(new GLEWContext());
+  wglew_context_.reset(new WGLEWContext());
 }
 
 GLContext::~GLContext() {
@@ -100,8 +109,8 @@ bool GLContext::Initialize(Window* target_window) {
   }
   wglMakeCurrent(dc_, temp_context);
 
-  tls_glew_context_ = &glew_context_;
-  tls_wglew_context_ = &wglew_context_;
+  tls_glew_context_ = glew_context_.get();
+  tls_wglew_context_ = wglew_context_.get();
   glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
     XELOGE("Unable to initialize GLEW");
@@ -403,8 +412,8 @@ bool GLContext::MakeCurrent() {
     XELOGE("Unable to make GL context current");
     return false;
   }
-  tls_glew_context_ = &glew_context_;
-  tls_wglew_context_ = &wglew_context_;
+  tls_glew_context_ = glew_context_.get();
+  tls_wglew_context_ = wglew_context_.get();
   return true;
 }
 

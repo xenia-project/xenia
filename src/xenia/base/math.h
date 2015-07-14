@@ -72,27 +72,27 @@ inline uint8_t lzcnt(uint32_t v) { return static_cast<uint8_t>(__lzcnt(v)); }
 inline uint8_t lzcnt(uint64_t v) { return static_cast<uint8_t>(__lzcnt64(v)); }
 #else
 inline uint8_t lzcnt(uint8_t v) {
-  DWORD index;
-  DWORD mask = v;
-  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
+  unsigned long index;
+  unsigned long mask = v;
+  unsigned char is_nonzero = _BitScanReverse(&index, mask);
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
 }
 inline uint8_t lzcnt(uint16_t v) {
-  DWORD index;
-  DWORD mask = v;
-  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
+  unsigned long index;
+  unsigned long mask = v;
+  unsigned char is_nonzero = _BitScanReverse(&index, mask);
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
 }
 inline uint8_t lzcnt(uint32_t v) {
-  DWORD index;
-  DWORD mask = v;
-  BOOLEAN is_nonzero = _BitScanReverse(&index, mask);
+  unsigned long index;
+  unsigned long mask = v;
+  unsigned char is_nonzero = _BitScanReverse(&index, mask);
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
 }
 inline uint8_t lzcnt(uint64_t v) {
-  DWORD index;
-  DWORD64 mask = v;
-  BOOLEAN is_nonzero = _BitScanReverse64(&index, mask);
+  unsigned long index;
+  unsigned long long mask = v;
+  unsigned char is_nonzero = _BitScanReverse64(&index, mask);
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
 }
 #endif  // LZCNT supported

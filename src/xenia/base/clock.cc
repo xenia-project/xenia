@@ -13,7 +13,6 @@
 #include <climits>
 
 #include "xenia/base/assert.h"
-#include "xenia/base/platform.h"
 
 namespace xe {
 
@@ -47,31 +46,6 @@ void UpdateGuestClock() {
   guest_tick_count_ += guest_tick_delta;
   guest_time_filetime_ += (guest_tick_delta * 10000000) / guest_tick_frequency_;
 }
-
-uint64_t Clock::host_tick_frequency() {
-  static LARGE_INTEGER frequency = {0};
-  if (!frequency.QuadPart) {
-    QueryPerformanceFrequency(&frequency);
-  }
-  return frequency.QuadPart;
-}
-
-uint64_t Clock::QueryHostTickCount() {
-  LARGE_INTEGER counter;
-  uint64_t time = 0;
-  if (QueryPerformanceCounter(&counter)) {
-    time = counter.QuadPart;
-  }
-  return time;
-}
-
-uint64_t Clock::QueryHostSystemTime() {
-  FILETIME t;
-  GetSystemTimeAsFileTime(&t);
-  return (uint64_t(t.dwHighDateTime) << 32) | t.dwLowDateTime;
-}
-
-uint32_t Clock::QueryHostUptimeMillis() { return ::GetTickCount(); }
 
 double Clock::guest_time_scalar() { return guest_time_scalar_; }
 

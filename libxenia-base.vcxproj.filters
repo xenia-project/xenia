@@ -54,6 +54,9 @@
     <ClCompile Include="src\xenia\base\threading_win.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
+    <ClCompile Include="src\xenia\base\clock_win.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\xenia\base\arena.h">
@@ -117,6 +120,9 @@
       <Filter>src\xenia\base</Filter>
     </ClInclude>
     <ClInclude Include="src\xenia\base\vec128.h">
+      <Filter>src\xenia\base</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xenia\base\platform_win.h">
       <Filter>src\xenia\base</Filter>
     </ClInclude>
   </ItemGroup>

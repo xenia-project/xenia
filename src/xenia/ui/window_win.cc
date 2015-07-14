@@ -11,6 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/ui/window_win.h"
 
 namespace xe {

@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XEVENT_H_
 #define XENIA_KERNEL_XBOXKRNL_XEVENT_H_
 
+#include "xenia/base/platform_win.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 

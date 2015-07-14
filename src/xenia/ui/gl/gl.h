@@ -13,9 +13,15 @@
 #include "xenia/base/platform.h"
 
 #include "third_party/GL/glew.h"
-#include "third_party/GL/wglew.h"
 
 extern "C" GLEWContext* glewGetContext();
+
+#if XE_PLATFORM_WIN32
+// We avoid including wglew.h here as it includes windows.h and pollutes the
+// global namespace. As we don't need wglew most places we only do that as
+// required.
+typedef struct WGLEWContextStruct WGLEWContext;
 extern "C" WGLEWContext* wglewGetContext();
+#endif  // XE_PLATFORM_WIN32
 
 #endif  // XENIA_UI_GL_GL_H_

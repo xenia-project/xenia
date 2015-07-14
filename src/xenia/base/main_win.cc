@@ -13,6 +13,7 @@
 #include <gflags/gflags.h>
 #include <io.h>
 
+#include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 
 namespace xe {

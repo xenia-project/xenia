@@ -9,7 +9,7 @@
 
 #include "xenia/base/debugging.h"
 
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/base/string_buffer.h"
 
 namespace xe {

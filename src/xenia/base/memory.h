@@ -28,8 +28,6 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
   return hash_combine(seed, vs...);
 }
 
-size_t page_size();
-
 constexpr void* low_address(void* address) {
   return (void*)(uint64_t(address) & 0xFFFFFFFF);
 }

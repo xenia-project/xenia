@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/cpu/backend/code_cache.h"
 
 namespace xe {

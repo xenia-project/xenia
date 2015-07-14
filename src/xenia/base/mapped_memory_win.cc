@@ -15,7 +15,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 
 namespace xe {
 

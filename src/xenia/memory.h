@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/cpu/mmio_handler.h"
 
 namespace xe {

@@ -17,6 +17,8 @@
 #include "xenia/emulator.h"
 #include "xenia/xbox.h"
 
+typedef void* HANDLE;
+
 namespace xe {
 namespace kernel {
 class XHostThread;

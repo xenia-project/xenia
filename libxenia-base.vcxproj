@@ -17,6 +17,7 @@
   <ItemGroup>
     <ClCompile Include="src\xenia\base\arena.cc" />
     <ClCompile Include="src\xenia\base\clock.cc" />
+    <ClCompile Include="src\xenia\base\clock_win.cc" />
     <ClCompile Include="src\xenia\base\debugging_win.cc" />
     <ClCompile Include="src\xenia\base\filesystem.cc" />
     <ClCompile Include="src\xenia\base\filesystem_win.cc" />
@@ -45,6 +46,7 @@
     <ClInclude Include="src\xenia\base\memory.h" />
     <ClInclude Include="src\xenia\base\mutex.h" />
     <ClInclude Include="src\xenia\base\platform.h" />
+    <ClInclude Include="src\xenia\base\platform_win.h" />
     <ClInclude Include="src\xenia\base\reset_scope.h" />
     <ClInclude Include="src\xenia\base\ring_buffer.h" />
     <ClInclude Include="src\xenia\base\string.h" />

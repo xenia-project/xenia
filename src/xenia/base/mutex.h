@@ -14,7 +14,7 @@
 #include <mutex>
 #include <type_traits>
 
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 
 namespace xe {
 

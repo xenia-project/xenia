@@ -20,6 +20,10 @@
 
 DECLARE_bool(thread_safe_gl);
 
+// TODO(benvanik): hide Win32 stuff.
+typedef struct HDC__* HDC;
+typedef struct HGLRC__* HGLRC;
+
 namespace xe {
 namespace ui {
 namespace gl {
@@ -61,8 +65,8 @@ class GLContext : public GraphicsContext {
   HDC dc_ = nullptr;
   HGLRC glrc_ = nullptr;
 
-  GLEWContext glew_context_;
-  WGLEWContext wglew_context_;
+  std::unique_ptr<GLEWContext> glew_context_;
+  std::unique_ptr<WGLEWContext> wglew_context_;
 
   Blitter blitter_;
 };
