@@ -57,6 +57,9 @@ void set_name(std::thread::native_handle_type handle, const std::string& name);
 // Yields the current thread to the scheduler. Maybe.
 void MaybeYield();
 
+// Memory barrier (request - may be ignored).
+void SyncMemory();
+
 // Sleeps the current thread for at least as long as the given duration.
 void Sleep(std::chrono::microseconds duration);
 template <typename Rep, typename Period>

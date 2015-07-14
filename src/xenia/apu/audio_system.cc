@@ -15,6 +15,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/string_buffer.h"
+#include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/emulator.h"
@@ -147,7 +148,7 @@ void AudioSystem::WorkerThreadMain() {
 
     if (!pumped) {
       SCOPE_profile_cpu_i("apu", "Sleep");
-      Sleep(500);
+      xe::threading::Sleep(std::chrono::milliseconds::duration(500));
     }
   }
   worker_running_ = false;

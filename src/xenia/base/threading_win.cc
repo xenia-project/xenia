@@ -52,11 +52,16 @@ void set_name(std::thread::native_handle_type handle, const std::string& name) {
   set_name(GetThreadId(handle), name);
 }
 
-void MaybeYield() { SwitchToThread(); }
+void MaybeYield() {
+  SwitchToThread();
+  MemoryBarrier();
+}
+
+void SyncMemory() { MemoryBarrier(); }
 
 void Sleep(std::chrono::microseconds duration) {
   if (duration.count() < 100) {
-    SwitchToThread();
+    MaybeYield();
   } else {
     ::Sleep(static_cast<DWORD>(duration.count() / 1000));
   }

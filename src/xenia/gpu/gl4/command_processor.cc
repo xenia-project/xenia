@@ -201,8 +201,7 @@ void CommandProcessor::WorkerThreadMain() {
         // It'll keep us from burning power.
         // const int wait_time_ms = 5;
         // WaitForSingleObject(write_ptr_index_event_, wait_time_ms);
-        SwitchToThread();
-        MemoryBarrier();
+        xe::threading::MaybeYield();
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
                (write_ptr_index == 0xBAADF00D ||
@@ -1104,14 +1103,15 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
         PrepareForWait();
         if (!FLAGS_vsync) {
           // User wants it fast and dangerous.
-          SwitchToThread();
+          xe::threading::MaybeYield();
         } else {
-          Sleep(wait / 0x100);
+          xe::threading::Sleep(
+              std::chrono::milliseconds::duration(wait / 0x100));
         }
-        MemoryBarrier();
+        xe::threading::SyncMemory();
         ReturnFromWait();
       } else {
-        SwitchToThread();
+        xe::threading::MaybeYield();
       }
     }
   } while (!matched);

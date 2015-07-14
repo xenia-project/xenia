@@ -345,7 +345,7 @@ SHIM_CALL XMABlockWhileInUse_shim(PPCContext* ppc_context,
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
       break;
     }
-    Sleep(1);
+    xe::threading::Sleep(std::chrono::milliseconds::duration(1));
   } while (true);
 
   SHIM_SET_RETURN_32(0);

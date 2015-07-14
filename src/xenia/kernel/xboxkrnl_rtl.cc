@@ -14,6 +14,7 @@
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
+#include "xenia/base/threading.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/kernel/objects/xthread.h"
@@ -398,7 +399,7 @@ spin:
     // TODO(benvanik): contention - do a real wait!
     // XELOGE("RtlEnterCriticalSection tried to really lock!");
     spin_wait_remaining = 0;  // HACK: spin forever
-    SwitchToThread();
+    xe::threading::MaybeYield();
     goto spin;
   }
 

@@ -125,7 +125,7 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
                 MarkVblank();
                 last_frame_time = current_time;
               }
-              Sleep(1);
+              xe::threading::Sleep(std::chrono::milliseconds::duration(1));
             }
             return 0;
           }));
