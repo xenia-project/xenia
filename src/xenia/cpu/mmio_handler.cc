@@ -13,6 +13,7 @@
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/platform_win.h"
 
 namespace BE {
 #include <beaengine/BeaEngine.h>

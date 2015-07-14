@@ -9,6 +9,7 @@
 
 #include "xenia/vfs/devices/host_path_file.h"
 
+#include "xenia/base/platform_win.h"
 #include "xenia/vfs/devices/host_path_entry.h"
 
 namespace xe {

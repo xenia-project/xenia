@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/hir/hir_builder.h"
 
+#include <cstdarg>
 #include <cstring>
 
 #include "xenia/base/assert.h"

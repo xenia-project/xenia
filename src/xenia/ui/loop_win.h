@@ -15,7 +15,7 @@
 #include <thread>
 
 #include "xenia/base/mutex.h"
-#include "xenia/base/platform.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/loop.h"
 

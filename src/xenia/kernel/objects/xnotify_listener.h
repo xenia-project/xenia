@@ -17,6 +17,8 @@
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
+typedef void* HANDLE;
+
 namespace xe {
 namespace kernel {
 

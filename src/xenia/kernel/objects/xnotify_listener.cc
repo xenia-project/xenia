@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/objects/xnotify_listener.h"
 
+#include "xenia/base/platform_win.h"
 #include "xenia/kernel/kernel_state.h"
 
 namespace xe {
