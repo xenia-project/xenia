@@ -17,9 +17,9 @@ namespace xe {
 namespace kernel {
 
 typedef struct {
-  xe::be<DWORD> count;
-  xe::be<DWORD> state[5];
-  xe::be<BYTE> buffer[64];
+  xe::be<uint32_t> count;
+  xe::be<uint32_t> state[5];
+  uint8_t buffer[64];
 } XECRYPT_SHA_STATE;
 
 void XeCryptShaInit(pointer_t<XECRYPT_SHA_STATE> sha_state) {

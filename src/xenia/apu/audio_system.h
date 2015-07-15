@@ -14,10 +14,9 @@
 #include <mutex>
 #include <queue>
 
+#include "xenia/base/threading.h"
 #include "xenia/emulator.h"
 #include "xenia/xbox.h"
-
-typedef void* HANDLE;
 
 namespace xe {
 namespace kernel {
@@ -48,22 +47,21 @@ class AudioSystem {
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
-  virtual X_STATUS CreateDriver(size_t index, HANDLE semaphore,
+ protected:
+  AudioSystem(Emulator* emulator);
+
+  virtual void Initialize();
+
+  void WorkerThreadMain();
+
+  virtual X_STATUS CreateDriver(size_t index,
+                                xe::threading::Semaphore* semaphore,
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
   // TODO(gibbed): respect XAUDIO2_MAX_QUEUED_BUFFERS somehow (ie min(64,
   // XAUDIO2_MAX_QUEUED_BUFFERS))
   static const size_t kMaximumQueuedFrames = 64;
-
- protected:
-  virtual void Initialize();
-
- private:
-  void WorkerThreadMain();
-
- protected:
-  AudioSystem(Emulator* emulator);
 
   Emulator* emulator_;
   Memory* memory_;
@@ -83,9 +81,11 @@ class AudioSystem {
     uint32_t wrapped_callback_arg;
   } clients_[kMaximumClientCount];
 
-  HANDLE client_semaphores_[kMaximumClientCount];
-  HANDLE shutdown_event_;  // Event is always there in case we have no clients.
-  HANDLE wait_handles_[kMaximumClientCount + 1];
+  std::unique_ptr<xe::threading::Semaphore>
+      client_semaphores_[kMaximumClientCount];
+  // Event is always there in case we have no clients.
+  std::unique_ptr<xe::threading::Event> shutdown_event_;
+  xe::threading::WaitHandle* wait_handles_[kMaximumClientCount + 1];
   std::queue<size_t> unused_clients_;
 };
 

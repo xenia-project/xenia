@@ -73,19 +73,14 @@ AudioSystem::AudioSystem(Emulator* emulator)
   }
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     client_semaphores_[i] =
-        CreateSemaphore(NULL, 0, kMaximumQueuedFrames, NULL);
-    wait_handles_[i] = client_semaphores_[i];
+        xe::threading::Semaphore::Create(0, kMaximumQueuedFrames);
+    wait_handles_[i] = client_semaphores_[i].get();
   }
-  shutdown_event_ = CreateEvent(NULL, TRUE, FALSE, NULL);
-  wait_handles_[kMaximumClientCount] = shutdown_event_;
+  shutdown_event_ = xe::threading::Event::CreateManualResetEvent(false);
+  wait_handles_[kMaximumClientCount] = shutdown_event_.get();
 }
 
-AudioSystem::~AudioSystem() {
-  for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    CloseHandle(client_semaphores_[i]);
-  }
-  CloseHandle(shutdown_event_);
-}
+AudioSystem::~AudioSystem() = default;
 
 X_STATUS AudioSystem::Setup() {
   processor_ = emulator_->processor();
@@ -111,18 +106,17 @@ void AudioSystem::WorkerThreadMain() {
 
   // Main run loop.
   while (worker_running_) {
-    auto result =
-        WaitForMultipleObjectsEx(DWORD(xe::countof(wait_handles_)),
-                                 wait_handles_, FALSE, INFINITE, FALSE);
-    if (result == WAIT_FAILED ||
-        result == WAIT_OBJECT_0 + kMaximumClientCount) {
+    auto result = xe::threading::WaitAny(
+        wait_handles_, DWORD(xe::countof(wait_handles_)), true);
+    if (result.first == xe::threading::WaitResult::kFailed ||
+        (result.first == xe::threading::WaitResult::kSuccess &&
+         result.second == kMaximumClientCount)) {
       continue;
     }
 
     size_t pumped = 0;
-    if (result >= WAIT_OBJECT_0 &&
-        result <= WAIT_OBJECT_0 + (kMaximumClientCount - 1)) {
-      size_t index = result - WAIT_OBJECT_0;
+    if (result.first == xe::threading::WaitResult::kSuccess) {
+      size_t index = result.second;
       do {
         lock_.lock();
         uint32_t client_callback = clients_[index].callback;
@@ -138,8 +132,9 @@ void AudioSystem::WorkerThreadMain() {
         pumped++;
         index++;
       } while (index < kMaximumClientCount &&
-               WaitForSingleObject(client_semaphores_[index], 0) ==
-                   WAIT_OBJECT_0);
+               xe::threading::Wait(client_semaphores_[index].get(), false,
+                                   std::chrono::milliseconds(0)) ==
+                   xe::threading::WaitResult::kSuccess);
     }
 
     if (!worker_running_) {
@@ -160,7 +155,7 @@ void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
   worker_running_ = false;
-  SetEvent(shutdown_event_);
+  shutdown_event_->Set();
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
 }
@@ -172,9 +167,9 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
 
   auto index = unused_clients_.front();
 
-  auto client_semaphore = client_semaphores_[index];
-  BOOL ret = ReleaseSemaphore(client_semaphore, kMaximumQueuedFrames, NULL);
-  assert_true(ret == TRUE);
+  auto client_semaphore = client_semaphores_[index].get();
+  auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
+  assert_true(ret);
 
   AudioDriver* driver;
   auto result = CreateDriver(index, client_semaphore, &driver);
@@ -215,13 +210,14 @@ void AudioSystem::UnregisterClient(size_t index) {
   clients_[index] = {0};
   unused_clients_.push(index);
 
-  // drain the semaphore of its count
-  auto client_semaphore = client_semaphores_[index];
-  DWORD wait_result;
+  // Drain the semaphore of its count.
+  auto client_semaphore = client_semaphores_[index].get();
+  xe::threading::WaitResult wait_result;
   do {
-    wait_result = WaitForSingleObject(client_semaphore, 0);
-  } while (wait_result == WAIT_OBJECT_0);
-  assert_true(wait_result == WAIT_TIMEOUT);
+    wait_result = xe::threading::Wait(client_semaphore, false,
+                                      std::chrono::milliseconds(0));
+  } while (wait_result == xe::threading::WaitResult::kSuccess);
+  assert_true(wait_result == xe::threading::WaitResult::kTimeout);
 }
 
 }  // namespace apu

@@ -24,32 +24,27 @@ namespace xaudio2 {
 
 class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
  public:
-  VoiceCallback(HANDLE semaphore) : semaphore_(semaphore) {}
+  VoiceCallback(xe::threading::Semaphore* semaphore) : semaphore_(semaphore) {}
   ~VoiceCallback() {}
 
   void OnStreamEnd() {}
   void OnVoiceProcessingPassEnd() {}
   void OnVoiceProcessingPassStart(uint32_t samples_required) {}
   void OnBufferEnd(void* context) {
-    BOOL ret = ReleaseSemaphore(semaphore_, 1, NULL);
-    assert_true(ret == TRUE);
+    auto ret = semaphore_->Release(1, nullptr);
+    assert_true(ret);
   }
   void OnBufferStart(void* context) {}
   void OnLoopEnd(void* context) {}
   void OnVoiceError(void* context, HRESULT result) {}
 
  private:
-  HANDLE semaphore_;
+  xe::threading::Semaphore* semaphore_ = nullptr;
 };
 
-XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator, HANDLE semaphore)
-    : AudioDriver(emulator),
-      audio_(nullptr),
-      mastering_voice_(nullptr),
-      pcm_voice_(nullptr),
-      semaphore_(semaphore),
-      voice_callback_(nullptr),
-      current_frame_(0) {
+XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator,
+                                       xe::threading::Semaphore* semaphore)
+    : AudioDriver(emulator), semaphore_(semaphore) {
   static_assert(frame_count_ == XAUDIO2_MAX_QUEUED_BUFFERS,
                 "xaudio header differs");
 }

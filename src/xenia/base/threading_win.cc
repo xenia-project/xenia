@@ -102,8 +102,8 @@ class Win32Handle : public T {
   HANDLE handle_ = nullptr;
 };
 
-WaitResult WaitHandle::Wait(WaitHandle* wait_handle, bool is_alertable,
-                            std::chrono::milliseconds timeout) {
+WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
+                std::chrono::milliseconds timeout) {
   HANDLE handle = wait_handle->native_handle();
   DWORD result = WaitForSingleObjectEx(handle, DWORD(timeout.count()),
                                        is_alertable ? TRUE : FALSE);
@@ -122,10 +122,9 @@ WaitResult WaitHandle::Wait(WaitHandle* wait_handle, bool is_alertable,
   }
 }
 
-WaitResult WaitHandle::SignalAndWait(WaitHandle* wait_handle_to_signal,
-                                     WaitHandle* wait_handle_to_wait_on,
-                                     bool is_alertable,
-                                     std::chrono::milliseconds timeout) {
+WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal,
+                         WaitHandle* wait_handle_to_wait_on, bool is_alertable,
+                         std::chrono::milliseconds timeout) {
   HANDLE handle_to_signal = wait_handle_to_signal->native_handle();
   HANDLE handle_to_wait_on = wait_handle_to_wait_on->native_handle();
   DWORD result =
@@ -146,9 +145,10 @@ WaitResult WaitHandle::SignalAndWait(WaitHandle* wait_handle_to_signal,
   }
 }
 
-std::pair<WaitResult, size_t> WaitHandle::WaitMultiple(
-    WaitHandle* wait_handles[], size_t wait_handle_count, bool wait_all,
-    bool is_alertable, std::chrono::milliseconds timeout) {
+std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
+                                           size_t wait_handle_count,
+                                           bool wait_all, bool is_alertable,
+                                           std::chrono::milliseconds timeout) {
   std::vector<HANDLE> handles(wait_handle_count);
   for (size_t i = 0; i < wait_handle_count; ++i) {
     handles[i] = wait_handles[i]->native_handle();

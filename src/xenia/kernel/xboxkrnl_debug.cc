@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xthread.h"
@@ -17,7 +18,7 @@
 namespace xe {
 namespace kernel {
 
-void DbgBreakPoint() { DebugBreak(); }
+void DbgBreakPoint() { xe::debugging::Break(); }
 DECLARE_XBOXKRNL_EXPORT(DbgBreakPoint, ExportTag::kImportant);
 
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
@@ -79,13 +80,13 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
   if (record->exception_code == 0xE06D7363) {
     // C++ exception.
     // http://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
-    DebugBreak();
+    xe::debugging::Break();
     return;
   }
 
   // TODO(benvanik): unwinding.
   // This is going to suck.
-  DebugBreak();
+  xe::debugging::Break();
 }
 DECLARE_XBOXKRNL_EXPORT(RtlRaiseException, ExportTag::kImportant);
 
@@ -94,7 +95,7 @@ void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
   XELOGD("*** STOP: 0x%.8X (0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X)", code, param1,
          param2, param3, param4);
   fflush(stdout);
-  DebugBreak();
+  xe::debugging::Break();
   assert_always();
 }
 DECLARE_XBOXKRNL_EXPORT(KeBugCheckEx, ExportTag::kImportant);

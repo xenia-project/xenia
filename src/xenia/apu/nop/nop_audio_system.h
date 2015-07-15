@@ -23,7 +23,7 @@ class NopAudioSystem : public AudioSystem {
 
   static std::unique_ptr<AudioSystem> Create(Emulator* emulator);
 
-  X_STATUS CreateDriver(size_t index, HANDLE wait_handle,
+  X_STATUS CreateDriver(size_t index, xe::threading::Semaphore* semaphore,
                         AudioDriver** out_driver) override;
   void DestroyDriver(AudioDriver* driver) override;
 };

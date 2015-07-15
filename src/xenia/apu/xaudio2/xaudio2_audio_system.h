@@ -23,7 +23,7 @@ class XAudio2AudioSystem : public AudioSystem {
 
   static std::unique_ptr<AudioSystem> Create(Emulator* emulator);
 
-  X_RESULT CreateDriver(size_t index, HANDLE semaphore,
+  X_RESULT CreateDriver(size_t index, xe::threading::Semaphore* semaphore,
                         AudioDriver** out_driver) override;
   void DestroyDriver(AudioDriver* driver) override;
 

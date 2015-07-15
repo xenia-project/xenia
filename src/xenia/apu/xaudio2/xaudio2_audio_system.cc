@@ -30,7 +30,8 @@ XAudio2AudioSystem::~XAudio2AudioSystem() {}
 
 void XAudio2AudioSystem::Initialize() { AudioSystem::Initialize(); }
 
-X_STATUS XAudio2AudioSystem::CreateDriver(size_t index, HANDLE semaphore,
+X_STATUS XAudio2AudioSystem::CreateDriver(size_t index,
+                                          xe::threading::Semaphore* semaphore,
                                           AudioDriver** out_driver) {
   assert_not_null(out_driver);
   auto driver = new XAudio2AudioDriver(emulator_, semaphore);

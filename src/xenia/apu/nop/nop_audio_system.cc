@@ -23,7 +23,8 @@ NopAudioSystem::NopAudioSystem(Emulator* emulator) : AudioSystem(emulator) {}
 
 NopAudioSystem::~NopAudioSystem() = default;
 
-X_STATUS NopAudioSystem::CreateDriver(size_t index, HANDLE wait_handle,
+X_STATUS NopAudioSystem::CreateDriver(size_t index,
+                                      xe::threading::Semaphore* semaphore,
                                       AudioDriver** out_driver) {
   return X_STATUS_NOT_IMPLEMENTED;
 }
