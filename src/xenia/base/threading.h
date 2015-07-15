@@ -14,9 +14,11 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace xe {
 namespace threading {
@@ -67,15 +69,107 @@ void Sleep(std::chrono::duration<Rep, Period> duration) {
   Sleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
+// Results for a WaitHandle operation.
+enum class WaitResult {
+  // The state of the specified object is signaled.
+  // In a WaitAny the tuple will contain the index of the wait handle that
+  // caused the wait to be satisfied.
+  kSuccess,
+  // The wait was ended by one or more user-mode callbacks queued to the thread.
+  // This will occur when is_alertable is set true.
+  kUserCallback,
+  // The time-out interval elapsed, and the object's state is nonsignaled.
+  kTimeout,
+  // The specified object is a mutex object that was not released by the thread
+  // that owned the mutex object before the owning thread terminated. Ownership
+  // of the mutex object is granted to the calling thread and the mutex is set
+  // to nonsignaled.
+  // In a WaitAny the tuple will contain the index of the wait handle that
+  // caused the wait to be abandoned.
+  kAbandoned,
+  // The function has failed.
+  kFailed,
+};
+
 class WaitHandle {
  public:
-  // bool Wait();
-  // static bool Wait();
-  // static bool SignalAndWait();
-  // static bool WaitMultiple();
+  virtual ~WaitHandle() = default;
+
+  // Waits until the wait handle is in the signaled state, an alert triggers and
+  // a user callback is queued to the thread, or the timeout interval elapses.
+  // If timeout is zero the call will return immediately instead of waiting and
+  // if the timeout is max() the wait will not time out.
+  inline WaitResult Wait(
+      bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+    return WaitHandle::Wait(this, is_alertable, timeout);
+  }
+
+  // Waits until the wait handle is in the signaled state, an alert triggers and
+  // a user callback is queued to the thread, or the timeout interval elapses.
+  // If timeout is zero the call will return immediately instead of waiting and
+  // if the timeout is max() the wait will not time out.
+  static WaitResult Wait(
+      WaitHandle* wait_handle, bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+
+  // Signals one object and waits on another object as a single operation.
+  // Waits until the wait handle is in the signaled state, an alert triggers and
+  // a user callback is queued to the thread, or the timeout interval elapses.
+  // If timeout is zero the call will return immediately instead of waiting and
+  // if the timeout is max() the wait will not time out.
+  static WaitResult SignalAndWait(
+      WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on,
+      bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+
+  // Waits until all of the specified objects are in the signaled state, a
+  // user callback is queued to the thread, or the time-out interval elapses.
+  // If timeout is zero the call will return immediately instead of waiting and
+  // if the timeout is max() the wait will not time out.
+  inline static WaitResult WaitAll(
+      WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+    return WaitMultiple(wait_handles, wait_handle_count, true, is_alertable,
+                        timeout).first;
+  }
+  inline static WaitResult WaitAll(
+      std::vector<WaitHandle*> wait_handles, bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+    return WaitAll(wait_handles.data(), wait_handles.size(), is_alertable,
+                   timeout);
+  }
+
+  // Waits until any of the specified objects are in the signaled state, a
+  // user callback is queued to the thread, or the time-out interval elapses.
+  // If timeout is zero the call will return immediately instead of waiting and
+  // if the timeout is max() the wait will not time out.
+  // The second argument of the return tuple indicates which wait handle caused
+  // the wait to be satisfied or abandoned.
+  inline static std::pair<WaitResult, size_t> WaitAny(
+      WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+    return WaitMultiple(wait_handles, wait_handle_count, false, is_alertable,
+                        timeout);
+  }
+  inline static std::pair<WaitResult, size_t> WaitAny(
+      std::vector<WaitHandle*> wait_handles, bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+    return WaitAny(wait_handles.data(), wait_handles.size(), is_alertable,
+                   timeout);
+  }
 
  protected:
   WaitHandle() = default;
+
+  // Returns the native handle of the object on the host system.
+  // This value is platform specific.
+  virtual void* native_handle() const = 0;
+
+  static std::pair<WaitResult, size_t> WaitMultiple(
+      WaitHandle* wait_handles[], size_t wait_handle_count, bool wait_all,
+      bool is_alertable,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 };
 
 // Models a Win32-like event object.
@@ -118,7 +212,8 @@ class Semaphore : public WaitHandle {
   // decreased by one whenever a wait function releases a thread that was
   // waiting for the semaphore. The count is increased  by a specified amount by
   // calling the Release() function.
-  std::unique_ptr<Semaphore> Create(int initial_count, int maximum_count);
+  static std::unique_ptr<Semaphore> Create(int initial_count,
+                                           int maximum_count);
 
   // Increases the count of the specified semaphore object by a specified
   // amount.
@@ -134,7 +229,7 @@ class Mutant : public WaitHandle {
  public:
   // Creates a new mutant object, initially owned by the calling thread if
   // specified.
-  std::unique_ptr<Mutant> Create(bool initial_owner);
+  static std::unique_ptr<Mutant> Create(bool initial_owner);
 
   // Releases ownership of the specified mutex object.
   // Returns false if the calling thread does not own the mutant object.
@@ -145,11 +240,11 @@ class Timer : public WaitHandle {
  public:
   // Creates a timer whose state remains signaled until SetOnce() or
   // SetRepeating() is called to establish a new due time.
-  std::unique_ptr<Timer> CreateManualResetTimer();
+  static std::unique_ptr<Timer> CreateManualResetTimer();
 
   // Creates a timer whose state remains signaled until a thread completes a
   // wait operation on the timer object.
-  std::unique_ptr<Timer> CreateSynchronizationTimer();
+  static std::unique_ptr<Timer> CreateSynchronizationTimer();
 
   // Activates the specified waitable timer. When the due time arrives, the
   // timer is signaled and the thread that set the timer calls the optional

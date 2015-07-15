@@ -67,22 +67,98 @@ void Sleep(std::chrono::microseconds duration) {
   }
 }
 
-class Win32Handle {
+template <typename T>
+class Win32Handle : public T {
  public:
   Win32Handle(HANDLE handle) : handle_(handle) {}
-  virtual ~Win32Handle() {
+  ~Win32Handle() override {
     CloseHandle(handle_);
     handle_ = nullptr;
   }
 
  protected:
+  void* native_handle() const override { return handle_; }
+
   HANDLE handle_ = nullptr;
 };
 
-class Win32Event : public Event, public Win32Handle {
+WaitResult WaitHandle::Wait(WaitHandle* wait_handle, bool is_alertable,
+                            std::chrono::milliseconds timeout) {
+  HANDLE handle = wait_handle->native_handle();
+  DWORD result = WaitForSingleObjectEx(handle, DWORD(timeout.count()),
+                                       is_alertable ? TRUE : FALSE);
+  switch (result) {
+    case WAIT_OBJECT_0:
+      return WaitResult::kSuccess;
+    case WAIT_ABANDONED:
+      return WaitResult::kAbandoned;
+    case WAIT_IO_COMPLETION:
+      return WaitResult::kUserCallback;
+    case WAIT_TIMEOUT:
+      return WaitResult::kTimeout;
+    default:
+    case WAIT_FAILED:
+      return WaitResult::kFailed;
+  }
+}
+
+WaitResult WaitHandle::SignalAndWait(WaitHandle* wait_handle_to_signal,
+                                     WaitHandle* wait_handle_to_wait_on,
+                                     bool is_alertable,
+                                     std::chrono::milliseconds timeout) {
+  HANDLE handle_to_signal = wait_handle_to_signal->native_handle();
+  HANDLE handle_to_wait_on = wait_handle_to_wait_on->native_handle();
+  DWORD result =
+      SignalObjectAndWait(handle_to_signal, handle_to_wait_on,
+                          DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
+  switch (result) {
+    case WAIT_OBJECT_0:
+      return WaitResult::kSuccess;
+    case WAIT_ABANDONED:
+      return WaitResult::kAbandoned;
+    case WAIT_IO_COMPLETION:
+      return WaitResult::kUserCallback;
+    case WAIT_TIMEOUT:
+      return WaitResult::kTimeout;
+    default:
+    case WAIT_FAILED:
+      return WaitResult::kFailed;
+  }
+}
+
+std::pair<WaitResult, size_t> WaitHandle::WaitMultiple(
+    WaitHandle* wait_handles[], size_t wait_handle_count, bool wait_all,
+    bool is_alertable, std::chrono::milliseconds timeout) {
+  std::vector<HANDLE> handles(wait_handle_count);
+  for (size_t i = 0; i < wait_handle_count; ++i) {
+    handles[i] = wait_handles[i]->native_handle();
+  }
+  DWORD result = WaitForMultipleObjectsEx(
+      DWORD(handles.size()), handles.data(), wait_all ? TRUE : FALSE,
+      DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
+  if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0 + handles.size()) {
+    return std::pair<WaitResult, size_t>(WaitResult::kSuccess,
+                                         result - WAIT_OBJECT_0);
+  } else if (result >= WAIT_ABANDONED_0 &&
+             result < WAIT_ABANDONED_0 + handles.size()) {
+    return std::pair<WaitResult, size_t>(WaitResult::kAbandoned,
+                                         result - WAIT_ABANDONED_0);
+  }
+  switch (result) {
+    case WAIT_IO_COMPLETION:
+      return std::pair<WaitResult, size_t>(WaitResult::kUserCallback, 0);
+    case WAIT_TIMEOUT:
+      return std::pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
+    default:
+    case WAIT_FAILED:
+      return std::pair<WaitResult, size_t>(WaitResult::kFailed, 0);
+  }
+}
+
+class Win32Event : public Win32Handle<Event> {
  public:
   Win32Event(HANDLE handle) : Win32Handle(handle) {}
-  ~Win32Event() = default;
+  ~Win32Event() override = default;
   void Set() override { SetEvent(handle_); }
   void Reset() override { ResetEvent(handle_); }
   void Pulse() override { PulseEvent(handle_); }
@@ -98,7 +174,7 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
       CreateEvent(nullptr, FALSE, initial_state ? TRUE : FALSE, nullptr));
 }
 
-class Win32Semaphore : public Semaphore, public Win32Handle {
+class Win32Semaphore : public Win32Handle<Semaphore> {
  public:
   Win32Semaphore(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Semaphore() override = default;
@@ -116,7 +192,7 @@ std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
       CreateSemaphore(nullptr, initial_count, maximum_count, nullptr));
 }
 
-class Win32Mutant : public Mutant, public Win32Handle {
+class Win32Mutant : public Win32Handle<Mutant> {
  public:
   Win32Mutant(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Mutant() = default;
@@ -128,7 +204,7 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
       CreateMutex(nullptr, initial_owner ? TRUE : FALSE, nullptr));
 }
 
-class Win32Timer : public Timer, public Win32Handle {
+class Win32Timer : public Win32Handle<Timer> {
  public:
   Win32Timer(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Timer() = default;
