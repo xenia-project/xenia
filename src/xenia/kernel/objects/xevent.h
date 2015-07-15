@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XEVENT_H_
 #define XENIA_KERNEL_XBOXKRNL_XEVENT_H_
 
-#include "xenia/base/platform_win.h"
+#include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -20,7 +20,7 @@ namespace kernel {
 class XEvent : public XObject {
  public:
   XEvent(KernelState* kernel_state);
-  virtual ~XEvent();
+  ~XEvent() override;
 
   void Initialize(bool manual_reset, bool initial_state);
   void InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header);
@@ -30,10 +30,10 @@ class XEvent : public XObject {
   int32_t Reset();
   void Clear();
 
-  virtual void* GetWaitHandle() { return native_handle_; }
+  xe::threading::WaitHandle* GetWaitHandle() override { return event_.get(); }
 
  private:
-  HANDLE native_handle_;
+  std::unique_ptr<xe::threading::Event> event_;
 };
 
 }  // namespace kernel

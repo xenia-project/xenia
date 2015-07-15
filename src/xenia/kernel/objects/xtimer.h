@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XTIMER_H_
 #define XENIA_KERNEL_XBOXKRNL_XTIMER_H_
 
-#include "xenia/base/platform_win.h"
+#include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -20,7 +20,7 @@ namespace kernel {
 class XTimer : public XObject {
  public:
   XTimer(KernelState* kernel_state);
-  virtual ~XTimer();
+  ~XTimer() override;
 
   void Initialize(uint32_t timer_type);
 
@@ -29,16 +29,13 @@ class XTimer : public XObject {
                     uint32_t routine_arg, bool resume);
   X_STATUS Cancel();
 
-  virtual void* GetWaitHandle() { return native_handle_; }
+  xe::threading::WaitHandle* GetWaitHandle() override { return timer_.get(); }
 
  private:
-  HANDLE native_handle_;
+  std::unique_ptr<xe::threading::Timer> timer_;
 
   uint32_t current_routine_;
   uint32_t current_routine_arg_;
-
-  static void CompletionRoutine(XTimer* timer, DWORD timer_low,
-                                DWORD timer_high);
 };
 
 }  // namespace kernel

@@ -19,9 +19,7 @@ namespace kernel {
 XFile::XFile(KernelState* kernel_state, uint32_t file_access, vfs::Entry* entry)
     : XObject(kernel_state, kTypeFile),
       entry_(entry),
-      file_access_(file_access),
-      position_(0),
-      find_index_(0) {
+      file_access_(file_access) {
   async_event_ = new XEvent(kernel_state);
   async_event_->Initialize(false, false);
 }
@@ -31,8 +29,6 @@ XFile::~XFile() {
   async_event_->Set(0, false);
   async_event_->Delete();
 }
-
-void* XFile::GetWaitHandle() { return async_event_->GetWaitHandle(); }
 
 X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
                                size_t length, const char* file_name,

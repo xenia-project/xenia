@@ -45,7 +45,8 @@ class Fence {
   std::atomic<bool> signaled_;
 };
 
-// TODO(benvanik): processor info API.
+// Returns the total number of logical processors in the host system.
+uint32_t logical_processor_count();
 
 // Gets a stable thread-specific ID, but may not be. Use for informative
 // purposes only.
@@ -67,6 +68,21 @@ void Sleep(std::chrono::microseconds duration);
 template <typename Rep, typename Period>
 void Sleep(std::chrono::duration<Rep, Period> duration) {
   Sleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
+}
+
+enum class SleepResult {
+  kSuccess,
+  kAlerted,
+};
+// Sleeps the current thread for at least as long as the given duration.
+// The thread is put in an alertable state and may wake to dispatch user
+// callbacks. If this happens the sleep returns early with
+// SleepResult::kAlerted.
+SleepResult AlertableSleep(std::chrono::microseconds duration);
+template <typename Rep, typename Period>
+SleepResult AlertableSleep(std::chrono::duration<Rep, Period> duration) {
+  return AlertableSleep(
+      std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
 // Results for a WaitHandle operation.
@@ -236,6 +252,8 @@ class Mutant : public WaitHandle {
   virtual bool Release() = 0;
 };
 
+// Models a Win32-like timer object.
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms687012(v=vs.85).aspx
 class Timer : public WaitHandle {
  public:
   // Creates a timer whose state remains signaled until SetOnce() or
@@ -277,6 +295,83 @@ class Timer : public WaitHandle {
   // remains in that state.
   // Returns true on success.
   virtual bool Cancel() = 0;
+};
+
+struct ThreadPriority {
+  static const int32_t kLowest = -2;
+  static const int32_t kBelowNormal = -1;
+  static const int32_t kNormal = 0;
+  static const int32_t kAboveNormal = 1;
+  static const int32_t kHighest = 2;
+};
+
+// Models a Win32-like thread object.
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms682453(v=vs.85).aspx
+class Thread : public WaitHandle {
+ public:
+  struct CreationParameters {
+    size_t stack_size = 4 * 1024 * 1024;
+    bool create_suspended = false;
+    int32_t initial_priority = 0;
+  };
+
+  // Creates a thread with the given parameters and calls the start routine from
+  // within that thread.
+  static std::unique_ptr<Thread> Create(CreationParameters params,
+                                        std::function<void()> start_routine);
+
+  // Returns the current name of the thread, if previously specified.
+  std::string name() const { return name_; }
+
+  // Sets the name of the thread, used in debugging and logging.
+  virtual void set_name(std::string name) { name_ = std::move(name); }
+
+  // Returns the current priority value for the thread.
+  virtual int32_t priority() = 0;
+
+  // Sets the priority value for the thread. This value, together with the
+  // priority class of the thread's process, determines the thread's base
+  // priority level. ThreadPriority contains useful constants.
+  virtual void set_priority(int32_t new_priority) = 0;
+
+  // Returns the current processor affinity mask for the thread.
+  virtual uint64_t affinity_mask() = 0;
+
+  // Sets a processor affinity mask for the thread.
+  // A thread affinity mask is a bit vector in which each bit represents a
+  // logical processor that a thread is allowed to run on. A thread affinity
+  // mask must be a subset of the process affinity mask for the containing
+  // process of a thread.
+  virtual void set_affinity_mask(uint64_t new_affinity_mask) = 0;
+
+  // Adds a user-mode asynchronous procedure call request to the thread queue.
+  // When a user-mode APC is queued, the thread is not directed to call the APC
+  // function unless it is in an alertable state. After the thread is in an
+  // alertable state, the thread handles all pending APCs in first in, first out
+  // (FIFO) order, and the wait operation returns WaitResult::kUserCallback.
+  virtual void QueueUserCallback(std::function<void()> callback) = 0;
+
+  // Decrements a thread's suspend count. When the suspend count is decremented
+  // to zero, the execution of the thread is resumed.
+  virtual bool Resume(uint32_t* out_new_suspend_count = nullptr) = 0;
+
+  // Suspends the specified thread.
+  virtual bool Suspend(uint32_t* out_previous_suspend_count = nullptr) = 0;
+
+  // Ends the calling thread.
+  // No destructors are called, and this function does not return.
+  // The state of the thread object becomes signaled, releasing any other
+  // threads that had been waiting for the thread to terminate.
+  virtual void Exit(int exit_code) = 0;
+
+  // Terminates the thread.
+  // No destructors are called, and this function does not return.
+  // The state of the thread object becomes signaled, releasing any other
+  // threads that had been waiting for the thread to terminate.
+  virtual void Terminate(int exit_code) = 0;
+
+ protected:
+  std::string name_;
 };
 
 }  // namespace threading

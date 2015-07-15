@@ -13,23 +13,22 @@
 namespace xe {
 namespace kernel {
 
-XEvent::XEvent(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeEvent), native_handle_(NULL) {}
+XEvent::XEvent(KernelState* kernel_state) : XObject(kernel_state, kTypeEvent) {}
 
-XEvent::~XEvent() {
-  if (native_handle_) {
-    CloseHandle(native_handle_);
+XEvent::~XEvent() = default;
+
+void XEvent::Initialize(bool manual_reset, bool initial_state) {
+  assert_false(event_);
+
+  if (manual_reset) {
+    event_ = xe::threading::Event::CreateManualResetEvent(initial_state);
+  } else {
+    event_ = xe::threading::Event::CreateAutoResetEvent(initial_state);
   }
 }
 
-void XEvent::Initialize(bool manual_reset, bool initial_state) {
-  assert_null(native_handle_);
-
-  native_handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
-}
-
 void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
-  assert_null(native_handle_);
+  assert_false(event_);
 
   bool manual_reset;
   switch (header.type) {
@@ -45,21 +44,25 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
   }
 
   bool initial_state = header.signal_state ? true : false;
-
-  native_handle_ = CreateEvent(NULL, manual_reset, initial_state, NULL);
+  Initialize(manual_reset, initial_state);
 }
 
 int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
-  return SetEvent(native_handle_) ? 1 : 0;
+  event_->Set();
+  return 1;
 }
 
 int32_t XEvent::Pulse(uint32_t priority_increment, bool wait) {
-  return PulseEvent(native_handle_) ? 1 : 0;
+  event_->Pulse();
+  return 1;
 }
 
-int32_t XEvent::Reset() { return ResetEvent(native_handle_) ? 1 : 0; }
+int32_t XEvent::Reset() {
+  event_->Reset();
+  return 1;
+}
 
-void XEvent::Clear() { ResetEvent(native_handle_); }
+void XEvent::Clear() { event_->Reset(); }
 
 }  // namespace kernel
 }  // namespace xe

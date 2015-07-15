@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_
 #define XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_
 
-#include "xenia/base/platform_win.h"
+#include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -25,17 +25,19 @@ struct X_SEMAPHORE {
 class XSemaphore : public XObject {
  public:
   XSemaphore(KernelState* kernel_state);
-  virtual ~XSemaphore();
+  ~XSemaphore() override;
 
   void Initialize(int32_t initial_count, int32_t maximum_count);
   void InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header);
 
   int32_t ReleaseSemaphore(int32_t release_count);
 
-  virtual void* GetWaitHandle() { return native_handle_; }
+  xe::threading::WaitHandle* GetWaitHandle() override {
+    return semaphore_.get();
+  }
 
  private:
-  HANDLE native_handle_;
+  std::unique_ptr<xe::threading::Semaphore> semaphore_;
 };
 
 }  // namespace kernel

@@ -16,32 +16,25 @@
 namespace xe {
 namespace kernel {
 
-XTimer::XTimer(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeTimer), native_handle_(NULL) {}
+XTimer::XTimer(KernelState* kernel_state) : XObject(kernel_state, kTypeTimer) {}
 
-XTimer::~XTimer() {
-  if (native_handle_) {
-    CloseHandle(native_handle_);
-  }
-}
+XTimer::~XTimer() = default;
 
 void XTimer::Initialize(uint32_t timer_type) {
-  assert_null(native_handle_);
+  assert_false(timer_);
 
   bool manual_reset = false;
   switch (timer_type) {
     case 0:  // NotificationTimer
-      manual_reset = true;
+      timer_ = xe::threading::Timer::CreateManualResetTimer();
       break;
     case 1:  // SynchronizationTimer
-      manual_reset = false;
+      timer_ = xe::threading::Timer::CreateSynchronizationTimer();
       break;
     default:
       assert_always();
       break;
   }
-
-  native_handle_ = CreateWaitableTimer(NULL, manual_reset, NULL);
 }
 
 X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
@@ -54,34 +47,29 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,
   // Stash routine for callback.
   current_routine_ = routine;
   current_routine_arg_ = routine_arg;
+  if (current_routine_) {
+    // Queue APC to call back routine with (arg, low, high).
+    // TODO(benvanik): APC dispatch.
+    XELOGE("Timer needs APC!");
+    assert_zero(current_routine_);
+  }
 
   due_time = Clock::ScaleGuestDurationFileTime(due_time);
   period_ms = Clock::ScaleGuestDurationMillis(period_ms);
 
-  LARGE_INTEGER due_time_li;
-  due_time_li.QuadPart = due_time;
-  BOOL result =
-      SetWaitableTimer(native_handle_, &due_time_li, period_ms,
-                       routine ? (PTIMERAPCROUTINE)CompletionRoutine : NULL,
-                       this, resume ? TRUE : FALSE);
+  bool result;
+  if (!period_ms) {
+    result = timer_->SetOnce(std::chrono::nanoseconds(due_time * 100));
+  } else {
+    result = timer_->SetRepeating(std::chrono::nanoseconds(due_time * 100),
+                                  std::chrono::milliseconds(period_ms));
+  }
 
   return result ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
-void XTimer::CompletionRoutine(XTimer* timer, DWORD timer_low,
-                               DWORD timer_high) {
-  assert_true(timer->current_routine_);
-
-  // Queue APC to call back routine with (arg, low, high).
-  // TODO(benvanik): APC dispatch.
-  XELOGE("Timer needs APC!");
-
-  DebugBreak();
-}
-
 X_STATUS XTimer::Cancel() {
-  return CancelWaitableTimer(native_handle_) == 0 ? X_STATUS_SUCCESS
-                                                  : X_STATUS_UNSUCCESSFUL;
+  return timer_->Cancel() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
 }  // namespace kernel

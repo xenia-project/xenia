@@ -12,6 +12,7 @@
 
 #include <atomic>
 
+#include "xenia/base/threading.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -148,7 +149,7 @@ class XObject {
         GetNativeObject(kernel_state, native_ptr, as_type).release()));
   }
 
-  virtual void* GetWaitHandle() { return 0; }
+  virtual xe::threading::WaitHandle* GetWaitHandle() { return nullptr; }
 
  protected:
   // Creates the kernel object for guest code to use. Typically not needed.

@@ -13,32 +13,28 @@ namespace xe {
 namespace kernel {
 
 XSemaphore::XSemaphore(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeSemaphore), native_handle_(NULL) {}
+    : XObject(kernel_state, kTypeSemaphore) {}
 
-XSemaphore::~XSemaphore() {
-  if (native_handle_) {
-    CloseHandle(native_handle_);
-  }
-}
+XSemaphore::~XSemaphore() = default;
 
 void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
-  assert_null(native_handle_);
+  assert_false(semaphore_);
 
   CreateNative(sizeof(X_SEMAPHORE));
 
-  native_handle_ = CreateSemaphore(NULL, initial_count, maximum_count, NULL);
+  semaphore_ = xe::threading::Semaphore::Create(initial_count, maximum_count);
 }
 
 void XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
-  assert_null(native_handle_);
+  assert_false(semaphore_);
 
   // NOT IMPLEMENTED
   // We expect Initialize to be called shortly.
 }
 
 int32_t XSemaphore::ReleaseSemaphore(int32_t release_count) {
-  LONG previous_count = 0;
-  ::ReleaseSemaphore(native_handle_, release_count, &previous_count);
+  int32_t previous_count = 0;
+  semaphore_->Release(release_count, &previous_count);
   return previous_count;
 }
 

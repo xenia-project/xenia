@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_XBOXKRNL_XFILE_H_
 
 #include "xenia/base/filesystem.h"
+#include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
@@ -21,7 +22,6 @@ namespace xe {
 namespace kernel {
 
 class XAsyncRequest;
-class XEvent;
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff545822.aspx
 struct X_FILE_NETWORK_OPEN_INFORMATION {
@@ -100,7 +100,9 @@ class XFile : public XObject {
   X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
                  size_t* out_bytes_written);
 
-  virtual void* GetWaitHandle();
+  xe::threading::WaitHandle* GetWaitHandle() override {
+    return async_event_->GetWaitHandle();
+  }
 
  protected:
   XFile(KernelState* kernel_state, uint32_t file_access, vfs::Entry* entry);
@@ -112,16 +114,16 @@ class XFile : public XObject {
   }
 
  private:
-  vfs::Entry* entry_;
-  uint32_t file_access_;
-  XEvent* async_event_;
+  vfs::Entry* entry_ = nullptr;
+  uint32_t file_access_ = 0;
+  XEvent* async_event_ = nullptr;
 
   // TODO(benvanik): create flags, open state, etc.
 
-  size_t position_;
+  size_t position_ = 0;
 
   xe::filesystem::WildcardEngine find_engine_;
-  size_t find_index_;
+  size_t find_index_ = 0;
 };
 
 }  // namespace kernel

@@ -10,10 +10,11 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 #define XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
 
-#include <mutex>
+#include <memory>
 #include <unordered_map>
 
 #include "xenia/base/mutex.h"
+#include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -25,7 +26,7 @@ namespace kernel {
 class XNotifyListener : public XObject {
  public:
   XNotifyListener(KernelState* kernel_state);
-  virtual ~XNotifyListener();
+  ~XNotifyListener() override;
 
   uint64_t mask() const { return mask_; }
 
@@ -35,14 +36,14 @@ class XNotifyListener : public XObject {
   bool DequeueNotification(XNotificationID* out_id, uint32_t* out_data);
   bool DequeueNotification(XNotificationID id, uint32_t* out_data);
 
-  virtual void* GetWaitHandle() { return wait_handle_; }
+  xe::threading::WaitHandle* GetWaitHandle() { return wait_handle_.get(); }
 
  private:
-  HANDLE wait_handle_;
+  std::unique_ptr<xe::threading::Event> wait_handle_;
   xe::mutex lock_;
   std::unordered_map<XNotificationID, uint32_t> notifications_;
-  size_t notification_count_;
-  uint64_t mask_;
+  size_t notification_count_ = 0;
+  uint64_t mask_ = 0;
 };
 
 }  // namespace kernel

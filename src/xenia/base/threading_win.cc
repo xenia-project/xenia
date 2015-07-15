@@ -9,10 +9,22 @@
 
 #include "xenia/base/threading.h"
 
+#include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 
 namespace xe {
 namespace threading {
+
+uint32_t logical_processor_count() {
+  static uint32_t value = 0;
+  if (!value) {
+    SYSTEM_INFO system_info;
+    GetSystemInfo(&system_info);
+    value = system_info.dwNumberOfProcessors;
+  }
+  return value;
+}
 
 uint32_t current_thread_id() {
   return static_cast<uint32_t>(GetCurrentThreadId());
@@ -65,6 +77,14 @@ void Sleep(std::chrono::microseconds duration) {
   } else {
     ::Sleep(static_cast<DWORD>(duration.count() / 1000));
   }
+}
+
+SleepResult AlertableSleep(std::chrono::microseconds duration) {
+  if (SleepEx(static_cast<DWORD>(duration.count() / 1000), TRUE) ==
+      WAIT_IO_COMPLETION) {
+    return SleepResult::kAlerted;
+  }
+  return SleepResult::kSuccess;
 }
 
 template <typename T>
@@ -266,6 +286,117 @@ std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
 
 std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
   return std::make_unique<Win32Timer>(CreateWaitableTimer(NULL, FALSE, NULL));
+}
+
+class Win32Thread : public Win32Handle<Thread> {
+ public:
+  Win32Thread(HANDLE handle) : Win32Handle(handle) {}
+  ~Win32Thread() = default;
+
+  void set_name(std::string name) override {
+    AssertCallingThread();
+    xe::threading::set_name(name);
+    Thread::set_name(name);
+  }
+
+  int32_t priority() override { return GetThreadPriority(handle_); }
+
+  void set_priority(int32_t new_priority) override {
+    SetThreadPriority(handle_, new_priority);
+  }
+
+  uint64_t affinity_mask() override {
+    uint64_t value = 0;
+    SetThreadAffinityMask(handle_, reinterpret_cast<DWORD_PTR>(&value));
+    return value;
+  }
+
+  void set_affinity_mask(uint64_t new_affinity_mask) override {
+    SetThreadAffinityMask(handle_, new_affinity_mask);
+  }
+
+  struct ApcData {
+    std::function<void()> callback;
+  };
+  static void NTAPI DispatchApc(ULONG_PTR parameter) {
+    auto apc_data = reinterpret_cast<ApcData*>(parameter);
+    apc_data->callback();
+    delete apc_data;
+  }
+
+  void QueueUserCallback(std::function<void()> callback) override {
+    auto apc_data = new ApcData({std::move(callback)});
+    QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc_data));
+  }
+
+  bool Resume(uint32_t* out_new_suspend_count = nullptr) override {
+    if (out_new_suspend_count) {
+      *out_new_suspend_count = 0;
+    }
+    DWORD result = ResumeThread(handle_);
+    if (result == UINT_MAX) {
+      return false;
+    }
+    if (out_new_suspend_count) {
+      *out_new_suspend_count = result;
+    }
+    return true;
+  }
+
+  bool Suspend(uint32_t* out_previous_suspend_count = nullptr) override {
+    if (out_previous_suspend_count) {
+      *out_previous_suspend_count = 0;
+    }
+    DWORD result = SuspendThread(handle_);
+    if (result == UINT_MAX) {
+      return false;
+    }
+    if (out_previous_suspend_count) {
+      *out_previous_suspend_count = result;
+    }
+    return true;
+  }
+
+  void Exit(int exit_code) override {
+    AssertCallingThread();
+    ExitThread(exit_code);
+  }
+
+  void Terminate(int exit_code) override {
+    TerminateThread(handle_, exit_code);
+  }
+
+ private:
+  void AssertCallingThread() {
+    assert_true(GetCurrentThreadId() == GetThreadId(handle_));
+  }
+};
+
+struct ThreadStartData {
+  std::function<void()> start_routine;
+};
+DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
+  auto start_data = reinterpret_cast<ThreadStartData*>(parameter);
+  start_data->start_routine();
+  delete start_data;
+  return 0;
+}
+
+std::unique_ptr<Thread> Thread::Create(CreationParameters params,
+                                       std::function<void()> start_routine) {
+  auto start_data = new ThreadStartData({std::move(start_routine)});
+  HANDLE handle =
+      CreateThread(NULL, params.stack_size, ThreadStartRoutine, start_data,
+                   params.create_suspended ? CREATE_SUSPENDED : 0, NULL);
+  if (!handle) {
+    // TODO(benvanik): pass back?
+    auto last_error = GetLastError();
+    XELOGE("Unable to CreateThread: %d", last_error);
+    delete start_data;
+    return nullptr;
+  }
+  GetThreadId(handle);
+  return std::make_unique<Win32Thread>(handle);
 }
 
 }  // namespace threading

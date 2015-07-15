@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
 #define XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
 
-#include "xenia/base/platform_win.h"
+#include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -20,17 +20,17 @@ namespace kernel {
 class XMutant : public XObject {
  public:
   XMutant(KernelState* kernel_state);
-  virtual ~XMutant();
+  ~XMutant() override;
 
   void Initialize(bool initial_owner);
   void InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header);
 
   X_STATUS ReleaseMutant(uint32_t priority_increment, bool abandon, bool wait);
 
-  virtual void* GetWaitHandle() { return native_handle_; }
+  xe::threading::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
 
  private:
-  HANDLE native_handle_;
+  std::unique_ptr<xe::threading::Mutant> mutant_;
 };
 
 }  // namespace kernel

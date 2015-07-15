@@ -14,6 +14,7 @@
 #include <mutex>
 #include <string>
 
+#include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
@@ -133,15 +134,10 @@ class XThread : public XObject {
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable,
                  uint64_t interval);
 
-  virtual void* GetWaitHandle();
+  xe::threading::WaitHandle* GetWaitHandle() override { return thread_.get(); }
 
  protected:
-  X_STATUS PlatformCreate();
-  void PlatformDestroy();
-  X_STATUS PlatformExit(int exit_code);
-  X_STATUS PlatformTerminate(int exit_code);
-
-  static void DeliverAPCs(void* data);
+  void DeliverAPCs();
   void RundownAPCs();
 
   struct {
@@ -153,7 +149,7 @@ class XThread : public XObject {
   } creation_params_;
 
   uint32_t thread_id_;
-  void* thread_handle_;
+  std::unique_ptr<xe::threading::Thread> thread_;
   uint32_t scratch_address_;
   uint32_t scratch_size_;
   uint32_t tls_address_;

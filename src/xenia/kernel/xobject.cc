@@ -117,28 +117,30 @@ uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {
 
 X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
                        uint32_t alertable, uint64_t* opt_timeout) {
-  void* wait_handle = GetWaitHandle();
+  auto wait_handle = GetWaitHandle();
   if (!wait_handle) {
     // Object doesn't support waiting.
     return X_STATUS_SUCCESS;
   }
 
-  DWORD timeout_ms = opt_timeout ? TimeoutTicksToMs(*opt_timeout) : INFINITE;
-  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
+  auto timeout_ms =
+      opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
+                        TimeoutTicksToMs(*opt_timeout)))
+                  : std::chrono::milliseconds::max();
 
-  DWORD result = WaitForSingleObjectEx(wait_handle, timeout_ms, alertable);
+  auto result = wait_handle->Wait(alertable ? true : false, timeout_ms);
   switch (result) {
-    case WAIT_OBJECT_0:
+    case xe::threading::WaitResult::kSuccess:
       return X_STATUS_SUCCESS;
-    case WAIT_IO_COMPLETION:
+    case xe::threading::WaitResult::kUserCallback:
       // Or X_STATUS_ALERTED?
       return X_STATUS_USER_APC;
-    case WAIT_TIMEOUT:
+    case xe::threading::WaitResult::kTimeout:
       YieldProcessor();
       return X_STATUS_TIMEOUT;
     default:
-    case WAIT_FAILED:
-    case WAIT_ABANDONED:
+    case xe::threading::WaitResult::kAbandoned:
+    case xe::threading::WaitResult::kFailed:
       return X_STATUS_ABANDONED_WAIT_0;
   }
 }
@@ -146,33 +148,81 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
 X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object,
                                 uint32_t wait_reason, uint32_t processor_mode,
                                 uint32_t alertable, uint64_t* opt_timeout) {
-  DWORD timeout_ms = opt_timeout ? TimeoutTicksToMs(*opt_timeout) : INFINITE;
-  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
+  auto timeout_ms =
+      opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
+                        TimeoutTicksToMs(*opt_timeout)))
+                  : std::chrono::milliseconds::max();
 
-  DWORD result = SignalObjectAndWait(signal_object->GetWaitHandle(),
-                                     wait_object->GetWaitHandle(), timeout_ms,
-                                     alertable ? TRUE : FALSE);
-
-  return result;
+  auto result = xe::threading::WaitHandle::SignalAndWait(
+      signal_object->GetWaitHandle(), wait_object->GetWaitHandle(),
+      alertable ? true : false, timeout_ms);
+  switch (result) {
+    case xe::threading::WaitResult::kSuccess:
+      return X_STATUS_SUCCESS;
+    case xe::threading::WaitResult::kUserCallback:
+      // Or X_STATUS_ALERTED?
+      return X_STATUS_USER_APC;
+    case xe::threading::WaitResult::kTimeout:
+      YieldProcessor();
+      return X_STATUS_TIMEOUT;
+    default:
+    case xe::threading::WaitResult::kAbandoned:
+    case xe::threading::WaitResult::kFailed:
+      return X_STATUS_ABANDONED_WAIT_0;
+  }
 }
 
 X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
                                uint32_t wait_type, uint32_t wait_reason,
                                uint32_t processor_mode, uint32_t alertable,
                                uint64_t* opt_timeout) {
-  HANDLE* wait_handles = (HANDLE*)alloca(sizeof(HANDLE) * count);
-  for (uint32_t n = 0; n < count; n++) {
-    wait_handles[n] = objects[n]->GetWaitHandle();
-    assert_not_null(wait_handles[n]);
+  std::vector<xe::threading::WaitHandle*> wait_handles(count);
+  for (size_t i = 0; i < count; ++i) {
+    wait_handles[i] = objects[i]->GetWaitHandle();
+    assert_not_null(wait_handles[i]);
   }
 
-  DWORD timeout_ms = opt_timeout ? TimeoutTicksToMs(*opt_timeout) : INFINITE;
-  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
+  auto timeout_ms =
+      opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
+                        TimeoutTicksToMs(*opt_timeout)))
+                  : std::chrono::milliseconds::max();
 
-  DWORD result = WaitForMultipleObjectsEx(
-      count, wait_handles, wait_type ? FALSE : TRUE, timeout_ms, alertable);
-
-  return result;
+  if (wait_type) {
+    auto result = xe::threading::WaitHandle::WaitAny(
+        std::move(wait_handles), alertable ? true : false, timeout_ms);
+    switch (result.first) {
+      case xe::threading::WaitResult::kSuccess:
+        return X_STATUS(result.second);
+      case xe::threading::WaitResult::kUserCallback:
+        // Or X_STATUS_ALERTED?
+        return X_STATUS_USER_APC;
+      case xe::threading::WaitResult::kTimeout:
+        YieldProcessor();
+        return X_STATUS_TIMEOUT;
+      default:
+      case xe::threading::WaitResult::kAbandoned:
+        return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
+      case xe::threading::WaitResult::kFailed:
+        return X_STATUS_UNSUCCESSFUL;
+    }
+  } else {
+    auto result = xe::threading::WaitHandle::WaitAll(
+        std::move(wait_handles), alertable ? true : false, timeout_ms);
+    switch (result) {
+      case xe::threading::WaitResult::kSuccess:
+        return X_STATUS_SUCCESS;
+      case xe::threading::WaitResult::kUserCallback:
+        // Or X_STATUS_ALERTED?
+        return X_STATUS_USER_APC;
+      case xe::threading::WaitResult::kTimeout:
+        YieldProcessor();
+        return X_STATUS_TIMEOUT;
+      default:
+      case xe::threading::WaitResult::kAbandoned:
+      case xe::threading::WaitResult::kFailed:
+        return X_STATUS_ABANDONED_WAIT_0;
+    }
+  }
 }
 
 uint8_t* XObject::CreateNative(uint32_t size) {

@@ -9,29 +9,22 @@
 
 #include "xenia/kernel/objects/xnotify_listener.h"
 
-#include "xenia/base/platform_win.h"
 #include "xenia/kernel/kernel_state.h"
 
 namespace xe {
 namespace kernel {
 
 XNotifyListener::XNotifyListener(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeNotifyListener),
-      wait_handle_(NULL),
-      mask_(0),
-      notification_count_(0) {}
+    : XObject(kernel_state, kTypeNotifyListener) {}
 
 XNotifyListener::~XNotifyListener() {
   kernel_state_->UnregisterNotifyListener(this);
-  if (wait_handle_) {
-    CloseHandle(wait_handle_);
-  }
 }
 
 void XNotifyListener::Initialize(uint64_t mask) {
-  assert_null(wait_handle_);
+  assert_false(wait_handle_);
 
-  wait_handle_ = CreateEvent(NULL, TRUE, FALSE, NULL);
+  wait_handle_ = xe::threading::Event::CreateManualResetEvent(false);
   mask_ = mask;
 
   kernel_state_->RegisterNotifyListener(this);
@@ -52,7 +45,7 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
     notification_count_++;
     notifications_.insert({id, data});
   }
-  SetEvent(wait_handle_);
+  wait_handle_->Set();
 }
 
 bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
@@ -67,7 +60,7 @@ bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
     notifications_.erase(it);
     notification_count_--;
     if (!notification_count_) {
-      ResetEvent(wait_handle_);
+      wait_handle_->Reset();
     }
   }
   return dequeued;
@@ -85,7 +78,7 @@ bool XNotifyListener::DequeueNotification(XNotificationID id,
       notifications_.erase(it);
       notification_count_--;
       if (!notification_count_) {
-        ResetEvent(wait_handle_);
+        wait_handle_->Reset();
       }
     }
   }
