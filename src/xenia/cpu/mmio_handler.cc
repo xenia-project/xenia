@@ -13,7 +13,6 @@
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
-#include "xenia/base/platform_win.h"
 
 namespace BE {
 #include <beaengine/BeaEngine.h>
@@ -105,9 +104,9 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
   // This means we need to round up, which will cause spurious access
   // violations and invalidations.
   // TODO(benvanik): only invalidate if actually within the region?
-  length =
-      xe::round_up(length + (base_address % xe::page_size()), xe::page_size());
-  base_address = base_address - (base_address % xe::page_size());
+  length = xe::round_up(length + (base_address % xe::memory::page_size()),
+                        xe::memory::page_size());
+  base_address = base_address - (base_address % xe::memory::page_size());
 
   // Add to table. The slot reservation may evict a previous watch, which
   // could include our target, so we do it first.
@@ -122,29 +121,33 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
   write_watch_mutex_.unlock();
 
   // Make the desired range read only under all address spaces.
-  DWORD old_protect;
-  VirtualProtect(physical_membase_ + entry->address, entry->length,
-                 PAGE_READONLY, &old_protect);
-  VirtualProtect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
-                 PAGE_READONLY, &old_protect);
-  VirtualProtect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
-                 PAGE_READONLY, &old_protect);
-  VirtualProtect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
-                 PAGE_READONLY, &old_protect);
+  xe::memory::Protect(physical_membase_ + entry->address, entry->length,
+                      xe::memory::PageAccess::kReadOnly, nullptr);
+  xe::memory::Protect(virtual_membase_ + 0xA0000000 + entry->address,
+                      entry->length, xe::memory::PageAccess::kReadOnly,
+                      nullptr);
+  xe::memory::Protect(virtual_membase_ + 0xC0000000 + entry->address,
+                      entry->length, xe::memory::PageAccess::kReadOnly,
+                      nullptr);
+  xe::memory::Protect(virtual_membase_ + 0xE0000000 + entry->address,
+                      entry->length, xe::memory::PageAccess::kReadOnly,
+                      nullptr);
 
   return reinterpret_cast<uintptr_t>(entry);
 }
 
 void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
-  DWORD old_protect;
-  VirtualProtect(physical_membase_ + entry->address, entry->length,
-                 PAGE_READWRITE, &old_protect);
-  VirtualProtect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
-                 PAGE_READWRITE, &old_protect);
-  VirtualProtect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
-                 PAGE_READWRITE, &old_protect);
-  VirtualProtect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
-                 PAGE_READWRITE, &old_protect);
+  xe::memory::Protect(physical_membase_ + entry->address, entry->length,
+                      xe::memory::PageAccess::kReadWrite, nullptr);
+  xe::memory::Protect(virtual_membase_ + 0xA0000000 + entry->address,
+                      entry->length, xe::memory::PageAccess::kReadWrite,
+                      nullptr);
+  xe::memory::Protect(virtual_membase_ + 0xC0000000 + entry->address,
+                      entry->length, xe::memory::PageAccess::kReadWrite,
+                      nullptr);
+  xe::memory::Protect(virtual_membase_ + 0xE0000000 + entry->address,
+                      entry->length, xe::memory::PageAccess::kReadWrite,
+                      nullptr);
 }
 
 void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {

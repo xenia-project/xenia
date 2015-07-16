@@ -540,7 +540,7 @@ dword_result_t NtQueryInformationFile(
 
         // TODO(benvanik): use pointer to fs:: entry?
         xe::store_and_swap<uint64_t>(file_info_ptr,
-                                     xe::hash_combine(0, file->path()));
+                                     xe::memory::hash_combine(0, file->path()));
         break;
       case XFilePositionInformation:
         // struct FILE_POSITION_INFORMATION {

@@ -18,6 +18,21 @@
 #include "xenia/base/byte_order.h"
 
 namespace xe {
+namespace memory {
+
+// Returns the native page size of the system, in bytes.
+size_t page_size();
+
+enum class PageAccess {
+  kNoAccess = 0,
+  kReadOnly,
+  kReadWrite,
+};
+
+// Sets the access rights for the given block of memory and returns the previous
+// access rights. Both base_address and length will be adjusted to page_size().
+bool Protect(void* base_address, size_t length, PageAccess access,
+             PageAccess* out_old_access);
 
 inline size_t hash_combine(size_t seed) { return seed; }
 
@@ -27,6 +42,10 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
   seed ^= hasher(v) + 0x9E3779B9 + (seed << 6) + (seed >> 2);
   return hash_combine(seed, vs...);
 }
+
+}  // namespace memory
+
+// TODO(benvanik): move into xe::memory::
 
 constexpr void* low_address(void* address) {
   return (void*)(uint64_t(address) & 0xFFFFFFFF);

@@ -36,9 +36,6 @@
     <ClCompile Include="src\xenia\base\math.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
-    <ClCompile Include="src\xenia\base\memory_generic.cc">
-      <Filter>src\xenia\base</Filter>
-    </ClCompile>
     <ClCompile Include="src\xenia\base\platform_win.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
@@ -55,6 +52,12 @@
       <Filter>src\xenia\base</Filter>
     </ClCompile>
     <ClCompile Include="src\xenia\base\clock_win.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\base\memory.cc">
+      <Filter>src\xenia\base</Filter>
+    </ClCompile>
+    <ClCompile Include="src\xenia\base\memory_win.cc">
       <Filter>src\xenia\base</Filter>
     </ClCompile>
   </ItemGroup>

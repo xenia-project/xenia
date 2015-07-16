@@ -82,7 +82,7 @@ Memory::Memory()
       reserve_address_(0),
       mapping_(0),
       mapping_base_(nullptr) {
-  system_page_size_ = uint32_t(xe::page_size());
+  system_page_size_ = uint32_t(xe::memory::page_size());
   assert_zero(active_memory_);
   active_memory_ = this;
 }
@@ -434,6 +434,18 @@ void Memory::DumpMap() {
   heaps_.vC0000000.DumpMap();
   heaps_.vE0000000.DumpMap();
   XELOGE("");
+}
+
+xe::memory::PageAccess ToPageAccess(uint32_t protect) {
+  DWORD result = 0;
+  if ((protect & kMemoryProtectRead) && !(protect & kMemoryProtectWrite)) {
+    return xe::memory::PageAccess::kReadOnly;
+  } else if ((protect & kMemoryProtectRead) &&
+             (protect & kMemoryProtectWrite)) {
+    return xe::memory::PageAccess::kReadWrite;
+  } else {
+    return xe::memory::PageAccess::kNoAccess;
+  }
 }
 
 DWORD ToWin32ProtectFlags(uint32_t protect) {
@@ -831,14 +843,15 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     return false;
   }*/
   // Instead, we just protect it, if we can.
-  if (page_size_ == xe::page_size() ||
-      ((base_page_entry.region_page_count * page_size_) % xe::page_size() ==
+  if (page_size_ == xe::memory::page_size() ||
+      ((base_page_entry.region_page_count * page_size_) %
+           xe::memory::page_size() ==
        0) &&
-          ((base_page_number * page_size_) % xe::page_size() == 0)) {
-    DWORD old_protect;
-    if (!VirtualProtect(membase_ + heap_base_ + base_page_number * page_size_,
-                        base_page_entry.region_page_count * page_size_,
-                        PAGE_NOACCESS, &old_protect)) {
+          ((base_page_number * page_size_) % xe::memory::page_size() == 0)) {
+    if (!xe::memory::Protect(
+            membase_ + heap_base_ + base_page_number * page_size_,
+            base_page_entry.region_page_count * page_size_,
+            xe::memory::PageAccess::kNoAccess, nullptr)) {
       XELOGW("BaseHeap::Release failed due to host VirtualProtect failure");
     }
   }
@@ -884,13 +897,12 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
 
   // Attempt host change (hopefully won't fail).
   // We can only do this if our size matches system page granularity.
-  if (page_size_ == xe::page_size() ||
-      ((page_count * page_size_) % xe::page_size() == 0) &&
-          ((start_page_number * page_size_) % xe::page_size() == 0)) {
-    DWORD new_protect = ToWin32ProtectFlags(protect);
-    DWORD old_protect;
-    if (!VirtualProtect(membase_ + heap_base_ + start_page_number * page_size_,
-                        page_count * page_size_, new_protect, &old_protect)) {
+  if (page_size_ == xe::memory::page_size() ||
+      ((page_count * page_size_) % xe::memory::page_size() == 0) &&
+          ((start_page_number * page_size_) % xe::memory::page_size() == 0)) {
+    if (!xe::memory::Protect(
+            membase_ + heap_base_ + start_page_number * page_size_,
+            page_count * page_size_, ToPageAccess(protect), nullptr)) {
       XELOGE("BaseHeap::Protect failed due to host VirtualProtect failure");
       return false;
     }

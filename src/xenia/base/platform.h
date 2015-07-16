@@ -76,9 +76,6 @@ const size_t max_path = 1024;  // PATH_MAX
 // Launches a web browser to the given URL.
 void LaunchBrowser(const char* url);
 
-// Returns the native page size of the system, in bytes.
-size_t page_size();
-
 }  // namespace xe
 
 #endif  // XENIA_BASE_PLATFORM_H_
