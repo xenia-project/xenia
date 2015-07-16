@@ -466,57 +466,60 @@ SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_context,
   XThread::GetCurrentThread()->CheckApcs();
 }
 
-SHIM_CALL RtlTimeToTimeFields_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  uint32_t time_ptr = SHIM_GET_ARG_32(0);
-  uint32_t time_fields_ptr = SHIM_GET_ARG_32(1);
+struct X_TIME_FIELDS {
+  xe::be<uint16_t> year;
+  xe::be<uint16_t> month;
+  xe::be<uint16_t> day;
+  xe::be<uint16_t> hour;
+  xe::be<uint16_t> minute;
+  xe::be<uint16_t> second;
+  xe::be<uint16_t> milliseconds;
+  xe::be<uint16_t> weekday;
+};
+static_assert(sizeof(X_TIME_FIELDS) == 16, "Must be LARGEINTEGER");
 
-  XELOGD("RtlTimeToTimeFields(%.8X, %.8X)", time_ptr, time_fields_ptr);
-
-  uint64_t time = SHIM_MEM_64(time_ptr);
+void RtlTimeToTimeFields(lpqword_t time_ptr,
+                         pointer_t<X_TIME_FIELDS> time_fields_ptr) {
+  // TODO(benvanik): replace with our own version.
   FILETIME ft;
-  ft.dwHighDateTime = time >> 32;
-  ft.dwLowDateTime = (uint32_t)time;
-
+  ft.dwHighDateTime = static_cast<uint32_t>(time_ptr.value() >> 32);
+  ft.dwLowDateTime = static_cast<uint32_t>(time_ptr.value());
   SYSTEMTIME st;
   FileTimeToSystemTime(&ft, &st);
 
-  SHIM_SET_MEM_16(time_fields_ptr + 0, st.wYear);
-  SHIM_SET_MEM_16(time_fields_ptr + 2, st.wMonth);
-  SHIM_SET_MEM_16(time_fields_ptr + 4, st.wDay);
-  SHIM_SET_MEM_16(time_fields_ptr + 6, st.wHour);
-  SHIM_SET_MEM_16(time_fields_ptr + 8, st.wMinute);
-  SHIM_SET_MEM_16(time_fields_ptr + 10, st.wSecond);
-  SHIM_SET_MEM_16(time_fields_ptr + 12, st.wMilliseconds);
+  time_fields_ptr->year = st.wYear;
+  time_fields_ptr->month = st.wMonth;
+  time_fields_ptr->day = st.wDay;
+  time_fields_ptr->hour = st.wHour;
+  time_fields_ptr->minute = st.wMinute;
+  time_fields_ptr->second = st.wSecond;
+  time_fields_ptr->milliseconds = st.wMilliseconds;
+  time_fields_ptr->weekday = st.wDayOfWeek;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlTimeToTimeFields, ExportTag::kImplemented);
 
-SHIM_CALL RtlTimeFieldsToTime_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  uint32_t time_fields_ptr = SHIM_GET_ARG_32(0);
-  uint32_t time_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("RtlTimeFieldsToTime(%.8X, %.8X)", time_fields_ptr, time_ptr);
-
+dword_result_t RtlTimeFieldsToTime(pointer_t<X_TIME_FIELDS> time_fields_ptr,
+                                   lpqword_t time_ptr) {
+  // TODO(benvanik): replace with our own version.
   SYSTEMTIME st;
-  st.wYear = SHIM_MEM_16(time_fields_ptr + 0);
-  st.wMonth = SHIM_MEM_16(time_fields_ptr + 2);
-  st.wDay = SHIM_MEM_16(time_fields_ptr + 4);
-  st.wHour = SHIM_MEM_16(time_fields_ptr + 6);
-  st.wMinute = SHIM_MEM_16(time_fields_ptr + 8);
-  st.wSecond = SHIM_MEM_16(time_fields_ptr + 10);
-  st.wMilliseconds = SHIM_MEM_16(time_fields_ptr + 12);
-
+  st.wYear = time_fields_ptr->year;
+  st.wMonth = time_fields_ptr->month;
+  st.wDay = time_fields_ptr->day;
+  st.wHour = time_fields_ptr->hour;
+  st.wMinute = time_fields_ptr->minute;
+  st.wSecond = time_fields_ptr->second;
+  st.wMilliseconds = time_fields_ptr->milliseconds;
+  st.wDayOfWeek = time_fields_ptr->weekday;
   FILETIME ft;
   if (!SystemTimeToFileTime(&st, &ft)) {
     // set last error = ERROR_INVALID_PARAMETER
-    SHIM_SET_RETURN_32(0);
-    return;
+    return 0;
   }
-
   uint64_t time = (uint64_t(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
-  SHIM_SET_MEM_64(time_ptr, time);
-  SHIM_SET_RETURN_32(1);
+  *time_ptr = time;
+  return 1;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlTimeFieldsToTime, ExportTag::kImplemented);
 
 }  // namespace kernel
 }  // namespace xe
@@ -526,9 +529,6 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlMultiByteToUnicodeN, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeToMultiByteN, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeToTimeFields, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlTimeFieldsToTime, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSection, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSectionAndSpinCount,
