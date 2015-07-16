@@ -377,7 +377,7 @@ X_STATUS XThread::Exit(int exit_code) {
   Release();
 
   // NOTE: this does not return!
-  thread_->Exit(exit_code);
+  xe::threading::Thread::Exit(exit_code);
   return X_STATUS_SUCCESS;
 }
 

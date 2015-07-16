@@ -357,11 +357,6 @@ class Win32Thread : public Win32Handle<Thread> {
     return true;
   }
 
-  void Exit(int exit_code) override {
-    AssertCallingThread();
-    ExitThread(exit_code);
-  }
-
   void Terminate(int exit_code) override {
     TerminateThread(handle_, exit_code);
   }
@@ -398,6 +393,8 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
   GetThreadId(handle);
   return std::make_unique<Win32Thread>(handle);
 }
+
+void Thread::Exit(int exit_code) { ExitThread(exit_code); }
 
 }  // namespace threading
 }  // namespace xe

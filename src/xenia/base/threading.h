@@ -310,6 +310,12 @@ class Thread : public WaitHandle {
   static std::unique_ptr<Thread> Create(CreationParameters params,
                                         std::function<void()> start_routine);
 
+  // Ends the calling thread.
+  // No destructors are called, and this function does not return.
+  // The state of the thread object becomes signaled, releasing any other
+  // threads that had been waiting for the thread to terminate.
+  static void Exit(int exit_code);
+
   // Returns the current name of the thread, if previously specified.
   std::string name() const { return name_; }
 
@@ -347,12 +353,6 @@ class Thread : public WaitHandle {
 
   // Suspends the specified thread.
   virtual bool Suspend(uint32_t* out_previous_suspend_count = nullptr) = 0;
-
-  // Ends the calling thread.
-  // No destructors are called, and this function does not return.
-  // The state of the thread object becomes signaled, releasing any other
-  // threads that had been waiting for the thread to terminate.
-  virtual void Exit(int exit_code) = 0;
 
   // Terminates the thread.
   // No destructors are called, and this function does not return.
