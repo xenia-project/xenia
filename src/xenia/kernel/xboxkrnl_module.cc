@@ -14,6 +14,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"

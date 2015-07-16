@@ -48,6 +48,10 @@ class Fence {
 // Returns the total number of logical processors in the host system.
 uint32_t logical_processor_count();
 
+// Enables the current process to set thread affinity.
+// Must be called at startup before attempting to set thread affinity.
+void EnableAffinityConfiguration();
+
 // Gets a stable thread-specific ID, but may not be. Use for informative
 // purposes only.
 uint32_t current_thread_id();

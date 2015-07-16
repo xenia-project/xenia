@@ -106,8 +106,8 @@ void AudioSystem::WorkerThreadMain() {
 
   // Main run loop.
   while (worker_running_) {
-    auto result = xe::threading::WaitAny(
-        wait_handles_, DWORD(xe::countof(wait_handles_)), true);
+    auto result =
+        xe::threading::WaitAny(wait_handles_, xe::countof(wait_handles_), true);
     if (result.first == xe::threading::WaitResult::kFailed ||
         (result.first == xe::threading::WaitResult::kSuccess &&
          result.second == kMaximumClientCount)) {

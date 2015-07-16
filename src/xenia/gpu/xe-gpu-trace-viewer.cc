@@ -17,6 +17,7 @@
 #include "xenia/base/main.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"

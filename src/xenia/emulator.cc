@@ -84,12 +84,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
 
   // Before we can set thread affinity we must enable the process to use all
   // logical processors.
-  HANDLE process_handle = GetCurrentProcess();
-  DWORD_PTR process_affinity_mask;
-  DWORD_PTR system_affinity_mask;
-  GetProcessAffinityMask(process_handle, &process_affinity_mask,
-                         &system_affinity_mask);
-  SetProcessAffinityMask(process_handle, system_affinity_mask);
+  xe::threading::EnableAffinityConfiguration();
 
   // Create memory system first, as it is required for other systems.
   memory_ = std::make_unique<Memory>();

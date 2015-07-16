@@ -17,6 +17,9 @@
 // All of the exported functions:
 #include "xenia/kernel/xboxkrnl_rtl.h"
 
+// TODO(benvanik): switch timer.
+typedef void* HANDLE;
+
 namespace xe {
 namespace kernel {
 

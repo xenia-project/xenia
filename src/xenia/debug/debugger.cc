@@ -10,6 +10,9 @@
 #include "xenia/debug/debugger.h"
 
 #include <gflags/gflags.h>
+
+// TODO(benvanik): generic socket implementation in base/.
+#include "xenia/base/platform_win.h"
 #include <mstcpip.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>

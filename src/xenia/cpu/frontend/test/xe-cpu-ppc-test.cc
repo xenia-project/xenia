@@ -7,19 +7,22 @@
  ******************************************************************************
  */
 
+#include <gflags/gflags.h>
+
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/raw_module.h"
 
-#if !XE_PLATFORM_WIN32
-#include <dirent.h>
-#endif  // !WIN32
-#include <gflags/gflags.h>
+#if XE_COMPILER_MSVC
+#include "xenia/base/platform_win.h"
+#endif  // XE_COMPILER_MSVC
 
 DEFINE_string(test_path, "src/xenia/cpu/frontend/test/",
               "Directory scanned for test files.");
@@ -331,69 +334,30 @@ class TestRunner {
 
 bool DiscoverTests(std::wstring& test_path,
                    std::vector<std::wstring>& test_files) {
-// TODO(benvanik): use PAL instead of this.
-#if XE_PLATFORM_WIN32
-  std::wstring search_path = test_path;
-  search_path.append(L"\\*.s");
-  WIN32_FIND_DATA ffd;
-  HANDLE hFind = FindFirstFile(search_path.c_str(), &ffd);
-  if (hFind == INVALID_HANDLE_VALUE) {
-    XELOGE("Unable to find test path %ls", test_path.c_str());
-    return false;
-  }
-  do {
-    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-      std::wstring file_name(ffd.cFileName);
-      std::wstring file_path = test_path;
-      if (*(test_path.end() - 1) != '\\') {
-        file_path += '\\';
-      }
-      file_path += file_name;
-      test_files.push_back(file_path);
-    }
-  } while (FindNextFile(hFind, &ffd));
-  FindClose(hFind);
-#else
-  DIR* d = opendir(test_path.c_str());
-  if (!d) {
-    XELOGE("Unable to find test path %ls", test_path.c_str());
-    return false;
-  }
-  struct dirent* dir;
-  while ((dir = readdir(d))) {
-    if (dir->d_type == DT_REG) {
-      // Only return .s files.
-      string file_name = string(dir->d_name);
-      if (file_name.rfind(".s") != string::npos) {
-        string file_path = test_path;
-        if (*(test_path.end() - 1) != '/') {
-          file_path += "/";
-        }
-        file_path += file_name;
-        test_files.push_back(file_path);
-      }
+  auto file_infos = xe::filesystem::ListFiles(test_path);
+  for (auto& file_info : file_infos) {
+    if (file_info.name.rfind(L".s") == file_info.name.size() - 2) {
+      test_files.push_back(xe::join_paths(test_path, file_info.name));
     }
   }
-  closedir(d);
-#endif  // WIN32
   return true;
 }
 
-#ifdef _MSC_VER
+#if XE_COMPILER_MSVC
 int filter(unsigned int code) {
   if (code == EXCEPTION_ILLEGAL_INSTRUCTION) {
     return EXCEPTION_EXECUTE_HANDLER;
   }
   return EXCEPTION_CONTINUE_SEARCH;
 }
-#endif
+#endif  // XE_COMPILER_MSVC
 
 void ProtectedRunTest(TestSuite& test_suite, TestRunner& runner,
                       TestCase& test_case, int& failed_count,
                       int& passed_count) {
-#ifdef _MSC_VER
+#if XE_COMPILER_MSVC
   __try {
-#endif
+#endif  // XE_COMPILER_MSVC
 
     if (!runner.Setup(test_suite)) {
       XELOGE("    TEST FAILED SETUP");
@@ -406,13 +370,13 @@ void ProtectedRunTest(TestSuite& test_suite, TestRunner& runner,
       ++failed_count;
     }
 
-#ifdef _MSC_VER
+#if XE_COMPILER_MSVC
   }
   __except(filter(GetExceptionCode())) {
     XELOGE("    TEST FAILED (UNSUPPORTED INSTRUCTION)");
     ++failed_count;
   }
-#endif
+#endif  // XE_COMPILER_MSVC
 }
 
 bool RunTests(const std::wstring& test_name) {

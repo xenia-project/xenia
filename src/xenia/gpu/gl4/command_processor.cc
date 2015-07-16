@@ -63,7 +63,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       read_ptr_index_(0),
       read_ptr_update_freq_(0),
       read_ptr_writeback_ptr_(0),
-      write_ptr_index_event_(CreateEvent(NULL, FALSE, FALSE, NULL)),
+      write_ptr_index_event_(xe::threading::Event::CreateAutoResetEvent(false)),
       write_ptr_index_(0),
       bin_select_(0xFFFFFFFFull),
       bin_mask_(0xFFFFFFFFull),
@@ -78,7 +78,7 @@ CommandProcessor::CommandProcessor(GL4GraphicsSystem* graphics_system)
       draw_batcher_(graphics_system_->register_file()),
       scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {}
 
-CommandProcessor::~CommandProcessor() { CloseHandle(write_ptr_index_event_); }
+CommandProcessor::~CommandProcessor() = default;
 
 bool CommandProcessor::Initialize(
     std::unique_ptr<xe::ui::GraphicsContext> context) {
@@ -101,7 +101,7 @@ void CommandProcessor::Shutdown() {
   EndTracing();
 
   worker_running_ = false;
-  SetEvent(write_ptr_index_event_);
+  write_ptr_index_event_->Set();
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
 
@@ -200,7 +200,8 @@ void CommandProcessor::WorkerThreadMain() {
         // TODO(benvanik): if we go longer than Nms, switch to waiting?
         // It'll keep us from burning power.
         // const int wait_time_ms = 5;
-        // WaitForSingleObject(write_ptr_index_event_, wait_time_ms);
+        // xe::threading::Wait(write_ptr_index_event_.get(), true,
+        //                     std::chrono::milliseconds(wait_time_ms));
         xe::threading::MaybeYield();
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
@@ -488,7 +489,7 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
   write_ptr_index_ = value;
-  SetEvent(write_ptr_index_event_);
+  write_ptr_index_event_->Set();
 }
 
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {

@@ -26,6 +26,15 @@ uint32_t logical_processor_count() {
   return value;
 }
 
+void EnableAffinityConfiguration() {
+  HANDLE process_handle = GetCurrentProcess();
+  DWORD_PTR process_affinity_mask;
+  DWORD_PTR system_affinity_mask;
+  GetProcessAffinityMask(process_handle, &process_affinity_mask,
+                         &system_affinity_mask);
+  SetProcessAffinityMask(process_handle, system_affinity_mask);
+}
+
 uint32_t current_thread_id() {
   return static_cast<uint32_t>(GetCurrentThreadId());
 }

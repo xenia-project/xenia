@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/threading.h"
 #include "xenia/gpu/gl4/draw_batcher.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/gl4/gl4_shader_translator.h"
@@ -259,7 +260,7 @@ class CommandProcessor {
   uint32_t read_ptr_update_freq_;
   uint32_t read_ptr_writeback_ptr_;
 
-  HANDLE write_ptr_index_event_;
+  std::unique_ptr<xe::threading::Event> write_ptr_index_event_;
   std::atomic<uint32_t> write_ptr_index_;
 
   uint64_t bin_select_;

@@ -11,6 +11,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mutex.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/kernel_state.h"
@@ -446,7 +447,7 @@ SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_context,
 
 #if XE_PLATFORM_WIN32
   result = TlsSetValue(
-      tls_index, reinterpret_cast<LPVOID>(static_cast<uintptr_t>(tls_value)));
+      tls_index, reinterpret_cast<void*>(static_cast<uintptr_t>(tls_value)));
 #else
   result = pthread_setspecific(tls_index, (void*)tls_value) == 0;
 #endif  // WIN32
@@ -1031,7 +1032,7 @@ SHIM_CALL KfAcquireSpinLock_shim(PPCContext* ppc_context,
   while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
-    YieldProcessor();
+    xe::threading::MaybeYield();
   }
 
   // Raise IRQL to DISPATCH.
