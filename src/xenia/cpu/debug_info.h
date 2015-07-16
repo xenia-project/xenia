@@ -18,7 +18,7 @@
 namespace xe {
 namespace cpu {
 
-enum DebugInfoFlags {
+enum DebugInfoFlags : uint32_t {
   kDebugInfoNone = 0,
   kDebugInfoDisasmSource = (1 << 1),
   kDebugInfoDisasmRawHir = (1 << 2),

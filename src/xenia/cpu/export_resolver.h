@@ -66,7 +66,6 @@ class Export {
       : ordinal(ordinal),
         type(type),
         tags(tags),
-        variable_ptr(0),
         function_data({nullptr, nullptr, 0}) {
     std::strncpy(this->name, name, xe::countof(this->name));
   }

@@ -182,7 +182,7 @@ class KernelState {
 
   uint32_t process_info_block_address_;
 
-  std::atomic<bool> dispatch_thread_running_ = false;
+  std::atomic<bool> dispatch_thread_running_;
   object_ref<XHostThread> dispatch_thread_;
   std::mutex dispatch_mutex_;
   std::condition_variable dispatch_cond_;

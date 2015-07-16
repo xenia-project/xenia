@@ -26,16 +26,7 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-XmaContext::XmaContext()
-    : id_(0),
-      guest_ptr_(0),
-      is_allocated_(false),
-      is_enabled_(false),
-      decoding_packet_(false),
-      codec_(nullptr),
-      context_(nullptr),
-      decoded_frame_(nullptr),
-      packet_(nullptr) {}
+XmaContext::XmaContext() = default;
 
 XmaContext::~XmaContext() {
   if (context_) {

@@ -81,14 +81,14 @@ class X64CodeCache : public CodeCache {
   // Current offset to empty space in generated code.
   size_t generated_code_offset_ = 0;
   // Current high water mark of COMMITTED code.
-  std::atomic<size_t> generated_code_commit_mark_ = 0;
+  std::atomic<size_t> generated_code_commit_mark_ = {0};
 
   // Growable function table system handle.
   void* unwind_table_handle_ = nullptr;
   // Actual unwind table entries.
   std::vector<RUNTIME_FUNCTION> unwind_table_;
   // Current number of entries in the table.
-  std::atomic<uint32_t> unwind_table_count_ = 0;
+  std::atomic<uint32_t> unwind_table_count_ = {0};
 };
 
 }  // namespace x64

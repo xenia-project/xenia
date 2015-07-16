@@ -51,7 +51,8 @@ KernelState::KernelState(Emulator* emulator)
       object_table_(nullptr),
       has_notified_startup_(false),
       process_type_(X_PROCTYPE_USER),
-      process_info_block_address_(0) {
+      process_info_block_address_(0),
+      dispatch_thread_running_(false) {
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
 

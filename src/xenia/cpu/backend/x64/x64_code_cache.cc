@@ -372,7 +372,6 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
   // Hold a lock while we bump the pointers up.
   size_t high_mark;
   uint8_t* data_address = nullptr;
-  size_t unwind_table_slot = 0;
   {
     std::lock_guard<xe::mutex> allocation_lock(allocation_mutex_);
 

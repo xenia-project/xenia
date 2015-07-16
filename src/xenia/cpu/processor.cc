@@ -71,12 +71,7 @@ class BuiltinModule : public Module {
 
 Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
                      debug::Debugger* debugger)
-    : memory_(memory),
-      debugger_(debugger),
-      debug_info_flags_(0),
-      builtin_module_(nullptr),
-      next_builtin_address_(0xFFFF0000ul),
-      export_resolver_(export_resolver) {
+    : memory_(memory), debugger_(debugger), export_resolver_(export_resolver) {
   InitializeIfNeeded();
 }
 

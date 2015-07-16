@@ -255,8 +255,6 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
         context.Clear();
       }
     }
-  } else {
-    value = value;
   }
 }
 

@@ -27,7 +27,7 @@ class HostPathDevice : public Device {
 
   bool Initialize() override;
 
-  bool is_read_only() const { return read_only_; }
+  bool is_read_only() const override { return read_only_; }
 
   uint32_t total_allocation_units() const override { return 128 * 1024; }
   uint32_t available_allocation_units() const override { return 128 * 1024; }

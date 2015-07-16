@@ -108,13 +108,13 @@ class Debugger {
  private:
   void OnMessage(std::vector<uint8_t> buffer);
 
-  Emulator* emulator_;
+  Emulator* emulator_ = nullptr;
 
-  uintptr_t listen_socket_;
-  bool accept_thread_running_;
+  uintptr_t listen_socket_ = ~0;
+  bool accept_thread_running_ = false;
   std::thread accept_thread_;
   xe::threading::Fence accept_fence_;
-  uintptr_t client_socket_;
+  uintptr_t client_socket_ = ~0;
   std::thread receive_thread_;
 
   std::wstring functions_path_;

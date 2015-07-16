@@ -33,7 +33,7 @@ TestModule::TestModule(Processor* processor, const std::string& name,
       generate_(generate) {
   builder_.reset(new HIRBuilder());
   compiler_.reset(new Compiler(processor));
-  assembler_ = std::move(processor->backend()->CreateAssembler());
+  assembler_ = processor->backend()->CreateAssembler();
   assembler_->Initialize();
 
   // Merge blocks early. This will let us use more context in other passes.

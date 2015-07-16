@@ -330,7 +330,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_ADD:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
-            bool did_carry = v->Add(i->src2.value);
+            v->Add(i->src2.value);
             i->Remove();
           }
           break;
@@ -357,7 +357,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_SUB:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
-            bool did_carry = v->Sub(i->src2.value);
+            v->Sub(i->src2.value);
             i->Remove();
           }
           break;

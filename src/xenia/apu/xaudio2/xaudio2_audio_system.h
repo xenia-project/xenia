@@ -28,7 +28,7 @@ class XAudio2AudioSystem : public AudioSystem {
   void DestroyDriver(AudioDriver* driver) override;
 
  protected:
-  virtual void Initialize();
+  void Initialize() override;
 };
 
 }  // namespace xaudio2

@@ -14,7 +14,7 @@
 
 #include "xenia/base/byte_order.h"
 
-typedef enum {
+enum xe_xex2_header_keys : uint32_t {
   XEX_HEADER_RESOURCE_INFO = 0x000002FF,
   XEX_HEADER_FILE_FORMAT_INFO = 0x000003FF,
   XEX_HEADER_DELTA_PATCH_DESCRIPTOR = 0x000005FF,
@@ -45,9 +45,9 @@ typedef enum {
   XEX_HEADER_ALTERNATE_TITLE_IDS = 0x000407FF,
   XEX_HEADER_ADDITIONAL_TITLE_MEMORY = 0x00040801,
   XEX_HEADER_EXPORTS_BY_NAME = 0x00E10402,
-} xe_xex2_header_keys;
+};
 
-typedef enum {
+enum xe_xex2_module_flags : uint32_t {
   XEX_MODULE_TITLE = 0x00000001,
   XEX_MODULE_EXPORTS_TO_TITLE = 0x00000002,
   XEX_MODULE_SYSTEM_DEBUGGER = 0x00000004,
@@ -56,9 +56,9 @@ typedef enum {
   XEX_MODULE_PATCH_FULL = 0x00000020,
   XEX_MODULE_PATCH_DELTA = 0x00000040,
   XEX_MODULE_USER_MODE = 0x00000080,
-} xe_xex2_module_flags;
+};
 
-typedef enum {
+enum xe_xex2_system_flags : uint32_t {
   XEX_SYSTEM_NO_FORCED_REBOOT = 0x00000001,
   XEX_SYSTEM_FOREGROUND_TASKS = 0x00000002,
   XEX_SYSTEM_NO_ODD_MAPPING = 0x00000004,
@@ -99,10 +99,10 @@ typedef enum {
   XEX_SYSTEM_CAMERA_ANGLE                         = 0x0,
   XEX_SYSTEM_SKELETAL_TRACKING_REQUIRED           = 0x0,
   XEX_SYSTEM_SKELETAL_TRACKING_SUPPORTED          = 0x0,*/
-} xe_xex2_system_flags;
+};
 
 // ESRB (Entertainment Software Rating Board)
-typedef enum {
+enum xe_xex2_rating_esrb_value : uint32_t {
   XEX_RATING_ESRB_eC = 0x00,
   XEX_RATING_ESRB_E = 0x02,
   XEX_RATING_ESRB_E10 = 0x04,
@@ -110,36 +110,36 @@ typedef enum {
   XEX_RATING_ESRB_M = 0x08,
   XEX_RATING_ESRB_AO = 0x0E,
   XEX_RATING_ESRB_UNRATED = 0xFF,
-} xe_xex2_rating_esrb_value;
+};
 // PEGI (Pan European Game Information)
-typedef enum {
+enum xe_xex2_rating_pegi_value : uint32_t {
   XEX_RATING_PEGI_3_PLUS = 0,
   XEX_RATING_PEGI_7_PLUS = 4,
   XEX_RATING_PEGI_12_PLUS = 9,
   XEX_RATING_PEGI_16_PLUS = 13,
   XEX_RATING_PEGI_18_PLUS = 14,
   XEX_RATING_PEGI_UNRATED = 0xFF,
-} xe_xex2_rating_pegi_value;
+};
 // PEGI (Pan European Game Information) - Finland
-typedef enum {
+enum xe_xex2_rating_pegi_fi_value : uint32_t {
   XEX_RATING_PEGI_FI_3_PLUS = 0,
   XEX_RATING_PEGI_FI_7_PLUS = 4,
   XEX_RATING_PEGI_FI_11_PLUS = 8,
   XEX_RATING_PEGI_FI_15_PLUS = 12,
   XEX_RATING_PEGI_FI_18_PLUS = 14,
   XEX_RATING_PEGI_FI_UNRATED = 0xFF,
-} xe_xex2_rating_pegi_fi_value;
+};
 // PEGI (Pan European Game Information) - Portugal
-typedef enum {
+enum xe_xex2_rating_pegi_pt_value : uint32_t {
   XEX_RATING_PEGI_PT_4_PLUS = 1,
   XEX_RATING_PEGI_PT_6_PLUS = 3,
   XEX_RATING_PEGI_PT_12_PLUS = 9,
   XEX_RATING_PEGI_PT_16_PLUS = 13,
   XEX_RATING_PEGI_PT_18_PLUS = 14,
   XEX_RATING_PEGI_PT_UNRATED = 0xFF,
-} xe_xex2_rating_pegi_pt_value;
+};
 // BBFC (British Board of Film Classification) - UK/Ireland
-typedef enum {
+enum xe_xex2_rating_bbfc_value : uint32_t {
   XEX_RATING_BBFC_UNIVERSAL = 1,
   XEX_RATING_BBFC_PG = 5,
   XEX_RATING_BBFC_3_PLUS = 0,
@@ -149,60 +149,60 @@ typedef enum {
   XEX_RATING_BBFC_16_PLUS = 13,
   XEX_RATING_BBFC_18_PLUS = 14,
   XEX_RATING_BBFC_UNRATED = 0xFF,
-} xe_xex2_rating_bbfc_value;
+};
 // CERO (Computer Entertainment Rating Organization)
-typedef enum {
+enum xe_xex2_rating_cero_value : uint32_t {
   XEX_RATING_CERO_A = 0,
   XEX_RATING_CERO_B = 2,
   XEX_RATING_CERO_C = 4,
   XEX_RATING_CERO_D = 6,
   XEX_RATING_CERO_Z = 8,
   XEX_RATING_CERO_UNRATED = 0xFF,
-} xe_xex2_rating_cero_value;
+};
 // USK (Unterhaltungssoftware SelbstKontrolle)
-typedef enum {
+enum xe_xex2_rating_usk_value : uint32_t {
   XEX_RATING_USK_ALL = 0,
   XEX_RATING_USK_6_PLUS = 2,
   XEX_RATING_USK_12_PLUS = 4,
   XEX_RATING_USK_16_PLUS = 6,
   XEX_RATING_USK_18_PLUS = 8,
   XEX_RATING_USK_UNRATED = 0xFF,
-} xe_xex2_rating_usk_value;
+};
 // OFLC (Office of Film and Literature Classification) - Australia
-typedef enum {
+enum xe_xex2_rating_oflc_au_value : uint32_t {
   XEX_RATING_OFLC_AU_G = 0,
   XEX_RATING_OFLC_AU_PG = 2,
   XEX_RATING_OFLC_AU_M = 4,
   XEX_RATING_OFLC_AU_MA15_PLUS = 6,
   XEX_RATING_OFLC_AU_UNRATED = 0xFF,
-} xe_xex2_rating_oflc_au_value;
+};
 // OFLC (Office of Film and Literature Classification) - New Zealand
-typedef enum {
+enum xe_xex2_rating_oflc_nz_value : uint32_t {
   XEX_RATING_OFLC_NZ_G = 0,
   XEX_RATING_OFLC_NZ_PG = 2,
   XEX_RATING_OFLC_NZ_M = 4,
   XEX_RATING_OFLC_NZ_MA15_PLUS = 6,
   XEX_RATING_OFLC_NZ_UNRATED = 0xFF,
-} xe_xex2_rating_oflc_nz_value;
+};
 // KMRB (Korea Media Rating Board)
-typedef enum {
+enum xe_xex2_rating_kmrb_value : uint32_t {
   XEX_RATING_KMRB_ALL = 0,
   XEX_RATING_KMRB_12_PLUS = 2,
   XEX_RATING_KMRB_15_PLUS = 4,
   XEX_RATING_KMRB_18_PLUS = 6,
   XEX_RATING_KMRB_UNRATED = 0xFF,
-} xe_xex2_rating_kmrb_value;
+};
 // Brazil
-typedef enum {
+enum xe_xex2_rating_brazil_value : uint32_t {
   XEX_RATING_BRAZIL_ALL = 0,
   XEX_RATING_BRAZIL_12_PLUS = 2,
   XEX_RATING_BRAZIL_14_PLUS = 4,
   XEX_RATING_BRAZIL_16_PLUS = 5,
   XEX_RATING_BRAZIL_18_PLUS = 8,
   XEX_RATING_BRAZIL_UNRATED = 0xFF,
-} xe_xex2_rating_brazil_value;
+};
 // FPB (Film and Publication Board)
-typedef enum {
+enum xe_xex2_rating_fpb_value : uint32_t {
   XEX_RATING_FPB_ALL = 0,
   XEX_RATING_FPB_PG = 6,
   XEX_RATING_FPB_10_PLUS = 7,
@@ -210,9 +210,9 @@ typedef enum {
   XEX_RATING_FPB_16_PLUS = 13,
   XEX_RATING_FPB_18_PLUS = 14,
   XEX_RATING_FPB_UNRATED = 0xFF,
-} xe_xex2_rating_fpb_value;
+};
 
-typedef struct {
+struct xe_xex2_game_ratings_t {
   xe_xex2_rating_esrb_value esrb;
   xe_xex2_rating_pegi_value pegi;
   xe_xex2_rating_pegi_fi_value pegifi;
@@ -225,9 +225,9 @@ typedef struct {
   xe_xex2_rating_kmrb_value kmrb;
   xe_xex2_rating_brazil_value brazil;
   xe_xex2_rating_fpb_value fpb;
-} xe_xex2_game_ratings_t;
+};
 
-typedef union {
+union xe_xex2_version_t {
   uint32_t value;
   struct {
     uint32_t major : 4;
@@ -235,24 +235,24 @@ typedef union {
     uint32_t build : 16;
     uint32_t qfe : 8;
   };
-} xe_xex2_version_t;
+};
 
-typedef struct {
+struct xe_xex2_opt_header_t {
   uint32_t key;
   uint32_t length;
   union {
     uint32_t value;
     uint32_t offset;
   };
-} xe_xex2_opt_header_t;
+};
 
-typedef struct {
+struct xe_xex2_resource_info_t {
   char name[9];
   uint32_t address;
   uint32_t size;
-} xe_xex2_resource_info_t;
+};
 
-typedef struct {
+struct xe_xex2_execution_info_t {
   uint32_t media_id;
   xe_xex2_version_t version;
   xe_xex2_version_t base_version;
@@ -262,16 +262,16 @@ typedef struct {
   uint8_t disc_number;
   uint8_t disc_count;
   uint32_t savegame_id;
-} xe_xex2_execution_info_t;
+};
 
-typedef struct {
+struct xe_xex2_tls_info_t {
   uint32_t slot_count;
   uint32_t raw_data_address;
   uint32_t data_size;
   uint32_t raw_data_size;
-} xe_xex2_tls_info_t;
+};
 
-typedef struct {
+struct xe_xex2_import_library_t {
   char name[32];
   uint8_t digest[20];
   uint32_t import_id;
@@ -279,63 +279,63 @@ typedef struct {
   xe_xex2_version_t min_version;
   size_t record_count;
   uint32_t* records;
-} xe_xex2_import_library_t;
+};
 
-typedef enum {
+enum xe_xex2_approval_type : uint32_t {
   XEX_APPROVAL_UNAPPROVED = 0,
   XEX_APPROVAL_POSSIBLE = 1,
   XEX_APPROVAL_APPROVED = 2,
   XEX_APPROVAL_EXPIRED = 3,
-} xe_xex2_approval_type;
+};
 
-typedef struct {
+struct xe_xex2_static_library_t {
   char name[9];  // 8 + 1 for \0
   uint16_t major;
   uint16_t minor;
   uint16_t build;
   uint16_t qfe;
   xe_xex2_approval_type approval;
-} xe_xex2_static_library_t;
+};
 
-typedef enum {
+enum xe_xex2_encryption_type : uint32_t {
   XEX_ENCRYPTION_NONE = 0,
   XEX_ENCRYPTION_NORMAL = 1,
-} xe_xex2_encryption_type;
+};
 
-typedef enum {
+enum xe_xex2_compression_type : uint32_t {
   XEX_COMPRESSION_NONE = 0,
   XEX_COMPRESSION_BASIC = 1,
   XEX_COMPRESSION_NORMAL = 2,
   XEX_COMPRESSION_DELTA = 3,
-} xe_xex2_compression_type;
+};
 
-typedef struct {
+struct xe_xex2_file_basic_compression_block_t {
   uint32_t data_size;
   uint32_t zero_size;
-} xe_xex2_file_basic_compression_block_t;
+};
 
-typedef struct {
+struct xe_xex2_file_basic_compression_info_t {
   uint32_t block_count;
   xe_xex2_file_basic_compression_block_t* blocks;
-} xe_xex2_file_basic_compression_info_t;
+};
 
-typedef struct {
+struct xe_xex2_file_normal_compression_info_t {
   uint32_t window_size;
   uint32_t window_bits;
   uint32_t block_size;
   uint8_t block_hash[20];
-} xe_xex2_file_normal_compression_info_t;
+};
 
-typedef struct {
+struct xe_xex2_file_format_info_t {
   xe_xex2_encryption_type encryption_type;
   xe_xex2_compression_type compression_type;
   union {
     xe_xex2_file_basic_compression_info_t basic;
     xe_xex2_file_normal_compression_info_t normal;
   } compression_info;
-} xe_xex2_file_format_info_t;
+};
 
-typedef enum {
+enum xe_xex2_image_flags : uint32_t {
   XEX_IMAGE_MANUFACTURING_UTILITY = 0x00000002,
   XEX_IMAGE_MANUFACTURING_SUPPORT_TOOLS = 0x00000004,
   XEX_IMAGE_XGD2_MEDIA_ONLY = 0x00000008,
@@ -354,9 +354,9 @@ typedef enum {
   XEX_IMAGE_REGION_FREE = 0x20000000,
   XEX_IMAGE_REVOCATION_CHECK_OPTIONAL = 0x40000000,
   XEX_IMAGE_REVOCATION_CHECK_REQUIRED = 0x80000000,
-} xe_xex2_image_flags;
+};
 
-typedef enum {
+enum xe_xex2_media_flags : uint32_t {
   XEX_MEDIA_HARDDISK = 0x00000001,
   XEX_MEDIA_DVD_X2 = 0x00000002,
   XEX_MEDIA_DVD_CD = 0x00000004,
@@ -374,9 +374,9 @@ typedef enum {
   XEX_MEDIA_LOCALLY_SIGNED_PACKAGE = 0x04000000,
   XEX_MEDIA_LIVE_SIGNED_PACKAGE = 0x08000000,
   XEX_MEDIA_XBOX_PACKAGE = 0x10000000,
-} xe_xex2_media_flags;
+};
 
-typedef enum {
+enum xe_xex2_region_flags : uint32_t {
   XEX_REGION_NTSCU = 0x000000FF,
   XEX_REGION_NTSCJ = 0x0000FF00,
   XEX_REGION_NTSCJ_JAPAN = 0x00000100,
@@ -385,9 +385,9 @@ typedef enum {
   XEX_REGION_PAL_AU_NZ = 0x00010000,
   XEX_REGION_OTHER = 0xFF000000,
   XEX_REGION_ALL = 0xFFFFFFFF,
-} xe_xex2_region_flags;
+};
 
-typedef struct {
+struct xe_xex2_loader_info_t {
   uint32_t header_size;
   uint32_t image_size;
   uint8_t rsa_signature[256];
@@ -403,15 +403,15 @@ typedef struct {
   uint8_t header_digest[20];
   xe_xex2_region_flags game_regions;
   xe_xex2_media_flags media_flags;
-} xe_xex2_loader_info_t;
+};
 
-typedef enum {
+enum xe_xex2_section_type : uint32_t {
   XEX_SECTION_CODE = 1,
   XEX_SECTION_DATA = 2,
   XEX_SECTION_READONLY_DATA = 3,
-} xe_xex2_section_type;
+};
 
-typedef struct {
+struct xe_xex2_section_t {
   uint32_t page_size;
   union {
     struct {
@@ -421,9 +421,9 @@ typedef struct {
     uint32_t value;  // To make uint8_t swapping easier
   } info;
   uint8_t digest[20];
-} xe_xex2_section_t;
+};
 
-typedef struct {
+struct xe_xex2_header_t {
   uint32_t xex2;
   xe_xex2_module_flags module_flags;
   uint32_t exe_offset;
@@ -455,7 +455,7 @@ typedef struct {
   xe_xex2_resource_info_t* resource_infos;
   size_t section_count;
   xe_xex2_section_t* sections;
-} xe_xex2_header_t;
+};
 
 namespace xe {
 union xex2_version {

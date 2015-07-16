@@ -83,20 +83,20 @@ class Processor {
  private:
   bool DemandFunction(FunctionInfo* symbol_info, Function** out_function);
 
-  Memory* memory_;
-  debug::Debugger* debugger_;
+  Memory* memory_ = nullptr;
+  debug::Debugger* debugger_ = nullptr;
 
-  uint32_t debug_info_flags_;
+  uint32_t debug_info_flags_ = 0;
 
   std::unique_ptr<frontend::PPCFrontend> frontend_;
   std::unique_ptr<backend::Backend> backend_;
-  ExportResolver* export_resolver_;
+  ExportResolver* export_resolver_ = nullptr;
 
   EntryTable entry_table_;
   xe::mutex modules_lock_;
   std::vector<std::unique_ptr<Module>> modules_;
-  Module* builtin_module_;
-  uint32_t next_builtin_address_;
+  Module* builtin_module_ = nullptr;
+  uint32_t next_builtin_address_ = 0xFFFF0000u;
 
   Irql irql_;
 };

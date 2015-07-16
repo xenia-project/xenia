@@ -469,7 +469,7 @@ enum MicroProfileDrawMask
 	MP_DRAW_HIDDEN		= 0x3,
 };
 
-enum MicroProfileDrawBarsMask
+enum MicroProfileDrawBarsMask : uint32_t
 {
 	MP_DRAW_TIMERS 				= 0x1,
 	MP_DRAW_AVERAGE				= 0x2,

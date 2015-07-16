@@ -19,7 +19,7 @@ namespace gpu {
 
 namespace ucode {
 
-#if XE_COMPILER_MSVC
+#if XE_PLATFORM_WIN32
 #define XEPACKEDSTRUCT(name, value)                                  \
   __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
   typedef struct name##_s name;
@@ -32,7 +32,7 @@ namespace ucode {
 #define XEPACKEDSTRUCT(name, value) struct __attribute__((packed)) name
 #define XEPACKEDSTRUCTANONYMOUS(value) struct __attribute__((packed))
 #define XEPACKEDUNION(name, value) union __attribute__((packed)) name
-#endif  // MSVC
+#endif  // XE_PLATFORM_WIN32
 
 // Closest AMD doc:
 // http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf

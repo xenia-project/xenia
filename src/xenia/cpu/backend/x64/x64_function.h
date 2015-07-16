@@ -30,9 +30,9 @@ class X64Function : public Function {
   void Setup(uint8_t* machine_code, size_t machine_code_length);
 
  protected:
-  virtual bool AddBreakpointImpl(debug::Breakpoint* breakpoint);
-  virtual bool RemoveBreakpointImpl(debug::Breakpoint* breakpoint);
-  virtual bool CallImpl(ThreadState* thread_state, uint32_t return_address);
+  bool AddBreakpointImpl(debug::Breakpoint* breakpoint) override;
+  bool RemoveBreakpointImpl(debug::Breakpoint* breakpoint) override;
+  bool CallImpl(ThreadState* thread_state, uint32_t return_address) override;
 
  private:
   uint8_t* machine_code_;

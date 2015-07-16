@@ -61,8 +61,7 @@ Breakpoint::~Breakpoint() = default;
 Debugger::Debugger(Emulator* emulator)
     : emulator_(emulator),
       listen_socket_(INVALID_SOCKET),
-      client_socket_(INVALID_SOCKET),
-      accept_thread_running_(false) {
+      client_socket_(INVALID_SOCKET) {
   WSADATA wsa_data;
   WSAStartup(MAKEWORD(2, 2), &wsa_data);
 }
@@ -114,7 +113,7 @@ bool Debugger::StartSession() {
   if (bind(listen_socket_, reinterpret_cast<sockaddr*>(&socket_addr),
            sizeof(socket_addr)) == SOCKET_ERROR) {
     int e = WSAGetLastError();
-    XELOGE("Unable to bind debug socket");
+    XELOGE("Unable to bind debug socket: %d", e);
     return false;
   }
   if (listen(listen_socket_, 5) == SOCKET_ERROR) {
@@ -300,11 +299,12 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
         module_builder.add_path(module_path_offset);
         switch (module->module_type()) {
           case XModule::ModuleType::kKernelModule: {
-            auto kernel_module = reinterpret_cast<XKernelModule*>(module.get());
+            // auto kernel_module =
+            // reinterpret_cast<XKernelModule*>(module.get());
             break;
           }
           case XModule::ModuleType::kUserModule: {
-            auto user_module = reinterpret_cast<XUserModule*>(module.get());
+            // auto user_module = reinterpret_cast<XUserModule*>(module.get());
             // user_module->xex?
             break;
           }
@@ -475,8 +475,8 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
       break;
   }
 
-  SendResponse(client_socket_, std::move(fbb), request->id(),
-               response_data_type, response_data_offset);
+  SendResponse(client_socket_, fbb, request->id(), response_data_type,
+               response_data_offset);
 }
 
 void Debugger::StopSession() {

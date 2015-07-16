@@ -175,24 +175,22 @@ class XmaContext {
 
   Memory* memory_;
 
-  uint32_t id_;
-  uint32_t guest_ptr_;
+  uint32_t id_ = 0;
+  uint32_t guest_ptr_ = 0;
   xe::mutex lock_;
-  bool is_allocated_;
-  bool is_enabled_;
-
-  bool decoding_packet_;
+  bool is_allocated_ = false;
+  bool is_enabled_ = false;
 
   // libav structures
-  AVCodec* codec_;
-  AVCodecContext* context_;
-  AVFrame* decoded_frame_;
-  AVPacket* packet_;
+  AVCodec* codec_ = nullptr;
+  AVCodecContext* context_ = nullptr;
+  AVFrame* decoded_frame_ = nullptr;
+  AVPacket* packet_ = nullptr;
   WmaProExtraData extra_data_;
 
-  size_t current_frame_pos_;
-  uint8_t* current_frame_;
-  uint32_t frame_samples_size_;
+  size_t current_frame_pos_ = 0;
+  uint8_t* current_frame_ = nullptr;
+  uint32_t frame_samples_size_ = 0;
 
   uint8_t packet_data_[kBytesPerPacket];
 };
