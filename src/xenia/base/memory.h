@@ -25,9 +25,33 @@ size_t page_size();
 
 enum class PageAccess {
   kNoAccess = 0,
-  kReadOnly,
-  kReadWrite,
+  kReadOnly = 1 << 0,
+  kReadWrite = kReadOnly | 1 << 1,
+  kExecuteReadWrite = kReadWrite | 1 << 2,
 };
+
+enum class AllocationType {
+  kReserve = 1 << 0,
+  kCommit = 1 << 1,
+  kReserveCommit = kReserve | kCommit,
+};
+
+enum class DeallocationType {
+  kRelease = 1 << 0,
+  kDecommit = 1 << 1,
+  kDecommitRelease = kRelease | kDecommit,
+};
+
+// Allocates a block of memory at the given page-aligned base address.
+// Fails if the memory is not available.
+void* AllocFixed(void* base_address, size_t length,
+                 AllocationType allocation_type, PageAccess access);
+
+// Deallocates and/or releases the given block of memory.
+// When releasing memory length must be zero, as all pages in the region are
+// released.
+bool DeallocFixed(void* base_address, size_t length,
+                  DeallocationType deallocation_type);
 
 // Sets the access rights for the given block of memory and returns the previous
 // access rights. Both base_address and length will be adjusted to page_size().

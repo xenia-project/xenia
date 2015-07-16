@@ -43,7 +43,8 @@ X64CodeCache::X64CodeCache()
 
 X64CodeCache::~X64CodeCache() {
   if (indirection_table_base_) {
-    VirtualFree(indirection_table_base_, 0, MEM_RELEASE);
+    xe::memory::DeallocFixed(indirection_table_base_, 0,
+                             xe::memory::DeallocationType::kRelease);
   }
 
 #ifdef USE_GROWABLE_FUNCTION_TABLE
@@ -66,9 +67,10 @@ X64CodeCache::~X64CodeCache() {
 }
 
 bool X64CodeCache::Initialize() {
-  indirection_table_base_ = reinterpret_cast<uint8_t*>(
-      VirtualAlloc(reinterpret_cast<void*>(kIndirectionTableBase),
-                   kIndirectionTableSize, MEM_RESERVE, PAGE_READWRITE));
+  indirection_table_base_ = reinterpret_cast<uint8_t*>(xe::memory::AllocFixed(
+      reinterpret_cast<void*>(kIndirectionTableBase), kIndirectionTableSize,
+      xe::memory::AllocationType::kReserve,
+      xe::memory::PageAccess::kReadWrite));
   if (!indirection_table_base_) {
     XELOGE("Unable to allocate code cache indirection table");
     XELOGE(
@@ -91,7 +93,7 @@ bool X64CodeCache::Initialize() {
     return false;
   }
 
-  // Mapp generated code region into the file. Pages are committed as required.
+  // Map generated code region into the file. Pages are committed as required.
   generated_code_base_ = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
       mapping_, FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE, 0, 0,
       kGeneratedCodeSize, reinterpret_cast<void*>(kGeneratedCodeBase)));
@@ -153,8 +155,10 @@ void X64CodeCache::AddIndirection(uint32_t guest_address,
 void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
                                          uint32_t guest_high) {
   // Commit the memory.
-  VirtualAlloc(indirection_table_base_ + (guest_low - kIndirectionTableBase),
-               guest_high - guest_low, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+  xe::memory::AllocFixed(
+      indirection_table_base_ + (guest_low - kIndirectionTableBase),
+      guest_high - guest_low, xe::memory::AllocationType::kCommit,
+      xe::memory::PageAccess::kExecuteReadWrite);
 
   // Fill memory with the default value.
   uint32_t* p = reinterpret_cast<uint32_t*>(indirection_table_base_);
@@ -198,8 +202,9 @@ void* X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   size_t old_commit_mark = generated_code_commit_mark_;
   if (high_mark > old_commit_mark) {
     size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
-    VirtualAlloc(generated_code_base_, new_commit_mark, MEM_COMMIT,
-                 PAGE_EXECUTE_READWRITE);
+    xe::memory::AllocFixed(generated_code_base_, new_commit_mark,
+                           xe::memory::AllocationType::kCommit,
+                           xe::memory::PageAccess::kExecuteReadWrite);
     generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
                                                         new_commit_mark);
   }
@@ -394,8 +399,9 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
   size_t old_commit_mark = generated_code_commit_mark_;
   if (high_mark > old_commit_mark) {
     size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
-    VirtualAlloc(generated_code_base_, new_commit_mark, MEM_COMMIT,
-                 PAGE_EXECUTE_READWRITE);
+    xe::memory::AllocFixed(generated_code_base_, new_commit_mark,
+                           xe::memory::AllocationType::kCommit,
+                           xe::memory::PageAccess::kExecuteReadWrite);
     generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
                                                         new_commit_mark);
   }
