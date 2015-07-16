@@ -80,8 +80,8 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
 
 // TODO(benvanik): move into xe::memory::
 
-constexpr void* low_address(void* address) {
-  return (void*)(uint64_t(address) & 0xFFFFFFFF);
+inline void* low_address(void* address) {
+  return reinterpret_cast<void*>(uint64_t(address) & 0xFFFFFFFF);
 }
 
 void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,

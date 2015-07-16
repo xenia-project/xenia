@@ -14,7 +14,7 @@
 namespace xe {
 
 uint64_t Clock::host_tick_frequency() {
-  static LARGE_INTEGER frequency = {0};
+  static LARGE_INTEGER frequency = {{0}};
   if (!frequency.QuadPart) {
     QueryPerformanceFrequency(&frequency);
   }

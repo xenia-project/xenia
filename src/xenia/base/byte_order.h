@@ -21,7 +21,7 @@
 
 namespace xe {
 
-#if XE_COMPILER_MSVC
+#if XE_PLATFORM_WIN32
 #define XENIA_BASE_BYTE_SWAP_16 _byteswap_ushort
 #define XENIA_BASE_BYTE_SWAP_32 _byteswap_ulong
 #define XENIA_BASE_BYTE_SWAP_64 _byteswap_uint64
@@ -33,7 +33,7 @@ namespace xe {
 #define XENIA_BASE_BYTE_SWAP_16 __bswap_16
 #define XENIA_BASE_BYTE_SWAP_32 __bswap_32
 #define XENIA_BASE_BYTE_SWAP_64 __bswap_64
-#endif  // XE_COMPILER_MSVC
+#endif  // XE_PLATFORM_WIN32
 
 inline int8_t byte_swap(int8_t value) { return value; }
 inline uint8_t byte_swap(uint8_t value) { return value; }

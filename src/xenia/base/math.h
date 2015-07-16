@@ -60,7 +60,7 @@ T next_pow2(T value) {
 // The number of leading zero bits in the value parameter. If value is zero, the
 // return value is the size of the input operand (8, 16, 32, or 64). If the most
 // significant bit of value is one, the return value is zero.
-#if XE_COMPILER_MSVC
+#if XE_PLATFORM_WIN32
 // TODO(benvanik): runtime magic so these point to an appropriate implementation
 // at runtime based on CPU features
 #if 0
@@ -109,7 +109,7 @@ inline uint8_t lzcnt(uint32_t v) {
 inline uint8_t lzcnt(uint64_t v) {
   return static_cast<uint8_t>(__builtin_clzll(v));
 }
-#endif  // XE_COMPILER_MSVC
+#endif  // XE_PLATFORM_WIN32
 inline uint8_t lzcnt(int8_t v) { return lzcnt(static_cast<uint8_t>(v)); }
 inline uint8_t lzcnt(int16_t v) { return lzcnt(static_cast<uint16_t>(v)); }
 inline uint8_t lzcnt(int32_t v) { return lzcnt(static_cast<uint32_t>(v)); }
@@ -119,7 +119,7 @@ inline uint8_t lzcnt(int64_t v) { return lzcnt(static_cast<uint64_t>(v)); }
 // Search the value from least significant bit (LSB) to the most significant bit
 // (MSB) for a set bit (1).
 // Returns false if no bits are set and the output index is invalid.
-#if XE_COMPILER_MSVC
+#if XE_PLATFORM_WIN32
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   return _BitScanForward(reinterpret_cast<unsigned long*>(out_first_set_index),
                          v) != 0;
@@ -139,7 +139,7 @@ inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
   *out_first_set_index = i;
   return i != 0;
 }
-#endif  // XE_COMPILER_MSVC
+#endif  // XE_PLATFORM_WIN32
 inline bool bit_scan_forward(int32_t v, uint32_t* out_first_set_index) {
   return bit_scan_forward(static_cast<uint32_t>(v), out_first_set_index);
 }
@@ -160,7 +160,7 @@ template <typename T>
 inline T rotate_left(T v, uint8_t sh) {
   return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
 }
-#if XE_COMPILER_MSVC
+#if XE_PLATFORM_WIN32
 template <>
 inline uint8_t rotate_left(uint8_t v, uint8_t sh) {
   return _rotl8(v, sh);
@@ -177,7 +177,7 @@ template <>
 inline uint64_t rotate_left(uint64_t v, uint8_t sh) {
   return _rotl64(v, sh);
 }
-#endif  // XE_COMPILER_MSVC
+#endif  // XE_PLATFORM_WIN32
 
 // Utilities for SSE values.
 template <int N>
