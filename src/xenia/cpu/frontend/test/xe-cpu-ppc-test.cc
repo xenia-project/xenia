@@ -371,8 +371,7 @@ void ProtectedRunTest(TestSuite& test_suite, TestRunner& runner,
     }
 
 #if XE_COMPILER_MSVC
-  }
-  __except(filter(GetExceptionCode())) {
+  } __except (filter(GetExceptionCode())) {
     XELOGE("    TEST FAILED (UNSUPPORTED INSTRUCTION)");
     ++failed_count;
   }

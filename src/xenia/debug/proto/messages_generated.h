@@ -99,12 +99,22 @@ enum RequestData {
 };
 
 inline const char** EnumNamesRequestData() {
-  static const char* names[] = {
-      "NONE", "AttachRequest", "ListBreakpointsRequest",
-      "AddBreakpointsRequest", "UpdateBreakpointsRequest",
-      "RemoveBreakpointsRequest", "ListModulesRequest", "GetModuleRequest",
-      "ListFunctionsRequest", "GetFunctionRequest", "ListThreadsRequest",
-      "StopRequest", "BreakRequest", "ContinueRequest", "StepRequest", nullptr};
+  static const char* names[] = {"NONE",
+                                "AttachRequest",
+                                "ListBreakpointsRequest",
+                                "AddBreakpointsRequest",
+                                "UpdateBreakpointsRequest",
+                                "RemoveBreakpointsRequest",
+                                "ListModulesRequest",
+                                "GetModuleRequest",
+                                "ListFunctionsRequest",
+                                "GetFunctionRequest",
+                                "ListThreadsRequest",
+                                "StopRequest",
+                                "BreakRequest",
+                                "ContinueRequest",
+                                "StepRequest",
+                                nullptr};
   return names;
 }
 
@@ -136,13 +146,24 @@ enum ResponseData {
 };
 
 inline const char** EnumNamesResponseData() {
-  static const char* names[] = {
-      "NONE", "AttachResponse", "ListBreakpointsResponse",
-      "AddBreakpointsResponse", "UpdateBreakpointsResponse",
-      "RemoveBreakpointsResponse", "ListModulesResponse", "GetModuleResponse",
-      "ListFunctionsResponse", "GetFunctionResponse", "ListThreadsResponse",
-      "StopResponse", "BreakResponse", "ContinueResponse", "StepResponse",
-      "BreakpointEvent", "AccessViolationEvent", nullptr};
+  static const char* names[] = {"NONE",
+                                "AttachResponse",
+                                "ListBreakpointsResponse",
+                                "AddBreakpointsResponse",
+                                "UpdateBreakpointsResponse",
+                                "RemoveBreakpointsResponse",
+                                "ListModulesResponse",
+                                "GetModuleResponse",
+                                "ListFunctionsResponse",
+                                "GetFunctionResponse",
+                                "ListThreadsResponse",
+                                "StopResponse",
+                                "BreakResponse",
+                                "ContinueResponse",
+                                "StepResponse",
+                                "BreakpointEvent",
+                                "AccessViolationEvent",
+                                nullptr};
   return names;
 }
 

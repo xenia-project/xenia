@@ -2979,23 +2979,23 @@ EMITTER_OPCODE_TABLE(OPCODE_COMPARE_NE, COMPARE_NE_I8, COMPARE_NE_I16,
     static void Emit(X64Emitter& e, const EmitArgType& i) {             \
       EmitAssociativeCompareOp(                                         \
           e, i,                                                         \
-          [](X64Emitter & e, const Reg8& dest, const reg_type& src1,    \
+          [](X64Emitter& e, const Reg8& dest, const reg_type& src1,     \
              const reg_type& src2, bool inverse) {                      \
-        e.cmp(src1, src2);                                              \
-        if (!inverse) {                                                 \
-          e.instr(dest);                                                \
-        } else {                                                        \
-          e.inverse_instr(dest);                                        \
-        }                                                               \
+            e.cmp(src1, src2);                                          \
+            if (!inverse) {                                             \
+              e.instr(dest);                                            \
+            } else {                                                    \
+              e.inverse_instr(dest);                                    \
+            }                                                           \
           },                                                            \
-          [](X64Emitter & e, const Reg8& dest, const reg_type& src1,    \
+          [](X64Emitter& e, const Reg8& dest, const reg_type& src1,     \
              int32_t constant, bool inverse) {                          \
-        e.cmp(src1, constant);                                          \
-        if (!inverse) {                                                 \
-          e.instr(dest);                                                \
-        } else {                                                        \
-          e.inverse_instr(dest);                                        \
-        }                                                               \
+            e.cmp(src1, constant);                                      \
+            if (!inverse) {                                             \
+              e.instr(dest);                                            \
+            } else {                                                    \
+              e.inverse_instr(dest);                                    \
+            }                                                           \
           });                                                           \
     }                                                                   \
   };

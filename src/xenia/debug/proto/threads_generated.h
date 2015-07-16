@@ -204,7 +204,7 @@ struct ListThreadsResponseBuilder {
   flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
   void add_thread(flatbuffers::Offset<
-      flatbuffers::Vector<flatbuffers::Offset<Thread>>> thread) {
+                  flatbuffers::Vector<flatbuffers::Offset<Thread>>> thread) {
     fbb_.AddOffset(4, thread);
   }
   ListThreadsResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb)

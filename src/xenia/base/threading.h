@@ -162,7 +162,8 @@ inline WaitResult WaitAll(
     WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
   return WaitMultiple(wait_handles, wait_handle_count, true, is_alertable,
-                      timeout).first;
+                      timeout)
+      .first;
 }
 inline WaitResult WaitAll(
     std::vector<WaitHandle*> wait_handles, bool is_alertable,

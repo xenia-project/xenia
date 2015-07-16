@@ -229,7 +229,8 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
               fbb.CreateString(xe::to_string(code_cache->file_name())),
               code_cache->base_address(), code_cache->total_size(),
               fbb.CreateString(xe::to_string(functions_path_)),
-              fbb.CreateString(xe::to_string(functions_trace_path_))).Union();
+              fbb.CreateString(xe::to_string(functions_trace_path_)))
+              .Union();
 
       // Allow continuation if we were blocked waiting for a client.
       accept_fence_.Signal();

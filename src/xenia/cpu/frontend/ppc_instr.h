@@ -118,8 +118,7 @@ typedef struct {
       uint32_t LK : 1;
       uint32_t AA : 1;
       uint32_t LI : 24;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } I;
     // kXEPPCInstrFormatB
     struct {
@@ -128,8 +127,7 @@ typedef struct {
       uint32_t BD : 14;
       uint32_t BI : 5;
       uint32_t BO : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } B;
 
     // kXEPPCInstrFormatSC
@@ -138,87 +136,71 @@ typedef struct {
       uint32_t DS : 16;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } D;
     // kXEPPCInstrFormatDS
     struct {
-    uint32_t:
-      2;
+      uint32_t : 2;
       uint32_t DS : 14;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } DS;
     // kXEPPCInstrFormatX
     struct {
       uint32_t Rc : 1;
-    uint32_t:
-      10;
+      uint32_t : 10;
       uint32_t RB : 5;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } X;
     // kXEPPCInstrFormatXL
     struct {
       uint32_t LK : 1;
-    uint32_t:
-      10;
+      uint32_t : 10;
       uint32_t BB : 5;
       uint32_t BI : 5;
       uint32_t BO : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } XL;
     // kXEPPCInstrFormatXFX
     struct {
-    uint32_t:
-      1;
-    uint32_t:
-      10;
+      uint32_t : 1;
+      uint32_t : 10;
       uint32_t spr : 10;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } XFX;
     // kXEPPCInstrFormatXFL
     struct {
       uint32_t Rc : 1;
-    uint32_t:
-      10;
+      uint32_t : 10;
       uint32_t RB : 5;
       uint32_t W : 1;
       uint32_t FM : 8;
       uint32_t L : 1;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } XFL;
     // kXEPPCInstrFormatXS
     struct {
       uint32_t Rc : 1;
       uint32_t SH5 : 1;
-    uint32_t:
-      9;
+      uint32_t : 9;
       uint32_t SH : 5;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } XS;
     // kXEPPCInstrFormatXO
     struct {
       uint32_t Rc : 1;
-    uint32_t:
-      9;
+      uint32_t : 9;
       uint32_t OE : 1;
       uint32_t RB : 5;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } XO;
     // kXEPPCInstrFormatA
     struct {
@@ -228,8 +210,7 @@ typedef struct {
       uint32_t FRB : 5;
       uint32_t FRA : 5;
       uint32_t FRT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } A;
     // kXEPPCInstrFormatM
     struct {
@@ -239,8 +220,7 @@ typedef struct {
       uint32_t SH : 5;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } M;
     // kXEPPCInstrFormatMD
     struct {
@@ -252,8 +232,7 @@ typedef struct {
       uint32_t SH : 5;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } MD;
     // kXEPPCInstrFormatMDS
     struct {
@@ -264,40 +243,33 @@ typedef struct {
       uint32_t RB : 5;
       uint32_t RA : 5;
       uint32_t RT : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } MDS;
     // kXEPPCInstrFormatVXA
     struct {
-    uint32_t:
-      6;
+      uint32_t : 6;
       uint32_t VC : 5;
       uint32_t VB : 5;
       uint32_t VA : 5;
       uint32_t VD : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VXA;
     // kXEPPCInstrFormatVX
     struct {
-    uint32_t:
-      11;
+      uint32_t : 11;
       uint32_t VB : 5;
       uint32_t VA : 5;
       uint32_t VD : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX;
     // kXEPPCInstrFormatVXR
     struct {
-    uint32_t:
-      10;
+      uint32_t : 10;
       uint32_t Rc : 1;
       uint32_t VB : 5;
       uint32_t VA : 5;
       uint32_t VD : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VXR;
     // kXEPPCInstrFormatVX128
     struct {
@@ -306,31 +278,25 @@ typedef struct {
       // VB128 = VB128l | (VB128h << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      1;
+      uint32_t : 1;
       uint32_t VA128h : 1;
-    uint32_t:
-      4;
+      uint32_t : 4;
       uint32_t VA128H : 1;
       uint32_t VB128l : 5;
       uint32_t VA128l : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128;
     // kXEPPCInstrFormatVX128_1
     struct {
-    // VD128 = VD128l | (VD128h << 5)
-    uint32_t:
-      2;
+      // VD128 = VD128l | (VD128h << 5)
+      uint32_t : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      7;
+      uint32_t : 7;
       uint32_t RB : 5;
       uint32_t RA : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_1;
     // kXEPPCInstrFormatVX128_2
     struct {
@@ -339,18 +305,15 @@ typedef struct {
       // VB128 = VB128l | (VB128h << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      1;
+      uint32_t : 1;
       uint32_t VA128h : 1;
       uint32_t VC : 3;
-    uint32_t:
-      1;
+      uint32_t : 1;
       uint32_t VA128H : 1;
       uint32_t VB128l : 5;
       uint32_t VA128l : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_2;
     // kXEPPCInstrFormatVX128_3
     struct {
@@ -358,13 +321,11 @@ typedef struct {
       // VB128 = VB128l | (VB128h << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      7;
+      uint32_t : 7;
       uint32_t VB128l : 5;
       uint32_t IMM : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_3;
     // kXEPPCInstrFormatVX128_4
     struct {
@@ -372,16 +333,13 @@ typedef struct {
       // VB128 = VB128l | (VB128h << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      2;
+      uint32_t : 2;
       uint32_t z : 2;
-    uint32_t:
-      3;
+      uint32_t : 3;
       uint32_t VB128l : 5;
       uint32_t IMM : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_4;
     // kXEPPCInstrFormatVX128_5
     struct {
@@ -390,16 +348,14 @@ typedef struct {
       // VB128 = VB128l | (VB128h << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      1;
+      uint32_t : 1;
       uint32_t VA128h : 1;
       uint32_t SH : 4;
       uint32_t VA128H : 1;
       uint32_t VB128l : 5;
       uint32_t VA128l : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_5;
     // kXEPPCInstrFormatVX128_P
     struct {
@@ -408,16 +364,13 @@ typedef struct {
       // PERM = PERMl | (PERMh << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      2;
+      uint32_t : 2;
       uint32_t PERMh : 3;
-    uint32_t:
-      2;
+      uint32_t : 2;
       uint32_t VB128l : 5;
       uint32_t PERMl : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_P;
     // kXEPPCInstrFormatVX128_R
     struct {
@@ -426,18 +379,15 @@ typedef struct {
       // VB128 = VB128l | (VB128h << 5)
       uint32_t VB128h : 2;
       uint32_t VD128h : 2;
-    uint32_t:
-      1;
+      uint32_t : 1;
       uint32_t VA128h : 1;
       uint32_t Rc : 1;
-    uint32_t:
-      3;
+      uint32_t : 3;
       uint32_t VA128H : 1;
       uint32_t VB128l : 5;
       uint32_t VA128l : 5;
       uint32_t VD128l : 5;
-    uint32_t:
-      6;
+      uint32_t : 6;
     } VX128_R;
     // kXEPPCInstrFormatXDSS
     struct {

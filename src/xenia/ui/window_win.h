@@ -53,8 +53,8 @@ class Win32Window : public Window {
 
   void OnResize(UIEvent& e) override;
 
-  static LRESULT CALLBACK
-  WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+  static LRESULT CALLBACK WndProcThunk(HWND hWnd, UINT message, WPARAM wParam,
+                                       LPARAM lParam);
   virtual LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
                           LPARAM lParam);
 

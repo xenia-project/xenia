@@ -460,8 +460,9 @@ struct ListFunctionsResponse FLATBUFFERS_FINAL_CLASS
 struct ListFunctionsResponseBuilder {
   flatbuffers::FlatBufferBuilder& fbb_;
   flatbuffers::uoffset_t start_;
-  void add_entry(flatbuffers::Offset<
-      flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>>> entry) {
+  void add_entry(
+      flatbuffers::Offset<
+          flatbuffers::Vector<flatbuffers::Offset<FunctionEntry>>> entry) {
     fbb_.AddOffset(4, entry);
   }
   ListFunctionsResponseBuilder(flatbuffers::FlatBufferBuilder& _fbb)

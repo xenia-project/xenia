@@ -61,8 +61,8 @@ void set_name(DWORD thread_id, const std::string& name) {
   __try {
     RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR),
                    reinterpret_cast<ULONG_PTR*>(&info));
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
   }
-  __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 void set_name(const std::string& name) {

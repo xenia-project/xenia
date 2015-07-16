@@ -47,9 +47,22 @@ using namespace xe::gpu::ucode;
 using namespace xe::gpu::xenos;
 
 static const char* levels[] = {
-    "", "\t", "\t\t", "\t\t\t", "\t\t\t\t", "\t\t\t\t\t", "\t\t\t\t\t\t",
-    "\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t", "\t\t\t\t\t\t\t\t\t", "x", "x", "x",
-    "x", "x", "x",
+    "",
+    "\t",
+    "\t\t",
+    "\t\t\t",
+    "\t\t\t\t",
+    "\t\t\t\t\t",
+    "\t\t\t\t\t\t",
+    "\t\t\t\t\t\t\t",
+    "\t\t\t\t\t\t\t\t",
+    "\t\t\t\t\t\t\t\t\t",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
 };
 
 /*
@@ -143,36 +156,36 @@ struct {
     {
 #define INSTR(opc, num_srcs) \
   { num_srcs, #opc }
-     INSTR(ADDv, 2),               // 0
-     INSTR(MULv, 2),               // 1
-     INSTR(MAXv, 2),               // 2
-     INSTR(MINv, 2),               // 3
-     INSTR(SETEv, 2),              // 4
-     INSTR(SETGTv, 2),             // 5
-     INSTR(SETGTEv, 2),            // 6
-     INSTR(SETNEv, 2),             // 7
-     INSTR(FRACv, 1),              // 8
-     INSTR(TRUNCv, 1),             // 9
-     INSTR(FLOORv, 1),             // 10
-     INSTR(MULADDv, 3),            // 111
-     INSTR(CNDEv, 3),              // 12
-     INSTR(CNDGTEv, 3),            // 13
-     INSTR(CNDGTv, 3),             // 14
-     INSTR(DOT4v, 2),              // 15
-     INSTR(DOT3v, 2),              // 16
-     INSTR(DOT2ADDv, 3),           // 17 -- ???
-     INSTR(CUBEv, 2),              // 18
-     INSTR(MAX4v, 1),              // 19
-     INSTR(PRED_SETE_PUSHv, 2),    // 20
-     INSTR(PRED_SETNE_PUSHv, 2),   // 21
-     INSTR(PRED_SETGT_PUSHv, 2),   // 22
-     INSTR(PRED_SETGTE_PUSHv, 2),  // 23
-     INSTR(KILLEv, 2),             // 24
-     INSTR(KILLGTv, 2),            // 25
-     INSTR(KILLGTEv, 2),           // 26
-     INSTR(KILLNEv, 2),            // 27
-     INSTR(DSTv, 2),               // 28
-     INSTR(MOVAv, 1),              // 29
+        INSTR(ADDv, 2),               // 0
+        INSTR(MULv, 2),               // 1
+        INSTR(MAXv, 2),               // 2
+        INSTR(MINv, 2),               // 3
+        INSTR(SETEv, 2),              // 4
+        INSTR(SETGTv, 2),             // 5
+        INSTR(SETGTEv, 2),            // 6
+        INSTR(SETNEv, 2),             // 7
+        INSTR(FRACv, 1),              // 8
+        INSTR(TRUNCv, 1),             // 9
+        INSTR(FLOORv, 1),             // 10
+        INSTR(MULADDv, 3),            // 111
+        INSTR(CNDEv, 3),              // 12
+        INSTR(CNDGTEv, 3),            // 13
+        INSTR(CNDGTv, 3),             // 14
+        INSTR(DOT4v, 2),              // 15
+        INSTR(DOT3v, 2),              // 16
+        INSTR(DOT2ADDv, 3),           // 17 -- ???
+        INSTR(CUBEv, 2),              // 18
+        INSTR(MAX4v, 1),              // 19
+        INSTR(PRED_SETE_PUSHv, 2),    // 20
+        INSTR(PRED_SETNE_PUSHv, 2),   // 21
+        INSTR(PRED_SETGT_PUSHv, 2),   // 22
+        INSTR(PRED_SETGTE_PUSHv, 2),  // 23
+        INSTR(KILLEv, 2),             // 24
+        INSTR(KILLGTv, 2),            // 25
+        INSTR(KILLGTEv, 2),           // 26
+        INSTR(KILLNEv, 2),            // 27
+        INSTR(DSTv, 2),               // 28
+        INSTR(MOVAv, 1),              // 29
 },
   scalar_instructions[0x40] = {
       INSTR(ADDs, 1),               // 0

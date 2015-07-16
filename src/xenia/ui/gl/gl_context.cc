@@ -131,9 +131,12 @@ bool GLContext::Initialize(Window* target_window) {
     context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
   }
 
-  int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, 4,      //
-                       WGL_CONTEXT_MINOR_VERSION_ARB, 5,      //
-                       WGL_CONTEXT_FLAGS_ARB, context_flags,  //
+  int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,
+                       4,  //
+                       WGL_CONTEXT_MINOR_VERSION_ARB,
+                       5,  //
+                       WGL_CONTEXT_FLAGS_ARB,
+                       context_flags,  //
                        0};
 
   glrc_ = wglCreateContextAttribsARB(dc_, nullptr, attrib_list);
@@ -187,10 +190,14 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
       context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }
 
-    int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, 4,       //
-                         WGL_CONTEXT_MINOR_VERSION_ARB, 5,       //
-                         WGL_CONTEXT_FLAGS_ARB, context_flags,   //
-                         WGL_CONTEXT_PROFILE_MASK_ARB, profile,  //
+    int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,
+                         4,  //
+                         WGL_CONTEXT_MINOR_VERSION_ARB,
+                         5,  //
+                         WGL_CONTEXT_FLAGS_ARB,
+                         context_flags,  //
+                         WGL_CONTEXT_PROFILE_MASK_ARB,
+                         profile,  //
                          0};
     new_glrc = wglCreateContextAttribsARB(dc_, glrc_, attrib_list);
     if (!new_glrc) {
@@ -234,7 +241,8 @@ void FatalGLError(std::string error) {
   XEFATAL(
       (error +
        "\nEnsure you have the latest drivers for your GPU and that it supports "
-       "OpenGL 4.5. See http://xenia.jp/faq/ for more information.").c_str());
+       "OpenGL 4.5. See http://xenia.jp/faq/ for more information.")
+          .c_str());
 }
 
 void GLContext::AssertExtensionsPresent() {
@@ -350,10 +358,11 @@ void GLContext::DebugMessage(GLenum source, GLenum type, GLuint id,
          message);
 }
 
-void GLAPIENTRY
-GLContext::DebugMessageThunk(GLenum source, GLenum type, GLuint id,
-                             GLenum severity, GLsizei length,
-                             const GLchar* message, GLvoid* user_param) {
+void GLAPIENTRY GLContext::DebugMessageThunk(GLenum source, GLenum type,
+                                             GLuint id, GLenum severity,
+                                             GLsizei length,
+                                             const GLchar* message,
+                                             GLvoid* user_param) {
   reinterpret_cast<GLContext*>(user_param)
       ->DebugMessage(source, type, id, severity, length, message);
 }

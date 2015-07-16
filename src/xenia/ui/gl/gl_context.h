@@ -58,9 +58,11 @@ class GLContext : public GraphicsContext {
   void SetupDebugging();
   void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
                     GLsizei length, const GLchar* message);
-  static void GLAPIENTRY
-  DebugMessageThunk(GLenum source, GLenum type, GLuint id, GLenum severity,
-                    GLsizei length, const GLchar* message, GLvoid* user_param);
+  static void GLAPIENTRY DebugMessageThunk(GLenum source, GLenum type,
+                                           GLuint id, GLenum severity,
+                                           GLsizei length,
+                                           const GLchar* message,
+                                           GLvoid* user_param);
 
   HDC dc_ = nullptr;
   HGLRC glrc_ = nullptr;

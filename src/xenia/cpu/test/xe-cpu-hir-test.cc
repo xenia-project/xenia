@@ -22,7 +22,7 @@ using xe::cpu::frontend::PPCContext;
 
 int main(std::vector<std::wstring>& args) {
   std::vector<std::string> narrow_args;
-  auto narrow_argv = new char* [args.size()];
+  auto narrow_argv = new char*[args.size()];
   for (size_t i = 0; i < args.size(); ++i) {
     auto narrow_arg = xe::to_string(args[i]);
     narrow_argv[i] = const_cast<char*>(narrow_arg.data());

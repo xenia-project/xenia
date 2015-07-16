@@ -508,8 +508,11 @@ void XThread::DeliverAPCs() {
       // kernel_routine(apc_address, &normal_routine, &normal_context,
       // &system_arg1, &system_arg2)
       uint64_t kernel_args[] = {
-          apc_ptr, scratch_address_ + 0, scratch_address_ + 4,
-          scratch_address_ + 8, scratch_address_ + 12,
+          apc_ptr,
+          scratch_address_ + 0,
+          scratch_address_ + 4,
+          scratch_address_ + 8,
+          scratch_address_ + 12,
       };
       processor->Execute(thread_state_, apc->kernel_routine, kernel_args,
                          xe::countof(kernel_args));
