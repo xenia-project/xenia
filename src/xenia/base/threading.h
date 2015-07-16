@@ -89,6 +89,14 @@ SleepResult AlertableSleep(std::chrono::duration<Rep, Period> duration) {
       std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
+typedef uint32_t TlsHandle;
+constexpr TlsHandle kInvalidTlsHandle = UINT_MAX;
+
+TlsHandle AllocateTlsHandle();
+bool FreeTlsHandle(TlsHandle handle);
+uintptr_t GetTlsValue(TlsHandle handle);
+bool SetTlsValue(TlsHandle handle, uintptr_t value);
+
 // Results for a WaitHandle operation.
 enum class WaitResult {
   // The state of the specified object is signaled.

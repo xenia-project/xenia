@@ -11,7 +11,6 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mutex.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/kernel_state.h"
@@ -371,18 +370,10 @@ SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_context,
 SHIM_CALL KeTlsAlloc_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   XELOGD("KeTlsAlloc()");
 
-  uint32_t tls_index;
-
-#if XE_PLATFORM_WIN32
-  tls_index = TlsAlloc();
-#else
-  pthread_key_t key;
-  if (pthread_key_create(&key, NULL)) {
+  auto tls_index = xe::threading::AllocateTlsHandle();
+  if (tls_index == xe::threading::kInvalidTlsHandle) {
     tls_index = X_TLS_OUT_OF_INDEXES;
-  } else {
-    tls_index = (uint32_t)key;
   }
-#endif  // WIN32
 
   SHIM_SET_RETURN_32(tls_index);
 }
@@ -398,14 +389,7 @@ SHIM_CALL KeTlsFree_shim(PPCContext* ppc_context, KernelState* kernel_state) {
     return;
   }
 
-  int result = 0;
-
-#if XE_PLATFORM_WIN32
-  result = TlsFree(tls_index);
-#else
-  result = pthread_key_delete(tls_index) == 0;
-#endif  // WIN32
-
+  uint32_t result = xe::threading::FreeTlsHandle(tls_index) ? 1 : 0;
   SHIM_SET_RETURN_32(result);
 }
 
@@ -419,17 +403,10 @@ SHIM_CALL KeTlsGetValue_shim(PPCContext* ppc_context,
   //    "KeTlsGetValue(%.8X)",
   //    tls_index);
 
-  uint64_t value = 0;
-
-#if XE_PLATFORM_WIN32
-  value = (uint64_t)TlsGetValue(tls_index);
-#else
-  value = (uint64_t)pthread_getspecific(tls_index);
-#endif  // WIN32
-
+  uint32_t value = static_cast<uint32_t>(xe::threading::GetTlsValue(tls_index));
   if (!value) {
     // XELOGW("KeTlsGetValue should SetLastError if result is NULL");
-    // TODO(benvanik): SetLastError
+    // TODO(benvanik): SetLastError? Or does user code do this?
   }
 
   SHIM_SET_RETURN_32(value);
@@ -443,15 +420,7 @@ SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_context,
 
   XELOGD("KeTlsSetValue(%.8X, %.8X)", tls_index, tls_value);
 
-  int result = 0;
-
-#if XE_PLATFORM_WIN32
-  result = TlsSetValue(
-      tls_index, reinterpret_cast<void*>(static_cast<uintptr_t>(tls_value)));
-#else
-  result = pthread_setspecific(tls_index, (void*)tls_value) == 0;
-#endif  // WIN32
-
+  uint32_t result = xe::threading::SetTlsValue(tls_index, tls_value) ? 1 : 0;
   SHIM_SET_RETURN_32(result);
 }
 

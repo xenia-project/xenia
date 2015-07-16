@@ -96,6 +96,18 @@ SleepResult AlertableSleep(std::chrono::microseconds duration) {
   return SleepResult::kSuccess;
 }
 
+TlsHandle AllocateTlsHandle() { return TlsAlloc(); }
+
+bool FreeTlsHandle(TlsHandle handle) { return TlsFree(handle) ? true : false; }
+
+uintptr_t GetTlsValue(TlsHandle handle) {
+  return reinterpret_cast<uintptr_t>(TlsGetValue(handle));
+}
+
+bool SetTlsValue(TlsHandle handle, uintptr_t value) {
+  return TlsSetValue(handle, reinterpret_cast<void*>(value)) ? true : false;
+}
+
 template <typename T>
 class Win32Handle : public T {
  public:
