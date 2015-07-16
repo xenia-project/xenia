@@ -309,7 +309,7 @@ SHIM_CALL KeSetCurrentProcessType_shim(PPCContext* ppc_context,
 
   XELOGD("KeSetCurrentProcessType(%d)", type);
 
-  assert_true(type >= 0 && type <= 2);
+  assert_true(type <= 2);
 
   kernel_state->set_process_type(type);
 }
@@ -905,7 +905,7 @@ SHIM_CALL KeWaitForMultipleObjects_shim(PPCContext* ppc_context,
       count, objects_ptr, wait_type, wait_reason, processor_mode, alertable,
       timeout_ptr, wait_block_array_ptr);
 
-  assert_true(wait_type >= 0 && wait_type <= 1);
+  assert_true(wait_type <= 1);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -935,7 +935,7 @@ dword_result_t NtWaitForMultipleObjectsEx(
     dword_t count, pointer_t<xe::be<uint32_t>> handles, dword_t wait_type,
     dword_t wait_mode, dword_t alertable,
     pointer_t<xe::be<uint64_t>> timeout_ptr) {
-  assert_true(wait_type >= 0 && wait_type <= 1);
+  assert_true(wait_type <= 1);
   X_STATUS result = X_STATUS_SUCCESS;
 
   std::vector<object_ref<XObject>> objects(count);

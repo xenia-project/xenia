@@ -331,7 +331,7 @@ uint64_t GL4GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x050002D0;
   }
 
-  assert_true(r >= 0 && r < RegisterFile::kRegisterCount);
+  assert_true(r < RegisterFile::kRegisterCount);
   return register_file_.values[r].u32;
 }
 
@@ -350,7 +350,7 @@ void GL4GraphicsSystem::WriteRegister(uint32_t addr, uint64_t value) {
       break;
   }
 
-  assert_true(r >= 0 && r < RegisterFile::kRegisterCount);
+  assert_true(r < RegisterFile::kRegisterCount);
   register_file_.values[r].u32 = static_cast<uint32_t>(value);
 }
 
