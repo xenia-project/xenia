@@ -24,10 +24,6 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-#if !XE_PLATFORM_WIN32
-#include <sys/mman.h>
-#endif  // WIN32
-
 DEFINE_bool(protect_zero, false,
             "Protect the zero page from reads and writes.");
 
@@ -76,12 +72,7 @@ static Memory* active_memory_ = nullptr;
 
 void CrashDump() { active_memory_->DumpMap(); }
 
-Memory::Memory()
-    : virtual_membase_(nullptr),
-      physical_membase_(nullptr),
-      reserve_address_(0),
-      mapping_(0),
-      mapping_base_(nullptr) {
+Memory::Memory() {
   system_page_size_ = uint32_t(xe::memory::page_size());
   assert_zero(active_memory_);
   active_memory_ = this;
@@ -107,9 +98,9 @@ Memory::~Memory() {
   // Unmap all views and close mapping.
   if (mapping_) {
     UnmapViews();
-    CloseHandle(mapping_);
-    mapping_base_ = 0;
-    mapping_ = 0;
+    xe::memory::CloseFileMappingHandle(mapping_);
+    mapping_base_ = nullptr;
+    mapping_ = nullptr;
   }
 
   virtual_membase_ = nullptr;
@@ -117,23 +108,15 @@ Memory::~Memory() {
 }
 
 int Memory::Initialize() {
-  wchar_t file_name[256];
-  wsprintf(file_name, L"Local\\xenia_memory_%p", Clock::QueryHostTickCount());
-  file_name_ = file_name;
+  file_name_ = std::wstring(L"Local\\xenia_memory_") +
+               std::to_wstring(Clock::QueryHostTickCount());
 
-// Create main page file-backed mapping. This is all reserved but
-// uncommitted (so it shouldn't expand page file).
-#if XE_PLATFORM_WIN32
-  mapping_ = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
-                               PAGE_READWRITE | SEC_RESERVE,
-                               // entire 4gb space + 512mb physical:
-                               1, 0x1FFFFFFF, file_name_.c_str());
-#else
-  char mapping_path[] = "/xenia/mapping/XXXXXX";
-  mktemp(mapping_path);
-  mapping_ = shm_open(mapping_path, O_CREAT, 0);
-  ftruncate(mapping_, 0x11FFFFFFF);
-#endif  // XE_PLATFORM_WIN32
+  // Create main page file-backed mapping. This is all reserved but
+  // uncommitted (so it shouldn't expand page file).
+  mapping_ = xe::memory::CreateFileMappingHandle(
+      file_name_,
+      // entire 4gb space + 512mb physical:
+      0x11FFFFFFF, xe::memory::PageAccess::kReadWrite, false);
   if (!mapping_) {
     XELOGE("Unable to reserve the 4gb guest address space.");
     assert_not_null(mapping_);
@@ -236,21 +219,10 @@ const static struct {
 int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(xe::countof(map_info) == xe::countof(views_.all_views));
   for (size_t n = 0; n < xe::countof(map_info); n++) {
-#if XE_PLATFORM_WIN32
-    DWORD target_address_low = static_cast<DWORD>(map_info[n].target_address);
-    DWORD target_address_high =
-        static_cast<DWORD>(map_info[n].target_address >> 32);
-    views_.all_views[n] = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
-        mapping_, FILE_MAP_ALL_ACCESS, target_address_high, target_address_low,
+    views_.all_views[n] = reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
+        mapping_, mapping_base + map_info[n].virtual_address_start,
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
-        mapping_base + map_info[n].virtual_address_start));
-#else
-    views_.all_views[n] = reinterpret_cast<uint8_t*>(mmap(
-        map_info[n].virtual_address_start + mapping_base,
-        map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
-        PROT_NONE, MAP_SHARED | MAP_FIXED, mapping_,
-        map_info[n].target_address));
-#endif  // XE_PLATFORM_WIN32
+        xe::memory::PageAccess::kReadWrite, map_info[n].target_address));
     if (!views_.all_views[n]) {
       // Failed, so bail and try again.
       UnmapViews();
@@ -263,13 +235,9 @@ int Memory::MapViews(uint8_t* mapping_base) {
 void Memory::UnmapViews() {
   for (size_t n = 0; n < xe::countof(views_.all_views); n++) {
     if (views_.all_views[n]) {
-#if XE_PLATFORM_WIN32
-      UnmapViewOfFile(views_.all_views[n]);
-#else
       size_t length = map_info[n].virtual_address_end -
                       map_info[n].virtual_address_start + 1;
-      munmap(views_.all_views[n], length);
-#endif  // XE_PLATFORM_WIN32
+      xe::memory::UnmapFileView(mapping_, views_.all_views[n], length);
     }
   }
 }
@@ -437,7 +405,6 @@ void Memory::DumpMap() {
 }
 
 xe::memory::PageAccess ToPageAccess(uint32_t protect) {
-  DWORD result = 0;
   if ((protect & kMemoryProtectRead) && !(protect & kMemoryProtectWrite)) {
     return xe::memory::PageAccess::kReadOnly;
   } else if ((protect & kMemoryProtectRead) &&

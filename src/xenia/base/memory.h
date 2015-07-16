@@ -58,6 +58,15 @@ bool DeallocFixed(void* base_address, size_t length,
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access);
 
+typedef void* FileMappingHandle;
+
+FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
+                                          PageAccess access, bool commit);
+void CloseFileMappingHandle(FileMappingHandle handle);
+void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
+                  PageAccess access, size_t file_offset);
+bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length);
+
 inline size_t hash_combine(size_t seed) { return seed; }
 
 template <typename T, typename... Ts>

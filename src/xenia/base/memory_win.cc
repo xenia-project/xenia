@@ -89,29 +89,68 @@ bool Protect(void* base_address, size_t length, PageAccess access,
   DWORD new_protect = ToWin32ProtectFlags(access);
   DWORD old_protect = 0;
   BOOL result = VirtualProtect(base_address, length, new_protect, &old_protect);
-  if (result) {
-    if (out_old_access) {
-      switch (old_protect) {
-        case PAGE_NOACCESS:
-          *out_old_access = PageAccess::kNoAccess;
-          break;
-        case PAGE_READONLY:
-          *out_old_access = PageAccess::kReadOnly;
-          break;
-        case PAGE_READWRITE:
-          *out_old_access = PageAccess::kReadWrite;
-          break;
-        case PAGE_EXECUTE_READWRITE:
-          *out_old_access = PageAccess::kExecuteReadWrite;
-        default:
-          assert_unhandled_case(access);
-          break;
-      }
-    }
-    return true;
-  } else {
+  if (!result) {
     return false;
   }
+  if (out_old_access) {
+    switch (old_protect) {
+      case PAGE_NOACCESS:
+        *out_old_access = PageAccess::kNoAccess;
+        break;
+      case PAGE_READONLY:
+        *out_old_access = PageAccess::kReadOnly;
+        break;
+      case PAGE_READWRITE:
+        *out_old_access = PageAccess::kReadWrite;
+        break;
+      case PAGE_EXECUTE_READWRITE:
+        *out_old_access = PageAccess::kExecuteReadWrite;
+      default:
+        assert_unhandled_case(access);
+        break;
+    }
+  }
+  return true;
+}
+
+FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
+                                          PageAccess access, bool commit) {
+  DWORD protect =
+      ToWin32ProtectFlags(access) | (commit ? SEC_COMMIT : SEC_RESERVE);
+  return CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, protect,
+                            static_cast<DWORD>(length >> 32),
+                            static_cast<DWORD>(length), path.c_str());
+}
+
+void CloseFileMappingHandle(FileMappingHandle handle) { CloseHandle(handle); }
+
+void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
+                  PageAccess access, size_t file_offset) {
+  DWORD target_address_low = static_cast<DWORD>(file_offset);
+  DWORD target_address_high = static_cast<DWORD>(file_offset >> 32);
+  DWORD file_access = 0;
+  switch (access) {
+    case PageAccess::kReadOnly:
+      file_access = FILE_MAP_READ;
+      break;
+    case PageAccess::kReadWrite:
+      file_access = FILE_MAP_ALL_ACCESS;
+      break;
+    case PageAccess::kExecuteReadWrite:
+      file_access = FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE;
+      break;
+    case PageAccess::kNoAccess:
+    default:
+      assert_unhandled_case(access);
+      return nullptr;
+  }
+  return MapViewOfFileEx(handle, file_access, target_address_high,
+                         target_address_low, length, base_address);
+}
+
+bool UnmapFileView(FileMappingHandle handle, void* base_address,
+                   size_t length) {
+  return UnmapViewOfFile(base_address) ? true : false;
 }
 
 }  // namespace memory

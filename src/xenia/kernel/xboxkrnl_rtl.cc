@@ -22,6 +22,9 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
 
+// For FileTimeToSystemTime and SystemTimeToFileTime:
+#include "xenia/base/platform_win.h"
+
 namespace xe {
 namespace kernel {
 

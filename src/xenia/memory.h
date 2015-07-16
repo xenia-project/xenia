@@ -16,8 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/memory.h"
 #include "xenia/base/mutex.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/cpu/mmio_handler.h"
 
 namespace xe {
@@ -216,13 +216,13 @@ class Memory {
 
  private:
   std::wstring file_name_;
-  uint32_t system_page_size_;
-  uint8_t* virtual_membase_;
-  uint8_t* physical_membase_;
-  uint64_t reserve_address_;
+  uint32_t system_page_size_ = 0;
+  uint8_t* virtual_membase_ = nullptr;
+  uint8_t* physical_membase_ = nullptr;
+  uint64_t reserve_address_ = 0;
 
-  HANDLE mapping_;
-  uint8_t* mapping_base_;
+  xe::memory::FileMappingHandle mapping_ = nullptr;
+  uint8_t* mapping_base_ = nullptr;
   union {
     struct {
       uint8_t* v00000000;
@@ -236,7 +236,7 @@ class Memory {
       uint8_t* physical;
     };
     uint8_t* all_views[9];
-  } views_;
+  } views_ = {0};
 
   std::unique_ptr<cpu::MMIOHandler> mmio_handler_;
 

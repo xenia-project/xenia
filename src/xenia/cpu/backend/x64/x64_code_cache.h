@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/memory.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/cpu/backend/code_cache.h"
@@ -61,33 +62,33 @@ class X64CodeCache : public CodeCache {
   void* LookupUnwindEntry(uintptr_t host_address);
 
   std::wstring file_name_;
-  HANDLE mapping_;
+  xe::memory::FileMappingHandle mapping_ = nullptr;
 
   // Must be held when manipulating the offsets or counts of anything, to keep
   // the tables consistent and ordered.
   xe::mutex allocation_mutex_;
 
   // Value that the indirection table will be initialized with upon commit.
-  uint32_t indirection_default_value_;
+  uint32_t indirection_default_value_ = 0xFEEDF00D;
 
   // Fixed at kIndirectionTableBase in host space, holding 4 byte pointers into
   // the generated code table that correspond to the PPC functions in guest
   // space.
-  uint8_t* indirection_table_base_;
+  uint8_t* indirection_table_base_ = nullptr;
   // Fixed at kGeneratedCodeBase and holding all generated code, growing as
   // needed.
-  uint8_t* generated_code_base_;
+  uint8_t* generated_code_base_ = nullptr;
   // Current offset to empty space in generated code.
-  size_t generated_code_offset_;
+  size_t generated_code_offset_ = 0;
   // Current high water mark of COMMITTED code.
-  std::atomic<size_t> generated_code_commit_mark_;
+  std::atomic<size_t> generated_code_commit_mark_ = 0;
 
   // Growable function table system handle.
-  void* unwind_table_handle_;
+  void* unwind_table_handle_ = nullptr;
   // Actual unwind table entries.
   std::vector<RUNTIME_FUNCTION> unwind_table_;
   // Current number of entries in the table.
-  std::atomic<uint32_t> unwind_table_count_;
+  std::atomic<uint32_t> unwind_table_count_ = 0;
 };
 
 }  // namespace x64

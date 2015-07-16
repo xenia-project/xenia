@@ -31,15 +31,7 @@ namespace x64 {
 // TODO(benvanik): move this to emitter.
 const static uint32_t kUnwindInfoSize = 4 + (2 * 1 + 2 + 2);
 
-X64CodeCache::X64CodeCache()
-    : mapping_(nullptr),
-      indirection_default_value_(0xFEEDF00D),
-      indirection_table_base_(nullptr),
-      generated_code_base_(nullptr),
-      generated_code_offset_(0),
-      generated_code_commit_mark_(0),
-      unwind_table_handle_(nullptr),
-      unwind_table_count_(0) {}
+X64CodeCache::X64CodeCache() = default;
 
 X64CodeCache::~X64CodeCache() {
   if (indirection_table_base_) {
@@ -60,9 +52,10 @@ X64CodeCache::~X64CodeCache() {
 
   // Unmap all views and close mapping.
   if (mapping_) {
-    UnmapViewOfFile(generated_code_base_);
-    CloseHandle(mapping_);
-    mapping_ = 0;
+    xe::memory::UnmapFileView(mapping_, generated_code_base_,
+                              kGeneratedCodeSize);
+    xe::memory::CloseFileMappingHandle(mapping_);
+    mapping_ = nullptr;
   }
 }
 
@@ -81,22 +74,20 @@ bool X64CodeCache::Initialize() {
   }
 
   // Create mmap file. This allows us to share the code cache with the debugger.
-  wchar_t file_name[256];
-  wsprintf(file_name, L"Local\\xenia_code_cache_%p",
-           Clock::QueryHostTickCount());
-  file_name_ = file_name;
-  mapping_ = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
-                               PAGE_EXECUTE_READWRITE | SEC_RESERVE, 0,
-                               kGeneratedCodeSize, file_name_.c_str());
+  file_name_ = std::wstring(L"Local\\xenia_code_cache_") +
+               std::to_wstring(Clock::QueryHostTickCount());
+  mapping_ = xe::memory::CreateFileMappingHandle(
+      file_name_, kGeneratedCodeSize, xe::memory::PageAccess::kExecuteReadWrite,
+      false);
   if (!mapping_) {
     XELOGE("Unable to create code cache mmap");
     return false;
   }
 
   // Map generated code region into the file. Pages are committed as required.
-  generated_code_base_ = reinterpret_cast<uint8_t*>(MapViewOfFileEx(
-      mapping_, FILE_MAP_ALL_ACCESS | FILE_MAP_EXECUTE, 0, 0,
-      kGeneratedCodeSize, reinterpret_cast<void*>(kGeneratedCodeBase)));
+  generated_code_base_ = reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
+      mapping_, reinterpret_cast<void*>(kGeneratedCodeBase), kGeneratedCodeSize,
+      xe::memory::PageAccess::kExecuteReadWrite, 0));
   if (!generated_code_base_) {
     XELOGE("Unable to allocate code cache generated code storage");
     XELOGE(
