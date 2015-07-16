@@ -19,7 +19,7 @@ Device::Device(const std::string& mount_path) : mount_path_(mount_path) {}
 Device::~Device() = default;
 
 void Device::Dump(StringBuffer* string_buffer) {
-  std::lock_guard<xe::mutex> lock(mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(mutex_);
   root_entry_->Dump(string_buffer, 0);
 }
 

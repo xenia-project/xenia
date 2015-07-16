@@ -15,8 +15,6 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/kernel/objects/xfile.h"
 
-typedef void* HANDLE;
-
 namespace xe {
 namespace vfs {
 

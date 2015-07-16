@@ -28,7 +28,7 @@ class Device {
   virtual bool Initialize() = 0;
   void Dump(StringBuffer* string_buffer);
 
-  xe::mutex& mutex() { return mutex_; }
+  xe::recursive_mutex& mutex() { return mutex_; }
   const std::string& mount_path() const { return mount_path_; }
 
   virtual bool is_read_only() const { return true; }
@@ -41,7 +41,7 @@ class Device {
   virtual uint32_t bytes_per_sector() const = 0;
 
  protected:
-  xe::mutex mutex_;
+  xe::recursive_mutex mutex_;
   std::string mount_path_;
   std::unique_ptr<Entry> root_entry_;
 };
