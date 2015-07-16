@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include "xenia/base/filesystem.h"
 #include "xenia/kernel/objects/xfile.h"
 
 typedef void* HANDLE;
@@ -24,7 +25,8 @@ class HostPathEntry;
 class HostPathFile : public XFile {
  public:
   HostPathFile(KernelState* kernel_state, uint32_t file_access,
-               HostPathEntry* entry, HANDLE file_handle);
+               HostPathEntry* entry,
+               std::unique_ptr<xe::filesystem::FileHandle> file_handle);
   ~HostPathFile() override;
 
  protected:
@@ -35,7 +37,7 @@ class HostPathFile : public XFile {
 
  private:
   HostPathEntry* entry_;
-  HANDLE file_handle_;
+  std::unique_ptr<xe::filesystem::FileHandle> file_handle_;
 };
 
 }  // namespace vfs

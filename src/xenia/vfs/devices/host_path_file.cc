@@ -9,19 +9,19 @@
 
 #include "xenia/vfs/devices/host_path_file.h"
 
-#include "xenia/base/platform_win.h"
 #include "xenia/vfs/devices/host_path_entry.h"
 
 namespace xe {
 namespace vfs {
 
-HostPathFile::HostPathFile(KernelState* kernel_state, uint32_t file_access,
-                           HostPathEntry* entry, HANDLE file_handle)
+HostPathFile::HostPathFile(
+    KernelState* kernel_state, uint32_t file_access, HostPathEntry* entry,
+    std::unique_ptr<xe::filesystem::FileHandle> file_handle)
     : XFile(kernel_state, file_access, entry),
       entry_(entry),
-      file_handle_(file_handle) {}
+      file_handle_(std::move(file_handle)) {}
 
-HostPathFile::~HostPathFile() { CloseHandle(file_handle_); }
+HostPathFile::~HostPathFile() = default;
 
 X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
                                 size_t byte_offset, size_t* out_bytes_read) {
@@ -29,14 +29,7 @@ X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
     return X_STATUS_ACCESS_DENIED;
   }
 
-  OVERLAPPED overlapped;
-  overlapped.Pointer = (PVOID)byte_offset;
-  overlapped.hEvent = NULL;
-  DWORD bytes_read = 0;
-  BOOL read = ReadFile(file_handle_, buffer, (DWORD)buffer_length, &bytes_read,
-                       &overlapped);
-  if (read) {
-    *out_bytes_read = bytes_read;
+  if (file_handle_->Read(byte_offset, buffer, buffer_length, out_bytes_read)) {
     return X_STATUS_SUCCESS;
   } else {
     return X_STATUS_END_OF_FILE;
@@ -51,14 +44,8 @@ X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
     return X_STATUS_ACCESS_DENIED;
   }
 
-  OVERLAPPED overlapped;
-  overlapped.Pointer = (PVOID)byte_offset;
-  overlapped.hEvent = NULL;
-  DWORD bytes_written = 0;
-  BOOL wrote = WriteFile(file_handle_, buffer, (DWORD)buffer_length,
-                         &bytes_written, &overlapped);
-  if (wrote) {
-    *out_bytes_written = bytes_written;
+  if (file_handle_->Write(byte_offset, buffer, buffer_length,
+                          out_bytes_written)) {
     return X_STATUS_SUCCESS;
   } else {
     return X_STATUS_END_OF_FILE;

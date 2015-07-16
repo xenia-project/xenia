@@ -9,10 +9,10 @@
 
 #include "xenia/vfs/devices/host_path_entry.h"
 
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 #include "xenia/vfs/devices/host_path_file.h"
 
@@ -54,41 +54,14 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, uint32_t desired_access,
     XELOGE("Attempting to open file for write access on read-only device");
     return X_STATUS_ACCESS_DENIED;
   }
-  DWORD open_access = 0;
-  if (desired_access & FileAccess::kGenericRead) {
-    open_access |= GENERIC_READ;
-  }
-  if (desired_access & FileAccess::kGenericWrite) {
-    open_access |= GENERIC_WRITE;
-  }
-  if (desired_access & FileAccess::kGenericExecute) {
-    open_access |= GENERIC_EXECUTE;
-  }
-  if (desired_access & FileAccess::kGenericAll) {
-    open_access |= GENERIC_ALL;
-  }
-  if (desired_access & FileAccess::kFileReadData) {
-    open_access |= FILE_READ_DATA;
-  }
-  if (desired_access & FileAccess::kFileWriteData) {
-    open_access |= FILE_WRITE_DATA;
-  }
-  if (desired_access & FileAccess::kFileAppendData) {
-    open_access |= FILE_APPEND_DATA;
-  }
-  DWORD share_mode = FILE_SHARE_READ;
-  // We assume we've already created the file in the caller.
-  DWORD creation_disposition = OPEN_EXISTING;
-  HANDLE file =
-      CreateFileW(local_path_.c_str(), desired_access, share_mode, NULL,
-                  creation_disposition, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-  if (file == INVALID_HANDLE_VALUE) {
+  auto file_handle =
+      xe::filesystem::FileHandle::OpenExisting(local_path_, desired_access);
+  if (!file_handle) {
     // TODO(benvanik): pick correct response.
     return X_STATUS_NO_SUCH_FILE;
   }
-
-  *out_file = object_ref<XFile>(
-      new HostPathFile(kernel_state, desired_access, this, file));
+  *out_file = object_ref<XFile>(new HostPathFile(kernel_state, desired_access,
+                                                 this, std::move(file_handle)));
   return X_STATUS_SUCCESS;
 }
 

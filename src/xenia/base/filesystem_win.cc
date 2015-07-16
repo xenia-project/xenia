@@ -56,6 +56,89 @@ bool DeleteFile(const std::wstring& path) {
   return DeleteFileW(path.c_str()) ? true : false;
 }
 
+class Win32FileHandle : public FileHandle {
+ public:
+  Win32FileHandle(std::wstring path, HANDLE handle)
+      : FileHandle(std::move(path)), handle_(handle) {}
+  ~Win32FileHandle() override {
+    CloseHandle(handle_);
+    handle_ = nullptr;
+  }
+  bool Read(size_t file_offset, void* buffer, size_t buffer_length,
+            size_t* out_bytes_read) override {
+    *out_bytes_read = 0;
+    OVERLAPPED overlapped;
+    overlapped.Pointer = (PVOID)file_offset;
+    overlapped.hEvent = NULL;
+    DWORD bytes_read = 0;
+    BOOL read = ReadFile(handle_, buffer, (DWORD)buffer_length, &bytes_read,
+                         &overlapped);
+    if (read) {
+      *out_bytes_read = bytes_read;
+      return true;
+    } else {
+      return false;
+    }
+  }
+  bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
+             size_t* out_bytes_written) override {
+    *out_bytes_written = 0;
+    OVERLAPPED overlapped;
+    overlapped.Pointer = (PVOID)file_offset;
+    overlapped.hEvent = NULL;
+    DWORD bytes_written = 0;
+    BOOL wrote = WriteFile(handle_, buffer, (DWORD)buffer_length,
+                           &bytes_written, &overlapped);
+    if (wrote) {
+      *out_bytes_written = bytes_written;
+      return true;
+    } else {
+      return false;
+    }
+  }
+  void Flush() override { FlushFileBuffers(handle_); }
+
+ private:
+  HANDLE handle_ = nullptr;
+};
+
+std::unique_ptr<FileHandle> FileHandle::OpenExisting(std::wstring path,
+                                                     uint32_t desired_access) {
+  DWORD open_access = 0;
+  if (desired_access & FileAccess::kGenericRead) {
+    open_access |= GENERIC_READ;
+  }
+  if (desired_access & FileAccess::kGenericWrite) {
+    open_access |= GENERIC_WRITE;
+  }
+  if (desired_access & FileAccess::kGenericExecute) {
+    open_access |= GENERIC_EXECUTE;
+  }
+  if (desired_access & FileAccess::kGenericAll) {
+    open_access |= GENERIC_ALL;
+  }
+  if (desired_access & FileAccess::kFileReadData) {
+    open_access |= FILE_READ_DATA;
+  }
+  if (desired_access & FileAccess::kFileWriteData) {
+    open_access |= FILE_WRITE_DATA;
+  }
+  if (desired_access & FileAccess::kFileAppendData) {
+    open_access |= FILE_APPEND_DATA;
+  }
+  DWORD share_mode = FILE_SHARE_READ;
+  // We assume we've already created the file in the caller.
+  DWORD creation_disposition = OPEN_EXISTING;
+  HANDLE handle =
+      CreateFileW(path.c_str(), open_access, share_mode, NULL,
+                  creation_disposition, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+  if (handle == INVALID_HANDLE_VALUE) {
+    // TODO(benvanik): pick correct response.
+    return nullptr;
+  }
+  return std::make_unique<Win32FileHandle>(path, handle);
+}
+
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
 bool GetInfo(const std::wstring& path, FileInfo* out_info) {

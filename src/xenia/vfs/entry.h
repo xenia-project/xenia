@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/filesystem.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/kernel/xobject.h"
@@ -61,17 +62,8 @@ enum class FileDisposition {
   kOverwriteIf = 5,
 };
 
-struct FileAccess {
-  // Implies kFileReadData.
-  static const uint32_t kGenericRead = 0x80000000;
-  // Implies kFileWriteData.
-  static const uint32_t kGenericWrite = 0x40000000;
-  static const uint32_t kGenericExecute = 0x20000000;
-  static const uint32_t kGenericAll = 0x10000000;
-  static const uint32_t kFileReadData = 0x00000001;
-  static const uint32_t kFileWriteData = 0x00000002;
-  static const uint32_t kFileAppendData = 0x00000004;
-};
+// Reuse xe::filesystem definition.
+using FileAccess = xe::filesystem::FileAccess;
 
 enum FileAttributeFlags : uint32_t {
   kFileAttributeNone = 0x0000,
