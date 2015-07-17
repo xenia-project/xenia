@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_EMULATOR_WINDOW_H_
-#define XENIA_EMULATOR_WINDOW_H_
+#ifndef XENIA_APP_EMULATOR_WINDOW_H_
+#define XENIA_APP_EMULATOR_WINDOW_H_
 
 #include <memory>
 
@@ -18,8 +18,11 @@
 #include "xenia/xbox.h"
 
 namespace xe {
-
 class Emulator;
+}  // namespace xe
+
+namespace xe {
+namespace app {
 
 class EmulatorWindow {
  public:
@@ -50,6 +53,7 @@ class EmulatorWindow {
   std::unique_ptr<ui::Window> window_;
 };
 
+}  // namespace app
 }  // namespace xe
 
-#endif  // XENIA_EMULATOR_WINDOW_H_
+#endif  // XENIA_APP_EMULATOR_WINDOW_H_

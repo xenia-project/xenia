@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/emulator_window.h"
+#include "xenia/app/emulator_window.h"
 
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -18,6 +18,7 @@
 #include "xenia/profiling.h"
 
 namespace xe {
+namespace app {
 
 using xe::ui::KeyEvent;
 using xe::ui::MenuItem;
@@ -222,4 +223,5 @@ void EmulatorWindow::UpdateTitle() {
   window_->set_title(title);
 }
 
+}  // namespace app
 }  // namespace xe

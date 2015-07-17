@@ -105,16 +105,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\xenia\app\emulator_window.cc" />
+    <ClCompile Include="src\xenia\app\xenia_main.cc" />
     <ClCompile Include="src\xenia\base\main_win.cc" />
-    <ClCompile Include="src\xenia\emulator_window.cc" />
-    <ClCompile Include="src\xenia\xenia_main.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\xenia\app\emulator_window.h" />
     <ClInclude Include="src\xenia\base\main.h" />
-    <ClInclude Include="src\xenia\emulator_window.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="src\xenia\ui\main_resources.rc">
+    <ResourceCompile Include="src\xenia\app\main_resources.rc">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)third_party/elemental-forms;$(SolutionDir);.</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)third_party/elemental-forms;$(SolutionDir);.</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Checked|x64'">$(SolutionDir)third_party/elemental-forms;$(SolutionDir);.</AdditionalIncludeDirectories>

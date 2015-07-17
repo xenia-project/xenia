@@ -9,10 +9,10 @@
 
 #include <gflags/gflags.h>
 
+#include "xenia/app/emulator_window.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/emulator.h"
-#include "xenia/emulator_window.h"
 #include "xenia/kernel/kernel.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/file_picker.h"
@@ -20,6 +20,7 @@
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 
 namespace xe {
+namespace app {
 
 int xenia_main(std::vector<std::wstring>& args) {
   Profiler::Initialize();
@@ -97,6 +98,7 @@ int xenia_main(std::vector<std::wstring>& args) {
   return 0;
 }
 
+}  // namespace app
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia", L"xenia some.xex", xe::xenia_main);
+DEFINE_ENTRY_POINT(L"xenia", L"xenia some.xex", xe::app::xenia_main);
