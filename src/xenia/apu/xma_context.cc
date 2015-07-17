@@ -18,7 +18,7 @@
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavutil/channel_layout.h"
-}
+}  // extern "C"
 
 // Credits for most of this code goes to:
 // https://github.com/koolkdev/libertyv/blob/master/libav_wrapper/xma2dec.c

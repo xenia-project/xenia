@@ -27,7 +27,6 @@ class GL4GraphicsSystem : public GraphicsSystem {
   GL4GraphicsSystem(Emulator* emulator);
   ~GL4GraphicsSystem() override;
 
-  static std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
   std::unique_ptr<ui::GraphicsContext> CreateContext(
       ui::Window* target_window) override;
 

@@ -83,7 +83,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\base\main_win.cc" />
-    <ClCompile Include="xe-gpu-trace-viewer.cc" />
+    <ClCompile Include="trace_viewer_main.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base\main.h" />

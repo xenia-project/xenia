@@ -15,11 +15,11 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="xe-gpu-trace-viewer.cc">
-      <Filter>src\xenia\gpu</Filter>
-    </ClCompile>
     <ClCompile Include="..\base\main_win.cc">
       <Filter>src\xenia\base</Filter>
+    </ClCompile>
+    <ClCompile Include="trace_viewer_main.cc">
+      <Filter>src\xenia\gpu</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

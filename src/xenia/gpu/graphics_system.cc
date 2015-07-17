@@ -15,20 +15,21 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/kernel/objects/xthread.h"
 
-// TODO(benvanik): based on platform/build support.
-#include "xenia/gpu/gl4/gl4_graphics_system.h"
-
 namespace xe {
 namespace gpu {
 
+namespace gl4 {
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator);
+}  // namespace gl4
+
 std::unique_ptr<GraphicsSystem> GraphicsSystem::Create(Emulator* emulator) {
   if (FLAGS_gpu.compare("gl4") == 0) {
-    return xe::gpu::gl4::GL4GraphicsSystem::Create(emulator);
+    return xe::gpu::gl4::Create(emulator);
   } else {
     // Create best available.
     std::unique_ptr<GraphicsSystem> best;
 
-    best = xe::gpu::gl4::GL4GraphicsSystem::Create(emulator);
+    best = xe::gpu::gl4::Create(emulator);
     if (best) {
       return best;
     }

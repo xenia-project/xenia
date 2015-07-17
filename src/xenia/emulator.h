@@ -15,7 +15,6 @@
 #include "xenia/debug/debugger.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
-#include "xenia/ui/window.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 
@@ -35,6 +34,9 @@ class GraphicsSystem;
 namespace hid {
 class InputSystem;
 }  // namespace hid
+namespace ui {
+class Window;
+}  // namespace ui
 }  // namespace xe
 
 namespace xe {

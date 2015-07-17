@@ -43,7 +43,7 @@ void InitializeIfNeeded() {
 
 void CleanupOnShutdown() {}
 
-std::unique_ptr<GraphicsSystem> GL4GraphicsSystem::Create(Emulator* emulator) {
+std::unique_ptr<GraphicsSystem> Create(Emulator* emulator) {
   InitializeIfNeeded();
   return std::make_unique<GL4GraphicsSystem>(emulator);
 }
