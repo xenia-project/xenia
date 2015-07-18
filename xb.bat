@@ -671,6 +671,15 @@ IF %ALL% NEQ 1 (
     )
   )
   POPD
+  PUSHD third_party\elemental-forms\src
+  FOR /R %%G in (*.cc *.c *.h *.inl) DO (
+    ECHO ^> clang-format %%G
+    CMD /C %CLANG_FORMAT% -i -style=file %%G
+    IF !ERRORLEVEL! NEQ 0 (
+      SET ANY_ERRORS=1
+    )
+  )
+  POPD
 )
 IF %ANY_ERRORS% NEQ 0 (
   ECHO.

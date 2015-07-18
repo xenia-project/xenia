@@ -162,7 +162,7 @@ void main() { \n\
   glEnableVertexArrayAttrib(vao_, 1);
   glVertexArrayAttribBinding(vao_, 1, 0);
   glVertexArrayAttribFormat(vao_, 1, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-                            offsetof(Vertex, col));
+                            offsetof(Vertex, color));
   glEnableVertexArrayAttrib(vao_, 2);
   glVertexArrayAttribBinding(vao_, 2, 0);
   glVertexArrayAttribFormat(vao_, 2, 2, GL_FLOAT, GL_FALSE,

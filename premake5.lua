@@ -69,9 +69,12 @@ filter("platforms:Windows")
   -- Ignores complaints about empty obj files:
   linkoptions({"/ignore:4006", "/ignore:4221"})
   -- Enable multiprocessor compiles (requires Minimal Rebuild to be disabled).
-  buildoptions({"/MP"})
+  buildoptions({
+    "/MP",              -- Multiprocessor compilation.
+    "/wd4100",          -- Unreferenced parameters are ok.
+  })
   flags({
-    "NoMinimalRebuild",
+    "NoMinimalRebuild", -- Required for /MP above.
   })
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
