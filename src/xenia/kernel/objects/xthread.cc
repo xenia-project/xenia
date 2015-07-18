@@ -150,11 +150,14 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 X_STATUS XThread::Create() {
   // Thread kernel object
   // This call will also setup the native pointer for us.
-  uint8_t* guest_object = CreateNative(sizeof(X_THREAD));
+  auto guest_object = CreateNative<X_KTHREAD>(sizeof(X_KTHREAD));
   if (!guest_object) {
     XELOGW("Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
+
+  guest_object->header.type = 6;
+  StashNative(&guest_object->header, this);
 
   auto module = kernel_state()->GetExecutableModule();
 
@@ -268,15 +271,9 @@ X_STATUS XThread::Create() {
   pcr->current_cpu = GetFakeCpuNumber(proc_mask);  // Current CPU(?)
   pcr->dpc_active = 0;                             // DPC active bool?
 
-  // Thread state block
-  struct XTEB {
-    xe::be<uint32_t> unk_00;  // 0x0
-    xe::be<uint32_t> unk_04;  // 0x4
-    X_LIST_ENTRY unk_08;      // 0x8
-    X_LIST_ENTRY unk_10;      // 0x10
-  };
-
   // Setup the thread state block (last error/etc).
+  // TODO: This is actually a KTHREAD object. Use the one from CreateNative
+  // instead.
   uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
   xe::store_and_swap<uint32_t>(p + 0x000, 6);
   xe::store_and_swap<uint32_t>(p + 0x008, thread_state_address_ + 0x008);
