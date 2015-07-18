@@ -136,6 +136,35 @@ SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
+dword_result_t ObLookupThreadByThreadId(dword_t thread_id, lpdword_t out_object_ptr) {
+  auto thread = kernel_state()->GetThreadByID(thread_id);
+  if (!thread) {
+    return X_STATUS_NOT_FOUND;
+  }
+
+  // Retain the object. Will be released in ObDereferenceObject.
+  thread->Retain();
+  *out_object_ptr = thread->guest_object();
+  auto hdr = kernel_memory()->TranslateVirtual<X_DISPATCH_HEADER*>(thread->guest_object());
+  assert_true(hdr->type == 6);
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT(ObLookupThreadByThreadId, ExportTag::kStub);
+
+dword_result_t ObOpenObjectByPointer(lpvoid_t object_ptr, lpdword_t out_handle_ptr) {
+  auto object = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
+  if (!object) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  // Retain the handle. Will be released in NtClose.
+  object->RetainHandle();
+  *out_handle_ptr = object->handle();
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT(ObOpenObjectByPointer, ExportTag::kStub);
+
 dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
                                  dword_t options) {
   // NOTE: new_handle_ptr can be zero to just close a handle.
@@ -162,6 +191,7 @@ dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
 DECLARE_XBOXKRNL_EXPORT(NtDuplicateObject, ExportTag::kImplemented);
 
 dword_result_t NtClose(dword_t handle) {
+  // FIXME: This needs to be removed once handle count reaches 0!
   return kernel_state()->object_table()->RemoveHandle(handle);
 }
 DECLARE_XBOXKRNL_EXPORT(NtClose, ExportTag::kImplemented);
