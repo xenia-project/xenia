@@ -273,10 +273,7 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
 
   // Stash pointer in struct.
   // FIXME: This assumes the object has a dispatch header (some don't!)
-  uint64_t object_ptr = reinterpret_cast<uint64_t>(this);
-  object_ptr |= 0x1;
-  header->wait_list_flink = (uint32_t)(object_ptr >> 32);
-  header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
+  StashNative(header, this);
 
   guest_object_ptr_ = native_ptr;
 }
@@ -354,10 +351,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
 
     // Stash pointer in struct.
     // FIXME: This assumes the object contains a dispatch header (some don't!)
-    uint64_t object_ptr = reinterpret_cast<uint64_t>(object);
-    object_ptr |= 0x1;
-    header->wait_list_flink = (uint32_t)(object_ptr >> 32);
-    header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
+    StashNative(header, object);
 
     // NOTE: we are double-retaining, as the object is implicitly created and
     // can never be released.

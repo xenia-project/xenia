@@ -156,6 +156,19 @@ class XObject {
   uint8_t* CreateNative(uint32_t size);
   void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
 
+  template <typename T>
+  T* CreateNative(uint32_t size) {
+    return reinterpret_cast<T*>(CreateNative(size));
+  }
+
+  // Stash native pointer into X_DISPATCH_HEADER
+  static void StashNative(X_DISPATCH_HEADER* header, void* native_ptr) {
+    uint64_t object_ptr = reinterpret_cast<uint64_t>(native_ptr);
+    object_ptr |= 0x1;
+    header->wait_list_flink = (uint32_t)(object_ptr >> 32);
+    header->wait_list_blink = (uint32_t)(object_ptr & 0xFFFFFFFF);
+  }
+
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
 
   KernelState* kernel_state_;

@@ -315,8 +315,7 @@ class Win32Thread : public Win32Handle<Thread> {
   ~Win32Thread() = default;
 
   void set_name(std::string name) override {
-    AssertCallingThread();
-    xe::threading::set_name(name);
+    xe::threading::set_name(handle_, name);
     Thread::set_name(name);
   }
 

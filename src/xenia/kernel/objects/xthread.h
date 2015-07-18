@@ -66,14 +66,9 @@ struct XAPC {
 };
 
 // http://www.nirsoft.net/kernel_struct/vista/KTHREAD.html
-struct X_THREAD {
-  X_DISPATCH_HEADER header;
-  xe::be<uint64_t> cycle_time;
-  xe::be<uint32_t> high_cycle_time;  // FIXME: Needed?
-  xe::be<uint64_t> quantum_target;
-  xe::be<uint32_t> initial_stack_ptr;
-  xe::be<uint32_t> stack_limit_ptr;
-  xe::be<uint32_t> kernel_stack_ptr;
+struct X_KTHREAD {
+  X_DISPATCH_HEADER header;  // 0x0
+  char unk_04[0xAA0];        // 0x4
 
   // This struct is actually quite long... so uh, not filling this out!
 };
