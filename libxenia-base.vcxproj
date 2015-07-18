@@ -64,7 +64,6 @@
     <ProjectGuid>{93533067-6449-4691-88A8-026EBCFDCA97}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>libxeniabase</RootNamespace>
-    <TargetPlatformVersion>8.1</TargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
