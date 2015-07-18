@@ -1,0 +1,20 @@
+group("third_party")
+project("beaengine")
+  uuid("56e7d457-9955-4217-aadf-52e5ab45afab")
+  kind("StaticLib")
+  language("C++")
+  links({
+  })
+  defines({
+    "BEA_ENGINE_STATIC=1",
+    "_LIB",
+  })
+  includedirs({
+    "beaengine/include",
+    "beaengine/beaengineSources",
+  })
+  files({
+    "beaengine/beaengineSources/*.h",
+    "beaengine/beaengineSources/*.c",
+    "beaengine/include/beaengine/**.h",
+  })

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <!-- Shims -->
+  <Type Name="xe::kernel::shim::TypedPointerParam&lt;*&gt;">
+    <DisplayString>{host_ptr_}</DisplayString>
+    <Expand>
+      <ExpandedItem>host_ptr_</ExpandedItem>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>

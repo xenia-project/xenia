@@ -1,0 +1,31 @@
+group("third_party")
+project("glew")
+  uuid("ca31d35a-6cf4-4c86-b97f-60b5244b80cb")
+  kind("StaticLib")
+  language("C++")
+  links({
+  })
+  defines({
+    "GLEW_STATIC=1",
+    "GLEW_MX=1",
+    "_LIB",
+  })
+  includedirs({
+    "GL",
+  })
+  files({
+    "GL/glcorearb.h",
+    "GL/glew.c",
+    "GL/glew.h",
+    "GL/glext.h",
+  })
+  filter("platforms:Linux")
+    files({
+      "GL/glxew.h",
+      "GL/glxext.h",
+    })
+  filter("platforms:Windows")
+    files({
+      "GL/wglew.h",
+      "GL/wglext.h",
+    })

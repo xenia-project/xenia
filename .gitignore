@@ -77,8 +77,7 @@ scratch/
 
 .anvil-cache
 .build-cache/
-build/bin/
-build/obj/
+build/
 build-out/
 build-gen/
 build-bin/

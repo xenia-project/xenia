@@ -26,7 +26,6 @@ using xe::ui::MenuItem;
 const std::wstring kBaseTitle = L"xenia debugger";
 
 MainWindow::MainWindow(Application* app) : app_(app) {}
-// main_menu_(MenuItem::Type::kNormal) {}
 
 MainWindow::~MainWindow() = default;
 

@@ -49,7 +49,7 @@ void AttachConsole() {
 }  // namespace xe
 
 // Used in console mode apps; automatically picked based on subsystem.
-int wmain(int argc, wchar_t* argv[]) {
+int main(int argc, wchar_t* argv[]) {
   auto entry_info = xe::GetEntryInfo();
 
   google::SetUsageMessage(std::string("usage: ") +
@@ -102,7 +102,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR command_line, int) {
   }
 
   // Run normal entry point.
-  int result = wmain(argc, argv);
+  int result = main(argc, argv);
 
   LocalFree(argv);
   return result;

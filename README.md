@@ -44,11 +44,11 @@ Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
     > xb setup
     # Build on command line:
     > xb build
-    # Open Visual Studio (run the 'xenia' project):
+    # Open Visual Studio (run the 'xenia-app' project):
     > xb edit
 
 When fetching updates use `xb pull` to automatically fetch everything and
-update gyp files/etc.
+run premake for project files/etc.
 
 ## Building
 

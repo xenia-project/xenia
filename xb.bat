@@ -3,7 +3,7 @@ REM Copyright 2015 Ben Vanik. All Rights Reserved.
 
 SET DIR=%~dp0
 
-SET XENIA_SLN=xenia.sln
+SET XENIA_SLN=build\xenia.sln
 
 SET VS14_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat"
 SET VS15_VCVARSALL="C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\vcvarsall.bat"
@@ -97,6 +97,9 @@ ECHO.
 ECHO   xb pull [--rebase]
 ECHO     Fetches latest changes from github and rebuilds dependencies.
 ECHO.
+ECHO   xb premake
+ECHO     Regenerates Visual Studio projects and makefiles.
+ECHO.
 ECHO   xb proto
 ECHO     Regenerates protocol files (*.fbs).
 ECHO.
@@ -107,7 +110,7 @@ ECHO   xb build [--checked OR --debug OR --release] [--force]
 ECHO     Initializes dependencies and prepares build environment.
 ECHO.
 ECHO   xb gentests
-ECHO     Generates test binaries (under src/xenia/cpu/frontend/test/bin/).
+ECHO     Generates test binaries (under src/xenia/cpu/frontend/testing/bin/).
 ECHO     Run after modifying test .s files.
 ECHO.
 ECHO   xb test [--checked OR --debug OR --release] [--continue]
@@ -142,6 +145,16 @@ git submodule update --init --recursive
 IF %ERRORLEVEL% NEQ 0 (
   ECHO.
   ECHO ERROR: failed to initialize git submodules
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
+ECHO.
+ECHO ^> build_tools/premake ...
+CALL :run_premake
+IF %_RESULT% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to run premake
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
@@ -192,11 +205,42 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 ECHO.
-ECHO ^> git submodule update
-git submodule update
+ECHO ^> git submodule update --recursive
+git submodule update --recursive
 IF %ERRORLEVEL% NEQ 0 (
   ECHO.
   ECHO ERROR: failed to update git submodules
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
+ECHO.
+ECHO ^> build_tools/premake ...
+CALL :run_premake
+IF %_RESULT% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to run premake
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
+ENDLOCAL & SET _RESULT=0
+GOTO :eof
+
+
+REM ============================================================================
+REM xb premake
+REM ============================================================================
+:perform_premake
+SETLOCAL EnableDelayedExpansion
+ECHO Generating project files...
+
+ECHO.
+ECHO ^> build_tools/premake ...
+CALL :run_premake
+IF %_RESULT% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to run premake
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
@@ -212,9 +256,9 @@ REM ============================================================================
 SETLOCAL EnableDelayedExpansion
 ECHO Generating proto files...
 
-SET FLATC=build\bin\Debug\flatc.exe
+SET FLATC=build\bin\Windows\Debug\flatc.exe
 IF NOT EXIST %FLATC% (
-  SET FLATC=build\bin\Release\flatc.exe
+  SET FLATC=build\bin\Windows\Release\flatc.exe
   IF NOT EXIST %FLATC% (
     ECHO.
     ECHO ERROR: flatc not built - build before running this
@@ -233,11 +277,11 @@ FOR %%G in (*.fbs) DO (
   ECHO ^> generating %%~nG...
   POPD
   SET SRC_FILE=%FBS_SRCS%\%%G
-  CMD /c build\bin\Debug\flatc.exe -c -o %CC_OUT% !SRC_FILE! 2>&1
+  CMD /c build\bin\Windows\Debug\flatc.exe -c -o %CC_OUT% !SRC_FILE! 2>&1
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
-  CMD /c build\bin\Debug\flatc.exe -n -o %CS_OUT% !SRC_FILE! 2>&1
+  CMD /c build\bin\Windows\Debug\flatc.exe -n -o %CS_OUT% !SRC_FILE! 2>&1
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_ERRORS=1
   )
@@ -261,6 +305,16 @@ REM ============================================================================
 :perform_edit
 SETLOCAL
 ECHO Launching Visual Studio...
+
+ECHO.
+ECHO ^> build_tools/premake ...
+CALL :run_premake
+IF %_RESULT% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to run premake
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
 
 ECHO.
 ECHO ^> devenv %XENIA_SLN%
@@ -290,6 +344,16 @@ GOTO :perform_build_args
 :perform_build_parsed
 ECHO Building for config %CONFIG%...
 
+ECHO.
+ECHO ^> build_tools/premake ...
+CALL :run_premake
+IF %_RESULT% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to run premake
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+
 IF %FORCE% EQU 1 (
   SET DEVENV_COMMAND=/rebuild
 ) ELSE (
@@ -298,11 +362,9 @@ IF %FORCE% EQU 1 (
 ECHO.
 ECHO ^> devenv %XENIA_SLN% %DEVENV_COMMAND% %CONFIG%
 
-CALL %VS14_VCVARSALL% amd64
-
 1>NUL 2>NUL CMD /c where devenv
 IF %ERRORLEVEL% NEQ 0 (
-  REM devenv not found
+  ECHO devenv not found
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
@@ -333,8 +395,8 @@ SET PPC_LD=%BINUTILS%\powerpc-none-elf-ld.exe
 SET PPC_OBJDUMP=%BINUTILS%\powerpc-none-elf-objdump.exe
 SET PPC_NM=%BINUTILS%\powerpc-none-elf-nm.exe
 
-SET TEST_SRC=src/xenia/cpu/frontend/test
-SET TEST_SRC_WIN=src\xenia\cpu\frontend\test
+SET TEST_SRC=src/xenia/cpu/frontend/testing
+SET TEST_SRC_WIN=src\xenia\cpu\frontend\testing
 SET TEST_BIN=%TEST_SRC%/bin
 SET TEST_BIN_WIN=%TEST_SRC_WIN%\bin
 IF NOT EXIST %TEST_BIN_WIN% (mkdir %TEST_BIN_WIN%)
@@ -404,9 +466,9 @@ GOTO :perform_test_args
 :perform_test_parsed
 ECHO Running automated testing for config %CONFIG%...
 
-SET TEST_NAMES=xe-cpu-ppc-test
+SET TEST_NAMES=xenia-cpu-frontend-tests
 FOR %%G IN (%TEST_NAMES%) DO (
-  IF NOT EXIST build\bin\%CONFIG%\%%G.exe (
+  IF NOT EXIST build\bin\Windows\%CONFIG%\%%G.exe (
     ECHO.
     ECHO ERROR: unable to find `%%G.exe` - ensure it is built.
     ENDLOCAL & SET _RESULT=1
@@ -417,8 +479,8 @@ FOR %%G IN (%TEST_NAMES%) DO (
 SET ANY_FAILED=0
 FOR %%G IN (%TEST_NAMES%) DO (
   ECHO.
-  ECHO ^> build\bin\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
-  build\bin\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
+  ECHO ^> build\bin\Windows\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
+  build\bin\Windows\%CONFIG%\%%G.exe %1 %2 %3 %4 %5 %6 %7 %8 %9
   IF !ERRORLEVEL! NEQ 0 (
     SET ANY_FAILED=1
     IF %CONTINUE% EQU 0 (
@@ -451,11 +513,9 @@ SETLOCAL
 ECHO Cleaning normal build outputs...
 ECHO (use nuke to kill all artifacts)
 
-CALL %VS14_VCVARSALL% amd64
-
 1>NUL 2>NUL CMD /c where devenv
 IF %ERRORLEVEL% NEQ 0 (
-  REM devenv not found
+  ECHO devenv not found
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
@@ -479,9 +539,13 @@ SETLOCAL
 ECHO Nuking all local changes...
 ECHO.
 
-REM rmdir build/
-REM git checkout --hard /etc
-ECHO TODO(benvanik): blast away build/ for now
+ECHO.
+ECHO ^> rmdir /s build
+rmdir /s build
+
+ECHO.
+ECHO ^> git checkout --hard master
+git checkout --hard master
 
 ENDLOCAL & SET _RESULT=0
 GOTO :eof
@@ -679,6 +743,18 @@ IF "%VS150COMNTOOLS%" NEQ "" (
   )
 )
 IF %HAVE_TOOLS% NEQ 1 (
+  ENDLOCAL & SET _RESULT=1
+  GOTO :eof
+)
+ENDLOCAL & SET _RESULT=0
+GOTO :eof
+
+:run_premake
+SETLOCAL EnableDelayedExpansion
+CALL build_tools\premake.bat --file=premake5.lua --os=windows --test-suite-mode=combined --verbose vs2015
+IF %ERRORLEVEL% NEQ 0 (
+  ECHO.
+  ECHO ERROR: failed to run premake
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )

@@ -14,6 +14,7 @@
 
 #include "third_party/GL/glew.h"
 
+typedef struct GLEWContextStruct GLEWContext;
 extern "C" GLEWContext* glewGetContext();
 
 #if XE_PLATFORM_WIN32
