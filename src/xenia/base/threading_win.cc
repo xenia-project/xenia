@@ -108,6 +108,44 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value) {
   return TlsSetValue(handle, reinterpret_cast<void*>(value)) ? true : false;
 }
 
+class Win32HighResolutionTimer : public HighResolutionTimer {
+ public:
+  Win32HighResolutionTimer(std::function<void()> callback)
+      : callback_(callback) {}
+  ~Win32HighResolutionTimer() override {
+    if (handle_) {
+      DeleteTimerQueueTimer(nullptr, handle_, INVALID_HANDLE_VALUE);
+      handle_ = nullptr;
+    }
+  }
+
+  bool Initialize(std::chrono::milliseconds period) {
+    return CreateTimerQueueTimer(
+               &handle_, nullptr,
+               [](PVOID param, BOOLEAN timer_or_wait_fired) {
+                 auto timer =
+                     reinterpret_cast<Win32HighResolutionTimer*>(param);
+                 timer->callback_();
+               },
+               this, 0, DWORD(period.count()), WT_EXECUTEINTIMERTHREAD)
+               ? true
+               : false;
+  }
+
+ private:
+  HANDLE handle_ = nullptr;
+  std::function<void()> callback_;
+};
+
+std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
+    std::chrono::milliseconds period, std::function<void()> callback) {
+  auto timer = std::make_unique<Win32HighResolutionTimer>(std::move(callback));
+  if (!timer->Initialize(period)) {
+    return nullptr;
+  }
+  return std::unique_ptr<HighResolutionTimer>(timer.release());
+}
+
 template <typename T>
 class Win32Handle : public T {
  public:

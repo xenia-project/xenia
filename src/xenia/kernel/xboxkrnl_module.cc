@@ -14,7 +14,6 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xboxkrnl_private.h"
@@ -131,16 +130,11 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
                                Clock::QueryGuestUptimeMillis());
   xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
-  CreateTimerQueueTimer(
-      &timestamp_timer_, nullptr,
-      [](PVOID param, BOOLEAN timer_or_wait_fired) {
-        auto timestamp_bundle = reinterpret_cast<uint8_t*>(param);
-        xe::store_and_swap<uint32_t>(timestamp_bundle + 16,
+  timestamp_timer_ = xe::threading::HighResolutionTimer::CreateRepeating(
+      std::chrono::milliseconds(1), [lpKeTimeStampBundle]() {
+        xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
                                      Clock::QueryGuestUptimeMillis());
-      },
-      lpKeTimeStampBundle, 0,
-      1,  // 1ms
-      WT_EXECUTEINTIMERTHREAD);
+      });
 }
 
 std::vector<xe::cpu::Export*> xboxkrnl_exports(4096);
@@ -171,9 +165,7 @@ void XboxkrnlModule::RegisterExportTable(
   export_resolver->RegisterTable("xboxkrnl.exe", &xboxkrnl_exports);
 }
 
-XboxkrnlModule::~XboxkrnlModule() {
-  DeleteTimerQueueTimer(nullptr, timestamp_timer_, nullptr);
-}
+XboxkrnlModule::~XboxkrnlModule() = default;
 
 int XboxkrnlModule::LaunchModule(const char* path) {
   // Create and register the module. We keep it local to this function and

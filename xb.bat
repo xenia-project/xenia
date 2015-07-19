@@ -40,7 +40,10 @@ IF %_RESULT% NEQ 0 (
   ECHO this script again.
   GOTO :exit_error
 )
-CALL %VS14_VCVARSALL% amd64
+1>NUL 2>NUL CMD /c where devenv
+IF %ERRORLEVEL% NEQ 0 (
+  CALL %VS14_VCVARSALL% amd64
+)
 
 SET CLANG_FORMAT=""
 SET LLVM_CLANG_FORMAT="C:\Program Files (x86)\LLVM\bin\clang-format.exe"

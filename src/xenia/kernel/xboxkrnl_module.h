@@ -10,15 +10,15 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_MODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_MODULE_H_
 
+#include <memory>
+
+#include "xenia/base/threading.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/objects/xkernel_module.h"
 #include "xenia/kernel/xboxkrnl_ordinals.h"
 
 // All of the exported functions:
 #include "xenia/kernel/xboxkrnl_rtl.h"
-
-// TODO(benvanik): switch timer.
-typedef void* HANDLE;
 
 namespace xe {
 namespace kernel {
@@ -35,7 +35,7 @@ class XboxkrnlModule : public XKernelModule {
   int LaunchModule(const char* path);
 
  private:
-  HANDLE timestamp_timer_;
+  std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
 };
 
 }  // namespace kernel

@@ -97,6 +97,20 @@ bool FreeTlsHandle(TlsHandle handle);
 uintptr_t GetTlsValue(TlsHandle handle);
 bool SetTlsValue(TlsHandle handle, uintptr_t value);
 
+// A high-resolution timer capable of firing at millisecond-precision.
+// All timers created in this way are executed in the same thread so
+// callbacks must be kept short or else all timers will be impacted.
+class HighResolutionTimer {
+ public:
+  virtual ~HighResolutionTimer() = default;
+
+  // Creates a new repeating timer with the given period.
+  // The given function will be called back as close to the given period as
+  // possible.
+  static std::unique_ptr<HighResolutionTimer> CreateRepeating(
+      std::chrono::milliseconds period, std::function<void()> callback);
+};
+
 // Results for a WaitHandle operation.
 enum class WaitResult {
   // The state of the specified object is signaled.
