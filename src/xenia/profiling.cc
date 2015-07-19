@@ -35,7 +35,7 @@ std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
 
 bool Profiler::is_enabled() { return true; }
 
-bool Profiler::is_visible() { return MicroProfileIsDrawing(); }
+bool Profiler::is_visible() { return is_enabled() && MicroProfileIsDrawing(); }
 
 void Profiler::Initialize() {
   // Custom groups.

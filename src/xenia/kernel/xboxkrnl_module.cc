@@ -171,6 +171,10 @@ int XboxkrnlModule::LaunchModule(const char* path) {
   // Create and register the module. We keep it local to this function and
   // dispose it on exit.
   auto module = kernel_state_->LoadUserModule(path);
+  if (!module) {
+    XELOGE("Failed to load user module %s.", path);
+    return 2;
+  }
 
   // Set as the main module, while running.
   kernel_state_->SetExecutableModule(module);

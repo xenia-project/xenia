@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
+#include "el/elemental_forms.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
@@ -16,16 +16,86 @@
 #include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
-#include <commctrl.h>
-
 namespace xe {
 namespace kernel {
 
 SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
   XELOGD("XamIsUIActive()");
-  SHIM_SET_RETURN_32(0);
+  SHIM_SET_RETURN_32(el::ModalWindow::is_any_visible());
 }
+
+class MessageBoxWindow : public el::ModalWindow {
+ public:
+  MessageBoxWindow(xe::threading::Fence* fence)
+      : ModalWindow([fence]() { fence->Signal(); }) {}
+  ~MessageBoxWindow() override = default;
+
+  // TODO(benvanik): icon.
+  void Show(el::Element* root_element, std::wstring title, std::wstring message,
+            std::vector<std::wstring> buttons, uint32_t default_button,
+            uint32_t* out_chosen_button) {
+    title_ = std::move(title);
+    message_ = std::move(message);
+    buttons_ = std::move(buttons);
+    default_button_ = default_button;
+    out_chosen_button_ = out_chosen_button;
+
+    // In case we are cancelled, always set default button.
+    *out_chosen_button_ = default_button;
+
+    ModalWindow::Show(root_element);
+
+    EnsureFocus();
+  }
+
+ protected:
+  void BuildUI() override {
+    using namespace el::dsl;
+
+    set_text(xe::to_string(title_));
+
+    auto button_bar = LayoutBoxNode().distribution_position(
+        LayoutDistributionPosition::kRightBottom);
+    for (int32_t i = 0; i < buttons_.size(); ++i) {
+      button_bar.child(ButtonNode(xe::to_string(buttons_[i]).c_str())
+                           .id(100 + i)
+                           .data(100 + i));
+    }
+
+    LoadNodeTree(
+        LayoutBoxNode()
+            .axis(Axis::kY)
+            .gravity(Gravity::kAll)
+            .position(LayoutPosition::kLeftTop)
+            .distribution(LayoutDistribution::kAvailable)
+            .distribution_position(LayoutDistributionPosition::kLeftTop)
+            .child(LabelNode(xe::to_string(message_).c_str()))
+            .child(button_bar));
+
+    auto default_button = GetElementById<el::Button>(100 + default_button_);
+    el::Button::set_auto_focus_state(true);
+    default_button->set_focus(el::FocusReason::kNavigation);
+  }
+
+  bool OnEvent(const el::Event& ev) override {
+    if (ev.target->IsOfType<el::Button>() && ev.type == el::EventType::kClick) {
+      int data_value = ev.target->data.as_integer();
+      if (data_value) {
+        *out_chosen_button_ = data_value - 100;
+      }
+      Die();
+      return true;
+    }
+    return ModalWindow::OnEvent(ev);
+  }
+
+  std::wstring title_;
+  std::wstring message_;
+  std::vector<std::wstring> buttons_;
+  uint32_t default_button_ = 0;
+  uint32_t* out_chosen_button_ = nullptr;
+};
 
 // http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
 SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
@@ -66,49 +136,29 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     // Auto-pick the focused button.
     chosen_button = active_button;
   } else {
-    TASKDIALOGCONFIG config = {0};
-    config.cbSize = sizeof(config);
-    config.hInstance = GetModuleHandle(nullptr);
-    config.hwndParent =
-        HWND(kernel_state->emulator()->display_window()->native_handle());
-    config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION |   // esc to exit
-                     TDF_POSITION_RELATIVE_TO_WINDOW;  // center in window
-    config.dwCommonButtons = 0;
-    config.pszWindowTitle = title.c_str();
-    switch (flags & 0xF) {
-      case 0:
-        config.pszMainIcon = nullptr;
-        break;
-      case 1:
-        config.pszMainIcon = TD_ERROR_ICON;
-        break;
-      case 2:
-        config.pszMainIcon = TD_WARNING_ICON;
-        break;
-      case 3:
-        config.pszMainIcon = TD_INFORMATION_ICON;
-        break;
-    }
-    config.pszMainInstruction = text.c_str();
-    config.pszContent = nullptr;
-    std::vector<TASKDIALOG_BUTTON> taskdialog_buttons;
-    for (uint32_t i = 0; i < button_count; ++i) {
-      taskdialog_buttons.push_back({1000 + int(i), buttons[i].c_str()});
-    }
-    config.pButtons = taskdialog_buttons.data();
-    config.cButtons = button_count;
-    config.nDefaultButton = active_button;
-    int button_pressed = 0;
-    TaskDialogIndirect(&config, &button_pressed, nullptr, nullptr);
-    switch (button_pressed) {
-      default:
-        chosen_button = button_pressed - 1000;
-        break;
-      case IDCANCEL:
-        // User cancelled, just pick default.
-        chosen_button = active_button;
-        break;
-    }
+    auto display_window = kernel_state->emulator()->display_window();
+    xe::threading::Fence fence;
+    display_window->loop()->PostSynchronous([&]() {
+      auto root_element = display_window->root_element();
+      auto window = new MessageBoxWindow(&fence);
+      switch (flags & 0xF) {
+        case 0:
+          // config.pszMainIcon = nullptr;
+          break;
+        case 1:
+          // config.pszMainIcon = TD_ERROR_ICON;
+          break;
+        case 2:
+          // config.pszMainIcon = TD_WARNING_ICON;
+          break;
+        case 3:
+          // config.pszMainIcon = TD_INFORMATION_ICON;
+          break;
+      }
+      window->Show(root_element, title, text, buttons, active_button,
+                   &chosen_button);
+    });
+    fence.Wait();
   }
   SHIM_SET_MEM_32(result_ptr, chosen_button);
 
@@ -116,20 +166,71 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
+class DirtyDiscWindow : public el::ModalWindow {
+ public:
+  DirtyDiscWindow(xe::threading::Fence* fence)
+      : ModalWindow([fence]() { fence->Signal(); }) {}
+  ~DirtyDiscWindow() override = default;
+
+ protected:
+  void BuildUI() override {
+    using namespace el::dsl;
+
+    set_text("Disc Read Error");
+
+    LoadNodeTree(
+        LayoutBoxNode()
+            .axis(Axis::kY)
+            .gravity(Gravity::kAll)
+            .position(LayoutPosition::kLeftTop)
+            .distribution(LayoutDistribution::kAvailable)
+            .distribution_position(LayoutDistributionPosition::kLeftTop)
+            .child(LabelNode(
+                "There's been an issue reading content from the game disc."))
+            .child(LabelNode(
+                "This is likely caused by bad or unimplemented file IO "
+                "calls."))
+            .child(LayoutBoxNode()
+                       .distribution_position(
+                           LayoutDistributionPosition::kRightBottom)
+                       .child(ButtonNode("Exit").id("exit_button"))));
+  }
+
+  bool OnEvent(const el::Event& ev) override {
+    if (ev.target->id() == TBIDC("exit_button") &&
+        ev.type == el::EventType::kClick) {
+      Die();
+      return true;
+    }
+    return ModalWindow::OnEvent(ev);
+  }
+};
+
 SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
                                        KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
 
   XELOGD("XamShowDirtyDiscErrorUI(%d)", user_index);
 
-  int button_pressed = 0;
-  TaskDialog(HWND(kernel_state->emulator()->display_window()->native_handle()),
-             GetModuleHandle(nullptr), L"Disc Read Error",
-             L"Game is claiming to be unable to read game data!", nullptr,
-             TDCBF_CLOSE_BUTTON, TD_ERROR_ICON, &button_pressed);
+  if (FLAGS_headless) {
+    assert_always();
+    exit(1);
+    return;
+  }
+
+  auto display_window = kernel_state->emulator()->display_window();
+  xe::threading::Fence fence;
+  display_window->loop()->PostSynchronous([&]() {
+    auto root_element = display_window->root_element();
+    auto window = new DirtyDiscWindow(&fence);
+    window->Show(root_element);
+  });
+  fence.Wait();
 
   // This is death, and should never return.
+  // TODO(benvanik): cleaner exit.
   assert_always();
+  exit(1);
 }
 
 }  // namespace kernel

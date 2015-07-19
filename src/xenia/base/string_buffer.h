@@ -38,9 +38,9 @@ class StringBuffer {
  private:
   void Grow(size_t additional_length);
 
-  char* buffer_;
-  size_t buffer_offset_;
-  size_t buffer_capacity_;
+  char* buffer_ = nullptr;
+  size_t buffer_offset_ = 0;
+  size_t buffer_capacity_ = 0;
 };
 
 }  // namespace xe

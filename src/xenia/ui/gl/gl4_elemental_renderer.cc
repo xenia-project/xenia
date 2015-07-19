@@ -223,6 +223,7 @@ void GL4ElementalRenderer::BeginPaint(int render_target_w,
 
   glUseProgram(program_);
   glBindVertexArray(vao_);
+  glProgramUniform1f(program_, 2, 0.0f);
 }
 
 void GL4ElementalRenderer::EndPaint() {
@@ -250,15 +251,6 @@ void GL4ElementalRenderer::Flush() {
 }
 
 void GL4ElementalRenderer::RenderBatch(Batch* batch) {
-  auto bitmap = static_cast<GL4Bitmap*>(batch->bitmap);
-  if (bitmap != current_bitmap_) {
-    current_bitmap_ = bitmap;
-    Flush();
-    glProgramUniformHandleui64ARB(program_, 1,
-                                  bitmap ? bitmap->gpu_handle_ : 0);
-    glProgramUniform1f(program_, 2, bitmap ? 1.0f : 0.0f);
-  }
-
   if (draw_command_count_ + 1 > kMaxCommands) {
     Flush();
   }
@@ -266,6 +258,16 @@ void GL4ElementalRenderer::RenderBatch(Batch* batch) {
   if (!vertex_buffer_.CanAcquire(total_length)) {
     Flush();
   }
+
+  auto bitmap = static_cast<GL4Bitmap*>(batch->bitmap);
+  if (bitmap != current_bitmap_) {
+    Flush();
+    current_bitmap_ = bitmap;
+    glProgramUniformHandleui64ARB(program_, 1,
+                                  bitmap ? bitmap->gpu_handle_ : 0);
+    glProgramUniform1f(program_, 2, bitmap ? 1.0f : 0.0f);
+  }
+
   auto allocation = vertex_buffer_.Acquire(total_length);
 
   // TODO(benvanik): custom batcher that lets us use the ringbuffer memory

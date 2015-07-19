@@ -70,7 +70,7 @@ bool EmulatorWindow::Initialize() {
   window_->on_key_down.AddListener([this](KeyEvent& e) {
     bool handled = true;
     switch (e.key_code()) {
-      case 0x0D: {  // numpad enter
+      case 0x6A: {  // numpad *
         CpuTimeScalarReset();
       } break;
       case 0x6D: {  // numpad minus
@@ -94,6 +94,8 @@ bool EmulatorWindow::Initialize() {
                     // Allow users to escape fullscreen (but not enter it).
         if (window_->is_fullscreen()) {
           window_->ToggleFullscreen(false);
+        } else {
+          handled = false;
         }
       } break;
 
@@ -121,7 +123,7 @@ bool EmulatorWindow::Initialize() {
   auto cpu_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&CPU");
   {
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, L"&Reset Time Scalar", L"Numpad Enter",
+        MenuItem::Type::kString, L"&Reset Time Scalar", L"Numpad *",
         std::bind(&EmulatorWindow::CpuTimeScalarReset, this)));
     cpu_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, L"Time Scalar /= 2", L"Numpad -",
