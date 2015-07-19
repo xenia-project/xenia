@@ -295,10 +295,11 @@ void InstrAccessBits::Dump(std::string& out_str) {
   out_str = str.str();
 }
 
-void InstrDisasm::Init(const char* name, const char* info, uint32_t flags) {
-  this->name = name;
-  this->info = info;
-  this->flags = flags;
+void InstrDisasm::Init(const char* new_name, const char* new_info,
+                       uint32_t new_flags) {
+  name = new_name;
+  info = new_info;
+  flags = new_flags;
 }
 
 void InstrDisasm::AddLR(InstrRegister::Access access) {}

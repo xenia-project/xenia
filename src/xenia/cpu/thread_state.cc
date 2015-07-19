@@ -22,8 +22,6 @@
 namespace xe {
 namespace cpu {
 
-using namespace xe::cpu;
-
 using PPCContext = xe::cpu::frontend::PPCContext;
 
 thread_local ThreadState* thread_state_ = nullptr;
@@ -55,7 +53,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
     uint32_t stack_padding =
         uint32_t(xe::memory::page_size());  // Host page size.
     uint32_t actual_stack_size = stack_padding + stack_size;
-    bool top_down;
+    bool top_down = false;
     switch (stack_type) {
       case ThreadStackType::kKernelStack:
         top_down = true;

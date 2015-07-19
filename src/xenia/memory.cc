@@ -611,7 +611,6 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     for (int64_t base_page_number = high_page_number - page_count;
          base_page_number >= low_page_number;
          base_page_number -= page_scan_stride) {
-      bool is_free = page_table_[base_page_number].state == 0;
       if (page_table_[base_page_number].state != 0) {
         // Base page not free, skip to next usable page.
         continue;
@@ -645,7 +644,6 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     for (uint32_t base_page_number = low_page_number;
          base_page_number <= high_page_number - page_count;
          base_page_number += page_scan_stride) {
-      bool is_free = page_table_[base_page_number].state == 0;
       if (page_table_[base_page_number].state != 0) {
         // Base page not free, skip to next usable page.
         continue;

@@ -55,8 +55,8 @@ void Profiler::Initialize() {
 #if XE_OPTION_PROFILING_UI
   MicroProfileInitUI();
   g_MicroProfileUI.bShowSpikes = true;
-  g_MicroProfileUI.nOpacityBackground = 0x40 << 24;
-  g_MicroProfileUI.nOpacityForeground = 0xc0 << 24;
+  g_MicroProfileUI.nOpacityBackground = 0x40u << 24;
+  g_MicroProfileUI.nOpacityForeground = 0xc0u << 24;
   MicroProfileSetDisplayMode(1);
 #else
   MicroProfileSetForceEnable(true);

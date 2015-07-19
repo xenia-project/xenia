@@ -57,7 +57,7 @@ class Instr {
   void set_src3(Value* value);
 
   void MoveBefore(Instr* other);
-  void Replace(const OpcodeInfo* opcode, uint16_t flags);
+  void Replace(const OpcodeInfo* new_opcode, uint16_t new_flags);
   void Remove();
 };
 

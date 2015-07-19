@@ -41,7 +41,7 @@ bool VirtualFileSystem::RegisterSymbolicLink(std::string path,
 
 bool VirtualFileSystem::UnregisterSymbolicLink(std::string path) {
   std::lock_guard<xe::mutex> lock(mutex_);
-  auto& it = symlinks_.find(path);
+  auto it = symlinks_.find(path);
   if (it == symlinks_.end()) {
     return false;
   }

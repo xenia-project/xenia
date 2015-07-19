@@ -70,8 +70,13 @@ filter("platforms:Windows")
   linkoptions({"/ignore:4006", "/ignore:4221"})
   -- Enable multiprocessor compiles (requires Minimal Rebuild to be disabled).
   buildoptions({
-    "/MP",              -- Multiprocessor compilation.
-    "/wd4100",          -- Unreferenced parameters are ok.
+    "/MP",      -- Multiprocessor compilation.
+    "/wd4100",  -- Unreferenced parameters are ok.
+    "/wd4201",  -- Nameless struct/unions are ok.
+    "/wd4512",  -- 'assignment operator was implicitly defined as deleted'.
+    "/wd4127",  -- 'conditional expression is constant'.
+    "/wd4324",  -- 'structure was padded due to alignment specifier'.
+    "/wd4189",  -- 'local variable is initialized but not referenced'.
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.

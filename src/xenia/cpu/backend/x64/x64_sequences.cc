@@ -212,8 +212,7 @@ struct ValueOp : Op<ValueOp<T, KEY_TYPE, REG_TYPE, CONST_TYPE>, KEY_TYPE> {
   bool operator==(const Xbyak::Reg& b) const { return IsEqual(b); }
   bool operator!=(const Xbyak::Reg& b) const { return !IsEqual(b); }
   void Load(const Instr::Op& op) {
-    const Value* value = op.value;
-    this->value = value;
+    value = op.value;
     is_constant = value->IsConstant();
     if (!is_constant) {
       X64Emitter::SetupReg(value, reg_);

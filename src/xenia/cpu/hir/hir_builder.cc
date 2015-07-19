@@ -388,7 +388,7 @@ void HIRBuilder::InsertLabel(Label* label, Instr* prev_instr) {
   Block* next_block = prev_instr->block->next;
 
   Block* new_block = arena_->Alloc<Block>();
-  new_block->ordinal = -1;
+  new_block->ordinal = UINT16_MAX;
   new_block->incoming_values = nullptr;
   new_block->arena = arena_;
   new_block->prev = prev_block;
@@ -466,10 +466,10 @@ void HIRBuilder::AddEdge(Block* src, Block* dest, uint32_t flags) {
 
   if (dest_was_dominated) {
     // If dest was previously dominated it no longer is.
-    auto edge = dest->incoming_edge_head;
-    while (edge) {
-      edge->flags &= ~Edge::DOMINATES;
-      edge = edge->incoming_next;
+    auto incoming_edge = dest->incoming_edge_head;
+    while (incoming_edge) {
+      incoming_edge->flags &= ~Edge::DOMINATES;
+      incoming_edge = incoming_edge->incoming_next;
     }
   }
 }
@@ -633,7 +633,7 @@ void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
 
 Block* HIRBuilder::AppendBlock() {
   Block* block = arena_->Alloc<Block>();
-  block->ordinal = -1;
+  block->ordinal = UINT16_MAX;
   block->incoming_values = nullptr;
   block->arena = arena_;
   block->next = NULL;
@@ -690,7 +690,7 @@ Instr* HIRBuilder::AppendInstr(const OpcodeInfo& opcode_info, uint16_t flags,
   if (!block->instr_head) {
     block->instr_head = instr;
   }
-  instr->ordinal = -1;
+  instr->ordinal = UINT32_MAX;
   instr->block = block;
   instr->opcode = &opcode_info;
   instr->flags = flags;
@@ -824,7 +824,7 @@ void HIRBuilder::TrapTrue(Value* cond, uint16_t trap_code) {
   EndBlock();
 }
 
-void HIRBuilder::Call(FunctionInfo* symbol_info, uint32_t call_flags) {
+void HIRBuilder::Call(FunctionInfo* symbol_info, uint16_t call_flags) {
   Instr* i = AppendInstr(OPCODE_CALL_info, call_flags);
   i->src1.symbol_info = symbol_info;
   i->src2.value = i->src3.value = NULL;
@@ -832,7 +832,7 @@ void HIRBuilder::Call(FunctionInfo* symbol_info, uint32_t call_flags) {
 }
 
 void HIRBuilder::CallTrue(Value* cond, FunctionInfo* symbol_info,
-                          uint32_t call_flags) {
+                          uint16_t call_flags) {
   if (cond->IsConstant()) {
     if (cond->IsConstantTrue()) {
       Call(symbol_info, call_flags);
@@ -847,7 +847,7 @@ void HIRBuilder::CallTrue(Value* cond, FunctionInfo* symbol_info,
   EndBlock();
 }
 
-void HIRBuilder::CallIndirect(Value* value, uint32_t call_flags) {
+void HIRBuilder::CallIndirect(Value* value, uint16_t call_flags) {
   ASSERT_CALL_ADDRESS_TYPE(value);
   Instr* i = AppendInstr(OPCODE_CALL_INDIRECT_info, call_flags);
   i->set_src1(value);
@@ -856,7 +856,7 @@ void HIRBuilder::CallIndirect(Value* value, uint32_t call_flags) {
 }
 
 void HIRBuilder::CallIndirectTrue(Value* cond, Value* value,
-                                  uint32_t call_flags) {
+                                  uint16_t call_flags) {
   if (cond->IsConstant()) {
     if (cond->IsConstantTrue()) {
       CallIndirect(value, call_flags);
@@ -907,14 +907,14 @@ void HIRBuilder::SetReturnAddress(Value* value) {
   i->src2.value = i->src3.value = NULL;
 }
 
-void HIRBuilder::Branch(Label* label, uint32_t branch_flags) {
+void HIRBuilder::Branch(Label* label, uint16_t branch_flags) {
   Instr* i = AppendInstr(OPCODE_BRANCH_info, branch_flags);
   i->src1.label = label;
   i->src2.value = i->src3.value = NULL;
   EndBlock();
 }
 
-void HIRBuilder::Branch(Block* block, uint32_t branch_flags) {
+void HIRBuilder::Branch(Block* block, uint16_t branch_flags) {
   if (!block->label_head) {
     // Block needs a label.
     Label* label = NewLabel();
@@ -923,7 +923,7 @@ void HIRBuilder::Branch(Block* block, uint32_t branch_flags) {
   Branch(block->label_head, branch_flags);
 }
 
-void HIRBuilder::BranchTrue(Value* cond, Label* label, uint32_t branch_flags) {
+void HIRBuilder::BranchTrue(Value* cond, Label* label, uint16_t branch_flags) {
   if (cond->IsConstant()) {
     if (cond->IsConstantTrue()) {
       Branch(label, branch_flags);
@@ -938,7 +938,7 @@ void HIRBuilder::BranchTrue(Value* cond, Label* label, uint32_t branch_flags) {
   EndBlock();
 }
 
-void HIRBuilder::BranchFalse(Value* cond, Label* label, uint32_t branch_flags) {
+void HIRBuilder::BranchFalse(Value* cond, Label* label, uint16_t branch_flags) {
   if (cond->IsConstant()) {
     if (cond->IsConstantFalse()) {
       Branch(label, branch_flags);

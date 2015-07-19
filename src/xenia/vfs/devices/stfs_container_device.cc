@@ -224,7 +224,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
 
 size_t StfsContainerDevice::BlockToOffset(uint32_t block) {
   if (block >= 0xFFFFFF) {
-    return -1;
+    return ~0ull;
   } else {
     return ((header_.header_size + 0x0FFF) & 0xF000) + (block << 12);
   }

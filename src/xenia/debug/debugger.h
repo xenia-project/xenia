@@ -110,11 +110,11 @@ class Debugger {
 
   Emulator* emulator_ = nullptr;
 
-  uintptr_t listen_socket_ = ~0;
+  uintptr_t listen_socket_ = ~0u;
   bool accept_thread_running_ = false;
   std::thread accept_thread_;
   xe::threading::Fence accept_fence_;
-  uintptr_t client_socket_ = ~0;
+  uintptr_t client_socket_ = ~0u;
   std::thread receive_thread_;
 
   std::wstring functions_path_;

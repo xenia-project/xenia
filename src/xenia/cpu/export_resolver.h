@@ -23,30 +23,30 @@ struct ExportTag {
   typedef uint32_t type;
 
   // Export is implemented in some form and can be used.
-  static const type kImplemented = 1 << 0;
+  static const type kImplemented = 1u << 0;
   // Export is a stub and is probably bad.
-  static const type kStub = 1 << 1;
+  static const type kStub = 1u << 1;
   // Export is known to cause problems, or may not be complete.
-  static const type kSketchy = 1 << 2;
+  static const type kSketchy = 1u << 2;
   // Export is called *a lot*.
-  static const type kHighFrequency = 1 << 3;
+  static const type kHighFrequency = 1u << 3;
   // Export is important and should always be logged.
-  static const type kImportant = 1 << 4;
+  static const type kImportant = 1u << 4;
 
-  static const type kThreading = 1 << 10;
-  static const type kInput = 1 << 11;
-  static const type kAudio = 1 << 12;
-  static const type kVideo = 1 << 13;
-  static const type kFileSystem = 1 << 14;
-  static const type kModules = 1 << 15;
-  static const type kUserProfiles = 1 << 16;
-  static const type kNetworking = 1 << 17;
-  static const type kMemory = 1 << 18;
+  static const type kThreading = 1u << 10;
+  static const type kInput = 1u << 11;
+  static const type kAudio = 1u << 12;
+  static const type kVideo = 1u << 13;
+  static const type kFileSystem = 1u << 14;
+  static const type kModules = 1u << 15;
+  static const type kUserProfiles = 1u << 16;
+  static const type kNetworking = 1u << 17;
+  static const type kMemory = 1u << 18;
 
   // Export will be logged on each call.
-  static const type kLog = 1 << 30;
+  static const type kLog = 1u << 30;
   // Export's result will be logged on each call.
-  static const type kLogResult = 1 << 31;
+  static const type kLogResult = 1u << 31;
 };
 
 // DEPRECATED

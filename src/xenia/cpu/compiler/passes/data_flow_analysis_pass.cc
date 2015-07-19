@@ -55,7 +55,7 @@ bool DataFlowAnalysisPass::Run(HIRBuilder* builder) {
 uint32_t DataFlowAnalysisPass::LinearizeBlocks(HIRBuilder* builder) {
   // TODO(benvanik): actually do this - we cheat now knowing that they are in
   //     sequential order.
-  uint32_t block_ordinal = 0;
+  uint16_t block_ordinal = 0;
   auto block = builder->first_block();
   while (block) {
     block->ordinal = block_ordinal++;

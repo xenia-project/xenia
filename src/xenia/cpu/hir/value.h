@@ -113,8 +113,8 @@ class Value {
   double get_constant(double) const { return constant.f64; }
   vec128_t get_constant(vec128_t&) const { return constant.v128; }
 
-  void set_zero(TypeName type) {
-    this->type = type;
+  void set_zero(TypeName new_type) {
+    type = new_type;
     flags |= VALUE_IS_CONSTANT;
     constant.v128.low = constant.v128.high = 0;
   }

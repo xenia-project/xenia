@@ -462,7 +462,7 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
-  for (auto& it = notify_listeners_.begin(); it != notify_listeners_.end();
+  for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     if ((*it).get() == listener) {
       notify_listeners_.erase(it);

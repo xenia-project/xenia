@@ -100,7 +100,7 @@ bool Entry::Delete(Entry* entry) {
   if (!DeleteEntryInternal(entry)) {
     return false;
   }
-  for (auto& it = children_.begin(); it != children_.end(); ++it) {
+  for (auto it = children_.begin(); it != children_.end(); ++it) {
     if (it->get() == entry) {
       children_.erase(it);
       break;

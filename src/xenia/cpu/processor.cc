@@ -30,10 +30,6 @@
 namespace xe {
 namespace cpu {
 
-// TODO(benvanik): remove when enums converted.
-using namespace xe::cpu;
-using namespace xe::cpu::backend;
-
 using PPCContext = xe::cpu::frontend::PPCContext;
 
 void InitializeIfNeeded();

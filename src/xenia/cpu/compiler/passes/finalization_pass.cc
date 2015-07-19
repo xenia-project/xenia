@@ -34,7 +34,7 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
 
   auto arena = builder->arena();
 
-  uint32_t block_ordinal = 0;
+  uint16_t block_ordinal = 0;
   auto block = builder->first_block();
   while (block) {
     block->ordinal = block_ordinal++;

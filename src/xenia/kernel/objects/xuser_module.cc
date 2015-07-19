@@ -311,24 +311,24 @@ void XUserModule::Dump() {
         std::memset(string_table, 0, sizeof(string_table));
 
         // Parse the string table
-        for (size_t i = 0, j = 0; i < opt_import_libraries->string_table_size;
+        for (size_t l = 0, j = 0; l < opt_import_libraries->string_table_size;
              j++) {
           assert_true(j < xe::countof(string_table));
-          const char* str = opt_import_libraries->string_table + i;
+          const char* str = opt_import_libraries->string_table + l;
 
           string_table[j] = str;
-          i += std::strlen(str) + 1;
+          l += std::strlen(str) + 1;
 
           // Padding
-          if ((i % 4) != 0) {
-            i += 4 - (i % 4);
+          if ((l % 4) != 0) {
+            l += 4 - (l % 4);
           }
         }
 
         auto libraries = (uint8_t*)opt_import_libraries +
                          opt_import_libraries->string_table_size + 12;
         uint32_t library_offset = 0;
-        for (uint32_t i = 0; i < opt_import_libraries->library_count; i++) {
+        for (uint32_t l = 0; l < opt_import_libraries->library_count; l++) {
           auto library = reinterpret_cast<xex2_import_library*>(
               (uint8_t*)libraries + library_offset);
           auto name = string_table[library->name_index];
@@ -363,8 +363,8 @@ void XUserModule::Dump() {
             reinterpret_cast<const xex2_opt_static_libraries*>(opt_header_ptr);
 
         uint32_t count = (opt_static_libraries->size - 4) / 0x10;
-        for (uint32_t i = 0; i < count; i++) {
-          auto& library = opt_static_libraries->libraries[i];
+        for (uint32_t l = 0; l < count; l++) {
+          auto& library = opt_static_libraries->libraries[l];
           printf(
               "    %-8s : %d.%d.%d.%d\n", library.name,
               (uint16_t)library.version_major, (uint16_t)library.version_minor,
@@ -456,9 +456,9 @@ void XUserModule::Dump() {
         uint16_t* ordinal_table =
             (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
 
-        for (uint32_t i = 0; i < e->NumberOfNames; i++) {
-          const char* name = (const char*)((uint8_t*)e + name_table[i]);
-          uint16_t ordinal = ordinal_table[i];
+        for (uint32_t n = 0; n < e->NumberOfNames; n++) {
+          const char* name = (const char*)((uint8_t*)e + name_table[n]);
+          uint16_t ordinal = ordinal_table[n];
           uint32_t addr = exe_address + function_table[ordinal];
 
           printf("    %-28s - %.3X - %.8X\n", name, ordinal, addr);

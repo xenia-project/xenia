@@ -40,7 +40,7 @@ namespace frontend {
 // 100: invalid
 // 128-256: VR
 
-#pragma pack(push, 4)
+#pragma pack(push, 8)
 typedef struct alignas(64) PPCContext_s {
   // Must be stored at 0x0 for now.
   // TODO(benvanik): find a nice way to describe this to the JIT.
@@ -49,9 +49,11 @@ typedef struct alignas(64) PPCContext_s {
   uint8_t* virtual_membase;
 
   // Most frequently used registers first.
-  uint64_t r[32];  // General purpose registers
-  uint64_t lr;     // Link register
-  uint64_t ctr;    // Count register
+  uint64_t lr;      // Link register
+  uint64_t ctr;     // Count register
+  uint64_t r[32];   // General purpose registers
+  double f[32];     // Floating-point registers
+  vec128_t v[128];  // VMX128 vector registers
 
   // XER register
   // Split to make it easier to do individual updates.
@@ -188,9 +190,6 @@ typedef struct alignas(64) PPCContext_s {
 
   uint8_t vscr_sat;
 
-  double f[32];     // Floating-point registers
-  vec128_t v[128];  // VMX128 vector registers
-
   // uint32_t get_fprf() {
   //   return fpscr.value & 0x000F8000;
   // }
@@ -216,11 +215,15 @@ typedef struct alignas(64) PPCContext_s {
 
   uint8_t* physical_membase;
 
+  // Keep the struct padded out to 64b total.
+  uint8_t _padding[8];
+
   void SetRegFromString(const char* name, const char* value);
   bool CompareRegWithString(const char* name, const char* value,
                             char* out_value, size_t out_value_size);
 } PPCContext;
 #pragma pack(pop)
+static_assert(sizeof(PPCContext) % 64 == 0, "64b padded");
 
 }  // namespace frontend
 }  // namespace cpu

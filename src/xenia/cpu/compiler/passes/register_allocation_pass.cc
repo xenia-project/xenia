@@ -77,7 +77,7 @@ bool RegisterAllocationPass::Run(HIRBuilder* builder) {
   // Really, it'd just be nice to have someone who knew what they
   // were doing lower SSA and do this right.
 
-  uint32_t block_ordinal = 0;
+  uint16_t block_ordinal = 0;
   uint32_t instr_ordinal = 0;
   auto block = builder->first_block();
   while (block) {
@@ -212,27 +212,27 @@ void RegisterAllocationPass::AdvanceUses(Instr* instr) {
       break;
     }
     auto& upcoming_uses = usage_set->upcoming_uses;
-    for (int i = 0; i < upcoming_uses.size();) {
-      auto& upcoming_use = upcoming_uses.at(i);
+    for (size_t j = 0; j < upcoming_uses.size();) {
+      auto& upcoming_use = upcoming_uses.at(j);
       if (!upcoming_use.use) {
         // No uses at all - we can remove right away.
         // This comes up from instructions where the dest is never used,
         // like the ATOMIC ops.
         MarkRegAvailable(upcoming_use.value->reg);
-        upcoming_uses.erase(upcoming_uses.begin() + i);
+        upcoming_uses.erase(upcoming_uses.begin() + j);
         // i remains the same.
         continue;
       }
       if (upcoming_use.use->instr != instr) {
         // Not yet at this instruction.
-        ++i;
+        ++j;
         continue;
       }
       // The use is from this instruction.
       if (!upcoming_use.use->next) {
         // Last use of the value. We can retire it now.
         MarkRegAvailable(upcoming_use.value->reg);
-        upcoming_uses.erase(upcoming_uses.begin() + i);
+        upcoming_uses.erase(upcoming_uses.begin() + j);
         // i remains the same.
         continue;
       } else {
@@ -245,7 +245,7 @@ void RegisterAllocationPass::AdvanceUses(Instr* instr) {
         }
         // Remove the iterator.
         auto value = upcoming_use.value;
-        upcoming_uses.erase(upcoming_uses.begin() + i);
+        upcoming_uses.erase(upcoming_uses.begin() + j);
         assert_true(next_use->instr->block == instr->block);
         assert_true(value->def->block == instr->block);
         upcoming_uses.emplace_back(value, next_use);

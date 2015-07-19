@@ -281,7 +281,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
     }
   } else if (is_store) {
     // Store of a register value - read register, swap, write to range.
-    uint64_t value;
+    uint64_t value = 0;
     if ((arg2_type & BE::REGISTER_TYPE) == BE::REGISTER_TYPE) {
       uint32_t be_reg_index;
       if (!xe::bit_scan_forward(arg2_type & 0xFFFF, &be_reg_index)) {

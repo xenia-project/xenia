@@ -25,7 +25,7 @@ dword_result_t XamAvatarInitialize(
     dword_t unk6               // flags - 0x00300000, 0x30, etc
     ) {
   // Negative to fail. Game should immediately call XamAvatarShutdown.
-  return -1;
+  return ~0u;
 }
 DECLARE_XAM_EXPORT(XamAvatarInitialize, ExportTag::kStub);
 

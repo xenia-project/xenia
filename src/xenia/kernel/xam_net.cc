@@ -185,7 +185,7 @@ SHIM_CALL NetDll_XNetRandom_shim(PPCContext* ppc_context,
 SHIM_CALL NetDll_WSAStartup_shim(PPCContext* ppc_context,
                                  KernelState* kernel_state) {
   uint32_t caller = SHIM_GET_ARG_32(0);
-  uint32_t version = SHIM_GET_ARG_16(1);
+  uint16_t version = SHIM_GET_ARG_16(1);
   uint32_t data_ptr = SHIM_GET_ARG_32(2);
 
   XELOGD("NetDll_WSAStartup(%d, %.4X, %.8X)", caller, version, data_ptr);
@@ -264,7 +264,7 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(
     dword_t timeout, dword_t alertable) {
   if (num_events > 64) {
     XThread::GetCurrentThread()->set_last_error(87);  // ERROR_INVALID_PARAMETER
-    return -1;
+    return ~0u;
   }
 
   xe::be<uint64_t> timeout_wait = (uint64_t)timeout;
@@ -279,7 +279,7 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(
   if (XFAILED(result)) {
     uint32_t error = RtlNtStatusToDosError(result);
     XThread::GetCurrentThread()->set_last_error(error);
-    return -1;
+    return ~0u;
   }
 
   return 0;

@@ -615,7 +615,7 @@ void print_cf_exec(StringBuffer* output, const instr_cf_t* cf) {
   if (cf->exec.yeild) {
     output->Append(" YIELD");
   }
-  uint8_t vc = cf->exec.vc_hi | (cf->exec.vc_lo << 2);
+  uint8_t vc = uint8_t(cf->exec.vc_hi | (cf->exec.vc_lo << 2));
   if (vc) {
     output->AppendFormat(" VC(0x%x)", vc);
   }

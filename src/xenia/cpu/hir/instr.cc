@@ -78,9 +78,9 @@ void Instr::MoveBefore(Instr* other) {
   }
 }
 
-void Instr::Replace(const OpcodeInfo* opcode, uint16_t flags) {
-  this->opcode = opcode;
-  this->flags = flags;
+void Instr::Replace(const OpcodeInfo* new_opcode, uint16_t new_flags) {
+  opcode = new_opcode;
+  flags = new_flags;
 
   if (src1_use) {
     src1.value->RemoveUse(src1_use);

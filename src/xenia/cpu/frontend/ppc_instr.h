@@ -483,7 +483,7 @@ class InstrDisasm {
   const char* info;
   uint32_t flags;
 
-  void Init(const char* name, const char* info, uint32_t flags);
+  void Init(const char* new_name, const char* new_info, uint32_t new_flags);
   void AddLR(InstrRegister::Access access);
   void AddCTR(InstrRegister::Access access);
   void AddCR(uint32_t bf, InstrRegister::Access access);

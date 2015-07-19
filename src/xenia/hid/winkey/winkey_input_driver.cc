@@ -36,10 +36,10 @@ X_RESULT WinKeyInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   out_caps->gamepad.buttons = 0xFFFF;
   out_caps->gamepad.left_trigger = 0xFF;
   out_caps->gamepad.right_trigger = 0xFF;
-  out_caps->gamepad.thumb_lx = (int16_t)0xFFFF;
-  out_caps->gamepad.thumb_ly = (int16_t)0xFFFF;
-  out_caps->gamepad.thumb_rx = (int16_t)0xFFFF;
-  out_caps->gamepad.thumb_ry = (int16_t)0xFFFF;
+  out_caps->gamepad.thumb_lx = (int16_t)0xFFFFu;
+  out_caps->gamepad.thumb_ly = (int16_t)0xFFFFu;
+  out_caps->gamepad.thumb_rx = (int16_t)0xFFFFu;
+  out_caps->gamepad.thumb_ry = (int16_t)0xFFFFu;
   out_caps->vibration.left_motor_speed = 0;
   out_caps->vibration.right_motor_speed = 0;
   return X_ERROR_SUCCESS;

@@ -421,22 +421,22 @@ void Value::Neg() {
 void Value::Abs() {
   switch (type) {
     case INT8_TYPE:
-      constant.i8 = abs(constant.i8);
+      constant.i8 = int8_t(std::abs(constant.i8));
       break;
     case INT16_TYPE:
-      constant.i16 = abs(constant.i16);
+      constant.i16 = int16_t(std::abs(constant.i16));
       break;
     case INT32_TYPE:
-      constant.i32 = abs(constant.i32);
+      constant.i32 = std::abs(constant.i32);
       break;
     case INT64_TYPE:
-      constant.i64 = abs(constant.i64);
+      constant.i64 = std::abs(constant.i64);
       break;
     case FLOAT32_TYPE:
-      constant.f32 = abs(constant.f32);
+      constant.f32 = std::abs(constant.f32);
       break;
     case FLOAT64_TYPE:
-      constant.f64 = abs(constant.f64);
+      constant.f64 = std::abs(constant.f64);
       break;
     case VEC128_TYPE:
       for (int i = 0; i < 4; ++i) {
@@ -452,10 +452,10 @@ void Value::Abs() {
 void Value::Sqrt() {
   switch (type) {
     case FLOAT32_TYPE:
-      constant.f32 = 1.0f / sqrtf(constant.f32);
+      constant.f32 = 1.0f / std::sqrtf(constant.f32);
       break;
     case FLOAT64_TYPE:
-      constant.f64 = 1.0 / sqrt(constant.f64);
+      constant.f64 = 1.0 / std::sqrt(constant.f64);
       break;
     default:
       assert_unhandled_case(type);
@@ -466,10 +466,10 @@ void Value::Sqrt() {
 void Value::RSqrt() {
   switch (type) {
     case FLOAT32_TYPE:
-      constant.f32 = sqrt(constant.f32);
+      constant.f32 = std::sqrt(constant.f32);
       break;
     case FLOAT64_TYPE:
-      constant.f64 = sqrt(constant.f64);
+      constant.f64 = std::sqrt(constant.f64);
       break;
     default:
       assert_unhandled_case(type);

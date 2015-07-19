@@ -917,7 +917,7 @@ int xe_xex2_find_import_infos(xe_xex2_ref xex,
   auto header = xe_xex2_get_header(xex);
 
   // Find library index for verification.
-  size_t library_index = -1;
+  size_t library_index = ~0ull;
   for (size_t n = 0; n < header->import_library_count; n++) {
     if (&header->import_libraries[n] == library) {
       library_index = n;
@@ -995,7 +995,7 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
   auto header = xe_xex2_get_header(xex);
 
   // Find library index for verification.
-  size_t library_index = -1;
+  size_t library_index = ~0ull;
   for (size_t n = 0; n < header->import_library_count; n++) {
     if (&header->import_libraries[n] == library) {
       library_index = n;
