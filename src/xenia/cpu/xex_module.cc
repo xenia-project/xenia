@@ -339,12 +339,11 @@ bool XexModule::SetupLibraryImports(const char* name,
 
     if (kernel_resolver) {
       kernel_export = kernel_resolver->GetExportByOrdinal(name, ordinal);
-    } else {
+    } else if (user_module) {
       user_export_addr = user_module->GetProcAddressByOrdinal(ordinal);
     }
 
     // Import not resolved?
-    assert_not_zero(kernel_export || user_export_addr);
     if (!kernel_export && !user_export_addr) {
       XELOGW(
           "WARNING: an import variable was not resolved! (library: %s, import "
@@ -358,7 +357,7 @@ bool XexModule::SetupLibraryImports(const char* name,
       import_name.AppendFormat("__imp__");
       if (kernel_export) {
         import_name.AppendFormat("%s", kernel_export->name);
-      } else if (user_export_addr) {
+      } else {
         import_name.AppendFormat("%s_%.3X", libbasename.c_str(), ordinal);
       }
 
@@ -396,7 +395,7 @@ bool XexModule::SetupLibraryImports(const char* name,
       // Thunk.
       if (kernel_export) {
         import_name.AppendFormat("%s", kernel_export->name);
-      } else if (user_export_addr) {
+      } else {
         import_name.AppendFormat("__%s_%.3X", libbasename.c_str(), ordinal);
       }
 
