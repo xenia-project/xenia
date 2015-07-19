@@ -44,8 +44,10 @@ Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
     > xb setup
     # Build on command line:
     > xb build
-    # Open Visual Studio (run the 'xenia-app' project):
+    # Run premake and open Visual Studio (run the 'xenia-app' project):
     > xb edit
+    # Run premake to update the sln/vcproj's:
+    > xb premake
 
 When fetching updates use `xb pull` to automatically fetch everything and
 run premake for project files/etc.
