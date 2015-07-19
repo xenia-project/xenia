@@ -40,6 +40,7 @@ IF %_RESULT% NEQ 0 (
   ECHO this script again.
   GOTO :exit_error
 )
+CALL %VS14_VCVARSALL% amd64
 
 SET CLANG_FORMAT=""
 SET LLVM_CLANG_FORMAT="C:\Program Files (x86)\LLVM\bin\clang-format.exe"
