@@ -42,7 +42,6 @@ X64Backend::~X64Backend() {
     processor()->memory()->SystemHeapFree(emitter_data_);
     emitter_data_ = 0;
   }
-  delete code_cache_;
 }
 
 bool X64Backend::Initialize() {
@@ -70,8 +69,8 @@ bool X64Backend::Initialize() {
       X64Emitter::XMM_COUNT,
   };
 
-  code_cache_ = new X64CodeCache();
-  Backend::code_cache_ = code_cache_;
+  code_cache_ = X64CodeCache::Create();
+  Backend::code_cache_ = code_cache_.get();
   if (!code_cache_->Initialize()) {
     return false;
   }

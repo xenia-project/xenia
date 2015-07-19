@@ -11,13 +11,13 @@
 #define XENIA_BACKEND_X64_X64_CODE_CACHE_H_
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
 #include "xenia/base/memory.h"
 #include "xenia/base/mutex.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/cpu/backend/code_cache.h"
 
 namespace xe {
@@ -27,10 +27,11 @@ namespace x64 {
 
 class X64CodeCache : public CodeCache {
  public:
-  X64CodeCache();
   ~X64CodeCache() override;
 
-  bool Initialize();
+  static std::unique_ptr<X64CodeCache> Create();
+
+  virtual bool Initialize();
 
   std::wstring file_name() const override { return file_name_; }
   uint32_t base_address() const override { return kGeneratedCodeBase; }
@@ -50,16 +51,27 @@ class X64CodeCache : public CodeCache {
 
   uint32_t PlaceData(const void* data, size_t length);
 
- private:
+ protected:
   const static uint64_t kIndirectionTableBase = 0x80000000;
   const static uint64_t kIndirectionTableSize = 0x1FFFFFFF;
   const static uint64_t kGeneratedCodeBase = 0xA0000000;
   const static uint64_t kGeneratedCodeSize = 0x0FFFFFFF;
 
-  void InitializeUnwindEntry(uint8_t* unwind_entry_address,
-                             size_t unwind_table_slot, uint8_t* code_address,
-                             size_t code_size, size_t stack_size);
-  void* LookupUnwindEntry(uintptr_t host_address);
+  struct UnwindReservation {
+    size_t data_size = 0;
+    size_t table_slot = 0;
+    uint8_t* entry_address = 0;
+  };
+
+  X64CodeCache();
+
+  virtual UnwindReservation RequestUnwindReservation(uint8_t* entry_address) {
+    return UnwindReservation();
+  }
+  virtual void PlaceCode(uint32_t guest_address, void* machine_code,
+                         size_t code_size, size_t stack_size,
+                         void* code_address,
+                         UnwindReservation unwind_reservation) {}
 
   std::wstring file_name_;
   xe::memory::FileMappingHandle mapping_ = nullptr;
@@ -82,13 +94,6 @@ class X64CodeCache : public CodeCache {
   size_t generated_code_offset_ = 0;
   // Current high water mark of COMMITTED code.
   std::atomic<size_t> generated_code_commit_mark_ = {0};
-
-  // Growable function table system handle.
-  void* unwind_table_handle_ = nullptr;
-  // Actual unwind table entries.
-  std::vector<RUNTIME_FUNCTION> unwind_table_;
-  // Current number of entries in the table.
-  std::atomic<uint32_t> unwind_table_count_ = {0};
 };
 
 }  // namespace x64

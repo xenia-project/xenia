@@ -12,6 +12,8 @@
 
 #include <gflags/gflags.h>
 
+#include <memory>
+
 #include "xenia/cpu/backend/backend.h"
 
 DECLARE_bool(enable_haswell_instructions);
@@ -36,7 +38,7 @@ class X64Backend : public Backend {
   X64Backend(Processor* processor);
   ~X64Backend() override;
 
-  X64CodeCache* code_cache() const { return code_cache_; }
+  X64CodeCache* code_cache() const { return code_cache_.get(); }
   uint32_t emitter_data() const { return emitter_data_; }
 
   // Call a generated function, saving all stack parameters.
@@ -55,7 +57,7 @@ class X64Backend : public Backend {
   std::unique_ptr<Assembler> CreateAssembler() override;
 
  private:
-  X64CodeCache* code_cache_;
+  std::unique_ptr<X64CodeCache> code_cache_;
 
   uint32_t emitter_data_;
 
