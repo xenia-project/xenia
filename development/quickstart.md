@@ -13,12 +13,25 @@ permalink: /development/quickstart/
 Have Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
 
     > git clone --recursive https://github.com/benvanik/xenia.git
-    > start xenia\xenia.sln
+    > xb setup
+    > xb edit
 
-That's mostly it. Run the `xenia` project. For debugging setup instructions see
-[the github docs](https://github.com/benvanik/xenia/blob/master/docs/building.md).
+That's mostly it. Run the `xenia-app` project. For debugging setup instructions
+see [the github docs](https://github.com/benvanik/xenia/blob/master/docs/building.md).
 Piping stdout to a file is strongly recommended as there's were most of the
 interesting information goes.
+
+When pulling new code use either `xb pull` to fetch the latest changes to both
+the main repository and all submodules as well as run premake, or else be sure
+to do those things yourself.
+
+### Where's the sln/vcproj?
+
+The `xb` script generates them under `build/` on many operations, but they can
+also be generated with `xb premake`. The `premake5.lua` files in the tree are
+the source of truth for project configuration and changes made through
+Visual Studio will be overridden the next time premake is ran. Make sure to
+add any new files to the premake files and re-generate things to stay in sync.
 
 ### It doesn't build!
 
