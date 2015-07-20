@@ -38,7 +38,7 @@ class GL4ShaderTranslator {
 
  protected:
   ShaderType shader_type_;
-  const uint32_t* dwords_;
+  const uint32_t* dwords_ = nullptr;
 
   static const int kOutputCapacity = 64 * 1024;
   StringBuffer output_;

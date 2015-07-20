@@ -534,8 +534,8 @@ void CommandProcessor::MakeCoherent() {
 
   RegisterFile* regs = register_file_;
   auto status_host = regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32;
-  auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
-  auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
+  // auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
+  // auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
 
   if (!(status_host & 0x80000000ul)) {
     return;
@@ -665,7 +665,6 @@ class CommandProcessor::RingbufferReader {
       : membase_(membase),
         base_ptr_(base_ptr),
         ptr_mask_(ptr_mask),
-        start_ptr_(start_ptr),
         end_ptr_(end_ptr),
         ptr_(start_ptr),
         offset_(0) {}
@@ -703,7 +702,6 @@ class CommandProcessor::RingbufferReader {
 
   uint32_t base_ptr_;
   uint32_t ptr_mask_;
-  uint32_t start_ptr_;
   uint32_t end_ptr_;
   uint32_t ptr_;
   uint32_t offset_;
@@ -761,8 +759,6 @@ void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
 }
 
 bool CommandProcessor::ExecutePacket(RingbufferReader* reader) {
-  RegisterFile* regs = register_file_;
-
   const uint32_t packet = reader->Read();
   const uint32_t packet_type = packet >> 30;
   if (packet == 0) {
@@ -1004,6 +1000,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   uint32_t magic = reader->Read();
   assert_true(magic == 'SWAP');
 
+  // TODO(benvanik): only swap frontbuffer ptr.
   uint32_t frontbuffer_ptr = reader->Read();
   uint32_t frontbuffer_width = reader->Read();
   uint32_t frontbuffer_height = reader->Read();
@@ -1286,7 +1283,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingbufferReader* reader,
                                                     uint32_t count) {
   // initiate fetch of index buffer and draw
   // dword0 = viz query info
-  uint32_t dword0 = reader->Read();
+  /*uint32_t dword0 =*/reader->Read();
   uint32_t dword1 = reader->Read();
   uint32_t index_count = dword1 >> 16;
   auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
@@ -1340,9 +1337,10 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingbufferReader* reader,
   auto prim_type = static_cast<PrimitiveType>(dword0 & 0x3F);
   uint32_t src_sel = (dword0 >> 6) & 0x3;
   assert_true(src_sel == 0x2);  // 'SrcSel=AutoIndex'
-  bool index_32bit = (dword0 >> 11) & 0x1;
-  uint32_t indices_size = index_count * (index_32bit ? 4 : 2);
-  uint32_t index_ptr = reader->ptr();
+  // Index buffer unused as automatic.
+  // bool index_32bit = (dword0 >> 11) & 0x1;
+  // uint32_t indices_size = index_count * (index_32bit ? 4 : 2);
+  // uint32_t index_ptr = reader->ptr();
   index_buffer_info_.guest_base = 0;
   index_buffer_info_.length = 0;
   reader->Advance(count - 1);
@@ -1489,7 +1487,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(
 bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(
     RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // selective invalidation of state pointers
-  uint32_t mask = reader->Read();
+  /*uint32_t mask =*/reader->Read();
   // driver_->InvalidateState(mask);
   return true;
 }
@@ -1736,8 +1734,12 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
     }
   }
 
-  GLuint pipeline = cached_pipeline->handles.default_pipeline;
+  GLuint pipeline;
   switch (regs.prim_type) {
+    default:
+      // Default pipeline used.
+      pipeline = cached_pipeline->handles.default_pipeline;
+      break;
     case PrimitiveType::kPointList:
       pipeline = cached_pipeline->handles.point_list_pipeline;
       break;
@@ -1862,8 +1864,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
 }
 
 CommandProcessor::UpdateStatus CommandProcessor::UpdateState() {
-  auto& regs = *register_file_;
-
   bool mismatch = false;
 
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
@@ -1890,7 +1890,6 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateState() {
 }
 
 CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
-  auto& reg_file = *register_file_;
   auto& regs = update_viewport_state_regs_;
 
   bool dirty = false;
@@ -2020,16 +2019,18 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
     float texel_offset_y = 0.0f;
     float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
     float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
-    float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
     float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
     float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
-    float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
     window_width_scalar = window_height_scalar = 1;
     float vpw = 2 * window_width_scalar * vsx;
     float vph = -2 * window_height_scalar * vsy;
     float vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
     float vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
     glViewportIndexedf(0, vpx + texel_offset_x, vpy + texel_offset_y, vpw, vph);
+
+    // TODO(benvanik): depth range adjustment?
+    // float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
+    // float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
   } else {
     float texel_offset_x = 0.0f;
     float texel_offset_y = 0.0f;
@@ -2382,7 +2383,6 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateVertexBuffers() {
   auto& regs = *register_file_;
   assert_not_null(active_vertex_shader_);
 
-  uint32_t el_index = 0;
   const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
   for (uint32_t buffer_index = 0; buffer_index < buffer_inputs.count;
        ++buffer_index) {
@@ -2442,8 +2442,6 @@ CommandProcessor::UpdateStatus CommandProcessor::PopulateSamplers() {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
-
-  auto& regs = *register_file_;
 
   bool mismatch = false;
 
@@ -2798,7 +2796,7 @@ bool CommandProcessor::IssueCopy() {
   // Destination pointer in guest memory.
   // We have GL throw bytes directly into it.
   // TODO(benvanik): copy to staging texture then PBO back?
-  void* ptr = memory_->TranslatePhysical(copy_dest_base);
+  // void* ptr = memory_->TranslatePhysical(copy_dest_base);
 
   auto blitter = static_cast<xe::ui::gl::GLContext*>(context_.get())->blitter();
 
@@ -2933,7 +2931,7 @@ GLuint CommandProcessor::GetColorRenderTarget(uint32_t pitch,
     format = ColorRenderTargetFormat::k_8_8_8_8;
   }
 
-  for (auto& it = cached_color_render_targets_.begin();
+  for (auto it = cached_color_render_targets_.begin();
        it != cached_color_render_targets_.end(); ++it) {
     if (it->base == base && it->width == width && it->height == height &&
         it->format == format) {
@@ -2997,7 +2995,7 @@ GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
   uint32_t width = 2560;
   uint32_t height = 2560;
 
-  for (auto& it = cached_depth_render_targets_.begin();
+  for (auto it = cached_depth_render_targets_.begin();
        it != cached_depth_render_targets_.end(); ++it) {
     if (it->base == base && it->width == width && it->height == height &&
         it->format == format) {
@@ -3033,8 +3031,8 @@ GLuint CommandProcessor::GetDepthRenderTarget(uint32_t pitch,
 
 CommandProcessor::CachedFramebuffer* CommandProcessor::GetFramebuffer(
     GLuint color_targets[4], GLuint depth_target) {
-  for (auto& it = cached_framebuffers_.begin();
-       it != cached_framebuffers_.end(); ++it) {
+  for (auto it = cached_framebuffers_.begin(); it != cached_framebuffers_.end();
+       ++it) {
     if ((depth_target == kAnyTarget || it->depth_target == depth_target) &&
         (color_targets[0] == kAnyTarget ||
          it->color_targets[0] == color_targets[0]) &&

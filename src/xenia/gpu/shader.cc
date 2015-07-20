@@ -95,7 +95,7 @@ void Shader::GatherExec(const instr_cf_exec_t* cf) {
   uint32_t sequence = cf->serialize;
   for (uint32_t i = 0; i < cf->count; i++) {
     uint32_t alu_off = (cf->address + i);
-    int sync = sequence & 0x2;
+    // int sync = sequence & 0x2;
     if (sequence & 0x1) {
       auto fetch =
           reinterpret_cast<const instr_fetch_t*>(data_.data() + alu_off * 3);

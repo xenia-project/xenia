@@ -505,7 +505,7 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
     case Dimension::k1D:
     case Dimension::k3D:
       assert_unhandled_case(texture_info.dimension);
-      return false;
+      return nullptr;
   }
   if (!uploaded) {
     XELOGE("Failed to convert/upload texture");

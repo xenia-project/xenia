@@ -57,8 +57,7 @@ const char* GetVertexFormatTypeName(const GL4Shader::BufferDescElement& el) {
   }
 }
 
-GL4ShaderTranslator::GL4ShaderTranslator()
-    : output_(kOutputCapacity), dwords_(nullptr) {}
+GL4ShaderTranslator::GL4ShaderTranslator() : output_(kOutputCapacity) {}
 
 GL4ShaderTranslator::~GL4ShaderTranslator() = default;
 
@@ -94,8 +93,6 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
       el_index++;
     }
   }
-
-  const auto& alloc_counts = vertex_shader->alloc_counts();
 
   // Vertex shader main() header.
   Append("void processVertex(const in StateData state) {\n");
@@ -1812,8 +1809,8 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
   uint32_t fetch_slot = vtx->const_index * 3 + vtx->const_index_sel;
   // TODO(benvanik): detect xyzw = xyzw, etc.
   // TODO(benvanik): detect and set as rN = vec4(samp.xyz, 1.0); / etc
-  uint32_t component_count =
-      GetVertexFormatComponentCount(static_cast<VertexFormat>(vtx->format));
+  // uint32_t component_count =
+  //     GetVertexFormatComponentCount(static_cast<VertexFormat>(vtx->format));
   uint32_t dst_swiz = vtx->dst_swiz;
   for (int i = 0; i < 4; i++) {
     if ((dst_swiz & 0x7) == 4) {
