@@ -22,8 +22,6 @@ XTimer::~XTimer() = default;
 
 void XTimer::Initialize(uint32_t timer_type) {
   assert_false(timer_);
-
-  bool manual_reset = false;
   switch (timer_type) {
     case 0:  // NotificationTimer
       timer_ = xe::threading::Timer::CreateManualResetTimer();

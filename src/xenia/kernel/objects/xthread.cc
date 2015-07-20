@@ -45,14 +45,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  bool guest_thread)
     : XObject(kernel_state, kTypeThread),
       thread_id_(++next_xthread_id),
-      pcr_address_(0),
-      thread_state_address_(0),
-      thread_state_(0),
-      priority_(0),
-      affinity_(0),
-      irql_(0),
-      guest_thread_(guest_thread),
-      running_(false) {
+      guest_thread_(guest_thread) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;

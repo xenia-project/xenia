@@ -139,10 +139,10 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
 
 std::vector<xe::cpu::Export*> xboxkrnl_exports(4096);
 
-xe::cpu::Export* RegisterExport_xboxkrnl(xe::cpu::Export* export) {
-  assert_true(export->ordinal < xboxkrnl_exports.size());
-  xboxkrnl_exports[export->ordinal] = export;
-  return export;
+xe::cpu::Export* RegisterExport_xboxkrnl(xe::cpu::Export* export_entry) {
+  assert_true(export_entry->ordinal < xboxkrnl_exports.size());
+  xboxkrnl_exports[export_entry->ordinal] = export_entry;
+  return export_entry;
 }
 
 void XboxkrnlModule::RegisterExportTable(
@@ -156,10 +156,10 @@ void XboxkrnlModule::RegisterExportTable(
   };
 #include "xenia/kernel/util/export_table_post.inc"
   for (size_t i = 0; i < xe::countof(xboxkrnl_export_table); ++i) {
-    auto& export = xboxkrnl_export_table[i];
-    assert_true(export.ordinal < xboxkrnl_exports.size());
-    if (!xboxkrnl_exports[export.ordinal]) {
-      xboxkrnl_exports[export.ordinal] = &export;
+    auto& export_entry = xboxkrnl_export_table[i];
+    assert_true(export_entry.ordinal < xboxkrnl_exports.size());
+    if (!xboxkrnl_exports[export_entry.ordinal]) {
+      xboxkrnl_exports[export_entry.ordinal] = &export_entry;
     }
   }
   export_resolver->RegisterTable("xboxkrnl.exe", &xboxkrnl_exports);

@@ -141,27 +141,27 @@ class XThread : public XObject {
     uint32_t start_address;
     uint32_t start_context;
     uint32_t creation_flags;
-  } creation_params_;
+  } creation_params_ = {0};
 
-  uint32_t thread_id_;
+  uint32_t thread_id_ = 0;
   std::unique_ptr<xe::threading::Thread> thread_;
-  uint32_t scratch_address_;
-  uint32_t scratch_size_;
-  uint32_t tls_address_;
-  uint32_t pcr_address_;
-  uint32_t thread_state_address_;
-  cpu::ThreadState* thread_state_;
-  bool guest_thread_;  // Launched into guest code?
-  bool running_;
+  uint32_t scratch_address_ = 0;
+  uint32_t scratch_size_ = 0;
+  uint32_t tls_address_ = 0;
+  uint32_t pcr_address_ = 0;
+  uint32_t thread_state_address_ = 0;
+  cpu::ThreadState* thread_state_ = nullptr;
+  bool guest_thread_ = false;  // Launched into guest code.
+  bool running_ = false;
 
   std::string name_;
 
-  int32_t priority_;
-  uint32_t affinity_;
+  int32_t priority_ = 0;
+  uint32_t affinity_ = 0;
 
   std::atomic<uint32_t> irql_;
   xe::mutex apc_lock_;
-  NativeList* apc_list_;
+  NativeList* apc_list_ = nullptr;
 };
 
 class XHostThread : public XThread {

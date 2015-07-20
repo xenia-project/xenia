@@ -18,7 +18,7 @@ namespace kernel {
 
 class KernelState;
 
-xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export);
+xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry);
 
 namespace xam {
 // Registration functions, one per file.

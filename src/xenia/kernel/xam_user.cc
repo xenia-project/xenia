@@ -280,9 +280,8 @@ SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_context,
     return;
   }
 
-  const auto& user_profile = kernel_state->user_profile();
-
   // TODO: Update and save settings.
+  // const auto& user_profile = kernel_state->user_profile();
 
   if (overlapped_ptr) {
     kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);

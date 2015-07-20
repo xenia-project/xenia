@@ -107,40 +107,39 @@ class Param {
   Param() : ordinal_(-1) {}
   explicit Param(Init& init) : ordinal_(--init.ordinal) {}
 
+  template <typename V>
+  void LoadValue(Init& init, V* out_value) {
+    if (ordinal_ <= 7) {
+      *out_value = V(init.ppc_context->r[3 + ordinal_]);
+    } else {
+      uint32_t stack_ptr =
+          uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 7) * 8;
+      *out_value =
+          xe::load_and_swap<V>(init.ppc_context->virtual_membase + stack_ptr);
+    }
+  }
+
   int ordinal_;
 };
+template <>
+inline void Param::LoadValue<float>(Param::Init& init, float* out_value) {
+  *out_value = float(init.ppc_context->f[1 + ++init.float_ordinal]);
+}
+template <>
+inline void Param::LoadValue<double>(Param::Init& init, double* out_value) {
+  *out_value = init.ppc_context->f[1 + ++init.float_ordinal];
+}
 template <typename T>
 class ParamBase : public Param {
  public:
   ParamBase() : Param(), value_(0) {}
   ParamBase(T value) : Param(), value_(value) {}
-  ParamBase(Init& init) : Param(init) { LoadValue<T>(init); }
+  ParamBase(Init& init) : Param(init) { LoadValue<T>(init, &value_); }
   ParamBase& operator=(const T& other) {
     value_ = other;
     return *this;
   }
   operator T() const { return value_; }
-
- private:
-  template <typename V>
-  void LoadValue(Init& init) {
-    if (ordinal_ <= 7) {
-      value_ = V(init.ppc_context->r[3 + ordinal_]);
-    } else {
-      uint32_t stack_ptr =
-          uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 7) * 8;
-      value_ =
-          xe::load_and_swap<T>(init.ppc_context->virtual_membase + stack_ptr);
-    }
-  }
-  template <>
-  void LoadValue<float>(Init& init) {
-    value_ = init.ppc_context->f[1 + ++init.float_ordinal];
-  }
-  template <>
-  void LoadValue<double>(Init& init) {
-    value_ = init.ppc_context->f[1 + ++init.float_ordinal];
-  }
 
  protected:
   T value_;
@@ -365,34 +364,34 @@ enum class KernelModuleId {
 
 template <size_t I = 0, typename... Ps>
 typename std::enable_if<I == sizeof...(Ps)>::type AppendKernelCallParams(
-    StringBuffer& string_buffer, xe::cpu::Export* export,
+    StringBuffer& string_buffer, xe::cpu::Export* export_entry,
     const std::tuple<Ps...>&) {}
 
 template <size_t I = 0, typename... Ps>
     typename std::enable_if <
     I<sizeof...(Ps)>::type AppendKernelCallParams(
-        StringBuffer& string_buffer, xe::cpu::Export* export,
+        StringBuffer& string_buffer, xe::cpu::Export* export_entry,
         const std::tuple<Ps...>& params) {
   if (I) {
     string_buffer.Append(", ");
   }
   auto param = std::get<I>(params);
   AppendParam(string_buffer, param);
-  AppendKernelCallParams<I + 1>(string_buffer, export, params);
+  AppendKernelCallParams<I + 1>(string_buffer, export_entry, params);
 }
 
 StringBuffer* thread_local_string_buffer();
 
 template <typename Tuple>
-void PrintKernelCall(cpu::Export* export, const Tuple& params) {
+void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
   auto& string_buffer = *thread_local_string_buffer();
   string_buffer.Reset();
-  string_buffer.Append(export->name);
+  string_buffer.Append(export_entry->name);
   string_buffer.Append('(');
-  AppendKernelCallParams(string_buffer, export, params);
+  AppendKernelCallParams(string_buffer, export_entry, params);
   string_buffer.Append(')');
   auto str = string_buffer.GetString();
-  if (export->tags & ExportTag::kImportant) {
+  if (export_entry->tags & ExportTag::kImportant) {
     XELOGI(str);
   } else {
     XELOGD(str);
@@ -407,56 +406,56 @@ auto KernelTrampoline(F&& f, Tuple&& t, std::index_sequence<I...>) {
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
 xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
-  static const auto export =
+  static const auto export_entry =
       new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
                       tags | ExportTag::kImplemented | ExportTag::kLog);
   static R (*FN)(Ps&...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
-      ++export->function_data.call_count;
+      ++export_entry->function_data.call_count;
       Param::Init init = {
           ppc_context, sizeof...(Ps), 0,
       };
       auto params = std::make_tuple<Ps...>(Ps(init)...);
-      if (export->tags & ExportTag::kLog) {
-        PrintKernelCall(export, params);
+      if (export_entry->tags & ExportTag::kLog) {
+        PrintKernelCall(export_entry, params);
       }
       auto result =
           KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
                            std::make_index_sequence<sizeof...(Ps)>());
       result.Store(ppc_context);
-      if (export->tags & (ExportTag::kLog | ExportTag::kLogResult)) {
+      if (export_entry->tags & (ExportTag::kLog | ExportTag::kLogResult)) {
         // TODO(benvanik): log result.
       }
     }
   };
-  export->function_data.trampoline = &X::Trampoline;
-  return export;
+  export_entry->function_data.trampoline = &X::Trampoline;
+  return export_entry;
 }
 
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename... Ps>
 xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
-  static const auto export =
+  static const auto export_entry =
       new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
                       tags | ExportTag::kImplemented | ExportTag::kLog);
   static void (*FN)(Ps&...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
-      ++export->function_data.call_count;
+      ++export_entry->function_data.call_count;
       Param::Init init = {
           ppc_context, sizeof...(Ps),
       };
       auto params = std::make_tuple<Ps...>(Ps(init)...);
-      if (export->tags & ExportTag::kLog) {
-        PrintKernelCall(export, params);
+      if (export_entry->tags & ExportTag::kLog) {
+        PrintKernelCall(export_entry, params);
       }
       KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
                        std::make_index_sequence<sizeof...(Ps)>());
     }
   };
-  export->function_data.trampoline = &X::Trampoline;
-  return export;
+  export_entry->function_data.trampoline = &X::Trampoline;
+  return export_entry;
 }
 
 }  // namespace shim

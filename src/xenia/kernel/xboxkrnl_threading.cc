@@ -343,8 +343,8 @@ SHIM_CALL KeDelayExecutionThread_shim(PPCContext* ppc_context,
 SHIM_CALL NtYieldExecution_shim(PPCContext* ppc_context,
                                 KernelState* kernel_state) {
   // XELOGD("NtYieldExecution()");
-  XThread* thread = XThread::GetCurrentThread();
-  X_STATUS result = thread->Delay(0, 0, 0);
+  auto thread = XThread::GetCurrentThread();
+  thread->Delay(0, 0, 0);
   SHIM_SET_RETURN_32(0);
 }
 
@@ -355,7 +355,6 @@ SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_context,
   XELOGD("KeQuerySystemTime(%.8X)", time_ptr);
 
   uint64_t time = Clock::QueryGuestSystemTime();
-
   if (time_ptr) {
     SHIM_SET_MEM_64(time_ptr, time);
   }

@@ -224,12 +224,12 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
   }
 
   // Setup the kernel's XexExecutableModuleHandle field.
-  auto export = processor()->export_resolver()->GetExportByOrdinal(
+  auto export_entry = processor()->export_resolver()->GetExportByOrdinal(
       "xboxkrnl.exe", ordinals::XexExecutableModuleHandle);
-  if (export) {
-    assert_not_zero(export->variable_ptr);
-    auto variable_ptr =
-        memory()->TranslateVirtual<xe::be<uint32_t>*>(export->variable_ptr);
+  if (export_entry) {
+    assert_not_zero(export_entry->variable_ptr);
+    auto variable_ptr = memory()->TranslateVirtual<xe::be<uint32_t>*>(
+        export_entry->variable_ptr);
     *variable_ptr = executable_module_->hmodule_ptr();
   }
 
@@ -548,7 +548,6 @@ void KernelState::CompleteOverlappedDeferredEx(
     xe::threading::Sleep(
         std::chrono::milliseconds::duration(kDeferredOverlappedDelayMillis));
     completion_callback();
-    auto ptr = memory()->TranslateVirtual(overlapped_ptr);
     CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
   });
   dispatch_cond_.notify_all();

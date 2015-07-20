@@ -37,10 +37,10 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
 
 std::vector<xe::cpu::Export*> xam_exports(4096);
 
-xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export) {
-  assert_true(export->ordinal < xam_exports.size());
-  xam_exports[export->ordinal] = export;
-  return export;
+xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry) {
+  assert_true(export_entry->ordinal < xam_exports.size());
+  xam_exports[export_entry->ordinal] = export_entry;
+  return export_entry;
 }
 
 void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
@@ -53,10 +53,10 @@ void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
   };
 #include "xenia/kernel/util/export_table_post.inc"
   for (size_t i = 0; i < xe::countof(xam_export_table); ++i) {
-    auto& export = xam_export_table[i];
-    assert_true(export.ordinal < xam_exports.size());
-    if (!xam_exports[export.ordinal]) {
-      xam_exports[export.ordinal] = &export;
+    auto& export_entry = xam_export_table[i];
+    assert_true(export_entry.ordinal < xam_exports.size());
+    if (!xam_exports[export_entry.ordinal]) {
+      xam_exports[export_entry.ordinal] = &export_entry;
     }
   }
   export_resolver->RegisterTable("xam.xex", &xam_exports);

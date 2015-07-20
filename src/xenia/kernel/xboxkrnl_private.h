@@ -17,7 +17,7 @@ namespace kernel {
 
 class KernelState;
 
-xe::cpu::Export* RegisterExport_xboxkrnl(xe::cpu::Export* export);
+xe::cpu::Export* RegisterExport_xboxkrnl(xe::cpu::Export* export_entry);
 
 namespace xboxkrnl {
 // Registration functions, one per file.
