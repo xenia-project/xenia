@@ -171,6 +171,11 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
 
   restart:
     switch (state) {
+      case FS_Invalid:
+      case FS_Unknown:
+      case FS_End:
+      default: { assert_always(); }
+
       case FS_Start: {
         if (c == '%') {
           state = FS_Unknown;

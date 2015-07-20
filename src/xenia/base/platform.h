@@ -55,11 +55,11 @@
 #define NOMINMAX  // Don't want windows.h including min/max macros.
 #endif            // XE_PLATFORM_WIN32
 
-#if XE_COMPILER_MSVC
+#if XE_PLATFORM_WIN32
 #include <intrin.h>
 #else
 #include <x86intrin.h>
-#endif  // XE_COMPILER_MSVC
+#endif  // XE_PLATFORM_WIN32
 
 namespace xe {
 

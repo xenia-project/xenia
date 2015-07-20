@@ -960,7 +960,7 @@ const uint32_t error_table_0xC0980001[] = {
 };
 
 #define MAKE_ENTRY(x) \
-  { ##x, xe::countof(error_table_##x), error_table_##x }
+  { x, xe::countof(error_table_##x), error_table_##x }
 const error_lookup_table error_tables[] = {
     MAKE_ENTRY(0x00000103), MAKE_ENTRY(0x40000002), MAKE_ENTRY(0x40020056),
     MAKE_ENTRY(0x400200AF), MAKE_ENTRY(0x80000001), MAKE_ENTRY(0x80000288),

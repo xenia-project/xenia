@@ -39,8 +39,6 @@ SHIM_CALL XAudioGetVoiceCategoryVolumeChangeMask_shim(
 
   assert_true((driver_ptr & 0xFFFF0000) == 0x41550000);
 
-  auto audio_system = kernel_state->emulator()->audio_system();
-
   // Checking these bits to see if any voice volume changed.
   // I think.
   SHIM_SET_MEM_32(out_ptr, 0);

@@ -16,6 +16,8 @@
 
 #if XE_PLATFORM_MAC
 #include <libkern/OSAtomic.h>
+#elif XE_PLATFORM_WIN32
+#include <intrin.h>
 #endif  // XE_PLATFORM_MAC
 
 namespace xe {

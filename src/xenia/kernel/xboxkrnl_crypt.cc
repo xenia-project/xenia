@@ -107,21 +107,21 @@ void XeCryptSha(lpvoid_t input_1, dword_t input_1_size, lpvoid_t input_2,
 DECLARE_XBOXKRNL_EXPORT(XeCryptSha, ExportTag::kImplemented);
 
 // Byteswap?
-dword_result_t XeCryptBnQw_SwapDwQwLeBe(const lpqword_t qw_inp,
-                                        lpqword_t qw_out, dword_t size) {
+dword_result_t XeCryptBnQw_SwapDwQwLeBe(lpqword_t qw_inp, lpqword_t qw_out,
+                                        dword_t size) {
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(XeCryptBnQw_SwapDwQwLeBe, ExportTag::kStub);
 
-dword_result_t XeCryptBnQwNeRsaPubCrypt(const lpqword_t qw_a, lpqword_t qw_b,
-                                        const lpvoid_t rsa) {
+dword_result_t XeCryptBnQwNeRsaPubCrypt(lpqword_t qw_a, lpqword_t qw_b,
+                                        lpvoid_t rsa) {
   // 0 indicates failure (but not a BOOL return value)
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT(XeCryptBnQwNeRsaPubCrypt, ExportTag::kStub);
 
-dword_result_t XeCryptBnDwLePkcs1Verify(const lpvoid_t hash, const lpvoid_t sig,
-                                        const dword_t size) {
+dword_result_t XeCryptBnDwLePkcs1Verify(lpvoid_t hash, lpvoid_t sig,
+                                        dword_t size) {
   // BOOL return value
   return 1;
 }

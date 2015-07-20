@@ -167,14 +167,11 @@ X_STATUS XThread::Create() {
   }
 
   const uint32_t kDefaultTlsSlotCount = 32;
-  uint32_t tls_slots = 0;
+  uint32_t tls_slots = kDefaultTlsSlotCount;
   uint32_t tls_extended_size = 0;
-  if (tls_header) {
-    tls_slots =
-        tls_header->slot_count ? tls_header->slot_count : kDefaultTlsSlotCount;
+  if (tls_header && tls_header->slot_count) {
+    tls_slots = tls_header->slot_count;
     tls_extended_size = tls_header->data_size;
-  } else {
-    tls_slots = kDefaultTlsSlotCount;
   }
 
   // Allocate both the slots and the extended data.

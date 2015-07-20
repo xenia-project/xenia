@@ -328,8 +328,8 @@ SHIM_CALL ExRegisterTitleTerminateNotification_shim(PPCContext* ppc_context,
   // list entry flink
   // list entry blink
 
-  XELOGD("ExRegisterTitleTerminateNotification(%.8X(%.8X), %.1X)",
-         registration_ptr, routine, create);
+  XELOGD("ExRegisterTitleTerminateNotification(%.8X(%.8X, %d), %.1X)",
+         registration_ptr, routine, priority, create);
 
   if (create) {
     // Adding.

@@ -43,7 +43,7 @@ static_assert_size(X_EXCEPTION_RECORD, 0x50);
 void AppendParam(StringBuffer& string_buffer,
                  pointer_t<X_EXCEPTION_RECORD> record) {
   string_buffer.AppendFormat("%.8X(%.8X)", record.guest_address(),
-                             record->exception_code);
+                             uint32_t(record->exception_code));
 }
 
 void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {

@@ -216,9 +216,9 @@ static int lzxd_read_input(struct lzxd_stream *lzx) {
 static int make_decode_table(unsigned int nsyms, unsigned int nbits,
 			     unsigned char *length, unsigned short *table)
 {
-  register unsigned short sym;
-  register unsigned int leaf, fill;
-  register unsigned char bit_num;
+  unsigned short sym;
+  unsigned int leaf, fill;
+  unsigned char bit_num;
   unsigned int pos         = 0; /* the current position in the decode table */
   unsigned int table_mask  = 1 << nbits;
   unsigned int bit_mask    = table_mask >> 1; /* don't do 0 length codes */
@@ -294,9 +294,9 @@ static int lzxd_read_lens(struct lzxd_stream *lzx, unsigned char *lens,
 			  unsigned int first, unsigned int last)
 {
   /* bit buffer and huffman symbol decode variables */
-  register unsigned int bit_buffer;
-  register int bits_left, i;
-  register unsigned short sym;
+  unsigned int bit_buffer;
+  int bits_left, i;
+  unsigned short sym;
   unsigned char *i_ptr, *i_end;
 
   unsigned int x, y;
@@ -463,9 +463,9 @@ void lzxd_set_output_length(struct lzxd_stream *lzx, off_t out_bytes) {
 
 int lzxd_decompress(struct lzxd_stream *lzx, off_t out_bytes) {
   /* bitstream reading and huffman variables */
-  register unsigned int bit_buffer;
-  register int bits_left, i=0;
-  register unsigned short sym;
+  unsigned int bit_buffer;
+  int bits_left, i=0;
+  unsigned short sym;
   unsigned char *i_ptr, *i_end;
 
   int match_length, length_footer, extra, verbatim_bits, bytes_todo;

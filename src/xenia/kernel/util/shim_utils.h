@@ -27,7 +27,7 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 #define SHIM_CALL void _cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
   export_resolver->SetFunctionMapping(                         \
-      library_name, ordinals::##export_name,                   \
+      library_name, ordinals::export_name,                     \
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
 
 #define SHIM_MEM_BASE ppc_context->virtual_membase
@@ -462,10 +462,10 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
 
 using xe::cpu::ExportTag;
 
-#define DECLARE_EXPORT(module_name, name, tags)                             \
-  const auto EXPORT_##module_name##_##name = RegisterExport_##module_name(  \
-      xe::kernel::shim::RegisterExport<                                     \
-          xe::kernel::shim::KernelModuleId::module_name, ordinals::##name>( \
+#define DECLARE_EXPORT(module_name, name, tags)                            \
+  const auto EXPORT_##module_name##_##name = RegisterExport_##module_name( \
+      xe::kernel::shim::RegisterExport<                                    \
+          xe::kernel::shim::KernelModuleId::module_name, ordinals::name>(  \
           &name, #name, tags));
 
 #define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)

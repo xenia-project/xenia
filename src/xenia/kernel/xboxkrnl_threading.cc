@@ -948,7 +948,7 @@ dword_result_t NtWaitForMultipleObjectsEx(
     objects[n] = std::move(object);
   }
 
-  uint64_t timeout = timeout_ptr ? *timeout_ptr : 0;
+  uint64_t timeout = timeout_ptr ? uint64_t(*timeout_ptr) : 0;
   result = XObject::WaitMultiple(
       count, reinterpret_cast<XObject**>(objects.data()), wait_type, 6,
       wait_mode, alertable, timeout_ptr ? &timeout : nullptr);

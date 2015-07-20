@@ -19,7 +19,7 @@ namespace gpu {
 
 namespace ucode {
 
-#if XE_PLATFORM_WIN32
+#if XE_COMPILER_MSVC
 #define XEPACKEDSTRUCT(name, value)                                  \
   __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
   typedef struct name##_s name;

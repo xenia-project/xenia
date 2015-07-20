@@ -29,16 +29,6 @@
 
 namespace xe {}  // namespace xe
 
-// TODO(benvanik): remove.
-#define XEEXPECTZERO(expr) \
-  if ((expr) != 0) {       \
-    goto XECLEANUP;        \
-  }
-#define XEEXPECTNOTNULL(expr) \
-  if ((expr) == NULL) {       \
-    goto XECLEANUP;           \
-  }
-
 DEFINE_bool(xex_dev_key, false, "Use the devkit key.");
 
 typedef struct xe_xex2 {
@@ -70,25 +60,35 @@ xe_xex2_ref xe_xex2_load(xe::Memory* memory, const void* addr,
   xex->memory = memory;
   xex->sections = new std::vector<PESection*>();
 
-  XEEXPECTZERO(xe_xex2_read_header((const uint8_t*)addr, length, &xex->header));
+  if (xe_xex2_read_header((const uint8_t*)addr, length, &xex->header)) {
+    xe_xex2_dealloc(xex);
+    return nullptr;
+  }
 
-  XEEXPECTZERO(xe_xex2_decrypt_key(&xex->header));
+  if (xe_xex2_decrypt_key(&xex->header)) {
+    xe_xex2_dealloc(xex);
+    return nullptr;
+  }
 
-  XEEXPECTZERO(
-      xe_xex2_read_image(xex, (const uint8_t*)addr, uint32_t(length), memory));
+  if (xe_xex2_read_image(xex, (const uint8_t*)addr, uint32_t(length), memory)) {
+    xe_xex2_dealloc(xex);
+    return nullptr;
+  }
 
-  XEEXPECTZERO(xe_xex2_load_pe(xex));
+  if (xe_xex2_load_pe(xex)) {
+    xe_xex2_dealloc(xex);
+    return nullptr;
+  }
 
   for (size_t n = 0; n < xex->header.import_library_count; n++) {
     auto library = &xex->header.import_libraries[n];
-    XEEXPECTZERO(xe_xex2_find_import_infos(xex, library));
+    if (xe_xex2_find_import_infos(xex, library)) {
+      xe_xex2_dealloc(xex);
+      return nullptr;
+    }
   }
 
   return xex;
-
-XECLEANUP:
-  xe_xex2_dealloc(xex);
-  return nullptr;
 }
 
 void xe_xex2_dealloc(xe_xex2_ref xex) {
@@ -292,7 +292,9 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
           library->record_count = src_library->count;
           library->records =
               (uint32_t*)calloc(library->record_count, sizeof(uint32_t));
-          XEEXPECTNOTNULL(library->records);
+          if (!library->records) {
+            return 1;
+          }
           for (size_t i = 0; i < library->record_count; i++) {
             library->records[i] = src_library->import_table[i];
           }
@@ -343,7 +345,9 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
             comp_info->blocks = (xe_xex2_file_basic_compression_block_t*)calloc(
                 comp_info->block_count,
                 sizeof(xe_xex2_file_basic_compression_block_t));
-            XEEXPECTNOTNULL(comp_info->blocks);
+            if (!comp_info->blocks) {
+              return 1;
+            }
             for (size_t m = 0; m < comp_info->block_count; m++) {
               xe_xex2_file_basic_compression_block_t* block =
                   &comp_info->blocks[m];
@@ -406,7 +410,9 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
   ps += 4;
   header->sections = (xe_xex2_section_t*)calloc(header->section_count,
                                                 sizeof(xe_xex2_section_t));
-  XEEXPECTNOTNULL(header->sections);
+  if (!header->sections) {
+    return 1;
+  }
   for (size_t n = 0; n < header->section_count; n++) {
     xe_xex2_section_t* section = &header->sections[n];
     section->page_size =
@@ -418,9 +424,6 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
   }
 
   return 0;
-
-XECLEANUP:
-  return 1;
 }
 
 int xe_xex2_decrypt_key(xe_xex2_header_t* header) {
@@ -700,7 +703,6 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t* header,
       // TODO: a way to do without a copy/alloc?
       free_input = true;
       input_buffer = (const uint8_t*)calloc(1, input_size);
-      XEEXPECTNOTNULL(input_buffer);
       xe_xex2_decrypt_buffer(header->session_key, exe_buffer, exe_length,
                              (uint8_t*)input_buffer, input_size);
       break;
@@ -710,14 +712,12 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t* header,
   }
 
   compress_buffer = (uint8_t*)calloc(1, exe_length);
-  XEEXPECTNOTNULL(compress_buffer);
 
   p = input_buffer;
   d = compress_buffer;
 
   // De-block.
   deblock_buffer = (uint8_t*)calloc(1, input_size);
-  XEEXPECTNOTNULL(deblock_buffer);
   block_size = header->file_format_info.compression_info.normal.block_size;
   while (block_size) {
     const uint8_t* pnext = p + block_size;
@@ -753,28 +753,24 @@ int xe_xex2_read_image_compressed(const xe_xex2_header_t* header,
     XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", header->exe_address,
            uncompressed_size);
     result_code = 2;
-    goto XECLEANUP;
+    // Not doing any cleanup here;
+    // TODO(benvanik): rewrite this entire file using RAII.
+    assert_always();
+    return 1;
   }
   uint8_t* buffer = memory->TranslateVirtual(header->exe_address);
   std::memset(buffer, 0, uncompressed_size);
 
   // Setup decompressor and decompress.
   sys = mspack_memory_sys_create();
-  XEEXPECTNOTNULL(sys);
   lzxsrc = mspack_memory_open(sys, (void*)compress_buffer, d - compress_buffer);
-  XEEXPECTNOTNULL(lzxsrc);
   lzxdst = mspack_memory_open(sys, buffer, uncompressed_size);
-  XEEXPECTNOTNULL(lzxdst);
   lzxd =
       lzxd_init(sys, (struct mspack_file*)lzxsrc, (struct mspack_file*)lzxdst,
                 header->file_format_info.compression_info.normal.window_bits, 0,
                 32768, (off_t)header->loader_info.image_size);
-  XEEXPECTNOTNULL(lzxd);
-  XEEXPECTZERO(lzxd_decompress(lzxd, (off_t)header->loader_info.image_size));
+  result_code = lzxd_decompress(lzxd, (off_t)header->loader_info.image_size);
 
-  result_code = 0;
-
-XECLEANUP:
   if (lzxd) {
     lzxd_free(lzxd);
     lzxd = NULL;
@@ -1014,7 +1010,7 @@ int xe_xex2_get_import_infos(xe_xex2_ref xex,
 uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, const char* name) {
   auto header = xe_xex2_get_header(xex);
 
-  // no exports :(
+  // No exports.
   if (!header->pe_export_table_offset) {
     XELOGE("xe_xex2_lookup_export(%s) failed: no PE export table", name);
     return 0;
@@ -1027,13 +1023,14 @@ uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, const char* name) {
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
   uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
 
-  // Names relative to directory
+  // Names relative to directory.
   uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
 
-  // Table of ordinals (by name)
+  // Table of ordinals (by name).
   uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
 
-  const char* mod_name = (const char*)((uint64_t)e + e->Name);
+  // Module name (sometimes).
+  // const char* mod_name = (const char*)((uint64_t)e + e->Name);
 
   for (uint32_t i = 0; i < e->NumberOfNames; i++) {
     const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
@@ -1046,7 +1043,7 @@ uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, const char* name) {
     }
   }
 
-  // No match
+  // No match.
   return 0;
 }
 
@@ -1080,21 +1077,12 @@ uint32_t xe_xex2_lookup_export(xe_xex2_ref xex, uint16_t ordinal) {
                                     header->pe_export_table_offset));
 
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
-  // Functions relative to base
+  // Functions relative to base.
   uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
-
-  // Names relative to directory
-  uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
-
-  // Table of ordinals (by name)
-  uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
-
-  const char* mod_name = (const char*)((uint64_t)e + e->Name);
-
   if (ordinal < e->NumberOfFunctions) {
     return header->exe_address + function_table[ordinal];
   }
 
-  // No match
+  // No match.
   return 0;
 }

@@ -416,7 +416,7 @@ void XUserModule::Dump() {
       } break;
       case XEX_HEADER_TITLE_WORKSPACE_SIZE: {
         printf("  XEX_HEADER_TITLE_WORKSPACE_SIZE: %d\n",
-               (uint32_t)opt_header.value);
+               uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_GAME_RATINGS: {
         printf("  XEX_HEADER_GAME_RATINGS (TODO):\n");
@@ -434,7 +434,8 @@ void XUserModule::Dump() {
         printf("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
-        printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: %d\n", opt_header.value);
+        printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: %d\n",
+               uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_EXPORTS_BY_NAME: {
         printf("  XEX_HEADER_EXPORTS_BY_NAME:\n");
