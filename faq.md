@@ -51,6 +51,25 @@ The project is designed to support non-Windows platforms but until it's running
 games it's not worth the maintenance burden. OSX will likely remain unsupported
 until Apple supports Vulkan.
 
+There's only a few major pieces that need cleanup before a Linux port can
+proceed in earnest, listed with the [cross-platform tag](https://github.com/benvanik/xenia/labels/cross%20platform).
+Most of the code compiles with the latest Clang, and very few files have
+dependencies on Windows APIs (all of that is isolated to `_win.cc` files).
+Though the codebase is ready for the port, it's not a trivial task and anyone
+seeking to port it will need a deep understanding of Linux, X11, OpenGL, and
+Win32 (to ensure matching semantics).
+
+### You should port it to Linux, then tons of developers will contribute!
+
+No, they won't, and that's not how things work. (I'm seriously told this once
+a week...)
+
+Think of it this way: the most important kind of contributor in this phase of
+the project is one who is capable of performing the porting work. If someone
+has this capability and feels so strongly about Linux support then they would be
+contributing to the porting efforts already. But otherwise they are nothing
+more than hypothetical members of our collective dreams.
+
 ### What kind of GPU do I need?
 
 OpenGL 4.5 support and drivers are required. This includes NVIDIA's GeForce 400
@@ -103,6 +122,8 @@ manually execute commands have fun, nothing is stopping you.
 is to build something different than previous emulator projects and learn while
 doing it. The easy way is almost never the best way and most certainly isn't as
 fun.
+* 'Why not CMake?' -- I don't like CMake as it generates ugly Visual Studio
+projects. Premake does what I want (mostly) how I want it to.
 
 ## Hey I'm going to go modify every file in the project, ok?
 
