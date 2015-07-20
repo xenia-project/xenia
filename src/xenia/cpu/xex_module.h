@@ -83,17 +83,17 @@ class XexModule : public xe::cpu::Module {
   bool FindSaveRest();
 
  private:
-  Processor* processor_;
-  kernel::KernelState* kernel_state_;
+  Processor* processor_ = nullptr;
+  kernel::KernelState* kernel_state_ = nullptr;
   std::string name_;
   std::string path_;
-  xe_xex2_ref xex_;
+  xe_xex2_ref xex_ = nullptr;
   std::vector<uint8_t> xex_header_mem_;  // Holds the xex header
-  bool loaded_;                          // Loaded into memory?
+  bool loaded_ = false;                  // Loaded into memory?
 
-  uint32_t base_address_;
-  uint32_t low_address_;
-  uint32_t high_address_;
+  uint32_t base_address_ = 0;
+  uint32_t low_address_ = 0;
+  uint32_t high_address_ = 0;
 };
 
 }  // namespace cpu

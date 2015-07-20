@@ -121,6 +121,7 @@ bool Window::InitializeElemental(Loop* loop, el::graphics::Renderer* renderer) {
   // Create the font now.
   auto font =
       font_manager->CreateFontFace(font_manager->default_font_description());
+  assert(font != nullptr);
   return true;
 }
 

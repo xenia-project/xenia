@@ -34,7 +34,9 @@ class XNotifyListener : public XObject {
   bool DequeueNotification(XNotificationID* out_id, uint32_t* out_data);
   bool DequeueNotification(XNotificationID id, uint32_t* out_data);
 
-  xe::threading::WaitHandle* GetWaitHandle() { return wait_handle_.get(); }
+  xe::threading::WaitHandle* GetWaitHandle() override {
+    return wait_handle_.get();
+  }
 
  private:
   std::unique_ptr<xe::threading::Event> wait_handle_;

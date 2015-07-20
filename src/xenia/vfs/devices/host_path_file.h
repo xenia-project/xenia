@@ -34,7 +34,6 @@ class HostPathFile : public XFile {
                      size_t byte_offset, size_t* out_bytes_written) override;
 
  private:
-  HostPathEntry* entry_;
   std::unique_ptr<xe::filesystem::FileHandle> file_handle_;
 };
 

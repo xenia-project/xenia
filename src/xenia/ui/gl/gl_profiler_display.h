@@ -72,7 +72,7 @@ class GLProfilerDisplay : public ProfilerDisplay {
 
   struct {
     uint16_t char_offsets[256];
-  } font_description_ = {0};
+  } font_description_ = {{0}};
 };
 
 }  // namespace gl

@@ -46,7 +46,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   scanner_.reset(new PPCScanner(frontend));
   builder_.reset(new PPCHIRBuilder(frontend));
   compiler_.reset(new Compiler(frontend->processor()));
-  assembler_ = std::move(backend->CreateAssembler());
+  assembler_ = backend->CreateAssembler();
   assembler_->Initialize();
 
   bool validate = FLAGS_validate_hir;

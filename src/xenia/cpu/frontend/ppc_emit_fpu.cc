@@ -475,8 +475,8 @@ XEEMITTER(mtfsfx, 0xFC00058E, XFL)(PPCHIRBuilder& f, InstrData& i) {
   } else {
     // Directly store.
     // TODO(benvanik): use w/field mask to select bits.
-    i.XFL.W;
-    i.XFL.FM;
+    // i.XFL.W;
+    // i.XFL.FM;
     f.StoreFPSCR(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE));
   }
   return 0;

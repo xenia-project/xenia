@@ -149,7 +149,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
         break;
       }
       uint8_t filename_length_flags = xe::load_and_swap<uint8_t>(p + 0x28);
-      uint32_t allocated_block_count = XEGETUINT24LE(p + 0x29);
+      // TODO(benvanik): use for allocation_size_?
+      // uint32_t allocated_block_count = XEGETUINT24LE(p + 0x29);
       uint32_t start_block_index = XEGETUINT24LE(p + 0x2F);
       uint16_t path_indicator = xe::load_and_swap<uint16_t>(p + 0x32);
       uint32_t file_size = xe::load_and_swap<uint32_t>(p + 0x34);

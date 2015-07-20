@@ -198,23 +198,41 @@ const static struct {
   uint64_t target_address;
 } map_info[] = {
     // (1024mb) - virtual 4k pages
-    0x00000000, 0x3FFFFFFF, 0x0000000000000000ull,
+    {
+        0x00000000, 0x3FFFFFFF, 0x0000000000000000ull,
+    },
     // (1024mb) - virtual 64k pages (cont)
-    0x40000000, 0x7EFFFFFF, 0x0000000040000000ull,
+    {
+        0x40000000, 0x7EFFFFFF, 0x0000000040000000ull,
+    },
     //   (16mb) - GPU writeback + 15mb of XPS?
-    0x7F000000, 0x7FFFFFFF, 0x0000000100000000ull,
+    {
+        0x7F000000, 0x7FFFFFFF, 0x0000000100000000ull,
+    },
     //  (256mb) - xex 64k pages
-    0x80000000, 0x8FFFFFFF, 0x0000000080000000ull,
+    {
+        0x80000000, 0x8FFFFFFF, 0x0000000080000000ull,
+    },
     //  (256mb) - xex 4k pages
-    0x90000000, 0x9FFFFFFF, 0x0000000080000000ull,
+    {
+        0x90000000, 0x9FFFFFFF, 0x0000000080000000ull,
+    },
     //  (512mb) - physical 64k pages
-    0xA0000000, 0xBFFFFFFF, 0x0000000100000000ull,
+    {
+        0xA0000000, 0xBFFFFFFF, 0x0000000100000000ull,
+    },
     //          - physical 16mb pages
-    0xC0000000, 0xDFFFFFFF, 0x0000000100000000ull,
+    {
+        0xC0000000, 0xDFFFFFFF, 0x0000000100000000ull,
+    },
     //          - physical 4k pages
-    0xE0000000, 0xFFFFFFFF, 0x0000000100000000ull,
+    {
+        0xE0000000, 0xFFFFFFFF, 0x0000000100000000ull,
+    },
     //          - physical raw
-    0x100000000, 0x11FFFFFFF, 0x0000000100000000ull,
+    {
+        0x100000000, 0x11FFFFFFF, 0x0000000100000000ull,
+    },
 };
 int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(xe::countof(map_info) == xe::countof(views_.all_views));
@@ -771,9 +789,9 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   // Instead, we just protect it, if we can.
   if (page_size_ == xe::memory::page_size() ||
       ((base_page_entry.region_page_count * page_size_) %
-           xe::memory::page_size() ==
-       0) &&
-          ((base_page_number * page_size_) % xe::memory::page_size() == 0)) {
+               xe::memory::page_size() ==
+           0 &&
+       ((base_page_number * page_size_) % xe::memory::page_size() == 0))) {
     if (!xe::memory::Protect(
             membase_ + heap_base_ + base_page_number * page_size_,
             base_page_entry.region_page_count * page_size_,
@@ -824,8 +842,8 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
   // Attempt host change (hopefully won't fail).
   // We can only do this if our size matches system page granularity.
   if (page_size_ == xe::memory::page_size() ||
-      ((page_count * page_size_) % xe::memory::page_size() == 0) &&
-          ((start_page_number * page_size_) % xe::memory::page_size() == 0)) {
+      (((page_count * page_size_) % xe::memory::page_size() == 0) &&
+       ((start_page_number * page_size_) % xe::memory::page_size() == 0))) {
     if (!xe::memory::Protect(
             membase_ + heap_base_ + start_page_number * page_size_,
             page_count * page_size_, ToPageAccess(protect), nullptr)) {

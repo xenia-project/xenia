@@ -81,10 +81,10 @@ class CDialogEventHandler : public IFileDialogEvents,
     return S_OK;
   };
 
-  CDialogEventHandler() : _cRef(1){};
+  CDialogEventHandler() : _cRef(1) {}
 
  private:
-  ~CDialogEventHandler(){};
+  virtual ~CDialogEventHandler() = default;
   long _cRef;
 };
 

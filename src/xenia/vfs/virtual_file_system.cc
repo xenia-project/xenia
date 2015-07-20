@@ -218,6 +218,10 @@ X_STATUS VirtualFileSystem::OpenFile(KernelState* kernel_state,
   } else {
     // May need to delete, if it exists.
     switch (creation_disposition) {
+      case FileDisposition::kCreate:
+        // Shouldn't be possible to hit this.
+        assert_always();
+        return X_STATUS_ACCESS_DENIED;
       case FileDisposition::kSuperscede:
         // Replace (by delete + recreate).
         if (!entry->Delete()) {

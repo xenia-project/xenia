@@ -32,7 +32,7 @@ void DumpAllInstrCounts() {
                       instr_type->name);
     }
   }
-  fprintf(stdout, sb.GetString());
+  fprintf(stdout, "%s", sb.GetString());
   fflush(stdout);
 }
 

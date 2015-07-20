@@ -74,7 +74,7 @@ class GL4ElementalRenderer : public el::graphics::Renderer {
     GLenum prim_type;
     size_t vertex_offset;
     size_t vertex_count;
-  } draw_commands_[kMaxCommands] = {0};
+  } draw_commands_[kMaxCommands] = {{0}};
   uint32_t draw_command_count_ = 0;
   GL4Bitmap* current_bitmap_ = nullptr;
   Vertex vertices_[kMaxVertexBatchSize];

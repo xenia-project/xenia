@@ -15,9 +15,9 @@
 namespace xe {
 namespace cpu {
 
-ExportResolver::ExportResolver() {}
+ExportResolver::ExportResolver() = default;
 
-ExportResolver::~ExportResolver() {}
+ExportResolver::~ExportResolver() = default;
 
 void ExportResolver::RegisterTable(
     const std::string& library_name,
@@ -40,28 +40,28 @@ Export* ExportResolver::GetExportByOrdinal(const std::string& library_name,
 
 void ExportResolver::SetVariableMapping(const std::string& library_name,
                                         uint16_t ordinal, uint32_t value) {
-  auto export = GetExportByOrdinal(library_name, ordinal);
-  assert_not_null(export);
-  export->tags |= ExportTag::kImplemented;
-  export->variable_ptr = value;
+  auto export_entry = GetExportByOrdinal(library_name, ordinal);
+  assert_not_null(export_entry);
+  export_entry->tags |= ExportTag::kImplemented;
+  export_entry->variable_ptr = value;
 }
 
 void ExportResolver::SetFunctionMapping(const std::string& library_name,
                                         uint16_t ordinal,
                                         xe_kernel_export_shim_fn shim) {
-  auto export = GetExportByOrdinal(library_name, ordinal);
-  assert_not_null(export);
-  export->tags |= ExportTag::kImplemented;
-  export->function_data.shim = shim;
+  auto export_entry = GetExportByOrdinal(library_name, ordinal);
+  assert_not_null(export_entry);
+  export_entry->tags |= ExportTag::kImplemented;
+  export_entry->function_data.shim = shim;
 }
 
 void ExportResolver::SetFunctionMapping(const std::string& library_name,
                                         uint16_t ordinal,
                                         ExportTrampoline trampoline) {
-  auto export = GetExportByOrdinal(library_name, ordinal);
-  assert_not_null(export);
-  export->tags |= ExportTag::kImplemented;
-  export->function_data.trampoline = trampoline;
+  auto export_entry = GetExportByOrdinal(library_name, ordinal);
+  assert_not_null(export_entry);
+  export_entry->tags |= ExportTag::kImplemented;
+  export_entry->function_data.trampoline = trampoline;
 }
 
 }  // namespace cpu

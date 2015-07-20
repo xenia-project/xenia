@@ -2068,7 +2068,7 @@ bool MicroProfileWebServerUpdate()
 #include <strsafe.h>
 
 
-static GUID g_MicroProfileThreadClassGuid = { 0x3d6fa8d1, 0xfe05, 0x11d0, 0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c };
+static GUID g_MicroProfileThreadClassGuid = { 0x3d6fa8d1, 0xfe05, 0x11d0, {0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c } };
 
 struct MicroProfileSCSwitch
 {
@@ -2138,7 +2138,7 @@ void MicroProfileContextSwitchStopTrace()
 
 	EVENT_TRACE_LOGFILE log;
 	ZeroMemory(&log, sizeof(log));
-	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.LoggerName = (LPWSTR)KERNEL_LOGGER_NAME;
 	log.ProcessTraceMode = 0;
 	TRACEHANDLE hLog = OpenTrace(&log);
 	if (hLog)
@@ -2183,7 +2183,7 @@ void MicroProfileTraceThread(int unused)
 	EVENT_TRACE_LOGFILE log;
 	ZeroMemory(&log, sizeof(log));
 
-	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.LoggerName = (LPWSTR)KERNEL_LOGGER_NAME;
 	log.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
 	log.EventCallback = MicroProfileContextSwitchCallback;
 	log.BufferCallback = MicroProfileBufferCallback;

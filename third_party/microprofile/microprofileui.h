@@ -2706,7 +2706,7 @@ void MicroProfileLoadPreset(const char* pSuffix)
       const char* pGroupName = pBuffer + Header.nGroups[i];
       for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
       {
-        if(S.GroupInfo[j].pName && 0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
+        if(0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
         {
           S.nActiveGroupWanted |= (1ll << j);
         }

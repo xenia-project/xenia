@@ -35,14 +35,7 @@ void UndefinedImport(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 XexModule::XexModule(Processor* processor, KernelState* kernel_state)
-    : Module(processor),
-      processor_(processor),
-      kernel_state_(kernel_state),
-      xex_(nullptr),
-      base_address_(0),
-      low_address_(0),
-      high_address_(0),
-      loaded_(false) {}
+    : Module(processor), processor_(processor), kernel_state_(kernel_state) {}
 
 XexModule::~XexModule() { xe_xex2_dealloc(xex_); }
 
@@ -150,8 +143,6 @@ uint32_t XexModule::GetProcAddress(const char* name) const {
   // Table of ordinals (by name)
   uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
 
-  const char* mod_name = (const char*)((uint64_t)e + e->Name);
-
   for (uint32_t i = 0; i < e->NumberOfNames; i++) {
     const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
     uint16_t ordinal = ordinal_table[i];
@@ -210,7 +201,6 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   loaded_ = true;
   xex_ = xex;
 
-  auto header = xex_header();
   auto old_header = xe_xex2_get_header(xex_);
 
   // Setup debug info.

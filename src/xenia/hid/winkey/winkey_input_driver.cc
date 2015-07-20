@@ -17,9 +17,9 @@ namespace hid {
 namespace winkey {
 
 WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
-    : packet_number_(1), InputDriver(input_system) {}
+    : InputDriver(input_system), packet_number_(1) {}
 
-WinKeyInputDriver::~WinKeyInputDriver() {}
+WinKeyInputDriver::~WinKeyInputDriver() = default;
 
 X_STATUS WinKeyInputDriver::Setup() { return X_STATUS_SUCCESS; }
 

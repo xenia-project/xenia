@@ -64,7 +64,6 @@ class Win32Window : public Window {
   bool HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam);
 
   HWND hwnd_ = nullptr;
-  bool invalidated_ = true;
   bool closing_ = false;
 
   WINDOWPLACEMENT windowed_pos_;

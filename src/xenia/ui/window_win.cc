@@ -521,6 +521,9 @@ Win32MenuItem::Win32MenuItem(Type type, const std::wstring& text,
     case MenuItem::Type::kPopup:
       handle_ = CreatePopupMenu();
       break;
+    default:
+      // May just be a placeholder.
+      break;
   }
   if (handle_) {
     MENUINFO menu_info = {0};
@@ -542,6 +545,9 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
   auto child_item = static_cast<Win32MenuItem*>(generic_child_item);
 
   switch (child_item->type()) {
+    case MenuItem::Type::kNormal:
+      // Nothing special.
+      break;
     case MenuItem::Type::kPopup:
       AppendMenuW(handle_, MF_POPUP,
                   reinterpret_cast<UINT_PTR>(child_item->handle()),
@@ -561,10 +567,7 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
   }
 }
 
-void Win32MenuItem::OnChildRemoved(MenuItem* generic_child_item) {
-  auto child_item = static_cast<Win32MenuItem*>(generic_child_item);
-  //
-}
+void Win32MenuItem::OnChildRemoved(MenuItem* generic_child_item) {}
 
 }  // namespace ui
 }  // namespace xe

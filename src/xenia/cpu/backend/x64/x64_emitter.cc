@@ -48,10 +48,10 @@ using namespace Xbyak;
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
 
-static const size_t MAX_CODE_SIZE = 1 * 1024 * 1024;
+static const size_t kMaxCodeSize = 1 * 1024 * 1024;
 
-static const size_t STASH_OFFSET = 32;
-static const size_t STASH_OFFSET_HIGH = 32 + 32;
+static const size_t kStashOffset = 32;
+// static const size_t kStashOffsetHigh = 32 + 32;
 
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
     Operand::RBX, Operand::R12, Operand::R13, Operand::R14, Operand::R15,
@@ -62,7 +62,7 @@ const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
 };
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
-    : CodeGenerator(MAX_CODE_SIZE, AutoGrow, allocator),
+    : CodeGenerator(kMaxCodeSize, AutoGrow, allocator),
       processor_(backend->processor()),
       backend_(backend),
       code_cache_(backend->code_cache()),
@@ -292,7 +292,7 @@ void X64Emitter::DebugBreak() {
 uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   uint32_t str_ptr = uint32_t(thread_state->context()->r[3]);
-  uint16_t str_len = uint16_t(thread_state->context()->r[4]);
+  // uint16_t str_len = uint16_t(thread_state->context()->r[4]);
   auto str = thread_state->memory()->TranslateVirtual<const char*>(str_ptr);
   // TODO(benvanik): truncate to length?
   XELOGD("(DebugPrint) %s", str);
@@ -663,9 +663,9 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
-    MovMem64(rsp + STASH_OFFSET, v.low);
-    MovMem64(rsp + STASH_OFFSET + 8, v.high);
-    vmovdqa(dest, ptr[rsp + STASH_OFFSET]);
+    MovMem64(rsp + kStashOffset, v.low);
+    MovMem64(rsp + kStashOffset + 8, v.high);
+    vmovdqa(dest, ptr[rsp + kStashOffset]);
   }
 }
 
@@ -708,7 +708,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
 }
 
 Address X64Emitter::StashXmm(int index, const Xmm& r) {
-  auto addr = ptr[rsp + STASH_OFFSET + (index * 16)];
+  auto addr = ptr[rsp + kStashOffset + (index * 16)];
   vmovups(addr, r);
   return addr;
 }
