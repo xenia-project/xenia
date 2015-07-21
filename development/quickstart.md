@@ -10,7 +10,7 @@ permalink: /development/quickstart/
 
 ## Getting Started
 
-Have Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
+Have Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
 
     > git clone --recursive https://github.com/benvanik/xenia.git
     > xb setup
@@ -24,6 +24,12 @@ interesting information goes.
 When pulling new code use either `xb pull` to fetch the latest changes to both
 the main repository and all submodules as well as run premake, or else be sure
 to do those things yourself.
+
+### Visual Studio 2015 Configuration
+
+Xenia works with the [free community edition of Visual Studio](https://www.visualstudio.com/downloads/download-visual-studio-vs).
+When installing you must make sure to check the Visual C++ tools and the
+Windows SDKs.
 
 ### Where's the sln/vcproj?
 
