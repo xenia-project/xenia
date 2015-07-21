@@ -37,7 +37,7 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-Windows 8.1+ with Python 2.7 and Visual Studio 2015 installed:
+Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
 
     > git clone https://github.com/benvanik/xenia.git
     > cd xenia
