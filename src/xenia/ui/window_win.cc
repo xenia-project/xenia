@@ -159,14 +159,15 @@ bool Win32Window::set_title(const std::wstring& title) {
 }
 
 bool Win32Window::is_fullscreen() const {
-  DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
-  return (style & WS_OVERLAPPEDWINDOW) != WS_OVERLAPPEDWINDOW;
+  return fullscreen_;
 }
 
 void Win32Window::ToggleFullscreen(bool fullscreen) {
   if (fullscreen == is_fullscreen()) {
     return;
   }
+
+  fullscreen_ = fullscreen;
 
   DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
   if (fullscreen) {
@@ -192,6 +193,25 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
     if (main_menu) {
       ::SetMenu(hwnd_, main_menu->handle());
     }
+  }
+}
+
+bool Win32Window::is_bordered() const {
+  DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
+  return (style & WS_OVERLAPPEDWINDOW) == WS_OVERLAPPEDWINDOW;
+}
+
+void Win32Window::SetBordered(bool enabled) {
+  if (is_fullscreen()) {
+    // Don't screw with the borders if we're fullscreen.
+    return;
+  }
+
+  DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
+  if (enabled) {
+    SetWindowLong(hwnd_, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+  } else {
+    SetWindowLong(hwnd_, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
   }
 }
 
