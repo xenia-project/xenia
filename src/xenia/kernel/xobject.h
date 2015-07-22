@@ -54,6 +54,7 @@ typedef struct {
   xe::be<uint32_t> wait_list_flink;
   xe::be<uint32_t> wait_list_blink;
 } X_DISPATCH_HEADER;
+static_assert_size(X_DISPATCH_HEADER, 0x10);
 
 // http://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
 struct X_OBJECT_HEADER {
@@ -118,6 +119,11 @@ class XObject {
   const std::string& name() const { return name_; }
   uint32_t guest_object() const { return guest_object_ptr_; }
 
+  template <typename T>
+  T* guest_object() {
+    return memory()->TranslateVirtual<T*>(guest_object_ptr_);
+  }
+
   void RetainHandle();
   bool ReleaseHandle();
   void Retain();
@@ -157,8 +163,8 @@ class XObject {
   void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
 
   template <typename T>
-  T* CreateNative(uint32_t size) {
-    return reinterpret_cast<T*>(CreateNative(size));
+  T* CreateNative() {
+    return reinterpret_cast<T*>(CreateNative(sizeof(T)));
   }
 
   // Stash native pointer into X_DISPATCH_HEADER

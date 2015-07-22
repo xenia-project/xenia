@@ -53,6 +53,9 @@ class Window {
   virtual bool is_fullscreen() const { return false; }
   virtual void ToggleFullscreen(bool fullscreen) {}
 
+  virtual bool is_bordered() const { return false; }
+  virtual void SetBordered(bool enabled) {}
+
   bool has_focus() const { return has_focus_; }
   virtual void set_focus(bool value) { has_focus_ = value; }
 

@@ -106,18 +106,17 @@ uint32_t XThread::GetCurrentThreadHandle() {
   return thread->handle();
 }
 
-uint32_t XThread::GetCurrentThreadId(const uint8_t* pcr) {
-  return xe::load_and_swap<uint32_t>(pcr + 0x2D8 + 0x14C);
+uint32_t XThread::GetCurrentThreadId() {
+  XThread* thread = XThread::GetCurrentThread();
+  return thread->guest_object<X_KTHREAD>()->thread_id;
 }
 
 uint32_t XThread::last_error() {
-  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  return xe::load_and_swap<uint32_t>(p + 0x160);
+  return guest_object<X_KTHREAD>()->last_error;
 }
 
 void XThread::set_last_error(uint32_t error_code) {
-  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  xe::store_and_swap<uint32_t>(p + 0x160, error_code);
+  guest_object<X_KTHREAD>()->last_error = error_code;
 }
 
 void XThread::set_name(const std::string& name) {
@@ -129,9 +128,15 @@ void XThread::set_name(const std::string& name) {
   }
 }
 
+uint8_t next_cpu = 0;
 uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   if (!proc_mask) {
-    return 0;  // is this reasonable?
+    next_cpu++;
+    if (next_cpu > 6) {
+      next_cpu = 0;
+    }
+
+    return next_cpu;  // is this reasonable?
   }
   assert_false(proc_mask & 0xC0);
 
@@ -143,14 +148,11 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 X_STATUS XThread::Create() {
   // Thread kernel object
   // This call will also setup the native pointer for us.
-  auto guest_object = CreateNative<X_KTHREAD>(sizeof(X_KTHREAD));
-  if (!guest_object) {
+  auto guest_thread = CreateNative<X_KTHREAD>();
+  if (!guest_thread) {
     XELOGW("Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
-
-  guest_object->header.type = 6;
-  StashNative(&guest_object->header, this);
 
   auto module = kernel_state()->GetExecutableModule();
 
@@ -210,8 +212,7 @@ X_STATUS XThread::Create() {
   // 0x160: last error
   // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
   // structure.
-  pcr_address_ = memory()->SystemHeapAlloc(0x2D8 + 0xAB0);
-  thread_state_address_ = pcr_address_ + 0x2D8;
+  pcr_address_ = memory()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
     XELOGW("Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -232,27 +233,11 @@ X_STATUS XThread::Create() {
   uint8_t proc_mask =
       static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
-  // Processor Control Region
-  struct XPCR {
-    xe::be<uint32_t> tls_ptr;         // 0x0
-    char unk_04[0x2C];                // 0x4
-    xe::be<uint32_t> pcr_ptr;         // 0x30
-    char unk_34[0x3C];                // 0x34
-    xe::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)
-    xe::be<uint32_t> stack_end_ptr;   // 0x74 Stack end (low addr)
-    char unk_78[0x88];                // 0x78
-    xe::be<uint32_t> teb_ptr;         // 0x100
-    char unk_104[0x8];                // 0x104
-    xe::be<uint8_t> current_cpu;      // 0x10C
-    char unk_10D[0x43];               // 0x10D
-    xe::be<uint32_t> dpc_active;      // 0x150
-  };
-
-  XPCR* pcr = memory()->TranslateVirtual<XPCR*>(pcr_address_);
+  X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
   pcr->tls_ptr = tls_address_;
   pcr->pcr_ptr = pcr_address_;
-  pcr->teb_ptr = thread_state_address_;
+  pcr->current_thread = guest_object();
 
   pcr->stack_base_ptr =
       thread_state_->stack_address() + thread_state_->stack_size();
@@ -262,19 +247,16 @@ X_STATUS XThread::Create() {
   pcr->dpc_active = 0;                             // DPC active bool?
 
   // Setup the thread state block (last error/etc).
-  // TODO: This is actually a KTHREAD object. Use the one from CreateNative
-  // instead.
-  uint8_t* p = memory()->TranslateVirtual(thread_state_address_);
-  xe::store_and_swap<uint32_t>(p + 0x000, 6);
-  xe::store_and_swap<uint32_t>(p + 0x008, thread_state_address_ + 0x008);
-  xe::store_and_swap<uint32_t>(p + 0x00C, thread_state_address_ + 0x008);
-  xe::store_and_swap<uint32_t>(p + 0x010, thread_state_address_ + 0x010);
-  xe::store_and_swap<uint32_t>(p + 0x014, thread_state_address_ + 0x010);
+  uint8_t* p = memory()->TranslateVirtual(guest_object());
+  guest_thread->header.type = 6;
 
-  xe::store_and_swap<uint32_t>(p + 0x040, thread_state_address_ + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x044, thread_state_address_ + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x048, thread_state_address_);
-  xe::store_and_swap<uint32_t>(p + 0x04C, thread_state_address_ + 0x018);
+  xe::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
+  xe::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
+
+  xe::store_and_swap<uint32_t>(p + 0x040, guest_object() + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x044, guest_object() + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x048, guest_object());
+  xe::store_and_swap<uint32_t>(p + 0x04C, guest_object() + 0x018);
 
   xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
   xe::store_and_swap<uint16_t>(p + 0x056, 1);
@@ -283,27 +265,27 @@ X_STATUS XThread::Create() {
   xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
   xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
   xe::store_and_swap<uint8_t>(p + 0x06C, 0);
-  xe::store_and_swap<uint32_t>(p + 0x074, thread_state_address_ + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x078, thread_state_address_ + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x07C, thread_state_address_ + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x080, thread_state_address_ + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
   xe::store_and_swap<uint32_t>(p + 0x084,
                                kernel_state_->process_info_block_address());
   xe::store_and_swap<uint8_t>(p + 0x08B, 1);
-  // D4 = APC
-  // FC = semaphore (ptr, 0, 2)
-  // A88 = APC
-  // 18 = timer
+  // 0xD4 = APC
+  // 0xFC = semaphore (ptr, 0, 2)
+  // 0xA88 = APC
+  // 0x18 = timer
   xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
   xe::store_and_swap<uint32_t>(
       p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
   xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
-  xe::store_and_swap<uint32_t>(p + 0x144, thread_state_address_ + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x148, thread_state_address_ + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x148, guest_object() + 0x144);
   xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
   xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
-  xe::store_and_swap<uint32_t>(p + 0x154, thread_state_address_ + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x158, thread_state_address_ + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x154, guest_object() + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x158, guest_object() + 0x154);
   xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
   xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
   xe::store_and_swap<uint32_t>(p + 0x17C, 1);
@@ -331,6 +313,7 @@ X_STATUS XThread::Create() {
     // Release the self-reference to the thread.
     Release();
   });
+
   if (!thread_) {
     // TODO(benvanik): translate error?
     XELOGE("CreateThread failed");
@@ -520,7 +503,8 @@ void XThread::DeliverAPCs() {
       LockApc();
     }
 
-    XELOGD("Completed delivery of APC to %.8X", uint32_t(apc->normal_routine));
+    XELOGD("Completed delivery of APC to %.8X (%.8X, %.8X, %.8X)",
+           normal_routine, normal_context, arg1, arg2);
 
     // If special, free it.
     if (needs_freeing) {
@@ -614,6 +598,8 @@ void XThread::SetActiveCpu(uint32_t cpu_index) {
 }
 
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
+  --guest_object<X_KTHREAD>()->suspend_count;
+
   if (thread_->Resume(out_suspend_count)) {
     return X_STATUS_SUCCESS;
   } else {
@@ -622,6 +608,8 @@ X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
 }
 
 X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
+  ++guest_object<X_KTHREAD>()->suspend_count;
+
   if (thread_->Suspend(out_suspend_count)) {
     return X_STATUS_SUCCESS;
   } else {
