@@ -22,6 +22,7 @@
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
+#include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
 
 // TODO(benvanik): based on compiler support
@@ -31,27 +32,6 @@ namespace xe {
 namespace cpu {
 
 using PPCContext = xe::cpu::frontend::PPCContext;
-
-void InitializeIfNeeded();
-void CleanupOnShutdown();
-
-void InitializeIfNeeded() {
-  static bool has_initialized = false;
-  if (has_initialized) {
-    return;
-  }
-  has_initialized = true;
-
-  // ppc::RegisterDisasmCategoryAltivec();
-  // ppc::RegisterDisasmCategoryALU();
-  // ppc::RegisterDisasmCategoryControl();
-  // ppc::RegisterDisasmCategoryFPU();
-  // ppc::RegisterDisasmCategoryMemory();
-
-  atexit(CleanupOnShutdown);
-}
-
-void CleanupOnShutdown() {}
 
 class BuiltinModule : public Module {
  public:
@@ -67,9 +47,7 @@ class BuiltinModule : public Module {
 
 Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
                      debug::Debugger* debugger)
-    : memory_(memory), debugger_(debugger), export_resolver_(export_resolver) {
-  InitializeIfNeeded();
-}
+    : memory_(memory), debugger_(debugger), export_resolver_(export_resolver) {}
 
 Processor::~Processor() {
   {

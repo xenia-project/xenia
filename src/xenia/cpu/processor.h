@@ -21,8 +21,13 @@
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/module.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/debug/debugger.h"
 #include "xenia/memory.h"
+
+namespace xe {
+namespace debug {
+class Debugger;
+}  // namespace debug
+}  // namespace xe
 
 namespace xe {
 namespace cpu {

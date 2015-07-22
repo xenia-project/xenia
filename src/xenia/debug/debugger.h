@@ -14,12 +14,12 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <unordered_map>
+#include <vector>
 
-#include "xenia/base/delegate.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/threading.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/breakpoint.h"
 
@@ -28,43 +28,9 @@ class Emulator;
 }  // namespace xe
 
 namespace xe {
-namespace cpu {
-class Function;
-class FunctionInfo;
-class Processor;
-}  // namespace cpu
-}  // namespace xe
-
-namespace xe {
 namespace debug {
 
-class Debugger;
-
-class DebugEvent {
- public:
-  DebugEvent(Debugger* debugger) : debugger_(debugger) {}
-  virtual ~DebugEvent() = default;
-  Debugger* debugger() const { return debugger_; }
-
- protected:
-  Debugger* debugger_;
-};
-
-class BreakpointHitEvent : public DebugEvent {
- public:
-  BreakpointHitEvent(Debugger* debugger, cpu::ThreadState* thread_state,
-                     Breakpoint* breakpoint)
-      : DebugEvent(debugger),
-        thread_state_(thread_state),
-        breakpoint_(breakpoint) {}
-  ~BreakpointHitEvent() override = default;
-  cpu::ThreadState* thread_state() const { return thread_state_; }
-  Breakpoint* breakpoint() const { return breakpoint_; }
-
- protected:
-  cpu::ThreadState* thread_state_;
-  Breakpoint* breakpoint_;
-};
+class Transport;
 
 class Debugger {
  public:
@@ -81,7 +47,8 @@ class Debugger {
   uint8_t* AllocateFunctionData(size_t size);
   uint8_t* AllocateFunctionTraceData(size_t size);
 
-  bool is_attached() const { return client_socket_ != ~0; }
+  bool is_attached() const { return is_attached_; }
+  void set_attached(bool attached);
 
   bool SuspendAllThreads();
   bool ResumeThread(uint32_t thread_id);
@@ -102,20 +69,14 @@ class Debugger {
 
   void OnBreakpointHit(cpu::ThreadState* thread_state, Breakpoint* breakpoint);
 
- public:
-  Delegate<BreakpointHitEvent> breakpoint_hit;
-
  private:
   void OnMessage(std::vector<uint8_t> buffer);
 
   Emulator* emulator_ = nullptr;
 
-  uintptr_t listen_socket_ = ~0u;
-  bool accept_thread_running_ = false;
-  std::thread accept_thread_;
-  xe::threading::Fence accept_fence_;
-  uintptr_t client_socket_ = ~0u;
-  std::thread receive_thread_;
+  std::vector<std::unique_ptr<Transport>> transports_;
+  bool is_attached_ = false;
+  xe::threading::Fence attach_fence_;
 
   std::wstring functions_path_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_file_;
