@@ -16,3 +16,4 @@ project("xenia-debug")
     project_root.."/third_party/flatbuffers/include"
   })
   local_platform_files()
+  recursive_platform_files("transport")
