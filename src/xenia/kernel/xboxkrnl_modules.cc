@@ -318,27 +318,25 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL ExRegisterTitleTerminateNotification_shim(PPCContext* ppc_context,
-                                                    KernelState* kernel_state) {
-  uint32_t registration_ptr = SHIM_GET_ARG_32(0);
-  uint32_t create = SHIM_GET_ARG_32(1);
+void AppendParam(StringBuffer& string_buffer,
+                 pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg) {
+  string_buffer.AppendFormat("%.8X(%.8X, %.8X)", reg.guest_address(),
+                             reg->notification_routine, reg->priority);
+}
 
-  uint32_t routine = SHIM_MEM_32(registration_ptr + 0);
-  uint32_t priority = SHIM_MEM_32(registration_ptr + 4);
-  // list entry flink
-  // list entry blink
-
-  XELOGD("ExRegisterTitleTerminateNotification(%.8X(%.8X, %d), %.1X)",
-         registration_ptr, routine, priority, create);
-
+void ExRegisterTitleTerminateNotification(
+    pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg, dword_t create) {
   if (create) {
     // Adding.
-    // TODO(benvanik): add to master list (kernel?).
+    kernel_state()->RegisterTitleTerminateNotification(
+        reg->notification_routine, reg->priority);
   } else {
     // Removing.
-    // TODO(benvanik): remove from master list.
+    kernel_state()->RemoveTitleTerminateNotification(reg->notification_routine);
   }
 }
+DECLARE_XBOXKRNL_EXPORT(ExRegisterTitleTerminateNotification,
+                        ExportTag::kImplemented);
 
 }  // namespace kernel
 }  // namespace xe
@@ -354,6 +352,4 @@ void xe::kernel::xboxkrnl::RegisterModuleExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", XexLoadImage, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XexUnloadImage, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", ExRegisterTitleTerminateNotification, state);
 }

@@ -79,6 +79,11 @@ struct ProcessInfoBlock {
   xe::be<uint32_t> unk_5C;
 };
 
+struct TerminateNotification {
+  uint32_t guest_routine;
+  uint32_t priority;
+};
+
 class KernelState {
  public:
   KernelState(Emulator* emulator);
@@ -107,6 +112,9 @@ class KernelState {
   uint32_t process_info_block_address() const {
     return process_info_block_address_;
   }
+
+  void RegisterTitleTerminateNotification(uint32_t routine, uint32_t priority);
+  void RemoveTitleTerminateNotification(uint32_t routine);
 
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
@@ -179,6 +187,7 @@ class KernelState {
   object_ref<XUserModule> executable_module_;
   std::vector<object_ref<XKernelModule>> kernel_modules_;
   std::vector<object_ref<XUserModule>> user_modules_;
+  std::vector<TerminateNotification> terminate_notifications;
 
   uint32_t process_info_block_address_;
 

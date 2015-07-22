@@ -144,6 +144,25 @@ void KernelState::set_process_type(uint32_t value) {
   pib->process_type = uint8_t(value);
 }
 
+void KernelState::RegisterTitleTerminateNotification(uint32_t routine,
+                                                     uint32_t priority) {
+  TerminateNotification notify;
+  notify.guest_routine = routine;
+  notify.priority = priority;
+
+  terminate_notifications.push_back(notify);
+}
+
+void KernelState::RemoveTitleTerminateNotification(uint32_t routine) {
+  for (auto it = terminate_notifications.begin();
+       it != terminate_notifications.end(); it++) {
+    if (it->guest_routine == routine) {
+      terminate_notifications.erase(it);
+      break;
+    }
+  }
+}
+
 void KernelState::RegisterModule(XModule* module) {}
 
 void KernelState::UnregisterModule(XModule* module) {}
@@ -318,7 +337,21 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 void KernelState::TerminateTitle(bool from_guest_thread) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
 
-  // First: Kill all guest threads.
+  // First: Call terminate routines
+  // TODO: These might take arguments
+  // FIXME: Calling these will send some threads into kernel code and they'll
+  // hold the lock when terminated! Do we need to wait for all threads to exit?
+  /*
+  if (from_guest_thread) {
+    for (auto routine : terminate_notifications) {
+      auto thread_state = XThread::GetCurrentThread()->thread_state();
+      processor()->Execute(thread_state, routine.guest_routine);
+    }
+  }
+  terminate_notifications.clear();
+  */
+
+  // Second: Kill all guest threads.
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
     if (it->second->guest_thread()) {
       auto thread = it->second;
@@ -329,7 +362,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
         continue;
       }
 
-      if (it->second->running()) {
+      if (thread->running()) {
         thread->Terminate(0);
       }
 
@@ -340,7 +373,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
     }
   }
 
-  // Second: Unload all user modules (including the executable)
+  // Third: Unload all user modules (including the executable)
   for (int i = 0; i < user_modules_.size(); i++) {
     X_STATUS status = user_modules_[i]->Unload();
     assert_true(XSUCCEEDED(status));
