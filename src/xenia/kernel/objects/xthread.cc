@@ -249,6 +249,8 @@ X_STATUS XThread::Create() {
   // Setup the thread state block (last error/etc).
   uint8_t* p = memory()->TranslateVirtual(guest_object());
   guest_thread->header.type = 6;
+  guest_thread->suspend_count =
+      (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
 
   xe::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
   xe::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
@@ -295,7 +297,7 @@ X_STATUS XThread::Create() {
 
   xe::threading::Thread::CreationParameters params;
   params.stack_size = 16 * 1024 * 1024;  // Ignore game, always big!
-  params.create_suspended = (creation_params_.creation_flags & 0x1) == 0x1;
+  params.create_suspended = true;
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set name immediately, if we have one.
     thread_->set_name(name());
@@ -323,6 +325,11 @@ X_STATUS XThread::Create() {
 
   if (creation_params_.creation_flags & 0x60) {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
+  }
+
+  if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
+    // Start the thread now that we're all setup.
+    thread_->Resume();
   }
 
   return X_STATUS_SUCCESS;

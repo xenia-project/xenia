@@ -25,7 +25,7 @@ namespace kernel {
 class NativeList;
 class XEvent;
 
-constexpr uint32_t X_CREATE_SUSPENDED = 0x00000004;
+constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;
 
 constexpr uint32_t X_TLS_OUT_OF_INDEXES = UINT32_MAX;
 
