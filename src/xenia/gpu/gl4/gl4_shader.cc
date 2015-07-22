@@ -346,7 +346,7 @@ bool GL4Shader::CompileProgram(std::string source) {
     // Note that we put the translated source first so we get good line numbers.
     FILE* f = fopen(file_name, "w");
     if (f) {
-      fprintf(f, translated_disassembly_.c_str());
+      fprintf(f, "%s", translated_disassembly_.c_str());
       fprintf(f, "/*\n");
       fprintf(f, "%s", ucode_disassembly_.c_str());
       fprintf(f, " */\n");
