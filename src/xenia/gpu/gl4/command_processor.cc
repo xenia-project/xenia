@@ -2888,10 +2888,7 @@ bool CommandProcessor::IssueCopy() {
   }
 
   // TODO(benvanik): figure out real condition here (maybe when color cleared?)
-  // HACK: things seem to need their depth buffer cleared a lot more
-  // than as indicated by the depth_clear_enabled flag.
-  // if (depth_clear_enabled) {
-  if (depth_target != kAnyTarget) {
+  if (depth_clear_enabled && depth_target != kAnyTarget) {
     // Clear the current depth buffer.
     // TODO(benvanik): verify format.
     GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) / float(0xFFFFFF00)};
