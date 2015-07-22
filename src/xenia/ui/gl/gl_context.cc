@@ -111,7 +111,6 @@ bool GLContext::Initialize(Window* target_window) {
 
   tls_glew_context_ = glew_context_.get();
   tls_wglew_context_ = wglew_context_.get();
-  glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
     XELOGE("Unable to initialize GLEW");
     return false;
@@ -132,11 +131,13 @@ bool GLContext::Initialize(Window* target_window) {
   }
 
   int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,
-                       4,  //
+                       4,
                        WGL_CONTEXT_MINOR_VERSION_ARB,
-                       5,  //
+                       5,
                        WGL_CONTEXT_FLAGS_ARB,
-                       context_flags,  //
+                       context_flags,
+                       WGL_CONTEXT_PROFILE_MASK_ARB,
+                       WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
                        0};
 
   glrc_ = wglCreateContextAttribsARB(dc_, nullptr, attrib_list);
@@ -184,20 +185,18 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
     GraphicsContextLock context_lock(this);
 
     int context_flags = 0;
-    // int profile = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
-    int profile = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
     if (FLAGS_gl_debug) {
       context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }
 
     int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,
-                         4,  //
+                         4,
                          WGL_CONTEXT_MINOR_VERSION_ARB,
-                         5,  //
+                         5,
                          WGL_CONTEXT_FLAGS_ARB,
-                         context_flags,  //
+                         context_flags,
                          WGL_CONTEXT_PROFILE_MASK_ARB,
-                         profile,  //
+                         WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
                          0};
     new_glrc = wglCreateContextAttribsARB(dc_, glrc_, attrib_list);
     if (!new_glrc) {
@@ -212,8 +211,12 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
     XELOGE("Could not make new GL context current");
     return nullptr;
   }
+  if (!glGetString(GL_EXTENSIONS)) {
+    new_context->ClearCurrent();
+    XELOGE("New GL context did not have extensions");
+    return nullptr;
+  }
 
-  glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
     new_context->ClearCurrent();
     XELOGE("Unable to initialize GLEW");
@@ -265,12 +268,11 @@ void GLContext::AssertExtensionsPresent() {
     return;
   }
 
-  // TODO(benvanik): figure out why this query fails.
-  // if (!GLEW_ARB_fragment_coord_conventions) {
-  //   FatalGLError(
-  //       "OpenGL extension ARB_fragment_coord_conventions is required.");
-  //   return;
-  // }
+  if (!GLEW_ARB_fragment_coord_conventions) {
+    FatalGLError(
+        "OpenGL extension ARB_fragment_coord_conventions is required.");
+    return;
+  }
 }
 
 void GLContext::DebugMessage(GLenum source, GLenum type, GLuint id,
