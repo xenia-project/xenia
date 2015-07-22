@@ -78,7 +78,8 @@ class CommandProcessor {
 
   SwapState& swap_state() { return swap_state_; }
   void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
-  void IssueSwap(uint32_t frontbuffer_width, uint32_t frontbuffer_height);
+  void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
+                 uint32_t frontbuffer_height);
 
   void set_swap_request_handler(std::function<void()> fn) {
     swap_request_handler_ = fn;

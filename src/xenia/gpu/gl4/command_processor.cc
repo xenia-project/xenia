@@ -574,7 +574,8 @@ void CommandProcessor::ReturnFromWait() {
   }
 }
 
-void CommandProcessor::IssueSwap(uint32_t frontbuffer_width,
+void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
+                                 uint32_t frontbuffer_width,
                                  uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
   if (!swap_request_handler_) {
@@ -1010,7 +1011,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
 
   if (swap_mode_ == SwapMode::kNormal) {
-    IssueSwap(frontbuffer_width, frontbuffer_height);
+    IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
   }
 
   if (trace_writer_.is_open()) {

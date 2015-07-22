@@ -269,7 +269,7 @@ void GL4GraphicsSystem::PlayTrace(const uint8_t* trace_data, size_t trace_size,
     }
 
     command_processor_->set_swap_mode(SwapMode::kNormal);
-    command_processor_->IssueSwap(1280, 720);
+    command_processor_->IssueSwap(0, 1280, 720);
   });
 }
 
