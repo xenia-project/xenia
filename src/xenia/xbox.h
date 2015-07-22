@@ -344,6 +344,22 @@ struct X_SLIST_HEADER {
 };
 static_assert_size(X_SLIST_HEADER, 8);
 
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff550671(v=vs.85).aspx
+struct X_IO_STATUS_BLOCK {
+  union {
+    xe::be<X_STATUS> status;
+    xe::be<uint32_t> pointer;
+  };
+  xe::be<uint32_t> information;
+};
+
+struct X_EX_TITLE_TERMINATE_REGISTRATION {
+  xe::be<uint32_t> notification_routine;  // 0x0
+  xe::be<uint32_t> priority;              // 0x4
+  X_LIST_ENTRY list_entry;                // 0x8 ??
+};
+static_assert_size(X_EX_TITLE_TERMINATE_REGISTRATION, 16);
+
 #pragma pack(pop)
 
 }  // namespace xe
