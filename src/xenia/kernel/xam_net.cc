@@ -350,6 +350,14 @@ dword_result_t NetDll_XNetGetDebugXnAddr(dword_t caller,
 DECLARE_XAM_EXPORT(NetDll_XNetGetDebugXnAddr,
                    ExportTag::kNetworking | ExportTag::kStub);
 
+// http://www.google.com/patents/WO2008112448A1?cl=en
+// Reserves a port for use by system link
+dword_result_t NetDll_XNetSetSystemLinkPort(dword_t caller, dword_t port) {
+  return 1;
+}
+DECLARE_XAM_EXPORT(NetDll_XNetSetSystemLinkPort,
+                   ExportTag::kNetworking | ExportTag::kStub);
+
 SHIM_CALL NetDll_XNetGetEthernetLinkStatus_shim(PPCContext* ppc_context,
                                                 KernelState* kernel_state) {
   // Games seem to call this before *Startup. If we return 0, they don't even
@@ -513,13 +521,25 @@ SHIM_CALL NetDll_accept_shim(PPCContext* ppc_context,
   SOCKET ret_socket = accept(socket_handle, &addr, &addrlen);
 
   if (ret_socket == INVALID_SOCKET) {
-    std::memset(SHIM_MEM_ADDR(addr_ptr), 0, sizeof(addr));
-    SHIM_SET_MEM_32(addrlen_ptr, sizeof(addr));
+    if (addr_ptr) {
+      std::memset(SHIM_MEM_ADDR(addr_ptr), 0, sizeof(addr));
+    }
+
+    if (addrlen_ptr) {
+      SHIM_SET_MEM_32(addrlen_ptr, sizeof(addr));
+    }
+
     SHIM_SET_RETURN_32(-1);
   } else {
     assert_true(ret_socket >> 32 == 0);
-    StoreSockaddr(addr, SHIM_MEM_ADDR(addr_ptr));
-    SHIM_SET_MEM_32(addrlen_ptr, addrlen);
+    if (addr_ptr) {
+      StoreSockaddr(addr, SHIM_MEM_ADDR(addr_ptr));
+    }
+
+    if (addrlen_ptr) {
+      SHIM_SET_MEM_32(addrlen_ptr, addrlen);
+    }
+
     SHIM_SET_RETURN_32(static_cast<uint32_t>(ret_socket));
   }
 }
