@@ -292,26 +292,22 @@ DECLARE_XBOXKRNL_EXPORT(RtlImageXexHeaderField, ExportTag::kImplemented);
 // their embedded data and InitializeCriticalSection will never be called.
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
-  uint8_t unknown00;
-  uint8_t spin_count_div_256;  // * 256
-  uint16_t __padding0;
-  uint32_t __padding1;
-  // uint32_t    unknown04; // maybe the handle to the event?
-  uint32_t queue_head;        // head of queue, pointing to this offset
-  uint32_t queue_tail;        // tail of queue?
-  int32_t lock_count;         // -1 -> 0 on first lock 0x10
-  uint32_t recursion_count;   //  0 -> 1 on first lock 0x14
-  uint32_t owning_thread_id;  // 0 unless locked 0x18
+  xe::be<uint8_t> unk_00;              // 0x0
+  xe::be<uint8_t> spin_count_div_256;  // 0x1
+  xe::be<uint16_t> __padding0;         // 0x2
+  xe::be<uint32_t> unk_04;             // 0x4 maybe the handle to the event?
+  xe::be<uint32_t> queue_head;  // 0x8 head of queue, pointing to this offset
+  xe::be<uint32_t> queue_tail;  // 0xC tail of queue?
+  int32_t lock_count;           // 0x10 -1 -> 0 on first lock 0x10
+  xe::be<int32_t> recursion_count;    // 0x14  0 -> 1 on first lock 0x14
+  xe::be<uint32_t> owning_thread_id;  // 0x18 0 unless locked 0x18
 };
 #pragma pack(pop)
 static_assert_size(X_RTL_CRITICAL_SECTION, 28);
 
 void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
                                     uint32_t cs_ptr) {
-  // VOID
-  // _Out_  LPCRITICAL_SECTION lpCriticalSection
-
-  cs->unknown00 = 1;
+  cs->unk_00 = 1;
   cs->spin_count_div_256 = 0;
   cs->queue_head = cs_ptr + 8;
   cs->queue_tail = cs_ptr + 8;
@@ -320,31 +316,22 @@ void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
   cs->owning_thread_id = 0;
 }
 
-SHIM_CALL RtlInitializeCriticalSection_shim(PPCContext* ppc_context,
-                                            KernelState* kernel_state) {
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("RtlInitializeCriticalSection(%.8X)", cs_ptr);
-
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  xeRtlInitializeCriticalSection(cs, cs_ptr);
+void RtlInitializeCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  xeRtlInitializeCriticalSection(cs, cs.guest_address());
 }
+DECLARE_XBOXKRNL_EXPORT(RtlInitializeCriticalSection, ExportTag::kImplemented);
 
 X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
                                                     uint32_t cs_ptr,
                                                     uint32_t spin_count) {
-  // NTSTATUS
-  // _Out_  LPCRITICAL_SECTION lpCriticalSection,
-  // _In_   DWORD dwSpinCount
-
-  // Spin count is rouned up to 256 intervals then packed in.
+  // Spin count is rounded up to 256 intervals then packed in.
   // uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
   uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
   if (spin_count_div_256 > 255) {
     spin_count_div_256 = 255;
   }
 
-  cs->unknown00 = 1;
+  cs->unk_00 = 1;
   cs->spin_count_div_256 = spin_count_div_256;
   cs->queue_head = cs_ptr + 8;
   cs->queue_tail = cs_ptr + 8;
@@ -355,19 +342,13 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
   return X_STATUS_SUCCESS;
 }
 
-SHIM_CALL RtlInitializeCriticalSectionAndSpinCount_shim(
-    PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
-  uint32_t spin_count = SHIM_GET_ARG_32(1);
-
-  XELOGD("RtlInitializeCriticalSectionAndSpinCount(%.8X, %u)", cs_ptr,
-         spin_count);
-
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-  X_STATUS result =
-      xeRtlInitializeCriticalSectionAndSpinCount(cs, cs_ptr, spin_count);
-  SHIM_SET_RETURN_32(result);
+dword_result_t RtlInitializeCriticalSectionAndSpinCount(
+    pointer_t<X_RTL_CRITICAL_SECTION> cs, dword_t spin_count) {
+  return xeRtlInitializeCriticalSectionAndSpinCount(cs, cs.guest_address(),
+                                                    spin_count);
 }
+DECLARE_XBOXKRNL_EXPORT(RtlInitializeCriticalSectionAndSpinCount,
+                        ExportTag::kImplemented);
 
 SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_context,
                                        KernelState* kernel_state) {
@@ -377,12 +358,11 @@ SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_context,
 
   // XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
 
-  const uint8_t* pcr = SHIM_MEM_ADDR(ppc_context->r[13]);
-  uint32_t thread_id = XThread::GetCurrentThreadId(pcr);
+  uint32_t thread_id = XThread::GetCurrentThreadId();
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
-
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
+
 spin:
   if (xe::atomic_inc(&cs->lock_count) != 0) {
     // If this thread already owns the CS increment the recursion count.
@@ -419,8 +399,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_context,
 
   // XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
 
-  const uint8_t* pcr = SHIM_MEM_ADDR(ppc_context->r[13]);
-  uint32_t thread_id = XThread::GetCurrentThreadId(pcr);
+  uint32_t thread_id = XThread::GetCurrentThreadId();
 
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
@@ -446,16 +425,22 @@ SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_context,
 
   // XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
 
+  // FYI: No need to check if the owning thread is calling this, as that should
+  // be the only case.
+
   auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
 
   // Drop recursion count - if we are still not zero'ed return.
-  uint32_t recursion_count = --cs->recursion_count;
+  int32_t recursion_count = --cs->recursion_count;
+  assert_true(recursion_count > -1);
   if (recursion_count) {
+    assert_true(cs->recursion_count > 0);
+
     xe::atomic_dec(&cs->lock_count);
     return;
   }
 
-  // Unlock!
+  // Not owned - unlock!
   cs->owning_thread_id = 0;
   if (xe::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
@@ -530,9 +515,6 @@ void xe::kernel::xboxkrnl::RegisterRtlExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlMultiByteToUnicodeN, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeToMultiByteN, state);
 
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSection, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlInitializeCriticalSectionAndSpinCount,
-                   state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlEnterCriticalSection, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlTryEnterCriticalSection, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlLeaveCriticalSection, state);
