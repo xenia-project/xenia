@@ -428,7 +428,6 @@ void Debugger::OnMessage(std::vector<uint8_t> buffer) {
         // thread_builder.add_creation_flags();
         thread_builder.add_tls_address(thread->tls_ptr());
         thread_builder.add_pcr_address(thread->pcr_ptr());
-        thread_builder.add_thread_state_address(thread->thread_state_ptr());
         thread_builder.add_thread_id(thread->thread_id());
         thread_builder.add_name(thread_name_string);
         thread_builder.add_priority(thread->priority());
