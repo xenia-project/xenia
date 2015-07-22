@@ -65,13 +65,35 @@ struct XAPC {
   }
 };
 
-// http://www.nirsoft.net/kernel_struct/vista/KTHREAD.html
+// Processor Control Region
+struct X_KPCR {
+  xe::be<uint32_t> tls_ptr;         // 0x0
+  char unk_04[0x2C];                // 0x4
+  xe::be<uint32_t> pcr_ptr;         // 0x30
+  char unk_34[0x3C];                // 0x34
+  xe::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)
+  xe::be<uint32_t> stack_end_ptr;   // 0x74 Stack end (low addr)
+  char unk_78[0x88];                // 0x78
+  xe::be<uint32_t> current_thread;  // 0x100
+  char unk_104[0x8];                // 0x104
+  xe::be<uint8_t> current_cpu;      // 0x10C
+  char unk_10D[0x43];               // 0x10D
+  xe::be<uint32_t> dpc_active;      // 0x150
+};
+
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;  // 0x0
-  char unk_04[0xAA0];        // 0x4
+  X_DISPATCH_HEADER header;     // 0x0
+  char unk_10[0xAC];            // 0x10
+  uint8_t suspend_count;        // 0xBC
+  char unk_BD[0x8F];            // 0xBD
+  xe::be<uint32_t> thread_id;   // 0x14C
+  char unk_150[0x10];           // 0x150
+  xe::be<uint32_t> last_error;  // 0x160
+  char unk_164[0x94C];          // 0x164
 
   // This struct is actually quite long... so uh, not filling this out!
 };
+static_assert_size(X_KTHREAD, 0xAB0);
 
 class XThread : public XObject {
  public:
@@ -83,11 +105,10 @@ class XThread : public XObject {
   static bool IsInThread(XThread* other);
   static XThread* GetCurrentThread();
   static uint32_t GetCurrentThreadHandle();
-  static uint32_t GetCurrentThreadId(const uint8_t* pcr);
+  static uint32_t GetCurrentThreadId();
 
   uint32_t tls_ptr() const { return tls_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
-  uint32_t thread_state_ptr() const { return thread_state_address_; }
   bool guest_thread() const { return guest_thread_; }
   bool running() const { return running_; }
 
@@ -149,9 +170,8 @@ class XThread : public XObject {
   uint32_t scratch_size_ = 0;
   uint32_t tls_address_ = 0;
   uint32_t pcr_address_ = 0;
-  uint32_t thread_state_address_ = 0;
   cpu::ThreadState* thread_state_ = nullptr;
-  bool guest_thread_ = false;  // Launched into guest code.
+  bool guest_thread_ = false;  // Launched into guest code?
   bool running_ = false;
 
   std::string name_;
@@ -159,7 +179,7 @@ class XThread : public XObject {
   int32_t priority_ = 0;
   uint32_t affinity_ = 0;
 
-  std::atomic<uint32_t> irql_;
+  std::atomic<uint32_t> irql_ = 0;
   xe::mutex apc_lock_;
   NativeList* apc_list_ = nullptr;
 };
