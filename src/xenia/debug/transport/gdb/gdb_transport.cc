@@ -14,7 +14,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/debug/debugger.h"
 
-DEFINE_int32(gdb_port, 9000, "Debugger GDB server TCP port.");
+DEFINE_int32(gdb_port, 9000, "Debugger gdbserver TCP port.");
 
 namespace xe {
 namespace debug {

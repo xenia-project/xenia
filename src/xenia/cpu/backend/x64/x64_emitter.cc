@@ -9,9 +9,9 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
-#include <cstring>
-
 #include <gflags/gflags.h>
+
+#include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
@@ -30,6 +30,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
 
 DEFINE_bool(enable_debugprint_log, false,

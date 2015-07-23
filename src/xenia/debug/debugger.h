@@ -10,6 +10,8 @@
 #ifndef XENIA_DEBUG_DEBUGGER_H_
 #define XENIA_DEBUG_DEBUGGER_H_
 
+#include <gflags/gflags.h>
+
 #include <map>
 #include <memory>
 #include <mutex>
@@ -22,6 +24,8 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/breakpoint.h"
+
+DECLARE_bool(debug);
 
 namespace xe {
 class Emulator;

@@ -16,14 +16,6 @@ DEFINE_string(
     "Loads a .map for symbol names and to diff with the generated symbol "
     "database.");
 
-#if 0 && DEBUG
-#define DEFAULT_DEBUG_FLAG true
-#else
-#define DEFAULT_DEBUG_FLAG false
-#endif
-
-DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
-            "Allow debugging and retain debug information.");
 DEFINE_bool(disassemble_functions, false,
             "Disassemble functions during generation.");
 

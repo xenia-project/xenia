@@ -27,6 +27,14 @@
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
 
+#if 0 && DEBUG
+#define DEFAULT_DEBUG_FLAG true
+#else
+#define DEFAULT_DEBUG_FLAG false
+#endif
+
+DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
+            "Allow debugging and retain debug information.");
 DEFINE_string(debug_session_path, "", "Debug output path.");
 DEFINE_bool(wait_for_debugger, false,
             "Waits for a debugger to attach before starting the game.");

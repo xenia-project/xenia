@@ -111,9 +111,7 @@ uint32_t XThread::GetCurrentThreadId() {
   return thread->guest_object<X_KTHREAD>()->thread_id;
 }
 
-uint32_t XThread::last_error() {
-  return guest_object<X_KTHREAD>()->last_error;
-}
+uint32_t XThread::last_error() { return guest_object<X_KTHREAD>()->last_error; }
 
 void XThread::set_last_error(uint32_t error_code) {
   guest_object<X_KTHREAD>()->last_error = error_code;

@@ -158,9 +158,7 @@ bool Win32Window::set_title(const std::wstring& title) {
   return true;
 }
 
-bool Win32Window::is_fullscreen() const {
-  return fullscreen_;
-}
+bool Win32Window::is_fullscreen() const { return fullscreen_; }
 
 void Win32Window::ToggleFullscreen(bool fullscreen) {
   if (fullscreen == is_fullscreen()) {
