@@ -21,7 +21,6 @@ namespace kernel {
 
 XObject::XObject(KernelState* kernel_state, Type type)
     : kernel_state_(kernel_state),
-      handle_ref_count_(0),
       pointer_ref_count_(1),
       type_(type),
       handle_(X_INVALID_HANDLE_VALUE),
@@ -34,7 +33,6 @@ XObject::XObject(KernelState* kernel_state, Type type)
 }
 
 XObject::~XObject() {
-  assert_zero(handle_ref_count_);
   assert_zero(pointer_ref_count_);
 
   if (allocated_guest_object_) {
@@ -58,20 +56,20 @@ XObject::Type XObject::type() { return type_; }
 
 X_HANDLE XObject::handle() const { return handle_; }
 
-void XObject::RetainHandle() { ++handle_ref_count_; }
+void XObject::RetainHandle() {
+  kernel_state_->object_table()->RetainHandle(handle_);
+}
 
 bool XObject::ReleaseHandle() {
-  if (--handle_ref_count_ == 0) {
-    return true;
-  }
-  return false;
+  // FIXME: Return true when handle is actually released.
+  return kernel_state_->object_table()->ReleaseHandle(handle_) ==
+         X_STATUS_SUCCESS;
 }
 
 void XObject::Retain() { ++pointer_ref_count_; }
 
 void XObject::Release() {
   if (--pointer_ref_count_ == 0) {
-    assert_true(pointer_ref_count_ >= handle_ref_count_);
     delete this;
   }
 }

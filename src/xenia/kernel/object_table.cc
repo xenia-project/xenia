@@ -22,13 +22,12 @@ ObjectTable::ObjectTable()
     : table_capacity_(0), table_(nullptr), last_free_entry_(0) {}
 
 ObjectTable::~ObjectTable() {
-  std::lock_guard<xe::mutex> lock(table_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
 
   // Release all objects.
   for (uint32_t n = 0; n < table_capacity_; n++) {
     ObjectTableEntry& entry = table_[n];
     if (entry.object) {
-      entry.object->ReleaseHandle();
       entry.object->Release();
     }
   }
@@ -90,7 +89,7 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
 
   uint32_t slot = 0;
   {
-    std::lock_guard<xe::mutex> lock(table_mutex_);
+    std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
 
     // Find a free slot.
     result = FindFreeSlot(&slot);
@@ -99,9 +98,9 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
     if (XSUCCEEDED(result)) {
       ObjectTableEntry& entry = table_[slot];
       entry.object = object;
+      entry.handle_ref_count = 1;
 
       // Retain so long as the object is in the table.
-      object->RetainHandle();
       object->Retain();
     }
   }
@@ -128,6 +127,36 @@ X_STATUS ObjectTable::DuplicateHandle(X_HANDLE handle, X_HANDLE* out_handle) {
   return result;
 }
 
+X_STATUS ObjectTable::RetainHandle(X_HANDLE handle) {
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+
+  ObjectTableEntry* entry = LookupTable(handle);
+  if (!entry) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  entry->handle_ref_count++;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS ObjectTable::ReleaseHandle(X_HANDLE handle) {
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+
+  ObjectTableEntry* entry = LookupTable(handle);
+  if (!entry) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  if (--entry->handle_ref_count == 0) {
+    // No more references. Remove it from the table.
+    return RemoveHandle(handle);
+  }
+
+  // FIXME: Return a status code telling the caller it wasn't released
+  // (but not a failure code)
+  return X_STATUS_SUCCESS;
+}
+
 X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -138,7 +167,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
 
   XObject* object = NULL;
   {
-    std::lock_guard<xe::mutex> lock(table_mutex_);
+    std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
 
     // Lower 2 bits are ignored.
     uint32_t slot = handle >> 2;
@@ -165,6 +194,23 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   }
 
   return result;
+}
+
+ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
+  handle = TranslateHandle(handle);
+  if (!handle) {
+    return nullptr;
+  }
+
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+
+  // Lower 2 bits are ignored.
+  uint32_t slot = handle >> 2;
+  if (slot <= table_capacity_) {
+    return &table_[slot];
+  }
+
+  return nullptr;
 }
 
 XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
@@ -203,7 +249,7 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
 
 void ObjectTable::GetObjectsByType(XObject::Type type,
                                    std::vector<object_ref<XObject>>& results) {
-  std::lock_guard<xe::mutex> lock(table_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
   for (uint32_t slot = 0; slot < table_capacity_; ++slot) {
     auto& entry = table_[slot];
     if (entry.object) {
@@ -229,7 +275,7 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
-  std::lock_guard<xe::mutex> lock(table_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
   if (name_table_.count(name)) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
@@ -238,7 +284,7 @@ X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
 }
 
 void ObjectTable::RemoveNameMapping(const std::string& name) {
-  std::lock_guard<xe::mutex> lock(table_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
   auto it = name_table_.find(name);
   if (it != name_table_.end()) {
     name_table_.erase(it);
@@ -247,7 +293,7 @@ void ObjectTable::RemoveNameMapping(const std::string& name) {
 
 X_STATUS ObjectTable::GetObjectByName(const std::string& name,
                                       X_HANDLE* out_handle) {
-  std::lock_guard<xe::mutex> lock(table_mutex_);
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
   auto it = name_table_.find(name);
   if (it == name_table_.end()) {
     *out_handle = X_INVALID_HANDLE_VALUE;

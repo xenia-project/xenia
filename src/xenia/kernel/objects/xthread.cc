@@ -292,6 +292,7 @@ X_STATUS XThread::Create() {
 
   // Always retain when starting - the thread owns itself until exited.
   Retain();
+  RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
   params.stack_size = 16 * 1024 * 1024;  // Ignore game, always big!
@@ -350,6 +351,7 @@ X_STATUS XThread::Exit(int exit_code) {
 
   running_ = false;
   Release();
+  ReleaseHandle();
 
   // NOTE: this does not return!
   xe::threading::Thread::Exit(exit_code);
@@ -361,6 +363,7 @@ X_STATUS XThread::Terminate(int exit_code) {
 
   running_ = false;
   Release();
+  ReleaseHandle();
 
   thread_->Terminate(exit_code);
   return X_STATUS_SUCCESS;
