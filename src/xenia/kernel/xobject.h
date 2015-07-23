@@ -180,7 +180,6 @@ class XObject {
   KernelState* kernel_state_;
 
  private:
-  std::atomic<int32_t> handle_ref_count_;
   std::atomic<int32_t> pointer_ref_count_;
 
   Type type_;

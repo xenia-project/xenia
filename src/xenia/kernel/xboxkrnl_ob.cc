@@ -190,8 +190,7 @@ dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
 DECLARE_XBOXKRNL_EXPORT(NtDuplicateObject, ExportTag::kImplemented);
 
 dword_result_t NtClose(dword_t handle) {
-  // FIXME: This needs to be removed once handle count reaches 0!
-  return kernel_state()->object_table()->RemoveHandle(handle);
+  return kernel_state()->object_table()->ReleaseHandle(handle);
 }
 DECLARE_XBOXKRNL_EXPORT(NtClose, ExportTag::kImplemented);
 

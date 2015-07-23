@@ -28,7 +28,10 @@ class ObjectTable {
 
   X_STATUS AddHandle(XObject* object, X_HANDLE* out_handle);
   X_STATUS DuplicateHandle(X_HANDLE orig, X_HANDLE* out_handle);
+  X_STATUS RetainHandle(X_HANDLE handle);
+  X_STATUS ReleaseHandle(X_HANDLE handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
+
   template <typename T>
   object_ref<T> LookupObject(X_HANDLE handle) {
     auto object = LookupObject(handle, false);
@@ -48,6 +51,12 @@ class ObjectTable {
   }
 
  private:
+  typedef struct {
+    int handle_ref_count = 0;
+    XObject* object = nullptr;
+  } ObjectTableEntry;
+
+  ObjectTableEntry* LookupTable(X_HANDLE handle);
   XObject* LookupObject(X_HANDLE handle, bool already_locked);
   void GetObjectsByType(XObject::Type type,
                         std::vector<object_ref<XObject>>& results);
@@ -55,9 +64,7 @@ class ObjectTable {
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
 
-  typedef struct { XObject* object; } ObjectTableEntry;
-
-  xe::mutex table_mutex_;
+  xe::recursive_mutex table_mutex_;
   uint32_t table_capacity_;
   ObjectTableEntry* table_;
   uint32_t last_free_entry_;
