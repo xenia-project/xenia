@@ -343,6 +343,9 @@ class Thread : public WaitHandle {
   // threads that had been waiting for the thread to terminate.
   static void Exit(int exit_code);
 
+  // Returns the ID of the thread
+  virtual uint32_t id() const = 0;
+
   // Returns the current name of the thread, if previously specified.
   std::string name() const { return name_; }
 
