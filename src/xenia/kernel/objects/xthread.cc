@@ -62,10 +62,6 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
 
   apc_list_ = new NativeList(kernel_state->memory());
 
-  char thread_name[32];
-  snprintf(thread_name, xe::countof(thread_name), "XThread%04X", handle());
-  set_name(thread_name);
-
   // The kernel does not take a reference. We must unregister in the dtor.
   kernel_state_->RegisterThread(this);
 }
@@ -92,6 +88,7 @@ XThread::~XThread() {
 }
 
 bool XThread::IsInThread(XThread* other) { return current_thread_tls == other; }
+bool XThread::IsInThread() { return current_thread_tls != nullptr; }
 
 XThread* XThread::GetCurrentThread() {
   XThread* thread = current_thread_tls;
@@ -321,6 +318,11 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
   thread_->set_affinity_mask(proc_mask);
+
+  // Set the thread name based on host ID (for easier debugging)
+  char thread_name[32];
+  snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)", handle(), thread_->id());
+  set_name(thread_name);
 
   if (creation_params_.creation_flags & 0x60) {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);

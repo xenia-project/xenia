@@ -103,6 +103,7 @@ class XThread : public XObject {
   virtual ~XThread();
 
   static bool IsInThread(XThread* other);
+  static bool IsInThread();
   static XThread* GetCurrentThread();
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId();
