@@ -358,6 +358,7 @@ class Win32Thread : public Win32Handle<Thread> {
   }
 
   int32_t priority() override { return GetThreadPriority(handle_); }
+  uint32_t id() const override { return GetThreadId(handle_); }
 
   void set_priority(int32_t new_priority) override {
     SetThreadPriority(handle_, new_priority);
