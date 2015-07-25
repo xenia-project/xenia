@@ -39,17 +39,17 @@ struct X_FILE_NETWORK_OPEN_INFORMATION {
 class X_FILE_DIRECTORY_INFORMATION {
  public:
   // FILE_DIRECTORY_INFORMATION
-  uint32_t next_entry_offset;
-  uint32_t file_index;
-  uint64_t creation_time;
-  uint64_t last_access_time;
-  uint64_t last_write_time;
-  uint64_t change_time;
-  uint64_t end_of_file;  // size in bytes
-  uint64_t allocation_size;
-  uint32_t attributes;  // X_FILE_ATTRIBUTES
-  uint32_t file_name_length;
-  char file_name[1];
+  xe::be<uint32_t> next_entry_offset;  // 0x0
+  xe::be<uint32_t> file_index;         // 0x4
+  xe::be<uint64_t> creation_time;      // 0x8
+  xe::be<uint64_t> last_access_time;   // 0x10
+  xe::be<uint64_t> last_write_time;    // 0x18
+  xe::be<uint64_t> change_time;        // 0x20
+  xe::be<uint64_t> end_of_file;        // 0x28 size in bytes
+  xe::be<uint64_t> allocation_size;    // 0x30
+  xe::be<uint32_t> attributes;         // 0x38 X_FILE_ATTRIBUTES
+  xe::be<uint32_t> file_name_length;   // 0x3C
+  char file_name[1];                   // 0x40
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
@@ -68,6 +68,7 @@ class X_FILE_DIRECTORY_INFORMATION {
       xe::store_and_swap<uint32_t>(dst + 56, info->attributes);
       xe::store_and_swap<uint32_t>(dst + 60, info->file_name_length);
       memcpy(dst + 64, info->file_name, info->file_name_length);
+
       dst += info->next_entry_offset;
       src += info->next_entry_offset;
     } while (info->next_entry_offset != 0);

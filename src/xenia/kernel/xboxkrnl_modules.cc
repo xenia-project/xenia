@@ -226,7 +226,7 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
     // Not found; attempt to load as a user module.
     auto user_module = kernel_state->LoadUserModule(module_name);
     if (user_module) {
-      user_module->RetainHandle();
+      user_module->Retain();
       hmodule = user_module->hmodule_ptr();
       result = X_STATUS_SUCCESS;
     }
@@ -263,6 +263,7 @@ SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_context,
             hmodule);
     if (--ldr_data->load_count == 0) {
       // No more references, free it.
+      module->Release();
       kernel_state->object_table()->RemoveHandle(module->handle());
     }
   }

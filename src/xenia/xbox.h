@@ -44,6 +44,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_NO_MORE_FILES                          ((X_STATUS)0x80000006L)
 #define X_STATUS_UNSUCCESSFUL                           ((X_STATUS)0xC0000001L)
 #define X_STATUS_NOT_IMPLEMENTED                        ((X_STATUS)0xC0000002L)
+#define X_STATUS_INVALID_INFO_CLASS                     ((X_STATUS)0xC0000003L)
 #define X_STATUS_INFO_LENGTH_MISMATCH                   ((X_STATUS)0xC0000004L)
 #define X_STATUS_ACCESS_VIOLATION                       ((X_STATUS)0xC0000005L)
 #define X_STATUS_INVALID_HANDLE                         ((X_STATUS)0xC0000008L)
@@ -278,6 +279,7 @@ struct X_ANSI_STRING {
                        length);
   }
 };
+static_assert_size(X_ANSI_STRING, 8);
 
 struct X_UNICODE_STRING {
   xe::be<uint16_t> length;          // 0x0
@@ -359,6 +361,12 @@ struct X_EX_TITLE_TERMINATE_REGISTRATION {
   X_LIST_ENTRY list_entry;                // 0x8 ??
 };
 static_assert_size(X_EX_TITLE_TERMINATE_REGISTRATION, 16);
+
+struct X_OBJECT_ATTRIBUTES {
+  xe::be<uint32_t> root_directory; // 0x0
+  xe::be<uint32_t> name_ptr; // 0x4 PANSI_STRING
+  xe::be<uint32_t> attributes; // 0xC
+};
 
 #pragma pack(pop)
 

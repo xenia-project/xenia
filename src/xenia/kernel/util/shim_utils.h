@@ -113,7 +113,7 @@ class Param {
       *out_value = V(init.ppc_context->r[3 + ordinal_]);
     } else {
       uint32_t stack_ptr =
-          uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 7) * 8;
+          uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 8) * 8;
       *out_value =
           xe::load_and_swap<V>(init.ppc_context->virtual_membase + stack_ptr);
     }
@@ -190,7 +190,9 @@ class PrimitivePointerParam : public ParamBase<uint32_t> {
                              init.ppc_context->virtual_membase + value_)
                        : nullptr;
   }
-  PrimitivePointerParam(T* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
+  PrimitivePointerParam(T* host_ptr) : ParamBase() {
+    host_ptr_ = reinterpret_cast<xe::be<T>*>(host_ptr);
+  }
   PrimitivePointerParam& operator=(const T*& other) {
     host_ptr_ = other;
     return *this;
