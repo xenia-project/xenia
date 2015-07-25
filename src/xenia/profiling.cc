@@ -9,6 +9,8 @@
 
 #include "xenia/base/logging.h"
 
+#include <gflags/gflags.h>
+
 #define MICROPROFILE_ENABLED 1
 #define MICROPROFILEUI_ENABLED 1
 #define MICROPROFILE_IMPL 1
@@ -26,6 +28,8 @@
 #include <microprofile/microprofileui.h>
 
 #include "xenia/profiling.h"
+
+DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
 
 namespace xe {
 
@@ -57,7 +61,9 @@ void Profiler::Initialize() {
   g_MicroProfileUI.bShowSpikes = true;
   g_MicroProfileUI.nOpacityBackground = 0x40u << 24;
   g_MicroProfileUI.nOpacityForeground = 0xc0u << 24;
-  MicroProfileSetDisplayMode(1);
+  if (FLAGS_show_profiler) {
+    MicroProfileSetDisplayMode(1);
+  }
 #else
   MicroProfileSetForceEnable(true);
   MicroProfileSetEnableAllGroups(true);

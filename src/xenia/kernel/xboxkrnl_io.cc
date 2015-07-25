@@ -619,9 +619,9 @@ dword_result_t NtQueryDirectoryFile(
       file_name ? file_name->to_string(kernel_memory()->virtual_membase()) : "";
   if (file) {
     X_FILE_DIRECTORY_INFORMATION dir_info = {0};
-    result = file->QueryDirectory(
-        file_info_ptr, length, !name.empty() ? name.c_str() : nullptr,
-        restart_scan != 0);
+    result = file->QueryDirectory(file_info_ptr, length,
+                                  !name.empty() ? name.c_str() : nullptr,
+                                  restart_scan != 0);
     if (XSUCCEEDED(result)) {
       info = length;
     }

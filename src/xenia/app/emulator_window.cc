@@ -80,6 +80,10 @@ bool EmulatorWindow::Initialize() {
         CpuTimeScalarSetDouble();
       } break;
 
+      case 0x72: {  // F3
+        Profiler::ToggleDisplay();
+      } break;
+
       case 0x73: {  // VK_F4
         GpuTraceFrame();
       } break;
@@ -135,7 +139,7 @@ bool EmulatorWindow::Initialize() {
   cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                        L"Toggle Profiler &Display", L"Tab",
+                                        L"Toggle Profiler &Display", L"F3",
                                         []() { Profiler::ToggleDisplay(); }));
     cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
                                         L"&Pause/Resume Profiler", L"`",
