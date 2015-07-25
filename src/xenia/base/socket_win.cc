@@ -43,7 +43,8 @@ class Win32Socket : public Socket {
 
     // Create event and bind to the socket, waiting for read/close
     // notifications.
-    event_ = xe::threading::Event::CreateManualResetEvent(false);
+    // Set true to start so we'll force a query of the socket on first run.
+    event_ = xe::threading::Event::CreateManualResetEvent(true);
     WSAEventSelect(socket_, event_->native_handle(), FD_READ | FD_CLOSE);
 
     // Keepalive for a looong time, as we may be paused by the debugger/etc.
