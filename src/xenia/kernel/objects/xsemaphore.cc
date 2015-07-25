@@ -20,7 +20,7 @@ XSemaphore::~XSemaphore() = default;
 void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   assert_false(semaphore_);
 
-  CreateNative(sizeof(X_SEMAPHORE));
+  CreateNative(sizeof(X_KSEMAPHORE));
 
   semaphore_ = xe::threading::Semaphore::Create(initial_count, maximum_count);
 }
@@ -28,8 +28,9 @@ void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
 void XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
   assert_false(semaphore_);
 
-  // NOT IMPLEMENTED
-  // We expect Initialize to be called shortly.
+  auto semaphore = reinterpret_cast<X_KSEMAPHORE*>(native_ptr);
+  semaphore_ = xe::threading::Semaphore::Create(semaphore->header.signal_state,
+                                                semaphore->limit);
 }
 
 int32_t XSemaphore::ReleaseSemaphore(int32_t release_count) {

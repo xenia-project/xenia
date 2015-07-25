@@ -17,6 +17,11 @@
 namespace xe {
 namespace kernel {
 
+// http://www.nirsoft.net/kernel_struct/vista/KEVENT.html
+struct X_KEVENT {
+  X_DISPATCH_HEADER header;
+};
+
 class XEvent : public XObject {
  public:
   XEvent(KernelState* kernel_state);

@@ -17,9 +17,9 @@
 namespace xe {
 namespace kernel {
 
-struct X_SEMAPHORE {
+struct X_KSEMAPHORE {
   X_DISPATCH_HEADER header;
-  // TODO: Make this not empty!
+  xe::be<uint32_t> limit;
 };
 
 class XSemaphore : public XObject {
