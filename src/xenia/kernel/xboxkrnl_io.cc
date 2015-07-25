@@ -7,7 +7,6 @@
  ******************************************************************************
  */
 
-#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/cpu/processor.h"
@@ -143,10 +142,6 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
   *handle_out = handle;
 
-  debugging::DebugPrint(
-      "NtCreateFile(\"%s\")\n",
-      object_name->to_string(kernel_memory()->virtual_membase()).c_str());
-
   return result;
 }
 DECLARE_XBOXKRNL_EXPORT(NtCreateFile, ExportTag::kImplemented);
@@ -190,10 +185,6 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
   }
 
   if (XSUCCEEDED(result)) {
-    debugging::DebugPrint("NtReadFile(\"%s\", %d bytes%s)\n",
-                          file->path().c_str(), (uint32_t)buffer_length,
-                          apc_routine_ptr ? ", async" : "");
-
     if (true) {
       // Synchronous.
       size_t bytes_read = 0;
