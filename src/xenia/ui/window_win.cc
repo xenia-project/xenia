@@ -242,8 +242,8 @@ void Win32Window::set_focus(bool value) {
 
 void Win32Window::Resize(int32_t width, int32_t height) {
   RECT rc = {0, 0, width, height};
-  bool has_menu = main_menu_ ? true : false;
-  AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
+  bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
+  AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
   if (true) {
     rc.right += 100 - rc.left;
     rc.left = 100;
@@ -257,8 +257,8 @@ void Win32Window::Resize(int32_t width, int32_t height) {
 void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
                          int32_t bottom) {
   RECT rc = {left, top, right, bottom};
-  bool has_menu = main_menu_ ? true : false;
-  AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, has_menu);
+  bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
+  AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
   MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
              TRUE);
 }
