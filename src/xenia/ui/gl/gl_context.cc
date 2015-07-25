@@ -9,6 +9,8 @@
 
 #include "xenia/ui/gl/gl_context.h"
 
+#include <gflags/gflags.h>
+
 #include <mutex>
 #include <string>
 
@@ -30,6 +32,8 @@ DEFINE_bool(thread_safe_gl, false,
 DEFINE_bool(disable_gl_context_reset, false,
             "Do not aggressively reset the GL context (helps with capture "
             "programs such as OBS or FRAPS).");
+
+DEFINE_bool(random_clear_color, false, "Randomizes GL clear color.");
 
 DEFINE_bool(gl_debug, false, "Enable OpenGL debug validation layer.");
 DEFINE_bool(gl_debug_output, false, "Dump ARB_debug_output to stderr.");
@@ -442,7 +446,13 @@ void GLContext::ClearCurrent() {
 
 void GLContext::BeginSwap() {
   SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLContext::BeginSwap");
-  float clear_color[] = {rand() / (float)RAND_MAX, 1.0f, 0, 1.0f};
+  float clear_color[] = {238 / 255.0f, 238 / 255.0f, 238 / 255.0f, 1.0f};
+  if (FLAGS_random_clear_color) {
+    clear_color[0] = rand() / (float)RAND_MAX;
+    clear_color[1] = 1.0f;
+    clear_color[2] = 0.0f;
+    clear_color[3] = 1.0f;
+  }
   glClearNamedFramebufferfv(0, GL_COLOR, 0, clear_color);
 }
 
