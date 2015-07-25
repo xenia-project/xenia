@@ -433,6 +433,7 @@ dword_result_t NtQueryInformationFile(
         assert_true(length == 4);
         // This is wrong and puts files into wrong states for games that use
         // XctdDecompression.
+        /*
         uint32_t magic;
         size_t bytes_read;
         size_t cur_pos = file->position();
@@ -450,6 +451,9 @@ dword_result_t NtQueryInformationFile(
         }
         file->set_position(cur_pos);
         info = 4;
+        */
+        result = X_STATUS_UNSUCCESSFUL;
+        info = 0;
 
       } break;
       case XFileSectorInformation:
@@ -611,7 +615,8 @@ dword_result_t NtQueryDirectoryFile(
   uint32_t info = 0;
 
   auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
-  auto name = file_name->to_string(kernel_memory()->virtual_membase());
+  auto name =
+      file_name ? file_name->to_string(kernel_memory()->virtual_membase()) : "";
   if (file) {
     X_FILE_DIRECTORY_INFORMATION dir_info = {0};
     result = file->QueryDirectory(
