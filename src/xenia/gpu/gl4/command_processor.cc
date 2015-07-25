@@ -104,12 +104,6 @@ void CommandProcessor::Shutdown() {
   write_ptr_index_event_->Set();
   worker_thread_->Wait(0, 0, 0, nullptr);
   worker_thread_.reset();
-
-  all_pipelines_.clear();
-  all_shaders_.clear();
-  shader_cache_.clear();
-
-  context_.reset();
 }
 
 void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
@@ -227,7 +221,6 @@ void CommandProcessor::WorkerThreadMain() {
   }
 
   ShutdownGL();
-  context_->ClearCurrent();
 }
 
 bool CommandProcessor::SetupGL() {
@@ -466,6 +459,12 @@ void CommandProcessor::ShutdownGL() {
   texture_cache_.Shutdown();
   draw_batcher_.Shutdown();
   scratch_buffer_.Shutdown();
+
+  all_pipelines_.clear();
+  all_shaders_.clear();
+  shader_cache_.clear();
+
+  context_.reset();
 }
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {

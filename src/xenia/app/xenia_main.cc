@@ -83,6 +83,8 @@ int xenia_main(std::vector<std::wstring>& args) {
     result = emulator->LaunchPath(abs_path);
     if (XFAILED(result)) {
       XELOGE("Failed to launch target: %.8X", result);
+      emulator.reset();
+      emulator_window.reset();
       return 1;
     }
 

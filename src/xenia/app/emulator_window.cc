@@ -32,7 +32,9 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator)
       loop_(ui::Loop::Create()),
       window_(ui::Window::Create(loop_.get(), kBaseTitle)) {}
 
-EmulatorWindow::~EmulatorWindow() = default;
+EmulatorWindow::~EmulatorWindow() {
+  loop_->PostSynchronous([this]() { window_.reset(); });
+}
 
 std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(Emulator* emulator) {
   std::unique_ptr<EmulatorWindow> emulator_window(new EmulatorWindow(emulator));

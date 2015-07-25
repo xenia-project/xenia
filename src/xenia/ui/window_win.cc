@@ -137,10 +137,7 @@ void Win32Window::EnableMMCSS() {
   FreeLibrary(hLibrary);
 }
 
-void Win32Window::OnDestroy() {
-  super::OnDestroy();
-  hwnd_ = nullptr;
-}
+void Win32Window::OnDestroy() { super::OnDestroy(); }
 
 void Win32Window::OnClose() {
   if (!closing_ && hwnd_) {
