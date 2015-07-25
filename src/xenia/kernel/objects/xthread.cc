@@ -321,7 +321,8 @@ X_STATUS XThread::Create() {
 
   // Set the thread name based on host ID (for easier debugging)
   char thread_name[32];
-  snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)", handle(), thread_->id());
+  snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)",
+           handle(), thread_->id());
   set_name(thread_name);
 
   if (creation_params_.creation_flags & 0x60) {
@@ -340,8 +341,6 @@ X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
 
-  // TODO(benvanik): set exit code in thread state block
-
   // TODO(benvanik); dispatch events? waiters? etc?
   RundownAPCs();
 
@@ -350,6 +349,11 @@ X_STATUS XThread::Exit(int exit_code) {
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_thread_tls = nullptr;
   xe::Profiler::ThreadExit();
+
+  // Set exit code
+  X_KTHREAD* thread = guest_object<X_KTHREAD>();
+  thread->header.signal_state = 1;
+  thread->exit_status = exit_code;
 
   running_ = false;
   Release();
@@ -362,6 +366,11 @@ X_STATUS XThread::Exit(int exit_code) {
 
 X_STATUS XThread::Terminate(int exit_code) {
   // TODO: Inform the profiler that this thread is exiting.
+
+  // Set exit code
+  X_KTHREAD* thread = guest_object<X_KTHREAD>();
+  thread->header.signal_state = 1;
+  thread->exit_status = exit_code;
 
   running_ = false;
   Release();

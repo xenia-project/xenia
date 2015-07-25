@@ -82,14 +82,20 @@ struct X_KPCR {
 };
 
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;     // 0x0
-  char unk_10[0xAC];            // 0x10
-  uint8_t suspend_count;        // 0xBC
-  char unk_BD[0x8F];            // 0xBD
-  xe::be<uint32_t> thread_id;   // 0x14C
-  char unk_150[0x10];           // 0x150
-  xe::be<uint32_t> last_error;  // 0x160
-  char unk_164[0x94C];          // 0x164
+  X_DISPATCH_HEADER header;      // 0x0
+  char unk_10[0xAC];             // 0x10
+  uint8_t suspend_count;         // 0xBC
+  uint8_t unk_BD;                // 0xBD
+  uint16_t unk_BE;               // 0xBE
+  char unk_C0[0x70];             // 0xC0
+  xe::be<uint64_t> create_time;  // 0x130
+  xe::be<uint64_t> exit_time;    // 0x138
+  xe::be<uint32_t> exit_status;  // 0x140
+  char unk_144[0x8];             // 0x144
+  xe::be<uint32_t> thread_id;    // 0x14C
+  char unk_150[0x10];            // 0x150
+  xe::be<uint32_t> last_error;   // 0x160
+  char unk_164[0x94C];           // 0x164
 
   // This struct is actually quite long... so uh, not filling this out!
 };
