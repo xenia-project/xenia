@@ -423,6 +423,65 @@ SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
+dword_result_t KeInitializeEvent(pointer_t<X_KEVENT> event_ptr,
+                                 dword_t event_type, dword_t initial_state) {
+  event_ptr.Zero();
+  event_ptr->header.type = event_type;
+  event_ptr->header.signal_state = (uint32_t)initial_state;
+  auto ev =
+      XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr, event_type);
+  if (!ev) {
+    return X_STATUS_INSUFFICIENT_RESOURCES;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT(KeInitializeEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
+
+dword_result_t KeSetEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
+                          dword_t wait) {
+  // Update dispatch header
+  xe::atomic_exchange(xe::byte_swap<uint32_t>(1),
+                      (uint32_t*)&event_ptr->header.signal_state);
+
+  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
+  if (!ev) {
+    assert_always();
+    return 0;
+  }
+
+  return ev->Set(increment, !!wait);
+}
+DECLARE_XBOXKRNL_EXPORT(KeSetEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
+
+dword_result_t KePulseEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
+                            dword_t wait) {
+  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
+  if (!ev) {
+    assert_always();
+    return 0;
+  }
+
+  return ev->Pulse(increment, !!wait);
+}
+DECLARE_XBOXKRNL_EXPORT(KePulseEvent, ExportTag::kImplemented);
+
+dword_result_t KeResetEvent(pointer_t<X_KEVENT> event_ptr) {
+  // Update dispatch header
+  xe::atomic_exchange(0, (uint32_t*)&event_ptr->header.signal_state);
+
+  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
+  if (!ev) {
+    return 0;
+  }
+
+  return ev->Reset();
+}
+DECLARE_XBOXKRNL_EXPORT(KeResetEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
+
 SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
@@ -451,43 +510,6 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL KeInitializeEvent_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
-  uint32_t event_type = SHIM_GET_ARG_32(1);
-  uint32_t initial_state = SHIM_GET_ARG_32(2);
-
-  XELOGD("KeInitializeEvent(%.8X, %.8X, %.8X)", handle_ptr, event_type,
-         initial_state);
-
-  XEvent* ev = new XEvent(kernel_state);
-  ev->Initialize(!event_type, !!initial_state);
-
-  if (handle_ptr) {
-    SHIM_SET_MEM_32(handle_ptr, ev->handle());
-  }
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
-}
-
-SHIM_CALL KeSetEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t event_ref = SHIM_GET_ARG_32(0);
-  uint32_t increment = SHIM_GET_ARG_32(1);
-  uint32_t wait = SHIM_GET_ARG_32(2);
-
-  XELOGD("KeSetEvent(%.8X, %.8X, %.8X)", event_ref, increment, wait);
-
-  void* event_ptr = SHIM_MEM_ADDR(event_ref);
-
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state, event_ptr);
-  if (!ev) {
-    SHIM_SET_RETURN_32(0);
-    return;
-  }
-
-  auto result = ev->Set(increment, !!wait);
-  SHIM_SET_RETURN_32(result);
-}
-
 SHIM_CALL NtSetEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t event_handle = SHIM_GET_ARG_32(0);
   uint32_t previous_state_ptr = SHIM_GET_ARG_32(1);
@@ -504,25 +526,6 @@ SHIM_CALL NtSetEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
     }
   } else {
     result = X_STATUS_INVALID_HANDLE;
-  }
-
-  SHIM_SET_RETURN_32(result);
-}
-
-SHIM_CALL KePulseEvent_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  uint32_t event_ref = SHIM_GET_ARG_32(0);
-  uint32_t increment = SHIM_GET_ARG_32(1);
-  uint32_t wait = SHIM_GET_ARG_32(2);
-
-  XELOGD("KePulseEvent(%.8X, %.8X, %.8X)", event_ref, increment, wait);
-
-  int32_t result = 0;
-
-  void* event_ptr = SHIM_MEM_ADDR(event_ref);
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state, event_ptr);
-  if (ev) {
-    result = ev->Pulse(increment, !!wait);
   }
 
   SHIM_SET_RETURN_32(result);
@@ -550,23 +553,6 @@ SHIM_CALL NtPulseEvent_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL KeResetEvent_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  uint32_t event_ref = SHIM_GET_ARG_32(0);
-
-  XELOGD("KeResetEvent(%.8X)", event_ref);
-
-  void* event_ptr = SHIM_MEM_ADDR(event_ref);
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state, event_ptr);
-  if (!ev) {
-    SHIM_SET_RETURN_32(0);
-    return;
-  }
-
-  auto result = ev->Reset();
-  SHIM_SET_RETURN_32(result);
-}
-
 dword_result_t NtClearEvent(dword_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -580,6 +566,41 @@ dword_result_t NtClearEvent(dword_t handle) {
   return result;
 }
 DECLARE_XBOXKRNL_EXPORT(NtClearEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
+
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff552150(v=vs.85).aspx
+void KeInitializeSemaphore(pointer_t<X_KSEMAPHORE> semaphore_ptr, dword_t count,
+                           dword_t limit) {
+  semaphore_ptr->header.type = 5;  // SemaphoreObject
+  semaphore_ptr->header.signal_state = (uint32_t)count;
+  semaphore_ptr->limit = (uint32_t)limit;
+
+  auto sem = XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr,
+                                                  5 /* SemaphoreObject */);
+  if (!sem) {
+    assert_always();
+    return;
+  }
+}
+DECLARE_XBOXKRNL_EXPORT(KeInitializeSemaphore,
+                        ExportTag::kImplemented | ExportTag::kThreading);
+
+dword_result_t KeReleaseSemaphore(pointer_t<X_KSEMAPHORE> semaphore_ptr,
+                                  dword_t increment, dword_t adjustment,
+                                  dword_t wait) {
+  auto sem =
+      XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr);
+  if (!sem) {
+    assert_always();
+    return 0;
+  }
+
+  // TODO(benvanik): increment thread priority?
+  // TODO(benvanik): wait?
+
+  return sem->ReleaseSemaphore(adjustment);
+}
+DECLARE_XBOXKRNL_EXPORT(KeReleaseSemaphore,
                         ExportTag::kImplemented | ExportTag::kThreading);
 
 SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
@@ -613,48 +634,6 @@ SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL KeInitializeSemaphore_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  uint32_t semaphore_ref = SHIM_GET_ARG_32(0);
-  int32_t count = SHIM_GET_ARG_32(1);
-  int32_t limit = SHIM_GET_ARG_32(2);
-
-  XELOGD("KeInitializeSemaphore(%.8X, %d, %d)", semaphore_ref, count, limit);
-
-  void* semaphore_ptr = SHIM_MEM_ADDR(semaphore_ref);
-  auto sem = XObject::GetNativeObject<XSemaphore>(kernel_state, semaphore_ptr,
-                                                  5 /* SemaphoreObject */);
-  if (!sem) {
-    return;
-  }
-
-  sem->Initialize(count, limit);
-}
-
-SHIM_CALL KeReleaseSemaphore_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t semaphore_ref = SHIM_GET_ARG_32(0);
-  int32_t increment = SHIM_GET_ARG_32(1);
-  int32_t adjustment = SHIM_GET_ARG_32(2);
-  int32_t wait = SHIM_GET_ARG_32(3);
-
-  XELOGD("KeReleaseSemaphore(%.8X, %d, %d, %d)", semaphore_ref, increment,
-         adjustment, wait);
-
-  void* semaphore_ptr = SHIM_MEM_ADDR(semaphore_ref);
-  auto sem = XObject::GetNativeObject<XSemaphore>(kernel_state, semaphore_ptr);
-  if (!sem) {
-    SHIM_SET_RETURN_32(0);
-    return;
-  }
-
-  // TODO(benvanik): increment thread priority?
-  // TODO(benvanik): wait?
-
-  int32_t result = sem->ReleaseSemaphore(adjustment);
-  SHIM_SET_RETURN_32(result);
-}
-
 SHIM_CALL NtReleaseSemaphore_shim(PPCContext* ppc_context,
                                   KernelState* kernel_state) {
   uint32_t sem_handle = SHIM_GET_ARG_32(0);
@@ -680,35 +659,30 @@ SHIM_CALL NtReleaseSemaphore_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL NtCreateMutant_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
-  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
-  uint32_t initial_owner = SHIM_GET_ARG_32(2);
-
-  XELOGD("NtCreateMutant(%.8X, %.8X, %.1X)", handle_ptr, obj_attributes_ptr,
-         initial_owner);
-
+dword_result_t NtCreateMutant(lpdword_t handle_out,
+                              pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes,
+                              dword_t initial_owner) {
   // TODO(benvanik): check for name collision. May return existing object if
   // type matches.
-  if (obj_attributes_ptr) {
-    AssertNoNameCollision(kernel_state, obj_attributes_ptr);
+  if (obj_attributes) {
+    AssertNoNameCollision(kernel_state(), obj_attributes);
   }
 
-  XMutant* mutant = new XMutant(kernel_state);
+  XMutant* mutant = new XMutant(kernel_state());
   mutant->Initialize(initial_owner ? true : false);
 
   // obj_attributes may have a name inside of it, if != NULL.
-  if (obj_attributes_ptr) {
-    mutant->SetAttributes(obj_attributes_ptr);
+  if (obj_attributes) {
+    mutant->SetAttributes(obj_attributes);
   }
 
-  if (handle_ptr) {
-    SHIM_SET_MEM_32(handle_ptr, mutant->handle());
+  if (handle_out) {
+    *handle_out = mutant->handle();
   }
 
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+  return X_STATUS_SUCCESS;
 }
+DECLARE_XBOXKRNL_EXPORT(NtCreateMutant, ExportTag::kImplemented);
 
 SHIM_CALL NtReleaseMutant_shim(PPCContext* ppc_context,
                                KernelState* kernel_state) {
@@ -1331,6 +1305,7 @@ pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
 
   uint32_t next = plist_ptr->next.next;
   plist_ptr->next.next = 0;
+  plist_ptr->depth = 0;
 
   return next;
 }
@@ -1365,19 +1340,12 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KePulseEvent, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtPulseEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeResetEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeSemaphore, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);
 
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateMutant, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseMutant, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateTimer, state);
