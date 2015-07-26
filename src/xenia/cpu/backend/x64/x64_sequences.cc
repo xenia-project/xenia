@@ -6613,7 +6613,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           // PACKUSDW
           // TMP[15:0] <- (DEST[31:0] < 0) ? 0 : DEST[15:0];
           // DEST[15:0] <- (DEST[31:0] > FFFFH) ? FFFFH : TMP[15:0];
-          e.vpackusdw(i.dest, i.src1, i.src2);
+          Xmm src2;
+          if (!i.src2.is_constant) {
+            src2 = i.src2;
+          } else {
+            assert_false(i.src2 == e.xmm0);
+            e.LoadConstantXmm(e.xmm0, i.src2.constant());
+            src2 = e.xmm0;
+          }
+          e.vpackusdw(i.dest, i.src1, src2);
           e.vpshuflw(i.dest, i.dest, B10110001);
           e.vpshufhw(i.dest, i.dest, B10110001);
         } else {
@@ -6647,7 +6655,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
         if (IsPackOutSaturate(flags)) {
           // signed -> signed + saturate
           // PACKSSDW / SaturateSignedDwordToSignedWord
-          e.vpackssdw(i.dest, i.src1, i.src2);
+          Xmm src2;
+          if (!i.src2.is_constant) {
+            src2 = i.src2;
+          } else {
+            assert_false(e.xmm0 == i.src2);
+            e.LoadConstantXmm(e.xmm0, i.src2.constant());
+            src2 = e.xmm0;
+          }
+          e.vpackssdw(i.dest, i.src1, src2);
           e.vpshuflw(i.dest, i.dest, B10110001);
           e.vpshufhw(i.dest, i.dest, B10110001);
         } else {
