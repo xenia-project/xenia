@@ -101,7 +101,7 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   }
 
   XINPUT_KEYSTROKE native_keystroke;
-  result = XInputGetKeystroke(user_index, flags, &native_keystroke);
+  result = XInputGetKeystroke(user_index, 0, &native_keystroke);
   if (result) {
     return result;
   }
