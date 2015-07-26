@@ -6624,7 +6624,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           if (!i.src2.is_constant) {
             src2 = i.src2;
           } else {
-            assert_false(i.src2 == e.xmm0);
+            assert_false(i.src1 == e.xmm0);
             e.LoadConstantXmm(e.xmm0, i.src2.constant());
             src2 = e.xmm0;
           }
@@ -6666,7 +6666,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           if (!i.src2.is_constant) {
             src2 = i.src2;
           } else {
-            assert_false(e.xmm0 == i.src2);
+            assert_false(i.src1 == e.xmm0);
             e.LoadConstantXmm(e.xmm0, i.src2.constant());
             src2 = e.xmm0;
           }
