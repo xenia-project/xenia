@@ -6607,8 +6607,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     if (IsPackInUnsigned(flags)) {
       if (IsPackOutUnsigned(flags)) {
         if (IsPackOutSaturate(flags)) {
+          // TODO(gibbed): check if this is actually correct, it's a duplicate
+          // of the signed -> unsigned + saturate code, but seems to work.
           // unsigned -> unsigned + saturate
-          assert_always();
+          // PACKUSDW
+          // TMP[15:0] <- (DEST[31:0] < 0) ? 0 : DEST[15:0];
+          // DEST[15:0] <- (DEST[31:0] > FFFFH) ? FFFFH : TMP[15:0];
+          e.vpackusdw(i.dest, i.src1, i.src2);
+          e.vpshuflw(i.dest, i.dest, B10110001);
+          e.vpshufhw(i.dest, i.dest, B10110001);
         } else {
           // unsigned -> unsigned
           assert_always();
