@@ -1531,7 +1531,14 @@ struct VECTOR_CONVERT_I2F
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // flags = ARITHMETIC_UNSIGNED
     // TODO(benvanik): are these really the same? VC++ thinks so.
-    e.vcvtdq2ps(i.dest, i.src1);
+    Xmm src1;
+    if (i.src1.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      src1 = e.xmm0;
+    } else {
+      src1 = i.src1;
+    }
+    e.vcvtdq2ps(i.dest, src1);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_CONVERT_I2F, VECTOR_CONVERT_I2F);
