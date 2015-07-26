@@ -86,8 +86,26 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
                                          X_INPUT_KEYSTROKE* out_keystroke) {
   // We may want to filter flags/user_index before sending to native.
   // flags is reserved on desktop.
+  DWORD result;
+
+  // XInputGetKeystroke on Windows has a bug where it will return
+  // ERROR_SUCCESS (0) even if the device is not connected:
+  // http://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
+  //
+  // So we first check if the device is connected via XInputGetCapabilities, so
+  // we are not passing back an uninitialized X_INPUT_KEYSTROKE structure:
+  XINPUT_CAPABILITIES caps;
+  result = XInputGetCapabilities(user_index, 0, &caps);
+  if (result) {
+    return result;
+  }
+
   XINPUT_KEYSTROKE native_keystroke;
-  DWORD result = XInputGetKeystroke(user_index, flags, &native_keystroke);
+  result = XInputGetKeystroke(user_index, flags, &native_keystroke);
+  if (result) {
+    return result;
+  }
+
   out_keystroke->virtual_key = native_keystroke.VirtualKey;
   out_keystroke->unicode = native_keystroke.Unicode;
   out_keystroke->flags = native_keystroke.Flags;
