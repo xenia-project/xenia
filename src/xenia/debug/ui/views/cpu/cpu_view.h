@@ -28,7 +28,13 @@ class CpuView : public View {
 
   el::Element* BuildUI() override;
 
+  void Setup(xe::debug::client::xdp::XdpClient* client) override;
+
  protected:
+  void UpdateElementState();
+  void UpdateModuleList();
+  void UpdateFunctionList();
+  void UpdateThreadList();
 };
 
 }  // namespace cpu

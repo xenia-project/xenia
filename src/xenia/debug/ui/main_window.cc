@@ -21,6 +21,8 @@ namespace xe {
 namespace debug {
 namespace ui {
 
+using namespace xe::debug::client::xdp;
+
 using xe::ui::MenuItem;
 
 const std::wstring kBaseTitle = L"xenia debugger";
@@ -30,6 +32,8 @@ MainWindow::MainWindow(Application* app) : app_(app) {}
 MainWindow::~MainWindow() = default;
 
 bool MainWindow::Initialize() {
+  client_ = app_->client();
+
   platform_window_ = xe::ui::Window::Create(app()->loop(), kBaseTitle);
   if (!platform_window_) {
     return false;
@@ -106,11 +110,14 @@ void MainWindow::BuildUI() {
           .gravity(Gravity::kAll)
           .distribution(LayoutDistribution::kAvailable)
           .axis(Axis::kY)
-          .child(LayoutBoxNode()
-                     .id("toolbar_box")
-                     .gravity(Gravity::kTop | Gravity::kLeftRight)
-                     .distribution(LayoutDistribution::kAvailable)
-                     .child(LabelNode("toolbar")))
+          .child(
+              LayoutBoxNode()
+                  .id("toolbar_box")
+                  .gravity(Gravity::kTop | Gravity::kLeftRight)
+                  .distribution(LayoutDistribution::kGravity)
+                  .distribution_position(LayoutDistributionPosition::kLeftTop)
+                  .child(ButtonNode("Pause").id("pause_button"))
+                  .child(ButtonNode("Continue").id("resume_button")))
           .child(
               SplitContainerNode()
                   .id("split_container")
@@ -132,13 +139,48 @@ void MainWindow::BuildUI() {
       {TBIDC("tab_container"), &ui_.tab_container},
   });
 
+  handler_ = std::make_unique<el::EventHandler>(window_.get());
+  handler_->Listen(el::EventType::kClick, TBIDC("pause_button"),
+                   [this](const el::Event& ev) {
+                     client_->Interrupt();
+                     return true;
+                   });
+  handler_->Listen(el::EventType::kClick, TBIDC("resume_button"),
+                   [this](const el::Event& ev) {
+                     client_->Continue();
+                     return true;
+                   });
+
+  system()->on_execution_state_changed.AddListener(
+      [this]() { UpdateElementState(); });
+
   ui_.tab_container->tab_bar()->LoadNodeTree(ButtonNode(cpu_view_.name()));
   ui_.tab_container->content_root()->AddChild(cpu_view_.BuildUI());
+  cpu_view_.Setup(Application::current()->client());
 
   ui_.tab_container->tab_bar()->LoadNodeTree(ButtonNode(gpu_view_.name()));
   ui_.tab_container->content_root()->AddChild(gpu_view_.BuildUI());
+  gpu_view_.Setup(Application::current()->client());
+
+  UpdateElementState();
 
   el::util::ShowDebugInfoSettingsWindow(root_element);
+}
+
+void MainWindow::UpdateElementState() {
+  bool is_running = client_->execution_state() == ExecutionState::kRunning;
+
+  el::TabContainer* tab_container;
+  el::Button* pause_button;
+  el::Button* resume_button;
+  window_->GetElementsById({
+      {TBIDC("tab_container"), &tab_container},
+      {TBIDC("pause_button"), &pause_button},
+      {TBIDC("resume_button"), &resume_button},
+  });
+  tab_container->set_enabled(!is_running);
+  pause_button->set_enabled(is_running);
+  resume_button->set_enabled(!is_running);
 }
 
 void MainWindow::OnClose() { app_->Quit(); }

@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_TRANSPORT_H_
-#define XENIA_DEBUG_TRANSPORT_H_
+#ifndef XENIA_DEBUG_DEBUG_SERVER_H_
+#define XENIA_DEBUG_DEBUG_SERVER_H_
 
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
@@ -19,25 +19,25 @@ namespace debug {
 
 class Debugger;
 
-class Transport {
+class DebugServer {
  public:
-  virtual ~Transport() = default;
+  virtual ~DebugServer() = default;
 
   Debugger* debugger() const { return debugger_; }
 
   virtual bool Initialize() = 0;
 
-  // break/resume state
-
   // TODO(benvanik): better thread type (XThread?)
   // virtual void OnThreadCreated(ThreadState* thread_state) = 0;
   // virtual void OnThreadDestroyed(ThreadState* thread_state) = 0;
 
+  virtual void OnExecutionContinued() {}
+  virtual void OnExecutionInterrupted() {}
   /*virtual void OnBreakpointHit(xe::cpu::ThreadState* thread_state,
                                Breakpoint* breakpoint) = 0;*/
 
  protected:
-  Transport(Debugger* debugger) : debugger_(debugger) {}
+  DebugServer(Debugger* debugger) : debugger_(debugger) {}
 
   Debugger* debugger_ = nullptr;
 };
@@ -45,4 +45,4 @@ class Transport {
 }  // namespace debug
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_TRANSPORT_H_
+#endif  // XENIA_DEBUG_DEBUG_SERVER_H_

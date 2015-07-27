@@ -58,6 +58,15 @@ std::unique_ptr<Application> Application::Create() {
 }
 
 bool Application::Initialize() {
+  // Bind the object model to the client so it'll maintain state.
+  system_ = std::make_unique<model::System>(loop(), &client_);
+  client_.set_listener(system_.get());
+
+  // TODO(benvanik): flags and such.
+  if (!client_.Connect("localhost", 9002)) {
+    return false;
+  }
+
   main_window_ = std::make_unique<MainWindow>(this);
   if (!main_window_->Initialize()) {
     XELOGE("Unable to initialize main window");

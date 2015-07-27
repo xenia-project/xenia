@@ -7,36 +7,40 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
-#define XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
+#ifndef XENIA_DEBUG_SERVER_MI_MI_PROTOCOL_H_
+#define XENIA_DEBUG_SERVER_MI_MI_PROTOCOL_H_
 
-#include <memory>
-#include <string>
-
-#include "xenia/debug/ui/view.h"
+#include <cstdint>
 
 namespace xe {
 namespace debug {
-namespace ui {
-namespace views {
-namespace gpu {
+namespace server {
+namespace mi {
 
-class GpuView : public View {
- public:
-  GpuView();
-  ~GpuView() override;
-
-  el::Element* BuildUI() override;
-
-  void Setup(xe::debug::client::xdp::XdpClient* client) override;
-
- protected:
+enum class RecordToken : char {
+  kResult = '^',
+  kAsyncExec = '*',
+  kAsyncStatus = '+',
+  kAsyncNotify = '=',
 };
 
-}  // namespace gpu
-}  // namespace views
-}  // namespace ui
+enum class StreamToken : char {
+  kConsole = '~',
+  kTarget = '@',
+  kLog = '&',
+};
+
+enum class ResultClass {
+  kDone,
+  kRunning,
+  kConnected,
+  kError,
+  kExit,
+};
+
+}  // namespace mi
+}  // namespace server
 }  // namespace debug
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
+#endif  // XENIA_DEBUG_SERVER_MI_MI_PROTOCOL_H_

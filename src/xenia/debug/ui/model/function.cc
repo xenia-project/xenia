@@ -7,36 +7,16 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
-#define XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
-
-#include <memory>
-#include <string>
-
-#include "xenia/debug/ui/view.h"
+#include "xenia/debug/ui/model/function.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
-namespace views {
-namespace gpu {
+namespace model {
 
-class GpuView : public View {
- public:
-  GpuView();
-  ~GpuView() override;
+//
 
-  el::Element* BuildUI() override;
-
-  void Setup(xe::debug::client::xdp::XdpClient* client) override;
-
- protected:
-};
-
-}  // namespace gpu
-}  // namespace views
+}  // namespace model
 }  // namespace ui
 }  // namespace debug
 }  // namespace xe
-
-#endif  // XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_

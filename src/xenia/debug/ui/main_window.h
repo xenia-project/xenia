@@ -28,6 +28,8 @@ class MainWindow {
   ~MainWindow();
 
   Application* app() const { return app_; }
+  xe::ui::Loop* loop() const { return app_->loop(); }
+  model::System* system() const { return app_->system(); }
 
   bool Initialize();
 
@@ -35,10 +37,12 @@ class MainWindow {
 
  private:
   void BuildUI();
+  void UpdateElementState();
 
   void OnClose();
 
   Application* app_ = nullptr;
+  xe::debug::client::xdp::XdpClient* client_ = nullptr;
 
   std::unique_ptr<xe::ui::Window> platform_window_;
   std::unique_ptr<el::Window> window_;
@@ -47,6 +51,7 @@ class MainWindow {
     el::LayoutBox* toolbar_box;
     el::TabContainer* tab_container;
   } ui_ = {0};
+  std::unique_ptr<el::EventHandler> handler_;
   views::cpu::CpuView cpu_view_;
   views::gpu::GpuView gpu_view_;
 };

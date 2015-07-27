@@ -353,7 +353,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
 
   // Second: Kill all guest threads.
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
-    if (it->second->guest_thread()) {
+    if (it->second->is_guest_thread()) {
       auto thread = it->second;
 
       if (from_guest_thread && XThread::IsInThread(thread)) {
@@ -362,7 +362,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
         continue;
       }
 
-      if (thread->running()) {
+      if (thread->is_running()) {
         thread->Terminate(0);
       }
 
@@ -456,6 +456,10 @@ void KernelState::OnThreadExit(XThread* thread) {
       processor()->Execute(thread_state, user_module->entry_point(), args,
                            xe::countof(args));
     }
+  }
+
+  if (emulator()->debugger()) {
+    emulator()->debugger()->OnThreadExit(thread);
   }
 }
 

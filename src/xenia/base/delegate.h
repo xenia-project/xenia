@@ -45,6 +45,33 @@ class Delegate {
   std::vector<Listener> listeners_;
 };
 
+template <>
+class Delegate<void> {
+ public:
+  typedef std::function<void()> Listener;
+
+  void AddListener(Listener const& listener) {
+    std::lock_guard<std::mutex> guard(lock_);
+    listeners_.push_back(listener);
+  }
+
+  void RemoveAllListeners() {
+    std::lock_guard<std::mutex> guard(lock_);
+    listeners_.clear();
+  }
+
+  void operator()() {
+    std::lock_guard<std::mutex> guard(lock_);
+    for (auto& listener : listeners_) {
+      listener();
+    }
+  }
+
+ private:
+  std::mutex lock_;
+  std::vector<Listener> listeners_;
+};
+
 }  // namespace xe
 
 #endif  // XENIA_BASE_DELEGATE_H_

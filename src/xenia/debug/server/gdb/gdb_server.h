@@ -7,24 +7,28 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_TRANSPORT_GDB_GDB_TRANSPORT_H_
-#define XENIA_DEBUG_TRANSPORT_GDB_GDB_TRANSPORT_H_
+#ifndef XENIA_DEBUG_SERVER_GDB_GDB_SERVER_H_
+#define XENIA_DEBUG_SERVER_GDB_GDB_SERVER_H_
 
 #include <memory>
 
 #include "xenia/base/socket.h"
 #include "xenia/base/threading.h"
-#include "xenia/debug/transport.h"
+#include "xenia/debug/debug_server.h"
 
 namespace xe {
 namespace debug {
-namespace transport {
+namespace server {
 namespace gdb {
 
-class GdbTransport : public Transport {
+class GdbCommandProcessor;
+
+class GdbServer : public DebugServer {
  public:
-  GdbTransport(Debugger* debugger);
-  ~GdbTransport() override;
+  GdbServer(Debugger* debugger);
+  ~GdbServer() override;
+
+  Socket* client() const { return client_.get(); }
 
   bool Initialize() override;
 
@@ -37,11 +41,13 @@ class GdbTransport : public Transport {
   std::unique_ptr<Socket> client_;
   std::unique_ptr<xe::threading::Thread> client_thread_;
   std::vector<uint8_t> receive_buffer_;
+
+  std::unique_ptr<GdbCommandProcessor> command_processor_;
 };
 
 }  // namespace gdb
-}  // namespace transport
+}  // namespace server
 }  // namespace debug
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_TRANSPORT_GDB_GDB_TRANSPORT_H_
+#endif  // XENIA_DEBUG_SERVER_GDB_GDB_SERVER_H_

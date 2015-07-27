@@ -19,6 +19,7 @@
 #include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
@@ -69,6 +70,10 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
 XThread::~XThread() {
   // Unregister first to prevent lookups while deleting.
   kernel_state_->UnregisterThread(this);
+
+  if (emulator()->debugger()) {
+    emulator()->debugger()->OnThreadDestroyed(this);
+  }
 
   delete apc_list_;
 
@@ -329,6 +334,10 @@ X_STATUS XThread::Create() {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
   }
 
+  if (emulator()->debugger()) {
+    emulator()->debugger()->OnThreadCreated(this);
+  }
+
   if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
     // Start the thread now that we're all setup.
     thread_->Resume();
@@ -344,16 +353,20 @@ X_STATUS XThread::Exit(int exit_code) {
   // TODO(benvanik); dispatch events? waiters? etc?
   RundownAPCs();
 
+  // Set exit code.
+  X_KTHREAD* thread = guest_object<X_KTHREAD>();
+  thread->header.signal_state = 1;
+  thread->exit_status = exit_code;
+
   kernel_state()->OnThreadExit(this);
+
+  if (emulator()->debugger()) {
+    emulator()->debugger()->OnThreadExit(this);
+  }
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_thread_tls = nullptr;
   xe::Profiler::ThreadExit();
-
-  // Set exit code
-  X_KTHREAD* thread = guest_object<X_KTHREAD>();
-  thread->header.signal_state = 1;
-  thread->exit_status = exit_code;
 
   running_ = false;
   Release();
@@ -367,10 +380,14 @@ X_STATUS XThread::Exit(int exit_code) {
 X_STATUS XThread::Terminate(int exit_code) {
   // TODO: Inform the profiler that this thread is exiting.
 
-  // Set exit code
+  // Set exit code.
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
   thread->header.signal_state = 1;
   thread->exit_status = exit_code;
+
+  if (emulator()->debugger()) {
+    emulator()->debugger()->OnThreadExit(this);
+  }
 
   running_ = false;
   Release();

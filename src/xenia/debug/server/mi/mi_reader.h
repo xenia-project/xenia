@@ -7,36 +7,25 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
-#define XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
+#ifndef XENIA_DEBUG_SERVER_MI_MI_READER_H_
+#define XENIA_DEBUG_SERVER_MI_MI_READER_H_
 
-#include <memory>
-#include <string>
+#include <cstdint>
 
-#include "xenia/debug/ui/view.h"
+#include "xenia/debug/server/mi/mi_protocol.h"
 
 namespace xe {
 namespace debug {
-namespace ui {
-namespace views {
-namespace gpu {
+namespace server {
+namespace mi {
 
-class GpuView : public View {
+class MIReader {
  public:
-  GpuView();
-  ~GpuView() override;
-
-  el::Element* BuildUI() override;
-
-  void Setup(xe::debug::client::xdp::XdpClient* client) override;
-
- protected:
 };
 
-}  // namespace gpu
-}  // namespace views
-}  // namespace ui
+}  // namespace mi
+}  // namespace server
 }  // namespace debug
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
+#endif  // XENIA_DEBUG_SERVER_MI_MI_READER_H_

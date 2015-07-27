@@ -7,36 +7,34 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
-#define XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
+#include "xenia/debug/ui/model/thread.h"
 
-#include <memory>
-#include <string>
-
-#include "xenia/debug/ui/view.h"
+#include "xenia/debug/ui/model/system.h"
 
 namespace xe {
 namespace debug {
 namespace ui {
-namespace views {
-namespace gpu {
+namespace model {
 
-class GpuView : public View {
- public:
-  GpuView();
-  ~GpuView() override;
+std::string Thread::to_string() {
+  std::string value = entry_.name;
+  if (is_host_thread()) {
+    value += " (host)";
+  }
+  return value;
+}
 
-  el::Element* BuildUI() override;
+void Thread::Update(const proto::ThreadListEntry* entry) {
+  if (!entry_.thread_handle) {
+    std::memcpy(&entry_, entry, sizeof(entry_));
+  } else {
+    std::memcpy(&temp_entry_, entry, sizeof(temp_entry_));
+    system_->loop()->Post(
+        [this]() { std::memcpy(&entry_, &temp_entry_, sizeof(temp_entry_)); });
+  }
+}
 
-  void Setup(xe::debug::client::xdp::XdpClient* client) override;
-
- protected:
-};
-
-}  // namespace gpu
-}  // namespace views
+}  // namespace model
 }  // namespace ui
 }  // namespace debug
 }  // namespace xe
-
-#endif  // XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_

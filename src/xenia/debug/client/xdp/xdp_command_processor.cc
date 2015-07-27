@@ -7,36 +7,28 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
-#define XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_
+#include "xenia/debug/client/xdp/xdp_command_processor.h"
 
-#include <memory>
-#include <string>
-
-#include "xenia/debug/ui/view.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/string_buffer.h"
+#include "xenia/debug/client/xdp/xdp_client.h"
 
 namespace xe {
 namespace debug {
-namespace ui {
-namespace views {
-namespace gpu {
+namespace client {
+namespace xdp {
 
-class GpuView : public View {
- public:
-  GpuView();
-  ~GpuView() override;
+using namespace xe::debug::proto;
 
-  el::Element* BuildUI() override;
+constexpr size_t kReceiveBufferSize = 1 * 1024 * 1024;
+constexpr size_t kTransmitBufferSize = 1 * 1024 * 1024;
 
-  void Setup(xe::debug::client::xdp::XdpClient* client) override;
+XdpCommandProcessor::XdpCommandProcessor(XdpClient* client)
+    : client_(client),
+      packet_reader_(kReceiveBufferSize),
+      packet_writer_(kTransmitBufferSize) {}
 
- protected:
-};
-
-}  // namespace gpu
-}  // namespace views
-}  // namespace ui
+}  // namespace xdp
+}  // namespace client
 }  // namespace debug
 }  // namespace xe
-
-#endif  // XENIA_DEBUG_UI_VIEWS_GPU_GPU_VIEW_H_

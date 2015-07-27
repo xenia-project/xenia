@@ -36,6 +36,51 @@ class Win32Socket : public Socket {
   Win32Socket() = default;
   ~Win32Socket() override { Close(); }
 
+  bool Connect(std::string hostname, uint16_t port) {
+    addrinfo hints = {0};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    // Resolve the server address and port.
+    // May return multiple results, so attempt to connect to an address until
+    // one succeeds.
+    addrinfo* result = nullptr;
+    auto port_string = std::to_string(port);
+    int ret =
+        getaddrinfo(hostname.c_str(), port_string.c_str(), &hints, &result);
+    if (ret != 0) {
+      XELOGE("getaddrinfo failed with error: %d", ret);
+      return false;
+    }
+    SOCKET try_socket = INVALID_SOCKET;
+    for (addrinfo* ptr = result; ptr; ptr = ptr->ai_next) {
+      // Create a SOCKET for connecting to server.
+      try_socket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+      if (try_socket == INVALID_SOCKET) {
+        XELOGE("socket failed with error: %ld", WSAGetLastError());
+        freeaddrinfo(result);
+        return false;
+      }
+      // Connect to server.
+      ret = connect(try_socket, ptr->ai_addr, (int)ptr->ai_addrlen);
+      if (ret == SOCKET_ERROR) {
+        closesocket(try_socket);
+        try_socket = INVALID_SOCKET;
+        continue;
+      }
+      break;
+    }
+    freeaddrinfo(result);
+    if (try_socket == INVALID_SOCKET) {
+      XELOGE("Unable to connect to server");
+      return false;
+    }
+
+    // Piggyback to setup the socket.
+    return Accept(try_socket);
+  }
+
   bool Accept(SOCKET socket) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
@@ -141,6 +186,16 @@ class Win32Socket : public Socket {
   SOCKET socket_ = INVALID_SOCKET;
   std::unique_ptr<xe::threading::Event> event_;
 };
+
+std::unique_ptr<Socket> Socket::Connect(std::string hostname, uint16_t port) {
+  InitializeWinsock();
+
+  auto socket = std::make_unique<Win32Socket>();
+  if (!socket->Connect(std::move(hostname), port)) {
+    return nullptr;
+  }
+  return std::unique_ptr<Socket>(socket.release());
+}
 
 class Win32SocketServer : public SocketServer {
  public:

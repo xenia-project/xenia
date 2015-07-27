@@ -29,12 +29,20 @@ DECLARE_bool(debug);
 
 namespace xe {
 class Emulator;
+namespace kernel {
+class XThread;
+}  // namespace kernel
 }  // namespace xe
 
 namespace xe {
 namespace debug {
 
-class Transport;
+class DebugServer;
+
+enum class ExecutionState {
+  kRunning,
+  kStopped,
+};
 
 class Debugger {
  public:
@@ -54,9 +62,7 @@ class Debugger {
   bool is_attached() const { return is_attached_; }
   void set_attached(bool attached);
 
-  bool SuspendAllThreads();
-  bool ResumeThread(uint32_t thread_id);
-  bool ResumeAllThreads();
+  ExecutionState execution_state() const { return execution_state_; }
 
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
@@ -66,19 +72,28 @@ class Debugger {
   // TODO(benvanik): utility functions for modification (make function ignored,
   // etc).
 
-  void OnThreadCreated(cpu::ThreadState* thread_state);
-  void OnThreadDestroyed(cpu::ThreadState* thread_state);
+  void Interrupt();
+  void Continue();
+  void StepOne(uint32_t thread_id);
+  void StepTo(uint32_t thread_id, uint32_t target_pc);
+
+  void OnThreadCreated(xe::kernel::XThread* thread);
+  void OnThreadExit(xe::kernel::XThread* thread);
+  void OnThreadDestroyed(xe::kernel::XThread* thread);
+
   void OnFunctionDefined(cpu::FunctionInfo* symbol_info,
                          cpu::Function* function);
 
-  void OnBreakpointHit(cpu::ThreadState* thread_state, Breakpoint* breakpoint);
+  void OnBreakpointHit(xe::kernel::XThread* thread, Breakpoint* breakpoint);
 
  private:
-  void OnMessage(std::vector<uint8_t> buffer);
+  bool SuspendAllThreads();
+  bool ResumeThread(uint32_t thread_id);
+  bool ResumeAllThreads();
 
   Emulator* emulator_ = nullptr;
 
-  std::vector<std::unique_ptr<Transport>> transports_;
+  std::unique_ptr<DebugServer> server_;
   bool is_attached_ = false;
   xe::threading::Fence attach_fence_;
 
@@ -87,7 +102,9 @@ class Debugger {
   std::wstring functions_trace_path_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_trace_file_;
 
-  std::mutex breakpoints_lock_;
+  std::recursive_mutex mutex_;
+  ExecutionState execution_state_ = ExecutionState::kStopped;
+
   std::multimap<uint32_t, Breakpoint*> breakpoints_;
 };
 

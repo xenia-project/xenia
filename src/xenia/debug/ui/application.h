@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include "xenia/debug/client/xdp/xdp_client.h"
+#include "xenia/debug/ui/model/system.h"
 #include "xenia/ui/loop.h"
 
 namespace xe {
@@ -29,6 +31,8 @@ class Application {
 
   xe::ui::Loop* loop() { return loop_.get(); }
   MainWindow* main_window() const { return main_window_.get(); }
+  client::xdp::XdpClient* client() { return &client_; }
+  model::System* system() const { return system_.get(); }
 
   void Quit();
 
@@ -39,6 +43,9 @@ class Application {
 
   std::unique_ptr<xe::ui::Loop> loop_;
   std::unique_ptr<MainWindow> main_window_;
+  client::xdp::XdpClient client_;
+
+  std::unique_ptr<model::System> system_;
 };
 
 }  // namespace ui

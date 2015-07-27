@@ -28,7 +28,8 @@ namespace xe {
 // wait handle should be waited on until new data arrives.
 class Socket {
  public:
-  // TODO(benvanik): client socket static Connect method.
+  // Synchronously connects to the given hostname:port.
+  static std::unique_ptr<Socket> Connect(std::string hostname, uint16_t port);
 
   virtual ~Socket() = default;
 
@@ -83,6 +84,12 @@ class Socket {
   bool Send(const std::vector<uint8_t>& buffer) {
     auto buffer_list = std::make_pair(buffer.data(), buffer.size());
     return Send(&buffer_list, 1);
+  }
+
+  // Asynchronously sends a string buffer.
+  // Returns false if the socket is disconnected or the data cannot be sent.
+  bool Send(const std::string& value) {
+    return Send(value.data(), value.size());
   }
 };
 

@@ -32,7 +32,12 @@ el::Element* GpuView::BuildUI() {
   root_element_.GetElementsById({
       //
   });
+  handler_ = std::make_unique<el::EventHandler>(&root_element_);
   return &root_element_;
+}
+
+void GpuView::Setup(xe::debug::client::xdp::XdpClient* client) {
+  //
 }
 
 }  // namespace gpu

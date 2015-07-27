@@ -20,7 +20,9 @@
 #include "xenia/cpu/backend/code_cache.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/debug/transport/gdb/gdb_transport.h"
+#include "xenia/debug/server/gdb/gdb_server.h"
+#include "xenia/debug/server/mi/mi_server.h"
+#include "xenia/debug/server/xdp/xdp_server.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/objects/xkernel_module.h"
 #include "xenia/kernel/objects/xmodule.h"
@@ -39,6 +41,8 @@ DEFINE_string(debug_session_path, "", "Debug output path.");
 DEFINE_bool(wait_for_debugger, false,
             "Waits for a debugger to attach before starting the game.");
 DEFINE_bool(exit_with_debugger, true, "Exit whe the debugger disconnects.");
+
+DEFINE_string(debug_server, "xdp", "Debug server protocol [gdb, mi, xdp].");
 
 namespace xe {
 namespace debug {
@@ -86,13 +90,24 @@ bool Debugger::StartSession() {
   functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
       functions_trace_path_, 32 * 1024 * 1024, true);
 
-  // Add default transports.
-  auto gdb_transport =
-      std::make_unique<xe::debug::transport::gdb::GdbTransport>(this);
-  if (gdb_transport->Initialize()) {
-    transports_.emplace_back(std::move(gdb_transport));
+  if (FLAGS_debug_server == "gdb") {
+    server_ = std::make_unique<xe::debug::server::gdb::GdbServer>(this);
+    if (!server_->Initialize()) {
+      XELOGE("Unable to initialize GDB debug server");
+      return false;
+    }
+  } else if (FLAGS_debug_server == "gdb") {
+    server_ = std::make_unique<xe::debug::server::mi::MIServer>(this);
+    if (!server_->Initialize()) {
+      XELOGE("Unable to initialize MI debug server");
+      return false;
+    }
   } else {
-    XELOGE("Unable to initialize GDB debugger transport");
+    server_ = std::make_unique<xe::debug::server::xdp::XdpServer>(this);
+    if (!server_->Initialize()) {
+      XELOGE("Unable to initialize XDP debug server");
+      return false;
+    }
   }
 
   return true;
@@ -103,17 +118,24 @@ void Debugger::PreLaunch() {
     // Wait for the first client.
     XELOGI("Waiting for debugger because of --wait_for_debugger...");
     attach_fence_.Wait();
-    XELOGI("Debugger attached, continuing...");
-  }
+    XELOGI("Debugger attached, breaking and waiting for continue...");
 
-  // TODO(benvanik): notify transports?
+    // Start paused.
+    execution_state_ = ExecutionState::kRunning;
+    Interrupt();
+  } else {
+    // Start running.
+    execution_state_ = ExecutionState::kRunning;
+  }
 }
 
 void Debugger::StopSession() {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+
   FlushSession();
 
-  // Kill all transports.
-  transports_.clear();
+  // Kill debug server.
+  server_.reset();
 
   functions_file_.reset();
   functions_trace_file_.reset();
@@ -140,6 +162,78 @@ uint8_t* Debugger::AllocateFunctionTraceData(size_t size) {
     return nullptr;
   }
   return functions_trace_file_->Allocate(size);
+}
+
+int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
+  // Add to breakpoints map.
+  {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    breakpoints_.insert(
+        std::pair<uint32_t, Breakpoint*>(breakpoint->address(), breakpoint));
+  }
+
+  // Find all functions that contain the breakpoint address.
+  auto fns =
+      emulator_->processor()->FindFunctionsWithAddress(breakpoint->address());
+
+  // Add.
+  for (auto fn : fns) {
+    if (fn->AddBreakpoint(breakpoint)) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
+  // Remove from breakpoint map.
+  {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    auto range = breakpoints_.equal_range(breakpoint->address());
+    if (range.first == range.second) {
+      return 1;
+    }
+    bool found = false;
+    for (auto it = range.first; it != range.second; ++it) {
+      if (it->second == breakpoint) {
+        breakpoints_.erase(it);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return 1;
+    }
+  }
+
+  // Find all functions that have the breakpoint set.
+  auto fns =
+      emulator_->processor()->FindFunctionsWithAddress(breakpoint->address());
+
+  // Remove.
+  for (auto fn : fns) {
+    fn->RemoveBreakpoint(breakpoint);
+  }
+
+  return 0;
+}
+
+void Debugger::FindBreakpoints(uint32_t address,
+                               std::vector<Breakpoint*>& out_breakpoints) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+  out_breakpoints.clear();
+
+  auto range = breakpoints_.equal_range(address);
+  if (range.first == range.second) {
+    return;
+  }
+
+  for (auto it = range.first; it != range.second; ++it) {
+    Breakpoint* breakpoint = it->second;
+    out_breakpoints.push_back(breakpoint);
+  }
 }
 
 bool Debugger::SuspendAllThreads() {
@@ -174,83 +268,43 @@ bool Debugger::ResumeAllThreads() {
   return true;
 }
 
-int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
-  // Add to breakpoints map.
-  {
-    std::lock_guard<std::mutex> guard(breakpoints_lock_);
-    breakpoints_.insert(
-        std::pair<uint32_t, Breakpoint*>(breakpoint->address(), breakpoint));
-  }
-
-  // Find all functions that contain the breakpoint address.
-  auto fns =
-      emulator_->processor()->FindFunctionsWithAddress(breakpoint->address());
-
-  // Add.
-  for (auto fn : fns) {
-    if (fn->AddBreakpoint(breakpoint)) {
-      return 1;
-    }
-  }
-
-  return 0;
+void Debugger::Interrupt() {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  assert_true(execution_state_ == ExecutionState::kRunning);
+  SuspendAllThreads();
+  execution_state_ = ExecutionState::kStopped;
+  server_->OnExecutionInterrupted();
 }
 
-int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
-  // Remove from breakpoint map.
-  {
-    std::lock_guard<std::mutex> guard(breakpoints_lock_);
-    auto range = breakpoints_.equal_range(breakpoint->address());
-    if (range.first == range.second) {
-      return 1;
-    }
-    bool found = false;
-    for (auto it = range.first; it != range.second; ++it) {
-      if (it->second == breakpoint) {
-        breakpoints_.erase(it);
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      return 1;
-    }
-  }
-
-  // Find all functions that have the breakpoint set.
-  auto fns =
-      emulator_->processor()->FindFunctionsWithAddress(breakpoint->address());
-
-  // Remove.
-  for (auto fn : fns) {
-    fn->RemoveBreakpoint(breakpoint);
-  }
-
-  return 0;
+void Debugger::Continue() {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  assert_true(execution_state_ == ExecutionState::kStopped);
+  ResumeAllThreads();
+  execution_state_ = ExecutionState::kRunning;
+  server_->OnExecutionContinued();
 }
 
-void Debugger::FindBreakpoints(uint32_t address,
-                               std::vector<Breakpoint*>& out_breakpoints) {
-  std::lock_guard<std::mutex> guard(breakpoints_lock_);
-
-  out_breakpoints.clear();
-
-  auto range = breakpoints_.equal_range(address);
-  if (range.first == range.second) {
-    return;
-  }
-
-  for (auto it = range.first; it != range.second; ++it) {
-    Breakpoint* breakpoint = it->second;
-    out_breakpoints.push_back(breakpoint);
-  }
+void Debugger::StepOne(uint32_t thread_id) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  assert_true(execution_state_ == ExecutionState::kStopped);
+  //
 }
 
-void Debugger::OnThreadCreated(ThreadState* thread_state) {
+void Debugger::StepTo(uint32_t thread_id, uint32_t target_pc) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  assert_true(execution_state_ == ExecutionState::kStopped);
+  //
+}
+
+void Debugger::OnThreadCreated(xe::kernel::XThread* thread) {
   // TODO(benvanik): notify transports.
 }
 
-void Debugger::OnThreadDestroyed(ThreadState* thread_state) {
+void Debugger::OnThreadExit(xe::kernel::XThread* thread) {
+  // TODO(benvanik): notify transports.
+}
+
+void Debugger::OnThreadDestroyed(xe::kernel::XThread* thread) {
   // TODO(benvanik): notify transports.
 }
 
@@ -259,7 +313,7 @@ void Debugger::OnFunctionDefined(cpu::FunctionInfo* symbol_info,
   // Man, I'd love not to take this lock.
   std::vector<Breakpoint*> breakpoints;
   {
-    std::lock_guard<std::mutex> guard(breakpoints_lock_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     for (uint32_t address = symbol_info->address();
          address <= symbol_info->end_address(); address += 4) {
       auto range = breakpoints_.equal_range(address);
@@ -281,7 +335,7 @@ void Debugger::OnFunctionDefined(cpu::FunctionInfo* symbol_info,
   }
 }
 
-void Debugger::OnBreakpointHit(ThreadState* thread_state,
+void Debugger::OnBreakpointHit(xe::kernel::XThread* thread,
                                Breakpoint* breakpoint) {
   // Suspend all threads immediately.
   SuspendAllThreads();

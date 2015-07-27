@@ -103,6 +103,14 @@ static_assert_size(X_KTHREAD, 0xAB0);
 
 class XThread : public XObject {
  public:
+  struct CreationParams {
+    uint32_t stack_size;
+    uint32_t xapi_thread_startup;
+    uint32_t start_address;
+    uint32_t start_context;
+    uint32_t creation_flags;
+  };
+
   XThread(KernelState* kernel_state, uint32_t stack_size,
           uint32_t xapi_thread_startup, uint32_t start_address,
           uint32_t start_context, uint32_t creation_flags, bool guest_thread);
@@ -114,10 +122,11 @@ class XThread : public XObject {
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId();
 
+  const CreationParams* creation_params() const { return &creation_params_; }
   uint32_t tls_ptr() const { return tls_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
-  bool guest_thread() const { return guest_thread_; }
-  bool running() const { return running_; }
+  bool is_guest_thread() const { return guest_thread_; }
+  bool is_running() const { return running_; }
 
   cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
@@ -163,13 +172,7 @@ class XThread : public XObject {
   void DeliverAPCs();
   void RundownAPCs();
 
-  struct {
-    uint32_t stack_size;
-    uint32_t xapi_thread_startup;
-    uint32_t start_address;
-    uint32_t start_context;
-    uint32_t creation_flags;
-  } creation_params_ = {0};
+  CreationParams creation_params_ = {0};
 
   uint32_t thread_id_ = 0;
   std::unique_ptr<xe::threading::Thread> thread_;
