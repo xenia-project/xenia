@@ -79,7 +79,9 @@ class MessageBoxWindow : public el::ModalWindow {
   }
 
   bool OnEvent(const el::Event& ev) override {
-    if (ev.target->IsOfType<el::Button>() && ev.type == el::EventType::kClick) {
+    if (ev.target->IsOfType<el::Button>() &&
+        (ev.type == el::EventType::kClick ||
+         ev.special_key == el::SpecialKey::kEnter)) {
       int data_value = ev.target->data.as_integer();
       if (data_value) {
         *out_chosen_button_ = data_value - 100;
@@ -165,6 +167,179 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
   kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
+
+class KeyboardInputWindow : public el::ModalWindow {
+ public:
+  KeyboardInputWindow(xe::threading::Fence* fence)
+      : ModalWindow([fence]() { fence->Signal(); }) {}
+  ~KeyboardInputWindow() override = default;
+
+  // TODO(benvanik): icon.
+  void Show(el::Element* root_element, std::wstring title,
+            std::wstring description, std::wstring default_text,
+            std::wstring* out_text, size_t max_length) {
+    title_ = std::move(title);
+    description_ = std::move(description);
+    default_text_ = std::move(default_text);
+    out_text_ = out_text;
+    max_length_ = max_length;
+
+    // Incase we're cancelled, set as the default text.
+    if (out_text) {
+      *out_text = default_text;
+    }
+
+    ModalWindow::Show(root_element);
+
+    EnsureFocus();
+  }
+
+ protected:
+  void BuildUI() override {
+    using namespace el::dsl;
+
+    set_text(xe::to_string(title_));
+
+    LoadNodeTree(
+        LayoutBoxNode()
+            .axis(Axis::kY)
+            .gravity(Gravity::kAll)
+            .position(LayoutPosition::kLeftTop)
+            .min_width(300)
+            .distribution(LayoutDistribution::kAvailable)
+            .distribution_position(LayoutDistributionPosition::kLeftTop)
+            .child(LabelNode(xe::to_string(description_).c_str()))
+            .child(LayoutBoxNode()
+                       .axis(Axis::kX)
+                       .distribution(LayoutDistribution::kGravity)
+                       .child(TextBoxNode()
+                                  .id("text_input")
+                                  .gravity(Gravity::kLeftRight)
+                                  .placeholder(xe::to_string(default_text_))
+                                  .min_width(150)
+                                  .autofocus(true)))
+            .child(LayoutBoxNode()
+                       .distribution_position(
+                           LayoutDistributionPosition::kRightBottom)
+                       .child(ButtonNode("OK").id("ok_button"))
+                       .child(ButtonNode("Cancel").id("cancel_button"))));
+  }
+
+  bool OnEvent(const el::Event& ev) override {
+    if (ev.special_key == el::SpecialKey::kEnter ||
+        (ev.target->id() == TBIDC("ok_button") &&
+         ev.type == el::EventType::kClick)) {
+      // Pressed enter or clicked OK
+      // Grab the text.
+      if (out_text_) {
+        *out_text_ =
+            xe::to_wstring(GetElementById<el::TextBox>("text_input")->text());
+      }
+
+      Die();
+      return true;
+    } else if (ev.target->id() == TBIDC("cancel_button") &&
+               ev.type == el::EventType::kClick) {
+      // Cancel.
+      Die();
+      return true;
+    }
+
+    return ModalWindow::OnEvent(ev);
+  }
+
+  std::wstring title_;
+  std::wstring description_;
+  std::wstring default_text_;
+  std::wstring* out_text_ = nullptr;
+  size_t max_length_ = 0;
+};
+
+// http://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
+dword_result_t XamShowKeyboardUI(dword_t r3, dword_t flags,
+                                 lpwstring_t default_text, lpwstring_t title,
+                                 lpwstring_t description, lpwstring_t buffer,
+                                 dword_t buffer_length,
+                                 pointer_t<XAM_OVERLAPPED> overlapped) {
+  // Unknown parameters. I've only seen zero.
+  assert_zero(r3);
+  assert_zero(flags);
+
+  if (!buffer) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (FLAGS_headless) {
+    // Redirect default_text back into the buffer.
+    std::memset(buffer, 0, buffer_length * 2);
+    if (default_text) {
+      xe::store_and_swap<std::wstring>(buffer, default_text.value());
+    }
+
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
+      return X_ERROR_IO_PENDING;
+    } else {
+      return X_ERROR_SUCCESS;
+    }
+  }
+
+  std::wstring out_text;
+
+  auto display_window = kernel_state()->emulator()->display_window();
+  xe::threading::Fence fence;
+  display_window->loop()->PostSynchronous([&]() {
+    auto root_element = display_window->root_element();
+    auto window = new KeyboardInputWindow(&fence);
+    window->Show(root_element, title ? title.value() : L"",
+                 description ? description.value() : L"",
+                 default_text ? default_text.value() : L"", &out_text,
+                 buffer_length);
+  });
+  fence.Wait();
+
+  // Zero the output buffer.
+  std::memset(buffer, 0, buffer_length * 2);
+
+  // Truncate the string.
+  out_text = out_text.substr(0, buffer_length - 1);
+  xe::store_and_swap<std::wstring>(buffer, out_text);
+
+  if (overlapped) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
+    return X_ERROR_IO_PENDING;
+  } else {
+    return X_ERROR_SUCCESS;
+  }
+}
+DECLARE_XAM_EXPORT(XamShowKeyboardUI, ExportTag::kImplemented);
+
+dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
+                                       dword_t content_flags,
+                                       qword_t total_requested,
+                                       lpdword_t device_id_ptr,
+                                       pointer_t<XAM_OVERLAPPED> overlapped) {
+  // NOTE: 0xF00D0000 magic from xam_content.cc
+  switch (content_type) {
+    case 1:  // save game
+      *device_id_ptr = 0xF00D0000 | 0x0001;
+      break;
+    case 2:  // marketplace
+      *device_id_ptr = 0xF00D0000 | 0x0002;
+      break;
+    case 3:  // title/publisher update?
+      *device_id_ptr = 0xF00D0000 | 0x0003;
+      break;
+  }
+
+  if (overlapped) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
+    return X_ERROR_IO_PENDING;
+  } else {
+    return X_ERROR_SUCCESS;
+  }
+}
+DECLARE_XAM_EXPORT(XamShowDeviceSelectorUI, ExportTag::kImplemented);
 
 class DirtyDiscWindow : public el::ModalWindow {
  public:
