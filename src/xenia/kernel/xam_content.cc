@@ -42,7 +42,7 @@ SHIM_CALL XamContentGetLicenseMask_shim(PPCContext* ppc_context,
   // Each bit in the mask represents a granted license. Available licenses
   // seems to vary from game to game, but most appear to use bit 0 to indicate
   // if the game is purchased or not.
-  SHIM_SET_MEM_32(mask_ptr, -1);
+  SHIM_SET_MEM_32(mask_ptr, 0);
 
   if (overlapped_ptr) {
     kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
