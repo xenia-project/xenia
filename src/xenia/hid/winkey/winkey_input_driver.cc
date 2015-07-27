@@ -102,6 +102,24 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
     }
   }
 
+  // Right stick
+  if (IS_KEY_DOWN(0x26)) {
+    // Up
+    thumb_ry += SHRT_MAX;
+  }
+  if (IS_KEY_DOWN(0x28)) {
+    // Down
+    thumb_ry += SHRT_MIN;
+  }
+  if (IS_KEY_DOWN(0x27)) {
+    // Right
+    thumb_rx += SHRT_MAX;
+  }
+  if (IS_KEY_DOWN(0x25)) {
+    // Left
+    thumb_rx += SHRT_MIN;
+  }
+
   if (IS_KEY_DOWN(0x4C)) {
     // L
     buttons |= 0x4000;  // XINPUT_GAMEPAD_X
@@ -161,6 +179,87 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   uint16_t unicode = 0;
   uint16_t keystroke_flags = 0;
   uint8_t hid_code = 0;
+
+  if (IS_KEY_TOGGLED(VK_CAPITAL)) {
+    // dpad toggled
+    if (IS_KEY_DOWN(0x41)) {
+      // A
+      virtual_key = 0x5812;  // VK_PAD_DPAD_LEFT
+    } else if (IS_KEY_DOWN(0x44)) {
+      // D
+      virtual_key = 0x5813;  // VK_PAD_DPAD_RIGHT
+    } else if (IS_KEY_DOWN(0x53)) {
+      // S
+      virtual_key = 0x5811;  // VK_PAD_DPAD_DOWN
+    } else if (IS_KEY_DOWN(0x57)) {
+      // W
+      virtual_key = 0x5810;  // VK_PAD_DPAD_UP
+    }
+  } else {
+    // left stick
+    if (IS_KEY_DOWN(0x57)) {
+      // W
+      virtual_key = 0x5820; // VK_PAD_LTHUMB_UP
+    }
+    if (IS_KEY_DOWN(0x53)) {
+      // S
+      virtual_key = 0x5821; // VK_PAD_LTHUMB_DOWN
+    }
+    if (IS_KEY_DOWN(0x44)) {
+      // D
+      virtual_key = 0x5822; // VK_PAD_LTHUMB_RIGHT
+    }
+    if (IS_KEY_DOWN(0x41)) {
+      // A
+      virtual_key = 0x5823; // VK_PAD_LTHUMB_LEFT
+    }
+  }
+
+  // Right stick
+  if (IS_KEY_DOWN(0x26)) {
+    // Up
+    virtual_key = 0x5830;
+  }
+  if (IS_KEY_DOWN(0x28)) {
+    // Down
+    virtual_key = 0x5831;
+  }
+  if (IS_KEY_DOWN(0x27)) {
+    // Right
+    virtual_key = 0x5832;
+  }
+  if (IS_KEY_DOWN(0x25)) {
+    // Left
+    virtual_key = 0x5833;
+  }
+
+  if (IS_KEY_DOWN(0x4C)) {
+    // L
+    virtual_key = 0x5802;  // VK_PAD_X
+  } else if (IS_KEY_DOWN(VK_OEM_7)) {
+    // '
+    virtual_key = 0x5801;  // VK_PAD_B
+  } else if (IS_KEY_DOWN(VK_OEM_1)) {
+    // ;
+    virtual_key = 0x5800;  // VK_PAD_A
+  } else if (IS_KEY_DOWN(0x50)) {
+    // P
+    virtual_key = 0x5803;  // VK_PAD_Y
+  }
+
+  if (IS_KEY_DOWN(0x58)) {
+    // X
+    virtual_key = 0x5814;  // VK_PAD_START
+  }
+  if (IS_KEY_DOWN(0x5A)) {
+    // Z
+    virtual_key = 0x5815;  // VK_PAD_BACK
+  }
+
+  if (virtual_key != 0) {
+    keystroke_flags |= 0x0001; // XINPUT_KEYSTROKE_DOWN
+    result = X_ERROR_SUCCESS;
+  }
 
   out_keystroke->virtual_key = virtual_key;
   out_keystroke->unicode = unicode;
