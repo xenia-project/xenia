@@ -171,7 +171,8 @@ class XmaContext {
                     int sample_rate, int channels);
   void DiscardPacket();
 
-  int DecodePacket(uint8_t* output, size_t offset, size_t size);
+  int DecodePacket(uint8_t* output, size_t offset, size_t size,
+                   size_t* read_bytes);
 
   Memory* memory_;
 
