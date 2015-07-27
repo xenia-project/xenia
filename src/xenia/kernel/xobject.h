@@ -63,7 +63,6 @@ struct X_OBJECT_HEADER {
     xe::be<uint32_t> handle_count;
     xe::be<uint32_t> next_to_free;
   };
-  xe::be<uint32_t> object_type_ptr;
   uint8_t name_info_offset;
   uint8_t handle_info_offset;
   uint8_t quota_info_offset;
@@ -72,7 +71,8 @@ struct X_OBJECT_HEADER {
     xe::be<uint32_t> object_create_info;  // X_OBJECT_CREATE_INFORMATION
     xe::be<uint32_t> quota_block_charged;
   };
-  xe::be<uint32_t> security_descriptor;
+  xe::be<uint32_t> object_type_ptr;  // -0x8 POBJECT_TYPE
+  xe::be<uint32_t> unk_04;           // -0x4
 
   // Object lives after this header.
   // (There's actually a body field here which is the object itself)
@@ -80,17 +80,27 @@ struct X_OBJECT_HEADER {
 
 // http://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
 struct X_OBJECT_CREATE_INFORMATION {
-  xe::be<uint32_t> attributes;
-  xe::be<uint32_t> root_directory_ptr;
-  xe::be<uint32_t> parse_context_ptr;
-  xe::be<uint32_t> probe_mode;
-  xe::be<uint32_t> paged_pool_charge;
-  xe::be<uint32_t> non_paged_pool_charge;
-  xe::be<uint32_t> security_descriptor_charge;
-  xe::be<uint32_t> security_descriptor;
-  xe::be<uint32_t> security_qos_ptr;
+  xe::be<uint32_t> attributes;                  // 0x0
+  xe::be<uint32_t> root_directory_ptr;          // 0x4
+  xe::be<uint32_t> parse_context_ptr;           // 0x8
+  xe::be<uint32_t> probe_mode;                  // 0xC
+  xe::be<uint32_t> paged_pool_charge;           // 0x10
+  xe::be<uint32_t> non_paged_pool_charge;       // 0x14
+  xe::be<uint32_t> security_descriptor_charge;  // 0x18
+  xe::be<uint32_t> security_descriptor;         // 0x1C
+  xe::be<uint32_t> security_qos_ptr;            // 0x20
 
   // Security QoS here (SECURITY_QUALITY_OF_SERVICE) too!
+};
+
+struct X_OBJECT_TYPE {
+  xe::be<uint32_t> constructor;  // 0x0
+  xe::be<uint32_t> destructor;   // 0x4
+  xe::be<uint32_t> unk_08;       // 0x8
+  xe::be<uint32_t> unk_0C;       // 0xC
+  xe::be<uint32_t> unk_10;       // 0x10
+  xe::be<uint32_t> unk_14;    // 0x14 probably offset from ntobject to keobject
+  xe::be<uint32_t> pool_tag;  // 0x18
 };
 
 class XObject {
