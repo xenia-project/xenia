@@ -324,11 +324,13 @@ X_STATUS XThread::Create() {
   }
   thread_->set_affinity_mask(proc_mask);
 
-  // Set the thread name based on host ID (for easier debugging)
-  char thread_name[32];
-  snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)",
-           handle(), thread_->id());
-  set_name(thread_name);
+  // Set the thread name based on host ID (for easier debugging).
+  if (name_.empty()) {
+    char thread_name[32];
+    snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)",
+             handle(), thread_->id());
+    set_name(thread_name);
+  }
 
   if (creation_params_.creation_flags & 0x60) {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
