@@ -165,35 +165,22 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  XObject* object = NULL;
-  {
-    std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
-
-    // Lower 2 bits are ignored.
-    uint32_t slot = handle >> 2;
-
-    // Verify slot.
-    if (slot > table_capacity_) {
-      result = X_STATUS_INVALID_HANDLE;
-    } else {
-      ObjectTableEntry& entry = table_[slot];
-      if (entry.object) {
-        // Release after we lose the lock.
-        object = entry.object;
-      } else {
-        result = X_STATUS_INVALID_HANDLE;
-      }
-      entry.object = nullptr;
-    }
+  ObjectTableEntry* entry = LookupTable(handle);
+  if (!entry) {
+    return X_STATUS_INVALID_HANDLE;
   }
 
-  if (object) {
-    // Release the object handle now that it is out of the table.
-    object->ReleaseHandle();
+  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  if (entry->object) {
+    auto object = entry->object;
+    entry->object = nullptr;
+    entry->handle_ref_count = 0;
+
+    // Release now that the object has been removed from the table.
     object->Release();
   }
 
-  return result;
+  return X_STATUS_SUCCESS;
 }
 
 ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
