@@ -199,19 +199,19 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
     // left stick
     if (IS_KEY_DOWN(0x57)) {
       // W
-      virtual_key = 0x5820; // VK_PAD_LTHUMB_UP
+      virtual_key = 0x5820;  // VK_PAD_LTHUMB_UP
     }
     if (IS_KEY_DOWN(0x53)) {
       // S
-      virtual_key = 0x5821; // VK_PAD_LTHUMB_DOWN
+      virtual_key = 0x5821;  // VK_PAD_LTHUMB_DOWN
     }
     if (IS_KEY_DOWN(0x44)) {
       // D
-      virtual_key = 0x5822; // VK_PAD_LTHUMB_RIGHT
+      virtual_key = 0x5822;  // VK_PAD_LTHUMB_RIGHT
     }
     if (IS_KEY_DOWN(0x41)) {
       // A
-      virtual_key = 0x5823; // VK_PAD_LTHUMB_LEFT
+      virtual_key = 0x5823;  // VK_PAD_LTHUMB_LEFT
     }
   }
 
@@ -257,7 +257,7 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   }
 
   if (virtual_key != 0) {
-    keystroke_flags |= 0x0001; // XINPUT_KEYSTROKE_DOWN
+    keystroke_flags |= 0x0001;  // XINPUT_KEYSTROKE_DOWN
     result = X_ERROR_SUCCESS;
   }
 

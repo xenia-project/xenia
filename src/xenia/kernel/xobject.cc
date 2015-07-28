@@ -241,8 +241,7 @@ uint8_t* XObject::CreateNative(uint32_t size) {
 
   auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(mem);
 
-  auto object_type =
-      memory()->SystemHeapAlloc(sizeof(X_OBJECT_TYPE));
+  auto object_type = memory()->SystemHeapAlloc(sizeof(X_OBJECT_TYPE));
   if (object_type) {
     // Set it up in the header.
     // Some kernel method is accessing this struct and dereferencing a member
