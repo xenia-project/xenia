@@ -40,8 +40,8 @@ XObject::~XObject() {
     auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(ptr);
 
     // Free the object creation info
-    if (header->object_create_info) {
-      memory()->SystemHeapFree(header->object_create_info);
+    if (header->object_type_ptr) {
+      memory()->SystemHeapFree(header->object_type_ptr);
     }
 
     memory()->SystemHeapFree(ptr);
@@ -241,15 +241,13 @@ uint8_t* XObject::CreateNative(uint32_t size) {
 
   auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(mem);
 
-  auto creation_info =
-      memory()->SystemHeapAlloc(sizeof(X_OBJECT_CREATE_INFORMATION));
-  if (creation_info) {
-    memory()->Zero(creation_info, sizeof(X_OBJECT_CREATE_INFORMATION));
-
+  auto object_type =
+      memory()->SystemHeapAlloc(sizeof(X_OBJECT_TYPE));
+  if (object_type) {
     // Set it up in the header.
-    // Some kernel method is accessing this struct and dereferencing a member.
-    // With our current definition that member is non_paged_pool_charge.
-    header->object_create_info = creation_info;
+    // Some kernel method is accessing this struct and dereferencing a member
+    // @ offset 0x14
+    header->object_type_ptr = object_type;
   }
 
   return memory()->TranslateVirtual(guest_object_ptr_);

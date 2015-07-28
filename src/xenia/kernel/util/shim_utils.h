@@ -231,7 +231,7 @@ class StringPointerParam : public ParamBase<uint32_t> {
   uintptr_t host_address() const {
     return reinterpret_cast<uintptr_t>(host_ptr_);
   }
-  STR value() const { return STR(host_ptr_); }
+  STR value() const { return xe::load_and_swap<STR>(host_ptr_); }
   operator CHAR*() const { return host_ptr_; }
   operator bool() const { return host_ptr_ != nullptr; }
 

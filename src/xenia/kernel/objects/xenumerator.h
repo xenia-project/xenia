@@ -29,10 +29,14 @@ class XEnumerator : public XObject {
 
   virtual uint32_t item_count() const = 0;
   virtual void WriteItems(uint8_t* buffer) = 0;
+  virtual bool WriteItem(uint8_t* buffer) = 0;
+
+  size_t current_item() const { return current_item_; }
 
  protected:
-  size_t item_capacity_;
-  size_t item_size_;
+  size_t item_capacity_ = 0;
+  size_t item_size_ = 0;
+  size_t current_item_ = 0;
 };
 
 class XStaticEnumerator : public XEnumerator {
@@ -56,6 +60,18 @@ class XStaticEnumerator : public XEnumerator {
 
   void WriteItems(uint8_t* buffer) override {
     std::memcpy(buffer, buffer_.data(), item_count_ * item_size_);
+  }
+
+  bool WriteItem(uint8_t* buffer) {
+    if (current_item_ >= item_count_) {
+      return false;
+    }
+
+    std::memcpy(buffer, buffer_.data() + current_item_ * item_size_,
+                item_size_);
+    current_item_++;
+
+    return true;
   }
 
  private:

@@ -191,6 +191,17 @@ enum X_FILE_INFORMATION_CLASS {
   XFileMaximumInformation
 };
 
+// Known as XOVERLAPPED to 360 code.
+struct XAM_OVERLAPPED {
+  xe::be<uint32_t> result;              // 0x0
+  xe::be<uint32_t> length;              // 0x4
+  xe::be<uint32_t> context;             // 0x8
+  xe::be<uint32_t> event;               // 0xC
+  xe::be<uint32_t> completion_routine;  // 0x10
+  xe::be<uint32_t> completion_context;  // 0x14
+  xe::be<uint32_t> extended_error;      // 0x18
+};
+
 inline uint32_t XOverlappedGetResult(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
   return xe::load_and_swap<uint32_t>(&p[0]);

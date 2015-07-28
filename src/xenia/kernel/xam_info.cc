@@ -198,51 +198,44 @@ SHIM_CALL XamFree_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XamEnumerate_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
-  uint32_t zero = SHIM_GET_ARG_32(1);
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
-  uint32_t buffer_length = SHIM_GET_ARG_32(3);
-  uint32_t item_count_ptr = SHIM_GET_ARG_32(4);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(5);
+// https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
+dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
+                            dword_t buffer_length, lpdword_t items_returned,
+                            pointer_t<XAM_OVERLAPPED> overlapped) {
+  assert_true(flags == 0);
 
-  assert_true(zero == 0);
-
-  XELOGD("XamEnumerate(%.8X, %d, %.8X, %d, %.8X, %.8X)", handle, zero,
-         buffer_ptr, buffer_length, item_count_ptr, overlapped_ptr);
-
-  auto e = kernel_state->object_table()->LookupObject<XEnumerator>(handle);
+  auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
   if (!e) {
-    if (overlapped_ptr) {
-      kernel_state->CompleteOverlappedImmediateEx(
-          overlapped_ptr, X_ERROR_INVALID_HANDLE, X_ERROR_INVALID_HANDLE, 0);
-      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediateEx(
+          overlapped, X_ERROR_INVALID_HANDLE, X_ERROR_INVALID_HANDLE, 0);
+      return X_ERROR_IO_PENDING;
     } else {
-      SHIM_SET_RETURN_32(X_ERROR_INVALID_HANDLE);
+      return X_ERROR_INVALID_HANDLE;
     }
-    return;
   }
 
-  auto item_count = e->item_count();
-  e->WriteItems(SHIM_MEM_ADDR(buffer_ptr));
+  buffer.Zero(buffer_length);
+  X_RESULT result =
+      e->WriteItem(buffer) ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
+  if (items_returned) {
+    assert_true(!overlapped);
+    *items_returned = result == X_ERROR_SUCCESS ? 1 : 0;
 
-  X_RESULT result = item_count ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
-  if (item_count_ptr) {
-    assert_zero(overlapped_ptr);
-    SHIM_SET_MEM_32(item_count_ptr, item_count);
-  } else if (overlapped_ptr) {
-    assert_zero(item_count_ptr);
-    kernel_state->CompleteOverlappedImmediateEx(overlapped_ptr, result, result,
-                                                item_count);
-    result = X_ERROR_IO_PENDING;
+    return result;
+  } else if (overlapped) {
+    assert_true(!items_returned);
+    kernel_state()->CompleteOverlappedImmediateEx(
+        overlapped, result, result,
+        result == X_ERROR_SUCCESS ? e->item_count() : 0);
+
+    return X_ERROR_IO_PENDING;
   } else {
     assert_always();
-    result = X_ERROR_INVALID_PARAMETER;
+    return X_ERROR_INVALID_PARAMETER;
   }
-
-  SHIM_SET_RETURN_32(result);
 }
+DECLARE_XAM_EXPORT(XamEnumerate, ExportTag::kImplemented);
 
 }  // namespace kernel
 }  // namespace xe
@@ -258,6 +251,4 @@ void xe::kernel::xam::RegisterInfoExports(
 
   SHIM_SET_MAPPING("xam.xex", XamAlloc, state);
   SHIM_SET_MAPPING("xam.xex", XamFree, state);
-
-  SHIM_SET_MAPPING("xam.xex", XamEnumerate, state);
 }

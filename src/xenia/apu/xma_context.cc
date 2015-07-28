@@ -246,35 +246,41 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
     // This'll copy audio samples into the output buffer.
     // The samples need to be 2 bytes long!
     // Copies one frame at a time, so keep calling this until size == 0
-    int read_bytes = 0;
+    int written_bytes = 0;
     int decode_attempts_remaining = 3;
 
     uint8_t work_buffer[kOutputMaxSizeBytes];
     while (decode_attempts_remaining) {
-      read_bytes = DecodePacket(work_buffer, 0, output_remaining_bytes);
-      if (read_bytes >= 0) {
-        // assert_true((read_bytes % 256) == 0);
-        auto written_bytes = output_rb.Write(work_buffer, read_bytes);
-        assert_true(read_bytes == written_bytes);
+      size_t read_bytes = 0;
+      written_bytes =
+          DecodePacket(work_buffer, 0, output_remaining_bytes, &read_bytes);
+      if (written_bytes >= 0) {
+        // assert_true((written_bytes % 256) == 0);
+        auto written_bytes_rb = output_rb.Write(work_buffer, written_bytes);
+        assert_true(written_bytes == written_bytes_rb);
 
         // Ok.
         break;
-      } else {
+      } else if (read_bytes % 2048 == 0) {
         // Sometimes the decoder will fail on a packet. I think it's
         // looking for cross-packet frames and failing. If you run it again
         // on the same packet it'll work though.
         --decode_attempts_remaining;
+      } else {
+        // Failed in the middle of a packet, do not retry!
+        decode_attempts_remaining = 0;
+        break;
       }
     }
 
     if (!decode_attempts_remaining) {
       XELOGAPU("XmaContext: libav failed to decode packet (returned %.8X)",
-               -read_bytes);
+               -written_bytes);
 
       // Failed out.
       if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
         // There's new data available - maybe we'll be ok if we decode it?
-        read_bytes = 0;
+        written_bytes = 0;
         DiscardPacket();
       } else {
         // No data and hosed - bail.
@@ -283,10 +289,10 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA& data) {
     }
 
     data.output_buffer_write_offset = output_rb.write_offset() / 256;
-    output_remaining_bytes -= read_bytes;
+    output_remaining_bytes -= written_bytes;
 
     // If we need more data and the input buffers have it, grab it.
-    if (read_bytes) {
+    if (written_bytes) {
       // Haven't finished with current packet.
       continue;
     } else if (data.input_buffer_0_valid || data.input_buffer_1_valid) {
@@ -417,9 +423,12 @@ void XmaContext::DiscardPacket() {
 }
 
 int XmaContext::DecodePacket(uint8_t* output, size_t output_offset,
-                             size_t output_size) {
+                             size_t output_size, size_t* read_bytes) {
   size_t to_copy = 0;
   size_t original_offset = output_offset;
+  if (read_bytes) {
+    *read_bytes = 0;
+  }
 
   // We're holding onto an already-decoded frame. Copy it out.
   if (current_frame_pos_ != frame_samples_size_) {
@@ -441,6 +450,10 @@ int XmaContext::DecodePacket(uint8_t* output, size_t output_offset,
     if (len < 0) {
       // Error in codec (bad sample rate or something)
       return len;
+    }
+
+    if (read_bytes) {
+      *read_bytes += len;
     }
 
     // Offset by decoded length
