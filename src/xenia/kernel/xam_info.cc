@@ -218,6 +218,9 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   buffer.Zero(buffer_length);
   X_RESULT result =
       e->WriteItem(buffer) ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
+
+  // Return X_ERROR_NO_MORE_FILES in HRESULT form.
+  X_HRESULT extended_result = result != 0 ? 0x80070012 : 0;
   if (items_returned) {
     assert_true(!overlapped);
     *items_returned = result == X_ERROR_SUCCESS ? 1 : 0;
@@ -226,7 +229,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   } else if (overlapped) {
     assert_true(!items_returned);
     kernel_state()->CompleteOverlappedImmediateEx(
-        overlapped, result, result,
+        overlapped, result, extended_result,
         result == X_ERROR_SUCCESS ? e->item_count() : 0);
 
     return X_ERROR_IO_PENDING;
