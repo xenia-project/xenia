@@ -4151,9 +4151,7 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
         e.div(e.cx);
       } else {
         e.mov(e.ax, i.src1);
-        // Set dx to sign bit of src1 (dx:ax = dx:ax / src).
-        e.mov(e.dx, e.ax);
-        e.sar(e.dx, 15);
+        e.cwd();  // dx:ax = sign-extend ax
         e.idiv(e.cx);
       }
     } else {
@@ -4176,9 +4174,7 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
         } else {
           e.mov(e.ax, i.src1);
         }
-        // Set dx to sign bit of src1 (dx:ax = dx:ax / src).
-        e.mov(e.dx, e.ax);
-        e.sar(e.dx, 15);
+        e.cwd();  // dx:ax = sign-extend ax
         e.idiv(i.src2);
       }
     }
@@ -4210,9 +4206,7 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
         e.div(e.ecx);
       } else {
         e.mov(e.eax, i.src1);
-        // Set dx to sign bit of src1 (dx:ax = dx:ax / src).
-        e.mov(e.edx, e.eax);
-        e.sar(e.edx, 31);
+        e.cdq();  // edx:eax = sign-extend eax
         e.idiv(e.ecx);
       }
     } else {
@@ -4235,9 +4229,7 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
         } else {
           e.mov(e.eax, i.src1);
         }
-        // Set dx to sign bit of src1 (dx:ax = dx:ax / src).
-        e.mov(e.edx, e.eax);
-        e.sar(e.edx, 31);
+        e.cdq();  // edx:eax = sign-extend eax
         e.idiv(i.src2);
       }
     }
@@ -4269,9 +4261,7 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
         e.div(e.rcx);
       } else {
         e.mov(e.rax, i.src1);
-        // Set dx to sign bit of src1 (dx:ax = dx:ax / src).
-        e.mov(e.rdx, e.rax);
-        e.sar(e.rdx, 63);
+        e.cqo();  // rdx:rax = sign-extend rax
         e.idiv(e.rcx);
       }
     } else {
@@ -4294,9 +4284,7 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
         } else {
           e.mov(e.rax, i.src1);
         }
-        // Set dx to sign bit of src1 (dx:ax = dx:ax / src).
-        e.mov(e.rdx, e.rax);
-        e.sar(e.rdx, 63);
+        e.cqo();  // rdx:rax = sign-extend rax
         e.idiv(i.src2);
       }
     }
