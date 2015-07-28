@@ -64,9 +64,13 @@ project("xenia-app")
     })
 
   filter("platforms:Windows")
-    debugdir(project_root)
-    debugargs({
-      "--flagfile=scratch/flags.txt",
-      "2>&1",
-      "1>scratch/stdout.txt",
-    })
+    -- Only create the .user file if it doesn't already exist.
+    local user_file = project_root.."/build/xenia-app.vcxproj.user"
+    if not os.isfile(user_file) then
+      debugdir(project_root)
+      debugargs({
+        "--flagfile=scratch/flags.txt",
+        "2>&1",
+        "1>scratch/stdout.txt",
+      })
+    end
