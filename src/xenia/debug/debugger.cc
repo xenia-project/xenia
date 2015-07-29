@@ -20,6 +20,7 @@
 #include "xenia/cpu/backend/code_cache.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/cpu/stack_walker.h"
 #include "xenia/debug/server/gdb/gdb_server.h"
 #include "xenia/debug/server/mi/mi_server.h"
 #include "xenia/debug/server/xdp/xdp_server.h"
@@ -28,8 +29,6 @@
 #include "xenia/kernel/objects/xmodule.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
-
-#include "xenia/cpu/stack_walker.h"
 
 #if 0 && DEBUG
 #define DEFAULT_DEBUG_FLAG true
