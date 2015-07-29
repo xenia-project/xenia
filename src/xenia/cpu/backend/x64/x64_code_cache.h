@@ -46,16 +46,30 @@ class X64CodeCache : public CodeCache {
 
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high);
 
-  void* PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
-                  size_t stack_size);
-
+  void* PlaceHostCode(uint32_t guest_address, void* machine_code,
+                      size_t code_size, size_t stack_size);
+  void* PlaceGuestCode(uint32_t guest_address, void* machine_code,
+                       size_t code_size, size_t stack_size,
+                       FunctionInfo* function_info);
   uint32_t PlaceData(const void* data, size_t length);
 
+  FunctionInfo* LookupFunction(uint64_t host_pc) override;
+
  protected:
+  // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
+  // only map enough for lookups within that range.
   const static uint64_t kIndirectionTableBase = 0x80000000;
   const static uint64_t kIndirectionTableSize = 0x1FFFFFFF;
+  // The code range is 512MB, but we know the total code games will have is
+  // pretty small (dozens of mb at most) and our expansion is reasonablish
+  // so 256MB should be more than enough.
   const static uint64_t kGeneratedCodeBase = 0xA0000000;
   const static uint64_t kGeneratedCodeSize = 0x0FFFFFFF;
+
+  // This is picked to be high enough to cover whatever we can reasonably
+  // expect. If we hit issues with this it probably means some corner case
+  // in analysis triggering.
+  const static size_t kMaximumFunctionCount = 30000;
 
   struct UnwindReservation {
     size_t data_size = 0;
@@ -94,6 +108,10 @@ class X64CodeCache : public CodeCache {
   size_t generated_code_offset_ = 0;
   // Current high water mark of COMMITTED code.
   std::atomic<size_t> generated_code_commit_mark_ = {0};
+  // Sorted map by host PC base offsets to source function info.
+  // This can be used to bsearch on host PC to find the guest function.
+  // The key is [start address | end address].
+  std::vector<std::pair<uint64_t, FunctionInfo*>> generated_code_map_;
 };
 
 }  // namespace x64

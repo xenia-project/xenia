@@ -39,6 +39,8 @@ class Win32X64CodeCache : public X64CodeCache {
 
   bool Initialize() override;
 
+  void* LookupUnwindInfo(uint64_t host_pc) override;
+
  private:
   UnwindReservation RequestUnwindReservation(uint8_t* entry_address) override;
   void PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
@@ -48,7 +50,6 @@ class Win32X64CodeCache : public X64CodeCache {
   void InitializeUnwindEntry(uint8_t* unwind_entry_address,
                              size_t unwind_table_slot, void* code_address,
                              size_t code_size, size_t stack_size);
-  void* LookupUnwindEntry(uintptr_t host_address);
 
   // Growable function table system handle.
   void* unwind_table_handle_ = nullptr;
@@ -84,7 +85,7 @@ bool Win32X64CodeCache::Initialize() {
 
   // Compute total number of unwind entries we should allocate.
   // We don't support reallocing right now, so this should be high.
-  unwind_table_.resize(30000);
+  unwind_table_.resize(kMaximumFunctionCount);
 
 #ifdef USE_GROWABLE_FUNCTION_TABLE
   // Create table and register with the system. It's empty now, but we'll grow
@@ -268,9 +269,9 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
   fn_entry.UnwindData = (DWORD)(unwind_entry_address - generated_code_base_);
 }
 
-void* Win32X64CodeCache::LookupUnwindEntry(uintptr_t host_address) {
-  void* fn_entry = std::bsearch(
-      &host_address, unwind_table_.data(), unwind_table_count_ + 1,
+void* Win32X64CodeCache::LookupUnwindInfo(uint64_t host_pc) {
+  return std::bsearch(
+      &host_pc, unwind_table_.data(), unwind_table_count_ + 1,
       sizeof(RUNTIME_FUNCTION),
       [](const void* key_ptr, const void* element_ptr) {
         auto key =
@@ -284,7 +285,6 @@ void* Win32X64CodeCache::LookupUnwindEntry(uintptr_t host_address) {
           return 0;
         }
       });
-  return reinterpret_cast<RUNTIME_FUNCTION*>(fn_entry);
 }
 
 }  // namespace x64

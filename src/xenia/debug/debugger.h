@@ -64,6 +64,8 @@ class Debugger {
 
   ExecutionState execution_state() const { return execution_state_; }
 
+  void DumpThreadStacks();
+
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
   void FindBreakpoints(uint32_t address,

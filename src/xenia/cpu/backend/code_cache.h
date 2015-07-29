@@ -12,6 +12,8 @@
 
 #include <string>
 
+#include "xenia/cpu/symbol_info.h"
+
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -24,6 +26,13 @@ class CodeCache {
   virtual std::wstring file_name() const = 0;
   virtual uint32_t base_address() const = 0;
   virtual uint32_t total_size() const = 0;
+
+  // Finds a function based on the given host PC (that may be within a
+  // function).
+  virtual FunctionInfo* LookupFunction(uint64_t host_pc) = 0;
+
+  // Finds platform-specific function unwind info for the given host PC.
+  virtual void* LookupUnwindInfo(uint64_t host_pc) = 0;
 };
 
 }  // namespace backend

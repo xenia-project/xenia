@@ -10,6 +10,7 @@
 #ifndef XENIA_CPU_PROCESSOR_H_
 #define XENIA_CPU_PROCESSOR_H_
 
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -32,6 +33,7 @@ class Debugger;
 namespace xe {
 namespace cpu {
 
+class StackWalker;
 class ThreadState;
 class XexModule;
 
@@ -50,6 +52,7 @@ class Processor {
 
   Memory* memory() const { return memory_; }
   debug::Debugger* debugger() const { return debugger_; }
+  StackWalker* stack_walker() const { return stack_walker_.get(); }
   frontend::PPCFrontend* frontend() const { return frontend_.get(); }
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
@@ -90,6 +93,7 @@ class Processor {
 
   Memory* memory_ = nullptr;
   debug::Debugger* debugger_ = nullptr;
+  std::unique_ptr<StackWalker> stack_walker_;
 
   uint32_t debug_info_flags_ = 0;
 

@@ -78,6 +78,9 @@ bool X64CodeCache::Initialize() {
     return false;
   }
 
+  // Preallocate the function map to a large, reasonable size.
+  generated_code_map_.reserve(kMaximumFunctionCount);
+
   return true;
 }
 
@@ -107,8 +110,17 @@ void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
   }
 }
 
-void* X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
-                              size_t code_size, size_t stack_size) {
+void* X64CodeCache::PlaceHostCode(uint32_t guest_address, void* machine_code,
+                                  size_t code_size, size_t stack_size) {
+  // Same for now. We may use different pools or whatnot later on, like when
+  // we only want to place guest code in a serialized cache on disk.
+  return PlaceGuestCode(guest_address, machine_code, code_size, stack_size,
+                        nullptr);
+}
+
+void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
+                                   size_t code_size, size_t stack_size,
+                                   FunctionInfo* function_info) {
   // Hold a lock while we bump the pointers up. This is important as the
   // unwind table requires entries AND code to be sorted in order.
   size_t low_mark;
@@ -133,6 +145,13 @@ void* X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
     generated_code_offset_ += unwind_reservation.data_size;
 
     high_mark = generated_code_offset_;
+
+    // Store in map. It is maintained in sorted order of host PC dependent on
+    // us also being append-only.
+    generated_code_map_.emplace_back(
+        (uint64_t(code_address - generated_code_base_) << 32) |
+            generated_code_offset_,
+        function_info);
   }
 
   // If we are going above the high water mark of committed memory, commit some
@@ -199,6 +218,32 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
   std::memcpy(data_address, data, length);
 
   return uint32_t(uintptr_t(data_address));
+}
+
+FunctionInfo* X64CodeCache::LookupFunction(uint64_t host_pc) {
+  uint32_t key = uint32_t(host_pc - kGeneratedCodeBase);
+  void* fn_entry = std::bsearch(
+      &key, generated_code_map_.data(), generated_code_map_.size() + 1,
+      sizeof(std::pair<uint32_t, FunctionInfo*>),
+      [](const void* key_ptr, const void* element_ptr) {
+        auto key = *reinterpret_cast<const uint32_t*>(key_ptr);
+        auto element =
+            reinterpret_cast<const std::pair<uint64_t, FunctionInfo*>*>(
+                element_ptr);
+        if (key < (element->first >> 32)) {
+          return -1;
+        } else if (key > uint32_t(element->first)) {
+          return 1;
+        } else {
+          return 0;
+        }
+      });
+  if (fn_entry) {
+    return reinterpret_cast<const std::pair<uint64_t, FunctionInfo*>*>(fn_entry)
+        ->second;
+  } else {
+    return nullptr;
+  }
 }
 
 }  // namespace x64

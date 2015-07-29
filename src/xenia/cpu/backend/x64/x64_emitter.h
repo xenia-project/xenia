@@ -14,6 +14,7 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
+#include "xenia/cpu/symbol_info.h"
 #include "xenia/debug/function_trace_data.h"
 #include "xenia/memory.h"
 
@@ -114,7 +115,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Processor* processor() const { return processor_; }
   X64Backend* backend() const { return backend_; }
 
-  bool Emit(uint32_t guest_address, hir::HIRBuilder* builder,
+  bool Emit(FunctionInfo* function_info, hir::HIRBuilder* builder,
             uint32_t debug_info_flags, DebugInfo* debug_info,
             void*& out_code_address, size_t& out_code_size);
 
@@ -192,7 +193,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
 
  protected:
-  void* Emplace(uint32_t guest_address, size_t stack_size);
+  void* Emplace(size_t stack_size, FunctionInfo* function_info = nullptr);
   bool Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();

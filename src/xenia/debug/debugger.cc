@@ -29,6 +29,8 @@
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/kernel/objects/xuser_module.h"
 
+#include "xenia/cpu/stack_walker.h"
+
 #if 0 && DEBUG
 #define DEFAULT_DEBUG_FLAG true
 #else
@@ -164,6 +166,35 @@ uint8_t* Debugger::AllocateFunctionTraceData(size_t size) {
   return functions_trace_file_->Allocate(size);
 }
 
+void Debugger::DumpThreadStacks() {
+  auto stack_walker = emulator()->processor()->stack_walker();
+  auto threads =
+      emulator_->kernel_state()->object_table()->GetObjectsByType<XThread>(
+          XObject::kTypeThread);
+  for (auto& thread : threads) {
+    XELOGI("Thread %s (%s)", thread->name().c_str(),
+           thread->is_guest_thread() ? "guest" : "host");
+    uint64_t frame_host_pcs[64];
+    uint64_t hash;
+    size_t count = stack_walker->CaptureStackTrace(
+        thread->GetWaitHandle()->native_handle(), frame_host_pcs, 0, 64, &hash);
+    cpu::StackFrame frames[64];
+    stack_walker->ResolveStack(frame_host_pcs, frames, count);
+    for (size_t i = 0; i < count; ++i) {
+      auto& frame = frames[i];
+      if (frame.type == cpu::StackFrame::Type::kHost) {
+        XELOGI("  %.2lld %.16llX          %s", count - i - 1, frame.host_pc,
+               frame.host_symbol.name);
+      } else {
+        auto function_info = frame.guest_symbol.function_info;
+        XELOGI("  %.2lld %.16llX %.8X %s", count - i - 1, frame.host_pc,
+               frame.guest_pc,
+               function_info ? function_info->name().c_str() : "?");
+      }
+    }
+  }
+}
+
 int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
   // Add to breakpoints map.
   {
@@ -274,6 +305,10 @@ void Debugger::Interrupt() {
   SuspendAllThreads();
   execution_state_ = ExecutionState::kStopped;
   server_->OnExecutionInterrupted();
+
+  // TEST CODE.
+  // TODO(benvanik): remove when UI shows threads.
+  DumpThreadStacks();
 }
 
 void Debugger::Continue() {

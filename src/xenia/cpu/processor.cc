@@ -20,6 +20,7 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/module.h"
+#include "xenia/cpu/stack_walker.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/debug/debugger.h"
@@ -105,6 +106,13 @@ bool Processor::Setup() {
 
   backend_ = std::move(backend);
   frontend_ = std::move(frontend);
+
+  // Stack walker is used when profiling, debugging, and dumping.
+  stack_walker_ = StackWalker::Create(backend_->code_cache());
+  if (!stack_walker_) {
+    XELOGE("Unable to create stack walker");
+    return false;
+  }
 
   return true;
 }
