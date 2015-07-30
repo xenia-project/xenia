@@ -10,7 +10,9 @@
 #ifndef XENIA_DEBUG_SERVER_XDP_XDP_SERVER_H_
 #define XENIA_DEBUG_SERVER_XDP_XDP_SERVER_H_
 
+#include <list>
 #include <memory>
+#include <mutex>
 
 #include "xenia/base/socket.h"
 #include "xenia/base/threading.h"
@@ -33,6 +35,8 @@ class XdpServer : public DebugServer {
 
   bool Initialize() override;
 
+  void PostSynchronous(std::function<void()> fn) override;
+
   void OnExecutionContinued() override;
   void OnExecutionInterrupted() override;
 
@@ -54,6 +58,11 @@ class XdpServer : public DebugServer {
 
   std::unique_ptr<Socket> client_;
   std::unique_ptr<xe::threading::Thread> client_thread_;
+
+  std::mutex post_mutex_;
+  std::unique_ptr<xe::threading::Event> post_event_;
+  std::list<std::function<void()>> post_queue_;
+
   std::vector<uint8_t> receive_buffer_;
   proto::PacketReader packet_reader_;
   proto::PacketWriter packet_writer_;

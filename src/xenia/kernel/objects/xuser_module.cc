@@ -218,14 +218,26 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
   XELOGI("Launching module...");
 
   // Create a thread to run in.
-  auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0, 0, true));
+  // We start suspended so we can run the debugger prep.
+  auto thread = object_ref<XThread>(new XThread(kernel_state(), stack_size_, 0,
+                                                entry_point_, 0,
+                                                X_CREATE_SUSPENDED, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     XELOGE("Could not create launch thread: %.8X", result);
     return result;
   }
+
+  // Waits for a debugger client, if desired.
+  if (emulator()->debugger()) {
+    emulator()->debugger()->PreLaunch();
+  }
+
+  // Resume the thread now.
+  // If the debugger has requested a suspend this will just decrement the
+  // suspend count without resuming it until the debugger wants.
+  thread->Resume();
 
   // Wait until thread completes.
   thread->Wait(0, 0, 0, nullptr);

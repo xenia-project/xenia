@@ -44,6 +44,8 @@ bool GdbServer::Initialize() {
   return true;
 }
 
+void GdbServer::PostSynchronous(std::function<void()> fn) { assert_always(); }
+
 void GdbServer::AcceptClient(std::unique_ptr<Socket> client) {
   // If we have an existing client, kill it and join its thread.
   if (client_) {

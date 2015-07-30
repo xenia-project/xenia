@@ -123,7 +123,7 @@ void Debugger::PreLaunch() {
 
     // Start paused.
     execution_state_ = ExecutionState::kRunning;
-    Interrupt();
+    server_->PostSynchronous([this]() { Interrupt(); });
   } else {
     // Start running.
     execution_state_ = ExecutionState::kRunning;

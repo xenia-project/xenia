@@ -32,6 +32,8 @@ class GdbServer : public DebugServer {
 
   bool Initialize() override;
 
+  void PostSynchronous(std::function<void()> fn) override;
+
  private:
   void AcceptClient(std::unique_ptr<Socket> client);
   bool HandleClientEvent();

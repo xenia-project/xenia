@@ -42,6 +42,8 @@ XdpServer::XdpServer(Debugger* debugger)
 XdpServer::~XdpServer() = default;
 
 bool XdpServer::Initialize() {
+  post_event_ = xe::threading::Event::CreateAutoResetEvent(false);
+
   socket_server_ = SocketServer::Create(uint16_t(FLAGS_xdp_server_port),
                                         [this](std::unique_ptr<Socket> client) {
                                           AcceptClient(std::move(client));
@@ -52,6 +54,19 @@ bool XdpServer::Initialize() {
   }
 
   return true;
+}
+
+void XdpServer::PostSynchronous(std::function<void()> fn) {
+  xe::threading::Fence fence;
+  {
+    std::lock_guard<std::mutex> lock(post_mutex_);
+    post_queue_.push_back([&fence, fn]() {
+      fn();
+      fence.Signal();
+    });
+  }
+  post_event_->Set();
+  fence.Wait();
 }
 
 void XdpServer::AcceptClient(std::unique_ptr<Socket> client) {
@@ -85,11 +100,35 @@ void XdpServer::AcceptClient(std::unique_ptr<Socket> client) {
     // Main loop.
     bool running = true;
     while (running) {
-      auto wait_result = xe::threading::Wait(client_->wait_handle(), true);
-      switch (wait_result) {
+      xe::threading::WaitHandle* wait_handles[] = {
+          client_->wait_handle(), post_event_.get(),
+      };
+      auto wait_result = xe::threading::WaitMultiple(
+          wait_handles, xe::countof(wait_handles), false, true);
+      switch (wait_result.first) {
         case xe::threading::WaitResult::kSuccess:
           // Event (read or close).
-          running = HandleClientEvent();
+          switch (wait_result.second) {
+            case 0: {
+              running = HandleClientEvent();
+            } break;
+            case 1: {
+              bool has_remaining = true;
+              while (has_remaining) {
+                std::function<void()> fn;
+                {
+                  std::lock_guard<std::mutex> lock(post_mutex_);
+                  fn = std::move(post_queue_.front());
+                  post_queue_.pop_front();
+                  has_remaining = !post_queue_.empty();
+                  if (!has_remaining) {
+                    post_event_->Reset();
+                  }
+                }
+                fn();
+              }
+            } break;
+          }
           continue;
         case xe::threading::WaitResult::kAbandoned:
         case xe::threading::WaitResult::kFailed:

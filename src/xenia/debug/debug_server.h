@@ -10,6 +10,8 @@
 #ifndef XENIA_DEBUG_DEBUG_SERVER_H_
 #define XENIA_DEBUG_DEBUG_SERVER_H_
 
+#include <functional>
+
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/breakpoint.h"
@@ -26,6 +28,8 @@ class DebugServer {
   Debugger* debugger() const { return debugger_; }
 
   virtual bool Initialize() = 0;
+
+  virtual void PostSynchronous(std::function<void()> fn) = 0;
 
   // TODO(benvanik): better thread type (XThread?)
   // virtual void OnThreadCreated(ThreadState* thread_state) = 0;

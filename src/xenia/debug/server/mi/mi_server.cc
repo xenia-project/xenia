@@ -44,6 +44,8 @@ bool MIServer::Initialize() {
   return true;
 }
 
+void MIServer::PostSynchronous(std::function<void()> fn) { assert_always(); }
+
 void MIServer::AcceptClient(std::unique_ptr<Socket> client) {
   // If we have an existing client, kill it and join its thread.
   if (client_) {
