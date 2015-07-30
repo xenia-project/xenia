@@ -4515,15 +4515,30 @@ struct MUL_SUB_V128
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       if (i.dest == i.src1) {
-        e.vfmsub213ps(i.dest, i.src2, i.src3);
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm0, i.src3.constant());
+          e.vfmsub213ps(i.dest, i.src2, e.xmm0);
+        } else {
+          e.vfmsub213ps(i.dest, i.src2, i.src3);
+        }
       } else if (i.dest == i.src2) {
-        e.vfmsub213ps(i.dest, i.src1, i.src3);
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm0, i.src3.constant());
+          e.vfmsub213ps(i.dest, i.src1, e.xmm0);
+        } else {
+          e.vfmsub213ps(i.dest, i.src1, i.src3);
+        }
       } else if (i.dest == i.src3) {
         e.vfmsub231ps(i.dest, i.src1, i.src2);
       } else {
-        // Dest not equal to anything
+        // Dest not equal to anything.
         e.vmovdqa(i.dest, i.src1);
-        e.vfmsub213ps(i.dest, i.src2, i.src3);
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm0, i.src3.constant());
+          e.vfmsub213ps(i.dest, i.src2, e.xmm0);
+        } else {
+          e.vfmsub213ps(i.dest, i.src2, i.src3);
+        }
       }
     } else {
       Xmm src3;
