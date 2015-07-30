@@ -21,6 +21,9 @@ namespace kernel {
 
 using namespace xe::hid;
 
+constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
+constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
+
 SHIM_CALL XamResetInactivity_shim(PPCContext* ppc_context,
                                   KernelState* kernel_state) {
   uint32_t unk = SHIM_GET_ARG_32(0);
@@ -56,6 +59,15 @@ SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_context,
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
     return;
   }
+  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+    // Ignore any query for other types of devices.
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+    // Always pin user to 0.
+    user_index = 0;
+  }
 
   InputSystem* input_system = kernel_state->emulator()->input_system();
 
@@ -78,6 +90,15 @@ SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_context,
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
     return;
   }
+  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+    // Ignore any query for other types of devices.
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+    // Always pin user to 0.
+    user_index = 0;
+  }
 
   InputSystem* input_system = kernel_state->emulator()->input_system();
 
@@ -90,12 +111,22 @@ SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_context,
 SHIM_CALL XamInputGetState_shim(PPCContext* ppc_context,
                                 KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t one = SHIM_GET_ARG_32(1);
+  uint32_t flags = SHIM_GET_ARG_32(1);
   uint32_t state_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("XamInputGetState(%d, %.8X, %.8X)", user_index, one, state_ptr);
+  XELOGD("XamInputGetState(%d, %.8X, %.8X)", user_index, flags, state_ptr);
 
   // Games call this with a NULL state ptr, probably as a query.
+
+  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+    // Ignore any query for other types of devices.
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+    // Always pin user to 0.
+    user_index = 0;
+  }
 
   InputSystem* input_system = kernel_state->emulator()->input_system();
 
@@ -116,6 +147,10 @@ SHIM_CALL XamInputSetState_shim(PPCContext* ppc_context,
   if (!vibration_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
     return;
+  }
+  if ((user_index & 0xFF) == 0xFF) {
+    // Always pin user to 0.
+    user_index = 0;
   }
 
   InputSystem* input_system = kernel_state->emulator()->input_system();
@@ -143,6 +178,15 @@ SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_context,
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
     return;
   }
+  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+    // Ignore any query for other types of devices.
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+    // Always pin user to 0.
+    user_index = 0;
+  }
 
   InputSystem* input_system = kernel_state->emulator()->input_system();
 
@@ -166,6 +210,15 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_context,
   if (!keystroke_ptr) {
     SHIM_SET_RETURN_32(X_ERROR_BAD_ARGUMENTS);
     return;
+  }
+  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+    // Ignore any query for other types of devices.
+    SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+    return;
+  }
+  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+    // Always pin user to 0.
+    user_index = 0;
   }
 
   InputSystem* input_system = kernel_state->emulator()->input_system();
