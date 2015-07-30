@@ -48,9 +48,10 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   if (!stack_address) {
     // We must always allocate 64K as a guard region before stacks, as we can
     // only Protect() on system page granularity.
+    auto heap = memory()->LookupHeap(0x40000000);
     stack_size = (stack_size + 0xFFF) & 0xFFFFF000;
     uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
-    uint32_t stack_padding = 64 * 1024;  // 0x4...0x7F is 64k.
+    uint32_t stack_padding = heap->page_size();
     uint32_t actual_stack_size = stack_padding + stack_size;
     bool top_down = false;
     switch (stack_type) {
@@ -64,9 +65,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
         assert_unhandled_case(stack_type);
         break;
     }
-    memory()
-        ->LookupHeap(0x40000000)
-        ->AllocRange(0x40000000, 0x7FFFFFFF, actual_stack_size, stack_alignment,
+    heap->AllocRange(0x40000000, 0x7FFFFFFF, actual_stack_size, stack_alignment,
                      kMemoryAllocationReserve | kMemoryAllocationCommit,
                      kMemoryProtectRead | kMemoryProtectWrite, top_down,
                      &stack_address_);
@@ -75,9 +74,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
     stack_base_ = stack_address_ + actual_stack_size;
     stack_limit_ = stack_address_ + stack_padding;
     memory()->Fill(stack_address_, actual_stack_size, 0xBE);
-    memory()
-        ->LookupHeap(stack_address_)
-        ->Protect(stack_address_, stack_padding, kMemoryProtectNoAccess);
+    heap->Protect(stack_address_, stack_padding, kMemoryProtectNoAccess);
   } else {
     stack_address_ = stack_address;
     stack_allocated_ = false;
