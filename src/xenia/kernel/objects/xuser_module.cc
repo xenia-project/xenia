@@ -223,6 +223,12 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
                                                 entry_point_, 0,
                                                 X_CREATE_SUSPENDED, true));
 
+  // We know this is the 'main thread'.
+  char thread_name[32];
+  snprintf(thread_name, xe::countof(thread_name), "Main XThread %04X",
+           thread->handle());
+  thread->set_name(thread_name);
+
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     XELOGE("Could not create launch thread: %.8X", result);

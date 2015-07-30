@@ -68,7 +68,7 @@ SourceMapEntry* DebugInfo::LookupCodeOffset(uint32_t offset) {
       return entry;
     }
   }
-  return nullptr;
+  return source_map_count_ ? &source_map_entries_[0] : nullptr;
 }
 
 void DebugInfo::Dump() {

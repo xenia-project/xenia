@@ -84,8 +84,7 @@ void XdpServer::AcceptClient(std::unique_ptr<Socket> client) {
 
   // Create a thread to manage the connection.
   client_thread_ = xe::threading::Thread::Create({}, [this]() {
-    // TODO(benvanik): GDB protocol stuff? Do we say hi?
-    // TODO(benvanik): move hello to thread
+    xe::threading::set_name("XDP Debug Server");
 
     // Let the debugger know we are present.
     debugger_->set_attached(true);
