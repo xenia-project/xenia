@@ -1032,7 +1032,7 @@ struct RETURN : Sequence<RETURN, I<OPCODE_RETURN, VoidOp>> {
     // If this is the last instruction in the last block, just let us
     // fall through.
     if (i.instr->next || i.instr->block->next) {
-      e.jmp("epilog", CodeGenerator::T_NEAR);
+      e.jmp(e.epilog_label(), CodeGenerator::T_NEAR);
     }
   }
 };
@@ -1045,42 +1045,42 @@ struct RETURN_TRUE_I8
     : Sequence<RETURN_TRUE_I8, I<OPCODE_RETURN_TRUE, VoidOp, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
+    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
   }
 };
 struct RETURN_TRUE_I16
     : Sequence<RETURN_TRUE_I16, I<OPCODE_RETURN_TRUE, VoidOp, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
+    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
   }
 };
 struct RETURN_TRUE_I32
     : Sequence<RETURN_TRUE_I32, I<OPCODE_RETURN_TRUE, VoidOp, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
+    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
   }
 };
 struct RETURN_TRUE_I64
     : Sequence<RETURN_TRUE_I64, I<OPCODE_RETURN_TRUE, VoidOp, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
+    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
   }
 };
 struct RETURN_TRUE_F32
     : Sequence<RETURN_TRUE_F32, I<OPCODE_RETURN_TRUE, VoidOp, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.vptest(i.src1, i.src1);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
+    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
   }
 };
 struct RETURN_TRUE_F64
     : Sequence<RETURN_TRUE_F64, I<OPCODE_RETURN_TRUE, VoidOp, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.vptest(i.src1, i.src1);
-    e.jnz("epilog", CodeGenerator::T_NEAR);
+    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_RETURN_TRUE, RETURN_TRUE_I8, RETURN_TRUE_I16,

@@ -146,6 +146,9 @@ void* X64Emitter::Emplace(size_t stack_size, FunctionInfo* function_info) {
 }
 
 bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
+  Xbyak::Label epilog_label;
+  epilog_label_ = &epilog_label;
+
   // Calculate stack size. We need to align things to their natural sizes.
   // This could be much better (sort by type/etc).
   auto locals = builder->locals();
@@ -240,7 +243,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   }
 
   // Function epilog.
-  L("epilog");
+  L(epilog_label);
+  epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
   mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
   add(rsp, (uint32_t)stack_size);
@@ -397,7 +401,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
   // Check if return.
   if (instr->flags & CALL_POSSIBLE_RETURN) {
     cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
-    je("epilog", CodeGenerator::T_NEAR);
+    je(epilog_label(), CodeGenerator::T_NEAR);
   }
 
   // Load the pointer to the indirection table maintained in X64CodeCache.

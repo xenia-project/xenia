@@ -151,6 +151,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
     r = Xbyak::Xmm(idx);
   }
 
+  Xbyak::Label& epilog_label() { return *epilog_label_; }
+
   void MarkSourceOffset(const hir::Instr* i);
 
   void DebugBreak();
@@ -205,6 +207,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   XbyakAllocator* allocator_;
   Xbyak::util::Cpu cpu_;
   uint32_t feature_flags_;
+
+  Xbyak::Label* epilog_label_ = nullptr;
 
   hir::Instr* current_instr_;
 
