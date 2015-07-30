@@ -219,7 +219,10 @@ SHIM_CALL NetDll_WSACleanup_shim(PPCContext* ppc_context,
   uint32_t caller = SHIM_GET_ARG_32(0);
 
   XELOGD("NetDll_WSACleanup(%d)", caller);
-  int ret = WSACleanup();
+
+  // Don't actually call WSACleanup - we use it for the debugger and such.
+  // int ret = WSACleanup();
+  int ret = 0;
 
   SHIM_SET_RETURN_32(ret);
 }
