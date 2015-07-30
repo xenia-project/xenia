@@ -615,6 +615,11 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   high_page_number =
       std::min(uint32_t(page_table_.size()) - 1, high_page_number);
 
+  if (page_count > (high_page_number - low_page_number)) {
+    XELOGE("BaseHeap::Alloc page count too big for requested range");
+    return false;
+  }
+
   std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
 
   // Find a free page range.
