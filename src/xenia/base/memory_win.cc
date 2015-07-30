@@ -19,6 +19,16 @@ size_t page_size() {
   if (!value) {
     SYSTEM_INFO si;
     GetSystemInfo(&si);
+    value = si.dwPageSize;
+  }
+  return value;
+}
+
+size_t allocation_granularity() {
+  static size_t value = 0;
+  if (!value) {
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
     value = si.dwAllocationGranularity;
   }
   return value;

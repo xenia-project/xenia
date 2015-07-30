@@ -21,7 +21,12 @@ namespace xe {
 namespace memory {
 
 // Returns the native page size of the system, in bytes.
+// This should be ~4KiB.
 size_t page_size();
+
+// Returns the allocation granularity of the system, in bytes.
+// This is likely 64KiB.
+size_t allocation_granularity();
 
 enum class PageAccess {
   kNoAccess = 0,
