@@ -27,8 +27,8 @@ struct DeviceInfo {
 static const DeviceInfo dummy_device_info_ = {
     0xF00D0000,
     1,
-    1024ull * 1024ull * 1024ull * 1024ull,  // 1TB
-    1024ull * 1024ull * 1024ull * 1024ull,  // 1TB
+    120ull * 1024ull * 1024ull * 1024ull,  // 120GB
+    100ull * 1024ull * 1024ull * 1024ull,  // 100GB, so it looks a little used.
     L"Dummy HDD",
 };
 
