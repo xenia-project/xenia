@@ -7,13 +7,11 @@ project("xenia-cpu-backend-x64")
   kind("StaticLib")
   language("C++")
   links({
-    "beaengine",
     "capstone",
     "xenia-base",
     "xenia-cpu",
   })
   defines({
-    "BEA_ENGINE_STATIC=1",
     "CAPSTONE_X86_ATT_DISABLE",
     "CAPSTONE_DIET_NO",
     "CAPSTONE_X86_REDUCE_NO",
