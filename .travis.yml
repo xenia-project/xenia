@@ -27,12 +27,14 @@ git:
   submodules: false
 
 before_install:
+  - sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
+  - gpg --ignore-time-conflict --no-options --no-default-keyring --secret-keyring /tmp/tmp.7QGyKksfYF --trustdb-name /etc/apt/trustdb.gpg --keyring /etc/apt/trusted.gpg --primary-keyring /etc/apt/trusted.gpg --keyring /etc/apt/trusted.gpg.d//apt.postgresql.org.gpg --keyserver hkp://keyserver.ubuntu.com:80/ --recv 60C317803A41BA51845E371A1E9377A2BA9EF27F
   - sudo add-apt-repository "deb http://llvm.org/apt/precise/ llvm-toolchain-precise main" -y
   - wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
-  - sudo apt-get update -qq
+  - sudo apt-get -yq update
 
 install:
-  - sudo apt-get install -f clang-3.8 clang-format-3.8
+  - sudo apt-get -yq --force-yes install clang-3.8 clang-format-3.8
 
 before_script:
   # Dump useful info.
