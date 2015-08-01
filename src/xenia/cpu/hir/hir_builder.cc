@@ -27,20 +27,16 @@ namespace cpu {
 namespace hir {
 
 #define ASSERT_ADDRESS_TYPE(value) \
-  \
-assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
+  assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
 #define ASSERT_CALL_ADDRESS_TYPE(value) \
-  \
-assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
-#define ASSERT_INTEGER_TYPE(value)                                       \
-  \
-assert_true((value->type) == INT8_TYPE || (value->type) == INT16_TYPE || \
-            (value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
+  assert_true((value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
+#define ASSERT_INTEGER_TYPE(value)                                         \
+  assert_true((value->type) == INT8_TYPE || (value->type) == INT16_TYPE || \
+              (value->type) == INT32_TYPE || (value->type) == INT64_TYPE)
 #define ASSERT_FLOAT_TYPE(value) \
   assert_true((value->type) == FLOAT32_TYPE || (value->type) == FLOAT64_TYPE)
 #define ASSERT_NON_FLOAT_TYPE(value) \
-  \
-assert_true((value->type) != FLOAT32_TYPE && (value->type) != FLOAT64_TYPE)
+  assert_true((value->type) != FLOAT32_TYPE && (value->type) != FLOAT64_TYPE)
 #define ASSERT_NON_VECTOR_TYPE(value) assert_false((value->type) == VEC128_TYPE)
 #define ASSERT_VECTOR_TYPE(value) assert_true((value->type) == VEC128_TYPE)
 #define ASSERT_FLOAT_OR_VECTOR_TYPE(value)     \

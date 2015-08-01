@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <condition_variable>
 #include <cstdint>
 #include <memory>

@@ -26,8 +26,7 @@ const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
         RegisterInfo::Type::type, #name,   \
     };                                     \
     return &reg_info;                      \
-  \
-}
+  }
 #include "xenia/gpu/register_table.inc"
 #undef XE_GPU_REGISTER
     default:

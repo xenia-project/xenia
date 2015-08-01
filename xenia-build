@@ -275,6 +275,7 @@ def run_platform_premake():
     run_premake('windows', 'vs2015')
   else:
     run_premake('linux', 'gmake')
+    run_premake('linux', 'codelite')
 
 
 def get_build_bin_path(args):
