@@ -10,13 +10,21 @@ os:
   - linux
   # - osx
 
-# Run setup to build ninja/gyp/etc and actually build xenia.
+git:
+  # We handle submodules ourselves in xenia-build setup.
+  submodules: false
+
 before_script:
+  # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
-  - ./xenia-build build --config=debug
 
 # Run test suites.
 script:
+  # Run linter.
   - ./xenia-build lint --all
+  # Build all of xenia.
+  - ./xenia-build build --config=debug
+  # All tests (without haswell support).
   - ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
+  # All tests (with haswell support).
   - ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=true
