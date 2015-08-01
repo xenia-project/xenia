@@ -34,9 +34,29 @@ No. Do not post links or downloads to such resources or you will be banned.
 ## System Requirements
 
 * Windows 8.1 or Windows 10
-* Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
-* An OpenGL 4.5-compatible GPU (NVIDIA preferred)
+* 64-bit Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
+* An OpenGL 4.5-compatible GPU from [this list](http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc) (NVIDIA recommended)
 * An XInput-compatible controller
+
+Xenia will check for the minimum supported CPU and GPU on startup and error out
+if one is not detected. Check that your GPU is on [this list](http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc)
+and that you have the latest drivers installed.
+**You cannot just remove the checks in the code and assume things will work.**
+
+### What kind of GPU do I need?
+
+OpenGL 4.5 support and drivers are required in addition to a small set of
+extensions, the most critical of which is `GL_ARB_bindless_texture`. You can
+check if your GPU is supported by referencing [this list](http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc).
+
+To get full speed and compatibility the project will be adopting Vulkan and
+Direct3D 12 so plan accordingly.
+
+#### Why do you need OpenGL 4.5? Won't 3.0 work fine?
+
+Nope. Though technically we could software rasterize everything on a 286 that's
+not a good way to go about things and we make use of the latest tech to get the
+best performance and keep the code sane.
 
 ### Can you add support for Windows Me? How about my Pentium II?
 
@@ -59,7 +79,7 @@ Though the codebase is ready for the port, it's not a trivial task and anyone
 seeking to port it will need a deep understanding of Linux, X11, OpenGL, and
 Win32 (to ensure matching semantics).
 
-### You should port it to Linux, then tons of developers will contribute!
+#### You should port it to Linux, then tons of developers will contribute!
 
 No, they won't, and that's not how things work. (I'm seriously told this once
 a week...)
@@ -69,21 +89,6 @@ the project is one who is capable of performing the porting work. If someone
 has this capability and feels so strongly about Linux support then they would be
 contributing to the porting efforts already. But otherwise they are nothing
 more than hypothetical members of our collective dreams.
-
-### What kind of GPU do I need?
-
-OpenGL 4.5 support and drivers are required. This includes NVIDIA's GeForce 400
-series and above, and AMD's 5000 series and above. AMD cards/drivers often have
-issues and you'll have better luck with NVIDIA.
-
-To get full speed and compatibility the project will be adopting Vulkan and
-Direct3D 12 so plan accordingly.
-
-### Why do you need OpenGL 4.5? Won't 3.0 work fine?
-
-Nope. Though technically we could software rasterize everything on a 286 that's
-not a good way to go about things and we make use of the latest tech to get the
-best performance and keep the code sane.
 
 ## Why did you do X? Why not just use Y? You should use Y. NIH NIH NIH!
 
