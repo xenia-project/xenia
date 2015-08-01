@@ -12,6 +12,8 @@ os:
 
 addons:
   apt:
+    sources:
+      - llvm-toolchain-precise-3.7
     packages:
       - clang-3.7
       - clang-format-3.7
