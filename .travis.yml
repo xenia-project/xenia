@@ -1,0 +1,22 @@
+# Make Travis use docker (for faster builds, in theory)
+sudo: false
+
+language: cpp
+compiler:
+  - clang
+  # - gcc
+
+os:
+  - linux
+  # - osx
+
+# Run setup to build ninja/gyp/etc and actually build xenia.
+before_script:
+  - travis_retry ./xenia-build setup
+  - ./xenia-build build --config=debug
+
+# Run test suites.
+script:
+  - ./xenia-build lint --all
+  - ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
+  - ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=true

@@ -62,6 +62,57 @@ LPSYMGETSYMFROMADDR64 sym_get_sym_from_addr_64_ = nullptr;
 namespace xe {
 namespace cpu {
 
+bool InitializeStackWalker() {
+  if (sym_get_options_) {
+    // Already initialized.
+    return true;
+  }
+
+  // Attempt to load dbghelp.
+  // NOTE: we never free it. That's fine.
+  HMODULE module = LoadLibrary(TEXT("dbghelp.dll"));
+  if (!module) {
+    XELOGE("Unable to load dbghelp.dll - not found on path or invalid");
+    return false;
+  }
+  sym_get_options_ = reinterpret_cast<LPSYMGETOPTIONS>(
+      GetProcAddress(module, "SymGetOptions"));
+  sym_set_options_ = reinterpret_cast<LPSYMSETOPTIONS>(
+      GetProcAddress(module, "SymSetOptions"));
+  sym_initialize_ = reinterpret_cast<LPSYMINITIALIZE>(
+      GetProcAddress(module, "SymInitialize"));
+  stack_walk_64_ =
+      reinterpret_cast<LPSTACKWALK64>(GetProcAddress(module, "StackWalk64"));
+  sym_function_table_access_64_ = reinterpret_cast<LPSYMFUNCTIONTABLEACCESS64>(
+      GetProcAddress(module, "SymFunctionTableAccess64"));
+  sym_get_module_base_64_ = reinterpret_cast<LPSYMGETMODULEBASE64>(
+      GetProcAddress(module, "SymGetModuleBase64"));
+  sym_get_sym_from_addr_64_ = reinterpret_cast<LPSYMGETSYMFROMADDR64>(
+      GetProcAddress(module, "SymGetSymFromAddr64"));
+  if (!sym_get_options_ || !sym_set_options_ || !sym_initialize_ ||
+      !stack_walk_64_ || !sym_function_table_access_64_ ||
+      !sym_get_module_base_64_ || !sym_get_sym_from_addr_64_) {
+    XELOGE("Unable to get one or more symbols from dbghelp.dll");
+    return false;
+  }
+
+  // Initialize the symbol lookup services.
+  DWORD options = sym_get_options_();
+  if (FLAGS_debug_symbol_loader) {
+    options |= SYMOPT_DEBUG;
+  }
+  options |= SYMOPT_DEFERRED_LOADS;
+  options |= SYMOPT_LOAD_LINES;
+  options |= SYMOPT_FAIL_CRITICAL_ERRORS;
+  sym_set_options_(options);
+  if (!sym_initialize_(GetCurrentProcess(), nullptr, TRUE)) {
+    XELOGE("Unable to initialize symbol services");
+    return false;
+  }
+
+  return true;
+}
+
 class Win32StackWalker : public StackWalker {
  public:
   Win32StackWalker(backend::CodeCache* code_cache) {
@@ -77,51 +128,7 @@ class Win32StackWalker : public StackWalker {
 
   bool Initialize() {
     std::lock_guard<std::mutex> lock(dbghelp_mutex_);
-
-    // Attempt to load dbghelp.
-    // NOTE: we never free it. That's fine.
-    HMODULE module = LoadLibrary(TEXT("dbghelp.dll"));
-    if (!module) {
-      XELOGE("Unable to load dbghelp.dll - not found on path or invalid");
-      return false;
-    }
-    sym_get_options_ = reinterpret_cast<LPSYMGETOPTIONS>(
-        GetProcAddress(module, "SymGetOptions"));
-    sym_set_options_ = reinterpret_cast<LPSYMSETOPTIONS>(
-        GetProcAddress(module, "SymSetOptions"));
-    sym_initialize_ = reinterpret_cast<LPSYMINITIALIZE>(
-        GetProcAddress(module, "SymInitialize"));
-    stack_walk_64_ =
-        reinterpret_cast<LPSTACKWALK64>(GetProcAddress(module, "StackWalk64"));
-    sym_function_table_access_64_ =
-        reinterpret_cast<LPSYMFUNCTIONTABLEACCESS64>(
-            GetProcAddress(module, "SymFunctionTableAccess64"));
-    sym_get_module_base_64_ = reinterpret_cast<LPSYMGETMODULEBASE64>(
-        GetProcAddress(module, "SymGetModuleBase64"));
-    sym_get_sym_from_addr_64_ = reinterpret_cast<LPSYMGETSYMFROMADDR64>(
-        GetProcAddress(module, "SymGetSymFromAddr64"));
-    if (!sym_get_options_ || !sym_set_options_ || !sym_initialize_ ||
-        !stack_walk_64_ || !sym_function_table_access_64_ ||
-        !sym_get_module_base_64_ || !sym_get_sym_from_addr_64_) {
-      XELOGE("Unable to get one or more symbols from dbghelp.dll");
-      return false;
-    }
-
-    // Initialize the symbol lookup services.
-    DWORD options = sym_get_options_();
-    if (FLAGS_debug_symbol_loader) {
-      options |= SYMOPT_DEBUG;
-    }
-    options |= SYMOPT_DEFERRED_LOADS;
-    options |= SYMOPT_LOAD_LINES;
-    options |= SYMOPT_FAIL_CRITICAL_ERRORS;
-    sym_set_options_(options);
-    if (!sym_initialize_(GetCurrentProcess(), nullptr, TRUE)) {
-      XELOGE("Unable to initialize symbol services");
-      return false;
-    }
-
-    return true;
+    return InitializeStackWalker();
   }
 
   size_t CaptureStackTrace(uint64_t* frame_host_pcs, size_t frame_offset,

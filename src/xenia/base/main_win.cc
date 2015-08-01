@@ -46,11 +46,17 @@ void AttachConsole() {
   setvbuf(stderr, nullptr, _IONBF, 0);
 }
 
-}  // namespace xe
-
-// Used in console mode apps; automatically picked based on subsystem.
-int main(int argc, wchar_t* argv[]) {
+int Main() {
   auto entry_info = xe::GetEntryInfo();
+
+  // Convert command line to an argv-like format so we can share code/use
+  // gflags.
+  auto command_line = GetCommandLineW();
+  int argc;
+  wchar_t** argv = CommandLineToArgvW(command_line, &argc);
+  if (!argv) {
+    return 1;
+  }
 
   google::SetUsageMessage(std::string("usage: ") +
                           xe::to_string(entry_info.usage));
@@ -82,8 +88,14 @@ int main(int argc, wchar_t* argv[]) {
   int result = entry_info.entry_point(args);
 
   google::ShutDownCommandLineFlags();
+  LocalFree(argv);
   return result;
 }
+
+}  // namespace xe
+
+// Used in console mode apps; automatically picked based on subsystem.
+int main(int argc_ignored, char** argv_ignored) { return xe::Main(); }
 
 // Used in windowed apps; automatically picked based on subsystem.
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR command_line, int) {
@@ -91,21 +103,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR command_line, int) {
   // redirected output themselves it'll pop up a window.
   xe::AttachConsole();
 
-  auto entry_info = xe::GetEntryInfo();
-
-  // Convert to an argv-like format so we can share code/use gflags.
-  std::wstring buffer = entry_info.name + L" " + command_line;
-  int argc;
-  wchar_t** argv = CommandLineToArgvW(buffer.c_str(), &argc);
-  if (!argv) {
-    return 1;
-  }
-
   // Run normal entry point.
-  int result = main(argc, argv);
-
-  LocalFree(argv);
-  return result;
+  return xe::Main();
 }
 
 #if defined _M_IX86

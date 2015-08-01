@@ -45,7 +45,7 @@ Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstudio.c
     # Build on command line:
     > xb build
     # Run premake and open Visual Studio (run the 'xenia-app' project):
-    > xb edit
+    > xb devenv
     # Run premake to update the sln/vcproj's:
     > xb premake
 
