@@ -868,7 +868,9 @@ class LintCommand(Command):
           '--diff',
           ], throw_on_error=False, stdout_path=difftemp)
       with open(difftemp) as f:
-        not_modified = 'no modified files' in f.read()
+        contents = f.read()
+        not_modified = 'no modified files' in contents
+        not_modified = not_modified or 'did not modify' in contents
         f.close()
       if os.path.exists(difftemp): os.remove(difftemp)
       if not not_modified:

@@ -68,7 +68,7 @@ void* Arena::Alloc(size_t size) {
 
 void Arena::Rewind(size_t size) { active_chunk_->offset -= size; }
 
-void* Arena::CloneContents() {
+size_t Arena::CalculateSize() {
   size_t total_length = 0;
   Chunk* chunk = head_chunk_;
   while (chunk) {
@@ -78,9 +78,14 @@ void* Arena::CloneContents() {
     }
     chunk = chunk->next;
   }
+  return total_length;
+}
+
+void* Arena::CloneContents() {
+  size_t total_length = CalculateSize();
   void* result = malloc(total_length);
   uint8_t* p = (uint8_t*)result;
-  chunk = head_chunk_;
+  Chunk* chunk = head_chunk_;
   while (chunk) {
     std::memcpy(p, chunk->buffer, chunk->offset);
     p += chunk->offset;
@@ -90,6 +95,19 @@ void* Arena::CloneContents() {
     chunk = chunk->next;
   }
   return result;
+}
+
+void Arena::CloneContents(void* buffer, size_t buffer_length) {
+  uint8_t* p = (uint8_t*)buffer;
+  Chunk* chunk = head_chunk_;
+  while (chunk) {
+    std::memcpy(p, chunk->buffer, chunk->offset);
+    p += chunk->offset;
+    if (chunk == active_chunk_) {
+      break;
+    }
+    chunk = chunk->next;
+  }
 }
 
 Arena::Chunk::Chunk(size_t chunk_size)

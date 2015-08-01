@@ -10,7 +10,10 @@
 #ifndef XENIA_BACKEND_X64_X64_EMITTER_H_
 #define XENIA_BACKEND_X64_X64_EMITTER_H_
 
+#include <vector>
+
 #include "xenia/base/arena.h"
+#include "xenia/cpu/function.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
@@ -117,7 +120,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   bool Emit(FunctionInfo* function_info, hir::HIRBuilder* builder,
             uint32_t debug_info_flags, DebugInfo* debug_info,
-            void*& out_code_address, size_t& out_code_size);
+            void*& out_code_address, size_t& out_code_size,
+            std::vector<SourceMapEntry>& out_source_map);
 
   static uint32_t PlaceData(Memory* memory);
 
@@ -201,23 +205,22 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitTraceUserCallReturn();
 
  protected:
-  Processor* processor_;
-  X64Backend* backend_;
-  X64CodeCache* code_cache_;
-  XbyakAllocator* allocator_;
+  Processor* processor_ = nullptr;
+  X64Backend* backend_ = nullptr;
+  X64CodeCache* code_cache_ = nullptr;
+  XbyakAllocator* allocator_ = nullptr;
   Xbyak::util::Cpu cpu_;
-  uint32_t feature_flags_;
+  uint32_t feature_flags_ = 0;
 
   Xbyak::Label* epilog_label_ = nullptr;
 
-  hir::Instr* current_instr_;
+  hir::Instr* current_instr_ = nullptr;
 
-  DebugInfo* debug_info_;
-  uint32_t debug_info_flags_;
-  size_t source_map_count_;
+  DebugInfo* debug_info_ = nullptr;
+  uint32_t debug_info_flags_ = 0;
   Arena source_map_arena_;
 
-  size_t stack_size_;
+  size_t stack_size_ = 0;
 
   static const uint32_t gpr_reg_map_[GPR_COUNT];
   static const uint32_t xmm_reg_map_[XMM_COUNT];

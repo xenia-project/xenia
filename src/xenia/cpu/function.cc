@@ -23,6 +23,39 @@ Function::Function(FunctionInfo* symbol_info)
 
 Function::~Function() = default;
 
+const SourceMapEntry* Function::LookupSourceOffset(uint32_t offset) const {
+  // TODO(benvanik): binary search? We know the list is sorted by code order.
+  for (size_t i = 0; i < source_map_.size(); ++i) {
+    const auto& entry = source_map_[i];
+    if (entry.source_offset == offset) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+const SourceMapEntry* Function::LookupHIROffset(uint32_t offset) const {
+  // TODO(benvanik): binary search? We know the list is sorted by code order.
+  for (size_t i = 0; i < source_map_.size(); ++i) {
+    const auto& entry = source_map_[i];
+    if (entry.hir_offset >= offset) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+const SourceMapEntry* Function::LookupCodeOffset(uint32_t offset) const {
+  // TODO(benvanik): binary search? We know the list is sorted by code order.
+  for (int64_t i = source_map_.size() - 1; i >= 0; --i) {
+    const auto& entry = source_map_[i];
+    if (entry.code_offset <= offset) {
+      return &entry;
+    }
+  }
+  return source_map_.empty() ? nullptr : &source_map_[0];
+}
+
 bool Function::AddBreakpoint(Breakpoint* breakpoint) {
   std::lock_guard<xe::mutex> guard(lock_);
   bool found = false;

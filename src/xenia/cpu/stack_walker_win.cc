@@ -216,8 +216,7 @@ class Win32StackWalker : public StackWalker {
               uint32_t(frame.host_pc) -
               uint32_t(uint64_t(function_info->function()->machine_code()));
           auto entry =
-              function_info->function()->debug_info()->LookupCodeOffset(
-                  host_displacement);
+              function_info->function()->LookupCodeOffset(host_displacement);
           frame.guest_pc = entry->source_offset;
         } else {
           frame.guest_symbol.function_info = nullptr;

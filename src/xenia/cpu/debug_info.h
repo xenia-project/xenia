@@ -26,7 +26,6 @@ enum DebugInfoFlags : uint32_t {
   kDebugInfoDisasmMachineCode = (1 << 4),
   kDebugInfoAllDisasm = kDebugInfoDisasmSource | kDebugInfoDisasmRawHir |
                         kDebugInfoDisasmHir | kDebugInfoDisasmMachineCode,
-  kDebugInfoSourceMap = (1 << 5),
   kDebugInfoTraceFunctions = (1 << 6),
   kDebugInfoTraceFunctionCoverage = (1 << 7) | kDebugInfoTraceFunctions,
   kDebugInfoTraceFunctionReferences = (1 << 8) | kDebugInfoTraceFunctions,
@@ -37,12 +36,6 @@ enum DebugInfoFlags : uint32_t {
       kDebugInfoTraceFunctionReferences | kDebugInfoTraceFunctionData,
   kDebugInfoAll = 0xFFFFFFFF,
 };
-
-typedef struct SourceMapEntry_s {
-  uint32_t source_offset;  // Original source address/offset.
-  uint32_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
-  uint32_t code_offset;    // Offset from emitted code start.
-} SourceMapEntry;
 
 class DebugInfo {
  public:
@@ -71,13 +64,6 @@ class DebugInfo {
   const char* machine_code_disasm() const { return machine_code_disasm_; }
   void set_machine_code_disasm(char* value) { machine_code_disasm_ = value; }
 
-  size_t source_map_count() const { return source_map_count_; }
-  SourceMapEntry* source_map_entries() const { return source_map_entries_; }
-  void InitializeSourceMap(size_t source_map_count, SourceMapEntry* source_map);
-  SourceMapEntry* LookupSourceOffset(uint32_t offset);
-  SourceMapEntry* LookupHIROffset(uint32_t offset);
-  SourceMapEntry* LookupCodeOffset(uint32_t offset);
-
   void Dump();
 
  private:
@@ -90,9 +76,6 @@ class DebugInfo {
   char* raw_hir_disasm_;
   char* hir_disasm_;
   char* machine_code_disasm_;
-
-  size_t source_map_count_;
-  SourceMapEntry* source_map_entries_;
 };
 
 }  // namespace cpu

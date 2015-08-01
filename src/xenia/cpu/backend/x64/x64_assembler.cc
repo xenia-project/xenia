@@ -75,17 +75,21 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
   // Reset when we leave.
   xe::make_reset_scope(this);
 
+  // Create now, and populate as we go.
+  // We may throw it away if we fail.
+  auto fn = std::make_unique<X64Function>(symbol_info);
+
   // Lower HIR -> x64.
   void* machine_code = nullptr;
   size_t code_size = 0;
   if (!emitter_->Emit(symbol_info, builder, debug_info_flags, debug_info.get(),
-                      machine_code, code_size)) {
+                      machine_code, code_size, fn->source_map())) {
     return false;
   }
 
   // Stash generated machine code.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmMachineCode) {
-    DumpMachineCode(debug_info.get(), machine_code, code_size, &string_buffer_);
+    DumpMachineCode(machine_code, code_size, fn->source_map(), &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
@@ -98,21 +102,19 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
     }
   }
 
-  X64Function* fn = new X64Function(symbol_info);
   fn->set_debug_info(std::move(debug_info));
   fn->Setup(reinterpret_cast<uint8_t*>(machine_code), code_size);
 
-  *out_function = fn;
-
+  // Pass back ownership.
+  *out_function = fn.release();
   return true;
 }
 
-void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
-                                   size_t code_size, StringBuffer* str) {
-  auto source_map_entries = debug_info->source_map_entries();
-  auto source_map_count = debug_info->source_map_count();
+void X64Assembler::DumpMachineCode(
+    void* machine_code, size_t code_size,
+    const std::vector<SourceMapEntry>& source_map, StringBuffer* str) {
   auto source_map_index = 0;
-  uint32_t next_code_offset = source_map_entries[0].code_offset;
+  uint32_t next_code_offset = source_map[0].code_offset;
 
   const uint8_t* code_ptr = reinterpret_cast<uint8_t*>(machine_code);
   size_t remaining_code_size = code_size;
@@ -125,11 +127,11 @@ void X64Assembler::DumpMachineCode(DebugInfo* debug_info, void* machine_code,
     auto code_offset =
         uint32_t(code_ptr - reinterpret_cast<uint8_t*>(machine_code));
     if (code_offset >= next_code_offset &&
-        source_map_index < source_map_count) {
-      auto& source_map_entry = source_map_entries[source_map_index];
+        source_map_index < source_map.size()) {
+      auto& source_map_entry = source_map[source_map_index];
       str->AppendFormat("%.8X ", source_map_entry.source_offset);
       ++source_map_index;
-      next_code_offset = source_map_entries[source_map_index].code_offset;
+      next_code_offset = source_map[source_map_index].code_offset;
     } else {
       str->Append("         ");
     }

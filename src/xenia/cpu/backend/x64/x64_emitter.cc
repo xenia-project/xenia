@@ -67,13 +67,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       processor_(backend->processor()),
       backend_(backend),
       code_cache_(backend->code_cache()),
-      allocator_(allocator),
-      feature_flags_(0),
-      current_instr_(0),
-      debug_info_(nullptr),
-      debug_info_flags_(0),
-      source_map_count_(0),
-      stack_size_(0) {
+      allocator_(allocator) {
   if (FLAGS_enable_haswell_instructions) {
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
@@ -95,16 +89,14 @@ X64Emitter::~X64Emitter() = default;
 
 bool X64Emitter::Emit(FunctionInfo* function_info, HIRBuilder* builder,
                       uint32_t debug_info_flags, DebugInfo* debug_info,
-                      void*& out_code_address, size_t& out_code_size) {
+                      void*& out_code_address, size_t& out_code_size,
+                      std::vector<SourceMapEntry>& out_source_map) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset.
   debug_info_ = debug_info;
   debug_info_flags_ = debug_info_flags;
-  if (debug_info_flags_ & DebugInfoFlags::kDebugInfoSourceMap) {
-    source_map_count_ = 0;
-    source_map_arena_.Reset();
-  }
+  source_map_arena_.Reset();
 
   // Fill the generator with code.
   size_t stack_size = 0;
@@ -117,10 +109,7 @@ bool X64Emitter::Emit(FunctionInfo* function_info, HIRBuilder* builder,
   out_code_address = Emplace(stack_size, function_info);
 
   // Stash source map.
-  if (debug_info_flags_ & DebugInfoFlags::kDebugInfoSourceMap) {
-    debug_info->InitializeSourceMap(
-        source_map_count_, (SourceMapEntry*)source_map_arena_.CloneContents());
-  }
+  source_map_arena_.CloneContents(out_source_map);
 
   return true;
 }
@@ -266,7 +255,6 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   entry->source_offset = static_cast<uint32_t>(i->src1.offset);
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
   entry->code_offset = static_cast<uint32_t>(getSize() + 1);
-  source_map_count_++;
 
   if (FLAGS_debug) {
     nop();

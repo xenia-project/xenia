@@ -24,6 +24,12 @@ namespace cpu {
 
 class FunctionInfo;
 
+struct SourceMapEntry {
+  uint32_t source_offset;  // Original source address/offset.
+  uint32_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
+  uint32_t code_offset;    // Offset from emitted code start.
+};
+
 class Function {
  public:
   Function(FunctionInfo* symbol_info);
@@ -32,13 +38,18 @@ class Function {
   uint32_t address() const { return address_; }
   FunctionInfo* symbol_info() const { return symbol_info_; }
 
+  virtual uint8_t* machine_code() const = 0;
+  virtual size_t machine_code_length() const = 0;
+
   DebugInfo* debug_info() const { return debug_info_.get(); }
   void set_debug_info(std::unique_ptr<DebugInfo> debug_info) {
     debug_info_ = std::move(debug_info);
   }
+  std::vector<SourceMapEntry>& source_map() { return source_map_; }
 
-  virtual uint8_t* machine_code() const = 0;
-  virtual size_t machine_code_length() const = 0;
+  const SourceMapEntry* LookupSourceOffset(uint32_t offset) const;
+  const SourceMapEntry* LookupHIROffset(uint32_t offset) const;
+  const SourceMapEntry* LookupCodeOffset(uint32_t offset) const;
 
   bool AddBreakpoint(debug::Breakpoint* breakpoint);
   bool RemoveBreakpoint(debug::Breakpoint* breakpoint);
@@ -55,6 +66,7 @@ class Function {
   uint32_t address_;
   FunctionInfo* symbol_info_;
   std::unique_ptr<DebugInfo> debug_info_;
+  std::vector<SourceMapEntry> source_map_;
 
   // TODO(benvanik): move elsewhere? DebugData?
   xe::mutex lock_;

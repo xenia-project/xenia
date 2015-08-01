@@ -11,9 +11,11 @@
 #define XENIA_BACKEND_X64_X64_ASSEMBLER_H_
 
 #include <memory>
+#include <vector>
 
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/backend/assembler.h"
+#include "xenia/cpu/function.h"
 
 namespace xe {
 namespace cpu {
@@ -39,8 +41,9 @@ class X64Assembler : public Assembler {
                 Function** out_function) override;
 
  private:
-  void DumpMachineCode(DebugInfo* debug_info, void* machine_code,
-                       size_t code_size, StringBuffer* str);
+  void DumpMachineCode(void* machine_code, size_t code_size,
+                       const std::vector<SourceMapEntry>& source_map,
+                       StringBuffer* str);
 
  private:
   X64Backend* x64_backend_;

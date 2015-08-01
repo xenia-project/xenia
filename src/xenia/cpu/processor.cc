@@ -62,7 +62,7 @@ Processor::~Processor() {
 
 bool Processor::Setup() {
   // TODO(benvanik): query mode from debugger?
-  debug_info_flags_ = DebugInfoFlags::kDebugInfoSourceMap;
+  debug_info_flags_ = 0;
 
   auto frontend = std::make_unique<xe::cpu::frontend::PPCFrontend>(this);
   // TODO(benvanik): set options/etc.
