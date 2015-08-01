@@ -178,6 +178,34 @@ def shell_call(command, throw_on_error=True, stdout_path=None):
   return result
 
 
+def git_submodule_update():
+  """Runs a full recursive git submodule init and update.
+
+  Older versions of git do not support 'update --init --recursive'. We could
+  check and run it on versions that do support it and speed things up a bit.
+  """
+  shell_call([
+      'git',
+      'submodule',
+      'init',
+      ])
+  shell_call([
+      'git',
+      'submodule',
+      'foreach',
+      '--recursive',
+      'git',
+      'submodule',
+      'init',
+      ])
+  shell_call([
+      'git',
+      'submodule',
+      'update',
+      '--recursive',
+      ])
+
+
 def run_premake(target_os, action):
   """Runs premake on the main project with the given format.
 
@@ -318,13 +346,7 @@ class SetupCommand(Command):
 
     # Setup submodules.
     print('- git submodule init / update...')
-    shell_call([
-        'git',
-        'submodule',
-        'update',
-        '--init',
-        '--recursive',
-        ])
+    git_submodule_update()
     print('')
 
     print('- running premake...')
@@ -374,13 +396,7 @@ class PullCommand(Command):
     print('')
 
     print('- pulling dependencies...')
-    shell_call([
-        'git',
-        'submodule',
-        'update',
-        '--init',
-        '--recursive',
-        ])
+    git_submodule_update()
     print('')
 
     print('- running premake...')
