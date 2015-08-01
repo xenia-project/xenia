@@ -503,7 +503,7 @@ class BaseBuildCommand(Command):
           'make',
           '-Cbuild/',
           'config=%s_linux' % (args['config']),
-          ] + pass_args, throw_on_error=False)
+          ] + pass_args + args['target'], throw_on_error=False)
     print('')
     if result != 0:
       print('ERROR: build failed with one or more errors.')

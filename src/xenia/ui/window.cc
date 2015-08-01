@@ -14,7 +14,7 @@
 #include "el/elemental_forms.h"
 #include "el/io/file_manager.h"
 #include "el/io/posix_file_system.h"
-#include "el/io/win32_res_file_system.h"
+#include "el/io/win32_res_file_system_win.h"
 #include "el/message_handler.h"
 #include "el/text/font_manager.h"
 #include "el/util/metrics.h"

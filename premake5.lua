@@ -36,6 +36,7 @@ filter("configurations:Checked")
   })
   flags({"Symbols"})
   runtime("Debug")
+filter("configurations:Checked", "platforms:Windows")
   buildoptions({
     "/RTCsu",   -- Full Run-Time Checks.
   })
@@ -67,7 +68,7 @@ filter("platforms:Linux")
   system("linux")
   toolset("clang")
   buildoptions({
-    "-std=c++11",
+    "-std=c++14",
   })
 
 filter("platforms:Windows")
