@@ -168,10 +168,10 @@ def shell_call(command, throw_on_error=True, stdout_path=None):
   try:
     if throw_on_error:
       result = 1
-      subprocess.check_call(command, shell=True, stdout=stdout_file)
+      subprocess.check_call(command, shell=False, stdout=stdout_file)
       result = 0
     else:
-      result = subprocess.call(command, shell=True, stdout=stdout_file)
+      result = subprocess.call(command, shell=False, stdout=stdout_file)
   finally:
     if stdout_file:
       stdout_file.close()
@@ -184,26 +184,35 @@ def git_submodule_update():
   Older versions of git do not support 'update --init --recursive'. We could
   check and run it on versions that do support it and speed things up a bit.
   """
-  shell_call([
-      'git',
-      'submodule',
-      'init',
-      ])
-  shell_call([
-      'git',
-      'submodule',
-      'foreach',
-      '--recursive',
-      'git',
-      'submodule',
-      'init',
-      ])
-  shell_call([
-      'git',
-      'submodule',
-      'update',
-      '--recursive',
-      ])
+  if True:
+    shell_call([
+        'git',
+        'submodule',
+        'update',
+        '--init',
+        '--recursive',
+        ])
+  else:
+    shell_call([
+        'git',
+        'submodule',
+        'init',
+        ])
+    shell_call([
+        'git',
+        'submodule',
+        'foreach',
+        '--recursive',
+        'git',
+        'submodule',
+        'init',
+        ])
+    shell_call([
+        'git',
+        'submodule',
+        'update',
+        '--recursive',
+        ])
 
 
 def run_premake(target_os, action):
