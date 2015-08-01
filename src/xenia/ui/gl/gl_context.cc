@@ -248,7 +248,8 @@ void FatalGLError(std::string error) {
   XEFATAL(
       (error +
        "\nEnsure you have the latest drivers for your GPU and that it supports "
-       "OpenGL 4.5. See http://xenia.jp/faq/ for more information.")
+       "OpenGL 4.5. See http://xenia.jp/faq/ for more information and a list"
+       "of supported GPUs.")
           .c_str());
 }
 
