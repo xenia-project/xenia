@@ -318,6 +318,7 @@ def discover_commands(subparsers):
       'nuke': NukeCommand(subparsers),
       'lint': LintCommand(subparsers),
       'format': FormatCommand(subparsers),
+      'style': StyleCommand(subparsers),
       }
   if sys.platform == 'win32':
     commands['devenv'] = DevenvCommand(subparsers)
@@ -758,21 +759,37 @@ class NukeCommand(Command):
     return 0
 
 
+def find_xenia_source_files():
+  """Gets all xenia source files in the project.
+
+  Returns:
+    A list of file paths.
+  """
+  return [os.path.join(root, name)
+      for root, dirs, files in os.walk('src')
+      for name in files
+      if name.endswith(('.cc', '.c', '.h', '.inl'))]
+
+
+def find_elemental_source_files():
+  """Gets all elemental-forms source files in the project.
+
+  Returns:
+    A list of file paths.
+  """
+  return [os.path.join(root, name)
+      for root, dirs, files in os.walk('third_party/elemental-forms/src/')
+      for name in files
+      if name.endswith(('.cc', '.c', '.h', '.inl'))]
+
+
 def find_all_source_files():
   """Gets all interesting source files in the project.
 
   Returns:
     A list of file paths.
   """
-  all_files = [os.path.join(root, name)
-      for root, dirs, files in os.walk('src')
-      for name in files
-      if name.endswith(('.cc', '.c', '.h', '.inl'))]
-  all_files = all_files + [os.path.join(root, name)
-      for root, dirs, files in os.walk('third_party/elemental-forms/src/')
-      for name in files
-      if name.endswith(('.cc', '.c', '.h', '.inl'))]
-  return all_files
+  return find_xenia_source_files() + find_elemental_source_files()
 
 
 class LintCommand(Command):
@@ -920,6 +937,45 @@ class FormatCommand(Command):
           '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
           ])
       print('')
+
+    return 0
+
+
+# TODO(benvanik): merge into linter, or as lint --anal?
+class StyleCommand(Command):
+  """'style' command."""
+
+  def __init__(self, subparsers, *args, **kwargs):
+    super(StyleCommand, self).__init__(
+        subparsers,
+        name='style',
+        help_short='Runs the style checker on all code.',
+        *args, **kwargs)
+
+  def execute(self, args, pass_args, cwd):
+    all_files = find_all_source_files()
+    print('- cpplint [%d files]' % (len(all_files)))
+    any_errors = False
+    for file_path in all_files:
+      ret = shell_call([
+          'python',
+          os.path.join('third_party', 'google-styleguide', 'cpplint',
+                       'cpplint.py'),
+          '--output=vs7',
+          '--linelength=80',
+          '--filter=-build/c++11',
+          '--root=src',
+          file_path,
+          ], throw_on_error=False)
+      if ret:
+        any_errors = True
+    print('')
+    if any_errors:
+      print('ERROR: 1+ cpplint calls failed.')
+      return 1
+    else:
+      print('Style linting completed successfully.')
+      return 0
 
     return 0
 
