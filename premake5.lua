@@ -139,9 +139,13 @@ end
 solution("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
-  configurations({"Checked", "Debug", "Release"})
-  platforms({"Windows", "Linux"})
   architecture("x86_64")
+  if os.is("linux") then
+    platforms({"Linux"})
+  elseif os.is("windows") then
+    platforms({"Windows"})
+  end
+  configurations({"Checked", "Debug", "Release"})
 
   include("src/xenia")
   include("src/xenia/app")
