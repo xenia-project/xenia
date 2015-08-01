@@ -14,7 +14,7 @@ Have Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstu
 
     > git clone --recursive https://github.com/benvanik/xenia.git
     > xb setup
-    > xb edit
+    > xb devenv
 
 That's mostly it. Run the `xenia-app` project. For debugging setup instructions
 see [the github docs](https://github.com/benvanik/xenia/blob/master/docs/building.md).
