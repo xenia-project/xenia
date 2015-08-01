@@ -10,6 +10,12 @@ os:
   - linux
   # - osx
 
+addons:
+  apt:
+    packages:
+      - clang-3.7
+      - clang-format-3.7
+
 git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false

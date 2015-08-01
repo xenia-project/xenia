@@ -2,4 +2,4 @@
 #
 # Useful bash aliases and completions.
 
-alias xb='python xenia-build.py'
+alias xb='python xenia-build'

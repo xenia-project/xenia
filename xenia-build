@@ -215,6 +215,27 @@ def git_submodule_update():
         ])
 
 
+def get_clang_format_binary():
+  """Finds a clang-format binary. Aborts if none is found.
+
+  Returns:
+    A path to the clang-format executable.
+  """
+  attempts = [
+      'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe',
+      'clang-format-3.7',
+      'clang-format',
+      ]
+  for binary in attempts:
+    if os.path.exists(binary):
+      return binary
+  print 'ERROR: clang-format is not on PATH'
+  print 'LLVM is available from http://llvm.org/releases/download.html'
+  print 'At least version 3.7 is required.'
+  print 'See docs/style_guide.md for instructions on how to get it.'
+  sys.exit(1)
+
+
 def run_premake(target_os, action):
   """Runs premake on the main project with the given format.
 
@@ -744,15 +765,7 @@ class LintCommand(Command):
         help='Lints all files changed relative to origin/master.')
 
   def execute(self, args, pass_args, cwd):
-    clang_format_binary = 'clang-format'
-    win32_binary = 'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe'
-    if os.path.exists(win32_binary):
-      clang_format_binary = win32_binary
-    if not has_bin(clang_format_binary):
-      print 'ERROR: clang-format is not on PATH'
-      print 'LLVM is available from http://llvm.org/releases/download.html'
-      print 'See docs/style_guide.md for instructions on how to get it'
-      return 1
+    clang_format_binary = get_clang_format_binary()
 
     difftemp = '.difftemp.txt'
 
@@ -791,7 +804,7 @@ class LintCommand(Command):
               difftemp,
               ])
           shell_call([
-              'type',
+              'type' if sys.platform=='win32' else 'cat',
               difftemp,
               ])
           if os.path.exists(difftemp): os.remove(difftemp)
@@ -851,15 +864,7 @@ class FormatCommand(Command):
         help='Formats all files changed relative to origin/master.')
 
   def execute(self, args, pass_args, cwd):
-    clang_format_binary = 'clang-format'
-    win32_binary = 'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe'
-    if os.path.exists(win32_binary):
-      clang_format_binary = win32_binary
-    if not has_bin(clang_format_binary):
-      print 'ERROR: clang-format is not on PATH'
-      print 'LLVM is available from http://llvm.org/releases/download.html'
-      print 'See docs/style_guide.md for instructions on how to get it'
-      return 1
+    clang_format_binary = get_clang_format_binary()
 
     if args['all']:
       all_files = [os.path.join(root, name)
