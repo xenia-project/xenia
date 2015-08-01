@@ -1,5 +1,7 @@
-# Make Travis use docker (for faster builds, in theory)
-sudo: false
+# Make Travis use docker (for faster builds, in theory).
+# TODO(benvanik): re-enable when clang-3.8 is whitelisted.
+# https://github.com/travis-ci/apt-package-whitelist/issues/474
+#sudo: false
 
 language: cpp
 compiler:
