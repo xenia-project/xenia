@@ -12,23 +12,34 @@ os:
   - linux
   # - osx
 
-addons:
-  apt:
-    sources:
-      - llvm-toolchain-precise
-    packages:
-      - clang-3.8
-      - clang-format-3.8
+# TODO(benvanik): re-enable when clang-3.8 is whitelisted.
+# https://github.com/travis-ci/apt-package-whitelist/issues/474
+#addons:
+#  apt:
+#    sources:
+#      - llvm-toolchain-precise
+#    packages:
+#      - clang-3.8
+#      - clang-format-3.8
 
 git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false
 
+before_install:
+  - sudo add-apt-repository "deb http://llvm.org/apt/precise/ llvm-toolchain-precise main" -y
+  - wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key | sudo apt-key add -
+  - sudo apt-get update -qq
+
+install:
+  - sudo apt-get install clang-3.8 clang-format-3.8
+
 before_script:
+  # Dump useful info.
+  - $CXX --version
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
-# Run test suites.
 script:
   # Run linter.
   - ./xenia-build lint --all

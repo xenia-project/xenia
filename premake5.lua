@@ -63,12 +63,16 @@ filter("configurations:Release")
   runtime("Release")
   linkoptions({"/NODEFAULTLIB:MSVCRTD"})
 
+filter("platforms:Linux")
+  system("linux")
+  toolset("clang")
+  buildoptions({
+    "-std=c++11",
+  })
+
 filter("platforms:Windows")
   system("windows")
   toolset("msc")
-  -- Ignores complaints about empty obj files:
-  linkoptions({"/ignore:4006", "/ignore:4221"})
-  -- Enable multiprocessor compiles (requires Minimal Rebuild to be disabled).
   buildoptions({
     "/MP",      -- Multiprocessor compilation.
     "/wd4100",  -- Unreferenced parameters are ok.
@@ -88,6 +92,8 @@ filter("platforms:Windows")
     "_WIN64=1",
     "_AMD64=1",
   })
+  -- Ignores complaints about empty obj files:
+  linkoptions({"/ignore:4006", "/ignore:4221"})
   links({
     "ntdll",
     "wsock32",
@@ -133,7 +139,7 @@ solution("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   configurations({"Checked", "Debug", "Release"})
-  platforms({"Windows"})
+  platforms({"Windows", "Linux"})
   architecture("x86_64")
 
   include("src/xenia")

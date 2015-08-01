@@ -492,9 +492,18 @@ class BaseBuildCommand(Command):
           args['config'],
           ] + [('/project ', target) for target in args['target']] +
           pass_args, throw_on_error=False)
-    else:
+    elif sys.platform == 'darwin':
       # TODO(benvanik): other platforms.
       print('ERROR: don\'t know how to build on this platform.')
+    else:
+      # TODO(benvanik): allow gcc?
+      os.environ['CXX'] = 'clang++-3.8'
+      os.environ['CC'] = 'clang-3.8'
+      result = shell_call([
+          'make',
+          '-Cbuild/',
+          'config=%s_linux' % (args['config']),
+          ] + pass_args, throw_on_error=False)
     print('')
     if result != 0:
       print('ERROR: build failed with one or more errors.')
@@ -734,7 +743,7 @@ class NukeCommand(Command):
     print('- git reset to master...')
     shell_call([
         'git',
-        'checkout',
+        'reset',
         '--hard',
         'master',
         ])
