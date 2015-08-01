@@ -22,13 +22,13 @@ namespace kernel {
 SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
   XELOGD("XamIsUIActive()");
-  SHIM_SET_RETURN_32(el::ModalWindow::is_any_visible());
+  SHIM_SET_RETURN_32(el::ModalForm::is_any_visible());
 }
 
-class MessageBoxWindow : public el::ModalWindow {
+class MessageBoxWindow : public el::ModalForm {
  public:
   MessageBoxWindow(xe::threading::Fence* fence)
-      : ModalWindow([fence]() { fence->Signal(); }) {}
+      : ModalForm([fence]() { fence->Signal(); }) {}
   ~MessageBoxWindow() override = default;
 
   // TODO(benvanik): icon.
@@ -44,7 +44,7 @@ class MessageBoxWindow : public el::ModalWindow {
     // In case we are cancelled, always set default button.
     *out_chosen_button_ = default_button;
 
-    ModalWindow::Show(root_element);
+    ModalForm::Show(root_element);
 
     EnsureFocus();
   }
@@ -89,7 +89,7 @@ class MessageBoxWindow : public el::ModalWindow {
       Die();
       return true;
     }
-    return ModalWindow::OnEvent(ev);
+    return ModalForm::OnEvent(ev);
   }
 
   std::wstring title_;
@@ -168,10 +168,10 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
-class KeyboardInputWindow : public el::ModalWindow {
+class KeyboardInputWindow : public el::ModalForm {
  public:
   KeyboardInputWindow(xe::threading::Fence* fence)
-      : ModalWindow([fence]() { fence->Signal(); }) {}
+      : ModalForm([fence]() { fence->Signal(); }) {}
   ~KeyboardInputWindow() override = default;
 
   // TODO(benvanik): icon.
@@ -189,7 +189,7 @@ class KeyboardInputWindow : public el::ModalWindow {
       *out_text = default_text;
     }
 
-    ModalWindow::Show(root_element);
+    ModalForm::Show(root_element);
 
     EnsureFocus();
   }
@@ -245,7 +245,7 @@ class KeyboardInputWindow : public el::ModalWindow {
       return true;
     }
 
-    return ModalWindow::OnEvent(ev);
+    return ModalForm::OnEvent(ev);
   }
 
   std::wstring title_;
@@ -341,10 +341,10 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
 }
 DECLARE_XAM_EXPORT(XamShowDeviceSelectorUI, ExportTag::kImplemented);
 
-class DirtyDiscWindow : public el::ModalWindow {
+class DirtyDiscWindow : public el::ModalForm {
  public:
   DirtyDiscWindow(xe::threading::Fence* fence)
-      : ModalWindow([fence]() { fence->Signal(); }) {}
+      : ModalForm([fence]() { fence->Signal(); }) {}
   ~DirtyDiscWindow() override = default;
 
  protected:
@@ -377,7 +377,7 @@ class DirtyDiscWindow : public el::ModalWindow {
       Die();
       return true;
     }
-    return ModalWindow::OnEvent(ev);
+    return ModalForm::OnEvent(ev);
   }
 };
 

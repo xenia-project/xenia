@@ -34,25 +34,23 @@ MainWindow::~MainWindow() = default;
 bool MainWindow::Initialize() {
   client_ = app_->client();
 
-  platform_window_ = xe::ui::Window::Create(app()->loop(), kBaseTitle);
-  if (!platform_window_) {
+  window_ = xe::ui::Window::Create(app()->loop(), kBaseTitle);
+  if (!window_) {
     return false;
   }
-  platform_window_->Initialize();
-  platform_window_->set_context(
-      xe::ui::gl::GLContext::Create(platform_window_.get()));
-  platform_window_->MakeReady();
+  window_->Initialize();
+  window_->set_context(xe::ui::gl::GLContext::Create(window_.get()));
+  window_->MakeReady();
 
-  platform_window_->on_closed.AddListener(
-      std::bind(&MainWindow::OnClose, this));
+  window_->on_closed.AddListener(std::bind(&MainWindow::OnClose, this));
 
-  platform_window_->on_key_down.AddListener([this](xe::ui::KeyEvent& e) {
+  window_->on_key_down.AddListener([this](xe::ui::KeyEvent& e) {
     bool handled = true;
     switch (e.key_code()) {
       case 0x1B: {  // VK_ESCAPE
                     // Allow users to escape fullscreen (but not enter it).
-        if (platform_window_->is_fullscreen()) {
-          platform_window_->ToggleFullscreen(false);
+        if (window_->is_fullscreen()) {
+          window_->ToggleFullscreen(false);
         }
       } break;
 
@@ -69,9 +67,9 @@ bool MainWindow::Initialize() {
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
   {
-    file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, L"E&xit", L"Alt+F4",
-                         [this]() { platform_window_->Close(); }));
+    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, L"E&xit",
+                                         L"Alt+F4",
+                                         [this]() { window_->Close(); }));
   }
   main_menu->AddChild(std::move(file_menu));
 
@@ -87,9 +85,9 @@ bool MainWindow::Initialize() {
   }
   main_menu->AddChild(std::move(help_menu));
 
-  platform_window_->set_main_menu(std::move(main_menu));
+  window_->set_main_menu(std::move(main_menu));
 
-  platform_window_->Resize(1440, 1200);
+  window_->Resize(1440, 1200);
 
   BuildUI();
 
@@ -100,10 +98,10 @@ void MainWindow::BuildUI() {
   using namespace el::dsl;
   el::AnimationBlocker animation_blocker;
 
-  auto root_element = platform_window_->root_element();
-  window_ = std::make_unique<el::Window>();
-  window_->set_settings(el::WindowSettings::kFullScreen);
-  root_element->AddChild(window_.get());
+  auto root_element = window_->root_element();
+  form_ = std::make_unique<el::Form>();
+  form_->set_settings(el::FormSettings::kFullScreen);
+  root_element->AddChild(form_.get());
 
   auto root_node =
       LayoutBoxNode()
@@ -132,14 +130,14 @@ void MainWindow::BuildUI() {
                             .align(Align::kTop))
                   .pane(LayoutBoxNode().id("log_box").gravity(Gravity::kAll)));
 
-  window_->LoadNodeTree(root_node);
-  window_->GetElementsById({
+  form_->LoadNodeTree(root_node);
+  form_->GetElementsById({
       {TBIDC("split_container"), &ui_.split_container},
       {TBIDC("toolbar_box"), &ui_.toolbar_box},
       {TBIDC("tab_container"), &ui_.tab_container},
   });
 
-  handler_ = std::make_unique<el::EventHandler>(window_.get());
+  handler_ = std::make_unique<el::EventHandler>(form_.get());
   handler_->Listen(el::EventType::kClick, TBIDC("pause_button"),
                    [this](const el::Event& ev) {
                      client_->Interrupt();
@@ -164,7 +162,7 @@ void MainWindow::BuildUI() {
 
   UpdateElementState();
 
-  el::util::ShowDebugInfoSettingsWindow(root_element);
+  el::util::ShowDebugInfoSettingsForm(root_element);
 }
 
 void MainWindow::UpdateElementState() {
@@ -173,7 +171,7 @@ void MainWindow::UpdateElementState() {
   el::TabContainer* tab_container;
   el::Button* pause_button;
   el::Button* resume_button;
-  window_->GetElementsById({
+  form_->GetElementsById({
       {TBIDC("tab_container"), &tab_container},
       {TBIDC("pause_button"), &pause_button},
       {TBIDC("resume_button"), &resume_button},

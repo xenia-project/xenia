@@ -44,8 +44,8 @@ class MainWindow {
   Application* app_ = nullptr;
   xe::debug::client::xdp::XdpClient* client_ = nullptr;
 
-  std::unique_ptr<xe::ui::Window> platform_window_;
-  std::unique_ptr<el::Window> window_;
+  std::unique_ptr<xe::ui::Window> window_;
+  std::unique_ptr<el::Form> form_;
   struct {
     el::SplitContainer* split_container;
     el::LayoutBox* toolbar_box;
