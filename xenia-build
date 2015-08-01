@@ -862,7 +862,7 @@ class LintCommand(Command):
       if os.path.exists(difftemp): os.remove(difftemp)
       ret = shell_call([
           'python',
-          'third_party/clang-format/git-clang-format',
+          'build_tools/third_party/clang-format/git-clang-format',
           '--binary=%s' % (clang_format_binary),
           '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
           '--diff',
@@ -876,7 +876,7 @@ class LintCommand(Command):
         print('')
         shell_call([
             'python',
-            'third_party/clang-format/git-clang-format',
+            'build_tools/third_party/clang-format/git-clang-format',
             '--binary=%s' % (clang_format_binary),
             '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
             '--diff',
@@ -932,7 +932,7 @@ class FormatCommand(Command):
       print('- git-clang-format')
       shell_call([
           'python',
-          'third_party/clang-format/git-clang-format',
+          'build_tools/third_party/clang-format/git-clang-format',
           '--binary=%s' % (clang_format_binary),
           '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
           ])
@@ -959,8 +959,7 @@ class StyleCommand(Command):
     for file_path in all_files:
       ret = shell_call([
           'python',
-          os.path.join('third_party', 'google-styleguide', 'cpplint',
-                       'cpplint.py'),
+          'build_tools/third_party/google-styleguide/cpplint/cpplint.py',
           '--output=vs7',
           '--linelength=80',
           '--filter=-build/c++11',
