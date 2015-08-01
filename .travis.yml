@@ -13,10 +13,10 @@ os:
 addons:
   apt:
     sources:
-      - llvm-toolchain-precise-3.7
+      - llvm-toolchain-precise
     packages:
-      - clang-3.7
-      - clang-format-3.7
+      - clang-3.8
+      - clang-format-3.8
 
 git:
   # We handle submodules ourselves in xenia-build setup.
