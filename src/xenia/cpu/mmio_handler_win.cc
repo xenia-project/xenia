@@ -33,7 +33,7 @@ class WinMMIOHandler : public MMIOHandler {
   uint64_t GetThreadStateRip(void* thread_state_ptr) override;
   void SetThreadStateRip(void* thread_state_ptr, uint64_t rip) override;
   uint64_t* GetThreadStateRegPtr(void* thread_state_ptr,
-                                 int32_t be_reg_index) override;
+                                 int32_t reg_index) override;
 };
 
 std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* virtual_membase,
@@ -99,10 +99,10 @@ void WinMMIOHandler::SetThreadStateRip(void* thread_state_ptr, uint64_t rip) {
 }
 
 uint64_t* WinMMIOHandler::GetThreadStateRegPtr(void* thread_state_ptr,
-                                               int32_t be_reg_index) {
+                                               int32_t reg_index) {
   auto context = reinterpret_cast<LPCONTEXT>(thread_state_ptr);
-  // BeaEngine register indices line up with the CONTEXT structure format.
-  return &context->Rax + be_reg_index;
+  // Register indices line up with the CONTEXT structure format.
+  return &context->Rax + reg_index;
 }
 
 }  // namespace cpu

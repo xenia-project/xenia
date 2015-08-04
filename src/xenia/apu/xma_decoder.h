@@ -47,8 +47,8 @@ class XmaDecoder {
   void ReleaseContext(uint32_t guest_ptr);
   bool BlockOnContext(uint32_t guest_ptr, bool poll);
 
-  virtual uint64_t ReadRegister(uint32_t addr);
-  virtual void WriteRegister(uint32_t addr, uint64_t value);
+  virtual uint32_t ReadRegister(uint32_t addr);
+  virtual void WriteRegister(uint32_t addr, uint32_t value);
 
  protected:
   int GetContextId(uint32_t guest_ptr);
@@ -56,12 +56,12 @@ class XmaDecoder {
  private:
   void WorkerThreadMain();
 
-  static uint64_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as,
+  static uint32_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as,
                                         uint32_t addr) {
     return as->ReadRegister(addr);
   }
   static void MMIOWriteRegisterThunk(void* ppc_context, XmaDecoder* as,
-                                     uint32_t addr, uint64_t value) {
+                                     uint32_t addr, uint32_t value) {
     as->WriteRegister(addr, value);
   }
 

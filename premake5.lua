@@ -168,7 +168,6 @@ solution("xenia")
   include("src/xenia/ui/gl")
   include("src/xenia/vfs")
 
-  include("third_party/beaengine.lua")
   include("third_party/capstone.lua")
   include("third_party/elemental-forms")
   include("third_party/glew.lua")

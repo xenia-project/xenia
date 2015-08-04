@@ -52,15 +52,15 @@ class GL4GraphicsSystem : public GraphicsSystem {
  private:
   void MarkVblank();
   void Swap(xe::ui::UIEvent& e);
-  uint64_t ReadRegister(uint32_t addr);
-  void WriteRegister(uint32_t addr, uint64_t value);
+  uint32_t ReadRegister(uint32_t addr);
+  void WriteRegister(uint32_t addr, uint32_t value);
 
-  static uint64_t MMIOReadRegisterThunk(void* ppc_context,
+  static uint32_t MMIOReadRegisterThunk(void* ppc_context,
                                         GL4GraphicsSystem* gs, uint32_t addr) {
     return gs->ReadRegister(addr);
   }
   static void MMIOWriteRegisterThunk(void* ppc_context, GL4GraphicsSystem* gs,
-                                     uint32_t addr, uint64_t value) {
+                                     uint32_t addr, uint32_t value) {
     gs->WriteRegister(addr, value);
   }
 

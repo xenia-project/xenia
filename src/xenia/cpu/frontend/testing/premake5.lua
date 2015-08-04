@@ -7,7 +7,6 @@ project("xenia-cpu-frontend-tests")
   kind("ConsoleApp")
   language("C++")
   links({
-    "beaengine",
     "gflags",
     "xenia-base",
     "xenia-core",

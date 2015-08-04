@@ -7,7 +7,6 @@ project("xenia-debug-ui")
   kind("WindowedApp")
   language("C++")
   links({
-    "beaengine",
     "elemental-forms",
     "gflags",
     "xenia-apu",

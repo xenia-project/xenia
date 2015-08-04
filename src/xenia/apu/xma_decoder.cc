@@ -175,7 +175,7 @@ bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
 // piece of hardware:
 // https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
 
-uint64_t XmaDecoder::ReadRegister(uint32_t addr) {
+uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
   XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
@@ -200,11 +200,11 @@ uint64_t XmaDecoder::ReadRegister(uint32_t addr) {
   return value;
 }
 
-void XmaDecoder::WriteRegister(uint32_t addr, uint64_t value) {
+void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
   SCOPE_profile_cpu_f("apu");
 
   uint32_t r = addr & 0xFFFF;
-  value = xe::byte_swap(uint32_t(value));
+  value = xe::byte_swap(value);
   XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
   // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
 

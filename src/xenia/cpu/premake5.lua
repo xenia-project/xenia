@@ -7,14 +7,9 @@ project("xenia-cpu")
   kind("StaticLib")
   language("C++")
   links({
-    "beaengine",
     "xenia-base",
   })
-  defines({
-    "BEA_ENGINE_STATIC=1",
-  })
   includedirs({
-    project_root.."/third_party/beaengine/include",
     project_root.."/third_party/llvm/include",
   })
   local_platform_files()

@@ -31,7 +31,6 @@ project("xenia-gpu-gl4-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
-    "beaengine",
     "elemental-forms",
     "gflags",
     "glew",

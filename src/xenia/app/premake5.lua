@@ -8,7 +8,6 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
-    "beaengine",
     "elemental-forms",
     "gflags",
     "xenia-apu",

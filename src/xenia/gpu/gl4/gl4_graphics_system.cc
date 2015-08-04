@@ -315,7 +315,7 @@ void GL4GraphicsSystem::Swap(xe::ui::UIEvent& e) {
       GL_LINEAR);
 }
 
-uint64_t GL4GraphicsSystem::ReadRegister(uint32_t addr) {
+uint32_t GL4GraphicsSystem::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
 
   switch (r) {
@@ -335,12 +335,12 @@ uint64_t GL4GraphicsSystem::ReadRegister(uint32_t addr) {
   return register_file_.values[r].u32;
 }
 
-void GL4GraphicsSystem::WriteRegister(uint32_t addr, uint64_t value) {
+void GL4GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
   uint32_t r = addr & 0xFFFF;
 
   switch (r) {
     case 0x0714:  // CP_RB_WPTR
-      command_processor_->UpdateWritePointer(static_cast<uint32_t>(value));
+      command_processor_->UpdateWritePointer(value);
       break;
     case 0x6110:  // ? swap related?
       XELOGW("Unimplemented GPU register %.4X write: %.8X", r, value);
@@ -351,7 +351,7 @@ void GL4GraphicsSystem::WriteRegister(uint32_t addr, uint64_t value) {
   }
 
   assert_true(r < RegisterFile::kRegisterCount);
-  register_file_.values[r].u32 = static_cast<uint32_t>(value);
+  register_file_.values[r].u32 = value;
 }
 
 }  // namespace gl4

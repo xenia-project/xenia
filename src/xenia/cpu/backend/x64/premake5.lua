@@ -20,7 +20,6 @@ project("xenia-cpu-backend-x64")
     "XBYAK_NO_OP_NAMES",
   })
   includedirs({
-    project_root.."/third_party/beaengine/include",
     project_root.."/third_party/capstone/include",
   })
   local_platform_files()

@@ -20,10 +20,10 @@
 namespace xe {
 namespace cpu {
 
-typedef uint64_t (*MMIOReadCallback)(void* ppc_context, void* callback_context,
+typedef uint32_t (*MMIOReadCallback)(void* ppc_context, void* callback_context,
                                      uint32_t addr);
 typedef void (*MMIOWriteCallback)(void* ppc_context, void* callback_context,
-                                  uint32_t addr, uint64_t value);
+                                  uint32_t addr, uint32_t value);
 
 typedef void (*WriteWatchCallback)(void* context_ptr, void* data_ptr,
                                    uint32_t address);
@@ -51,8 +51,8 @@ class MMIOHandler {
                      MMIOWriteCallback write_callback);
   MMIORange* LookupRange(uint32_t virtual_address);
 
-  bool CheckLoad(uint32_t virtual_address, uint64_t* out_value);
-  bool CheckStore(uint32_t virtual_address, uint64_t value);
+  bool CheckLoad(uint32_t virtual_address, uint32_t* out_value);
+  bool CheckStore(uint32_t virtual_address, uint32_t value);
 
   uintptr_t AddPhysicalWriteWatch(uint32_t guest_address, size_t length,
                                   WriteWatchCallback callback,
