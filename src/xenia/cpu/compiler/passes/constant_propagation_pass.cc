@@ -9,10 +9,14 @@
 
 #include "xenia/cpu/compiler/passes/constant_propagation_pass.h"
 
+#include <gflags/gflags.h>
+
 #include "xenia/base/assert.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
+
+DEFINE_bool(inline_mmio_access, true, "Inline constant MMIO loads and stores.");
 
 namespace xe {
 namespace cpu {
@@ -180,14 +184,14 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             auto address = i->src1.value->constant.i32;
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
-            if (mmio_range) {
+            if (FLAGS_inline_mmio_access && mmio_range) {
               i->Replace(&OPCODE_LOAD_MMIO_info, 0);
               i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
               i->src2.offset = address;
             } else {
               auto heap = memory->LookupHeap(address);
               uint32_t protect;
-              if (heap->QueryProtect(address, &protect) &&
+              if (heap && heap->QueryProtect(address, &protect) &&
                   !(protect & kMemoryProtectWrite) &&
                   (protect & kMemoryProtectRead)) {
                 // Memory is readonly - can just return the value.
@@ -206,7 +210,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
         case OPCODE_STORE:
-          if (i->src1.value->IsConstant()) {
+          if (FLAGS_inline_mmio_access && i->src1.value->IsConstant()) {
             auto address = i->src1.value->constant.i32;
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
