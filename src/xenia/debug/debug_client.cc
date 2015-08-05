@@ -10,6 +10,7 @@
 #include "xenia/debug/debug_client.h"
 
 #include "xenia/base/logging.h"
+#include "xenia/ui/loop.h"
 
 namespace xe {
 namespace debug {
@@ -105,11 +106,27 @@ bool DebugClient::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
       break;
     }
 
-    // Emit packet.
-    if (!ProcessPacket(packet)) {
-      // Failed to process packet.
-      XELOGE("Failed to process incoming packet");
-      return false;
+    // Emit packet. Possibly dispatch to a loop, if desired.
+    if (loop_) {
+      auto clone = packet_reader_.ClonePacket();
+      auto clone_ptr = clone.release();
+      loop_->Post([this, clone_ptr]() {
+        std::unique_ptr<PacketReader> clone(clone_ptr);
+        auto packet = clone->Begin();
+        if (!ProcessPacket(clone.get(), packet)) {
+          // Failed to process packet, but there's no good way to report that.
+          XELOGE("Failed to process incoming packet");
+          assert_always();
+        }
+        clone->End();
+      });
+    } else {
+      // Process inline.
+      if (!ProcessPacket(&packet_reader_, packet)) {
+        // Failed to process packet.
+        XELOGE("Failed to process incoming packet");
+        return false;
+      }
     }
 
     packet_reader_.End();
@@ -118,7 +135,8 @@ bool DebugClient::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
   return true;
 }
 
-bool DebugClient::ProcessPacket(const proto::Packet* packet) {
+bool DebugClient::ProcessPacket(proto::PacketReader* packet_reader,
+                                const proto::Packet* packet) {
   // Hold lock during processing.
   std::lock_guard<std::recursive_mutex> lock(mutex_);
 
@@ -127,7 +145,7 @@ bool DebugClient::ProcessPacket(const proto::Packet* packet) {
       //
     } break;
     case PacketType::kExecutionNotification: {
-      auto body = packet_reader_.Read<ExecutionNotification>();
+      auto body = packet_reader->Read<ExecutionNotification>();
       switch (body->current_state) {
         case ExecutionNotification::State::kStopped: {
           // body->stop_reason
@@ -147,14 +165,24 @@ bool DebugClient::ProcessPacket(const proto::Packet* packet) {
       }
     } break;
     case PacketType::kModuleListResponse: {
-      auto body = packet_reader_.Read<ModuleListResponse>();
-      auto entries = packet_reader_.ReadArray<ModuleListEntry>(body->count);
-      listener_->OnModulesUpdated(entries);
+      auto body = packet_reader->Read<ModuleListResponse>();
+      auto entries = packet_reader->ReadArray<ModuleListEntry>(body->count);
+      listener_->OnModulesUpdated(std::move(entries));
     } break;
     case PacketType::kThreadListResponse: {
-      auto body = packet_reader_.Read<ThreadListResponse>();
-      auto entries = packet_reader_.ReadArray<ThreadListEntry>(body->count);
-      listener_->OnThreadsUpdated(entries);
+      auto body = packet_reader->Read<ThreadListResponse>();
+      auto entries = packet_reader->ReadArray<ThreadListEntry>(body->count);
+      listener_->OnThreadsUpdated(std::move(entries));
+    } break;
+    case PacketType::kThreadCallStacksResponse: {
+      auto body = packet_reader->Read<ThreadCallStacksResponse>();
+      for (size_t i = 0; i < body->count; ++i) {
+        auto entry = packet_reader->Read<ThreadCallStackEntry>();
+        auto frames =
+            packet_reader->ReadArray<ThreadCallStackFrame>(entry->frame_count);
+        listener_->OnThreadCallStackUpdated(entry->thread_handle,
+                                            std::move(frames));
+      }
     } break;
     default: {
       XELOGE("Unknown incoming packet type");
@@ -226,9 +254,14 @@ void DebugClient::Exit() {
 void DebugClient::BeginUpdateAllState() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
 
+  // Request all module infos.
   packet_writer_.Begin(PacketType::kModuleListRequest);
   packet_writer_.End();
+  // Request all thread infos.
   packet_writer_.Begin(PacketType::kThreadListRequest);
+  packet_writer_.End();
+  // Request the full call stacks for all threads.
+  packet_writer_.Begin(PacketType::kThreadCallStacksRequest);
   packet_writer_.End();
 
   Flush();

@@ -12,7 +12,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -28,9 +27,10 @@ namespace debug {
 namespace ui {
 namespace model {
 
-class System : public ClientListener {
+class System : public DebugClientListener {
  public:
   System(xe::ui::Loop* loop, DebugClient* client);
+  ~System() override;
 
   xe::ui::Loop* loop() const { return loop_; }
   DebugClient* client() const { return client_; }
@@ -46,6 +46,7 @@ class System : public ClientListener {
   Delegate<void> on_execution_state_changed;
   Delegate<void> on_modules_updated;
   Delegate<void> on_threads_updated;
+  Delegate<Thread*> on_thread_call_stack_updated;
 
  private:
   void OnExecutionStateChanged(ExecutionState execution_state) override;
@@ -53,11 +54,13 @@ class System : public ClientListener {
       std::vector<const proto::ModuleListEntry*> entries) override;
   void OnThreadsUpdated(
       std::vector<const proto::ThreadListEntry*> entries) override;
+  void OnThreadCallStackUpdated(
+      uint32_t thread_handle,
+      std::vector<const ThreadCallStackFrame*> frames) override;
 
   xe::ui::Loop* loop_ = nullptr;
   DebugClient* client_ = nullptr;
 
-  std::recursive_mutex mutex_;
   std::vector<std::unique_ptr<Module>> modules_;
   std::unordered_map<uint32_t, Module*> modules_by_handle_;
   std::vector<std::unique_ptr<Thread>> threads_;

@@ -25,12 +25,14 @@ std::string Thread::to_string() {
 }
 
 void Thread::Update(const proto::ThreadListEntry* entry) {
-  if (!entry_.thread_handle) {
-    std::memcpy(&entry_, entry, sizeof(entry_));
-  } else {
-    std::memcpy(&temp_entry_, entry, sizeof(temp_entry_));
-    system_->loop()->Post(
-        [this]() { std::memcpy(&entry_, &temp_entry_, sizeof(temp_entry_)); });
+  std::memcpy(&entry_, entry, sizeof(entry_));
+}
+
+void Thread::UpdateCallStack(
+    std::vector<const proto::ThreadCallStackFrame*> frames) {
+  call_stack_.resize(frames.size());
+  for (size_t i = 0; i < frames.size(); ++i) {
+    std::memcpy(call_stack_.data() + i, frames[i], sizeof(Frame));
   }
 }
 

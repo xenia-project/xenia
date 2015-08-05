@@ -35,6 +35,10 @@ class CpuView : public View {
   void UpdateModuleList();
   void UpdateFunctionList();
   void UpdateThreadList();
+  void UpdateThreadCallStack(model::Thread* thread);
+
+  // TODO(benvanik): better state machine.
+  model::Thread* current_thread_ = nullptr;
 };
 
 }  // namespace cpu

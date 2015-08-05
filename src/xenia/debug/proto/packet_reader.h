@@ -82,6 +82,16 @@ class PacketReader {
     packet_offset_ = 0;
   }
 
+  std::unique_ptr<PacketReader> ClonePacket() {
+    assert_not_null(current_packet_);
+    size_t length = sizeof(Packet) + current_packet_->body_length;
+    auto clone = std::make_unique<PacketReader>(length);
+    std::memcpy(clone->buffer_.data(), buffer_.data() + buffer_offset_ - length,
+                length);
+    clone->buffer_size_ = length;
+    return clone;
+  }
+
   const uint8_t* Read(size_t length) {
     // Can't read into next packet/off of end.
     assert_not_null(current_packet_);

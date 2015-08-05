@@ -198,10 +198,8 @@ class Win32StackWalker : public StackWalker {
 
     for (size_t i = 0; i < frame_count; ++i) {
       auto& frame = frames[i];
+      std::memset(&frame, 0, sizeof(frame));
       frame.host_pc = frame_host_pcs[i];
-      frame.host_symbol.name[0] = 0;
-      frame.guest_pc = 0;
-      frame.guest_symbol.function_info = nullptr;
 
       // If in the generated range, we know it's ours.
       if (frame.host_pc >= code_cache_min_ && frame.host_pc < code_cache_max_) {
@@ -238,6 +236,7 @@ class Win32StackWalker : public StackWalker {
                                       &displacement, &symbol.info)) {
           // Resolved successfully.
           // TODO(benvanik): stash: module, base, displacement, name?
+          frame.host_symbol.address = symbol.info.Address;
           std::strncpy(frame.host_symbol.name, symbol.info.Name, 256);
         }
       }

@@ -17,13 +17,7 @@ namespace ui {
 namespace model {
 
 void Module::Update(const proto::ModuleListEntry* entry) {
-  if (!entry_.module_handle) {
-    std::memcpy(&entry_, entry, sizeof(entry_));
-  } else {
-    std::memcpy(&temp_entry_, entry, sizeof(temp_entry_));
-    system_->loop()->Post(
-        [this]() { std::memcpy(&entry_, &temp_entry_, sizeof(temp_entry_)); });
-  }
+  std::memcpy(&entry_, entry, sizeof(entry_));
 }
 
 }  // namespace model

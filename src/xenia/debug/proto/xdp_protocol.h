@@ -28,6 +28,8 @@ enum class PacketType : uint16_t {
 
   kThreadListRequest = 30,
   kThreadListResponse = 31,
+  kThreadCallStacksRequest = 32,
+  kThreadCallStacksResponse = 33,
 };
 
 using request_id_t = uint16_t;
@@ -164,6 +166,35 @@ struct ThreadListEntry {
   uint32_t stack_limit;
   uint32_t pcr_address;
   uint32_t tls_address;
+};
+
+struct ThreadCallStacksRequest {
+  static const PacketType type = PacketType::kThreadCallStacksRequest;
+};
+struct ThreadCallStacksResponse {
+  static const PacketType type = PacketType::kThreadCallStacksResponse;
+
+  uint32_t count;
+  // ThreadCallStackEntry[count]
+};
+struct ThreadCallStackEntry {
+  uint32_t thread_handle;
+  uint32_t frame_count;
+  // ThreadCallStackFrame[frame_count]
+};
+struct ThreadCallStackFrame {
+  // PC of the current instruction in host code.
+  uint64_t host_pc;
+  // Base of the function the current host_pc is located within.
+  uint64_t host_function_address;
+  // PC of the current instruction in guest code.
+  // 0 if not a guest address or not known.
+  uint32_t guest_pc;
+  // Base of the function the current guest_pc is located within.
+  uint32_t guest_function_address;
+  // Name of the function, if known.
+  // TODO(benvanik): string table?
+  char name[256];
 };
 
 }  // namespace proto

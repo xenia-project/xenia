@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "xenia/debug/proto/xdp_protocol.h"
 
@@ -24,6 +25,8 @@ class System;
 
 class Thread {
  public:
+  using Frame = proto::ThreadCallStackFrame;
+
   Thread(System* system) : system_(system) {}
 
   bool is_dead() const { return is_dead_; }
@@ -34,16 +37,18 @@ class Thread {
   bool is_host_thread() const { return entry_.is_host_thread; }
   std::string name() const { return entry_.name; }
   const proto::ThreadListEntry* entry() const { return &entry_; }
+  const std::vector<Frame>& call_stack() const { return call_stack_; }
 
   std::string to_string();
 
   void Update(const proto::ThreadListEntry* entry);
+  void UpdateCallStack(std::vector<const proto::ThreadCallStackFrame*> frames);
 
  private:
   System* system_ = nullptr;
   bool is_dead_ = false;
   proto::ThreadListEntry entry_ = {0};
-  proto::ThreadListEntry temp_entry_ = {0};
+  std::vector<Frame> call_stack_;
 };
 
 }  // namespace model

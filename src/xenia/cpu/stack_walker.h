@@ -44,6 +44,7 @@ struct StackFrame {
     // Contains symbol information for kHost frames.
     struct {
       // TODO(benvanik): better name, displacement, etc.
+      uint64_t address;
       char name[256];
     } host_symbol;
     // Contains symbol information for kGuest frames.

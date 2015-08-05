@@ -40,7 +40,6 @@ class Module {
   System* system_ = nullptr;
   bool is_dead_ = false;
   proto::ModuleListEntry entry_ = {0};
-  proto::ModuleListEntry temp_entry_ = {0};
 };
 
 }  // namespace model

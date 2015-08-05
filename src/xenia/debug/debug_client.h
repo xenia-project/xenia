@@ -20,9 +20,16 @@
 #include "xenia/debug/proto/xdp_protocol.h"
 
 namespace xe {
+namespace ui {
+class Loop;
+}  // namespace ui
+}  // namespace xe
+
+namespace xe {
 namespace debug {
 
 using proto::ModuleListEntry;
+using proto::ThreadCallStackFrame;
 using proto::ThreadListEntry;
 
 enum class ExecutionState {
@@ -34,13 +41,18 @@ enum class ExecutionState {
 // NOTE: all callbacks are issued on the client thread and should be marshalled
 // to the UI thread. All other methods can be called from any thread.
 
-class ClientListener {
+class DebugClientListener {
  public:
+  virtual ~DebugClientListener() = default;
+
   virtual void OnExecutionStateChanged(ExecutionState execution_state) = 0;
   virtual void OnModulesUpdated(
       std::vector<const ModuleListEntry*> entries) = 0;
   virtual void OnThreadsUpdated(
       std::vector<const ThreadListEntry*> entries) = 0;
+  virtual void OnThreadCallStackUpdated(
+      uint32_t thread_handle,
+      std::vector<const ThreadCallStackFrame*> frames) = 0;
 };
 
 class DebugClient {
@@ -49,7 +61,8 @@ class DebugClient {
   ~DebugClient();
 
   Socket* socket() const { return socket_.get(); }
-  void set_listener(ClientListener* listener) { listener_ = listener; }
+  void set_listener(DebugClientListener* listener) { listener_ = listener; }
+  void set_loop(xe::ui::Loop* loop) { loop_ = loop; }
 
   ExecutionState execution_state() const { return execution_state_; }
 
@@ -64,7 +77,8 @@ class DebugClient {
  private:
   bool HandleSocketEvent();
   bool ProcessBuffer(const uint8_t* buffer, size_t buffer_length);
-  bool ProcessPacket(const proto::Packet* packet);
+  bool ProcessPacket(proto::PacketReader* packet_reader,
+                     const proto::Packet* packet);
   void Flush();
 
   void BeginUpdateAllState();
@@ -77,7 +91,8 @@ class DebugClient {
   proto::PacketReader packet_reader_;
   proto::PacketWriter packet_writer_;
 
-  ClientListener* listener_ = nullptr;
+  DebugClientListener* listener_ = nullptr;
+  xe::ui::Loop* loop_ = nullptr;
 
   ExecutionState execution_state_ = ExecutionState::kStopped;
 };

@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include "xenia/base/logging.h"
+#include "xenia/cpu/stack_walker.h"
 #include "xenia/debug/debugger.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
@@ -278,6 +279,45 @@ bool DebugServer::ProcessPacket(const proto::Packet* packet) {
         entry->stack_limit = thread->thread_state()->stack_limit();
         entry->pcr_address = thread->pcr_ptr();
         entry->tls_address = thread->tls_ptr();
+      }
+      packet_writer_.End();
+    } break;
+    case PacketType::kThreadCallStacksRequest: {
+      packet_writer_.Begin(PacketType::kThreadCallStacksResponse);
+      auto body = packet_writer_.Append<ThreadCallStacksResponse>();
+      auto stack_walker = emulator->processor()->stack_walker();
+      auto threads =
+          emulator->kernel_state()->object_table()->GetObjectsByType<XThread>(
+              XObject::kTypeThread);
+      body->count = uint32_t(threads.size());
+      uint64_t frame_host_pcs[64];
+      cpu::StackFrame frames[64];
+      for (auto& thread : threads) {
+        uint64_t hash;
+        size_t count = stack_walker->CaptureStackTrace(
+            thread->GetWaitHandle()->native_handle(), frame_host_pcs, 0, 64,
+            &hash);
+        stack_walker->ResolveStack(frame_host_pcs, frames, count);
+        auto thread_entry_body = packet_writer_.Append<ThreadCallStackEntry>();
+        thread_entry_body->thread_handle = thread->handle();
+        thread_entry_body->frame_count = uint32_t(count);
+        for (size_t i = 0; i < count; ++i) {
+          auto& frame = frames[i];
+          auto frame_body = packet_writer_.Append<ThreadCallStackFrame>();
+          frame_body->host_pc = frame.host_pc;
+          frame_body->host_function_address = frame.host_symbol.address;
+          frame_body->guest_pc = frame.guest_pc;
+          frame_body->guest_function_address = 0;
+          auto function_info = frame.guest_symbol.function_info;
+          if (frame.type == cpu::StackFrame::Type::kGuest && function_info) {
+            frame_body->guest_function_address = function_info->address();
+            std::strncpy(frame_body->name, function_info->name().c_str(),
+                         xe::countof(frame_body->name));
+          } else {
+            std::strncpy(frame_body->name, frame.host_symbol.name,
+                         xe::countof(frame_body->name));
+          }
+        }
       }
       packet_writer_.End();
     } break;

@@ -148,6 +148,8 @@ uint8_t* Debugger::AllocateFunctionTraceData(size_t size) {
 }
 
 void Debugger::DumpThreadStacks() {
+  // NOTE: if any other thread is suspended in a logging line, this will
+  // hang. So, this probably shouldn't be used.
   auto stack_walker = emulator()->processor()->stack_walker();
   auto threads =
       emulator_->kernel_state()->object_table()->GetObjectsByType<XThread>(
@@ -286,10 +288,6 @@ void Debugger::Interrupt() {
   SuspendAllThreads();
   execution_state_ = ExecutionState::kStopped;
   server_->OnExecutionInterrupted();
-
-  // TEST CODE.
-  // TODO(benvanik): remove when UI shows threads.
-  DumpThreadStacks();
 }
 
 void Debugger::Continue() {

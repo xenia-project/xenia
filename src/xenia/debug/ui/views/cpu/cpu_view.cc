@@ -8,6 +8,7 @@
  */
 
 #include "el/animation_manager.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/debug/ui/views/cpu/cpu_view.h"
 
 namespace xe {
@@ -57,6 +58,7 @@ el::Element* CpuView::BuildUI() {
                   .axis(Axis::kX)
                   .child(ButtonNode("A")))
           .child(TextBoxNode("source!")
+                     .id("source_textbox")
                      .gravity(Gravity::kAll)
                      .is_multiline(true)
                      .is_read_only(true));
@@ -141,6 +143,20 @@ el::Element* CpuView::BuildUI() {
                      UpdateFunctionList();
                      return true;
                    });
+  handler_->Listen(
+      el::EventType::kChanged, TBIDC("thread_dropdown"),
+      [this](const el::Event& ev) {
+        auto thread_dropdown = root_element_.GetElementById<el::DropDownButton>(
+            TBIDC("thread_dropdown"));
+        auto thread_handle = uint32_t(thread_dropdown->selected_item_id());
+        if (thread_handle) {
+          current_thread_ = system()->GetThreadByHandle(thread_handle);
+        } else {
+          current_thread_ = nullptr;
+        }
+        UpdateThreadCallStack(current_thread_);
+        return true;
+      });
 
   return &root_element_;
 }
@@ -152,6 +168,12 @@ void CpuView::Setup(DebugClient* client) {
       [this]() { UpdateElementState(); });
   system()->on_modules_updated.AddListener([this]() { UpdateModuleList(); });
   system()->on_threads_updated.AddListener([this]() { UpdateThreadList(); });
+  system()->on_thread_call_stack_updated.AddListener(
+      [this](model::Thread* thread) {
+        if (thread == current_thread_) {
+          UpdateThreadCallStack(thread);
+        }
+      });
 }
 
 void CpuView::UpdateElementState() {
@@ -217,6 +239,30 @@ void CpuView::UpdateThreadList() {
   if (is_first) {
     thread_dropdown->set_value(int(thread_items->size() - 1));
   }
+}
+
+void CpuView::UpdateThreadCallStack(model::Thread* thread) {
+  auto textbox =
+      root_element_.GetElementById<el::TextBox>(TBIDC("source_textbox"));
+  if (!thread) {
+    textbox->set_text("no thread");
+    return;
+  }
+  auto& call_stack = thread->call_stack();
+  StringBuffer str;
+  for (size_t i = 0; i < call_stack.size(); ++i) {
+    auto& frame = call_stack[i];
+    size_t ordinal = call_stack.size() - i - 1;
+    if (frame.guest_pc) {
+      str.AppendFormat("  %.2lld %.16llX %.8X %s", ordinal, frame.host_pc,
+                       frame.guest_pc, frame.name);
+    } else {
+      str.AppendFormat("  %.2lld %.16llX          %s", ordinal, frame.host_pc,
+                       frame.name);
+    }
+    str.Append('\n');
+  }
+  textbox->set_text(str.to_string());
 }
 
 }  // namespace cpu
