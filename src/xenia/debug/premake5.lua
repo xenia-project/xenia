@@ -13,9 +13,6 @@ project("xenia-debug")
   defines({
   })
   includedirs({
-    project_root.."/third_party/flatbuffers/include"
   })
   local_platform_files()
-  recursive_platform_files("client")
   recursive_platform_files("proto")
-  recursive_platform_files("server")

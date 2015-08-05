@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_CLIENT_XDP_XDP_CLIENT_H_
-#define XENIA_DEBUG_CLIENT_XDP_XDP_CLIENT_H_
+#ifndef XENIA_DEBUG_DEBUG_CLIENT_H_
+#define XENIA_DEBUG_DEBUG_CLIENT_H_
 
 #include <memory>
 #include <mutex>
@@ -21,8 +21,6 @@
 
 namespace xe {
 namespace debug {
-namespace client {
-namespace xdp {
 
 using proto::ModuleListEntry;
 using proto::ThreadListEntry;
@@ -45,10 +43,10 @@ class ClientListener {
       std::vector<const ThreadListEntry*> entries) = 0;
 };
 
-class XdpClient {
+class DebugClient {
  public:
-  XdpClient();
-  ~XdpClient();
+  DebugClient();
+  ~DebugClient();
 
   Socket* socket() const { return socket_.get(); }
   void set_listener(ClientListener* listener) { listener_ = listener; }
@@ -84,9 +82,7 @@ class XdpClient {
   ExecutionState execution_state_ = ExecutionState::kStopped;
 };
 
-}  // namespace xdp
-}  // namespace client
 }  // namespace debug
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_CLIENT_XDP_XDP_CLIENT_H_
+#endif  // XENIA_DEBUG_DEBUG_CLIENT_H_

@@ -36,7 +36,7 @@ el::Element* GpuView::BuildUI() {
   return &root_element_;
 }
 
-void GpuView::Setup(xe::debug::client::xdp::XdpClient* client) {
+void GpuView::Setup(xe::debug::DebugClient* client) {
   //
 }
 

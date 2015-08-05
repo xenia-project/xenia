@@ -28,7 +28,7 @@ class CpuView : public View {
 
   el::Element* BuildUI() override;
 
-  void Setup(xe::debug::client::xdp::XdpClient* client) override;
+  void Setup(xe::debug::DebugClient* client) override;
 
  protected:
   void UpdateElementState();

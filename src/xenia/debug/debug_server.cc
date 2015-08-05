@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/debug/server/xdp/xdp_server.h"
+#include "xenia/debug/debug_server.h"
 
 #include <gflags/gflags.h>
 
@@ -18,12 +18,10 @@
 #include "xenia/kernel/objects/xmodule.h"
 #include "xenia/kernel/objects/xthread.h"
 
-DEFINE_int32(xdp_server_port, 9002, "Debugger XDP server TCP port.");
+DEFINE_int32(debug_server_port, 9002, "Debugger XDP server TCP port.");
 
 namespace xe {
 namespace debug {
-namespace server {
-namespace xdp {
 
 using namespace xe::debug::proto;
 using namespace xe::kernel;
@@ -32,19 +30,19 @@ constexpr size_t kReceiveBufferSize = 32 * 1024;
 constexpr size_t kReadBufferSize = 1 * 1024 * 1024;
 constexpr size_t kWriteBufferSize = 1 * 1024 * 1024;
 
-XdpServer::XdpServer(Debugger* debugger)
-    : DebugServer(debugger),
+DebugServer::DebugServer(Debugger* debugger)
+    : debugger_(debugger),
       packet_reader_(kReadBufferSize),
       packet_writer_(kWriteBufferSize) {
   receive_buffer_.resize(kReceiveBufferSize);
 }
 
-XdpServer::~XdpServer() = default;
+DebugServer::~DebugServer() = default;
 
-bool XdpServer::Initialize() {
+bool DebugServer::Initialize() {
   post_event_ = xe::threading::Event::CreateAutoResetEvent(false);
 
-  socket_server_ = SocketServer::Create(uint16_t(FLAGS_xdp_server_port),
+  socket_server_ = SocketServer::Create(uint16_t(FLAGS_debug_server_port),
                                         [this](std::unique_ptr<Socket> client) {
                                           AcceptClient(std::move(client));
                                         });
@@ -56,7 +54,7 @@ bool XdpServer::Initialize() {
   return true;
 }
 
-void XdpServer::PostSynchronous(std::function<void()> fn) {
+void DebugServer::PostSynchronous(std::function<void()> fn) {
   xe::threading::Fence fence;
   {
     std::lock_guard<std::mutex> lock(post_mutex_);
@@ -69,7 +67,7 @@ void XdpServer::PostSynchronous(std::function<void()> fn) {
   fence.Wait();
 }
 
-void XdpServer::AcceptClient(std::unique_ptr<Socket> client) {
+void DebugServer::AcceptClient(std::unique_ptr<Socket> client) {
   // If we have an existing client, kill it and join its thread.
   if (client_) {
     // TODO(benvanik): XDP say goodbye?
@@ -148,7 +146,7 @@ void XdpServer::AcceptClient(std::unique_ptr<Socket> client) {
   });
 }
 
-bool XdpServer::HandleClientEvent() {
+bool DebugServer::HandleClientEvent() {
   if (!client_->is_connected()) {
     // Known-disconnected.
     return false;
@@ -173,7 +171,7 @@ bool XdpServer::HandleClientEvent() {
 
   return true;
 }
-bool XdpServer::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
+bool DebugServer::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
   // Grow and append the bytes to the receive buffer.
   packet_reader_.AppendBuffer(buffer, buffer_length);
 
@@ -200,7 +198,7 @@ bool XdpServer::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
   return true;
 }
 
-bool XdpServer::ProcessPacket(const proto::Packet* packet) {
+bool DebugServer::ProcessPacket(const proto::Packet* packet) {
   auto emulator = debugger()->emulator();
   auto kernel_state = emulator->kernel_state();
   auto object_table = kernel_state->object_table();
@@ -292,7 +290,7 @@ bool XdpServer::ProcessPacket(const proto::Packet* packet) {
   return true;
 }
 
-void XdpServer::OnExecutionContinued() {
+void DebugServer::OnExecutionContinued() {
   packet_writer_.Begin(PacketType::kExecutionNotification);
   auto body = packet_writer_.Append<ExecutionNotification>();
   body->current_state = ExecutionNotification::State::kRunning;
@@ -300,7 +298,7 @@ void XdpServer::OnExecutionContinued() {
   Flush();
 }
 
-void XdpServer::OnExecutionInterrupted() {
+void DebugServer::OnExecutionInterrupted() {
   packet_writer_.Begin(PacketType::kExecutionNotification);
   auto body = packet_writer_.Append<ExecutionNotification>();
   body->current_state = ExecutionNotification::State::kStopped;
@@ -309,7 +307,7 @@ void XdpServer::OnExecutionInterrupted() {
   Flush();
 }
 
-void XdpServer::Flush() {
+void DebugServer::Flush() {
   if (!packet_writer_.buffer_offset()) {
     return;
   }
@@ -317,7 +315,7 @@ void XdpServer::Flush() {
   packet_writer_.Reset();
 }
 
-void XdpServer::SendSuccess(proto::request_id_t request_id) {
+void DebugServer::SendSuccess(proto::request_id_t request_id) {
   packet_writer_.Begin(PacketType::kGenericResponse, request_id);
   auto body = packet_writer_.Append<GenericResponse>();
   body->code = GenericResponse::Code::kSuccess;
@@ -325,8 +323,8 @@ void XdpServer::SendSuccess(proto::request_id_t request_id) {
   Flush();
 }
 
-void XdpServer::SendError(proto::request_id_t request_id,
-                          const char* error_message) {
+void DebugServer::SendError(proto::request_id_t request_id,
+                            const char* error_message) {
   packet_writer_.Begin(PacketType::kGenericResponse, request_id);
   auto body = packet_writer_.Append<GenericResponse>();
   body->code = GenericResponse::Code::kError;
@@ -335,8 +333,8 @@ void XdpServer::SendError(proto::request_id_t request_id,
   Flush();
 }
 
-void XdpServer::SendError(proto::request_id_t request_id,
-                          const std::string& error_message) {
+void DebugServer::SendError(proto::request_id_t request_id,
+                            const std::string& error_message) {
   packet_writer_.Begin(PacketType::kGenericResponse, request_id);
   auto body = packet_writer_.Append<GenericResponse>();
   body->code = GenericResponse::Code::kError;
@@ -345,7 +343,5 @@ void XdpServer::SendError(proto::request_id_t request_id,
   Flush();
 }
 
-}  // namespace xdp
-}  // namespace server
 }  // namespace debug
 }  // namespace xe

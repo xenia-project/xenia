@@ -28,12 +28,12 @@ class View {
   std::string name() const { return name_; }
   el::LayoutBox* root_element() { return &root_element_; }
   xe::ui::Loop* loop() const { return Application::current()->loop(); }
-  client::xdp::XdpClient* client() const { return client_; }
+  DebugClient* client() const { return client_; }
   model::System* system() const { return Application::current()->system(); }
 
   virtual el::Element* BuildUI() = 0;
 
-  virtual void Setup(xe::debug::client::xdp::XdpClient* client) = 0;
+  virtual void Setup(xe::debug::DebugClient* client) = 0;
 
  protected:
   View(std::string name) : name_(name) {}
@@ -41,7 +41,7 @@ class View {
   std::string name_;
   el::LayoutBox root_element_;
   std::unique_ptr<el::EventHandler> handler_;
-  xe::debug::client::xdp::XdpClient* client_ = nullptr;
+  xe::debug::DebugClient* client_ = nullptr;
 };
 
 }  // namespace ui

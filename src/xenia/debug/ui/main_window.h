@@ -42,7 +42,7 @@ class MainWindow {
   void OnClose();
 
   Application* app_ = nullptr;
-  xe::debug::client::xdp::XdpClient* client_ = nullptr;
+  xe::debug::DebugClient* client_ = nullptr;
 
   std::unique_ptr<xe::ui::Window> window_;
   std::unique_ptr<el::Form> form_;

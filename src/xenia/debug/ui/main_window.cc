@@ -21,8 +21,6 @@ namespace xe {
 namespace debug {
 namespace ui {
 
-using namespace xe::debug::client::xdp;
-
 using xe::ui::MenuItem;
 
 const std::wstring kBaseTitle = L"xenia debugger";

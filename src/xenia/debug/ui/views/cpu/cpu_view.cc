@@ -16,8 +16,6 @@ namespace ui {
 namespace views {
 namespace cpu {
 
-using namespace xe::debug::client::xdp;
-
 CpuView::CpuView() : View("CPU") {}
 
 CpuView::~CpuView() = default;
@@ -147,7 +145,7 @@ el::Element* CpuView::BuildUI() {
   return &root_element_;
 }
 
-void CpuView::Setup(XdpClient* client) {
+void CpuView::Setup(DebugClient* client) {
   client_ = client;
 
   system()->on_execution_state_changed.AddListener(

@@ -7,33 +7,30 @@
  ******************************************************************************
  */
 
-#include "xenia/debug/client/xdp/xdp_client.h"
+#include "xenia/debug/debug_client.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/debug/debugger.h"
 
 namespace xe {
 namespace debug {
-namespace client {
-namespace xdp {
 
 using namespace xe::debug::proto;
 
 constexpr size_t kReceiveBufferSize = 1 * 1024 * 1024;
 constexpr size_t kTransmitBufferSize = 1 * 1024 * 1024;
 
-XdpClient::XdpClient()
+DebugClient::DebugClient()
     : packet_reader_(kReceiveBufferSize), packet_writer_(kTransmitBufferSize) {
   receive_buffer_.resize(kReceiveBufferSize);
 }
 
-XdpClient::~XdpClient() {
+DebugClient::~DebugClient() {
   socket_->Close();
   xe::threading::Wait(thread_.get(), true);
   thread_.reset();
 }
 
-bool XdpClient::Connect(std::string hostname, uint16_t port) {
+bool DebugClient::Connect(std::string hostname, uint16_t port) {
   socket_ = Socket::Connect(std::move(hostname), port);
   if (!socket_) {
     XELOGE("Unable to connect to remote host");
@@ -69,7 +66,7 @@ bool XdpClient::Connect(std::string hostname, uint16_t port) {
   return true;
 }
 
-bool XdpClient::HandleSocketEvent() {
+bool DebugClient::HandleSocketEvent() {
   if (!socket_->is_connected()) {
     // Known-disconnected.
     return false;
@@ -95,7 +92,7 @@ bool XdpClient::HandleSocketEvent() {
   return true;
 }
 
-bool XdpClient::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
+bool DebugClient::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
   // Grow and append the bytes to the receive buffer.
   packet_reader_.AppendBuffer(buffer, buffer_length);
 
@@ -121,7 +118,7 @@ bool XdpClient::ProcessBuffer(const uint8_t* buffer, size_t buffer_length) {
   return true;
 }
 
-bool XdpClient::ProcessPacket(const proto::Packet* packet) {
+bool DebugClient::ProcessPacket(const proto::Packet* packet) {
   // Hold lock during processing.
   std::lock_guard<std::recursive_mutex> lock(mutex_);
 
@@ -167,7 +164,7 @@ bool XdpClient::ProcessPacket(const proto::Packet* packet) {
   return true;
 }
 
-void XdpClient::Flush() {
+void DebugClient::Flush() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (!packet_writer_.buffer_offset()) {
     return;
@@ -176,7 +173,7 @@ void XdpClient::Flush() {
   packet_writer_.Reset();
 }
 
-void XdpClient::Continue() {
+void DebugClient::Continue() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   packet_writer_.Begin(PacketType::kExecutionRequest);
   auto body = packet_writer_.Append<ExecutionRequest>();
@@ -185,7 +182,7 @@ void XdpClient::Continue() {
   Flush();
 }
 
-void XdpClient::StepOne(uint32_t thread_id) {
+void DebugClient::StepOne(uint32_t thread_id) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   packet_writer_.Begin(PacketType::kExecutionRequest);
   auto body = packet_writer_.Append<ExecutionRequest>();
@@ -196,7 +193,7 @@ void XdpClient::StepOne(uint32_t thread_id) {
   Flush();
 }
 
-void XdpClient::StepTo(uint32_t thread_id, uint32_t target_pc) {
+void DebugClient::StepTo(uint32_t thread_id, uint32_t target_pc) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   packet_writer_.Begin(PacketType::kExecutionRequest);
   auto body = packet_writer_.Append<ExecutionRequest>();
@@ -208,7 +205,7 @@ void XdpClient::StepTo(uint32_t thread_id, uint32_t target_pc) {
   Flush();
 }
 
-void XdpClient::Interrupt() {
+void DebugClient::Interrupt() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   packet_writer_.Begin(PacketType::kExecutionRequest);
   auto body = packet_writer_.Append<ExecutionRequest>();
@@ -217,7 +214,7 @@ void XdpClient::Interrupt() {
   Flush();
 }
 
-void XdpClient::Exit() {
+void DebugClient::Exit() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   packet_writer_.Begin(PacketType::kExecutionRequest);
   auto body = packet_writer_.Append<ExecutionRequest>();
@@ -226,7 +223,7 @@ void XdpClient::Exit() {
   Flush();
 }
 
-void XdpClient::BeginUpdateAllState() {
+void DebugClient::BeginUpdateAllState() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   packet_writer_.Begin(PacketType::kModuleListRequest);
@@ -237,7 +234,5 @@ void XdpClient::BeginUpdateAllState() {
   Flush();
 }
 
-}  // namespace xdp
-}  // namespace client
 }  // namespace debug
 }  // namespace xe

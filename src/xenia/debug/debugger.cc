@@ -21,9 +21,7 @@
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
-#include "xenia/debug/server/gdb/gdb_server.h"
-#include "xenia/debug/server/mi/mi_server.h"
-#include "xenia/debug/server/xdp/xdp_server.h"
+#include "xenia/debug/debug_server.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/objects/xkernel_module.h"
 #include "xenia/kernel/objects/xmodule.h"
@@ -42,8 +40,6 @@ DEFINE_string(debug_session_path, "", "Debug output path.");
 DEFINE_bool(wait_for_debugger, false,
             "Waits for a debugger to attach before starting the game.");
 DEFINE_bool(exit_with_debugger, true, "Exit whe the debugger disconnects.");
-
-DEFINE_string(debug_server, "xdp", "Debug server protocol [gdb, mi, xdp].");
 
 namespace xe {
 namespace debug {
@@ -91,24 +87,10 @@ bool Debugger::StartSession() {
   functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
       functions_trace_path_, 32 * 1024 * 1024, true);
 
-  if (FLAGS_debug_server == "gdb") {
-    server_ = std::make_unique<xe::debug::server::gdb::GdbServer>(this);
-    if (!server_->Initialize()) {
-      XELOGE("Unable to initialize GDB debug server");
-      return false;
-    }
-  } else if (FLAGS_debug_server == "gdb") {
-    server_ = std::make_unique<xe::debug::server::mi::MIServer>(this);
-    if (!server_->Initialize()) {
-      XELOGE("Unable to initialize MI debug server");
-      return false;
-    }
-  } else {
-    server_ = std::make_unique<xe::debug::server::xdp::XdpServer>(this);
-    if (!server_->Initialize()) {
-      XELOGE("Unable to initialize XDP debug server");
-      return false;
-    }
+  server_ = std::make_unique<DebugServer>(this);
+  if (!server_->Initialize()) {
+    XELOGE("Unable to initialize XDP debug server");
+    return false;
   }
 
   return true;

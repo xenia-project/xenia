@@ -18,7 +18,7 @@ namespace model {
 
 using namespace xe::debug::proto;
 
-System::System(xe::ui::Loop* loop, client::xdp::XdpClient* client)
+System::System(xe::ui::Loop* loop, DebugClient* client)
     : loop_(loop), client_(client) {}
 
 ExecutionState System::execution_state() {
@@ -83,7 +83,10 @@ void System::OnModulesUpdated(std::vector<const ModuleListEntry*> entries) {
       }
     }
     for (auto module_handle : extra_modules) {
-      modules_by_handle_[module_handle]->set_dead(true);
+      auto module = modules_by_handle_.find(module_handle);
+      if (module != modules_by_handle_.end()) {
+        module->second->set_dead(true);
+      }
     }
   }
   loop_->Post([this]() {
@@ -112,7 +115,10 @@ void System::OnThreadsUpdated(std::vector<const ThreadListEntry*> entries) {
       }
     }
     for (auto thread_handle : extra_threads) {
-      modules_by_handle_[thread_handle]->set_dead(true);
+      auto thread = threads_by_handle_.find(thread_handle);
+      if (thread != threads_by_handle_.end()) {
+        thread->second->set_dead(true);
+      }
     }
   }
   loop_->Post([this]() {

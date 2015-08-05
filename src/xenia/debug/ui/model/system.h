@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "xenia/base/delegate.h"
-#include "xenia/debug/client/xdp/xdp_client.h"
+#include "xenia/debug/debug_client.h"
 #include "xenia/debug/ui/model/function.h"
 #include "xenia/debug/ui/model/module.h"
 #include "xenia/debug/ui/model/thread.h"
@@ -28,14 +28,12 @@ namespace debug {
 namespace ui {
 namespace model {
 
-using xe::debug::client::xdp::ExecutionState;
-
-class System : public client::xdp::ClientListener {
+class System : public ClientListener {
  public:
-  System(xe::ui::Loop* loop, client::xdp::XdpClient* client);
+  System(xe::ui::Loop* loop, DebugClient* client);
 
   xe::ui::Loop* loop() const { return loop_; }
-  client::xdp::XdpClient* client() const { return client_; }
+  DebugClient* client() const { return client_; }
 
   ExecutionState execution_state();
 
@@ -57,7 +55,7 @@ class System : public client::xdp::ClientListener {
       std::vector<const proto::ThreadListEntry*> entries) override;
 
   xe::ui::Loop* loop_ = nullptr;
-  client::xdp::XdpClient* client_ = nullptr;
+  DebugClient* client_ = nullptr;
 
   std::recursive_mutex mutex_;
   std::vector<std::unique_ptr<Module>> modules_;
