@@ -10,9 +10,6 @@
 #include "third_party/catch/include/catch.hpp"
 #include "xenia/base/memory.h"
 
-using namespace xe;
-using namespace xe::memory;
-
 TEST_CASE("copy_and_swap_16_aligned", "Copy and Swap") {
   // TODO(benvanik): tests.
   REQUIRE(true == true);

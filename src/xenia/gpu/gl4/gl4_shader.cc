@@ -331,7 +331,7 @@ bool GL4Shader::CompileProgram(std::string source) {
 
   // Save to disk, if we asked for it.
   auto base_path = FLAGS_dump_shaders.c_str();
-  char file_name[xe::max_path];
+  char file_name[kMaxPath];
   snprintf(file_name, xe::countof(file_name), "%s/gl4_gen_%.16llX.%s",
            base_path, data_hash_,
            shader_type_ == ShaderType::kVertex ? "vert" : "frag");

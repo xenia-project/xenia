@@ -22,12 +22,12 @@ bool PathExists(const std::wstring& path) {
 }
 
 bool CreateFolder(const std::wstring& path) {
-  wchar_t folder[MAX_PATH] = {0};
-  auto end = std::wcschr(path.c_str(), xe::wpath_separator);
+  wchar_t folder[kMaxPath] = {0};
+  auto end = std::wcschr(path.c_str(), xe::kWPathSeparator);
   while (end) {
     wcsncpy(folder, path.c_str(), end - path.c_str() + 1);
     CreateDirectory(folder, NULL);
-    end = wcschr(++end, xe::wpath_separator);
+    end = wcschr(++end, xe::kWPathSeparator);
   }
   return PathExists(path);
 }

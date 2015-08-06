@@ -15,7 +15,7 @@ namespace xe {
 namespace filesystem {
 
 std::string CanonicalizePath(const std::string& original_path) {
-  char path_sep(xe::path_separator);
+  char path_sep(xe::kPathSeparator);
   std::string path(xe::fix_path_separators(original_path, path_sep));
 
   std::vector<std::string::size_type> path_breaks;
@@ -111,19 +111,19 @@ WildcardRule::WildcardRule(const std::string& str_match,
 }
 
 bool WildcardRule::Check(const std::string& str_lower,
-                         std::string::size_type& offset) const {
+                         std::string::size_type* offset) const {
   if (match.empty()) {
     return true;
   }
 
-  if ((str_lower.size() - offset) < match.size()) {
+  if ((str_lower.size() - *offset) < match.size()) {
     return false;
   }
 
-  std::string::size_type result(str_lower.find(match, offset));
+  std::string::size_type result(str_lower.find(match, *offset));
 
   if (result != std::string::npos) {
-    if (rules.FromStart && result != offset) {
+    if (rules.FromStart && result != *offset) {
       return false;
     }
 
@@ -131,7 +131,7 @@ bool WildcardRule::Check(const std::string& str_lower,
       return false;
     }
 
-    offset = (result + match.size());
+    *offset = (result + match.size());
     return true;
   }
 
@@ -168,7 +168,7 @@ bool WildcardEngine::Match(const std::string& str) const {
 
   std::string::size_type offset(0);
   for (const auto& rule : rules) {
-    if (!(rule.Check(str_lc, offset))) {
+    if (!(rule.Check(str_lc, &offset))) {
       return false;
     }
   }

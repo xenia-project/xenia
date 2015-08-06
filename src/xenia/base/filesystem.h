@@ -70,7 +70,7 @@ class FileHandle {
   virtual void Flush() = 0;
 
  protected:
-  FileHandle(std::wstring path) : path_(std::move(path)) {}
+  explicit FileHandle(std::wstring path) : path_(std::move(path)) {}
 
   std::wstring path_;
 };
@@ -105,7 +105,7 @@ class WildcardRule {
  public:
   WildcardRule(const std::string& str_match, const WildcardFlags& flags);
   bool Check(const std::string& str_lower,
-             std::string::size_type& offset) const;
+             std::string::size_type* offset) const;
 
  private:
   std::string match;

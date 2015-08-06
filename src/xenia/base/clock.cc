@@ -33,7 +33,7 @@ thread_local uint64_t last_host_tick_count_ = Clock::QueryHostTickCount();
 
 void RecomputeGuestTickScalar() {
   guest_tick_scalar_ = (guest_tick_frequency_ * guest_time_scalar_) /
-                       double(Clock::host_tick_frequency());
+                       static_cast<double>(Clock::host_tick_frequency());
 }
 
 void UpdateGuestClock() {
@@ -108,7 +108,7 @@ int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
   return scaled_file_time;
 }
 
-void Clock::ScaleGuestDurationTimeval(long* tv_sec, long* tv_usec) {
+void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
   uint64_t scaled_sec = uint64_t(uint64_t(*tv_sec) * guest_tick_scalar_);
   uint64_t scaled_usec = uint64_t(uint64_t(*tv_usec) * guest_time_scalar_);
   if (scaled_usec > UINT_MAX) {
@@ -116,8 +116,8 @@ void Clock::ScaleGuestDurationTimeval(long* tv_sec, long* tv_usec) {
     scaled_usec -= overflow_sec * 1000000;
     scaled_sec += overflow_sec;
   }
-  *tv_sec = long(scaled_sec);
-  *tv_usec = long(scaled_usec);
+  *tv_sec = int32_t(scaled_sec);
+  *tv_usec = int32_t(scaled_usec);
 }
 
 }  // namespace xe

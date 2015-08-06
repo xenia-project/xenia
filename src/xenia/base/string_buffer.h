@@ -17,7 +17,7 @@ namespace xe {
 
 class StringBuffer {
  public:
-  StringBuffer(size_t initial_capacity = 0);
+  explicit StringBuffer(size_t initial_capacity = 0);
   ~StringBuffer();
 
   size_t length() const { return buffer_offset_; }

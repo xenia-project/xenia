@@ -33,16 +33,16 @@ std::vector<std::string> split_path(const std::string& path);
 
 // Joins two path segments with the given separator.
 std::string join_paths(const std::string& left, const std::string& right,
-                       char sep = xe::path_separator);
+                       char sep = xe::kPathSeparator);
 std::wstring join_paths(const std::wstring& left, const std::wstring& right,
-                        wchar_t sep = xe::path_separator);
+                        wchar_t sep = xe::kPathSeparator);
 
 // Replaces all path separators with the given value and removes redundant
 // separators.
 std::wstring fix_path_separators(const std::wstring& source,
-                                 wchar_t new_sep = xe::path_separator);
+                                 wchar_t new_sep = xe::kPathSeparator);
 std::string fix_path_separators(const std::string& source,
-                                char new_sep = xe::path_separator);
+                                char new_sep = xe::kPathSeparator);
 
 // Find the top directory name or filename from a path.
 std::string find_name_from_path(const std::string& path);

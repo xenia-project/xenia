@@ -52,7 +52,7 @@ class Clock {
   // Scales a time duration in 100ns ticks like FILETIME, from guest time.
   static int64_t ScaleGuestDurationFileTime(int64_t guest_file_time);
   // Scales a time duration represented as a timeval, from guest time.
-  static void ScaleGuestDurationTimeval(long* tv_sec, long* tv_usec);
+  static void ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec);
 };
 
 }  // namespace xe

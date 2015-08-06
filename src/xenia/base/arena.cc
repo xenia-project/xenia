@@ -83,8 +83,8 @@ size_t Arena::CalculateSize() {
 
 void* Arena::CloneContents() {
   size_t total_length = CalculateSize();
-  void* result = malloc(total_length);
-  uint8_t* p = (uint8_t*)result;
+  auto result = reinterpret_cast<uint8_t*>(malloc(total_length));
+  auto p = result;
   Chunk* chunk = head_chunk_;
   while (chunk) {
     std::memcpy(p, chunk->buffer, chunk->offset);
@@ -98,7 +98,7 @@ void* Arena::CloneContents() {
 }
 
 void Arena::CloneContents(void* buffer, size_t buffer_length) {
-  uint8_t* p = (uint8_t*)buffer;
+  uint8_t* p = reinterpret_cast<uint8_t*>(buffer);
   Chunk* chunk = head_chunk_;
   while (chunk) {
     std::memcpy(p, chunk->buffer, chunk->offset);

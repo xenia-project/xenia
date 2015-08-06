@@ -61,16 +61,20 @@
 #include <x86intrin.h>
 #endif  // XE_PLATFORM_WIN32
 
+#if XE_PLATFORM_MAC
+#include <libkern/OSByteOrder.h>
+#endif  // XE_PLATFORM_MAC
+
 namespace xe {
 
 #if XE_PLATFORM_WIN32
-const char path_separator = '\\';
-const wchar_t wpath_separator = L'\\';
-const size_t max_path = 260;  // _MAX_PATH
+const char kPathSeparator = '\\';
+const wchar_t kWPathSeparator = L'\\';
+const size_t kMaxPath = 260;  // _MAX_PATH
 #else
-const char path_separator = '/';
-const wchar_t wpath_separator = L'/';
-const size_t max_path = 1024;  // PATH_MAX
+const char kPathSeparator = '/';
+const wchar_t kWPathSeparator = L'/';
+const size_t kMaxPath = 1024;  // PATH_MAX
 #endif  // XE_PLATFORM_WIN32
 
 // Launches a web browser to the given URL.

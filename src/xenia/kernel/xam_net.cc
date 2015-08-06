@@ -593,9 +593,11 @@ SHIM_CALL NetDll_select_shim(PPCContext* ppc_context,
   timeval* timeout_in = nullptr;
   timeval timeout;
   if (timeout_ptr) {
-    timeout = {static_cast<long>(SHIM_MEM_32(timeout_ptr + 0)),
-               static_cast<long>(SHIM_MEM_32(timeout_ptr + 4))};
-    Clock::ScaleGuestDurationTimeval(&timeout.tv_sec, &timeout.tv_usec);
+    timeout = {static_cast<int32_t>(SHIM_MEM_32(timeout_ptr + 0)),
+               static_cast<int32_t>(SHIM_MEM_32(timeout_ptr + 4))};
+    Clock::ScaleGuestDurationTimeval(
+        reinterpret_cast<int32_t*>(&timeout.tv_sec),
+        reinterpret_cast<int32_t*>(&timeout.tv_usec));
     timeout_in = &timeout;
   }
   int ret = select(nfds, readfds_ptr ? &readfds : nullptr,

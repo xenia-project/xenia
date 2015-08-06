@@ -18,7 +18,7 @@ namespace xe {
 
 class Arena {
  public:
-  Arena(size_t chunk_size = 4 * 1024 * 1024);
+  explicit Arena(size_t chunk_size = 4 * 1024 * 1024);
   ~Arena();
 
   void Reset();
@@ -33,15 +33,15 @@ class Arena {
 
   void* CloneContents();
   template <typename T>
-  void CloneContents(std::vector<T>& buffer) {
-    buffer.resize(CalculateSize() / sizeof(T));
-    CloneContents(buffer.data(), buffer.size() * sizeof(T));
+  void CloneContents(std::vector<T>* buffer) {
+    buffer->resize(CalculateSize() / sizeof(T));
+    CloneContents(buffer->data(), buffer->size() * sizeof(T));
   }
 
  private:
   class Chunk {
    public:
-    Chunk(size_t chunk_size);
+    explicit Chunk(size_t chunk_size);
     ~Chunk();
 
     Chunk* next;

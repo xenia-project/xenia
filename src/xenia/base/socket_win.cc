@@ -14,11 +14,10 @@
 
 #include "xenia/base/logging.h"
 
-// platform_win.h must come first to include Windows headers.
 #include "xenia/base/platform_win.h"
-#include <mstcpip.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#include <mstcpip.h>   // NOLINT(must follow platform_win.h)
+#include <winsock2.h>  // NOLINT(must follow platform_win.h)
+#include <ws2tcpip.h>  // NOLINT(must follow platform_win.h)
 
 namespace xe {
 
@@ -63,7 +62,8 @@ class Win32Socket : public Socket {
         return false;
       }
       // Connect to server.
-      ret = connect(try_socket, ptr->ai_addr, (int)ptr->ai_addrlen);
+      ret =
+          connect(try_socket, ptr->ai_addr, static_cast<int>(ptr->ai_addrlen));
       if (ret == SOCKET_ERROR) {
         closesocket(try_socket);
         try_socket = INVALID_SOCKET;
@@ -133,8 +133,8 @@ class Win32Socket : public Socket {
     if (socket_ == INVALID_SOCKET) {
       return -1;
     }
-    int ret =
-        recv(socket_, reinterpret_cast<char*>(buffer), int(buffer_capacity), 0);
+    int ret = recv(socket_, reinterpret_cast<char*>(buffer),
+                   static_cast<int>(buffer_capacity), 0);
     if (ret == SOCKET_ERROR) {
       int e = WSAGetLastError();
       if (e == WSAEWOULDBLOCK) {

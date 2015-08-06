@@ -61,7 +61,7 @@ void set_name(DWORD thread_id, const std::string& name) {
   __try {
     RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR),
                    reinterpret_cast<ULONG_PTR*>(&info));
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
+  } __except (EXCEPTION_EXECUTE_HANDLER) {  // NOLINT
   }
 }
 
@@ -149,7 +149,7 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
 template <typename T>
 class Win32Handle : public T {
  public:
-  Win32Handle(HANDLE handle) : handle_(handle) {}
+  explicit Win32Handle(HANDLE handle) : handle_(handle) {}
   ~Win32Handle() override {
     CloseHandle(handle_);
     handle_ = nullptr;
@@ -236,7 +236,7 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
 
 class Win32Event : public Win32Handle<Event> {
  public:
-  Win32Event(HANDLE handle) : Win32Handle(handle) {}
+  explicit Win32Event(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Event() override = default;
   void Set() override { SetEvent(handle_); }
   void Reset() override { ResetEvent(handle_); }
@@ -255,7 +255,7 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
 
 class Win32Semaphore : public Win32Handle<Semaphore> {
  public:
-  Win32Semaphore(HANDLE handle) : Win32Handle(handle) {}
+  explicit Win32Semaphore(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Semaphore() override = default;
   bool Release(int release_count, int* out_previous_count) override {
     return ReleaseSemaphore(handle_, release_count,
@@ -273,7 +273,7 @@ std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
 
 class Win32Mutant : public Win32Handle<Mutant> {
  public:
-  Win32Mutant(HANDLE handle) : Win32Handle(handle) {}
+  explicit Win32Mutant(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Mutant() = default;
   bool Release() override { return ReleaseMutex(handle_) ? true : false; }
 };
@@ -285,7 +285,7 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
 
 class Win32Timer : public Win32Handle<Timer> {
  public:
-  Win32Timer(HANDLE handle) : Win32Handle(handle) {}
+  explicit Win32Timer(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Timer() = default;
   bool SetOnce(std::chrono::nanoseconds due_time,
                std::function<void()> opt_callback) override {
@@ -349,7 +349,7 @@ std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
 
 class Win32Thread : public Win32Handle<Thread> {
  public:
-  Win32Thread(HANDLE handle) : Win32Handle(handle) {}
+  explicit Win32Thread(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Thread() = default;
 
   void set_name(std::string name) override {

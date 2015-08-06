@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_LOGGING_H_
-#define XENIA_LOGGING_H_
+#ifndef XENIA_BASE_LOGGING_H_
+#define XENIA_BASE_LOGGING_H_
 
 #include <cstdint>
 
@@ -102,4 +102,4 @@ void handle_fatal(const char* fmt, ...);
 
 }  // namespace xe
 
-#endif  // XENIA_LOGGING_H_
+#endif  // XENIA_BASE_LOGGING_H_

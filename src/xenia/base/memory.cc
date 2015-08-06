@@ -29,9 +29,9 @@ void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,
   __m128i input, output;
 
   for (i = 0; i + 8 <= count; i += 8) {
-    input = _mm_loadu_si128((__m128i*)&src[i]);
+    input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
     output = _mm_or_si128(_mm_slli_epi16(input, 8), _mm_srli_epi16(input, 8));
-    _mm_storeu_si128((__m128i*)&dest[i], output);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
 
   for (; i < count; ++i) {  // handle residual elements
@@ -52,7 +52,7 @@ void copy_and_swap_32_unaligned(uint32_t* dest, const uint32_t* src,
   __m128i byte3mask = _mm_set1_epi32(0x0000FF00);
 
   for (i = 0; i + 4 <= count; i += 4) {
-    input = _mm_loadu_si128((__m128i*)&src[i]);
+    input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
 
     // Do the four shifts
     byte1 = _mm_slli_epi32(input, 24);
@@ -67,7 +67,7 @@ void copy_and_swap_32_unaligned(uint32_t* dest, const uint32_t* src,
     byte3 = _mm_and_si128(byte3, byte3mask);
     output = _mm_or_si128(output, byte3);
 
-    _mm_storeu_si128((__m128i*)&dest[i], output);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
 
   for (; i < count; ++i) {  // handle residual elements
@@ -88,7 +88,7 @@ void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
   __m128i byte3mask = _mm_set1_epi32(0x0000FF00);
 
   for (i = 0; i + 2 <= count; i += 2) {
-    input = _mm_loadu_si128((__m128i*)&src[i]);
+    input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
 
     // Do the four shifts
     byte1 = _mm_slli_epi32(input, 24);
@@ -106,7 +106,7 @@ void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
     // Reorder the two words
     output = _mm_shuffle_epi32(output, _MM_SHUFFLE(2, 3, 0, 1));
 
-    _mm_storeu_si128((__m128i*)&dest[i], output);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
 
   for (; i < count; ++i) {  // handle residual elements
@@ -119,9 +119,9 @@ void copy_and_swap_16_in_32_aligned(uint32_t* dest, const uint32_t* src,
   size_t i;
   __m128i input, output;
   for (i = 0; i + 4 <= count; i += 4) {
-    input = _mm_loadu_si128((__m128i*)&src[i]);
+    input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
     output = _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
-    _mm_storeu_si128((__m128i*)&dest[i], output);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
     dest[i] = (src[i] >> 16) | (src[i] << 16);

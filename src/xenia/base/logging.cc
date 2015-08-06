@@ -13,6 +13,7 @@
 
 #include <cstdarg>
 #include <mutex>
+#include <vector>
 
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"

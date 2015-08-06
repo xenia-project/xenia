@@ -111,7 +111,7 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
   out_code_address = Emplace(stack_size, function);
 
   // Stash source map.
-  source_map_arena_.CloneContents(out_source_map);
+  source_map_arena_.CloneContents(&out_source_map);
 
   return true;
 }

@@ -15,10 +15,6 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 
-#if XE_PLATFORM_MAC
-#include <libkern/OSByteOrder.h>
-#endif  // XE_PLATFORM_MAC
-
 namespace xe {
 
 #if XE_PLATFORM_WIN32
