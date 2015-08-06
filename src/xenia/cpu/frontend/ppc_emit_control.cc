@@ -53,7 +53,7 @@ int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
     // recursion.
     uint32_t nia_value = nia->AsUint64() & 0xFFFFFFFF;
     bool is_recursion = false;
-    if (nia_value == f.symbol_info()->address() && lk) {
+    if (nia_value == f.function()->address() && lk) {
       is_recursion = true;
     }
     Label* label = is_recursion ? NULL : f.LookupLabel(nia_value);
@@ -71,14 +71,14 @@ int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
       }
     } else {
       // Call function.
-      auto symbol_info = f.LookupFunction(nia_value);
+      auto function = f.LookupFunction(nia_value);
       if (cond) {
         if (!expect_true) {
           cond = f.IsFalse(cond);
         }
-        f.CallTrue(cond, symbol_info, call_flags);
+        f.CallTrue(cond, function, call_flags);
       } else {
-        f.Call(symbol_info, call_flags);
+        f.Call(function, call_flags);
       }
     }
   } else {
@@ -419,7 +419,7 @@ XEEMITTER(mcrf, 0x4C000000, XL)(PPCHIRBuilder& f, InstrData& i) {
 // System linkage (A-24)
 
 XEEMITTER(sc, 0x44000002, SC)(PPCHIRBuilder& f, InstrData& i) {
-  f.CallExtern(f.symbol_info());
+  f.CallExtern(f.function());
   return 0;
 }
 

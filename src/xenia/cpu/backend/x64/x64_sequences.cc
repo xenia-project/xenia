@@ -154,7 +154,7 @@ struct OffsetOp : Op<OffsetOp, KEY_TYPE_O> {
 };
 
 struct SymbolOp : Op<SymbolOp, KEY_TYPE_S> {
-  FunctionInfo* value;
+  Function* value;
 
  protected:
   template <typename T, KeyType KEY_TYPE>
@@ -162,7 +162,7 @@ struct SymbolOp : Op<SymbolOp, KEY_TYPE_S> {
   template <hir::Opcode OPCODE, typename... Ts>
   friend struct I;
   bool Load(const Instr::Op& op) {
-    this->value = op.symbol_info;
+    this->value = op.symbol;
     return true;
   }
 };
@@ -856,7 +856,8 @@ EMITTER_OPCODE_TABLE(OPCODE_TRAP_TRUE, TRAP_TRUE_I8, TRAP_TRUE_I16,
 // ============================================================================
 struct CALL : Sequence<CALL, I<OPCODE_CALL, VoidOp, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.Call(i.instr, i.src1.value);
+    assert_true(i.src1.value->is_guest());
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src1.value));
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CALL, CALL);
@@ -867,60 +868,66 @@ EMITTER_OPCODE_TABLE(OPCODE_CALL, CALL);
 struct CALL_TRUE_I8
     : Sequence<CALL_TRUE_I8, I<OPCODE_CALL_TRUE, VoidOp, I8Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->is_guest());
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Call(i.instr, i.src2.value);
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
   }
 };
 struct CALL_TRUE_I16
     : Sequence<CALL_TRUE_I16, I<OPCODE_CALL_TRUE, VoidOp, I16Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->is_guest());
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Call(i.instr, i.src2.value);
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
   }
 };
 struct CALL_TRUE_I32
     : Sequence<CALL_TRUE_I32, I<OPCODE_CALL_TRUE, VoidOp, I32Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->is_guest());
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Call(i.instr, i.src2.value);
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
   }
 };
 struct CALL_TRUE_I64
     : Sequence<CALL_TRUE_I64, I<OPCODE_CALL_TRUE, VoidOp, I64Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->is_guest());
     e.test(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Call(i.instr, i.src2.value);
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
   }
 };
 struct CALL_TRUE_F32
     : Sequence<CALL_TRUE_F32, I<OPCODE_CALL_TRUE, VoidOp, F32Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->is_guest());
     e.vptest(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Call(i.instr, i.src2.value);
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
   }
 };
 struct CALL_TRUE_F64
     : Sequence<CALL_TRUE_F64, I<OPCODE_CALL_TRUE, VoidOp, F64Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->is_guest());
     e.vptest(i.src1, i.src1);
     Xbyak::Label skip;
     e.jz(skip);
-    e.Call(i.instr, i.src2.value);
+    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
   }
 };

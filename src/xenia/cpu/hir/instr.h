@@ -15,7 +15,7 @@
 
 namespace xe {
 namespace cpu {
-class FunctionInfo;
+class Function;
 }  // namespace cpu
 }  // namespace xe
 
@@ -37,7 +37,7 @@ class Instr {
   uint32_t ordinal;
 
   typedef union {
-    FunctionInfo* symbol_info;
+    Function* symbol;
     Label* label;
     Value* value;
     uint64_t offset;

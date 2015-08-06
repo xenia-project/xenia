@@ -18,8 +18,8 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-X64Function::X64Function(FunctionInfo* symbol_info)
-    : Function(symbol_info), machine_code_(nullptr), machine_code_length_(0) {}
+X64Function::X64Function(Module* module, uint32_t address)
+    : GuestFunction(module, address) {}
 
 X64Function::~X64Function() {
   // machine_code_ is freed by code cache.
@@ -28,14 +28,6 @@ X64Function::~X64Function() {
 void X64Function::Setup(uint8_t* machine_code, size_t machine_code_length) {
   machine_code_ = machine_code;
   machine_code_length_ = machine_code_length;
-}
-
-bool X64Function::AddBreakpointImpl(debug::Breakpoint* breakpoint) {
-  return false;
-}
-
-bool X64Function::RemoveBreakpointImpl(debug::Breakpoint* breakpoint) {
-  return false;
 }
 
 bool X64Function::CallImpl(ThreadState* thread_state, uint32_t return_address) {

@@ -16,6 +16,8 @@
 
 namespace xe {
 namespace cpu {
+class GuestFunction;
+class Module;
 class Processor;
 }  // namespace cpu
 }  // namespace xe
@@ -45,6 +47,9 @@ class Backend {
                                      uint32_t guest_high) = 0;
 
   virtual std::unique_ptr<Assembler> CreateAssembler() = 0;
+
+  virtual std::unique_ptr<GuestFunction> CreateGuestFunction(
+      Module* module, uint32_t address) = 0;
 
  protected:
   Processor* processor_;

@@ -15,8 +15,7 @@
 namespace xe {
 namespace cpu {
 class DebugInfo;
-class Function;
-class FunctionInfo;
+class GuestFunction;
 namespace hir {
 class HIRBuilder;
 }  // namespace hir
@@ -38,10 +37,9 @@ class Assembler {
 
   virtual void Reset();
 
-  virtual bool Assemble(FunctionInfo* symbol_info, hir::HIRBuilder* builder,
+  virtual bool Assemble(GuestFunction* function, hir::HIRBuilder* builder,
                         uint32_t debug_info_flags,
-                        std::unique_ptr<DebugInfo> debug_info,
-                        Function** out_function) = 0;
+                        std::unique_ptr<DebugInfo> debug_info) = 0;
 
  protected:
   Backend* backend_;

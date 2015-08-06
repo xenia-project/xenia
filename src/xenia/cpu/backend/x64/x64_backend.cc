@@ -10,8 +10,9 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
 #include "xenia/cpu/backend/x64/x64_assembler.h"
-#include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
+#include "xenia/cpu/backend/x64/x64_emitter.h"
+#include "xenia/cpu/backend/x64/x64_function.h"
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/processor.h"
@@ -104,6 +105,11 @@ void X64Backend::CommitExecutableRange(uint32_t guest_low,
 
 std::unique_ptr<Assembler> X64Backend::CreateAssembler() {
   return std::make_unique<X64Assembler>(this);
+}
+
+std::unique_ptr<GuestFunction> X64Backend::CreateGuestFunction(
+    Module* module, uint32_t address) {
+  return std::make_unique<X64Function>(module, address);
 }
 
 using namespace Xbyak;

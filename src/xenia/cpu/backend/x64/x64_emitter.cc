@@ -27,8 +27,9 @@
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/debug_info.h"
+#include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/debugger.h"
 #include "xenia/profiling.h"
@@ -87,7 +88,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 
 X64Emitter::~X64Emitter() = default;
 
-bool X64Emitter::Emit(FunctionInfo* function_info, HIRBuilder* builder,
+bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
                       uint32_t debug_info_flags, DebugInfo* debug_info,
                       void*& out_code_address, size_t& out_code_size,
                       std::vector<SourceMapEntry>& out_source_map) {
@@ -96,6 +97,7 @@ bool X64Emitter::Emit(FunctionInfo* function_info, HIRBuilder* builder,
   // Reset.
   debug_info_ = debug_info;
   debug_info_flags_ = debug_info_flags;
+  trace_data_ = &function->trace_data();
   source_map_arena_.Reset();
 
   // Fill the generator with code.
@@ -106,7 +108,7 @@ bool X64Emitter::Emit(FunctionInfo* function_info, HIRBuilder* builder,
 
   // Copy the final code to the cache and relocate it.
   out_code_size = getSize();
-  out_code_address = Emplace(stack_size, function_info);
+  out_code_address = Emplace(stack_size, function);
 
   // Stash source map.
   source_map_arena_.CloneContents(out_source_map);
@@ -114,16 +116,16 @@ bool X64Emitter::Emit(FunctionInfo* function_info, HIRBuilder* builder,
   return true;
 }
 
-void* X64Emitter::Emplace(size_t stack_size, FunctionInfo* function_info) {
+void* X64Emitter::Emplace(size_t stack_size, GuestFunction* function) {
   // To avoid changing xbyak, we do a switcharoo here.
   // top_ points to the Xbyak buffer, and since we are in AutoGrow mode
   // it has pending relocations. We copy the top_ to our buffer, swap the
   // pointer, relocate, then return the original scratch pointer for use.
   uint8_t* old_address = top_;
   void* new_address;
-  if (function_info) {
-    new_address = code_cache_->PlaceGuestCode(function_info->address(), top_,
-                                              size_, stack_size, function_info);
+  if (function) {
+    new_address = code_cache_->PlaceGuestCode(function->address(), top_, size_,
+                                              stack_size, function);
   } else {
     new_address = code_cache_->PlaceHostCode(0, top_, size_, stack_size);
   }
@@ -177,8 +179,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   // Safe now to do some tracing.
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctions) {
     // We require 32-bit addresses.
-    assert_true(uint64_t(debug_info_->trace_data().header()) < UINT_MAX);
-    auto trace_header = debug_info_->trace_data().header();
+    assert_true(uint64_t(trace_data_->header()) < UINT_MAX);
+    auto trace_header = trace_data_->header();
 
     // Call count.
     lock();
@@ -265,11 +267,10 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   }
 
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
-    auto trace_data = debug_info_->trace_data();
     uint32_t instruction_index =
-        (entry->source_offset - trace_data.start_address()) / 4;
+        (entry->source_offset - trace_data_->start_address()) / 4;
     lock();
-    inc(qword[low_address(trace_data.instruction_execute_counts() +
+    inc(qword[low_address(trace_data_->instruction_execute_counts() +
                           instruction_index * 8)]);
   }
 }
@@ -341,8 +342,7 @@ extern "C" uint64_t ResolveFunction(void* raw_context,
   // TODO(benvanik): required?
   assert_not_zero(target_address);
 
-  Function* fn = NULL;
-  thread_state->processor()->ResolveFunction(target_address, &fn);
+  auto fn = thread_state->processor()->ResolveFunction(target_address);
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
@@ -350,11 +350,11 @@ extern "C" uint64_t ResolveFunction(void* raw_context,
   return addr;
 }
 
-void X64Emitter::Call(const hir::Instr* instr, FunctionInfo* symbol_info) {
-  assert_not_null(symbol_info);
-  auto fn = reinterpret_cast<X64Function*>(symbol_info->function());
+void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
+  assert_not_null(function);
+  auto fn = static_cast<X64Function*>(function);
   // Resolve address to the function to call and store in rax.
-  if (fn) {
+  if (fn->machine_code()) {
     // TODO(benvanik): is it worth it to do this? It removes the need for
     // a ResolveFunction call, but makes the table less useful.
     assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
@@ -363,7 +363,7 @@ void X64Emitter::Call(const hir::Instr* instr, FunctionInfo* symbol_info) {
     // Load the pointer to the indirection table maintained in X64CodeCache.
     // The target dword will either contain the address of the generated code
     // or a thunk to ResolveAddress.
-    mov(ebx, symbol_info->address());
+    mov(ebx, function->address());
     mov(eax, dword[ebx]);
   }
 
@@ -418,43 +418,50 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
   }
 }
 
-uint64_t UndefinedCallExtern(void* raw_context, uint64_t symbol_info_ptr) {
-  auto symbol_info = reinterpret_cast<FunctionInfo*>(symbol_info_ptr);
-  XELOGW("undefined extern call to %.8X %s", symbol_info->address(),
-         symbol_info->name().c_str());
+uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
+  auto function = reinterpret_cast<Function*>(function_ptr);
+  XELOGW("undefined extern call to %.8X %s", function->address(),
+         function->name().c_str());
   return 0;
 }
-void X64Emitter::CallExtern(const hir::Instr* instr,
-                            const FunctionInfo* symbol_info) {
-  if (symbol_info->behavior() == FunctionBehavior::kBuiltin &&
-      symbol_info->builtin_handler()) {
-    // rcx = context
-    // rdx = target host function
-    // r8  = arg0
-    // r9  = arg1
-    mov(rdx, reinterpret_cast<uint64_t>(symbol_info->builtin_handler()));
-    mov(r8, reinterpret_cast<uint64_t>(symbol_info->builtin_arg0()));
-    mov(r9, reinterpret_cast<uint64_t>(symbol_info->builtin_arg1()));
-    auto thunk = backend()->guest_to_host_thunk();
-    mov(rax, reinterpret_cast<uint64_t>(thunk));
-    call(rax);
-    ReloadECX();
-    ReloadEDX();
-    // rax = host return
-  } else if (symbol_info->behavior() == FunctionBehavior::kExtern &&
-             symbol_info->extern_handler()) {
-    // rcx = context
-    // rdx = target host function
-    mov(rdx, reinterpret_cast<uint64_t>(symbol_info->extern_handler()));
-    mov(r8, qword[rcx + offsetof(cpu::frontend::PPCContext, kernel_state)]);
-    auto thunk = backend()->guest_to_host_thunk();
-    mov(rax, reinterpret_cast<uint64_t>(thunk));
-    call(rax);
-    ReloadECX();
-    ReloadEDX();
-    // rax = host return
-  } else {
-    CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(symbol_info));
+void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
+  bool undefined = true;
+  if (function->behavior() == Function::Behavior::kBuiltin) {
+    auto builtin_function = static_cast<const BuiltinFunction*>(function);
+    if (builtin_function->handler()) {
+      undefined = false;
+      // rcx = context
+      // rdx = target host function
+      // r8  = arg0
+      // r9  = arg1
+      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->handler()));
+      mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg0()));
+      mov(r9, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+      auto thunk = backend()->guest_to_host_thunk();
+      mov(rax, reinterpret_cast<uint64_t>(thunk));
+      call(rax);
+      ReloadECX();
+      ReloadEDX();
+      // rax = host return
+    }
+  } else if (function->behavior() == Function::Behavior::kExtern) {
+    auto extern_function = static_cast<const GuestFunction*>(function);
+    if (extern_function->extern_handler()) {
+      undefined = false;
+      // rcx = context
+      // rdx = target host function
+      mov(rdx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
+      mov(r8, qword[rcx + offsetof(cpu::frontend::PPCContext, kernel_state)]);
+      auto thunk = backend()->guest_to_host_thunk();
+      mov(rax, reinterpret_cast<uint64_t>(thunk));
+      call(rax);
+      ReloadECX();
+      ReloadEDX();
+      // rax = host return
+    }
+  }
+  if (undefined) {
+    CallNative(UndefinedCallExtern, reinterpret_cast<uint64_t>(function));
   }
 }
 

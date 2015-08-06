@@ -11,18 +11,18 @@
 #define XENIA_CPU_FUNCTION_H_
 
 #include <memory>
-#include <mutex>
 #include <vector>
 
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/debug_info.h"
+#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/breakpoint.h"
+#include "xenia/debug/function_trace_data.h"
 
 namespace xe {
 namespace cpu {
-
-class FunctionInfo;
 
 struct SourceMapEntry {
   uint32_t source_offset;  // Original source address/offset.
@@ -30,13 +30,70 @@ struct SourceMapEntry {
   uint32_t code_offset;    // Offset from emitted code start.
 };
 
-class Function {
+class Function : public Symbol {
  public:
-  Function(FunctionInfo* symbol_info);
-  virtual ~Function();
+  enum class Behavior {
+    kDefault = 0,
+    kProlog,
+    kEpilog,
+    kEpilogReturn,
+    kBuiltin,
+    kExtern,
+  };
+
+  ~Function() override;
 
   uint32_t address() const { return address_; }
-  FunctionInfo* symbol_info() const { return symbol_info_; }
+  bool has_end_address() const { return end_address_ > 0; }
+  uint32_t end_address() const { return end_address_; }
+  void set_end_address(uint32_t value) { end_address_ = value; }
+  Behavior behavior() const { return behavior_; }
+  void set_behavior(Behavior value) { behavior_ = value; }
+  bool is_guest() const { return behavior_ != Behavior::kBuiltin; }
+
+  virtual bool Call(ThreadState* thread_state, uint32_t return_address) = 0;
+
+ protected:
+  Function(Module* module, uint32_t address);
+
+  uint32_t end_address_ = 0;
+  Behavior behavior_ = Behavior::kDefault;
+};
+
+class BuiltinFunction : public Function {
+ public:
+  typedef void (*Handler)(frontend::PPCContext* ppc_context, void* arg0,
+                          void* arg1);
+
+  BuiltinFunction(Module* module, uint32_t address);
+  ~BuiltinFunction() override;
+
+  void SetupBuiltin(Handler handler, void* arg0, void* arg1);
+
+  Handler handler() const { return handler_; }
+  void* arg0() const { return arg0_; }
+  void* arg1() const { return arg1_; }
+
+  bool Call(ThreadState* thread_state, uint32_t return_address) override;
+
+ protected:
+  Handler handler_ = nullptr;
+  void* arg0_ = nullptr;
+  void* arg1_ = nullptr;
+};
+
+class GuestFunction : public Function {
+ public:
+  typedef void (*ExternHandler)(frontend::PPCContext* ppc_context,
+                                kernel::KernelState* kernel_state);
+
+  GuestFunction(Module* module, uint32_t address);
+  ~GuestFunction() override;
+
+  uint32_t address() const { return address_; }
+  bool has_end_address() const { return end_address_ > 0; }
+  uint32_t end_address() const { return end_address_; }
+  void set_end_address(uint32_t value) { end_address_ = value; }
 
   virtual uint8_t* machine_code() const = 0;
   virtual size_t machine_code_length() const = 0;
@@ -45,32 +102,26 @@ class Function {
   void set_debug_info(std::unique_ptr<DebugInfo> debug_info) {
     debug_info_ = std::move(debug_info);
   }
+  debug::FunctionTraceData& trace_data() { return trace_data_; }
   std::vector<SourceMapEntry>& source_map() { return source_map_; }
+
+  ExternHandler extern_handler() const { return extern_handler_; }
+  void SetupExtern(ExternHandler handler);
 
   const SourceMapEntry* LookupSourceOffset(uint32_t offset) const;
   const SourceMapEntry* LookupHIROffset(uint32_t offset) const;
   const SourceMapEntry* LookupCodeOffset(uint32_t offset) const;
 
-  bool AddBreakpoint(debug::Breakpoint* breakpoint);
-  bool RemoveBreakpoint(debug::Breakpoint* breakpoint);
-
-  bool Call(ThreadState* thread_state, uint32_t return_address);
+  bool Call(ThreadState* thread_state, uint32_t return_address) override;
 
  protected:
-  debug::Breakpoint* FindBreakpoint(uint32_t address);
-  virtual bool AddBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
-  virtual bool RemoveBreakpointImpl(debug::Breakpoint* breakpoint) { return 0; }
   virtual bool CallImpl(ThreadState* thread_state, uint32_t return_address) = 0;
 
  protected:
-  uint32_t address_;
-  FunctionInfo* symbol_info_;
   std::unique_ptr<DebugInfo> debug_info_;
+  debug::FunctionTraceData trace_data_;
   std::vector<SourceMapEntry> source_map_;
-
-  // TODO(benvanik): move elsewhere? DebugData?
-  xe::mutex lock_;
-  std::vector<debug::Breakpoint*> breakpoints_;
+  ExternHandler extern_handler_ = nullptr;
 };
 
 }  // namespace cpu

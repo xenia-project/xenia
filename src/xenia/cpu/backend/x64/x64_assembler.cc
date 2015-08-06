@@ -66,30 +66,26 @@ void X64Assembler::Reset() {
   Assembler::Reset();
 }
 
-bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
+bool X64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
                             uint32_t debug_info_flags,
-                            std::unique_ptr<DebugInfo> debug_info,
-                            Function** out_function) {
+                            std::unique_ptr<DebugInfo> debug_info) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset when we leave.
   xe::make_reset_scope(this);
 
-  // Create now, and populate as we go.
-  // We may throw it away if we fail.
-  auto fn = std::make_unique<X64Function>(symbol_info);
-
   // Lower HIR -> x64.
   void* machine_code = nullptr;
   size_t code_size = 0;
-  if (!emitter_->Emit(symbol_info, builder, debug_info_flags, debug_info.get(),
-                      machine_code, code_size, fn->source_map())) {
+  if (!emitter_->Emit(function, builder, debug_info_flags, debug_info.get(),
+                      machine_code, code_size, function->source_map())) {
     return false;
   }
 
   // Stash generated machine code.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmMachineCode) {
-    DumpMachineCode(machine_code, code_size, fn->source_map(), &string_buffer_);
+    DumpMachineCode(machine_code, code_size, function->source_map(),
+                    &string_buffer_);
     debug_info->set_machine_code_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
@@ -102,11 +98,10 @@ bool X64Assembler::Assemble(FunctionInfo* symbol_info, HIRBuilder* builder,
     }
   }
 
-  fn->set_debug_info(std::move(debug_info));
-  fn->Setup(reinterpret_cast<uint8_t*>(machine_code), code_size);
+  function->set_debug_info(std::move(debug_info));
+  static_cast<X64Function*>(function)
+      ->Setup(reinterpret_cast<uint8_t*>(machine_code), code_size);
 
-  // Pass back ownership.
-  *out_function = fn.release();
   return true;
 }
 

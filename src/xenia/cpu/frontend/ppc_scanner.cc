@@ -35,11 +35,10 @@ PPCScanner::~PPCScanner() {}
 
 bool PPCScanner::IsRestGprLr(uint32_t address) {
   auto function = frontend_->processor()->QueryFunction(address);
-  return function &&
-         function->symbol_info()->behavior() == FunctionBehavior::kEpilogReturn;
+  return function && function->behavior() == Function::Behavior::kEpilogReturn;
 }
 
-bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
+bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
   // This is a simple basic block analyizer. It walks the start address to the
   // end address looking for branches. Each span of instructions between
   // branches is considered a basic block. When the last blr (that has no
@@ -49,14 +48,14 @@ bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
 
   Memory* memory = frontend_->memory();
 
-  LOGPPC("Analyzing function %.8X...", symbol_info->address());
+  LOGPPC("Analyzing function %.8X...", function->address());
 
   // For debug info, only if needed.
   uint32_t address_reference_count = 0;
   uint32_t instruction_result_count = 0;
 
-  uint32_t start_address = static_cast<uint32_t>(symbol_info->address());
-  uint32_t end_address = static_cast<uint32_t>(symbol_info->end_address());
+  uint32_t start_address = static_cast<uint32_t>(function->address());
+  uint32_t end_address = static_cast<uint32_t>(function->end_address());
   uint32_t address = start_address;
   uint32_t furthest_target = start_address;
   size_t blocks_found = 0;
@@ -270,7 +269,7 @@ bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
     LOGPPC("Function ran under: %.8X-%.8X ended at %.8X", start_address,
            end_address, address + 4);
   }
-  symbol_info->set_end_address(address);
+  function->set_end_address(address);
 
   // If there's spare bits at the end, split the function.
   // TODO(benvanik): splitting?
@@ -289,13 +288,13 @@ bool PPCScanner::Scan(FunctionInfo* symbol_info, DebugInfo* debug_info) {
   return true;
 }
 
-std::vector<BlockInfo> PPCScanner::FindBlocks(FunctionInfo* symbol_info) {
+std::vector<BlockInfo> PPCScanner::FindBlocks(GuestFunction* function) {
   Memory* memory = frontend_->memory();
 
   std::map<uint32_t, BlockInfo> block_map;
 
-  uint32_t start_address = symbol_info->address();
-  uint32_t end_address = symbol_info->end_address();
+  uint32_t start_address = function->address();
+  uint32_t end_address = function->end_address();
   bool in_block = false;
   uint32_t block_start = 0;
   InstrData i;

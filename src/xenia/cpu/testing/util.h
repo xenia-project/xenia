@@ -65,8 +65,7 @@ class TestFunction {
   void Run(std::function<void(PPCContext*)> pre_call,
            std::function<void(PPCContext*)> post_call) {
     for (auto& processor : processors) {
-      xe::cpu::Function* fn;
-      processor->ResolveFunction(0x80000000, &fn);
+      auto fn = processor->ResolveFunction(0x80000000);
 
       uint32_t stack_size = 64 * 1024;
       uint32_t stack_address = memory_size - stack_size;

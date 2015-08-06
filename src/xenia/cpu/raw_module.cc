@@ -12,6 +12,8 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
@@ -58,6 +60,11 @@ bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
 
 bool RawModule::ContainsAddress(uint32_t address) {
   return address >= low_address_ && address < high_address_;
+}
+
+std::unique_ptr<Function> RawModule::CreateFunction(uint32_t address) {
+  return std::unique_ptr<Function>(
+      processor_->backend()->CreateGuestFunction(this, address));
 }
 
 }  // namespace cpu

@@ -11,7 +11,6 @@
 #define XENIA_BACKEND_X64_X64_FUNCTION_H_
 
 #include "xenia/cpu/function.h"
-#include "xenia/cpu/symbol_info.h"
 #include "xenia/cpu/thread_state.h"
 
 namespace xe {
@@ -19,10 +18,10 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-class X64Function : public Function {
+class X64Function : public GuestFunction {
  public:
-  X64Function(FunctionInfo* symbol_info);
-  virtual ~X64Function();
+  X64Function(Module* module, uint32_t address);
+  ~X64Function() override;
 
   uint8_t* machine_code() const override { return machine_code_; }
   size_t machine_code_length() const override { return machine_code_length_; }
@@ -30,13 +29,11 @@ class X64Function : public Function {
   void Setup(uint8_t* machine_code, size_t machine_code_length);
 
  protected:
-  bool AddBreakpointImpl(debug::Breakpoint* breakpoint) override;
-  bool RemoveBreakpointImpl(debug::Breakpoint* breakpoint) override;
   bool CallImpl(ThreadState* thread_state, uint32_t return_address) override;
 
  private:
-  uint8_t* machine_code_;
-  size_t machine_code_length_;
+  uint8_t* machine_code_ = nullptr;
+  size_t machine_code_length_ = 0;
 };
 
 }  // namespace x64

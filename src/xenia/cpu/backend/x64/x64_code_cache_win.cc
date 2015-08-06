@@ -18,6 +18,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/platform_win.h"
+#include "xenia/cpu/function.h"
 
 // When enabled, this will use Windows 8 APIs to get unwind info.
 // TODO(benvanik): figure out why the callback variant doesn't work.

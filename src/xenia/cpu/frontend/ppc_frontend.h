@@ -17,7 +17,6 @@
 #include "xenia/base/type_pool.h"
 #include "xenia/cpu/frontend/context_info.h"
 #include "xenia/cpu/function.h"
-#include "xenia/cpu/symbol_info.h"
 #include "xenia/memory.h"
 
 namespace xe {
@@ -35,8 +34,8 @@ class PPCTranslator;
 struct PPCBuiltins {
   xe::mutex global_lock;
   bool global_lock_taken;
-  FunctionInfo* check_global_lock;
-  FunctionInfo* handle_global_lock;
+  Function* check_global_lock;
+  Function* handle_global_lock;
 };
 
 class PPCFrontend {
@@ -51,9 +50,8 @@ class PPCFrontend {
   ContextInfo* context_info() const { return context_info_.get(); }
   PPCBuiltins* builtins() { return &builtins_; }
 
-  bool DeclareFunction(FunctionInfo* symbol_info);
-  bool DefineFunction(FunctionInfo* symbol_info, uint32_t debug_info_flags,
-                      Function** out_function);
+  bool DeclareFunction(GuestFunction* function);
+  bool DefineFunction(GuestFunction* function, uint32_t debug_info_flags);
 
  private:
   Processor* processor_;

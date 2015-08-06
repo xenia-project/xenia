@@ -86,7 +86,7 @@ bool PPCFrontend::Initialize() {
   return true;
 }
 
-bool PPCFrontend::DeclareFunction(FunctionInfo* symbol_info) {
+bool PPCFrontend::DeclareFunction(GuestFunction* function) {
   // Could scan or something here.
   // Could also check to see if it's a well-known function type and classify
   // for later.
@@ -95,12 +95,10 @@ bool PPCFrontend::DeclareFunction(FunctionInfo* symbol_info) {
   return true;
 }
 
-bool PPCFrontend::DefineFunction(FunctionInfo* symbol_info,
-                                 uint32_t debug_info_flags,
-                                 Function** out_function) {
-  PPCTranslator* translator = translator_pool_.Allocate(this);
-  bool result =
-      translator->Translate(symbol_info, debug_info_flags, out_function);
+bool PPCFrontend::DefineFunction(GuestFunction* function,
+                                 uint32_t debug_info_flags) {
+  auto translator = translator_pool_.Allocate(this);
+  bool result = translator->Translate(function, debug_info_flags);
   translator_pool_.Release(translator);
   return result;
 }

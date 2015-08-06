@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/debug_info.h"
 
+#include <cstdio>
 #include <cstdlib>
 
 namespace xe {

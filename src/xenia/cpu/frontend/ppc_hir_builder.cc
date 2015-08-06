@@ -40,27 +40,29 @@ PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
 PPCHIRBuilder::~PPCHIRBuilder() = default;
 
 void PPCHIRBuilder::Reset() {
+  function_ = nullptr;
   start_address_ = 0;
+  instr_count_ = 0;
   instr_offset_list_ = NULL;
   label_list_ = NULL;
   with_debug_info_ = false;
   HIRBuilder::Reset();
 }
 
-bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
+bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
   SCOPE_profile_cpu_f("cpu");
 
   Memory* memory = frontend_->memory();
 
-  symbol_info_ = symbol_info;
-  start_address_ = symbol_info->address();
-  instr_count_ = (symbol_info->end_address() - symbol_info->address()) / 4 + 1;
+  function_ = function;
+  start_address_ = function_->address();
+  instr_count_ = (function_->end_address() - function_->address()) / 4 + 1;
 
   with_debug_info_ = (flags & EMIT_DEBUG_COMMENTS) == EMIT_DEBUG_COMMENTS;
   if (with_debug_info_) {
-    CommentFormat("%s fn %.8X-%.8X %s", symbol_info->module()->name().c_str(),
-                  symbol_info->address(), symbol_info->end_address(),
-                  symbol_info->name().c_str());
+    CommentFormat("%s fn %.8X-%.8X %s", function_->module()->name().c_str(),
+                  function_->address(), function_->end_address(),
+                  function_->name().c_str());
   }
 
   // Allocate offset list.
@@ -78,8 +80,8 @@ bool PPCHIRBuilder::Emit(FunctionInfo* symbol_info, uint32_t flags) {
   // Always mark entry with label.
   label_list_[0] = NewLabel();
 
-  uint32_t start_address = symbol_info->address();
-  uint32_t end_address = symbol_info->end_address();
+  uint32_t start_address = function_->address();
+  uint32_t end_address = function_->end_address();
   InstrData i;
   for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
@@ -165,13 +167,8 @@ void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
   memcpy(label->name, name_buffer, sizeof(name_buffer));
 }
 
-FunctionInfo* PPCHIRBuilder::LookupFunction(uint32_t address) {
-  Processor* processor = frontend_->processor();
-  FunctionInfo* symbol_info;
-  if (!processor->LookupFunctionInfo(address, &symbol_info)) {
-    return nullptr;
-  }
-  return symbol_info;
+Function* PPCHIRBuilder::LookupFunction(uint32_t address) {
+  return frontend_->processor()->LookupFunction(address);
 }
 
 Label* PPCHIRBuilder::LookupLabel(uint32_t address) {

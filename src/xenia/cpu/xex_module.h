@@ -77,12 +77,14 @@ class XexModule : public xe::cpu::Module {
 
   bool ContainsAddress(uint32_t address) override;
 
+ protected:
+  std::unique_ptr<Function> CreateFunction(uint32_t address) override;
+
  private:
   bool SetupLibraryImports(const char* name,
                            const xex2_import_library* library);
   bool FindSaveRest();
 
- private:
   Processor* processor_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
   std::string name_;

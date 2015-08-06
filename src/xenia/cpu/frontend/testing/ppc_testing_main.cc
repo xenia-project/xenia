@@ -224,8 +224,8 @@ class TestRunner {
     }
 
     // Execute test.
-    xe::cpu::Function* fn = nullptr;
-    if (!processor->ResolveFunction(test_case.address, &fn)) {
+    auto fn = processor->ResolveFunction(test_case.address);
+    if (!fn) {
       XELOGE("Entry function not found");
       return false;
     }
@@ -238,7 +238,9 @@ class TestRunner {
     bool result = CheckTestResults(test_case);
     if (!result) {
       // Also dump all disasm/etc.
-      fn->debug_info()->Dump();
+      if (fn->is_guest()) {
+        static_cast<xe::cpu::GuestFunction*>(fn)->debug_info()->Dump();
+      }
     }
 
     return result;

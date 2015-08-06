@@ -26,12 +26,12 @@ Module::~Module() = default;
 
 bool Module::ContainsAddress(uint32_t address) { return true; }
 
-SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
+Symbol* Module::LookupSymbol(uint32_t address, bool wait) {
   lock_.lock();
   const auto it = map_.find(address);
-  SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
-  if (symbol_info) {
-    if (symbol_info->status() == SymbolStatus::kDeclaring) {
+  Symbol* symbol = it != map_.end() ? it->second : nullptr;
+  if (symbol) {
+    if (symbol->status() == Symbol::Status::kDeclaring) {
       // Some other thread is declaring the symbol - wait.
       if (wait) {
         do {
@@ -39,133 +39,130 @@ SymbolInfo* Module::LookupSymbol(uint32_t address, bool wait) {
           // TODO(benvanik): sleep for less time?
           xe::threading::Sleep(std::chrono::microseconds(100));
           lock_.lock();
-        } while (symbol_info->status() == SymbolStatus::kDeclaring);
+        } while (symbol->status() == Symbol::Status::kDeclaring);
       } else {
         // Immediate request, just return.
-        symbol_info = nullptr;
+        symbol = nullptr;
       }
     }
   }
   lock_.unlock();
-  return symbol_info;
+  return symbol;
 }
 
-SymbolStatus Module::DeclareSymbol(SymbolType type, uint32_t address,
-                                   SymbolInfo** out_symbol_info) {
-  *out_symbol_info = nullptr;
+Symbol::Status Module::DeclareSymbol(Symbol::Type type, uint32_t address,
+                                     Symbol** out_symbol) {
+  *out_symbol = nullptr;
   lock_.lock();
   auto it = map_.find(address);
-  SymbolInfo* symbol_info = it != map_.end() ? it->second : nullptr;
-  SymbolStatus status;
-  if (symbol_info) {
+  Symbol* symbol = it != map_.end() ? it->second : nullptr;
+  Symbol::Status status;
+  if (symbol) {
     // If we exist but are the wrong type, die.
-    if (symbol_info->type() != type) {
+    if (symbol->type() != type) {
       lock_.unlock();
-      return SymbolStatus::kFailed;
+      return Symbol::Status::kFailed;
     }
     // If we aren't ready yet spin and wait.
-    if (symbol_info->status() == SymbolStatus::kDeclaring) {
+    if (symbol->status() == Symbol::Status::kDeclaring) {
       // Still declaring, so spin.
       do {
         lock_.unlock();
         // TODO(benvanik): sleep for less time?
         xe::threading::Sleep(std::chrono::microseconds(100));
         lock_.lock();
-      } while (symbol_info->status() == SymbolStatus::kDeclaring);
+      } while (symbol->status() == Symbol::Status::kDeclaring);
     }
-    status = symbol_info->status();
+    status = symbol->status();
   } else {
     // Create and return for initialization.
     switch (type) {
-      case SymbolType::kFunction:
-        symbol_info = new FunctionInfo(this, address);
+      case Symbol::Type::kFunction:
+        symbol = CreateFunction(address).release();
         break;
-      case SymbolType::kVariable:
-        symbol_info = new VariableInfo(this, address);
+      case Symbol::Type::kVariable:
+        symbol = new Symbol(Symbol::Type::kVariable, this, address);
         break;
     }
-    map_[address] = symbol_info;
-    list_.emplace_back(symbol_info);
-    status = SymbolStatus::kNew;
+    map_[address] = symbol;
+    list_.emplace_back(symbol);
+    status = Symbol::Status::kNew;
   }
   lock_.unlock();
-  *out_symbol_info = symbol_info;
+  *out_symbol = symbol;
 
   // Get debug info from providers, if this is new.
-  if (status == SymbolStatus::kNew) {
+  if (status == Symbol::Status::kNew) {
     // TODO(benvanik): lookup in map data/dwarf/etc?
   }
 
   return status;
 }
 
-SymbolStatus Module::DeclareFunction(uint32_t address,
-                                     FunctionInfo** out_symbol_info) {
-  SymbolInfo* symbol_info;
-  SymbolStatus status =
-      DeclareSymbol(SymbolType::kFunction, address, &symbol_info);
-  *out_symbol_info = (FunctionInfo*)symbol_info;
+Symbol::Status Module::DeclareFunction(uint32_t address,
+                                       Function** out_function) {
+  Symbol* symbol;
+  Symbol::Status status =
+      DeclareSymbol(Symbol::Type::kFunction, address, &symbol);
+  *out_function = static_cast<Function*>(symbol);
   return status;
 }
 
-SymbolStatus Module::DeclareVariable(uint32_t address,
-                                     VariableInfo** out_symbol_info) {
-  SymbolInfo* symbol_info;
-  SymbolStatus status =
-      DeclareSymbol(SymbolType::kVariable, address, &symbol_info);
-  *out_symbol_info = (VariableInfo*)symbol_info;
+Symbol::Status Module::DeclareVariable(uint32_t address, Symbol** out_symbol) {
+  Symbol::Status status =
+      DeclareSymbol(Symbol::Type::kVariable, address, out_symbol);
   return status;
 }
 
-SymbolStatus Module::DefineSymbol(SymbolInfo* symbol_info) {
+Symbol::Status Module::DefineSymbol(Symbol* symbol) {
   lock_.lock();
-  SymbolStatus status;
-  if (symbol_info->status() == SymbolStatus::kDeclared) {
+  Symbol::Status status;
+  if (symbol->status() == Symbol::Status::kDeclared) {
     // Declared but undefined, so request caller define it.
-    symbol_info->set_status(SymbolStatus::kDefining);
-    status = SymbolStatus::kNew;
-  } else if (symbol_info->status() == SymbolStatus::kDefining) {
+    symbol->set_status(Symbol::Status::kDefining);
+    status = Symbol::Status::kNew;
+  } else if (symbol->status() == Symbol::Status::kDefining) {
     // Still defining, so spin.
     do {
       lock_.unlock();
       // TODO(benvanik): sleep for less time?
       xe::threading::Sleep(std::chrono::microseconds(100));
       lock_.lock();
-    } while (symbol_info->status() == SymbolStatus::kDefining);
-    status = symbol_info->status();
+    } while (symbol->status() == Symbol::Status::kDefining);
+    status = symbol->status();
   } else {
-    status = symbol_info->status();
+    status = symbol->status();
   }
   lock_.unlock();
   return status;
 }
 
-SymbolStatus Module::DefineFunction(FunctionInfo* symbol_info) {
-  return DefineSymbol((SymbolInfo*)symbol_info);
+Symbol::Status Module::DefineFunction(Function* symbol) {
+  return DefineSymbol((Symbol*)symbol);
 }
 
-SymbolStatus Module::DefineVariable(VariableInfo* symbol_info) {
-  return DefineSymbol((SymbolInfo*)symbol_info);
+Symbol::Status Module::DefineVariable(Symbol* symbol) {
+  return DefineSymbol((Symbol*)symbol);
 }
 
-void Module::ForEachFunction(std::function<void(FunctionInfo*)> callback) {
+void Module::ForEachFunction(std::function<void(Function*)> callback) {
   std::lock_guard<xe::mutex> guard(lock_);
-  for (auto& symbol_info : list_) {
-    if (symbol_info->type() == SymbolType::kFunction) {
-      FunctionInfo* info = static_cast<FunctionInfo*>(symbol_info.get());
+  for (auto& symbol : list_) {
+    if (symbol->type() == Symbol::Type::kFunction) {
+      Function* info = static_cast<Function*>(symbol.get());
       callback(info);
     }
   }
 }
 
 void Module::ForEachSymbol(size_t start_index, size_t end_index,
-                           std::function<void(SymbolInfo*)> callback) {
+                           std::function<void(Symbol*)> callback) {
   std::lock_guard<xe::mutex> guard(lock_);
   start_index = std::min(start_index, list_.size());
   end_index = std::min(end_index, list_.size());
   for (size_t i = start_index; i <= end_index; ++i) {
-    auto& symbol_info = list_[i];
-    callback(symbol_info.get());
+    auto& symbol = list_[i];
+    callback(symbol.get());
   }
 }
 
@@ -223,19 +220,19 @@ bool Module::ReadMap(const char* file_name) {
 
     if (type_str == "f") {
       // Function.
-      FunctionInfo* fn_info;
-      if (!processor_->LookupFunctionInfo(this, address, &fn_info)) {
+      auto function = processor_->LookupFunction(this, address);
+      if (!function) {
         continue;
       }
       // Don't overwrite names we've set elsewhere.
-      if (fn_info->name().empty()) {
+      if (function->name().empty()) {
         // If it's a mangled C++ name (?name@...) just use the name.
         // TODO(benvanik): better demangling, or leave it to clients.
         /*if (name[0] == '?') {
           size_t at = name.find('@');
           name = name.substr(1, at - 1);
         }*/
-        fn_info->set_name(name.c_str());
+        function->set_name(name.c_str());
       }
     } else {
       // Variable.

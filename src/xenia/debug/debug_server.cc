@@ -308,10 +308,10 @@ bool DebugServer::ProcessPacket(const proto::Packet* packet) {
           frame_body->host_function_address = frame.host_symbol.address;
           frame_body->guest_pc = frame.guest_pc;
           frame_body->guest_function_address = 0;
-          auto function_info = frame.guest_symbol.function_info;
-          if (frame.type == cpu::StackFrame::Type::kGuest && function_info) {
-            frame_body->guest_function_address = function_info->address();
-            std::strncpy(frame_body->name, function_info->name().c_str(),
+          auto function = frame.guest_symbol.function;
+          if (frame.type == cpu::StackFrame::Type::kGuest && function) {
+            frame_body->guest_function_address = function->address();
+            std::strncpy(frame_body->name, function->name().c_str(),
                          xe::countof(frame_body->name));
           } else {
             std::strncpy(frame_body->name, frame.host_symbol.name,

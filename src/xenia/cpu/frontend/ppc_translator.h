@@ -15,7 +15,7 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/backend/assembler.h"
 #include "xenia/cpu/compiler/compiler.h"
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/function.h"
 
 namespace xe {
 namespace cpu {
@@ -30,13 +30,11 @@ class PPCTranslator {
   PPCTranslator(PPCFrontend* frontend);
   ~PPCTranslator();
 
-  bool Translate(FunctionInfo* symbol_info, uint32_t debug_info_flags,
-                 Function** out_function);
+  bool Translate(GuestFunction* function, uint32_t debug_info_flags);
 
  private:
-  void DumpSource(FunctionInfo* symbol_info, StringBuffer* string_buffer);
+  void DumpSource(GuestFunction* function, StringBuffer* string_buffer);
 
- private:
   PPCFrontend* frontend_;
   std::unique_ptr<PPCScanner> scanner_;
   std::unique_ptr<PPCHIRBuilder> builder_;

@@ -375,12 +375,12 @@ bool XexModule::SetupLibraryImports(const char* name,
       }
 
       // Setup a variable and define it.
-      VariableInfo* var_info;
+      Symbol* var_info;
       DeclareVariable(record_addr, &var_info);
       var_info->set_name(import_name.GetString());
-      var_info->set_status(SymbolStatus::kDeclared);
+      var_info->set_status(Symbol::Status::kDeclared);
       DefineVariable(var_info);
-      var_info->set_status(SymbolStatus::kDefined);
+      var_info->set_status(Symbol::Status::kDefined);
     } else if (record_type == 1) {
       // Thunk.
       if (kernel_export) {
@@ -389,10 +389,10 @@ bool XexModule::SetupLibraryImports(const char* name,
         import_name.AppendFormat("__%s_%.3X", libbasename.c_str(), ordinal);
       }
 
-      FunctionInfo* fn_info;
-      DeclareFunction(record_addr, &fn_info);
-      fn_info->set_end_address(record_addr + 16 - 4);
-      fn_info->set_name(import_name.GetString());
+      Function* function;
+      DeclareFunction(record_addr, &function);
+      function->set_end_address(record_addr + 16 - 4);
+      function->set_name(import_name.GetString());
 
       if (kernel_export) {
         // On load we have something like this in memory:
@@ -415,14 +415,14 @@ bool XexModule::SetupLibraryImports(const char* name,
         xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
         xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
 
-        FunctionInfo::ExternHandler handler = 0;
+        GuestFunction::ExternHandler handler = nullptr;
         if (kernel_export) {
           if (kernel_export->function_data.trampoline) {
-            handler = (FunctionInfo::ExternHandler)
+            handler = (GuestFunction::ExternHandler)
                           kernel_export->function_data.trampoline;
           } else {
             handler =
-                (FunctionInfo::ExternHandler)kernel_export->function_data.shim;
+                (GuestFunction::ExternHandler)kernel_export->function_data.shim;
           }
         } else {
           XELOGW("WARNING: Imported kernel function %s is unimplemented!",
@@ -430,7 +430,7 @@ bool XexModule::SetupLibraryImports(const char* name,
           handler = UndefinedImport;
         }
 
-        fn_info->SetupExtern(handler);
+        static_cast<GuestFunction*>(function)->SetupExtern(handler);
       } else if (user_export_addr) {
         // Rewrite PPC code to set r11 to the target address
         // So we'll have:
@@ -458,7 +458,7 @@ bool XexModule::SetupLibraryImports(const char* name,
         xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
       }
 
-      fn_info->set_status(SymbolStatus::kDeclared);
+      function->set_status(Symbol::Status::kDeclared);
     } else {
       // Bad.
       assert_always();
@@ -470,6 +470,11 @@ bool XexModule::SetupLibraryImports(const char* name,
 
 bool XexModule::ContainsAddress(uint32_t address) {
   return address >= low_address_ && address < high_address_;
+}
+
+std::unique_ptr<Function> XexModule::CreateFunction(uint32_t address) {
+  return std::unique_ptr<Function>(
+      processor_->backend()->CreateGuestFunction(this, address));
 }
 
 bool XexModule::FindSaveRest() {
@@ -677,27 +682,27 @@ bool XexModule::FindSaveRest() {
     uint32_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
       snprintf(name, xe::countof(name), "__savegprlr_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_end_address(address + (31 - n) * 4 + 2 * 4);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_end_address(address + (31 - n) * 4 + 2 * 4);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveGprLr;
-      symbol_info->set_behavior(FunctionBehavior::kProlog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kProlog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 4;
     }
     address = gplr_start + 20 * 4;
     for (int n = 14; n <= 31; n++) {
       snprintf(name, xe::countof(name), "__restgprlr_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_end_address(address + (31 - n) * 4 + 3 * 4);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_end_address(address + (31 - n) * 4 + 3 * 4);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestGprLr;
-      symbol_info->set_behavior(FunctionBehavior::kEpilogReturn);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kEpilogReturn);
+      function->set_status(Symbol::Status::kDeclared);
       address += 4;
     }
   }
@@ -705,27 +710,27 @@ bool XexModule::FindSaveRest() {
     uint32_t address = fpr_start;
     for (int n = 14; n <= 31; n++) {
       snprintf(name, xe::countof(name), "__savefpr_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_end_address(address + (31 - n) * 4 + 1 * 4);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveFpr;
-      symbol_info->set_behavior(FunctionBehavior::kProlog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kProlog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 4;
     }
     address = fpr_start + (18 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
       snprintf(name, xe::countof(name), "__restfpr_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_end_address(address + (31 - n) * 4 + 1 * 4);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_end_address(address + (31 - n) * 4 + 1 * 4);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestFpr;
-      symbol_info->set_behavior(FunctionBehavior::kEpilog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kEpilog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 4;
     }
   }
@@ -738,49 +743,49 @@ bool XexModule::FindSaveRest() {
     uint32_t address = vmx_start;
     for (int n = 14; n <= 31; n++) {
       snprintf(name, xe::countof(name), "__savevmx_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
-      symbol_info->set_behavior(FunctionBehavior::kProlog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kProlog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 2 * 4;
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
       snprintf(name, xe::countof(name), "__savevmx_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
-      symbol_info->set_behavior(FunctionBehavior::kProlog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kProlog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 2 * 4;
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
       snprintf(name, xe::countof(name), "__restvmx_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
-      symbol_info->set_behavior(FunctionBehavior::kEpilog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kEpilog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 2 * 4;
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
       snprintf(name, xe::countof(name), "__restvmx_%d", n);
-      FunctionInfo* symbol_info;
-      DeclareFunction(address, &symbol_info);
-      symbol_info->set_name(name);
+      Function* function;
+      DeclareFunction(address, &function);
+      function->set_name(name);
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
-      symbol_info->set_behavior(FunctionBehavior::kEpilog);
-      symbol_info->set_status(SymbolStatus::kDeclared);
+      function->set_behavior(Function::Behavior::kEpilog);
+      function->set_status(Symbol::Status::kDeclared);
       address += 2 * 4;
     }
   }

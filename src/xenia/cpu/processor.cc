@@ -42,6 +42,11 @@ class BuiltinModule : public Module {
     return (address & 0xFFFFFFF0) == 0xFFFFFFF0;
   }
 
+ protected:
+  std::unique_ptr<Function> CreateFunction(uint32_t address) override {
+    return std::unique_ptr<Function>(new BuiltinFunction(this, address));
+  }
+
  private:
   std::string name_;
 };
@@ -142,20 +147,22 @@ std::vector<Module*> Processor::GetModules() {
   return clone;
 }
 
-FunctionInfo* Processor::DefineBuiltin(const std::string& name,
-                                       FunctionInfo::BuiltinHandler handler,
-                                       void* arg0, void* arg1) {
+Function* Processor::DefineBuiltin(const std::string& name,
+                                   BuiltinFunction::Handler handler, void* arg0,
+                                   void* arg1) {
   uint32_t address = next_builtin_address_;
   next_builtin_address_ += 4;
 
-  FunctionInfo* fn_info;
-  builtin_module_->DeclareFunction(address, &fn_info);
-  fn_info->set_end_address(address + 4);
-  fn_info->set_name(name);
-  fn_info->SetupBuiltin(handler, arg0, arg1);
-  fn_info->set_status(SymbolStatus::kDeclared);
+  Function* function;
+  builtin_module_->DeclareFunction(address, &function);
+  function->set_end_address(address + 4);
+  function->set_name(name);
 
-  return fn_info;
+  auto builtin_function = static_cast<BuiltinFunction*>(function);
+  builtin_function->SetupBuiltin(handler, arg0, arg1);
+
+  function->set_status(Symbol::Status::kDeclared);
+  return function;
 }
 
 Function* Processor::QueryFunction(uint32_t address) {
@@ -170,40 +177,36 @@ std::vector<Function*> Processor::FindFunctionsWithAddress(uint32_t address) {
   return entry_table_.FindWithAddress(address);
 }
 
-bool Processor::ResolveFunction(uint32_t address, Function** out_function) {
-  *out_function = nullptr;
+Function* Processor::ResolveFunction(uint32_t address) {
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
   if (status == Entry::STATUS_NEW) {
     // Needs to be generated. We have the 'lock' on it and must do so now.
 
     // Grab symbol declaration.
-    FunctionInfo* symbol_info;
-    if (!LookupFunctionInfo(address, &symbol_info)) {
-      return false;
+    auto function = LookupFunction(address);
+    if (!function) {
+      return nullptr;
     }
 
-    if (!DemandFunction(symbol_info, &entry->function)) {
+    if (!DemandFunction(function)) {
       entry->status = Entry::STATUS_FAILED;
-      return false;
+      return nullptr;
     }
-    entry->end_address = symbol_info->end_address();
+    entry->function = function;
+    entry->end_address = function->end_address();
     status = entry->status = Entry::STATUS_READY;
   }
   if (status == Entry::STATUS_READY) {
     // Ready to use.
-    *out_function = entry->function;
-    return true;
+    return entry->function;
   } else {
     // Failed or bad state.
-    return false;
+    return nullptr;
   }
 }
 
-bool Processor::LookupFunctionInfo(uint32_t address,
-                                   FunctionInfo** out_symbol_info) {
-  *out_symbol_info = nullptr;
-
+Function* Processor::LookupFunction(uint32_t address) {
   // TODO(benvanik): fast reject invalid addresses/log errors.
 
   // Find the module that contains the address.
@@ -221,63 +224,56 @@ bool Processor::LookupFunctionInfo(uint32_t address,
   }
   if (!code_module) {
     // No module found that could contain the address.
-    return false;
+    return nullptr;
   }
 
-  return LookupFunctionInfo(code_module, address, out_symbol_info);
+  return LookupFunction(code_module, address);
 }
 
-bool Processor::LookupFunctionInfo(Module* module, uint32_t address,
-                                   FunctionInfo** out_symbol_info) {
+Function* Processor::LookupFunction(Module* module, uint32_t address) {
   // Atomic create/lookup symbol in module.
   // If we get back the NEW flag we must declare it now.
-  FunctionInfo* symbol_info = nullptr;
-  SymbolStatus symbol_status = module->DeclareFunction(address, &symbol_info);
-  if (symbol_status == SymbolStatus::kNew) {
+  Function* function = nullptr;
+  auto symbol_status = module->DeclareFunction(address, &function);
+  if (symbol_status == Symbol::Status::kNew) {
     // Symbol is undeclared, so declare now.
-    if (!frontend_->DeclareFunction(symbol_info)) {
-      symbol_info->set_status(SymbolStatus::kFailed);
-      return false;
+    assert_true(function->is_guest());
+    if (!frontend_->DeclareFunction(static_cast<GuestFunction*>(function))) {
+      function->set_status(Symbol::Status::kFailed);
+      return nullptr;
     }
-    symbol_info->set_status(SymbolStatus::kDeclared);
+    function->set_status(Symbol::Status::kDeclared);
   }
-
-  *out_symbol_info = symbol_info;
-  return true;
+  return function;
 }
 
-bool Processor::DemandFunction(FunctionInfo* symbol_info,
-                               Function** out_function) {
-  *out_function = nullptr;
-
+bool Processor::DemandFunction(Function* function) {
   // Lock function for generation. If it's already being generated
   // by another thread this will block and return DECLARED.
-  Module* module = symbol_info->module();
-  SymbolStatus symbol_status = module->DefineFunction(symbol_info);
-  if (symbol_status == SymbolStatus::kNew) {
+  auto module = function->module();
+  auto symbol_status = module->DefineFunction(function);
+  if (symbol_status == Symbol::Status::kNew) {
     // Symbol is undefined, so define now.
-    Function* function = nullptr;
-    if (!frontend_->DefineFunction(symbol_info, debug_info_flags_, &function)) {
-      symbol_info->set_status(SymbolStatus::kFailed);
+    assert_true(function->is_guest());
+    if (!frontend_->DefineFunction(static_cast<GuestFunction*>(function),
+                                   debug_info_flags_)) {
+      function->set_status(Symbol::Status::kFailed);
       return false;
     }
-    symbol_info->set_function(function);
 
     // Before we give the symbol back to the rest, let the debugger know.
     if (debugger_) {
-      debugger_->OnFunctionDefined(symbol_info, function);
+      debugger_->OnFunctionDefined(function);
     }
 
-    symbol_info->set_status(SymbolStatus::kDefined);
-    symbol_status = symbol_info->status();
+    function->set_status(Symbol::Status::kDefined);
+    symbol_status = function->status();
   }
 
-  if (symbol_status == SymbolStatus::kFailed) {
+  if (symbol_status == Symbol::Status::kFailed) {
     // Symbol likely failed.
     return false;
   }
-
-  *out_function = symbol_info->function();
 
   return true;
 }
@@ -286,8 +282,8 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   SCOPE_profile_cpu_f("cpu");
 
   // Attempt to get the function.
-  Function* fn;
-  if (!ResolveFunction(address, &fn)) {
+  auto function = ResolveFunction(address);
+  if (!function) {
     // Symbol not found in any module.
     XELOGCPU("Execute(%.8X): failed to find function", address);
     return false;
@@ -305,7 +301,7 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   context->lr = 0xBCBCBCBC;
 
   // Execute the function.
-  auto result = fn->Call(thread_state, uint32_t(context->lr));
+  auto result = function->Call(thread_state, uint32_t(context->lr));
 
   context->lr = previous_lr;
   context->r[1] += 64 + 112;

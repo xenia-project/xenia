@@ -69,17 +69,16 @@ class Processor {
   std::vector<Module*> GetModules();
 
   Module* builtin_module() const { return builtin_module_; }
-  FunctionInfo* DefineBuiltin(const std::string& name,
-                              FunctionInfo::BuiltinHandler handler, void* arg0,
-                              void* arg1);
+  Function* DefineBuiltin(const std::string& name,
+                          BuiltinFunction::Handler handler, void* arg0,
+                          void* arg1);
 
   Function* QueryFunction(uint32_t address);
   std::vector<Function*> FindFunctionsWithAddress(uint32_t address);
 
-  bool LookupFunctionInfo(uint32_t address, FunctionInfo** out_symbol_info);
-  bool LookupFunctionInfo(Module* module, uint32_t address,
-                          FunctionInfo** out_symbol_info);
-  bool ResolveFunction(uint32_t address, Function** out_function);
+  Function* LookupFunction(uint32_t address);
+  Function* LookupFunction(Module* module, uint32_t address);
+  Function* ResolveFunction(uint32_t address);
 
   bool Execute(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
@@ -89,7 +88,7 @@ class Processor {
   void LowerIrql(Irql old_value);
 
  private:
-  bool DemandFunction(FunctionInfo* symbol_info, Function** out_function);
+  bool DemandFunction(Function* function);
 
   Memory* memory_ = nullptr;
   debug::Debugger* debugger_ = nullptr;

@@ -17,6 +17,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/cpu/function.h"
 
 namespace xe {
 namespace cpu {
@@ -120,7 +121,7 @@ void* X64CodeCache::PlaceHostCode(uint32_t guest_address, void* machine_code,
 
 void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
                                    size_t code_size, size_t stack_size,
-                                   FunctionInfo* function_info) {
+                                   GuestFunction* function_info) {
   // Hold a lock while we bump the pointers up. This is important as the
   // unwind table requires entries AND code to be sorted in order.
   size_t low_mark;
@@ -220,15 +221,15 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
   return uint32_t(uintptr_t(data_address));
 }
 
-FunctionInfo* X64CodeCache::LookupFunction(uint64_t host_pc) {
+GuestFunction* X64CodeCache::LookupFunction(uint64_t host_pc) {
   uint32_t key = uint32_t(host_pc - kGeneratedCodeBase);
   void* fn_entry = std::bsearch(
       &key, generated_code_map_.data(), generated_code_map_.size() + 1,
-      sizeof(std::pair<uint32_t, FunctionInfo*>),
+      sizeof(std::pair<uint32_t, Function*>),
       [](const void* key_ptr, const void* element_ptr) {
         auto key = *reinterpret_cast<const uint32_t*>(key_ptr);
         auto element =
-            reinterpret_cast<const std::pair<uint64_t, FunctionInfo*>*>(
+            reinterpret_cast<const std::pair<uint64_t, GuestFunction*>*>(
                 element_ptr);
         if (key < (element->first >> 32)) {
           return -1;
@@ -239,7 +240,8 @@ FunctionInfo* X64CodeCache::LookupFunction(uint64_t host_pc) {
         }
       });
   if (fn_entry) {
-    return reinterpret_cast<const std::pair<uint64_t, FunctionInfo*>*>(fn_entry)
+    return reinterpret_cast<const std::pair<uint64_t, GuestFunction*>*>(
+               fn_entry)
         ->second;
   } else {
     return nullptr;

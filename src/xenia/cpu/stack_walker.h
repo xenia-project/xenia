@@ -13,7 +13,7 @@
 #include <memory>
 #include <string>
 
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/function.h"
 
 namespace xe {
 namespace cpu {
@@ -49,7 +49,7 @@ struct StackFrame {
     } host_symbol;
     // Contains symbol information for kGuest frames.
     struct {
-      FunctionInfo* function_info;
+      Function* function;
     } guest_symbol;
   };
 };

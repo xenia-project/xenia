@@ -17,13 +17,13 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/function.h"
+#include "xenia/cpu/symbol.h"
 #include "xenia/memory.h"
 
 namespace xe {
 namespace cpu {
 
-class Function;
 class Processor;
 
 class Module {
@@ -37,36 +37,36 @@ class Module {
 
   virtual bool ContainsAddress(uint32_t address);
 
-  SymbolInfo* LookupSymbol(uint32_t address, bool wait = true);
-  virtual SymbolStatus DeclareFunction(uint32_t address,
-                                       FunctionInfo** out_symbol_info);
-  virtual SymbolStatus DeclareVariable(uint32_t address,
-                                       VariableInfo** out_symbol_info);
+  Symbol* LookupSymbol(uint32_t address, bool wait = true);
+  virtual Symbol::Status DeclareFunction(uint32_t address,
+                                         Function** out_function);
+  virtual Symbol::Status DeclareVariable(uint32_t address, Symbol** out_symbol);
 
-  SymbolStatus DefineFunction(FunctionInfo* symbol_info);
-  SymbolStatus DefineVariable(VariableInfo* symbol_info);
+  Symbol::Status DefineFunction(Function* symbol);
+  Symbol::Status DefineVariable(Symbol* symbol);
 
-  void ForEachFunction(std::function<void(FunctionInfo*)> callback);
+  void ForEachFunction(std::function<void(Function*)> callback);
   void ForEachSymbol(size_t start_index, size_t end_index,
-                     std::function<void(SymbolInfo*)> callback);
+                     std::function<void(Symbol*)> callback);
   size_t QuerySymbolCount();
 
   bool ReadMap(const char* file_name);
 
- private:
-  SymbolStatus DeclareSymbol(SymbolType type, uint32_t address,
-                             SymbolInfo** out_symbol_info);
-  SymbolStatus DefineSymbol(SymbolInfo* symbol_info);
-
  protected:
-  Processor* processor_;
-  Memory* memory_;
+  virtual std::unique_ptr<Function> CreateFunction(uint32_t address) = 0;
+
+  Processor* processor_ = nullptr;
+  Memory* memory_ = nullptr;
 
  private:
+  Symbol::Status DeclareSymbol(Symbol::Type type, uint32_t address,
+                               Symbol** out_symbol);
+  Symbol::Status DefineSymbol(Symbol* symbol);
+
   // TODO(benvanik): replace with a better data structure.
   xe::mutex lock_;
-  std::unordered_map<uint32_t, SymbolInfo*> map_;
-  std::vector<std::unique_ptr<SymbolInfo>> list_;
+  std::unordered_map<uint32_t, Symbol*> map_;
+  std::vector<std::unique_ptr<Symbol>> list_;
 };
 
 }  // namespace cpu

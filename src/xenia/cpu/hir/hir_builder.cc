@@ -13,10 +13,11 @@
 #include <cstring>
 
 #include "xenia/base/assert.h"
+#include "xenia/cpu/function.h"
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/symbol.h"
 #include "xenia/profiling.h"
 
 // Will scribble arena memory to hopefully find use before clears.
@@ -162,7 +163,7 @@ void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
       break;
     case OPCODE_SIG_TYPE_S:
       if (true) {
-        auto target = op->symbol_info;
+        auto target = op->symbol;
         str->Append(!target->name().empty() ? target->name() : "<fn>");
       }
       break;
@@ -820,25 +821,24 @@ void HIRBuilder::TrapTrue(Value* cond, uint16_t trap_code) {
   EndBlock();
 }
 
-void HIRBuilder::Call(FunctionInfo* symbol_info, uint16_t call_flags) {
+void HIRBuilder::Call(Function* symbol, uint16_t call_flags) {
   Instr* i = AppendInstr(OPCODE_CALL_info, call_flags);
-  i->src1.symbol_info = symbol_info;
+  i->src1.symbol = symbol;
   i->src2.value = i->src3.value = NULL;
   EndBlock();
 }
 
-void HIRBuilder::CallTrue(Value* cond, FunctionInfo* symbol_info,
-                          uint16_t call_flags) {
+void HIRBuilder::CallTrue(Value* cond, Function* symbol, uint16_t call_flags) {
   if (cond->IsConstant()) {
     if (cond->IsConstantTrue()) {
-      Call(symbol_info, call_flags);
+      Call(symbol, call_flags);
     }
     return;
   }
 
   Instr* i = AppendInstr(OPCODE_CALL_TRUE_info, call_flags);
   i->set_src1(cond);
-  i->src2.symbol_info = symbol_info;
+  i->src2.symbol = symbol;
   i->src3.value = NULL;
   EndBlock();
 }
@@ -868,9 +868,9 @@ void HIRBuilder::CallIndirectTrue(Value* cond, Value* value,
   EndBlock();
 }
 
-void HIRBuilder::CallExtern(FunctionInfo* symbol_info) {
+void HIRBuilder::CallExtern(Function* symbol) {
   Instr* i = AppendInstr(OPCODE_CALL_EXTERN_info, 0);
-  i->src1.symbol_info = symbol_info;
+  i->src1.symbol = symbol;
   i->src2.value = i->src3.value = NULL;
   EndBlock();
 }

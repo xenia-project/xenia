@@ -83,8 +83,7 @@ class Debugger {
   void OnThreadExit(xe::kernel::XThread* thread);
   void OnThreadDestroyed(xe::kernel::XThread* thread);
 
-  void OnFunctionDefined(cpu::FunctionInfo* symbol_info,
-                         cpu::Function* function);
+  void OnFunctionDefined(cpu::Function* function);
 
   void OnBreakpointHit(xe::kernel::XThread* thread, Breakpoint* breakpoint);
 

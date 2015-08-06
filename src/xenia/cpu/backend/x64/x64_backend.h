@@ -56,6 +56,9 @@ class X64Backend : public Backend {
 
   std::unique_ptr<Assembler> CreateAssembler() override;
 
+  std::unique_ptr<GuestFunction> CreateGuestFunction(Module* module,
+                                                     uint32_t address) override;
+
  private:
   std::unique_ptr<X64CodeCache> code_cache_;
 

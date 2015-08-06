@@ -13,8 +13,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "xenia/debug/function_trace_data.h"
-
 namespace xe {
 namespace cpu {
 
@@ -37,6 +35,9 @@ enum DebugInfoFlags : uint32_t {
   kDebugInfoAll = 0xFFFFFFFF,
 };
 
+// DEPRECATED
+// This will be getting removed or refactored to contain only on-demand
+// disassembly data.
 class DebugInfo {
  public:
   DebugInfo();
@@ -53,8 +54,6 @@ class DebugInfo {
     instruction_result_count_ = value;
   }
 
-  debug::FunctionTraceData& trace_data() { return trace_data_; }
-
   const char* source_disasm() const { return source_disasm_; }
   void set_source_disasm(char* value) { source_disasm_ = value; }
   const char* raw_hir_disasm() const { return raw_hir_disasm_; }
@@ -69,8 +68,6 @@ class DebugInfo {
  private:
   uint32_t address_reference_count_;
   uint32_t instruction_result_count_;
-
-  debug::FunctionTraceData trace_data_;
 
   char* source_disasm_;
   char* raw_hir_disasm_;

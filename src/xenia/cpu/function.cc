@@ -10,7 +10,7 @@
 #include "xenia/cpu/function.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
 
 namespace xe {
@@ -18,12 +18,56 @@ namespace cpu {
 
 using xe::debug::Breakpoint;
 
-Function::Function(FunctionInfo* symbol_info)
-    : address_(symbol_info->address()), symbol_info_(symbol_info) {}
+Function::Function(Module* module, uint32_t address)
+    : Symbol(Symbol::Type::kFunction, module, address) {}
 
 Function::~Function() = default;
 
-const SourceMapEntry* Function::LookupSourceOffset(uint32_t offset) const {
+BuiltinFunction::BuiltinFunction(Module* module, uint32_t address)
+    : Function(module, address) {
+  behavior_ = Behavior::kBuiltin;
+}
+
+BuiltinFunction::~BuiltinFunction() = default;
+
+void BuiltinFunction::SetupBuiltin(Handler handler, void* arg0, void* arg1) {
+  behavior_ = Behavior::kBuiltin;
+  handler_ = handler;
+  arg0_ = arg0;
+  arg1_ = arg1;
+}
+
+bool BuiltinFunction::Call(ThreadState* thread_state, uint32_t return_address) {
+  // SCOPE_profile_cpu_f("cpu");
+
+  ThreadState* original_thread_state = ThreadState::Get();
+  if (original_thread_state != thread_state) {
+    ThreadState::Bind(thread_state);
+  }
+
+  assert_not_null(handler_);
+  handler_(thread_state->context(), arg0_, arg1_);
+
+  if (original_thread_state != thread_state) {
+    ThreadState::Bind(original_thread_state);
+  }
+
+  return true;
+}
+
+GuestFunction::GuestFunction(Module* module, uint32_t address)
+    : Function(module, address) {
+  behavior_ = Behavior::kDefault;
+}
+
+GuestFunction::~GuestFunction() = default;
+
+void GuestFunction::SetupExtern(ExternHandler handler) {
+  behavior_ = Behavior::kExtern;
+  extern_handler_ = handler;
+}
+
+const SourceMapEntry* GuestFunction::LookupSourceOffset(uint32_t offset) const {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (size_t i = 0; i < source_map_.size(); ++i) {
     const auto& entry = source_map_[i];
@@ -34,7 +78,7 @@ const SourceMapEntry* Function::LookupSourceOffset(uint32_t offset) const {
   return nullptr;
 }
 
-const SourceMapEntry* Function::LookupHIROffset(uint32_t offset) const {
+const SourceMapEntry* GuestFunction::LookupHIROffset(uint32_t offset) const {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (size_t i = 0; i < source_map_.size(); ++i) {
     const auto& entry = source_map_[i];
@@ -45,7 +89,7 @@ const SourceMapEntry* Function::LookupHIROffset(uint32_t offset) const {
   return nullptr;
 }
 
-const SourceMapEntry* Function::LookupCodeOffset(uint32_t offset) const {
+const SourceMapEntry* GuestFunction::LookupCodeOffset(uint32_t offset) const {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (int64_t i = source_map_.size() - 1; i >= 0; --i) {
     const auto& entry = source_map_[i];
@@ -56,49 +100,7 @@ const SourceMapEntry* Function::LookupCodeOffset(uint32_t offset) const {
   return source_map_.empty() ? nullptr : &source_map_[0];
 }
 
-bool Function::AddBreakpoint(Breakpoint* breakpoint) {
-  std::lock_guard<xe::mutex> guard(lock_);
-  bool found = false;
-  for (auto other : breakpoints_) {
-    if (other == breakpoint) {
-      found = true;
-      break;
-    }
-  }
-  if (found) {
-    return true;
-  } else {
-    breakpoints_.push_back(breakpoint);
-    return AddBreakpointImpl(breakpoint);
-  }
-}
-
-bool Function::RemoveBreakpoint(Breakpoint* breakpoint) {
-  std::lock_guard<xe::mutex> guard(lock_);
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); ++it) {
-    if (*it == breakpoint) {
-      if (!RemoveBreakpointImpl(breakpoint)) {
-        return false;
-      }
-      breakpoints_.erase(it);
-    }
-  }
-  return false;
-}
-
-Breakpoint* Function::FindBreakpoint(uint32_t address) {
-  std::lock_guard<xe::mutex> guard(lock_);
-  Breakpoint* result = nullptr;
-  for (auto breakpoint : breakpoints_) {
-    if (breakpoint->address() == address) {
-      result = breakpoint;
-      break;
-    }
-  }
-  return result;
-}
-
-bool Function::Call(ThreadState* thread_state, uint32_t return_address) {
+bool GuestFunction::Call(ThreadState* thread_state, uint32_t return_address) {
   // SCOPE_profile_cpu_f("cpu");
 
   ThreadState* original_thread_state = ThreadState::Get();
@@ -106,29 +108,25 @@ bool Function::Call(ThreadState* thread_state, uint32_t return_address) {
     ThreadState::Bind(thread_state);
   }
 
-  bool result = true;
-
-  if (symbol_info_->behavior() == FunctionBehavior::kBuiltin) {
-    auto handler = symbol_info_->builtin_handler();
-    assert_not_null(handler);
-    handler(thread_state->context(), symbol_info_->builtin_arg0(),
-            symbol_info_->builtin_arg1());
-  } else if (symbol_info_->behavior() == FunctionBehavior::kExtern) {
-    auto handler = symbol_info_->extern_handler();
-    if (handler) {
-      handler(thread_state->context(), thread_state->context()->kernel_state);
+  bool result = false;
+  if (behavior_ == Behavior::kExtern) {
+    // Special handling for extern functions to speed things up (we don't
+    // trampoline into guest code only to trampoline back out).
+    if (extern_handler_) {
+      extern_handler_(thread_state->context(),
+                      thread_state->context()->kernel_state);
     } else {
-      XELOGW("undefined extern call to %.8X %s", symbol_info_->address(),
-             symbol_info_->name().c_str());
+      XELOGW("undefined extern call to %.8X %s", address(), name().c_str());
       result = false;
     }
   } else {
-    CallImpl(thread_state, return_address);
+    result = CallImpl(thread_state, return_address);
   }
 
   if (original_thread_state != thread_state) {
     ThreadState::Bind(original_thread_state);
   }
+
   return result;
 }
 

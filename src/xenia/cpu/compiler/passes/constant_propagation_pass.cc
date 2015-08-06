@@ -91,9 +91,9 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_CALL_TRUE:
           if (i->src1.value->IsConstant()) {
             if (i->src1.value->IsConstantTrue()) {
-              auto symbol_info = i->src2.symbol_info;
+              auto symbol = i->src2.symbol;
               i->Replace(&OPCODE_CALL_info, i->flags);
-              i->src1.symbol_info = symbol_info;
+              i->src1.symbol = symbol;
             } else {
               i->Remove();
             }
@@ -101,13 +101,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
         case OPCODE_CALL_INDIRECT:
           if (i->src1.value->IsConstant()) {
-            FunctionInfo* symbol_info;
-            if (!processor_->LookupFunctionInfo(
-                    (uint32_t)i->src1.value->constant.i32, &symbol_info)) {
+            auto function = processor_->LookupFunction(
+                uint32_t(i->src1.value->constant.i32));
+            if (!function) {
               break;
             }
             i->Replace(&OPCODE_CALL_info, i->flags);
-            i->src1.symbol_info = symbol_info;
+            i->src1.symbol = function;
           }
           break;
         case OPCODE_CALL_INDIRECT_TRUE:

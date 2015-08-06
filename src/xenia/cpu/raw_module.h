@@ -28,6 +28,9 @@ class RawModule : public Module {
 
   bool ContainsAddress(uint32_t address) override;
 
+ protected:
+  std::unique_ptr<Function> CreateFunction(uint32_t address) override;
+
  private:
   std::string name_;
   uint32_t base_address_;

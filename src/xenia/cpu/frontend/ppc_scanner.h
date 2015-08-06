@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "xenia/cpu/debug_info.h"
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/function.h"
 
 namespace xe {
 namespace cpu {
@@ -21,25 +21,24 @@ namespace frontend {
 
 class PPCFrontend;
 
-typedef struct BlockInfo_t {
+struct BlockInfo {
   uint32_t start_address;
   uint32_t end_address;
-} BlockInfo;
+};
 
 class PPCScanner {
  public:
   PPCScanner(PPCFrontend* frontend);
   ~PPCScanner();
 
-  bool Scan(FunctionInfo* symbol_info, DebugInfo* debug_info);
+  bool Scan(GuestFunction* function, DebugInfo* debug_info);
 
-  std::vector<BlockInfo> FindBlocks(FunctionInfo* symbol_info);
+  std::vector<BlockInfo> FindBlocks(GuestFunction* function);
 
  private:
   bool IsRestGprLr(uint32_t address);
 
- private:
-  PPCFrontend* frontend_;
+  PPCFrontend* frontend_ = nullptr;
 };
 
 }  // namespace frontend

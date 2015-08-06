@@ -205,19 +205,21 @@ class Win32StackWalker : public StackWalker {
       if (frame.host_pc >= code_cache_min_ && frame.host_pc < code_cache_max_) {
         // Guest symbol, so we can look it up quickly in the code cache.
         frame.type = StackFrame::Type::kGuest;
-        auto function_info = code_cache_->LookupFunction(frame.host_pc);
-        if (function_info) {
-          frame.guest_symbol.function_info = function_info;
+        auto function = code_cache_->LookupFunction(frame.host_pc);
+        if (function) {
+          frame.guest_symbol.function = function;
           // Figure out where in guest code we are by looking up the
           // displacement in x64 from the JIT'ed code start to the PC.
-          uint32_t host_displacement =
-              uint32_t(frame.host_pc) -
-              uint32_t(uint64_t(function_info->function()->machine_code()));
-          auto entry =
-              function_info->function()->LookupCodeOffset(host_displacement);
-          frame.guest_pc = entry->source_offset;
+          if (function->is_guest()) {
+            auto guest_function = static_cast<GuestFunction*>(function);
+            uint32_t host_displacement =
+                uint32_t(frame.host_pc) -
+                uint32_t(uint64_t(guest_function->machine_code()));
+            auto entry = guest_function->LookupCodeOffset(host_displacement);
+            frame.guest_pc = entry->source_offset;
+          }
         } else {
-          frame.guest_symbol.function_info = nullptr;
+          frame.guest_symbol.function = nullptr;
         }
       } else {
         // Host symbol, which means either emulator or system.

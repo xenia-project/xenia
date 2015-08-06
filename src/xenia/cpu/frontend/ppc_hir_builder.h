@@ -13,7 +13,6 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/function.h"
-#include "xenia/cpu/symbol_info.h"
 
 namespace xe {
 namespace cpu {
@@ -28,18 +27,18 @@ class PPCHIRBuilder : public hir::HIRBuilder {
 
  public:
   PPCHIRBuilder(PPCFrontend* frontend);
-  virtual ~PPCHIRBuilder();
+  ~PPCHIRBuilder() override;
 
-  virtual void Reset();
+  void Reset() override;
 
   enum EmitFlags {
     // Emit comment nodes.
     EMIT_DEBUG_COMMENTS = 1 << 0,
   };
-  bool Emit(FunctionInfo* symbol_info, uint32_t flags);
+  bool Emit(GuestFunction* function, uint32_t flags);
 
-  FunctionInfo* symbol_info() const { return symbol_info_; }
-  FunctionInfo* LookupFunction(uint32_t address);
+  GuestFunction* function() const { return function_; }
+  Function* LookupFunction(uint32_t address);
   Label* LookupLabel(uint32_t address);
 
   Value* LoadLR();
@@ -83,7 +82,6 @@ class PPCHIRBuilder : public hir::HIRBuilder {
  private:
   void AnnotateLabel(uint32_t address, Label* label);
 
- private:
   PPCFrontend* frontend_;
 
   // Reset whenever needed:
@@ -91,7 +89,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
 
   // Reset each Emit:
   bool with_debug_info_;
-  FunctionInfo* symbol_info_;
+  GuestFunction* function_;
   uint64_t start_address_;
   uint64_t instr_count_;
   Instr** instr_offset_list_;

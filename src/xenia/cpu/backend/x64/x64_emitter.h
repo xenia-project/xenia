@@ -17,7 +17,6 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
-#include "xenia/cpu/symbol_info.h"
 #include "xenia/debug/function_trace_data.h"
 #include "xenia/memory.h"
 
@@ -27,10 +26,7 @@
 
 namespace xe {
 namespace cpu {
-class DebugInfo;
-class FunctionInfo;
 class Processor;
-class SymbolInfo;
 }  // namespace cpu
 }  // namespace xe
 
@@ -118,7 +114,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Processor* processor() const { return processor_; }
   X64Backend* backend() const { return backend_; }
 
-  bool Emit(FunctionInfo* function_info, hir::HIRBuilder* builder,
+  bool Emit(GuestFunction* function, hir::HIRBuilder* builder,
             uint32_t debug_info_flags, DebugInfo* debug_info,
             void*& out_code_address, size_t& out_code_size,
             std::vector<SourceMapEntry>& out_source_map);
@@ -163,9 +159,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void Trap(uint16_t trap_type = 0);
   void UnimplementedInstr(const hir::Instr* i);
 
-  void Call(const hir::Instr* instr, FunctionInfo* symbol_info);
+  void Call(const hir::Instr* instr, GuestFunction* function);
   void CallIndirect(const hir::Instr* instr, const Xbyak::Reg64& reg);
-  void CallExtern(const hir::Instr* instr, const FunctionInfo* symbol_info);
+  void CallExtern(const hir::Instr* instr, const Function* function);
   void CallNative(void* fn);
   void CallNative(uint64_t (*fn)(void* raw_context));
   void CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0));
@@ -199,7 +195,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
 
  protected:
-  void* Emplace(size_t stack_size, FunctionInfo* function_info = nullptr);
+  void* Emplace(size_t stack_size, GuestFunction* function = nullptr);
   bool Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();
@@ -218,6 +214,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   DebugInfo* debug_info_ = nullptr;
   uint32_t debug_info_flags_ = 0;
+  debug::FunctionTraceData* trace_data_ = nullptr;
   Arena source_map_arena_;
 
   size_t stack_size_ = 0;

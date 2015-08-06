@@ -169,10 +169,9 @@ void Debugger::DumpThreadStacks() {
         XELOGI("  %.2lld %.16llX          %s", count - i - 1, frame.host_pc,
                frame.host_symbol.name);
       } else {
-        auto function_info = frame.guest_symbol.function_info;
+        auto function = frame.guest_symbol.function;
         XELOGI("  %.2lld %.16llX %.8X %s", count - i - 1, frame.host_pc,
-               frame.guest_pc,
-               function_info ? function_info->name().c_str() : "?");
+               frame.guest_pc, function ? function->name().c_str() : "?");
       }
     }
   }
@@ -190,12 +189,13 @@ int Debugger::AddBreakpoint(Breakpoint* breakpoint) {
   auto fns =
       emulator_->processor()->FindFunctionsWithAddress(breakpoint->address());
 
+  // TODO(benvanik): breakpoints.
   // Add.
-  for (auto fn : fns) {
-    if (fn->AddBreakpoint(breakpoint)) {
-      return 1;
-    }
-  }
+  // for (auto fn : fns) {
+  //  if (fn->AddBreakpoint(breakpoint)) {
+  //    return 1;
+  //  }
+  //}
 
   return 0;
 }
@@ -226,9 +226,10 @@ int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
       emulator_->processor()->FindFunctionsWithAddress(breakpoint->address());
 
   // Remove.
-  for (auto fn : fns) {
+  // TODO(benvanik): breakpoints.
+  /*for (auto fn : fns) {
     fn->RemoveBreakpoint(breakpoint);
-  }
+  }*/
 
   return 0;
 }
@@ -322,31 +323,30 @@ void Debugger::OnThreadDestroyed(xe::kernel::XThread* thread) {
   // TODO(benvanik): notify transports.
 }
 
-void Debugger::OnFunctionDefined(cpu::FunctionInfo* symbol_info,
-                                 cpu::Function* function) {
+void Debugger::OnFunctionDefined(cpu::Function* function) {
+  // TODO(benvanik): breakpoints?
   // Man, I'd love not to take this lock.
-  std::vector<Breakpoint*> breakpoints;
-  {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    for (uint32_t address = symbol_info->address();
-         address <= symbol_info->end_address(); address += 4) {
-      auto range = breakpoints_.equal_range(address);
-      if (range.first == range.second) {
-        continue;
-      }
-      for (auto it = range.first; it != range.second; ++it) {
-        Breakpoint* breakpoint = it->second;
-        breakpoints.push_back(breakpoint);
-      }
-    }
-  }
-
-  if (breakpoints.size()) {
-    // Breakpoints to add!
-    for (auto breakpoint : breakpoints) {
-      function->AddBreakpoint(breakpoint);
-    }
-  }
+  // std::vector<Breakpoint*> breakpoints;
+  //{
+  //  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  //  for (uint32_t address = function->address();
+  //       address <= function->end_address(); address += 4) {
+  //    auto range = breakpoints_.equal_range(address);
+  //    if (range.first == range.second) {
+  //      continue;
+  //    }
+  //    for (auto it = range.first; it != range.second; ++it) {
+  //      Breakpoint* breakpoint = it->second;
+  //      breakpoints.push_back(breakpoint);
+  //    }
+  //  }
+  //}
+  // if (breakpoints.size()) {
+  //  // Breakpoints to add!
+  //  for (auto breakpoint : breakpoints) {
+  //    function->AddBreakpoint(breakpoint);
+  //  }
+  //}
 }
 
 void Debugger::OnBreakpointHit(xe::kernel::XThread* thread,

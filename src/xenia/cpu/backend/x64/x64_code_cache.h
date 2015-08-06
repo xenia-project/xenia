@@ -50,10 +50,10 @@ class X64CodeCache : public CodeCache {
                       size_t code_size, size_t stack_size);
   void* PlaceGuestCode(uint32_t guest_address, void* machine_code,
                        size_t code_size, size_t stack_size,
-                       FunctionInfo* function_info);
+                       GuestFunction* function_info);
   uint32_t PlaceData(const void* data, size_t length);
 
-  FunctionInfo* LookupFunction(uint64_t host_pc) override;
+  GuestFunction* LookupFunction(uint64_t host_pc) override;
 
  protected:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
@@ -111,7 +111,7 @@ class X64CodeCache : public CodeCache {
   // Sorted map by host PC base offsets to source function info.
   // This can be used to bsearch on host PC to find the guest function.
   // The key is [start address | end address].
-  std::vector<std::pair<uint64_t, FunctionInfo*>> generated_code_map_;
+  std::vector<std::pair<uint64_t, GuestFunction*>> generated_code_map_;
 };
 
 }  // namespace x64

@@ -71,29 +71,34 @@ bool TestModule::ContainsAddress(uint32_t address) {
   return contains_address_(address);
 }
 
-SymbolStatus TestModule::DeclareFunction(uint32_t address,
-                                         FunctionInfo** out_symbol_info) {
-  SymbolStatus status = Module::DeclareFunction(address, out_symbol_info);
-  if (status == SymbolStatus::kNew) {
-    auto symbol_info = *out_symbol_info;
+std::unique_ptr<Function> TestModule::CreateFunction(uint32_t address) {
+  return std::unique_ptr<Function>(
+      processor_->backend()->CreateGuestFunction(this, address));
+}
+
+Symbol::Status TestModule::DeclareFunction(uint32_t address,
+                                           Function** out_function) {
+  Symbol::Status status = Module::DeclareFunction(address, out_function);
+  if (status == Symbol::Status::kNew) {
+    auto function = static_cast<GuestFunction*>(*out_function);
 
     // Reset() all caching when we leave.
     xe::make_reset_scope(compiler_);
     xe::make_reset_scope(assembler_);
 
     if (!generate_(*builder_.get())) {
-      symbol_info->set_status(SymbolStatus::kFailed);
-      return SymbolStatus::kFailed;
+      function->set_status(Symbol::Status::kFailed);
+      return Symbol::Status::kFailed;
     }
 
+    // Run optimization passes.
     compiler_->Compile(builder_.get());
 
-    Function* fn = nullptr;
-    assembler_->Assemble(symbol_info, builder_.get(), 0, nullptr, &fn);
+    // Assemble the function.
+    assembler_->Assemble(function, builder_.get(), 0, nullptr);
 
-    symbol_info->set_function(fn);
-    status = SymbolStatus::kDefined;
-    symbol_info->set_status(status);
+    status = Symbol::Status::kDefined;
+    function->set_status(status);
   }
   return status;
 }

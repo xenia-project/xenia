@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "xenia/cpu/symbol_info.h"
+#include "xenia/cpu/function.h"
 
 namespace xe {
 namespace cpu {
@@ -29,7 +29,7 @@ class CodeCache {
 
   // Finds a function based on the given host PC (that may be within a
   // function).
-  virtual FunctionInfo* LookupFunction(uint64_t host_pc) = 0;
+  virtual GuestFunction* LookupFunction(uint64_t host_pc) = 0;
 
   // Finds platform-specific function unwind info for the given host PC.
   virtual void* LookupUnwindInfo(uint64_t host_pc) = 0;

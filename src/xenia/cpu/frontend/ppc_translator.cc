@@ -99,9 +99,8 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
 
 PPCTranslator::~PPCTranslator() = default;
 
-bool PPCTranslator::Translate(FunctionInfo* symbol_info,
-                              uint32_t debug_info_flags,
-                              Function** out_function) {
+bool PPCTranslator::Translate(GuestFunction* function,
+                              uint32_t debug_info_flags) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset() all caching when we leave.
@@ -137,7 +136,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Scan the function to find its extents and gather debug data.
-  if (!scanner_->Scan(symbol_info, debug_info.get())) {
+  if (!scanner_->Scan(function, debug_info.get())) {
     return false;
   }
 
@@ -153,19 +152,19 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
     if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
       // Additional space for instruction coverage counts.
       trace_data_size += debug::FunctionTraceData::SizeOfInstructionCounts(
-          symbol_info->address(), symbol_info->end_address());
+          function->address(), function->end_address());
     }
     uint8_t* trace_data = debugger->AllocateFunctionTraceData(trace_data_size);
     if (trace_data) {
-      debug_info->trace_data().Reset(trace_data, trace_data_size,
-                                     symbol_info->address(),
-                                     symbol_info->end_address());
+      function->trace_data().Reset(trace_data, trace_data_size,
+                                   function->address(),
+                                   function->end_address());
     }
   }
 
   // Stash source.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmSource) {
-    DumpSource(symbol_info, &string_buffer_);
+    DumpSource(function, &string_buffer_);
     debug_info->set_source_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
   }
@@ -179,7 +178,7 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   if (debug_info) {
     emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
   }
-  if (!builder_->Emit(symbol_info, emit_flags)) {
+  if (!builder_->Emit(function, emit_flags)) {
     return false;
   }
 
@@ -203,27 +202,26 @@ bool PPCTranslator::Translate(FunctionInfo* symbol_info,
   }
 
   // Assemble to backend machine code.
-  if (!assembler_->Assemble(symbol_info, builder_.get(), debug_info_flags,
-                            std::move(debug_info), out_function)) {
+  if (!assembler_->Assemble(function, builder_.get(), debug_info_flags,
+                            std::move(debug_info))) {
     return false;
   }
 
   return true;
 };
 
-void PPCTranslator::DumpSource(FunctionInfo* symbol_info,
+void PPCTranslator::DumpSource(GuestFunction* function,
                                StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();
 
   string_buffer->AppendFormat(
-      "%s fn %.8X-%.8X %s\n", symbol_info->module()->name().c_str(),
-      symbol_info->address(), symbol_info->end_address(),
-      symbol_info->name().c_str());
+      "%s fn %.8X-%.8X %s\n", function->module()->name().c_str(),
+      function->address(), function->end_address(), function->name().c_str());
 
-  auto blocks = scanner_->FindBlocks(symbol_info);
+  auto blocks = scanner_->FindBlocks(function);
 
-  uint32_t start_address = symbol_info->address();
-  uint32_t end_address = symbol_info->end_address();
+  uint32_t start_address = function->address();
+  uint32_t end_address = function->end_address();
   InstrData i;
   auto block_it = blocks.begin();
   for (uint32_t address = start_address, offset = 0; address <= end_address;
