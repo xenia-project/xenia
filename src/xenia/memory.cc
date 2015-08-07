@@ -127,7 +127,7 @@ int Memory::Initialize() {
   // we pick, so try a few times.
   mapping_base_ = 0;
   for (size_t n = 32; n < 64; n++) {
-    uint8_t* mapping_base = (uint8_t*)(1ull << n);
+    auto mapping_base = reinterpret_cast<uint8_t*>(1ull << n);
     if (!MapViews(mapping_base)) {
       mapping_base_ = mapping_base;
       break;
@@ -192,7 +192,7 @@ int Memory::Initialize() {
   return 0;
 }
 
-const static struct {
+static const struct {
   uint64_t virtual_address_start;
   uint64_t virtual_address_end;
   uint64_t target_address;

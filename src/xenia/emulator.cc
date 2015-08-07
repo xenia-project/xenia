@@ -33,13 +33,6 @@ DEFINE_double(time_scalar, 1.0,
 
 namespace xe {
 
-using namespace xe::apu;
-using namespace xe::cpu;
-using namespace xe::gpu;
-using namespace xe::hid;
-using namespace xe::ui;
-using namespace xe::vfs;
-
 Emulator::Emulator(const std::wstring& command_line)
     : command_line_(command_line) {}
 
@@ -107,7 +100,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   }
 
   // Initialize the CPU.
-  processor_ = std::make_unique<Processor>(
+  processor_ = std::make_unique<xe::cpu::Processor>(
       memory_.get(), export_resolver_.get(), debugger_.get());
 
   // Initialize the APU.
@@ -116,7 +109,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
 
-  xma_decoder_ = std::make_unique<XmaDecoder>(this);
+  xma_decoder_ = std::make_unique<xe::apu::XmaDecoder>(this);
 
   // Initialize the GPU.
   graphics_system_ = xe::gpu::GraphicsSystem::Create(this);
@@ -140,10 +133,10 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   }
 
   // Bring up the virtual filesystem used by the kernel.
-  file_system_ = std::make_unique<VirtualFileSystem>();
+  file_system_ = std::make_unique<xe::vfs::VirtualFileSystem>();
 
   // Shared kernel state.
-  kernel_state_ = std::make_unique<kernel::KernelState>(this);
+  kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
 
   // Setup the core components.
   if (!processor_->Setup()) {

@@ -25,7 +25,7 @@ DEFINE_bool(debug_symbol_loader, false,
 // Must be included after platform_win.h:
 #pragma warning(push)
 #pragma warning(disable : 4091)
-#include <dbghelp.h>
+#include <dbghelp.h>  // NOLINT(build/include_order)
 #pragma warning(pop)
 
 typedef DWORD(__stdcall* LPSYMGETOPTIONS)(VOID);
@@ -115,7 +115,7 @@ bool InitializeStackWalker() {
 
 class Win32StackWalker : public StackWalker {
  public:
-  Win32StackWalker(backend::CodeCache* code_cache) {
+  explicit Win32StackWalker(backend::CodeCache* code_cache) {
     // Get the boundaries of the code cache so we can quickly tell if a symbol
     // is ours or not.
     // We store these globally so that the Sym* callbacks can access them.

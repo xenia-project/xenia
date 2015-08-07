@@ -7,8 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_thread_state_H_
-#define XENIA_CPU_thread_state_H_
+#ifndef XENIA_CPU_THREAD_STATE_H_
+#define XENIA_CPU_THREAD_STATE_H_
+
+#include <string>
 
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/thread_state.h"
@@ -70,4 +72,4 @@ class ThreadState {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_thread_state_H_
+#endif  // XENIA_CPU_THREAD_STATE_H_

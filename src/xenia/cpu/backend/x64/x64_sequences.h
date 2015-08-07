@@ -7,16 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_SEQUENCES_H_
-#define XENIA_BACKEND_X64_X64_SEQUENCES_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_SEQUENCES_H_
+#define XENIA_CPU_BACKEND_X64_X64_SEQUENCES_H_
 
-namespace xe {
-namespace cpu {
-namespace hir {
-class Instr;
-}  // namespace hir
-}  // namespace cpu
-}  // namespace xe
+#include "xenia/cpu/hir/instr.h"
 
 namespace xe {
 namespace cpu {
@@ -26,7 +20,7 @@ namespace x64 {
 class X64Emitter;
 
 void RegisterSequences();
-bool SelectSequence(X64Emitter& e, const hir::Instr* i,
+bool SelectSequence(X64Emitter* e, const hir::Instr* i,
                     const hir::Instr** new_tail);
 
 }  // namespace x64
@@ -34,4 +28,4 @@ bool SelectSequence(X64Emitter& e, const hir::Instr* i,
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_SEQUENCES_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_SEQUENCES_H_

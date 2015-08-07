@@ -7,10 +7,15 @@
  ******************************************************************************
  */
 
-#include "xenia/base/logging.h"
-
 #include <gflags/gflags.h>
 
+#include <string>
+
+// NOTE: this must be included before microprofile as macro expansion needs
+// XELOGI.
+#include "xenia/base/logging.h"
+
+// NOTE: microprofile must be setup first, before profiling.h is included.
 #define MICROPROFILE_ENABLED 1
 #define MICROPROFILEUI_ENABLED 1
 #define MICROPROFILE_IMPL 1
@@ -22,10 +27,10 @@
 #define MICROPROFILE_WEBSERVER 1
 #define MICROPROFILE_DEBUG 0
 #if MICROPROFILE_WEBSERVER
-#include <winsock.h>
-#endif  // MICROPROFILE_WEBSERVER
-#include <microprofile/microprofile.h>
-#include <microprofile/microprofileui.h>
+#include <winsock.h>  // NOLINT(build/include_order)
+#endif                // MICROPROFILE_WEBSERVER
+#include "third_party/microprofile/microprofile.h"
+#include "third_party/microprofile/microprofileui.h"
 
 #include "xenia/profiling.h"
 

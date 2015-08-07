@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_EMITTER_H_
-#define XENIA_BACKEND_X64_X64_EMITTER_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_EMITTER_H_
+#define XENIA_CPU_BACKEND_X64_X64_EMITTER_H_
 
 #include <vector>
 
@@ -116,8 +116,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   bool Emit(GuestFunction* function, hir::HIRBuilder* builder,
             uint32_t debug_info_flags, DebugInfo* debug_info,
-            void*& out_code_address, size_t& out_code_size,
-            std::vector<SourceMapEntry>& out_source_map);
+            void** out_code_address, size_t* out_code_size,
+            std::vector<SourceMapEntry>* out_source_map);
 
   static uint32_t PlaceData(Memory* memory);
 
@@ -196,7 +196,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
  protected:
   void* Emplace(size_t stack_size, GuestFunction* function = nullptr);
-  bool Emit(hir::HIRBuilder* builder, size_t& out_stack_size);
+  bool Emit(hir::HIRBuilder* builder, size_t* out_stack_size);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();
 
@@ -228,4 +228,4 @@ class X64Emitter : public Xbyak::CodeGenerator {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_EMITTER_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_EMITTER_H_

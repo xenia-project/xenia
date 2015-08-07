@@ -26,9 +26,8 @@
 namespace xe {
 namespace cpu {
 
-using namespace xe::kernel;
-
-using PPCContext = xe::cpu::frontend::PPCContext;
+using xe::cpu::frontend::PPCContext;
+using xe::kernel::KernelState;
 
 void UndefinedImport(PPCContext* ppc_context, KernelState* kernel_state) {
   XELOGE("call to undefined import");
@@ -52,7 +51,8 @@ bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
         case 0x00: {
           // We just return the value of the optional header.
           // Assume that the output pointer points to a uint32_t.
-          *(uint32_t*)out_ptr = (uint32_t)opt_header.value;
+          *reinterpret_cast<uint32_t*>(out_ptr) =
+              static_cast<uint32_t>(opt_header.value);
         } break;
         case 0x01: {
           // Pointer to the value on the optional header.
@@ -60,7 +60,8 @@ bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
         } break;
         default: {
           // Pointer to the header.
-          *out_ptr = (void*)((uint8_t*)header + opt_header.offset);
+          *out_ptr =
+              reinterpret_cast<void*>(uintptr_t(header) + opt_header.offset);
         } break;
       }
 
@@ -77,7 +78,7 @@ bool XexModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) const {
 
 const xex2_security_info* XexModule::GetSecurityInfo(
     const xex2_header* header) {
-  return reinterpret_cast<const xex2_security_info*>((uint8_t*)header +
+  return reinterpret_cast<const xex2_security_info*>(uintptr_t(header) +
                                                      header->security_offset);
 }
 
@@ -109,7 +110,8 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
         *exe_address + pe_export_directory->offset);
     assert_not_null(e);
 
-    uint32_t* function_table = (uint32_t*)((uint8_t*)e + e->AddressOfFunctions);
+    uint32_t* function_table =
+        reinterpret_cast<uint32_t*>(uintptr_t(e) + e->AddressOfFunctions);
 
     if (ordinal < e->NumberOfFunctions) {
       return xex_security_info()->load_address + function_table[ordinal];
@@ -135,20 +137,22 @@ uint32_t XexModule::GetProcAddress(const char* name) const {
   assert_not_null(e);
 
   // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
-  uint32_t* function_table = (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
+  uint32_t* function_table =
+      reinterpret_cast<uint32_t*>(uintptr_t(e) + e->AddressOfFunctions);
 
   // Names relative to directory
-  uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
+  uint32_t* name_table =
+      reinterpret_cast<uint32_t*>(uintptr_t(e) + e->AddressOfNames);
 
   // Table of ordinals (by name)
-  uint16_t* ordinal_table = (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
+  uint16_t* ordinal_table =
+      reinterpret_cast<uint16_t*>(uintptr_t(e) + e->AddressOfNameOrdinals);
 
   for (uint32_t i = 0; i < e->NumberOfNames; i++) {
-    const char* fn_name = (const char*)((uint64_t)e + name_table[i]);
+    auto fn_name = reinterpret_cast<const char*>(uintptr_t(e) + name_table[i]);
     uint16_t ordinal = ordinal_table[i];
     uint32_t addr = *exe_address + function_table[ordinal];
-
-    if (!strcmp(name, fn_name)) {
+    if (!std::strcmp(name, fn_name)) {
       // We have a match!
       return addr;
     }
@@ -170,17 +174,17 @@ bool XexModule::ApplyPatch(XexModule* module) {
   // Grab the delta descriptor and get to work.
   xex2_opt_delta_patch_descriptor* patch_header = nullptr;
   GetOptHeader(header, XEX_HEADER_DELTA_PATCH_DESCRIPTOR,
-               (void**)&patch_header);
+               reinterpret_cast<void**>(&patch_header));
   assert_not_null(patch_header);
 
-  // TODO!
+  // TODO(benvanik): patching code!
 
   return true;
 }
 
 bool XexModule::Load(const std::string& name, const std::string& path,
                      const void* xex_addr, size_t xex_length) {
-  // TODO: Move loading code here
+  // TODO(DrChat): Move loading code here.
   xex_ = xe_xex2_load(memory(), xex_addr, xex_length, {0});
   if (!xex_) {
     return false;
@@ -210,7 +214,7 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 
   // Scan and find the low/high addresses.
   // All code sections are continuous, so this should be easy.
-  // TODO: Use the new xex header to do this.
+  // TODO(DrChat): Use the new xex header to do this.
   low_address_ = UINT_MAX;
   high_address_ = 0;
   for (uint32_t n = 0, i = 0; n < old_header->section_count; n++) {
@@ -252,14 +256,13 @@ bool XexModule::Load(const std::string& name, const std::string& path,
     }
   }
 
-  auto libraries =
-      (uint8_t*)opt_import_header + opt_import_header->string_table_size + 12;
+  auto libraries_ptr = reinterpret_cast<uint8_t*>(opt_import_header) +
+                       opt_import_header->string_table_size + 12;
   uint32_t library_offset = 0;
   for (uint32_t i = 0; i < opt_import_header->library_count; i++) {
-    auto library = reinterpret_cast<xex2_import_library*>((uint8_t*)libraries +
-                                                          library_offset);
+    auto library =
+        reinterpret_cast<xex2_import_library*>(libraries_ptr + library_offset);
     SetupLibraryImports(string_table[library->name_index], library);
-
     library_offset += library->size;
   }
 

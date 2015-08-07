@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_ASSEMBLER_H_
-#define XENIA_BACKEND_X64_X64_ASSEMBLER_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_ASSEMBLER_H_
+#define XENIA_CPU_BACKEND_X64_X64_ASSEMBLER_H_
 
 #include <memory>
 #include <vector>
@@ -28,7 +28,7 @@ class XbyakAllocator;
 
 class X64Assembler : public Assembler {
  public:
-  X64Assembler(X64Backend* backend);
+  explicit X64Assembler(X64Backend* backend);
   ~X64Assembler() override;
 
   bool Initialize() override;
@@ -58,4 +58,4 @@ class X64Assembler : public Assembler {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_ASSEMBLER_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_ASSEMBLER_H_

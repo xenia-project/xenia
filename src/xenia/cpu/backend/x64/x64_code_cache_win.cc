@@ -31,7 +31,7 @@ namespace x64 {
 
 // Size of unwind info per function.
 // TODO(benvanik): move this to emitter.
-const static uint32_t kUnwindInfoSize = 4 + (2 * 1 + 2 + 2);
+static const uint32_t kUnwindInfoSize = 4 + (2 * 1 + 2 + 2);
 
 class Win32X64CodeCache : public X64CodeCache {
  public:

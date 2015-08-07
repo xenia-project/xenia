@@ -437,7 +437,7 @@ bool RunTests(const std::wstring& test_name) {
   return failed_count ? false : true;
 }
 
-int main(std::vector<std::wstring>& args) {
+int main(const std::vector<std::wstring>& args) {
   // Grab test name, if present.
   std::wstring test_name;
   if (args.size() >= 2) {

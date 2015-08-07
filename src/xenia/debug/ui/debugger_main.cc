@@ -18,7 +18,7 @@ namespace xe {
 namespace debug {
 namespace ui {
 
-int main(std::vector<std::wstring>& args) {
+int main(const std::vector<std::wstring>& args) {
   auto app = Application::Create();
   app->loop()->AwaitQuit();
   return 0;

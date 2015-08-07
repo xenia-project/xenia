@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_COMPILER_COMPILER_PASS_H_
-#define XENIA_COMPILER_COMPILER_PASS_H_
+#ifndef XENIA_CPU_COMPILER_COMPILER_PASS_H_
+#define XENIA_CPU_COMPILER_COMPILER_PASS_H_
 
 #include "xenia/base/arena.h"
 #include "xenia/cpu/hir/hir_builder.h"
@@ -46,4 +46,4 @@ class CompilerPass {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_COMPILER_COMPILER_PASS_H_
+#endif  // XENIA_CPU_COMPILER_COMPILER_PASS_H_

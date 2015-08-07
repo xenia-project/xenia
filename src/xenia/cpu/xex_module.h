@@ -11,18 +11,19 @@
 #define XENIA_CPU_XEX_MODULE_H_
 
 #include <string>
+#include <vector>
 
 #include "xenia/cpu/module.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/util/xex2_info.h"
 
 namespace xe {
-
-// KernelState forward decl.
 namespace kernel {
 class KernelState;
-}
+}  // namespace kernel
+}  // namespace xe
 
+namespace xe {
 namespace cpu {
 
 class Runtime;

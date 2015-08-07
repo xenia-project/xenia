@@ -7,13 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_CODE_CACHE_H_
-#define XENIA_BACKEND_X64_X64_CODE_CACHE_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_CODE_CACHE_H_
+#define XENIA_CPU_BACKEND_X64_X64_CODE_CACHE_H_
 
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/memory.h"
@@ -58,18 +59,18 @@ class X64CodeCache : public CodeCache {
  protected:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
   // only map enough for lookups within that range.
-  const static uint64_t kIndirectionTableBase = 0x80000000;
-  const static uint64_t kIndirectionTableSize = 0x1FFFFFFF;
+  static const uint64_t kIndirectionTableBase = 0x80000000;
+  static const uint64_t kIndirectionTableSize = 0x1FFFFFFF;
   // The code range is 512MB, but we know the total code games will have is
   // pretty small (dozens of mb at most) and our expansion is reasonablish
   // so 256MB should be more than enough.
-  const static uint64_t kGeneratedCodeBase = 0xA0000000;
-  const static uint64_t kGeneratedCodeSize = 0x0FFFFFFF;
+  static const uint64_t kGeneratedCodeBase = 0xA0000000;
+  static const uint64_t kGeneratedCodeSize = 0x0FFFFFFF;
 
   // This is picked to be high enough to cover whatever we can reasonably
   // expect. If we hit issues with this it probably means some corner case
   // in analysis triggering.
-  const static size_t kMaximumFunctionCount = 30000;
+  static const size_t kMaximumFunctionCount = 30000;
 
   struct UnwindReservation {
     size_t data_size = 0;
@@ -119,4 +120,4 @@ class X64CodeCache : public CodeCache {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_CODE_CACHE_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_CODE_CACHE_H_

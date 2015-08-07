@@ -308,25 +308,25 @@ DECLARE_XAM_EXPORT(NetDll_WSAResetEvent,
 
 struct XnAddrStatus {
   // Address acquisition is not yet complete
-  const static uint32_t XNET_GET_XNADDR_PENDING = 0x00000000;
+  static const uint32_t XNET_GET_XNADDR_PENDING = 0x00000000;
   // XNet is uninitialized or no debugger found
-  const static uint32_t XNET_GET_XNADDR_NONE = 0x00000001;
+  static const uint32_t XNET_GET_XNADDR_NONE = 0x00000001;
   // Host has ethernet address (no IP address)
-  const static uint32_t XNET_GET_XNADDR_ETHERNET = 0x00000002;
+  static const uint32_t XNET_GET_XNADDR_ETHERNET = 0x00000002;
   // Host has statically assigned IP address
-  const static uint32_t XNET_GET_XNADDR_STATIC = 0x00000004;
+  static const uint32_t XNET_GET_XNADDR_STATIC = 0x00000004;
   // Host has DHCP assigned IP address
-  const static uint32_t XNET_GET_XNADDR_DHCP = 0x00000008;
+  static const uint32_t XNET_GET_XNADDR_DHCP = 0x00000008;
   // Host has PPPoE assigned IP address
-  const static uint32_t XNET_GET_XNADDR_PPPOE = 0x00000010;
+  static const uint32_t XNET_GET_XNADDR_PPPOE = 0x00000010;
   // Host has one or more gateways configured
-  const static uint32_t XNET_GET_XNADDR_GATEWAY = 0x00000020;
+  static const uint32_t XNET_GET_XNADDR_GATEWAY = 0x00000020;
   // Host has one or more DNS servers configured
-  const static uint32_t XNET_GET_XNADDR_DNS = 0x00000040;
+  static const uint32_t XNET_GET_XNADDR_DNS = 0x00000040;
   // Host is currently connected to online service
-  const static uint32_t XNET_GET_XNADDR_ONLINE = 0x00000080;
+  static const uint32_t XNET_GET_XNADDR_ONLINE = 0x00000080;
   // Network configuration requires troubleshooting
-  const static uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
+  static const uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
 };
 
 dword_result_t NetDll_XNetGetTitleXnAddr(dword_t caller,

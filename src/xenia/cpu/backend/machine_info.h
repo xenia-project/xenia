@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_MACHINE_INFO_H_
-#define XENIA_BACKEND_MACHINE_INFO_H_
+#ifndef XENIA_CPU_BACKEND_MACHINE_INFO_H_
+#define XENIA_CPU_BACKEND_MACHINE_INFO_H_
 
 #include <cstdint>
 
@@ -36,4 +36,4 @@ struct MachineInfo {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_MACHINE_INFO_H_
+#endif  // XENIA_CPU_BACKEND_MACHINE_INFO_H_

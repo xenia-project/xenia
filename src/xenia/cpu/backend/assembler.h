@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_ASSEMBLER_H_
-#define XENIA_BACKEND_ASSEMBLER_H_
+#ifndef XENIA_CPU_BACKEND_ASSEMBLER_H_
+#define XENIA_CPU_BACKEND_ASSEMBLER_H_
 
 #include <memory>
 
@@ -30,7 +30,7 @@ class Backend;
 
 class Assembler {
  public:
-  Assembler(Backend* backend);
+  explicit Assembler(Backend* backend);
   virtual ~Assembler();
 
   virtual bool Initialize();
@@ -49,4 +49,4 @@ class Assembler {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_ASSEMBLER_H_
+#endif  // XENIA_CPU_BACKEND_ASSEMBLER_H_

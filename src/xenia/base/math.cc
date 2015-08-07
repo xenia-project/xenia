@@ -16,7 +16,7 @@ namespace xe {
 // Copyright (c) Microsoft Corporation. All rights reserved.
 uint16_t float_to_half(float value) {
   uint32_t Result;
-  uint32_t IValue = ((uint32_t*)(&value))[0];
+  uint32_t IValue = (reinterpret_cast<uint32_t*>(&value))[0];
   uint32_t Sign = (IValue & 0x80000000U) >> 16U;
   IValue = IValue & 0x7FFFFFFFU;  // Hack off the sign
   if (IValue > 0x47FFEFFFU) {
@@ -63,7 +63,7 @@ float half_to_float(uint16_t value) {
   uint32_t Result = ((value & 0x8000) << 16) |  // Sign
                     ((Exponent + 112) << 23) |  // Exponent
                     (Mantissa << 13);           // Mantissa
-  return *(float*)&Result;
+  return *reinterpret_cast<float*>(&Result);
 }
 
 }  // namespace xe

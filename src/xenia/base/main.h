@@ -25,7 +25,7 @@ bool has_console_attached();
 struct EntryInfo {
   std::wstring name;
   std::wstring usage;
-  int (*entry_point)(std::vector<std::wstring>& args);
+  int (*entry_point)(const std::vector<std::wstring>& args);
 };
 EntryInfo GetEntryInfo();
 

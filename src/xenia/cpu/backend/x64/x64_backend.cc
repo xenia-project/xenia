@@ -112,8 +112,6 @@ std::unique_ptr<GuestFunction> X64Backend::CreateGuestFunction(
   return std::make_unique<X64Function>(module, address);
 }
 
-using namespace Xbyak;
-
 X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
     : X64Emitter(backend, allocator) {}
 

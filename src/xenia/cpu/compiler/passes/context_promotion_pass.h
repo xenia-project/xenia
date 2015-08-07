@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
-#define XENIA_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
+#ifndef XENIA_CPU_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
+#define XENIA_CPU_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
 #include "xenia/base/platform.h"
 #include "xenia/cpu/compiler/compiler_pass.h"
@@ -52,4 +52,4 @@ class ContextPromotionPass : public CompilerPass {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
+#endif  // XENIA_CPU_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_

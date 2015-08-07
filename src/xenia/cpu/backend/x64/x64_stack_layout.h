@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_STACK_LAYOUT_H_
-#define XENIA_BACKEND_X64_X64_STACK_LAYOUT_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_STACK_LAYOUT_H_
+#define XENIA_CPU_BACKEND_X64_X64_STACK_LAYOUT_H_
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -115,12 +115,12 @@ namespace x64 {
 
 class StackLayout {
  public:
-  const static size_t THUNK_STACK_SIZE = 120;
+  static const size_t THUNK_STACK_SIZE = 120;
 
-  const static size_t GUEST_STACK_SIZE = 104;
-  const static size_t GUEST_RCX_HOME = 80;
-  const static size_t GUEST_RET_ADDR = 88;
-  const static size_t GUEST_CALL_RET_ADDR = 96;
+  static const size_t GUEST_STACK_SIZE = 104;
+  static const size_t GUEST_RCX_HOME = 80;
+  static const size_t GUEST_RET_ADDR = 88;
+  static const size_t GUEST_CALL_RET_ADDR = 96;
 };
 
 }  // namespace x64
@@ -128,4 +128,4 @@ class StackLayout {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_STACK_LAYOUT_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_STACK_LAYOUT_H_

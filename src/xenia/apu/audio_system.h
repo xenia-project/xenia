@@ -48,7 +48,7 @@ class AudioSystem {
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
  protected:
-  AudioSystem(Emulator* emulator);
+  explicit AudioSystem(Emulator* emulator);
 
   virtual void Initialize();
 

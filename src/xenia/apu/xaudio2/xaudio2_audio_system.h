@@ -18,7 +18,7 @@ namespace xaudio2 {
 
 class XAudio2AudioSystem : public AudioSystem {
  public:
-  XAudio2AudioSystem(Emulator* emulator);
+  explicit XAudio2AudioSystem(Emulator* emulator);
   ~XAudio2AudioSystem() override;
 
   static std::unique_ptr<AudioSystem> Create(Emulator* emulator);

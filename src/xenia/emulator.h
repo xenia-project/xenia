@@ -43,7 +43,7 @@ namespace xe {
 
 class Emulator {
  public:
-  Emulator(const std::wstring& command_line);
+  explicit Emulator(const std::wstring& command_line);
   ~Emulator();
 
   const std::wstring& command_line() const { return command_line_; }

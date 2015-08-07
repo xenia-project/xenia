@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_TRACERS_H_
-#define XENIA_BACKEND_X64_X64_TRACERS_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_TRACERS_H_
+#define XENIA_CPU_BACKEND_X64_X64_TRACERS_H_
 
 #include <xmmintrin.h>
 #include <cstdint>
@@ -72,4 +72,4 @@ void TraceMemset(void* raw_context, uint32_t address, uint8_t value,
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_TRACERS_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_TRACERS_H_

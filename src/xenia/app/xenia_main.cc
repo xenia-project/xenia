@@ -22,7 +22,7 @@ DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 namespace xe {
 namespace app {
 
-int xenia_main(std::vector<std::wstring>& args) {
+int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 

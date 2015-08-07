@@ -36,8 +36,11 @@ using PPCContext = xe::cpu::frontend::PPCContext;
 
 class BuiltinModule : public Module {
  public:
-  BuiltinModule(Processor* processor) : Module(processor), name_("builtin") {}
+  explicit BuiltinModule(Processor* processor)
+      : Module(processor), name_("builtin") {}
+
   const std::string& name() const override { return name_; }
+
   bool ContainsAddress(uint32_t address) override {
     return (address & 0xFFFFFFF0) == 0xFFFFFFF0;
   }

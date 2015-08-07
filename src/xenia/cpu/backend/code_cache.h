@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_CODE_CACHE_H_
-#define XENIA_BACKEND_CODE_CACHE_H_
+#ifndef XENIA_CPU_BACKEND_CODE_CACHE_H_
+#define XENIA_CPU_BACKEND_CODE_CACHE_H_
 
 #include <string>
 
@@ -39,4 +39,4 @@ class CodeCache {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_CODE_CACHE_H_
+#endif  // XENIA_CPU_BACKEND_CODE_CACHE_H_

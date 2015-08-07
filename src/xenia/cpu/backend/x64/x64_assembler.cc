@@ -26,9 +26,6 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-// TODO(benvanik): remove when enums redefined.
-using namespace xe::cpu;
-
 using xe::cpu::hir::HIRBuilder;
 
 X64Assembler::X64Assembler(X64Backend* backend)
@@ -78,7 +75,7 @@ bool X64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
   void* machine_code = nullptr;
   size_t code_size = 0;
   if (!emitter_->Emit(function, builder, debug_info_flags, debug_info.get(),
-                      machine_code, code_size, function->source_map())) {
+                      &machine_code, &code_size, &function->source_map())) {
     return false;
   }
 

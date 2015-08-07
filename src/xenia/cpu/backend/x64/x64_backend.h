@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_BACKEND_H_
-#define XENIA_BACKEND_X64_X64_BACKEND_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_BACKEND_H_
+#define XENIA_CPU_BACKEND_X64_X64_BACKEND_H_
 
 #include <gflags/gflags.h>
 
@@ -33,9 +33,9 @@ typedef void (*ResolveFunctionThunk)();
 
 class X64Backend : public Backend {
  public:
-  const static uint32_t kForceReturnAddress = 0x9FFF0000u;
+  static const uint32_t kForceReturnAddress = 0x9FFF0000u;
 
-  X64Backend(Processor* processor);
+  explicit X64Backend(Processor* processor);
   ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_.get(); }
@@ -74,4 +74,4 @@ class X64Backend : public Backend {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_BACKEND_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_BACKEND_H_

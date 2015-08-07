@@ -14,9 +14,9 @@
 #include <mutex>
 #include <queue>
 
+#include "xenia/apu/xma_context.h"
 #include "xenia/emulator.h"
 #include "xenia/xbox.h"
-#include "xenia/apu/xma_context.h"
 
 namespace xe {
 namespace kernel {
@@ -31,8 +31,8 @@ struct XMA_CONTEXT_DATA;
 
 class XmaDecoder {
  public:
-  XmaDecoder(Emulator* emulator);
-  virtual ~XmaDecoder();
+  explicit XmaDecoder(Emulator* emulator);
+  ~XmaDecoder();
 
   Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }

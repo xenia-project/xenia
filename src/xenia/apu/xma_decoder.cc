@@ -50,8 +50,6 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-using namespace xe::cpu;
-
 XmaDecoder::XmaDecoder(Emulator* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
@@ -75,8 +73,8 @@ X_STATUS XmaDecoder::Setup() {
   // Let the processor know we want register access callbacks.
   emulator_->memory()->AddVirtualMappedRange(
       0x7FEA0000, 0xFFFF0000, 0x0000FFFF, this,
-      reinterpret_cast<MMIOReadCallback>(MMIOReadRegisterThunk),
-      reinterpret_cast<MMIOWriteCallback>(MMIOWriteRegisterThunk));
+      reinterpret_cast<cpu::MMIOReadCallback>(MMIOReadRegisterThunk),
+      reinterpret_cast<cpu::MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup XMA context data.
   context_data_first_ptr_ = memory()->SystemHeapAlloc(

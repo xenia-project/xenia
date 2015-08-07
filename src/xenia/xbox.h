@@ -76,7 +76,10 @@ typedef uint32_t X_STATUS;
 // Windows is a weird place.
 typedef uint32_t X_RESULT;
 #define X_FACILITY_WIN32 7
-#define X_RESULT_FROM_WIN32(x) x //((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) : ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
+#define X_RESULT_FROM_WIN32(x) x
+// Maybe X_RESULT_FROM_WIN32 is this instead?:
+// ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) :
+//     ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
 #define X_ERROR_SUCCESS                                 X_RESULT_FROM_WIN32(0x00000000L)
 #define X_ERROR_FILE_NOT_FOUND                          X_RESULT_FROM_WIN32(0x00000002L)
 #define X_ERROR_PATH_NOT_FOUND                          X_RESULT_FROM_WIN32(0x00000003L)
@@ -115,7 +118,7 @@ typedef uint32_t X_HRESULT;
 #define X_MEM_NOZERO              0x00800000
 #define X_MEM_LARGE_PAGES         0x20000000
 #define X_MEM_HEAP                0x40000000
-#define X_MEM_16MB_PAGES          0x80000000 // from Valve SDK
+#define X_MEM_16MB_PAGES          0x80000000  // from Valve SDK
 
 // PAGE_*, used by NtAllocateVirtualMemory
 #define X_PAGE_NOACCESS           0x00000001
@@ -338,8 +341,10 @@ struct X_LIST_ENTRY {
 
   // Assumes X_LIST_ENTRY is within guest memory!
   void initialize(uint8_t* virtual_membase) {
-    flink_ptr = (uint32_t)((uint8_t*)this - virtual_membase);
-    blink_ptr = (uint32_t)((uint8_t*)this - virtual_membase);
+    flink_ptr = static_cast<uint32_t>(reinterpret_cast<uint8_t*>(this) -
+                                      virtual_membase);
+    blink_ptr = static_cast<uint32_t>(reinterpret_cast<uint8_t*>(this) -
+                                      virtual_membase);
   }
 };
 static_assert_size(X_LIST_ENTRY, 8);

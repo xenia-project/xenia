@@ -18,7 +18,7 @@ namespace nop {
 
 class NopAudioSystem : public AudioSystem {
  public:
-  NopAudioSystem(Emulator* emulator);
+  explicit NopAudioSystem(Emulator* emulator);
   ~NopAudioSystem() override;
 
   static std::unique_ptr<AudioSystem> Create(Emulator* emulator);

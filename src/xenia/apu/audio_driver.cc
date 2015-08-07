@@ -13,11 +13,13 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 
-using namespace xe;
-using namespace xe::apu;
-using namespace xe::cpu;
+namespace xe {
+namespace apu {
 
 AudioDriver::AudioDriver(Emulator* emulator)
     : emulator_(emulator), memory_(emulator->memory()) {}
 
-AudioDriver::~AudioDriver() {}
+AudioDriver::~AudioDriver() = default;
+
+}  // namespace apu
+}  // namespace xe

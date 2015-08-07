@@ -42,11 +42,6 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-// TODO(benvanik): remove when enums redefined.
-using namespace xe::cpu::hir;
-using namespace xe::cpu;
-
-using namespace Xbyak;
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
 
@@ -56,7 +51,8 @@ static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
 
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
-    Operand::RBX, Operand::R12, Operand::R13, Operand::R14, Operand::R15,
+    Xbyak::Operand::RBX, Xbyak::Operand::R12, Xbyak::Operand::R13,
+    Xbyak::Operand::R14, Xbyak::Operand::R15,
 };
 
 const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
@@ -64,7 +60,7 @@ const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
 };
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
-    : CodeGenerator(kMaxCodeSize, AutoGrow, allocator),
+    : CodeGenerator(kMaxCodeSize, Xbyak::AutoGrow, allocator),
       processor_(backend->processor()),
       backend_(backend),
       code_cache_(backend->code_cache()),
@@ -90,8 +86,8 @@ X64Emitter::~X64Emitter() = default;
 
 bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
                       uint32_t debug_info_flags, DebugInfo* debug_info,
-                      void*& out_code_address, size_t& out_code_size,
-                      std::vector<SourceMapEntry>& out_source_map) {
+                      void** out_code_address, size_t* out_code_size,
+                      std::vector<SourceMapEntry>* out_source_map) {
   SCOPE_profile_cpu_f("cpu");
 
   // Reset.
@@ -102,16 +98,16 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
 
   // Fill the generator with code.
   size_t stack_size = 0;
-  if (!Emit(builder, stack_size)) {
+  if (!Emit(builder, &stack_size)) {
     return false;
   }
 
   // Copy the final code to the cache and relocate it.
-  out_code_size = getSize();
-  out_code_address = Emplace(stack_size, function);
+  *out_code_size = getSize();
+  *out_code_address = Emplace(stack_size, function);
 
   // Stash source map.
-  source_map_arena_.CloneContents(&out_source_map);
+  source_map_arena_.CloneContents(out_source_map);
 
   return true;
 }
@@ -129,14 +125,14 @@ void* X64Emitter::Emplace(size_t stack_size, GuestFunction* function) {
   } else {
     new_address = code_cache_->PlaceHostCode(0, top_, size_, stack_size);
   }
-  top_ = (uint8_t*)new_address;
+  top_ = reinterpret_cast<uint8_t*>(new_address);
   ready();
   top_ = old_address;
   reset();
   return new_address;
 }
 
-bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
+bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   Xbyak::Label epilog_label;
   epilog_label_ = &epilog_label;
 
@@ -169,7 +165,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
   //     Adding or changing anything here must be matched!
   const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
   assert_true((stack_size + 8) % 16 == 0);
-  out_stack_size = stack_size;
+  *out_stack_size = stack_size;
   stack_size_ = stack_size;
   sub(rsp, (uint32_t)stack_size);
   mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
@@ -190,10 +186,10 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     static_assert(debug::FunctionTraceData::kFunctionCallerHistoryCount == 4,
                   "bitmask depends on count");
     mov(rax, qword[low_address(&trace_header->function_call_count)]);
-    and_(rax, B00000011);
+    and_(rax, 0b00000011);
 
     // Record call history value into slot (guest addr in RDX).
-    mov(dword[RegExp(uint32_t(uint64_t(
+    mov(dword[Xbyak::RegExp(uint32_t(uint64_t(
                   low_address(&trace_header->function_caller_history)))) +
               rax * 4],
         edx);
@@ -221,7 +217,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t& out_stack_size) {
     const Instr* instr = block->instr_head;
     while (instr) {
       const Instr* new_tail = instr;
-      if (!SelectSequence(*this, instr, &new_tail)) {
+      if (!SelectSequence(this, instr, &new_tail)) {
         // No sequence found!
         assert_always();
         XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
@@ -368,7 +364,7 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   }
 
   // Actually jump/call to rax.
-  if (instr->flags & CALL_TAIL) {
+  if (instr->flags & hir::CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
 
@@ -385,9 +381,10 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   }
 }
 
-void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
+void X64Emitter::CallIndirect(const hir::Instr* instr,
+                              const Xbyak::Reg64& reg) {
   // Check if return.
-  if (instr->flags & CALL_POSSIBLE_RETURN) {
+  if (instr->flags & hir::CALL_POSSIBLE_RETURN) {
     cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
     je(epilog_label(), CodeGenerator::T_NEAR);
   }
@@ -401,7 +398,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr, const Reg64& reg) {
   mov(eax, dword[ebx]);
 
   // Actually jump/call to rax.
-  if (instr->flags & CALL_TAIL) {
+  if (instr->flags & hir::CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
 
@@ -550,7 +547,7 @@ bool X64Emitter::ConstantFitsIn32Reg(uint64_t v) {
   return false;
 }
 
-void X64Emitter::MovMem64(const RegExp& addr, uint64_t v) {
+void X64Emitter::MovMem64(const Xbyak::RegExp& addr, uint64_t v) {
   if ((v & ~0x7FFFFFFF) == 0) {
     // Fits under 31 bits, so just load using normal mov.
     mov(qword[addr], v);
@@ -651,7 +648,7 @@ uint32_t X64Emitter::PlaceData(Memory* memory) {
   return ptr;
 }
 
-Address X64Emitter::GetXmmConstPtr(XmmConst id) {
+Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
   // Load through fixed constant table setup by PlaceData.
   return ptr[rdx + backend_->emitter_data() + sizeof(vec128_t) * id];
 }
@@ -712,7 +709,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
   }
 }
 
-Address X64Emitter::StashXmm(int index, const Xmm& r) {
+Xbyak::Address X64Emitter::StashXmm(int index, const Xbyak::Xmm& r) {
   auto addr = ptr[rsp + kStashOffset + (index * 16)];
   vmovups(addr, r);
   return addr;

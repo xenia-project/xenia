@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_BACKEND_H_
-#define XENIA_BACKEND_BACKEND_H_
+#ifndef XENIA_CPU_BACKEND_BACKEND_H_
+#define XENIA_CPU_BACKEND_BACKEND_H_
 
 #include <memory>
 
@@ -31,7 +31,7 @@ class CodeCache;
 
 class Backend {
  public:
-  Backend(Processor* processor);
+  explicit Backend(Processor* processor);
   virtual ~Backend();
 
   Processor* processor() const { return processor_; }
@@ -61,4 +61,4 @@ class Backend {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_BACKEND_H_
+#endif  // XENIA_CPU_BACKEND_BACKEND_H_

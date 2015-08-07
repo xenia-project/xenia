@@ -11,7 +11,7 @@
 
 // Must be included before xaudio2.h so we get the right windows.h include.
 #include "xenia/base/platform_win.h"
-#include <xaudio2.h>
+#include <xaudio2.h>  // NOLINT(build/include_order)
 
 #include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"
@@ -24,7 +24,8 @@ namespace xaudio2 {
 
 class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
  public:
-  VoiceCallback(xe::threading::Semaphore* semaphore) : semaphore_(semaphore) {}
+  explicit VoiceCallback(xe::threading::Semaphore* semaphore)
+      : semaphore_(semaphore) {}
   ~VoiceCallback() {}
 
   void OnStreamEnd() {}
@@ -52,15 +53,10 @@ XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator,
 XAudio2AudioDriver::~XAudio2AudioDriver() = default;
 
 const DWORD ChannelMasks[] = {
-    0,  // TODO: fixme
-    0,  // TODO: fixme
-    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY,
-    0,  // TODO: fixme
-    0,  // TODO: fixme
-    0,  // TODO: fixme
-    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
-        SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT,
-    0,  // TODO: fixme
+    0, 0, SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY, 0,
+    0, 0, SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
+              SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT,
+    0,
 };
 
 void XAudio2AudioDriver::Initialize() {
@@ -152,7 +148,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
-  buffer.pAudioData = (BYTE*)output_frame;
+  buffer.pAudioData = reinterpret_cast<BYTE*>(output_frame);
   buffer.AudioBytes = frame_size_;
   buffer.PlayBegin = 0;
   buffer.PlayLength = channel_samples_;
@@ -171,7 +167,8 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   // Update playback ratio to our time scalar.
   // This will keep audio in sync with the game clock.
-  pcm_voice_->SetFrequencyRatio(float(xe::Clock::guest_time_scalar()));
+  pcm_voice_->SetFrequencyRatio(
+      static_cast<float>(xe::Clock::guest_time_scalar()));
 }
 
 void XAudio2AudioDriver::Shutdown() {

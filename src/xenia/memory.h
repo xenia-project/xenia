@@ -165,11 +165,11 @@ class Memory {
   inline uint8_t* virtual_membase() const { return virtual_membase_; }
   inline uint8_t* TranslateVirtual(uint32_t guest_address) const {
     return virtual_membase_ + guest_address;
-  };
+  }
   template <typename T>
   inline T TranslateVirtual(uint32_t guest_address) const {
     return reinterpret_cast<T>(virtual_membase_ + guest_address);
-  };
+  }
 
   inline uint8_t* physical_membase() const { return physical_membase_; }
   inline uint8_t* TranslatePhysical(uint32_t guest_address) const {

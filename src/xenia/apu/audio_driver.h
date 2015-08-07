@@ -18,7 +18,7 @@ namespace apu {
 
 class AudioDriver {
  public:
-  AudioDriver(Emulator* emulator);
+  explicit AudioDriver(Emulator* emulator);
   virtual ~AudioDriver();
 
   virtual void SubmitFrame(uint32_t samples_ptr) = 0;

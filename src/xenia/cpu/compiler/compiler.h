@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_COMPILER_COMPILER_H_
-#define XENIA_COMPILER_COMPILER_H_
+#ifndef XENIA_CPU_COMPILER_COMPILER_H_
+#define XENIA_CPU_COMPILER_COMPILER_H_
 
 #include <memory>
 #include <vector>
@@ -30,7 +30,7 @@ class CompilerPass;
 
 class Compiler {
  public:
-  Compiler(Processor* processor);
+  explicit Compiler(Processor* processor);
   ~Compiler();
 
   Processor* processor() const { return processor_; }
@@ -53,4 +53,4 @@ class Compiler {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_COMPILER_COMPILER_H_
+#endif  // XENIA_CPU_COMPILER_COMPILER_H_

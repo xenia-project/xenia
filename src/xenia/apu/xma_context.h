@@ -101,7 +101,7 @@ struct XMA_CONTEXT_DATA {
   // DWORD 10-15
   uint32_t unk_dwords_10_15[6];  // reserved?
 
-  XMA_CONTEXT_DATA(const void* ptr) {
+  explicit XMA_CONTEXT_DATA(const void* ptr) {
     xe::copy_and_swap(reinterpret_cast<uint32_t*>(this),
                       reinterpret_cast<const uint32_t*>(ptr),
                       sizeof(XMA_CONTEXT_DATA) / 4);
@@ -139,7 +139,7 @@ class XmaContext {
   static const uint32_t kOutputBytesPerBlock = 256;
   static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
 
-  XmaContext();
+  explicit XmaContext();
   ~XmaContext();
 
   int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr);
@@ -164,8 +164,8 @@ class XmaContext {
  private:
   static int GetSampleRate(int id);
 
-  void DecodePackets(XMA_CONTEXT_DATA& data);
-  int StartPacket(XMA_CONTEXT_DATA& data);
+  void DecodePackets(XMA_CONTEXT_DATA* data);
+  int StartPacket(XMA_CONTEXT_DATA* data);
 
   int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
                     int sample_rate, int channels);

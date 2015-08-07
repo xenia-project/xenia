@@ -2187,7 +2187,7 @@ void DrawUI(xe::ui::Window* window, TracePlayer& player, Memory* memory) {
 void ImImpl_Setup();
 void ImImpl_Shutdown();
 
-int trace_viewer_main(std::vector<std::wstring>& args) {
+int trace_viewer_main(const std::vector<std::wstring>& args) {
   // Create the emulator but don't initialize so we can setup the window.
   auto emulator = std::make_unique<Emulator>(L"");
 

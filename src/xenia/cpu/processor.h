@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include "xenia/base/mutex.h"

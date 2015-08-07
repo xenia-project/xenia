@@ -86,7 +86,6 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
 
   mm->mapping_handle = CreateFileMapping(mm->file_handle, nullptr,
                                          mapping_protect, 0, 0, nullptr);
-  //(DWORD)(aligned_length >> 32), (DWORD)(aligned_length & 0xFFFFFFFF), NULL);
   if (!mm->mapping_handle) {
     return nullptr;
   }
@@ -156,7 +155,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
  private:
   class Chunk {
    public:
-    Chunk(size_t capacity)
+    explicit Chunk(size_t capacity)
         : file_handle_(0),
           mapping_handle_(0),
           data_(nullptr),

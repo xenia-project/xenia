@@ -33,7 +33,7 @@ namespace cpu {
 
 class MachMMIOHandler : public MMIOHandler {
  public:
-  MachMMIOHandler(uint8_t* mapping_base);
+  explicit MachMMIOHandler(uint8_t* mapping_base);
   ~MachMMIOHandler() override;
 
  protected:

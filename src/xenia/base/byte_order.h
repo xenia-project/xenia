@@ -77,8 +77,8 @@ inline T byte_swap(T value) {
 template <typename T>
 struct be {
   be() = default;
-  be(const T& src) : value(xe::byte_swap(src)) {}
-  be(const be& other) { value = other.value; }
+  be(const T& src) : value(xe::byte_swap(src)) {}  // NOLINT(runtime/explicit)
+  be(const be& other) { value = other.value; }     // NOLINT(runtime/explicit)
   operator T() const { return xe::byte_swap(value); }
 
   be<T>& operator+=(int a) {

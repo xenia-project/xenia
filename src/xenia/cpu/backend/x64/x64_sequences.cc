@@ -1477,16 +1477,16 @@ struct ROUND_F32 : Sequence<ROUND_F32, I<OPCODE_ROUND, F32Op, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
       case ROUND_TO_ZERO:
-        e.vroundss(i.dest, i.src1, B00000011);
+        e.vroundss(i.dest, i.src1, 0b00000011);
         break;
       case ROUND_TO_NEAREST:
-        e.vroundss(i.dest, i.src1, B00000000);
+        e.vroundss(i.dest, i.src1, 0b00000000);
         break;
       case ROUND_TO_MINUS_INFINITY:
-        e.vroundss(i.dest, i.src1, B00000001);
+        e.vroundss(i.dest, i.src1, 0b00000001);
         break;
       case ROUND_TO_POSITIVE_INFINITY:
-        e.vroundss(i.dest, i.src1, B00000010);
+        e.vroundss(i.dest, i.src1, 0b00000010);
         break;
     }
   }
@@ -1495,16 +1495,16 @@ struct ROUND_F64 : Sequence<ROUND_F64, I<OPCODE_ROUND, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
       case ROUND_TO_ZERO:
-        e.vroundsd(i.dest, i.src1, B00000011);
+        e.vroundsd(i.dest, i.src1, 0b00000011);
         break;
       case ROUND_TO_NEAREST:
-        e.vroundsd(i.dest, i.src1, B00000000);
+        e.vroundsd(i.dest, i.src1, 0b00000000);
         break;
       case ROUND_TO_MINUS_INFINITY:
-        e.vroundsd(i.dest, i.src1, B00000001);
+        e.vroundsd(i.dest, i.src1, 0b00000001);
         break;
       case ROUND_TO_POSITIVE_INFINITY:
-        e.vroundsd(i.dest, i.src1, B00000010);
+        e.vroundsd(i.dest, i.src1, 0b00000010);
         break;
     }
   }
@@ -1513,16 +1513,16 @@ struct ROUND_V128 : Sequence<ROUND_V128, I<OPCODE_ROUND, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
       case ROUND_TO_ZERO:
-        e.vroundps(i.dest, i.src1, B00000011);
+        e.vroundps(i.dest, i.src1, 0b00000011);
         break;
       case ROUND_TO_NEAREST:
-        e.vroundps(i.dest, i.src1, B00000000);
+        e.vroundps(i.dest, i.src1, 0b00000000);
         break;
       case ROUND_TO_MINUS_INFINITY:
-        e.vroundps(i.dest, i.src1, B00000001);
+        e.vroundps(i.dest, i.src1, 0b00000001);
         break;
       case ROUND_TO_POSITIVE_INFINITY:
-        e.vroundps(i.dest, i.src1, B00000010);
+        e.vroundps(i.dest, i.src1, 0b00000010);
         break;
     }
   }
@@ -4791,7 +4791,7 @@ struct DOT_PRODUCT_3_V128
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
                                  // TODO(benvanik): apparently this is very slow
                                  // - find alternative?
-                                 e.vdpps(dest, src1, src2, B01110001);
+                                 e.vdpps(dest, src1, src2, 0b01110001);
                                });
   }
 };
@@ -4809,7 +4809,7 @@ struct DOT_PRODUCT_4_V128
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
                                  // TODO(benvanik): apparently this is very slow
                                  // - find alternative?
-                                 e.vdpps(dest, src1, src2, B11110001);
+                                 e.vdpps(dest, src1, src2, 0b11110001);
                                });
   }
 };
@@ -6454,7 +6454,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
 
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
       // 0|0|0|0|W|Z|Y|X
-      e.vcvtps2ph(i.dest, i.dest, B00000011);
+      e.vcvtps2ph(i.dest, i.dest, 0b00000011);
       // Shuffle to X|Y|0|0|0|0|0|0
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
     } else {
@@ -6481,7 +6481,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
 
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
       // 0|0|0|0|W|Z|Y|X
-      e.vcvtps2ph(i.dest, i.src1, B00000011);
+      e.vcvtps2ph(i.dest, i.src1, 0b00000011);
       // Shuffle to X|Y|Z|W|0|0|0|0
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
     } else {
@@ -6639,8 +6639,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
             src2 = e.xmm0;
           }
           e.vpackusdw(i.dest, i.src1, src2);
-          e.vpshuflw(i.dest, i.dest, B10110001);
-          e.vpshufhw(i.dest, i.dest, B10110001);
+          e.vpshuflw(i.dest, i.dest, 0b10110001);
+          e.vpshufhw(i.dest, i.dest, 0b10110001);
         } else {
           // unsigned -> unsigned
           assert_always();
@@ -7125,11 +7125,11 @@ void RegisterSequences() {
   Register_OPCODE_ATOMIC_EXCHANGE();
 }
 
-bool SelectSequence(X64Emitter& e, const Instr* i, const Instr** new_tail) {
+bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
   const InstrKey key(i);
   auto it = sequence_table.find(key);
   if (it != sequence_table.end()) {
-    if (it->second(e, i)) {
+    if (it->second(*e, i)) {
       *new_tail = i->next;
       return true;
     }

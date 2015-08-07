@@ -223,7 +223,7 @@ struct DecodedMov {
   int32_t constant;
 };
 
-bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
+bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
   uint8_t i = 0;  // Current byte decode index.
   uint8_t rex = 0;
   if ((p[i] & 0xF0) == 0x40) {
@@ -236,8 +236,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
     // 44 0f 38 f1 a4 02 00     movbe  DWORD PTR [rdx+rax*1+0x0],r12d
     // 42 0f 38 f1 8c 22 00     movbe  DWORD PTR [rdx+r12*1+0x0],ecx
     // 0f 38 f1 8c 02 00 00     movbe  DWORD PTR [rdx + rax * 1 + 0x0], ecx
-    mov.is_load = false;
-    mov.byte_swap = true;
+    mov->is_load = false;
+    mov->byte_swap = true;
     i += 3;
   } else if (p[i] == 0x0F && p[i + 1] == 0x38 && p[i + 2] == 0xF0) {
     // MOVBE r32, m32 (load)
@@ -247,8 +247,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
     // 46 0f 38 f0 a4 22 00     movbe  r12d,DWORD PTR [rdx+r12*1+0x0]
     // 0f 38 f0 8c 02 00 00     movbe  ecx,DWORD PTR [rdx+rax*1+0x0]
     // 0F 38 F0 1C 02           movbe  ebx,dword ptr [rdx+rax]
-    mov.is_load = true;
-    mov.byte_swap = true;
+    mov->is_load = true;
+    mov->byte_swap = true;
     i += 3;
   } else if (p[i] == 0x89) {
     // MOV m32, r32 (store)
@@ -256,8 +256,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
     // 44 89 24 02              mov  DWORD PTR[rdx + rax * 1], r12d
     // 42 89 0c 22              mov  DWORD PTR[rdx + r12 * 1], ecx
     // 89 0c 02                 mov  DWORD PTR[rdx + rax * 1], ecx
-    mov.is_load = false;
-    mov.byte_swap = false;
+    mov->is_load = false;
+    mov->byte_swap = false;
     ++i;
   } else if (p[i] == 0x8B) {
     // MOV r32, m32 (load)
@@ -266,16 +266,16 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
     // 42 8b 0c 22              mov  ecx, DWORD PTR[rdx + r12 * 1]
     // 46 8b 24 22              mov  r12d, DWORD PTR[rdx + r12 * 1]
     // 8b 0c 02                 mov  ecx, DWORD PTR[rdx + rax * 1]
-    mov.is_load = true;
-    mov.byte_swap = false;
+    mov->is_load = true;
+    mov->byte_swap = false;
     ++i;
   } else if (p[i] == 0xC7) {
     // MOV m32, simm32
     // http://www.asmpedia.org/index.php?title=MOV
     // C7 04 02 02 00 00 00     mov  dword ptr [rdx+rax],2
-    mov.is_load = false;
-    mov.byte_swap = false;
-    mov.is_constant = true;
+    mov->is_load = false;
+    mov->byte_swap = false;
+    mov->is_constant = true;
     ++i;
   } else {
     return false;
@@ -292,13 +292,13 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
   uint8_t mod = (modrm & 0b11000000) >> 6;
   uint8_t reg = (modrm & 0b00111000) >> 3;
   uint8_t rm = (modrm & 0b00000111);
-  mov.value_reg = reg + (rex_r ? 8 : 0);
-  mov.mem_has_base = false;
-  mov.mem_base_reg = 0;
-  mov.mem_has_index = false;
-  mov.mem_index_reg = 0;
-  mov.mem_scale = 1;
-  mov.mem_displacement = 0;
+  mov->value_reg = reg + (rex_r ? 8 : 0);
+  mov->mem_has_base = false;
+  mov->mem_base_reg = 0;
+  mov->mem_has_index = false;
+  mov->mem_index_reg = 0;
+  mov->mem_scale = 1;
+  mov->mem_displacement = 0;
   bool has_sib = false;
   switch (rm) {
     case 0b100:  // SIB
@@ -309,17 +309,17 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
         // RIP-relative not supported.
         return false;
       }
-      mov.mem_has_base = true;
-      mov.mem_base_reg = rm + (rex_b ? 8 : 0);
+      mov->mem_has_base = true;
+      mov->mem_base_reg = rm + (rex_b ? 8 : 0);
       break;
     default:
-      mov.mem_has_base = true;
-      mov.mem_base_reg = rm + (rex_b ? 8 : 0);
+      mov->mem_has_base = true;
+      mov->mem_base_reg = rm + (rex_b ? 8 : 0);
       break;
   }
   if (has_sib) {
     uint8_t sib = p[i++];
-    mov.mem_scale = 1 << ((sib & 0b11000000) >> 8);
+    mov->mem_scale = 1 << ((sib & 0b11000000) >> 8);
     uint8_t sib_index = (sib & 0b00111000) >> 3;
     uint8_t sib_base = (sib & 0b00000111);
     switch (sib_index) {
@@ -327,8 +327,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
         // No index.
         break;
       default:
-        mov.mem_has_index = true;
-        mov.mem_index_reg = sib_index + (rex_x ? 8 : 0);
+        mov->mem_has_index = true;
+        mov->mem_index_reg = sib_index + (rex_x ? 8 : 0);
         break;
     }
     switch (sib_base) {
@@ -337,29 +337,28 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov& mov) {
         assert_zero(mod);
         return false;
       default:
-        mov.mem_has_base = true;
-        mov.mem_base_reg = sib_base + (rex_b ? 8 : 0);
-        ;
+        mov->mem_has_base = true;
+        mov->mem_base_reg = sib_base + (rex_b ? 8 : 0);
         break;
     }
   }
   switch (mod) {
     case 0b00: {
-      mov.mem_displacement += 0;
+      mov->mem_displacement += 0;
     } break;
     case 0b01: {
-      mov.mem_displacement += int8_t(p[i++]);
+      mov->mem_displacement += int8_t(p[i++]);
     } break;
     case 0b10: {
-      mov.mem_displacement += xe::load<int32_t>(p + i);
+      mov->mem_displacement += xe::load<int32_t>(p + i);
       i += 4;
     } break;
   }
-  if (mov.is_constant) {
-    mov.constant = xe::load<int32_t>(p + i);
+  if (mov->is_constant) {
+    mov->constant = xe::load<int32_t>(p + i);
     i += 4;
   }
-  mov.length = i;
+  mov->length = i;
   return true;
 }
 
@@ -391,7 +390,7 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
   auto rip = GetThreadStateRip(thread_state);
   auto p = reinterpret_cast<const uint8_t*>(rip);
   DecodedMov mov = {0};
-  bool decoded = TryDecodeMov(p, mov);
+  bool decoded = TryDecodeMov(p, &mov);
   if (!decoded) {
     XELOGE("Unable to decode MMIO mov at %p", p);
     assert_always("Unknown MMIO instruction type");

@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_BACKEND_X64_X64_FUNCTION_H_
-#define XENIA_BACKEND_X64_X64_FUNCTION_H_
+#ifndef XENIA_CPU_BACKEND_X64_X64_FUNCTION_H_
+#define XENIA_CPU_BACKEND_X64_X64_FUNCTION_H_
 
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/thread_state.h"
@@ -41,4 +41,4 @@ class X64Function : public GuestFunction {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_BACKEND_X64_X64_FUNCTION_H_
+#endif  // XENIA_CPU_BACKEND_X64_X64_FUNCTION_H_

@@ -9,8 +9,10 @@
 
 #include "xenia/cpu/module.h"
 
+#include <algorithm>
 #include <fstream>
-#include <sstream>
+#include <sstream>  // NOLINT(readability/streams): should be replaced.
+#include <string>
 
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
@@ -138,11 +140,11 @@ Symbol::Status Module::DefineSymbol(Symbol* symbol) {
 }
 
 Symbol::Status Module::DefineFunction(Function* symbol) {
-  return DefineSymbol((Symbol*)symbol);
+  return DefineSymbol(symbol);
 }
 
 Symbol::Status Module::DefineVariable(Symbol* symbol) {
-  return DefineSymbol((Symbol*)symbol);
+  return DefineSymbol(symbol);
 }
 
 void Module::ForEachFunction(std::function<void(Function*)> callback) {

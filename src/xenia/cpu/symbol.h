@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_SYMBOL_INFO_H_
-#define XENIA_CPU_SYMBOL_INFO_H_
+#ifndef XENIA_CPU_SYMBOL_H_
+#define XENIA_CPU_SYMBOL_H_
 
 #include <cstdint>
 #include <string>
@@ -59,4 +59,4 @@ class Symbol {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_SYMBOL_INFO_H_
+#endif  // XENIA_CPU_SYMBOL_H_

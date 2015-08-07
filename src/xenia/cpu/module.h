@@ -13,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -28,7 +29,7 @@ class Processor;
 
 class Module {
  public:
-  Module(Processor* processor);
+  explicit Module(Processor* processor);
   virtual ~Module();
 
   Memory* memory() const { return memory_; }
