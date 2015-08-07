@@ -35,48 +35,46 @@ Blitter::~Blitter() = default;
 
 bool Blitter::Initialize() {
   const std::string header =
-      "\n\
-#version 450 \n\
-#extension GL_ARB_explicit_uniform_location : require \n\
-#extension GL_ARB_shading_language_420pack : require \n\
-precision highp float; \n\
-precision highp int; \n\
-layout(std140, column_major) uniform; \n\
-layout(std430, column_major) buffer; \n\
-";
+      R"(
+#version 450
+#extension GL_ARB_explicit_uniform_location : require
+#extension GL_ARB_shading_language_420pack : require
+precision highp float;
+precision highp int;
+layout(std140, column_major) uniform;
+layout(std430, column_major) buffer;
+)";
   const std::string vs_source = header +
-                                "\n\
-layout(location = 0) uniform vec4 src_uv; \n\
-out gl_PerVertex { \n\
-  vec4 gl_Position; \n\
-  float gl_PointSize; \n\
-  float gl_ClipDistance[]; \n\
-}; \n\
-layout(location = 0) in vec2 vfetch_pos; \n\
-layout(location = 0) out vec2 vtx_uv; \n\
-void main() { \n\
-  gl_Position = vec4(vfetch_pos.xy * vec2(2.0, -2.0) - vec2(1.0, -1.0), 0.0, 1.0); \n\
-  vtx_uv = vfetch_pos.xy * src_uv.zw + src_uv.xy; \n\
-} \n\
-";
+                                R"(
+layout(location = 0) uniform vec4 src_uv;
+out gl_PerVertex {
+  vec4 gl_Position;
+  float gl_PointSize;
+  float gl_ClipDistance[];
+};
+layout(location = 0) in vec2 vfetch_pos;
+layout(location = 0) out vec2 vtx_uv;
+void main() {
+  gl_Position = vec4(vfetch_pos.xy * vec2(2.0, -2.0) -
+                vec2(1.0, -1.0), 0.0, 1.0);
+  vtx_uv = vfetch_pos.xy * src_uv.zw + src_uv.xy;
+})";
   const std::string color_fs_source = header +
-                                      "\n\
-layout(location = 1) uniform sampler2D src_texture; \n\
-layout(location = 0) in vec2 vtx_uv; \n\
-layout(location = 0) out vec4 oC; \n\
-void main() { \n\
-  oC = texture(src_texture, vtx_uv); \n\
-} \n\
-";
+                                      R"(
+layout(location = 1) uniform sampler2D src_texture;
+layout(location = 0) in vec2 vtx_uv;
+layout(location = 0) out vec4 oC;
+void main() {
+  oC = texture(src_texture, vtx_uv);
+})";
   const std::string depth_fs_source = header +
-                                      "\n\
-layout(location = 1) uniform sampler2D src_texture; \n\
-layout(location = 0) in vec2 vtx_uv; \n\
-layout(location = 0) out vec4 oC; \n\
-void main() { \n\
-  gl_FragDepth = texture(src_texture, vtx_uv).r; \n\
-} \n\
-";
+                                      R"(
+layout(location = 1) uniform sampler2D src_texture;
+layout(location = 0) in vec2 vtx_uv;
+layout(location = 0) out vec4 oC;
+void main() {
+  gl_FragDepth = texture(src_texture, vtx_uv).r;
+})";
 
   auto vs_source_str = vs_source.c_str();
   vertex_program_ = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &vs_source_str);
@@ -165,7 +163,8 @@ struct SavedState {
     glGetIntegerv(GL_CULL_FACE_MODE, &cull_face);
     glGetIntegerv(GL_FRONT_FACE, &front_face);
     glGetIntegerv(GL_POLYGON_MODE, &polygon_mode);
-    glGetBooleani_v(GL_COLOR_WRITEMASK, 0, (GLboolean*)&color_mask_0_enabled);
+    glGetBooleani_v(GL_COLOR_WRITEMASK, 0,
+                    reinterpret_cast<GLboolean*>(&color_mask_0_enabled));
     blend_0_enabled = glIsEnabledi(GL_BLEND, 0);
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_buffer);
     glGetFloati_v(GL_VIEWPORT, 0, viewport);
@@ -230,10 +229,11 @@ void Blitter::Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
   GLint src_texture_height;
   glGetTextureLevelParameteriv(src_texture, 0, GL_TEXTURE_HEIGHT,
                                &src_texture_height);
-  glProgramUniform4f(vertex_program_, 0, src_rect.x / float(src_texture_width),
-                     src_rect.y / float(src_texture_height),
-                     src_rect.width / float(src_texture_width),
-                     src_rect.height / float(src_texture_height));
+  glProgramUniform4f(vertex_program_, 0,
+                     src_rect.x / static_cast<float>(src_texture_width),
+                     src_rect.y / static_cast<float>(src_texture_height),
+                     src_rect.width / static_cast<float>(src_texture_width),
+                     src_rect.height / static_cast<float>(src_texture_height));
 
   // Useful for seeing the entire framebuffer/etc:
   // glProgramUniform4f(vertex_program_, 0, 0.0f, 0.0f, 1.0f, 1.0f);

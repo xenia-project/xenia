@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XEX2_INFO_H_
-#define XENIA_KERNEL_XEX2_INFO_H_
+#ifndef XENIA_KERNEL_UTIL_XEX2_INFO_H_
+#define XENIA_KERNEL_UTIL_XEX2_INFO_H_
 
 #include <cstdint>
 
@@ -91,7 +91,7 @@ enum xe_xex2_system_flags : uint32_t {
   XEX_SYSTEM_ALLOW_AVATAR_GET_METADATA_BY_XUID = 0x20000000,
   XEX_SYSTEM_ALLOW_CONTROLLER_SWAPPING = 0x40000000,
   XEX_SYSTEM_DASH_EXTENSIBILITY_MODULE = 0x80000000,
-  // TODO: figure out how stored
+  // TODO(benvanik): figure out how stored.
   /*XEX_SYSTEM_ALLOW_NETWORK_READ_CANCEL            = 0x0,
   XEX_SYSTEM_UNINTERRUPTABLE_READS                = 0x0,
   XEX_SYSTEM_REQUIRE_FULL_EXPERIENCE              = 0x0,
@@ -645,4 +645,4 @@ struct X_IMAGE_EXPORT_DIRECTORY {
 
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XEX2_INFO_H_
+#endif  // XENIA_KERNEL_UTIL_XEX2_INFO_H_

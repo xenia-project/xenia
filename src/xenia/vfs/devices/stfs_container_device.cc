@@ -9,6 +9,9 @@
 
 #include "xenia/vfs/devices/stfs_container_device.h"
 
+#include <algorithm>
+#include <vector>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/vfs/devices/stfs_container_entry.h"
@@ -16,14 +19,14 @@
 namespace xe {
 namespace vfs {
 
-#define XEGETUINT24BE(p)                                   \
-  (((uint32_t)xe::load_and_swap<uint8_t>((p) + 0) << 16) | \
-   ((uint32_t)xe::load_and_swap<uint8_t>((p) + 1) << 8) |  \
-   (uint32_t)xe::load_and_swap<uint8_t>((p) + 2))
-#define XEGETUINT24LE(p)                          \
-  (((uint32_t)xe::load<uint8_t>((p) + 2) << 16) | \
-   ((uint32_t)xe::load<uint8_t>((p) + 1) << 8) |  \
-   (uint32_t)xe::load<uint8_t>((p) + 0))
+uint32_t load_uint24_be(const uint8_t* p) {
+  return (static_cast<uint32_t>(p[0]) << 16) |
+         (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[2]);
+}
+uint32_t load_uint24_le(const uint8_t* p) {
+  return (static_cast<uint32_t>(p[2]) << 16) |
+         (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[0]);
+}
 
 StfsContainerDevice::StfsContainerDevice(const std::string& mount_path,
                                          const std::wstring& local_path)
@@ -150,8 +153,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
       }
       uint8_t filename_length_flags = xe::load_and_swap<uint8_t>(p + 0x28);
       // TODO(benvanik): use for allocation_size_?
-      // uint32_t allocated_block_count = XEGETUINT24LE(p + 0x29);
-      uint32_t start_block_index = XEGETUINT24LE(p + 0x2F);
+      // uint32_t allocated_block_count = load_uint24_le(p + 0x29);
+      uint32_t start_block_index = load_uint24_le(p + 0x2F);
       uint16_t path_indicator = xe::load_and_swap<uint16_t>(p + 0x32);
       uint32_t file_size = xe::load_and_swap<uint32_t>(p + 0x34);
       uint32_t update_timestamp = xe::load_and_swap<uint32_t>(p + 0x38);
@@ -167,7 +170,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
 
       auto entry = new StfsContainerEntry(
           this, parent_entry,
-          std::string((char*)filename, filename_length_flags & 0x3F),
+          std::string(reinterpret_cast<const char*>(filename),
+                      filename_length_flags & 0x3F),
           mmap_.get());
       // bit 0x40 = consecutive blocks (not fragmented?)
       if (filename_length_flags & 0x80) {
@@ -286,7 +290,7 @@ StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
   const uint8_t* hash_data = map_ptr + BlockToOffset(table_index);
   const uint8_t* record_data = hash_data + record * 0x18;
   uint32_t info = xe::load_and_swap<uint8_t>(record_data + 0x14);
-  uint32_t next_block_index = XEGETUINT24BE(record_data + 0x15);
+  uint32_t next_block_index = load_uint24_be(record_data + 0x15);
   return {next_block_index, info};
 }
 
@@ -300,12 +304,12 @@ bool StfsVolumeDescriptor::Read(const uint8_t* p) {
   reserved = xe::load_and_swap<uint8_t>(p + 0x01);
   block_separation = xe::load_and_swap<uint8_t>(p + 0x02);
   file_table_block_count = xe::load_and_swap<uint16_t>(p + 0x03);
-  file_table_block_number = XEGETUINT24BE(p + 0x05);
+  file_table_block_number = load_uint24_be(p + 0x05);
   std::memcpy(top_hash_table_hash, p + 0x08, 0x14);
   total_allocated_block_count = xe::load_and_swap<uint32_t>(p + 0x1C);
   total_unallocated_block_count = xe::load_and_swap<uint32_t>(p + 0x20);
   return true;
-};
+}
 
 bool StfsHeader::Read(const uint8_t* p) {
   std::memcpy(license_entries, p + 0x22C, 0x100);

@@ -9,11 +9,11 @@
 
 #include "xenia/kernel/util/xex2.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <cstring>
 #include <vector>
-
-#include <gflags/gflags.h>
 
 #include "third_party/crypto/rijndael-alg-fst.h"
 #include "third_party/crypto/rijndael-alg-fst.c"

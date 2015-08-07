@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
-#define XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
+#ifndef XENIA_KERNEL_OBJECTS_XKERNEL_MODULE_H_
+#define XENIA_KERNEL_OBJECTS_XKERNEL_MODULE_H_
 
 #include "xenia/emulator.h"
 #include "xenia/kernel/objects/xmodule.h"
@@ -35,4 +35,4 @@ class XKernelModule : public XModule {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XKERNEL_MODULE_H_
+#endif  // XENIA_KERNEL_OBJECTS_XKERNEL_MODULE_H_

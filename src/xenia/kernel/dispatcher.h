@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
-#define XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
+#ifndef XENIA_KERNEL_DISPATCHER_H_
+#define XENIA_KERNEL_DISPATCHER_H_
 
 #include <mutex>
 
@@ -44,4 +44,4 @@ class Dispatcher {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_DISPATCHER_H_
+#endif  // XENIA_KERNEL_DISPATCHER_H_

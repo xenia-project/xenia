@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_APPS_APPS_H_
-#define XENIA_KERNEL_XBOXKRNL_APPS_APPS_H_
+#ifndef XENIA_KERNEL_APPS_APPS_H_
+#define XENIA_KERNEL_APPS_APPS_H_
 
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/kernel_state.h"
@@ -23,4 +23,4 @@ void RegisterApps(KernelState* kernel_state, XAppManager* manager);
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_APPS_APPS_H_
+#endif  // XENIA_KERNEL_APPS_APPS_H_

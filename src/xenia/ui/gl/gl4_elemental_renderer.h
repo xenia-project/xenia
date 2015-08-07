@@ -23,7 +23,7 @@ namespace gl {
 
 class GL4ElementalRenderer : public el::graphics::Renderer {
  public:
-  GL4ElementalRenderer(GLContext* context);
+  explicit GL4ElementalRenderer(GLContext* context);
   ~GL4ElementalRenderer() override;
 
   static std::unique_ptr<GL4ElementalRenderer> Create(GLContext* context);

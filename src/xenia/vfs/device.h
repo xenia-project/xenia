@@ -22,7 +22,7 @@ namespace vfs {
 
 class Device {
  public:
-  Device(const std::string& path);
+  explicit Device(const std::string& path);
   virtual ~Device();
 
   virtual bool Initialize() = 0;

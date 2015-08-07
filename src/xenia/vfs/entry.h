@@ -21,9 +21,6 @@
 #include "xenia/xbox.h"
 
 namespace xe {
-namespace filesystem {
-class WildcardEngine;
-}  // namespace filesystem
 namespace kernel {
 class KernelState;
 class XFile;
@@ -32,8 +29,6 @@ class XFile;
 
 namespace xe {
 namespace vfs {
-
-using namespace xe::kernel;
 
 class Device;
 
@@ -110,8 +105,9 @@ class Entry {
   bool Delete();
   void Touch();
 
-  virtual X_STATUS Open(KernelState* kernel_state, uint32_t desired_access,
-                        object_ref<XFile>* out_file) = 0;
+  virtual X_STATUS Open(kernel::KernelState* kernel_state,
+                        uint32_t desired_access,
+                        kernel::object_ref<kernel::XFile>* out_file) = 0;
 
   virtual bool can_map() const { return false; }
   virtual std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,

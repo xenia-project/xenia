@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XTIMER_H_
-#define XENIA_KERNEL_XBOXKRNL_XTIMER_H_
+#ifndef XENIA_KERNEL_OBJECTS_XTIMER_H_
+#define XENIA_KERNEL_OBJECTS_XTIMER_H_
 
 #include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
@@ -41,4 +41,4 @@ class XTimer : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_TIMER_H_
+#endif  // XENIA_KERNEL_OBJECTS_TIMER_H_

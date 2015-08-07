@@ -20,9 +20,9 @@ namespace vfs {
 
 class HostPathEntry;
 
-class HostPathFile : public XFile {
+class HostPathFile : public kernel::XFile {
  public:
-  HostPathFile(KernelState* kernel_state, uint32_t file_access,
+  HostPathFile(kernel::KernelState* kernel_state, uint32_t file_access,
                HostPathEntry* entry,
                std::unique_ptr<xe::filesystem::FileHandle> file_handle);
   ~HostPathFile() override;

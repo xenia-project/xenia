@@ -20,7 +20,7 @@ namespace gl {
 
 class GLProfilerDisplay : public ProfilerDisplay {
  public:
-  GLProfilerDisplay(xe::ui::Window* window);
+  explicit GLProfilerDisplay(xe::ui::Window* window);
   virtual ~GLProfilerDisplay();
 
   uint32_t width() const override;

@@ -9,6 +9,8 @@
 
 #include "xenia/ui/gl/circular_buffer.h"
 
+#include <algorithm>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 

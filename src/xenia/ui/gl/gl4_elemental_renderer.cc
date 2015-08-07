@@ -10,6 +10,7 @@
 #include "xenia/ui/gl/gl4_elemental_renderer.h"
 
 #include <memory>
+#include <string>
 
 #include "el/graphics/bitmap_fragment.h"
 #include "el/util/math.h"
@@ -93,45 +94,43 @@ bool GL4ElementalRenderer::Initialize() {
   }
 
   const std::string header =
-      "\n\
-#version 450 \n\
-#extension GL_ARB_bindless_texture : require \n\
-#extension GL_ARB_explicit_uniform_location : require \n\
-#extension GL_ARB_shading_language_420pack : require \n\
-precision highp float; \n\
-precision highp int; \n\
-layout(std140, column_major) uniform; \n\
-layout(std430, column_major) buffer; \n\
-";
+      R"(
+#version 450
+#extension GL_ARB_bindless_texture : require
+#extension GL_ARB_explicit_uniform_location : require
+#extension GL_ARB_shading_language_420pack : require
+precision highp float;
+precision highp int;
+layout(std140, column_major) uniform;
+layout(std430, column_major) buffer;
+)";
   const std::string vertex_shader_source = header +
-                                           "\n\
-layout(location = 0) uniform mat4 projection_matrix; \n\
-layout(location = 0) in vec2 in_pos; \n\
-layout(location = 1) in vec4 in_color; \n\
-layout(location = 2) in vec2 in_uv; \n\
-layout(location = 0) out vec4 vtx_color; \n\
-layout(location = 1) out vec2 vtx_uv; \n\
-void main() { \n\
-  gl_Position = projection_matrix * vec4(in_pos.xy, 0.0, 1.0); \n\
-  vtx_color = in_color; \n\
-  vtx_uv = in_uv; \n\
-} \n\
-";
+                                           R"(
+layout(location = 0) uniform mat4 projection_matrix;
+layout(location = 0) in vec2 in_pos;
+layout(location = 1) in vec4 in_color;
+layout(location = 2) in vec2 in_uv;
+layout(location = 0) out vec4 vtx_color;
+layout(location = 1) out vec2 vtx_uv;
+void main() {
+  gl_Position = projection_matrix * vec4(in_pos.xy, 0.0, 1.0);
+  vtx_color = in_color;
+  vtx_uv = in_uv;
+})";
   const std::string fragment_shader_source = header +
-                                             "\n\
-layout(location = 1, bindless_sampler) uniform sampler2D texture_sampler; \n\
-layout(location = 2) uniform float texture_mix; \n\
-layout(location = 0) in vec4 vtx_color; \n\
-layout(location = 1) in vec2 vtx_uv; \n\
-layout(location = 0) out vec4 oC; \n\
-void main() { \n\
-  oC = vtx_color; \n\
-  if (texture_mix > 0.0) { \n\
-    vec4 color = texture(texture_sampler, vtx_uv); \n\
-    oC *= color.rgba; \n\
-  } \n\
-} \n\
-";
+                                             R"(
+layout(location = 1, bindless_sampler) uniform sampler2D texture_sampler;
+layout(location = 2) uniform float texture_mix;
+layout(location = 0) in vec4 vtx_color;
+layout(location = 1) in vec2 vtx_uv;
+layout(location = 0) out vec4 oC;
+void main() {
+  oC = vtx_color;
+  if (texture_mix > 0.0) {
+    vec4 color = texture(texture_sampler, vtx_uv);
+    oC *= color.rgba;
+  }
+})";
 
   GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
   const char* vertex_shader_source_ptr = vertex_shader_source.c_str();
@@ -204,8 +203,8 @@ void GL4ElementalRenderer::BeginPaint(int render_target_w,
   glScissor(0, 0, render_target_w, render_target_h);
 
   float left = 0.0f;
-  float right = float(render_target_w);
-  float bottom = float(render_target_h);
+  float right = static_cast<float>(render_target_w);
+  float bottom = static_cast<float>(render_target_h);
   float top = 0.0f;
   float z_near = -1.0f;
   float z_far = 1.0f;

@@ -17,9 +17,9 @@ namespace vfs {
 
 class DiscImageEntry;
 
-class DiscImageFile : public XFile {
+class DiscImageFile : public kernel::XFile {
  public:
-  DiscImageFile(KernelState* kernel_state, uint32_t file_access,
+  DiscImageFile(kernel::KernelState* kernel_state, uint32_t file_access,
                 DiscImageEntry* entry);
   ~DiscImageFile() override;
 

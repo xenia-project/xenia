@@ -409,7 +409,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           TABLET_ENABLE_MULTITOUCHDATA;
 
     case WM_MENUCOMMAND: {
-      // TODO: Redirect this to MenuItem's on_selected delegate.
+      // TODO(benvanik): Redirect this to MenuItem's on_selected delegate.
       MENUINFO menu_info = {0};
       menu_info.cbSize = sizeof(menu_info);
       menu_info.fMask = MIM_MENUDATA;
@@ -503,7 +503,7 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
 }
 
 bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
-  auto e = KeyEvent(this, (int)wParam);
+  auto e = KeyEvent(this, static_cast<int>(wParam));
   switch (message) {
     case WM_KEYDOWN:
       OnKeyDown(e);

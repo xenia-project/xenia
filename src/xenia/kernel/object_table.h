@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
-#define XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
+#ifndef XENIA_KERNEL_OBJECT_TABLE_H_
+#define XENIA_KERNEL_OBJECT_TABLE_H_
 
 #include <mutex>
 #include <string>
@@ -74,4 +74,4 @@ class ObjectTable {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_OBJECT_TABLE_H_
+#endif  // XENIA_KERNEL_OBJECT_TABLE_H_

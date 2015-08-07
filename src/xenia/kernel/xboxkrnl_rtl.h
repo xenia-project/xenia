@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_RTL_H_
-#define XENIA_KERNEL_XBOXKRNL_RTL_H_
+#ifndef XENIA_KERNEL_RTL_H_
+#define XENIA_KERNEL_RTL_H_
 
 #include "xenia/xbox.h"
 
@@ -26,4 +26,4 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_RTL_H_
+#endif  // XENIA_KERNEL_RTL_H_

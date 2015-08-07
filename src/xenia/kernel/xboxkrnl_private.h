@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_PRIVATE_H_
-#define XENIA_KERNEL_XBOXKRNL_PRIVATE_H_
+#ifndef XENIA_KERNEL_PRIVATE_H_
+#define XENIA_KERNEL_PRIVATE_H_
 
 #include "xenia/kernel/xboxkrnl_ordinals.h"
 
@@ -58,4 +58,4 @@ void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_PRIVATE_H_
+#endif  // XENIA_KERNEL_PRIVATE_H_

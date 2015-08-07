@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
-#define XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
+#ifndef XENIA_KERNEL_ORDINALS_H_
+#define XENIA_KERNEL_ORDINALS_H_
 
 #include "xenia/cpu/export_resolver.h"
 
@@ -21,4 +21,4 @@ enum {
 }  // namespace ordinals
 #include "xenia/kernel/util/ordinal_table_post.inc"
 
-#endif  // XENIA_KERNEL_XBOXKRNL_ORDINALS_H_
+#endif  // XENIA_KERNEL_ORDINALS_H_

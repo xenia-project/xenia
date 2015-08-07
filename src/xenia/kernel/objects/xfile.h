@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XFILE_H_
-#define XENIA_KERNEL_XBOXKRNL_XFILE_H_
+#ifndef XENIA_KERNEL_OBJECTS_XFILE_H_
+#define XENIA_KERNEL_OBJECTS_XFILE_H_
 
 #include "xenia/base/filesystem.h"
 #include "xenia/kernel/objects/xevent.h"
@@ -130,4 +130,4 @@ class XFile : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XFILE_H_
+#endif  // XENIA_KERNEL_OBJECTS_XFILE_H_

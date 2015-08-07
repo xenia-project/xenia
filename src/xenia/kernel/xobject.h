@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
-#define XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
+#ifndef XENIA_KERNEL_XOBJECT_H_
+#define XENIA_KERNEL_XOBJECT_H_
 
 #include <atomic>
 
@@ -323,4 +323,4 @@ object_ref<T> retain_object(T* ptr) {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XOBJECT_H_
+#endif  // XENIA_KERNEL_XOBJECT_H_

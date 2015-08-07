@@ -47,8 +47,9 @@ HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
   return entry;
 }
 
-X_STATUS HostPathEntry::Open(KernelState* kernel_state, uint32_t desired_access,
-                             object_ref<XFile>* out_file) {
+X_STATUS HostPathEntry::Open(kernel::KernelState* kernel_state,
+                             uint32_t desired_access,
+                             kernel::object_ref<kernel::XFile>* out_file) {
   if (is_read_only() && (desired_access & (FileAccess::kFileWriteData |
                                            FileAccess::kFileAppendData))) {
     XELOGE("Attempting to open file for write access on read-only device");
@@ -60,8 +61,8 @@ X_STATUS HostPathEntry::Open(KernelState* kernel_state, uint32_t desired_access,
     // TODO(benvanik): pick correct response.
     return X_STATUS_NO_SUCH_FILE;
   }
-  *out_file = object_ref<XFile>(new HostPathFile(kernel_state, desired_access,
-                                                 this, std::move(file_handle)));
+  *out_file = kernel::object_ref<kernel::XFile>(new HostPathFile(
+      kernel_state, desired_access, this, std::move(file_handle)));
   return X_STATUS_SUCCESS;
 }
 

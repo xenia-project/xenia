@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XMODULE_H_
-#define XENIA_KERNEL_XBOXKRNL_XMODULE_H_
+#ifndef XENIA_KERNEL_OBJECTS_XMODULE_H_
+#define XENIA_KERNEL_OBJECTS_XMODULE_H_
 
 #include <string>
 
@@ -100,4 +100,4 @@ class XModule : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XMODULE_H_
+#endif  // XENIA_KERNEL_OBJECTS_XMODULE_H_

@@ -17,7 +17,7 @@ class Window;
 
 class UIEvent {
  public:
-  UIEvent(Window* target = nullptr) : target_(target) {}
+  explicit UIEvent(Window* target = nullptr) : target_(target) {}
   virtual ~UIEvent() = default;
 
   Window* target() const { return target_; }

@@ -15,7 +15,8 @@ namespace xe {
 namespace vfs {
 
 HostPathFile::HostPathFile(
-    KernelState* kernel_state, uint32_t file_access, HostPathEntry* entry,
+    kernel::KernelState* kernel_state, uint32_t file_access,
+    HostPathEntry* entry,
     std::unique_ptr<xe::filesystem::FileHandle> file_handle)
     : XFile(kernel_state, file_access, entry),
       file_handle_(std::move(file_handle)) {}

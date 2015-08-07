@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XEVENT_H_
-#define XENIA_KERNEL_XBOXKRNL_XEVENT_H_
+#ifndef XENIA_KERNEL_OBJECTS_XEVENT_H_
+#define XENIA_KERNEL_OBJECTS_XEVENT_H_
 
 #include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
@@ -44,4 +44,4 @@ class XEvent : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XEVENT_H_
+#endif  // XENIA_KERNEL_OBJECTS_XEVENT_H_

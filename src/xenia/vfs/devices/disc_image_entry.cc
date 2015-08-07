@@ -26,11 +26,11 @@ DiscImageEntry::DiscImageEntry(Device* device, Entry* parent, std::string path,
 
 DiscImageEntry::~DiscImageEntry() = default;
 
-X_STATUS DiscImageEntry::Open(KernelState* kernel_state,
+X_STATUS DiscImageEntry::Open(kernel::KernelState* kernel_state,
                               uint32_t desired_access,
-                              object_ref<XFile>* out_file) {
-  *out_file =
-      object_ref<XFile>(new DiscImageFile(kernel_state, desired_access, this));
+                              kernel::object_ref<kernel::XFile>* out_file) {
+  *out_file = kernel::object_ref<kernel::XFile>(
+      new DiscImageFile(kernel_state, desired_access, this));
   return X_STATUS_SUCCESS;
 }
 

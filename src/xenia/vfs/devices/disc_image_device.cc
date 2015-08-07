@@ -34,13 +34,13 @@ bool DiscImageDevice::Initialize() {
   ParseState state = {0};
   state.ptr = mmap_->data();
   state.size = mmap_->size();
-  auto result = Verify(state);
+  auto result = Verify(&state);
   if (result != Error::kSuccess) {
     XELOGE("Failed to verify disc image header: %d", result);
     return false;
   }
 
-  result = ReadAllEntries(state, state.ptr + state.root_offset);
+  result = ReadAllEntries(&state, state.ptr + state.root_offset);
   if (result != Error::kSuccess) {
     XELOGE("Failed to read all GDFX entries: %d", result);
     return false;
@@ -49,15 +49,15 @@ bool DiscImageDevice::Initialize() {
   return true;
 }
 
-DiscImageDevice::Error DiscImageDevice::Verify(ParseState& state) {
+DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   // Find sector 32 of the game partition - try at a few points.
   static const size_t likely_offsets[] = {
       0x00000000, 0x0000FB20, 0x00020600, 0x0FD90000,
   };
   bool magic_found = false;
   for (size_t n = 0; n < xe::countof(likely_offsets); n++) {
-    state.game_offset = likely_offsets[n];
-    if (VerifyMagic(state, state.game_offset + (32 * kXESectorSize))) {
+    state->game_offset = likely_offsets[n];
+    if (VerifyMagic(state, state->game_offset + (32 * kXESectorSize))) {
       magic_found = true;
       break;
     }
@@ -68,27 +68,28 @@ DiscImageDevice::Error DiscImageDevice::Verify(ParseState& state) {
   }
 
   // Read sector 32 to get FS state.
-  if (state.size < state.game_offset + (32 * kXESectorSize)) {
+  if (state->size < state->game_offset + (32 * kXESectorSize)) {
     return Error::kErrorReadError;
   }
-  uint8_t* fs_ptr = state.ptr + state.game_offset + (32 * kXESectorSize);
-  state.root_sector = xe::load<uint32_t>(fs_ptr + 20);
-  state.root_size = xe::load<uint32_t>(fs_ptr + 24);
-  state.root_offset = state.game_offset + (state.root_sector * kXESectorSize);
-  if (state.root_size < 13 || state.root_size > 32 * 1024 * 1024) {
+  uint8_t* fs_ptr = state->ptr + state->game_offset + (32 * kXESectorSize);
+  state->root_sector = xe::load<uint32_t>(fs_ptr + 20);
+  state->root_size = xe::load<uint32_t>(fs_ptr + 24);
+  state->root_offset =
+      state->game_offset + (state->root_sector * kXESectorSize);
+  if (state->root_size < 13 || state->root_size > 32 * 1024 * 1024) {
     return Error::kErrorDamagedFile;
   }
 
   return Error::kSuccess;
 }
 
-bool DiscImageDevice::VerifyMagic(ParseState& state, size_t offset) {
+bool DiscImageDevice::VerifyMagic(ParseState* state, size_t offset) {
   // Simple check to see if the given offset contains the magic value.
-  return std::memcmp(state.ptr + offset, "MICROSOFT*XBOX*MEDIA", 20) == 0;
+  return std::memcmp(state->ptr + offset, "MICROSOFT*XBOX*MEDIA", 20) == 0;
 }
 
 DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
-    ParseState& state, const uint8_t* root_buffer) {
+    ParseState* state, const uint8_t* root_buffer) {
   auto root_entry = new DiscImageEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
@@ -100,7 +101,7 @@ DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
   return Error::kSuccess;
 }
 
-bool DiscImageDevice::ReadEntry(ParseState& state, const uint8_t* buffer,
+bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
                                 uint16_t entry_ordinal,
                                 DiscImageEntry* parent) {
   const uint8_t* p = buffer + (entry_ordinal * 4);
@@ -111,7 +112,7 @@ bool DiscImageDevice::ReadEntry(ParseState& state, const uint8_t* buffer,
   size_t length = xe::load<uint32_t>(p + 8);
   uint8_t attributes = xe::load<uint8_t>(p + 12);
   uint8_t name_length = xe::load<uint8_t>(p + 13);
-  char* name = (char*)(p + 14);
+  auto name = reinterpret_cast<const char*>(p + 14);
 
   if (node_l && !ReadEntry(state, buffer, node_l, parent)) {
     return false;
@@ -135,20 +136,20 @@ bool DiscImageDevice::ReadEntry(ParseState& state, const uint8_t* buffer,
     entry->data_size_ = 0;
     if (length) {
       // Not a leaf - read in children.
-      if (state.size < state.game_offset + (sector * kXESectorSize)) {
+      if (state->size < state->game_offset + (sector * kXESectorSize)) {
         // Out of bounds read.
         return false;
       }
       // Read child list.
       uint8_t* folder_ptr =
-          state.ptr + state.game_offset + (sector * kXESectorSize);
+          state->ptr + state->game_offset + (sector * kXESectorSize);
       if (!ReadEntry(state, folder_ptr, 0, entry)) {
         return false;
       }
     }
   } else {
     // File.
-    entry->data_offset_ = state.game_offset + (sector * kXESectorSize);
+    entry->data_offset_ = state->game_offset + (sector * kXESectorSize);
     entry->data_size_ = length;
   }
 

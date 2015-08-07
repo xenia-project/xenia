@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_
-#define XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_
+#ifndef XENIA_KERNEL_OBJECTS_XSEMAPHORE_H_
+#define XENIA_KERNEL_OBJECTS_XSEMAPHORE_H_
 
 #include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
@@ -43,4 +43,4 @@ class XSemaphore : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XSEMAPHORE_H_
+#endif  // XENIA_KERNEL_OBJECTS_XSEMAPHORE_H_

@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_APPS_XMP_APP_H_
-#define XENIA_KERNEL_XBOXKRNL_APPS_XMP_APP_H_
+#ifndef XENIA_KERNEL_APPS_XMP_APP_H_
+#define XENIA_KERNEL_APPS_XMP_APP_H_
 
 #include <memory>
 #include <mutex>
@@ -112,4 +112,4 @@ class XXMPApp : public XApp {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_APPS_XMP_APP_H_
+#endif  // XENIA_KERNEL_APPS_XMP_APP_H_

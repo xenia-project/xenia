@@ -9,6 +9,9 @@
 
 #include "xenia/ui/gl/gl_profiler_display.h"
 
+#include <algorithm>
+#include <string>
+
 #include "third_party/microprofile/microprofileui.h"
 
 #include "xenia/base/assert.h"
@@ -255,50 +258,48 @@ bool GLProfilerDisplay::SetupState() {
 
 bool GLProfilerDisplay::SetupShaders() {
   const std::string header =
-      "\n\
-#version 450 \n\
-#extension GL_ARB_bindless_texture : require \n\
-#extension GL_ARB_explicit_uniform_location : require \n\
-#extension GL_ARB_shading_language_420pack : require \n\
-precision highp float; \n\
-precision highp int; \n\
-layout(std140, column_major) uniform; \n\
-layout(std430, column_major) buffer; \n\
-";
+      R"(
+#version 450
+#extension GL_ARB_bindless_texture : require
+#extension GL_ARB_explicit_uniform_location : require
+#extension GL_ARB_shading_language_420pack : require
+precision highp float;
+precision highp int;
+layout(std140, column_major) uniform;
+layout(std430, column_major) buffer;
+)";
   const std::string vertex_shader_source = header +
-                                           "\n\
-layout(location = 0) uniform mat4 projection_matrix; \n\
-layout(location = 0) in vec2 in_pos; \n\
-layout(location = 1) in vec4 in_color; \n\
-layout(location = 2) in vec2 in_uv; \n\
-layout(location = 0) out vec4 vtx_color; \n\
-layout(location = 1) out vec2 vtx_uv; \n\
-void main() { \n\
-  gl_Position = projection_matrix * vec4(in_pos.xy, 0.0, 1.0); \n\
-  vtx_color = in_color; \n\
-  vtx_uv = in_uv; \n\
-} \n\
-";
+                                           R"(
+layout(location = 0) uniform mat4 projection_matrix;
+layout(location = 0) in vec2 in_pos;
+layout(location = 1) in vec4 in_color;
+layout(location = 2) in vec2 in_uv;
+layout(location = 0) out vec4 vtx_color;
+layout(location = 1) out vec2 vtx_uv;
+void main() {
+  gl_Position = projection_matrix * vec4(in_pos.xy, 0.0, 1.0);
+  vtx_color = in_color;
+  vtx_uv = in_uv;
+})";
   const std::string fragment_shader_source = header +
-                                             "\n\
-layout(location = 1, bindless_sampler) uniform sampler2D font_texture; \n\
-layout(location = 2) uniform float font_height; \n\
-layout(location = 0) in vec4 vtx_color; \n\
-layout(location = 1) in vec2 vtx_uv; \n\
-layout(location = 0) out vec4 oC; \n\
-void main() { \n\
-  if (vtx_uv.x > 1.0) { \n\
-    oC = vtx_color; \n\
-  } else { \n\
-    vec4 color = texture(font_texture, vtx_uv); \n\
-    oC = color.rgba * vtx_color; \n\
-    if (color.a < 0.5) { \n\
-      vec4 c1 = texture(font_texture, vtx_uv + vec2(0.0, font_height)); \n\
-      oC = vec4(0, 0, 0, c1.a); \n\
-    } \n\
-  } \n\
-} \n\
-";
+                                             R"(
+layout(location = 1, bindless_sampler) uniform sampler2D font_texture;
+layout(location = 2) uniform float font_height;
+layout(location = 0) in vec4 vtx_color;
+layout(location = 1) in vec2 vtx_uv;
+layout(location = 0) out vec4 oC;
+void main() {
+  if (vtx_uv.x > 1.0) {
+    oC = vtx_color;
+  } else {
+    vec4 color = texture(font_texture, vtx_uv);
+    oC = color.rgba * vtx_color;
+    if (color.a < 0.5) {
+      vec4 c1 = texture(font_texture, vtx_uv + vec2(0.0, font_height));
+      oC = vec4(0, 0, 0, c1.a);
+    }
+  }
+})";
 
   GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
   const char* vertex_shader_source_ptr = vertex_shader_source.c_str();
@@ -365,8 +366,8 @@ void GLProfilerDisplay::Begin() {
   glViewport(0, 0, width(), height());
 
   float left = 0.0f;
-  float right = float(width());
-  float bottom = float(height());
+  float right = static_cast<float>(width());
+  float bottom = static_cast<float>(height());
   float top = 0.0f;
   float z_near = -1.0f;
   float z_far = 1.0f;
@@ -441,23 +442,23 @@ void GLProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
   if (type == BoxType::kFlat) {
     color =
         ((color & 0xff) << 16) | ((color >> 16) & 0xff) | (0xff00ff00 & color);
-    Q0(v, x, (float)x0);
-    Q0(v, y, (float)y0);
+    Q0(v, x, x0);
+    Q0(v, y, y0);
     Q0(v, color, color);
     Q0(v, u, 2.0f);
     Q0(v, v, 2.0f);
-    Q1(v, x, (float)x1);
-    Q1(v, y, (float)y0);
+    Q1(v, x, x1);
+    Q1(v, y, y0);
     Q1(v, color, color);
     Q1(v, u, 2.0f);
     Q1(v, v, 2.0f);
-    Q2(v, x, (float)x1);
-    Q2(v, y, (float)y1);
+    Q2(v, x, x1);
+    Q2(v, y, y1);
     Q2(v, color, color);
     Q2(v, u, 2.0f);
     Q2(v, v, 2.0f);
-    Q3(v, x, (float)x0);
-    Q3(v, y, (float)y1);
+    Q3(v, x, x0);
+    Q3(v, y, y1);
     Q3(v, color, color);
     Q3(v, u, 2.0f);
     Q3(v, v, 2.0f);
@@ -477,23 +478,23 @@ void GLProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     uint32_t b1 = 0xff & ((b + nMin) / 2);
     uint32_t color0 = (r0 << 0) | (g0 << 8) | (b0 << 16) | (0xff000000 & color);
     uint32_t color1 = (r1 << 0) | (g1 << 8) | (b1 << 16) | (0xff000000 & color);
-    Q0(v, x, (float)x0);
-    Q0(v, y, (float)y0);
+    Q0(v, x, x0);
+    Q0(v, y, y0);
     Q0(v, color, color0);
     Q0(v, u, 2.0f);
     Q0(v, v, 2.0f);
-    Q1(v, x, (float)x1);
-    Q1(v, y, (float)y0);
+    Q1(v, x, x1);
+    Q1(v, y, y0);
     Q1(v, color, color0);
     Q1(v, u, 3.0f);
     Q1(v, v, 2.0f);
-    Q2(v, x, (float)x1);
-    Q2(v, y, (float)y1);
+    Q2(v, x, x1);
+    Q2(v, y, y1);
     Q2(v, color, color1);
     Q2(v, u, 3.0f);
     Q2(v, v, 3.0f);
-    Q3(v, x, (float)x0);
-    Q3(v, y, (float)y1);
+    Q3(v, x, x0);
+    Q3(v, y, y1);
     Q3(v, color, color1);
     Q3(v, u, 2.0f);
     Q3(v, v, 3.0f);
@@ -532,8 +533,8 @@ void GLProfilerDisplay::DrawText(int x, int y, uint32_t color, const char* text,
   }
 
   const float fOffsetU = 5.0f / 1024.0f;
-  float fX = (float)x;
-  float fY = (float)y;
+  float fX = static_cast<float>(x);
+  float fY = static_cast<float>(y);
   float fY2 = fY + (MICROPROFILE_TEXT_HEIGHT + 1);
 
   auto v = BeginVertices(6 * text_length);
@@ -542,7 +543,7 @@ void GLProfilerDisplay::DrawText(int x, int y, uint32_t color, const char* text,
           ((color >> 16) & 0xff);
 
   for (size_t j = 0; j < text_length; ++j) {
-    int16_t char_offset = font_description_.char_offsets[(int)*pStr++];
+    int16_t char_offset = font_description_.char_offsets[*pStr++];
     float fOffset = char_offset / 1024.0f;
     Q0(v, x, fX);
     Q0(v, y, fY);

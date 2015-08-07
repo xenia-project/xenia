@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_ASYNC_REQUEST_H_
-#define XENIA_KERNEL_XBOXKRNL_ASYNC_REQUEST_H_
+#ifndef XENIA_KERNEL_ASYNC_REQUEST_H_
+#define XENIA_KERNEL_ASYNC_REQUEST_H_
 
 #include <vector>
 
@@ -50,4 +50,4 @@ class XAsyncRequest {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_ASYNC_REQUEST_H_
+#endif  // XENIA_KERNEL_ASYNC_REQUEST_H_

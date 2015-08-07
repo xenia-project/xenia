@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XENUMERATOR_H_
-#define XENIA_KERNEL_XBOXKRNL_XENUMERATOR_H_
+#ifndef XENIA_KERNEL_OBJECTS_XENUMERATOR_H_
+#define XENIA_KERNEL_OBJECTS_XENUMERATOR_H_
 
 #include <cstring>
 #include <vector>
@@ -82,4 +82,4 @@ class XStaticEnumerator : public XEnumerator {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XENUMERATOR_H_
+#endif  // XENIA_KERNEL_OBJECTS_XENUMERATOR_H_

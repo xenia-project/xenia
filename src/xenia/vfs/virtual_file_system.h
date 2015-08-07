@@ -39,9 +39,10 @@ class VirtualFileSystem {
   Entry* CreatePath(std::string path, uint32_t attributes);
   bool DeletePath(std::string path);
 
-  X_STATUS OpenFile(KernelState* kernel_state, std::string path,
+  X_STATUS OpenFile(kernel::KernelState* kernel_state, std::string path,
                     FileDisposition creation_disposition,
-                    uint32_t desired_access, object_ref<XFile>* out_file,
+                    uint32_t desired_access,
+                    kernel::object_ref<kernel::XFile>* out_file,
                     FileAction* out_action);
 
  private:

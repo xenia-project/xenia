@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
-#define XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
+#ifndef XENIA_KERNEL_OBJECTS_XNOTIFY_LISTENER_H_
+#define XENIA_KERNEL_OBJECTS_XNOTIFY_LISTENER_H_
 
 #include <memory>
 #include <unordered_map>
@@ -49,4 +49,4 @@ class XNotifyListener : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XNOTIFY_LISTENER_H_
+#endif  // XENIA_KERNEL_OBJECTS_XNOTIFY_LISTENER_H_

@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
-#define XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
+#ifndef XENIA_KERNEL_OBJECTS_XMUTANT_H_
+#define XENIA_KERNEL_OBJECTS_XMUTANT_H_
 
 #include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
@@ -36,4 +36,4 @@ class XMutant : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XMUTANT_H_
+#endif  // XENIA_KERNEL_OBJECTS_XMUTANT_H_

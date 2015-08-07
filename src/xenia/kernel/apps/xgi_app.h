@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_APPS_XGI_APP_H_
-#define XENIA_KERNEL_XBOXKRNL_APPS_XGI_APP_H_
+#ifndef XENIA_KERNEL_APPS_XGI_APP_H_
+#define XENIA_KERNEL_APPS_XGI_APP_H_
 
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/kernel_state.h"
@@ -31,4 +31,4 @@ class XXGIApp : public XApp {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_APPS_XGI_APP_H_
+#endif  // XENIA_KERNEL_APPS_XGI_APP_H_

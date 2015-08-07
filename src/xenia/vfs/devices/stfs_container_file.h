@@ -17,9 +17,9 @@ namespace vfs {
 
 class StfsContainerEntry;
 
-class StfsContainerFile : public XFile {
+class StfsContainerFile : public kernel::XFile {
  public:
-  StfsContainerFile(KernelState* kernel_state, uint32_t file_access,
+  StfsContainerFile(kernel::KernelState* kernel_state, uint32_t file_access,
                     StfsContainerEntry* entry);
   ~StfsContainerFile() override;
 

@@ -40,7 +40,7 @@ constexpr int32_t kMouseWheelDetent = 120;
 
 class RootElement : public el::Element {
  public:
-  RootElement(Window* owner) : owner_(owner) {}
+  explicit RootElement(Window* owner) : owner_(owner) {}
   void OnInvalid() override { owner_->Invalidate(); }
 
  private:
@@ -199,8 +199,9 @@ void Window::OnPaint(UIEvent& e) {
   ++fps_frame_count_;
   uint64_t now_ns = xe::Clock::QueryHostSystemTime();
   if (now_ns > fps_update_time_ + 1000 * 10000) {
-    fps_ = uint32_t(fps_frame_count_ /
-                    (double(now_ns - fps_update_time_) / 10000000.0));
+    fps_ = static_cast<uint32_t>(
+        fps_frame_count_ /
+        (static_cast<double>(now_ns - fps_update_time_) / 10000000.0));
     fps_update_time_ = now_ns;
     fps_frame_count_ = 0;
   }

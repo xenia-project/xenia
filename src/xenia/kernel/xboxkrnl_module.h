@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_MODULE_H_
-#define XENIA_KERNEL_XBOXKRNL_MODULE_H_
+#ifndef XENIA_KERNEL_MODULE_H_
+#define XENIA_KERNEL_MODULE_H_
 
 #include <memory>
 
@@ -41,4 +41,4 @@ class XboxkrnlModule : public XKernelModule {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_MODULE_H_
+#endif  // XENIA_KERNEL_MODULE_H_

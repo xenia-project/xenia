@@ -16,7 +16,7 @@
 namespace xe {
 namespace vfs {
 
-StfsContainerFile::StfsContainerFile(KernelState* kernel_state,
+StfsContainerFile::StfsContainerFile(kernel::KernelState* kernel_state,
                                      uint32_t file_access,
                                      StfsContainerEntry* entry)
     : XFile(kernel_state, file_access, entry), entry_(entry) {}
@@ -38,7 +38,7 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
   size_t end_block =
       std::min(entry_->block_list().size(),
                (size_t)ceil((byte_offset + real_length) / 4096.0));
-  uint8_t* dest_ptr = (uint8_t*)buffer;
+  uint8_t* dest_ptr = reinterpret_cast<uint8_t*>(buffer);
   size_t remaining_length = real_length;
   for (size_t n = start_block; n < end_block; n++) {
     auto& record = entry_->block_list()[n];

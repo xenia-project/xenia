@@ -449,7 +449,8 @@ void GLContext::BeginSwap() {
   SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLContext::BeginSwap");
   float clear_color[] = {238 / 255.0f, 238 / 255.0f, 238 / 255.0f, 1.0f};
   if (FLAGS_random_clear_color) {
-    clear_color[0] = rand() / (float)RAND_MAX;
+    clear_color[0] =
+        rand() / static_cast<float>(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
     clear_color[1] = 1.0f;
     clear_color[2] = 0.0f;
     clear_color[3] = 1.0f;

@@ -78,7 +78,7 @@ inline uint64_t get_arg_64(PPCContext* ppc_context, uint8_t index) {
   uint32_t stack_address = get_arg_stack_ptr(ppc_context, index - 8);
   return SHIM_MEM_64(stack_address);
 }
-}
+}  // namespace util
 
 #define SHIM_GET_ARG_8(n) util::get_arg_8(ppc_context, n)
 #define SHIM_GET_ARG_16(n) util::get_arg_16(ppc_context, n)
@@ -123,7 +123,8 @@ class Param {
 };
 template <>
 inline void Param::LoadValue<float>(Param::Init& init, float* out_value) {
-  *out_value = float(init.ppc_context->f[1 + ++init.float_ordinal]);
+  *out_value =
+      static_cast<float>(init.ppc_context->f[1 + ++init.float_ordinal]);
 }
 template <>
 inline void Param::LoadValue<double>(Param::Init& init, double* out_value) {
@@ -322,10 +323,10 @@ inline void AppendParam(StringBuffer& string_buffer, qword_t param) {
   string_buffer.AppendFormat("%.16llX", uint64_t(param));
 }
 inline void AppendParam(StringBuffer& string_buffer, float_t param) {
-  string_buffer.AppendFormat("%G", float(param));
+  string_buffer.AppendFormat("%G", static_cast<float>(param));
 }
 inline void AppendParam(StringBuffer& string_buffer, double_t param) {
-  string_buffer.AppendFormat("%G", double(param));
+  string_buffer.AppendFormat("%G", static_cast<double>(param));
 }
 inline void AppendParam(StringBuffer& string_buffer, lpvoid_t param) {
   string_buffer.AppendFormat("%.8X", uint32_t(param));

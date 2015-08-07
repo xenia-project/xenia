@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_USER_PROFILE_H_
-#define XENIA_KERNEL_XBOXKRNL_USER_PROFILE_H_
+#ifndef XENIA_KERNEL_USER_PROFILE_H_
+#define XENIA_KERNEL_USER_PROFILE_H_
 
 #include <memory>
 #include <string>
@@ -196,4 +196,4 @@ class UserProfile {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_USER_PROFILE_H_
+#endif  // XENIA_KERNEL_USER_PROFILE_H_

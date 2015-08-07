@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
-#define XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
+#ifndef XENIA_KERNEL_NATIVE_LIST_H_
+#define XENIA_KERNEL_NATIVE_LIST_H_
 
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
@@ -47,4 +47,4 @@ class NativeList {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_NATIVE_LIST_H_
+#endif  // XENIA_KERNEL_NATIVE_LIST_H_

@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XTHREAD_H_
-#define XENIA_KERNEL_XBOXKRNL_XTHREAD_H_
+#ifndef XENIA_KERNEL_OBJECTS_XTHREAD_H_
+#define XENIA_KERNEL_OBJECTS_XTHREAD_H_
 
 #include <atomic>
 #include <mutex>
@@ -208,4 +208,4 @@ class XHostThread : public XThread {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XTHREAD_H_
+#endif  // XENIA_KERNEL_OBJECTS_XTHREAD_H_

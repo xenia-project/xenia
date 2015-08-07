@@ -58,10 +58,10 @@ class DiscImageDevice : public Device {
     size_t root_size;    // Size (bytes) of root.
   } ParseState;
 
-  Error Verify(ParseState& state);
-  bool VerifyMagic(ParseState& state, size_t offset);
-  Error ReadAllEntries(ParseState& state, const uint8_t* root_buffer);
-  bool ReadEntry(ParseState& state, const uint8_t* buffer,
+  Error Verify(ParseState* state);
+  bool VerifyMagic(ParseState* state, size_t offset);
+  Error ReadAllEntries(ParseState* state, const uint8_t* root_buffer);
+  bool ReadEntry(ParseState* state, const uint8_t* buffer,
                  uint16_t entry_ordinal, DiscImageEntry* parent);
 };
 

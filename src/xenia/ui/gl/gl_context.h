@@ -49,7 +49,7 @@ class GLContext : public GraphicsContext {
   Blitter* blitter() { return &blitter_; }
 
  private:
-  GLContext(Window* target_window);
+  explicit GLContext(Window* target_window);
   GLContext(Window* target_window, HGLRC glrc);
 
   bool Initialize(Window* target_window);

@@ -43,7 +43,7 @@ class GraphicsContext {
 };
 
 struct GraphicsContextLock {
-  GraphicsContextLock(GraphicsContext* context) : context_(context) {
+  explicit GraphicsContextLock(GraphicsContext* context) : context_(context) {
     context_->MakeCurrent();
   }
   ~GraphicsContextLock() { context_->ClearCurrent(); }

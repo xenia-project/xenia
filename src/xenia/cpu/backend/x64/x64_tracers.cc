@@ -14,10 +14,6 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 
-using namespace xe;
-using namespace xe::cpu::backend::x64;
-using namespace xe::cpu;
-
 namespace xe {
 namespace cpu {
 namespace backend {

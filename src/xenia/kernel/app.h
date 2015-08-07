@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_APP_H_
-#define XENIA_KERNEL_XBOXKRNL_APP_H_
+#ifndef XENIA_KERNEL_APP_H_
+#define XENIA_KERNEL_APP_H_
 
 #include <unordered_map>
 #include <vector>
@@ -53,4 +53,4 @@ class XAppManager {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_APP_H_
+#endif  // XENIA_KERNEL_APP_H_
