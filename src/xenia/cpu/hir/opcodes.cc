@@ -9,8 +9,6 @@
 
 #include "xenia/cpu/hir/opcodes.h"
 
-using namespace xe::cpu::hir;
-
 namespace xe {
 namespace cpu {
 namespace hir {

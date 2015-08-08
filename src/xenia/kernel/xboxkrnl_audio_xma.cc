@@ -18,10 +18,10 @@
 #include "xenia/kernel/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
-using namespace xe::apu;
-
 namespace xe {
 namespace kernel {
+
+using xe::apu::XMA_CONTEXT_DATA;
 
 // See audio_system.cc for implementation details.
 //
@@ -164,7 +164,8 @@ SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
   XELOGD("XMASetLoopData(%.8X, %.8X)", context_ptr, loop_data_ptr);
 
   XMA_CONTEXT_DATA context(SHIM_MEM_ADDR(context_ptr));
-  auto loop_data = (XMA_CONTEXT_DATA*)SHIM_MEM_ADDR(loop_data_ptr);
+  auto loop_data =
+      reinterpret_cast<XMA_CONTEXT_DATA*>(SHIM_MEM_ADDR(loop_data_ptr));
 
   context.loop_start = loop_data->loop_start;
   context.loop_end = loop_data->loop_end;

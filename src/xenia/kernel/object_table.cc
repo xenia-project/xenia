@@ -61,8 +61,8 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
   uint32_t new_table_capacity = std::max(16 * 1024u, table_capacity_ * 2);
   size_t new_table_size = new_table_capacity * sizeof(ObjectTableEntry);
   size_t old_table_size = table_capacity_ * sizeof(ObjectTableEntry);
-  ObjectTableEntry* new_table =
-      (ObjectTableEntry*)realloc(table_, new_table_size);
+  auto new_table =
+      reinterpret_cast<ObjectTableEntry*>(realloc(table_, new_table_size));
   if (!new_table) {
     return X_STATUS_NO_MEMORY;
   }
@@ -235,14 +235,14 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
 }
 
 void ObjectTable::GetObjectsByType(XObject::Type type,
-                                   std::vector<object_ref<XObject>>& results) {
+                                   std::vector<object_ref<XObject>>* results) {
   std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
   for (uint32_t slot = 0; slot < table_capacity_; ++slot) {
     auto& entry = table_[slot];
     if (entry.object) {
       if (entry.object->type() == type) {
         entry.object->Retain();
-        results.push_back(object_ref<XObject>(entry.object));
+        results->push_back(object_ref<XObject>(entry.object));
       }
     }
   }

@@ -36,7 +36,7 @@ class View {
   virtual void Setup(xe::debug::DebugClient* client) = 0;
 
  protected:
-  View(std::string name) : name_(name) {}
+  explicit View(std::string name) : name_(name) {}
 
   std::string name_;
   el::LayoutBox root_element_;

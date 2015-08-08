@@ -23,8 +23,6 @@
 namespace xe {
 namespace kernel {
 
-using namespace xe::vfs;
-
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
 class X_FILE_FS_VOLUME_INFORMATION {
  public:
@@ -123,7 +121,7 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
   // Attempt open (or create).
   object_ref<XFile> file;
-  FileAction file_action;
+  xe::vfs::FileAction file_action;
   X_STATUS result = kernel_state()->file_system()->OpenFile(
       kernel_state(), target_path,
       xe::vfs::FileDisposition((uint32_t)creation_disposition), desired_access,
@@ -152,7 +150,8 @@ dword_result_t NtOpenFile(lpdword_t handle_out, dword_t desired_access,
                           dword_t open_options) {
   return NtCreateFile(handle_out, desired_access, object_attributes,
                       io_status_block, nullptr, 0, 0,
-                      (uint32_t)FileDisposition::kOpen, open_options);
+                      static_cast<uint32_t>(xe::vfs::FileDisposition::kOpen),
+                      open_options);
 }
 DECLARE_XBOXKRNL_EXPORT(NtOpenFile, ExportTag::kImplemented);
 
@@ -212,7 +211,7 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       // we have written the info out.
       signal_event = true;
     } else {
-      // TODO: Async.
+      // TODO(benvanik): async.
 
       // X_STATUS_PENDING if not returning immediately.
       // XFile is waitable and signalled after each async req completes.
@@ -454,10 +453,9 @@ dword_result_t NtQueryInformationFile(
         */
         result = X_STATUS_UNSUCCESSFUL;
         info = 0;
-
       } break;
       case XFileSectorInformation:
-        // TODO: Return sector this file's on.
+        // TODO(benvanik): return sector this file's on.
         assert_true(length == 4);
 
         result = X_STATUS_UNSUCCESSFUL;

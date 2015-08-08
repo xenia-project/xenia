@@ -71,8 +71,8 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
 
   // Stash for value map. We may want to maintain this during building.
   auto arena = builder->arena();
-  Value** value_map =
-      (Value**)arena->Alloc(sizeof(Value*) * max_value_estimate);
+  auto value_map = reinterpret_cast<Value**>(
+      arena->Alloc(sizeof(Value*) * max_value_estimate));
 
   // Allocate incoming bitvectors for use by blocks. We don't need outgoing
   // because they are only used during the block iteration.

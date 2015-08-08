@@ -26,7 +26,7 @@ namespace proto {
 
 class PacketReader {
  public:
-  PacketReader(size_t buffer_capacity) : buffer_(buffer_capacity) {}
+  explicit PacketReader(size_t buffer_capacity) : buffer_(buffer_capacity) {}
 
   const uint8_t* buffer() { return buffer_.data(); }
   size_t buffer_capacity() const { return buffer_.size(); }

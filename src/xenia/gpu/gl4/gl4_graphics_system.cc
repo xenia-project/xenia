@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "xenia/base/clock.h"
@@ -74,7 +75,7 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
 
   // Watch for paint requests to do our swap.
   target_window->on_painting.AddListener(
-      [this](xe::ui::UIEvent& e) { Swap(e); });
+      [this](xe::ui::UIEvent* e) { Swap(e); });
 
   // Create rendering control.
   // This must happen on the UI thread.
@@ -290,7 +291,7 @@ void GL4GraphicsSystem::MarkVblank() {
   DispatchInterruptCallback(0, 2);
 }
 
-void GL4GraphicsSystem::Swap(xe::ui::UIEvent& e) {
+void GL4GraphicsSystem::Swap(xe::ui::UIEvent* e) {
   // Check for pending swap.
   auto& swap_state = command_processor_->swap_state();
   {

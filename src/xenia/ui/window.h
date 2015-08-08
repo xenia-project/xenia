@@ -87,31 +87,31 @@ class Window {
   virtual void Close() = 0;
 
  public:
-  Delegate<UIEvent> on_closing;
-  Delegate<UIEvent> on_closed;
+  Delegate<UIEvent*> on_closing;
+  Delegate<UIEvent*> on_closed;
 
   Delegate<int> on_command;
 
-  Delegate<UIEvent> on_resize;
-  Delegate<UIEvent> on_layout;
-  Delegate<UIEvent> on_painting;
-  Delegate<UIEvent> on_paint;
-  Delegate<UIEvent> on_painted;
+  Delegate<UIEvent*> on_resize;
+  Delegate<UIEvent*> on_layout;
+  Delegate<UIEvent*> on_painting;
+  Delegate<UIEvent*> on_paint;
+  Delegate<UIEvent*> on_painted;
 
-  Delegate<UIEvent> on_visible;
-  Delegate<UIEvent> on_hidden;
+  Delegate<UIEvent*> on_visible;
+  Delegate<UIEvent*> on_hidden;
 
-  Delegate<UIEvent> on_got_focus;
-  Delegate<UIEvent> on_lost_focus;
+  Delegate<UIEvent*> on_got_focus;
+  Delegate<UIEvent*> on_lost_focus;
 
-  Delegate<KeyEvent> on_key_down;
-  Delegate<KeyEvent> on_key_up;
-  Delegate<KeyEvent> on_key_char;
+  Delegate<KeyEvent*> on_key_down;
+  Delegate<KeyEvent*> on_key_up;
+  Delegate<KeyEvent*> on_key_char;
 
-  Delegate<MouseEvent> on_mouse_down;
-  Delegate<MouseEvent> on_mouse_move;
-  Delegate<MouseEvent> on_mouse_up;
-  Delegate<MouseEvent> on_mouse_wheel;
+  Delegate<MouseEvent*> on_mouse_down;
+  Delegate<MouseEvent*> on_mouse_move;
+  Delegate<MouseEvent*> on_mouse_up;
+  Delegate<MouseEvent*> on_mouse_wheel;
 
  protected:
   Window(Loop* loop, const std::wstring& title);
@@ -123,28 +123,28 @@ class Window {
   virtual void OnClose();
   virtual void OnDestroy();
 
-  virtual void OnResize(UIEvent& e);
-  virtual void OnLayout(UIEvent& e);
-  virtual void OnPaint(UIEvent& e);
+  virtual void OnResize(UIEvent* e);
+  virtual void OnLayout(UIEvent* e);
+  virtual void OnPaint(UIEvent* e);
 
-  virtual void OnVisible(UIEvent& e);
-  virtual void OnHidden(UIEvent& e);
+  virtual void OnVisible(UIEvent* e);
+  virtual void OnHidden(UIEvent* e);
 
-  virtual void OnGotFocus(UIEvent& e);
-  virtual void OnLostFocus(UIEvent& e);
+  virtual void OnGotFocus(UIEvent* e);
+  virtual void OnLostFocus(UIEvent* e);
 
-  virtual void OnKeyDown(KeyEvent& e);
-  virtual void OnKeyUp(KeyEvent& e);
-  virtual void OnKeyChar(KeyEvent& e);
+  virtual void OnKeyDown(KeyEvent* e);
+  virtual void OnKeyUp(KeyEvent* e);
+  virtual void OnKeyChar(KeyEvent* e);
 
-  virtual void OnMouseDown(MouseEvent& e);
-  virtual void OnMouseMove(MouseEvent& e);
-  virtual void OnMouseUp(MouseEvent& e);
-  virtual void OnMouseWheel(MouseEvent& e);
+  virtual void OnMouseDown(MouseEvent* e);
+  virtual void OnMouseMove(MouseEvent* e);
+  virtual void OnMouseUp(MouseEvent* e);
+  virtual void OnMouseWheel(MouseEvent* e);
 
   el::ModifierKeys GetModifierKeys();
-  void OnKeyPress(KeyEvent& e, bool is_down, bool is_char);
-  bool CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key, bool is_down);
+  void OnKeyPress(KeyEvent* e, bool is_down, bool is_char);
+  bool CheckShortcutKey(KeyEvent* e, el::SpecialKey special_key, bool is_down);
 
   Loop* loop_ = nullptr;
   std::unique_ptr<MenuItem> main_menu_;

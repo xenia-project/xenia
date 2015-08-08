@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_CONTEXT_H_
-#define XENIA_FRONTEND_PPC_CONTEXT_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_CONTEXT_H_
+#define XENIA_CPU_FRONTEND_PPC_CONTEXT_H_
 
 #include <cstdint>
 
@@ -229,4 +229,4 @@ static_assert(sizeof(PPCContext) % 64 == 0, "64b padded");
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_CONTEXT_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_CONTEXT_H_

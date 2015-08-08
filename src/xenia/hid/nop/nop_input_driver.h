@@ -18,7 +18,7 @@ namespace nop {
 
 class NopInputDriver : public InputDriver {
  public:
-  NopInputDriver(InputSystem* input_system);
+  explicit NopInputDriver(InputSystem* input_system);
   ~NopInputDriver() override;
 
   X_STATUS Setup() override;

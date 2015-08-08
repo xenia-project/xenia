@@ -180,7 +180,8 @@ void RegisterAllocationPass::DumpUsage(const char* name) {
     auto usage_set = usage_sets_.all_sets[i];
     if (usage_set) {
       fprintf(stdout, "set %s:\n", usage_set->set->name);
-      fprintf(stdout, "  avail: %s\n", usage_set->availability.to_string().c_str());
+      fprintf(stdout, "  avail: %s\n",
+              usage_set->availability.to_string().c_str());
       fprintf(stdout, "  upcoming uses:\n");
       for (auto it = usage_set->upcoming_uses.begin();
            it != usage_set->upcoming_uses.end(); ++it) {

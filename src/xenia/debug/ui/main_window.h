@@ -24,7 +24,7 @@ namespace ui {
 
 class MainWindow {
  public:
-  MainWindow(Application* app);
+  explicit MainWindow(Application* app);
   ~MainWindow();
 
   Application* app() const { return app_; }

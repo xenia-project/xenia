@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_SCANNER_H_
-#define XENIA_FRONTEND_PPC_SCANNER_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_SCANNER_H_
+#define XENIA_CPU_FRONTEND_PPC_SCANNER_H_
 
 #include <vector>
 
@@ -28,7 +28,7 @@ struct BlockInfo {
 
 class PPCScanner {
  public:
-  PPCScanner(PPCFrontend* frontend);
+  explicit PPCScanner(PPCFrontend* frontend);
   ~PPCScanner();
 
   bool Scan(GuestFunction* function, DebugInfo* debug_info);
@@ -45,4 +45,4 @@ class PPCScanner {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_SCANNER_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_SCANNER_H_

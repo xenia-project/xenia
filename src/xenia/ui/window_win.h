@@ -54,7 +54,7 @@ class Win32Window : public Window {
   void OnDestroy() override;
   void OnClose() override;
 
-  void OnResize(UIEvent& e) override;
+  void OnResize(UIEvent* e) override;
 
   static LRESULT CALLBACK WndProcThunk(HWND hWnd, UINT message, WPARAM wParam,
                                        LPARAM lParam);

@@ -24,7 +24,7 @@ namespace gl4 {
 
 class GL4GraphicsSystem : public GraphicsSystem {
  public:
-  GL4GraphicsSystem(Emulator* emulator);
+  explicit GL4GraphicsSystem(Emulator* emulator);
   ~GL4GraphicsSystem() override;
 
   std::unique_ptr<ui::GraphicsContext> CreateContext(
@@ -51,7 +51,7 @@ class GL4GraphicsSystem : public GraphicsSystem {
 
  private:
   void MarkVblank();
-  void Swap(xe::ui::UIEvent& e);
+  void Swap(xe::ui::UIEvent* e);
   uint32_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint32_t value);
 

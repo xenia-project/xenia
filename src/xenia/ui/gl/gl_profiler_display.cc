@@ -144,51 +144,51 @@ GLProfilerDisplay::GLProfilerDisplay(xe::ui::Window* window)
     assert_always();
   }
 
-  window_->on_painted.AddListener([this](UIEvent& e) { Profiler::Present(); });
+  window_->on_painted.AddListener([this](UIEvent* e) { Profiler::Present(); });
 
   // Pass through mouse events.
-  window_->on_mouse_down.AddListener([this](xe::ui::MouseEvent& e) {
+  window_->on_mouse_down.AddListener([this](MouseEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnMouseDown(e.button() == xe::ui::MouseEvent::Button::kLeft,
-                            e.button() == xe::ui::MouseEvent::Button::kRight);
-      e.set_handled(true);
+      Profiler::OnMouseDown(e->button() == MouseEvent::Button::kLeft,
+                            e->button() == MouseEvent::Button::kRight);
+      e->set_handled(true);
       window_->Invalidate();
     }
   });
-  window_->on_mouse_up.AddListener([this](xe::ui::MouseEvent& e) {
+  window_->on_mouse_up.AddListener([this](MouseEvent* e) {
     if (Profiler::is_visible()) {
       Profiler::OnMouseUp();
-      e.set_handled(true);
+      e->set_handled(true);
       window_->Invalidate();
     }
   });
-  window_->on_mouse_move.AddListener([this](xe::ui::MouseEvent& e) {
+  window_->on_mouse_move.AddListener([this](MouseEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnMouseMove(e.x(), e.y());
-      e.set_handled(true);
+      Profiler::OnMouseMove(e->x(), e->y());
+      e->set_handled(true);
       window_->Invalidate();
     }
   });
-  window_->on_mouse_wheel.AddListener([this](xe::ui::MouseEvent& e) {
+  window_->on_mouse_wheel.AddListener([this](MouseEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnMouseWheel(e.x(), e.y(), -e.dy());
-      e.set_handled(true);
+      Profiler::OnMouseWheel(e->x(), e->y(), -e->dy());
+      e->set_handled(true);
       window_->Invalidate();
     }
   });
 
   // Watch for toggle/mode keys and such.
-  window_->on_key_down.AddListener([this](xe::ui::KeyEvent& e) {
+  window_->on_key_down.AddListener([this](KeyEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnKeyDown(e.key_code());
-      e.set_handled(true);
+      Profiler::OnKeyDown(e->key_code());
+      e->set_handled(true);
       window_->Invalidate();
     }
   });
-  window_->on_key_up.AddListener([this](xe::ui::KeyEvent& e) {
+  window_->on_key_up.AddListener([this](KeyEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnKeyUp(e.key_code());
-      e.set_handled(true);
+      Profiler::OnKeyUp(e->key_code());
+      e->set_handled(true);
       window_->Invalidate();
     }
   });

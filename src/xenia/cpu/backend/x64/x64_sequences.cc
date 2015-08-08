@@ -24,6 +24,7 @@
 
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
+#include <algorithm>
 #include <cstring>
 #include <unordered_map>
 
@@ -47,8 +48,10 @@ namespace x64 {
 using namespace Xbyak;
 
 // TODO(benvanik): direct usings.
-using namespace xe::cpu::hir;
 using namespace xe::cpu;
+using namespace xe::cpu::hir;
+
+using xe::cpu::hir::Instr;
 
 typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*);
 std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
@@ -653,7 +656,7 @@ template <typename T, typename Tn, typename... Ts>
 void Register() {
   Register<T>();
   Register<Tn, Ts...>();
-};
+}
 #define EMITTER_OPCODE_TABLE(name, ...) \
   void Register_##name() { Register<__VA_ARGS__>(); }
 
@@ -5447,8 +5450,8 @@ struct VECTOR_SHR_V128
       }
     }
 
-    // We've reached here if we don't have AVX2 and it's a variable shift
-    // TODO: native version
+    // We've reached here if we don't have AVX2 and it's a variable shift.
+    // TODO(benvanik): native version.
     if (i.src2.is_constant) {
       e.LoadConstantXmm(e.xmm0, i.src2.constant());
       e.lea(e.r9, e.StashXmm(1, e.xmm0));
@@ -5535,8 +5538,7 @@ struct VECTOR_SHA_V128
           }
           e.vpsravd(i.dest, i.src1, e.xmm0);
         } else {
-          // Emulated for now...
-          // TODO: Native version
+          // TODO(benvanik): native version.
           if (i.src2.is_constant) {
             e.LoadConstantXmm(e.xmm0, i.src2.constant());
             e.lea(e.r9, e.StashXmm(1, e.xmm0));
@@ -5684,7 +5686,7 @@ struct VECTOR_ROTATE_LEFT_V128
           // Merge:
           e.vpor(i.dest, e.xmm1);
         } else {
-          // TODO: Non-AVX2 native version
+          // TODO(benvanik): non-AVX2 native version.
           e.lea(e.r8, e.StashXmm(0, i.src1));
           e.lea(e.r9, e.StashXmm(1, i.src2));
           e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorRotateLeftI32));

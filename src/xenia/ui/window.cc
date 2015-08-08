@@ -150,9 +150,9 @@ bool Window::MakeReady() {
 void Window::OnMainMenuChange() {}
 
 void Window::OnClose() {
-  auto e = UIEvent(this);
-  on_closing(e);
-  on_closed(e);
+  UIEvent e(this);
+  on_closing(&e);
+  on_closed(&e);
 }
 
 void Window::OnDestroy() {
@@ -173,15 +173,15 @@ bool Window::LoadSkin(std::string filename) {
 }
 
 void Window::Layout() {
-  auto e = UIEvent(this);
-  OnLayout(e);
+  UIEvent e(this);
+  OnLayout(&e);
 }
 
 void Window::Invalidate() {}
 
-void Window::OnResize(UIEvent& e) { on_resize(e); }
+void Window::OnResize(UIEvent* e) { on_resize(e); }
 
-void Window::OnLayout(UIEvent& e) {
+void Window::OnLayout(UIEvent* e) {
   on_layout(e);
   if (!root_element()) {
     return;
@@ -190,7 +190,7 @@ void Window::OnLayout(UIEvent& e) {
   root_element()->set_rect({0, 0, width(), height()});
 }
 
-void Window::OnPaint(UIEvent& e) {
+void Window::OnPaint(UIEvent* e) {
   if (!renderer()) {
     return;
   }
@@ -260,13 +260,13 @@ void Window::OnPaint(UIEvent& e) {
   }
 }
 
-void Window::OnVisible(UIEvent& e) { on_visible(e); }
+void Window::OnVisible(UIEvent* e) { on_visible(e); }
 
-void Window::OnHidden(UIEvent& e) { on_hidden(e); }
+void Window::OnHidden(UIEvent* e) { on_hidden(e); }
 
-void Window::OnGotFocus(UIEvent& e) { on_got_focus(e); }
+void Window::OnGotFocus(UIEvent* e) { on_got_focus(e); }
 
-void Window::OnLostFocus(UIEvent& e) {
+void Window::OnLostFocus(UIEvent* e) {
   modifier_shift_pressed_ = false;
   modifier_cntrl_pressed_ = false;
   modifier_alt_pressed_ = false;
@@ -292,13 +292,13 @@ el::ModifierKeys Window::GetModifierKeys() {
   return modifiers;
 }
 
-void Window::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
+void Window::OnKeyPress(KeyEvent* e, bool is_down, bool is_char) {
   if (!root_element()) {
     return;
   }
   auto special_key = el::SpecialKey::kUndefined;
   if (!is_char) {
-    switch (e.key_code()) {
+    switch (e->key_code()) {
       case 38:
         special_key = el::SpecialKey::kUp;
         break;
@@ -382,7 +382,7 @@ void Window::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
           el::Event ev(el::EventType::kContextMenu);
           ev.modifierkeys = GetModifierKeys();
           el::Element::focused_element->InvokeEvent(ev);
-          e.set_handled(true);
+          e->set_handled(true);
           return;
         }
         break;
@@ -405,24 +405,24 @@ void Window::OnKeyPress(KeyEvent& e, bool is_down, bool is_char) {
   if (!CheckShortcutKey(e, special_key, is_down)) {
     int key_code = 0;
     if (is_char) {
-      key_code = e.key_code();
+      key_code = e->key_code();
       if (key_code < 32 || (key_code > 126 && key_code < 160)) {
         key_code = 0;
       }
     }
-    e.set_handled(root_element()->InvokeKey(key_code, special_key,
-                                            GetModifierKeys(), is_down));
+    e->set_handled(root_element()->InvokeKey(key_code, special_key,
+                                             GetModifierKeys(), is_down));
   }
 }
 
-bool Window::CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key,
+bool Window::CheckShortcutKey(KeyEvent* e, el::SpecialKey special_key,
                               bool is_down) {
   bool shortcut_key = modifier_cntrl_pressed_;
   if (!el::Element::focused_element || !is_down || !shortcut_key) {
     return false;
   }
   bool reverse_key = modifier_shift_pressed_;
-  int upper_key = e.key_code();
+  int upper_key = e->key_code();
   if (upper_key >= 'a' && upper_key <= 'z') {
     upper_key += 'A' - 'a';
   }
@@ -464,47 +464,47 @@ bool Window::CheckShortcutKey(KeyEvent& e, el::SpecialKey special_key,
   if (!el::Element::focused_element->InvokeEvent(ev)) {
     return false;
   }
-  e.set_handled(true);
+  e->set_handled(true);
   return true;
 }
 
-void Window::OnKeyDown(KeyEvent& e) {
+void Window::OnKeyDown(KeyEvent* e) {
   on_key_down(e);
-  if (e.is_handled()) {
+  if (e->is_handled()) {
     return;
   }
   OnKeyPress(e, true, false);
 }
 
-void Window::OnKeyUp(KeyEvent& e) {
+void Window::OnKeyUp(KeyEvent* e) {
   on_key_up(e);
-  if (e.is_handled()) {
+  if (e->is_handled()) {
     return;
   }
   OnKeyPress(e, false, false);
 }
 
-void Window::OnKeyChar(KeyEvent& e) {
+void Window::OnKeyChar(KeyEvent* e) {
   OnKeyPress(e, true, true);
   OnKeyPress(e, false, true);
 }
 
-void Window::OnMouseDown(MouseEvent& e) {
+void Window::OnMouseDown(MouseEvent* e) {
   on_mouse_down(e);
-  if (e.is_handled()) {
+  if (e->is_handled()) {
     return;
   }
   if (!root_element()) {
     return;
   }
   // TODO(benvanik): more button types.
-  if (e.button() == MouseEvent::Button::kLeft) {
+  if (e->button() == MouseEvent::Button::kLeft) {
     // Simulated click count support.
     // TODO(benvanik): move into Control?
     uint64_t now = xe::Clock::QueryHostUptimeMillis();
     if (now < last_click_time_ + kDoubleClickDelayMillis) {
-      double distance_moved = std::sqrt(std::pow(e.x() - last_click_x_, 2.0) +
-                                        std::pow(e.y() - last_click_y_, 2.0));
+      double distance_moved = std::sqrt(std::pow(e->x() - last_click_x_, 2.0) +
+                                        std::pow(e->y() - last_click_y_, 2.0));
       if (distance_moved < kDoubleClickDistance) {
         ++last_click_counter_;
       } else {
@@ -513,62 +513,64 @@ void Window::OnMouseDown(MouseEvent& e) {
     } else {
       last_click_counter_ = 1;
     }
-    last_click_x_ = e.x();
-    last_click_y_ = e.y();
+    last_click_x_ = e->x();
+    last_click_y_ = e->y();
     last_click_time_ = now;
 
-    e.set_handled(root_element()->InvokePointerDown(
-        e.x(), e.y(), last_click_counter_, GetModifierKeys(), kTouch));
+    e->set_handled(root_element()->InvokePointerDown(
+        e->x(), e->y(), last_click_counter_, GetModifierKeys(), kTouch));
   }
 }
 
-void Window::OnMouseMove(MouseEvent& e) {
+void Window::OnMouseMove(MouseEvent* e) {
   on_mouse_move(e);
-  if (e.is_handled()) {
+  if (e->is_handled()) {
     return;
   }
   if (!root_element()) {
     return;
   }
-  root_element()->InvokePointerMove(e.x(), e.y(), GetModifierKeys(), kTouch);
-  e.set_handled(true);
+  root_element()->InvokePointerMove(e->x(), e->y(), GetModifierKeys(), kTouch);
+  e->set_handled(true);
 }
 
-void Window::OnMouseUp(MouseEvent& e) {
+void Window::OnMouseUp(MouseEvent* e) {
   on_mouse_up(e);
-  if (e.is_handled()) {
+  if (e->is_handled()) {
     return;
   }
   if (!root_element()) {
     return;
   }
-  if (e.button() == MouseEvent::Button::kLeft) {
-    e.set_handled(root_element()->InvokePointerUp(e.x(), e.y(),
-                                                  GetModifierKeys(), kTouch));
-  } else if (e.button() == MouseEvent::Button::kRight) {
-    root_element()->InvokePointerMove(e.x(), e.y(), GetModifierKeys(), kTouch);
+  if (e->button() == MouseEvent::Button::kLeft) {
+    e->set_handled(root_element()->InvokePointerUp(e->x(), e->y(),
+                                                   GetModifierKeys(), kTouch));
+  } else if (e->button() == MouseEvent::Button::kRight) {
+    root_element()->InvokePointerMove(e->x(), e->y(), GetModifierKeys(),
+                                      kTouch);
     if (el::Element::hovered_element) {
-      int x = e.x();
-      int y = e.y();
+      int x = e->x();
+      int y = e->y();
       el::Element::hovered_element->ConvertFromRoot(x, y);
       el::Event ev(el::EventType::kContextMenu, x, y, kTouch,
                    GetModifierKeys());
       el::Element::hovered_element->InvokeEvent(ev);
     }
-    e.set_handled(true);
+    e->set_handled(true);
   }
 }
 
-void Window::OnMouseWheel(MouseEvent& e) {
+void Window::OnMouseWheel(MouseEvent* e) {
   on_mouse_wheel(e);
-  if (e.is_handled()) {
+  if (e->is_handled()) {
     return;
   }
   if (!root_element()) {
     return;
   }
-  e.set_handled(root_element()->InvokeWheel(
-      e.x(), e.y(), e.dx(), -e.dy() / kMouseWheelDetent, GetModifierKeys()));
+  e->set_handled(root_element()->InvokeWheel(e->x(), e->y(), e->dx(),
+                                             -e->dy() / kMouseWheelDetent,
+                                             GetModifierKeys()));
 }
 
 }  // namespace ui

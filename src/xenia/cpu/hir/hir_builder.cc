@@ -21,7 +21,7 @@
 #include "xenia/profiling.h"
 
 // Will scribble arena memory to hopefully find use before clears.
-//#define SCRIBBLE_ARENA_ON_RESET
+// #define SCRIBBLE_ARENA_ON_RESET
 
 namespace xe {
 namespace cpu {
@@ -243,7 +243,7 @@ void HIRBuilder::Dump(StringBuffer* str) {
         continue;
       }
       if (i->opcode == &OPCODE_COMMENT_info) {
-        str->AppendFormat("  ; %s\n", (char*)i->src1.offset);
+        str->AppendFormat("  ; %s\n", reinterpret_cast<char*>(i->src1.offset));
         i = i->next;
         continue;
       }

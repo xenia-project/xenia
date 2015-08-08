@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_EMIT_PRIVATE_H_
-#define XENIA_FRONTEND_PPC_EMIT_PRIVATE_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_EMIT_PRIVATE_H_
+#define XENIA_CPU_FRONTEND_PPC_EMIT_PRIVATE_H_
 
 #include "xenia/cpu/frontend/ppc_emit.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
@@ -22,12 +22,10 @@ namespace frontend {
 #define XEREGISTERINSTR(name, opcode) \
   RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
-//#define XEINSTRNOTIMPLEMENTED()
 #define XEINSTRNOTIMPLEMENTED() assert_always("Instruction not implemented");
-//#define XEINSTRNOTIMPLEMENTED() __debugbreak()
 
 }  // namespace frontend
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_EMIT_PRIVATE_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_EMIT_PRIVATE_H_

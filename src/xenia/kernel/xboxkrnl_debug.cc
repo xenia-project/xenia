@@ -40,10 +40,10 @@ typedef struct {
   xe::be<uint32_t> exception_information[15];
 } X_EXCEPTION_RECORD;
 static_assert_size(X_EXCEPTION_RECORD, 0x50);
-void AppendParam(StringBuffer& string_buffer,
+void AppendParam(StringBuffer* string_buffer,
                  pointer_t<X_EXCEPTION_RECORD> record) {
-  string_buffer.AppendFormat("%.8X(%.8X)", record.guest_address(),
-                             uint32_t(record->exception_code));
+  string_buffer->AppendFormat("%.8X(%.8X)", record.guest_address(),
+                              uint32_t(record->exception_code));
 }
 
 void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
@@ -51,7 +51,8 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
     // SetThreadName. FFS.
     // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 
-    // TODO: check record->number_parameters to make sure it's a correct size
+    // TODO(benvanik): check record->number_parameters to make sure it's a
+    // correct size.
     auto thread_info =
         reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 

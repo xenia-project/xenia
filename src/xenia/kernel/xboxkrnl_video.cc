@@ -113,7 +113,7 @@ void VdGetCurrentDisplayInformation(pointer_t<X_DISPLAY_INFO> display_info) {
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayInformation, ExportTag::kVideo);
 
 void VdQueryVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
-  // TODO: get info from actual display
+  // TODO(benvanik): get info from actual display.
   video_mode.Zero();
   video_mode->display_width = 1280;
   video_mode->display_height = 720;
@@ -273,8 +273,8 @@ struct BufferScaling {
   xe::be<uint16_t> bb_width;
   xe::be<uint16_t> bb_height;
 };
-void AppendParam(StringBuffer& string_buffer, pointer_t<BufferScaling> param) {
-  string_buffer.AppendFormat(
+void AppendParam(StringBuffer* string_buffer, pointer_t<BufferScaling> param) {
+  string_buffer->AppendFormat(
       "%.8X(scale %dx%d -> %dx%d))", param.guest_address(),
       uint16_t(param->bb_width), uint16_t(param->bb_height),
       uint16_t(param->fb_width), uint16_t(param->fb_height));

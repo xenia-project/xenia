@@ -23,7 +23,7 @@ namespace kernel {
 
 class XNotifyListener : public XObject {
  public:
-  XNotifyListener(KernelState* kernel_state);
+  explicit XNotifyListener(KernelState* kernel_state);
   ~XNotifyListener() override;
 
   uint64_t mask() const { return mask_; }

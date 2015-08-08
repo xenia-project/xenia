@@ -420,7 +420,8 @@ SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_context,
 
   const uint32_t size = sizeof(X_MM_QUERY_STATISTICS_RESULT);
 
-  auto stats = (X_MM_QUERY_STATISTICS_RESULT*)SHIM_MEM_ADDR(stats_ptr);
+  auto stats =
+      reinterpret_cast<X_MM_QUERY_STATISTICS_RESULT*>(SHIM_MEM_ADDR(stats_ptr));
   if (stats->size != size) {
     SHIM_SET_RETURN_32(X_STATUS_BUFFER_TOO_SMALL);
     return;

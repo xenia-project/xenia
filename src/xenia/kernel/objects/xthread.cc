@@ -34,8 +34,6 @@ DEFINE_bool(ignore_thread_affinities, true,
 namespace xe {
 namespace kernel {
 
-using namespace xe::cpu;
-
 uint32_t next_xthread_id = 0;
 thread_local XThread* current_thread_tls = nullptr;
 xe::mutex critical_region_;
@@ -220,9 +218,9 @@ X_STATUS XThread::Create() {
 
   // Allocate processor thread state.
   // This is thread safe.
-  thread_state_ = new ThreadState(kernel_state()->processor(), thread_id_,
-                                  ThreadStackType::kUserStack, 0,
-                                  creation_params_.stack_size, pcr_address_);
+  thread_state_ = new cpu::ThreadState(
+      kernel_state()->processor(), thread_id_, cpu::ThreadStackType::kUserStack,
+      0, creation_params_.stack_size, pcr_address_);
   XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
          thread_state_->thread_id(), thread_state_->stack_limit(),
          thread_state_->stack_base());
@@ -352,7 +350,7 @@ X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
 
-  // TODO(benvanik); dispatch events? waiters? etc?
+  // TODO(benvanik): dispatch events? waiters? etc?
   RundownAPCs();
 
   // Set exit code.
@@ -380,7 +378,7 @@ X_STATUS XThread::Exit(int exit_code) {
 }
 
 X_STATUS XThread::Terminate(int exit_code) {
-  // TODO: Inform the profiler that this thread is exiting.
+  // TODO(benvanik): inform the profiler that this thread is exiting.
 
   // Set exit code.
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
@@ -426,8 +424,9 @@ void XThread::Execute() {
   } else {
     // Run user code.
     uint64_t args[] = {creation_params_.start_context};
-    exit_code = (int)kernel_state()->processor()->Execute(
-        thread_state_, creation_params_.start_address, args, xe::countof(args));
+    exit_code = static_cast<int>(kernel_state()->processor()->Execute(
+        thread_state_, creation_params_.start_address, args,
+        xe::countof(args)));
     // If we got here it means the execute completed without an exit being
     // called.
     // Treat the return code as an implicit exit code.

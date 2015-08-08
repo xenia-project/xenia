@@ -155,7 +155,7 @@ bool DrawBatcher::BeginDraw() {
 
     GLsizei header_size = sizeof(CommonHeader);
 
-    // TODO(benvanik); consts sizing.
+    // TODO(benvanik): consts sizing.
     // GLsizei float_consts_size = sizeof(float4) * 512;
     // GLsizei bool_consts_size = sizeof(uint32_t) * 8;
     // GLsizei loop_consts_size = sizeof(uint32_t) * 32;
@@ -286,9 +286,9 @@ bool DrawBatcher::Flush(FlushMode mode) {
       case PrimitiveType::kRectangleList:
         prim_type = GL_TRIANGLES;
         // Rect lists aren't culled. There may be other things they skip too.
-        // assert_true((register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32
-        // &
-        //             0x3) == 0);
+        // assert_true(
+        // (register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32
+        // & 0x3) == 0);
         break;
       case PrimitiveType::kQuadList:
         prim_type = GL_LINES_ADJACENCY;

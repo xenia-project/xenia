@@ -20,7 +20,7 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
-using namespace xe::gpu::xenos;
+using xe::gpu::xenos::VertexFormat;
 
 GL4Shader::GL4Shader(ShaderType shader_type, uint64_t data_hash,
                      const uint32_t* dword_ptr, uint32_t dword_count)

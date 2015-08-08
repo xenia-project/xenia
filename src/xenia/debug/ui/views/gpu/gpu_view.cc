@@ -21,7 +21,7 @@ GpuView::GpuView() : View("GPU") {}
 GpuView::~GpuView() = default;
 
 el::Element* GpuView::BuildUI() {
-  using namespace el::dsl;
+  using namespace el::dsl;  // NOLINT(build/namespaces)
   el::AnimationBlocker animation_blocker;
 
   auto node = LabelNode("TODO");

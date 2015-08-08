@@ -11,7 +11,7 @@
 
 // Must be included before xinput.h to avoid windows.h conflicts:
 #include "xenia/base/platform_win.h"
-#include <xinput.h>
+#include <xinput.h>  // NOLINT(build/include_order)
 
 #include "xenia/hid/hid_flags.h"
 

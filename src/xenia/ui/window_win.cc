@@ -260,7 +260,7 @@ void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
              TRUE);
 }
 
-void Win32Window::OnResize(UIEvent& e) {
+void Win32Window::OnResize(UIEvent* e) {
   RECT client_rect;
   GetClientRect(hwnd_, &client_rect);
   int32_t width = client_rect.right - client_rect.left;
@@ -354,14 +354,14 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       break;
     case WM_SIZE: {
       auto e = UIEvent(this);
-      OnResize(e);
+      OnResize(&e);
       break;
     }
 
     case WM_PAINT: {
       ValidateRect(hwnd_, nullptr);
       auto e = UIEvent(this);
-      OnPaint(e);
+      OnPaint(&e);
       return 0;  // Ignored because of custom paint.
       break;
     }
@@ -374,10 +374,10 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     case WM_SHOWWINDOW: {
       if (wParam == TRUE) {
         auto e = UIEvent(this);
-        OnVisible(e);
+        OnVisible(&e);
       } else {
         auto e = UIEvent(this);
-        OnHidden(e);
+        OnHidden(&e);
       }
       break;
     }
@@ -385,13 +385,13 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     case WM_KILLFOCUS: {
       has_focus_ = false;
       auto e = UIEvent(this);
-      OnLostFocus(e);
+      OnLostFocus(&e);
       break;
     }
     case WM_SETFOCUS: {
       has_focus_ = true;
       auto e = UIEvent(this);
-      OnGotFocus(e);
+      OnGotFocus(&e);
       break;
     }
 
@@ -419,7 +419,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           reinterpret_cast<Win32MenuItem*>(parent_item->child(wParam));
       assert_not_null(child_item);
       UIEvent e(this);
-      child_item->OnSelected(e);
+      child_item->OnSelected(&e);
     } break;
   }
 
@@ -484,19 +484,19 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
     case WM_XBUTTONDOWN:
-      OnMouseDown(e);
+      OnMouseDown(&e);
       break;
     case WM_LBUTTONUP:
     case WM_RBUTTONUP:
     case WM_MBUTTONUP:
     case WM_XBUTTONUP:
-      OnMouseUp(e);
+      OnMouseUp(&e);
       break;
     case WM_MOUSEMOVE:
-      OnMouseMove(e);
+      OnMouseMove(&e);
       break;
     case WM_MOUSEWHEEL:
-      OnMouseWheel(e);
+      OnMouseWheel(&e);
       break;
   }
   return e.is_handled();
@@ -506,13 +506,13 @@ bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
   auto e = KeyEvent(this, static_cast<int>(wParam));
   switch (message) {
     case WM_KEYDOWN:
-      OnKeyDown(e);
+      OnKeyDown(&e);
       break;
     case WM_KEYUP:
-      OnKeyUp(e);
+      OnKeyUp(&e);
       break;
     case WM_CHAR:
-      OnKeyChar(e);
+      OnKeyChar(&e);
       break;
   }
   return e.is_handled();

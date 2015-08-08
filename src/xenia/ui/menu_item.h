@@ -58,7 +58,7 @@ class MenuItem {
   virtual void OnChildAdded(MenuItem* child_item) {}
   virtual void OnChildRemoved(MenuItem* child_item) {}
 
-  virtual void OnSelected(UIEvent& e);
+  virtual void OnSelected(UIEvent* e);
 
   Type type_;
   MenuItem* parent_item_;

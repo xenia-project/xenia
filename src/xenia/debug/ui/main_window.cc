@@ -42,9 +42,9 @@ bool MainWindow::Initialize() {
 
   window_->on_closed.AddListener(std::bind(&MainWindow::OnClose, this));
 
-  window_->on_key_down.AddListener([this](xe::ui::KeyEvent& e) {
+  window_->on_key_down.AddListener([this](xe::ui::KeyEvent* e) {
     bool handled = true;
-    switch (e.key_code()) {
+    switch (e->key_code()) {
       case 0x1B: {  // VK_ESCAPE
                     // Allow users to escape fullscreen (but not enter it).
         if (window_->is_fullscreen()) {
@@ -58,7 +58,7 @@ bool MainWindow::Initialize() {
 
       default: { handled = false; } break;
     }
-    e.set_handled(handled);
+    e->set_handled(handled);
   });
 
   // Main menu.
@@ -93,7 +93,7 @@ bool MainWindow::Initialize() {
 }
 
 void MainWindow::BuildUI() {
-  using namespace el::dsl;
+  using namespace el::dsl;  // NOLINT(build/namespaces)
   el::AnimationBlocker animation_blocker;
 
   auto root_element = window_->root_element();

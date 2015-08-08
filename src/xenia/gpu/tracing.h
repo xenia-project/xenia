@@ -82,7 +82,7 @@ struct EventCommand {
 
 class TraceWriter {
  public:
-  TraceWriter(uint8_t* membase);
+  explicit TraceWriter(uint8_t* membase);
   ~TraceWriter();
 
   bool is_open() const { return file_ != nullptr; }

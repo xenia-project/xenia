@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HIR_VALUE_H_
-#define XENIA_HIR_VALUE_H_
+#ifndef XENIA_CPU_HIR_VALUE_H_
+#define XENIA_CPU_HIR_VALUE_H_
 
 #include "xenia/base/arena.h"
 #include "xenia/base/assert.h"
@@ -104,14 +104,6 @@ class Value {
 
   Use* AddUse(Arena* arena, Instr* instr);
   void RemoveUse(Use* use);
-
-  int8_t get_constant(int8_t) const { return constant.i8; }
-  int16_t get_constant(int16_t) const { return constant.i16; }
-  int32_t get_constant(int32_t) const { return constant.i32; }
-  int64_t get_constant(int64_t) const { return constant.i64; }
-  float get_constant(float) const { return constant.f32; }
-  double get_constant(double) const { return constant.f64; }
-  vec128_t get_constant(vec128_t&) const { return constant.v128; }
 
   void set_zero(TypeName new_type) {
     type = new_type;
@@ -511,4 +503,4 @@ class Value {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_HIR_VALUE_H_
+#endif  // XENIA_CPU_HIR_VALUE_H_

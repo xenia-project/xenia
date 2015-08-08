@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <mutex>
+#include <utility>
 
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -44,9 +45,9 @@ DEFINE_bool(exit_with_debugger, true, "Exit whe the debugger disconnects.");
 namespace xe {
 namespace debug {
 
-using namespace xe::kernel;
-
 using xe::cpu::ThreadState;
+using xe::kernel::XObject;
+using xe::kernel::XThread;
 
 Breakpoint::Breakpoint(Type type, uint32_t address)
     : type_(type), address_(address) {}
@@ -235,10 +236,10 @@ int Debugger::RemoveBreakpoint(Breakpoint* breakpoint) {
 }
 
 void Debugger::FindBreakpoints(uint32_t address,
-                               std::vector<Breakpoint*>& out_breakpoints) {
+                               std::vector<Breakpoint*>* out_breakpoints) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-  out_breakpoints.clear();
+  out_breakpoints->clear();
 
   auto range = breakpoints_.equal_range(address);
   if (range.first == range.second) {
@@ -247,7 +248,7 @@ void Debugger::FindBreakpoints(uint32_t address,
 
   for (auto it = range.first; it != range.second; ++it) {
     Breakpoint* breakpoint = it->second;
-    out_breakpoints.push_back(breakpoint);
+    out_breakpoints->push_back(breakpoint);
   }
 }
 

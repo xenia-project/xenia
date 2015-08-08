@@ -19,7 +19,10 @@
 namespace xe {
 namespace kernel {
 
-using namespace xe::hid;
+using xe::hid::X_INPUT_CAPABILITIES;
+using xe::hid::X_INPUT_KEYSTROKE;
+using xe::hid::X_INPUT_STATE;
+using xe::hid::X_INPUT_VIBRATION;
 
 constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
@@ -69,7 +72,7 @@ SHIM_CALL XamInputGetCapabilities_shim(PPCContext* ppc_context,
     user_index = 0;
   }
 
-  InputSystem* input_system = kernel_state->emulator()->input_system();
+  auto input_system = kernel_state->emulator()->input_system();
 
   auto caps = SHIM_STRUCT(X_INPUT_CAPABILITIES, caps_ptr);
   X_RESULT result = input_system->GetCapabilities(user_index, flags, caps);
@@ -100,7 +103,7 @@ SHIM_CALL XamInputGetCapabilitiesEx_shim(PPCContext* ppc_context,
     user_index = 0;
   }
 
-  InputSystem* input_system = kernel_state->emulator()->input_system();
+  auto input_system = kernel_state->emulator()->input_system();
 
   auto caps = SHIM_STRUCT(X_INPUT_CAPABILITIES, caps_ptr);
   X_RESULT result = input_system->GetCapabilities(user_index, flags, caps);
@@ -128,7 +131,7 @@ SHIM_CALL XamInputGetState_shim(PPCContext* ppc_context,
     user_index = 0;
   }
 
-  InputSystem* input_system = kernel_state->emulator()->input_system();
+  auto input_system = kernel_state->emulator()->input_system();
 
   auto input_state = SHIM_STRUCT(X_INPUT_STATE, state_ptr);
   X_RESULT result = input_system->GetState(user_index, input_state);
@@ -153,7 +156,7 @@ SHIM_CALL XamInputSetState_shim(PPCContext* ppc_context,
     user_index = 0;
   }
 
-  InputSystem* input_system = kernel_state->emulator()->input_system();
+  auto input_system = kernel_state->emulator()->input_system();
 
   auto vibration = SHIM_STRUCT(X_INPUT_VIBRATION, vibration_ptr);
   X_RESULT result = input_system->SetState(user_index, vibration);
@@ -188,7 +191,7 @@ SHIM_CALL XamInputGetKeystroke_shim(PPCContext* ppc_context,
     user_index = 0;
   }
 
-  InputSystem* input_system = kernel_state->emulator()->input_system();
+  auto input_system = kernel_state->emulator()->input_system();
 
   auto keystroke = SHIM_STRUCT(X_INPUT_KEYSTROKE, keystroke_ptr);
   X_RESULT result = input_system->GetKeystroke(user_index, flags, keystroke);
@@ -221,7 +224,7 @@ SHIM_CALL XamInputGetKeystrokeEx_shim(PPCContext* ppc_context,
     user_index = 0;
   }
 
-  InputSystem* input_system = kernel_state->emulator()->input_system();
+  auto input_system = kernel_state->emulator()->input_system();
 
   auto keystroke = SHIM_STRUCT(X_INPUT_KEYSTROKE, keystroke_ptr);
   X_RESULT result = input_system->GetKeystroke(user_index, flags, keystroke);

@@ -33,7 +33,7 @@ struct XCONTENT_DATA {
   std::string file_name;
 
   XCONTENT_DATA() = default;
-  XCONTENT_DATA(const uint8_t* ptr) {
+  explicit XCONTENT_DATA(const uint8_t* ptr) {
     device_id = xe::load_and_swap<uint32_t>(ptr + 0);
     content_type = xe::load_and_swap<uint32_t>(ptr + 4);
     display_name = xe::load_and_swap<std::wstring>(ptr + 8);

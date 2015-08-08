@@ -33,9 +33,9 @@ class InputDriver {
                                 X_INPUT_KEYSTROKE* out_keystroke) = 0;
 
  protected:
-  InputDriver(InputSystem* input_system);
+  explicit InputDriver(InputSystem* input_system);
 
-  InputSystem* input_system_;
+  InputSystem* input_system_ = nullptr;
 };
 
 }  // namespace hid

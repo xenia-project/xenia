@@ -9,6 +9,8 @@
 
 #include "xenia/kernel/xam_module.h"
 
+#include <vector>
+
 #include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam_private.h"

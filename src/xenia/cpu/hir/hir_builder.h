@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HIR_HIR_BUILDER_H_
-#define XENIA_HIR_HIR_BUILDER_H_
+#ifndef XENIA_CPU_HIR_HIR_BUILDER_H_
+#define XENIA_CPU_HIR_HIR_BUILDER_H_
 
 #include <vector>
 
@@ -272,4 +272,4 @@ class HIRBuilder {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_HIR_HIR_BUILDER_H_
+#endif  // XENIA_CPU_HIR_HIR_BUILDER_H_

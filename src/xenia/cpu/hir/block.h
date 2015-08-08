@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HIR_BLOCK_H_
-#define XENIA_HIR_BLOCK_H_
+#ifndef XENIA_CPU_HIR_BLOCK_H_
+#define XENIA_CPU_HIR_BLOCK_H_
 
 #include "xenia/base/arena.h"
 
@@ -70,4 +70,4 @@ class Block {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_HIR_BLOCK_H_
+#endif  // XENIA_CPU_HIR_BLOCK_H_

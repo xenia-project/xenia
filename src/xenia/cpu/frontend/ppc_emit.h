@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_EMIT_H_
-#define XENIA_FRONTEND_PPC_EMIT_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_EMIT_H_
+#define XENIA_CPU_FRONTEND_PPC_EMIT_H_
 
 #include "xenia/cpu/frontend/ppc_instr.h"
 
@@ -26,4 +26,4 @@ void RegisterEmitCategoryMemory();
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_EMIT_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_EMIT_H_

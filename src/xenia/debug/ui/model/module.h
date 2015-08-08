@@ -24,7 +24,7 @@ class System;
 
 class Module {
  public:
-  Module(System* system) : system_(system) {}
+  explicit Module(System* system) : system_(system) {}
 
   bool is_dead() const { return is_dead_; }
   void set_dead(bool is_dead) { is_dead_ = is_dead; }

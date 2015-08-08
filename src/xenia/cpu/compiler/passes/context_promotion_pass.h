@@ -11,6 +11,7 @@
 #define XENIA_CPU_COMPILER_PASSES_CONTEXT_PROMOTION_PASS_H_
 
 #include <cmath>
+#include <vector>
 
 #include "xenia/base/platform.h"
 #include "xenia/cpu/compiler/compiler_pass.h"

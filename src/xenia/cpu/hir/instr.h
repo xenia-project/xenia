@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HIR_INSTR_H_
-#define XENIA_HIR_INSTR_H_
+#ifndef XENIA_CPU_HIR_INSTR_H_
+#define XENIA_CPU_HIR_INSTR_H_
 
 #include "xenia/cpu/hir/opcodes.h"
 #include "xenia/cpu/hir/value.h"
@@ -65,4 +65,4 @@ class Instr {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_HIR_INSTR_H_
+#endif  // XENIA_CPU_HIR_INSTR_H_

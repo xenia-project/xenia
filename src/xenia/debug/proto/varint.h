@@ -18,7 +18,7 @@ namespace proto {
 
 struct varint_t {
   varint_t() = default;
-  varint_t(uint64_t value) : value_(value) {}
+  varint_t(uint64_t value) : value_(value) {}  // NOLINT(runtime/explicit)
   varint_t(const varint_t& other) : value_(other.value_) {}
 
   operator uint64_t() const { return value_; }

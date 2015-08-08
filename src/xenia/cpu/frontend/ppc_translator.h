@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_TRANSLATOR_H_
-#define XENIA_FRONTEND_PPC_TRANSLATOR_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_TRANSLATOR_H_
+#define XENIA_CPU_FRONTEND_PPC_TRANSLATOR_H_
 
 #include <memory>
 
@@ -27,7 +27,7 @@ class PPCScanner;
 
 class PPCTranslator {
  public:
-  PPCTranslator(PPCFrontend* frontend);
+  explicit PPCTranslator(PPCFrontend* frontend);
   ~PPCTranslator();
 
   bool Translate(GuestFunction* function, uint32_t debug_info_flags);
@@ -48,4 +48,4 @@ class PPCTranslator {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_TRANSLATOR_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_TRANSLATOR_H_

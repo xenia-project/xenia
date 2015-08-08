@@ -60,18 +60,18 @@ bool EmulatorWindow::Initialize() {
 
   UpdateTitle();
 
-  window_->on_closed.AddListener([this](UIEvent& e) {
+  window_->on_closed.AddListener([this](UIEvent* e) {
     loop_->Quit();
 
     // TODO(benvanik): proper exit.
     XELOGI("User-initiated death!");
     exit(1);
   });
-  loop_->on_quit.AddListener([this](UIEvent& e) { window_.reset(); });
+  loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
-  window_->on_key_down.AddListener([this](KeyEvent& e) {
+  window_->on_key_down.AddListener([this](KeyEvent* e) {
     bool handled = true;
-    switch (e.key_code()) {
+    switch (e->key_code()) {
       case 0x6A: {  // numpad *
         CpuTimeScalarReset();
       } break;
@@ -111,7 +111,7 @@ bool EmulatorWindow::Initialize() {
 
       default: { handled = false; } break;
     }
-    e.set_handled(handled);
+    e->set_handled(handled);
   });
 
   // Main menu.

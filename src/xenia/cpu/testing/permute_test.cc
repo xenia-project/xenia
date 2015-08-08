@@ -17,7 +17,7 @@ using xe::cpu::frontend::PPCContext;
 
 TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
   {
-    uint32_t mask = PERMUTE_MASK(0, 0, 0, 1, 0, 2, 0, 3);
+    uint32_t mask = MakePermuteMask(0, 0, 0, 1, 0, 2, 0, 3);
     TestFunction([mask](HIRBuilder& b) {
       StoreVR(b, 3, b.Permute(b.LoadConstantUint32(mask), LoadVR(b, 4),
                               LoadVR(b, 5), INT32_TYPE));
@@ -34,7 +34,7 @@ TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
             });
   }
   {
-    uint32_t mask = PERMUTE_MASK(1, 0, 1, 1, 1, 2, 1, 3);
+    uint32_t mask = MakePermuteMask(1, 0, 1, 1, 1, 2, 1, 3);
     TestFunction([mask](HIRBuilder& b) {
       StoreVR(b, 3, b.Permute(b.LoadConstantUint32(mask), LoadVR(b, 4),
                               LoadVR(b, 5), INT32_TYPE));
@@ -51,7 +51,7 @@ TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
             });
   }
   {
-    uint32_t mask = PERMUTE_MASK(0, 3, 0, 2, 0, 1, 0, 0);
+    uint32_t mask = MakePermuteMask(0, 3, 0, 2, 0, 1, 0, 0);
     TestFunction([mask](HIRBuilder& b) {
       StoreVR(b, 3, b.Permute(b.LoadConstantUint32(mask), LoadVR(b, 4),
                               LoadVR(b, 5), INT32_TYPE));
@@ -68,7 +68,7 @@ TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
             });
   }
   {
-    uint32_t mask = PERMUTE_MASK(1, 3, 1, 2, 1, 1, 1, 0);
+    uint32_t mask = MakePermuteMask(1, 3, 1, 2, 1, 1, 1, 0);
     TestFunction([mask](HIRBuilder& b) {
       StoreVR(b, 3, b.Permute(b.LoadConstantUint32(mask), LoadVR(b, 4),
                               LoadVR(b, 5), INT32_TYPE));

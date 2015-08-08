@@ -14,6 +14,8 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <vector>
 
 #include "xenia/base/socket.h"
 #include "xenia/base/threading.h"
@@ -31,7 +33,7 @@ class Debugger;
 
 class DebugServer {
  public:
-  DebugServer(Debugger* debugger);
+  explicit DebugServer(Debugger* debugger);
   ~DebugServer();
 
   Debugger* debugger() const { return debugger_; }

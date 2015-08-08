@@ -24,8 +24,11 @@ DEFINE_int32(debug_server_port, 9002, "Debugger XDP server TCP port.");
 namespace xe {
 namespace debug {
 
-using namespace xe::debug::proto;
-using namespace xe::kernel;
+using namespace xe::debug::proto;  // NOLINT(build/namespaces)
+
+using xe::kernel::XModule;
+using xe::kernel::XObject;
+using xe::kernel::XThread;
 
 constexpr size_t kReceiveBufferSize = 32 * 1024;
 constexpr size_t kReadBufferSize = 1 * 1024 * 1024;

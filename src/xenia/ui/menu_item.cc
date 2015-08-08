@@ -63,7 +63,7 @@ void MenuItem::RemoveChild(MenuItem* child_item) {
 
 MenuItem* MenuItem::child(size_t index) { return children_[index].get(); }
 
-void MenuItem::OnSelected(UIEvent& e) {
+void MenuItem::OnSelected(UIEvent* e) {
   if (callback_) {
     callback_();
   }

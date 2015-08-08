@@ -84,7 +84,7 @@ void Win32Loop::ThreadMain() {
   }
 
   UIEvent e(nullptr);
-  on_quit(e);
+  on_quit(&e);
 }
 
 void Win32Loop::Post(std::function<void()> fn) {

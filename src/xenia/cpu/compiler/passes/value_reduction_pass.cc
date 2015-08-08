@@ -79,10 +79,10 @@ bool ValueReductionPass::Run(HIRBuilder* builder) {
     instr = block->instr_head;
     while (instr) {
       const OpcodeInfo* info = instr->opcode;
-      OpcodeSignatureType dest_type = GET_OPCODE_SIG_TYPE_DEST(info->signature);
-      OpcodeSignatureType src1_type = GET_OPCODE_SIG_TYPE_SRC1(info->signature);
-      OpcodeSignatureType src2_type = GET_OPCODE_SIG_TYPE_SRC2(info->signature);
-      OpcodeSignatureType src3_type = GET_OPCODE_SIG_TYPE_SRC3(info->signature);
+      auto dest_type = GET_OPCODE_SIG_TYPE_DEST(info->signature);
+      auto src1_type = GET_OPCODE_SIG_TYPE_SRC1(info->signature);
+      auto src2_type = GET_OPCODE_SIG_TYPE_SRC2(info->signature);
+      auto src3_type = GET_OPCODE_SIG_TYPE_SRC3(info->signature);
       if (src1_type == OPCODE_SIG_TYPE_V) {
         auto v = instr->src1.value;
         if (!v->last_use) {

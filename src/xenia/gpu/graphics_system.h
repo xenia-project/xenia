@@ -62,7 +62,7 @@ class GraphicsSystem {
   virtual void ClearCaches() {}
 
  protected:
-  GraphicsSystem(Emulator* emulator);
+  explicit GraphicsSystem(Emulator* emulator);
 
   Emulator* emulator_ = nullptr;
   Memory* memory_ = nullptr;

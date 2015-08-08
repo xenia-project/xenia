@@ -18,6 +18,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/export_resolver.h"
@@ -86,7 +87,7 @@ struct TerminateNotification {
 
 class KernelState {
  public:
-  KernelState(Emulator* emulator);
+  explicit KernelState(Emulator* emulator);
   ~KernelState();
 
   static KernelState* shared();

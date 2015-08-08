@@ -37,7 +37,7 @@ bool ValidationPass::Run(HIRBuilder* builder) {
 #if 0
   StringBuffer str;
   builder->Dump(&str);
-  printf(str.GetString());
+  printf("%s", str.GetString());
   fflush(stdout);
   str.Reset();
 #endif  // 0

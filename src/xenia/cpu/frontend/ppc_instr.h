@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_INSTR_H_
-#define XENIA_FRONTEND_PPC_INSTR_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_INSTR_H_
+#define XENIA_CPU_FRONTEND_PPC_INSTR_H_
 
 #include <cstdint>
 #include <string>
@@ -497,7 +497,7 @@ class InstrDisasm {
   void Dump(std::string& out_str, size_t pad = 13);
 };
 
-typedef void (*InstrDisasmFn)(InstrData& i, StringBuffer* str);
+typedef void (*InstrDisasmFn)(InstrData* i, StringBuffer* str);
 typedef void* InstrEmitFn;
 
 class InstrType {
@@ -522,4 +522,4 @@ int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_INSTR_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_INSTR_H_

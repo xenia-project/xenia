@@ -25,7 +25,7 @@ void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   semaphore_ = xe::threading::Semaphore::Create(initial_count, maximum_count);
 }
 
-void XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
+void XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   assert_false(semaphore_);
 
   auto semaphore = reinterpret_cast<X_KSEMAPHORE*>(native_ptr);

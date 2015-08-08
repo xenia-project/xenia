@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_GL4_STATE_DATA_BUILDER_H_
-#define XENIA_GPU_GL4_GL4_STATE_DATA_BUILDER_H_
+#ifndef XENIA_GPU_GL4_DRAW_BATCHER_H_
+#define XENIA_GPU_GL4_DRAW_BATCHER_H_
 
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/register_file.h"
@@ -53,7 +53,7 @@ class DrawBatcher {
     kReconfigure,
   };
 
-  DrawBatcher(RegisterFile* register_file);
+  explicit DrawBatcher(RegisterFile* register_file);
 
   bool Initialize(CircularBuffer* array_data_buffer);
   void Shutdown();
@@ -72,7 +72,7 @@ class DrawBatcher {
   }
   void set_alpha_test(bool enabled, uint32_t func, float ref) {
     active_draw_.header->alpha_test.x = enabled ? 1.0f : 0.0f;
-    active_draw_.header->alpha_test.y = float(func);
+    active_draw_.header->alpha_test.y = static_cast<float>(func);
     active_draw_.header->alpha_test.z = ref;
   }
   void set_texture_sampler(int index, GLuint64 handle) {
@@ -159,4 +159,4 @@ class DrawBatcher {
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_GL4_STATE_DATA_BUILDER_H_
+#endif  // XENIA_GPU_GL4_DRAW_BATCHER_H_

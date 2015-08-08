@@ -7,8 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_TESTING_UTIL_H_
-#define XENIA_TESTING_UTIL_H_
+#ifndef XENIA_CPU_TESTING_UTIL_H_
+#define XENIA_CPU_TESTING_UTIL_H_
+
+#include <vector>
 
 #include "xenia/base/main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -114,4 +116,4 @@ inline void StoreVR(hir::HIRBuilder& b, int reg, hir::Value* value) {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_TESTING_UTIL_H_
+#endif  // XENIA_CPU_TESTING_UTIL_H_

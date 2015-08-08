@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "xenia/base/mutex.h"
 #include "xenia/kernel/xobject.h"
@@ -46,7 +47,7 @@ class ObjectTable {
   std::vector<object_ref<T>> GetObjectsByType(XObject::Type type) {
     std::vector<object_ref<T>> results;
     GetObjectsByType(
-        type, *reinterpret_cast<std::vector<object_ref<XObject>>*>(&results));
+        type, reinterpret_cast<std::vector<object_ref<XObject>>*>(&results));
     return results;
   }
 
@@ -59,7 +60,7 @@ class ObjectTable {
   ObjectTableEntry* LookupTable(X_HANDLE handle);
   XObject* LookupObject(X_HANDLE handle, bool already_locked);
   void GetObjectsByType(XObject::Type type,
-                        std::vector<object_ref<XObject>>& results);
+                        std::vector<object_ref<XObject>>* results);
 
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);

@@ -27,11 +27,11 @@ void XEvent::Initialize(bool manual_reset, bool initial_state) {
   }
 }
 
-void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
+void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   assert_false(event_);
 
   bool manual_reset;
-  switch (header.type) {
+  switch (header->type) {
     case 0x00:  // EventNotificationObject (manual reset)
       manual_reset = true;
       break;
@@ -43,7 +43,7 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER& header) {
       return;
   }
 
-  bool initial_state = header.signal_state ? true : false;
+  bool initial_state = header->signal_state ? true : false;
   Initialize(manual_reset, initial_state);
 }
 

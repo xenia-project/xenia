@@ -56,7 +56,8 @@ bool XexModule::GetOptHeader(const xex2_header* header, xe_xex2_header_keys key,
         } break;
         case 0x01: {
           // Pointer to the value on the optional header.
-          *out_ptr = (void*)&opt_header.value;
+          *out_ptr = const_cast<void*>(
+              reinterpret_cast<const void*>(&opt_header.value));
         } break;
         default: {
           // Pointer to the header.

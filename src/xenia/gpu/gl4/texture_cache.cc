@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/gl4/texture_cache.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "xenia/base/assert.h"
@@ -22,7 +23,7 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
-using namespace xe::gpu::xenos;
+using xe::gpu::xenos::Endian;
 
 struct TextureConfig {
   TextureFormat texture_format;

@@ -19,7 +19,7 @@ namespace apps {
 
 class XXLiveBaseApp : public XApp {
  public:
-  XXLiveBaseApp(KernelState* kernel_state);
+  explicit XXLiveBaseApp(KernelState* kernel_state);
 
   X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                uint32_t buffer_length) override;

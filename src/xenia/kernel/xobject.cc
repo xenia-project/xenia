@@ -9,6 +9,8 @@
 
 #include "xenia/kernel/xobject.h"
 
+#include <vector>
+
 #include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xevent.h"
@@ -311,19 +313,19 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
       case 1:  // EventSynchronizationObject
       {
         auto ev = new XEvent(kernel_state);
-        ev->InitializeNative(native_ptr, *header);
+        ev->InitializeNative(native_ptr, header);
         object = ev;
       } break;
       case 2:  // MutantObject
       {
         auto mutant = new XMutant(kernel_state);
-        mutant->InitializeNative(native_ptr, *header);
+        mutant->InitializeNative(native_ptr, header);
         object = mutant;
       } break;
       case 5:  // SemaphoreObject
       {
         auto sem = new XSemaphore(kernel_state);
-        sem->InitializeNative(native_ptr, *header);
+        sem->InitializeNative(native_ptr, header);
         object = sem;
       } break;
       case 3:   // ProcessObject

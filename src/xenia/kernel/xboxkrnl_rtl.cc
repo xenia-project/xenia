@@ -10,6 +10,7 @@
 #include "xenia/kernel/xboxkrnl_rtl.h"
 
 #include <algorithm>
+#include <string>
 
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
@@ -219,7 +220,8 @@ SHIM_CALL RtlMultiByteToUnicodeN_shim(PPCContext* ppc_context,
   uint32_t copy_len = destination_len >> 1;
   copy_len = copy_len < source_len ? copy_len : source_len;
 
-  // TODO: maybe use MultiByteToUnicode on Win32? would require swapping
+  // TODO(benvanik): maybe use MultiByteToUnicode on Win32? would require
+  // swapping.
 
   for (uint32_t i = 0; i < copy_len; i++) {
     xe::store_and_swap<uint16_t>(
@@ -245,10 +247,10 @@ SHIM_CALL RtlUnicodeToMultiByteN_shim(PPCContext* ppc_context,
   uint32_t copy_len = source_len >> 1;
   copy_len = copy_len < destination_len ? copy_len : destination_len;
 
-  // TODO: maybe use UnicodeToMultiByte on Win32?
+  // TODO(benvanik): maybe use UnicodeToMultiByte on Win32?
 
-  auto source = (uint16_t*)SHIM_MEM_ADDR(source_ptr);
-  auto destination = (uint8_t*)SHIM_MEM_ADDR(destination_ptr);
+  auto source = reinterpret_cast<uint16_t*>(SHIM_MEM_ADDR(source_ptr));
+  auto destination = reinterpret_cast<uint8_t*>(SHIM_MEM_ADDR(destination_ptr));
   for (uint32_t i = 0; i < copy_len; i++) {
     uint16_t c = xe::byte_swap(*source++);
     *destination++ = c < 256 ? (uint8_t)c : '?';
@@ -360,7 +362,7 @@ SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_context,
 
   uint32_t thread_id = XThread::GetCurrentThreadId();
 
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  auto cs = reinterpret_cast<X_RTL_CRITICAL_SECTION*>(SHIM_MEM_ADDR(cs_ptr));
   uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
 
 spin:
@@ -401,7 +403,7 @@ SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_context,
 
   uint32_t thread_id = XThread::GetCurrentThreadId();
 
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  auto cs = reinterpret_cast<X_RTL_CRITICAL_SECTION*>(SHIM_MEM_ADDR(cs_ptr));
 
   uint32_t result = 0;
   if (xe::atomic_cas(-1, 0, &cs->lock_count)) {
@@ -428,7 +430,7 @@ SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_context,
   // FYI: No need to check if the owning thread is calling this, as that should
   // be the only case.
 
-  auto cs = (X_RTL_CRITICAL_SECTION*)SHIM_MEM_ADDR(cs_ptr);
+  auto cs = reinterpret_cast<X_RTL_CRITICAL_SECTION*>(SHIM_MEM_ADDR(cs_ptr));
 
   // Drop recursion count - if we are still not zero'ed return.
   int32_t recursion_count = --cs->recursion_count;

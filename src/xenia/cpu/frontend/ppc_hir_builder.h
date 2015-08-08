@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_PPC_HIR_BUILDER_H_
-#define XENIA_FRONTEND_PPC_HIR_BUILDER_H_
+#ifndef XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_
+#define XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_
 
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/hir/hir_builder.h"
@@ -26,7 +26,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   using Value = xe::cpu::hir::Value;
 
  public:
-  PPCHIRBuilder(PPCFrontend* frontend);
+  explicit PPCHIRBuilder(PPCFrontend* frontend);
   ~PPCHIRBuilder() override;
 
   void Reset() override;
@@ -109,4 +109,4 @@ class PPCHIRBuilder : public hir::HIRBuilder {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_PPC_HIR_BUILDER_H_
+#endif  // XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_

@@ -16,7 +16,7 @@ namespace debug {
 namespace ui {
 namespace model {
 
-using namespace xe::debug::proto;
+using namespace xe::debug::proto;  // NOLINT(build/namespaces)
 
 System::System(xe::ui::Loop* loop, DebugClient* client)
     : loop_(loop), client_(client) {

@@ -19,7 +19,7 @@ namespace apps {
 
 class XXGIApp : public XApp {
  public:
-  XXGIApp(KernelState* kernel_state);
+  explicit XXGIApp(KernelState* kernel_state);
 
   X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                uint32_t buffer_length) override;

@@ -42,7 +42,9 @@ void format_log_line(char* buffer, size_t buffer_capacity,
   *(buffer_ptr++) = level_char;
   *(buffer_ptr++) = '>';
   *(buffer_ptr++) = ' ';
-  buffer_ptr += sprintf(buffer_ptr, "%.4X", xe::threading::current_thread_id());
+  buffer_ptr +=
+      std::snprintf(buffer_ptr, buffer_capacity - (buffer_ptr - buffer), "%.4X",
+                    xe::threading::current_thread_id());
   *(buffer_ptr++) = ' ';
 
   // Scribble args into the print buffer.

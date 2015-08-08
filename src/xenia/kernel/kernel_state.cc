@@ -11,6 +11,8 @@
 
 #include <gflags/gflags.h>
 
+#include <string>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
@@ -337,8 +339,8 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 void KernelState::TerminateTitle(bool from_guest_thread) {
   std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
 
-  // First: Call terminate routines
-  // TODO: These might take arguments
+  // First: call terminate routines.
+  // TODO(benvanik): these might take arguments.
   // FIXME: Calling these will send some threads into kernel code and they'll
   // hold the lock when terminated! Do we need to wait for all threads to exit?
   /*

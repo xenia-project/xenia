@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/gl4/gl4_shader_translator.h"
 
+#include <algorithm>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -19,7 +21,8 @@ namespace gpu {
 namespace gl4 {
 
 using namespace xe::gpu::ucode;
-using namespace xe::gpu::xenos;
+
+using xe::gpu::xenos::VertexFormat;
 
 #define Append(...) output_.AppendFormat(__VA_ARGS__)
 
@@ -68,7 +71,8 @@ void GL4ShaderTranslator::Reset(GL4Shader* shader) {
 }
 
 std::string GL4ShaderTranslator::TranslateVertexShader(
-    GL4Shader* vertex_shader, const xe_gpu_program_cntl_t& program_cntl) {
+    GL4Shader* vertex_shader,
+    const xenos::xe_gpu_program_cntl_t& program_cntl) {
   Reset(vertex_shader);
 
   // Normal shaders only, for now.
@@ -105,13 +109,13 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
 
 #if FLOW_CONTROL
   // Add temporary integer registers for loops that we may use.
-  // Each loop uses an address, counter, and constant
-  // TODO: Implement only for the used loops in the shader
+  // Each loop uses an address, counter, and constant.
+  // TODO(benvanik): Implement only for the used loops in the shader.
   for (uint32_t n = 0; n < 32; n++) {
     Append("  int i%d_cnt = 0;\n", n);
     Append("  int i%d_addr = 0;\n", n);
   }
-#endif
+#endif  // FLOW_CONTROL
 
   Append("  vec4 t;\n");
   Append("  vec4 pv;\n");   // Previous Vector result.
@@ -127,7 +131,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
 }
 
 std::string GL4ShaderTranslator::TranslatePixelShader(
-    GL4Shader* pixel_shader, const xe_gpu_program_cntl_t& program_cntl) {
+    GL4Shader* pixel_shader, const xenos::xe_gpu_program_cntl_t& program_cntl) {
   Reset(pixel_shader);
 
   // We need an input VS to make decisions here.
@@ -161,7 +165,7 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   return output_.to_string();
 }
 
-void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, int i) {
+void GL4ShaderTranslator::AppendSrcReg(const ucode::instr_alu_t& op, int i) {
   switch (i) {
     case 1: {
       int const_slot = 0;
@@ -184,9 +188,10 @@ void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, int i) {
   }
 }
 
-void GL4ShaderTranslator::AppendSrcReg(const instr_alu_t& op, uint32_t num,
-                                       uint32_t type, uint32_t swiz,
-                                       uint32_t negate, int const_slot) {
+void GL4ShaderTranslator::AppendSrcReg(const ucode::instr_alu_t& op,
+                                       uint32_t num, uint32_t type,
+                                       uint32_t swiz, uint32_t negate,
+                                       int const_slot) {
   if (negate) {
     Append("-");
   }
@@ -271,7 +276,7 @@ void GL4ShaderTranslator::PrintSrcReg(uint32_t num, uint32_t type,
   }
 }
 
-void GL4ShaderTranslator::PrintVectorDstReg(const instr_alu_t& alu) {
+void GL4ShaderTranslator::PrintVectorDstReg(const ucode::instr_alu_t& alu) {
   Append("%s%u", alu.export_data ? "export" : "R", alu.vector_dest);
   auto mask = alu.scalar_write_mask;
   if (mask != 0xf) {
@@ -283,7 +288,7 @@ void GL4ShaderTranslator::PrintVectorDstReg(const instr_alu_t& alu) {
   }
 }
 
-void GL4ShaderTranslator::PrintScalarDstReg(const instr_alu_t& alu) {
+void GL4ShaderTranslator::PrintScalarDstReg(const ucode::instr_alu_t& alu) {
   Append("%s%u", alu.export_data ? "export" : "R",
          alu.export_data ? alu.vector_dest : alu.scalar_dest);
   auto mask = alu.scalar_write_mask;
@@ -494,7 +499,7 @@ void GL4ShaderTranslator::AppendOpDestRegName(const ucode::instr_alu_t& op,
   }
 }
 
-bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_ADDv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   AppendVectorOpSrcReg(alu, 1);
   Append(" + ");
@@ -503,7 +508,7 @@ bool GL4ShaderTranslator::TranslateALU_ADDv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MULv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   AppendVectorOpSrcReg(alu, 1);
   Append(" * ");
@@ -512,7 +517,7 @@ bool GL4ShaderTranslator::TranslateALU_MULv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MAXv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   if (alu.src1_reg == alu.src2_reg && alu.src1_sel == alu.src2_sel &&
       alu.src1_swiz == alu.src2_swiz &&
@@ -530,7 +535,7 @@ bool GL4ShaderTranslator::TranslateALU_MAXv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MINv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("min(");
   AppendVectorOpSrcReg(alu, 1);
@@ -541,7 +546,7 @@ bool GL4ShaderTranslator::TranslateALU_MINv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
+bool GL4ShaderTranslator::TranslateALU_SETXXv(const ucode::instr_alu_t& alu,
                                               const char* op) {
   BeginAppendVectorOp(alu);
   Append("vec4((");
@@ -564,20 +569,20 @@ bool GL4ShaderTranslator::TranslateALU_SETXXv(const instr_alu_t& alu,
   EndAppendVectorOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_SETEv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETEv(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXv(alu, "==");
 }
-bool GL4ShaderTranslator::TranslateALU_SETGTv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETGTv(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXv(alu, ">");
 }
-bool GL4ShaderTranslator::TranslateALU_SETGTEv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETGTEv(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXv(alu, ">=");
 }
-bool GL4ShaderTranslator::TranslateALU_SETNEv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETNEv(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXv(alu, "!=");
 }
 
-bool GL4ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_FRACv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("fract(");
   AppendVectorOpSrcReg(alu, 1);
@@ -586,7 +591,7 @@ bool GL4ShaderTranslator::TranslateALU_FRACv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_TRUNCv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("trunc(");
   AppendVectorOpSrcReg(alu, 1);
@@ -595,7 +600,7 @@ bool GL4ShaderTranslator::TranslateALU_TRUNCv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_FLOORv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("floor(");
   AppendVectorOpSrcReg(alu, 1);
@@ -604,7 +609,7 @@ bool GL4ShaderTranslator::TranslateALU_FLOORv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MULADDv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("(");
   AppendVectorOpSrcReg(alu, 1);
@@ -616,7 +621,7 @@ bool GL4ShaderTranslator::TranslateALU_MULADDv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
+bool GL4ShaderTranslator::TranslateALU_CNDXXv(const ucode::instr_alu_t& alu,
                                               const char* op) {
   BeginAppendVectorOp(alu);
   // TODO(benvanik): check argument order - could be 3 as compare and 1 and 2 as
@@ -649,17 +654,17 @@ bool GL4ShaderTranslator::TranslateALU_CNDXXv(const instr_alu_t& alu,
   EndAppendVectorOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_CNDEv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_CNDEv(const ucode::instr_alu_t& alu) {
   return TranslateALU_CNDXXv(alu, "==");
 }
-bool GL4ShaderTranslator::TranslateALU_CNDGTEv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_CNDGTEv(const ucode::instr_alu_t& alu) {
   return TranslateALU_CNDXXv(alu, ">=");
 }
-bool GL4ShaderTranslator::TranslateALU_CNDGTv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_CNDGTv(const ucode::instr_alu_t& alu) {
   return TranslateALU_CNDXXv(alu, ">");
 }
 
-bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_DOT4v(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("dot(");
   AppendVectorOpSrcReg(alu, 1);
@@ -670,7 +675,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT4v(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_DOT3v(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("dot(vec4(");
   AppendVectorOpSrcReg(alu, 1);
@@ -681,7 +686,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT3v(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("dot(vec4(");
   AppendVectorOpSrcReg(alu, 1);
@@ -694,7 +699,7 @@ bool GL4ShaderTranslator::TranslateALU_DOT2ADDv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_CUBEv(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_CUBEv(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("cube(");
   AppendVectorOpSrcReg(alu, 1);
@@ -705,7 +710,7 @@ bool GL4ShaderTranslator::TranslateALU_CUBEv(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MAX4v(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MAX4v(const ucode::instr_alu_t& alu) {
   BeginAppendVectorOp(alu);
   Append("max(");
   Append("max(");
@@ -793,7 +798,7 @@ bool GL4ShaderTranslator::TranslateALU_MOVAv(const ucode::instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_ADDs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_ADDs(const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   AppendScalarOpSrcReg(alu, 3);
   Append(".x + ");
@@ -803,7 +808,8 @@ bool GL4ShaderTranslator::TranslateALU_ADDs(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_ADD_PREVs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_ADD_PREVs(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   AppendSrcReg(alu, 3);
   Append(".x + ps");
@@ -811,7 +817,7 @@ bool GL4ShaderTranslator::TranslateALU_ADD_PREVs(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MULs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MULs(const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   AppendScalarOpSrcReg(alu, 3);
   Append(".x * ");
@@ -821,7 +827,8 @@ bool GL4ShaderTranslator::TranslateALU_MULs(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MUL_PREVs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MUL_PREVs(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   AppendSrcReg(alu, 3);
   Append(".x * ps");
@@ -831,7 +838,7 @@ bool GL4ShaderTranslator::TranslateALU_MUL_PREVs(const instr_alu_t& alu) {
 
 // ...
 
-bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MAXs(const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   if ((alu.src3_swiz & 0x3) == (((alu.src3_swiz >> 2) + 1) & 0x3)) {
     // This is a mov.
@@ -847,7 +854,7 @@ bool GL4ShaderTranslator::TranslateALU_MAXs(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MINs(const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   Append("min(");
   AppendScalarOpSrcReg(alu, 3);
@@ -858,7 +865,7 @@ bool GL4ShaderTranslator::TranslateALU_MINs(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
+bool GL4ShaderTranslator::TranslateALU_SETXXs(const ucode::instr_alu_t& alu,
                                               const char* op) {
   BeginAppendScalarOp(alu);
   Append("(");
@@ -867,16 +874,16 @@ bool GL4ShaderTranslator::TranslateALU_SETXXs(const instr_alu_t& alu,
   EndAppendScalarOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_SETEs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETEs(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXs(alu, "==");
 }
-bool GL4ShaderTranslator::TranslateALU_SETGTs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETGTs(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXs(alu, ">");
 }
-bool GL4ShaderTranslator::TranslateALU_SETGTEs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETGTEs(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXs(alu, ">=");
 }
-bool GL4ShaderTranslator::TranslateALU_SETNEs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SETNEs(const ucode::instr_alu_t& alu) {
   return TranslateALU_SETXXs(alu, "!=");
 }
 
@@ -907,7 +914,7 @@ bool GL4ShaderTranslator::TranslateALU_FLOORs(const ucode::instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_EXP_IEEE(const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   Append("pow(2.0, ");
   AppendScalarOpSrcReg(alu, 3);
@@ -936,7 +943,8 @@ bool GL4ShaderTranslator::TranslateALU_LOG_IEEE(const ucode::instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_RECIP_CLAMP(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_RECIP_CLAMP(
+    const ucode::instr_alu_t& alu) {
   // if result == -inf result = -flt_max
   // if result == +inf result = flt_max
   BeginAppendScalarOp(alu);
@@ -946,7 +954,7 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_CLAMP(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_RECIP_FF(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_RECIP_FF(const ucode::instr_alu_t& alu) {
   // if result == -inf result = -zero
   // if result == +inf result = zero
   BeginAppendScalarOp(alu);
@@ -956,7 +964,8 @@ bool GL4ShaderTranslator::TranslateALU_RECIP_FF(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_RECIP_IEEE(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   Append("1.0 / ");
   AppendScalarOpSrcReg(alu, 3);
@@ -1037,7 +1046,7 @@ bool GL4ShaderTranslator::TranslateALU_MOVA_FLOORs(
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_SUBs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SUBs(const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   AppendScalarOpSrcReg(alu, 3);
   Append(".x - ");
@@ -1056,8 +1065,8 @@ bool GL4ShaderTranslator::TranslateALU_SUB_PREVs(
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(const instr_alu_t& alu,
-                                                   const char* op) {
+bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(
+    const ucode::instr_alu_t& alu, const char* op) {
   Append("  p = ");
   AppendScalarOpSrcReg(alu, 3);
   Append(".x %s 0.0;\n", op);
@@ -1066,16 +1075,20 @@ bool GL4ShaderTranslator::TranslateALU_PRED_SETXXs(const instr_alu_t& alu,
   EndAppendScalarOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_PRED_SETEs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_PRED_SETEs(
+    const ucode::instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, "==");
 }
-bool GL4ShaderTranslator::TranslateALU_PRED_SETNEs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_PRED_SETNEs(
+    const ucode::instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, "!=");
 }
-bool GL4ShaderTranslator::TranslateALU_PRED_SETGTs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_PRED_SETGTs(
+    const ucode::instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, ">");
 }
-bool GL4ShaderTranslator::TranslateALU_PRED_SETGTEs(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_PRED_SETGTEs(
+    const ucode::instr_alu_t& alu) {
   return TranslateALU_PRED_SETXXs(alu, ">=");
 }
 
@@ -1105,7 +1118,8 @@ bool GL4ShaderTranslator::TranslateALU_PRED_SET_POPs(
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   Append("sqrt(");
   AppendScalarOpSrcReg(alu, 3);
@@ -1114,7 +1128,8 @@ bool GL4ShaderTranslator::TranslateALU_SQRT_IEEE(const instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
@@ -1130,11 +1145,13 @@ bool GL4ShaderTranslator::TranslateALU_MUL_CONST_0(const instr_alu_t& alu) {
   EndAppendScalarOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_MUL_CONST_1(
+    const ucode::instr_alu_t& alu) {
   return TranslateALU_MUL_CONST_0(alu);
 }
 
-bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
@@ -1150,11 +1167,13 @@ bool GL4ShaderTranslator::TranslateALU_ADD_CONST_0(const instr_alu_t& alu) {
   EndAppendScalarOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_ADD_CONST_1(
+    const ucode::instr_alu_t& alu) {
   return TranslateALU_ADD_CONST_0(alu);
 }
 
-bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(
+    const ucode::instr_alu_t& alu) {
   BeginAppendScalarOp(alu);
   uint32_t src3_swiz = alu.src3_swiz & ~0x3C;
   uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
@@ -1170,7 +1189,8 @@ bool GL4ShaderTranslator::TranslateALU_SUB_CONST_0(const instr_alu_t& alu) {
   EndAppendScalarOp(alu);
   return true;
 }
-bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_SUB_CONST_1(
+    const ucode::instr_alu_t& alu) {
   // Handled as switch on scalar_opc.
   return TranslateALU_SUB_CONST_0(alu);
 }
@@ -1193,7 +1213,8 @@ bool GL4ShaderTranslator::TranslateALU_COS(const ucode::instr_alu_t& alu) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
+bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(
+    const ucode::instr_alu_t& alu) {
   // TODO(benvanik): figure out how this is used.
   // It seems like vector writes to export regs will use this to write 1's to
   // components (like w in position).
@@ -1203,7 +1224,7 @@ bool GL4ShaderTranslator::TranslateALU_RETAIN_PREV(const instr_alu_t& alu) {
   return true;
 }
 
-typedef bool (GL4ShaderTranslator::*TranslateFn)(const instr_alu_t& alu);
+typedef bool (GL4ShaderTranslator::*TranslateFn)(const ucode::instr_alu_t& alu);
 typedef struct {
   uint32_t num_srcs;
   const char* name;
@@ -1214,7 +1235,8 @@ typedef struct {
 #define ALU_INSTR_IMPL(opc, num_srcs) \
   { num_srcs, #opc, &GL4ShaderTranslator::TranslateALU_##opc }
 
-bool GL4ShaderTranslator::TranslateALU(const instr_alu_t* alu, int sync) {
+bool GL4ShaderTranslator::TranslateALU(const ucode::instr_alu_t* alu,
+                                       int sync) {
   static TranslateInfo vector_alu_instrs[0x20] = {
       ALU_INSTR_IMPL(ADDv, 2),               // 0
       ALU_INSTR_IMPL(MULv, 2),               // 1
@@ -1446,8 +1468,8 @@ bool GL4ShaderTranslator::TranslateBlocks(GL4Shader* shader) {
 #endif  // FLOW_CONTROL
 
   // Process all execution blocks.
-  instr_cf_t cfa;
-  instr_cf_t cfb;
+  ucode::instr_cf_t cfa;
+  ucode::instr_cf_t cfb;
   auto data = shader->data();
   bool needs_break = false;
   for (uint32_t idx = 0; idx < shader->dword_count(); idx += 3) {
@@ -1496,7 +1518,7 @@ bool GL4ShaderTranslator::TranslateBlocks(GL4Shader* shader) {
     else if (cfb.opc == LOOP_END) {
       TranslateLoopEnd(cfb.loop);
     }
-#endif
+#endif  // FLOW_CONTROL
 
     if (cfa.opc == EXEC_END || cfb.opc == EXEC_END) {
       break;
@@ -1545,7 +1567,7 @@ static const struct {
 #undef INSTR
 };
 
-bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
+bool GL4ShaderTranslator::TranslateExec(const ucode::instr_cf_exec_t& cf) {
   Append("  // %s ADDR(0x%x) CNT(0x%x)", cf_instructions[cf.opc].name,
          cf.address, cf.count);
   if (cf.yeild) {
@@ -1616,7 +1638,8 @@ bool GL4ShaderTranslator::TranslateExec(const instr_cf_exec_t& cf) {
           break;
       }
     } else {
-      const instr_alu_t* alu = (const instr_alu_t*)(dwords_ + alu_off * 3);
+      const ucode::instr_alu_t* alu =
+          (const ucode::instr_alu_t*)(dwords_ + alu_off * 3);
       AppendPredPre(cf.is_cond_exec(), cf.pred_condition, alu->pred_select,
                     alu->pred_condition);
       if (!TranslateALU(alu, sync)) {
@@ -1702,8 +1725,8 @@ bool GL4ShaderTranslator::TranslateLoopEnd(const ucode::instr_cf_loop_t& cf) {
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
-                                               int sync) {
+bool GL4ShaderTranslator::TranslateVertexFetch(
+    const ucode::instr_fetch_vtx_t* vtx, int sync) {
   static const struct {
     const char* name;
   } fetch_types[0xff] = {
@@ -1834,8 +1857,8 @@ bool GL4ShaderTranslator::TranslateVertexFetch(const instr_fetch_vtx_t* vtx,
   return true;
 }
 
-bool GL4ShaderTranslator::TranslateTextureFetch(const instr_fetch_tex_t* tex,
-                                                int sync) {
+bool GL4ShaderTranslator::TranslateTextureFetch(
+    const ucode::instr_fetch_tex_t* tex, int sync) {
   int src_component_count = 0;
   const char* sampler_type;
   switch (tex->dimension) {

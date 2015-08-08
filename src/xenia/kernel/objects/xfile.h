@@ -10,12 +10,13 @@
 #ifndef XENIA_KERNEL_OBJECTS_XFILE_H_
 #define XENIA_KERNEL_OBJECTS_XFILE_H_
 
+#include <string>
+
 #include "xenia/base/filesystem.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
-
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -53,10 +54,10 @@ class X_FILE_DIRECTORY_INFORMATION {
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
-    uint8_t* src = (uint8_t*)this;
+    uint8_t* src = reinterpret_cast<uint8_t*>(this);
     X_FILE_DIRECTORY_INFORMATION* info;
     do {
-      info = (X_FILE_DIRECTORY_INFORMATION*)src;
+      info = reinterpret_cast<X_FILE_DIRECTORY_INFORMATION*>(src);
       xe::store_and_swap<uint32_t>(dst, info->next_entry_offset);
       xe::store_and_swap<uint32_t>(dst + 4, info->file_index);
       xe::store_and_swap<uint64_t>(dst + 8, info->creation_time);

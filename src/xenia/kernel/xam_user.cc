@@ -72,8 +72,8 @@ SHIM_CALL XamUserGetSigninInfo_shim(PPCContext* ppc_context,
     SHIM_SET_MEM_32(info_ptr + 12, user_profile->signin_state());
     SHIM_SET_MEM_32(info_ptr + 16, 0);  // ?
     SHIM_SET_MEM_32(info_ptr + 20, 0);  // ?
-    char* buffer = (char*)SHIM_MEM_ADDR(info_ptr + 24);
-    strcpy(buffer, user_profile->name().data());
+    char* buffer = reinterpret_cast<char*>(SHIM_MEM_ADDR(info_ptr + 24));
+    std::strcpy(buffer, user_profile->name().data());
     SHIM_SET_RETURN_32(0);
   } else {
     SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
@@ -90,8 +90,8 @@ SHIM_CALL XamUserGetName_shim(PPCContext* ppc_context,
 
   if (user_index == 0) {
     const auto& user_profile = kernel_state->user_profile();
-    char* buffer = (char*)SHIM_MEM_ADDR(buffer_ptr);
-    strcpy(buffer, user_profile->name().data());
+    char* buffer = reinterpret_cast<char*>(SHIM_MEM_ADDR(buffer_ptr));
+    std::strcpy(buffer, user_profile->name().data());
     SHIM_SET_RETURN_32(0);
   } else {
     SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
@@ -210,12 +210,13 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     return;
   }
 
-  auto out_header = (X_USER_READ_PROFILE_SETTINGS*)SHIM_MEM_ADDR(buffer_ptr);
+  auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(
+      SHIM_MEM_ADDR(buffer_ptr));
   out_header->setting_count = setting_count;
   out_header->settings_ptr = buffer_ptr + 8;
 
-  auto out_setting =
-      (X_USER_READ_PROFILE_SETTING*)SHIM_MEM_ADDR(out_header->settings_ptr);
+  auto out_setting = reinterpret_cast<X_USER_READ_PROFILE_SETTING*>(
+      SHIM_MEM_ADDR(out_header->settings_ptr));
 
   size_t buffer_offset = base_size_needed;
   for (uint32_t n = 0; n < setting_count; ++n) {
@@ -231,9 +232,11 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
       buffer_offset =
           setting->Append(&out_setting->setting_data[0],
                           SHIM_MEM_ADDR(buffer_ptr), buffer_ptr, buffer_offset);
-    } /*else {
+    }
+    // TODO(benvanik): why did I do this?
+    /*else {
       std::memset(&out_setting->setting_data[0], 0,
-    sizeof(out_setting->setting_data));
+                  sizeof(out_setting->setting_data));
     }*/
     ++out_setting;
   }
@@ -280,7 +283,7 @@ SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_context,
     return;
   }
 
-  // TODO: Update and save settings.
+  // TODO(benvanik): update and save settings.
   // const auto& user_profile = kernel_state->user_profile();
 
   if (overlapped_ptr) {

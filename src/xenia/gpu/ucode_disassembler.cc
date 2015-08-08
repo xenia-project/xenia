@@ -149,13 +149,13 @@ void print_export_comment(StringBuffer* output, uint32_t num, ShaderType type) {
   }
 }
 
+#define INSTR(opc, num_srcs) \
+  { num_srcs, #opc }
 struct {
   uint32_t num_srcs;
   const char* name;
 } vector_instructions[0x20] =
     {
-#define INSTR(opc, num_srcs) \
-  { num_srcs, #opc }
         INSTR(ADDv, 2),               // 0
         INSTR(MULv, 2),               // 1
         INSTR(MAXv, 2),               // 2
@@ -167,7 +167,7 @@ struct {
         INSTR(FRACv, 1),              // 8
         INSTR(TRUNCv, 1),             // 9
         INSTR(FLOORv, 1),             // 10
-        INSTR(MULADDv, 3),            // 111
+        INSTR(MULADDv, 3),            // 11
         INSTR(CNDEv, 3),              // 12
         INSTR(CNDGTEv, 3),            // 13
         INSTR(CNDGTv, 3),             // 14
@@ -229,16 +229,16 @@ struct {
       INSTR(KILLNEs, 1),            // 38
       INSTR(KILLONEs, 1),           // 39
       INSTR(SQRT_IEEE, 1),          // 40
-      {0, 0},
-      INSTR(MUL_CONST_0, 2),  // 42
-      INSTR(MUL_CONST_1, 2),  // 43
-      INSTR(ADD_CONST_0, 2),  // 44
-      INSTR(ADD_CONST_1, 2),  // 45
-      INSTR(SUB_CONST_0, 2),  // 46
-      INSTR(SUB_CONST_1, 2),  // 47
-      INSTR(SIN, 1),          // 48
-      INSTR(COS, 1),          // 49
-      INSTR(RETAIN_PREV, 1),  // 50
+      {0, 0},                       //
+      INSTR(MUL_CONST_0, 2),        // 42
+      INSTR(MUL_CONST_1, 2),        // 43
+      INSTR(ADD_CONST_0, 2),        // 44
+      INSTR(ADD_CONST_1, 2),        // 45
+      INSTR(SUB_CONST_0, 2),        // 46
+      INSTR(SUB_CONST_1, 2),        // 47
+      INSTR(SIN, 1),                // 48
+      INSTR(COS, 1),                // 49
+      INSTR(RETAIN_PREV, 1),        // 50
 #undef INSTR
 };
 
@@ -701,7 +701,7 @@ struct {
 static void print_cf(StringBuffer* output, const instr_cf_t* cf, int level) {
   output->Append(levels[level]);
 
-  const uint16_t* words = (uint16_t*)cf;
+  auto words = reinterpret_cast<const uint16_t*>(cf);
   output->AppendFormat("    %04x %04x %04x            \t", words[0], words[1],
                        words[2]);
 

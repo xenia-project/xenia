@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HID_WINKEY_WINKEY_DRIVER_H_
-#define XENIA_HID_WINKEY_WINKEY_DRIVER_H_
+#ifndef XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_
+#define XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_
 
 #include "xenia/hid/input_driver.h"
 
@@ -18,7 +18,7 @@ namespace winkey {
 
 class WinKeyInputDriver : public InputDriver {
  public:
-  WinKeyInputDriver(InputSystem* input_system);
+  explicit WinKeyInputDriver(InputSystem* input_system);
   ~WinKeyInputDriver() override;
 
   X_STATUS Setup() override;
@@ -38,4 +38,4 @@ class WinKeyInputDriver : public InputDriver {
 }  // namespace hid
 }  // namespace xe
 
-#endif  // XENIA_HID_WINKEY_WINKEY_DRIVER_H_
+#endif  // XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_

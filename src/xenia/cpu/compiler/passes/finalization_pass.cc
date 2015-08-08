@@ -44,7 +44,7 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
     while (label) {
       if (!label->name) {
         const size_t label_len = 6 + 4 + 1;
-        char* name = (char*)arena->Alloc(label_len);
+        char* name = reinterpret_cast<char*>(arena->Alloc(label_len));
         snprintf(name, label_len, "_label%d", label->id);
         label->name = name;
       }

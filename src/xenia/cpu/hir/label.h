@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_HIR_LABEL_H_
-#define XENIA_HIR_LABEL_H_
+#ifndef XENIA_CPU_HIR_LABEL_H_
+#define XENIA_CPU_HIR_LABEL_H_
 
 namespace xe {
 namespace cpu {
@@ -32,4 +32,4 @@ class Label {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_HIR_LABEL_H_
+#endif  // XENIA_CPU_HIR_LABEL_H_

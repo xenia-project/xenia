@@ -66,7 +66,7 @@ class XXMPApp : public XApp {
     std::vector<std::unique_ptr<Song>> songs;
   };
 
-  XXMPApp(KernelState* kernel_state);
+  explicit XXMPApp(KernelState* kernel_state);
 
   X_RESULT XMPGetStatus(uint32_t status_ptr);
 

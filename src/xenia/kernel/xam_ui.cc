@@ -27,7 +27,7 @@ SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
 
 class MessageBoxWindow : public el::ModalForm {
  public:
-  MessageBoxWindow(xe::threading::Fence* fence)
+  explicit MessageBoxWindow(xe::threading::Fence* fence)
       : ModalForm([fence]() { fence->Signal(); }) {}
   ~MessageBoxWindow() override = default;
 
@@ -51,7 +51,7 @@ class MessageBoxWindow : public el::ModalForm {
 
  protected:
   void BuildUI() override {
-    using namespace el::dsl;
+    using namespace el::dsl;  // NOLINT(build/namespaces)
 
     set_text(xe::to_string(title_));
 
@@ -170,7 +170,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
 
 class KeyboardInputWindow : public el::ModalForm {
  public:
-  KeyboardInputWindow(xe::threading::Fence* fence)
+  explicit KeyboardInputWindow(xe::threading::Fence* fence)
       : ModalForm([fence]() { fence->Signal(); }) {}
   ~KeyboardInputWindow() override = default;
 
@@ -196,7 +196,7 @@ class KeyboardInputWindow : public el::ModalForm {
 
  protected:
   void BuildUI() override {
-    using namespace el::dsl;
+    using namespace el::dsl;  // NOLINT(build/namespaces)
 
     set_text(xe::to_string(title_));
 
@@ -343,13 +343,13 @@ DECLARE_XAM_EXPORT(XamShowDeviceSelectorUI, ExportTag::kImplemented);
 
 class DirtyDiscWindow : public el::ModalForm {
  public:
-  DirtyDiscWindow(xe::threading::Fence* fence)
+  explicit DirtyDiscWindow(xe::threading::Fence* fence)
       : ModalForm([fence]() { fence->Signal(); }) {}
   ~DirtyDiscWindow() override = default;
 
  protected:
   void BuildUI() override {
-    using namespace el::dsl;
+    using namespace el::dsl;  // NOLINT(build/namespaces)
 
     set_text("Disc Read Error");
 

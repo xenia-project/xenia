@@ -29,7 +29,7 @@ class InputDriver;
 
 class InputSystem {
  public:
-  InputSystem(Emulator* emulator);
+  explicit InputSystem(Emulator* emulator);
   ~InputSystem();
 
   static std::unique_ptr<InputSystem> Create(Emulator* emulator);
@@ -50,9 +50,9 @@ class InputSystem {
                         X_INPUT_KEYSTROKE* out_keystroke);
 
  private:
-  Emulator* emulator_;
-  Memory* memory_;
-  cpu::Processor* processor_;
+  Emulator* emulator_ = nullptr;
+  Memory* memory_ = nullptr;
+  cpu::Processor* processor_ = nullptr;
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;
 };

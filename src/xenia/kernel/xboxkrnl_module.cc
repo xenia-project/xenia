@@ -11,6 +11,8 @@
 
 #include <gflags/gflags.h>
 
+#include <vector>
+
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"

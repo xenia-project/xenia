@@ -46,7 +46,7 @@ enum class ExecutionState {
 
 class Debugger {
  public:
-  Debugger(Emulator* emulator);
+  explicit Debugger(Emulator* emulator);
   ~Debugger();
 
   Emulator* emulator() const { return emulator_; }
@@ -69,7 +69,7 @@ class Debugger {
   int AddBreakpoint(Breakpoint* breakpoint);
   int RemoveBreakpoint(Breakpoint* breakpoint);
   void FindBreakpoints(uint32_t address,
-                       std::vector<Breakpoint*>& out_breakpoints);
+                       std::vector<Breakpoint*>* out_breakpoints);
 
   // TODO(benvanik): utility functions for modification (make function ignored,
   // etc).

@@ -106,7 +106,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
       }
       comment_buffer_.Reset();
       comment_buffer_.AppendFormat("%.8X %.8X ", address, i.code);
-      DisasmPPC(i, &comment_buffer_);
+      DisasmPPC(&i, &comment_buffer_);
       Comment(comment_buffer_);
       first_instr = last_instr();
     }

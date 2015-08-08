@@ -7,8 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XAM_H_
-#define XENIA_KERNEL_XAM_H_
+#ifndef XENIA_KERNEL_XAM_MODULE_H_
+#define XENIA_KERNEL_XAM_MODULE_H_
+
+#include <string>
 
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/objects/xkernel_module.h"
@@ -41,4 +43,4 @@ class XamModule : public XKernelModule {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XAM_H_
+#endif  // XENIA_KERNEL_XAM_MODULE_H_

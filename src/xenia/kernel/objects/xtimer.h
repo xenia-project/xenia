@@ -19,7 +19,7 @@ namespace kernel {
 
 class XTimer : public XObject {
  public:
-  XTimer(KernelState* kernel_state);
+  explicit XTimer(KernelState* kernel_state);
   ~XTimer() override;
 
   void Initialize(uint32_t timer_type);
@@ -41,4 +41,4 @@ class XTimer : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_OBJECTS_TIMER_H_
+#endif  // XENIA_KERNEL_OBJECTS_XTIMER_H_

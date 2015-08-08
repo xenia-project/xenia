@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_FRONTEND_CONTEXT_INFO_H_
-#define XENIA_FRONTEND_CONTEXT_INFO_H_
+#ifndef XENIA_CPU_FRONTEND_CONTEXT_INFO_H_
+#define XENIA_CPU_FRONTEND_CONTEXT_INFO_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -38,4 +38,4 @@ class ContextInfo {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_FRONTEND_CONTEXT_INFO_H_
+#endif  // XENIA_CPU_FRONTEND_CONTEXT_INFO_H_

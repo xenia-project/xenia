@@ -441,9 +441,10 @@ DECLARE_XBOXKRNL_EXPORT(KeInitializeEvent,
 
 dword_result_t KeSetEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
                           dword_t wait) {
-  // Update dispatch header
-  xe::atomic_exchange(xe::byte_swap<uint32_t>(1),
-                      (uint32_t*)&event_ptr->header.signal_state);
+  // Update dispatch header.
+  xe::atomic_exchange(
+      xe::byte_swap<uint32_t>(1),
+      reinterpret_cast<uint32_t*>(&event_ptr->header.signal_state));
 
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {
@@ -469,8 +470,9 @@ dword_result_t KePulseEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
 DECLARE_XBOXKRNL_EXPORT(KePulseEvent, ExportTag::kImplemented);
 
 dword_result_t KeResetEvent(pointer_t<X_KEVENT> event_ptr) {
-  // Update dispatch header
-  xe::atomic_exchange(0, (uint32_t*)&event_ptr->header.signal_state);
+  // Update dispatch header.
+  xe::atomic_exchange(
+      0, reinterpret_cast<uint32_t*>(&event_ptr->header.signal_state));
 
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {

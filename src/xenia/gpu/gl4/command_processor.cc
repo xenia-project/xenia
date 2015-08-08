@@ -483,7 +483,8 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
   // CP_RB_CNTL Ring Buffer Control 0x704
   // block_size = RB_BLKSZ, number of quadwords read between updates of the
   //              read pointer.
-  read_ptr_update_freq_ = (uint32_t)pow(2.0, (double)block_size) / 4;
+  read_ptr_update_freq_ =
+      static_cast<uint32_t>(pow(2.0, static_cast<double>(block_size)) / 4);
 }
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
@@ -1595,22 +1596,22 @@ bool CommandProcessor::IssueDraw() {
   return true;
 }
 
-bool CommandProcessor::SetShadowRegister(uint32_t& dest,
+bool CommandProcessor::SetShadowRegister(uint32_t* dest,
                                          uint32_t register_name) {
   uint32_t value = register_file_->values[register_name].u32;
-  if (dest == value) {
+  if (*dest == value) {
     return false;
   }
-  dest = value;
+  *dest = value;
   return true;
 }
 
-bool CommandProcessor::SetShadowRegister(float& dest, uint32_t register_name) {
+bool CommandProcessor::SetShadowRegister(float* dest, uint32_t register_name) {
   float value = register_file_->values[register_name].f32;
-  if (dest == value) {
+  if (*dest == value) {
     return false;
   }
-  dest = value;
+  *dest = value;
   return true;
 }
 
@@ -1628,9 +1629,9 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateShaders(
               register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
 
   bool dirty = false;
-  dirty |=
-      SetShadowRegister(regs.pa_su_sc_mode_cntl, XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
+  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
   dirty |= regs.vertex_shader != active_vertex_shader_;
   dirty |= regs.pixel_shader != active_pixel_shader_;
   dirty |= regs.prim_type != prim_type;
@@ -1769,17 +1770,17 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRenderTargets() {
   auto& regs = update_render_targets_regs_;
 
   bool dirty = false;
-  dirty |= SetShadowRegister(regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
-  dirty |= SetShadowRegister(regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |= SetShadowRegister(regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
-  dirty |= SetShadowRegister(regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
-  dirty |= SetShadowRegister(regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
-  dirty |= SetShadowRegister(regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
-  dirty |= SetShadowRegister(regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
-  dirty |= SetShadowRegister(regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
+  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
+  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
+  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |=
-      SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  dirty |= SetShadowRegister(regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
+      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+  dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1893,30 +1894,30 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateViewportState() {
   auto& regs = update_viewport_state_regs_;
 
   bool dirty = false;
-  // dirty |= SetShadowRegister(state_regs.pa_cl_clip_cntl,
+  // dirty |= SetShadowRegister(&state_regs.pa_cl_clip_cntl,
   //     XE_GPU_REG_PA_CL_CLIP_CNTL);
-  dirty |= SetShadowRegister(regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |= SetShadowRegister(regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
-  dirty |=
-      SetShadowRegister(regs.pa_su_sc_mode_cntl, XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(regs.pa_sc_window_offset,
+  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |= SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
+  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.pa_sc_window_offset,
                              XE_GPU_REG_PA_SC_WINDOW_OFFSET);
-  dirty |= SetShadowRegister(regs.pa_sc_window_scissor_tl,
+  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
-  dirty |= SetShadowRegister(regs.pa_sc_window_scissor_br,
+  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
-  dirty |= SetShadowRegister(regs.pa_cl_vport_xoffset,
+  dirty |= SetShadowRegister(&regs.pa_cl_vport_xoffset,
                              XE_GPU_REG_PA_CL_VPORT_XOFFSET);
-  dirty |= SetShadowRegister(regs.pa_cl_vport_yoffset,
+  dirty |= SetShadowRegister(&regs.pa_cl_vport_yoffset,
                              XE_GPU_REG_PA_CL_VPORT_YOFFSET);
-  dirty |= SetShadowRegister(regs.pa_cl_vport_zoffset,
+  dirty |= SetShadowRegister(&regs.pa_cl_vport_zoffset,
                              XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
-  dirty |=
-      SetShadowRegister(regs.pa_cl_vport_xscale, XE_GPU_REG_PA_CL_VPORT_XSCALE);
-  dirty |=
-      SetShadowRegister(regs.pa_cl_vport_yscale, XE_GPU_REG_PA_CL_VPORT_YSCALE);
-  dirty |=
-      SetShadowRegister(regs.pa_cl_vport_zscale, XE_GPU_REG_PA_CL_VPORT_ZSCALE);
+  dirty |= SetShadowRegister(&regs.pa_cl_vport_xscale,
+                             XE_GPU_REG_PA_CL_VPORT_XSCALE);
+  dirty |= SetShadowRegister(&regs.pa_cl_vport_yscale,
+                             XE_GPU_REG_PA_CL_VPORT_YSCALE);
+  dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
+                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
 
   // Much of this state machine is extracted from:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
@@ -2051,13 +2052,13 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateRasterizerState() {
   auto& regs = update_rasterizer_state_regs_;
 
   bool dirty = false;
-  dirty |=
-      SetShadowRegister(regs.pa_su_sc_mode_cntl, XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(regs.pa_sc_screen_scissor_tl,
+  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_tl,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL);
-  dirty |= SetShadowRegister(regs.pa_sc_screen_scissor_br,
+  dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_br,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
-  dirty |= SetShadowRegister(regs.multi_prim_ib_reset_index,
+  dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -2149,17 +2150,17 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateBlendState() {
 
   bool dirty = false;
   dirty |=
-      SetShadowRegister(regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL_0);
+      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL_0);
   dirty |=
-      SetShadowRegister(regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL_1);
+      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL_1);
   dirty |=
-      SetShadowRegister(regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
+      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
   dirty |=
-      SetShadowRegister(regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
-  dirty |= SetShadowRegister(regs.rb_blend_rgba[0], XE_GPU_REG_RB_BLEND_RED);
-  dirty |= SetShadowRegister(regs.rb_blend_rgba[1], XE_GPU_REG_RB_BLEND_GREEN);
-  dirty |= SetShadowRegister(regs.rb_blend_rgba[2], XE_GPU_REG_RB_BLEND_BLUE);
-  dirty |= SetShadowRegister(regs.rb_blend_rgba[3], XE_GPU_REG_RB_BLEND_ALPHA);
+      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
+  dirty |= SetShadowRegister(&regs.rb_blend_rgba[0], XE_GPU_REG_RB_BLEND_RED);
+  dirty |= SetShadowRegister(&regs.rb_blend_rgba[1], XE_GPU_REG_RB_BLEND_GREEN);
+  dirty |= SetShadowRegister(&regs.rb_blend_rgba[2], XE_GPU_REG_RB_BLEND_BLUE);
+  dirty |= SetShadowRegister(&regs.rb_blend_rgba[3], XE_GPU_REG_RB_BLEND_ALPHA);
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -2234,9 +2235,9 @@ CommandProcessor::UpdateStatus CommandProcessor::UpdateDepthStencilState() {
   auto& regs = update_depth_stencil_state_regs_;
 
   bool dirty = false;
-  dirty |= SetShadowRegister(regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
+  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |=
-      SetShadowRegister(regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -2891,7 +2892,8 @@ bool CommandProcessor::IssueCopy() {
   if (depth_clear_enabled && depth_target != kAnyTarget) {
     // Clear the current depth buffer.
     // TODO(benvanik): verify format.
-    GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) / float(0xFFFFFF00)};
+    GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) /
+                     static_cast<float>(0xFFFFFF00)};
     GLint stencil = copy_depth_clear & 0xFF;
     GLboolean old_depth_mask;
     GLint old_stencil_mask;

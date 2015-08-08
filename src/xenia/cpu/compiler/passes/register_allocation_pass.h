@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <functional>
 #include <vector>
 
 #include "xenia/cpu/backend/machine_info.h"
@@ -24,7 +25,7 @@ namespace passes {
 
 class RegisterAllocationPass : public CompilerPass {
  public:
-  RegisterAllocationPass(const backend::MachineInfo* machine_info);
+  explicit RegisterAllocationPass(const backend::MachineInfo* machine_info);
   ~RegisterAllocationPass() override;
 
   bool Run(hir::HIRBuilder* builder) override;

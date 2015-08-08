@@ -25,7 +25,7 @@ namespace proto {
 
 class PacketWriter {
  public:
-  PacketWriter(size_t buffer_capacity) : buffer_(buffer_capacity) {}
+  explicit PacketWriter(size_t buffer_capacity) : buffer_(buffer_capacity) {}
 
   uint8_t* buffer() { return buffer_.data(); }
   size_t buffer_capacity() const { return buffer_.size(); }

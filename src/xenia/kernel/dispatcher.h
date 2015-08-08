@@ -23,7 +23,7 @@ class NativeList;
 
 class Dispatcher {
  public:
-  Dispatcher(KernelState* kernel_state);
+  explicit Dispatcher(KernelState* kernel_state);
   virtual ~Dispatcher();
 
   KernelState* kernel_state() const { return kernel_state_; }

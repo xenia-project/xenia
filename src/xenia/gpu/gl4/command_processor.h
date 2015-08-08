@@ -15,6 +15,7 @@
 #include <functional>
 #include <memory>
 #include <queue>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -64,7 +65,7 @@ enum class SwapMode {
 
 class CommandProcessor {
  public:
-  CommandProcessor(GL4GraphicsSystem* graphics_system);
+  explicit CommandProcessor(GL4GraphicsSystem* graphics_system);
   ~CommandProcessor();
 
   uint32_t counter() const { return counter_; }
@@ -299,8 +300,8 @@ class CommandProcessor {
   xe::ui::gl::CircularBuffer scratch_buffer_;
 
  private:
-  bool SetShadowRegister(uint32_t& dest, uint32_t register_name);
-  bool SetShadowRegister(float& dest, uint32_t register_name);
+  bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
+  bool SetShadowRegister(float* dest, uint32_t register_name);
   struct UpdateRenderTargetsRegisters {
     uint32_t rb_modecontrol;
     uint32_t rb_surface_info;

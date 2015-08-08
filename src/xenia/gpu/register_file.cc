@@ -31,7 +31,7 @@ const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
 #undef XE_GPU_REGISTER
     default:
       return nullptr;
-  };
+  }
 }
 
 }  //  namespace gpu

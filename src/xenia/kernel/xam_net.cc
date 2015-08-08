@@ -20,7 +20,7 @@
 
 // NOTE: must be included last as it expects windows.h to already be included.
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
-#include <winsock2.h>
+#include <winsock2.h>                    // NOLINT(build/include_order)
 
 namespace xe {
 namespace kernel {
@@ -190,7 +190,7 @@ SHIM_CALL NetDll_WSAStartup_shim(PPCContext* ppc_context,
 
   XELOGD("NetDll_WSAStartup(%d, %.4X, %.8X)", caller, version, data_ptr);
 
-  // TODO: Abstraction layer needed
+  // TODO(benvanik): abstraction layer needed.
   WSADATA wsaData;
   ZeroMemory(&wsaData, sizeof(WSADATA));
   int ret = WSAStartup(version, &wsaData);

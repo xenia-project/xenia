@@ -33,9 +33,6 @@ namespace xe {
 namespace cpu {
 namespace frontend {
 
-// TODO(benvanik): remove when enums redefined.
-using namespace xe::cpu;
-
 using xe::cpu::backend::Backend;
 using xe::cpu::compiler::Compiler;
 namespace passes = xe::cpu::compiler::passes;
@@ -208,7 +205,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   }
 
   return true;
-};
+}
 
 void PPCTranslator::DumpSource(GuestFunction* function,
                                StringBuffer* string_buffer) {
@@ -239,7 +236,7 @@ void PPCTranslator::DumpSource(GuestFunction* function,
     }
 
     string_buffer->AppendFormat("%.8X %.8X   ", address, i.code);
-    DisasmPPC(i, string_buffer);
+    DisasmPPC(&i, string_buffer);
     string_buffer->Append('\n');
   }
 }

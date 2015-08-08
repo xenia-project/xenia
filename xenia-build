@@ -955,23 +955,19 @@ class StyleCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, pass_args, cwd):
-    all_files = find_all_source_files()
+    all_files = [file_path for file_path in find_all_source_files()
+                 if not file_path.endswith('_test.cc')]
     print('- cpplint [%d files]' % (len(all_files)))
-    any_errors = False
-    for file_path in all_files:
-      ret = shell_call([
-          'python',
-          'build_tools/third_party/google-styleguide/cpplint/cpplint.py',
-          '--output=vs7',
-          '--linelength=80',
-          '--filter=-build/c++11',
-          '--root=src',
-          file_path,
-          ], throw_on_error=False)
-      if ret:
-        any_errors = True
+    ret = shell_call([
+        'python',
+        'build_tools/third_party/google-styleguide/cpplint/cpplint.py',
+        '--output=vs7',
+        '--linelength=80',
+        '--filter=-build/c++11',
+        '--root=src',
+        ] + all_files, throw_on_error=False)
     print('')
-    if any_errors:
+    if ret:
       print('ERROR: 1+ cpplint calls failed.')
       return 1
     else:

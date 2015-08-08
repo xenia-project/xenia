@@ -987,7 +987,7 @@ int InstrEmit_vmrghw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.z) = (VA.y)
   // (VD.w) = (VB.y)
   Value* v =
-      f.Permute(f.LoadConstantUint32(PERMUTE_MASK(0, 0, 1, 0, 0, 1, 1, 1)),
+      f.Permute(f.LoadConstantUint32(MakePermuteMask(0, 0, 1, 0, 0, 1, 1, 1)),
                 f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
@@ -1028,7 +1028,7 @@ int InstrEmit_vmrglw_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD.z) = (VA.w)
   // (VD.w) = (VB.w)
   Value* v =
-      f.Permute(f.LoadConstantUint32(PERMUTE_MASK(0, 2, 1, 2, 0, 3, 1, 3)),
+      f.Permute(f.LoadConstantUint32(MakePermuteMask(0, 2, 1, 2, 0, 3, 1, 3)),
                 f.LoadVR(va), f.LoadVR(vb), INT32_TYPE);
   f.StoreVR(vd, v);
   return 0;
@@ -1206,7 +1206,7 @@ XEEMITTER(vpermwi128, VX128_P(6, 528), VX128_P)(PPCHIRBuilder& f,
   const uint32_t vd = i.VX128_P.VD128l | (i.VX128_P.VD128h << 5);
   const uint32_t vb = i.VX128_P.VB128l | (i.VX128_P.VB128h << 5);
   uint32_t uimm = i.VX128_P.PERMl | (i.VX128_P.PERMh << 5);
-  uint32_t mask = SWIZZLE_MASK(uimm >> 6, uimm >> 4, uimm >> 2, uimm >> 0);
+  uint32_t mask = MakeSwizzleMask(uimm >> 6, uimm >> 4, uimm >> 2, uimm >> 0);
   Value* v = f.Swizzle(f.LoadVR(vb), INT32_TYPE, mask);
   f.StoreVR(vd, v);
   return 0;
@@ -1347,7 +1347,7 @@ XEEMITTER(vrlimi128, VX128_4(6, 1808), VX128_4)(PPCHIRBuilder& f,
   } else {
     v = f.LoadVR(vb);
   }
-  if (blend_mask != PERMUTE_IDENTITY) {
+  if (blend_mask != kIdentityPermuteMask) {
     v = f.Permute(f.LoadConstantUint32(blend_mask), v, f.LoadVR(vd),
                   INT32_TYPE);
   }
@@ -2053,22 +2053,22 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
   }
   // http://hlssmod.net/he_code/public/pixelwriter.h
   // control = prev:0123 | new:4567
-  uint32_t control = PERMUTE_IDENTITY;  // original
+  uint32_t control = kIdentityPermuteMask;  // original
   switch (pack) {
     case 1:  // VPACK_32
       // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
       switch (shift) {
         case 0:
-          control = PERMUTE_MASK(0, 0, 0, 1, 0, 2, 1, 3);
+          control = MakePermuteMask(0, 0, 0, 1, 0, 2, 1, 3);
           break;
         case 1:
-          control = PERMUTE_MASK(0, 0, 0, 1, 1, 3, 0, 3);
+          control = MakePermuteMask(0, 0, 0, 1, 1, 3, 0, 3);
           break;
         case 2:
-          control = PERMUTE_MASK(0, 0, 1, 3, 0, 2, 0, 3);
+          control = MakePermuteMask(0, 0, 1, 3, 0, 2, 0, 3);
           break;
         case 3:
-          control = PERMUTE_MASK(1, 3, 0, 1, 0, 2, 0, 3);
+          control = MakePermuteMask(1, 3, 0, 1, 0, 2, 0, 3);
           break;
         default:
           assert_unhandled_case(shift);
@@ -2078,16 +2078,16 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
     case 2:  // 64bit
       switch (shift) {
         case 0:
-          control = PERMUTE_MASK(0, 0, 0, 1, 1, 2, 1, 3);
+          control = MakePermuteMask(0, 0, 0, 1, 1, 2, 1, 3);
           break;
         case 1:
-          control = PERMUTE_MASK(0, 0, 1, 2, 1, 3, 0, 3);
+          control = MakePermuteMask(0, 0, 1, 2, 1, 3, 0, 3);
           break;
         case 2:
-          control = PERMUTE_MASK(1, 2, 1, 3, 0, 2, 0, 3);
+          control = MakePermuteMask(1, 2, 1, 3, 0, 2, 0, 3);
           break;
         case 3:
-          control = PERMUTE_MASK(1, 3, 0, 1, 0, 2, 0, 3);
+          control = MakePermuteMask(1, 3, 0, 1, 0, 2, 0, 3);
           break;
         default:
           assert_unhandled_case(shift);
@@ -2097,16 +2097,16 @@ XEEMITTER(vpkd3d128, VX128_4(6, 1552), VX128_4)(PPCHIRBuilder& f,
     case 3:  // 64bit
       switch (shift) {
         case 0:
-          control = PERMUTE_MASK(0, 0, 0, 1, 1, 2, 1, 3);
+          control = MakePermuteMask(0, 0, 0, 1, 1, 2, 1, 3);
           break;
         case 1:
-          control = PERMUTE_MASK(0, 0, 1, 2, 1, 3, 0, 3);
+          control = MakePermuteMask(0, 0, 1, 2, 1, 3, 0, 3);
           break;
         case 2:
-          control = PERMUTE_MASK(1, 2, 1, 3, 0, 2, 0, 3);
+          control = MakePermuteMask(1, 2, 1, 3, 0, 2, 0, 3);
           break;
         case 3:
-          control = PERMUTE_MASK(0, 0, 0, 1, 0, 2, 1, 2);
+          control = MakePermuteMask(0, 0, 0, 1, 0, 2, 1, 2);
           break;
         default:
           assert_unhandled_case(shift);

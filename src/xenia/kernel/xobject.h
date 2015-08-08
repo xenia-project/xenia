@@ -10,14 +10,16 @@
 #ifndef XENIA_KERNEL_XOBJECT_H_
 #define XENIA_KERNEL_XOBJECT_H_
 
+#include <algorithm>
 #include <atomic>
+#include <string>
 
 #include "xenia/base/threading.h"
+#include "xenia/memory.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 class Emulator;
-class Memory;
 }  // namespace xe
 
 namespace xe {
@@ -206,7 +208,8 @@ template <typename T>
 class object_ref {
  public:
   object_ref() noexcept : value_(nullptr) {}
-  object_ref(nullptr_t) noexcept : value_(nullptr) {}
+  object_ref(nullptr_t) noexcept : value_(nullptr) {
+  }  // NOLINT(runtime/explicit)
   object_ref& operator=(nullptr_t) noexcept {
     reset();
     return (*this);
@@ -238,12 +241,12 @@ class object_ref {
   }
 
   object_ref& operator=(const object_ref& right) noexcept {
-    object_ref(right).swap(*this);
+    object_ref(right).swap(*this);  // NOLINT(runtime/explicit): misrecognized?
     return (*this);
   }
   template <typename V>
   object_ref& operator=(const object_ref<V>& right) noexcept {
-    object_ref(right).swap(*this);
+    object_ref(right).swap(*this);  // NOLINT(runtime/explicit): misrecognized?
     return (*this);
   }
 
@@ -296,12 +299,12 @@ class object_ref {
 
 template <class _Ty>
 bool operator==(const object_ref<_Ty>& _Left, nullptr_t) noexcept {
-  return (_Left.get() == (_Ty*)0);
+  return (_Left.get() == reinterpret_cast<_Ty*>(0));
 }
 
 template <class _Ty>
 bool operator==(nullptr_t, const object_ref<_Ty>& _Right) noexcept {
-  return ((_Ty*)0 == _Right.get());
+  return (reinterpret_cast<_Ty*>(0) == _Right.get());
 }
 
 template <class _Ty>

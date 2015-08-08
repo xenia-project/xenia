@@ -28,7 +28,7 @@ namespace kernel {
 
 class NativeList {
  public:
-  NativeList(Memory* memory);
+  explicit NativeList(Memory* memory);
 
   void Insert(uint32_t list_entry_ptr);
   bool IsQueued(uint32_t list_entry_ptr);

@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
 #include <cstring>
+#include <string>
 
 #include "xenia/base/byte_order.h"
 #include "xenia/base/memory.h"
@@ -313,51 +314,51 @@ using pointer_result_t = shim::Result<uint32_t>;
 
 namespace shim {
 
-inline void AppendParam(StringBuffer& string_buffer, int_t param) {
-  string_buffer.AppendFormat("%d", int32_t(param));
+inline void AppendParam(StringBuffer* string_buffer, int_t param) {
+  string_buffer->AppendFormat("%d", int32_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, dword_t param) {
-  string_buffer.AppendFormat("%.8X", uint32_t(param));
+inline void AppendParam(StringBuffer* string_buffer, dword_t param) {
+  string_buffer->AppendFormat("%.8X", uint32_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, qword_t param) {
-  string_buffer.AppendFormat("%.16llX", uint64_t(param));
+inline void AppendParam(StringBuffer* string_buffer, qword_t param) {
+  string_buffer->AppendFormat("%.16llX", uint64_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, float_t param) {
-  string_buffer.AppendFormat("%G", static_cast<float>(param));
+inline void AppendParam(StringBuffer* string_buffer, float_t param) {
+  string_buffer->AppendFormat("%G", static_cast<float>(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, double_t param) {
-  string_buffer.AppendFormat("%G", static_cast<double>(param));
+inline void AppendParam(StringBuffer* string_buffer, double_t param) {
+  string_buffer->AppendFormat("%G", static_cast<double>(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, lpvoid_t param) {
-  string_buffer.AppendFormat("%.8X", uint32_t(param));
+inline void AppendParam(StringBuffer* string_buffer, lpvoid_t param) {
+  string_buffer->AppendFormat("%.8X", uint32_t(param));
 }
-inline void AppendParam(StringBuffer& string_buffer, lpdword_t param) {
-  string_buffer.AppendFormat("%.8X", param.guest_address());
+inline void AppendParam(StringBuffer* string_buffer, lpdword_t param) {
+  string_buffer->AppendFormat("%.8X", param.guest_address());
   if (param) {
-    string_buffer.AppendFormat("(%.8X)", param.value());
+    string_buffer->AppendFormat("(%.8X)", param.value());
   }
 }
-inline void AppendParam(StringBuffer& string_buffer, lpqword_t param) {
-  string_buffer.AppendFormat("%.8X", param.guest_address());
+inline void AppendParam(StringBuffer* string_buffer, lpqword_t param) {
+  string_buffer->AppendFormat("%.8X", param.guest_address());
   if (param) {
-    string_buffer.AppendFormat("(%.16llX)", param.value());
+    string_buffer->AppendFormat("(%.16llX)", param.value());
   }
 }
-inline void AppendParam(StringBuffer& string_buffer, lpfloat_t param) {
-  string_buffer.AppendFormat("%.8X", param.guest_address());
+inline void AppendParam(StringBuffer* string_buffer, lpfloat_t param) {
+  string_buffer->AppendFormat("%.8X", param.guest_address());
   if (param) {
-    string_buffer.AppendFormat("(%G)", param.value());
+    string_buffer->AppendFormat("(%G)", param.value());
   }
 }
-inline void AppendParam(StringBuffer& string_buffer, lpdouble_t param) {
-  string_buffer.AppendFormat("%.8X", param.guest_address());
+inline void AppendParam(StringBuffer* string_buffer, lpdouble_t param) {
+  string_buffer->AppendFormat("%.8X", param.guest_address());
   if (param) {
-    string_buffer.AppendFormat("(%G)", param.value());
+    string_buffer->AppendFormat("(%G)", param.value());
   }
 }
 template <typename T>
-void AppendParam(StringBuffer& string_buffer, pointer_t<T> param) {
-  string_buffer.AppendFormat("%.8X", param.guest_address());
+void AppendParam(StringBuffer* string_buffer, pointer_t<T> param) {
+  string_buffer->AppendFormat("%.8X", param.guest_address());
 }
 
 enum class KernelModuleId {
@@ -379,7 +380,7 @@ template <size_t I = 0, typename... Ps>
     string_buffer.Append(", ");
   }
   auto param = std::get<I>(params);
-  AppendParam(string_buffer, param);
+  AppendParam(&string_buffer, param);
   AppendKernelCallParams<I + 1>(string_buffer, export_entry, params);
 }
 

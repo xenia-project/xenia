@@ -38,7 +38,7 @@ class Loop {
   virtual void Quit() = 0;
   virtual void AwaitQuit() = 0;
 
-  Delegate<UIEvent> on_quit;
+  Delegate<UIEvent*> on_quit;
 };
 
 }  // namespace ui

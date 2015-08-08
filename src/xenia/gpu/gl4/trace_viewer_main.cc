@@ -2201,12 +2201,12 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
       exit(1);
     }
   });
-  window->on_closed.AddListener([&loop](xe::ui::UIEvent& e) {
+  window->on_closed.AddListener([&loop](xe::ui::UIEvent* e) {
     loop->Quit();
     XELOGI("User-initiated death!");
     exit(1);
   });
-  loop->on_quit.AddListener([&window](xe::ui::UIEvent& e) { window.reset(); });
+  loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
   window->Resize(1920, 1200);
 
   X_STATUS result = emulator->Setup(window.get());
@@ -2246,21 +2246,21 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
     return 1;
   }
 
-  window->on_key_char.AddListener([graphics_system](xe::ui::KeyEvent& e) {
+  window->on_key_char.AddListener([graphics_system](xe::ui::KeyEvent* e) {
     auto& io = ImGui::GetIO();
-    if (e.key_code() > 0 && e.key_code() < 0x10000) {
-      if (e.key_code() == 0x74 /* VK_F5 */) {
+    if (e->key_code() > 0 && e->key_code() < 0x10000) {
+      if (e->key_code() == 0x74 /* VK_F5 */) {
         graphics_system->ClearCaches();
       } else {
-        io.AddInputCharacter(e.key_code());
+        io.AddInputCharacter(e->key_code());
       }
     }
-    e.set_handled(true);
+    e->set_handled(true);
   });
-  window->on_mouse_down.AddListener([](xe::ui::MouseEvent& e) {
+  window->on_mouse_down.AddListener([](xe::ui::MouseEvent* e) {
     auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e.x()), float(e.y()));
-    switch (e.button()) {
+    io.MousePos = ImVec2(float(e->x()), float(e->y()));
+    switch (e->button()) {
       case xe::ui::MouseEvent::Button::kLeft:
         io.MouseDown[0] = true;
         break;
@@ -2269,14 +2269,14 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
         break;
     }
   });
-  window->on_mouse_move.AddListener([](xe::ui::MouseEvent& e) {
+  window->on_mouse_move.AddListener([](xe::ui::MouseEvent* e) {
     auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e.x()), float(e.y()));
+    io.MousePos = ImVec2(float(e->x()), float(e->y()));
   });
-  window->on_mouse_up.AddListener([](xe::ui::MouseEvent& e) {
+  window->on_mouse_up.AddListener([](xe::ui::MouseEvent* e) {
     auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e.x()), float(e.y()));
-    switch (e.button()) {
+    io.MousePos = ImVec2(float(e->x()), float(e->y()));
+    switch (e->button()) {
       case xe::ui::MouseEvent::Button::kLeft:
         io.MouseDown[0] = false;
         break;
@@ -2285,13 +2285,13 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
         break;
     }
   });
-  window->on_mouse_wheel.AddListener([](xe::ui::MouseEvent& e) {
+  window->on_mouse_wheel.AddListener([](xe::ui::MouseEvent* e) {
     auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e.x()), float(e.y()));
-    io.MouseWheel += float(e.dy() / 120.0f);
+    io.MousePos = ImVec2(float(e->x()), float(e->y()));
+    io.MouseWheel += float(e->dy() / 120.0f);
   });
 
-  window->on_painting.AddListener([&](xe::ui::UIEvent& e) {
+  window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
     static bool imgui_setup = false;
     if (!imgui_setup) {
       ImImpl_Setup();
@@ -2305,7 +2305,7 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
     last_ticks = current_ticks;
 
     io.DisplaySize =
-        ImVec2(float(e.target()->width()), float(e.target()->height()));
+        ImVec2(float(e->target()->width()), float(e->target()->height()));
 
     BYTE keystate[256];
     GetKeyboardState(keystate);

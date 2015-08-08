@@ -15,7 +15,7 @@
 namespace xe {
 namespace debug {
 
-using namespace xe::debug::proto;
+using namespace xe::debug::proto;  // NOLINT(build/namespaces)
 
 constexpr size_t kReceiveBufferSize = 1 * 1024 * 1024;
 constexpr size_t kTransmitBufferSize = 1 * 1024 * 1024;

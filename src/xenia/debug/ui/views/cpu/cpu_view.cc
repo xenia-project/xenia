@@ -22,7 +22,7 @@ CpuView::CpuView() : View("CPU") {}
 CpuView::~CpuView() = default;
 
 el::Element* CpuView::BuildUI() {
-  using namespace el::dsl;
+  using namespace el::dsl;  // NOLINT(build/namespaces)
   el::AnimationBlocker animation_blocker;
 
   auto functions_node =
@@ -197,7 +197,7 @@ void CpuView::UpdateModuleList() {
     module_items->push_back(std::move(item));
   }
   if (is_first) {
-    module_dropdown->set_value(int(module_items->size() - 1));
+    module_dropdown->set_value(static_cast<int>(module_items->size() - 1));
   }
 }
 
@@ -237,7 +237,7 @@ void CpuView::UpdateThreadList() {
     thread_items->push_back(std::move(item));
   }
   if (is_first) {
-    thread_dropdown->set_value(int(thread_items->size() - 1));
+    thread_dropdown->set_value(static_cast<int>(thread_items->size() - 1));
   }
 }
 

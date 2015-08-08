@@ -9,6 +9,8 @@
 
 #include "xenia/kernel/objects/xuser_module.h"
 
+#include <vector>
+
 #include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/xex_module.h"
@@ -18,8 +20,6 @@
 
 namespace xe {
 namespace kernel {
-
-using namespace xe::cpu;
 
 XUserModule::XUserModule(KernelState* kernel_state, const char* path)
     : XModule(kernel_state, ModuleType::kUserModule, path) {}
@@ -74,11 +74,11 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
 }
 
 X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
-  Processor* processor = kernel_state()->processor();
+  auto processor = kernel_state()->processor();
 
   // Prepare the module for execution.
   // Runtime takes ownership.
-  auto xex_module = std::make_unique<XexModule>(processor, kernel_state());
+  auto xex_module = std::make_unique<cpu::XexModule>(processor, kernel_state());
   if (!xex_module->Load(name_, path_, addr, length)) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -136,8 +136,8 @@ uint32_t XUserModule::GetProcAddressByName(const char* name) {
 X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
                                  uint32_t* out_section_size) {
   xex2_opt_resource_info* resource_header = nullptr;
-  if (!XexModule::GetOptHeader(xex_header(), XEX_HEADER_RESOURCE_INFO,
-                               &resource_header)) {
+  if (!cpu::XexModule::GetOptHeader(xex_header(), XEX_HEADER_RESOURCE_INFO,
+                                    &resource_header)) {
     // No resources.
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -198,11 +198,14 @@ X_STATUS XUserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
         break;
       case 0x01:
         // Return pointer to data stored in header value.
-        field_value = uint32_t((uint8_t*)&opt_header.value - membase);
+        field_value = static_cast<uint32_t>(
+            reinterpret_cast<const uint8_t*>(&opt_header.value) - membase);
         break;
       default:
         // Data stored at offset to header.
-        field_value = uint32_t((uint8_t*)header - membase) + opt_header.offset;
+        field_value = static_cast<uint32_t>(
+                          reinterpret_cast<const uint8_t*>(header) - membase) +
+                      opt_header.offset;
         break;
     }
     break;
@@ -275,12 +278,13 @@ void XUserModule::Dump() {
     auto& opt_header = header->headers[i];
 
     // Stash a pointer (although this isn't used in every case)
-    void* opt_header_ptr = (uint8_t*)header + opt_header.offset;
+    auto opt_header_ptr =
+        reinterpret_cast<const uint8_t*>(header) + opt_header.offset;
     switch (opt_header.key) {
       case XEX_HEADER_RESOURCE_INFO: {
         printf("  XEX_HEADER_RESOURCE_INFO:\n");
         auto opt_resource_info =
-            reinterpret_cast<xex2_opt_resource_info*>(opt_header_ptr);
+            reinterpret_cast<const xex2_opt_resource_info*>(opt_header_ptr);
 
         uint32_t count = (opt_resource_info->size - 4) / 16;
         for (uint32_t j = 0; j < count; j++) {
@@ -304,7 +308,7 @@ void XUserModule::Dump() {
       } break;
       case XEX_HEADER_BOUNDING_PATH: {
         auto opt_bound_path =
-            reinterpret_cast<xex2_opt_bound_path*>(opt_header_ptr);
+            reinterpret_cast<const xex2_opt_bound_path*>(opt_header_ptr);
         printf("  XEX_HEADER_BOUNDING_PATH: %s\n", opt_bound_path->path);
       } break;
       case XEX_HEADER_ORIGINAL_BASE_ADDRESS: {
@@ -343,15 +347,14 @@ void XUserModule::Dump() {
           }
         }
 
-        auto libraries = (uint8_t*)opt_import_libraries +
-                         opt_import_libraries->string_table_size + 12;
+        auto libraries =
+            reinterpret_cast<const uint8_t*>(opt_import_libraries) +
+            opt_import_libraries->string_table_size + 12;
         uint32_t library_offset = 0;
         for (uint32_t l = 0; l < opt_import_libraries->library_count; l++) {
-          auto library = reinterpret_cast<xex2_import_library*>(
-              (uint8_t*)libraries + library_offset);
+          auto library = reinterpret_cast<const xex2_import_library*>(
+              libraries + library_offset);
           auto name = string_table[library->name_index];
-
-          // Okay. Dump it.
           printf("    %s - %d imports\n", name, (uint16_t)library->count);
 
           // Manually byteswap these because of the bitfields.
@@ -372,7 +375,7 @@ void XUserModule::Dump() {
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
-            reinterpret_cast<xex2_opt_original_pe_name*>(opt_header_ptr);
+            reinterpret_cast<const xex2_opt_original_pe_name*>(opt_header_ptr);
         printf("  XEX_HEADER_ORIGINAL_PE_NAME: %s\n", opt_pe_name->name);
       } break;
       case XEX_HEADER_STATIC_LIBRARIES: {
@@ -383,10 +386,11 @@ void XUserModule::Dump() {
         uint32_t count = (opt_static_libraries->size - 4) / 0x10;
         for (uint32_t l = 0; l < count; l++) {
           auto& library = opt_static_libraries->libraries[l];
-          printf(
-              "    %-8s : %d.%d.%d.%d\n", library.name,
-              (uint16_t)library.version_major, (uint16_t)library.version_minor,
-              (uint16_t)library.version_build, (uint16_t)library.version_qfe);
+          printf("    %-8s : %d.%d.%d.%d\n", library.name,
+                 static_cast<uint16_t>(library.version_major),
+                 static_cast<uint16_t>(library.version_minor),
+                 static_cast<uint16_t>(library.version_build),
+                 static_cast<uint16_t>(library.version_qfe));
         }
       } break;
       case XEX_HEADER_TLS_INFO: {
@@ -395,42 +399,46 @@ void XUserModule::Dump() {
             reinterpret_cast<const xex2_opt_tls_info*>(opt_header_ptr);
 
         printf("          Slot Count: %d\n",
-               (uint32_t)opt_tls_info->slot_count);
+               static_cast<uint32_t>(opt_tls_info->slot_count));
         printf("    Raw Data Address: %.8X\n",
-               (uint32_t)opt_tls_info->raw_data_address);
-        printf("           Data Size: %d\n", (uint32_t)opt_tls_info->data_size);
+               static_cast<uint32_t>(opt_tls_info->raw_data_address));
+        printf("           Data Size: %d\n",
+               static_cast<uint32_t>(opt_tls_info->data_size));
         printf("       Raw Data Size: %d\n",
-               (uint32_t)opt_tls_info->raw_data_size);
+               static_cast<uint32_t>(opt_tls_info->raw_data_size));
       } break;
       case XEX_HEADER_DEFAULT_STACK_SIZE: {
         printf("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n",
-               (uint32_t)opt_header.value);
+               static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: {
         printf("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n",
-               (uint32_t)opt_header.value);
+               static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_DEFAULT_HEAP_SIZE: {
         printf("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n",
-               (uint32_t)opt_header.value);
+               static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS: {
         printf("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
       } break;
       case XEX_HEADER_SYSTEM_FLAGS: {
-        printf("  XEX_HEADER_SYSTEM_FLAGS: %.8X\n", (uint32_t)opt_header.value);
+        printf("  XEX_HEADER_SYSTEM_FLAGS: %.8X\n",
+               static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_EXECUTION_INFO: {
         printf("  XEX_HEADER_EXECUTION_INFO:\n");
         auto opt_exec_info =
             reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
 
-        printf("       Media ID: %.8X\n", (uint32_t)opt_exec_info->media_id);
-        printf("       Title ID: %.8X\n", (uint32_t)opt_exec_info->title_id);
-        printf("    Savegame ID: %.8X\n", (uint32_t)opt_exec_info->title_id);
-        printf("    Disc Number / Total: %d / %d\n",
-               (uint8_t)opt_exec_info->disc_number,
-               (uint8_t)opt_exec_info->disc_count);
+        printf("       Media ID: %.8X\n",
+               static_cast<uint32_t>(opt_exec_info->media_id));
+        printf("       Title ID: %.8X\n",
+               static_cast<uint32_t>(opt_exec_info->title_id));
+        printf("    Savegame ID: %.8X\n",
+               static_cast<uint32_t>(opt_exec_info->title_id));
+        printf("    Disc Number / Total: %d / %d\n", opt_exec_info->disc_number,
+               opt_exec_info->disc_count);
       } break;
       case XEX_HEADER_TITLE_WORKSPACE_SIZE: {
         printf("  XEX_HEADER_TITLE_WORKSPACE_SIZE: %d\n",
@@ -463,23 +471,21 @@ void XUserModule::Dump() {
         auto exe_address = xex_module()->xex_security_info()->load_address;
         auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
             exe_address + dir->offset);
+        auto e_base = reinterpret_cast<uintptr_t>(e);
 
         // e->AddressOfX RVAs are relative to the IMAGE_EXPORT_DIRECTORY!
-        uint32_t* function_table =
-            (uint32_t*)((uint64_t)e + e->AddressOfFunctions);
-
-        // Names relative to directory
-        uint32_t* name_table = (uint32_t*)((uint64_t)e + e->AddressOfNames);
-
-        // Table of ordinals (by name)
-        uint16_t* ordinal_table =
-            (uint16_t*)((uint64_t)e + e->AddressOfNameOrdinals);
-
+        auto function_table =
+            reinterpret_cast<const uint32_t*>(e_base + e->AddressOfFunctions);
+        // Names relative to directory.
+        auto name_table =
+            reinterpret_cast<const uint32_t*>(e_base + e->AddressOfNames);
+        // Table of ordinals (by name).
+        auto ordinal_table = reinterpret_cast<const uint16_t*>(
+            e_base + e->AddressOfNameOrdinals);
         for (uint32_t n = 0; n < e->NumberOfNames; n++) {
-          const char* name = (const char*)((uint8_t*)e + name_table[n]);
+          auto name = reinterpret_cast<const char*>(e_base + name_table[n]);
           uint16_t ordinal = ordinal_table[n];
           uint32_t addr = exe_address + function_table[ordinal];
-
           printf("    %-28s - %.3X - %.8X\n", name, ordinal, addr);
         }
       } break;
@@ -515,14 +521,14 @@ void XUserModule::Dump() {
     uint32_t start_address = security_info->load_address + (page * page_size);
     uint32_t end_address = start_address + (page_descriptor.size * page_size);
 
-    printf("  %3d %s %3d pages    %.8X - %.8X (%d bytes)\n", (int)page, type,
-           page_descriptor.size, (int)start_address, (int)end_address,
+    printf("  %3u %s %3u pages    %.8X - %.8X (%d bytes)\n", page, type,
+           page_descriptor.size, start_address, end_address,
            page_descriptor.size * page_size);
     page += page_descriptor.size;
   }
 
   // Print out imports.
-  // TODO: Figure out a way to remove dependency on old xex header.
+  // TODO(benvanik): figure out a way to remove dependency on old xex header.
   auto old_header = xe_xex2_get_header(xex_module()->xex());
 
   printf("Imports:\n");
@@ -533,7 +539,7 @@ void XUserModule::Dump() {
     size_t import_info_count;
     if (!xe_xex2_get_import_infos(xex_module()->xex(), library, &import_infos,
                                   &import_info_count)) {
-      printf(" %s - %d imports\n", library->name, (int)import_info_count);
+      printf(" %s - %lld imports\n", library->name, import_info_count);
       printf("   Version: %d.%d.%d.%d\n", library->version.major,
              library->version.minor, library->version.build,
              library->version.qfe);
@@ -582,12 +588,13 @@ void XUserModule::Dump() {
           }
         }
       }
-      printf("         Total: %4u\n", uint32_t(import_info_count));
+      float total_count = static_cast<float>(import_info_count) * 100.0f;
+      printf("         Total: %4llu\n", import_info_count);
       printf("         Known:  %3d%% (%d known, %d unknown)\n",
-             (int)(known_count / (float)import_info_count * 100.0f),
-             known_count, unknown_count);
+             static_cast<int>(known_count / total_count), known_count,
+             unknown_count);
       printf("   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
-             (int)(impl_count / (float)import_info_count * 100.0f), impl_count,
+             static_cast<int>(impl_count / total_count), impl_count,
              unimpl_count);
       printf("\n");
 
@@ -597,7 +604,7 @@ void XUserModule::Dump() {
         const char* name = "UNKNOWN";
         bool implemented = false;
 
-        Export* kernel_export = nullptr;
+        cpu::Export* kernel_export = nullptr;
         if (kernel_state_->IsKernelModule(library->name)) {
           kernel_export =
               export_resolver->GetExportByOrdinal(library->name, info->ordinal);
@@ -608,11 +615,12 @@ void XUserModule::Dump() {
         } else {
           auto module = kernel_state_->GetModule(library->name);
           if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
-            // TODO: Name lookup
+            // TODO(benvanik): name lookup.
             implemented = true;
           }
         }
-        if (kernel_export && kernel_export->type == Export::Type::kVariable) {
+        if (kernel_export &&
+            kernel_export->type == cpu::Export::Type::kVariable) {
           printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
                  info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {
