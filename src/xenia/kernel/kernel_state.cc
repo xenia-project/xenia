@@ -99,10 +99,6 @@ KernelState::~KernelState() {
     dispatch_thread_->Wait(0, 0, 0, nullptr);
   }
 
-  if (process_info_block_address_) {
-    memory_->SystemHeapFree(process_info_block_address_);
-  }
-
   executable_module_.reset();
   user_modules_.clear();
   kernel_modules_.clear();
@@ -114,6 +110,10 @@ KernelState::~KernelState() {
   app_manager_.reset();
 
   delete dispatcher_;
+
+  if (process_info_block_address_) {
+    memory_->SystemHeapFree(process_info_block_address_);
+  }
 
   assert_true(shared_kernel_state_ == this);
   shared_kernel_state_ = nullptr;

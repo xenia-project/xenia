@@ -36,9 +36,11 @@ class CDialogEventHandler : public IFileDialogEvents,
   IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
     static const QITAB qit[] = {
         {&__uuidof(IFileDialogEvents),
-         (int)OFFSETOFCLASS(IFileDialogEvents, CDialogEventHandler)},
+         static_cast<int>(
+             OFFSETOFCLASS(IFileDialogEvents, CDialogEventHandler))},
         {&__uuidof(IFileDialogControlEvents),
-         (int)OFFSETOFCLASS(IFileDialogControlEvents, CDialogEventHandler)},
+         static_cast<int>(
+             OFFSETOFCLASS(IFileDialogControlEvents, CDialogEventHandler))},
         {0},
     };
     return QISearch(this, qit, riid, ppv);
@@ -53,33 +55,33 @@ class CDialogEventHandler : public IFileDialogEvents,
   }
 
   // IFileDialogEvents methods
-  IFACEMETHODIMP OnFileOk(IFileDialog*) { return S_OK; };
-  IFACEMETHODIMP OnFolderChange(IFileDialog*) { return S_OK; };
-  IFACEMETHODIMP OnFolderChanging(IFileDialog*, IShellItem*) { return S_OK; };
-  IFACEMETHODIMP OnHelp(IFileDialog*) { return S_OK; };
-  IFACEMETHODIMP OnSelectionChange(IFileDialog*) { return S_OK; };
+  IFACEMETHODIMP OnFileOk(IFileDialog*) { return S_OK; }
+  IFACEMETHODIMP OnFolderChange(IFileDialog*) { return S_OK; }
+  IFACEMETHODIMP OnFolderChanging(IFileDialog*, IShellItem*) { return S_OK; }
+  IFACEMETHODIMP OnHelp(IFileDialog*) { return S_OK; }
+  IFACEMETHODIMP OnSelectionChange(IFileDialog*) { return S_OK; }
   IFACEMETHODIMP OnShareViolation(IFileDialog*, IShellItem*,
                                   FDE_SHAREVIOLATION_RESPONSE*) {
     return S_OK;
-  };
-  IFACEMETHODIMP OnTypeChange(IFileDialog* pfd) { return S_OK; };
+  }
+  IFACEMETHODIMP OnTypeChange(IFileDialog* pfd) { return S_OK; }
   IFACEMETHODIMP OnOverwrite(IFileDialog*, IShellItem*,
                              FDE_OVERWRITE_RESPONSE*) {
     return S_OK;
-  };
+  }
 
   // IFileDialogControlEvents methods
   IFACEMETHODIMP OnItemSelected(IFileDialogCustomize* pfdc, DWORD dwIDCtl,
                                 DWORD dwIDItem) {
     return S_OK;
-  };
-  IFACEMETHODIMP OnButtonClicked(IFileDialogCustomize*, DWORD) { return S_OK; };
+  }
+  IFACEMETHODIMP OnButtonClicked(IFileDialogCustomize*, DWORD) { return S_OK; }
   IFACEMETHODIMP OnCheckButtonToggled(IFileDialogCustomize*, DWORD, BOOL) {
     return S_OK;
-  };
+  }
   IFACEMETHODIMP OnControlActivating(IFileDialogCustomize*, DWORD) {
     return S_OK;
-  };
+  }
 
   CDialogEventHandler() : _cRef(1) {}
 

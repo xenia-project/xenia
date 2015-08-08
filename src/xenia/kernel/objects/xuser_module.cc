@@ -588,7 +588,7 @@ void XUserModule::Dump() {
           }
         }
       }
-      float total_count = static_cast<float>(import_info_count) * 100.0f;
+      float total_count = static_cast<float>(import_info_count) / 100.0f;
       printf("         Total: %4llu\n", import_info_count);
       printf("         Known:  %3d%% (%d known, %d unknown)\n",
              static_cast<int>(known_count / total_count), known_count,

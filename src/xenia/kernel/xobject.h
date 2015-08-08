@@ -208,8 +208,8 @@ template <typename T>
 class object_ref {
  public:
   object_ref() noexcept : value_(nullptr) {}
-  object_ref(nullptr_t) noexcept : value_(nullptr) {
-  }  // NOLINT(runtime/explicit)
+  object_ref(nullptr_t) noexcept  // NOLINT(runtime/explicit)
+      : value_(nullptr) {}
   object_ref& operator=(nullptr_t) noexcept {
     reset();
     return (*this);
