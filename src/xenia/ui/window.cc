@@ -381,7 +381,7 @@ void Window::OnKeyPress(KeyEvent* e, bool is_down, bool is_char) {
         if (!is_down && el::Element::focused_element) {
           el::Event ev(el::EventType::kContextMenu);
           ev.modifierkeys = GetModifierKeys();
-          el::Element::focused_element->InvokeEvent(ev);
+          el::Element::focused_element->InvokeEvent(std::move(ev));
           e->set_handled(true);
           return;
         }
@@ -461,7 +461,7 @@ bool Window::CheckShortcutKey(KeyEvent* e, el::SpecialKey special_key,
   el::Event ev(el::EventType::kShortcut);
   ev.modifierkeys = GetModifierKeys();
   ev.ref_id = id;
-  if (!el::Element::focused_element->InvokeEvent(ev)) {
+  if (!el::Element::focused_element->InvokeEvent(std::move(ev))) {
     return false;
   }
   e->set_handled(true);
@@ -551,10 +551,10 @@ void Window::OnMouseUp(MouseEvent* e) {
     if (el::Element::hovered_element) {
       int x = e->x();
       int y = e->y();
-      el::Element::hovered_element->ConvertFromRoot(x, y);
+      el::Element::hovered_element->ConvertFromRoot(&x, &y);
       el::Event ev(el::EventType::kContextMenu, x, y, kTouch,
                    GetModifierKeys());
-      el::Element::hovered_element->InvokeEvent(ev);
+      el::Element::hovered_element->InvokeEvent(std::move(ev));
     }
     e->set_handled(true);
   }
