@@ -423,18 +423,17 @@ SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-dword_result_t KeInitializeEvent(pointer_t<X_KEVENT> event_ptr,
-                                 dword_t event_type, dword_t initial_state) {
+void KeInitializeEvent(pointer_t<X_KEVENT> event_ptr, dword_t event_type,
+                       dword_t initial_state) {
   event_ptr.Zero();
   event_ptr->header.type = event_type;
   event_ptr->header.signal_state = (uint32_t)initial_state;
   auto ev =
       XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr, event_type);
   if (!ev) {
-    return X_STATUS_INSUFFICIENT_RESOURCES;
+    assert_always();
+    return;
   }
-
-  return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT(KeInitializeEvent,
                         ExportTag::kImplemented | ExportTag::kThreading);
@@ -476,6 +475,7 @@ dword_result_t KeResetEvent(pointer_t<X_KEVENT> event_ptr) {
 
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {
+    assert_always();
     return 0;
   }
 
@@ -1280,36 +1280,84 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result ? 1 : 0);
 }
 
-xe::mutex global_list_mutex_;
+// NOTE: This function is very commonly inlined, and probably won't be called!
+pointer_result_t InterlockedPushEntrySList(
+    pointer_t<X_SLIST_HEADER> plist_ptr, pointer_t<X_SINGLE_LIST_ENTRY> entry) {
+  assert_not_null(plist_ptr);
+  assert_not_null(entry);
+
+  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  uint32_t old_head = 0;
+
+  do {
+    // Kill the guest reservation
+    xe::atomic_exchange(0, kernel_memory()->reserve_address());
+
+    old_hdr = *plist_ptr;
+    new_hdr.depth = old_hdr.depth + 1;
+    new_hdr.sequence = old_hdr.sequence + 1;
+
+    old_head = old_hdr.next.next;
+    entry->next = old_hdr.next.next;
+    new_hdr.next.next = entry.guest_address();
+  } while (!xe::atomic_cas(*(uint64_t*)&old_hdr, *(uint64_t*)&new_hdr,
+                           (uint64_t*)plist_ptr.host_address()));
+
+  return old_head;
+}
+DECLARE_XBOXKRNL_EXPORT(InterlockedPushEntrySList,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
-  std::lock_guard<xe::mutex> lock(global_list_mutex_);
+  assert_not_null(plist_ptr);
 
-  if (plist_ptr->next.next == 0) {
-    // List empty!
-    return 0;
-  }
+  uint32_t popped = 0;
 
-  // Get the first element.
-  auto result = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
-      plist_ptr->next.next);
+  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  do {
+    // Kill the guest reservation (guest InterlockedPushEntrySList uses this)
+    xe::atomic_exchange(0, kernel_memory()->reserve_address());
 
-  uint32_t popped = plist_ptr->next.next;
-  plist_ptr->next.next = result->next;
+    old_hdr = *plist_ptr;
+    auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
+        old_hdr.next.next);
+    if (!next) {
+      return 0;
+    }
+    popped = old_hdr.next.next;
 
-  // Return the one we popped
+    new_hdr.depth = old_hdr.depth - 1;
+    new_hdr.next.next = next->next;
+    new_hdr.sequence = old_hdr.sequence;
+  } while (!xe::atomic_cas(*(uint64_t*)&old_hdr, *(uint64_t*)&new_hdr,
+                           (uint64_t*)plist_ptr.host_address()));
+
   return popped;
 }
-DECLARE_XBOXKRNL_EXPORT(InterlockedPopEntrySList, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT(InterlockedPopEntrySList,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
-  std::lock_guard<xe::mutex> lock(global_list_mutex_);
+  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  uint32_t first = 0;
 
-  uint32_t next = plist_ptr->next.next;
-  plist_ptr->next.next = 0;
-  plist_ptr->depth = 0;
+  do {
+    // Kill the guest reservation
+    xe::atomic_exchange(0, kernel_memory()->reserve_address());
 
-  return next;
+    old_hdr = *plist_ptr;
+
+    first = old_hdr.next.next;
+    new_hdr.next.next = 0;
+    new_hdr.depth = 0;
+    new_hdr.sequence = 0;
+  } while (!xe::atomic_cas(*(uint64_t*)&old_hdr, *(uint64_t*)&new_hdr,
+                           (uint64_t*)plist_ptr.host_address()));
+
+  return first;
 }
 DECLARE_XBOXKRNL_EXPORT(InterlockedFlushSList, ExportTag::kImplemented);
 
