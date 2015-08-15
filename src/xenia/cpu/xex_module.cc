@@ -89,12 +89,13 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
     auto export_table = memory()->TranslateVirtual<const xex2_export_table*>(
         xex_security_info()->export_table);
 
+    ordinal -= export_table->base;
     if (ordinal > export_table->count) {
       XELOGE("GetProcAddress(%.3X): ordinal out of bounds", ordinal);
       return 0;
     }
 
-    uint32_t num = ordinal - export_table->base;
+    uint32_t num = ordinal;
     uint32_t ordinal_offset = export_table->ordOffset[num];
     ordinal_offset += export_table->imagebaseaddr << 16;
     return ordinal_offset;
