@@ -6876,7 +6876,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         } else {
           // signed -> signed
           e.vpunpckhbw(i.dest, i.src1, i.src1);
-          e.vpsrad(i.dest, 8);
+          e.vpsraw(i.dest, 8);
         }
       }
     } else {
@@ -6896,7 +6896,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         } else {
           // signed -> signed
           e.vpunpcklbw(i.dest, i.src1, i.src1);
-          e.vpsrad(i.dest, 8);
+          e.vpsraw(i.dest, 8);
         }
       }
     }
