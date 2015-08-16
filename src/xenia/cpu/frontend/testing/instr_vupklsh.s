@@ -9,3 +9,11 @@ test_vupklsh_1:
   vupklsh v3, v3
   blr
   #_ REGISTER_OUT v3 [00007f80, 00000a0b, 00000c0d, 00000e0f]
+
+test_vupklsh_2:
+  # {-4, -3, -2, -1, 0, 1, 2, 3}
+  #_ REGISTER_IN v3 [FFFCFFFD, FFFEFFFF, 00000001, 00020003]
+  vupklsh v3, v3
+  blr
+  # {-4, -3, -2, -1}
+  #_ REGISTER_OUT v3 [00000000, 00000001, 00000002, 00000003]
