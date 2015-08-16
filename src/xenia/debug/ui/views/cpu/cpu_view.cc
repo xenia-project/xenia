@@ -80,7 +80,8 @@ el::Element* CpuView::BuildUI() {
       TabContainerNode()
           .gravity(Gravity::kAll)
           .align(Align::kLeft)
-          .tab(ButtonNode("Stack"), LabelNode("STACK"))
+          .tab(ButtonNode("Stack"),
+               LabelNode("<callstack control>").id("call_stack_placeholder"))
           .tab(ButtonNode("BPs"), LabelNode("BREAKPOINTS"));
 
   auto source_pane_node =
@@ -104,7 +105,7 @@ el::Element* CpuView::BuildUI() {
                                 .gravity(Gravity::kAll)
                                 .axis(Axis::kX)
                                 .fixed_pane(FixedPane::kSecond)
-                                .value(128)
+                                .value(250)
                                 .pane(SplitContainerNode()
                                           .gravity(Gravity::kAll)
                                           .axis(Axis::kY)
@@ -133,9 +134,15 @@ el::Element* CpuView::BuildUI() {
   root_element_.set_gravity(Gravity::kAll);
   root_element_.set_layout_distribution(LayoutDistribution::kAvailable);
   root_element_.LoadNodeTree(node);
+
+  el::Label* call_stack_placeholder;
   root_element_.GetElementsById({
-      //
+      {TBIDC("call_stack_placeholder"), &call_stack_placeholder},
   });
+  call_stack_placeholder->parent()->ReplaceChild(call_stack_placeholder,
+                                                 call_stack_control_.BuildUI());
+  call_stack_control_.Setup(client_);
+
   handler_ = std::make_unique<el::EventHandler>(&root_element_);
 
   handler_->Listen(el::EventType::kChanged, TBIDC("module_dropdown"),
@@ -154,7 +161,7 @@ el::Element* CpuView::BuildUI() {
         } else {
           current_thread_ = nullptr;
         }
-        UpdateThreadCallStack(current_thread_);
+        SwitchCurrentThread(current_thread_);
         return true;
       });
 
@@ -168,12 +175,6 @@ void CpuView::Setup(DebugClient* client) {
       [this]() { UpdateElementState(); });
   system()->on_modules_updated.AddListener([this]() { UpdateModuleList(); });
   system()->on_threads_updated.AddListener([this]() { UpdateThreadList(); });
-  system()->on_thread_call_stack_updated.AddListener(
-      [this](model::Thread* thread) {
-        if (thread == current_thread_) {
-          UpdateThreadCallStack(thread);
-        }
-      });
 }
 
 void CpuView::UpdateElementState() {
@@ -241,28 +242,9 @@ void CpuView::UpdateThreadList() {
   }
 }
 
-void CpuView::UpdateThreadCallStack(model::Thread* thread) {
-  auto textbox =
-      root_element_.GetElementById<el::TextBox>(TBIDC("source_textbox"));
-  if (!thread) {
-    textbox->set_text("no thread");
-    return;
-  }
-  auto& call_stack = thread->call_stack();
-  StringBuffer str;
-  for (size_t i = 0; i < call_stack.size(); ++i) {
-    auto& frame = call_stack[i];
-    size_t ordinal = call_stack.size() - i - 1;
-    if (frame.guest_pc) {
-      str.AppendFormat("  %.2lld %.16llX %.8X %s", ordinal, frame.host_pc,
-                       frame.guest_pc, frame.name);
-    } else {
-      str.AppendFormat("  %.2lld %.16llX          %s", ordinal, frame.host_pc,
-                       frame.name);
-    }
-    str.Append('\n');
-  }
-  textbox->set_text(str.to_string());
+void CpuView::SwitchCurrentThread(model::Thread* thread) {
+  current_thread_ = thread;
+  call_stack_control_.set_thread(thread);
 }
 
 }  // namespace cpu
