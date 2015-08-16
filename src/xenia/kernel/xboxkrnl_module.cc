@@ -110,15 +110,15 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
+  // Current version as of 30 April 2015, 2.0.17349.0
   uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(8);
   auto lpXboxKrnlVersion = memory_->TranslateVirtual(pXboxKrnlVersion);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
-  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 2);
-  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0xFFFF);
-  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0xFFFF);
-  xe::store_and_swap<uint8_t>(lpXboxKrnlVersion + 6, 0x80);
-  xe::store_and_swap<uint8_t>(lpXboxKrnlVersion + 7, 0x00);
+  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 0x0002);
+  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0x0000);
+  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0x43C5);
+  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 6, 0x0000);
 
   // KeTimeStampBundle (ad)
   // This must be updated during execution, at 1ms intevals.
