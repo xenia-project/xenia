@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "xenia/base/logging.h"
+#include "xenia/cpu/elf_module.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/emulator.h"
@@ -45,8 +46,16 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
       return result;
     }
 
+    ModuleFormat fmt;
+    auto magic = *(xe::be<uint32_t>*)mmap->data();
+    if (magic == 'XEX2') {
+      fmt = kModuleFormatXex;
+    } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
+      fmt = kModuleFormatElf;
+    }
+
     // Load the module.
-    result = LoadFromMemory(mmap->data(), mmap->size());
+    result = LoadFromMemory(mmap->data(), mmap->size(), fmt);
   } else {
     std::vector<uint8_t> buffer(fs_entry->size());
 
@@ -66,45 +75,74 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
       return result;
     }
 
+    ModuleFormat fmt;
+    uint32_t magic = *(uint32_t*)buffer.data();
+    if (magic == 'XEX2') {
+      fmt = kModuleFormatXex;
+    } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
+      fmt = kModuleFormatElf;
+    }
+
     // Load the module.
-    result = LoadFromMemory(buffer.data(), bytes_read);
+    result = LoadFromMemory(buffer.data(), bytes_read, fmt);
   }
 
   return result;
 }
 
-X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
+X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length,
+                                     ModuleFormat module_format) {
   auto processor = kernel_state()->processor();
+  module_format_ = module_format;
 
-  // Prepare the module for execution.
-  // Runtime takes ownership.
-  auto xex_module = std::make_unique<cpu::XexModule>(processor, kernel_state());
-  if (!xex_module->Load(name_, path_, addr, length)) {
-    return X_STATUS_UNSUCCESSFUL;
+  if (module_format == kModuleFormatXex) {
+    // Prepare the module for execution.
+    // Runtime takes ownership.
+    auto xex_module =
+        std::make_unique<cpu::XexModule>(processor, kernel_state());
+    if (!xex_module->Load(name_, path_, addr, length)) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+    processor_module_ = xex_module.get();
+    if (!processor->AddModule(std::move(xex_module))) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    // Copy the xex2 header into guest memory.
+    const xex2_header* header = this->xex_module()->xex_header();
+    guest_xex_header_ = memory()->SystemHeapAlloc(header->header_size);
+
+    uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
+    std::memcpy(xex_header_ptr, header, header->header_size);
+
+    // Setup the loader data entry
+    auto ldr_data =
+        memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
+
+    ldr_data->dll_base = 0;  // GetProcAddress will read this.
+    ldr_data->xex_header_base = guest_xex_header_;
+
+    // Cache some commonly used headers...
+    this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
+    this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
+                                     &stack_size_);
+    dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
+  } else if (module_format == kModuleFormatElf) {
+    auto elf_module =
+        std::make_unique<cpu::ElfModule>(processor, kernel_state());
+    if (!elf_module->Load(name_, path_, addr, length)) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    entry_point_ = elf_module->entry_point();
+    stack_size_ = 1024 * 1024;  // 1 MB
+    dll_module_ = false;        // Hardcoded not a DLL (for now)
+
+    processor_module_ = elf_module.get();
+    if (!processor->AddModule(std::move(elf_module))) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
   }
-  processor_module_ = xex_module.get();
-  if (!processor->AddModule(std::move(xex_module))) {
-    return X_STATUS_UNSUCCESSFUL;
-  }
-
-  // Copy the xex2 header into guest memory.
-  const xex2_header* header = this->xex_module()->xex_header();
-  guest_xex_header_ = memory()->SystemHeapAlloc(header->header_size);
-
-  uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
-  std::memcpy(xex_header_ptr, header, header->header_size);
-
-  // Setup the loader data entry
-  auto ldr_data =
-      memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
-
-  ldr_data->dll_base = 0;  // GetProcAddress will read this.
-  ldr_data->xex_header_base = guest_xex_header_;
-
-  // Cache some commonly used headers...
-  this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
-  this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
-  dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
 
   OnLoad();
 
@@ -160,6 +198,11 @@ X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
 X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
   assert_not_null(out_ptr);
 
+  if (module_format_ == kModuleFormatElf) {
+    // Quick die.
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
   bool ret = xex_module()->GetOptHeader(key, out_ptr);
   if (!ret) {
     return X_STATUS_NOT_FOUND;
@@ -170,6 +213,11 @@ X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
 
 X_STATUS XUserModule::GetOptHeader(xe_xex2_header_keys key,
                                    uint32_t* out_header_guest_ptr) {
+  if (module_format_ == kModuleFormatElf) {
+    // Quick die.
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
   auto header =
       memory()->TranslateVirtual<const xex2_header*>(guest_xex_header_);
   if (!header) {
@@ -255,6 +303,11 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
 }
 
 void XUserModule::Dump() {
+  if (module_format_ == kModuleFormatElf) {
+    // Quick die.
+    return;
+  }
+
   xe::cpu::ExportResolver* export_resolver =
       kernel_state_->emulator()->export_resolver();
   auto header = xex_header();
