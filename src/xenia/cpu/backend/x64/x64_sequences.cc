@@ -6875,7 +6875,8 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
           assert_always();
         } else {
           // signed -> signed
-          e.vpunpckhbw(i.dest, i.src1, i.src1);
+          e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMByteOrderMask));
+          e.vpunpckhbw(i.dest, i.dest, i.dest);
           e.vpsraw(i.dest, 8);
         }
       }
@@ -6895,7 +6896,8 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
           assert_always();
         } else {
           // signed -> signed
-          e.vpunpcklbw(i.dest, i.src1, i.src1);
+          e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMByteOrderMask));
+          e.vpunpcklbw(i.dest, i.dest, i.dest);
           e.vpsraw(i.dest, 8);
         }
       }
