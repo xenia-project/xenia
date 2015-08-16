@@ -187,7 +187,8 @@ X_STATUS Emulator::LaunchPath(std::wstring path) {
   if (last_dot == std::wstring::npos) {
     // Likely an STFS container.
     return LaunchStfsContainer(path);
-  } else if (path.substr(last_dot) == L".xex") {
+  } else if (path.substr(last_dot) == L".xex" ||
+             path.substr(last_dot) == L".elf") {
     // Treat as a naked xex file.
     return LaunchXexFile(path);
   } else {

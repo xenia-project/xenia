@@ -19,6 +19,11 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+namespace cpu {
+class XexModule;
+class ElfModule;
+}  // namespace cpu
+
 namespace kernel {
 
 class XUserModule : public XModule {
@@ -26,10 +31,18 @@ class XUserModule : public XModule {
   XUserModule(KernelState* kernel_state, const char* path);
   ~XUserModule() override;
 
+  enum ModuleFormat {
+    kModuleFormatUndefined = 0,
+    kModuleFormatXex,
+    kModuleFormatElf,
+  };
+
   const xe::cpu::XexModule* xex_module() const {
+    assert_true(module_format_ == kModuleFormatXex);
     return reinterpret_cast<xe::cpu::XexModule*>(processor_module_);
   }
   xe::cpu::XexModule* xex_module() {
+    assert_true(module_format_ == kModuleFormatXex);
     return reinterpret_cast<xe::cpu::XexModule*>(processor_module_);
   }
 
@@ -41,7 +54,8 @@ class XUserModule : public XModule {
   uint32_t stack_size() const { return stack_size_; }
 
   X_STATUS LoadFromFile(std::string path);
-  X_STATUS LoadFromMemory(const void* addr, const size_t length);
+  X_STATUS LoadFromMemory(const void* addr, const size_t length,
+                          ModuleFormat module_type);
   X_STATUS Unload();
 
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
@@ -70,7 +84,8 @@ class XUserModule : public XModule {
   void Dump();
 
  private:
-  uint32_t guest_xex_header_;
+  uint32_t guest_xex_header_ = 0;
+  ModuleFormat module_format_ = kModuleFormatUndefined;
 
   bool dll_module_;
   uint32_t entry_point_;
