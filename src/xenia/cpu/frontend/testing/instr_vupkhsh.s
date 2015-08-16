@@ -1,16 +1,16 @@
-test_vupkhsh_0:
+test_vupkhsh_1:
   #_ REGISTER_IN v3 [00010203, 04050607, 08090A0B, 0C0D0E0F]
   vupkhsh v3, v3
   blr
   #_ REGISTER_OUT v3 [00000001, 00000203, 00000405, 00000607]
 
-test_vupkhsh_1:
+test_vupkhsh_2:
   #_ REGISTER_IN v3 [7F800203, 04050607, 7F800A0B, 0C0D0E0F]
   vupkhsh v3, v3
   blr
   #_ REGISTER_OUT v3 [00007f80, 00000203, 00000405, 00000607]
 
-test_vupkhsh_2:
+test_vupkhsh_3:
   # {0, 65535, 65535, 0, 0, 0, 65535, 0}
   #_ REGISTER_IN v3 [0000FFFF, FFFF0000, 00000000, FFFF0000]
   vupkhsh v3, v3
@@ -18,7 +18,7 @@ test_vupkhsh_2:
   # {0, 4294967295, 4294967295, 0}
   #_ REGISTER_OUT v3 [00000000, FFFFFFFF, FFFFFFFF, 00000000]
 
-test_vupkhsh_3:
+test_vupkhsh_4:
   # {-4, -3, -2, -1, 0, 1, 2, 3}
   #_ REGISTER_IN v3 [FFFCFFFD, FFFEFFFF, 00000001, 00020003]
   vupkhsh v3, v3

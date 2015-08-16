@@ -1,5 +1,5 @@
 #vpkuwum isn't implemented yet
-#test_vpkuwum_0:
+#test_vpkuwum_1:
 #  # {0, 1, 2, 3}
 #  #_ REGISTER_IN v3 [00000000, 00000001, 00000002, 00000003]
 #  # {4, 5, 6, 7}
@@ -11,7 +11,7 @@
 #  # {0, 1, 2, 3, 4, 5, 6, 7}
 #  #_ REGISTER_OUT v5 [00000001, 00020003, 00040005, 00060007]
 
-#test_vpkuwum_1:
+#test_vpkuwum_2:
 #  # {-4, -3, -2, -1}
 #  #_ REGISTER_IN v3 [FFFFFFFC, FFFFFFFD, FFFFFFFE, FFFFFFFF]
 #  # {0, 1, 2, 3}
@@ -23,7 +23,7 @@
 #  # {-4, -3, -2, -1, 0, 1, 2, 3}
 #  #_ REGISTER_OUT v5 [FFFCFFFD, FFFEFFFF, 00000001, 00020003]
 
-#test_vpkuwum_2:
+#test_vpkuwum_3:
 #  # {0, 4294967295, 4294967295, 4294967295}
 #  #_ REGISTER_IN v3 [00000000, FFFFFFFF, FFFFFFFF, FFFFFFFF]
 #  # {4294967295, 0, 0, 0}

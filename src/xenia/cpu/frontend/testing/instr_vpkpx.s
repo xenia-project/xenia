@@ -1,5 +1,5 @@
 #vpkpx isn't implemented yet
-#test_vpkpx_0:
+#test_vpkpx_1:
 #  #_ REGISTER_IN v3 [00101820, 01283038, 00404850, 01586068]
 #  #_ REGISTER_IN v4 [01707880, 00889098, 01A0A8B0, 00B8C0C8]
 #  vpkpx v5, v3, v4
