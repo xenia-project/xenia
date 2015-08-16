@@ -1323,7 +1323,7 @@ pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
     old_hdr = *plist_ptr;
     auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
         old_hdr.next.next);
-    if (!next) {
+    if (!old_hdr.next.next) {
       return 0;
     }
     popped = old_hdr.next.next;
