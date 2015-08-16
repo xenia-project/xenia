@@ -6583,6 +6583,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           e.CallNativeSafe(
               reinterpret_cast<void*>(EmulatePack8_IN_16_UN_UN_SAT));
           e.vmovaps(i.dest, e.xmm0);
+          e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
         } else {
           // unsigned -> unsigned
           assert_always();
