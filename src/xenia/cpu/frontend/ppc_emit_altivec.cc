@@ -1390,7 +1390,7 @@ XEEMITTER(vsel128, VX128(5, 848), VX128)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(vsl, 0x100001C4, VX)(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.Shl(f.LoadVR(i.VX.VA),
                    f.And(f.Extract(f.LoadVR(i.VX.VB), 15, INT8_TYPE),
-                         f.LoadConstantInt8(0x7F)));
+                         f.LoadConstantInt8(0b111)));
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1573,7 +1573,7 @@ XEEMITTER(vspltisw128, VX128_3(6, 1904), VX128_3)(PPCHIRBuilder& f,
 XEEMITTER(vsr, 0x100002C4, VX)(PPCHIRBuilder& f, InstrData& i) {
   Value* v = f.Shr(f.LoadVR(i.VX.VA),
                    f.And(f.Extract(f.LoadVR(i.VX.VB), 15, INT8_TYPE),
-                         f.LoadConstantInt8(0x7F)));
+                         f.LoadConstantInt8(0b111)));
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
