@@ -1470,8 +1470,9 @@ XEEMITTER(vsldoi128, VX128_5(4, 16), VX128_5)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vslo_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) << (VB.b[F] & 0x78) (by octet)
   // TODO(benvanik): flag for shift-by-octet as optimization.
-  Value* sh =
-      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstantInt8(0x78));
+  Value* sh = f.Shr(
+      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstantInt8(0x78)),
+      3);
   Value* v = f.Permute(f.LoadVectorShl(sh), f.LoadVR(va), f.LoadZeroVec128(),
                        INT8_TYPE);
   f.StoreVR(vd, v);
@@ -1622,9 +1623,10 @@ XEEMITTER(vsrh, 0x10000244, VX)(PPCHIRBuilder& f, InstrData& i) {
 int InstrEmit_vsro_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // (VD) <- (VA) >> (VB.b[F] & 0x78) (by octet)
   // TODO(benvanik): flag for shift-by-octet as optimization.
-  Value* sh =
-      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstantInt8(0x78));
-  Value* v = f.Permute(f.LoadVectorShr(sh), f.LoadVR(va), f.LoadZeroVec128(),
+  Value* sh = f.Shr(
+      f.And(f.Extract(f.LoadVR(vb), 15, INT8_TYPE), f.LoadConstantInt8(0x78)),
+      3);
+  Value* v = f.Permute(f.LoadVectorShr(sh), f.LoadZeroVec128(), f.LoadVR(va),
                        INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
