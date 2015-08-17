@@ -1148,8 +1148,8 @@ XEEMITTER(vnmsubfp, 0x1000002F, VXA)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_vnmsubfp_(f, i.VXA.VD, i.VXA.VA, i.VXA.VB, i.VXA.VC);
 }
 XEEMITTER(vnmsubfp128, VX128(5, 336), VX128)(PPCHIRBuilder& f, InstrData& i) {
-  return InstrEmit_vnmsubfp_(f, VX128_VD128, VX128_VA128, VX128_VB128,
-                             VX128_VD128);
+  return InstrEmit_vnmsubfp_(f, VX128_VD128, VX128_VA128, VX128_VD128,
+                             VX128_VB128);
 }
 
 int InstrEmit_vnor_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
