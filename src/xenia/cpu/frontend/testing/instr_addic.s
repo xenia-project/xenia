@@ -40,7 +40,7 @@ test_addic_3:
 
 test_addic_3_constant:
   li r4, 0xFFFFFFFF
-  srw r4, r4, 0
+  srwi r4, r4, 0
   addic r4, r4, 1
   adde r6, r0, r0
   blr

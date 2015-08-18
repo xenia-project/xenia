@@ -5,10 +5,10 @@ test_equiv_1:
   subf r8, r11, r30
   addic r7, r8, -1
   subfe. r31, r7, r8
-  beq .test_equiv_1_good
+  beq equiv_1_good
   li r12, 0
   blr
-.test_equiv_1_good:
+equiv_1_good:
   li r12, 1
   blr
   #_ REGISTER_OUT r7 0xfffffffeffffffff
@@ -26,10 +26,10 @@ test_equiv_2:
   subf r8, r11, r30
   addic r7, r8, -1
   subfe. r31, r7, r8
-  beq .test_equiv_2_good
+  beq equiv_2_good
   li r12, 0
   blr
-.test_equiv_2_good:
+equiv_2_good:
   li r12, 1
   blr
   #_ REGISTER_OUT r7 0xffffffffffffffff

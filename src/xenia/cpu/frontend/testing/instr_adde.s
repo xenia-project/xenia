@@ -287,7 +287,7 @@ test_adde_cr_2:
   adde. r3, r4, r5
   mfcr r11
   adde. r6, r0, r0
-  mfcr 12
+  mfcr r12
   blr
   #_ REGISTER_OUT r3 4
   #_ REGISTER_OUT r4 1

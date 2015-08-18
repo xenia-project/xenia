@@ -1,38 +1,3 @@
-test_extrwi_1:
-  # extrwi ra,rs,n,b (n > 0) == rlwinm ra,rs,b+n,32-n,31
-  #_ REGISTER_IN r5 0x30
-  # rlwinm r7, r5, 29, 28, 31
-  extrwi r7, r5, 4, 25
-  blr
-  #_ REGISTER_OUT r5 0x30
-  #_ REGISTER_OUT r7 0x06
-
-test_extrwi_1_constant:
-  # extrwi ra,rs,n,b (n > 0) == rlwinm ra,rs,b+n,32-n,31
-  li r5, 0x30
-  # rlwinm r7, r5, 29, 28, 31
-  extrwi r7, r5, 4, 25
-  blr
-  #_ REGISTER_OUT r5 0x30
-  #_ REGISTER_OUT r7 0x06
-
-test_extrwi_2:
-  #_ REGISTER_IN r5 0xFFFFFFFF01234567
-  extrwi r7, r5, 16, 10
-  blr
-  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
-  #_ REGISTER_OUT r7 0x0000000000008D15
-
-test_extrwi_2_constant:
-  li r5, -1
-  sldi r5, r5, 32
-  oris r5, r5, 0x0123
-  ori r5, r5, 0x4567
-  extrwi r7, r5, 16, 10
-  blr
-  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
-  #_ REGISTER_OUT r7 0x0000000000008D15
-
 test_rlwinm_1:
   #_ REGISTER_IN r4 0x12345678
   rlwinm r3, r4, 24, 8, 15
@@ -172,9 +137,50 @@ test_rlwinm_9_constant:
   #_ REGISTER_OUT r3 0x00001234
   #_ REGISTER_OUT r4 0x12345678
 
+# Extract and right justify immediate
+# extrwi RA, RS, n, b
+# rlwinm RA, RS, b+n, 32-n, 31
+test_extrwi_1:
+  # extrwi ra,rs,n,b (n > 0) == rlwinm ra,rs,b+n,32-n,31
+  #_ REGISTER_IN r5 0x30
+  rlwinm r7, r5, 29, 28, 31
+  #extrwi r7, r5, 4, 25
+  blr
+  #_ REGISTER_OUT r5 0x30
+  #_ REGISTER_OUT r7 0x06
+
+test_extrwi_1_constant:
+  # extrwi ra,rs,n,b (n > 0) == rlwinm ra,rs,b+n,32-n,31
+  li r5, 0x30
+  rlwinm r7, r5, 29, 28, 31
+  #extrwi r7, r5, 4, 25
+  blr
+  #_ REGISTER_OUT r5 0x30
+  #_ REGISTER_OUT r7 0x06
+
+test_extrwi_2:
+  #_ REGISTER_IN r5 0xFFFFFFFF01234567
+  rlwinm r7, r5, 26, 16, 31
+  #extrwi r7, r5, 16, 10
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
+  #_ REGISTER_OUT r7 0x0000000000008D15
+
+test_extrwi_2_constant:
+  li r5, -1
+  sldi r5, r5, 32
+  oris r5, r5, 0x0123
+  ori r5, r5, 0x4567
+  rlwinm r7, r5, 26, 16, 31
+  #extrwi r7, r5, 16, 10
+  blr
+  #_ REGISTER_OUT r5 0xFFFFFFFF01234567
+  #_ REGISTER_OUT r7 0x0000000000008D15
+
 test_extrwi_cr_1:
   #_ REGISTER_IN r5 0x30
-  extrwi. r7, r5, 4, 25
+  rlwinm. r7, r5, 29, 28, 31
+  #extrwi. r7, r5, 4, 25
   mfcr r12
   blr
   #_ REGISTER_OUT r5 0x30
@@ -183,7 +189,8 @@ test_extrwi_cr_1:
 
 test_extrwi_cr_1_constant:
   li r5, 0x30
-  extrwi. r7, r5, 4, 25
+  rlwinm. r7, r5, 29, 28, 31
+  #extrwi. r7, r5, 4, 25
   mfcr r12
   blr
   #_ REGISTER_OUT r5 0x30
@@ -192,7 +199,8 @@ test_extrwi_cr_1_constant:
 
 test_extrwi_cr_2:
   #_ REGISTER_IN r5 0xFFFFFFFF01234567
-  extrwi. r7, r5, 16, 10
+  rlwinm. r7, r5, 26, 16, 31
+  #extrwi. r7, r5, 16, 10
   mfcr r12
   blr
   #_ REGISTER_OUT r5 0xFFFFFFFF01234567
@@ -204,7 +212,8 @@ test_extrwi_cr_2_constant:
   sldi r5, r5, 32
   oris r5, r5, 0x0123
   ori r5, r5, 0x4567
-  extrwi. r7, r5, 16, 10
+  rlwinm. r7, r5, 26, 16, 31
+  #extrwi. r7, r5, 16, 10
   mfcr r12
   blr
   #_ REGISTER_OUT r5 0xFFFFFFFF01234567
@@ -213,7 +222,8 @@ test_extrwi_cr_2_constant:
 
 test_extrwi_cr_3:
   #_ REGISTER_IN r5 0xFFFFFFFF00000000
-  extrwi. r7, r5, 16, 10
+  rlwinm. r7, r5, 26, 16, 31
+  #extrwi. r7, r5, 16, 10
   mfcr r12
   blr
   #_ REGISTER_OUT r5 0xFFFFFFFF00000000
@@ -223,7 +233,8 @@ test_extrwi_cr_3:
 test_extrwi_cr_3_constant:
   li r5, -1
   sldi r5, r5, 32
-  extrwi. r7, r5, 16, 10
+  rlwinm. r7, r5, 26, 16, 31
+  #extrwi. r7, r5, 16, 10
   mfcr r12
   blr
   #_ REGISTER_OUT r5 0xFFFFFFFF00000000
