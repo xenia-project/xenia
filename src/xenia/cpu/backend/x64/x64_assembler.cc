@@ -105,6 +105,9 @@ bool X64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
 void X64Assembler::DumpMachineCode(
     void* machine_code, size_t code_size,
     const std::vector<SourceMapEntry>& source_map, StringBuffer* str) {
+  if (source_map.empty()) {
+    return;
+  }
   auto source_map_index = 0;
   uint32_t next_code_offset = source_map[0].code_offset;
 
@@ -123,7 +126,9 @@ void X64Assembler::DumpMachineCode(
       auto& source_map_entry = source_map[source_map_index];
       str->AppendFormat("%.8X ", source_map_entry.source_offset);
       ++source_map_index;
-      next_code_offset = source_map[source_map_index].code_offset;
+      next_code_offset = source_map_index < source_map.size()
+                             ? source_map[source_map_index].code_offset
+                             : UINT_MAX;
     } else {
       str->Append("         ");
     }
