@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_TEXTURE_INFO_H_
 #define XENIA_GPU_TEXTURE_INFO_H_
 
+#include <cstring>
 #include <memory>
 
 #include "xenia/base/assert.h"

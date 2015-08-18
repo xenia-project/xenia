@@ -322,11 +322,23 @@ void Value::MulHi(Value* other, bool is_unsigned) {
       }
       break;
     case INT64_TYPE:
+#if XE_COMPILER_MSVC
       if (is_unsigned) {
         constant.i64 = __umulh(constant.i64, other->constant.i64);
       } else {
         constant.i64 = __mulh(constant.i64, other->constant.i64);
       }
+#else
+      if (is_unsigned) {
+        constant.i64 = static_cast<uint64_t>(
+            static_cast<unsigned __int128>(constant.i64) *
+            static_cast<unsigned __int128>(other->constant.i64));
+      } else {
+        constant.i64 =
+            static_cast<uint64_t>(static_cast<__int128>(constant.i64) *
+                                  static_cast<__int128>(other->constant.i64));
+      }
+#endif  // XE_COMPILER_MSVC
       break;
     default:
       assert_unhandled_case(type);
@@ -440,7 +452,7 @@ void Value::Abs() {
       break;
     case VEC128_TYPE:
       for (int i = 0; i < 4; ++i) {
-        constant.v128.f32[i] = std::fabsf(constant.v128.f32[i]);
+        constant.v128.f32[i] = std::abs(constant.v128.f32[i]);
       }
       break;
     default:
@@ -452,7 +464,7 @@ void Value::Abs() {
 void Value::Sqrt() {
   switch (type) {
     case FLOAT32_TYPE:
-      constant.f32 = 1.0f / std::sqrtf(constant.f32);
+      constant.f32 = 1.0f / std::sqrt(constant.f32);
       break;
     case FLOAT64_TYPE:
       constant.f64 = 1.0 / std::sqrt(constant.f64);

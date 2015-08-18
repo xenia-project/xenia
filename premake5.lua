@@ -36,7 +36,7 @@ filter("configurations:Checked")
   })
   flags({"Symbols"})
   runtime("Debug")
-filter("configurations:Checked", "platforms:Windows")
+filter({"configurations:Checked", "platforms:Windows"})
   buildoptions({
     "/RTCsu",   -- Full Run-Time Checks.
   })
@@ -69,6 +69,7 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     "-std=c++14",
+    "-mlzcnt",  -- Assume lzcnt supported.
   })
 
 filter("platforms:Windows")
@@ -151,7 +152,6 @@ solution("xenia")
   include("src/xenia/app")
   include("src/xenia/apu")
   include("src/xenia/apu/nop")
-  include("src/xenia/apu/xaudio2")
   include("src/xenia/base")
   include("src/xenia/cpu")
   include("src/xenia/cpu/backend/x64")
@@ -161,12 +161,16 @@ solution("xenia")
   include("src/xenia/gpu/gl4")
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
-  include("src/xenia/hid/winkey")
-  include("src/xenia/hid/xinput")
   include("src/xenia/kernel")
   include("src/xenia/ui")
   include("src/xenia/ui/gl")
   include("src/xenia/vfs")
+
+  if os.is("windows") then
+    include("src/xenia/apu/xaudio2")
+    include("src/xenia/hid/winkey")
+    include("src/xenia/hid/xinput")
+  end
 
   include("third_party/capstone.lua")
   include("third_party/elemental-forms")

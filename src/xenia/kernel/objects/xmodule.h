@@ -44,15 +44,9 @@ struct X_LDR_DATA_TABLE_ENTRY {
   xe::be<uint32_t> time_date_stamp;    // 0x50
   xe::be<uint32_t> loaded_imports;     // 0x54
   xe::be<uint32_t> xex_header_base;    // 0x58
-
-  union {
-    X_ANSI_STRING load_file_name;  // 0x5C
-
-    struct {
-      xe::be<uint32_t> closure_root;      // 0x5C
-      xe::be<uint32_t> traversal_parent;  // 0x60
-    };
-  };
+  // X_ANSI_STRING load_file_name;     // 0x5C
+  xe::be<uint32_t> closure_root;      // 0x5C
+  xe::be<uint32_t> traversal_parent;  // 0x60
 };
 
 class XModule : public XObject {

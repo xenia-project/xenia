@@ -11,6 +11,7 @@
 #define XENIA_GPU_REGISTER_FILE_H_
 
 #include <cstdint>
+#include <cstdlib>
 
 namespace xe {
 namespace gpu {

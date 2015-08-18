@@ -31,15 +31,7 @@ namespace xe {
   do {                 \
   } while (false)
 
-#if XE_COMPILER_GNUC
-#define XE_LOG_LINE_ATTRIBUTE __attribute__((format(printf, 5, 6)))
-#else
-#define XE_LOG_LINE_ATTRIBUTE
-#endif  // XE_COMPILER_GNUC
-void log_line(const char level_char, const char* fmt,
-              ...) XE_LOG_LINE_ATTRIBUTE;
-#undef XE_LOG_LINE_ATTRIBUTE
-
+void log_line(const char level_char, const char* fmt, ...);
 void handle_fatal(const char* fmt, ...);
 
 #if XE_OPTION_ENABLE_LOGGING

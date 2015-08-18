@@ -198,7 +198,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
         size_t remaining_size = file_size;
         uint32_t info = 0x80;
         while (remaining_size && block_index && info >= 0x80) {
-          size_t block_size = std::min(0x1000ull, remaining_size);
+          size_t block_size =
+              std::min(static_cast<size_t>(0x1000), remaining_size);
           size_t offset = BlockToOffset(ComputeBlockNumber(block_index));
           entry->block_list_.push_back({offset, block_size});
           remaining_size -= block_size;

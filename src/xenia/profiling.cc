@@ -24,15 +24,15 @@
 #define MICROPROFILE_USE_THREAD_NAME_CALLBACK 1
 #define MICROPROFILE_WEBSERVER_MAXFRAMES 3
 #define MICROPROFILE_PRINTF XELOGI
-#define MICROPROFILE_WEBSERVER 1
+#define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILE_DEBUG 0
-#if MICROPROFILE_WEBSERVER
-#include <winsock.h>  // NOLINT(build/include_order)
-#endif                // MICROPROFILE_WEBSERVER
 #include "third_party/microprofile/microprofile.h"
-#include "third_party/microprofile/microprofileui.h"
 
 #include "xenia/profiling.h"
+
+#if XE_OPTION_PROFILING
+#include "third_party/microprofile/microprofileui.h"
+#endif  // XE_OPTION_PROFILING
 
 DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
 

@@ -405,7 +405,7 @@ struct xe_xex2_loader_info_t {
   xe_xex2_media_flags media_flags;
 };
 
-enum xe_xex2_section_type : uint32_t {
+enum xe_xex2_section_type {
   XEX_SECTION_CODE = 1,
   XEX_SECTION_DATA = 2,
   XEX_SECTION_READONLY_DATA = 3,

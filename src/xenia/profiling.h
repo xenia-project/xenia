@@ -14,9 +14,11 @@
 
 #include "xenia/base/string.h"
 
-#define XE_OPTION_PROFILING 1
 #if XE_PLATFORM_WIN32
+#define XE_OPTION_PROFILING 1
 #define XE_OPTION_PROFILING_UI 1
+#else
+#define XE_OPTION_PROFILING 0
 #endif  // XE_PLATFORM_WIN32
 
 #if XE_OPTION_PROFILING
@@ -115,8 +117,10 @@ namespace xe {
   do {                                 \
   } while (false)
 
+#ifndef MICROPROFILE_TEXT_WIDTH
 #define MICROPROFILE_TEXT_WIDTH 1
 #define MICROPROFILE_TEXT_HEIGHT 1
+#endif  // !MICROPROFILE_TEXT_WIDTH
 
 #endif  // XE_OPTION_PROFILING
 

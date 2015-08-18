@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <string>
 
+#include "third_party/microprofile/microprofile.h"
 #include "third_party/microprofile/microprofileui.h"
 
 #include "xenia/base/assert.h"

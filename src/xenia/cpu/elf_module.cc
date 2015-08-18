@@ -79,7 +79,7 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
     XELOGE(
         "ELF: Could not load ELF because target machine is not PPC! (target: "
         "%d)",
-        hdr->e_machine);
+        uint32_t(hdr->e_machine));
     return false;
   }
 
@@ -108,8 +108,8 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
       // Allocate and copy into memory.
       // Base address @ 0x80000000
       uint32_t virtual_addr = phdr[i].p_vaddr < 0x80000000
-                                  ? phdr[i].p_vaddr + 0x80000000
-                                  : phdr[i].p_vaddr;
+                                  ? uint32_t(phdr[i].p_vaddr) + 0x80000000
+                                  : uint32_t(phdr[i].p_vaddr);
       if (!memory()
                ->LookupHeap(virtual_addr)
                ->AllocFixed(

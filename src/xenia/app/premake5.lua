@@ -12,7 +12,6 @@ project("xenia-app")
     "gflags",
     "xenia-apu",
     "xenia-apu-nop",
-    "xenia-apu-xaudio2",
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
@@ -21,8 +20,6 @@ project("xenia-app")
     "xenia-gpu",
     "xenia-gpu-gl4",
     "xenia-hid-nop",
-    "xenia-hid-winkey",
-    "xenia-hid-xinput",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-gl",
@@ -49,6 +46,12 @@ project("xenia-app")
     project_root.."/third_party/elemental-forms",
   })
 
+  filter("platforms:Windows")
+    links({
+      "xenia-apu-xaudio2",
+      "xenia-hid-winkey",
+      "xenia-hid-xinput",
+    })
   filter("configurations:Checked")
     local libav_root = "../third_party/libav-xma-bin/lib/Debug"
     linkoptions({

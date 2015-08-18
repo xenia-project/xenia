@@ -476,11 +476,15 @@ class BaseBuildCommand(Command):
     self.parser.add_argument(
         '--force', action='store_true',
         help='Forces a full rebuild.')
+    self.parser.add_argument(
+        '--no-premake', action='store_true',
+        help='Skips running premake before building.')
 
   def execute(self, args, pass_args, cwd):
-    print('- running premake...')
-    run_platform_premake()
-    print('')
+    if not args['no_premake']:
+      print('- running premake...')
+      run_platform_premake()
+      print('')
 
     print('- building (%s):%s...' % (
         'all' if not len(args['target']) else ' '.join(args['target']),
@@ -500,7 +504,7 @@ class BaseBuildCommand(Command):
     else:
       # TODO(benvanik): allow gcc?
       os.environ['CXX'] = 'clang++-3.8'
-      os.environ['CC'] = 'clang-3.8'
+      os.environ['CC'] = 'clang++-3.8'
       result = shell_call([
           'make',
           '-Cbuild/',

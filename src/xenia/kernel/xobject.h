@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <string>
 
 #include "xenia/base/threading.h"
@@ -162,10 +163,7 @@ class XObject {
                                              int32_t as_type = -1);
   template <typename T>
   static object_ref<T> GetNativeObject(KernelState* kernel_state,
-                                       void* native_ptr, int32_t as_type = -1) {
-    return object_ref<T>(reinterpret_cast<T*>(
-        GetNativeObject(kernel_state, native_ptr, as_type).release()));
-  }
+                                       void* native_ptr, int32_t as_type = -1);
 
   virtual xe::threading::WaitHandle* GetWaitHandle() { return nullptr; }
 
@@ -208,9 +206,9 @@ template <typename T>
 class object_ref {
  public:
   object_ref() noexcept : value_(nullptr) {}
-  object_ref(nullptr_t) noexcept  // NOLINT(runtime/explicit)
+  object_ref(std::nullptr_t) noexcept  // NOLINT(runtime/explicit)
       : value_(nullptr) {}
-  object_ref& operator=(nullptr_t) noexcept {
+  object_ref& operator=(std::nullptr_t) noexcept {
     reset();
     return (*this);
   }
@@ -250,9 +248,7 @@ class object_ref {
     return (*this);
   }
 
-  void swap(object_ref& right) noexcept {
-    std::_Swap_adl(value_, right.value_);
-  }
+  void swap(object_ref& right) noexcept { std::swap(value_, right.value_); }
 
   ~object_ref() noexcept {
     if (value_) {
@@ -298,22 +294,22 @@ class object_ref {
 };
 
 template <class _Ty>
-bool operator==(const object_ref<_Ty>& _Left, nullptr_t) noexcept {
+bool operator==(const object_ref<_Ty>& _Left, std::nullptr_t) noexcept {
   return (_Left.get() == reinterpret_cast<_Ty*>(0));
 }
 
 template <class _Ty>
-bool operator==(nullptr_t, const object_ref<_Ty>& _Right) noexcept {
+bool operator==(std::nullptr_t, const object_ref<_Ty>& _Right) noexcept {
   return (reinterpret_cast<_Ty*>(0) == _Right.get());
 }
 
 template <class _Ty>
-bool operator!=(const object_ref<_Ty>& _Left, nullptr_t _Right) noexcept {
+bool operator!=(const object_ref<_Ty>& _Left, std::nullptr_t _Right) noexcept {
   return (!(_Left == _Right));
 }
 
 template <class _Ty>
-bool operator!=(nullptr_t _Left, const object_ref<_Ty>& _Right) noexcept {
+bool operator!=(std::nullptr_t _Left, const object_ref<_Ty>& _Right) noexcept {
   return (!(_Left == _Right));
 }
 
@@ -321,6 +317,13 @@ template <typename T>
 object_ref<T> retain_object(T* ptr) {
   if (ptr) ptr->Retain();
   return object_ref<T>(ptr);
+}
+
+template <typename T>
+object_ref<T> XObject::GetNativeObject(KernelState* kernel_state,
+                                       void* native_ptr, int32_t as_type) {
+  return object_ref<T>(reinterpret_cast<T*>(
+      GetNativeObject(kernel_state, native_ptr, as_type).release()));
 }
 
 }  // namespace kernel

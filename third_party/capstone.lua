@@ -41,3 +41,12 @@ project("capstone")
     "capstone/arch/X86/*.inc",
   })
   force_compile_as_cc({"capstone/**.c"})
+
+  filter("platforms:Linux")
+    -- Capstone code is... not fantastic.
+    buildoptions({
+      "-Wno-error=write-strings",
+      "-Wno-write-string",
+      "-Wno-deprecated",
+      "-w",
+    })

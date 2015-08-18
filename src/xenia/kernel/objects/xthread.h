@@ -189,7 +189,7 @@ class XThread : public XObject {
   int32_t priority_ = 0;
   uint32_t affinity_ = 0;
 
-  std::atomic<uint32_t> irql_ = 0;
+  std::atomic<uint32_t> irql_ = {0};
   xe::mutex apc_lock_;
   NativeList* apc_list_ = nullptr;
 };

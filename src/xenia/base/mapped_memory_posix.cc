@@ -39,11 +39,11 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
   const char* mode_str;
   int prot;
   switch (mode) {
-    case Mode::READ:
+    case Mode::kRead:
       mode_str = "rb";
       prot = PROT_READ;
       break;
-    case Mode::READ_WRITE:
+    case Mode::kReadWrite:
       mode_str = "r+b";
       prot = PROT_READ | PROT_WRITE;
       break;

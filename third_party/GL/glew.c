@@ -10116,7 +10116,8 @@ GLenum GLEWAPIENTRY glewContextInit (GLEW_CONTEXT_ARG_DEF_LIST)
   }
 
   /* query opengl extensions string */
-  extStart = glewExperimental ? "" : glGetString(GL_EXTENSIONS);
+  extStart = glewExperimental ? (const GLubyte*)""
+                              : (const GLubyte*)glGetString(GL_EXTENSIONS);
   if (extStart == 0)
     extStart = (const GLubyte*)"";
   extEnd = extStart + _glewStrLen(extStart);

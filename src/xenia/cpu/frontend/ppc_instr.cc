@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/frontend/ppc_instr.h"
 
+#include <cinttypes>
 #include <sstream>
 #include <vector>
 
@@ -98,9 +99,9 @@ void InstrOperand::Dump(std::string& out_str) {
           break;
         case 8:
           if (imm.is_signed) {
-            snprintf(buffer, max_count, "%lld", (int64_t)imm.value);
+            snprintf(buffer, max_count, "%" PRId64, (int64_t)imm.value);
           } else {
-            snprintf(buffer, max_count, "0x%.16llX", imm.value);
+            snprintf(buffer, max_count, "0x%.16" PRIX64, imm.value);
           }
           break;
       }

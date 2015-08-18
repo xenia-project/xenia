@@ -61,10 +61,10 @@ bool X64Backend::Initialize() {
     machine_info_.supports_extended_load_store = false;
   }
 
-  machine_info_.register_sets[0] = {
+  machine_info_.register_sets[0] = (MachineInfo::RegisterSet){
       0, "gpr", MachineInfo::RegisterSet::INT_TYPES, X64Emitter::GPR_COUNT,
   };
-  machine_info_.register_sets[1] = {
+  machine_info_.register_sets[1] = (MachineInfo::RegisterSet){
       1, "xmm", MachineInfo::RegisterSet::FLOAT_TYPES |
                     MachineInfo::RegisterSet::VEC_TYPES,
       X64Emitter::XMM_COUNT,

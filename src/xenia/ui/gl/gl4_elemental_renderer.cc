@@ -9,6 +9,7 @@
 
 #include "xenia/ui/gl/gl4_elemental_renderer.h"
 
+#include <cstring>
 #include <memory>
 #include <string>
 

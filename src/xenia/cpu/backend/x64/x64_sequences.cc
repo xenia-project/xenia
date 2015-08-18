@@ -2019,7 +2019,7 @@ struct LOAD_MMIO_I32
     auto read_address = uint32_t(i.src2.value);
     e.mov(e.r8, uint64_t(mmio_range->callback_context));
     e.mov(e.r9d, read_address);
-    e.CallNativeSafe(mmio_range->read);
+    e.CallNativeSafe(reinterpret_cast<void*>(mmio_range->read));
     e.bswap(e.eax);
     e.mov(i.dest, e.eax);
     if (IsTracingData()) {
@@ -2050,7 +2050,7 @@ struct STORE_MMIO_I32
       e.mov(e.r10d, i.src3);
       e.bswap(e.r10d);
     }
-    e.CallNativeSafe(mmio_range->write);
+    e.CallNativeSafe(reinterpret_cast<void*>(mmio_range->write));
     if (IsTracingData()) {
       if (i.src3.is_constant) {
         e.mov(e.r8d, i.src3.constant());
@@ -6461,7 +6461,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
     } else {
       e.lea(e.r8, e.StashXmm(0, i.src1));
-      e.CallNativeSafe(EmulateFLOAT16_2);
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
   }
@@ -6488,7 +6488,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
     } else {
       e.lea(e.r8, e.StashXmm(0, i.src1));
-      e.CallNativeSafe(EmulateFLOAT16_4);
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
       e.vmovaps(i.dest, e.xmm0);
     }
   }
@@ -6787,7 +6787,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
     } else {
       e.lea(e.r8, e.StashXmm(0, i.src1));
-      e.CallNativeSafe(EmulateFLOAT16_2);
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
   }
@@ -6821,7 +6821,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vcvtph2ps(i.dest, i.dest);
     } else {
       e.lea(e.r8, e.StashXmm(0, i.src1));
-      e.CallNativeSafe(EmulateFLOAT16_4);
+      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
       e.vmovaps(i.dest, e.xmm0);
     }
   }

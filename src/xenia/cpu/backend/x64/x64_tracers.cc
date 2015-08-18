@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 
+#include <cinttypes>
+
 #include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/processor.h"
@@ -61,35 +63,36 @@ void TraceString(void* raw_context, const char* str) {
 
 void TraceContextLoadI8(void* raw_context, uint64_t offset, uint8_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%d (%X) = ctx i8 +%llu\n", (int8_t)value, value, offset);
+  DPRINT("%d (%X) = ctx i8 +%" PRIu64 "\n", (int8_t)value, value, offset);
 }
 void TraceContextLoadI16(void* raw_context, uint64_t offset, uint16_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%d (%X) = ctx i16 +%llu\n", (int16_t)value, value, offset);
+  DPRINT("%d (%X) = ctx i16 +%" PRIu64 "\n", (int16_t)value, value, offset);
 }
 void TraceContextLoadI32(void* raw_context, uint64_t offset, uint32_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%d (%X) = ctx i32 +%llu\n", (int32_t)value, value, offset);
+  DPRINT("%d (%X) = ctx i32 +%" PRIu64 "\n", (int32_t)value, value, offset);
 }
 void TraceContextLoadI64(void* raw_context, uint64_t offset, uint64_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%lld (%llX) = ctx i64 +%llu\n", (int64_t)value, value, offset);
+  DPRINT("%" PRId64 " (%" PRIX64 ") = ctx i64 +%" PRIu64 "\n", (int64_t)value,
+         value, offset);
 }
 void TraceContextLoadF32(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%e (%X) = ctx f32 +%llu\n", xe::m128_f32<0>(value),
+  DPRINT("%e (%X) = ctx f32 +%" PRIu64 "\n", xe::m128_f32<0>(value),
          xe::m128_i32<0>(value), offset);
 }
 void TraceContextLoadF64(void* raw_context, uint64_t offset,
                          const double* value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   auto v = _mm_loadu_pd(value);
-  DPRINT("%le (%llX) = ctx f64 +%llu\n", xe::m128_f64<0>(v), xe::m128_i64<0>(v),
-         offset);
+  DPRINT("%le (%" PRIX64 ") = ctx f64 +%" PRIu64 "\n", xe::m128_f64<0>(v),
+         xe::m128_i64<0>(v), offset);
 }
 void TraceContextLoadV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%llu\n",
+  DPRINT("[%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X] = ctx v128 +%" PRIu64 "\n",
          xe::m128_f32<0>(value), xe::m128_f32<1>(value), xe::m128_f32<2>(value),
          xe::m128_f32<3>(value), xe::m128_i32<0>(value), xe::m128_i32<1>(value),
          xe::m128_i32<2>(value), xe::m128_i32<3>(value), offset);
@@ -97,38 +100,40 @@ void TraceContextLoadV128(void* raw_context, uint64_t offset, __m128 value) {
 
 void TraceContextStoreI8(void* raw_context, uint64_t offset, uint8_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("ctx i8 +%llu = %d (%X)\n", offset, (int8_t)value, value);
+  DPRINT("ctx i8 +%" PRIu64 " = %d (%X)\n", offset, (int8_t)value, value);
 }
 void TraceContextStoreI16(void* raw_context, uint64_t offset, uint16_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("ctx i16 +%llu = %d (%X)\n", offset, (int16_t)value, value);
+  DPRINT("ctx i16 +%" PRIu64 " = %d (%X)\n", offset, (int16_t)value, value);
 }
 void TraceContextStoreI32(void* raw_context, uint64_t offset, uint32_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("ctx i32 +%llu = %d (%X)\n", offset, (int32_t)value, value);
+  DPRINT("ctx i32 +%" PRIu64 " = %d (%X)\n", offset, (int32_t)value, value);
 }
 void TraceContextStoreI64(void* raw_context, uint64_t offset, uint64_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("ctx i64 +%llu = %lld (%llX)\n", offset, (int64_t)value, value);
+  DPRINT("ctx i64 +%" PRIu64 " = %" PRId64 " (%" PRIX64 ")\n", offset,
+         (int64_t)value, value);
 }
 void TraceContextStoreF32(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("ctx f32 +%llu = %e (%X)\n", offset, xe::m128_f32<0>(value),
+  DPRINT("ctx f32 +%" PRIu64 " = %e (%X)\n", offset, xe::m128_f32<0>(value),
          xe::m128_i32<0>(value));
 }
 void TraceContextStoreF64(void* raw_context, uint64_t offset,
                           const double* value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   auto v = _mm_loadu_pd(value);
-  DPRINT("ctx f64 +%llu = %le (%llX)\n", offset, xe::m128_f64<0>(v),
-         xe::m128_i64<0>(v));
+  DPRINT("ctx f64 +%" PRIu64 " = %le (%" PRIX64 ")\n", offset,
+         xe::m128_f64<0>(v), xe::m128_i64<0>(v));
 }
 void TraceContextStoreV128(void* raw_context, uint64_t offset, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("ctx v128 +%llu = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n", offset,
-         xe::m128_f32<0>(value), xe::m128_f32<1>(value), xe::m128_f32<2>(value),
-         xe::m128_f32<3>(value), xe::m128_i32<0>(value), xe::m128_i32<1>(value),
-         xe::m128_i32<2>(value), xe::m128_i32<3>(value));
+  DPRINT("ctx v128 +%" PRIu64 " = [%e, %e, %e, %e] [%.8X, %.8X, %.8X, %.8X]\n",
+         offset, xe::m128_f32<0>(value), xe::m128_f32<1>(value),
+         xe::m128_f32<2>(value), xe::m128_f32<3>(value), xe::m128_i32<0>(value),
+         xe::m128_i32<1>(value), xe::m128_i32<2>(value),
+         xe::m128_i32<3>(value));
 }
 
 void TraceMemoryLoadI8(void* raw_context, uint32_t address, uint8_t value) {
@@ -145,7 +150,8 @@ void TraceMemoryLoadI32(void* raw_context, uint32_t address, uint32_t value) {
 }
 void TraceMemoryLoadI64(void* raw_context, uint32_t address, uint64_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%lld (%llX) = load.i64 %.8X\n", (int64_t)value, value, address);
+  DPRINT("%" PRId64 " (%" PRIX64 ") = load.i64 %.8X\n", (int64_t)value, value,
+         address);
 }
 void TraceMemoryLoadF32(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
@@ -154,7 +160,7 @@ void TraceMemoryLoadF32(void* raw_context, uint32_t address, __m128 value) {
 }
 void TraceMemoryLoadF64(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("%le (%llX) = load.f64 %.8X\n", xe::m128_f64<0>(value),
+  DPRINT("%le (%" PRIX64 ") = load.f64 %.8X\n", xe::m128_f64<0>(value),
          xe::m128_i64<0>(value), address);
 }
 void TraceMemoryLoadV128(void* raw_context, uint32_t address, __m128 value) {
@@ -179,7 +185,8 @@ void TraceMemoryStoreI32(void* raw_context, uint32_t address, uint32_t value) {
 }
 void TraceMemoryStoreI64(void* raw_context, uint32_t address, uint64_t value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("store.i64 %.8X = %lld (%llX)\n", address, (int64_t)value, value);
+  DPRINT("store.i64 %.8X = %" PRId64 " (%" PRIX64 ")\n", address,
+         (int64_t)value, value);
 }
 void TraceMemoryStoreF32(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
@@ -188,8 +195,8 @@ void TraceMemoryStoreF32(void* raw_context, uint32_t address, __m128 value) {
 }
 void TraceMemoryStoreF64(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  DPRINT("store.f64 %.8X = %le (%llX)\n", address, xe::m128_f64<0>(value),
-         xe::m128_i64<0>(value));
+  DPRINT("store.f64 %.8X = %le (%" PRIX64 ")\n", address,
+         xe::m128_f64<0>(value), xe::m128_i64<0>(value));
 }
 void TraceMemoryStoreV128(void* raw_context, uint32_t address, __m128 value) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);

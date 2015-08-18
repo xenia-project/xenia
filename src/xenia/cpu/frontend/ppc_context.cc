@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/frontend/ppc_context.h"
 
+#include <cinttypes>
 #include <cstdlib>
 
 namespace xe {
@@ -64,7 +65,7 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
   if (sscanf(name, "r%d", &n) == 1) {
     uint64_t expected = ParseInt64(value);
     if (this->r[n] != expected) {
-      snprintf(out_value, out_value_size, "%016llX", this->r[n]);
+      snprintf(out_value, out_value_size, "%016" PRIX64, this->r[n]);
       return false;
     }
     return true;

@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/hir/hir_builder.h"
 
+#include <cinttypes>
 #include <cstdarg>
 #include <cstring>
 
@@ -118,7 +119,7 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
         str->AppendFormat("%X", value->constant.i32);
         break;
       case INT64_TYPE:
-        str->AppendFormat("%llX", value->constant.i64);
+        str->AppendFormat("%" PRIX64, value->constant.i64);
         break;
       case FLOAT32_TYPE:
         str->AppendFormat("%F", value->constant.f32);

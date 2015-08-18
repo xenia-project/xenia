@@ -187,8 +187,8 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
       format_info->block_height;
 
   // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  uint32_t tile_width = uint32_t(std::ceilf(block_width / 32.0f));
-  uint32_t tile_height = uint32_t(std::ceilf(block_height / 32.0f));
+  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
+  uint32_t tile_height = uint32_t(std::ceil(block_height / 32.0f));
   size_2d.block_width = tile_width * 32;
   size_2d.block_height = tile_height * 32;
 
@@ -229,8 +229,8 @@ void TextureInfo::CalculateTextureSizesCube(
       format_info->block_height;
 
   // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  uint32_t tile_width = uint32_t(std::ceilf(block_width / 32.0f));
-  uint32_t tile_height = uint32_t(std::ceilf(block_height / 32.0f));
+  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
+  uint32_t tile_height = uint32_t(std::ceil(block_height / 32.0f));
   size_cube.block_width = tile_width * 32;
   size_cube.block_height = tile_height * 32;
 

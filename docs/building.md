@@ -28,6 +28,17 @@ the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`)
 To redirect output, use the following command flags:
 `--flagfile=$(SolutionDir)scratch\flags.txt 2>&1 1>$(SolutionDir)scratch\stdout.txt`
 
+### Linux
+
+Linux support is extremely experimental and incomplete.
+
+Only tested with GCC 4.9 on Ubuntu 14. [CodeLite](http://codelite.org) is the
+IDE of choice and `xb premake` will spit out files for that. Make also works via
+`xb build`.
+
+Currently building requires that CC == CXX == g++. If you know a way around this
+(to force .c files to be built with g++) let me know.
+
 ## Running
 
 To make life easier you can use `--flagfile=myflags.txt` to specify all

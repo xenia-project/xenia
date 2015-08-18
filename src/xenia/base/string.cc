@@ -9,20 +9,34 @@
 
 #include "xenia/base/string.h"
 
+// TODO(benvanik): when GCC finally gets codecvt, use that.
+#if XE_PLATFORM_LINUX
+#define NO_CODECVT 1
+#else
 #include <codecvt>
+#endif  // XE_PLATFORM_LINUX
+
 #include <cstring>
 #include <locale>
 
 namespace xe {
 
 std::string to_string(const std::wstring& source) {
-  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+#if NO_CODECVT
+  return std::string(source.begin(), source.end());
+#else
+  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t> > converter;
   return converter.to_bytes(source);
+#endif  // XE_PLATFORM_LINUX
 }
 
 std::wstring to_wstring(const std::string& source) {
-  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+#if NO_CODECVT
+  return std::wstring(source.begin(), source.end());
+#else
+  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t> > converter;
   return converter.from_bytes(source);
+#endif  // XE_PLATFORM_LINUX
 }
 
 std::string::size_type find_first_of_case(const std::string& target,
