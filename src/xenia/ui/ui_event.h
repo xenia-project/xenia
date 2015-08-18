@@ -28,8 +28,11 @@ class UIEvent {
 
 class KeyEvent : public UIEvent {
  public:
-  KeyEvent(Window* target, int key_code)
-      : UIEvent(target), key_code_(key_code) {}
+  KeyEvent(Window* target, int key_code, int repeat_count, bool prev_state)
+      : UIEvent(target),
+        key_code_(key_code),
+        repeat_count_(repeat_count),
+        prev_state_(prev_state) {}
   ~KeyEvent() override = default;
 
   bool is_handled() const { return handled_; }
@@ -37,9 +40,15 @@ class KeyEvent : public UIEvent {
 
   int key_code() const { return key_code_; }
 
+  int repeat_count() const { return repeat_count_; }
+  bool prev_state() const { return prev_state_; }
+
  private:
   bool handled_ = false;
   int key_code_ = 0;
+
+  int repeat_count_ = 0;
+  bool prev_state_ = false; // Key previously down(true) or up(false)
 };
 
 class MouseEvent : public UIEvent {
