@@ -1104,8 +1104,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingbufferReader* reader,
           // User wants it fast and dangerous.
           xe::threading::MaybeYield();
         } else {
-          xe::threading::Sleep(
-              std::chrono::milliseconds::duration(wait / 0x100));
+          xe::threading::Sleep(std::chrono::milliseconds(wait / 0x100));
         }
         xe::threading::SyncMemory();
         ReturnFromWait();

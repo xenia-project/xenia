@@ -143,7 +143,7 @@ void AudioSystem::WorkerThreadMain() {
 
     if (!pumped) {
       SCOPE_profile_cpu_i("apu", "Sleep");
-      xe::threading::Sleep(std::chrono::milliseconds::duration(500));
+      xe::threading::Sleep(std::chrono::milliseconds(500));
     }
   }
   worker_running_ = false;

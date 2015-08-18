@@ -585,7 +585,7 @@ void KernelState::CompleteOverlappedDeferredEx(
   dispatch_queue_.push_back([this, completion_callback, overlapped_ptr, result,
                              extended_error, length]() {
     xe::threading::Sleep(
-        std::chrono::milliseconds::duration(kDeferredOverlappedDelayMillis));
+        std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
     completion_callback();
     CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
   });

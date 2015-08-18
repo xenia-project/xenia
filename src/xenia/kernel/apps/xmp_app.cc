@@ -32,7 +32,7 @@ XXMPApp::XXMPApp(KernelState* kernel_state)
 X_RESULT XXMPApp::XMPGetStatus(uint32_t state_ptr) {
   // Some stupid games will hammer this on a thread - induce a delay
   // here to keep from starving real threads.
-  xe::threading::Sleep(std::chrono::milliseconds::duration(1));
+  xe::threading::Sleep(std::chrono::milliseconds(1));
 
   XELOGD("XMPGetStatus(%.8X)", state_ptr);
   xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),

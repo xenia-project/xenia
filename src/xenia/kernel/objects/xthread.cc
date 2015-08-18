@@ -409,7 +409,7 @@ void XThread::Execute() {
   // All threads get a mandatory sleep. This is to deal with some buggy
   // games that are assuming the 360 is so slow to create threads that they
   // have time to initialize shared structures AFTER CreateThread (RR).
-  xe::threading::Sleep(std::chrono::milliseconds::duration(100));
+  xe::threading::Sleep(std::chrono::milliseconds(100));
 
   int exit_code = 0;
 
