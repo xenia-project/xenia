@@ -202,7 +202,8 @@ class TestRunner {
 
     // Add dummy space for memory.
     processor->memory()->LookupHeap(0)->AllocFixed(
-        0x1000, 0xEFFF, 0, kMemoryAllocationReserve | kMemoryAllocationCommit,
+        0x10001000, 0xEFFF, 0,
+        kMemoryAllocationReserve | kMemoryAllocationCommit,
         kMemoryProtectRead | kMemoryProtectWrite);
 
     // Simulate a thread.
