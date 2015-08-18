@@ -61,14 +61,18 @@ bool X64Backend::Initialize() {
     machine_info_.supports_extended_load_store = false;
   }
 
-  machine_info_.register_sets[0] = (MachineInfo::RegisterSet){
-      0, "gpr", MachineInfo::RegisterSet::INT_TYPES, X64Emitter::GPR_COUNT,
-  };
-  machine_info_.register_sets[1] = (MachineInfo::RegisterSet){
-      1, "xmm", MachineInfo::RegisterSet::FLOAT_TYPES |
-                    MachineInfo::RegisterSet::VEC_TYPES,
-      X64Emitter::XMM_COUNT,
-  };
+  auto& gprs = machine_info_.register_sets[0];
+  gprs.id = 0;
+  std::strcpy(gprs.name, "gpr");
+  gprs.types = MachineInfo::RegisterSet::INT_TYPES;
+  gprs.count = X64Emitter::GPR_COUNT;
+
+  auto& xmms = machine_info_.register_sets[1];
+  xmms.id = 1;
+  std::strcpy(xmms.name, "xmm");
+  xmms.types = MachineInfo::RegisterSet::FLOAT_TYPES |
+               MachineInfo::RegisterSet::VEC_TYPES;
+  xmms.count = X64Emitter::XMM_COUNT;
 
   code_cache_ = X64CodeCache::Create();
   Backend::code_cache_ = code_cache_.get();

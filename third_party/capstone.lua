@@ -50,3 +50,4 @@ project("capstone")
       "-Wno-deprecated",
       "-w",
     })
+  filter({})
