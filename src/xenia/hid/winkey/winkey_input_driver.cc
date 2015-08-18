@@ -10,14 +10,41 @@
 #include "xenia/hid/winkey/winkey_input_driver.h"
 
 #include "xenia/base/platform_win.h"
+#include "xenia/emulator.h"
 #include "xenia/hid/hid_flags.h"
+#include "xenia/hid/input_system.h"
+#include "xenia/ui/window.h"
 
 namespace xe {
 namespace hid {
 namespace winkey {
 
 WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
-    : InputDriver(input_system), packet_number_(1) {}
+    : InputDriver(input_system), packet_number_(1) {
+  // Register a key listener.
+  input_system_->emulator()->display_window()->on_key_down.AddListener(
+      [this](ui::KeyEvent* evt) {
+        std::lock_guard<std::mutex> lock(key_event_mutex_);
+
+        KeyEvent key;
+        key.vkey = evt->key_code();
+        key.transition = true;
+        key.prev_state = evt->prev_state();
+        key.repeat_count = evt->repeat_count();
+        key_events_.push(key);
+      });
+  input_system_->emulator()->display_window()->on_key_up.AddListener(
+      [this](ui::KeyEvent* evt) {
+        std::lock_guard<std::mutex> lock(key_event_mutex_);
+
+        KeyEvent key;
+        key.vkey = evt->key_code();
+        key.transition = false;
+        key.prev_state = evt->prev_state();
+        key.repeat_count = evt->repeat_count();
+        key_events_.push(key);
+      });
+}
 
 WinKeyInputDriver::~WinKeyInputDriver() = default;
 
@@ -64,86 +91,88 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_rx = 0;
   int16_t thumb_ry = 0;
 
-  if (IS_KEY_TOGGLED(VK_CAPITAL)) {
-    // dpad toggled
-    if (IS_KEY_DOWN(0x41)) {
-      // A
-      buttons |= 0x0004;  // XINPUT_GAMEPAD_DPAD_LEFT
+  if (input_system_->emulator()->display_window()->has_focus()) {
+    if (IS_KEY_TOGGLED(VK_CAPITAL)) {
+      // dpad toggled
+      if (IS_KEY_DOWN(0x41)) {
+        // A
+        buttons |= 0x0004;  // XINPUT_GAMEPAD_DPAD_LEFT
+      }
+      if (IS_KEY_DOWN(0x44)) {
+        // D
+        buttons |= 0x0008;  // XINPUT_GAMEPAD_DPAD_RIGHT
+      }
+      if (IS_KEY_DOWN(0x53)) {
+        // S
+        buttons |= 0x0002;  // XINPUT_GAMEPAD_DPAD_DOWN
+      }
+      if (IS_KEY_DOWN(0x57)) {
+        // W
+        buttons |= 0x0001;  // XINPUT_GAMEPAD_DPAD_UP
+      }
+    } else {
+      // left stick
+      if (IS_KEY_DOWN(0x41)) {
+        // A
+        thumb_lx += SHRT_MIN;
+      }
+      if (IS_KEY_DOWN(0x44)) {
+        // D
+        thumb_lx += SHRT_MAX;
+      }
+      if (IS_KEY_DOWN(0x53)) {
+        // S
+        thumb_ly += SHRT_MIN;
+      }
+      if (IS_KEY_DOWN(0x57)) {
+        // W
+        thumb_ly += SHRT_MAX;
+      }
     }
-    if (IS_KEY_DOWN(0x44)) {
-      // D
-      buttons |= 0x0008;  // XINPUT_GAMEPAD_DPAD_RIGHT
-    }
-    if (IS_KEY_DOWN(0x53)) {
-      // S
-      buttons |= 0x0002;  // XINPUT_GAMEPAD_DPAD_DOWN
-    }
-    if (IS_KEY_DOWN(0x57)) {
-      // W
-      buttons |= 0x0001;  // XINPUT_GAMEPAD_DPAD_UP
-    }
-  } else {
-    // left stick
-    if (IS_KEY_DOWN(0x41)) {
-      // A
-      thumb_lx += SHRT_MIN;
-    }
-    if (IS_KEY_DOWN(0x44)) {
-      // D
-      thumb_lx += SHRT_MAX;
-    }
-    if (IS_KEY_DOWN(0x53)) {
-      // S
-      thumb_ly += SHRT_MIN;
-    }
-    if (IS_KEY_DOWN(0x57)) {
-      // W
-      thumb_ly += SHRT_MAX;
-    }
-  }
 
-  // Right stick
-  if (IS_KEY_DOWN(0x26)) {
-    // Up
-    thumb_ry += SHRT_MAX;
-  }
-  if (IS_KEY_DOWN(0x28)) {
-    // Down
-    thumb_ry += SHRT_MIN;
-  }
-  if (IS_KEY_DOWN(0x27)) {
-    // Right
-    thumb_rx += SHRT_MAX;
-  }
-  if (IS_KEY_DOWN(0x25)) {
-    // Left
-    thumb_rx += SHRT_MIN;
-  }
+    // Right stick
+    if (IS_KEY_DOWN(0x26)) {
+      // Up
+      thumb_ry += SHRT_MAX;
+    }
+    if (IS_KEY_DOWN(0x28)) {
+      // Down
+      thumb_ry += SHRT_MIN;
+    }
+    if (IS_KEY_DOWN(0x27)) {
+      // Right
+      thumb_rx += SHRT_MAX;
+    }
+    if (IS_KEY_DOWN(0x25)) {
+      // Left
+      thumb_rx += SHRT_MIN;
+    }
 
-  if (IS_KEY_DOWN(0x4C)) {
-    // L
-    buttons |= 0x4000;  // XINPUT_GAMEPAD_X
-  }
-  if (IS_KEY_DOWN(VK_OEM_7)) {
-    // '
-    buttons |= 0x2000;  // XINPUT_GAMEPAD_B
-  }
-  if (IS_KEY_DOWN(VK_OEM_1)) {
-    // ;
-    buttons |= 0x1000;  // XINPUT_GAMEPAD_A
-  }
-  if (IS_KEY_DOWN(0x50)) {
-    // P
-    buttons |= 0x8000;  // XINPUT_GAMEPAD_Y
-  }
+    if (IS_KEY_DOWN(0x4C)) {
+      // L
+      buttons |= 0x4000;  // XINPUT_GAMEPAD_X
+    }
+    if (IS_KEY_DOWN(VK_OEM_7)) {
+      // '
+      buttons |= 0x2000;  // XINPUT_GAMEPAD_B
+    }
+    if (IS_KEY_DOWN(VK_OEM_1)) {
+      // ;
+      buttons |= 0x1000;  // XINPUT_GAMEPAD_A
+    }
+    if (IS_KEY_DOWN(0x50)) {
+      // P
+      buttons |= 0x8000;  // XINPUT_GAMEPAD_Y
+    }
 
-  if (IS_KEY_DOWN(0x5A)) {
-    // Z
-    buttons |= 0x0020;  // XINPUT_GAMEPAD_BACK
-  }
-  if (IS_KEY_DOWN(0x58)) {
-    // X
-    buttons |= 0x0010;  // XINPUT_GAMEPAD_START
+    if (IS_KEY_DOWN(0x5A)) {
+      // Z
+      buttons |= 0x0020;  // XINPUT_GAMEPAD_BACK
+    }
+    if (IS_KEY_DOWN(0x58)) {
+      // X
+      buttons |= 0x0010;  // XINPUT_GAMEPAD_START
+    }
   }
 
   out_state->packet_number = packet_number_;
@@ -180,84 +209,107 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   uint16_t keystroke_flags = 0;
   uint8_t hid_code = 0;
 
+  // Pop from the queue.
+  key_event_mutex_.lock();
+  if (key_events_.size() == 0) {
+    key_event_mutex_.unlock();
+
+    // No keys!
+    return X_ERROR_EMPTY;
+  }
+
+  KeyEvent evt = key_events_.front();
+  key_events_.pop();
+  key_event_mutex_.unlock();
+
+  // TODO: Some other way to toggle this...
   if (IS_KEY_TOGGLED(VK_CAPITAL)) {
     // dpad toggled
-    if (IS_KEY_DOWN(0x41)) {
+    if (evt.vkey == (0x41)) {
       // A
       virtual_key = 0x5812;  // VK_PAD_DPAD_LEFT
-    } else if (IS_KEY_DOWN(0x44)) {
+    } else if (evt.vkey == (0x44)) {
       // D
       virtual_key = 0x5813;  // VK_PAD_DPAD_RIGHT
-    } else if (IS_KEY_DOWN(0x53)) {
+    } else if (evt.vkey == (0x53)) {
       // S
       virtual_key = 0x5811;  // VK_PAD_DPAD_DOWN
-    } else if (IS_KEY_DOWN(0x57)) {
+    } else if (evt.vkey == (0x57)) {
       // W
       virtual_key = 0x5810;  // VK_PAD_DPAD_UP
     }
   } else {
     // left stick
-    if (IS_KEY_DOWN(0x57)) {
+    if (evt.vkey == (0x57)) {
       // W
       virtual_key = 0x5820;  // VK_PAD_LTHUMB_UP
     }
-    if (IS_KEY_DOWN(0x53)) {
+    if (evt.vkey == (0x53)) {
       // S
       virtual_key = 0x5821;  // VK_PAD_LTHUMB_DOWN
     }
-    if (IS_KEY_DOWN(0x44)) {
+    if (evt.vkey == (0x44)) {
       // D
       virtual_key = 0x5822;  // VK_PAD_LTHUMB_RIGHT
     }
-    if (IS_KEY_DOWN(0x41)) {
+    if (evt.vkey == (0x41)) {
       // A
       virtual_key = 0x5823;  // VK_PAD_LTHUMB_LEFT
     }
   }
 
   // Right stick
-  if (IS_KEY_DOWN(0x26)) {
+  if (evt.vkey == (0x26)) {
     // Up
     virtual_key = 0x5830;
   }
-  if (IS_KEY_DOWN(0x28)) {
+  if (evt.vkey == (0x28)) {
     // Down
     virtual_key = 0x5831;
   }
-  if (IS_KEY_DOWN(0x27)) {
+  if (evt.vkey == (0x27)) {
     // Right
     virtual_key = 0x5832;
   }
-  if (IS_KEY_DOWN(0x25)) {
+  if (evt.vkey == (0x25)) {
     // Left
     virtual_key = 0x5833;
   }
 
-  if (IS_KEY_DOWN(0x4C)) {
+  if (evt.vkey == (0x4C)) {
     // L
     virtual_key = 0x5802;  // VK_PAD_X
-  } else if (IS_KEY_DOWN(VK_OEM_7)) {
+  } else if (evt.vkey == (VK_OEM_7)) {
     // '
     virtual_key = 0x5801;  // VK_PAD_B
-  } else if (IS_KEY_DOWN(VK_OEM_1)) {
+  } else if (evt.vkey == (VK_OEM_1)) {
     // ;
     virtual_key = 0x5800;  // VK_PAD_A
-  } else if (IS_KEY_DOWN(0x50)) {
+  } else if (evt.vkey == (0x50)) {
     // P
     virtual_key = 0x5803;  // VK_PAD_Y
   }
 
-  if (IS_KEY_DOWN(0x58)) {
+  if (evt.vkey == (0x58)) {
     // X
     virtual_key = 0x5814;  // VK_PAD_START
   }
-  if (IS_KEY_DOWN(0x5A)) {
+  if (evt.vkey == (0x5A)) {
     // Z
     virtual_key = 0x5815;  // VK_PAD_BACK
   }
 
   if (virtual_key != 0) {
-    keystroke_flags |= 0x0001;  // XINPUT_KEYSTROKE_DOWN
+    if (evt.transition == true) {
+      keystroke_flags |= 0x0001;  // XINPUT_KEYSTROKE_KEYDOWN
+    } else if (evt.transition == false) {
+      keystroke_flags |= 0x0002;  // XINPUT_KEYSTROKE_KEYUP
+    }
+
+    if (evt.prev_state == evt.transition) {
+      keystroke_flags |= 0x0004;  // XINPUT_KEYSTROKE_REPEAT
+    }
+
     result = X_ERROR_SUCCESS;
   }
 
