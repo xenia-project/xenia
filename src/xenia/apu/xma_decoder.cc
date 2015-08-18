@@ -15,7 +15,6 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/emulator.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
 
@@ -50,15 +49,10 @@ extern "C" {
 namespace xe {
 namespace apu {
 
-XmaDecoder::XmaDecoder(Emulator* emulator)
-    : emulator_(emulator),
-      memory_(emulator->memory()),
-      processor_(emulator->processor()),
-      worker_running_(false),
-      context_data_first_ptr_(0),
-      context_data_last_ptr_(0) {}
+XmaDecoder::XmaDecoder(cpu::Processor* processor)
+    : memory_(processor->memory()), processor_(processor) {}
 
-XmaDecoder::~XmaDecoder() {}
+XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   StringBuffer buff;
@@ -66,12 +60,12 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   xe::log_line('i', "libav: %s", buff.GetString());
 }
 
-X_STATUS XmaDecoder::Setup() {
+X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   // Setup libav logging callback
   av_log_set_callback(av_log_callback);
 
   // Let the processor know we want register access callbacks.
-  emulator_->memory()->AddVirtualMappedRange(
+  memory_->AddVirtualMappedRange(
       0x7FEA0000, 0xFFFF0000, 0x0000FFFF, this,
       reinterpret_cast<cpu::MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<cpu::MMIOWriteCallback>(MMIOWriteRegisterThunk));
@@ -95,12 +89,11 @@ X_STATUS XmaDecoder::Setup() {
   registers_.next_context = 1;
 
   worker_running_ = true;
-  worker_thread_ =
-      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
-          emulator()->kernel_state(), 128 * 1024, 0, [this]() {
-            WorkerThreadMain();
-            return 0;
-          }));
+  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
+      new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
+        WorkerThreadMain();
+        return 0;
+      }));
   worker_thread_->set_name("XMA Decoder Worker");
   worker_thread_->Create();
 

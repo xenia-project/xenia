@@ -12,7 +12,6 @@
 #include <gflags/gflags.h>
 
 #include "xenia/apu/audio_system.h"
-#include "xenia/apu/xma_decoder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -47,12 +46,10 @@ Emulator::~Emulator() {
   // Give the systems time to shutdown before we delete them.
   graphics_system_->Shutdown();
   audio_system_->Shutdown();
-  xma_decoder_->Shutdown();
 
   input_system_.reset();
   graphics_system_.reset();
   audio_system_.reset();
-  xma_decoder_.reset();
 
   kernel_state_.reset();
   file_system_.reset();
@@ -104,12 +101,10 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
       memory_.get(), export_resolver_.get(), debugger_.get());
 
   // Initialize the APU.
-  audio_system_ = xe::apu::AudioSystem::Create(this);
+  audio_system_ = xe::apu::AudioSystem::Create(processor_.get());
   if (!audio_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
-
-  xma_decoder_ = std::make_unique<xe::apu::XmaDecoder>(this);
 
   // Initialize the GPU.
   graphics_system_ = xe::gpu::GraphicsSystem::Create(this);
@@ -148,12 +143,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
     return result;
   }
 
-  result = audio_system_->Setup();
-  if (result) {
-    return result;
-  }
-
-  result = xma_decoder_->Setup();
+  result = audio_system_->Setup(kernel_state_.get());
   if (result) {
     return result;
   }

@@ -15,11 +15,12 @@ namespace xe {
 namespace apu {
 namespace nop {
 
-std::unique_ptr<AudioSystem> NopAudioSystem::Create(Emulator* emulator) {
-  return std::make_unique<NopAudioSystem>(emulator);
+std::unique_ptr<AudioSystem> NopAudioSystem::Create(cpu::Processor* processor) {
+  return std::make_unique<NopAudioSystem>(processor);
 }
 
-NopAudioSystem::NopAudioSystem(Emulator* emulator) : AudioSystem(emulator) {}
+NopAudioSystem::NopAudioSystem(cpu::Processor* processor)
+    : AudioSystem(processor) {}
 
 NopAudioSystem::~NopAudioSystem() = default;
 

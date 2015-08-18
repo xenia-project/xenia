@@ -13,18 +13,18 @@
 
 #include "xenia/apu/apu_flags.h"
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
-#include "xenia/emulator.h"
 
 namespace xe {
 namespace apu {
 namespace xaudio2 {
 
-std::unique_ptr<AudioSystem> XAudio2AudioSystem::Create(Emulator* emulator) {
-  return std::make_unique<XAudio2AudioSystem>(emulator);
+std::unique_ptr<AudioSystem> XAudio2AudioSystem::Create(
+    cpu::Processor* processor) {
+  return std::make_unique<XAudio2AudioSystem>(processor);
 }
 
-XAudio2AudioSystem::XAudio2AudioSystem(Emulator* emulator)
-    : AudioSystem(emulator) {}
+XAudio2AudioSystem::XAudio2AudioSystem(cpu::Processor* processor)
+    : AudioSystem(processor) {}
 
 XAudio2AudioSystem::~XAudio2AudioSystem() {}
 
@@ -34,7 +34,7 @@ X_STATUS XAudio2AudioSystem::CreateDriver(size_t index,
                                           xe::threading::Semaphore* semaphore,
                                           AudioDriver** out_driver) {
   assert_not_null(out_driver);
-  auto driver = new XAudio2AudioDriver(emulator_, semaphore);
+  auto driver = new XAudio2AudioDriver(memory_, semaphore);
   driver->Initialize();
   *out_driver = driver;
   return X_STATUS_SUCCESS;

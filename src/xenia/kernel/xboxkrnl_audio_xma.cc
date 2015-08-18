@@ -62,7 +62,7 @@ SHIM_CALL XMACreateContext_shim(PPCContext* ppc_context,
 
   XELOGD("XMACreateContext(%.8X)", context_out_ptr);
 
-  auto xma_decoder = kernel_state->emulator()->xma_decoder();
+  auto xma_decoder = kernel_state->emulator()->audio_system()->xma_decoder();
   uint32_t context_ptr = xma_decoder->AllocateContext();
   SHIM_SET_MEM_32(context_out_ptr, context_ptr);
   if (!context_ptr) {
@@ -79,7 +79,7 @@ SHIM_CALL XMAReleaseContext_shim(PPCContext* ppc_context,
 
   XELOGD("XMAReleaseContext(%.8X)", context_ptr);
 
-  auto xma_decoder = kernel_state->emulator()->xma_decoder();
+  auto xma_decoder = kernel_state->emulator()->audio_system()->xma_decoder();
   xma_decoder->ReleaseContext(context_ptr);
 
   SHIM_SET_RETURN_32(0);
@@ -87,7 +87,7 @@ SHIM_CALL XMAReleaseContext_shim(PPCContext* ppc_context,
 
 void StoreXmaContextIndexedRegister(KernelState* kernel_state,
                                     uint32_t base_reg, uint32_t context_ptr) {
-  auto xma_decoder = kernel_state->emulator()->xma_decoder();
+  auto xma_decoder = kernel_state->emulator()->audio_system()->xma_decoder();
   uint32_t hw_index = (context_ptr - xma_decoder->context_array_ptr()) /
                       sizeof(XMA_CONTEXT_DATA);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
@@ -327,8 +327,8 @@ SHIM_CALL XMADisableContext_shim(PPCContext* ppc_context,
 
   X_HRESULT result = X_E_SUCCESS;
   StoreXmaContextIndexedRegister(kernel_state, 0x1A40, context_ptr);
-  if (!kernel_state->emulator()->xma_decoder()->BlockOnContext(context_ptr,
-                                                               !wait)) {
+  if (!kernel_state->emulator()->audio_system()->xma_decoder()->BlockOnContext(
+          context_ptr, !wait)) {
     result = X_E_FALSE;
   }
 

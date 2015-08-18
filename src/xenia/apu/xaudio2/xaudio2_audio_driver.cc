@@ -16,7 +16,6 @@
 #include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
-#include "xenia/emulator.h"
 
 namespace xe {
 namespace apu {
@@ -43,9 +42,9 @@ class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
   xe::threading::Semaphore* semaphore_ = nullptr;
 };
 
-XAudio2AudioDriver::XAudio2AudioDriver(Emulator* emulator,
+XAudio2AudioDriver::XAudio2AudioDriver(Memory* memory,
                                        xe::threading::Semaphore* semaphore)
-    : AudioDriver(emulator), semaphore_(semaphore) {
+    : AudioDriver(memory), semaphore_(semaphore) {
   static_assert(frame_count_ == XAUDIO2_MAX_QUEUED_BUFFERS,
                 "xaudio header differs");
 }

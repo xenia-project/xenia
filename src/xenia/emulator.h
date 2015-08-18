@@ -21,7 +21,6 @@
 namespace xe {
 namespace apu {
 class AudioSystem;
-class XmaDecoder;
 }  // namespace apu
 namespace cpu {
 class ExportResolver;
@@ -56,7 +55,6 @@ class Emulator {
 
   cpu::Processor* processor() const { return processor_.get(); }
   apu::AudioSystem* audio_system() const { return audio_system_.get(); }
-  apu::XmaDecoder* xma_decoder() const { return xma_decoder_.get(); }
   gpu::GraphicsSystem* graphics_system() const {
     return graphics_system_.get();
   }
@@ -90,7 +88,6 @@ class Emulator {
 
   std::unique_ptr<cpu::Processor> processor_;
   std::unique_ptr<apu::AudioSystem> audio_system_;
-  std::unique_ptr<apu::XmaDecoder> xma_decoder_;
   std::unique_ptr<gpu::GraphicsSystem> graphics_system_;
   std::unique_ptr<hid::InputSystem> input_system_;
 

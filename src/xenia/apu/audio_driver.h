@@ -10,7 +10,7 @@
 #ifndef XENIA_APU_AUDIO_DRIVER_H_
 #define XENIA_APU_AUDIO_DRIVER_H_
 
-#include "xenia/emulator.h"
+#include "xenia/memory.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -18,7 +18,7 @@ namespace apu {
 
 class AudioDriver {
  public:
-  explicit AudioDriver(Emulator* emulator);
+  explicit AudioDriver(Memory* memory);
   virtual ~AudioDriver();
 
   virtual void SubmitFrame(uint32_t samples_ptr) = 0;
@@ -28,9 +28,7 @@ class AudioDriver {
     return memory_->TranslatePhysical(guest_address);
   }
 
-  Emulator* emulator_;
-  Memory* memory_;
-  cpu::Processor* processor_;
+  Memory* memory_ = nullptr;
 };
 
 }  // namespace apu

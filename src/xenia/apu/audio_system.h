@@ -15,31 +15,28 @@
 #include <queue>
 
 #include "xenia/base/threading.h"
-#include "xenia/emulator.h"
+#include "xenia/cpu/processor.h"
+#include "xenia/kernel/objects/xthread.h"
+#include "xenia/memory.h"
 #include "xenia/xbox.h"
-
-namespace xe {
-namespace kernel {
-class XHostThread;
-}  // namespace kernel
-}  // namespace xe
 
 namespace xe {
 namespace apu {
 
 class AudioDriver;
+class XmaDecoder;
 
 class AudioSystem {
  public:
   virtual ~AudioSystem();
 
-  static std::unique_ptr<AudioSystem> Create(Emulator* emulator);
+  static std::unique_ptr<AudioSystem> Create(cpu::Processor* processor);
 
-  Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
+  XmaDecoder* xma_decoder() const { return xma_decoder_.get(); }
 
-  virtual X_STATUS Setup();
+  virtual X_STATUS Setup(kernel::KernelState* kernel_state);
   virtual void Shutdown();
 
   X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg,
@@ -48,7 +45,7 @@ class AudioSystem {
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
  protected:
-  explicit AudioSystem(Emulator* emulator);
+  explicit AudioSystem(cpu::Processor* processor);
 
   virtual void Initialize();
 
@@ -63,11 +60,11 @@ class AudioSystem {
   // XAUDIO2_MAX_QUEUED_BUFFERS))
   static const size_t kMaximumQueuedFrames = 64;
 
-  Emulator* emulator_;
-  Memory* memory_;
-  cpu::Processor* processor_;
+  Memory* memory_ = nullptr;
+  cpu::Processor* processor_ = nullptr;
+  std::unique_ptr<XmaDecoder> xma_decoder_;
 
-  std::atomic<bool> worker_running_;
+  std::atomic<bool> worker_running_ = {false};
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
   xe::mutex lock_;

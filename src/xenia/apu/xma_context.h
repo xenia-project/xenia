@@ -14,7 +14,7 @@
 #include <mutex>
 #include <queue>
 
-#include "xenia/emulator.h"
+#include "xenia/memory.h"
 #include "xenia/xbox.h"
 
 // XMA audio format:
@@ -174,7 +174,7 @@ class XmaContext {
   int DecodePacket(uint8_t* output, size_t offset, size_t size,
                    size_t* read_bytes);
 
-  Memory* memory_;
+  Memory* memory_ = nullptr;
 
   uint32_t id_ = 0;
   uint32_t guest_ptr_ = 0;

@@ -11,6 +11,7 @@
 #define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 
 #include "xenia/apu/audio_driver.h"
+#include "xenia/base/threading.h"
 
 struct IXAudio2;
 struct IXAudio2MasteringVoice;
@@ -22,7 +23,7 @@ namespace xaudio2 {
 
 class XAudio2AudioDriver : public AudioDriver {
  public:
-  XAudio2AudioDriver(Emulator* emulator, xe::threading::Semaphore* semaphore);
+  XAudio2AudioDriver(Memory* memory, xe::threading::Semaphore* semaphore);
   ~XAudio2AudioDriver() override;
 
   void Initialize();

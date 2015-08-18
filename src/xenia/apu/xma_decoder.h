@@ -15,14 +15,8 @@
 #include <queue>
 
 #include "xenia/apu/xma_context.h"
-#include "xenia/emulator.h"
+#include "xenia/kernel/objects/xthread.h"
 #include "xenia/xbox.h"
-
-namespace xe {
-namespace kernel {
-class XHostThread;
-}  // namespace kernel
-}  // namespace xe
 
 namespace xe {
 namespace apu {
@@ -31,15 +25,14 @@ struct XMA_CONTEXT_DATA;
 
 class XmaDecoder {
  public:
-  explicit XmaDecoder(Emulator* emulator);
+  explicit XmaDecoder(cpu::Processor* processor);
   ~XmaDecoder();
 
-  Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
 
-  virtual X_STATUS Setup();
-  virtual void Shutdown();
+  X_STATUS Setup(kernel::KernelState* kernel_state);
+  void Shutdown();
 
   uint32_t context_array_ptr() const { return registers_.context_array_ptr; }
 
@@ -47,8 +40,8 @@ class XmaDecoder {
   void ReleaseContext(uint32_t guest_ptr);
   bool BlockOnContext(uint32_t guest_ptr, bool poll);
 
-  virtual uint32_t ReadRegister(uint32_t addr);
-  virtual void WriteRegister(uint32_t addr, uint32_t value);
+  uint32_t ReadRegister(uint32_t addr);
+  void WriteRegister(uint32_t addr, uint32_t value);
 
  protected:
   int GetContextId(uint32_t guest_ptr);
@@ -66,11 +59,10 @@ class XmaDecoder {
   }
 
  protected:
-  Emulator* emulator_;
-  Memory* memory_;
-  cpu::Processor* processor_;
+  Memory* memory_ = nullptr;
+  cpu::Processor* processor_ = nullptr;
 
-  std::atomic<bool> worker_running_;
+  std::atomic<bool> worker_running_ = {false};
   kernel::object_ref<kernel::XHostThread> worker_thread_;
   xe::threading::Fence worker_fence_;
 
@@ -100,8 +92,8 @@ class XmaDecoder {
   static const uint32_t kContextCount = 320;
   XmaContext contexts_[kContextCount];
 
-  uint32_t context_data_first_ptr_;
-  uint32_t context_data_last_ptr_;
+  uint32_t context_data_first_ptr_ = 0;
+  uint32_t context_data_last_ptr_ = 0;
 };
 
 }  // namespace apu

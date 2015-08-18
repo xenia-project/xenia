@@ -11,15 +11,13 @@
 
 #include "xenia/apu/apu_flags.h"
 #include "xenia/apu/audio_driver.h"
+#include "xenia/apu/xma_decoder.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/base/threading.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/emulator.h"
-#include "xenia/kernel/objects/xthread.h"
 #include "xenia/profiling.h"
 
 #include "xenia/apu/nop/nop_audio_system.h"
@@ -42,31 +40,33 @@
 namespace xe {
 namespace apu {
 
-std::unique_ptr<AudioSystem> AudioSystem::Create(Emulator* emulator) {
+std::unique_ptr<AudioSystem> AudioSystem::Create(cpu::Processor* processor) {
   if (FLAGS_apu.compare("nop") == 0) {
-    return nop::NopAudioSystem::Create(emulator);
+    return nop::NopAudioSystem::Create(processor);
 #if XE_PLATFORM_WIN32
   } else if (FLAGS_apu.compare("xaudio2") == 0) {
-    return xaudio2::XAudio2AudioSystem::Create(emulator);
+    return xaudio2::XAudio2AudioSystem::Create(processor);
 #endif  // WIN32
   } else {
     // Create best available.
     std::unique_ptr<AudioSystem> best;
 
 #if XE_PLATFORM_WIN32
-    best = xaudio2::XAudio2AudioSystem::Create(emulator);
+    best = xaudio2::XAudio2AudioSystem::Create(processor);
     if (best) {
       return best;
     }
 #endif  // XE_PLATFORM_WIN32
 
     // Fallback to nop.
-    return nop::NopAudioSystem::Create(emulator);
+    return nop::NopAudioSystem::Create(processor);
   }
 }
 
-AudioSystem::AudioSystem(Emulator* emulator)
-    : emulator_(emulator), memory_(emulator->memory()), worker_running_(false) {
+AudioSystem::AudioSystem(cpu::Processor* processor)
+    : memory_(processor->memory()),
+      processor_(processor),
+      worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     unused_clients_.push(i);
@@ -78,20 +78,28 @@ AudioSystem::AudioSystem(Emulator* emulator)
   }
   shutdown_event_ = xe::threading::Event::CreateManualResetEvent(false);
   wait_handles_[kMaximumClientCount] = shutdown_event_.get();
+
+  xma_decoder_ = std::make_unique<xe::apu::XmaDecoder>(processor_);
 }
 
-AudioSystem::~AudioSystem() = default;
+AudioSystem::~AudioSystem() {
+  if (xma_decoder_) {
+    xma_decoder_->Shutdown();
+  }
+}
 
-X_STATUS AudioSystem::Setup() {
-  processor_ = emulator_->processor();
+X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
+  X_STATUS result = xma_decoder_->Setup(kernel_state);
+  if (result) {
+    return result;
+  }
 
   worker_running_ = true;
-  worker_thread_ =
-      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
-          emulator()->kernel_state(), 128 * 1024, 0, [this]() {
-            WorkerThreadMain();
-            return 0;
-          }));
+  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
+      new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
+        WorkerThreadMain();
+        return 0;
+      }));
   worker_thread_->set_name("Audio Worker");
   worker_thread_->Create();
 
@@ -101,8 +109,6 @@ X_STATUS AudioSystem::Setup() {
 void AudioSystem::WorkerThreadMain() {
   // Initialize driver and ringbuffer.
   Initialize();
-
-  auto processor = emulator_->processor();
 
   // Main run loop.
   while (worker_running_) {
@@ -126,8 +132,8 @@ void AudioSystem::WorkerThreadMain() {
         if (client_callback) {
           SCOPE_profile_cpu_i("apu", "xe::apu::AudioSystem->client_callback");
           uint64_t args[] = {client_callback_arg};
-          processor->Execute(worker_thread_->thread_state(), client_callback,
-                             args, xe::countof(args));
+          processor_->Execute(worker_thread_->thread_state(), client_callback,
+                              args, xe::countof(args));
         }
         pumped++;
         index++;
