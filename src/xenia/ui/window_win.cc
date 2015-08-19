@@ -503,7 +503,8 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
 }
 
 bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
-  auto e = KeyEvent(this, static_cast<int>(wParam));
+  auto e = KeyEvent(this, static_cast<int>(wParam), lParam & 0xFFFF0000,
+                    !!(lParam & 0x2));
   switch (message) {
     case WM_KEYDOWN:
       OnKeyDown(&e);

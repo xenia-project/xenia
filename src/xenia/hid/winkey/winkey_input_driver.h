@@ -10,6 +10,9 @@
 #ifndef XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_
 #define XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_
 
+#include <mutex>
+#include <queue>
+
 #include "xenia/hid/input_driver.h"
 
 namespace xe {
@@ -31,6 +34,15 @@ class WinKeyInputDriver : public InputDriver {
                         X_INPUT_KEYSTROKE* out_keystroke) override;
 
  protected:
+  struct KeyEvent {
+    int vkey = 0;
+    int repeat_count = 0;
+    bool transition = false;  // going up(false) or going down(true)
+    bool prev_state = false;  // down(true) or up(false)
+  };
+  std::queue<KeyEvent> key_events_;
+  std::mutex key_event_mutex_;
+
   uint32_t packet_number_;
 };
 
