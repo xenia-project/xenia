@@ -48,7 +48,7 @@ class KeyEvent : public UIEvent {
   int key_code_ = 0;
 
   int repeat_count_ = 0;
-  bool prev_state_ = false; // Key previously down(true) or up(false)
+  bool prev_state_ = false;  // Key previously down(true) or up(false)
 };
 
 class MouseEvent : public UIEvent {
