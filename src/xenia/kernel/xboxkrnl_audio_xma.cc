@@ -171,7 +171,7 @@ SHIM_CALL XMASetLoopData_shim(PPCContext* ppc_context,
   context.loop_end = loop_data->loop_end;
   context.loop_count = loop_data->loop_count;
   context.loop_subframe_end = loop_data->loop_subframe_end;
-  context.loop_subframe_skip = loop_data->loop_subframe_end;
+  context.loop_subframe_skip = loop_data->loop_subframe_skip;
 
   context.Store(SHIM_MEM_ADDR(context_ptr));
 
