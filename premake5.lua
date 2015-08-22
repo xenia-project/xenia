@@ -8,7 +8,6 @@ includedirs({
   ".",
   "src",
   "third_party",
-  "build_tools/third_party/gflags/src",
 })
 
 defines({
@@ -146,6 +145,15 @@ solution("xenia")
   end
   configurations({"Checked", "Debug", "Release"})
 
+  -- Include third party files first so they don't have to deal with gflags.
+  include("third_party/capstone.lua")
+  include("third_party/elemental-forms")
+  include("third_party/glew.lua")
+  include("third_party/imgui.lua")
+  include("third_party/libav.lua")
+  include("third_party/xxhash.lua")
+  include("build_tools/third_party/gflags.lua")
+  
   include("src/xenia")
   include("src/xenia/app")
   include("src/xenia/apu")
@@ -169,10 +177,3 @@ solution("xenia")
     include("src/xenia/hid/winkey")
     include("src/xenia/hid/xinput")
   end
-
-  include("third_party/capstone.lua")
-  include("third_party/elemental-forms")
-  include("third_party/glew.lua")
-  include("third_party/imgui.lua")
-  include("third_party/xxhash.lua")
-  include("build_tools/third_party/gflags.lua")

@@ -21,5 +21,6 @@ project("xenia-cpu-backend-x64")
   })
   includedirs({
     project_root.."/third_party/capstone/include",
+	project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
