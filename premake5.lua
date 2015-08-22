@@ -34,7 +34,6 @@ filter("configurations:Checked")
   defines({
     "DEBUG",
   })
-  flags({"Symbols"})
   runtime("Debug")
 filter({"configurations:Checked", "platforms:Windows"})
   buildoptions({
@@ -47,7 +46,6 @@ filter("configurations:Debug")
     "DEBUG",
     "_NO_DEBUG_HEAP=1",
   })
-  flags({"Symbols"})
   runtime("Release")
   linkoptions({"/NODEFAULTLIB:MSVCRTD"})
 
@@ -86,6 +84,7 @@ filter("platforms:Windows")
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
+    "Symbols",
   })
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
