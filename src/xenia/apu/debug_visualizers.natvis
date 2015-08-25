@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <!-- Shims -->
+  <Type Name="xe::apu::XmaContext">
+    <DisplayString>id={id_}, allocated={is_allocated_}, enabled={is_enabled_}</DisplayString>
+  </Type>
+
+</AutoVisualizer>

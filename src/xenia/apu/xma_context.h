@@ -60,8 +60,8 @@ struct XMA_CONTEXT_DATA {
   uint32_t input_buffer_1_packet_count : 12;  // XMASetInputBuffer1, number of
                                               // 2KB packets. Max 4095 packets.
                                               // These packets form a block.
-  uint32_t loop_subframe_start : 2;             // +12bit, XMASetLoopData
-  uint32_t loop_subframe_end : 3;               // +14bit, XMASetLoopData
+  uint32_t loop_subframe_start : 2;           // +12bit, XMASetLoopData
+  uint32_t loop_subframe_end : 3;             // +14bit, XMASetLoopData
   uint32_t loop_subframe_skip : 3;            // +17bit, XMASetLoopData might be
                                               // subframe_decode_count
   uint32_t subframe_decode_count : 4;  // +20bit might be subframe_skip_count
@@ -77,10 +77,12 @@ struct XMA_CONTEXT_DATA {
 
   // DWORD 3
   uint32_t loop_start : 26;  // XMASetLoopData LoopStartOffset
+                             // frame offset in bits
   uint32_t unk_dword_3 : 6;  // ? ParserErrorStatus/ParserErrorSet(?)
 
   // DWORD 4
   uint32_t loop_end : 26;        // XMASetLoopData LoopEndOffset
+                                 // frame offset in bits
   uint32_t packet_metadata : 5;  // XMAGetPacketMetadata
   uint32_t current_buffer : 1;   // ?
 
@@ -169,6 +171,9 @@ class XmaContext {
   uint32_t GetFramePacketNumber(uint8_t* block, size_t size, size_t bit_offset);
   int PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
                      int channels);
+
+  bool ConvertFrame(const float** samples, int num_channels, int num_samples,
+                    uint8_t* output_buffer);
 
   int StartPacket(XMA_CONTEXT_DATA* data);
 

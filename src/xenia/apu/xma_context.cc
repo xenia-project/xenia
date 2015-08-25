@@ -215,6 +215,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
 
   // Quick die if there's no data.
   if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
+    XELOGAPU("Context %d: No valid input buffers!", id());
     return;
   }
 
@@ -224,25 +225,36 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
     return;
   }
 
+  assert_zero(data->unk_dword_9);
+
   // XAudio Loops
   // loop_count:
   //  - XAUDIO2_MAX_LOOP_COUNT = 254
   //  - XAUDIO2_LOOP_INFINITE = 255
   // loop_start/loop_end are bit offsets to a specific frame
-  //assert_true(data->loop_count == 0);
 
   // Translate pointers for future use.
+  // Sometimes the game will use rolling input buffers. If they do, we cannot
+  // assume they form a complete block! In addition, the buffers DO NOT have
+  // to be sequential!
+  // (bit.trip runner 2 does this)
+  // TODO: Collect partial frames into a buffer if the game uses rolling buffers,
+  // and present the full frame to libav when we get it.
   uint8_t* in0 = data->input_buffer_0_valid
                      ? memory()->TranslatePhysical(data->input_buffer_0_ptr)
                      : nullptr;
   uint8_t* in1 = data->input_buffer_1_valid
                      ? memory()->TranslatePhysical(data->input_buffer_1_ptr)
                      : nullptr;
+  uint8_t* current_input_buffer = in0;
 
   size_t input_buffer_0_size =
       data->input_buffer_0_packet_count * kBytesPerPacket;
   size_t input_buffer_1_size =
       data->input_buffer_1_packet_count * kBytesPerPacket;
+  size_t current_input_size =
+      data->current_buffer ? input_buffer_1_size : input_buffer_0_size;
+  size_t input_total_size = input_buffer_0_size + input_buffer_1_size;
 
   // Output buffers are in raw PCM samples, 256 bytes per block.
   // Output buffer is a ring buffer. We need to write from the write offset
@@ -289,50 +301,111 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
       continue;
     }
 
-    int block_last_frame = 0;  // last frame in block?
-    int got_frame = 0;         // successfully decoded a frame?
+    int invalid_frame = 0;  // invalid frame?
+    int got_frame = 0;      // successfully decoded a frame?
     int frame_size = 0;
-    packet_->data = in0;
-    packet_->size = data->input_buffer_0_packet_count * 2048;
-    PrepareDecoder(in0, data->input_buffer_0_packet_count * 2048,
-                   data->sample_rate, num_channels);
+    packet_->data = current_input_buffer;
+    packet_->size = (int)current_input_size;
+    PrepareDecoder(in0, current_input_size, data->sample_rate, num_channels);
     int len = xma2_decode_frame(context_, packet_, decoded_frame_, &got_frame,
-                                &block_last_frame, &frame_size,
+                                &invalid_frame, &frame_size, 1,
                                 data->input_buffer_read_offset);
-    if (block_last_frame) {
-      data->input_buffer_0_valid = 0;
-      data->input_buffer_1_valid = 0;
-      data->output_buffer_valid = 0;
-      continue;
+    if (invalid_frame) {
+      // Invalid frame/packet: length header is 0x7FFF
+      // Sometimes there's frames in the middle of the stream flagged as
+      // invalid.
+      // Double-check to make sure we're not in the middle.
+      uint32_t frame_byte_offset = data->input_buffer_read_offset >> 3;
+      uint32_t packet_number = frame_byte_offset / 2048;
+      if (packet_number < data->input_buffer_0_packet_count - 1) {
+        // Okay. Skip to the beginning of the next packet.
+        packet_number++;
+        data->input_buffer_read_offset = (packet_number * 2048 * 8) + 32;
+        continue;
+      }
+
+      // Last frame of the block. Swap buffers if necessary.
+      if (data->current_buffer == 0) {
+        if (data->input_buffer_1_valid) {
+          data->current_buffer++;
+        } else {
+          // End of input.
+          data->input_buffer_read_offset = input_total_size * 8;
+        }
+
+        data->input_buffer_0_valid = 0;
+        return;
+      } else {
+        // End of input.
+        data->current_buffer = 0;
+        data->input_buffer_1_valid = 0;
+        data->input_buffer_read_offset = input_total_size * 8;
+        return;
+      }
+    } else if (got_frame && len > 0) {
+      // Valid frame.
+      // Check and see if we need to loop back to any spot.
+      if (data->loop_count > 0 &&
+          data->input_buffer_read_offset == data->loop_end) {
+        // Loop back to the beginning.
+        data->input_buffer_read_offset = data->loop_start;
+        if (data->loop_count < 255) {
+          data->loop_count--;
+        }
+      } else {
+        data->input_buffer_read_offset += len;
+        if (data->current_buffer == 0 &&
+            data->input_buffer_read_offset > input_buffer_0_size * 8) {
+          // Overflow? Setup next buffer.
+          data->current_buffer++;
+          data->input_buffer_0_valid = 0;
+        } else if (data->input_buffer_read_offset > input_total_size * 8) {
+          // Overflow! The game will fix up the read offset.
+          data->current_buffer = 0;
+          data->input_buffer_0_valid = 0;
+          data->input_buffer_1_valid = 0;
+        }
+      }
     }
 
-    if (len == AVERROR_EOF) {
-      // Screw this gtfo
-      data->input_buffer_0_valid = 0;
-      data->input_buffer_1_valid = 0;
-      data->output_buffer_valid = 0;
+    if ((len < 0 || !got_frame) && frame_size != 0) {
+      // Oh no! Skip the frame and hope everything works.
+      data->input_buffer_read_offset += frame_size;
+      data->input_buffer_read_offset = (uint32_t)xma2_correct_frame_offset(
+          in0, input_buffer_0_size, data->input_buffer_read_offset);
 
       continue;
     } else if (len < 0 || !got_frame) {
-      // Oh no! Skip the frame and hope everything works.
-      data->input_buffer_read_offset += frame_size;
-
-      continue;
+      // Did not get frame and could not get frame size.
+      data->input_buffer_0_valid = 0;
+      data->input_buffer_1_valid = 0;
+      return;
     }
 
-    XELOGD("LEN: %d (%x)", len, len);
-
-    data->input_buffer_read_offset += len;
+    // Sometimes we may run up to <15 bits before the next packet. If this
+    // happens, we need to automatically advance to the next frame.
+    // We'll ask the XMA2 decoder to do this for us, since it's more qualified.
+    data->input_buffer_read_offset = (uint32_t)xma2_correct_frame_offset(
+        in0, input_buffer_0_size, data->input_buffer_read_offset);
     last_input_read_pos_ = data->input_buffer_read_offset;
+
+    if (data->input_buffer_read_offset == 0) {
+      // Invalid offset. Out of data.
+      data->input_buffer_0_valid = 0;
+      data->input_buffer_1_valid = 0;
+    }
 
     // Copy to the output buffer.
     // Successfully decoded a frame.
     size_t written_bytes = 0;
     if (got_frame) {
+#ifdef DEBUG
       // Validity checks.
       if (decoded_frame_->nb_samples > kSamplesPerFrame) {
+        XELOGAPU("Decoded frame has an invalid sample count!");
         return;
       } else if (context_->sample_fmt != AV_SAMPLE_FMT_FLTP) {
+        XELOGAPU("libav decoder did not output floating point samples!");
         return;
       }
 
@@ -343,27 +416,11 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
           context_->channels * decoded_frame_->nb_samples * sizeof(float)) {
         return;
       }
+#endif
 
-      // Loop through every sample, convert and drop it into the output array.
-      // If more than one channel, the game wants the samples from each channel
-      // interleaved next to each other.
-      uint32_t o = 0;
-      for (int i = 0; i < decoded_frame_->nb_samples; i++) {
-        for (int j = 0; j < context_->channels; j++) {
-          // Select the appropriate array based on the current channel.
-          auto sample_array = reinterpret_cast<float*>(decoded_frame_->data[j]);
-
-          // Raw sample should be within [-1, 1].
-          // Clamp it, just in case.
-          float raw_sample = xe::saturate(sample_array[i]);
-
-          // Convert the sample and output it in big endian.
-          float scaled_sample = raw_sample * ((1 << 15) - 1);
-          int sample = static_cast<int>(scaled_sample);
-          xe::store_and_swap<uint16_t>(&current_frame_[o++ * 2],
-                                       sample & 0xFFFF);
-        }
-      }
+      // Convert the frame.
+      ConvertFrame((const float**)decoded_frame_->data, context_->channels,
+                   decoded_frame_->nb_samples, current_frame_);
       current_frame_pos_ = 0;
 
       if (output_remaining_bytes < kBytesPerFrame * num_channels) {
@@ -385,6 +442,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
   }
 
   // The game will kick us again with a new output buffer later.
+  // It's important that we only invalidate this if we actually wrote to it!!
   data->output_buffer_valid = 0;
 }
 
@@ -405,8 +463,8 @@ uint32_t XmaContext::GetFramePacketNumber(uint8_t* block, size_t size,
 
 int XmaContext::PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
                                int channels) {
-  // Sanity check: Packet metadata is always 1 for XMA2
-  assert_true((block[2] & 0x7) == 1);
+  // Sanity check: Packet metadata is always 1 for XMA2/0 for XMA
+  assert_true((block[2] & 0x7) == 1 || (block[2] & 0x7) == 0);
 
   sample_rate = GetSampleRate(sample_rate);
 
@@ -430,6 +488,32 @@ int XmaContext::PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
   av_frame_unref(decoded_frame_);
 
   return 0;
+}
+
+bool XmaContext::ConvertFrame(const float** samples, int num_channels,
+                              int num_samples, uint8_t* output_buffer) {
+  // Loop through every sample, convert and drop it into the output array.
+  // If more than one channel, we need to interleave the samples from each
+  // channel next to each other.
+  // TODO: This can definitely be optimized with AVX/SSE intrinsics!
+  uint32_t o = 0;
+  for (int i = 0; i < num_samples; i++) {
+    for (int j = 0; j < num_channels; j++) {
+      // Select the appropriate array based on the current channel.
+      auto sample_array = samples[j];
+
+      // Raw sample should be within [-1, 1].
+      // Clamp it, just in case.
+      float raw_sample = xe::saturate(sample_array[i]);
+
+      // Convert the sample and output it in big endian.
+      float scaled_sample = raw_sample * ((1 << 15) - 1);
+      int sample = static_cast<int>(scaled_sample);
+      xe::store_and_swap<uint16_t>(&output_buffer[o++ * 2], sample & 0xFFFF);
+    }
+  }
+
+  return true;
 }
 
 int XmaContext::StartPacket(XMA_CONTEXT_DATA* data) {

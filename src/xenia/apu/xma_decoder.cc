@@ -55,7 +55,34 @@ XmaDecoder::XmaDecoder(cpu::Processor* processor)
 XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
-  xe::LogLineVarargs('A', fmt, va);
+#ifdef NDEBUG
+  if (level > AV_LOG_WARNING) {
+    return;
+  }
+#endif
+
+  char level_char = '?';
+  switch (level) {
+    case AV_LOG_ERROR:
+      level_char = '!';
+      break;
+    case AV_LOG_WARNING:
+      level_char = 'w';
+      break;
+    case AV_LOG_INFO:
+      level_char = 'i';
+      break;
+    case AV_LOG_VERBOSE:
+      level_char = 'v';
+      break;
+    case AV_LOG_DEBUG:
+      level_char = 'd';
+      break;
+  }
+
+  StringBuffer buff;
+  buff.AppendVarargs(fmt, va);
+  xe::LogLineVarargs(level_char, "libav: %s", buff.GetString());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
@@ -86,7 +113,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   }
   registers_.next_context = 1;
 
-  worker_running_ = true;
+  //worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
@@ -213,6 +240,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         uint32_t context_id = base_context_id + i;
         XmaContext& context = contexts_[context_id];
         context.Enable();
+        context.Work();
       }
     }
 
