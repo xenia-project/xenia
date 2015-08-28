@@ -17,7 +17,7 @@ Have Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstu
     > xb devenv
 
 That's mostly it. Run the `xenia-app` project. For debugging setup instructions
-see [the github docs](https://github.com/benvanik/xenia/blob/master/docs/building.md).
+see [the github docs](https://github.com/benvanik/xenia/blob/master/building.md).
 Piping stdout to a file is strongly recommended as there's were most of the
 interesting information goes.
 
@@ -61,8 +61,12 @@ and ensure your processor supports AVX or AVX2.
 
 ## Contributing
 
-Pull requests are accepted, however must be of a certain level of quality.
-This means that they must adhere to [the style guide](https://github.com/benvanik/xenia/blob/master/docs/style_guide.md),
+Pull requests are very welcome, but must be of a certain level of quality to
+merge into the main repository.
+This means that they must adhere to [the style guide](https://github.com/benvanik/xenia/blob/master/style_guide.md),
 not pollute the git history (you may be asked to rebase if you've been bad),
 and build clean. Changes that are obviously untested or unsafe will not be
 accepted without additional verification.
+
+For more information, see [CONTRIBUTING.md](https://github.com/benvanik/xenia/blob/master/CONTRIBUTING.md)
+in the repository.
