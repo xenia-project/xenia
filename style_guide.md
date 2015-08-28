@@ -2,7 +2,8 @@
 
 The style guide can be summed up as 'clang-format with the Google style set'.
 In addition, the [Google Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml)
-is followed and cpplint is the source of truth.
+is followed and cpplint is the source of truth. When in doubt, defer to what
+code in the project already does.
 
 Base rules:
 
@@ -10,10 +11,30 @@ Base rules:
 * LF (Unix-style) line endings
 * 2-space soft tabs, no TABs!
 * [Google Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml) for naming/casing/etc
+* Sort includes according to the [style guide rules](http://google-styleguide.googlecode.com/svn/trunk/cppguide.html#Names_and_Order_of_Includes)
+* Comments are properly punctuated (that means capitalization and periods, etc)
+* TODO's must be attributed like `// TODO(yourgithubname): foo.`
 
 Code that really breaks from the formatting rules will not be accepted, as then
 no one else can use clang-format on the code without also touching all your
 lines.
+
+### Why?
+
+To quote the [Google Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml):
+
+```
+One way in which we keep the code base manageable is by enforcing consistency.
+It is very important that any programmer be able to look at another's code and
+quickly understand it. Maintaining a uniform style and following conventions
+means that we can more easily use "pattern-matching" to infer what various
+symbols are and what invariants are true about them. Creating common, required
+idioms and patterns makes code much easier to understand. In some cases there
+might be good arguments for changing certain style rules, but we nonetheless
+keep things as they are in order to preserve consistency.
+```
+
+## Buildbot Verification
 
 The buildbot runs `xb lint --all` on the master branch, and will run
 `xb lint --origin` on pull requests. Run `xb format` before you commit each
@@ -21,7 +42,7 @@ local change so that you are consistently clean, otherwise you may have to
 rebase. If you forget, run `xb format --origin` and rebase your changes (so you
 don't end up with 5 changes and then a 6th 'whoops' one - that's nasty).
 
-The buildbot is running LLVM 3.6.1. If you are noticing style differences
+The buildbot is running LLVM 3.8.0. If you are noticing style differences
 between your local lint/format and the buildbot, ensure you are running that
 version.
 

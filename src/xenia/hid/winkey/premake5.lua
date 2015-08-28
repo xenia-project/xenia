@@ -13,6 +13,6 @@ project("xenia-hid-winkey")
   defines({
   })
   includedirs({
-	project_root.."/third_party/elemental-forms/src",
+    project_root.."/third_party/elemental-forms/src",
   })
   local_platform_files()

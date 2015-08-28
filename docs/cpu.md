@@ -1,9 +1,5 @@
 # CPU Documentation
 
-## Alloy
-
-TODO
-
 ## Memory Management
 
 TODO

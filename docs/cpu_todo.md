@@ -16,15 +16,6 @@ will relocate the x64 when placing it in memory, which will be at a different
 location each time. Instead it would be nice to have the xbyak `calcJmpAddress`
 that performs the relocations use the address of our choosing.
 
-### Stack Walking
-
-Currently the Windows/VC++ dbghelp stack walking is relied on, however this is
-not portable, is slow, and cannot resolve JIT'ed symbols properly. Having our
-own stack walking code that could fall back to dbghelp (via some pluggable
-system) for host symbols would let us quickly get stacks through host and guest
-code and make things like sampling profilers, kernel callstack tracing, and
-other features possible.
-
 ### Sampling Profiler
 
 Once we have stack walking it'd be nice to take something like
