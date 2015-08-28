@@ -84,15 +84,8 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   }
   assert_not_zero(stack_address_);
 
-// Allocate with 64b alignment.
-#if __STDC_VERSION__ >= 201112L
-  void* context_ptr = aligned_alloc(64, sizeof(PPCContext));
-#elif XE_COMPILER_MSVC
-  void* context_ptr = _aligned_malloc(sizeof(PPCContext), 64);
-#else
-#error No aligned alloc.
-#endif
-  context_ = reinterpret_cast<PPCContext*>(context_ptr);
+  // Allocate with 64b alignment.
+  context_ = memory::AlignedAlloc<PPCContext>(64);
   assert_true(((uint64_t)context_ & 0x3F) == 0);
   std::memset(context_, 0, sizeof(PPCContext));
 
@@ -117,13 +110,7 @@ ThreadState::~ThreadState() {
     thread_state_ = nullptr;
   }
 
-#if __STDC_VERSION__ >= 201112L
-  free(context_);
-#elif XE_COMPILER_MSVC
-  _aligned_free(context_);
-#else
-#error No aligned alloc.
-#endif
+  memory::AlignedFree(context_);
   if (stack_allocated_) {
     memory()->LookupHeap(stack_address_)->Decommit(stack_address_, stack_size_);
   }

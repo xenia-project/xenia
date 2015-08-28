@@ -63,6 +63,31 @@ bool DeallocFixed(void* base_address, size_t length,
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access);
 
+// Allocates a block of memory for a type with the given alignment.
+// The memory must be freed with AlignedFree.
+template <typename T>
+inline T* AlignedAlloc(size_t alignment) {
+#if __STDC_VERSION__ >= 201112L
+  return reinterpret_cast<T*>(aligned_alloc(alignment, sizeof(T)));
+#elif XE_COMPILER_MSVC
+  return reinterpret_cast<T*>(_aligned_malloc(sizeof(T), alignment));
+#else
+#error No aligned alloc.
+#endif  // __STDC_VERSION__ >= 201112L
+}
+
+// Frees memory previously allocated with AlignedAlloc.
+template <typename T>
+void AlignedFree(T* ptr) {
+#if __STDC_VERSION__ >= 201112L
+  free(ptr);
+#elif XE_COMPILER_MSVC
+  _aligned_free(ptr);
+#else
+#error No aligned alloc.
+#endif  // __STDC_VERSION__ >= 201112L
+}
+
 typedef void* FileMappingHandle;
 
 FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
