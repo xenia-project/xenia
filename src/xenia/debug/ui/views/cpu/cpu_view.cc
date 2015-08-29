@@ -17,7 +17,12 @@ namespace ui {
 namespace views {
 namespace cpu {
 
-CpuView::CpuView() : View("CPU") {}
+CpuView::CpuView()
+    : View("CPU"),
+      gr_registers_control_(RegisterSet::kGeneral),
+      fr_registers_control_(RegisterSet::kFloat),
+      vr_registers_control_(RegisterSet::kVector),
+      host_registers_control_(RegisterSet::kHost) {}
 
 CpuView::~CpuView() = default;
 
@@ -72,9 +77,14 @@ el::Element* CpuView::BuildUI() {
   auto source_registers_node =
       TabContainerNode()
           .gravity(Gravity::kAll)
-          .tab(ButtonNode("GPR"), CloneNode(register_list_node))
-          .tab(ButtonNode("FPR"), CloneNode(register_list_node))
-          .tab(ButtonNode("VMX"), CloneNode(register_list_node));
+          .tab(ButtonNode("GR"), LabelNode("<register list control>")
+                                     .id("gr_registers_placeholder"))
+          .tab(ButtonNode("FR"), LabelNode("<register list control>")
+                                     .id("fr_registers_placeholder"))
+          .tab(ButtonNode("VR"), LabelNode("<register list control>")
+                                     .id("vr_registers_placeholder"))
+          .tab(ButtonNode("X64"), LabelNode("<register list control>")
+                                      .id("host_registers_placeholder"));
 
   auto source_tools_node =
       TabContainerNode()
@@ -110,7 +120,7 @@ el::Element* CpuView::BuildUI() {
                                           .gravity(Gravity::kAll)
                                           .axis(Axis::kY)
                                           .fixed_pane(FixedPane::kSecond)
-                                          .value(180)
+                                          .value(240)
                                           .pane(source_code_node)
                                           .pane(source_registers_node))
                                 .pane(source_tools_node)));
@@ -135,10 +145,30 @@ el::Element* CpuView::BuildUI() {
   root_element_.set_layout_distribution(LayoutDistribution::kAvailable);
   root_element_.LoadNodeTree(node);
 
+  el::Label* gr_registers_placeholder;
+  el::Label* fr_registers_placeholder;
+  el::Label* vr_registers_placeholder;
+  el::Label* host_registers_placeholder;
   el::Label* call_stack_placeholder;
   root_element_.GetElementsById({
+      {TBIDC("gr_registers_placeholder"), &gr_registers_placeholder},
+      {TBIDC("fr_registers_placeholder"), &fr_registers_placeholder},
+      {TBIDC("vr_registers_placeholder"), &vr_registers_placeholder},
+      {TBIDC("host_registers_placeholder"), &host_registers_placeholder},
       {TBIDC("call_stack_placeholder"), &call_stack_placeholder},
   });
+  gr_registers_placeholder->parent()->ReplaceChild(
+      gr_registers_placeholder, gr_registers_control_.BuildUI());
+  gr_registers_control_.Setup(client_);
+  fr_registers_placeholder->parent()->ReplaceChild(
+      fr_registers_placeholder, fr_registers_control_.BuildUI());
+  fr_registers_control_.Setup(client_);
+  vr_registers_placeholder->parent()->ReplaceChild(
+      vr_registers_placeholder, vr_registers_control_.BuildUI());
+  vr_registers_control_.Setup(client_);
+  host_registers_placeholder->parent()->ReplaceChild(
+      host_registers_placeholder, host_registers_control_.BuildUI());
+  host_registers_control_.Setup(client_);
   call_stack_placeholder->parent()->ReplaceChild(call_stack_placeholder,
                                                  call_stack_control_.BuildUI());
   call_stack_control_.Setup(client_);
@@ -244,6 +274,10 @@ void CpuView::UpdateThreadList() {
 
 void CpuView::SwitchCurrentThread(model::Thread* thread) {
   current_thread_ = thread;
+  gr_registers_control_.set_thread(thread);
+  fr_registers_control_.set_thread(thread);
+  vr_registers_control_.set_thread(thread);
+  host_registers_control_.set_thread(thread);
   call_stack_control_.set_thread(thread);
 }
 

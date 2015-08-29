@@ -15,6 +15,7 @@
 
 #include "xenia/debug/ui/view.h"
 #include "xenia/debug/ui/views/cpu/call_stack_control.h"
+#include "xenia/debug/ui/views/cpu/register_list_control.h"
 
 namespace xe {
 namespace debug {
@@ -42,6 +43,10 @@ class CpuView : public View {
   // TODO(benvanik): better state machine.
   model::Thread* current_thread_ = nullptr;
 
+  RegisterListControl gr_registers_control_;
+  RegisterListControl fr_registers_control_;
+  RegisterListControl vr_registers_control_;
+  RegisterListControl host_registers_control_;
   CallStackControl call_stack_control_;
 };
 

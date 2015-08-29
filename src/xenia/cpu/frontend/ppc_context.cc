@@ -12,82 +12,140 @@
 #include <cinttypes>
 #include <cstdlib>
 
+#include "xenia/base/assert.h"
+#include "xenia/base/string_util.h"
+
 namespace xe {
 namespace cpu {
 namespace frontend {
 
-uint64_t ParseInt64(const char* value) {
-  return std::strtoull(value, nullptr, 0);
-}
-
-double ParseFloat64(const char* value) {
-  if (strstr(value, "0x") == value) {
-    union {
-      uint64_t ui;
-      double dbl;
-    } v;
-    v.ui = ParseInt64(value);
-    return v.dbl;
+std::string PPCContext::GetRegisterName(PPCRegister reg) {
+  switch (reg) {
+    case PPCRegister::kLR:
+      return "lr";
+    case PPCRegister::kCTR:
+      return "ctr";
+    case PPCRegister::kXER:
+      return "xer";
+    case PPCRegister::kFPSCR:
+      return "fpscr";
+    case PPCRegister::kVSCR:
+      return "vscr";
+    case PPCRegister::kCR:
+      return "cr";
+    default:
+      if (static_cast<int>(reg) >= static_cast<int>(PPCRegister::kR0) &&
+          static_cast<int>(reg) <= static_cast<int>(PPCRegister::kR31)) {
+        return std::string("r") +
+               std::to_string(static_cast<int>(reg) -
+                              static_cast<int>(PPCRegister::kR0));
+      } else if (static_cast<int>(reg) >= static_cast<int>(PPCRegister::kFR0) &&
+                 static_cast<int>(reg) <=
+                     static_cast<int>(PPCRegister::kFR31)) {
+        return std::string("fr") +
+               std::to_string(static_cast<int>(reg) -
+                              static_cast<int>(PPCRegister::kFR0));
+      } else if (static_cast<int>(reg) >= static_cast<int>(PPCRegister::kVR0) &&
+                 static_cast<int>(reg) <=
+                     static_cast<int>(PPCRegister::kVR128)) {
+        return std::string("vr") +
+               std::to_string(static_cast<int>(reg) -
+                              static_cast<int>(PPCRegister::kVR0));
+      } else {
+        assert_unhandled_case(reg);
+        return "?";
+      }
   }
-  return std::strtod(value, nullptr);
 }
 
-vec128_t ParseVec128(const char* value) {
-  vec128_t v;
-  char* p = const_cast<char*>(value);
-  if (*p == '[') ++p;
-  v.i32[0] = std::strtoul(p, &p, 16);
-  while (*p == ' ' || *p == ',') ++p;
-  v.i32[1] = std::strtoul(p, &p, 16);
-  while (*p == ' ' || *p == ',') ++p;
-  v.i32[2] = std::strtoul(p, &p, 16);
-  while (*p == ' ' || *p == ',') ++p;
-  v.i32[3] = std::strtoul(p, &p, 16);
-  return v;
+std::string PPCContext::GetStringFromValue(PPCRegister reg) const {
+  switch (reg) {
+    case PPCRegister::kLR:
+      return string_util::to_hex_string(lr);
+    case PPCRegister::kCTR:
+      return string_util::to_hex_string(ctr);
+    case PPCRegister::kXER:
+      // return Int64ToHex(xer_ca);
+      return "?";
+    case PPCRegister::kFPSCR:
+      // return Int64ToHex(fpscr);
+      return "?";
+    case PPCRegister::kVSCR:
+      // return Int64ToHex(vscr_sat);
+      return "?";
+    case PPCRegister::kCR:
+      // return Int64ToHex(cr);
+      return "?";
+    default:
+      if (static_cast<int>(reg) >= static_cast<int>(PPCRegister::kR0) &&
+          static_cast<int>(reg) <= static_cast<int>(PPCRegister::kR31)) {
+        return string_util::to_hex_string(
+            r[static_cast<int>(reg) - static_cast<int>(PPCRegister::kR0)]);
+      } else if (static_cast<int>(reg) >= static_cast<int>(PPCRegister::kFR0) &&
+                 static_cast<int>(reg) <=
+                     static_cast<int>(PPCRegister::kFR31)) {
+        return string_util::to_hex_string(
+            f[static_cast<int>(reg) - static_cast<int>(PPCRegister::kFR0)]);
+      } else if (static_cast<int>(reg) >= static_cast<int>(PPCRegister::kVR0) &&
+                 static_cast<int>(reg) <=
+                     static_cast<int>(PPCRegister::kVR128)) {
+        return string_util::to_hex_string(
+            v[static_cast<int>(reg) - static_cast<int>(PPCRegister::kVR0)]);
+      } else {
+        assert_unhandled_case(reg);
+        return "";
+      }
+  }
+}
+
+void PPCContext::SetValueFromString(PPCRegister reg, std::string value) {
+  // TODO(benvanik): set value from string to replace SetRegFromString?
+  assert_always(false);
 }
 
 void PPCContext::SetRegFromString(const char* name, const char* value) {
   int n;
   if (sscanf(name, "r%d", &n) == 1) {
-    this->r[n] = ParseInt64(value);
+    this->r[n] = string_util::from_string<uint64_t>(value);
   } else if (sscanf(name, "f%d", &n) == 1) {
-    this->f[n] = ParseFloat64(value);
+    this->f[n] = string_util::from_string<double>(value);
   } else if (sscanf(name, "v%d", &n) == 1) {
-    this->v[n] = ParseVec128(value);
+    this->v[n] = string_util::from_string<vec128_t>(value);
   } else {
     printf("Unrecognized register name: %s\n", name);
   }
 }
 
 bool PPCContext::CompareRegWithString(const char* name, const char* value,
-                                      char* out_value, size_t out_value_size) {
+                                      char* out_value,
+                                      size_t out_value_size) const {
   int n;
   if (sscanf(name, "r%d", &n) == 1) {
-    uint64_t expected = ParseInt64(value);
+    uint64_t expected = string_util::from_string<uint64_t>(value);
     if (this->r[n] != expected) {
-      snprintf(out_value, out_value_size, "%016" PRIX64, this->r[n]);
+      std::snprintf(out_value, out_value_size, "%016" PRIX64, this->r[n]);
       return false;
     }
     return true;
   } else if (sscanf(name, "f%d", &n) == 1) {
-    double expected = ParseFloat64(value);
+    double expected = string_util::from_string<double>(value);
     // TODO(benvanik): epsilon
     if (this->f[n] != expected) {
-      snprintf(out_value, out_value_size, "%f", this->f[n]);
+      std::snprintf(out_value, out_value_size, "%f", this->f[n]);
       return false;
     }
     return true;
   } else if (sscanf(name, "v%d", &n) == 1) {
-    vec128_t expected = ParseVec128(value);
+    vec128_t expected = string_util::from_string<vec128_t>(value);
     if (this->v[n] != expected) {
-      snprintf(out_value, out_value_size, "[%.8X, %.8X, %.8X, %.8X]",
-               this->v[n].i32[0], this->v[n].i32[1], this->v[n].i32[2],
-               this->v[n].i32[3]);
+      std::snprintf(out_value, out_value_size, "[%.8X, %.8X, %.8X, %.8X]",
+                    this->v[n].i32[0], this->v[n].i32[1], this->v[n].i32[2],
+                    this->v[n].i32[3]);
       return false;
     }
     return true;
   } else {
-    printf("Unrecognized register name: %s\n", name);
+    assert_always("Unrecognized register name: %s\n", name);
     return false;
   }
 }

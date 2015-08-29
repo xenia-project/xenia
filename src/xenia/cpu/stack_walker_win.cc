@@ -152,7 +152,10 @@ class Win32StackWalker : public StackWalker {
 
   size_t CaptureStackTrace(void* thread_handle, uint64_t* frame_host_pcs,
                            size_t frame_offset, size_t frame_count,
+                           X64Context* out_host_context,
                            uint64_t* out_stack_hash) override {
+    // TODO(benvanik): use xstate?
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/hh134240(v=vs.85).aspx
     // Query context. Thread must be suspended.
     // Need at least CONTEXT_CONTROL (for rip and rsp) and CONTEXT_INTEGER (for
     // rbp).
@@ -161,6 +164,15 @@ class Win32StackWalker : public StackWalker {
     if (!GetThreadContext(thread_handle, &thread_context)) {
       XELOGE("Unable to read thread context for stack walk");
       return 0;
+    }
+
+    if (out_host_context) {
+      out_host_context->rip = thread_context.Rip;
+      out_host_context->eflags = thread_context.EFlags;
+      std::memcpy(&out_host_context->int_registers.values, &thread_context.Rax,
+                  sizeof(out_host_context->int_registers.values));
+      std::memcpy(&out_host_context->xmm_registers.values, &thread_context.Xmm0,
+                  sizeof(out_host_context->xmm_registers.values));
     }
 
     // Setup the frame for walking.

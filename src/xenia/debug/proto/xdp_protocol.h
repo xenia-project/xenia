@@ -12,6 +12,10 @@
 
 #include <cstdint>
 
+#include "xenia/base/vec128.h"
+#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/stack_walker.h"
+
 namespace xe {
 namespace debug {
 namespace proto {
@@ -28,8 +32,8 @@ enum class PacketType : uint16_t {
 
   kThreadListRequest = 30,
   kThreadListResponse = 31,
-  kThreadCallStacksRequest = 32,
-  kThreadCallStacksResponse = 33,
+  kThreadStatesRequest = 32,
+  kThreadStatesResponse = 33,
 };
 
 using request_id_t = uint16_t;
@@ -168,17 +172,19 @@ struct ThreadListEntry {
   uint32_t tls_address;
 };
 
-struct ThreadCallStacksRequest {
-  static const PacketType type = PacketType::kThreadCallStacksRequest;
+struct ThreadStatesRequest {
+  static const PacketType type = PacketType::kThreadStatesRequest;
 };
-struct ThreadCallStacksResponse {
-  static const PacketType type = PacketType::kThreadCallStacksResponse;
+struct ThreadStatesResponse {
+  static const PacketType type = PacketType::kThreadStatesResponse;
 
   uint32_t count;
-  // ThreadCallStackEntry[count]
+  // ThreadStateEntry[count]
 };
-struct ThreadCallStackEntry {
+struct ThreadStateEntry {
   uint32_t thread_handle;
+  cpu::frontend::PPCContext guest_context;
+  cpu::X64Context host_context;
   uint32_t frame_count;
   // ThreadCallStackFrame[frame_count]
 };

@@ -27,27 +27,37 @@ class Thread {
  public:
   using Frame = proto::ThreadCallStackFrame;
 
-  Thread(System* system) : system_(system) {}
+  Thread(System* system);
+  ~Thread();
 
   bool is_dead() const { return is_dead_; }
   void set_dead(bool is_dead) { is_dead_ = is_dead; }
+
+  const proto::ThreadListEntry* entry() const { return &entry_; }
+  const proto::ThreadStateEntry* state() const { return state_; }
 
   uint32_t thread_handle() const { return entry_.thread_handle; }
   uint32_t thread_id() const { return entry_.thread_id; }
   bool is_host_thread() const { return entry_.is_host_thread; }
   std::string name() const { return entry_.name; }
-  const proto::ThreadListEntry* entry() const { return &entry_; }
+
+  const cpu::frontend::PPCContext* guest_context() const {
+    return &state_->guest_context;
+  }
+  const cpu::X64Context* host_context() const { return &state_->host_context; }
   const std::vector<Frame>& call_stack() const { return call_stack_; }
 
   std::string to_string();
 
   void Update(const proto::ThreadListEntry* entry);
-  void UpdateCallStack(std::vector<const proto::ThreadCallStackFrame*> frames);
+  void UpdateState(const proto::ThreadStateEntry* entry,
+                   std::vector<const proto::ThreadCallStackFrame*> frames);
 
  private:
   System* system_ = nullptr;
   bool is_dead_ = false;
   proto::ThreadListEntry entry_ = {0};
+  proto::ThreadStateEntry* state_ = nullptr;
   std::vector<Frame> call_stack_;
 };
 

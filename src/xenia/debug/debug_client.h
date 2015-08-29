@@ -33,6 +33,7 @@ namespace debug {
 using proto::ModuleListEntry;
 using proto::ThreadCallStackFrame;
 using proto::ThreadListEntry;
+using proto::ThreadStateEntry;
 
 enum class ExecutionState {
   kRunning,
@@ -52,8 +53,8 @@ class DebugClientListener {
       std::vector<const ModuleListEntry*> entries) = 0;
   virtual void OnThreadsUpdated(
       std::vector<const ThreadListEntry*> entries) = 0;
-  virtual void OnThreadCallStackUpdated(
-      uint32_t thread_handle,
+  virtual void OnThreadStateUpdated(
+      uint32_t thread_handle, const ThreadStateEntry* entry,
       std::vector<const ThreadCallStackFrame*> frames) = 0;
 };
 

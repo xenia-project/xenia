@@ -174,14 +174,14 @@ bool DebugClient::ProcessPacket(proto::PacketReader* packet_reader,
       auto entries = packet_reader->ReadArray<ThreadListEntry>(body->count);
       listener_->OnThreadsUpdated(std::move(entries));
     } break;
-    case PacketType::kThreadCallStacksResponse: {
-      auto body = packet_reader->Read<ThreadCallStacksResponse>();
+    case PacketType::kThreadStatesResponse: {
+      auto body = packet_reader->Read<ThreadStatesResponse>();
       for (size_t i = 0; i < body->count; ++i) {
-        auto entry = packet_reader->Read<ThreadCallStackEntry>();
+        auto entry = packet_reader->Read<ThreadStateEntry>();
         auto frames =
             packet_reader->ReadArray<ThreadCallStackFrame>(entry->frame_count);
-        listener_->OnThreadCallStackUpdated(entry->thread_handle,
-                                            std::move(frames));
+        listener_->OnThreadStateUpdated(entry->thread_handle, entry,
+                                        std::move(frames));
       }
     } break;
     default: {
@@ -261,7 +261,7 @@ void DebugClient::BeginUpdateAllState() {
   packet_writer_.Begin(PacketType::kThreadListRequest);
   packet_writer_.End();
   // Request the full call stacks for all threads.
-  packet_writer_.Begin(PacketType::kThreadCallStacksRequest);
+  packet_writer_.Begin(PacketType::kThreadStatesRequest);
   packet_writer_.End();
 
   Flush();

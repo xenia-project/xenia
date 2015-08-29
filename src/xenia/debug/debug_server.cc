@@ -285,9 +285,9 @@ bool DebugServer::ProcessPacket(const proto::Packet* packet) {
       }
       packet_writer_.End();
     } break;
-    case PacketType::kThreadCallStacksRequest: {
-      packet_writer_.Begin(PacketType::kThreadCallStacksResponse);
-      auto body = packet_writer_.Append<ThreadCallStacksResponse>();
+    case PacketType::kThreadStatesRequest: {
+      packet_writer_.Begin(PacketType::kThreadStatesResponse);
+      auto body = packet_writer_.Append<ThreadStatesResponse>();
       auto stack_walker = emulator->processor()->stack_walker();
       auto threads =
           emulator->kernel_state()->object_table()->GetObjectsByType<XThread>(
@@ -296,13 +296,29 @@ bool DebugServer::ProcessPacket(const proto::Packet* packet) {
       uint64_t frame_host_pcs[64];
       cpu::StackFrame frames[64];
       for (auto& thread : threads) {
+        auto thread_entry_body = packet_writer_.Append<ThreadStateEntry>();
+        thread_entry_body->thread_handle = thread->handle();
+
+        // Grab PPC context.
+        // Note that this is only up to date if --store_all_context_values is
+        // enabled (or --debug).
+        if (thread->is_guest_thread()) {
+          std::memcpy(&thread_entry_body->guest_context,
+                      thread->thread_state()->context(),
+                      sizeof(thread_entry_body->guest_context));
+        } else {
+          std::memset(&thread_entry_body->guest_context, 0,
+                      sizeof(thread_entry_body->guest_context));
+        }
+
+        // Grab stack trace and X64 context then resolve all symbols.
         uint64_t hash;
         size_t count = stack_walker->CaptureStackTrace(
             thread->GetWaitHandle()->native_handle(), frame_host_pcs, 0, 64,
-            &hash);
+            &thread_entry_body->host_context, &hash);
         stack_walker->ResolveStack(frame_host_pcs, frames, count);
-        auto thread_entry_body = packet_writer_.Append<ThreadCallStackEntry>();
-        thread_entry_body->thread_handle = thread->handle();
+
+        // Populate stack frames with additional information.
         thread_entry_body->frame_count = uint32_t(count);
         for (size_t i = 0; i < count; ++i) {
           auto& frame = frames[i];

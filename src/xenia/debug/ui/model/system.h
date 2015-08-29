@@ -46,7 +46,7 @@ class System : public DebugClientListener {
   Delegate<void> on_execution_state_changed;
   Delegate<void> on_modules_updated;
   Delegate<void> on_threads_updated;
-  Delegate<Thread*> on_thread_call_stack_updated;
+  Delegate<Thread*> on_thread_state_updated;
 
  private:
   void OnExecutionStateChanged(ExecutionState execution_state) override;
@@ -54,8 +54,8 @@ class System : public DebugClientListener {
       std::vector<const proto::ModuleListEntry*> entries) override;
   void OnThreadsUpdated(
       std::vector<const proto::ThreadListEntry*> entries) override;
-  void OnThreadCallStackUpdated(
-      uint32_t thread_handle,
+  void OnThreadStateUpdated(
+      uint32_t thread_handle, const ThreadStateEntry* entry,
       std::vector<const ThreadCallStackFrame*> frames) override;
 
   xe::ui::Loop* loop_ = nullptr;

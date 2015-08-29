@@ -112,12 +112,13 @@ void System::OnThreadsUpdated(std::vector<const ThreadListEntry*> entries) {
   on_threads_updated();
 }
 
-void System::OnThreadCallStackUpdated(
-    uint32_t thread_handle, std::vector<const ThreadCallStackFrame*> frames) {
+void System::OnThreadStateUpdated(
+    uint32_t thread_handle, const ThreadStateEntry* entry,
+    std::vector<const ThreadCallStackFrame*> frames) {
   auto thread = threads_by_handle_[thread_handle];
   if (thread != nullptr) {
-    thread->UpdateCallStack(std::move(frames));
-    on_thread_call_stack_updated(thread);
+    thread->UpdateState(entry, std::move(frames));
+    on_thread_state_updated(thread);
   }
 }
 

@@ -116,12 +116,11 @@ el::Element* CallStackControl::BuildUI() {
 void CallStackControl::Setup(DebugClient* client) {
   client_ = client;
 
-  system()->on_thread_call_stack_updated.AddListener(
-      [this](model::Thread* thread) {
-        if (thread == thread_) {
-          InvalidateCallStack();
-        }
-      });
+  system()->on_thread_state_updated.AddListener([this](model::Thread* thread) {
+    if (thread == thread_) {
+      InvalidateCallStack();
+    }
+  });
 }
 
 void CallStackControl::set_thread(model::Thread* thread) {

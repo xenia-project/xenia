@@ -161,7 +161,8 @@ void Debugger::DumpThreadStacks() {
     uint64_t frame_host_pcs[64];
     uint64_t hash;
     size_t count = stack_walker->CaptureStackTrace(
-        thread->GetWaitHandle()->native_handle(), frame_host_pcs, 0, 64, &hash);
+        thread->GetWaitHandle()->native_handle(), frame_host_pcs, 0, 64,
+        nullptr, &hash);
     cpu::StackFrame frames[64];
     stack_walker->ResolveStack(frame_host_pcs, frames, count);
     for (size_t i = 0; i < count; ++i) {

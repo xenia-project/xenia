@@ -15,6 +15,8 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/profiling.h"
 
+DECLARE_bool(debug);
+
 DEFINE_bool(store_all_context_values, false,
             "Don't strip dead context stores to aid in debugging.");
 
@@ -74,7 +76,9 @@ bool ContextPromotionPass::Run(HIRBuilder* builder) {
   }
 
   // Remove all dead stores.
-  if (!FLAGS_store_all_context_values) {
+  // This will break debugging as we can't recover this information when
+  // trying to extract stack traces/register values, so we don't do that.
+  if (!FLAGS_debug && !FLAGS_store_all_context_values) {
     block = builder->first_block();
     while (block) {
       RemoveDeadStoresBlock(block);
