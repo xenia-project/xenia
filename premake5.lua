@@ -14,7 +14,6 @@ includedirs({
 defines({
   "_UNICODE",
   "UNICODE",
-  "MICROPROFILE_MAX_THREADS=128",
 })
 
 vectorextensions("AVX")

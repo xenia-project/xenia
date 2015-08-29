@@ -26,6 +26,7 @@
 #define MICROPROFILE_PRINTF XELOGI
 #define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILE_DEBUG 0
+#define MICROPROFILE_MAX_THREADS 128
 #include "third_party/microprofile/microprofile.h"
 
 #include "xenia/profiling.h"
