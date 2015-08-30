@@ -263,7 +263,6 @@ dword_result_t XamShowKeyboardUI(dword_t r3, dword_t flags,
                                  pointer_t<XAM_OVERLAPPED> overlapped) {
   // Unknown parameters. I've only seen zero.
   assert_zero(r3);
-  assert_zero(flags);
 
   if (!buffer) {
     return X_ERROR_INVALID_PARAMETER;
