@@ -399,7 +399,20 @@ bool XexModule::SetupLibraryImports(const char* name,
       function->set_end_address(record_addr + 16 - 4);
       function->set_name(import_name.GetString());
 
-      if (kernel_export) {
+      if (user_export_addr) {
+        // Rewrite PPC code to set r11 to the target address
+        // So we'll have:
+        //    lis r11, user_export_addr
+        //    ori r11, r11, user_export_addr
+        //    mtspr CTR, r11
+        //    bctr
+        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
+        uint16_t low_addr = user_export_addr & 0xFFFF;
+
+        uint8_t* p = memory()->TranslateVirtual(record_addr);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
+        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
+      } else {
         // On load we have something like this in memory:
         //     li r3, 0
         //     li r4, 0x1F5
@@ -420,6 +433,8 @@ bool XexModule::SetupLibraryImports(const char* name,
         xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
         xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
 
+        // Note that we may not have a handler registered - if not, eventually
+        // we'll get directed to UndefinedImport.
         GuestFunction::ExternHandler handler = nullptr;
         if (kernel_export) {
           if (kernel_export->function_data.trampoline) {
@@ -432,36 +447,9 @@ bool XexModule::SetupLibraryImports(const char* name,
         } else {
           XELOGW("WARNING: Imported kernel function %s is unimplemented!",
                  import_name.GetString());
-          handler = UndefinedImport;
         }
         static_cast<GuestFunction*>(function)->SetupExtern(handler);
-      } else if (user_export_addr) {
-        // Rewrite PPC code to set r11 to the target address
-        // So we'll have:
-        //    lis r11, user_export_addr
-        //    ori r11, r11, user_export_addr
-        //    mtspr CTR, r11
-        //    bctr
-        uint16_t hi_addr = (user_export_addr >> 16) & 0xFFFF;
-        uint16_t low_addr = user_export_addr & 0xFFFF;
-
-        uint8_t* p = memory()->TranslateVirtual(record_addr);
-        xe::store_and_swap<uint32_t>(p + 0x0, 0x3D600000 | hi_addr);
-        xe::store_and_swap<uint32_t>(p + 0x4, 0x616B0000 | low_addr);
-      } else {
-        // Import not resolved.
-        // We're gonna rewrite the PPC to trigger a debug trap:
-        //    trap
-        //    blr
-        //    nop
-        //    nop
-        uint8_t* p = memory()->TranslateVirtual(record_addr);
-        xe::store_and_swap<uint32_t>(p + 0x0, 0x7FE00008);
-        xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
-        xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
-        xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
       }
-
       function->set_status(Symbol::Status::kDeclared);
     } else {
       // Bad.

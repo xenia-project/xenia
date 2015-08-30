@@ -197,9 +197,6 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       // Queue the APC callback. It must be delivered via the APC mechanism even
       // though were are completing immediately.
       if ((uint32_t)apc_routine_ptr & ~1) {
-        // Bejeweled 3 calls ReadFileEx with a NULL completion routine!
-        assert_not_zero((uint32_t)apc_context);
-
         if (apc_context) {
           auto thread = XThread::GetCurrentThread();
           thread->EnqueueApc((uint32_t)apc_routine_ptr & ~1, apc_context,

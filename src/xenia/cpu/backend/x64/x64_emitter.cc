@@ -36,6 +36,8 @@
 
 DEFINE_bool(enable_debugprint_log, false,
             "Log debugprint traps to the active debugger");
+DEFINE_bool(ignore_undefined_externs, false,
+            "Don't exit when an undefined extern is called.");
 
 namespace xe {
 namespace cpu {
@@ -299,6 +301,13 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   return 0;
 }
 
+uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
+  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+  XELOGE("Trap!");
+  xe::debugging::Break();
+  return 0;
+}
+
 void X64Emitter::Trap(uint16_t trap_type) {
   switch (trap_type) {
     case 20:
@@ -310,6 +319,7 @@ void X64Emitter::Trap(uint16_t trap_type) {
     case 22:
       // Always trap?
       // TODO(benvanik): post software interrupt to debugger.
+      CallNative(TrapDebugBreak, 0);
       if (FLAGS_break_on_debugbreak) {
         db(0xCC);
       }
@@ -417,8 +427,13 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
   auto function = reinterpret_cast<Function*>(function_ptr);
-  XELOGW("undefined extern call to %.8X %s", function->address(),
-         function->name().c_str());
+  if (!FLAGS_ignore_undefined_externs) {
+    xe::FatalError("undefined extern call to %.8X %s", function->address(),
+                   function->name().c_str());
+  } else {
+    XELOGE("undefined extern call to %.8X %s", function->address(),
+           function->name().c_str());
+  }
   return 0;
 }
 void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
