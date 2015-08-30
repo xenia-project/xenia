@@ -15,7 +15,7 @@ project("xenia-apu")
   })
   includedirs({
     project_root.."/third_party/libav/include/",
-	project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
 

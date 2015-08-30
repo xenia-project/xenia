@@ -25,7 +25,7 @@ project("xenia-cpu-frontend-tests")
     "*.s",
   })
   includedirs({
-	project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   filter("files:*.s")
     flags({"ExcludeFromBuild"})

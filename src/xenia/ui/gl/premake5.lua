@@ -18,6 +18,6 @@ project("xenia-ui-gl")
   })
   includedirs({
     project_root.."/third_party/elemental-forms/src",
-	project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
