@@ -18,8 +18,6 @@ Have Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstu
 
 That's mostly it. Run the `xenia-app` project. For debugging setup instructions
 see [the github docs](https://github.com/benvanik/xenia/blob/master/building.md).
-Piping stdout to a file is strongly recommended as there's were most of the
-interesting information goes.
 
 When pulling new code use either `xb pull` to fetch the latest changes to both
 the main repository and all submodules as well as run premake, or else be sure
