@@ -588,24 +588,15 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
       // Copy to the output buffer.
       size_t written_bytes = 0;
 
-#ifdef DEBUG
       // Validity checks.
-      if (decoded_frame_->nb_samples > kSamplesPerFrame) {
-        XELOGAPU("Decoded frame has an invalid sample count!");
-        return;
-      } else if (context_->sample_fmt != AV_SAMPLE_FMT_FLTP) {
-        XELOGAPU("libav decoder did not output floating point samples!");
-        return;
-      }
+      assert(decoded_frame_->nb_samples <= kSamplesPerFrame);
+      assert(context_->sample_fmt == AV_SAMPLE_FMT_FLTP);
 
       // Check the returned buffer size.
-      if (av_samples_get_buffer_size(NULL, context_->channels,
-                                     decoded_frame_->nb_samples,
-                                     context_->sample_fmt, 1) !=
-          context_->channels * decoded_frame_->nb_samples * sizeof(float)) {
-        return;
-      }
-#endif
+      assert(av_samples_get_buffer_size(NULL, context_->channels,
+                                        decoded_frame_->nb_samples,
+                                        context_->sample_fmt, 1) ==
+             context_->channels * decoded_frame_->nb_samples * sizeof(float));
 
       // Convert the frame.
       ConvertFrame((const uint8_t**)decoded_frame_->data, context_->channels,
