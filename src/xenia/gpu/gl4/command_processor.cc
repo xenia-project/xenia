@@ -2888,26 +2888,29 @@ bool CommandProcessor::IssueCopy() {
   }
 
   // TODO(benvanik): figure out real condition here (maybe when color cleared?)
+  // HACK: things seem to need their depth buffer cleared a lot more
+  // than as indicated by the depth_clear_enabled flag.
+  // if (depth_target != kAnyTarget) {
   if (depth_clear_enabled && depth_target != kAnyTarget) {
     // Clear the current depth buffer.
     // TODO(benvanik): verify format.
     GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) /
                      static_cast<float>(0xFFFFFF00)};
     GLint stencil = copy_depth_clear & 0xFF;
+    GLint old_draw_framebuffer;
     GLboolean old_depth_mask;
     GLint old_stencil_mask;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &old_draw_framebuffer);
     glGetBooleanv(GL_DEPTH_WRITEMASK, &old_depth_mask);
     glGetIntegerv(GL_STENCIL_WRITEMASK, &old_stencil_mask);
     glDepthMask(GL_TRUE);
     glStencilMask(0xFF);
     // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
-    /* glClearNamedFramebufferfi(source_framebuffer->framebuffer,
-                             GL_DEPTH_STENCIL,
-                             depth, stencil);*/
-    glClearNamedFramebufferfv(source_framebuffer->framebuffer, GL_DEPTH, 0,
-                              &depth);
-    glClearNamedFramebufferiv(source_framebuffer->framebuffer, GL_STENCIL, 0,
-                              &stencil);
+    // glClearNamedFramebufferfi(source_framebuffer->framebuffer,
+    //                           GL_DEPTH_STENCIL, depth, stencil);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, source_framebuffer->framebuffer);
+    glClearBufferfi(GL_DEPTH_STENCIL, 0, depth, stencil);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, old_draw_framebuffer);
     glDepthMask(old_depth_mask);
     glStencilMask(old_stencil_mask);
   }
