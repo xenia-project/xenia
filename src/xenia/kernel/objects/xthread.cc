@@ -417,6 +417,9 @@ void XThread::Execute() {
 
   int exit_code = 0;
 
+  // Dispatch any APCs that were queued before the thread was created first.
+  DeliverAPCs();
+
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {

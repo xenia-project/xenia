@@ -17,6 +17,8 @@
 namespace xe {
 namespace kernel {
 
+class XThread;
+
 class XTimer : public XObject {
  public:
   explicit XTimer(KernelState* kernel_state);
@@ -24,7 +26,6 @@ class XTimer : public XObject {
 
   void Initialize(uint32_t timer_type);
 
-  // completion routine, arg to completion routine
   X_STATUS SetTimer(int64_t due_time, uint32_t period_ms, uint32_t routine,
                     uint32_t routine_arg, bool resume);
   X_STATUS Cancel();
@@ -34,8 +35,9 @@ class XTimer : public XObject {
  private:
   std::unique_ptr<xe::threading::Timer> timer_;
 
-  uint32_t current_routine_;
-  uint32_t current_routine_arg_;
+  XThread* callback_thread_ = nullptr;
+  uint32_t callback_routine_ = 0;
+  uint32_t callback_routine_arg_ = 0;
 };
 
 }  // namespace kernel

@@ -540,16 +540,9 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
     auto thread = object_table()->LookupObject<XThread>(thread_handle);
     if (thread) {
+      // Queue APC on the thread that requested the overlapped operation.
       uint32_t routine = XOverlappedGetCompletionRoutine(ptr);
-      uint64_t args[] = {
-          result, length, overlapped_ptr,
-      };
-      // TODO(benvanik): queue APC on the thread that requested the overlapped
-      // operation.
-      assert_always();
-      // THIS IS WRONG, for testing only:
-      processor()->Execute(XThread::GetCurrentThread()->thread_state(), routine,
-                           args, xe::countof(args));
+      thread->EnqueueApc(routine, result, length, overlapped_ptr);
     }
   }
 }
