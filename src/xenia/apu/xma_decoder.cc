@@ -140,6 +140,7 @@ void XmaDecoder::WorkerThreadMain() {
       // registers_.current_context = n;
       // registers_.next_context = (n + 1) % kContextCount;
     }
+    xe::threading::MaybeYield();
   }
 }
 
