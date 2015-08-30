@@ -434,7 +434,6 @@ bool XexModule::SetupLibraryImports(const char* name,
                  import_name.GetString());
           handler = UndefinedImport;
         }
-
         static_cast<GuestFunction*>(function)->SetupExtern(handler);
       } else if (user_export_addr) {
         // Rewrite PPC code to set r11 to the target address
