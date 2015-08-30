@@ -45,6 +45,9 @@ SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_context,
 
   XELOGD("XamUserGetSigninState(%d)", user_index);
 
+  // Yield, as some games spam this.
+  xe::threading::MaybeYield();
+
   // Lie and say we are signed in, but local-only.
   // This should keep games from asking us to sign in and also keep them
   // from initializing the network.

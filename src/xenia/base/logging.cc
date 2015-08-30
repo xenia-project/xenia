@@ -161,8 +161,13 @@ void LogLineFormat(const char level_char, const char* fmt, ...) {
   size_t chars_written = vsnprintf(log_format_buffer_.data(),
                                    log_format_buffer_.capacity(), fmt, args);
   va_end(args);
-  logger_->AppendLine(xe::threading::current_thread_id(), level_char,
-                      log_format_buffer_.data(), chars_written);
+  if (chars_written != std::string::npos) {
+    logger_->AppendLine(xe::threading::current_thread_id(), level_char,
+                        log_format_buffer_.data(), chars_written);
+  } else {
+    logger_->AppendLine(xe::threading::current_thread_id(), level_char, fmt,
+                        std::strlen(fmt));
+  }
 }
 
 void LogLineVarargs(const char level_char, const char* fmt, va_list args) {
