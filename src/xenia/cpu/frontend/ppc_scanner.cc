@@ -22,7 +22,9 @@
 #if 0
 #define LOGPPC(fmt, ...) XELOGCORE('p', fmt, ##__VA_ARGS__)
 #else
-#define LOGPPC(fmt, ...) XE_EMPTY_MACRO
+#define LOGPPC(fmt, ...) \
+  do {                   \
+  } while (false)
 #endif
 
 namespace xe {

@@ -13,6 +13,7 @@
 #include <gflags/gflags.h>
 #include <io.h>
 
+#include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 
@@ -83,6 +84,9 @@ int Main() {
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+
+  // Initialize logging. Needs parsed FLAGS.
+  xe::InitializeLogging(entry_info.name);
 
   // Call app-provided entry point.
   int result = entry_info.entry_point(args);

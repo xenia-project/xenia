@@ -2197,8 +2197,8 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   loop->PostSynchronous([&window]() {
     xe::threading::set_name("Win32 Loop");
     if (!window->Initialize()) {
-      XEFATAL("Failed to initialize main window");
-      exit(1);
+      FatalError("Failed to initialize main window");
+      return;
     }
   });
   window->on_closed.AddListener([&loop](xe::ui::UIEvent* e) {

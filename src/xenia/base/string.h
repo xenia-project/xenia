@@ -45,12 +45,16 @@ std::string fix_path_separators(const std::string& source,
                                 char new_sep = xe::kPathSeparator);
 
 // Find the top directory name or filename from a path.
-std::string find_name_from_path(const std::string& path);
-std::wstring find_name_from_path(const std::wstring& path);
+std::string find_name_from_path(const std::string& path,
+                                char sep = xe::kPathSeparator);
+std::wstring find_name_from_path(const std::wstring& path,
+                                 wchar_t sep = xe::kPathSeparator);
 
 // Get parent path of the given directory or filename.
-std::string find_base_path(const std::string& path);
-std::wstring find_base_path(const std::wstring& path);
+std::string find_base_path(const std::string& path,
+                           char sep = xe::kPathSeparator);
+std::wstring find_base_path(const std::wstring& path,
+                            wchar_t sep = xe::kPathSeparator);
 
 }  // namespace xe
 

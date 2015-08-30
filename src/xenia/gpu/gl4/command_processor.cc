@@ -172,7 +172,7 @@ void CommandProcessor::ClearCaches() {
 void CommandProcessor::WorkerThreadMain() {
   context_->MakeCurrent();
   if (!SetupGL()) {
-    XEFATAL("Unable to setup command processor GL state");
+    xe::FatalError("Unable to setup command processor GL state");
     return;
   }
 

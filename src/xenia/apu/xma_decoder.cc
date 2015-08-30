@@ -20,7 +20,7 @@
 
 extern "C" {
 #include "libavutil/log.h"
-}
+}  // extern "C"
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -55,9 +55,7 @@ XmaDecoder::XmaDecoder(cpu::Processor* processor)
 XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
-  StringBuffer buff;
-  buff.AppendVarargs(fmt, va);
-  xe::log_line('i', "libav: %s", buff.GetString());
+  xe::LogLineVarargs('A', fmt, va);
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {

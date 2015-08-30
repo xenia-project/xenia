@@ -34,12 +34,12 @@ std::string CanonicalizePath(const std::string& original_path) {
         pos_n = std::string::npos;
         break;
       case 1:
-        // Duplicate separators
+        // Duplicate separators.
         path.erase(pos, 1);
         pos_n -= 1;
         break;
       case 2:
-        // Potential marker for current directory
+        // Potential marker for current directory.
         if (path[pos + 1] == '.') {
           path.erase(pos, 2);
           pos_n -= 2;
@@ -48,10 +48,10 @@ std::string CanonicalizePath(const std::string& original_path) {
         }
         break;
       case 3:
-        // Potential marker for parent directory
+        // Potential marker for parent directory.
         if (path[pos + 1] == '.' && path[pos + 2] == '.') {
           if (path_breaks.empty()) {
-            // Ensure we don't override the device name
+            // Ensure we don't override the device name.
             std::string::size_type loc(path.find_first_of(':'));
             auto req(pos + 3);
             if (loc == std::string::npos || loc > req) {
@@ -66,7 +66,7 @@ std::string CanonicalizePath(const std::string& original_path) {
             auto last_diff((pos + 3) - last);
             path.erase(last, last_diff);
             pos_n = last;
-            // Also remove path reference
+            // Also remove path reference.
             path_breaks.erase(path_breaks.end() - 1);
           }
         } else {
@@ -82,18 +82,28 @@ std::string CanonicalizePath(const std::string& original_path) {
     pos = pos_n;
   }
 
-  // Remove trailing seperator
+  // Remove trailing seperator.
   if (!path.empty() && path.back() == path_sep) {
     path.erase(path.size() - 1);
   }
 
-  // Final sanity check for dead paths
+  // Final sanity check for dead paths.
   if ((path.size() == 1 && (path[0] == '.' || path[0] == path_sep)) ||
       (path.size() == 2 && path[0] == '.' && path[1] == '.')) {
     return "";
   }
 
   return path;
+}
+
+bool CreateParentFolder(const std::wstring& path) {
+  auto fixed_path = xe::fix_path_separators(path, '/');
+  auto base_path = xe::find_base_path(fixed_path, '/');
+  if (!PathExists(base_path)) {
+    return CreateFolder(base_path);
+  } else {
+    return true;
+  }
 }
 
 WildcardFlags WildcardFlags::FIRST(true, false);

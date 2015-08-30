@@ -46,8 +46,8 @@ std::unique_ptr<Application> Application::Create() {
     xe::Profiler::ThreadEnter("Win32 Loop");
 
     if (!app->Initialize()) {
-      XEFATAL("Failed to initialize application");
-      exit(1);
+      xe::FatalError("Failed to initialize application");
+      return;
     }
 
     fence.Signal();

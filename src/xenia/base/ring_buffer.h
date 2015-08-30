@@ -20,14 +20,13 @@ class RingBuffer {
  public:
   RingBuffer(uint8_t* buffer, size_t capacity);
 
-  size_t Read(uint8_t* buffer, size_t count);
-  size_t Write(uint8_t* buffer, size_t count);
+  uint8_t* buffer() const { return buffer_; }
+  size_t capacity() const { return capacity_; }
+  bool empty() const { return read_offset_ == write_offset_; }
 
-  uint8_t* buffer() { return buffer_; }
-  size_t capacity() { return capacity_; }
-
-  size_t read_offset() { return read_offset_; }
-  size_t read_count() {
+  size_t read_offset() const { return read_offset_; }
+  void set_read_offset(size_t offset) { read_offset_ = offset % capacity_; }
+  size_t read_count() const {
     if (read_offset_ == write_offset_) {
       return 0;
     } else if (read_offset_ < write_offset_) {
@@ -37,8 +36,9 @@ class RingBuffer {
     }
   }
 
-  size_t write_offset() { return write_offset_; }
-  size_t write_count() {
+  size_t write_offset() const { return write_offset_; }
+  void set_write_offset(size_t offset) { write_offset_ = offset % capacity_; }
+  size_t write_count() const {
     if (read_offset_ == write_offset_) {
       return capacity_;
     } else if (write_offset_ < read_offset_) {
@@ -48,15 +48,23 @@ class RingBuffer {
     }
   }
 
-  void set_read_offset(size_t offset) { read_offset_ = offset % capacity_; }
+  size_t Read(uint8_t* buffer, size_t count);
+  template <typename T>
+  size_t Read(T* buffer, size_t count) {
+    return Read(reinterpret_cast<uint8_t*>(buffer), count);
+  }
 
-  void set_write_offset(size_t offset) { write_offset_ = offset % capacity_; }
+  size_t Write(const uint8_t* buffer, size_t count);
+  template <typename T>
+  size_t Write(const T* buffer, size_t count) {
+    return Write(reinterpret_cast<const uint8_t*>(buffer), count);
+  }
 
  private:
-  uint8_t* buffer_;
-  size_t capacity_;
-  size_t read_offset_;
-  size_t write_offset_;
+  uint8_t* buffer_ = nullptr;
+  size_t capacity_ = 0;
+  size_t read_offset_ = 0;
+  size_t write_offset_ = 0;
 };
 
 }  // namespace xe

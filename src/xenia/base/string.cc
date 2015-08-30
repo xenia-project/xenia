@@ -155,14 +155,14 @@ std::string fix_path_separators(const std::string& source, char new_sep) {
   return dest;
 }
 
-std::string find_name_from_path(const std::string& path) {
+std::string find_name_from_path(const std::string& path, char sep) {
   std::string name(path);
   if (!path.empty()) {
     std::string::size_type from(std::string::npos);
-    if (path.back() == '\\') {
+    if (path.back() == sep) {
       from = path.size() - 2;
     }
-    auto pos(path.find_last_of('\\', from));
+    auto pos(path.find_last_of(sep, from));
     if (pos != std::string::npos) {
       if (from == std::string::npos) {
         name = path.substr(pos + 1);
@@ -175,14 +175,14 @@ std::string find_name_from_path(const std::string& path) {
   return name;
 }
 
-std::wstring find_name_from_path(const std::wstring& path) {
+std::wstring find_name_from_path(const std::wstring& path, wchar_t sep) {
   std::wstring name(path);
   if (!path.empty()) {
     std::wstring::size_type from(std::wstring::npos);
-    if (path.back() == '\\') {
+    if (path.back() == sep) {
       from = path.size() - 2;
     }
-    auto pos(path.find_last_of('\\', from));
+    auto pos(path.find_last_of(sep, from));
     if (pos != std::wstring::npos) {
       if (from == std::wstring::npos) {
         name = path.substr(pos + 1);
@@ -195,12 +195,12 @@ std::wstring find_name_from_path(const std::wstring& path) {
   return name;
 }
 
-std::string find_base_path(const std::string& path) {
-  auto last_slash = path.find_last_of('\\');
+std::string find_base_path(const std::string& path, char sep) {
+  auto last_slash = path.find_last_of(sep);
   if (last_slash == std::string::npos) {
     return path;
   } else if (last_slash == path.length() - 1) {
-    auto prev_slash = path.find_last_of('\\', last_slash - 1);
+    auto prev_slash = path.find_last_of(sep, last_slash - 1);
     if (prev_slash == std::string::npos) {
       return "";
     } else {
@@ -211,12 +211,12 @@ std::string find_base_path(const std::string& path) {
   }
 }
 
-std::wstring find_base_path(const std::wstring& path) {
-  auto last_slash = path.find_last_of('\\');
+std::wstring find_base_path(const std::wstring& path, wchar_t sep) {
+  auto last_slash = path.find_last_of(sep);
   if (last_slash == std::wstring::npos) {
     return path;
   } else if (last_slash == path.length() - 1) {
-    auto prev_slash = path.find_last_of('\\', last_slash - 1);
+    auto prev_slash = path.find_last_of(sep, last_slash - 1);
     if (prev_slash == std::wstring::npos) {
       return L"";
     } else {

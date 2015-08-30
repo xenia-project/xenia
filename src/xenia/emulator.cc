@@ -228,11 +228,11 @@ X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
   // Register the disc image in the virtual filesystem.
   auto device = std::make_unique<vfs::DiscImageDevice>(mount_path, path);
   if (!device->Initialize()) {
-    XELOGE("Unable to mount disc image");
+    xe::FatalError("Unable to mount disc image; file not found or corrupt.");
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    XELOGE("Unable to register disc image");
+    xe::FatalError("Unable to register disc image.");
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -250,11 +250,12 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
   // Register the container in the virtual filesystem.
   auto device = std::make_unique<vfs::StfsContainerDevice>(mount_path, path);
   if (!device->Initialize()) {
-    XELOGE("Unable to mount STFS container");
+    xe::FatalError(
+        "Unable to mount STFS container; file not found or corrupt.");
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    XELOGE("Unable to register STFS container");
+    xe::FatalError("Unable to register STFS container.");
     return X_STATUS_NO_SUCH_FILE;
   }
 

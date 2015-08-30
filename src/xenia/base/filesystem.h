@@ -24,6 +24,7 @@ std::string CanonicalizePath(const std::string& original_path);
 
 bool PathExists(const std::wstring& path);
 
+bool CreateParentFolder(const std::wstring& path);
 bool CreateFolder(const std::wstring& path);
 bool DeleteFolder(const std::wstring& path);
 bool IsFolder(const std::wstring& path);

@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
 namespace xe {
@@ -31,6 +32,9 @@ extern "C" int main(int argc, char** argv) {
   for (int n = 0; n < argc; n++) {
     args.push_back(xe::to_wstring(argv[n]));
   }
+
+  // Initialize logging. Needs parsed FLAGS.
+  xe::InitializeLogging(entry_info.name);
 
   // Call app-provided entry point.
   int result = entry_info.entry_point(args);

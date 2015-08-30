@@ -51,6 +51,14 @@ thread_local WGLEWContext* tls_wglew_context_ = nullptr;
 extern "C" GLEWContext* glewGetContext() { return tls_glew_context_; }
 extern "C" WGLEWContext* wglewGetContext() { return tls_wglew_context_; }
 
+void FatalGLError(std::string error) {
+  xe::FatalError(
+      error +
+      "\nEnsure you have the latest drivers for your GPU and that it supports "
+      "OpenGL 4.5. See http://xenia.jp/faq/ for more information and a list"
+      "of supported GPUs.");
+}
+
 std::unique_ptr<GLContext> GLContext::Create(Window* target_window) {
   auto context = std::unique_ptr<GLContext>(new GLContext(target_window));
   if (!context->Initialize(target_window)) {
@@ -98,17 +106,17 @@ bool GLContext::Initialize(Window* target_window) {
   pfd.iLayerType = PFD_MAIN_PLANE;
   int pixel_format = ChoosePixelFormat(dc_, &pfd);
   if (!pixel_format) {
-    XELOGE("Unable to choose pixel format");
+    FatalGLError("Unable to choose pixel format.");
     return false;
   }
   if (!SetPixelFormat(dc_, pixel_format, &pfd)) {
-    XELOGE("Unable to set pixel format");
+    FatalGLError("Unable to set pixel format.");
     return false;
   }
 
   HGLRC temp_context = wglCreateContext(dc_);
   if (!temp_context) {
-    XELOGE("Unable to create temporary GL context");
+    FatalGLError("Unable to create temporary GL context.");
     return false;
   }
   wglMakeCurrent(dc_, temp_context);
@@ -116,16 +124,16 @@ bool GLContext::Initialize(Window* target_window) {
   tls_glew_context_ = glew_context_.get();
   tls_wglew_context_ = wglew_context_.get();
   if (glewInit() != GLEW_OK) {
-    XELOGE("Unable to initialize GLEW");
+    FatalGLError("Unable to initialize GLEW.");
     return false;
   }
   if (wglewInit() != GLEW_OK) {
-    XELOGE("Unable to initialize WGLEW");
+    FatalGLError("Unable to initialize WGLEW.");
     return false;
   }
 
   if (!WGLEW_ARB_create_context) {
-    XELOGE("WGL_ARG_create_context not supported by GL ICD");
+    FatalGLError("WGL_ARG_create_context not supported by GL ICD.");
     return false;
   }
 
@@ -148,12 +156,12 @@ bool GLContext::Initialize(Window* target_window) {
   wglMakeCurrent(nullptr, nullptr);
   wglDeleteContext(temp_context);
   if (!glrc_) {
-    XELOGE("Unable to create real GL context");
+    FatalGLError("Unable to create real GL context.");
     return false;
   }
 
   if (!MakeCurrent()) {
-    XELOGE("Could not make real GL context current");
+    FatalGLError("Could not make real GL context current.");
     return false;
   }
 
@@ -171,7 +179,7 @@ bool GLContext::Initialize(Window* target_window) {
   SetupDebugging();
 
   if (!blitter_.Initialize()) {
-    XELOGE("Unable to initialize blitter");
+    FatalGLError("Unable to initialize blitter.");
     ClearCurrent();
     return false;
   }
@@ -204,7 +212,7 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
                          0};
     new_glrc = wglCreateContextAttribsARB(dc_, glrc_, attrib_list);
     if (!new_glrc) {
-      XELOGE("Could not create shared context");
+      FatalGLError("Could not create shared context.");
       return nullptr;
     }
   }
@@ -212,30 +220,30 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
   auto new_context =
       std::unique_ptr<GLContext>(new GLContext(target_window_, new_glrc));
   if (!new_context->MakeCurrent()) {
-    XELOGE("Could not make new GL context current");
+    FatalGLError("Could not make new GL context current.");
     return nullptr;
   }
   if (!glGetString(GL_EXTENSIONS)) {
     new_context->ClearCurrent();
-    XELOGE("New GL context did not have extensions");
+    FatalGLError("New GL context did not have extensions.");
     return nullptr;
   }
 
   if (glewInit() != GLEW_OK) {
     new_context->ClearCurrent();
-    XELOGE("Unable to initialize GLEW");
+    FatalGLError("Unable to initialize GLEW on shared context.");
     return nullptr;
   }
   if (wglewInit() != GLEW_OK) {
     new_context->ClearCurrent();
-    XELOGE("Unable to initialize WGLEW");
+    FatalGLError("Unable to initialize WGLEW on shared context.");
     return nullptr;
   }
 
   SetupDebugging();
 
   if (!new_context->blitter_.Initialize()) {
-    XELOGE("Unable to initialize blitter");
+    FatalGLError("Unable to initialize blitter on shared context.");
     return nullptr;
   }
 
@@ -244,18 +252,9 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
   return std::unique_ptr<GraphicsContext>(new_context.release());
 }
 
-void FatalGLError(std::string error) {
-  XEFATAL(
-      (error +
-       "\nEnsure you have the latest drivers for your GPU and that it supports "
-       "OpenGL 4.5. See http://xenia.jp/faq/ for more information and a list"
-       "of supported GPUs.")
-          .c_str());
-}
-
 void GLContext::AssertExtensionsPresent() {
   if (!MakeCurrent()) {
-    XEFATAL("Unable to make GL context current");
+    FatalGLError("Unable to make GL context current.");
     return;
   }
 
@@ -425,7 +424,7 @@ bool GLContext::MakeCurrent() {
     if (FLAGS_thread_safe_gl) {
       global_gl_mutex_.unlock();
     }
-    XELOGE("Unable to make GL context current");
+    FatalGLError("Unable to make GL context current.");
     return false;
   }
   tls_glew_context_ = glew_context_.get();

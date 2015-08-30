@@ -276,8 +276,8 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
 
   // We know this is the 'main thread'.
   char thread_name[32];
-  snprintf(thread_name, xe::countof(thread_name), "Main XThread %04X",
-           thread->handle());
+  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread %04X",
+                thread->handle());
   thread->set_name(thread_name);
 
   X_STATUS result = thread->Create();
@@ -308,24 +308,31 @@ void XUserModule::Dump() {
     return;
   }
 
+  StringBuffer sb;
+
   xe::cpu::ExportResolver* export_resolver =
       kernel_state_->emulator()->export_resolver();
   auto header = xex_header();
 
   // XEX header.
-  printf("Module %s:\n", path_.c_str());
-  printf("    Module Flags: %.8X\n", (uint32_t)header->module_flags);
+  sb.AppendFormat("Module %s:\n", path_.c_str());
+  sb.AppendFormat("    Module Flags: %.8X\n", (uint32_t)header->module_flags);
 
   // Security header
   auto security_info = xex_module()->xex_security_info();
-  printf("Security Header:\n");
-  printf("     Image Flags: %.8X\n", (uint32_t)security_info->image_flags);
-  printf("    Load Address: %.8X\n", (uint32_t)security_info->load_address);
-  printf("      Image Size: %.8X\n", (uint32_t)security_info->image_size);
-  printf("    Export Table: %.8X\n", (uint32_t)security_info->export_table);
+  sb.AppendFormat("Security Header:\n");
+  sb.AppendFormat("     Image Flags: %.8X\n",
+                  (uint32_t)security_info->image_flags);
+  sb.AppendFormat("    Load Address: %.8X\n",
+                  (uint32_t)security_info->load_address);
+  sb.AppendFormat("      Image Size: %.8X\n",
+                  (uint32_t)security_info->image_size);
+  sb.AppendFormat("    Export Table: %.8X\n",
+                  (uint32_t)security_info->export_table);
 
   // Optional headers
-  printf("Optional Header Count: %d\n", (uint32_t)header->header_count);
+  sb.AppendFormat("Optional Header Count: %d\n",
+                  (uint32_t)header->header_count);
 
   for (uint32_t i = 0; i < header->header_count; i++) {
     auto& opt_header = header->headers[i];
@@ -335,7 +342,7 @@ void XUserModule::Dump() {
         reinterpret_cast<const uint8_t*>(header) + opt_header.offset;
     switch (opt_header.key) {
       case XEX_HEADER_RESOURCE_INFO: {
-        printf("  XEX_HEADER_RESOURCE_INFO:\n");
+        sb.AppendFormat("  XEX_HEADER_RESOURCE_INFO:\n");
         auto opt_resource_info =
             reinterpret_cast<const xex2_opt_resource_info*>(opt_header_ptr);
 
@@ -348,35 +355,37 @@ void XUserModule::Dump() {
           std::memcpy(name, res.name, sizeof(res.name));
           name[8] = 0;
 
-          printf("    %-8s %.8X-%.8X, %db\n", name, (uint32_t)res.address,
-                 (uint32_t)res.address + (uint32_t)res.size,
-                 (uint32_t)res.size);
+          sb.AppendFormat(
+              "    %-8s %.8X-%.8X, %db\n", name, (uint32_t)res.address,
+              (uint32_t)res.address + (uint32_t)res.size, (uint32_t)res.size);
         }
       } break;
       case XEX_HEADER_FILE_FORMAT_INFO: {
-        printf("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
       } break;
       case XEX_HEADER_DELTA_PATCH_DESCRIPTOR: {
-        printf("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR (TODO):\n");
       } break;
       case XEX_HEADER_BOUNDING_PATH: {
         auto opt_bound_path =
             reinterpret_cast<const xex2_opt_bound_path*>(opt_header_ptr);
-        printf("  XEX_HEADER_BOUNDING_PATH: %s\n", opt_bound_path->path);
+        sb.AppendFormat("  XEX_HEADER_BOUNDING_PATH: %s\n",
+                        opt_bound_path->path);
       } break;
       case XEX_HEADER_ORIGINAL_BASE_ADDRESS: {
-        printf("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: %.8X\n",
-               (uint32_t)opt_header.value);
+        sb.AppendFormat("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: %.8X\n",
+                        (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_ENTRY_POINT: {
-        printf("  XEX_HEADER_ENTRY_POINT: %.8X\n", (uint32_t)opt_header.value);
+        sb.AppendFormat("  XEX_HEADER_ENTRY_POINT: %.8X\n",
+                        (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_IMAGE_BASE_ADDRESS: {
-        printf("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n",
-               (uint32_t)opt_header.value);
+        sb.AppendFormat("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n",
+                        (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
-        printf("  XEX_HEADER_IMPORT_LIBRARIES:\n");
+        sb.AppendFormat("  XEX_HEADER_IMPORT_LIBRARIES:\n");
         auto opt_import_libraries =
             reinterpret_cast<const xex2_opt_import_libraries*>(opt_header_ptr);
 
@@ -408,116 +417,119 @@ void XUserModule::Dump() {
           auto library = reinterpret_cast<const xex2_import_library*>(
               libraries + library_offset);
           auto name = string_table[library->name_index];
-          printf("    %s - %d imports\n", name, (uint16_t)library->count);
+          sb.AppendFormat("    %s - %d imports\n", name,
+                          (uint16_t)library->count);
 
           // Manually byteswap these because of the bitfields.
           xex2_version version, version_min;
           version.value = xe::byte_swap<uint32_t>(library->version.value);
           version_min.value =
               xe::byte_swap<uint32_t>(library->version_min.value);
-          printf("      Version: %d.%d.%d.%d\n", version.major, version.minor,
-                 version.build, version.qfe);
-          printf("      Min Version: %d.%d.%d.%d\n", version_min.major,
-                 version_min.minor, version_min.build, version_min.qfe);
+          sb.AppendFormat("      Version: %d.%d.%d.%d\n", version.major,
+                          version.minor, version.build, version.qfe);
+          sb.AppendFormat("      Min Version: %d.%d.%d.%d\n", version_min.major,
+                          version_min.minor, version_min.build,
+                          version_min.qfe);
 
           library_offset += library->size;
         }
       } break;
       case XEX_HEADER_CHECKSUM_TIMESTAMP: {
-        printf("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
             reinterpret_cast<const xex2_opt_original_pe_name*>(opt_header_ptr);
-        printf("  XEX_HEADER_ORIGINAL_PE_NAME: %s\n", opt_pe_name->name);
+        sb.AppendFormat("  XEX_HEADER_ORIGINAL_PE_NAME: %s\n",
+                        opt_pe_name->name);
       } break;
       case XEX_HEADER_STATIC_LIBRARIES: {
-        printf("  XEX_HEADER_STATIC_LIBRARIES:\n");
+        sb.AppendFormat("  XEX_HEADER_STATIC_LIBRARIES:\n");
         auto opt_static_libraries =
             reinterpret_cast<const xex2_opt_static_libraries*>(opt_header_ptr);
 
         uint32_t count = (opt_static_libraries->size - 4) / 0x10;
         for (uint32_t l = 0; l < count; l++) {
           auto& library = opt_static_libraries->libraries[l];
-          printf("    %-8s : %d.%d.%d.%d\n", library.name,
-                 static_cast<uint16_t>(library.version_major),
-                 static_cast<uint16_t>(library.version_minor),
-                 static_cast<uint16_t>(library.version_build),
-                 static_cast<uint16_t>(library.version_qfe));
+          sb.AppendFormat("    %-8s : %d.%d.%d.%d\n", library.name,
+                          static_cast<uint16_t>(library.version_major),
+                          static_cast<uint16_t>(library.version_minor),
+                          static_cast<uint16_t>(library.version_build),
+                          static_cast<uint16_t>(library.version_qfe));
         }
       } break;
       case XEX_HEADER_TLS_INFO: {
-        printf("  XEX_HEADER_TLS_INFO:\n");
+        sb.AppendFormat("  XEX_HEADER_TLS_INFO:\n");
         auto opt_tls_info =
             reinterpret_cast<const xex2_opt_tls_info*>(opt_header_ptr);
 
-        printf("          Slot Count: %d\n",
-               static_cast<uint32_t>(opt_tls_info->slot_count));
-        printf("    Raw Data Address: %.8X\n",
-               static_cast<uint32_t>(opt_tls_info->raw_data_address));
-        printf("           Data Size: %d\n",
-               static_cast<uint32_t>(opt_tls_info->data_size));
-        printf("       Raw Data Size: %d\n",
-               static_cast<uint32_t>(opt_tls_info->raw_data_size));
+        sb.AppendFormat("          Slot Count: %d\n",
+                        static_cast<uint32_t>(opt_tls_info->slot_count));
+        sb.AppendFormat("    Raw Data Address: %.8X\n",
+                        static_cast<uint32_t>(opt_tls_info->raw_data_address));
+        sb.AppendFormat("           Data Size: %d\n",
+                        static_cast<uint32_t>(opt_tls_info->data_size));
+        sb.AppendFormat("       Raw Data Size: %d\n",
+                        static_cast<uint32_t>(opt_tls_info->raw_data_size));
       } break;
       case XEX_HEADER_DEFAULT_STACK_SIZE: {
-        printf("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n",
-               static_cast<uint32_t>(opt_header.value));
+        sb.AppendFormat("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n",
+                        static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: {
-        printf("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n",
-               static_cast<uint32_t>(opt_header.value));
+        sb.AppendFormat("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n",
+                        static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_DEFAULT_HEAP_SIZE: {
-        printf("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n",
-               static_cast<uint32_t>(opt_header.value));
+        sb.AppendFormat("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n",
+                        static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS: {
-        printf("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
       } break;
       case XEX_HEADER_SYSTEM_FLAGS: {
-        printf("  XEX_HEADER_SYSTEM_FLAGS: %.8X\n",
-               static_cast<uint32_t>(opt_header.value));
+        sb.AppendFormat("  XEX_HEADER_SYSTEM_FLAGS: %.8X\n",
+                        static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_EXECUTION_INFO: {
-        printf("  XEX_HEADER_EXECUTION_INFO:\n");
+        sb.AppendFormat("  XEX_HEADER_EXECUTION_INFO:\n");
         auto opt_exec_info =
             reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
 
-        printf("       Media ID: %.8X\n",
-               static_cast<uint32_t>(opt_exec_info->media_id));
-        printf("       Title ID: %.8X\n",
-               static_cast<uint32_t>(opt_exec_info->title_id));
-        printf("    Savegame ID: %.8X\n",
-               static_cast<uint32_t>(opt_exec_info->title_id));
-        printf("    Disc Number / Total: %d / %d\n", opt_exec_info->disc_number,
-               opt_exec_info->disc_count);
+        sb.AppendFormat("       Media ID: %.8X\n",
+                        static_cast<uint32_t>(opt_exec_info->media_id));
+        sb.AppendFormat("       Title ID: %.8X\n",
+                        static_cast<uint32_t>(opt_exec_info->title_id));
+        sb.AppendFormat("    Savegame ID: %.8X\n",
+                        static_cast<uint32_t>(opt_exec_info->title_id));
+        sb.AppendFormat("    Disc Number / Total: %d / %d\n",
+                        opt_exec_info->disc_number, opt_exec_info->disc_count);
       } break;
       case XEX_HEADER_TITLE_WORKSPACE_SIZE: {
-        printf("  XEX_HEADER_TITLE_WORKSPACE_SIZE: %d\n",
-               uint32_t(opt_header.value));
+        sb.AppendFormat("  XEX_HEADER_TITLE_WORKSPACE_SIZE: %d\n",
+                        uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_GAME_RATINGS: {
-        printf("  XEX_HEADER_GAME_RATINGS (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_GAME_RATINGS (TODO):\n");
       } break;
       case XEX_HEADER_LAN_KEY: {
-        printf("  XEX_HEADER_LAN_KEY (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_LAN_KEY (TODO):\n");
       } break;
       case XEX_HEADER_XBOX360_LOGO: {
-        printf("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
       } break;
       case XEX_HEADER_MULTIDISC_MEDIA_IDS: {
-        printf("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ALTERNATE_TITLE_IDS: {
-        printf("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
-        printf("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: %d\n",
-               uint32_t(opt_header.value));
+        sb.AppendFormat("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: %d\n",
+                        uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_EXPORTS_BY_NAME: {
-        printf("  XEX_HEADER_EXPORTS_BY_NAME:\n");
+        sb.AppendFormat("  XEX_HEADER_EXPORTS_BY_NAME:\n");
         auto dir =
             reinterpret_cast<const xex2_opt_data_directory*>(opt_header_ptr);
 
@@ -539,16 +551,16 @@ void XUserModule::Dump() {
           auto name = reinterpret_cast<const char*>(e_base + name_table[n]);
           uint16_t ordinal = ordinal_table[n];
           uint32_t addr = exe_address + function_table[ordinal];
-          printf("    %-28s - %.3X - %.8X\n", name, ordinal, addr);
+          sb.AppendFormat("    %-28s - %.3X - %.8X\n", name, ordinal, addr);
         }
       } break;
       default: {
-        printf("  Unknown Header %.8X\n", (uint32_t)opt_header.key);
+        sb.AppendFormat("  Unknown Header %.8X\n", (uint32_t)opt_header.key);
       } break;
     }
   }
 
-  printf("Sections:\n");
+  sb.AppendFormat("Sections:\n");
   for (uint32_t i = 0, page = 0; i < security_info->page_descriptor_count;
        i++) {
     // Manually byteswap the bitfield data.
@@ -574,9 +586,9 @@ void XUserModule::Dump() {
     uint32_t start_address = security_info->load_address + (page * page_size);
     uint32_t end_address = start_address + (page_descriptor.size * page_size);
 
-    printf("  %3u %s %3u pages    %.8X - %.8X (%d bytes)\n", page, type,
-           page_descriptor.size, start_address, end_address,
-           page_descriptor.size * page_size);
+    sb.AppendFormat("  %3u %s %3u pages    %.8X - %.8X (%d bytes)\n", page,
+                    type, page_descriptor.size, start_address, end_address,
+                    page_descriptor.size * page_size);
     page += page_descriptor.size;
   }
 
@@ -584,7 +596,7 @@ void XUserModule::Dump() {
   // TODO(benvanik): figure out a way to remove dependency on old xex header.
   auto old_header = xe_xex2_get_header(xex_module()->xex());
 
-  printf("Imports:\n");
+  sb.AppendFormat("Imports:\n");
   for (size_t n = 0; n < old_header->import_library_count; n++) {
     const xe_xex2_import_library_t* library = &old_header->import_libraries[n];
 
@@ -592,14 +604,14 @@ void XUserModule::Dump() {
     size_t import_info_count;
     if (!xe_xex2_get_import_infos(xex_module()->xex(), library, &import_infos,
                                   &import_info_count)) {
-      printf(" %s - %lld imports\n", library->name, import_info_count);
-      printf("   Version: %d.%d.%d.%d\n", library->version.major,
-             library->version.minor, library->version.build,
-             library->version.qfe);
-      printf("   Min Version: %d.%d.%d.%d\n", library->min_version.major,
-             library->min_version.minor, library->min_version.build,
-             library->min_version.qfe);
-      printf("\n");
+      sb.AppendFormat(" %s - %lld imports\n", library->name, import_info_count);
+      sb.AppendFormat("   Version: %d.%d.%d.%d\n", library->version.major,
+                      library->version.minor, library->version.build,
+                      library->version.qfe);
+      sb.AppendFormat("   Min Version: %d.%d.%d.%d\n",
+                      library->min_version.major, library->min_version.minor,
+                      library->min_version.build, library->min_version.qfe);
+      sb.AppendFormat("\n");
 
       // Counts.
       int known_count = 0;
@@ -642,14 +654,14 @@ void XUserModule::Dump() {
         }
       }
       float total_count = static_cast<float>(import_info_count) / 100.0f;
-      printf("         Total: %4llu\n", import_info_count);
-      printf("         Known:  %3d%% (%d known, %d unknown)\n",
-             static_cast<int>(known_count / total_count), known_count,
-             unknown_count);
-      printf("   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
-             static_cast<int>(impl_count / total_count), impl_count,
-             unimpl_count);
-      printf("\n");
+      sb.AppendFormat("         Total: %4llu\n", import_info_count);
+      sb.AppendFormat("         Known:  %3d%% (%d known, %d unknown)\n",
+                      static_cast<int>(known_count / total_count), known_count,
+                      unknown_count);
+      sb.AppendFormat(
+          "   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
+          static_cast<int>(impl_count / total_count), impl_count, unimpl_count);
+      sb.AppendFormat("\n");
 
       // Listing.
       for (size_t m = 0; m < import_info_count; m++) {
@@ -674,18 +686,22 @@ void XUserModule::Dump() {
         }
         if (kernel_export &&
             kernel_export->type == cpu::Export::Type::kVariable) {
-          printf("   V %.8X          %.3X (%3d) %s %s\n", info->value_address,
-                 info->ordinal, info->ordinal, implemented ? "  " : "!!", name);
+          sb.AppendFormat("   V %.8X          %.3X (%3d) %s %s\n",
+                          info->value_address, info->ordinal, info->ordinal,
+                          implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {
-          printf("   F %.8X %.8X %.3X (%3d) %s %s\n", info->value_address,
-                 info->thunk_address, info->ordinal, info->ordinal,
-                 implemented ? "  " : "!!", name);
+          sb.AppendFormat("   F %.8X %.8X %.3X (%3d) %s %s\n",
+                          info->value_address, info->thunk_address,
+                          info->ordinal, info->ordinal,
+                          implemented ? "  " : "!!", name);
         }
       }
     }
 
-    printf("\n");
+    sb.AppendFormat("\n");
   }
+
+  XELOGI(sb.GetString());
 }
 
 }  // namespace kernel

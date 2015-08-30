@@ -44,8 +44,8 @@ std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(Emulator* emulator) {
     xe::Profiler::ThreadEnter("Win32 Loop");
 
     if (!emulator_window->Initialize()) {
-      XEFATAL("Failed to initialize main window");
-      exit(1);
+      xe::FatalError("Failed to initialize main window");
+      return;
     }
   });
 

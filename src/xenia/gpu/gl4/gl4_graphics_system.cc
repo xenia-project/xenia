@@ -88,7 +88,7 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
     processor_context->ClearCurrent();
   });
   if (!processor_context) {
-    XEFATAL(
+    xe::FatalError(
         "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
         "you have the latest drivers for your GPU and that it supports OpenGL "
         "4.5. See http://xenia.jp/faq/ for more information.");

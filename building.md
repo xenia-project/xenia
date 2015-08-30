@@ -25,8 +25,8 @@ and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
 
-To redirect output, use the following command flags:
-`--flagfile=$(SolutionDir)scratch\flags.txt 2>&1 1>$(SolutionDir)scratch\stdout.txt`
+By default logs are written to a file with the name of the executable. You can
+override this with `--log_file=log.txt`.
 
 ### Linux
 

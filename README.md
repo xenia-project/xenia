@@ -77,6 +77,8 @@ Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
 is wide open greenfield fun.
 
+For general rules and guidelines please see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 

@@ -76,8 +76,8 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   }
   thread->SetActiveCpu(cpu);
 
-  // XELOGGPU("Dispatching GPU interrupt at %.8X w/ mode %d on cpu %d",
-  //         interrupt_callback_, source, cpu);
+  XELOGGPU("Dispatching GPU interrupt at %.8X w/ mode %d on cpu %d",
+           interrupt_callback_, source, cpu);
 
   uint64_t args[] = {source, interrupt_callback_data_};
   processor_->Execute(thread->thread_state(), interrupt_callback_, args,
