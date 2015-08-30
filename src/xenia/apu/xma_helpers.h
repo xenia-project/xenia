@@ -25,7 +25,12 @@ uint32_t GetPacketFrameCount(uint8_t* packet) {
 
 // Get the first frame offset in bits
 uint32_t GetPacketFrameOffset(uint8_t* packet) {
-  return (uint16_t)((packet[0] << 13) | (packet[1] << 5) | (packet[2] >> 3)) + 32;
+  uint32_t val = (uint16_t)(((packet[0] & 0x3) << 13) | (packet[1] << 5) | (packet[2] >> 3));
+  if (val == 0x7FFF) {
+    return -1;
+  } else {
+    return val + 32;
+  }
 }
 
 uint32_t GetPacketMetadata(uint8_t* packet) {

@@ -82,7 +82,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  xe::LogLineVarargs(level_char, "libav: %s", buff.GetString());
+  xe::LogLineFormat(level_char, "libav: %s", buff.GetString());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
@@ -113,7 +113,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   }
   registers_.next_context = 1;
 
-  //worker_running_ = true;
+  worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
@@ -131,6 +131,11 @@ void XmaDecoder::WorkerThreadMain() {
     for (uint32_t n = 0; n < kContextCount; n++) {
       XmaContext& context = contexts_[n];
       context.Work();
+
+      // TODO: Need thread safety to do this.
+      // Probably not too important though.
+      //registers_.current_context = n;
+      //registers_.next_context = (n + 1) % kContextCount;
     }
   }
 }
@@ -209,7 +214,6 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
     // number
     registers_.current_context = registers_.next_context;
     registers_.next_context = (registers_.next_context + 1) % kContextCount;
-    value = registers_.current_context;
   }
 
   value = xe::byte_swap(value);
@@ -240,7 +244,6 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         uint32_t context_id = base_context_id + i;
         XmaContext& context = contexts_[context_id];
         context.Enable();
-        context.Work();
       }
     }
 

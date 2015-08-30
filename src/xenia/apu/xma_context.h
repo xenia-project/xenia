@@ -167,12 +167,14 @@ class XmaContext {
  private:
   static int GetSampleRate(int id);
 
+  size_t SavePartial(uint8_t* packet, uint32_t frame_offset_bits, size_t frame_size_bits, bool append);
+  bool ValidFrameOffset(uint8_t* block, size_t size_bytes, size_t frame_offset_bits);
   void DecodePackets(XMA_CONTEXT_DATA* data);
   uint32_t GetFramePacketNumber(uint8_t* block, size_t size, size_t bit_offset);
   int PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
                      int channels);
 
-  bool ConvertFrame(const float** samples, int num_channels, int num_samples,
+  bool ConvertFrame(const uint8_t** samples, int num_channels, int num_samples,
                     uint8_t* output_buffer);
 
   int StartPacket(XMA_CONTEXT_DATA* data);
@@ -198,6 +200,13 @@ class XmaContext {
   AVFrame* decoded_frame_ = nullptr;
   AVPacket* packet_ = nullptr;
   WmaProExtraData extra_data_;
+
+  bool partial_frame_saved_ = false;
+  bool partial_frame_size_known_ = false;
+  size_t partial_frame_total_size_bits_ = 0;
+  size_t partial_frame_start_offset_bits_ = 0;
+  size_t partial_frame_offset_bits_ = 0; // blah internal don't use this
+  std::vector<uint8_t> partial_frame_buffer_;
 
   // If we didn't finish writing a frame to the output buffer, this is the offset.
   size_t current_frame_pos_ = 0;
