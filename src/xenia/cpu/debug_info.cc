@@ -12,6 +12,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "xenia/base/logging.h"
+
 namespace xe {
 namespace cpu {
 
@@ -30,18 +32,17 @@ DebugInfo::~DebugInfo() {
 
 void DebugInfo::Dump() {
   if (source_disasm_) {
-    printf("PPC:\n%s\n", source_disasm_);
+    XELOGD("PPC:\n%s\n", source_disasm_);
   }
   if (raw_hir_disasm_) {
-    printf("Unoptimized HIR:\n%s\n", raw_hir_disasm_);
+    XELOGD("Unoptimized HIR:\n%s\n", raw_hir_disasm_);
   }
   if (hir_disasm_) {
-    printf("Optimized HIR:\n%s\n", hir_disasm_);
+    XELOGD("Optimized HIR:\n%s\n", hir_disasm_);
   }
   if (machine_code_disasm_) {
-    printf("Machine Code:\n%s\n", machine_code_disasm_);
+    XELOGD("Machine Code:\n%s\n", machine_code_disasm_);
   }
-  fflush(stdout);
 }
 
 }  // namespace cpu

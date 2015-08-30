@@ -293,9 +293,9 @@ class TestRunner {
                                                reg_value.c_str(), actual_value,
                                                xe::countof(actual_value))) {
           any_failed = true;
-          printf("Register %s assert failed:\n", reg_name.c_str());
-          printf("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());
-          printf("    Actual: %s == %s\n", reg_name.c_str(), actual_value);
+          XELOGE("Register %s assert failed:\n", reg_name.c_str());
+          XELOGE("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());
+          XELOGE("    Actual: %s == %s\n", reg_name.c_str(), actual_value);
         }
       } else if (it.first == "MEMORY_OUT") {
         size_t space_pos = it.second.find(" ");
@@ -318,9 +318,9 @@ class TestRunner {
           uint8_t actual = *p;
           if (expected != actual) {
             any_failed = true;
-            printf("Memory %s assert failed:\n", address_str.c_str());
-            printf("  Expected: %.8X %.2X\n", current_address, expected);
-            printf("    Actual: %.8X %.2X\n", current_address, actual);
+            XELOGE("Memory %s assert failed:\n", address_str.c_str());
+            XELOGE("  Expected: %.8X %.2X\n", current_address, expected);
+            XELOGE("    Actual: %.8X %.2X\n", current_address, actual);
           }
           ++p;
         }
