@@ -294,8 +294,8 @@ class Win32Timer : public Win32Handle<Timer> {
     LARGE_INTEGER due_time_li;
     due_time_li.QuadPart = due_time.count() / 100;
     auto completion_routine =
-        opt_callback ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
-                     : NULL;
+        callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
+                  : NULL;
     return SetWaitableTimer(handle_, &due_time_li, 0, completion_routine, this,
                             FALSE)
                ? true
@@ -309,8 +309,8 @@ class Win32Timer : public Win32Handle<Timer> {
     LARGE_INTEGER due_time_li;
     due_time_li.QuadPart = due_time.count() / 100;
     auto completion_routine =
-        opt_callback ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
-                     : NULL;
+        callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
+                  : NULL;
     return SetWaitableTimer(handle_, &due_time_li, int32_t(period.count()),
                             completion_routine, this, FALSE)
                ? true
