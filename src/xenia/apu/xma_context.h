@@ -167,8 +167,10 @@ class XmaContext {
  private:
   static int GetSampleRate(int id);
 
-  size_t SavePartial(uint8_t* packet, uint32_t frame_offset_bits, size_t frame_size_bits, bool append);
-  bool ValidFrameOffset(uint8_t* block, size_t size_bytes, size_t frame_offset_bits);
+  size_t SavePartial(uint8_t* packet, uint32_t frame_offset_bits,
+                     size_t frame_size_bits, bool append);
+  bool ValidFrameOffset(uint8_t* block, size_t size_bytes,
+                        size_t frame_offset_bits);
   void DecodePackets(XMA_CONTEXT_DATA* data);
   uint32_t GetFramePacketNumber(uint8_t* block, size_t size, size_t bit_offset);
   int PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
@@ -205,12 +207,13 @@ class XmaContext {
   bool partial_frame_size_known_ = false;
   size_t partial_frame_total_size_bits_ = 0;
   size_t partial_frame_start_offset_bits_ = 0;
-  size_t partial_frame_offset_bits_ = 0; // blah internal don't use this
+  size_t partial_frame_offset_bits_ = 0;  // blah internal don't use this
   std::vector<uint8_t> partial_frame_buffer_;
 
-  // If we didn't finish writing a frame to the output buffer, this is the offset.
+  // If we didn't finish writing a frame to the output buffer, this is the
+  // offset.
   size_t current_frame_pos_ = 0;
-  uint32_t last_input_read_pos_ = 0; // Last seen read buffer pos
+  uint32_t last_input_read_pos_ = 0;  // Last seen read buffer pos
   uint8_t* current_frame_ = nullptr;
   uint32_t frame_samples_size_ = 0;
 };

@@ -25,7 +25,8 @@ uint32_t GetPacketFrameCount(uint8_t* packet) {
 
 // Get the first frame offset in bits
 uint32_t GetPacketFrameOffset(uint8_t* packet) {
-  uint32_t val = (uint16_t)(((packet[0] & 0x3) << 13) | (packet[1] << 5) | (packet[2] >> 3));
+  uint32_t val = (uint16_t)(((packet[0] & 0x3) << 13) | (packet[1] << 5) |
+                            (packet[2] >> 3));
   if (val == 0x7FFF) {
     return -1;
   } else {
@@ -37,12 +38,10 @@ uint32_t GetPacketMetadata(uint8_t* packet) {
   return (uint8_t)(packet[2] & 0x7);
 }
 
-uint32_t GetPacketSkipCount(uint8_t* packet) {
-  return (uint8_t)(packet[3]);
-}
+uint32_t GetPacketSkipCount(uint8_t* packet) { return (uint8_t)(packet[3]); }
 
-} // namespace xma
-} // namespace apu
-} // namespace xe
+}  // namespace xma
+}  // namespace apu
+}  // namespace xe
 
 #endif  // XENIA_APU_XMA_HELPERS_H_

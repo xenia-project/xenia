@@ -137,8 +137,8 @@ void XmaDecoder::WorkerThreadMain() {
 
       // TODO: Need thread safety to do this.
       // Probably not too important though.
-      //registers_.current_context = n;
-      //registers_.next_context = (n + 1) % kContextCount;
+      // registers_.current_context = n;
+      // registers_.next_context = (n + 1) % kContextCount;
     }
   }
 }
