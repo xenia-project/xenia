@@ -60,8 +60,8 @@ struct XMA_CONTEXT_DATA {
   uint32_t input_buffer_1_packet_count : 12;  // XMASetInputBuffer1, number of
                                               // 2KB packets. Max 4095 packets.
                                               // These packets form a block.
-  uint32_t loop_subframe_end : 2;             // +12bit, XMASetLoopData
-  uint32_t unk_dword_1_a : 3;                 // ? might be loop_subframe_skip
+  uint32_t loop_subframe_start : 2;           // +12bit, XMASetLoopData
+  uint32_t loop_subframe_end : 3;             // +14bit, XMASetLoopData
   uint32_t loop_subframe_skip : 3;            // +17bit, XMASetLoopData might be
                                               // subframe_decode_count
   uint32_t subframe_decode_count : 4;  // +20bit might be subframe_skip_count
@@ -77,10 +77,12 @@ struct XMA_CONTEXT_DATA {
 
   // DWORD 3
   uint32_t loop_start : 26;  // XMASetLoopData LoopStartOffset
+                             // frame offset in bits
   uint32_t unk_dword_3 : 6;  // ? ParserErrorStatus/ParserErrorSet(?)
 
   // DWORD 4
   uint32_t loop_end : 26;        // XMASetLoopData LoopEndOffset
+                                 // frame offset in bits
   uint32_t packet_metadata : 5;  // XMAGetPacketMetadata
   uint32_t current_buffer : 1;   // ?
 
@@ -91,7 +93,7 @@ struct XMA_CONTEXT_DATA {
   // DWORD 7
   uint32_t output_buffer_ptr;  // physical address
   // DWORD 8
-  uint32_t overlap_add_ptr;  // PtrOverlapAdd(?)
+  uint32_t work_buffer_ptr;  // PtrOverlapAdd(?)
 
   // DWORD 9
   // +0bit, XMAGetOutputBufferReadOffset AKA WriteBufferOffsetRead
@@ -133,6 +135,7 @@ class XmaContext {
   static const uint32_t kBytesPerSample = 2;
   static const uint32_t kSamplesPerFrame = 512;
   static const uint32_t kSamplesPerSubframe = 128;
+  static const uint32_t kBytesPerFrame = kSamplesPerFrame * kBytesPerSample;
   static const uint32_t kBytesPerSubframe =
       kSamplesPerSubframe * kBytesPerSample;
 
@@ -164,7 +167,18 @@ class XmaContext {
  private:
   static int GetSampleRate(int id);
 
+  size_t SavePartial(uint8_t* packet, uint32_t frame_offset_bits,
+                     size_t frame_size_bits, bool append);
+  bool ValidFrameOffset(uint8_t* block, size_t size_bytes,
+                        size_t frame_offset_bits);
   void DecodePackets(XMA_CONTEXT_DATA* data);
+  uint32_t GetFramePacketNumber(uint8_t* block, size_t size, size_t bit_offset);
+  int PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
+                     int channels);
+
+  bool ConvertFrame(const uint8_t** samples, int num_channels, int num_samples,
+                    uint8_t* output_buffer);
+
   int StartPacket(XMA_CONTEXT_DATA* data);
 
   int PreparePacket(uint8_t* input, size_t seq_offset, size_t size,
@@ -189,11 +203,19 @@ class XmaContext {
   AVPacket* packet_ = nullptr;
   WmaProExtraData extra_data_;
 
+  bool partial_frame_saved_ = false;
+  bool partial_frame_size_known_ = false;
+  size_t partial_frame_total_size_bits_ = 0;
+  size_t partial_frame_start_offset_bits_ = 0;
+  size_t partial_frame_offset_bits_ = 0;  // blah internal don't use this
+  std::vector<uint8_t> partial_frame_buffer_;
+
+  // If we didn't finish writing a frame to the output buffer, this is the
+  // offset.
   size_t current_frame_pos_ = 0;
+  uint32_t last_input_read_pos_ = 0;  // Last seen read buffer pos
   uint8_t* current_frame_ = nullptr;
   uint32_t frame_samples_size_ = 0;
-
-  uint8_t packet_data_[kBytesPerPacket];
 };
 
 }  // namespace apu

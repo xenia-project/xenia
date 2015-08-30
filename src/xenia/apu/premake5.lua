@@ -7,14 +7,15 @@ project("xenia-apu")
   kind("StaticLib")
   language("C++")
   links({
-    "libavcodec.a",
-    "libavutil.a",
+    "libavcodec",
+    "libavutil",
     "xenia-base",
   })
   defines({
   })
   includedirs({
-    project_root.."/third_party/libav-xma-bin/include/",
+    project_root.."/third_party/libav/include/",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
 

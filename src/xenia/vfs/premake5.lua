@@ -12,5 +12,6 @@ project("xenia-vfs")
   defines({
   })
   includedirs({
+    project_root.."/build_tools/third_party/gflags/src",
   })
   recursive_platform_files()

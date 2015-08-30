@@ -3,6 +3,7 @@ include(project_root.."/build_tools")
 
 test_suite("xenia-cpu-tests", project_root, ".", {
   includedirs = {
+    project_root.."/build_tools/third_party/gflags/src",
   },
   links = {
     "xenia-base",

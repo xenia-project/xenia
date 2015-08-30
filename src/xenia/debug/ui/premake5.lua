@@ -34,6 +34,7 @@ project("xenia-debug-ui")
   })
   includedirs({
     project_root.."/third_party/elemental-forms/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   recursive_platform_files()
   files({
@@ -47,19 +48,6 @@ project("xenia-debug-ui")
     project_root,
     project_root.."/third_party/elemental-forms",
   })
-
-  filter("configurations:Checked")
-    local libav_root = "../third_party/libav-xma-bin/lib/Debug"
-    linkoptions({
-      libav_root.."/libavcodec.a",
-      libav_root.."/libavutil.a",
-    })
-  filter("configurations:Debug or Release")
-    local libav_root = "../third_party/libav-xma-bin/lib/Release"
-    linkoptions({
-      libav_root.."/libavcodec.a",
-      libav_root.."/libavutil.a",
-    })
 
   filter("platforms:Windows")
     debugdir(project_root)

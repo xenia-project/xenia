@@ -13,6 +13,7 @@ project("xenia-debug")
   defines({
   })
   includedirs({
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
   recursive_platform_files("proto")

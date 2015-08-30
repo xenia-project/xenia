@@ -19,3 +19,6 @@
 [submodule "build_tools"]
 	path = build_tools
 	url = https://github.com/xenia-project/build-tools.git
+[submodule "third_party/libav"]
+	path = third_party/libav
+	url = https://github.com/xenia-project/libav.git

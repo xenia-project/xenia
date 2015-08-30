@@ -21,6 +21,7 @@ project("xenia-gpu-gl4")
   })
   includedirs({
     project_root.."/third_party/elemental-forms/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
 
@@ -62,24 +63,12 @@ project("xenia-gpu-gl4-trace-viewer")
   })
   includedirs({
     project_root.."/third_party/elemental-forms/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   files({
     "trace_viewer_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
-
-  filter("configurations:Checked")
-    local libav_root = "../third_party/libav-xma-bin/lib/Debug"
-    linkoptions({
-      libav_root.."/libavcodec.a",
-      libav_root.."/libavutil.a",
-    })
-  filter("configurations:Debug or Release")
-    local libav_root = "../third_party/libav-xma-bin/lib/Release"
-    linkoptions({
-      libav_root.."/libavcodec.a",
-      libav_root.."/libavutil.a",
-    })
 
   filter("platforms:Windows")
     debugdir(project_root)

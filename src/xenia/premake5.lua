@@ -14,5 +14,6 @@ project("xenia-core")
   })
   includedirs({
     project_root.."/third_party/elemental-forms/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   files({"*.h", "*.cc"})

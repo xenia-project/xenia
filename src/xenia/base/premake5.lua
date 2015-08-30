@@ -8,6 +8,7 @@ project("xenia-base")
   defines({
   })
   includedirs({
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
   removefiles({"main_*.cc"})
@@ -17,6 +18,7 @@ project("xenia-base")
 
 test_suite("xenia-base-tests", project_root, ".", {
   includedirs = {
+    project_root.."/build_tools/third_party/gflags/src",
   },
   links = {
     "xenia-base",
