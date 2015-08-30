@@ -56,7 +56,13 @@ void EnableAffinityConfiguration();
 
 // Gets a stable thread-specific ID, but may not be. Use for informative
 // purposes only.
+uint32_t current_thread_system_id();
+
+// Gets a stable thread-specific ID that defaults to the same value as
+// current_thread_system_id but may be overridden.
+// Guest threads often change this to the guest thread handle.
 uint32_t current_thread_id();
+void set_current_thread_id(uint32_t id);
 
 // Sets the current thread name.
 void set_name(const std::string& name);
@@ -345,8 +351,8 @@ class Thread : public WaitHandle {
   // threads that had been waiting for the thread to terminate.
   static void Exit(int exit_code);
 
-  // Returns the ID of the thread
-  virtual uint32_t id() const = 0;
+  // Returns the ID of the thread.
+  virtual uint32_t system_id() const = 0;
 
   // Returns the current name of the thread, if previously specified.
   std::string name() const { return name_; }

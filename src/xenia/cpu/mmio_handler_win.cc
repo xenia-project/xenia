@@ -67,7 +67,8 @@ LONG CALLBACK MMIOExceptionHandler(PEXCEPTION_POINTERS ex_info) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  SCOPE_profile_cpu_i("cpu", "MMIOExceptionHandler");
+  // Disabled because this can cause odd issues during handling.
+  // SCOPE_profile_cpu_i("cpu", "MMIOExceptionHandler");
 
   // http://msdn.microsoft.com/en-us/library/ms679331(v=vs.85).aspx
   // http://msdn.microsoft.com/en-us/library/aa363082(v=vs.85).aspx

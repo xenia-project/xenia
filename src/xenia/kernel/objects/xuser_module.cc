@@ -268,7 +268,7 @@ X_STATUS XUserModule::Launch(uint32_t flags) {
 
   // We know this is the 'main thread'.
   char thread_name[32];
-  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread %04X",
+  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread%08X",
                 thread->handle());
   thread->set_name(thread_name);
 

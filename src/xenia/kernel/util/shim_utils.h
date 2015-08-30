@@ -394,11 +394,10 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
   string_buffer.Append('(');
   AppendKernelCallParams(string_buffer, export_entry, params);
   string_buffer.Append(')');
-  auto str = string_buffer.GetString();
   if (export_entry->tags & ExportTag::kImportant) {
-    XELOGI(str);
+    xe::LogLine('i', string_buffer.GetString(), string_buffer.length());
   } else {
-    XELOGD(str);
+    xe::LogLine('d', string_buffer.GetString(), string_buffer.length());
   }
 }
 

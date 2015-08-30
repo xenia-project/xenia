@@ -27,6 +27,8 @@ void InitializeLogging(const std::wstring& app_name);
 void LogLineFormat(const char level_char, const char* fmt, ...);
 void LogLineVarargs(const char level_char, const char* fmt, va_list args);
 // Appends a line to the log.
+void LogLine(const char level_char, const char* str,
+             size_t str_length = std::string::npos);
 void LogLine(const char level_char, const std::string& str);
 
 // Logs a fatal error with printf-style formatting and aborts the program.

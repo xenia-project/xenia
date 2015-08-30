@@ -34,8 +34,8 @@ DEFINE_bool(ignore_thread_affinities, true,
 namespace xe {
 namespace kernel {
 
-uint32_t next_xthread_id = 0;
-thread_local XThread* current_thread_tls = nullptr;
+uint32_t next_xthread_id_ = 0;
+thread_local XThread* current_thread_tls_ = nullptr;
 xe::mutex critical_region_;
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
@@ -43,7 +43,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t start_context, uint32_t creation_flags,
                  bool guest_thread)
     : XObject(kernel_state, kTypeThread),
-      thread_id_(++next_xthread_id),
+      thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
@@ -90,11 +90,13 @@ XThread::~XThread() {
   }
 }
 
-bool XThread::IsInThread(XThread* other) { return current_thread_tls == other; }
-bool XThread::IsInThread() { return current_thread_tls != nullptr; }
+bool XThread::IsInThread(XThread* other) {
+  return current_thread_tls_ == other;
+}
+bool XThread::IsInThread() { return current_thread_tls_ != nullptr; }
 
 XThread* XThread::GetCurrentThread() {
-  XThread* thread = current_thread_tls;
+  XThread* thread = current_thread_tls_;
   if (!thread) {
     assert_always("Attempting to use kernel stuff from a non-kernel thread");
   }
@@ -221,7 +223,7 @@ X_STATUS XThread::Create() {
   thread_state_ = new cpu::ThreadState(
       kernel_state()->processor(), thread_id_, cpu::ThreadStackType::kUserStack,
       0, creation_params_.stack_size, pcr_address_);
-  XELOGI("XThread%04X (%X) Stack: %.8X-%.8X", handle(),
+  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(),
          thread_state_->thread_id(), thread_state_->stack_limit(),
          thread_state_->stack_base());
 
@@ -298,6 +300,9 @@ X_STATUS XThread::Create() {
   params.stack_size = 16 * 1024 * 1024;  // Ignore game, always big!
   params.create_suspended = true;
   thread_ = xe::threading::Thread::Create(params, [this]() {
+    // Set thread ID override. This is used by logging.
+    xe::threading::set_current_thread_id(handle());
+
     // Set name immediately, if we have one.
     thread_->set_name(name());
 
@@ -305,9 +310,9 @@ X_STATUS XThread::Create() {
     xe::Profiler::ThreadEnter(name().c_str());
 
     // Execute user code.
-    current_thread_tls = this;
+    current_thread_tls_ = this;
     Execute();
-    current_thread_tls = nullptr;
+    current_thread_tls_ = nullptr;
 
     xe::Profiler::ThreadExit();
 
@@ -326,7 +331,7 @@ X_STATUS XThread::Create() {
   if (name_.empty()) {
     char thread_name[32];
     snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)",
-             handle(), thread_->id());
+             handle(), thread_->system_id());
     set_name(thread_name);
   }
 
@@ -365,7 +370,7 @@ X_STATUS XThread::Exit(int exit_code) {
   }
 
   // NOTE: unless PlatformExit fails, expect it to never return!
-  current_thread_tls = nullptr;
+  current_thread_tls_ = nullptr;
   xe::Profiler::ThreadExit();
 
   running_ = false;
@@ -399,8 +404,7 @@ X_STATUS XThread::Terminate(int exit_code) {
 
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
-              thread_id_, handle(), name_.c_str(),
-              xe::threading::current_thread_id());
+              thread_id_, handle(), name_.c_str(), thread_->system_id());
   running_ = true;
 
   // Let the kernel know we are starting.
@@ -694,7 +698,7 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 void XHostThread::Execute() {
   XELOGKERNEL(
       "XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
-      thread_id_, handle(), name_.c_str(), xe::threading::current_thread_id());
+      thread_id_, handle(), name_.c_str(), thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);

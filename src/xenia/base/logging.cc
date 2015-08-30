@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <atomic>
+#include <cinttypes>
 #include <cstdarg>
 #include <mutex>
 #include <vector>
@@ -34,11 +35,24 @@ DEFINE_bool(flush_log, true, "Flush log file after each log line batch.");
 
 namespace xe {
 
+class Logger;
+
+Logger* logger_ = nullptr;
 thread_local std::vector<char> log_format_buffer_(64 * 1024);
 
 class Logger {
  public:
-  Logger() : ring_buffer_(buffer_, kBufferSize), running_(true) {
+  Logger(const std::wstring& app_name)
+      : ring_buffer_(buffer_, kBufferSize), running_(true) {
+    if (!FLAGS_log_file.empty()) {
+      auto file_path = xe::to_wstring(FLAGS_log_file.c_str());
+      xe::filesystem::CreateParentFolder(file_path);
+      file_ = xe::filesystem::OpenFile(file_path, "wt");
+    } else {
+      auto file_path = app_name + L".log";
+      file_ = xe::filesystem::OpenFile(file_path, "wt");
+    }
+
     flush_event_ = xe::threading::Event::CreateAutoResetEvent(false);
     write_thread_ =
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
@@ -51,17 +65,6 @@ class Logger {
     xe::threading::Wait(write_thread_.get(), true);
     fflush(file_);
     fclose(file_);
-  }
-
-  void Initialize(const std::wstring& app_name) {
-    if (!FLAGS_log_file.empty()) {
-      auto file_path = xe::to_wstring(FLAGS_log_file.c_str());
-      xe::filesystem::CreateParentFolder(file_path);
-      file_ = xe::filesystem::OpenFile(file_path, "wt");
-    } else {
-      auto file_path = app_name + L".log";
-      file_ = xe::filesystem::OpenFile(file_path, "wt");
-    }
   }
 
   void AppendLine(uint32_t thread_id, const char level_char, const char* buffer,
@@ -104,8 +107,24 @@ class Logger {
         LogLine line;
         ring_buffer_.Read(&line, sizeof(line));
         ring_buffer_.Read(log_format_buffer_.data(), line.buffer_length);
-        const char prefix[3] = {line.level_char, '>', ' '};
-        fwrite(prefix, 1, sizeof(prefix), file_);
+        char prefix[] = {
+            line.level_char,
+            '>',
+            ' ',
+            '0',  // Thread ID gets placed here (8 chars).
+            '0',
+            '0',
+            '0',
+            '0',
+            '0',
+            '0',
+            '0',
+            ' ',
+            0,
+        };
+        std::snprintf(prefix + 3, sizeof(prefix) - 3, "%08" PRIX32 " ",
+                      line.thread_id);
+        fwrite(prefix, 1, sizeof(prefix) - 1, file_);
         fwrite(log_format_buffer_.data(), 1, line.buffer_length, file_);
         if (log_format_buffer_[line.buffer_length - 1] != '\n') {
           const char suffix[1] = {'\n'};
@@ -131,10 +150,9 @@ class Logger {
   std::unique_ptr<xe::threading::Thread> write_thread_;
 };
 
-Logger logger_;
-
 void InitializeLogging(const std::wstring& app_name) {
-  logger_.Initialize(app_name);
+  // We leak this intentionally - lots of cleanup code needs it.
+  logger_ = new Logger(app_name);
 }
 
 void LogLineFormat(const char level_char, const char* fmt, ...) {
@@ -143,20 +161,26 @@ void LogLineFormat(const char level_char, const char* fmt, ...) {
   size_t chars_written = vsnprintf(log_format_buffer_.data(),
                                    log_format_buffer_.capacity(), fmt, args);
   va_end(args);
-  logger_.AppendLine(xe::threading::current_thread_id(), level_char,
-                     log_format_buffer_.data(), chars_written);
+  logger_->AppendLine(xe::threading::current_thread_id(), level_char,
+                      log_format_buffer_.data(), chars_written);
 }
 
 void LogLineVarargs(const char level_char, const char* fmt, va_list args) {
   size_t chars_written = vsnprintf(log_format_buffer_.data(),
                                    log_format_buffer_.capacity(), fmt, args);
-  logger_.AppendLine(xe::threading::current_thread_id(), level_char,
-                     log_format_buffer_.data(), chars_written);
+  logger_->AppendLine(xe::threading::current_thread_id(), level_char,
+                      log_format_buffer_.data(), chars_written);
+}
+
+void LogLine(const char level_char, const char* str, size_t str_length) {
+  logger_->AppendLine(
+      xe::threading::current_thread_id(), level_char, str,
+      str_length == std::string::npos ? std::strlen(str) : str_length);
 }
 
 void LogLine(const char level_char, const std::string& str) {
-  logger_.AppendLine(xe::threading::current_thread_id(), level_char,
-                     str.c_str(), str.length());
+  logger_->AppendLine(xe::threading::current_thread_id(), level_char,
+                      str.c_str(), str.length());
 }
 
 void FatalError(const char* fmt, ...) {

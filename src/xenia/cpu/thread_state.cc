@@ -41,7 +41,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
     // set so people know what's up.
-    uint32_t system_thread_handle = xe::threading::current_thread_id();
+    uint32_t system_thread_handle = xe::threading::current_thread_system_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
   backend_data_ = processor->backend()->AllocThreadData();
