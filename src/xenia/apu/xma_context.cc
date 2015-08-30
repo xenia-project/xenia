@@ -20,9 +20,9 @@
 #include "xenia/profiling.h"
 
 extern "C" {
-#include "libavcodec/avcodec.h"
-#include "libavcodec/xma2dec.h"
-#include "libavutil/channel_layout.h"
+#include "third_party/libav/libavcodec/avcodec.h"
+#include "third_party/libav/libavcodec/xma2dec.h"
+#include "third_party/libav/libavutil/channel_layout.h"
 
 extern AVCodec ff_xma2_decoder;
 }  // extern "C"

@@ -22,7 +22,7 @@
 #include "xenia/profiling.h"
 
 extern "C" {
-#include "libavutil/log.h"
+#include "third_party/libav/libavutil/log.h"
 }  // extern "C"
 
 // As with normal Microsoft, there are like twelve different ways to access
