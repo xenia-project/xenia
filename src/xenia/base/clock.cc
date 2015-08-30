@@ -95,17 +95,22 @@ uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
 }
 
 int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
-  // negative = relative times
-  // positive = absolute times
-  // TODO(benvanik): support absolute times.
-  assert_true(guest_file_time <= 0);
   if (!guest_file_time) {
     return 0;
+  } else if (guest_file_time > 0) {
+    // Absolute time.
+    uint64_t guest_time = Clock::QueryGuestSystemTime();
+    int64_t relative_time = guest_file_time - static_cast<int64_t>(guest_time);
+    int64_t scaled_time =
+        static_cast<int64_t>(relative_time * guest_time_scalar_);
+    return static_cast<int64_t>(guest_time) + scaled_time;
+  } else {
+    // Relative time.
+    uint64_t scaled_file_time =
+        uint64_t(uint64_t(guest_file_time) * guest_time_scalar_);
+    // TODO(benvanik): check for overflow?
+    return scaled_file_time;
   }
-  uint64_t scaled_file_time =
-      uint64_t(uint64_t(guest_file_time) * guest_time_scalar_);
-  // TODO(benvanik): check for overflow?
-  return scaled_file_time;
 }
 
 void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
