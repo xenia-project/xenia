@@ -54,8 +54,7 @@ class XUserModule : public XModule {
   uint32_t stack_size() const { return stack_size_; }
 
   X_STATUS LoadFromFile(std::string path);
-  X_STATUS LoadFromMemory(const void* addr, const size_t length,
-                          ModuleFormat module_type);
+  X_STATUS LoadFromMemory(const void* addr, const size_t length);
   X_STATUS Unload();
 
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;

@@ -46,16 +46,8 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
       return result;
     }
 
-    ModuleFormat fmt;
-    auto magic = *(xe::be<uint32_t>*)mmap->data();
-    if (magic == 'XEX2') {
-      fmt = kModuleFormatXex;
-    } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
-      fmt = kModuleFormatElf;
-    }
-
     // Load the module.
-    result = LoadFromMemory(mmap->data(), mmap->size(), fmt);
+    result = LoadFromMemory(mmap->data(), mmap->size());
   } else {
     std::vector<uint8_t> buffer(fs_entry->size());
 
@@ -75,27 +67,27 @@ X_STATUS XUserModule::LoadFromFile(std::string path) {
       return result;
     }
 
-    ModuleFormat fmt;
-    uint32_t magic = *(uint32_t*)buffer.data();
-    if (magic == 'XEX2') {
-      fmt = kModuleFormatXex;
-    } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
-      fmt = kModuleFormatElf;
-    }
-
     // Load the module.
-    result = LoadFromMemory(buffer.data(), bytes_read, fmt);
+    result = LoadFromMemory(buffer.data(), bytes_read);
   }
 
   return result;
 }
 
-X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length,
-                                     ModuleFormat module_format) {
+X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length) {
   auto processor = kernel_state()->processor();
-  module_format_ = module_format;
 
-  if (module_format == kModuleFormatXex) {
+  auto magic = xe::load_and_swap<uint32_t>(addr);
+  if (magic == 'XEX2') {
+    module_format_ = kModuleFormatXex;
+  } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
+    module_format_ = kModuleFormatElf;
+  } else {
+    XELOGE("Unknown module magic: %.8X", magic);
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
+
+  if (module_format_ == kModuleFormatXex) {
     // Prepare the module for execution.
     // Runtime takes ownership.
     auto xex_module =
@@ -127,7 +119,7 @@ X_STATUS XUserModule::LoadFromMemory(const void* addr, const size_t length,
     this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
                                      &stack_size_);
     dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
-  } else if (module_format == kModuleFormatElf) {
+  } else if (module_format_ == kModuleFormatElf) {
     auto elf_module =
         std::make_unique<cpu::ElfModule>(processor, kernel_state());
     if (!elf_module->Load(name_, path_, addr, length)) {
