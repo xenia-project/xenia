@@ -253,8 +253,7 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_WSARecvFrom,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT(NetDll_WSARecvFrom, ExportTag::kNetworking);
 
 dword_result_t NtWaitForMultipleObjectsEx(
     dword_t count, pointer_t<xe::be<uint32_t>> handles, dword_t wait_type,
@@ -284,27 +283,58 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(
     XThread::GetCurrentThread()->set_last_error(error);
     return ~0u;
   }
-
   return 0;
 }
 DECLARE_XAM_EXPORT(NetDll_WSAWaitForMultipleEvents,
-                   ExportTag::kNetworking | ExportTag::kStub);
+                   ExportTag::kNetworking | ExportTag::kThreading);
 
-dword_result_t NtClearEvent(dword_t handle);
+dword_result_t NetDll_WSACreateEvent() {
+  XEvent* ev = new XEvent(kernel_state());
+  ev->Initialize(true, false);
+  return ev->handle();
+}
+DECLARE_XAM_EXPORT(NetDll_WSACreateEvent,
+                   ExportTag::kNetworking | ExportTag::kThreading);
 
-dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
-  X_STATUS result = NtClearEvent(event_handle);
-
+dword_result_t NetDll_WSACloseEvent(dword_t event_handle) {
+  X_STATUS result = kernel_state()->object_table()->ReleaseHandle(event_handle);
   if (XFAILED(result)) {
     uint32_t error = RtlNtStatusToDosError(result);
     XThread::GetCurrentThread()->set_last_error(error);
     return 0;
   }
+  return 1;
+}
+DECLARE_XAM_EXPORT(NetDll_WSACloseEvent,
+                   ExportTag::kNetworking | ExportTag::kThreading);
 
+dword_result_t NtClearEvent(dword_t handle);
+
+dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
+  X_STATUS result = NtClearEvent(event_handle);
+  if (XFAILED(result)) {
+    uint32_t error = RtlNtStatusToDosError(result);
+    XThread::GetCurrentThread()->set_last_error(error);
+    return 0;
+  }
   return 1;
 }
 DECLARE_XAM_EXPORT(NetDll_WSAResetEvent,
-                   ExportTag::kNetworking | ExportTag::kStub);
+                   ExportTag::kNetworking | ExportTag::kThreading);
+
+dword_result_t NtSetEvent(dword_t handle, lpdword_t previous_state_ptr);
+
+dword_result_t NetDll_WSASetEvent(dword_t event_handle) {
+  X_STATUS result = NtSetEvent(event_handle, nullptr);
+  if (XFAILED(result)) {
+    uint32_t error = RtlNtStatusToDosError(result);
+    XThread::GetCurrentThread()->set_last_error(error);
+    return 0;
+  }
+  return 1;
+}
+DECLARE_XAM_EXPORT(NetDll_WSASetEvent,
+                   ExportTag::kNetworking | ExportTag::kThreading);
 
 struct XnAddrStatus {
   // Address acquisition is not yet complete

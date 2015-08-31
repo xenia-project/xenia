@@ -23,7 +23,7 @@ namespace frontend {
 #define XEREGISTERINSTR(name, opcode) \
   RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
 
-#define XEINSTRNOTIMPLEMENTED()                            \
+#define XEINSTRNOTIMPLEMENTED()                          \
   XELOGE("Unimplemented instruction: %s", __FUNCTION__); \
   assert_always("Instruction not implemented");
 

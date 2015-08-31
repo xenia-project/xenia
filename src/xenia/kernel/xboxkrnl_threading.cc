@@ -512,48 +512,41 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL NtSetEvent_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t event_handle = SHIM_GET_ARG_32(0);
-  uint32_t previous_state_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("NtSetEvent(%.8X, %.8X)", event_handle, previous_state_ptr);
-
+dword_result_t NtSetEvent(dword_t handle, lpdword_t previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = kernel_state->object_table()->LookupObject<XEvent>(event_handle);
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
   if (ev) {
     int32_t was_signalled = ev->Set(0, false);
     if (previous_state_ptr) {
-      SHIM_SET_MEM_32(previous_state_ptr, was_signalled);
+      *previous_state_ptr = static_cast<uint32_t>(was_signalled);
     }
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtSetEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
 
-SHIM_CALL NtPulseEvent_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  uint32_t event_handle = SHIM_GET_ARG_32(0);
-  uint32_t previous_state_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("NtPulseEvent(%.8X, %.8X)", event_handle, previous_state_ptr);
-
+dword_result_t NtPulseEvent(dword_t handle, lpdword_t previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = kernel_state->object_table()->LookupObject<XEvent>(event_handle);
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
   if (ev) {
     int32_t was_signalled = ev->Pulse(0, false);
     if (previous_state_ptr) {
-      SHIM_SET_MEM_32(previous_state_ptr, was_signalled);
+      *previous_state_ptr = static_cast<uint32_t>(was_signalled);
     }
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtPulseEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
 
 dword_result_t NtClearEvent(dword_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
@@ -1390,8 +1383,6 @@ void xe::kernel::xboxkrnl::RegisterThreadingExports(
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtSetEvent, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtPulseEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);
