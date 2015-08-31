@@ -693,7 +693,7 @@ void XUserModule::Dump() {
     sb.AppendFormat("\n");
   }
 
-  XELOGI(sb.GetString());
+  xe::LogLine('i', sb.GetString());
 }
 
 }  // namespace kernel
