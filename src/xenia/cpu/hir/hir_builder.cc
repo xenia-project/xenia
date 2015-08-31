@@ -1263,6 +1263,8 @@ void HIRBuilder::Prefetch(Value* address, size_t length,
   i->src3.value = NULL;
 }
 
+void HIRBuilder::MemoryBarrier() { AppendInstr(OPCODE_MEMORY_BARRIER_info, 0); }
+
 Value* HIRBuilder::Max(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 

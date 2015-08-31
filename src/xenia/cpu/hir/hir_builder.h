@@ -150,6 +150,7 @@ class HIRBuilder {
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
   void Memset(Value* address, Value* value, Value* length);
   void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
+  void MemoryBarrier();
 
   Value* Max(Value* value1, Value* value2);
   Value* VectorMax(Value* value1, Value* value2, TypeName part_type,

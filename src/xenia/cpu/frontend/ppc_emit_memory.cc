@@ -658,14 +658,12 @@ XEEMITTER(stswx, 0x7C00052A, X)(PPCHIRBuilder& f, InstrData& i) {
 // Memory synchronization (A-18)
 
 XEEMITTER(eieio, 0x7C0006AC, X)(PPCHIRBuilder& f, InstrData& i) {
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  f.MemoryBarrier();
   return 0;
 }
 
 XEEMITTER(sync, 0x7C0004AC, X)(PPCHIRBuilder& f, InstrData& i) {
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  f.MemoryBarrier();
   return 0;
 }
 

@@ -2377,6 +2377,15 @@ struct PREFETCH
 EMITTER_OPCODE_TABLE(OPCODE_PREFETCH, PREFETCH);
 
 // ============================================================================
+// OPCODE_MEMORY_BARRIER
+// ============================================================================
+struct MEMORY_BARRIER
+    : Sequence<MEMORY_BARRIER, I<OPCODE_MEMORY_BARRIER, VoidOp>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) { e.mfence(); }
+};
+EMITTER_OPCODE_TABLE(OPCODE_MEMORY_BARRIER, MEMORY_BARRIER);
+
+// ============================================================================
 // OPCODE_MEMSET
 // ============================================================================
 struct MEMSET_I64_I8_I64
@@ -7056,6 +7065,7 @@ void RegisterSequences() {
   Register_OPCODE_STORE();
   Register_OPCODE_MEMSET();
   Register_OPCODE_PREFETCH();
+  Register_OPCODE_MEMORY_BARRIER();
   Register_OPCODE_MAX();
   Register_OPCODE_VECTOR_MAX();
   Register_OPCODE_MIN();
