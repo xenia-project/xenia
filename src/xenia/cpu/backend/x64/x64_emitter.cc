@@ -36,7 +36,7 @@
 
 DEFINE_bool(enable_debugprint_log, false,
             "Log debugprint traps to the active debugger");
-DEFINE_bool(ignore_undefined_externs, false,
+DEFINE_bool(ignore_undefined_externs, true,
             "Don't exit when an undefined extern is called.");
 
 namespace xe {
