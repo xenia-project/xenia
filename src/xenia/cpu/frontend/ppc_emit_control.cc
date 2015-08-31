@@ -593,6 +593,10 @@ XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
       // CTR
       v = f.LoadCTR();
       break;
+    case 256:
+      // VRSAVE
+      v = f.LoadZeroInt64();
+      break;
     case 268:
       // TB
       v = f.LoadClock();
@@ -677,6 +681,9 @@ XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
     case 9:
       // CTR
       f.StoreCTR(rt);
+      break;
+    case 256:
+      // VRSAVE
       break;
     default:
       XEINSTRNOTIMPLEMENTED();
