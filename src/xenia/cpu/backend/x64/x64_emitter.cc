@@ -304,7 +304,9 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
 uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   XELOGE("Trap!");
-  xe::debugging::Break();
+  if (FLAGS_break_on_debugbreak) {
+    xe::debugging::Break();
+  }
   return 0;
 }
 
@@ -320,9 +322,6 @@ void X64Emitter::Trap(uint16_t trap_type) {
       // Always trap?
       // TODO(benvanik): post software interrupt to debugger.
       CallNative(TrapDebugBreak, 0);
-      if (FLAGS_break_on_debugbreak) {
-        db(0xCC);
-      }
       break;
     case 25:
       // ?
