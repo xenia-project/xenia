@@ -57,32 +57,41 @@ PPCFrontend::~PPCFrontend() {
 
 Memory* PPCFrontend::memory() const { return processor_->memory(); }
 
+// Checks the state of the global lock and sets scratch to the current MSR
+// value.
 void CheckGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
-  ppc_context->scratch = 0x8000;
+  auto global_mutex = reinterpret_cast<xe::recursive_mutex*>(arg0);
+  auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
+  std::lock_guard<xe::recursive_mutex> lock(*global_mutex);
+  ppc_context->scratch = *global_lock_count ? 0 : 0x8000;
 }
-void HandleGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
-  auto global_lock = reinterpret_cast<xe::mutex*>(arg0);
-  volatile bool* global_lock_taken = reinterpret_cast<bool*>(arg1);
-  uint64_t value = ppc_context->scratch;
-  if (value == 0x8000) {
-    global_lock->lock();
-    *global_lock_taken = false;
-    global_lock->unlock();
-  } else if (value == ppc_context->r[13]) {
-    global_lock->lock();
-    *global_lock_taken = true;
-    global_lock->unlock();
-  }
+
+// Enters the global lock. Safe to recursion.
+void EnterGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
+  auto global_mutex = reinterpret_cast<xe::recursive_mutex*>(arg0);
+  auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
+  global_mutex->lock();
+  *global_lock_count = *global_lock_count + 1;
+}
+
+// Leaves the global lock. Safe to recursion.
+void LeaveGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
+  auto global_mutex = reinterpret_cast<xe::recursive_mutex*>(arg0);
+  auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
+  *global_lock_count = *global_lock_count - 1;
+  assert_true(*global_lock_count >= 0);
+  global_mutex->unlock();
 }
 
 bool PPCFrontend::Initialize() {
-  void* arg0 = reinterpret_cast<void*>(&builtins_.global_lock);
-  void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_taken);
+  void* arg0 = reinterpret_cast<void*>(processor_->global_mutex());
+  void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_count);
   builtins_.check_global_lock =
       processor_->DefineBuiltin("CheckGlobalLock", CheckGlobalLock, arg0, arg1);
-  builtins_.handle_global_lock = processor_->DefineBuiltin(
-      "HandleGlobalLock", HandleGlobalLock, arg0, arg1);
-
+  builtins_.enter_global_lock =
+      processor_->DefineBuiltin("EnterGlobalLock", EnterGlobalLock, arg0, arg1);
+  builtins_.leave_global_lock =
+      processor_->DefineBuiltin("LeaveGlobalLock", LeaveGlobalLock, arg0, arg1);
   return true;
 }
 

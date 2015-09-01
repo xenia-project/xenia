@@ -181,8 +181,6 @@ class Memory {
                                (guest_address & 0x1FFFFFFF));
   }
 
-  inline uint64_t* reserve_address() { return &reserve_address_; }
-
   // TODO(benvanik): make poly memory utils for these.
   void Zero(uint32_t address, uint32_t size);
   void Fill(uint32_t address, uint32_t size, uint8_t value);
@@ -219,7 +217,6 @@ class Memory {
   uint32_t system_page_size_ = 0;
   uint8_t* virtual_membase_ = nullptr;
   uint8_t* physical_membase_ = nullptr;
-  uint64_t reserve_address_ = 0;
 
   xe::memory::FileMappingHandle mapping_ = nullptr;
   uint8_t* mapping_base_ = nullptr;

@@ -403,7 +403,6 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
 
   // This is death, and should never return.
   // TODO(benvanik): cleaner exit.
-  assert_always();
   exit(1);
 }
 

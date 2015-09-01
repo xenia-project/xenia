@@ -327,6 +327,39 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
   return context->r[3];
 }
 
+uint64_t Processor::ExecuteInterrupt(ThreadState* thread_state,
+                                     uint32_t address, uint64_t args[],
+                                     size_t arg_count) {
+  SCOPE_profile_cpu_f("cpu");
+
+  // Hold the global lock during interrupt dispatch.
+  // This will block if any code is in a critical region (has interrupts
+  // disabled) or if any other interrupt is executing.
+  std::lock_guard<xe::recursive_mutex> lock(global_mutex_);
+
+  PPCContext* context = thread_state->context();
+  assert_true(arg_count <= 5);
+  for (size_t i = 0; i < arg_count; ++i) {
+    context->r[3 + i] = args[i];
+  }
+
+  // TLS ptr must be zero during interrupts. Some games check this and
+  // early-exit routines when under interrupts.
+  auto pcr_address =
+      memory_->TranslateVirtual(static_cast<uint32_t>(context->r[13]));
+  uint32_t old_tls_ptr = xe::load_and_swap<uint32_t>(pcr_address);
+  xe::store_and_swap<uint32_t>(pcr_address, 0);
+
+  if (!Execute(thread_state, address)) {
+    return 0xDEADBABE;
+  }
+
+  // Restores TLS ptr.
+  xe::store_and_swap<uint32_t>(pcr_address, old_tls_ptr);
+
+  return context->r[3];
+}
+
 Irql Processor::RaiseIrql(Irql new_value) {
   return static_cast<Irql>(
       xe::atomic_exchange(static_cast<uint32_t>(new_value),

@@ -32,10 +32,10 @@ namespace frontend {
 class PPCTranslator;
 
 struct PPCBuiltins {
-  xe::mutex global_lock;
-  bool global_lock_taken;
+  int32_t global_lock_count;
   Function* check_global_lock;
-  Function* handle_global_lock;
+  Function* enter_global_lock;
+  Function* leave_global_lock;
 };
 
 class PPCFrontend {

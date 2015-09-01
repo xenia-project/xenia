@@ -80,8 +80,8 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
            interrupt_callback_, source, cpu);
 
   uint64_t args[] = {source, interrupt_callback_data_};
-  processor_->Execute(thread->thread_state(), interrupt_callback_, args,
-                      xe::countof(args));
+  processor_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_,
+                               args, xe::countof(args));
 }
 
 }  // namespace gpu

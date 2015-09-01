@@ -1279,23 +1279,23 @@ pointer_result_t InterlockedPushEntrySList(
   assert_not_null(plist_ptr);
   assert_not_null(entry);
 
-  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  // Hold a global lock during this method. Once in the lock we assume we have
+  // exclusive access to the structure.
+  std::lock_guard<xe::recursive_mutex> lock(
+      *kernel_state()->processor()->global_mutex());
+
+  alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
-  uint32_t old_head = 0;
+  new_hdr.depth = old_hdr.depth + 1;
+  new_hdr.sequence = old_hdr.sequence + 1;
 
-  do {
-    // Kill the guest reservation
-    xe::atomic_exchange(0, kernel_memory()->reserve_address());
+  uint32_t old_head = old_hdr.next.next;
+  entry->next = old_hdr.next.next;
+  new_hdr.next.next = entry.guest_address();
 
-    old_hdr = *plist_ptr;
-    new_hdr.depth = old_hdr.depth + 1;
-    new_hdr.sequence = old_hdr.sequence + 1;
-
-    old_head = old_hdr.next.next;
-    entry->next = old_hdr.next.next;
-    new_hdr.next.next = entry.guest_address();
-  } while (!xe::atomic_cas(*(uint64_t*)&old_hdr, *(uint64_t*)&new_hdr,
-                           (uint64_t*)plist_ptr.host_address()));
+  xe::atomic_cas(*reinterpret_cast<uint64_t*>(&old_hdr),
+                 *reinterpret_cast<uint64_t*>(&new_hdr),
+                 reinterpret_cast<uint64_t*>(plist_ptr.host_address()));
 
   return old_head;
 }
@@ -1305,27 +1305,29 @@ DECLARE_XBOXKRNL_EXPORT(InterlockedPushEntrySList,
 pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
+  // Hold a global lock during this method. Once in the lock we assume we have
+  // exclusive access to the structure.
+  std::lock_guard<xe::recursive_mutex> lock(
+      *kernel_state()->processor()->global_mutex());
+
   uint32_t popped = 0;
 
-  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
-  do {
-    // Kill the guest reservation (guest InterlockedPushEntrySList uses this)
-    xe::atomic_exchange(0, kernel_memory()->reserve_address());
+  auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
+      old_hdr.next.next);
+  if (!old_hdr.next.next) {
+    return 0;
+  }
+  popped = old_hdr.next.next;
 
-    old_hdr = *plist_ptr;
-    auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
-        old_hdr.next.next);
-    if (!old_hdr.next.next) {
-      return 0;
-    }
-    popped = old_hdr.next.next;
+  new_hdr.depth = old_hdr.depth - 1;
+  new_hdr.next.next = next->next;
+  new_hdr.sequence = old_hdr.sequence;
 
-    new_hdr.depth = old_hdr.depth - 1;
-    new_hdr.next.next = next->next;
-    new_hdr.sequence = old_hdr.sequence;
-  } while (!xe::atomic_cas(*(uint64_t*)&old_hdr, *(uint64_t*)&new_hdr,
-                           (uint64_t*)plist_ptr.host_address()));
+  xe::atomic_cas(*reinterpret_cast<uint64_t*>(&old_hdr),
+                 *reinterpret_cast<uint64_t*>(&new_hdr),
+                 reinterpret_cast<uint64_t*>(plist_ptr.host_address()));
 
   return popped;
 }
@@ -1333,22 +1335,23 @@ DECLARE_XBOXKRNL_EXPORT(InterlockedPopEntrySList,
                         ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
-  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  assert_not_null(plist_ptr);
+
+  // Hold a global lock during this method. Once in the lock we assume we have
+  // exclusive access to the structure.
+  std::lock_guard<xe::recursive_mutex> lock(
+      *kernel_state()->processor()->global_mutex());
+
+  alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
-  uint32_t first = 0;
+  uint32_t first = old_hdr.next.next;
+  new_hdr.next.next = 0;
+  new_hdr.depth = 0;
+  new_hdr.sequence = 0;
 
-  do {
-    // Kill the guest reservation
-    xe::atomic_exchange(0, kernel_memory()->reserve_address());
-
-    old_hdr = *plist_ptr;
-
-    first = old_hdr.next.next;
-    new_hdr.next.next = 0;
-    new_hdr.depth = 0;
-    new_hdr.sequence = 0;
-  } while (!xe::atomic_cas(*(uint64_t*)&old_hdr, *(uint64_t*)&new_hdr,
-                           (uint64_t*)plist_ptr.host_address()));
+  xe::atomic_cas(*reinterpret_cast<uint64_t*>(&old_hdr),
+                 *reinterpret_cast<uint64_t*>(&new_hdr),
+                 reinterpret_cast<uint64_t*>(plist_ptr.host_address()));
 
   return first;
 }

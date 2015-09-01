@@ -11,7 +11,6 @@
 #define XENIA_CPU_PROCESSOR_H_
 
 #include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -84,7 +83,10 @@ class Processor {
   bool Execute(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                    size_t arg_count);
+  uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
+                            uint64_t args[], size_t arg_count);
 
+  xe::recursive_mutex* global_mutex() { return &global_mutex_; }
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
@@ -108,6 +110,7 @@ class Processor {
   uint32_t next_builtin_address_ = 0xFFFF0000u;
 
   Irql irql_;
+  xe::recursive_mutex global_mutex_;
 };
 
 }  // namespace cpu

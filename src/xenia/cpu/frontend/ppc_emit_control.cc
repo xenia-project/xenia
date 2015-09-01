@@ -11,6 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_hir_builder.h"
 
 namespace xe {
@@ -699,14 +700,28 @@ XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 // without the lock here threads can livelock.
 
 XEEMITTER(mfmsr, 0x7C0000A6, X)(PPCHIRBuilder& f, InstrData& i) {
-  f.StoreGPR(i.X.RT, f.LoadMSR());
+  // bit 48 = EE; interrupt enabled
+  // bit 62 = RI; recoverable interrupt
+  // return 8000h if unlocked (interrupts enabled), else 0
+  f.CallExtern(f.builtins()->check_global_lock);
+  f.StoreGPR(i.X.RT, f.LoadContext(offsetof(PPCContext, scratch), INT64_TYPE));
   return 0;
 }
 
 XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
   if (i.X.RA & 0x01) {
     // L = 1
-    f.StoreMSR(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
+    // iff storing from r13
+    f.StoreContext(
+        offsetof(PPCContext, scratch),
+        f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
+    if (i.X.RT == 13) {
+      // iff storing from r13 we are taking a lock (disable interrupts).
+      f.CallExtern(f.builtins()->enter_global_lock);
+    } else {
+      // Otherwise we are restoring interrupts (probably).
+      f.CallExtern(f.builtins()->leave_global_lock);
+    }
     return 0;
   } else {
     // L = 0
@@ -718,7 +733,15 @@ XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(mtmsrd, 0x7C000164, X)(PPCHIRBuilder& f, InstrData& i) {
   if (i.X.RA & 0x01) {
     // L = 1
-    f.StoreMSR(f.LoadGPR(i.X.RT));
+    f.StoreContext(offsetof(PPCContext, scratch),
+                   f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
+    if (i.X.RT == 13) {
+      // iff storing from r13 we are taking a lock (disable interrupts).
+      f.CallExtern(f.builtins()->enter_global_lock);
+    } else {
+      // Otherwise we are restoring interrupts (probably).
+      f.CallExtern(f.builtins()->leave_global_lock);
+    }
     return 0;
   } else {
     // L = 0

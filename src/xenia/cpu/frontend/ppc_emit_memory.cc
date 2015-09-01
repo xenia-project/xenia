@@ -683,8 +683,16 @@ XEEMITTER(ldarx, 0x7C0000A8, X)(PPCHIRBuilder& f, InstrData& i) {
   // RESERVE_LENGTH <- 8
   // RESERVE_ADDR <- real_addr(EA)
   // RT <- MEM(EA, 8)
+
+  // NOTE: we assume we are within a global lock.
+  // We could assert here that the block (or its parent) has taken a global lock
+  // already, but I haven't see anything but interrupt callbacks (which are
+  // always under a global lock) do that yet.
+  // We issue a memory barrier here to make sure that we get good values.
+  f.MemoryBarrier();
+
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  Value* rt = f.ByteSwap(f.LoadAcquire(ea, INT64_TYPE));
+  Value* rt = f.ByteSwap(f.Load(ea, INT64_TYPE));
   f.StoreGPR(i.X.RT, rt);
   return 0;
 }
@@ -699,9 +707,16 @@ XEEMITTER(lwarx, 0x7C000028, X)(PPCHIRBuilder& f, InstrData& i) {
   // RESERVE_LENGTH <- 4
   // RESERVE_ADDR <- real_addr(EA)
   // RT <- i32.0 || MEM(EA, 4)
+
+  // NOTE: we assume we are within a global lock.
+  // We could assert here that the block (or its parent) has taken a global lock
+  // already, but I haven't see anything but interrupt callbacks (which are
+  // always under a global lock) do that yet.
+  // We issue a memory barrier here to make sure that we get good values.
+  f.MemoryBarrier();
+
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  Value* rt =
-      f.ZeroExtend(f.ByteSwap(f.LoadAcquire(ea, INT32_TYPE)), INT64_TYPE);
+  Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.X.RT, rt);
   return 0;
 }
@@ -716,9 +731,22 @@ XEEMITTER(stdcx, 0x7C0001AD, X)(PPCHIRBuilder& f, InstrData& i) {
   // MEM(EA, 8) <- (RS)
   // n <- 1 if store performed
   // CR0[LT GT EQ SO] = 0b00 || n || XER[SO]
+
+  // NOTE: we assume we are within a global lock.
+  // As we have been exclusively executing this entire time, we assume that no
+  // one else could have possibly touched the memory and must always succeed.
+
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.LoadGPR(i.X.RT));
-  f.StoreRelease(ea, rt);  // also updates cr0
+  f.Store(ea, rt);
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), f.LoadConstantInt8(1));
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_lt), f.LoadZeroInt8());
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_gt), f.LoadZeroInt8());
+
+  // Issue memory barrier for when we go out of lock and want others to see our
+  // updates.
+  f.MemoryBarrier();
+
   return 0;
 }
 
@@ -732,9 +760,22 @@ XEEMITTER(stwcx, 0x7C00012D, X)(PPCHIRBuilder& f, InstrData& i) {
   // MEM(EA, 4) <- (RS)[32:63]
   // n <- 1 if store performed
   // CR0[LT GT EQ SO] = 0b00 || n || XER[SO]
+
+  // NOTE: we assume we are within a global lock.
+  // As we have been exclusively executing this entire time, we assume that no
+  // one else could have possibly touched the memory and must always succeed.
+
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE));
-  f.StoreRelease(ea, rt);  // also updates cr0
+  f.Store(ea, rt);
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), f.LoadConstantInt8(1));
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_lt), f.LoadZeroInt8());
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_gt), f.LoadZeroInt8());
+
+  // Issue memory barrier for when we go out of lock and want others to see our
+  // updates.
+  f.MemoryBarrier();
+
   return 0;
 }
 

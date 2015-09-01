@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <string>
 
+#include "xenia/base/mutex.h"
 #include "xenia/base/vec128.h"
 
 namespace xe {
@@ -404,8 +405,9 @@ typedef struct alignas(64) PPCContext_s {
   // Thread ID assigned to this context.
   uint32_t thread_id;
 
-  // Reserve address for load acquire/store release. Shared.
-  uint64_t* reserve_address;
+  // Global interrupt lock, held while interrupts are disabled or interrupts are
+  // executing. This is shared among all threads and comes from the processor.
+  xe::recursive_mutex* global_mutex;
 
   // Used to shuttle data into externs. Contents volatile.
   uint64_t scratch;

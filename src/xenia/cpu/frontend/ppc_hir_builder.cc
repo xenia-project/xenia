@@ -39,6 +39,8 @@ PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
 
 PPCHIRBuilder::~PPCHIRBuilder() = default;
 
+PPCBuiltins* PPCHIRBuilder::builtins() const { return frontend_->builtins(); }
+
 void PPCHIRBuilder::Reset() {
   function_ = nullptr;
   start_address_ = 0;
@@ -345,20 +347,6 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
   // TOOD(benvanik): trace CR.
 }
 
-Value* PPCHIRBuilder::LoadMSR() {
-  // bit 48 = EE; interrupt enabled
-  // bit 62 = RI; recoverable interrupt
-  // return 8000h if unlocked, else 0
-  CallExtern(frontend_->builtins()->check_global_lock);
-  return LoadContext(offsetof(PPCContext, scratch), INT64_TYPE);
-}
-
-void PPCHIRBuilder::StoreMSR(Value* value) {
-  // if & 0x8000 == 0, lock, else unlock
-  StoreContext(offsetof(PPCContext, scratch), ZeroExtend(value, INT64_TYPE));
-  CallExtern(frontend_->builtins()->handle_global_lock);
-}
-
 Value* PPCHIRBuilder::LoadFPSCR() {
   return LoadContext(offsetof(PPCContext, fpscr), INT64_TYPE);
 }
@@ -442,30 +430,6 @@ void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
   auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
   trace_reg.reg = 128 + reg;
   trace_reg.value = value;
-}
-
-Value* PPCHIRBuilder::LoadAcquire(Value* address, TypeName type,
-                                  uint32_t load_flags) {
-  AtomicExchange(LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
-                 Truncate(address, INT32_TYPE));
-  return Load(address, type, load_flags);
-}
-
-Value* PPCHIRBuilder::StoreRelease(Value* address, Value* value,
-                                   uint32_t store_flags) {
-  Value* old_address = AtomicExchange(
-      LoadContext(offsetof(PPCContext, reserve_address), INT64_TYPE),
-      LoadZeroInt32());
-  // Ensure the reservation addresses match.
-  Value* eq = CompareEQ(Truncate(address, INT32_TYPE), old_address);
-  StoreContext(offsetof(PPCContext, cr0.cr0_eq), eq);
-  StoreContext(offsetof(PPCContext, cr0.cr0_lt), LoadZeroInt8());
-  StoreContext(offsetof(PPCContext, cr0.cr0_gt), LoadZeroInt8());
-  auto skip_label = NewLabel();
-  BranchFalse(eq, skip_label, BRANCH_UNLIKELY);
-  Store(address, value, store_flags);
-  MarkLabel(skip_label);
-  return eq;
 }
 
 }  // namespace frontend

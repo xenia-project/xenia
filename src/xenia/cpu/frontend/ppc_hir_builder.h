@@ -18,6 +18,7 @@ namespace xe {
 namespace cpu {
 namespace frontend {
 
+struct PPCBuiltins;
 class PPCFrontend;
 
 class PPCHIRBuilder : public hir::HIRBuilder {
@@ -28,6 +29,8 @@ class PPCHIRBuilder : public hir::HIRBuilder {
  public:
   explicit PPCHIRBuilder(PPCFrontend* frontend);
   ~PPCHIRBuilder() override;
+
+  PPCBuiltins* builtins() const;
 
   void Reset() override;
 
@@ -54,8 +57,6 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   void UpdateCR(uint32_t n, Value* lhs, bool is_signed = true);
   void UpdateCR(uint32_t n, Value* lhs, Value* rhs, bool is_signed = true);
   void UpdateCR6(Value* src_value);
-  Value* LoadMSR();
-  void StoreMSR(Value* value);
   Value* LoadFPSCR();
   void StoreFPSCR(Value* value);
   Value* LoadXER();
@@ -74,10 +75,6 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   void StoreFPR(uint32_t reg, Value* value);
   Value* LoadVR(uint32_t reg);
   void StoreVR(uint32_t reg, Value* value);
-
-  Value* LoadAcquire(Value* address, hir::TypeName type,
-                     uint32_t load_flags = 0);
-  Value* StoreRelease(Value* address, Value* value, uint32_t store_flags = 0);
 
  private:
   void AnnotateLabel(uint32_t address, Label* label);
