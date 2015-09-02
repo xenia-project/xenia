@@ -416,16 +416,12 @@ SHIM_CALL NetDll_XNetQosServiceLookup_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(1);
 }
 
-SHIM_CALL NetDll_inet_addr_shim(PPCContext* ppc_context,
-                                KernelState* kernel_state) {
-  uint32_t cp_ptr = SHIM_GET_ARG_32(0);
-
-  auto cp = reinterpret_cast<const char*>(SHIM_MEM_ADDR(cp_ptr));
-  XELOGD("NetDll_inet_addr(%.8X(%s))", cp_ptr, cp);
-  uint32_t addr = inet_addr(cp);
-
-  SHIM_SET_RETURN_32(addr);
+dword_result_t NetDll_inet_addr(lpstring_t addr_ptr) {
+  uint32_t addr = inet_addr(addr_ptr);
+  return xe::byte_swap(addr);
 }
+DECLARE_XAM_EXPORT(NetDll_inet_addr,
+                   ExportTag::kImplemented | ExportTag::kNetworking);
 
 SHIM_CALL NetDll_socket_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
@@ -742,7 +738,6 @@ void xe::kernel::xam::RegisterNetExports(
   SHIM_SET_MAPPING("xam.xex", NetDll_WSAGetLastError, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetGetEthernetLinkStatus, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetQosServiceLookup, state);
-  SHIM_SET_MAPPING("xam.xex", NetDll_inet_addr, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_socket, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_closesocket, state);
   SHIM_SET_MAPPING("xam.xex", NetDll_setsockopt, state);
