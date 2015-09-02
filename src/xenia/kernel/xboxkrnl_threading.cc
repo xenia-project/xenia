@@ -61,14 +61,15 @@ namespace kernel {
 //   stw r3, 0x160(r11)
 // }
 
-void AssertNoNameCollision(KernelState* kernel_state,
-                           uint32_t obj_attributes_ptr) {
+template <typename T>
+object_ref<T> LookupNamedObject(KernelState* kernel_state,
+                                uint32_t obj_attributes_ptr) {
   // If the name exists and its type matches, we can return that (ref+1)
   // with a success of NAME_EXISTS.
   // If the name exists and its type doesn't match, we do NAME_COLLISION.
   // Otherwise, we add like normal.
   if (!obj_attributes_ptr) {
-    return;
+    return nullptr;
   }
   auto name = X_ANSI_STRING::to_string_indirect(
       kernel_state->memory()->virtual_membase(), obj_attributes_ptr + 4);
@@ -77,10 +78,16 @@ void AssertNoNameCollision(KernelState* kernel_state,
     X_RESULT result =
         kernel_state->object_table()->GetObjectByName(name, &handle);
     if (XSUCCEEDED(result)) {
-      // Found something!
-      assert_always("Existing names not implemented");
+      // Found something! It's been retained, so return.
+      auto obj = kernel_state->object_table()->LookupObject<T>(handle);
+      if (obj) {
+        // The caller will do as it likes.
+        obj->ReleaseHandle();
+        return obj;
+      }
     }
   }
+  return nullptr;
 }
 
 SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
@@ -494,9 +501,21 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
   XELOGD("NtCreateEvent(%.8X, %.8X, %d, %d)", handle_ptr, obj_attributes_ptr,
          event_type, initial_state);
 
-  // TODO(benvanik): check for name collision. May return existing object if
-  // type matches.
-  AssertNoNameCollision(kernel_state, obj_attributes_ptr);
+  // Check for an existing timer with the same name.
+  auto existing_object =
+      LookupNamedObject<XEvent>(kernel_state, obj_attributes_ptr);
+  if (existing_object) {
+    if (existing_object->type() == XObject::kTypeEvent) {
+      if (handle_ptr) {
+        existing_object->RetainHandle();
+        SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
+      }
+      SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+    } else {
+      SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
+    }
+    return;
+  }
 
   XEvent* ev = new XEvent(kernel_state);
   ev->Initialize(!event_type, !!initial_state);
@@ -608,10 +627,20 @@ SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
   XELOGD("NtCreateSemaphore(%.8X, %.8X, %d, %d)", handle_ptr,
          obj_attributes_ptr, count, limit);
 
-  // TODO(benvanik): check for name collision. May return existing object if
-  // type matches.
-  if (obj_attributes_ptr) {
-    AssertNoNameCollision(kernel_state, obj_attributes_ptr);
+  // Check for an existing timer with the same name.
+  auto existing_object =
+      LookupNamedObject<XSemaphore>(kernel_state, obj_attributes_ptr);
+  if (existing_object) {
+    if (existing_object->type() == XObject::kTypeSemaphore) {
+      if (handle_ptr) {
+        existing_object->RetainHandle();
+        SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
+      }
+      SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+    } else {
+      SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
+    }
+    return;
   }
 
   auto sem = object_ref<XSemaphore>(new XSemaphore(kernel_state));
@@ -657,10 +686,19 @@ SHIM_CALL NtReleaseSemaphore_shim(PPCContext* ppc_context,
 dword_result_t NtCreateMutant(lpdword_t handle_out,
                               pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes,
                               dword_t initial_owner) {
-  // TODO(benvanik): check for name collision. May return existing object if
-  // type matches.
-  if (obj_attributes) {
-    AssertNoNameCollision(kernel_state(), obj_attributes);
+  // Check for an existing timer with the same name.
+  auto existing_object = LookupNamedObject<XMutant>(
+      kernel_state(), obj_attributes.guest_address());
+  if (existing_object) {
+    if (existing_object->type() == XObject::kTypeMutant) {
+      if (handle_out) {
+        existing_object->RetainHandle();
+        *handle_out = existing_object->handle();
+      }
+      return X_STATUS_SUCCESS;
+    } else {
+      return X_STATUS_INVALID_HANDLE;
+    }
   }
 
   XMutant* mutant = new XMutant(kernel_state());
@@ -720,10 +758,20 @@ SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_context,
   XELOGD("NtCreateTimer(%.8X, %.8X, %.1X)", handle_ptr, obj_attributes_ptr,
          timer_type);
 
-  // TODO(benvanik): check for name collision. May return existing object if
-  // type matches.
-  if (obj_attributes_ptr) {
-    AssertNoNameCollision(kernel_state, obj_attributes_ptr);
+  // Check for an existing timer with the same name.
+  auto existing_object =
+      LookupNamedObject<XTimer>(kernel_state, obj_attributes_ptr);
+  if (existing_object) {
+    if (existing_object->type() == XObject::kTypeTimer) {
+      if (handle_ptr) {
+        existing_object->RetainHandle();
+        SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
+      }
+      SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+    } else {
+      SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
+    }
+    return;
   }
 
   XTimer* timer = new XTimer(kernel_state);
