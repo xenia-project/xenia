@@ -175,7 +175,7 @@ X_STATUS XUserModule::GetSection(const char* name, uint32_t* out_section_data,
   uint32_t count = (resource_header->size - 4) / 16;
   for (uint32_t i = 0; i < count; i++) {
     auto& res = resource_header->resources[i];
-    if (strcmp(name, res.name) == 0) {
+    if (std::strncmp(name, res.name, 8) == 0) {
       // Found!
       *out_section_data = res.address;
       *out_section_size = res.size;
