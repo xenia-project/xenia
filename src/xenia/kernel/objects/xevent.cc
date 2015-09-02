@@ -20,6 +20,8 @@ XEvent::~XEvent() = default;
 void XEvent::Initialize(bool manual_reset, bool initial_state) {
   assert_false(event_);
 
+  this->CreateNative<X_KEVENT>();
+
   if (manual_reset) {
     event_ = xe::threading::Event::CreateManualResetEvent(initial_state);
   } else {
@@ -44,7 +46,11 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   }
 
   bool initial_state = header->signal_state ? true : false;
-  Initialize(manual_reset, initial_state);
+  if (manual_reset) {
+    event_ = xe::threading::Event::CreateManualResetEvent(initial_state);
+  } else {
+    event_ = xe::threading::Event::CreateAutoResetEvent(initial_state);
+  }
 }
 
 int32_t XEvent::Set(uint32_t priority_increment, bool wait) {

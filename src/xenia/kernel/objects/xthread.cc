@@ -146,7 +146,7 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 }
 
 X_STATUS XThread::Create() {
-  // Thread kernel object
+  // Thread kernel object.
   // This call will also setup the native pointer for us.
   auto guest_thread = CreateNative<X_KTHREAD>();
   if (!guest_thread) {

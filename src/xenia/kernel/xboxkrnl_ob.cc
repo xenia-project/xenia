@@ -97,14 +97,20 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
     switch (object_type_ptr) {
       case 0x00000000: {  // whatever?
         switch (object->type()) {
-          // TODO(benvanik): need to track native_ptr in XObject, allocate as
-          // needed?
-          /*case XObject::kTypeEvent: {
-            XEvent* ev = (XEvent*)object;
-          } break;*/
+          case XObject::kTypeEvent: {
+            assert(object->type() == XObject::kTypeEvent);
+            native_ptr = object->guest_object();
+            assert_not_zero(native_ptr);
+          } break;
+          case XObject::kTypeSemaphore: {
+            assert(object->type() == XObject::kTypeSemaphore);
+            native_ptr = object->guest_object();
+            assert_not_zero(native_ptr);
+          } break;
           case XObject::kTypeThread: {
-            auto thread = object.get<XThread>();
-            native_ptr = thread->guest_object();
+            assert(object->type() == XObject::kTypeThread);
+            native_ptr = object->guest_object();
+            assert_not_zero(native_ptr);
           } break;
           default: {
             assert_unhandled_case(object->type());
@@ -114,15 +120,13 @@ SHIM_CALL ObReferenceObjectByHandle_shim(PPCContext* ppc_context,
       } break;
       case 0xD017BEEF: {  // ExSemaphoreObjectType
         assert(object->type() == XObject::kTypeSemaphore);
-        auto sem = object.get<XSemaphore>();
-
-        native_ptr = sem->guest_object();
+        native_ptr = object->guest_object();
+        assert_not_zero(native_ptr);
       } break;
       case 0xD01BBEEF: {  // ExThreadObjectType
         assert(object->type() == XObject::kTypeThread);
-        auto thread = object.get<XThread>();
-
-        native_ptr = thread->guest_object();
+        native_ptr = object->guest_object();
+        assert_not_zero(native_ptr);
       } break;
       default: {
         assert_unhandled_case(object_type_ptr);
