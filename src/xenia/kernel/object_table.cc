@@ -262,17 +262,27 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
+  // Names are case-insensitive.
+  std::string lower_name = name;
+  std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                 tolower);
+
   std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
-  if (name_table_.count(name)) {
+  if (name_table_.count(lower_name)) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
-  name_table_.insert({name, handle});
+  name_table_.insert({lower_name, handle});
   return X_STATUS_SUCCESS;
 }
 
 void ObjectTable::RemoveNameMapping(const std::string& name) {
+  // Names are case-insensitive.
+  std::string lower_name = name;
+  std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                 tolower);
+
   std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
-  auto it = name_table_.find(name);
+  auto it = name_table_.find(lower_name);
   if (it != name_table_.end()) {
     name_table_.erase(it);
   }
@@ -280,8 +290,13 @@ void ObjectTable::RemoveNameMapping(const std::string& name) {
 
 X_STATUS ObjectTable::GetObjectByName(const std::string& name,
                                       X_HANDLE* out_handle) {
+  // Names are case-insensitive.
+  std::string lower_name = name;
+  std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                 tolower);
+
   std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
-  auto it = name_table_.find(name);
+  auto it = name_table_.find(lower_name);
   if (it == name_table_.end()) {
     *out_handle = X_INVALID_HANDLE_VALUE;
     return X_STATUS_OBJECT_NAME_NOT_FOUND;
