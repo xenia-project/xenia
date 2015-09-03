@@ -210,12 +210,7 @@ class XmaContext {
   size_t partial_frame_offset_bits_ = 0;  // blah internal don't use this
   std::vector<uint8_t> partial_frame_buffer_;
 
-  // If we didn't finish writing a frame to the output buffer, this is the
-  // offset.
-  size_t current_frame_pos_ = 0;
-  uint32_t last_input_read_pos_ = 0;  // Last seen read buffer pos
   uint8_t* current_frame_ = nullptr;
-  uint32_t frame_samples_size_ = 0;
 };
 
 }  // namespace apu

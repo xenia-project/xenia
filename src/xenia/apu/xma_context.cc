@@ -93,8 +93,6 @@ int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
   // Current frame stuff whatever
   // samples per frame * 2 max channels * output bytes
   current_frame_ = new uint8_t[kSamplesPerFrame * kBytesPerSample * 2];
-  current_frame_pos_ = 0;
-  frame_samples_size_ = 0;
 
   // FYI: We're purposely not opening the context here. That is done later.
   return 0;
@@ -345,35 +343,15 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
   output_rb.set_read_offset(output_read_offset);
   output_rb.set_write_offset(output_write_offset);
 
+  // We can only decode an entire frame and write it out at a time, so
+  // don't save any samples.
   size_t output_remaining_bytes = output_rb.write_count();
-  bool output_written = false;
+  output_remaining_bytes -= data->is_stereo ? (output_remaining_bytes % 2048)
+                                            : (output_remaining_bytes % 1024);
 
   // Decode until we can't write any more data.
   while (output_remaining_bytes > 0) {
     int num_channels = data->is_stereo ? 2 : 1;
-
-    // Check if we have part of a frame waiting (and the game hasn't jumped
-    // around)
-    if (current_frame_pos_ &&
-        last_input_read_pos_ == data->input_buffer_read_offset) {
-      size_t to_write = std::min(
-          output_remaining_bytes,
-          ((size_t)kBytesPerFrame * num_channels - current_frame_pos_));
-      output_rb.Write(current_frame_ + current_frame_pos_, to_write);
-      output_written = true;
-      XELOGAPU("XmaContext %d: wrote out %d bytes of left-over samples", id(),
-               to_write);
-
-      current_frame_pos_ += to_write;
-      if (current_frame_pos_ >= kBytesPerFrame * num_channels) {
-        current_frame_pos_ = 0;
-      }
-
-      data->output_buffer_write_offset = output_rb.write_offset() / 256;
-      output_remaining_bytes -= to_write;
-      continue;
-    }
-
     if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
       // Out of data.
       break;
@@ -581,8 +559,6 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
       return;
     }
 
-    last_input_read_pos_ = data->input_buffer_read_offset;
-
     if (got_frame) {
       // Successfully decoded a frame.
       // Copy to the output buffer.
@@ -601,22 +577,11 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
       // Convert the frame.
       ConvertFrame((const uint8_t**)decoded_frame_->data, context_->channels,
                    decoded_frame_->nb_samples, current_frame_);
-      current_frame_pos_ = 0;
 
-      if (output_remaining_bytes < kBytesPerFrame * num_channels) {
-        // Output buffer isn't big enough to store the entire frame! Write out a
-        // part of it.
-        current_frame_pos_ = output_remaining_bytes;
-        output_rb.Write(current_frame_, output_remaining_bytes);
+      assert_true(output_remaining_bytes >= kBytesPerFrame * num_channels);
+      output_rb.Write(current_frame_, kBytesPerFrame * num_channels);
+      written_bytes = kBytesPerFrame * num_channels;
 
-        written_bytes = output_remaining_bytes;
-      } else {
-        output_rb.Write(current_frame_, kBytesPerFrame * num_channels);
-
-        written_bytes = kBytesPerFrame * num_channels;
-      }
-
-      output_written = true;
       output_remaining_bytes -= written_bytes;
       data->output_buffer_write_offset = output_rb.write_offset() / 256;
     }
@@ -624,7 +589,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
 
   // The game will kick us again with a new output buffer later.
   // It's important that we only invalidate this if we actually wrote to it!!
-  if (output_written) {
+  if (output_rb.write_offset() == output_rb.read_offset()) {
     data->output_buffer_valid = 0;
   }
 }
