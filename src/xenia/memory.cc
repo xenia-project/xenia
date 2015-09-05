@@ -650,9 +650,15 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
           // At least one page in the range is used, skip to next.
           // We know we'll be starting at least before this page.
           any_taken = true;
-          base_page_number = page_number - page_count;
-          base_page_number -= base_page_number % page_scan_stride;
-          base_page_number += page_scan_stride;  // cancel out loop logic
+          if (page_count > page_number) {
+            // Not enough space left to fit entire page range. Breaks outer
+            // loop.
+            base_page_number = -1;
+          } else {
+            base_page_number = page_number - page_count;
+            base_page_number -= base_page_number % page_scan_stride;
+            base_page_number += page_scan_stride;  // cancel out loop logic
+          }
           break;
         }
       }
