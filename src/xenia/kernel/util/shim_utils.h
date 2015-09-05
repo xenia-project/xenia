@@ -146,6 +146,7 @@ class ParamBase : public Param {
     return *this;
   }
   operator T() const { return value_; }
+  T value() const { return value_; }
 
  protected:
   T value_;

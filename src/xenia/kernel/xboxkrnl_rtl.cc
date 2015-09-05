@@ -77,8 +77,9 @@ void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
   uint32_t count = length >> 2;
 
   uint32_t* p = destination.as<uint32_t*>();
+  uint32_t swapped_pattern = xe::byte_swap(pattern.value());
   for (uint32_t n = 0; n < count; n++, p++) {
-    *p = xe::byte_swap((uint32_t)pattern);
+    *p = swapped_pattern;
   }
 }
 DECLARE_XBOXKRNL_EXPORT(RtlFillMemoryUlong, ExportTag::kImplemented);
