@@ -54,7 +54,7 @@ class PPCFrontend {
  private:
   Processor* processor_;
   std::unique_ptr<ContextInfo> context_info_;
-  PPCBuiltins builtins_;
+  PPCBuiltins builtins_ = {0};
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
 };
 
