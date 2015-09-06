@@ -61,8 +61,6 @@ KernelState::KernelState(Emulator* emulator)
   content_root = xe::to_absolute_path(content_root);
   content_manager_ = std::make_unique<ContentManager>(this, content_root);
 
-  object_table_ = new ObjectTable();
-
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
 
@@ -98,7 +96,7 @@ KernelState::~KernelState() {
   kernel_modules_.clear();
 
   // Delete all objects.
-  delete object_table_;
+  object_table_.Reset();
 
   // Shutdown apps.
   app_manager_.reset();
@@ -372,7 +370,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
     X_STATUS status = user_modules_[i]->Unload();
     assert_true(XSUCCEEDED(status));
 
-    object_table_->RemoveHandle(user_modules_[i]->handle());
+    object_table_.RemoveHandle(user_modules_[i]->handle());
   }
   user_modules_.clear();
 

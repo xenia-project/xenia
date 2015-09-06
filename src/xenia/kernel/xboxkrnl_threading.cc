@@ -13,7 +13,6 @@
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xmutant.h"
 #include "xenia/kernel/objects/xsemaphore.h"

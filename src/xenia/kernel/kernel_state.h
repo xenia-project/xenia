@@ -23,9 +23,9 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/content_manager.h"
-#include "xenia/kernel/native_list.h"
-#include "xenia/kernel/object_table.h"
 #include "xenia/kernel/user_profile.h"
+#include "xenia/kernel/util/native_list.h"
+#include "xenia/kernel/util/object_table.h"
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
@@ -104,7 +104,7 @@ class KernelState {
   ContentManager* content_manager() const { return content_manager_.get(); }
 
   // Access must be guarded by the global critical region.
-  ObjectTable* object_table() const { return object_table_; }
+  util::ObjectTable* object_table() { return &object_table_; }
 
   uint32_t process_type() const;
   void set_process_type(uint32_t value);
@@ -150,7 +150,7 @@ class KernelState {
   void UnregisterNotifyListener(XNotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
-  NativeList* dpc_list() { return &dpc_list_; }
+  util::NativeList* dpc_list() { return &dpc_list_; }
 
   void CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result);
   void CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
@@ -179,7 +179,7 @@ class KernelState {
   xe::global_critical_region global_critical_region_;
 
   // Must be guarded by the global critical region.
-  ObjectTable* object_table_ = nullptr;
+  util::ObjectTable object_table_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<object_ref<XNotifyListener>> notify_listeners_;
   bool has_notified_startup_ = false;
@@ -195,7 +195,7 @@ class KernelState {
   std::atomic<bool> dispatch_thread_running_;
   object_ref<XHostThread> dispatch_thread_;
   // Must be guarded by the global critical region.
-  NativeList dpc_list_;
+  util::NativeList dpc_list_;
   std::condition_variable_any dispatch_cond_;
   std::list<std::function<void()>> dispatch_queue_;
 

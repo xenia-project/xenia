@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/kernel/object_table.h"
+#include "xenia/kernel/util/object_table.h"
 
 #include <algorithm>
 #include <cstring>
@@ -17,11 +17,13 @@
 
 namespace xe {
 namespace kernel {
+namespace util {
 
-ObjectTable::ObjectTable()
-    : table_capacity_(0), table_(nullptr), last_free_entry_(0) {}
+ObjectTable::ObjectTable() {}
 
-ObjectTable::~ObjectTable() {
+ObjectTable::~ObjectTable() { Reset(); }
+
+void ObjectTable::Reset() {
   auto global_lock = global_critical_region_.Acquire();
 
   // Release all objects.
@@ -313,5 +315,6 @@ X_STATUS ObjectTable::GetObjectByName(const std::string& name,
   return X_STATUS_SUCCESS;
 }
 
+}  // namespace util
 }  // namespace kernel
 }  // namespace xe

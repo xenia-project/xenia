@@ -16,13 +16,13 @@
 #include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 
-class NativeList;
 class XEvent;
 
 constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;
@@ -114,7 +114,7 @@ class XThread : public XObject {
   XThread(KernelState* kernel_state, uint32_t stack_size,
           uint32_t xapi_thread_startup, uint32_t start_address,
           uint32_t start_context, uint32_t creation_flags, bool guest_thread);
-  virtual ~XThread();
+  ~XThread() override;
 
   static bool IsInThread(XThread* other);
   static bool IsInThread();
@@ -149,7 +149,7 @@ class XThread : public XObject {
   void CheckApcs();
   void LockApc();
   void UnlockApc(bool queue_delivery);
-  NativeList* apc_list() const { return apc_list_; }
+  util::NativeList* apc_list() { return &apc_list_; }
   void EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
                   uint32_t arg1, uint32_t arg2);
 
@@ -191,7 +191,7 @@ class XThread : public XObject {
 
   xe::global_critical_region global_critical_region_;
   std::atomic<uint32_t> irql_ = {0};
-  NativeList* apc_list_ = nullptr;
+  util::NativeList apc_list_;
 };
 
 class XHostThread : public XThread {

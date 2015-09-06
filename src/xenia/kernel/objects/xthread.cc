@@ -20,7 +20,6 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xuser_module.h"
 #include "xenia/profiling.h"
@@ -42,7 +41,8 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  bool guest_thread)
     : XObject(kernel_state, kTypeThread),
       thread_id_(++next_xthread_id_),
-      guest_thread_(guest_thread) {
+      guest_thread_(guest_thread),
+      apc_list_(kernel_state->memory()) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
@@ -57,8 +57,6 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
     creation_params_.stack_size = 16 * 1024;
   }
 
-  apc_list_ = new NativeList(kernel_state->memory());
-
   // The kernel does not take a reference. We must unregister in the dtor.
   kernel_state_->RegisterThread(this);
 }
@@ -70,8 +68,6 @@ XThread::~XThread() {
   if (emulator()->debugger()) {
     emulator()->debugger()->OnThreadDestroyed(this);
   }
-
-  delete apc_list_;
 
   thread_.reset();
 
@@ -460,7 +456,7 @@ void XThread::CheckApcs() { DeliverAPCs(); }
 void XThread::LockApc() { EnterCriticalRegion(); }
 
 void XThread::UnlockApc(bool queue_delivery) {
-  bool needs_apc = apc_list_->HasPending();
+  bool needs_apc = apc_list_.HasPending();
   LeaveCriticalRegion();
   if (needs_apc && queue_delivery) {
     thread_->QueueUserCallback([this]() { DeliverAPCs(); });
@@ -486,7 +482,7 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
   apc->enqueued = 1;
 
   uint32_t list_entry_ptr = apc_ptr + 8;
-  apc_list_->Insert(list_entry_ptr);
+  apc_list_.Insert(list_entry_ptr);
 
   UnlockApc(true);
 }
@@ -496,10 +492,10 @@ void XThread::DeliverAPCs() {
   // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
   auto processor = kernel_state()->processor();
   LockApc();
-  while (apc_list_->HasPending()) {
+  while (apc_list_.HasPending()) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
-    uint32_t apc_ptr = apc_list_->Shift() - 8;
+    uint32_t apc_ptr = apc_list_.Shift() - 8;
     auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
     bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
@@ -560,10 +556,10 @@ void XThread::DeliverAPCs() {
 void XThread::RundownAPCs() {
   assert_true(XThread::GetCurrentThread() == this);
   LockApc();
-  while (apc_list_->HasPending()) {
+  while (apc_list_.HasPending()) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
-    uint32_t apc_ptr = apc_list_->Shift() - 8;
+    uint32_t apc_ptr = apc_list_.Shift() - 8;
     auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
     bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 

@@ -7,10 +7,11 @@
  ******************************************************************************
  */
 
-#include "xenia/kernel/native_list.h"
+#include "xenia/kernel/util/native_list.h"
 
 namespace xe {
 namespace kernel {
+namespace util {
 
 NativeList::NativeList(Memory* memory)
     : memory_(memory), head_(kInvalidPointer) {}
@@ -66,5 +67,6 @@ uint32_t NativeList::Shift() {
 
 bool NativeList::HasPending() { return head_ != kInvalidPointer; }
 
+}  // namespace util
 }  // namespace kernel
 }  // namespace xe

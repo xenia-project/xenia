@@ -7,14 +7,15 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_NATIVE_LIST_H_
-#define XENIA_KERNEL_NATIVE_LIST_H_
+#ifndef XENIA_KERNEL_UTIL_NATIVE_LIST_H_
+#define XENIA_KERNEL_UTIL_NATIVE_LIST_H_
 
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
+namespace util {
 
 // List is designed for storing pointers to objects in the guest heap.
 // All values in the list should be assumed to be in big endian.
@@ -44,7 +45,8 @@ class NativeList {
   uint32_t head_;
 };
 
+}  // namespace util
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_NATIVE_LIST_H_
+#endif  // XENIA_KERNEL_UTIL_NATIVE_LIST_H_

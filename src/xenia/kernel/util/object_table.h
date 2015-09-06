@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_OBJECT_TABLE_H_
-#define XENIA_KERNEL_OBJECT_TABLE_H_
+#ifndef XENIA_KERNEL_UTIL_OBJECT_TABLE_H_
+#define XENIA_KERNEL_UTIL_OBJECT_TABLE_H_
 
 #include <string>
 #include <unordered_map>
@@ -20,11 +20,14 @@
 
 namespace xe {
 namespace kernel {
+namespace util {
 
 class ObjectTable {
  public:
   ObjectTable();
   ~ObjectTable();
+
+  void Reset();
 
   X_STATUS AddHandle(XObject* object, X_HANDLE* out_handle);
   X_STATUS DuplicateHandle(X_HANDLE orig, X_HANDLE* out_handle);
@@ -65,13 +68,14 @@ class ObjectTable {
   X_STATUS FindFreeSlot(uint32_t* out_slot);
 
   xe::global_critical_region global_critical_region_;
-  uint32_t table_capacity_;
-  ObjectTableEntry* table_;
-  uint32_t last_free_entry_;
+  uint32_t table_capacity_ = 0;
+  ObjectTableEntry* table_ = nullptr;
+  uint32_t last_free_entry_ = 0;
   std::unordered_map<std::string, X_HANDLE> name_table_;
 };
 
+}  // namespace util
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_OBJECT_TABLE_H_
+#endif  // XENIA_KERNEL_UTIL_OBJECT_TABLE_H_
