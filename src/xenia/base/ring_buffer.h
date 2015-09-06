@@ -48,6 +48,15 @@ class RingBuffer {
     }
   }
 
+  struct ReadRange {
+    const uint8_t* first;
+    size_t first_length;
+    const uint8_t* second;
+    size_t second_length;
+  };
+  ReadRange BeginRead(size_t count);
+  void EndRead(ReadRange read_range);
+
   size_t Read(uint8_t* buffer, size_t count);
   template <typename T>
   size_t Read(T* buffer, size_t count) {

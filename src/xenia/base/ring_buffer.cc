@@ -17,6 +17,28 @@ namespace xe {
 RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity)
     : buffer_(buffer), capacity_(capacity) {}
 
+RingBuffer::ReadRange RingBuffer::BeginRead(size_t count) {
+  count = std::min(count, capacity_);
+  if (!count) {
+    return {0};
+  }
+  if (read_offset_ + count < capacity_) {
+    return {buffer_ + read_offset_, count, nullptr, 0};
+  } else {
+    size_t left_half = capacity_ - read_offset_;
+    size_t right_half = count - left_half;
+    return {buffer_ + read_offset_, left_half, buffer_, right_half};
+  }
+}
+
+void RingBuffer::EndRead(ReadRange read_range) {
+  if (read_range.second_length) {
+    read_offset_ = read_range.second_length;
+  } else {
+    read_offset_ += read_range.first_length;
+  }
+}
+
 size_t RingBuffer::Read(uint8_t* buffer, size_t count) {
   count = std::min(count, capacity_);
   if (!count) {
