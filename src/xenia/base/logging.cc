@@ -126,23 +126,27 @@ class Logger {
         std::snprintf(prefix + 3, sizeof(prefix) - 3, "%08" PRIX32 " ",
                       line.thread_id);
         fwrite(prefix, 1, sizeof(prefix) - 1, file_);
-
-        // Get access to the line data - which may be split in the ring buffer -
-        // and write it out in parts.
-        auto line_range = ring_buffer_.BeginRead(line.buffer_length);
-        fwrite(line_range.first, 1, line_range.first_length, file_);
-        if (line_range.second_length) {
-          fwrite(line_range.second, 1, line_range.second_length, file_);
-        }
-        // Always ensure there is a newline.
-        char last_char = line_range.second
-                             ? line_range.second[line_range.second_length - 1]
-                             : line_range.first[line_range.first_length - 1];
-        if (last_char != '\n') {
+        if (line.buffer_length) {
+          // Get access to the line data - which may be split in the ring buffer
+          // - and write it out in parts.
+          auto line_range = ring_buffer_.BeginRead(line.buffer_length);
+          fwrite(line_range.first, 1, line_range.first_length, file_);
+          if (line_range.second_length) {
+            fwrite(line_range.second, 1, line_range.second_length, file_);
+          }
+          // Always ensure there is a newline.
+          char last_char = line_range.second
+                               ? line_range.second[line_range.second_length - 1]
+                               : line_range.first[line_range.first_length - 1];
+          if (last_char != '\n') {
+            const char suffix[1] = {'\n'};
+            fwrite(suffix, 1, sizeof(suffix), file_);
+          }
+          ring_buffer_.EndRead(std::move(line_range));
+        } else {
           const char suffix[1] = {'\n'};
           fwrite(suffix, 1, sizeof(suffix), file_);
         }
-        ring_buffer_.EndRead(std::move(line_range));
       }
       mutex_.unlock();
       if (did_write) {
