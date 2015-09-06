@@ -10,7 +10,6 @@
 #include "xenia/kernel/objects/xfile.h"
 
 #include "xenia/base/math.h"
-#include "xenia/kernel/async_request.h"
 #include "xenia/kernel/objects/xevent.h"
 
 namespace xe {
@@ -95,16 +94,6 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
     position_ += *out_bytes_read;
   }
   async_event_->Set(0, false);
-  return result;
-}
-
-X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                     XAsyncRequest* request) {
-  // Also tack on our event so that any waiters wake.
-  request->AddWaitEvent(async_event_);
-  position_ = byte_offset;
-  // return entry_->ReadAsync(buffer, buffer_length, byte_offset, request);
-  X_STATUS result = X_STATUS_NOT_IMPLEMENTED;
   return result;
 }
 

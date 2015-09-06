@@ -22,8 +22,6 @@
 namespace xe {
 namespace kernel {
 
-class XAsyncRequest;
-
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff545822.aspx
 struct X_FILE_NETWORK_OPEN_INFORMATION {
   xe::be<uint64_t> creation_time;
@@ -96,8 +94,6 @@ class XFile : public XObject {
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
                 size_t* out_bytes_read);
-  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                XAsyncRequest* request);
 
   X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
                  size_t* out_bytes_written);

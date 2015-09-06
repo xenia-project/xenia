@@ -10,7 +10,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/kernel/async_request.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xfile.h"
@@ -154,16 +153,6 @@ dword_result_t NtOpenFile(lpdword_t handle_out, dword_t desired_access,
                       open_options);
 }
 DECLARE_XBOXKRNL_EXPORT(NtOpenFile, ExportTag::kImplemented);
-
-class xeNtReadFileState {
- public:
-  uint32_t x;
-};
-void xeNtReadFileCompleted(XAsyncRequest* request, xeNtReadFileState* state) {
-  // TODO(benvanik): set io_status_block_ptr
-  delete request;
-  delete state;
-}
 
 dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
                           lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
