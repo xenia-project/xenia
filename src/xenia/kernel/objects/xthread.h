@@ -11,9 +11,9 @@
 #define XENIA_KERNEL_OBJECTS_XTHREAD_H_
 
 #include <atomic>
-#include <mutex>
 #include <string>
 
+#include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/xobject.h"
@@ -189,8 +189,8 @@ class XThread : public XObject {
   int32_t priority_ = 0;
   uint32_t affinity_ = 0;
 
+  xe::global_critical_region global_critical_region_;
   std::atomic<uint32_t> irql_ = {0};
-  xe::mutex apc_lock_;
   NativeList* apc_list_ = nullptr;
 };
 

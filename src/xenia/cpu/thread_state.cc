@@ -90,7 +90,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   std::memset(context_, 0, sizeof(PPCContext));
 
   // Stash pointers to common structures that callbacks may need.
-  context_->global_mutex = processor_->global_mutex();
+  context_->global_mutex = &xe::global_critical_region::mutex();
   context_->virtual_membase = memory_->virtual_membase();
   context_->physical_membase = memory_->physical_membase();
   context_->processor = processor_;

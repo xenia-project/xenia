@@ -1274,15 +1274,13 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_context,
   uint32_t list_entry_ptr = dpc_ptr + 4;
 
   // Lock dispatcher.
+  auto global_lock = xe::global_critical_region::AcquireDirect();
   auto dispatcher = kernel_state->dispatcher();
-  dispatcher->Lock();
-
   auto dpc_list = dispatcher->dpc_list();
 
   // If already in a queue, abort.
   if (dpc_list->IsQueued(list_entry_ptr)) {
     SHIM_SET_RETURN_32(0);
-    dispatcher->Unlock();
     return;
   }
 
@@ -1291,8 +1289,6 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_context,
   SHIM_SET_MEM_32(dpc_ptr + 24, arg2);
 
   dpc_list->Insert(list_entry_ptr);
-
-  dispatcher->Unlock();
 
   SHIM_SET_RETURN_32(1);
 }
@@ -1307,16 +1303,14 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
 
   uint32_t list_entry_ptr = dpc_ptr + 4;
 
+  auto global_lock = xe::global_critical_region::AcquireDirect();
   auto dispatcher = kernel_state->dispatcher();
-  dispatcher->Lock();
 
   auto dpc_list = dispatcher->dpc_list();
   if (dpc_list->IsQueued(list_entry_ptr)) {
     dpc_list->Remove(list_entry_ptr);
     result = true;
   }
-
-  dispatcher->Unlock();
 
   SHIM_SET_RETURN_32(result ? 1 : 0);
 }
@@ -1329,8 +1323,7 @@ pointer_result_t InterlockedPushEntrySList(
 
   // Hold a global lock during this method. Once in the lock we assume we have
   // exclusive access to the structure.
-  std::lock_guard<xe::recursive_mutex> lock(
-      *kernel_state()->processor()->global_mutex());
+  auto global_lock = xe::global_critical_region::AcquireDirect();
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
@@ -1341,9 +1334,9 @@ pointer_result_t InterlockedPushEntrySList(
   entry->next = old_hdr.next.next;
   new_hdr.next.next = entry.guest_address();
 
-  xe::atomic_cas(*reinterpret_cast<uint64_t*>(&old_hdr),
-                 *reinterpret_cast<uint64_t*>(&new_hdr),
-                 reinterpret_cast<uint64_t*>(plist_ptr.host_address()));
+  *reinterpret_cast<uint64_t*>(plist_ptr.host_address()) =
+      *reinterpret_cast<uint64_t*>(&new_hdr);
+  xe::threading::SyncMemory();
 
   return old_head;
 }
@@ -1355,8 +1348,7 @@ pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
 
   // Hold a global lock during this method. Once in the lock we assume we have
   // exclusive access to the structure.
-  std::lock_guard<xe::recursive_mutex> lock(
-      *kernel_state()->processor()->global_mutex());
+  auto global_lock = xe::global_critical_region::AcquireDirect();
 
   uint32_t popped = 0;
 
@@ -1373,9 +1365,9 @@ pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   new_hdr.next.next = next->next;
   new_hdr.sequence = old_hdr.sequence;
 
-  xe::atomic_cas(*reinterpret_cast<uint64_t*>(&old_hdr),
-                 *reinterpret_cast<uint64_t*>(&new_hdr),
-                 reinterpret_cast<uint64_t*>(plist_ptr.host_address()));
+  *reinterpret_cast<uint64_t*>(plist_ptr.host_address()) =
+      *reinterpret_cast<uint64_t*>(&new_hdr);
+  xe::threading::SyncMemory();
 
   return popped;
 }
@@ -1387,8 +1379,7 @@ pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
 
   // Hold a global lock during this method. Once in the lock we assume we have
   // exclusive access to the structure.
-  std::lock_guard<xe::recursive_mutex> lock(
-      *kernel_state()->processor()->global_mutex());
+  auto global_lock = xe::global_critical_region::AcquireDirect();
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
@@ -1397,9 +1388,9 @@ pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   new_hdr.depth = 0;
   new_hdr.sequence = 0;
 
-  xe::atomic_cas(*reinterpret_cast<uint64_t*>(&old_hdr),
-                 *reinterpret_cast<uint64_t*>(&new_hdr),
-                 reinterpret_cast<uint64_t*>(plist_ptr.host_address()));
+  *reinterpret_cast<uint64_t*>(plist_ptr.host_address()) =
+      *reinterpret_cast<uint64_t*>(&new_hdr);
+  xe::threading::SyncMemory();
 
   return first;
 }

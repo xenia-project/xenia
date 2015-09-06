@@ -81,7 +81,7 @@ X_RESULT XXMPApp::XMPCreateTitlePlaylist(
   xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
                                playlist->handle);
 
-  std::lock_guard<xe::mutex> lock(mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   playlists_.insert({playlist->handle, playlist.get()});
   playlist.release();
   return X_ERROR_SUCCESS;
@@ -89,7 +89,7 @@ X_RESULT XXMPApp::XMPCreateTitlePlaylist(
 
 X_RESULT XXMPApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   XELOGD("XMPDeleteTitlePlaylist(%.8X)", playlist_handle);
-  std::lock_guard<xe::mutex> lock(mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   auto it = playlists_.find(playlist_handle);
   if (it == playlists_.end()) {
     XELOGE("Playlist %.8X not found", playlist_handle);
@@ -109,7 +109,7 @@ X_RESULT XXMPApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
   XELOGD("XMPPlayTitlePlaylist(%.8X, %.8X)", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
-    std::lock_guard<xe::mutex> lock(mutex_);
+    auto global_lock = global_critical_region_.Acquire();
     auto it = playlists_.find(playlist_handle);
     if (it == playlists_.end()) {
       XELOGE("Playlist %.8X not found", playlist_handle);

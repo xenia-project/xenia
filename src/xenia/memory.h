@@ -12,7 +12,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -115,8 +114,8 @@ class BaseHeap {
   uint32_t heap_base_;
   uint32_t heap_size_;
   uint32_t page_size_;
+  xe::global_critical_region global_critical_region_;
   std::vector<PageEntry> page_table_;
-  xe::recursive_mutex heap_mutex_;
 };
 
 class VirtualHeap : public BaseHeap {

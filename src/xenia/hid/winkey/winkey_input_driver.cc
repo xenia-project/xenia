@@ -24,7 +24,7 @@ WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
   // Register a key listener.
   input_system_->emulator()->display_window()->on_key_down.AddListener(
       [this](ui::KeyEvent* evt) {
-        std::lock_guard<std::mutex> lock(key_event_mutex_);
+        auto global_lock = global_critical_region_.Acquire();
 
         KeyEvent key;
         key.vkey = evt->key_code();
@@ -35,7 +35,7 @@ WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
       });
   input_system_->emulator()->display_window()->on_key_up.AddListener(
       [this](ui::KeyEvent* evt) {
-        std::lock_guard<std::mutex> lock(key_event_mutex_);
+        auto global_lock = global_critical_region_.Acquire();
 
         KeyEvent key;
         key.vkey = evt->key_code();
@@ -210,17 +210,16 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   uint8_t hid_code = 0;
 
   // Pop from the queue.
-  key_event_mutex_.lock();
-  if (key_events_.size() == 0) {
-    key_event_mutex_.unlock();
-
-    // No keys!
-    return X_ERROR_EMPTY;
+  KeyEvent evt;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    if (key_events_.empty()) {
+      // No keys!
+      return X_ERROR_EMPTY;
+    }
+    evt = key_events_.front();
+    key_events_.pop();
   }
-
-  KeyEvent evt = key_events_.front();
-  key_events_.pop();
-  key_event_mutex_.unlock();
 
   // TODO: Some other way to toggle this...
   if (IS_KEY_TOGGLED(VK_CAPITAL)) {

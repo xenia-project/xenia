@@ -12,7 +12,6 @@
 
 #include <list>
 #include <memory>
-#include <mutex>
 #include <vector>
 
 #include "xenia/base/mutex.h"
@@ -90,8 +89,8 @@ class MMIOHandler {
 
   std::vector<MMIORange> mapped_ranges_;
 
+  xe::global_critical_region global_critical_region_;
   // TODO(benvanik): data structure magic.
-  xe::mutex write_watch_mutex_;
   std::list<WriteWatchEntry*> write_watches_;
 
   static MMIOHandler* global_handler_;

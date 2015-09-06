@@ -10,7 +10,6 @@
 #ifndef XENIA_KERNEL_OBJECT_TABLE_H_
 #define XENIA_KERNEL_OBJECT_TABLE_H_
 
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -65,7 +64,7 @@ class ObjectTable {
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
 
-  xe::recursive_mutex table_mutex_;
+  xe::global_critical_region global_critical_region_;
   uint32_t table_capacity_;
   ObjectTableEntry* table_;
   uint32_t last_free_entry_;

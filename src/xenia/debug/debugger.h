@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
@@ -106,6 +107,7 @@ class Debugger {
   std::recursive_mutex mutex_;
   ExecutionState execution_state_ = ExecutionState::kStopped;
 
+  xe::global_critical_region global_critical_region_;
   std::multimap<uint32_t, Breakpoint*> breakpoints_;
 };
 

@@ -12,7 +12,6 @@
 
 #include <atomic>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -91,9 +90,9 @@ class X64CodeCache : public CodeCache {
   std::wstring file_name_;
   xe::memory::FileMappingHandle mapping_ = nullptr;
 
-  // Must be held when manipulating the offsets or counts of anything, to keep
-  // the tables consistent and ordered.
-  xe::mutex allocation_mutex_;
+  // NOTE: the global critical region must be held when manipulating the offsets
+  // or counts of anything, to keep the tables consistent and ordered.
+  xe::global_critical_region global_critical_region_;
 
   // Value that the indirection table will be initialized with upon commit.
   uint32_t indirection_default_value_ = 0xFEEDF00D;

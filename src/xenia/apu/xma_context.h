@@ -11,9 +11,9 @@
 #define XENIA_APU_XMA_CONTEXT_H_
 
 #include <atomic>
-#include <mutex>
 #include <queue>
 
+#include "xenia/base/mutex.h"
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
 

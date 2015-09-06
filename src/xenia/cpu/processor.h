@@ -86,7 +86,6 @@ class Processor {
   uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
                             uint64_t args[], size_t arg_count);
 
-  xe::recursive_mutex* global_mutex() { return &global_mutex_; }
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
@@ -104,13 +103,12 @@ class Processor {
   ExportResolver* export_resolver_ = nullptr;
 
   EntryTable entry_table_;
-  xe::mutex modules_lock_;
+  xe::global_critical_region global_critical_region_;
   std::vector<std::unique_ptr<Module>> modules_;
   Module* builtin_module_ = nullptr;
   uint32_t next_builtin_address_ = 0xFFFF0000u;
 
   Irql irql_;
-  xe::recursive_mutex global_mutex_;
 };
 
 }  // namespace cpu

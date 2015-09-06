@@ -10,7 +10,6 @@
 #ifndef XENIA_CPU_ENTRY_TABLE_H_
 #define XENIA_CPU_ENTRY_TABLE_H_
 
-#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -46,8 +45,8 @@ class EntryTable {
   std::vector<Function*> FindWithAddress(uint32_t address);
 
  private:
+  xe::global_critical_region global_critical_region_;
   // TODO(benvanik): replace with a better data structure.
-  xe::mutex lock_;
   std::unordered_map<uint32_t, Entry*> map_;
 };
 

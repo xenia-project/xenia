@@ -10,9 +10,9 @@
 #ifndef XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_
 #define XENIA_HID_WINKEY_WINKEY_INPUT_DRIVER_H_
 
-#include <mutex>
 #include <queue>
 
+#include "xenia/base/mutex.h"
 #include "xenia/hid/input_driver.h"
 
 namespace xe {
@@ -40,8 +40,9 @@ class WinKeyInputDriver : public InputDriver {
     bool transition = false;  // going up(false) or going down(true)
     bool prev_state = false;  // down(true) or up(false)
   };
+
+  xe::global_critical_region global_critical_region_;
   std::queue<KeyEvent> key_events_;
-  std::mutex key_event_mutex_;
 
   uint32_t packet_number_;
 };

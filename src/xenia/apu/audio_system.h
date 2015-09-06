@@ -11,9 +11,9 @@
 #define XENIA_APU_AUDIO_SYSTEM_H_
 
 #include <atomic>
-#include <mutex>
 #include <queue>
 
+#include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/objects/xthread.h"
@@ -67,10 +67,8 @@ class AudioSystem {
   std::atomic<bool> worker_running_ = {false};
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
-  xe::mutex lock_;
-
+  xe::global_critical_region global_critical_region_;
   static const size_t kMaximumClientCount = 8;
-
   struct {
     AudioDriver* driver;
     uint32_t callback;

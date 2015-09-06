@@ -60,7 +60,7 @@ Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
 
 Processor::~Processor() {
   {
-    std::lock_guard<xe::mutex> guard(modules_lock_);
+    auto global_lock = global_critical_region_.Acquire();
     modules_.clear();
   }
 
@@ -126,13 +126,13 @@ bool Processor::Setup() {
 }
 
 bool Processor::AddModule(std::unique_ptr<Module> module) {
-  std::lock_guard<xe::mutex> guard(modules_lock_);
+  auto global_lock = global_critical_region_.Acquire();
   modules_.push_back(std::move(module));
   return true;
 }
 
 Module* Processor::GetModule(const char* name) {
-  std::lock_guard<xe::mutex> guard(modules_lock_);
+  auto global_lock = global_critical_region_.Acquire();
   for (const auto& module : modules_) {
     if (module->name() == name) {
       return module.get();
@@ -142,7 +142,7 @@ Module* Processor::GetModule(const char* name) {
 }
 
 std::vector<Module*> Processor::GetModules() {
-  std::lock_guard<xe::mutex> guard(modules_lock_);
+  auto global_lock = global_critical_region_.Acquire();
   std::vector<Module*> clone(modules_.size());
   for (const auto& module : modules_) {
     clone.push_back(module.get());
@@ -215,7 +215,7 @@ Function* Processor::LookupFunction(uint32_t address) {
   // Find the module that contains the address.
   Module* code_module = nullptr;
   {
-    std::lock_guard<xe::mutex> guard(modules_lock_);
+    auto global_lock = global_critical_region_.Acquire();
     // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
     // TODO(benvanik): cache last module low/high, as likely to be in there.
     for (const auto& module : modules_) {
@@ -335,7 +335,7 @@ uint64_t Processor::ExecuteInterrupt(ThreadState* thread_state,
   // Hold the global lock during interrupt dispatch.
   // This will block if any code is in a critical region (has interrupts
   // disabled) or if any other interrupt is executing.
-  std::lock_guard<xe::recursive_mutex> lock(global_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   PPCContext* context = thread_state->context();
   assert_true(arg_count <= 5);

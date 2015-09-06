@@ -124,10 +124,10 @@ void AudioSystem::WorkerThreadMain() {
     if (result.first == xe::threading::WaitResult::kSuccess) {
       size_t index = result.second;
       do {
-        lock_.lock();
+        auto global_lock = global_critical_region_.Acquire();
         uint32_t client_callback = clients_[index].callback;
         uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
-        lock_.unlock();
+        global_lock.unlock();
 
         if (client_callback) {
           SCOPE_profile_cpu_i("apu", "xe::apu::AudioSystem->client_callback");
@@ -169,7 +169,7 @@ void AudioSystem::Shutdown() {
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
                                      size_t* out_index) {
   assert_true(unused_clients_.size());
-  std::lock_guard<xe::mutex> lock(lock_);
+  auto global_lock = global_critical_region_.Acquire();
 
   auto index = unused_clients_.front();
 
@@ -201,7 +201,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
 void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
   SCOPE_profile_cpu_f("apu");
 
-  std::lock_guard<xe::mutex> lock(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   assert_true(index < kMaximumClientCount);
   assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
@@ -210,7 +210,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 void AudioSystem::UnregisterClient(size_t index) {
   SCOPE_profile_cpu_f("apu");
 
-  std::lock_guard<xe::mutex> lock(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   assert_true(index < kMaximumClientCount);
   DestroyDriver(clients_[index].driver);
   clients_[index] = {0};

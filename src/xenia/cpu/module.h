@@ -12,7 +12,6 @@
 
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -64,8 +63,8 @@ class Module {
                                Symbol** out_symbol);
   Symbol::Status DefineSymbol(Symbol* symbol);
 
+  xe::global_critical_region global_critical_region_;
   // TODO(benvanik): replace with a better data structure.
-  xe::mutex lock_;
   std::unordered_map<uint32_t, Symbol*> map_;
   std::vector<std::unique_ptr<Symbol>> list_;
 };

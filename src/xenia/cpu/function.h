@@ -13,7 +13,6 @@
 #include <memory>
 #include <vector>
 
-#include "xenia/base/mutex.h"
 #include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/symbol.h"

@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_CONTENT_MANAGER_H_
 
 #include <memory>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -88,7 +87,7 @@ class ContentManager {
   KernelState* kernel_state_;
   std::wstring root_path_;
 
-  xe::recursive_mutex content_mutex_;
+  xe::global_critical_region global_critical_region_;
   std::unordered_map<std::string, ContentPackage*> open_packages_;
 };
 

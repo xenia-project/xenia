@@ -17,7 +17,6 @@
 #include <functional>
 #include <list>
 #include <memory>
-#include <mutex>
 #include <vector>
 
 #include "xenia/base/mutex.h"
@@ -105,8 +104,8 @@ class KernelState {
   UserProfile* user_profile() const { return user_profile_.get(); }
   ContentManager* content_manager() const { return content_manager_.get(); }
 
+  // Access must be guarded by the global critical region.
   ObjectTable* object_table() const { return object_table_; }
-  xe::recursive_mutex& object_mutex() { return object_mutex_; }
 
   uint32_t process_type() const;
   void set_process_type(uint32_t value);
@@ -178,8 +177,10 @@ class KernelState {
   std::unique_ptr<UserProfile> user_profile_;
   std::unique_ptr<ContentManager> content_manager_;
 
+  xe::global_critical_region global_critical_region_;
+
+  // Must be guarded by the global critical region.
   ObjectTable* object_table_;
-  xe::recursive_mutex object_mutex_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<object_ref<XNotifyListener>> notify_listeners_;
   bool has_notified_startup_;
@@ -194,8 +195,8 @@ class KernelState {
 
   std::atomic<bool> dispatch_thread_running_;
   object_ref<XHostThread> dispatch_thread_;
-  std::mutex dispatch_mutex_;
-  std::condition_variable dispatch_cond_;
+  // Must be guarded by the global critical region.
+  std::condition_variable_any dispatch_cond_;
   std::list<std::function<void()>> dispatch_queue_;
 
   friend class XObject;

@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/frontend/ppc_frontend.h"
 
+#include "xenia/base/atomic.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
 #include "xenia/cpu/frontend/ppc_emit.h"
@@ -71,20 +72,20 @@ void EnterGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
   auto global_mutex = reinterpret_cast<xe::recursive_mutex*>(arg0);
   auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
   global_mutex->lock();
-  *global_lock_count = *global_lock_count + 1;
+  xe::atomic_inc(global_lock_count);
 }
 
 // Leaves the global lock. Safe to recursion.
 void LeaveGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
   auto global_mutex = reinterpret_cast<xe::recursive_mutex*>(arg0);
   auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
-  *global_lock_count = *global_lock_count - 1;
-  assert_true(*global_lock_count >= 0);
+  auto new_lock_count = xe::atomic_dec(global_lock_count);
+  assert_true(new_lock_count >= 0);
   global_mutex->unlock();
 }
 
 bool PPCFrontend::Initialize() {
-  void* arg0 = reinterpret_cast<void*>(processor_->global_mutex());
+  void* arg0 = reinterpret_cast<void*>(&xe::global_critical_region::mutex());
   void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_count);
   builtins_.check_global_lock =
       processor_->DefineBuiltin("CheckGlobalLock", CheckGlobalLock, arg0, arg1);

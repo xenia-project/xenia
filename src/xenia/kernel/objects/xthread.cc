@@ -16,7 +16,6 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
@@ -36,7 +35,6 @@ namespace kernel {
 
 uint32_t next_xthread_id_ = 0;
 thread_local XThread* current_thread_tls_ = nullptr;
-xe::mutex critical_region_;
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
@@ -444,11 +442,12 @@ void XThread::Execute() {
 }
 
 void XThread::EnterCriticalRegion() {
-  // Global critical region. This isn't right, but is easy.
-  critical_region_.lock();
+  xe::global_critical_region::mutex().lock();
 }
 
-void XThread::LeaveCriticalRegion() { critical_region_.unlock(); }
+void XThread::LeaveCriticalRegion() {
+  xe::global_critical_region::mutex().unlock();
+}
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
   return irql_.exchange(new_irql);
@@ -458,11 +457,11 @@ void XThread::LowerIrql(uint32_t new_irql) { irql_ = new_irql; }
 
 void XThread::CheckApcs() { DeliverAPCs(); }
 
-void XThread::LockApc() { apc_lock_.lock(); }
+void XThread::LockApc() { EnterCriticalRegion(); }
 
 void XThread::UnlockApc(bool queue_delivery) {
   bool needs_apc = apc_list_->HasPending();
-  apc_lock_.unlock();
+  LeaveCriticalRegion();
   if (needs_apc && queue_delivery) {
     thread_->QueueUserCallback([this]() { DeliverAPCs(); });
   }
@@ -652,7 +651,14 @@ X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
 }
 
 X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
+  auto global_lock = global_critical_region_.Acquire();
+
   ++guest_object<X_KTHREAD>()->suspend_count;
+
+  // If we are suspending ourselves, we can't hold the lock.
+  if (XThread::GetCurrentThread() == this) {
+    global_lock.unlock();
+  }
 
   if (thread_->Suspend(out_suspend_count)) {
     return X_STATUS_SUCCESS;

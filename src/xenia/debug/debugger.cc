@@ -11,7 +11,6 @@
 
 #include <gflags/gflags.h>
 
-#include <mutex>
 #include <utility>
 
 #include "xenia/base/filesystem.h"
@@ -254,6 +253,7 @@ void Debugger::FindBreakpoints(uint32_t address,
 }
 
 bool Debugger::SuspendAllThreads() {
+  auto global_lock = global_critical_region_.Acquire();
   auto threads =
       emulator_->kernel_state()->object_table()->GetObjectsByType<XThread>(
           XObject::kTypeThread);

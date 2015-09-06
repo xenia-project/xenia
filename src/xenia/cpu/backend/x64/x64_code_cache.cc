@@ -129,7 +129,7 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
   uint8_t* code_address = nullptr;
   UnwindReservation unwind_reservation;
   {
-    std::lock_guard<xe::mutex> allocation_lock(allocation_mutex_);
+    auto global_lock = global_critical_region_.Acquire();
 
     low_mark = generated_code_offset_;
 
@@ -192,7 +192,7 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
   size_t high_mark;
   uint8_t* data_address = nullptr;
   {
-    std::lock_guard<xe::mutex> allocation_lock(allocation_mutex_);
+    auto global_lock = global_critical_region_.Acquire();
 
     // Reserve code.
     // Always move the code to land on 16b alignment.

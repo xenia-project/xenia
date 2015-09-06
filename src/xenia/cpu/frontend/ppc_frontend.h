@@ -11,9 +11,7 @@
 #define XENIA_CPU_FRONTEND_PPC_FRONTEND_H_
 
 #include <memory>
-#include <mutex>
 
-#include "xenia/base/mutex.h"
 #include "xenia/base/type_pool.h"
 #include "xenia/cpu/frontend/context_info.h"
 #include "xenia/cpu/function.h"

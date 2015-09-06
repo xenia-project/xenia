@@ -22,7 +22,7 @@ ObjectTable::ObjectTable()
     : table_capacity_(0), table_(nullptr), last_free_entry_(0) {}
 
 ObjectTable::~ObjectTable() {
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Release all objects.
   for (uint32_t n = 0; n < table_capacity_; n++) {
@@ -89,7 +89,7 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
 
   uint32_t slot = 0;
   {
-    std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+    auto global_lock = global_critical_region_.Acquire();
 
     // Find a free slot.
     result = FindFreeSlot(&slot);
@@ -128,7 +128,7 @@ X_STATUS ObjectTable::DuplicateHandle(X_HANDLE handle, X_HANDLE* out_handle) {
 }
 
 X_STATUS ObjectTable::RetainHandle(X_HANDLE handle) {
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   ObjectTableEntry* entry = LookupTable(handle);
   if (!entry) {
@@ -140,7 +140,7 @@ X_STATUS ObjectTable::RetainHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::ReleaseHandle(X_HANDLE handle) {
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   ObjectTableEntry* entry = LookupTable(handle);
   if (!entry) {
@@ -170,7 +170,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   if (entry->object) {
     auto object = entry->object;
     entry->object = nullptr;
@@ -189,7 +189,7 @@ ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
     return nullptr;
   }
 
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Lower 2 bits are ignored.
   uint32_t slot = handle >> 2;
@@ -208,7 +208,7 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
 
   XObject* object = nullptr;
   if (!already_locked) {
-    table_mutex_.lock();
+    global_critical_region_.mutex().lock();
   }
 
   // Lower 2 bits are ignored.
@@ -228,7 +228,7 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
   }
 
   if (!already_locked) {
-    table_mutex_.unlock();
+    global_critical_region_.mutex().unlock();
   }
 
   return object;
@@ -236,7 +236,7 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
 
 void ObjectTable::GetObjectsByType(XObject::Type type,
                                    std::vector<object_ref<XObject>>* results) {
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   for (uint32_t slot = 0; slot < table_capacity_; ++slot) {
     auto& entry = table_[slot];
     if (entry.object) {
@@ -267,7 +267,7 @@ X_STATUS ObjectTable::AddNameMapping(const std::string& name, X_HANDLE handle) {
   std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                  tolower);
 
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   if (name_table_.count(lower_name)) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
@@ -281,7 +281,7 @@ void ObjectTable::RemoveNameMapping(const std::string& name) {
   std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                  tolower);
 
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   auto it = name_table_.find(lower_name);
   if (it != name_table_.end()) {
     name_table_.erase(it);
@@ -295,7 +295,7 @@ X_STATUS ObjectTable::GetObjectByName(const std::string& name,
   std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
                  tolower);
 
-  std::lock_guard<xe::recursive_mutex> lock(table_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   auto it = name_table_.find(lower_name);
   if (it == name_table_.end()) {
     *out_handle = X_INVALID_HANDLE_VALUE;

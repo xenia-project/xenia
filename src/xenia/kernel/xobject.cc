@@ -227,7 +227,7 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
 }
 
 uint8_t* XObject::CreateNative(uint32_t size) {
-  std::lock_guard<xe::recursive_mutex> lock(kernel_state_->object_mutex());
+  auto global_lock = xe::global_critical_region::AcquireDirect();
 
   uint32_t total_size = size + sizeof(X_OBJECT_HEADER);
 
@@ -255,7 +255,7 @@ uint8_t* XObject::CreateNative(uint32_t size) {
 }
 
 void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
-  std::lock_guard<xe::recursive_mutex> lock(kernel_state_->object_mutex());
+  auto global_lock = xe::global_critical_region::AcquireDirect();
 
   // If hit: We've already setup the native ptr with CreateNative!
   assert_zero(guest_object_ptr_);
@@ -289,7 +289,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   // We identify this by checking the low bit of wait_list_blink - if it's 1,
   // we have already put our pointer in there.
 
-  std::lock_guard<xe::recursive_mutex> lock(kernel_state->object_mutex());
+  auto global_lock = xe::global_critical_region::AcquireDirect();
 
   auto header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
 

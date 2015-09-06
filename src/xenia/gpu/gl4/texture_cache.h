@@ -10,7 +10,6 @@
 #ifndef XENIA_GPU_GL4_TEXTURE_CACHE_H_
 #define XENIA_GPU_GL4_TEXTURE_CACHE_H_
 
-#include <mutex>
 #include <unordered_map>
 #include <vector>
 

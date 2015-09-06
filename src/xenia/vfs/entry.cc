@@ -47,7 +47,7 @@ void Entry::Dump(xe::StringBuffer* string_buffer, int indent) {
 bool Entry::is_read_only() const { return device_->is_read_only(); }
 
 Entry* Entry::GetChild(std::string name) {
-  std::lock_guard<xe::recursive_mutex> lock(device_->mutex());
+  auto global_lock = global_critical_region_.Acquire();
   // TODO(benvanik): a faster search
   for (auto& child : children_) {
     if (strcasecmp(child->name().c_str(), name.c_str()) == 0) {
@@ -59,7 +59,7 @@ Entry* Entry::GetChild(std::string name) {
 
 Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
                               size_t* current_index) {
-  std::lock_guard<xe::recursive_mutex> lock(device_->mutex());
+  auto global_lock = global_critical_region_.Acquire();
   while (*current_index < children_.size()) {
     auto& child = children_[*current_index];
     *current_index = *current_index + 1;
@@ -71,10 +71,10 @@ Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
 }
 
 Entry* Entry::CreateEntry(std::string name, uint32_t attributes) {
+  auto global_lock = global_critical_region_.Acquire();
   if (is_read_only()) {
     return nullptr;
   }
-  std::lock_guard<xe::recursive_mutex> lock(device_->mutex());
   if (GetChild(name)) {
     // Already exists.
     return nullptr;
@@ -90,10 +90,10 @@ Entry* Entry::CreateEntry(std::string name, uint32_t attributes) {
 }
 
 bool Entry::Delete(Entry* entry) {
+  auto global_lock = global_critical_region_.Acquire();
   if (is_read_only()) {
     return false;
   }
-  std::lock_guard<xe::recursive_mutex> lock(device_->mutex());
   if (entry->parent() != this) {
     return false;
   }

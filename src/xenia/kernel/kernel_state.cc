@@ -174,7 +174,7 @@ bool KernelState::IsKernelModule(const char* name) {
     // Executing module isn't a kernel module.
     return false;
   }
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   for (auto kernel_module : kernel_modules_) {
     if (kernel_module->Matches(name)) {
       return true;
@@ -204,7 +204,7 @@ object_ref<XModule> KernelState::GetModule(const char* name) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   }
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   for (auto kernel_module : kernel_modules_) {
     if (kernel_module->Matches(name)) {
       return retain_object(kernel_module.get());
@@ -262,9 +262,9 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
     dispatch_thread_ =
         object_ref<XHostThread>(new XHostThread(this, 128 * 1024, 0, [this]() {
           while (dispatch_thread_running_) {
-            std::unique_lock<std::mutex> lock(dispatch_mutex_);
+            auto global_lock = global_critical_region_.Acquire();
             if (dispatch_queue_.empty()) {
-              dispatch_cond_.wait(lock);
+              dispatch_cond_.wait(global_lock);
               if (!dispatch_thread_running_) {
                 break;
               }
@@ -281,7 +281,7 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
 }
 
 void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   kernel_modules_.push_back(std::move(kernel_module));
 }
 
@@ -296,7 +296,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 
   object_ref<XUserModule> module;
   {
-    std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+    auto global_lock = global_critical_region_.Acquire();
 
     // See if we've already loaded it
     for (auto& existing_module : user_modules_) {
@@ -337,7 +337,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
 }
 
 void KernelState::TerminateTitle(bool from_guest_thread) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // First: call terminate routines.
   // TODO(benvanik): these might take arguments.
@@ -391,13 +391,13 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
     // code anymore)
     // Also, manually invoke the lock guard's destructor, because Terminate
     // does not return.
-    lock.~lock_guard();
+    global_lock.unlock();
     XThread::GetCurrentThread()->Terminate(0);
   }
 }
 
 void KernelState::RegisterThread(XThread* thread) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   threads_by_id_[thread->thread_id()] = thread;
 
   auto pib =
@@ -406,7 +406,7 @@ void KernelState::RegisterThread(XThread* thread) {
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   auto it = threads_by_id_.find(thread->thread_id());
   if (it != threads_by_id_.end()) {
     threads_by_id_.erase(it);
@@ -418,7 +418,7 @@ void KernelState::UnregisterThread(XThread* thread) {
 }
 
 void KernelState::OnThreadExecute(XThread* thread) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Must be called on executing thread.
   assert_true(XThread::GetCurrentThread() == thread);
@@ -440,7 +440,7 @@ void KernelState::OnThreadExecute(XThread* thread) {
 }
 
 void KernelState::OnThreadExit(XThread* thread) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Must be called on executing thread.
   assert_true(XThread::GetCurrentThread() == thread);
@@ -466,7 +466,7 @@ void KernelState::OnThreadExit(XThread* thread) {
 }
 
 object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   XThread* thread = nullptr;
   auto it = threads_by_id_.find(thread_id);
   if (it != threads_by_id_.end()) {
@@ -476,7 +476,7 @@ object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
 }
 
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   notify_listeners_.push_back(retain_object(listener));
 
   // Games seem to expect a few notifications on startup, only for the first
@@ -500,7 +500,7 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     if ((*it).get() == listener) {
@@ -511,7 +511,7 @@ void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
-  std::lock_guard<xe::recursive_mutex> lock(object_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {
     (*it)->EnqueueNotification(id, data);
@@ -574,7 +574,7 @@ void KernelState::CompleteOverlappedDeferredEx(
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
-  std::unique_lock<std::mutex> lock(dispatch_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   dispatch_queue_.push_back([this, completion_callback, overlapped_ptr, result,
                              extended_error, length]() {
     xe::threading::Sleep(

@@ -29,7 +29,7 @@ Module::~Module() = default;
 bool Module::ContainsAddress(uint32_t address) { return true; }
 
 Symbol* Module::LookupSymbol(uint32_t address, bool wait) {
-  lock_.lock();
+  auto global_lock = global_critical_region_.Acquire();
   const auto it = map_.find(address);
   Symbol* symbol = it != map_.end() ? it->second : nullptr;
   if (symbol) {
@@ -37,10 +37,10 @@ Symbol* Module::LookupSymbol(uint32_t address, bool wait) {
       // Some other thread is declaring the symbol - wait.
       if (wait) {
         do {
-          lock_.unlock();
+          global_lock.unlock();
           // TODO(benvanik): sleep for less time?
           xe::threading::Sleep(std::chrono::microseconds(100));
-          lock_.lock();
+          global_lock.lock();
         } while (symbol->status() == Symbol::Status::kDeclaring);
       } else {
         // Immediate request, just return.
@@ -48,31 +48,31 @@ Symbol* Module::LookupSymbol(uint32_t address, bool wait) {
       }
     }
   }
-  lock_.unlock();
+  global_lock.unlock();
   return symbol;
 }
 
 Symbol::Status Module::DeclareSymbol(Symbol::Type type, uint32_t address,
                                      Symbol** out_symbol) {
   *out_symbol = nullptr;
-  lock_.lock();
+  auto global_lock = global_critical_region_.Acquire();
   auto it = map_.find(address);
   Symbol* symbol = it != map_.end() ? it->second : nullptr;
   Symbol::Status status;
   if (symbol) {
     // If we exist but are the wrong type, die.
     if (symbol->type() != type) {
-      lock_.unlock();
+      global_lock.unlock();
       return Symbol::Status::kFailed;
     }
     // If we aren't ready yet spin and wait.
     if (symbol->status() == Symbol::Status::kDeclaring) {
       // Still declaring, so spin.
       do {
-        lock_.unlock();
+        global_lock.unlock();
         // TODO(benvanik): sleep for less time?
         xe::threading::Sleep(std::chrono::microseconds(100));
-        lock_.lock();
+        global_lock.lock();
       } while (symbol->status() == Symbol::Status::kDeclaring);
     }
     status = symbol->status();
@@ -90,7 +90,7 @@ Symbol::Status Module::DeclareSymbol(Symbol::Type type, uint32_t address,
     list_.emplace_back(symbol);
     status = Symbol::Status::kNew;
   }
-  lock_.unlock();
+  global_lock.unlock();
   *out_symbol = symbol;
 
   // Get debug info from providers, if this is new.
@@ -117,7 +117,7 @@ Symbol::Status Module::DeclareVariable(uint32_t address, Symbol** out_symbol) {
 }
 
 Symbol::Status Module::DefineSymbol(Symbol* symbol) {
-  lock_.lock();
+  auto global_lock = global_critical_region_.Acquire();
   Symbol::Status status;
   if (symbol->status() == Symbol::Status::kDeclared) {
     // Declared but undefined, so request caller define it.
@@ -126,16 +126,16 @@ Symbol::Status Module::DefineSymbol(Symbol* symbol) {
   } else if (symbol->status() == Symbol::Status::kDefining) {
     // Still defining, so spin.
     do {
-      lock_.unlock();
+      global_lock.unlock();
       // TODO(benvanik): sleep for less time?
       xe::threading::Sleep(std::chrono::microseconds(100));
-      lock_.lock();
+      global_lock.lock();
     } while (symbol->status() == Symbol::Status::kDefining);
     status = symbol->status();
   } else {
     status = symbol->status();
   }
-  lock_.unlock();
+  global_lock.unlock();
   return status;
 }
 
@@ -148,7 +148,7 @@ Symbol::Status Module::DefineVariable(Symbol* symbol) {
 }
 
 void Module::ForEachFunction(std::function<void(Function*)> callback) {
-  std::lock_guard<xe::mutex> guard(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   for (auto& symbol : list_) {
     if (symbol->type() == Symbol::Type::kFunction) {
       Function* info = static_cast<Function*>(symbol.get());
@@ -159,7 +159,7 @@ void Module::ForEachFunction(std::function<void(Function*)> callback) {
 
 void Module::ForEachSymbol(size_t start_index, size_t end_index,
                            std::function<void(Symbol*)> callback) {
-  std::lock_guard<xe::mutex> guard(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   start_index = std::min(start_index, list_.size());
   end_index = std::min(end_index, list_.size());
   for (size_t i = start_index; i <= end_index; ++i) {
@@ -169,7 +169,7 @@ void Module::ForEachSymbol(size_t start_index, size_t end_index,
 }
 
 size_t Module::QuerySymbolCount() {
-  std::lock_guard<xe::mutex> guard(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   return list_.size();
 }
 

@@ -11,10 +11,10 @@
 #define XENIA_APU_XMA_DECODER_H_
 
 #include <atomic>
-#include <mutex>
 #include <queue>
 
 #include "xenia/apu/xma_context.h"
+#include "xenia/base/mutex.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/xbox.h"
 

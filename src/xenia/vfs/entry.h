@@ -16,6 +16,7 @@
 
 #include "xenia/base/filesystem.h"
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/mutex.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
@@ -125,6 +126,7 @@ class Entry {
   }
   virtual bool DeleteEntryInternal(Entry* entry) { return false; }
 
+  xe::global_critical_region global_critical_region_;
   Device* device_;
   Entry* parent_;
   std::string path_;

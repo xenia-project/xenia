@@ -113,9 +113,9 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
   entry->callback = callback;
   entry->callback_context = callback_context;
   entry->callback_data = callback_data;
-  write_watch_mutex_.lock();
+  global_critical_region_.mutex().lock();
   write_watches_.push_back(entry);
-  write_watch_mutex_.unlock();
+  global_critical_region_.mutex().unlock();
 
   // Make the desired range read only under all address spaces.
   xe::memory::Protect(physical_membase_ + entry->address, entry->length,
@@ -154,12 +154,12 @@ void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
   ClearWriteWatch(entry);
 
   // Remove from table.
-  write_watch_mutex_.lock();
+  global_critical_region_.mutex().lock();
   auto it = std::find(write_watches_.begin(), write_watches_.end(), entry);
   if (it != write_watches_.end()) {
     write_watches_.erase(it);
   }
-  write_watch_mutex_.unlock();
+  global_critical_region_.mutex().unlock();
 
   delete entry;
 }
@@ -170,7 +170,7 @@ bool MMIOHandler::CheckWriteWatch(void* thread_state, uint64_t fault_address) {
     physical_address &= 0x1FFFFFFF;
   }
   std::list<WriteWatchEntry*> pending_invalidates;
-  write_watch_mutex_.lock();
+  global_critical_region_.mutex().lock();
   for (auto it = write_watches_.begin(); it != write_watches_.end();) {
     auto entry = *it;
     if (entry->address <= physical_address &&
@@ -186,7 +186,7 @@ bool MMIOHandler::CheckWriteWatch(void* thread_state, uint64_t fault_address) {
     }
     ++it;
   }
-  write_watch_mutex_.unlock();
+  global_critical_region_.mutex().unlock();
   if (pending_invalidates.empty()) {
     // Rethrow access violation - range was not being watched.
     return false;

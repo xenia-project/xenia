@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <mutex>
 
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -461,7 +460,7 @@ void BaseHeap::Dispose() {
 }
 
 void BaseHeap::DumpMap() {
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   XELOGE("------------------------------------------------------------------");
   XELOGE("Heap: %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
   XELOGE("------------------------------------------------------------------");
@@ -535,7 +534,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
     return false;
   }
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // - If we are reserving the entire range requested must not be already
   //   reserved.
@@ -620,7 +619,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     return false;
   }
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Find a free page range.
   // The base page must match the requested alignment, so we first scan for
@@ -751,7 +750,7 @@ bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
       std::min(uint32_t(page_table_.size()) - 1, start_page_number);
   end_page_number = std::min(uint32_t(page_table_.size()) - 1, end_page_number);
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Release from host.
   // TODO(benvanik): find a way to actually decommit memory;
@@ -775,7 +774,7 @@ bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
 }
 
 bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Given address must be a region base address.
   uint32_t base_page_number = (base_address - heap_base_) / page_size_;
@@ -831,7 +830,7 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
       std::min(uint32_t(page_table_.size()) - 1, start_page_number);
   end_page_number = std::min(uint32_t(page_table_.size()) - 1, end_page_number);
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Ensure all pages are in the same reserved region and all are committed.
   uint32_t first_base_address = UINT_MAX;
@@ -883,7 +882,7 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address,
     return false;
   }
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   auto start_page_entry = page_table_[start_page_number];
   out_info->base_address = base_address;
@@ -934,7 +933,7 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
     *out_size = 0;
     return false;
   }
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   auto page_entry = page_table_[page_number];
   *out_size = (page_entry.region_page_count * page_size_);
   return true;
@@ -947,7 +946,7 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
     *out_protect = 0;
     return false;
   }
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   auto page_entry = page_table_[page_number];
   *out_protect = page_entry.current_protect;
   return true;
@@ -995,7 +994,7 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   uint32_t parent_low_address = GetPhysicalAddress(heap_base_);
@@ -1033,7 +1032,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   // NOTE: this can potentially overwrite heap contents if there are already
@@ -1074,7 +1073,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
 
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   low_address = std::max(heap_base_, low_address);
@@ -1108,7 +1107,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
 }
 
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_address = GetPhysicalAddress(address);
   if (!parent_heap_->Decommit(parent_address, size)) {
     XELOGE("PhysicalHeap::Decommit failed due to parent heap failure");
@@ -1118,7 +1117,7 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 }
 
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
     XELOGE("PhysicalHeap::Release failed due to parent heap failure");
@@ -1128,7 +1127,7 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
 }
 
 bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
-  std::lock_guard<xe::recursive_mutex> lock(heap_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_address = GetPhysicalAddress(address);
   bool parent_result = parent_heap_->Protect(parent_address, size, protect);
   if (!parent_result) {

@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_APPS_XMP_APP_H_
 
 #include <memory>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -102,7 +101,7 @@ class XXMPApp : public XApp {
   Playlist* active_playlist_;
   int active_song_index_;
 
-  xe::mutex mutex_;
+  xe::global_critical_region global_critical_region_;
   std::unordered_map<uint32_t, Playlist*> playlists_;
   uint32_t next_playlist_handle_;
   uint32_t next_song_handle_;

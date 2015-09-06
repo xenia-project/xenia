@@ -18,7 +18,7 @@ namespace cpu {
 EntryTable::EntryTable() = default;
 
 EntryTable::~EntryTable() {
-  std::lock_guard<xe::mutex> guard(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   for (auto it : map_) {
     Entry* entry = it.second;
     delete entry;
@@ -26,7 +26,7 @@ EntryTable::~EntryTable() {
 }
 
 Entry* EntryTable::Get(uint32_t address) {
-  std::lock_guard<xe::mutex> guard(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   const auto& it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : nullptr;
   if (entry) {
@@ -42,7 +42,7 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
   // TODO(benvanik): replace with a map with wait-free for find.
   // https://github.com/facebook/folly/blob/master/folly/AtomicHashMap.h
 
-  lock_.lock();
+  auto global_lock = global_critical_region_.Acquire();
   const auto& it = map_.find(address);
   Entry* entry = it != map_.end() ? it->second : nullptr;
   Entry::Status status;
@@ -51,10 +51,10 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
     if (entry->status == Entry::STATUS_COMPILING) {
       // Still compiling, so spin.
       do {
-        lock_.unlock();
+        global_lock.unlock();
         // TODO(benvanik): sleep for less time?
         xe::threading::Sleep(std::chrono::microseconds(10));
-        lock_.lock();
+        global_lock.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }
     status = entry->status;
@@ -68,13 +68,13 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
     map_[address] = entry;
     status = Entry::STATUS_NEW;
   }
-  lock_.unlock();
+  global_lock.unlock();
   *out_entry = entry;
   return status;
 }
 
 std::vector<Function*> EntryTable::FindWithAddress(uint32_t address) {
-  std::lock_guard<xe::mutex> guard(lock_);
+  auto global_lock = global_critical_region_.Acquire();
   std::vector<Function*> fns;
   for (auto& it : map_) {
     Entry* entry = it.second;
