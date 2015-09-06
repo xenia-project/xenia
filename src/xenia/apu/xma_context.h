@@ -11,9 +11,9 @@
 #define XENIA_APU_XMA_CONTEXT_H_
 
 #include <atomic>
+#include <mutex>
 #include <queue>
 
-#include "xenia/base/mutex.h"
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
 
@@ -192,7 +192,7 @@ class XmaContext {
 
   uint32_t id_ = 0;
   uint32_t guest_ptr_ = 0;
-  xe::mutex lock_;
+  std::mutex lock_;
   bool is_allocated_ = false;
   bool is_enabled_ = false;
 

@@ -11,9 +11,9 @@
 #define XENIA_CPU_FRONTEND_PPC_CONTEXT_H_
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 
-#include "xenia/base/mutex.h"
 #include "xenia/base/vec128.h"
 
 namespace xe {
@@ -407,7 +407,7 @@ typedef struct alignas(64) PPCContext_s {
 
   // Global interrupt lock, held while interrupts are disabled or interrupts are
   // executing. This is shared among all threads and comes from the processor.
-  xe::recursive_mutex* global_mutex;
+  std::recursive_mutex* global_mutex;
 
   // Used to shuttle data into externs. Contents volatile.
   uint64_t scratch;

@@ -10,10 +10,10 @@
 #ifndef XENIA_GPU_GL4_TEXTURE_CACHE_H_
 #define XENIA_GPU_GL4_TEXTURE_CACHE_H_
 
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/base/mutex.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/memory.h"
@@ -104,7 +104,7 @@ class TextureCache {
 
   std::vector<ReadBufferTexture*> read_buffer_textures_;
 
-  xe::mutex invalidated_textures_mutex_;
+  std::mutex invalidated_textures_mutex_;
   std::vector<TextureEntry*>* invalidated_textures_;
   std::vector<TextureEntry*> invalidated_textures_sets_[2];
 };

@@ -11,10 +11,10 @@
 #define XENIA_APU_XMA_DECODER_H_
 
 #include <atomic>
+#include <mutex>
 #include <queue>
 
 #include "xenia/apu/xma_context.h"
-#include "xenia/base/mutex.h"
 #include "xenia/kernel/objects/xthread.h"
 #include "xenia/xbox.h"
 
@@ -66,7 +66,7 @@ class XmaDecoder {
   kernel::object_ref<kernel::XHostThread> worker_thread_;
   xe::threading::Fence worker_fence_;
 
-  xe::mutex lock_;
+  std::mutex lock_;
 
   // Stored little endian, accessed through 0x7FEA....
   union {

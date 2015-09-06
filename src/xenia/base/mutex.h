@@ -14,13 +14,6 @@
 
 namespace xe {
 
-// This exists to allow us to swap the mutex implementation with one that
-// we can mess with in the debugger (such as allowing the debugger to ignore
-// locks while all threads are suspended). std::mutex should not be used.
-
-using mutex = std::mutex;
-using recursive_mutex = std::recursive_mutex;
-
 // The global critical region mutex singleton.
 // This must guard any operation that may suspend threads or be sensitive to
 // being suspended such as global table locks and such.
@@ -44,7 +37,7 @@ using recursive_mutex = std::recursive_mutex;
 //   [thread 0]:
 //     DoKernelStuff():
 //       auto global_lock = global_critical_region_.Acquire();
-//       std::lock_guard<xe::mutex> table_lock(table_mutex_);
+//       std::lock_guard<std::mutex> table_lock(table_mutex_);
 //       table_->InsertStuff();
 //   [thread 1]:
 //     MySuspendThread():
@@ -61,25 +54,25 @@ using recursive_mutex = std::recursive_mutex;
 // };
 class global_critical_region {
  public:
-  static xe::recursive_mutex& mutex();
+  static std::recursive_mutex& mutex();
 
   // Acquires a lock on the global critical section.
   // Use this when keeping an instance is not possible. Otherwise, prefer
   // to keep an instance of global_critical_region near the members requiring
   // it to keep things readable.
-  static std::unique_lock<xe::recursive_mutex> AcquireDirect() {
-    return std::unique_lock<xe::recursive_mutex>(mutex());
+  static std::unique_lock<std::recursive_mutex> AcquireDirect() {
+    return std::unique_lock<std::recursive_mutex>(mutex());
   }
 
   // Acquires a lock on the global critical section.
-  inline std::unique_lock<xe::recursive_mutex> Acquire() {
-    return std::unique_lock<xe::recursive_mutex>(mutex());
+  inline std::unique_lock<std::recursive_mutex> Acquire() {
+    return std::unique_lock<std::recursive_mutex>(mutex());
   }
 
   // Tries to acquire a lock on the glboal critical section.
   // Check owns_lock() to see if the lock was successfully acquired.
-  inline std::unique_lock<xe::recursive_mutex> TryAcquire() {
-    return std::unique_lock<xe::recursive_mutex>(mutex(), std::try_to_lock);
+  inline std::unique_lock<std::recursive_mutex> TryAcquire() {
+    return std::unique_lock<std::recursive_mutex>(mutex(), std::try_to_lock);
   }
 };
 

@@ -587,7 +587,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   // If we skip a lot then we may need to buffer more, but as the display
   // thread should be fairly idle that shouldn't happen.
   if (!FLAGS_vsync) {
-    std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+    std::lock_guard<std::mutex> lock(swap_state_.mutex);
     if (swap_state_.pending) {
       swap_state_.pending = false;
       // TODO(benvanik): frame skip counter.
@@ -597,7 +597,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     // Spin until no more pending swap.
     while (true) {
       {
-        std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+        std::lock_guard<std::mutex> lock(swap_state_.mutex);
         if (!swap_state_.pending) {
           break;
         }
@@ -609,7 +609,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   // One-time initialization.
   // TODO(benvanik): move someplace more sane?
   if (!swap_state_.front_buffer_texture) {
-    std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+    std::lock_guard<std::mutex> lock(swap_state_.mutex);
     swap_state_.width = frontbuffer_width;
     swap_state_.height = frontbuffer_height;
     glCreateTextures(GL_TEXTURE_2D, 1, &swap_state_.front_buffer_texture);
@@ -647,7 +647,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
 
   {
     // Set pending so that the display will swap the next time it can.
-    std::lock_guard<xe::mutex> lock(swap_state_.mutex);
+    std::lock_guard<std::mutex> lock(swap_state_.mutex);
     swap_state_.pending = true;
   }
 

@@ -14,7 +14,6 @@
 #include <list>
 #include <thread>
 
-#include "xenia/base/mutex.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/loop.h"
@@ -50,7 +49,7 @@ class Win32Loop : public Loop {
   xe::threading::Fence quit_fence_;
 
   HANDLE timer_queue_;
-  xe::mutex pending_timers_mutex_;
+  std::mutex pending_timers_mutex_;
   std::list<PendingTimer*> pending_timers_;
 };
 

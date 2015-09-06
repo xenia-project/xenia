@@ -99,7 +99,7 @@ int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
 }
 
 void XmaContext::Work() {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
   if (!is_allocated() || !is_enabled()) {
     return;
   }
@@ -113,7 +113,7 @@ void XmaContext::Work() {
 }
 
 void XmaContext::Enable() {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
 
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   XMA_CONTEXT_DATA data(context_ptr);
@@ -141,7 +141,7 @@ bool XmaContext::Block(bool poll) {
 }
 
 void XmaContext::Clear() {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
   XELOGAPU("XmaContext: reset context %d", id());
 
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
@@ -158,14 +158,14 @@ void XmaContext::Clear() {
 }
 
 void XmaContext::Disable() {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
   XELOGAPU("XmaContext: disabling context %d", id());
   set_is_enabled(false);
 }
 
 void XmaContext::Release() {
   // Lock it in case the decoder thread is working on it now.
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
   assert_true(is_allocated_ == true);
 
   set_is_allocated(false);

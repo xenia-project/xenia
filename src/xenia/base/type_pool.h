@@ -13,8 +13,6 @@
 #include <mutex>
 #include <vector>
 
-#include "xenia/base/mutex.h"
-
 namespace xe {
 
 template <class T, typename A>
@@ -23,7 +21,7 @@ class TypePool {
   ~TypePool() { Reset(); }
 
   void Reset() {
-    std::lock_guard<xe::mutex> guard(lock_);
+    std::lock_guard<std::mutex> guard(lock_);
     for (auto it = list_.begin(); it != list_.end(); ++it) {
       T* value = *it;
       delete value;
@@ -34,7 +32,7 @@ class TypePool {
   T* Allocate(A arg0) {
     T* result = 0;
     {
-      std::lock_guard<xe::mutex> guard(lock_);
+      std::lock_guard<std::mutex> guard(lock_);
       if (list_.size()) {
         result = list_.back();
         list_.pop_back();
@@ -47,12 +45,12 @@ class TypePool {
   }
 
   void Release(T* value) {
-    std::lock_guard<xe::mutex> guard(lock_);
+    std::lock_guard<std::mutex> guard(lock_);
     list_.push_back(value);
   }
 
  private:
-  xe::mutex lock_;
+  std::mutex lock_;
   std::vector<T*> list_;
 };
 

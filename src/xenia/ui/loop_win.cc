@@ -54,7 +54,7 @@ Win32Loop::~Win32Loop() {
   thread_.join();
 
   DeleteTimerQueueEx(timer_queue_, INVALID_HANDLE_VALUE);
-  std::lock_guard<xe::mutex> lock(pending_timers_mutex_);
+  std::lock_guard<std::mutex> lock(pending_timers_mutex_);
   while (!pending_timers_.empty()) {
     auto timer = pending_timers_.back();
     pending_timers_.pop_back();
@@ -102,7 +102,7 @@ void Win32Loop::TimerQueueCallback(void* context, uint8_t) {
   auto fn = std::move(timer->fn);
   DeleteTimerQueueTimer(timer->timer_queue, timer->timer_handle, NULL);
   {
-    std::lock_guard<xe::mutex> lock(loop->pending_timers_mutex_);
+    std::lock_guard<std::mutex> lock(loop->pending_timers_mutex_);
     loop->pending_timers_.remove(timer);
   }
   delete timer;
@@ -119,7 +119,7 @@ void Win32Loop::PostDelayed(std::function<void()> fn, uint64_t delay_millis) {
   timer->timer_queue = timer_queue_;
   timer->fn = std::move(fn);
   {
-    std::lock_guard<xe::mutex> lock(pending_timers_mutex_);
+    std::lock_guard<std::mutex> lock(pending_timers_mutex_);
     pending_timers_.push_back(timer);
   }
   CreateTimerQueueTimer(&timer->timer_handle, timer_queue_,

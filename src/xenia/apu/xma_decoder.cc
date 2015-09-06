@@ -163,7 +163,7 @@ int XmaDecoder::GetContextId(uint32_t guest_ptr) {
 }
 
 uint32_t XmaDecoder::AllocateContext() {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
 
   for (uint32_t n = 0; n < kContextCount; n++) {
     XmaContext& context = contexts_[n];
@@ -177,7 +177,7 @@ uint32_t XmaDecoder::AllocateContext() {
 }
 
 void XmaDecoder::ReleaseContext(uint32_t guest_ptr) {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
 
   auto context_id = GetContextId(guest_ptr);
   assert_true(context_id >= 0);
@@ -187,7 +187,7 @@ void XmaDecoder::ReleaseContext(uint32_t guest_ptr) {
 }
 
 bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
-  std::lock_guard<xe::mutex> lock(lock_);
+  std::lock_guard<std::mutex> lock(lock_);
 
   auto context_id = GetContextId(guest_ptr);
   assert_true(context_id >= 0);

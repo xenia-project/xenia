@@ -172,9 +172,9 @@ bool PPCTranslator::Translate(GuestFunction* function,
 
   // Emit function.
   uint32_t emit_flags = 0;
-  if (debug_info) {
-    emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
-  }
+  // if (debug_info) {
+  emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
+  //}
   if (!builder_->Emit(function, emit_flags)) {
     return false;
   }

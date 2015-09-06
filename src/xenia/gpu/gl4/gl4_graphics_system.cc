@@ -295,7 +295,7 @@ void GL4GraphicsSystem::Swap(xe::ui::UIEvent* e) {
   // Check for pending swap.
   auto& swap_state = command_processor_->swap_state();
   {
-    std::lock_guard<xe::mutex> lock(swap_state.mutex);
+    std::lock_guard<std::mutex> lock(swap_state.mutex);
     if (swap_state.pending) {
       swap_state.pending = false;
       std::swap(swap_state.front_buffer_texture,

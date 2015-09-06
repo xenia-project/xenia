@@ -14,6 +14,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <queue>
 #include <string>
 #include <unordered_map>
@@ -46,7 +47,7 @@ class GL4GraphicsSystem;
 
 struct SwapState {
   // Lock must be held when changing data in this structure.
-  xe::mutex mutex;
+  std::mutex mutex;
   // Dimensions of the framebuffer textures. Should match window size.
   uint32_t width = 0;
   uint32_t height = 0;
