@@ -69,7 +69,16 @@ uint32_t get_page_count(uint32_t value, uint32_t page_size) {
 
 static Memory* active_memory_ = nullptr;
 
-void CrashDump() { active_memory_->DumpMap(); }
+void CrashDump() {
+  static std::atomic<int> in_crash_dump(0);
+  if (in_crash_dump.fetch_add(1)) {
+    xe::FatalError(
+        "Hard crash: the memory system crashed while dumping a crash dump.");
+    return;
+  }
+  active_memory_->DumpMap();
+  --in_crash_dump;
+}
 
 Memory::Memory() {
   system_page_size_ = uint32_t(xe::memory::page_size());
