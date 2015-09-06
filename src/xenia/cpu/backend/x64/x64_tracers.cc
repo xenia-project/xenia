@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 
+#include "xenia/base/logging.h"
 #include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/processor.h"
@@ -30,19 +31,12 @@ bool trace_enabled = true;
 
 #define THREAD_MATCH \
   (!TARGET_THREAD || thread_state->thread_id() == TARGET_THREAD)
-#if !DTRACE
-#define IFLUSH() \
-  if (trace_enabled && THREAD_MATCH) fflush(stdout)
-#else
 #define IFLUSH()
-#endif
-#define IPRINT \
-  if (trace_enabled && THREAD_MATCH) printf
-#define DFLUSH() \
-  if (trace_enabled && THREAD_MATCH) fflush(stdout)
-#define DPRINT \
-  DFLUSH();    \
-  if (trace_enabled && THREAD_MATCH) printf
+#define IPRINT(s) \
+  if (trace_enabled && THREAD_MATCH) xe::LogLine('t', s)
+#define DFLUSH()
+#define DPRINT(...) \
+  if (trace_enabled && THREAD_MATCH) xe::LogLineFormat('t', __VA_ARGS__)
 
 uint32_t GetTracingMode() {
   uint32_t mode = 0;
@@ -57,7 +51,7 @@ uint32_t GetTracingMode() {
 
 void TraceString(void* raw_context, const char* str) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  IPRINT("XE[t] :%d: %s\n", thread_state->thread_id(), str);
+  IPRINT(str);
   IFLUSH();
 }
 
