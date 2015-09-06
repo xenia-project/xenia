@@ -23,6 +23,7 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/app.h"
 #include "xenia/kernel/content_manager.h"
+#include "xenia/kernel/native_list.h"
 #include "xenia/kernel/object_table.h"
 #include "xenia/kernel/user_profile.h"
 #include "xenia/memory.h"
@@ -98,8 +99,6 @@ class KernelState {
 
   uint32_t title_id() const;
 
-  Dispatcher* dispatcher() const { return dispatcher_; }
-
   XAppManager* app_manager() const { return app_manager_.get(); }
   UserProfile* user_profile() const { return user_profile_.get(); }
   ContentManager* content_manager() const { return content_manager_.get(); }
@@ -151,6 +150,8 @@ class KernelState {
   void UnregisterNotifyListener(XNotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
+  NativeList* dpc_list() { return &dpc_list_; }
+
   void CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result);
   void CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
                             uint32_t extended_error, uint32_t length);
@@ -171,8 +172,6 @@ class KernelState {
   cpu::Processor* processor_;
   vfs::VirtualFileSystem* file_system_;
 
-  Dispatcher* dispatcher_;
-
   std::unique_ptr<XAppManager> app_manager_;
   std::unique_ptr<UserProfile> user_profile_;
   std::unique_ptr<ContentManager> content_manager_;
@@ -180,22 +179,23 @@ class KernelState {
   xe::global_critical_region global_critical_region_;
 
   // Must be guarded by the global critical region.
-  ObjectTable* object_table_;
+  ObjectTable* object_table_ = nullptr;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<object_ref<XNotifyListener>> notify_listeners_;
-  bool has_notified_startup_;
+  bool has_notified_startup_ = false;
 
-  uint32_t process_type_;
+  uint32_t process_type_ = X_PROCTYPE_USER;
   object_ref<XUserModule> executable_module_;
   std::vector<object_ref<XKernelModule>> kernel_modules_;
   std::vector<object_ref<XUserModule>> user_modules_;
   std::vector<TerminateNotification> terminate_notifications;
 
-  uint32_t process_info_block_address_;
+  uint32_t process_info_block_address_ = 0;
 
   std::atomic<bool> dispatch_thread_running_;
   object_ref<XHostThread> dispatch_thread_;
   // Must be guarded by the global critical region.
+  NativeList dpc_list_;
   std::condition_variable_any dispatch_cond_;
   std::list<std::function<void()>> dispatch_queue_;
 

@@ -13,7 +13,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/kernel.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/file_picker.h"
 

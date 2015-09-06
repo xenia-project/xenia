@@ -18,7 +18,6 @@
 #include "xenia/base/string.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
-#include "xenia/kernel/kernel.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/modules.h"
 #include "xenia/memory.h"

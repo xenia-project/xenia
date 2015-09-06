@@ -18,7 +18,6 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/apps/apps.h"
-#include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/objects/xevent.h"
 #include "xenia/kernel/objects/xmodule.h"
 #include "xenia/kernel/objects/xnotify_listener.h"
@@ -50,15 +49,10 @@ KernelState* kernel_state() { return shared_kernel_state_; }
 KernelState::KernelState(Emulator* emulator)
     : emulator_(emulator),
       memory_(emulator->memory()),
-      object_table_(nullptr),
-      has_notified_startup_(false),
-      process_type_(X_PROCTYPE_USER),
-      process_info_block_address_(0),
-      dispatch_thread_running_(false) {
+      dispatch_thread_running_(false),
+      dpc_list_(emulator->memory()) {
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
-
-  dispatcher_ = new Dispatcher(this);
 
   app_manager_ = std::make_unique<XAppManager>();
   user_profile_ = std::make_unique<UserProfile>();
@@ -108,8 +102,6 @@ KernelState::~KernelState() {
 
   // Shutdown apps.
   app_manager_.reset();
-
-  delete dispatcher_;
 
   if (process_info_block_address_) {
     memory_->SystemHeapFree(process_info_block_address_);

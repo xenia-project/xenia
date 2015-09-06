@@ -12,7 +12,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/kernel/dispatcher.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/native_list.h"
 #include "xenia/kernel/objects/xevent.h"
@@ -1275,8 +1274,7 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_context,
 
   // Lock dispatcher.
   auto global_lock = xe::global_critical_region::AcquireDirect();
-  auto dispatcher = kernel_state->dispatcher();
-  auto dpc_list = dispatcher->dpc_list();
+  auto dpc_list = kernel_state->dpc_list();
 
   // If already in a queue, abort.
   if (dpc_list->IsQueued(list_entry_ptr)) {
@@ -1304,9 +1302,7 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
   uint32_t list_entry_ptr = dpc_ptr + 4;
 
   auto global_lock = xe::global_critical_region::AcquireDirect();
-  auto dispatcher = kernel_state->dispatcher();
-
-  auto dpc_list = dispatcher->dpc_list();
+  auto dpc_list = kernel_state->dpc_list();
   if (dpc_list->IsQueued(list_entry_ptr)) {
     dpc_list->Remove(list_entry_ptr);
     result = true;
