@@ -87,6 +87,7 @@ class ContentManager {
   KernelState* kernel_state_;
   std::wstring root_path_;
 
+  // TODO(benvanik): remove use of global lock, it's bad here!
   xe::global_critical_region global_critical_region_;
   std::unordered_map<std::string, ContentPackage*> open_packages_;
 };

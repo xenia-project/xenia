@@ -166,7 +166,7 @@ bool KernelState::IsKernelModule(const char* name) {
     // Executing module isn't a kernel module.
     return false;
   }
-  auto global_lock = global_critical_region_.Acquire();
+  // NOTE: no global lock required as the kernel module list is static.
   for (auto kernel_module : kernel_modules_) {
     if (kernel_module->Matches(name)) {
       return true;
