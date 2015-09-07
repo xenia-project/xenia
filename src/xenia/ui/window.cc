@@ -157,6 +157,10 @@ void Window::OnClose() {
 }
 
 void Window::OnDestroy() {
+  if (!context_) {
+    return;
+  }
+
   if (--elemental_initialization_count_ == 0) {
     el::Shutdown();
   }
