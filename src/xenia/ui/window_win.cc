@@ -196,7 +196,7 @@ bool Win32Window::is_bordered() const {
   return (style & WS_OVERLAPPEDWINDOW) == WS_OVERLAPPEDWINDOW;
 }
 
-void Win32Window::SetBordered(bool enabled) {
+void Win32Window::set_bordered(bool enabled) {
   if (is_fullscreen()) {
     // Don't screw with the borders if we're fullscreen.
     return;

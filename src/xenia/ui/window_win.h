@@ -35,7 +35,7 @@ class Win32Window : public Window {
   void ToggleFullscreen(bool fullscreen) override;
 
   bool is_bordered() const override;
-  void SetBordered(bool enabled) override;
+  void set_bordered(bool enabled) override;
 
   void set_cursor_visible(bool value) override;
   void set_focus(bool value) override;
@@ -70,7 +70,7 @@ class Win32Window : public Window {
   bool closing_ = false;
   bool fullscreen_ = false;
 
-  WINDOWPLACEMENT windowed_pos_;
+  WINDOWPLACEMENT windowed_pos_ = {0};
 };
 
 class Win32MenuItem : public MenuItem {
