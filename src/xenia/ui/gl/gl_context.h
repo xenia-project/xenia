@@ -30,7 +30,8 @@ namespace gl {
 
 class GLContext : public GraphicsContext {
  public:
-  static std::unique_ptr<GLContext> Create(Window* target_window);
+  static std::unique_ptr<GLContext> Create(Window* target_window,
+                                           GLContext* share_context = nullptr);
 
   ~GLContext() override;
 
@@ -53,7 +54,7 @@ class GLContext : public GraphicsContext {
   explicit GLContext(Window* target_window);
   GLContext(Window* target_window, HGLRC glrc);
 
-  bool Initialize(Window* target_window);
+  bool Initialize(Window* target_window, GLContext* share_context);
   void AssertExtensionsPresent();
 
   void SetupDebugging();

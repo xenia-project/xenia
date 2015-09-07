@@ -59,9 +59,10 @@ void FatalGLError(std::string error) {
       "of supported GPUs.");
 }
 
-std::unique_ptr<GLContext> GLContext::Create(Window* target_window) {
+std::unique_ptr<GLContext> GLContext::Create(Window* target_window,
+                                             GLContext* share_context) {
   auto context = std::unique_ptr<GLContext>(new GLContext(target_window));
-  if (!context->Initialize(target_window)) {
+  if (!context->Initialize(target_window, share_context)) {
     return nullptr;
   }
   context->AssertExtensionsPresent();
@@ -92,7 +93,7 @@ GLContext::~GLContext() {
   }
 }
 
-bool GLContext::Initialize(Window* target_window) {
+bool GLContext::Initialize(Window* target_window, GLContext* share_context) {
   target_window_ = target_window;
   dc_ = GetDC(HWND(target_window_->native_handle()));
 
@@ -152,7 +153,8 @@ bool GLContext::Initialize(Window* target_window) {
                        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
                        0};
 
-  glrc_ = wglCreateContextAttribsARB(dc_, nullptr, attrib_list);
+  glrc_ = wglCreateContextAttribsARB(
+      dc_, share_context ? share_context->glrc_ : nullptr, attrib_list);
   wglMakeCurrent(nullptr, nullptr);
   wglDeleteContext(temp_context);
   if (!glrc_) {
