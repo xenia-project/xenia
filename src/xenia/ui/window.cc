@@ -38,6 +38,9 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
+// Ref count of elemental initializations.
+int32_t elemental_initialization_count_ = 0;
+
 class RootElement : public el::Element {
  public:
   explicit RootElement(Window* owner) : owner_(owner) {}
@@ -58,11 +61,9 @@ Window::~Window() {
 bool Window::InitializeElemental(Loop* loop, el::graphics::Renderer* renderer) {
   GraphicsContextLock context_lock(context_.get());
 
-  static bool has_initialized = false;
-  if (has_initialized) {
+  if (++elemental_initialization_count_ > 1) {
     return true;
   }
-  has_initialized = true;
 
   // Need to pass off the Loop we want Elemental to use.
   // TODO(benvanik): give the callback to elemental instead.
@@ -156,7 +157,9 @@ void Window::OnClose() {
 }
 
 void Window::OnDestroy() {
-  el::Shutdown();
+  if (--elemental_initialization_count_ == 0) {
+    el::Shutdown();
+  }
 
   // Context must go last.
   root_element_.reset();
