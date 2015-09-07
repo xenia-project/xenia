@@ -43,7 +43,6 @@ bool MainWindow::Initialize() {
   }
   window_->Initialize();
   window_->set_context(xe::ui::gl::GLContext::Create(window_.get()));
-  window_->MakeReady();
 
 #if XE_PLATFORM_WIN32
   el::io::FileManager::RegisterFileSystem(

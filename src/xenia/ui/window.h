@@ -75,8 +75,10 @@ class Window {
   virtual bool Initialize() { return true; }
   void set_context(std::unique_ptr<GraphicsContext> context) {
     context_ = std::move(context);
+    if (context_) {
+      MakeReady();
+    }
   }
-  virtual bool MakeReady();
 
   bool LoadLanguage(std::string filename);
   bool LoadSkin(std::string filename);
@@ -115,6 +117,8 @@ class Window {
 
  protected:
   Window(Loop* loop, const std::wstring& title);
+
+  virtual bool MakeReady();
 
   virtual bool InitializeElemental(Loop* loop,
                                    el::graphics::Renderer* renderer);

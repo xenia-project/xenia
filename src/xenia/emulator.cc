@@ -154,13 +154,9 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
 
   // Finish initializing the display.
   display_window_->loop()->PostSynchronous([this]() {
-    {
-      xe::ui::GraphicsContextLock context_lock(display_window_->context());
-      auto profiler_display =
-          display_window_->context()->CreateProfilerDisplay();
-      Profiler::set_display(std::move(profiler_display));
-    }
-    display_window_->MakeReady();
+    xe::ui::GraphicsContextLock context_lock(display_window_->context());
+    auto profiler_display = display_window_->context()->CreateProfilerDisplay();
+    Profiler::set_display(std::move(profiler_display));
   });
 
   return result;
