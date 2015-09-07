@@ -10,12 +10,17 @@
 #include "xenia/debug/ui/main_window.h"
 
 #include "el/animation_manager.h"
+#include "el/io/file_manager.h"
 #include "el/util/debug.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/gl/gl_context.h"
+
+#if XE_PLATFORM_WIN32
+#include "el/io/win32_res_file_system_win.h"
+#endif  // XE_PLATFORM_WIN32
 
 namespace xe {
 namespace debug {
@@ -39,6 +44,13 @@ bool MainWindow::Initialize() {
   window_->Initialize();
   window_->set_context(xe::ui::gl::GLContext::Create(window_.get()));
   window_->MakeReady();
+
+#if XE_PLATFORM_WIN32
+  el::io::FileManager::RegisterFileSystem(
+      std::make_unique<el::io::Win32ResFileSystem>(
+          "IDR_xe_debug_ui_resources_"));
+#endif  // XE_PLATFORM_WIN32
+  window_->LoadSkin("smaller_skin/skin.tb.txt");
 
   window_->on_closed.AddListener(std::bind(&MainWindow::OnClose, this));
 

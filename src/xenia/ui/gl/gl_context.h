@@ -40,6 +40,7 @@ class GLContext : public GraphicsContext {
   std::unique_ptr<ProfilerDisplay> CreateProfilerDisplay() override;
   std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() override;
 
+  bool is_current() override;
   bool MakeCurrent() override;
   void ClearCurrent() override;
 

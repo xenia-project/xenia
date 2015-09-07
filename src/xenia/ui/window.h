@@ -116,7 +116,8 @@ class Window {
  protected:
   Window(Loop* loop, const std::wstring& title);
 
-  bool InitializeElemental(Loop* loop, el::graphics::Renderer* renderer);
+  virtual bool InitializeElemental(Loop* loop,
+                                   el::graphics::Renderer* renderer);
 
   virtual bool OnCreate();
   virtual void OnMainMenuChange();

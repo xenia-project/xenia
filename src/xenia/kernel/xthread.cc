@@ -652,7 +652,7 @@ X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
   ++guest_object<X_KTHREAD>()->suspend_count;
 
   // If we are suspending ourselves, we can't hold the lock.
-  if (XThread::GetCurrentThread() == this) {
+  if (XThread::IsInThread() && XThread::GetCurrentThread() == this) {
     global_lock.unlock();
   }
 

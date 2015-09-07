@@ -40,6 +40,8 @@ GL4ElementalRenderer::GL4Bitmap::~GL4Bitmap() {
 
 bool GL4ElementalRenderer::GL4Bitmap::Init(int width, int height,
                                            uint32_t* data) {
+  GraphicsContextLock lock(context_);
+
   assert(width == el::util::GetNearestPowerOfTwo(width));
   assert(height == el::util::GetNearestPowerOfTwo(height));
   width_ = width;

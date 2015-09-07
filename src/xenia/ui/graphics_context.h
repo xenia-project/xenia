@@ -30,6 +30,7 @@ class GraphicsContext {
   virtual std::unique_ptr<ProfilerDisplay> CreateProfilerDisplay() = 0;
   virtual std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() = 0;
 
+  virtual bool is_current() = 0;
   virtual bool MakeCurrent() = 0;
   virtual void ClearCurrent() = 0;
 
@@ -44,12 +45,20 @@ class GraphicsContext {
 
 struct GraphicsContextLock {
   explicit GraphicsContextLock(GraphicsContext* context) : context_(context) {
-    context_->MakeCurrent();
+    was_current_ = context_->is_current();
+    if (!was_current_) {
+      context_->MakeCurrent();
+    }
   }
-  ~GraphicsContextLock() { context_->ClearCurrent(); }
+  ~GraphicsContextLock() {
+    if (!was_current_) {
+      context_->ClearCurrent();
+    }
+  }
 
  private:
-  GraphicsContext* context_;
+  bool was_current_ = false;
+  GraphicsContext* context_ = nullptr;
 };
 
 }  // namespace ui

@@ -414,6 +414,10 @@ std::unique_ptr<el::graphics::Renderer> GLContext::CreateElementalRenderer() {
   return GL4ElementalRenderer::Create(this);
 }
 
+bool GLContext::is_current() {
+  return tls_glew_context_ == glew_context_.get();
+}
+
 bool GLContext::MakeCurrent() {
   SCOPE_profile_cpu_f("gpu");
   if (FLAGS_thread_safe_gl) {
