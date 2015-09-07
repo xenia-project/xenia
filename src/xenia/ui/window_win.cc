@@ -38,22 +38,26 @@ bool Win32Window::Initialize() { return OnCreate(); }
 bool Win32Window::OnCreate() {
   HINSTANCE hInstance = GetModuleHandle(nullptr);
 
-  WNDCLASSEX wcex;
-  wcex.cbSize = sizeof(WNDCLASSEX);
-  wcex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-  wcex.lpfnWndProc = Win32Window::WndProcThunk;
-  wcex.cbClsExtra = 0;
-  wcex.cbWndExtra = 0;
-  wcex.hInstance = hInstance;
-  wcex.hIcon = nullptr;    // LoadIcon(hInstance, (LPCTSTR)IDI_TUTORIAL1);
-  wcex.hIconSm = nullptr;  // LoadIcon(hInstance, (LPCTSTR)IDI_TUTORIAL1);
-  wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-  wcex.lpszMenuName = nullptr;
-  wcex.lpszClassName = L"XeniaWindowClass";
-  if (!RegisterClassEx(&wcex)) {
-    XELOGE("RegisterClassEx failed");
-    return false;
+  static bool has_registered_class = false;
+  if (!has_registered_class) {
+    WNDCLASSEX wcex;
+    wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+    wcex.lpfnWndProc = Win32Window::WndProcThunk;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = hInstance;
+    wcex.hIcon = nullptr;    // LoadIcon(hInstance, (LPCTSTR)IDI_TUTORIAL1);
+    wcex.hIconSm = nullptr;  // LoadIcon(hInstance, (LPCTSTR)IDI_TUTORIAL1);
+    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszMenuName = nullptr;
+    wcex.lpszClassName = L"XeniaWindowClass";
+    if (!RegisterClassEx(&wcex)) {
+      XELOGE("RegisterClassEx failed");
+      return false;
+    }
+    has_registered_class = true;
   }
 
   // Setup initial size.
