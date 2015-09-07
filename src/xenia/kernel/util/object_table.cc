@@ -13,7 +13,7 @@
 #include <cstring>
 
 #include "xenia/kernel/xobject.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xthread.h"
 
 namespace xe {
 namespace kernel {

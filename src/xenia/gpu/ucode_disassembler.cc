@@ -32,10 +32,10 @@
 
 #include "xenia/gpu/ucode_disassembler.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/string_buffer.h"

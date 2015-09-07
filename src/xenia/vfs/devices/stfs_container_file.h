@@ -10,7 +10,7 @@
 #ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
 #define XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
 
-#include "xenia/kernel/objects/xfile.h"
+#include "xenia/kernel/xfile.h"
 
 namespace xe {
 namespace vfs {

@@ -13,6 +13,7 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
+#include <vector>
 
 #include "xenia/memory.h"
 #include "xenia/xbox.h"

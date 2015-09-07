@@ -13,7 +13,7 @@
 #include <string>
 
 #include "xenia/base/filesystem.h"
-#include "xenia/kernel/objects/xfile.h"
+#include "xenia/kernel/xfile.h"
 
 namespace xe {
 namespace vfs {

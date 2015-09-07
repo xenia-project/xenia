@@ -15,7 +15,7 @@
 #include <queue>
 
 #include "xenia/apu/xma_context.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
 namespace xe {

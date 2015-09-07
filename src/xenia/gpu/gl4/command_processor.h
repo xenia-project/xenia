@@ -28,7 +28,7 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/tracing.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
 #include "xenia/ui/gl/circular_buffer.h"
 #include "xenia/ui/gl/gl_context.h"

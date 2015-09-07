@@ -221,7 +221,7 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
     key_events_.pop();
   }
 
-  // TODO: Some other way to toggle this...
+  // TODO(DrChat): Some other way to toggle this...
   if (IS_KEY_TOGGLED(VK_CAPITAL)) {
     // dpad toggled
     if (evt.vkey == (0x41)) {

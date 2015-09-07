@@ -15,7 +15,7 @@
 #include "xenia/gpu/gl4/command_processor.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/register_file.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xthread.h"
 #include "xenia/ui/gl/gl_context.h"
 
 namespace xe {

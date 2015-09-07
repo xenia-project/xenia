@@ -45,9 +45,11 @@ before_script:
 script:
   # Run linter.
   - ./xenia-build lint --all
+  # Run style checker.
+  #- ./xenia-build style
   # Build all of xenia.
-  - ./xenia-build build --config=debug
+  #- ./xenia-build build --config=debug
   # All tests (without haswell support).
-  - ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
+  #- ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
   # All tests (with haswell support).
-  - ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=true
+  #- ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=true

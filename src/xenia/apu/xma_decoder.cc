@@ -18,7 +18,7 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xthread.h"
 #include "xenia/profiling.h"
 
 extern "C" {

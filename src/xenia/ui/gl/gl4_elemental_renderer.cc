@@ -18,8 +18,8 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/profiling.h"
-#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/gl/gl.h"
+#include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
 namespace ui {

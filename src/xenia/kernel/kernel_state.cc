@@ -17,17 +17,15 @@
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/apps/apps.h"
-#include "xenia/kernel/objects/xevent.h"
-#include "xenia/kernel/objects/xmodule.h"
-#include "xenia/kernel/objects/xnotify_listener.h"
-#include "xenia/kernel/objects/xthread.h"
-#include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/kernel/notify_listener.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/xam_module.h"
-#include "xenia/kernel/xboxkrnl_module.h"
-#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
+#include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xmodule.h"
 #include "xenia/kernel/xobject.h"
+#include "xenia/kernel/xthread.h"
 
 DEFINE_bool(headless, false,
             "Don't display any UI, using defaults for prompts as needed.");
@@ -54,12 +52,12 @@ KernelState::KernelState(Emulator* emulator)
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
 
-  app_manager_ = std::make_unique<XAppManager>();
-  user_profile_ = std::make_unique<UserProfile>();
+  app_manager_ = std::make_unique<xam::AppManager>();
+  user_profile_ = std::make_unique<xam::UserProfile>();
 
   auto content_root = xe::to_wstring(FLAGS_content_root);
   content_root = xe::to_absolute_path(content_root);
-  content_manager_ = std::make_unique<ContentManager>(this, content_root);
+  content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
@@ -79,7 +77,7 @@ KernelState::KernelState(Emulator* emulator)
   // TODO(benvanik): figure out what this list is.
   pib->unk_54 = pib->unk_58 = 0;
 
-  apps::RegisterApps(this, app_manager_.get());
+  xam::AppManager::RegisterApps(this, app_manager_.get());
 }
 
 KernelState::~KernelState() {
@@ -173,7 +171,7 @@ bool KernelState::IsKernelModule(const char* name) {
   return false;
 }
 
-object_ref<XKernelModule> KernelState::GetKernelModule(const char* name) {
+object_ref<KernelModule> KernelState::GetKernelModule(const char* name) {
   assert_true(IsKernelModule(name));
 
   for (auto kernel_module : kernel_modules_) {
@@ -208,14 +206,14 @@ object_ref<XModule> KernelState::GetModule(const char* name) {
   return nullptr;
 }
 
-object_ref<XUserModule> KernelState::GetExecutableModule() {
+object_ref<UserModule> KernelState::GetExecutableModule() {
   if (!executable_module_) {
     return nullptr;
   }
   return executable_module_;
 }
 
-void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
+void KernelState::SetExecutableModule(object_ref<UserModule> module) {
   if (module.get() == executable_module_.get()) {
     return;
   }
@@ -270,12 +268,12 @@ void KernelState::SetExecutableModule(object_ref<XUserModule> module) {
   }
 }
 
-void KernelState::LoadKernelModule(object_ref<XKernelModule> kernel_module) {
+void KernelState::LoadKernelModule(object_ref<KernelModule> kernel_module) {
   auto global_lock = global_critical_region_.Acquire();
   kernel_modules_.push_back(std::move(kernel_module));
 }
 
-object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
+object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name) {
   // Some games try to load relative to launch module, others specify full path.
   std::string name = xe::find_name_from_path(raw_name);
   std::string path(raw_name);
@@ -284,7 +282,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
     path = xe::join_paths(xe::find_base_path(executable_module_->path()), name);
   }
 
-  object_ref<XUserModule> module;
+  object_ref<UserModule> module;
   {
     auto global_lock = global_critical_region_.Acquire();
 
@@ -297,7 +295,7 @@ object_ref<XUserModule> KernelState::LoadUserModule(const char* raw_name) {
     }
 
     // Module wasn't loaded, so load it.
-    module = object_ref<XUserModule>(new XUserModule(this, path.c_str()));
+    module = object_ref<UserModule>(new UserModule(this, path.c_str()));
     X_STATUS status = module->LoadFromFile(path);
     if (XFAILED(status)) {
       return nullptr;
@@ -465,7 +463,7 @@ object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
   return retain_object(thread);
 }
 
-void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
+void KernelState::RegisterNotifyListener(NotifyListener* listener) {
   auto global_lock = global_critical_region_.Acquire();
   notify_listeners_.push_back(retain_object(listener));
 
@@ -489,7 +487,7 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   }
 }
 
-void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
+void KernelState::UnregisterNotifyListener(NotifyListener* listener) {
   auto global_lock = global_critical_region_.Acquire();
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {

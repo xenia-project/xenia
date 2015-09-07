@@ -11,8 +11,8 @@
 #define XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_
 
 #include "xenia/base/string_buffer.h"
-#include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/function.h"
+#include "xenia/cpu/hir/hir_builder.h"
 
 namespace xe {
 namespace cpu {

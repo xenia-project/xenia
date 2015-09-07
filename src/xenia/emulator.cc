@@ -19,12 +19,13 @@
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/modules.h"
+#include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
-#include "xenia/vfs/virtual_file_system.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
+#include "xenia/vfs/virtual_file_system.h"
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
@@ -148,8 +149,8 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   }
 
   // HLE kernel modules.
-  kernel_state_->LoadKernelModule<kernel::XboxkrnlModule>();
-  kernel_state_->LoadKernelModule<kernel::XamModule>();
+  kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
+  kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
 
   // Finish initializing the display.
   display_window_->loop()->PostSynchronous([this]() {
@@ -268,9 +269,10 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
   // Allow xam to request module loads.
-  auto xam = kernel_state()->GetKernelModule<kernel::XamModule>("xam.xex");
+  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
   auto xboxkrnl =
-      kernel_state()->GetKernelModule<kernel::XboxkrnlModule>("xboxkrnl.exe");
+      kernel_state()->GetKernelModule<kernel::xboxkrnl::XboxkrnlModule>(
+          "xboxkrnl.exe");
 
   int result = 0;
   auto next_module = module_path;

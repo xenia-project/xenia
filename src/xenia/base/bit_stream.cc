@@ -15,10 +15,11 @@
 #include "xenia/base/byte_order.h"
 
 namespace xe {
+
 BitStream::BitStream(uint8_t* buffer, size_t size_in_bits)
     : buffer_(buffer), size_bits_(size_in_bits) {}
 
-BitStream::~BitStream() {}
+BitStream::~BitStream() = default;
 
 void BitStream::SetOffset(size_t offset_bits) {
   assert_false(offset_bits > size_bits_);

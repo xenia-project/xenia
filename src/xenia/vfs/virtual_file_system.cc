@@ -12,7 +12,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
-#include "xenia/kernel/objects/xfile.h"
+#include "xenia/kernel/xfile.h"
 
 namespace xe {
 namespace vfs {

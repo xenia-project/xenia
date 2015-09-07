@@ -9,8 +9,8 @@
 
 #include "xenia/hid/input_system.h"
 
-#include "xenia/emulator.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/emulator.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_driver.h"
 #include "xenia/profiling.h"

@@ -967,7 +967,7 @@ class StyleCommand(Command):
         'build_tools/third_party/google-styleguide/cpplint/cpplint.py',
         '--output=vs7',
         '--linelength=80',
-        '--filter=-build/c++11',
+        '--filter=-build/c++11,+build/include_alpha',
         '--root=src',
         ] + all_files, throw_on_error=False)
     print('')

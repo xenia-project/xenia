@@ -32,7 +32,7 @@ enum class RegisterSet {
 
 class RegisterListControl : public Control {
  public:
-  RegisterListControl(RegisterSet set);
+  explicit RegisterListControl(RegisterSet set);
   ~RegisterListControl() override;
 
   el::Element* BuildUI() override;

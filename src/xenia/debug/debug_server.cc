@@ -16,8 +16,8 @@
 #include "xenia/debug/debugger.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/objects/xmodule.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xmodule.h"
+#include "xenia/kernel/xthread.h"
 
 DEFINE_int32(debug_server_port, 9002, "Debugger XDP server TCP port.");
 

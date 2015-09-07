@@ -13,13 +13,13 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/emulator.h"
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/emulator.h"
 #include "xenia/profiling.h"
 
 #include "third_party/xxhash/xxhash.h"

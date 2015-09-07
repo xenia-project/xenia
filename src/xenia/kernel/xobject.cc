@@ -13,10 +13,10 @@
 
 #include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/objects/xevent.h"
-#include "xenia/kernel/objects/xmutant.h"
-#include "xenia/kernel/objects/xsemaphore.h"
-#include "xenia/kernel/xboxkrnl_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xmutant.h"
+#include "xenia/kernel/xsemaphore.h"
 
 namespace xe {
 namespace kernel {

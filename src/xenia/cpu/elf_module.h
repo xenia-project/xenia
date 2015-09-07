@@ -10,6 +10,7 @@
 #ifndef XENIA_CPU_ELF_MODULE_H_
 #define XENIA_CPU_ELF_MODULE_H_
 
+#include <string>
 #include <vector>
 
 #include "xenia/cpu/module.h"

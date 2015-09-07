@@ -27,7 +27,7 @@ class Thread {
  public:
   using Frame = proto::ThreadCallStackFrame;
 
-  Thread(System* system);
+  explicit Thread(System* system);
   ~Thread();
 
   bool is_dead() const { return is_dead_; }

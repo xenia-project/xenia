@@ -10,8 +10,8 @@
 #ifndef XENIA_UI_LOOP_WIN_H_
 #define XENIA_UI_LOOP_WIN_H_
 
-#include <mutex>
 #include <list>
+#include <mutex>
 #include <thread>
 
 #include "xenia/base/platform_win.h"

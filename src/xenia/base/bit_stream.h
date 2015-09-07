@@ -13,6 +13,7 @@
 #include <cstdint>
 
 namespace xe {
+
 class BitStream {
  public:
   BitStream(uint8_t* buffer, size_t size_in_bits);
@@ -30,7 +31,7 @@ class BitStream {
   // Note: num_bits MUST be in the range 0-57 (inclusive)
   uint64_t Peek(size_t num_bits);
   uint64_t Read(size_t num_bits);
-  bool Write(uint64_t val, size_t num_bits);  // TODO: Not tested!
+  bool Write(uint64_t val, size_t num_bits);  // TODO(DrChat): Not tested!
 
   size_t Copy(uint8_t* dest_buffer, size_t num_bits);
 
@@ -39,6 +40,7 @@ class BitStream {
   size_t offset_bits_ = 0;
   size_t size_bits_ = 0;
 };
+
 }  // namespace xe
 
 #endif  // XENIA_BASE_BIT_STREAM_H_

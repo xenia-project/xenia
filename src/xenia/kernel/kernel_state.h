@@ -21,11 +21,11 @@
 
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/kernel/app.h"
-#include "xenia/kernel/content_manager.h"
-#include "xenia/kernel/user_profile.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/util/object_table.h"
+#include "xenia/kernel/xam/app_manager.h"
+#include "xenia/kernel/xam/content_manager.h"
+#include "xenia/kernel/xam/user_profile.h"
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
@@ -44,11 +44,11 @@ namespace kernel {
 
 class Dispatcher;
 class XHostThread;
-class XKernelModule;
+class KernelModule;
 class XModule;
-class XNotifyListener;
+class NotifyListener;
 class XThread;
-class XUserModule;
+class UserModule;
 
 // (?), used by KeGetCurrentProcessType
 constexpr uint32_t X_PROCTYPE_IDLE = 0;
@@ -99,9 +99,11 @@ class KernelState {
 
   uint32_t title_id() const;
 
-  XAppManager* app_manager() const { return app_manager_.get(); }
-  UserProfile* user_profile() const { return user_profile_.get(); }
-  ContentManager* content_manager() const { return content_manager_.get(); }
+  xam::AppManager* app_manager() const { return app_manager_.get(); }
+  xam::ContentManager* content_manager() const {
+    return content_manager_.get();
+  }
+  xam::UserProfile* user_profile() const { return user_profile_.get(); }
 
   // Access must be guarded by the global critical region.
   util::ObjectTable* object_table() { return &object_table_; }
@@ -120,14 +122,14 @@ class KernelState {
   bool IsKernelModule(const char* name);
   object_ref<XModule> GetModule(const char* name);
 
-  object_ref<XUserModule> GetExecutableModule();
-  void SetExecutableModule(object_ref<XUserModule> module);
-  object_ref<XUserModule> LoadUserModule(const char* name);
+  object_ref<UserModule> GetExecutableModule();
+  void SetExecutableModule(object_ref<UserModule> module);
+  object_ref<UserModule> LoadUserModule(const char* name);
 
-  object_ref<XKernelModule> GetKernelModule(const char* name);
+  object_ref<KernelModule> GetKernelModule(const char* name);
   template <typename T>
-  object_ref<XKernelModule> LoadKernelModule() {
-    auto kernel_module = object_ref<XKernelModule>(new T(emulator_, this));
+  object_ref<KernelModule> LoadKernelModule() {
+    auto kernel_module = object_ref<KernelModule>(new T(emulator_, this));
     LoadKernelModule(kernel_module);
     return kernel_module;
   }
@@ -146,8 +148,8 @@ class KernelState {
   void OnThreadExit(XThread* thread);
   object_ref<XThread> GetThreadByID(uint32_t thread_id);
 
-  void RegisterNotifyListener(XNotifyListener* listener);
-  void UnregisterNotifyListener(XNotifyListener* listener);
+  void RegisterNotifyListener(NotifyListener* listener);
+  void UnregisterNotifyListener(NotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
   util::NativeList* dpc_list() { return &dpc_list_; }
@@ -165,29 +167,29 @@ class KernelState {
                                     uint32_t extended_error, uint32_t length);
 
  private:
-  void LoadKernelModule(object_ref<XKernelModule> kernel_module);
+  void LoadKernelModule(object_ref<KernelModule> kernel_module);
 
   Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;
   vfs::VirtualFileSystem* file_system_;
 
-  std::unique_ptr<XAppManager> app_manager_;
-  std::unique_ptr<UserProfile> user_profile_;
-  std::unique_ptr<ContentManager> content_manager_;
+  std::unique_ptr<xam::AppManager> app_manager_;
+  std::unique_ptr<xam::ContentManager> content_manager_;
+  std::unique_ptr<xam::UserProfile> user_profile_;
 
   xe::global_critical_region global_critical_region_;
 
   // Must be guarded by the global critical region.
   util::ObjectTable object_table_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
-  std::vector<object_ref<XNotifyListener>> notify_listeners_;
+  std::vector<object_ref<NotifyListener>> notify_listeners_;
   bool has_notified_startup_ = false;
 
   uint32_t process_type_ = X_PROCTYPE_USER;
-  object_ref<XUserModule> executable_module_;
-  std::vector<object_ref<XKernelModule>> kernel_modules_;
-  std::vector<object_ref<XUserModule>> user_modules_;
+  object_ref<UserModule> executable_module_;
+  std::vector<object_ref<KernelModule>> kernel_modules_;
+  std::vector<object_ref<UserModule>> user_modules_;
   std::vector<TerminateNotification> terminate_notifications;
 
   uint32_t process_info_block_address_ = 0;

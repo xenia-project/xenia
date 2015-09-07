@@ -23,10 +23,10 @@
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/debug/debug_server.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/objects/xkernel_module.h"
-#include "xenia/kernel/objects/xmodule.h"
-#include "xenia/kernel/objects/xthread.h"
-#include "xenia/kernel/objects/xuser_module.h"
+#include "xenia/kernel/kernel_module.h"
+#include "xenia/kernel/user_module.h"
+#include "xenia/kernel/xmodule.h"
+#include "xenia/kernel/xthread.h"
 
 #if 0 && DEBUG
 #define DEFAULT_DEBUG_FLAG true

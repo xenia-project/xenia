@@ -13,8 +13,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
-#include "xenia/gpu/graphics_system.h"
 #include "xenia/emulator.h"
+#include "xenia/gpu/graphics_system.h"
 #include "xenia/profiling.h"
 
 namespace xe {

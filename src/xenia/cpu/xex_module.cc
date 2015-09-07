@@ -19,7 +19,7 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/objects/xmodule.h"
+#include "xenia/kernel/xmodule.h"
 
 #include "third_party/crypto/rijndael-alg-fst.h"
 

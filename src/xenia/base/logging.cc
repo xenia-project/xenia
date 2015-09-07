@@ -42,7 +42,7 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 
 class Logger {
  public:
-  Logger(const std::wstring& app_name)
+  explicit Logger(const std::wstring& app_name)
       : ring_buffer_(buffer_, kBufferSize), running_(true) {
     if (!FLAGS_log_file.empty()) {
       auto file_path = xe::to_wstring(FLAGS_log_file.c_str());

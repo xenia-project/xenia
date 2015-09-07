@@ -13,7 +13,7 @@
 #include "xenia/base/math.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/gpu/gpu_flags.h"
-#include "xenia/kernel/objects/xthread.h"
+#include "xenia/kernel/xthread.h"
 
 namespace xe {
 namespace gpu {

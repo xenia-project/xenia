@@ -12,8 +12,8 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/kernel/xfile.h"
 #include "xenia/vfs/devices/host_path_entry.h"
-#include "xenia/kernel/objects/xfile.h"
 
 namespace xe {
 namespace vfs {
