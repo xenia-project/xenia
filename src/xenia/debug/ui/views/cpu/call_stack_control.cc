@@ -7,9 +7,10 @@
  ******************************************************************************
  */
 
+#include "xenia/debug/ui/views/cpu/call_stack_control.h"
+
 #include "el/animation_manager.h"
 #include "xenia/base/string_buffer.h"
-#include "xenia/debug/ui/views/cpu/call_stack_control.h"
 
 namespace xe {
 namespace debug {

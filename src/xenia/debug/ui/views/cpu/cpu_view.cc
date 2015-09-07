@@ -7,9 +7,10 @@
  ******************************************************************************
  */
 
+#include "xenia/debug/ui/views/cpu/cpu_view.h"
+
 #include "el/animation_manager.h"
 #include "xenia/base/string_buffer.h"
-#include "xenia/debug/ui/views/cpu/cpu_view.h"
 
 namespace xe {
 namespace debug {
@@ -49,24 +50,6 @@ el::Element* CpuView::BuildUI() {
                      .child(TextBoxNode()
                                 .type(EditType::kSearch)
                                 .placeholder("Filter")));
-
-  auto source_code_node =
-      LayoutBoxNode()
-          .gravity(Gravity::kAll)
-          .distribution(LayoutDistribution::kAvailable)
-          .axis(Axis::kY)
-          .child(
-              LayoutBoxNode()
-                  .gravity(Gravity::kTop | Gravity::kLeftRight)
-                  .distribution(LayoutDistribution::kGravity)
-                  .distribution_position(LayoutDistributionPosition::kLeftTop)
-                  .axis(Axis::kX)
-                  .child(ButtonNode("A")))
-          .child(TextBoxNode("source!")
-                     .id("source_textbox")
-                     .gravity(Gravity::kAll)
-                     .is_multiline(true)
-                     .is_read_only(true));
 
   auto register_list_node = ListBoxNode()
                                 .gravity(Gravity::kAll)
@@ -121,7 +104,8 @@ el::Element* CpuView::BuildUI() {
                                           .axis(Axis::kY)
                                           .fixed_pane(FixedPane::kSecond)
                                           .value(240)
-                                          .pane(source_code_node)
+                                          .pane(LabelNode("<source control>")
+                                                    .id("source_placeholder"))
                                           .pane(source_registers_node))
                                 .pane(source_tools_node)));
 
@@ -145,18 +129,23 @@ el::Element* CpuView::BuildUI() {
   root_element_.set_layout_distribution(LayoutDistribution::kAvailable);
   root_element_.LoadNodeTree(node);
 
+  el::Label* source_placeholder;
   el::Label* gr_registers_placeholder;
   el::Label* fr_registers_placeholder;
   el::Label* vr_registers_placeholder;
   el::Label* host_registers_placeholder;
   el::Label* call_stack_placeholder;
   root_element_.GetElementsById({
+      {TBIDC("source_placeholder"), &source_placeholder},
       {TBIDC("gr_registers_placeholder"), &gr_registers_placeholder},
       {TBIDC("fr_registers_placeholder"), &fr_registers_placeholder},
       {TBIDC("vr_registers_placeholder"), &vr_registers_placeholder},
       {TBIDC("host_registers_placeholder"), &host_registers_placeholder},
       {TBIDC("call_stack_placeholder"), &call_stack_placeholder},
   });
+  source_placeholder->parent()->ReplaceChild(source_placeholder,
+                                             source_control_.BuildUI());
+  source_control_.Setup(client_);
   gr_registers_placeholder->parent()->ReplaceChild(
       gr_registers_placeholder, gr_registers_control_.BuildUI());
   gr_registers_control_.Setup(client_);
@@ -274,6 +263,7 @@ void CpuView::UpdateThreadList() {
 
 void CpuView::SwitchCurrentThread(model::Thread* thread) {
   current_thread_ = thread;
+  source_control_.set_thread(thread);
   gr_registers_control_.set_thread(thread);
   fr_registers_control_.set_thread(thread);
   vr_registers_control_.set_thread(thread);

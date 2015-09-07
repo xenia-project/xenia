@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/debug/ui/views/cpu/register_list_control.h"
+
 #include <cinttypes>
 #include <cstdlib>
 
@@ -14,7 +16,6 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/base/string_util.h"
 #include "xenia/cpu/x64_context.h"
-#include "xenia/debug/ui/views/cpu/register_list_control.h"
 
 namespace xe {
 namespace debug {
