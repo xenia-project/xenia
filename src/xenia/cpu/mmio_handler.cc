@@ -25,7 +25,8 @@ std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* virtual_membase,
                                                uint8_t* physical_membase);
 
 std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
-                                                  uint8_t* physical_membase) {
+                                                  uint8_t* physical_membase,
+                                                  uint8_t* memory_end) {
   // There can be only one handler at a time.
   assert_null(global_handler_);
   if (global_handler_) {
@@ -40,6 +41,7 @@ std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
     return nullptr;
   }
 
+  handler->memory_end_ = memory_end;
   global_handler_ = handler.get();
   return handler;
 }
@@ -364,8 +366,9 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
 
 bool MMIOHandler::HandleAccessFault(void* thread_state,
                                     uint64_t fault_address) {
-  if (fault_address < uint64_t(virtual_membase_)) {
-    // Quick kill anything below our mapping base.
+  if (fault_address < uint64_t(virtual_membase_) ||
+      fault_address > uint64_t(memory_end_)) {
+    // Quick kill anything outside our mapping.
     return false;
   }
 

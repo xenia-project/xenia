@@ -42,7 +42,8 @@ class MMIOHandler {
   virtual ~MMIOHandler();
 
   static std::unique_ptr<MMIOHandler> Install(uint8_t* virtual_membase,
-                                              uint8_t* physical_membase);
+                                              uint8_t* physical_membase,
+                                              uint8_t* membase_end);
   static MMIOHandler* global_handler() { return global_handler_; }
 
   bool RegisterRange(uint32_t virtual_address, uint32_t mask, uint32_t size,
@@ -86,6 +87,7 @@ class MMIOHandler {
 
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;
+  uint8_t* memory_end_;
 
   std::vector<MMIORange> mapped_ranges_;
 
