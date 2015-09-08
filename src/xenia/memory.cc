@@ -184,8 +184,8 @@ int Memory::Initialize() {
       kMemoryProtectRead | kMemoryProtectWrite);
 
   // Add handlers for MMIO.
-  mmio_handler_ =
-      cpu::MMIOHandler::Install(virtual_membase_, physical_membase_);
+  mmio_handler_ = cpu::MMIOHandler::Install(virtual_membase_, physical_membase_,
+                                            physical_membase_ + 0x1FFFFFFF);
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
