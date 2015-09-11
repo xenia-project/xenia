@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include "xenia/base/exception_handler.h"
 #include "xenia/debug/debugger.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
@@ -75,6 +76,8 @@ class Emulator {
   X_STATUS LaunchStfsContainer(std::wstring path);
 
  private:
+  bool ExceptionCallback(ExceptionHandler::Info* info);
+
   X_STATUS CompleteLaunch(const std::wstring& path,
                           const std::string& module_path);
 
