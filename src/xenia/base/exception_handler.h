@@ -34,8 +34,8 @@ class ExceptionHandler {
   static bool Initialize();
 
   // Install an exception handler. Returns an ID which you can save to remove
-  // this later. This will install the exception handler in the last place
-  // on Windows.
+  // this later. This will install the exception handler in the last place.
+  // TODO: ID support!
   static uint32_t Install(Handler fn);
   static bool Remove(uint32_t id);
 

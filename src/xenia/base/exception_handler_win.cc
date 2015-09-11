@@ -54,6 +54,8 @@ bool ExceptionHandler::Initialize() {
 
 uint32_t ExceptionHandler::Install(std::function<bool(Info* ex_info)> fn) {
   handlers_.push_back(fn);
+
+  // TODO: ID support!
   return 0;
 }
 }
