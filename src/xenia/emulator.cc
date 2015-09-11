@@ -14,8 +14,11 @@
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/debugging.h"
+#include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
+#include "xenia/cpu/backend/code_cache.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
@@ -26,6 +29,8 @@
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/virtual_file_system.h"
+
+#include "el/elements/message_form.h"
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
@@ -159,6 +164,11 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
     Profiler::set_display(std::move(profiler_display));
   });
 
+  // Install an exception handler.
+  ExceptionHandler::Initialize();
+  ExceptionHandler::Install(
+      std::bind(&Emulator::ExceptionCallback, this, std::placeholders::_1));
+
   return result;
 }
 
@@ -260,6 +270,64 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
 
   // Launch the game.
   return CompleteLaunch(path, "game:\\default.xex");
+}
+
+bool Emulator::ExceptionCallback(ExceptionHandler::Info* info) {
+  // Check to see if the exception occurred in guest code.
+  auto code_cache = processor()->backend()->code_cache();
+  auto code_base = code_cache->base_address();
+  auto code_end = code_base + code_cache->total_size();
+
+  if (!debugger()->is_attached() && debugging::IsDebuggerAttached()) {
+    // If Xenia's debugger isn't attached but another one is, pass it to that
+    // debugger.
+    return false;
+  }
+
+  if (info->pc >= code_base && info->pc < code_end) {
+    using namespace xe::kernel;
+    auto global_lock = global_critical_region::AcquireDirect();
+
+    // Within range. Pause the emulator and eat the exception.
+    auto threads = kernel_state()->object_table()->GetObjectsByType<XThread>(
+        XObject::kTypeThread);
+    auto cur_thread = XThread::GetCurrentThread();
+    for (auto thread : threads) {
+      if (!thread->is_guest_thread()) {
+        // Don't pause host threads.
+        continue;
+      }
+
+      if (cur_thread == thread.get()) {
+        continue;
+      }
+
+      thread->Suspend(nullptr);
+    }
+
+    if (debugger()->is_attached()) {
+      // TODO: Send the exception to Xenia's debugger
+    }
+
+    // Display a dialog telling the user the guest has crashed.
+    display_window()->loop()->PostSynchronous([&]() {
+      auto msgbox = new el::elements::MessageForm(
+          display_window()->root_element(), "none");
+      msgbox->Show("Uh-oh!",
+                   "The guest has crashed.\n\n"
+                   "Xenia has now paused itself.");
+    });
+
+    // Now suspend ourself (we should be a guest thread).
+    cur_thread->Suspend(nullptr);
+
+    // We should not arrive here!
+    assert_always();
+    return false;
+  }
+
+  // Didn't occur in guest code. Let it pass.
+  return false;
 }
 
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
