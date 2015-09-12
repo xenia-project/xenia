@@ -108,7 +108,7 @@ filter("platforms:Windows")
 -- Create scratch/ path and dummy flags file if needed.
 if not os.isdir("scratch") then
   os.mkdir("scratch")
-  local flags_file = io.open("scratch1/flags.txt", "w")
+  local flags_file = io.open("scratch/flags.txt", "w")
   flags_file:write("# Put flags, one on each line.\n")
   flags_file:write("# Launch executables with --flags_file=scratch/flags.txt\n")
   flags_file:write("\n")
@@ -153,7 +153,7 @@ solution("xenia")
   include("third_party/libav.lua")
   include("third_party/xxhash.lua")
   include("build_tools/third_party/gflags.lua")
-  
+
   include("src/xenia")
   include("src/xenia/app")
   include("src/xenia/apu")
