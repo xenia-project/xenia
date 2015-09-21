@@ -76,7 +76,8 @@ class Emulator {
   X_STATUS LaunchStfsContainer(std::wstring path);
 
  private:
-  bool ExceptionCallback(ExceptionHandler::Info* info);
+  static bool ExceptionCallbackThunk(Exception* ex, void* data);
+  bool ExceptionCallback(Exception* ex);
 
   X_STATUS CompleteLaunch(const std::wstring& path,
                           const std::string& module_path);

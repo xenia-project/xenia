@@ -636,6 +636,10 @@ void XThread::SetActiveCpu(uint32_t cpu_index) {
   xe::store_and_swap<uint8_t>(pcr + 0x10C, cpu_index);
 }
 
+uint32_t XThread::suspend_count() {
+  return guest_object<X_KTHREAD>()->suspend_count;
+}
+
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
   --guest_object<X_KTHREAD>()->suspend_count;
 

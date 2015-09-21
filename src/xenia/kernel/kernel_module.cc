@@ -28,7 +28,8 @@ KernelModule::KernelModule(KernelState* kernel_state, const char* path)
 KernelModule::~KernelModule() {}
 
 uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
-  auto export_entry = export_resolver_->GetExportByOrdinal(name(), ordinal);
+  auto export_entry =
+      export_resolver_->GetExportByOrdinal(name().c_str(), ordinal);
   if (!export_entry) {
     // Export (or its parent library) not found.
     return 0;

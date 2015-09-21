@@ -10,6 +10,7 @@ project("xenia-app")
   links({
     "elemental-forms",
     "gflags",
+    "imgui",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -17,6 +18,7 @@ project("xenia-app")
     "xenia-cpu",
     "xenia-cpu-backend-x64",
     "xenia-debug",
+    "xenia-debug-ui",
     "xenia-gpu",
     "xenia-gpu-gl4",
     "xenia-hid-nop",

@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include "third_party/elemental-forms/src/el/elements.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
@@ -29,8 +30,6 @@
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/virtual_file_system.h"
-
-#include "el/elements/message_form.h"
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
@@ -64,6 +63,8 @@ Emulator::~Emulator() {
   debugger_.reset();
 
   export_resolver_.reset();
+
+  ExceptionHandler::Uninstall(Emulator::ExceptionCallbackThunk, this);
 }
 
 X_STATUS Emulator::Setup(ui::Window* display_window) {
@@ -157,17 +158,15 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
   kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
 
+  // Initialize emulator fallback exception handling last.
+  ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
+
   // Finish initializing the display.
   display_window_->loop()->PostSynchronous([this]() {
     xe::ui::GraphicsContextLock context_lock(display_window_->context());
     auto profiler_display = display_window_->context()->CreateProfilerDisplay();
     Profiler::set_display(std::move(profiler_display));
   });
-
-  // Install an exception handler.
-  ExceptionHandler::Initialize();
-  ExceptionHandler::Install(
-      std::bind(&Emulator::ExceptionCallback, this, std::placeholders::_1));
 
   return result;
 }
@@ -272,61 +271,65 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
   return CompleteLaunch(path, "game:\\default.xex");
 }
 
-bool Emulator::ExceptionCallback(ExceptionHandler::Info* info) {
+bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
+  return reinterpret_cast<Emulator*>(data)->ExceptionCallback(ex);
+}
+
+bool Emulator::ExceptionCallback(Exception* ex) {
   // Check to see if the exception occurred in guest code.
   auto code_cache = processor()->backend()->code_cache();
   auto code_base = code_cache->base_address();
   auto code_end = code_base + code_cache->total_size();
 
-  if (!debugger()->is_attached() && debugging::IsDebuggerAttached()) {
+  if (!debugger() ||
+      !debugger()->is_attached() && debugging::IsDebuggerAttached()) {
     // If Xenia's debugger isn't attached but another one is, pass it to that
     // debugger.
     return false;
+  } else if (debugger() && debugger()->is_attached()) {
+    // Let the debugger handle this exception. It may decide to continue past it
+    // (if it was a stepping breakpoint, etc).
+    return debugger()->OnUnhandledException(ex);
   }
 
-  if (info->pc >= code_base && info->pc < code_end) {
-    using namespace xe::kernel;
-    auto global_lock = global_critical_region::AcquireDirect();
-
-    // Within range. Pause the emulator and eat the exception.
-    auto threads = kernel_state()->object_table()->GetObjectsByType<XThread>(
-        XObject::kTypeThread);
-    auto cur_thread = XThread::GetCurrentThread();
-    for (auto thread : threads) {
-      if (!thread->is_guest_thread()) {
-        // Don't pause host threads.
-        continue;
-      }
-
-      if (cur_thread == thread.get()) {
-        continue;
-      }
-
-      thread->Suspend(nullptr);
-    }
-
-    if (debugger()->is_attached()) {
-      // TODO: Send the exception to Xenia's debugger
-    }
-
-    // Display a dialog telling the user the guest has crashed.
-    display_window()->loop()->PostSynchronous([&]() {
-      auto msgbox = new el::elements::MessageForm(
-          display_window()->root_element(), "none");
-      msgbox->Show("Uh-oh!",
-                   "The guest has crashed.\n\n"
-                   "Xenia has now paused itself.");
-    });
-
-    // Now suspend ourself (we should be a guest thread).
-    cur_thread->Suspend(nullptr);
-
-    // We should not arrive here!
-    assert_always();
+  if (!(ex->pc() >= code_base && ex->pc() < code_end)) {
+    // Didn't occur in guest code. Let it pass.
     return false;
   }
 
-  // Didn't occur in guest code. Let it pass.
+  auto global_lock = global_critical_region::AcquireDirect();
+
+  // Within range. Pause the emulator and eat the exception.
+  auto threads =
+      kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
+          kernel::XObject::kTypeThread);
+  auto current_thread = kernel::XThread::GetCurrentThread();
+  for (auto thread : threads) {
+    if (!thread->is_guest_thread()) {
+      // Don't pause host threads.
+      continue;
+    }
+    if (current_thread == thread.get()) {
+      continue;
+    }
+    thread->Suspend(nullptr);
+  }
+
+  // Display a dialog telling the user the guest has crashed.
+  display_window()->loop()->PostSynchronous([&]() {
+    auto message_form = new el::MessageForm(display_window()->root_element(),
+                                            TBIDC("crash_form"));
+    message_form->Show("Uh-oh!",
+                       "The guest has crashed.\n\n"
+                       "Xenia has now paused itself.");
+  });
+
+  // Now suspend ourself (we should be a guest thread).
+  assert_true(current_thread->is_guest_thread());
+  current_thread->Suspend(nullptr);
+
+  // We should not arrive here!
+  assert_always();
   return false;
 }
 

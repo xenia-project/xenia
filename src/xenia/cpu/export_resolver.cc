@@ -15,50 +15,84 @@
 namespace xe {
 namespace cpu {
 
+ExportResolver::Table::Table(const char* module_name,
+                             const std::vector<Export*>* exports_by_ordinal)
+    : exports_by_ordinal_(exports_by_ordinal) {
+  auto dot_pos = std::strrchr(module_name, '.');
+  if (dot_pos != nullptr) {
+    std::strncpy(module_name_, module_name,
+                 static_cast<size_t>(dot_pos - module_name));
+  } else {
+    std::strncpy(module_name_, module_name, xe::countof(module_name_) - 1);
+  }
+
+  exports_by_name_.reserve(exports_by_ordinal_->size());
+  for (size_t i = 0; i < exports_by_ordinal_->size(); ++i) {
+    auto export = exports_by_ordinal_->at(i);
+    if (export) {
+      exports_by_name_.push_back(export);
+    }
+  }
+  std::sort(
+      exports_by_name_.begin(), exports_by_name_.end(),
+      [](Export* a, Export* b) { return std::strcmp(a->name, b->name) <= 0; });
+}
+
 ExportResolver::ExportResolver() = default;
 
 ExportResolver::~ExportResolver() = default;
 
 void ExportResolver::RegisterTable(
-    const std::string& library_name,
-    const std::vector<xe::cpu::Export*>* exports) {
-  tables_.emplace_back(library_name, exports);
+    const char* module_name, const std::vector<xe::cpu::Export*>* exports) {
+  tables_.emplace_back(module_name, exports);
+
+  all_exports_by_name_.reserve(all_exports_by_name_.size() + exports->size());
+  for (size_t i = 0; i < exports->size(); ++i) {
+    auto export = exports->at(i);
+    if (export) {
+      all_exports_by_name_.push_back(export);
+    }
+  }
+  std::sort(
+      all_exports_by_name_.begin(), all_exports_by_name_.end(),
+      [](Export* a, Export* b) { return std::strcmp(a->name, b->name) <= 0; });
 }
 
-Export* ExportResolver::GetExportByOrdinal(const std::string& library_name,
+Export* ExportResolver::GetExportByOrdinal(const char* module_name,
                                            uint16_t ordinal) {
   for (const auto& table : tables_) {
-    if (table.name == library_name || table.simple_name == library_name) {
-      if (ordinal > table.exports->size()) {
+    if (std::strncmp(module_name, table.module_name(),
+                     std::strlen(table.module_name())) == 0) {
+      if (ordinal > table.exports_by_ordinal().size()) {
         return nullptr;
       }
-      return table.exports->at(ordinal);
+      return table.exports_by_ordinal().at(ordinal);
     }
   }
   return nullptr;
 }
 
-void ExportResolver::SetVariableMapping(const std::string& library_name,
+void ExportResolver::SetVariableMapping(const char* module_name,
                                         uint16_t ordinal, uint32_t value) {
-  auto export_entry = GetExportByOrdinal(library_name, ordinal);
+  auto export_entry = GetExportByOrdinal(module_name, ordinal);
   assert_not_null(export_entry);
   export_entry->tags |= ExportTag::kImplemented;
   export_entry->variable_ptr = value;
 }
 
-void ExportResolver::SetFunctionMapping(const std::string& library_name,
+void ExportResolver::SetFunctionMapping(const char* module_name,
                                         uint16_t ordinal,
                                         xe_kernel_export_shim_fn shim) {
-  auto export_entry = GetExportByOrdinal(library_name, ordinal);
+  auto export_entry = GetExportByOrdinal(module_name, ordinal);
   assert_not_null(export_entry);
   export_entry->tags |= ExportTag::kImplemented;
   export_entry->function_data.shim = shim;
 }
 
-void ExportResolver::SetFunctionMapping(const std::string& library_name,
+void ExportResolver::SetFunctionMapping(const char* module_name,
                                         uint16_t ordinal,
                                         ExportTrampoline trampoline) {
-  auto export_entry = GetExportByOrdinal(library_name, ordinal);
+  auto export_entry = GetExportByOrdinal(module_name, ordinal);
   assert_not_null(export_entry);
   export_entry->tags |= ExportTag::kImplemented;
   export_entry->function_data.trampoline = trampoline;

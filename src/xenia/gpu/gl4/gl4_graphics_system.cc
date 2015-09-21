@@ -292,6 +292,9 @@ void GL4GraphicsSystem::MarkVblank() {
 }
 
 void GL4GraphicsSystem::Swap(xe::ui::UIEvent* e) {
+  if (!command_processor_) {
+    return;
+  }
   // Check for pending swap.
   auto& swap_state = command_processor_->swap_state();
   {

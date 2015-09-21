@@ -9,6 +9,7 @@
 
 #include "xenia/app/emulator_window.h"
 
+#include "third_party/elemental-forms/src/el/elements.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
@@ -105,6 +106,10 @@ bool EmulatorWindow::Initialize() {
         }
       } break;
 
+      case 0x13: {  // VK_PAUSE
+        CpuBreakIntoDebugger();
+      } break;
+
       case 0x70: {  // VK_F1
         ShowHelpWebsite();
       } break;
@@ -146,6 +151,12 @@ bool EmulatorWindow::Initialize() {
     cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
                                         L"&Pause/Resume Profiler", L"`",
                                         []() { Profiler::TogglePause(); }));
+  }
+  cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+  {
+    cpu_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, L"&Break and Show Debugger", L"Pause/Break",
+        std::bind(&EmulatorWindow::CpuBreakIntoDebugger, this)));
   }
   main_menu->AddChild(std::move(cpu_menu));
 
@@ -205,6 +216,25 @@ void EmulatorWindow::CpuTimeScalarSetHalf() {
 void EmulatorWindow::CpuTimeScalarSetDouble() {
   Clock::set_guest_time_scalar(Clock::guest_time_scalar() * 2.0);
   UpdateTitle();
+}
+
+void EmulatorWindow::CpuBreakIntoDebugger() {
+  auto debugger = emulator()->debugger();
+  if (!debugger) {
+    auto message_form = new el::MessageForm(window_->root_element(),
+                                            TBIDC("debug_error_window"));
+    message_form->Show("Xenia Debugger",
+                       "Xenia must be launched with the --debug flag in order "
+                       "to enable debugging.");
+    return;
+  }
+  if (debugger->execution_state() == debug::ExecutionState::kRunning) {
+    // Currently running, so interrupt (and show the debugger).
+    debugger->Pause();
+  } else {
+    // Not running, so just bring the debugger into focus.
+    debugger->Show();
+  }
 }
 
 void EmulatorWindow::GpuTraceFrame() {

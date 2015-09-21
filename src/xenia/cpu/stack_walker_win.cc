@@ -152,6 +152,7 @@ class Win32StackWalker : public StackWalker {
 
   size_t CaptureStackTrace(void* thread_handle, uint64_t* frame_host_pcs,
                            size_t frame_offset, size_t frame_count,
+                           const X64Context* in_host_context,
                            X64Context* out_host_context,
                            uint64_t* out_stack_hash) override {
     // TODO(benvanik): use xstate?
@@ -160,19 +161,33 @@ class Win32StackWalker : public StackWalker {
     // Need at least CONTEXT_CONTROL (for rip and rsp) and CONTEXT_INTEGER (for
     // rbp).
     CONTEXT thread_context;
-    thread_context.ContextFlags = CONTEXT_FULL;
-    if (!GetThreadContext(thread_handle, &thread_context)) {
-      XELOGE("Unable to read thread context for stack walk");
-      return 0;
+    if (!in_host_context) {
+      // If not given a context we need to ask for it.
+      // This gets the state of the thread exactly where it was when suspended.
+      thread_context.ContextFlags = CONTEXT_FULL;
+      if (!GetThreadContext(thread_handle, &thread_context)) {
+        XELOGE("Unable to read thread context for stack walk");
+        return 0;
+      }
+    } else {
+      // Copy thread context local. We will be modifying it during stack
+      // walking, so we don't want to mess with the incoming copy.
+      thread_context.Rip = in_host_context->rip;
+      thread_context.EFlags = in_host_context->eflags;
+      std::memcpy(&thread_context.Rax, in_host_context->int_registers,
+                  sizeof(in_host_context->int_registers));
+      std::memcpy(&thread_context.Xmm0, in_host_context->xmm_registers,
+                  sizeof(in_host_context->xmm_registers));
     }
 
     if (out_host_context) {
+      // Write out the captured thread context if the caller asked for it.
       out_host_context->rip = thread_context.Rip;
       out_host_context->eflags = thread_context.EFlags;
-      std::memcpy(&out_host_context->int_registers.values, &thread_context.Rax,
-                  sizeof(out_host_context->int_registers.values));
-      std::memcpy(&out_host_context->xmm_registers.values, &thread_context.Xmm0,
-                  sizeof(out_host_context->xmm_registers.values));
+      std::memcpy(out_host_context->int_registers, &thread_context.Rax,
+                  sizeof(out_host_context->int_registers));
+      std::memcpy(out_host_context->xmm_registers, &thread_context.Xmm0,
+                  sizeof(out_host_context->xmm_registers));
     }
 
     // Setup the frame for walking.

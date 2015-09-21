@@ -161,6 +161,7 @@ class XThread : public XObject {
   uint32_t active_cpu() const;
   void SetActiveCpu(uint32_t cpu_index);
 
+  uint32_t suspend_count();
   X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
   X_STATUS Suspend(uint32_t* out_suspend_count);
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable,

@@ -17,6 +17,11 @@
 #include "xenia/base/mutex.h"
 
 namespace xe {
+class Exception;
+class X64Context;
+}  // namespace xe
+
+namespace xe {
 namespace cpu {
 
 typedef uint32_t (*MMIOReadCallback)(void* ppc_context, void* callback_context,
@@ -59,9 +64,6 @@ class MMIOHandler {
                                   void* callback_context, void* callback_data);
   void CancelWriteWatch(uintptr_t watch_handle);
 
- public:
-  bool HandleAccessFault(void* thread_state, uint64_t fault_address);
-
  protected:
   struct WriteWatchEntry {
     uint32_t address;
@@ -71,19 +73,17 @@ class MMIOHandler {
     void* callback_data;
   };
 
-  MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase)
+  MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase,
+              uint8_t* membase_end)
       : virtual_membase_(virtual_membase),
-        physical_membase_(physical_membase) {}
+        physical_membase_(physical_membase),
+        memory_end_(membase_end) {}
 
-  virtual bool Initialize() = 0;
+  static bool ExceptionCallbackThunk(Exception* ex, void* data);
+  bool ExceptionCallback(Exception* ex);
 
   void ClearWriteWatch(WriteWatchEntry* entry);
-  bool CheckWriteWatch(void* thread_state, uint64_t fault_address);
-
-  virtual uint64_t GetThreadStateRip(void* thread_state_ptr) = 0;
-  virtual void SetThreadStateRip(void* thread_state_ptr, uint64_t rip) = 0;
-  virtual uint64_t* GetThreadStateRegPtr(void* thread_state_ptr,
-                                         int32_t be_reg_index) = 0;
+  bool CheckWriteWatch(X64Context* thread_context, uint64_t fault_address);
 
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;

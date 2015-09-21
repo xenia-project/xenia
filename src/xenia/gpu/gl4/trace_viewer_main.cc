@@ -515,8 +515,6 @@ bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
   return result;
 }
 bool DisasmPacket(const uint8_t* base_ptr, PacketInfo* out_info) {
-  std::memset(out_info, 0, sizeof(PacketInfo));
-
   const uint32_t packet = xe::load_and_swap<uint32_t>(base_ptr);
   const uint32_t packet_type = packet >> 30;
   switch (packet_type) {
@@ -977,7 +975,7 @@ void DrawCommandListUI(xe::ui::Window* window, TracePlayer& player,
     if (ImGui::Selectable(label, &is_selected)) {
       player.SeekCommand(i);
     }
-    ImGui::SameLine(column_width - 60);
+    ImGui::SameLine(column_width - 60.0f);
     ImGui::Text("%d", i);
     ImGui::PopID();
     if (did_seek && target_command == i) {
@@ -2098,7 +2096,7 @@ void DrawPacketDisassemblerUI(xe::ui::Window* window, TracePlayer& player,
         auto cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         if (pending_packet) {
-          PacketInfo packet_info;
+          PacketInfo packet_info = {0};
           if (DisasmPacket(reinterpret_cast<const uint8_t*>(pending_packet) +
                                sizeof(PacketStartCommand),
                            &packet_info)) {
@@ -2107,7 +2105,7 @@ void DrawPacketDisassemblerUI(xe::ui::Window* window, TracePlayer& player,
             }
             ImGui::BulletText(packet_info.type_info->name);
             ImGui::TreePush((const char*)0);
-            for (auto& action : packet_info.actions) {
+            for (auto action : packet_info.actions) {
               switch (action.type) {
                 case PacketAction::Type::kRegisterWrite: {
                   auto register_info = xe::gpu::RegisterFile::GetRegisterInfo(
@@ -2343,7 +2341,7 @@ static int texture_location, proj_mtx_location;
 static int position_location, uv_location, colour_location;
 static size_t vbo_max_size = 20000;
 static unsigned int vbo_handle, vao_handle;
-void ImImpl_RenderDrawLists(ImDrawList** const cmd_lists, int cmd_lists_count);
+void ImImpl_RenderDrawLists(ImDrawData* data);
 void ImImpl_Setup() {
   ImGuiIO& io = ImGui::GetIO();
 
@@ -2483,7 +2481,7 @@ void ImImpl_Setup() {
   io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
   io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
   io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
-  io.KeyMap[ImGuiKey_DownArrow] = VK_UP;
+  io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
   io.KeyMap[ImGuiKey_Home] = VK_HOME;
   io.KeyMap[ImGuiKey_End] = VK_END;
   io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
@@ -2510,8 +2508,8 @@ void ImImpl_Shutdown() {
   glDeleteTextures(1, &tex_id);
   ImGui::Shutdown();
 }
-void ImImpl_RenderDrawLists(ImDrawList** const cmd_lists, int cmd_lists_count) {
-  if (cmd_lists_count == 0) return;
+void ImImpl_RenderDrawLists(ImDrawData* data) {
+  if (data->CmdListsCount == 0) return;
 
   // Setup render state: alpha-blending enabled, no face culling, no depth
   // testing, scissor enabled
@@ -2537,51 +2535,51 @@ void ImImpl_RenderDrawLists(ImDrawList** const cmd_lists, int cmd_lists_count) {
                             &ortho_projection[0][0]);
 
   // Grow our buffer according to what we need
-  size_t total_vtx_count = 0;
-  for (int n = 0; n < cmd_lists_count; n++)
-    total_vtx_count += cmd_lists[n]->vtx_buffer.size();
   glBindBuffer(GL_ARRAY_BUFFER, vbo_handle);
-  size_t neededBufferSize = total_vtx_count * sizeof(ImDrawVert);
+  size_t neededBufferSize = data->TotalVtxCount * sizeof(ImDrawVert);
   if (neededBufferSize > vbo_max_size) {
     vbo_max_size = neededBufferSize + 5000;  // Grow buffer
     glBufferData(GL_ARRAY_BUFFER, vbo_max_size, NULL, GL_STREAM_DRAW);
   }
 
-  // Copy and convert all vertices into a single contiguous buffer
-  unsigned char* buffer_data =
-      (unsigned char*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-  if (!buffer_data) return;
-  for (int n = 0; n < cmd_lists_count; n++) {
-    const ImDrawList* cmd_list = cmd_lists[n];
-    memcpy(buffer_data, &cmd_list->vtx_buffer[0],
-           cmd_list->vtx_buffer.size() * sizeof(ImDrawVert));
-    buffer_data += cmd_list->vtx_buffer.size() * sizeof(ImDrawVert);
-  }
-  glUnmapBuffer(GL_ARRAY_BUFFER);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(vao_handle);
   glUseProgram(shader_handle);
 
-  int cmd_offset = 0;
+  GLuint ib;
+  glGenBuffers(1, &ib);
+
   ImTextureID prev_texture_id = 0;
-  for (int n = 0; n < cmd_lists_count; n++) {
-    const ImDrawList* cmd_list = cmd_lists[n];
-    int vtx_offset = cmd_offset;
-    const ImDrawCmd* pcmd_end = cmd_list->commands.end();
-    for (const ImDrawCmd* pcmd = cmd_list->commands.begin(); pcmd != pcmd_end;
-         pcmd++) {
-      if (pcmd->texture_id != prev_texture_id) {
-        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->texture_id);
-        prev_texture_id = pcmd->texture_id;
+  for (int n = 0; n < data->CmdListsCount; n++) {
+    const ImDrawList* cmd_list = data->CmdLists[n];
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 (GLsizeiptr)cmd_list->IdxBuffer.size() * sizeof(ImDrawIdx),
+                 (GLvoid*)&cmd_list->IdxBuffer.front(), GL_STREAM_DRAW);
+    // Copy and convert all vertices into a single contiguous buffer
+    unsigned char* buffer_data =
+        (unsigned char*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+    memcpy(buffer_data, &cmd_list->VtxBuffer[0],
+           cmd_list->VtxBuffer.size() * sizeof(ImDrawVert));
+    glUnmapBuffer(GL_ARRAY_BUFFER);
+    const ImDrawIdx* idx_buffer_offset = 0;
+    for (auto cmd = cmd_list->CmdBuffer.begin();
+         cmd != cmd_list->CmdBuffer.end(); ++cmd) {
+      if (cmd->TextureId != prev_texture_id) {
+        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)cmd->TextureId);
+        prev_texture_id = cmd->TextureId;
       }
-      glScissor((int)pcmd->clip_rect.x, (int)(height - pcmd->clip_rect.w),
-                (int)(pcmd->clip_rect.z - pcmd->clip_rect.x),
-                (int)(pcmd->clip_rect.w - pcmd->clip_rect.y));
-      glDrawArrays(GL_TRIANGLES, vtx_offset, pcmd->vtx_count);
-      vtx_offset += pcmd->vtx_count;
+      glScissor((int)cmd->ClipRect.x, (int)(height - cmd->ClipRect.w),
+                (int)(cmd->ClipRect.z - cmd->ClipRect.x),
+                (int)(cmd->ClipRect.w - cmd->ClipRect.y));
+      glDrawElements(GL_TRIANGLES, (GLsizei)cmd->ElemCount, GL_UNSIGNED_SHORT,
+                     idx_buffer_offset);
+      idx_buffer_offset += cmd->ElemCount;
     }
-    cmd_offset = vtx_offset;
   }
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  glDeleteBuffers(1, &ib);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   // Restore modified state
   glBindVertexArray(0);

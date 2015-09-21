@@ -493,6 +493,7 @@ void Window::OnKeyUp(KeyEvent* e) {
 
 void Window::OnKeyChar(KeyEvent* e) {
   OnKeyPress(e, true, true);
+  on_key_char(e);
   OnKeyPress(e, false, true);
 }
 

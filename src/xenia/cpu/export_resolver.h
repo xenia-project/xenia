@@ -99,37 +99,46 @@ class Export {
 
 class ExportResolver {
  public:
+  class Table {
+   public:
+    Table(const char* module_name, const std::vector<Export*>* exports);
+
+    const char* module_name() const { return module_name_; }
+    const std::vector<Export*>& exports_by_ordinal() const {
+      return *exports_by_ordinal_;
+    }
+    const std::vector<Export*>& exports_by_name() const {
+      return exports_by_name_;
+    }
+
+   private:
+    char module_name_[32] = {0};
+    const std::vector<Export*>* exports_by_ordinal_ = nullptr;
+    std::vector<Export*> exports_by_name_;
+  };
+
   ExportResolver();
   ~ExportResolver();
 
-  void RegisterTable(const std::string& library_name,
+  void RegisterTable(const char* module_name,
                      const std::vector<Export*>* exports);
+  const std::vector<Table>& tables() const { return tables_; }
+  const std::vector<Export*>& all_exports_by_name() const {
+    return all_exports_by_name_;
+  }
 
-  Export* GetExportByOrdinal(const std::string& library_name, uint16_t ordinal);
+  Export* GetExportByOrdinal(const char* module_name, uint16_t ordinal);
 
-  void SetVariableMapping(const std::string& library_name, uint16_t ordinal,
+  void SetVariableMapping(const char* module_name, uint16_t ordinal,
                           uint32_t value);
-  void SetFunctionMapping(const std::string& library_name, uint16_t ordinal,
+  void SetFunctionMapping(const char* module_name, uint16_t ordinal,
                           xe_kernel_export_shim_fn shim);
-  void SetFunctionMapping(const std::string& library_name, uint16_t ordinal,
+  void SetFunctionMapping(const char* module_name, uint16_t ordinal,
                           ExportTrampoline trampoline);
 
  private:
-  struct ExportTable {
-    std::string name;
-    std::string simple_name;  // without extension
-    const std::vector<Export*>* exports;
-    ExportTable(const std::string& name, const std::vector<Export*>* exports)
-        : name(name), exports(exports) {
-      auto dot_pos = name.find_last_of('.');
-      if (dot_pos != std::string::npos) {
-        simple_name = name.substr(0, dot_pos);
-      } else {
-        simple_name = name;
-      }
-    }
-  };
-  std::vector<ExportTable> tables_;
+  std::vector<Table> tables_;
+  std::vector<Export*> all_exports_by_name_;
 };
 
 }  // namespace cpu

@@ -246,7 +246,7 @@ enum class PPCRegister {
 };
 
 #pragma pack(push, 8)
-typedef struct alignas(64) PPCContext_s {
+typedef struct PPCContext_s {
   // Must be stored at 0x0 for now.
   // TODO(benvanik): find a nice way to describe this to the JIT.
   ThreadState* thread_state;

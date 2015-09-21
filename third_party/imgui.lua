@@ -15,7 +15,13 @@ project("imgui")
     "imgui/imconfig.h",
     "imgui/imgui.cpp",
     "imgui/imgui.h",
+    "imgui/imgui_draw.cpp",
+    "imgui/imgui_demo.cpp",
+    "imgui/imgui_internal.h",
     "imgui/stb_rect_pack.h",
     "imgui/stb_textedit.h",
     "imgui/stb_truetype.h",
+  })
+  buildoptions({
+    "/wd4312",  -- Ugh.
   })

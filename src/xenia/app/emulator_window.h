@@ -43,6 +43,7 @@ class EmulatorWindow {
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();
   void CpuTimeScalarSetDouble();
+  void CpuBreakIntoDebugger();
   void GpuTraceFrame();
   void GpuClearCaches();
   void ToggleFullscreen();

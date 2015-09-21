@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/platform.h"
@@ -55,6 +56,27 @@ std::string find_base_path(const std::string& path,
                            char sep = xe::kPathSeparator);
 std::wstring find_base_path(const std::wstring& path,
                             wchar_t sep = xe::kPathSeparator);
+
+// Tests a match against a case-insensitive fuzzy filter.
+// Returns the score of the match or 0 if none.
+int fuzzy_match(const std::string& pattern, const char* value);
+
+// Applies a case-insensitive fuzzy filter to the given entries and ranks
+// results.
+// Entries is a list of pointers to opaque structs, each of which contains a
+// char* string at the given offset.
+// Returns an unsorted list of {original index, score}.
+std::vector<std::pair<size_t, int>> fuzzy_filter(const std::string& pattern,
+                                                 const void* const* entries,
+                                                 size_t entry_count,
+                                                 size_t string_offset);
+template <typename T>
+std::vector<std::pair<size_t, int>> fuzzy_filter(const std::string& pattern,
+                                                 const std::vector<T>& entries,
+                                                 size_t string_offset) {
+  return fuzzy_filter(pattern, reinterpret_cast<void* const*>(entries.data()),
+                      entries.size(), string_offset);
+}
 
 }  // namespace xe
 

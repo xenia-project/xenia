@@ -179,6 +179,12 @@ inline uint64_t rotate_left(uint64_t v, uint8_t sh) {
 }
 #endif  // XE_PLATFORM_WIN32
 
+template <typename T>
+T clamp(T value, T min_value, T max_value) {
+  const T t = value < min_value ? min_value : value;
+  return t > max_value ? max_value : t;
+}
+
 // Utilities for SSE values.
 template <int N>
 float m128_f32(const __m128& v) {

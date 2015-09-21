@@ -87,6 +87,10 @@ void Win32Loop::ThreadMain() {
   on_quit(&e);
 }
 
+bool Win32Loop::is_on_loop_thread() {
+  return thread_id_ == GetCurrentThreadId();
+}
+
 void Win32Loop::Post(std::function<void()> fn) {
   assert_true(thread_id_ != 0);
   if (!PostThreadMessage(

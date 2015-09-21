@@ -38,6 +38,8 @@ DEFINE_bool(enable_debugprint_log, false,
             "Log debugprint traps to the active debugger");
 DEFINE_bool(ignore_undefined_externs, true,
             "Don't exit when an undefined extern is called.");
+DEFINE_bool(emit_source_annotations, false,
+            "Add extra movs and nops to make disassembly easier to read.");
 
 namespace xe {
 namespace cpu {
@@ -239,7 +241,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   add(rsp, (uint32_t)stack_size);
   ret();
 
-  if (FLAGS_debug) {
+  if (FLAGS_emit_source_annotations) {
     nop();
     nop();
     nop();
@@ -254,9 +256,9 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   auto entry = source_map_arena_.Alloc<SourceMapEntry>();
   entry->source_offset = static_cast<uint32_t>(i->src1.offset);
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
-  entry->code_offset = static_cast<uint32_t>(getSize() + 1);
+  entry->code_offset = static_cast<uint32_t>(getSize());
 
-  if (FLAGS_debug) {
+  if (FLAGS_emit_source_annotations) {
     nop();
     nop();
     mov(eax, entry->source_offset);

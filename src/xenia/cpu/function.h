@@ -17,7 +17,6 @@
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/debug/breakpoint.h"
 #include "xenia/debug/function_trace_data.h"
 
 namespace xe {
@@ -110,6 +109,9 @@ class GuestFunction : public Function {
   const SourceMapEntry* LookupSourceOffset(uint32_t offset) const;
   const SourceMapEntry* LookupHIROffset(uint32_t offset) const;
   const SourceMapEntry* LookupCodeOffset(uint32_t offset) const;
+
+  uintptr_t MapSourceToCode(uint32_t source_address) const;
+  uint32_t MapCodeToSource(uintptr_t host_address) const;
 
   bool Call(ThreadState* thread_state, uint32_t return_address) override;
 

@@ -7,14 +7,13 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_X64_CONTEXT_H_
-#define XENIA_CPU_X64_CONTEXT_H_
+#ifndef XENIA_BASE_X64_CONTEXT_H_
+#define XENIA_BASE_X64_CONTEXT_H_
 
 #include <cstdint>
 #include <string>
 
 namespace xe {
-namespace cpu {
 
 enum class X64Register {
   // NOTE: this order matches 1:1 with the order in the X64Context.
@@ -55,8 +54,8 @@ enum class X64Register {
   kXmm15,
 };
 
-struct X64Context {
-  // TODO(benvanik): x64 registers.
+class X64Context {
+ public:
   uint64_t rip;
   uint32_t eflags;
   union {
@@ -78,8 +77,9 @@ struct X64Context {
       uint64_t r14;
       uint64_t r15;
     };
-    uint64_t values[16];
-  } int_registers;
+    uint64_t int_registers[16];
+  };
+
   union {
     struct {
       __m128 xmm0;
@@ -99,15 +99,14 @@ struct X64Context {
       __m128 xmm14;
       __m128 xmm15;
     };
-    __m128 values[16];
-  } xmm_registers;
+    __m128 xmm_registers[16];
+  };
 
   static const char* GetRegisterName(X64Register reg);
-  std::string GetStringFromValue(X64Register reg) const;
-  void SetValueFromString(X64Register reg, std::string value);
+  std::string GetStringFromValue(X64Register reg, bool hex) const;
+  void SetValueFromString(X64Register reg, std::string value, bool hex);
 };
 
-}  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_X64_CONTEXT_H_
+#endif  // XENIA_BASE_X64_CONTEXT_H_

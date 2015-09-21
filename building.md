@@ -28,6 +28,10 @@ the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`)
 By default logs are written to a file with the name of the executable. You can
 override this with `--log_file=log.txt`.
 
+If running under Visual Studio and you want to look at the JIT'ed code
+(available around 0xA0000000) you should pass `--emit_source_annotations` to
+get helpful spacers/movs in the disassembly.
+
 ### Linux
 
 Linux support is extremely experimental and incomplete.

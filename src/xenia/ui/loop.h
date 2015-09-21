@@ -31,6 +31,9 @@ class Loop {
   Loop();
   virtual ~Loop();
 
+  // Returns true if the currently executing code is within the loop thread.
+  virtual bool is_on_loop_thread() = 0;
+
   virtual void Post(std::function<void()> fn) = 0;
   virtual void PostDelayed(std::function<void()> fn, uint64_t delay_millis) = 0;
   void PostSynchronous(std::function<void()> fn);

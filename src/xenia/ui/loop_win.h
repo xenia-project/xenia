@@ -26,6 +26,8 @@ class Win32Loop : public Loop {
   Win32Loop();
   ~Win32Loop() override;
 
+  bool is_on_loop_thread() override;
+
   void Post(std::function<void()> fn) override;
   void PostDelayed(std::function<void()> fn, uint64_t delay_millis) override;
 

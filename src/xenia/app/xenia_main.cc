@@ -12,6 +12,7 @@
 #include "xenia/app/emulator_window.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
+#include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/file_picker.h"
@@ -37,6 +38,27 @@ int xenia_main(const std::vector<std::wstring>& args) {
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return 1;
+  }
+
+  // Set a debug handler.
+  // This will respond to debugging requests so we can open the debug UI.
+  std::unique_ptr<xe::debug::ui::DebugWindow> debug_window;
+  if (emulator->debugger()) {
+    emulator->debugger()->set_debug_listener_request_handler([&](
+        xe::debug::Debugger* debugger) {
+      if (debug_window) {
+        return debug_window.get();
+      }
+      emulator_window->loop()->PostSynchronous([&]() {
+        debug_window = xe::debug::ui::DebugWindow::Create(
+            emulator.get(), emulator_window->loop());
+        debug_window->window()->on_closed.AddListener([&](xe::ui::UIEvent* e) {
+          emulator->debugger()->set_debug_listener(nullptr);
+          emulator_window->loop()->Post([&]() { debug_window.reset(); });
+        });
+      });
+      return debug_window.get();
+    });
   }
 
   // Grab path from the flag or unnamed argument.
@@ -91,6 +113,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     emulator->display_window()->loop()->AwaitQuit();
   }
 
+  debug_window.reset();
   emulator.reset();
   emulator_window.reset();
 

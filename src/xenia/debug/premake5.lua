@@ -16,4 +16,3 @@ project("xenia-debug")
     project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
-  recursive_platform_files("proto")

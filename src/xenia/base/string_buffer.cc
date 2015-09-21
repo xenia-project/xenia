@@ -19,6 +19,7 @@ namespace xe {
 StringBuffer::StringBuffer(size_t initial_capacity) {
   buffer_capacity_ = std::max(initial_capacity, static_cast<size_t>(16 * 1024));
   buffer_ = reinterpret_cast<char*>(malloc(buffer_capacity_));
+  buffer_[0] = 0;
 }
 
 StringBuffer::~StringBuffer() {

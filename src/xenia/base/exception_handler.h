@@ -13,37 +13,61 @@
 #include <functional>
 #include <vector>
 
+#include "xenia/base/x64_context.h"
+
 namespace xe {
-class ExceptionHandler {
+
+class Exception {
  public:
-  struct Info {
-    enum {
-      kInvalidException = 0,
-      kAccessViolation,
-    } code = kInvalidException;
-
-    uint64_t pc = 0;  // Program counter address. RIP on x64.
-    uint64_t fault_address =
-        0;  // In case of AV, address that was read from/written to.
-
-    void* thread_context = nullptr;  // Platform-specific thread context info.
+  enum class Code {
+    kInvalidException = 0,
+    kAccessViolation,
+    kIllegalInstruction,
   };
-  typedef std::function<bool(Info* ex_info)> Handler;
 
-  // Static initialization. Only call this once!
-  static bool Initialize();
+  void InitializeAccessViolation(X64Context* thread_context,
+                                 uint64_t fault_address) {
+    code_ = Code::kAccessViolation;
+    thread_context_ = thread_context;
+    fault_address_ = fault_address;
+  }
+  void InitializeIllegalInstruction(X64Context* thread_context) {
+    code_ = Code::kIllegalInstruction;
+    thread_context_ = thread_context;
+  }
 
-  // Install an exception handler. Returns an ID which you can save to remove
-  // this later. This will install the exception handler in the last place.
-  // TODO: ID support!
-  static uint32_t Install(Handler fn);
-  static bool Remove(uint32_t id);
+  Code code() const { return code_; }
 
-  static const std::vector<Handler>& handlers() { return handlers_; }
+  // Returns the platform-specific thread context info.
+  X64Context* thread_context() const { return thread_context_; }
+
+  // Returns the program counter where the exception occurred.
+  // RIP on x64.
+  uint64_t pc() const { return thread_context_->rip; }
+  // Sets the program counter where execution will resume.
+  void set_resume_pc(uint64_t pc) { thread_context_->rip = pc; }
+
+  // In case of AV, address that was read from/written to.
+  uint64_t fault_address() const { return fault_address_; }
 
  private:
-  static std::vector<Handler> handlers_;
+  Code code_ = Code::kInvalidException;
+  X64Context* thread_context_ = nullptr;
+  uint64_t fault_address_ = 0;
 };
-};  // namespace xe
+
+class ExceptionHandler {
+ public:
+  typedef bool (*Handler)(Exception* ex, void* data);
+
+  // Installs an exception handler.
+  // Handlers are called in the order they are installed.
+  static void Install(Handler fn, void* data);
+
+  // Uninstalls a previously-installed exception handler.
+  static void Uninstall(Handler fn, void* data);
+};
+
+}  // namespace xe
 
 #endif  // XENIA_BASE_EXCEPTION_HANDLER_H_

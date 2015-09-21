@@ -39,6 +39,11 @@ Loop::~Loop() {
 }
 
 void Loop::PostSynchronous(std::function<void()> fn) {
+  if (is_on_loop_thread()) {
+    // Prevent deadlock if we are executing on ourselves.
+    fn();
+    return;
+  }
   xe::threading::Fence fence;
   Post([&fn, &fence]() {
     fn();

@@ -33,6 +33,15 @@ inline std::string to_hex_string(uint64_t value) {
   return std::string(buffer);
 }
 
+inline std::string to_hex_string(float value) {
+  union {
+    uint32_t ui;
+    float flt;
+  } v;
+  v.flt = value;
+  return to_hex_string(v.ui);
+}
+
 inline std::string to_hex_string(double value) {
   union {
     uint64_t ui;
@@ -57,12 +66,46 @@ inline std::string to_hex_string(const __m128& value) {
   return std::string(buffer);
 }
 
+inline std::string to_string(const __m128& value) {
+  char buffer[128];
+  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", value.m128_f32[0],
+                value.m128_f32[1], value.m128_f32[2], value.m128_f32[3]);
+  return std::string(buffer);
+}
+
 template <typename T>
-inline T from_string(const char* value);
+inline T from_string(const char* value, bool force_hex = false);
 
 template <>
-inline uint64_t from_string<uint64_t>(const char* value) {
-  if (std::strchr(value, 'h') != nullptr) {
+inline int32_t from_string<int32_t>(const char* value, bool force_hex) {
+  if (force_hex || std::strchr(value, 'h') != nullptr) {
+    return std::strtol(value, nullptr, 16);
+  } else {
+    return std::strtol(value, nullptr, 0);
+  }
+}
+
+template <>
+inline uint32_t from_string<uint32_t>(const char* value, bool force_hex) {
+  if (force_hex || std::strchr(value, 'h') != nullptr) {
+    return std::strtoul(value, nullptr, 16);
+  } else {
+    return std::strtoul(value, nullptr, 0);
+  }
+}
+
+template <>
+inline int64_t from_string<int64_t>(const char* value, bool force_hex) {
+  if (force_hex || std::strchr(value, 'h') != nullptr) {
+    return std::strtoll(value, nullptr, 16);
+  } else {
+    return std::strtoll(value, nullptr, 0);
+  }
+}
+
+template <>
+inline uint64_t from_string<uint64_t>(const char* value, bool force_hex) {
+  if (force_hex || std::strchr(value, 'h') != nullptr) {
     return std::strtoull(value, nullptr, 16);
   } else {
     return std::strtoull(value, nullptr, 0);
@@ -70,23 +113,38 @@ inline uint64_t from_string<uint64_t>(const char* value) {
 }
 
 template <>
-inline double from_string<double>(const char* value) {
-  if (std::strstr(value, "0x") == value || std::strchr(value, 'h') != nullptr) {
+inline float from_string<float>(const char* value, bool force_hex) {
+  if (force_hex || std::strstr(value, "0x") == value ||
+      std::strchr(value, 'h') != nullptr) {
+    union {
+      uint32_t ui;
+      float flt;
+    } v;
+    v.ui = from_string<uint32_t>(value, force_hex);
+    return v.flt;
+  }
+  return std::strtof(value, nullptr);
+}
+
+template <>
+inline double from_string<double>(const char* value, bool force_hex) {
+  if (force_hex || std::strstr(value, "0x") == value ||
+      std::strchr(value, 'h') != nullptr) {
     union {
       uint64_t ui;
       double dbl;
     } v;
-    v.ui = from_string<uint64_t>(value);
+    v.ui = from_string<uint64_t>(value, force_hex);
     return v.dbl;
   }
   return std::strtod(value, nullptr);
 }
 
 template <>
-inline vec128_t from_string<vec128_t>(const char* value) {
+inline vec128_t from_string<vec128_t>(const char* value, bool force_hex) {
   vec128_t v;
   char* p = const_cast<char*>(value);
-  bool hex_mode = false;
+  bool hex_mode = force_hex;
   if (*p == '[') {
     hex_mode = true;
     ++p;
@@ -119,10 +177,10 @@ inline vec128_t from_string<vec128_t>(const char* value) {
 }
 
 template <>
-inline __m128 from_string<__m128>(const char* value) {
+inline __m128 from_string<__m128>(const char* value, bool force_hex) {
   __m128 v;
   char* p = const_cast<char*>(value);
-  bool hex_mode = false;
+  bool hex_mode = force_hex;
   if (*p == '[') {
     hex_mode = true;
     ++p;
@@ -155,8 +213,8 @@ inline __m128 from_string<__m128>(const char* value) {
 }
 
 template <typename T>
-inline T from_string(const std::string& value) {
-  return from_string<T>(value.c_str());
+inline T from_string(const std::string& value, bool force_hex = false) {
+  return from_string<T>(value.c_str(), force_hex);
 }
 
 }  // namespace string_util

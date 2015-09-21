@@ -16,8 +16,6 @@
 namespace xe {
 namespace cpu {
 
-using xe::debug::Breakpoint;
-
 Function::Function(Module* module, uint32_t address)
     : Symbol(Symbol::Type::kFunction, module, address) {}
 
@@ -98,6 +96,18 @@ const SourceMapEntry* GuestFunction::LookupCodeOffset(uint32_t offset) const {
     }
   }
   return source_map_.empty() ? nullptr : &source_map_[0];
+}
+
+uintptr_t GuestFunction::MapSourceToCode(uint32_t source_address) const {
+  auto entry = LookupSourceOffset(source_address - address());
+  return entry ? entry->code_offset
+               : reinterpret_cast<uintptr_t>(machine_code());
+}
+
+uint32_t GuestFunction::MapCodeToSource(uintptr_t host_address) const {
+  auto entry = LookupCodeOffset(static_cast<uint32_t>(
+      host_address - reinterpret_cast<uintptr_t>(machine_code())));
+  return entry ? entry->source_offset : address();
 }
 
 bool GuestFunction::Call(ThreadState* thread_state, uint32_t return_address) {

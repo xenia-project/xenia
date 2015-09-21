@@ -11,6 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -20,33 +21,28 @@ namespace cpu {
 
 MMIOHandler* MMIOHandler::global_handler_ = nullptr;
 
-// Implemented in the platform cc file.
-std::unique_ptr<MMIOHandler> CreateMMIOHandler(uint8_t* virtual_membase,
-                                               uint8_t* physical_membase);
-
 std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
                                                   uint8_t* physical_membase,
-                                                  uint8_t* memory_end) {
+                                                  uint8_t* membase_end) {
   // There can be only one handler at a time.
   assert_null(global_handler_);
   if (global_handler_) {
     return nullptr;
   }
 
-  // Create the platform-specific handler.
-  auto handler = CreateMMIOHandler(virtual_membase, physical_membase);
+  auto handler = std::unique_ptr<MMIOHandler>(
+      new MMIOHandler(virtual_membase, physical_membase, membase_end));
 
-  // Platform-specific initialization for the handler.
-  if (!handler->Initialize()) {
-    return nullptr;
-  }
+  // Install the exception handler directed at the MMIOHandler.
+  ExceptionHandler::Install(ExceptionCallbackThunk, handler.get());
 
-  handler->memory_end_ = memory_end;
   global_handler_ = handler.get();
   return handler;
 }
 
 MMIOHandler::~MMIOHandler() {
+  ExceptionHandler::Uninstall(ExceptionCallbackThunk, this);
+
   assert_true(global_handler_ == this);
   global_handler_ = nullptr;
 }
@@ -166,7 +162,8 @@ void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
   delete entry;
 }
 
-bool MMIOHandler::CheckWriteWatch(void* thread_state, uint64_t fault_address) {
+bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
+                                  uint64_t fault_address) {
   uint32_t physical_address = uint32_t(fault_address);
   if (physical_address > 0x1FFFFFFF) {
     physical_address &= 0x1FFFFFFF;
@@ -364,10 +361,16 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
   return true;
 }
 
-bool MMIOHandler::HandleAccessFault(void* thread_state,
-                                    uint64_t fault_address) {
-  if (fault_address < uint64_t(virtual_membase_) ||
-      fault_address > uint64_t(memory_end_)) {
+bool MMIOHandler::ExceptionCallbackThunk(Exception* ex, void* data) {
+  return reinterpret_cast<MMIOHandler*>(data)->ExceptionCallback(ex);
+}
+
+bool MMIOHandler::ExceptionCallback(Exception* ex) {
+  if (ex->code() != Exception::Code::kAccessViolation) {
+    return false;
+  }
+  if (ex->fault_address() < uint64_t(virtual_membase_) ||
+      ex->fault_address() > uint64_t(memory_end_)) {
     // Quick kill anything outside our mapping.
     return false;
   }
@@ -375,9 +378,10 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
   // Access violations are pretty rare, so we can do a linear search here.
   // Only check if in the virtual range, as we only support virtual ranges.
   const MMIORange* range = nullptr;
-  if (fault_address < uint64_t(physical_membase_)) {
+  if (ex->fault_address() < uint64_t(physical_membase_)) {
     for (const auto& test_range : mapped_ranges_) {
-      if ((uint32_t(fault_address) & test_range.mask) == test_range.address) {
+      if ((static_cast<uint32_t>(ex->fault_address()) & test_range.mask) ==
+          test_range.address) {
         // Address is within the range of this mapping.
         range = &test_range;
         break;
@@ -387,10 +391,10 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
   if (!range) {
     // Access is not found within any range, so fail and let the caller handle
     // it (likely by aborting).
-    return CheckWriteWatch(thread_state, fault_address);
+    return CheckWriteWatch(ex->thread_context(), ex->fault_address());
   }
 
-  auto rip = GetThreadStateRip(thread_state);
+  auto rip = ex->pc();
   auto p = reinterpret_cast<const uint8_t*>(rip);
   DecodedMov mov = {0};
   bool decoded = TryDecodeMov(p, &mov);
@@ -404,8 +408,8 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
     // Load of a memory value - read from range, swap, and store in the
     // register.
     uint32_t value = range->read(nullptr, range->callback_context,
-                                 fault_address & 0xFFFFFFFF);
-    uint64_t* reg_ptr = GetThreadStateRegPtr(thread_state, mov.value_reg);
+                                 static_cast<uint32_t>(ex->fault_address()));
+    uint64_t* reg_ptr = &ex->thread_context()->int_registers[mov.value_reg];
     if (!mov.byte_swap) {
       // We swap only if it's not a movbe, as otherwise we are swapping twice.
       value = xe::byte_swap(value);
@@ -417,19 +421,19 @@ bool MMIOHandler::HandleAccessFault(void* thread_state,
     if (mov.is_constant) {
       value = uint32_t(mov.constant);
     } else {
-      uint64_t* reg_ptr = GetThreadStateRegPtr(thread_state, mov.value_reg);
+      uint64_t* reg_ptr = &ex->thread_context()->int_registers[mov.value_reg];
       value = static_cast<uint32_t>(*reg_ptr);
       if (!mov.byte_swap) {
         // We swap only if it's not a movbe, as otherwise we are swapping twice.
         value = xe::byte_swap(static_cast<uint32_t>(value));
       }
     }
-    range->write(nullptr, range->callback_context, fault_address & 0xFFFFFFFF,
-                 value);
+    range->write(nullptr, range->callback_context,
+                 static_cast<uint32_t>(ex->fault_address()), value);
   }
 
   // Advance RIP to the next instruction so that we resume properly.
-  SetThreadStateRip(thread_state, rip + mov.length);
+  ex->set_resume_pc(rip + mov.length);
 
   return true;
 }

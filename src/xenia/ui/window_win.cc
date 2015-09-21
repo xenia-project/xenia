@@ -320,6 +320,10 @@ LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message,
 
 LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                              LPARAM lParam) {
+  if (hWnd != hwnd_) {
+    return DefWindowProc(hWnd, message, wParam, lParam);
+  }
+
   if (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST) {
     if (HandleMouse(message, wParam, lParam)) {
       return 0;
@@ -328,7 +332,6 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     }
   } else if (message >= WM_KEYFIRST && message <= WM_KEYLAST) {
     if (HandleKeyboard(message, wParam, lParam)) {
-      SetFocus(hwnd_);
       return 0;
     } else {
       return DefWindowProc(hWnd, message, wParam, lParam);
@@ -363,10 +366,14 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
     case WM_PAINT: {
       ValidateRect(hwnd_, nullptr);
-      auto e = UIEvent(this);
-      OnPaint(&e);
+      static bool in_paint = false;
+      if (!in_paint) {
+        in_paint = true;
+        auto e = UIEvent(this);
+        OnPaint(&e);
+        in_paint = false;
+      }
       return 0;  // Ignored because of custom paint.
-      break;
     }
     case WM_ERASEBKGND:
       return 0;  // Ignored because of custom paint.
