@@ -183,7 +183,7 @@ std::vector<ThreadExecutionInfo*> Debugger::QueryThreadExecutionInfos() {
 ThreadExecutionInfo* Debugger::QueryThreadExecutionInfo(
     uint32_t thread_handle) {
   auto global_lock = global_critical_region_.Acquire();
-  auto& it = thread_execution_infos_.find(thread_handle);
+  const auto& it = thread_execution_infos_.find(thread_handle);
   if (it == thread_execution_infos_.end()) {
     return nullptr;
   }
