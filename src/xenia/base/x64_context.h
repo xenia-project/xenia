@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <xmmintrin.h>
 
 namespace xe {
 

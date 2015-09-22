@@ -10,6 +10,7 @@
 #include "xenia/base/bit_stream.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"

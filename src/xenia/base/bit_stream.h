@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_BIT_STREAM_H_
 #define XENIA_BASE_BIT_STREAM_H_
 
+#include <cstddef>
 #include <cstdint>
 
 namespace xe {
