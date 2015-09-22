@@ -10,6 +10,8 @@
 #ifndef XENIA_BASE_X64_CONTEXT_H_
 #define XENIA_BASE_X64_CONTEXT_H_
 
+#include <xmmintrin.h>
+
 #include <cstdint>
 #include <string>
 
