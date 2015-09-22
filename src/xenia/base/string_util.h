@@ -60,16 +60,20 @@ inline std::string to_hex_string(const vec128_t& value) {
 
 inline std::string to_hex_string(const __m128& value) {
   char buffer[128];
+  float f[4];
+  _mm_storeu_ps(f, value);
   std::snprintf(buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]",
-                value.m128_u32[0], value.m128_u32[1], value.m128_u32[2],
-                value.m128_u32[3]);
+                *(uint32_t *)&f[0], *(uint32_t *)&f[1], *(uint32_t *)&f[2],
+                *(uint32_t *)&f[3]);
   return std::string(buffer);
 }
 
 inline std::string to_string(const __m128& value) {
   char buffer[128];
-  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", value.m128_f32[0],
-                value.m128_f32[1], value.m128_f32[2], value.m128_f32[3]);
+  float f[4];
+  _mm_storeu_ps(f, value);
+  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2],
+                f[3]);
   return std::string(buffer);
 }
 
@@ -179,6 +183,8 @@ inline vec128_t from_string<vec128_t>(const char* value, bool force_hex) {
 template <>
 inline __m128 from_string<__m128>(const char* value, bool force_hex) {
   __m128 v;
+  float f[4];
+  uint32_t u;
   char* p = const_cast<char*>(value);
   bool hex_mode = force_hex;
   if (*p == '[') {
@@ -193,22 +199,27 @@ inline __m128 from_string<__m128>(const char* value, bool force_hex) {
     ++p;
   }
   if (hex_mode) {
-    v.m128_u32[0] = std::strtoul(p, &p, 16);
+    u = std::strtoul(p, &p, 16);
+    f[0] = *(float *)&u;
     while (*p == ' ' || *p == ',') ++p;
-    v.m128_u32[1] = std::strtoul(p, &p, 16);
+    u = std::strtoul(p, &p, 16);
+    f[1] = *(float *)&u;
     while (*p == ' ' || *p == ',') ++p;
-    v.m128_u32[2] = std::strtoul(p, &p, 16);
+    u = std::strtoul(p, &p, 16);
+    f[2] = *(float *)&u;
     while (*p == ' ' || *p == ',') ++p;
-    v.m128_u32[3] = std::strtoul(p, &p, 16);
+    u = std::strtoul(p, &p, 16);
+    f[3] = *(float *)&u;
   } else {
-    v.m128_f32[0] = std::strtof(p, &p);
+    f[0] = std::strtof(p, &p);
     while (*p == ' ' || *p == ',') ++p;
-    v.m128_f32[1] = std::strtof(p, &p);
+    f[1] = std::strtof(p, &p);
     while (*p == ' ' || *p == ',') ++p;
-    v.m128_f32[2] = std::strtof(p, &p);
+    f[2] = std::strtof(p, &p);
     while (*p == ' ' || *p == ',') ++p;
-    v.m128_f32[3] = std::strtof(p, &p);
+    f[3] = std::strtof(p, &p);
   }
+  v = _mm_loadu_ps(f);
   return v;
 }
 

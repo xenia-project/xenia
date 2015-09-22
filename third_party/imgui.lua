@@ -22,6 +22,8 @@ project("imgui")
     "imgui/stb_textedit.h",
     "imgui/stb_truetype.h",
   })
+
+filter("platforms:Windows")
   buildoptions({
     "/wd4312",  -- Ugh.
   })

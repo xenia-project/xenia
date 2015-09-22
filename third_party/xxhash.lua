@@ -2,7 +2,7 @@ group("third_party")
 project("xxhash")
   uuid("40d4ce21-5448-4399-9f98-589b7e1c23b1")
   kind("StaticLib")
-  language("C++")
+  language("C")
   links({
   })
   defines({

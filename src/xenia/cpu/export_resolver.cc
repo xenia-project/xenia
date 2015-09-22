@@ -28,9 +28,9 @@ ExportResolver::Table::Table(const char* module_name,
 
   exports_by_name_.reserve(exports_by_ordinal_->size());
   for (size_t i = 0; i < exports_by_ordinal_->size(); ++i) {
-    auto export = exports_by_ordinal_->at(i);
-    if (export) {
-      exports_by_name_.push_back(export);
+    auto ex = exports_by_ordinal_->at(i);
+    if (ex) {
+      exports_by_name_.push_back(ex);
     }
   }
   std::sort(
@@ -48,9 +48,9 @@ void ExportResolver::RegisterTable(
 
   all_exports_by_name_.reserve(all_exports_by_name_.size() + exports->size());
   for (size_t i = 0; i < exports->size(); ++i) {
-    auto export = exports->at(i);
-    if (export) {
-      all_exports_by_name_.push_back(export);
+    auto ex = exports->at(i);
+    if (ex) {
+      all_exports_by_name_.push_back(ex);
     }
   }
   std::sort(

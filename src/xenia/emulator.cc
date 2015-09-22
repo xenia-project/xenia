@@ -282,7 +282,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   auto code_end = code_base + code_cache->total_size();
 
   if (!debugger() ||
-      !debugger()->is_attached() && debugging::IsDebuggerAttached()) {
+      (!debugger()->is_attached() && debugging::IsDebuggerAttached())) {
     // If Xenia's debugger isn't attached but another one is, pass it to that
     // debugger.
     return false;
