@@ -64,8 +64,12 @@ filter("platforms:Linux")
   system("linux")
   toolset("clang")
   buildoptions({
-    "-std=c++14",
     "-mlzcnt",  -- Assume lzcnt supported.
+  })
+
+filter({"platforms:Linux", "language:C++"})
+  buildoptions({
+    "-std=c++14",
   })
 
 filter("platforms:Windows")
