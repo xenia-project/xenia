@@ -63,25 +63,27 @@ void el::util::RescheduleTimer(uint64_t fire_time) {
 
   uint64_t now = el::util::GetTimeMS();
   uint64_t delay_millis = fire_time >= now ? fire_time - now : 0;
-  xe::ui::elemental_loop_->PostDelayed([]() {
-    uint64_t next_fire_time = el::MessageHandler::GetNextMessageFireTime();
-    uint64_t now = el::util::GetTimeMS();
-    if (now < next_fire_time) {
-      // We timed out *before* we were supposed to (the OS is not playing
-      // nice).
-      // Calling ProcessMessages now won't achieve a thing so force a
-      // reschedule
-      // of the platform timer again with the same time.
-      // ReschedulePlatformTimer(next_fire_time, true);
-      return;
-    }
+  xe::ui::elemental_loop_->PostDelayed(
+      []() {
+        uint64_t next_fire_time = el::MessageHandler::GetNextMessageFireTime();
+        uint64_t now = el::util::GetTimeMS();
+        if (now < next_fire_time) {
+          // We timed out *before* we were supposed to (the OS is not playing
+          // nice).
+          // Calling ProcessMessages now won't achieve a thing so force a
+          // reschedule
+          // of the platform timer again with the same time.
+          // ReschedulePlatformTimer(next_fire_time, true);
+          return;
+        }
 
-    el::MessageHandler::ProcessMessages();
+        el::MessageHandler::ProcessMessages();
 
-    // If we still have things to do (because we didn't process all
-    // messages,
-    // or because there are new messages), we need to rescedule, so call
-    // RescheduleTimer.
-    el::util::RescheduleTimer(el::MessageHandler::GetNextMessageFireTime());
-  }, delay_millis);
+        // If we still have things to do (because we didn't process all
+        // messages,
+        // or because there are new messages), we need to rescedule, so call
+        // RescheduleTimer.
+        el::util::RescheduleTimer(el::MessageHandler::GetNextMessageFireTime());
+      },
+      delay_millis);
 }

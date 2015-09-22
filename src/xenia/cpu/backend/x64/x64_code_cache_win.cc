@@ -105,12 +105,13 @@ bool Win32X64CodeCache::Initialize() {
   // demand.
   if (!RtlInstallFunctionTableCallback(
           reinterpret_cast<DWORD64>(generated_code_base_) | 0x3,
-          reinterpret_cast<DWORD64>(generated_code_base_),
-          kGeneratedCodeSize, [](uintptr_t control_pc, void* context) {
+          reinterpret_cast<DWORD64>(generated_code_base_), kGeneratedCodeSize,
+          [](uintptr_t control_pc, void* context) {
             auto code_cache = reinterpret_cast<X64CodeCache*>(context);
             return reinterpret_cast<PRUNTIME_FUNCTION>(
                 code_cache->LookupUnwindEntry(control_pc));
-          }, this, nullptr)) {
+          },
+          this, nullptr)) {
     XELOGE("Unable to install function table callback");
     return false;
   }
