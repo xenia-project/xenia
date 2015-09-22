@@ -2,7 +2,7 @@ group("third_party")
 project("glew")
   uuid("ca31d35a-6cf4-4c86-b97f-60b5244b80cb")
   kind("StaticLib")
-  language("C++")
+  language("C")
   links({
   })
   defines({
