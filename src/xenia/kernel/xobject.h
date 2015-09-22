@@ -280,11 +280,6 @@ class object_ref {
     return value;
   }
 
-  static void accept(T* value) {
-    reset(value);
-    value->Release();
-  }
-
   void reset() noexcept { object_ref().swap(*this); }
 
   void reset(T* value) noexcept { object_ref(value).swap(*this); }
