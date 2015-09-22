@@ -254,21 +254,21 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
 
 void X64Emitter::MarkSourceOffset(const Instr* i) {
   auto entry = source_map_arena_.Alloc<SourceMapEntry>();
-  entry->source_offset = static_cast<uint32_t>(i->src1.offset);
+  entry->guest_address = static_cast<uint32_t>(i->src1.offset);
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
   entry->code_offset = static_cast<uint32_t>(getSize());
 
   if (FLAGS_emit_source_annotations) {
     nop();
     nop();
-    mov(eax, entry->source_offset);
+    mov(eax, entry->guest_address);
     nop();
     nop();
   }
 
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
     uint32_t instruction_index =
-        (entry->source_offset - trace_data_->start_address()) / 4;
+        (entry->guest_address - trace_data_->start_address()) / 4;
     lock();
     inc(qword[low_address(trace_data_->instruction_execute_counts() +
                           instruction_index * 8)]);

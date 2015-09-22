@@ -45,7 +45,8 @@ void CodeBreakpoint::ForEachHostAddress(
       // TODO(benvanik): other function types.
       assert_true(function->is_guest());
       auto guest_function = reinterpret_cast<cpu::GuestFunction*>(function);
-      uintptr_t host_address = guest_function->MapSourceToCode(guest_address);
+      uintptr_t host_address =
+          guest_function->MapGuestAddressToMachineCode(guest_address);
       assert_not_zero(host_address);
       callback(host_address);
     }

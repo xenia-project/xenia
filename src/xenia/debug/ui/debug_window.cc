@@ -608,7 +608,7 @@ void DebugWindow::DrawGuestFunctionSource() {
     }
 
     while (source_map_index < source_map.size() &&
-           source_map[source_map_index].source_offset != address) {
+           source_map[source_map_index].guest_address != address) {
       ++source_map_index;
     }
     if (source_map_index < source_map.size()) {
@@ -1423,13 +1423,14 @@ void DebugWindow::DrawBreakpointsPane() {
             assert_not_null(function);
             if (code_breakpoint->address_type() ==
                 CodeBreakpoint::AddressType::kGuest) {
-              NavigateToFunction(
-                  code_breakpoint->guest_function(),
-                  code_breakpoint->guest_address(),
-                  function->MapSourceToCode(code_breakpoint->guest_address()));
+              NavigateToFunction(code_breakpoint->guest_function(),
+                                 code_breakpoint->guest_address(),
+                                 function->MapGuestAddressToMachineCode(
+                                     code_breakpoint->guest_address()));
             } else {
-              NavigateToFunction(function, function->MapCodeToSource(
-                                               code_breakpoint->host_address()),
+              NavigateToFunction(function,
+                                 function->MapMachineCodeToGuestAddress(
+                                     code_breakpoint->host_address()),
                                  code_breakpoint->host_address());
             }
             break;

@@ -23,7 +23,7 @@ namespace xe {
 namespace cpu {
 
 struct SourceMapEntry {
-  uint32_t source_offset;  // Original source address/offset.
+  uint32_t guest_address;  // PPC guest address (0x82....).
   uint32_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
   uint32_t code_offset;    // Offset from emitted code start.
 };
@@ -106,12 +106,13 @@ class GuestFunction : public Function {
   ExternHandler extern_handler() const { return extern_handler_; }
   void SetupExtern(ExternHandler handler);
 
-  const SourceMapEntry* LookupSourceOffset(uint32_t offset) const;
+  const SourceMapEntry* LookupGuestAddress(uint32_t guest_address) const;
   const SourceMapEntry* LookupHIROffset(uint32_t offset) const;
-  const SourceMapEntry* LookupCodeOffset(uint32_t offset) const;
+  const SourceMapEntry* LookupMachineCodeOffset(uint32_t offset) const;
 
-  uintptr_t MapSourceToCode(uint32_t source_address) const;
-  uint32_t MapCodeToSource(uintptr_t host_address) const;
+  uint32_t MapGuestAddressToMachineCodeOffset(uint32_t guest_address) const;
+  uintptr_t MapGuestAddressToMachineCode(uint32_t guest_address) const;
+  uint32_t MapMachineCodeToGuestAddress(uintptr_t host_address) const;
 
   bool Call(ThreadState* thread_state, uint32_t return_address) override;
 

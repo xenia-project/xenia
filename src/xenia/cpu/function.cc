@@ -65,11 +65,12 @@ void GuestFunction::SetupExtern(ExternHandler handler) {
   extern_handler_ = handler;
 }
 
-const SourceMapEntry* GuestFunction::LookupSourceOffset(uint32_t offset) const {
+const SourceMapEntry* GuestFunction::LookupGuestAddress(
+    uint32_t guest_address) const {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (size_t i = 0; i < source_map_.size(); ++i) {
     const auto& entry = source_map_[i];
-    if (entry.source_offset == offset) {
+    if (entry.guest_address == guest_address) {
       return &entry;
     }
   }
@@ -87,7 +88,8 @@ const SourceMapEntry* GuestFunction::LookupHIROffset(uint32_t offset) const {
   return nullptr;
 }
 
-const SourceMapEntry* GuestFunction::LookupCodeOffset(uint32_t offset) const {
+const SourceMapEntry* GuestFunction::LookupMachineCodeOffset(
+    uint32_t offset) const {
   // TODO(benvanik): binary search? We know the list is sorted by code order.
   for (int64_t i = source_map_.size() - 1; i >= 0; --i) {
     const auto& entry = source_map_[i];
@@ -98,16 +100,24 @@ const SourceMapEntry* GuestFunction::LookupCodeOffset(uint32_t offset) const {
   return source_map_.empty() ? nullptr : &source_map_[0];
 }
 
-uintptr_t GuestFunction::MapSourceToCode(uint32_t source_address) const {
-  auto entry = LookupSourceOffset(source_address - address());
-  return entry ? entry->code_offset
-               : reinterpret_cast<uintptr_t>(machine_code());
+uint32_t GuestFunction::MapGuestAddressToMachineCodeOffset(
+    uint32_t guest_address) const {
+  auto entry = LookupGuestAddress(guest_address);
+  return entry ? entry->code_offset : 0;
 }
 
-uint32_t GuestFunction::MapCodeToSource(uintptr_t host_address) const {
-  auto entry = LookupCodeOffset(static_cast<uint32_t>(
+uintptr_t GuestFunction::MapGuestAddressToMachineCode(
+    uint32_t guest_address) const {
+  auto entry = LookupGuestAddress(guest_address);
+  return reinterpret_cast<uintptr_t>(machine_code()) +
+         (entry ? entry->code_offset : 0);
+}
+
+uint32_t GuestFunction::MapMachineCodeToGuestAddress(
+    uintptr_t host_address) const {
+  auto entry = LookupMachineCodeOffset(static_cast<uint32_t>(
       host_address - reinterpret_cast<uintptr_t>(machine_code())));
-  return entry ? entry->source_offset : address();
+  return entry ? entry->guest_address : address();
 }
 
 bool GuestFunction::Call(ThreadState* thread_state, uint32_t return_address) {

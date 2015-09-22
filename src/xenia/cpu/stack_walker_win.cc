@@ -239,11 +239,8 @@ class Win32StackWalker : public StackWalker {
           // displacement in x64 from the JIT'ed code start to the PC.
           if (function->is_guest()) {
             auto guest_function = static_cast<GuestFunction*>(function);
-            uint32_t host_displacement =
-                uint32_t(frame.host_pc) -
-                uint32_t(uint64_t(guest_function->machine_code()));
-            auto entry = guest_function->LookupCodeOffset(host_displacement);
-            frame.guest_pc = entry->source_offset;
+            frame.guest_pc =
+                guest_function->MapMachineCodeToGuestAddress(frame.host_pc);
           }
         } else {
           frame.guest_symbol.function = nullptr;

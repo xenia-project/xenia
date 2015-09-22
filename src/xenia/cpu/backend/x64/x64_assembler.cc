@@ -126,7 +126,7 @@ void X64Assembler::DumpMachineCode(
     if (code_offset >= next_code_offset &&
         source_map_index < source_map.size()) {
       auto& source_map_entry = source_map[source_map_index];
-      str->AppendFormat("%.8X ", source_map_entry.source_offset);
+      str->AppendFormat("%.8X ", source_map_entry.guest_address);
       ++source_map_index;
       next_code_offset = source_map_index < source_map.size()
                              ? source_map[source_map_index].code_offset
