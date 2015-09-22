@@ -2,7 +2,7 @@ group("third_party")
 project("capstone")
   uuid("b3a89f7e-bb02-4945-ae75-219caed6afa2")
   kind("StaticLib")
-  language("C++")
+  language("C")
   links({
   })
   defines({
