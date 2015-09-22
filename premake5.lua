@@ -45,6 +45,10 @@ filter("configurations:Debug")
     "_NO_DEBUG_HEAP=1",
   })
   runtime("Release")
+filter({"configurations:Debug", "platforms:Windows"})
+  linkoptions({
+    "/NODEFAULTLIB:MSVCRTD",
+  })
 
 filter("configurations:Release")
   runtime("Release")
@@ -57,6 +61,10 @@ filter("configurations:Release")
     "LinkTimeOptimization",
   })
   runtime("Release")
+filter({"configurations:Release", "platforms:Windows"})
+  linkoptions({
+    "/NODEFAULTLIB:MSVCRTD",
+  })
 
 filter("platforms:Linux")
   system("linux")
@@ -96,7 +104,6 @@ filter("platforms:Windows")
   linkoptions({
     "/ignore:4006",  -- Ignores complaints about empty obj files.
     "/ignore:4221",
-    "/NODEFAULTLIB:MSVCRTD"
   })
   links({
     "ntdll",
