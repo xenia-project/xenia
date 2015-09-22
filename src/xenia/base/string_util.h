@@ -71,8 +71,10 @@ inline std::string to_hex_string(const __m128& value) {
 
 inline std::string to_string(const __m128& value) {
   char buffer[128];
-  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", value.m128_f32[0],
-                value.m128_f32[1], value.m128_f32[2], value.m128_f32[3]);
+  float f[4];
+  _mm_storeu_ps(f, value);
+  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2],
+                f[3]);
   return std::string(buffer);
 }
 
