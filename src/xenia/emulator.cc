@@ -305,7 +305,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
           kernel::XObject::kTypeThread);
   auto current_thread = kernel::XThread::GetCurrentThread();
   for (auto thread : threads) {
-    if (!thread->is_guest_thread()) {
+    if (!thread->can_debugger_suspend()) {
       // Don't pause host threads.
       continue;
     }
@@ -325,7 +325,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   });
 
   // Now suspend ourself (we should be a guest thread).
-  assert_true(current_thread->is_guest_thread());
+  assert_true(current_thread->can_debugger_suspend());
   current_thread->Suspend(nullptr);
 
   // We should not arrive here!

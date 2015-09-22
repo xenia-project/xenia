@@ -130,6 +130,8 @@ X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
             }
             return 0;
           }));
+  // As we run vblank interrupts the debugger must be able to suspend us.
+  worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->set_name("GL4 Vsync");
   worker_thread_->Create();
 

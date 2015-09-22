@@ -125,7 +125,13 @@ class XThread : public XObject {
   const CreationParams* creation_params() const { return &creation_params_; }
   uint32_t tls_ptr() const { return tls_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
+  // True if the thread is created by the guest app.
   bool is_guest_thread() const { return guest_thread_; }
+  // True if the thread should be paused by the debugger.
+  // All threads that can run guest code must be stopped for the debugger to
+  // work properly.
+  bool can_debugger_suspend() const { return can_debugger_suspend_; }
+  void set_can_debugger_suspend(bool value) { can_debugger_suspend_ = value; }
   bool is_running() const { return running_; }
 
   cpu::ThreadState* thread_state() const { return thread_state_; }
@@ -182,7 +188,8 @@ class XThread : public XObject {
   uint32_t tls_address_ = 0;
   uint32_t pcr_address_ = 0;
   cpu::ThreadState* thread_state_ = nullptr;
-  bool guest_thread_ = false;  // Launched into guest code?
+  bool guest_thread_ = false;
+  bool can_debugger_suspend_ = true;
   bool running_ = false;
 
   std::string name_;

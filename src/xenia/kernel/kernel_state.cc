@@ -263,6 +263,8 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
           }
           return 0;
         }));
+    // As we run guest callbacks the debugger must be able to suspend us.
+    dispatch_thread_->set_can_debugger_suspend(true);
     dispatch_thread_->set_name("Kernel Dispatch Thread");
     dispatch_thread_->Create();
   }

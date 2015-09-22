@@ -702,7 +702,11 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
                          uint32_t creation_flags, std::function<int()> host_fn)
     : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags, false),
-      host_fn_(host_fn) {}
+      host_fn_(host_fn) {
+  // By default host threads are not debugger suspendable. If the thread runs
+  // any guest code this must be overridden.
+  can_debugger_suspend_ = false;
+}
 
 void XHostThread::Execute() {
   XELOGKERNEL(

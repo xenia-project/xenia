@@ -225,7 +225,7 @@ bool Debugger::SuspendAllThreads() {
                thread_info->state == ThreadExecutionInfo::State::kExited) {
       // Thread is dead and cannot be suspended - ignore.
       continue;
-    } else if (!thread_info->thread->is_guest_thread()) {
+    } else if (!thread_info->thread->can_debugger_suspend()) {
       // Thread is a host thread, and we aren't suspending those (for now).
       continue;
     } else if (XThread::IsInThread() &&
@@ -266,7 +266,7 @@ bool Debugger::ResumeAllThreads() {
                thread_info->state == ThreadExecutionInfo::State::kExited) {
       // Thread is dead and cannot be resumed - ignore.
       continue;
-    } else if (!thread_info->thread->is_guest_thread()) {
+    } else if (!thread_info->thread->can_debugger_suspend()) {
       // Thread is a host thread, and we aren't suspending those (for now).
       continue;
     } else if (XThread::IsInThread() &&
@@ -295,7 +295,7 @@ void Debugger::UpdateThreadExecutionStates(uint32_t override_handle,
     // Grab PPC context.
     // Note that this is only up to date if --store_all_context_values is
     // enabled (or --debug).
-    if (thread->is_guest_thread()) {
+    if (thread->can_debugger_suspend()) {
       std::memcpy(&thread_info->guest_context,
                   thread->thread_state()->context(),
                   sizeof(thread_info->guest_context));
