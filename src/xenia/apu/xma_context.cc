@@ -294,6 +294,11 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
     return;
   }
 
+  // No available data.
+  if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
+    return;
+  }
+
   assert_zero(data->unk_dword_9);
 
   // XAudio Loops
