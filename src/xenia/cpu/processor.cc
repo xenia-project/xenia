@@ -189,6 +189,7 @@ Function* Processor::ResolveFunction(uint32_t address) {
     // Grab symbol declaration.
     auto function = LookupFunction(address);
     if (!function) {
+      entry->status = Entry::STATUS_FAILED;
       return nullptr;
     }
 
@@ -317,10 +318,19 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
   SCOPE_profile_cpu_f("cpu");
 
   PPCContext* context = thread_state->context();
-  assert_true(arg_count <= 5);
-  for (size_t i = 0; i < arg_count; ++i) {
+  for (size_t i = 0; i < std::min(arg_count, 8ull); ++i) {
     context->r[3 + i] = args[i];
   }
+
+  if (arg_count > 7) {
+    // Rest of the arguments go on the stack.
+    // FIXME: This assumes arguments are 32 bits!
+    auto stack_arg_base = memory()->TranslateVirtual((uint32_t)context->r[1] + 0x54 - (64 + 112));
+    for (size_t i = 0; i < arg_count - 8; i++) {
+      xe::store_and_swap<uint32_t>(stack_arg_base + (i * 8), (uint32_t)args[i + 8]);
+    }
+  }
+
   if (!Execute(thread_state, address)) {
     return 0xDEADBABE;
   }
