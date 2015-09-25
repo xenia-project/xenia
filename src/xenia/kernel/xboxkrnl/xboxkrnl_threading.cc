@@ -1415,7 +1415,6 @@ void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
-
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);
 

@@ -507,7 +507,7 @@ void UserModule::Dump() {
       case XEX_HEADER_LAN_KEY: {
         sb.AppendFormat("  XEX_HEADER_LAN_KEY:");
         auto opt_lan_key =
-          reinterpret_cast<const xex2_opt_lan_key*>(opt_header_ptr);
+            reinterpret_cast<const xex2_opt_lan_key*>(opt_header_ptr);
 
         for (int l = 0; l < 16; l++) {
           sb.AppendFormat(" %.2X", opt_lan_key->key[l]);

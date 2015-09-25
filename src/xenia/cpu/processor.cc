@@ -325,9 +325,11 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
   if (arg_count > 7) {
     // Rest of the arguments go on the stack.
     // FIXME: This assumes arguments are 32 bits!
-    auto stack_arg_base = memory()->TranslateVirtual((uint32_t)context->r[1] + 0x54 - (64 + 112));
+    auto stack_arg_base =
+        memory()->TranslateVirtual((uint32_t)context->r[1] + 0x54 - (64 + 112));
     for (size_t i = 0; i < arg_count - 8; i++) {
-      xe::store_and_swap<uint32_t>(stack_arg_base + (i * 8), (uint32_t)args[i + 8]);
+      xe::store_and_swap<uint32_t>(stack_arg_base + (i * 8),
+                                   (uint32_t)args[i + 8]);
     }
   }
 
