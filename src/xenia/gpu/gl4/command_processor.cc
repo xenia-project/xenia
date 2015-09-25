@@ -24,7 +24,7 @@
 
 #include "third_party/xxhash/xxhash.h"
 
-DEFINE_bool(render_all_targets, false,
+DEFINE_bool(draw_all_framebuffers, false,
             "Copy all render targets to screen on swap");
 
 namespace xe {
@@ -644,7 +644,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
                            swap_state_.back_buffer_texture, dest_rect,
                            GL_LINEAR);
 
-  if (FLAGS_render_all_targets) {
+  if (FLAGS_draw_all_framebuffers) {
     int32_t offsetx = (1280 - (1280 / 5));
     int32_t offsety = 0;
     int32_t doffsetx = 0;
