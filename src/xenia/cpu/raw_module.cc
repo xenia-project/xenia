@@ -55,6 +55,9 @@ bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
 
   low_address_ = base_address;
   high_address_ = base_address + file_length;
+
+  // Notify backend about executable code.
+  processor_->backend()->CommitExecutableRange(low_address_, high_address_);
   return true;
 }
 
