@@ -333,6 +333,13 @@ SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_context,
                        cache_size, content_size, overlapped_ptr);
 }
 
+dword_result_t XamContentOpenFile(dword_t r3, lpstring_t r4, lpstring_t r5,
+                                  dword_t r6, dword_t r7, dword_t r8,
+                                  dword_t r9) {
+  return X_ERROR_FILE_NOT_FOUND;
+}
+DECLARE_XAM_EXPORT(XamContentOpenFile, ExportTag::kStub);
+
 SHIM_CALL XamContentFlush_shim(PPCContext* ppc_context,
                                KernelState* kernel_state) {
   uint32_t root_name_ptr = SHIM_GET_ARG_32(0);
