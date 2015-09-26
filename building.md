@@ -34,14 +34,13 @@ get helpful spacers/movs in the disassembly.
 
 ### Linux
 
-Linux support is extremely experimental and incomplete.
+Linux support is extremely experimental and presently incomplete.
 
-Only tested with GCC 4.9 on Ubuntu 14. [CodeLite](http://codelite.org) is the
-IDE of choice and `xb premake` will spit out files for that. Make also works via
-`xb build`.
+The build script uses LLVM/Clang 3.8. GCC should also work, but is not easily
+swappable right now.
 
-Currently building requires that CC == CXX == g++. If you know a way around this
-(to force .c files to be built with g++) let me know.
+[CodeLite](http://codelite.org) is the IDE of choice and `xb premake` will spit
+out files for that. Make also works via `xb build`.
 
 ## Running
 
