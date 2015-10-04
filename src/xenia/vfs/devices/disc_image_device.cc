@@ -52,7 +52,7 @@ bool DiscImageDevice::Initialize() {
 DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   // Find sector 32 of the game partition - try at a few points.
   static const size_t likely_offsets[] = {
-      0x00000000, 0x0000FB20, 0x00020600, 0x0FD90000,
+      0x00000000, 0x0000FB20, 0x00020600, 0x02080000, 0x0FD90000,
   };
   bool magic_found = false;
   for (size_t n = 0; n < xe::countof(likely_offsets); n++) {
