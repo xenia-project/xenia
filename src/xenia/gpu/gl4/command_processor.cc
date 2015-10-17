@@ -24,6 +24,9 @@
 
 #include "third_party/xxhash/xxhash.h"
 
+DEFINE_bool(draw_all_framebuffers, false,
+            "Copy all render targets to screen on swap");
+
 namespace xe {
 namespace gpu {
 namespace gl4 {
@@ -640,6 +643,53 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
       ->CopyColorTexture2D(framebuffer_texture, src_rect,
                            swap_state_.back_buffer_texture, dest_rect,
                            GL_LINEAR);
+
+  if (FLAGS_draw_all_framebuffers) {
+    int32_t offsetx = (1280 - (1280 / 5));
+    int32_t offsety = 0;
+    int32_t doffsetx = 0;
+    for (int i = 0; i < cached_framebuffers_.size(); i++) {
+      bool has_colortargets = false;
+
+      // Copy color targets to top right corner
+      for (int j = 0; j < 4; j++) {
+        GLuint tex = cached_framebuffers_[i].color_targets[j];
+        if (!tex) {
+          continue;
+        }
+        has_colortargets = true;
+
+        dest_rect = {offsetx, offsety, 1280 / 5, 720 / 5};
+        reinterpret_cast<ui::gl::GLContext*>(context_.get())
+            ->blitter()
+            ->CopyColorTexture2D(tex, src_rect, swap_state_.back_buffer_texture,
+                                 dest_rect, GL_LINEAR);
+
+        offsety += 720 / 5;
+      }
+
+      if (has_colortargets) {
+        offsetx -= 1280 / 5;
+      }
+
+      offsety = 0;
+
+      GLuint tex = cached_framebuffers_[i].depth_target;
+      if (!tex) {
+        continue;
+      }
+
+      // Copy depth targets to bottom left corner of screen
+      dest_rect = {doffsetx, (int32_t)swap_state_.height - (720 / 5), 1280 / 5,
+                   720 / 5};
+      reinterpret_cast<ui::gl::GLContext*>(context_.get())
+          ->blitter()
+          ->CopyColorTexture2D(tex, src_rect, swap_state_.back_buffer_texture,
+                               dest_rect, GL_LINEAR);
+
+      doffsetx += 1280 / 5;
+    }
+  }
 
   // Need to finish to be sure the other context sees the right data.
   // TODO(benvanik): prevent this? fences?

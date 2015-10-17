@@ -117,6 +117,13 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
   }
   uint32_t adjusted_size = xe::round_up(region_size_value, page_size);
 
+  // Some games (BF1943) do this, but then if we return an error code it'll
+  // allocate with a smaller page size.
+  if (base_addr_value % page_size != 0) {
+    SHIM_SET_RETURN_32(X_STATUS_MAPPED_ALIGNMENT);
+    return;
+  }
+
   // Allocate.
   uint32_t allocation_type = 0;
   if (alloc_type & X_MEM_RESERVE) {
@@ -480,6 +487,7 @@ SHIM_CALL MmGetPhysicalAddress_shim(PPCContext* ppc_context,
   //   _In_  PVOID BaseAddress
   // );
   // base_address = result of MmAllocatePhysicalMemory.
+  assert_true(base_address >= 0xA0000000);
 
   uint32_t physical_address = base_address & 0x1FFFFFFF;
   if (base_address >= 0xE0000000) {
@@ -514,7 +522,7 @@ SHIM_CALL ExAllocatePoolTypeWithTag_shim(PPCContext* ppc_context,
   uint32_t tag = SHIM_GET_ARG_32(1);
   uint32_t zero = SHIM_GET_ARG_32(2);
 
-  XELOGD("ExAllocatePoolTypeWithTag(%d, %.8X, %d)", size, tag, zero);
+  XELOGD("ExAllocatePoolTypeWithTag(%d, %.4s, %d)", size, &tag, zero);
 
   uint32_t alignment = 8;
   uint32_t adjusted_size = size;

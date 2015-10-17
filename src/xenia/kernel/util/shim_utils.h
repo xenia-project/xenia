@@ -297,6 +297,7 @@ class Result {
 }  // namespace shim
 
 using int_t = const shim::ParamBase<int32_t>&;
+using word_t = const shim::ParamBase<uint16_t>&;
 using dword_t = const shim::ParamBase<uint32_t>&;
 using qword_t = const shim::ParamBase<uint64_t>&;
 using float_t = const shim::ParamBase<float>&;
@@ -321,6 +322,9 @@ namespace shim {
 
 inline void AppendParam(StringBuffer* string_buffer, int_t param) {
   string_buffer->AppendFormat("%d", int32_t(param));
+}
+inline void AppendParam(StringBuffer* string_buffer, word_t param) {
+  string_buffer->AppendFormat("%.4X", uint16_t(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, dword_t param) {
   string_buffer->AppendFormat("%.8X", uint32_t(param));

@@ -494,33 +494,25 @@ dword_result_t KeResetEvent(pointer_t<X_KEVENT> event_ptr) {
 DECLARE_XBOXKRNL_EXPORT(KeResetEvent,
                         ExportTag::kImplemented | ExportTag::kThreading);
 
-SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
-                             KernelState* kernel_state) {
-  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
-  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
-  uint32_t event_type = SHIM_GET_ARG_32(2);
-  uint32_t initial_state = SHIM_GET_ARG_32(3);
-
-  XELOGD("NtCreateEvent(%.8X, %.8X, %d, %d)", handle_ptr, obj_attributes_ptr,
-         event_type, initial_state);
-
+dword_result_t NtCreateEvent(lpdword_t handle_ptr,
+                             pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
+                             dword_t event_type, dword_t initial_state) {
   // Check for an existing timer with the same name.
   auto existing_object =
-      LookupNamedObject<XEvent>(kernel_state, obj_attributes_ptr);
+      LookupNamedObject<XEvent>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
     if (existing_object->type() == XObject::kTypeEvent) {
       if (handle_ptr) {
         existing_object->RetainHandle();
-        SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
+        *handle_ptr = existing_object->handle();
       }
-      SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+      return X_STATUS_SUCCESS;
     } else {
-      SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
+      return X_STATUS_INVALID_HANDLE;
     }
-    return;
   }
 
-  XEvent* ev = new XEvent(kernel_state);
+  XEvent* ev = new XEvent(kernel_state());
   ev->Initialize(!event_type, !!initial_state);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -529,10 +521,12 @@ SHIM_CALL NtCreateEvent_shim(PPCContext* ppc_context,
   }
 
   if (handle_ptr) {
-    SHIM_SET_MEM_32(handle_ptr, ev->handle());
+    *handle_ptr = ev->handle();
   }
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+  return X_STATUS_SUCCESS;
 }
+DECLARE_XBOXKRNL_EXPORT(NtCreateEvent,
+                        ExportTag::kImplemented | ExportTag::kThreading);
 
 dword_result_t NtSetEvent(dword_t handle, lpdword_t previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
@@ -1420,8 +1414,6 @@ void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsFree, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateEvent, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);

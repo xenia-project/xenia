@@ -122,6 +122,9 @@ class XThread : public XObject {
   static uint32_t GetCurrentThreadHandle();
   static uint32_t GetCurrentThreadId();
 
+  static uint32_t GetLastError();
+  static void SetLastError(uint32_t error_code);
+
   const CreationParams* creation_params() const { return &creation_params_; }
   uint32_t tls_ptr() const { return tls_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }

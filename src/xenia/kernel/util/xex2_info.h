@@ -468,6 +468,10 @@ union xex2_version {
   };
 };
 
+struct xex2_opt_lan_key {
+  uint8_t key[0x10];
+};
+
 struct xex2_opt_bound_path {
   xe::be<uint32_t> size;
   char path[1];

@@ -142,12 +142,12 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
 }
 
 X_STATUS UserModule::Unload() {
-  if (!xex_module()->loaded()) {
+  if (module_format_ == kModuleFormatXex && !xex_module()->loaded()) {
     // Quick abort.
     return X_STATUS_SUCCESS;
   }
 
-  if (xex_module()->Unload()) {
+  if (module_format_ == kModuleFormatXex && xex_module()->Unload()) {
     OnUnload();
     return X_STATUS_SUCCESS;
   }
@@ -505,7 +505,14 @@ void UserModule::Dump() {
         sb.AppendFormat("  XEX_HEADER_GAME_RATINGS (TODO):\n");
       } break;
       case XEX_HEADER_LAN_KEY: {
-        sb.AppendFormat("  XEX_HEADER_LAN_KEY (TODO):\n");
+        sb.AppendFormat("  XEX_HEADER_LAN_KEY:");
+        auto opt_lan_key =
+            reinterpret_cast<const xex2_opt_lan_key*>(opt_header_ptr);
+
+        for (int l = 0; l < 16; l++) {
+          sb.AppendFormat(" %.2X", opt_lan_key->key[l]);
+        }
+        sb.Append("\n");
       } break;
       case XEX_HEADER_XBOX360_LOGO: {
         sb.AppendFormat("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
