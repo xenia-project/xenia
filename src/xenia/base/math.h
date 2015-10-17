@@ -22,7 +22,7 @@
 namespace xe {
 
 template <typename T, size_t N>
-size_t countof(T(&arr)[N]) {
+size_t countof(T (&arr)[N]) {
   return std::extent<T[N]>::value;
 }
 
