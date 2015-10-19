@@ -116,33 +116,27 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
   global_critical_region_.mutex().unlock();
 
   // Make the desired range read only under all address spaces.
-  xe::memory::Protect(physical_membase_ + entry->address, entry->length,
-                      xe::memory::PageAccess::kReadOnly, nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xA0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadOnly,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xC0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadOnly,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xE0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadOnly,
-                      nullptr);
+  memory::Protect(physical_membase_ + entry->address, entry->length,
+                  memory::PageAccess::kGuardReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
+                  memory::PageAccess::kGuardReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
+                  memory::PageAccess::kGuardReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
+                  memory::PageAccess::kGuardReadWrite, nullptr);
 
   return reinterpret_cast<uintptr_t>(entry);
 }
 
 void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
-  xe::memory::Protect(physical_membase_ + entry->address, entry->length,
-                      xe::memory::PageAccess::kReadWrite, nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xA0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadWrite,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xC0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadWrite,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xE0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadWrite,
-                      nullptr);
+  memory::Protect(physical_membase_ + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
 }
 
 void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
@@ -178,11 +172,11 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
       pending_invalidates.push_back(entry);
       // TODO(benvanik): outside of lock?
       ClearWriteWatch(entry);
-      auto erase_it = it;
-      ++it;
-      write_watches_.erase(erase_it);
+
+      it = write_watches_.erase(it);
       continue;
     }
+
     ++it;
   }
   global_critical_region_.mutex().unlock();
@@ -190,6 +184,7 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
     // Rethrow access violation - range was not being watched.
     return false;
   }
+
   while (!pending_invalidates.empty()) {
     auto entry = pending_invalidates.back();
     pending_invalidates.pop_back();
@@ -197,6 +192,7 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
                     physical_address);
     delete entry;
   }
+
   // Range was watched, so lets eat this access violation.
   return true;
 }
@@ -366,7 +362,8 @@ bool MMIOHandler::ExceptionCallbackThunk(Exception* ex, void* data) {
 }
 
 bool MMIOHandler::ExceptionCallback(Exception* ex) {
-  if (ex->code() != Exception::Code::kAccessViolation) {
+  if (ex->code() != Exception::Code::kAccessViolation &&
+      ex->code() != Exception::Code::kPageGuardViolation) {
     return false;
   }
   if (ex->fault_address() < uint64_t(virtual_membase_) ||

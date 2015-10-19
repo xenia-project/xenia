@@ -28,11 +28,14 @@ size_t page_size();
 // This is likely 64KiB.
 size_t allocation_granularity();
 
-enum class PageAccess {
+enum PageAccess {
   kNoAccess = 0,
   kReadOnly = 1 << 0,
   kReadWrite = kReadOnly | 1 << 1,
   kExecuteReadWrite = kReadWrite | 1 << 2,
+  kGuardPage = 1 << 3,
+
+  kGuardReadWrite = kGuardPage | kReadWrite,
 };
 
 enum class AllocationType {

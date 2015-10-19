@@ -23,6 +23,7 @@ class Exception {
     kInvalidException = 0,
     kAccessViolation,
     kIllegalInstruction,
+    kPageGuardViolation,
   };
 
   void InitializeAccessViolation(X64Context* thread_context,
@@ -34,6 +35,12 @@ class Exception {
   void InitializeIllegalInstruction(X64Context* thread_context) {
     code_ = Code::kIllegalInstruction;
     thread_context_ = thread_context;
+  }
+  void InitializePageGuardViolation(X64Context* thread_context,
+                                    uint64_t fault_address) {
+    code_ = Code::kPageGuardViolation;
+    thread_context_ = thread_context;
+    fault_address_ = fault_address;
   }
 
   Code code() const { return code_; }
