@@ -36,7 +36,8 @@ class Exception {
     code_ = Code::kIllegalInstruction;
     thread_context_ = thread_context;
   }
-  void InitializePageGuardViolation(X64Context* thread_context, uint64_t fault_address) {
+  void InitializePageGuardViolation(X64Context* thread_context,
+                                    uint64_t fault_address) {
     code_ = Code::kPageGuardViolation;
     thread_context_ = thread_context;
     fault_address_ = fault_address;
