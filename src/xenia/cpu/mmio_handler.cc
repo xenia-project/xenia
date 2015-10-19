@@ -170,6 +170,9 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
         entry->address + entry->length > physical_address) {
       // Hit!
       pending_invalidates.push_back(entry);
+      // TODO(benvanik): outside of lock?
+      ClearWriteWatch(entry);
+
       it = write_watches_.erase(it);
       continue;
     }
