@@ -35,19 +35,33 @@ size_t allocation_granularity() {
 }
 
 DWORD ToWin32ProtectFlags(PageAccess access) {
+  DWORD flags = 0;
+  if (access & PageAccess::kGuardPage) {
+    flags |= PAGE_GUARD;
+
+    access = static_cast<PageAccess>(access & ~PageAccess::kGuardPage);
+  }
+
   switch (access) {
     case PageAccess::kNoAccess:
-      return PAGE_NOACCESS;
+      flags |= PAGE_NOACCESS;
+      break;
     case PageAccess::kReadOnly:
-      return PAGE_READONLY;
+      flags |= PAGE_READONLY;
+      break;
     case PageAccess::kReadWrite:
-      return PAGE_READWRITE;
+      flags |= PAGE_READWRITE;
+      break;
     case PageAccess::kExecuteReadWrite:
-      return PAGE_EXECUTE_READWRITE;
+      flags |= PAGE_EXECUTE_READWRITE;
+      break;
     default:
       assert_unhandled_case(access);
-      return PAGE_NOACCESS;
+      flags |= PAGE_NOACCESS;
+      break;
   }
+
+  return flags;
 }
 
 void* AllocFixed(void* base_address, size_t length,
