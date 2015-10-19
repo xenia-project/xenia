@@ -55,6 +55,10 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
       ex.InitializeAccessViolation(
           &thread_context, ex_info->ExceptionRecord->ExceptionInformation[1]);
       break;
+    case STATUS_GUARD_PAGE_VIOLATION:
+      ex.InitializePageGuardViolation(
+          &thread_context, ex_info->ExceptionRecord->ExceptionInformation[1]);
+      break;
     default:
       // Unknown/unhandled type.
       return EXCEPTION_CONTINUE_SEARCH;
