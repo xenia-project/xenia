@@ -164,7 +164,8 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
   }
   std::list<WriteWatchEntry*> pending_invalidates;
   global_critical_region_.mutex().lock();
-  // Now that we hold the lock, recheck and see if the pages are still protected.
+  // Now that we hold the lock, recheck and see if the pages are still
+  // protected.
   memory::PageAccess cur_access;
   size_t page_length = memory::page_size();
   memory::QueryProtect((void*)fault_address, page_length, cur_access);
