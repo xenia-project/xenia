@@ -50,6 +50,27 @@ DWORD ToWin32ProtectFlags(PageAccess access) {
   }
 }
 
+PageAccess ToXeniaProtectFlags(DWORD access) {
+  if (access & PAGE_GUARD) {
+    // Strip the page guard flag for now...
+    access &= ~PAGE_GUARD;
+  }
+
+  switch (access) {
+    case PAGE_NOACCESS:
+      return PageAccess::kNoAccess;
+    case PAGE_READONLY:
+      return PageAccess::kReadOnly;
+    case PAGE_READWRITE:
+      return PageAccess::kReadWrite;
+    case PAGE_EXECUTE_READWRITE:
+      return PageAccess::kExecuteReadWrite;
+    default:
+      assert_unhandled_case(access);
+      return PageAccess::kNoAccess;
+  }
+}
+
 void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
   DWORD alloc_type = 0;
@@ -103,23 +124,24 @@ bool Protect(void* base_address, size_t length, PageAccess access,
     return false;
   }
   if (out_old_access) {
-    switch (old_protect) {
-      case PAGE_NOACCESS:
-        *out_old_access = PageAccess::kNoAccess;
-        break;
-      case PAGE_READONLY:
-        *out_old_access = PageAccess::kReadOnly;
-        break;
-      case PAGE_READWRITE:
-        *out_old_access = PageAccess::kReadWrite;
-        break;
-      case PAGE_EXECUTE_READWRITE:
-        *out_old_access = PageAccess::kExecuteReadWrite;
-      default:
-        assert_unhandled_case(access);
-        break;
-    }
+    *out_old_access = ToXeniaProtectFlags(old_protect);
   }
+  return true;
+}
+
+bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
+  access_out = PageAccess::kNoAccess;
+
+  MEMORY_BASIC_INFORMATION info;
+  ZeroMemory(&info, sizeof(info));
+
+  SIZE_T result = VirtualQuery(base_address, &info, length);
+  if (!result) {
+    return false;
+  }
+
+  length = info.RegionSize;
+  access_out = ToXeniaProtectFlags(info.Protect);
   return true;
 }
 
