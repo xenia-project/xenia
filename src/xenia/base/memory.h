@@ -63,6 +63,12 @@ bool DeallocFixed(void* base_address, size_t length,
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access);
 
+// Queries a region of pages to get the access rights. This will modify the
+// length parameter to the length of pages with the same consecutive access
+// rights. The length will start from the first byte of the first page of
+// the region.
+bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
+
 // Allocates a block of memory for a type with the given alignment.
 // The memory must be freed with AlignedFree.
 template <typename T>
