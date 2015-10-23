@@ -116,33 +116,27 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
   global_critical_region_.mutex().unlock();
 
   // Make the desired range read only under all address spaces.
-  xe::memory::Protect(physical_membase_ + entry->address, entry->length,
-                      xe::memory::PageAccess::kReadOnly, nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xA0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadOnly,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xC0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadOnly,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xE0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadOnly,
-                      nullptr);
+  memory::Protect(physical_membase_ + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadOnly, nullptr);
+  memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadOnly, nullptr);
+  memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadOnly, nullptr);
+  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadOnly, nullptr);
 
   return reinterpret_cast<uintptr_t>(entry);
 }
 
 void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
-  xe::memory::Protect(physical_membase_ + entry->address, entry->length,
-                      xe::memory::PageAccess::kReadWrite, nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xA0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadWrite,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xC0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadWrite,
-                      nullptr);
-  xe::memory::Protect(virtual_membase_ + 0xE0000000 + entry->address,
-                      entry->length, xe::memory::PageAccess::kReadWrite,
-                      nullptr);
+  memory::Protect(physical_membase_ + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
+  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
+                  xe::memory::PageAccess::kReadWrite, nullptr);
 }
 
 void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
@@ -170,17 +164,25 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
   }
   std::list<WriteWatchEntry*> pending_invalidates;
   global_critical_region_.mutex().lock();
+  // Now that we hold the lock, recheck and see if the pages are still protected.
+  memory::PageAccess cur_access;
+  size_t page_length = memory::page_size();
+  memory::QueryProtect((void*)fault_address, page_length, cur_access);
+  if (cur_access != memory::PageAccess::kReadOnly &&
+      cur_access != memory::PageAccess::kNoAccess) {
+    // Another thread has cleared this write watch. Abort.
+    return true;
+  }
+
   for (auto it = write_watches_.begin(); it != write_watches_.end();) {
     auto entry = *it;
     if (entry->address <= physical_address &&
         entry->address + entry->length > physical_address) {
-      // Hit!
+      // Hit! Remove the writewatch.
       pending_invalidates.push_back(entry);
-      // TODO(benvanik): outside of lock?
+
       ClearWriteWatch(entry);
-      auto erase_it = it;
-      ++it;
-      write_watches_.erase(erase_it);
+      it = write_watches_.erase(it);
       continue;
     }
     ++it;
