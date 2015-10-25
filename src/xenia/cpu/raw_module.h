@@ -24,7 +24,12 @@ class RawModule : public Module {
 
   bool LoadFile(uint32_t base_address, const std::wstring& path);
 
+  // Set address range if you've already allocated memory and placed code
+  // in it.
+  void SetAddressRange(uint32_t base_address, uint32_t size);
+
   const std::string& name() const override { return name_; }
+  void set_name(const std::string& name) { name_ = name; }
 
   bool ContainsAddress(uint32_t address) override;
 

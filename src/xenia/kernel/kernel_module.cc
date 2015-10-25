@@ -10,6 +10,8 @@
 #include "xenia/kernel/kernel_module.h"
 
 #include "xenia/base/logging.h"
+#include "xenia/base/mutex.h"
+#include "xenia/cpu/raw_module.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/xthread.h"
 
@@ -21,6 +23,26 @@ KernelModule::KernelModule(KernelState* kernel_state, const char* path)
   emulator_ = kernel_state->emulator();
   memory_ = emulator_->memory();
   export_resolver_ = kernel_state->emulator()->export_resolver();
+
+  // HACK: Allocates memory where xboxkrnl.exe would be!
+  // TODO: Need to free this memory when necessary.
+  auto heap = memory()->LookupHeap(0x80040000);
+  if (heap->AllocRange(0x80040000, 0x801C0000, kTrampolineSize, 16,
+                       kMemoryAllocationCommit,
+                       kMemoryProtectRead | kMemoryProtectWrite, false,
+                       &guest_trampoline_)) {
+    guest_trampoline_size_ = kTrampolineSize;
+
+    auto module = std::make_unique<cpu::RawModule>(emulator_->processor());
+    guest_trampoline_module_ = module.get();
+
+    module->set_name(name_ + "_trampoline");
+    module->SetAddressRange(guest_trampoline_, guest_trampoline_size_);
+    emulator_->processor()->AddModule(std::move(module));
+  } else {
+    XELOGW("KernelModule %s could not allocate trampoline for GetProcAddress!",
+           path);
+  }
 
   OnLoad();
 }
@@ -45,10 +67,51 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
       return 0;
     }
   } else {
-    if (export_entry->function_data.shim) {
-      // Implemented. Dynamically generate trampoline.
-      XELOGE("GetProcAddressByOrdinal not implemented");
-      return 0;
+    if (export_entry->function_data.trampoline ||
+        export_entry->function_data.shim) {
+      global_critical_region_.Acquire();
+
+      // See if the function has been generated already.
+      if (guest_trampoline_map_.find(ordinal) != guest_trampoline_map_.end()) {
+        auto entry = guest_trampoline_map_.find(ordinal);
+        return entry->second;
+      }
+
+      // Generate the function.
+      assert_true(guest_trampoline_next_ * 8 < guest_trampoline_size_);
+      if (guest_trampoline_next_ * 8 >= guest_trampoline_size_) {
+        assert_always();  // If you hit this, increase kTrampolineSize
+        XELOGE("KernelModule::GetProcAddressByOrdinal trampoline exhausted");
+        return 0;
+      }
+
+      uint32_t guest_addr = guest_trampoline_ + (guest_trampoline_next_++ * 8);
+
+      auto mem = memory()->TranslateVirtual(guest_addr);
+      xe::store_and_swap<uint32_t>(mem + 0x0, 0x44000002);  // sc
+      xe::store_and_swap<uint32_t>(mem + 0x4, 0x4E800020);  // blr
+
+      // Declare/define the extern function.
+      cpu::Function* function;
+      guest_trampoline_module_->DeclareFunction(guest_addr, &function);
+      function->set_end_address(guest_addr + 8);
+      function->set_name(std::string("__T_") + export_entry->name);
+
+      cpu::GuestFunction::ExternHandler handler = nullptr;
+      if (export_entry->function_data.trampoline) {
+        handler = (cpu::GuestFunction::ExternHandler)
+                      export_entry->function_data.trampoline;
+      } else {
+        handler =
+            (cpu::GuestFunction::ExternHandler)export_entry->function_data.shim;
+      }
+      static_cast<cpu::GuestFunction*>(function)->SetupExtern(handler);
+
+      function->set_status(cpu::Symbol::Status::kDeclared);
+
+      // Register the function in our map.
+      guest_trampoline_map_[ordinal] = guest_addr;
+      return guest_addr;
     } else {
       // Not implemented.
       XELOGW(
@@ -61,7 +124,8 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
 }
 
 uint32_t KernelModule::GetProcAddressByName(const char* name) {
-  XELOGE("GetProcAddressByName not implemented");
+  // TODO: Does this even work for kernel modules?
+  XELOGE("KernelModule::GetProcAddressByName not implemented");
   return 0;
 }
 

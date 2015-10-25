@@ -61,6 +61,12 @@ bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   return true;
 }
 
+void RawModule::SetAddressRange(uint32_t base_address, uint32_t size) {
+  base_address_ = base_address;
+  low_address_ = base_address;
+  high_address_ = base_address + size;
+}
+
 bool RawModule::ContainsAddress(uint32_t address) {
   return address >= low_address_ && address < high_address_;
 }
