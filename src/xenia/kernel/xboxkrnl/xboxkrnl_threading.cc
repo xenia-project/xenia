@@ -139,7 +139,11 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
 
   if (XSUCCEEDED(result)) {
     if (handle_ptr) {
-      SHIM_SET_MEM_32(handle_ptr, thread->handle());
+      if (creation_flags & 0x80) {
+        SHIM_SET_MEM_32(handle_ptr, thread->guest_object());
+      } else {
+        SHIM_SET_MEM_32(handle_ptr, thread->handle());
+      }
     }
     if (thread_id_ptr) {
       SHIM_SET_MEM_32(thread_id_ptr, thread->thread_id());
