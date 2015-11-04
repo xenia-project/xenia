@@ -335,7 +335,7 @@ bool CommandProcessor::SetupGL() {
       "    }\n"
       "    EmitVertex();\n"
       "    EndPrimitive();\n"
-      "  } else if (gl_in[0].gl_Position.y == gl_in[1].gl_Position.y) {\n"
+      "  } else {\n"
       //  0 ------ 1
       //  | -      |
       //  |   \\   |
