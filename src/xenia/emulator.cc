@@ -105,6 +105,9 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   // Initialize the CPU.
   processor_ = std::make_unique<xe::cpu::Processor>(
       memory_.get(), export_resolver_.get(), debugger_.get());
+  if (!processor_->Setup()) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
 
   // Initialize the APU.
   audio_system_ = xe::apu::AudioSystem::Create(processor_.get());
@@ -140,9 +143,6 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
 
   // Setup the core components.
-  if (!processor_->Setup()) {
-    return result;
-  }
   result = graphics_system_->Setup(processor_.get(), display_window_->loop(),
                                    display_window_);
   if (result) {
