@@ -224,6 +224,24 @@ SHIM_CALL NtSuspendThread_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
+void KeSetCurrentStackPointers(lpvoid_t stack_ptr,
+                               pointer_t<X_KTHREAD> cur_thread,
+                               lpvoid_t stack_alloc_base, lpvoid_t stack_base,
+                               lpvoid_t stack_limit) {
+  auto thread = XThread::GetCurrentThread();
+  auto context = thread->thread_state()->context();
+  context->r[1] = stack_ptr.guest_address();
+
+  auto pcr =
+      kernel_memory()->TranslateVirtual<X_KPCR*>((uint32_t)context->r[13]);
+  pcr->stack_base_ptr = stack_base.guest_address();
+  pcr->stack_end_ptr = stack_limit.guest_address();
+
+  // TODO: Do we need to set the stack info on cur_thread?
+}
+DECLARE_XBOXKRNL_EXPORT(KeSetCurrentStackPointers,
+                        ExportTag::kThreading | ExportTag::kImplemented);
+
 SHIM_CALL KeSetAffinityThread_shim(PPCContext* ppc_context,
                                    KernelState* kernel_state) {
   uint32_t thread_ptr = SHIM_GET_ARG_32(0);

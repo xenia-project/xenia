@@ -559,36 +559,32 @@ SHIM_CALL KeUnlockL2_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   XELOGD("KeUnlockL2(?)");
 }
 
-SHIM_CALL MmCreateKernelStack_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  auto stack_size = SHIM_GET_ARG_32(0);
-  auto unk1 = SHIM_GET_ARG_32(1);
+dword_result_t MmCreateKernelStack(dword_t stack_size, dword_t r4) {
+  assert_zero(r4);  // Unknown argument.
 
-  XELOGD("MmCreateKernelStack(%.8X, %.8X)", stack_size, unk1);
-
-  stack_size = (stack_size + 0xFFF) & 0xFFFFF000;
+  auto stack_size_aligned = (stack_size + 0xFFF) & 0xFFFFF000;
   uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
 
   uint32_t stack_address;
-  kernel_state->memory()
+  kernel_memory()
       ->LookupHeap(0x70000000)
-      ->AllocRange(0x70000000, 0x7FFFFFFF, stack_size, stack_alignment,
+      ->AllocRange(0x70000000, 0x7FFFFFFF, stack_size_aligned, stack_alignment,
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
                    kMemoryProtectRead | kMemoryProtectWrite, false,
                    &stack_address);
-  SHIM_SET_RETURN_32(stack_address + stack_size);
+  return stack_address + stack_size;
 }
+DECLARE_XBOXKRNL_EXPORT(MmCreateKernelStack, ExportTag::kImplemented);
 
-SHIM_CALL MmDeleteKernelStack_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  auto unk0 = SHIM_GET_ARG_32(0);
-  auto unk1 = SHIM_GET_ARG_32(1);
+dword_result_t MmDeleteKernelStack(lpvoid_t stack_base, lpvoid_t stack_end) {
+  // Release the stack (where stack_end is the low address)
+  if (kernel_memory()->LookupHeap(0x70000000)->Release(stack_end)) {
+    return X_STATUS_SUCCESS;
+  }
 
-  XELOGD("MmDeleteKernelStack(%.8X, %.8X)", unk0, unk1);
-
-  assert_always();
-  SHIM_SET_RETURN_32(0);
+  return X_STATUS_UNSUCCESSFUL;
 }
+DECLARE_XBOXKRNL_EXPORT(MmDeleteKernelStack, ExportTag::kImplemented);
 
 void RegisterMemoryExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {
@@ -609,9 +605,6 @@ void RegisterMemoryExports(xe::cpu::ExportResolver* export_resolver,
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLockL2, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeUnlockL2, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", MmCreateKernelStack, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", MmDeleteKernelStack, state);
 }
 
 }  // namespace xboxkrnl
