@@ -41,6 +41,7 @@ class X64CodeCache : public CodeCache {
   // TODO(benvanik): keep track of code blocks
   // TODO(benvanik): padding/guards/etc
 
+  bool has_indirection_table() { return indirection_table_base_ != nullptr; }
   void set_indirection_default(uint32_t default_value);
   void AddIndirection(uint32_t guest_address, uint32_t host_address);
 

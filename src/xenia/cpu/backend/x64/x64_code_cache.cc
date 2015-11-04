@@ -52,7 +52,6 @@ bool X64CodeCache::Initialize() {
         "This is likely because the %.8X-%.8X range is in use by some other "
         "system DLL",
         kIndirectionTableBase, kIndirectionTableBase + kIndirectionTableSize);
-    return false;
   }
 
   // Create mmap file. This allows us to share the code cache with the debugger.
@@ -91,6 +90,8 @@ void X64CodeCache::set_indirection_default(uint32_t default_value) {
 
 void X64CodeCache::AddIndirection(uint32_t guest_address,
                                   uint32_t host_address) {
+  assert_not_null(indirection_table_base_);
+
   uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
       indirection_table_base_ + (guest_address - kIndirectionTableBase));
   *indirection_slot = host_address;
@@ -98,6 +99,10 @@ void X64CodeCache::AddIndirection(uint32_t guest_address,
 
 void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
                                          uint32_t guest_high) {
+  if (!indirection_table_base_) {
+    return;
+  }
+
   // Commit the memory.
   xe::memory::AllocFixed(
       indirection_table_base_ + (guest_low - kIndirectionTableBase),
@@ -178,7 +183,7 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
   // Now that everything is ready, fix up the indirection table.
   // Note that we do support code that doesn't have an indirection fixup, so
   // ignore those when we see them.
-  if (guest_address) {
+  if (guest_address && indirection_table_base_) {
     uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
         indirection_table_base_ + (guest_address - kIndirectionTableBase));
     *indirection_slot = uint32_t(reinterpret_cast<uint64_t>(code_address));

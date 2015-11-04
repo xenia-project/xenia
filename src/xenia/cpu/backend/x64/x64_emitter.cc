@@ -366,12 +366,21 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // a ResolveFunction call, but makes the table less useful.
     assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
     mov(eax, uint32_t(uint64_t(fn->machine_code())));
-  } else {
+  } else if (code_cache_->has_indirection_table()) {
     // Load the pointer to the indirection table maintained in X64CodeCache.
     // The target dword will either contain the address of the generated code
     // or a thunk to ResolveAddress.
     mov(ebx, function->address());
     mov(eax, dword[ebx]);
+  } else {
+    // Old-style resolve.
+    // Not too important because indirection table is almost always available.
+    // TODO: Overwrite the call-site with a straight call.
+    mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
+    mov(rdx, function->address());
+    call(rax);
+    ReloadECX();
+    ReloadEDX();
   }
 
   // Actually jump/call to rax.
@@ -403,10 +412,20 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
   // Load the pointer to the indirection table maintained in X64CodeCache.
   // The target dword will either contain the address of the generated code
   // or a thunk to ResolveAddress.
-  if (reg.cvt32() != ebx) {
-    mov(ebx, reg.cvt32());
+  if (code_cache_->has_indirection_table()) {
+    if (reg.cvt32() != ebx) {
+      mov(ebx, reg.cvt32());
+    }
+    mov(eax, dword[ebx]);
+  } else {
+    // Old-style resolve.
+    // Not too important because indirection table is almost always available.
+    mov(edx, reg.cvt32());
+    mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
+    call(rax);
+    ReloadECX();
+    ReloadEDX();
   }
-  mov(eax, dword[ebx]);
 
   // Actually jump/call to rax.
   if (instr->flags & hir::CALL_TAIL) {
