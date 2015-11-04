@@ -335,7 +335,7 @@ bool CommandProcessor::SetupGL() {
       "    }\n"
       "    EmitVertex();\n"
       "    EndPrimitive();\n"
-      "  } else {\n"
+      "  } else if (gl_in[0].gl_Position.y == gl_in[1].gl_Position.y) {\n"
       //  0 ------ 1
       //  | -      |
       //  |   \\   |
@@ -362,11 +362,11 @@ bool CommandProcessor::SetupGL() {
       "    gl_PointSize = gl_in[2].gl_PointSize;\n"
       "    out_vtx = in_vtx[2];\n"
       "    EmitVertex();\n"
-      "    gl_Position = gl_in[0].gl_Position + (gl_in[2].gl_Position - \n"
-      "        gl_in[1].gl_Position);\n"
+      "    gl_Position = (gl_in[0].gl_Position + gl_in[2].gl_Position) - \n"
+      "        gl_in[1].gl_Position;\n"
       "    gl_PointSize = gl_in[2].gl_PointSize;\n"
       "    for (int i = 0; i < 16; ++i) {\n"
-      "      out_vtx.o[i] = -in_vtx[0].o[i] + in_vtx[1].o[i] + \n"
+      "      out_vtx.o[i] = in_vtx[0].o[i] + -in_vtx[1].o[i] + \n"
       "          in_vtx[2].o[i];\n"
       "    }\n"
       "    EmitVertex();\n"
