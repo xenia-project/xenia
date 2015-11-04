@@ -139,7 +139,11 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
 
   if (XSUCCEEDED(result)) {
     if (handle_ptr) {
-      SHIM_SET_MEM_32(handle_ptr, thread->handle());
+      if (creation_flags & 0x80) {
+        SHIM_SET_MEM_32(handle_ptr, thread->guest_object());
+      } else {
+        SHIM_SET_MEM_32(handle_ptr, thread->handle());
+      }
     }
     if (thread_id_ptr) {
       SHIM_SET_MEM_32(thread_id_ptr, thread->thread_id());
@@ -283,18 +287,8 @@ SHIM_CALL KeSetBasePriorityThread_shim(PPCContext* ppc_context,
   XELOGD("KeSetBasePriorityThread(%.8X, %.8X)", thread_ptr, increment);
 
   int32_t prev_priority = 0;
-
-  object_ref<XThread> thread;
-  if (thread_ptr < 0x1000) {
-    // They passed in a handle (for some reason)
-    thread = kernel_state->object_table()->LookupObject<XThread>(thread_ptr);
-
-    // Log it in case this is the source of any problems in the future
-    XELOGD("KeSetBasePriorityThread - Interpreting thread ptr as handle!");
-  } else {
-    thread = XObject::GetNativeObject<XThread>(kernel_state,
-                                               SHIM_MEM_ADDR(thread_ptr));
-  }
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state,
+                                                  SHIM_MEM_ADDR(thread_ptr));
 
   if (thread) {
     prev_priority = thread->QueryPriority();
@@ -870,17 +864,8 @@ SHIM_CALL KeWaitForSingleObject_shim(PPCContext* ppc_context,
   XELOGD("KeWaitForSingleObject(%.8X, %.8X, %.8X, %.1X, %.8X)", object_ptr,
          wait_reason, processor_mode, alertable, timeout_ptr);
 
-  object_ref<XObject> object;
-  if (object_ptr < 0x1000) {
-    // They passed in a handle (for some reason)
-    object = kernel_state->object_table()->LookupObject<XObject>(object_ptr);
-
-    // Log it in case this is the source of any problems in the future
-    XELOGD("KeWaitForSingleObject - Interpreting object ptr as handle!");
-  } else {
-    object = XObject::GetNativeObject<XObject>(kernel_state,
-                                               SHIM_MEM_ADDR(object_ptr));
-  }
+  auto object = XObject::GetNativeObject<XObject>(kernel_state,
+                                                  SHIM_MEM_ADDR(object_ptr));
 
   if (!object) {
     // The only kind-of failure code.
