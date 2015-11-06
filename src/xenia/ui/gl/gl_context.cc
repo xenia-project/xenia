@@ -19,7 +19,7 @@
 #include "xenia/base/math.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/gl/gl4_elemental_renderer.h"
-#include "xenia/ui/gl/gl_profiler_display.h"
+#include "xenia/ui/gl/gl_immediate_drawer.h"
 #include "xenia/ui/window.h"
 
 // TODO(benvanik): move win32 code to _win?
@@ -84,6 +84,7 @@ GLContext::GLContext(Window* target_window, HGLRC glrc)
 GLContext::~GLContext() {
   MakeCurrent();
   blitter_.Shutdown();
+  immediate_drawer_.reset();
   ClearCurrent();
   if (glrc_) {
     wglDeleteContext(glrc_);
@@ -186,6 +187,8 @@ bool GLContext::Initialize(Window* target_window, GLContext* share_context) {
     return false;
   }
 
+  immediate_drawer_ = std::make_unique<GLImmediateDrawer>(this);
+
   ClearCurrent();
 
   return true;
@@ -248,6 +251,8 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
     FatalGLError("Unable to initialize blitter on shared context.");
     return nullptr;
   }
+
+  new_context->immediate_drawer_ = std::make_unique<GLImmediateDrawer>(this);
 
   new_context->ClearCurrent();
 
@@ -408,12 +413,12 @@ void GLContext::SetupDebugging() {
                          this);
 }
 
-std::unique_ptr<ProfilerDisplay> GLContext::CreateProfilerDisplay() {
-  return std::make_unique<GLProfilerDisplay>(target_window_);
-}
-
 std::unique_ptr<el::graphics::Renderer> GLContext::CreateElementalRenderer() {
   return GL4ElementalRenderer::Create(this);
+}
+
+ImmediateDrawer* GLContext::immediate_drawer() {
+  return immediate_drawer_.get();
 }
 
 bool GLContext::is_current() {

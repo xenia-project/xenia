@@ -29,17 +29,25 @@
 #define MICROPROFILE_MAX_THREADS 128
 #include "third_party/microprofile/microprofile.h"
 
+#include "xenia/base/assert.h"
 #include "xenia/profiling.h"
+#include "xenia/ui/window.h"
 
 #if XE_OPTION_PROFILING
 #include "third_party/microprofile/microprofileui.h"
 #endif  // XE_OPTION_PROFILING
 
+#if XE_OPTION_PROFILING_UI
+#undef DrawText
+#include "xenia/ui/microprofile_drawer.h"
+#endif  // XE_OPTION_PROFILING_UI
+
 DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
 
 namespace xe {
 
-std::unique_ptr<ProfilerDisplay> Profiler::display_ = nullptr;
+ui::Window* Profiler::window_ = nullptr;
+std::unique_ptr<ui::MicroprofileDrawer> Profiler::drawer_ = nullptr;
 
 #if XE_OPTION_PROFILING
 
@@ -86,7 +94,8 @@ void Profiler::Dump() {
 }
 
 void Profiler::Shutdown() {
-  display_.reset();
+  drawer_.reset();
+  window_ = nullptr;
   MicroProfileShutdown();
 }
 
@@ -165,20 +174,74 @@ void Profiler::TogglePause() {}
 
 #endif  // XE_OPTION_PROFILING_UI
 
-void Profiler::set_display(std::unique_ptr<ProfilerDisplay> display) {
-  display_ = std::move(display);
+void Profiler::set_window(ui::Window* window) {
+  assert_null(window_);
+  if (!window) {
+    return;
+  }
+  window_ = window;
+  drawer_ = std::make_unique<ui::MicroprofileDrawer>(window);
+
+  window_->on_painted.AddListener([](ui::UIEvent* e) { Profiler::Present(); });
+
+  // Pass through mouse events.
+  window_->on_mouse_down.AddListener([](ui::MouseEvent* e) {
+    if (Profiler::is_visible()) {
+      Profiler::OnMouseDown(e->button() == ui::MouseEvent::Button::kLeft,
+                            e->button() == ui::MouseEvent::Button::kRight);
+      e->set_handled(true);
+      window_->Invalidate();
+    }
+  });
+  window_->on_mouse_up.AddListener([](ui::MouseEvent* e) {
+    if (Profiler::is_visible()) {
+      Profiler::OnMouseUp();
+      e->set_handled(true);
+      window_->Invalidate();
+    }
+  });
+  window_->on_mouse_move.AddListener([](ui::MouseEvent* e) {
+    if (Profiler::is_visible()) {
+      Profiler::OnMouseMove(e->x(), e->y());
+      e->set_handled(true);
+      window_->Invalidate();
+    }
+  });
+  window_->on_mouse_wheel.AddListener([](ui::MouseEvent* e) {
+    if (Profiler::is_visible()) {
+      Profiler::OnMouseWheel(e->x(), e->y(), -e->dy());
+      e->set_handled(true);
+      window_->Invalidate();
+    }
+  });
+
+  // Watch for toggle/mode keys and such.
+  window_->on_key_down.AddListener([](ui::KeyEvent* e) {
+    if (Profiler::is_visible()) {
+      Profiler::OnKeyDown(e->key_code());
+      e->set_handled(true);
+      window_->Invalidate();
+    }
+  });
+  window_->on_key_up.AddListener([](ui::KeyEvent* e) {
+    if (Profiler::is_visible()) {
+      Profiler::OnKeyUp(e->key_code());
+      e->set_handled(true);
+      window_->Invalidate();
+    }
+  });
 }
 
 void Profiler::Present() {
   SCOPE_profile_cpu_f("internal");
   MicroProfileFlip();
 #if XE_OPTION_PROFILING_UI
-  if (!display_) {
+  if (!window_ || !drawer_) {
     return;
   }
-  display_->Begin();
-  MicroProfileDraw(display_->width(), display_->height());
-  display_->End();
+  drawer_->Begin();
+  MicroProfileDraw(window_->width(), window_->height());
+  drawer_->End();
 #endif  // XE_OPTION_PROFILING_UI
 }
 
@@ -198,7 +261,7 @@ void Profiler::OnMouseDown(bool left_button, bool right_button) {}
 void Profiler::OnMouseUp() {}
 void Profiler::OnMouseMove(int x, int y) {}
 void Profiler::OnMouseWheel(int x, int y, int dy) {}
-void Profiler::set_display(std::unique_ptr<ProfilerDisplay> display) {}
+void Profiler::set_display(std::unique_ptr<ui::MicroprofilerDrawer> display) {}
 void Profiler::Present() {}
 
 #endif  // XE_OPTION_PROFILING
@@ -219,30 +282,30 @@ const char* MicroProfileGetThreadName() { return "TODO: get thread name!"; }
 
 void MicroProfileDrawBox(int nX, int nY, int nX1, int nY1, uint32_t nColor,
                          MicroProfileBoxType type) {
-  auto display = xe::Profiler::display();
-  if (!display) {
+  auto drawer = xe::Profiler::drawer();
+  if (!drawer) {
     return;
   }
-  display->DrawBox(nX, nY, nX1, nY1, nColor,
-                   static_cast<xe::ProfilerDisplay::BoxType>(type));
+  drawer->DrawBox(nX, nY, nX1, nY1, nColor,
+                  static_cast<xe::ui::MicroprofileDrawer::BoxType>(type));
 }
 
 void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices,
                             uint32_t nColor) {
-  auto display = xe::Profiler::display();
-  if (!display) {
+  auto drawer = xe::Profiler::drawer();
+  if (!drawer) {
     return;
   }
-  display->DrawLine2D(nVertices, pVertices, nColor);
+  drawer->DrawLine2D(nVertices, pVertices, nColor);
 }
 
 void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText,
                           uint32_t nLen) {
-  auto display = xe::Profiler::display();
-  if (!display) {
+  auto drawer = xe::Profiler::drawer();
+  if (!drawer) {
     return;
   }
-  display->DrawText(nX, nY, nColor, pText, nLen);
+  drawer->DrawText(nX, nY, nColor, pText, nLen);
 }
 
 #endif  // XE_OPTION_PROFILING_UI

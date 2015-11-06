@@ -13,11 +13,11 @@
 #include <memory>
 
 #include "el/graphics/renderer.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace ui {
 
+class ImmediateDrawer;
 class Window;
 
 class GraphicsContext {
@@ -27,8 +27,9 @@ class GraphicsContext {
   Window* target_window() const { return target_window_; }
 
   virtual std::unique_ptr<GraphicsContext> CreateShared() = 0;
-  virtual std::unique_ptr<ProfilerDisplay> CreateProfilerDisplay() = 0;
   virtual std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() = 0;
+
+  virtual ImmediateDrawer* immediate_drawer() = 0;
 
   virtual bool is_current() = 0;
   virtual bool MakeCurrent() = 0;

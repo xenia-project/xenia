@@ -28,6 +28,13 @@
 #endif  // XE_OPTION_PROFILING
 
 namespace xe {
+namespace ui {
+class MicroprofileDrawer;
+class Window;
+}  // namespace ui
+}  // namespace xe
+
+namespace xe {
 
 #if XE_OPTION_PROFILING
 
@@ -125,32 +132,6 @@ namespace xe {
 
 #endif  // XE_OPTION_PROFILING
 
-class ProfilerDisplay {
- public:
-  enum class BoxType {
-#if XE_OPTION_PROFILING
-    kBar = MicroProfileBoxTypeBar,
-    kFlat = MicroProfileBoxTypeFlat,
-#else
-    kBar,
-    kFlat,
-#endif  // XE_OPTION_PROFILING
-  };
-
-  virtual uint32_t width() const = 0;
-  virtual uint32_t height() const = 0;
-
-  // TODO(benvanik): GPU timestamping.
-
-  virtual void Begin() = 0;
-  virtual void End() = 0;
-  virtual void DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
-                       BoxType type) = 0;
-  virtual void DrawLine2D(uint32_t count, float* vertices, uint32_t color) = 0;
-  virtual void DrawText(int x, int y, uint32_t color, const char* text,
-                        size_t text_length) = 0;
-};
-
 class Profiler {
  public:
   static bool is_enabled();
@@ -181,15 +162,16 @@ class Profiler {
   static void ToggleDisplay();
   static void TogglePause();
 
+  // Initializes input and drawing with the given display.
+  static void set_window(ui::Window* window);
   // Gets the current display, if any.
-  static ProfilerDisplay* display() { return display_.get(); }
-  // Initializes drawing with the given display.
-  static void set_display(std::unique_ptr<ProfilerDisplay> display);
+  static ui::MicroprofileDrawer* drawer() { return drawer_.get(); }
   // Presents the profiler to the bound display, if any.
   static void Present();
 
  private:
-  static std::unique_ptr<ProfilerDisplay> display_;
+  static ui::Window* window_;
+  static std::unique_ptr<ui::MicroprofileDrawer> drawer_;
 };
 
 }  // namespace xe

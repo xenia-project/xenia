@@ -26,6 +26,7 @@
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
+#include "xenia/profiling.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
@@ -164,8 +165,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   // Finish initializing the display.
   display_window_->loop()->PostSynchronous([this]() {
     xe::ui::GraphicsContextLock context_lock(display_window_->context());
-    auto profiler_display = display_window_->context()->CreateProfilerDisplay();
-    Profiler::set_display(std::move(profiler_display));
+    Profiler::set_window(display_window_);
   });
 
   return result;

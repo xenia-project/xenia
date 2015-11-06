@@ -7,37 +7,24 @@
  ******************************************************************************
  */
 
-#include "xenia/ui/gl/gl_profiler_display.h"
+#include "xenia/ui/microprofile_drawer.h"
 
 #include <algorithm>
-#include <string>
 
-#include "third_party/microprofile/microprofile.h"
-#include "third_party/microprofile/microprofileui.h"
-
-#include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/window.h"
 
 namespace xe {
 namespace ui {
-namespace gl {
 
-#define MICROPROFILE_MAX_VERTICES (16 << 10)
-#define MICROPROFILE_NUM_QUERIES (8 << 10)
-#define MAX_FONT_CHARS 256
-#define Q0(d, member, v) d[0].member = v
-#define Q1(d, member, v) \
-  d[1].member = v;       \
-  d[3].member = v
-#define Q2(d, member, v) d[4].member = v
-#define Q3(d, member, v) \
-  d[2].member = v;       \
-  d[5].member = v
+const int kMaxVertices = 16 << 10;
 
-const int FONT_TEX_X = 1024;
-const int FONT_TEX_Y = 9;
+const int kFontTextureWidth = 1024;
+const int kFontTextureHeight = 9;
+const int kFontCharWidth = 5;
+const int kFontCharHeight = 8;
 
-const uint8_t profiler_font[] = {
+const uint8_t kFontData[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -136,66 +123,14 @@ const uint8_t profiler_font[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-GLProfilerDisplay::GLProfilerDisplay(xe::ui::Window* window)
+MicroprofileDrawer::MicroprofileDrawer(xe::ui::Window* window)
     : window_(window),
-      vertex_buffer_(MICROPROFILE_MAX_VERTICES * sizeof(Vertex) * 10,
-                     sizeof(Vertex)) {
-  if (!SetupFont() || !SetupState() || !SetupShaders()) {
-    // Hrm.
-    assert_always();
-  }
-
-  window_->on_painted.AddListener([this](UIEvent* e) { Profiler::Present(); });
-
-  // Pass through mouse events.
-  window_->on_mouse_down.AddListener([this](MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseDown(e->button() == MouseEvent::Button::kLeft,
-                            e->button() == MouseEvent::Button::kRight);
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_mouse_up.AddListener([this](MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseUp();
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_mouse_move.AddListener([this](MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseMove(e->x(), e->y());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_mouse_wheel.AddListener([this](MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseWheel(e->x(), e->y(), -e->dy());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-
-  // Watch for toggle/mode keys and such.
-  window_->on_key_down.AddListener([this](KeyEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnKeyDown(e->key_code());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_key_up.AddListener([this](KeyEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnKeyUp(e->key_code());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
+      graphics_context_(window->context()),
+      vertices_(kMaxVertices) {
+  SetupFont();
 }
 
-bool GLProfilerDisplay::SetupFont() {
+void MicroprofileDrawer::SetupFont() {
   // Setup font lookup table.
   for (uint32_t i = 0; i < xe::countof(font_description_.char_offsets); ++i) {
     font_description_.char_offsets[i] = 206;
@@ -223,223 +158,74 @@ bool GLProfilerDisplay::SetupFont() {
   }
 
   // Unpack font bitmap into an RGBA texture.
-  const int UNPACKED_SIZE = FONT_TEX_X * FONT_TEX_Y * 4;
+  const int UNPACKED_SIZE = kFontTextureWidth * kFontTextureHeight * 4;
   uint32_t unpacked[UNPACKED_SIZE];
   int idx = 0;
-  int end = FONT_TEX_X * FONT_TEX_Y / 8;
+  int end = kFontTextureWidth * kFontTextureHeight / 8;
   for (int i = 0; i < end; i++) {
-    uint8_t b = profiler_font[i];
+    uint8_t b = kFontData[i];
     for (int j = 0; j < 8; ++j) {
       unpacked[idx++] = b & 0x80 ? 0xFFFFFFFFu : 0;
       b <<= 1;
     }
   }
 
-  glCreateTextures(GL_TEXTURE_2D, 1, &font_texture_);
-  glTextureParameteri(font_texture_, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTextureParameteri(font_texture_, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTextureParameteri(font_texture_, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTextureParameteri(font_texture_, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTextureStorage2D(font_texture_, 1, GL_RGBA8, FONT_TEX_X, FONT_TEX_Y);
-  glTextureSubImage2D(font_texture_, 0, 0, 0, FONT_TEX_X, FONT_TEX_Y, GL_RGBA,
-                      GL_UNSIGNED_BYTE, unpacked);
-
-  font_handle_ = glGetTextureHandleARB(font_texture_);
-  glMakeTextureHandleResidentARB(font_handle_);
-
-  return true;
+  font_texture_ = graphics_context_->immediate_drawer()->CreateTexture(
+      kFontTextureWidth, kFontTextureHeight, ImmediateTextureFilter::kNearest,
+      false, reinterpret_cast<uint8_t*>(unpacked));
 }
 
-bool GLProfilerDisplay::SetupState() {
-  if (!vertex_buffer_.Initialize()) {
-    return false;
-  }
-  return true;
+MicroprofileDrawer::~MicroprofileDrawer() { font_texture_.reset(); }
+
+void MicroprofileDrawer::Begin() {
+  graphics_context_->immediate_drawer()->Begin(window_->width(),
+                                               window_->height());
 }
 
-bool GLProfilerDisplay::SetupShaders() {
-  const std::string header =
-      R"(
-#version 450
-#extension GL_ARB_bindless_texture : require
-#extension GL_ARB_explicit_uniform_location : require
-#extension GL_ARB_shading_language_420pack : require
-precision highp float;
-precision highp int;
-layout(std140, column_major) uniform;
-layout(std430, column_major) buffer;
-)";
-  const std::string vertex_shader_source = header +
-                                           R"(
-layout(location = 0) uniform mat4 projection_matrix;
-layout(location = 0) in vec2 in_pos;
-layout(location = 1) in vec4 in_color;
-layout(location = 2) in vec2 in_uv;
-layout(location = 0) out vec4 vtx_color;
-layout(location = 1) out vec2 vtx_uv;
-void main() {
-  gl_Position = projection_matrix * vec4(in_pos.xy, 0.0, 1.0);
-  vtx_color = in_color;
-  vtx_uv = in_uv;
-})";
-  const std::string fragment_shader_source = header +
-                                             R"(
-layout(location = 1, bindless_sampler) uniform sampler2D font_texture;
-layout(location = 2) uniform float font_height;
-layout(location = 0) in vec4 vtx_color;
-layout(location = 1) in vec2 vtx_uv;
-layout(location = 0) out vec4 oC;
-void main() {
-  if (vtx_uv.x > 1.0) {
-    oC = vtx_color;
-  } else {
-    vec4 color = texture(font_texture, vtx_uv);
-    oC = color.rgba * vtx_color;
-    if (color.a < 0.5) {
-      vec4 c1 = texture(font_texture, vtx_uv + vec2(0.0, font_height));
-      oC = vec4(0, 0, 0, c1.a);
-    }
-  }
-})";
-
-  GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-  const char* vertex_shader_source_ptr = vertex_shader_source.c_str();
-  GLint vertex_shader_source_length = GLint(vertex_shader_source.size());
-  glShaderSource(vertex_shader, 1, &vertex_shader_source_ptr,
-                 &vertex_shader_source_length);
-  glCompileShader(vertex_shader);
-
-  GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-  const char* fragment_shader_source_ptr = fragment_shader_source.c_str();
-  GLint fragment_shader_source_length = GLint(fragment_shader_source.size());
-  glShaderSource(fragment_shader, 1, &fragment_shader_source_ptr,
-                 &fragment_shader_source_length);
-  glCompileShader(fragment_shader);
-
-  program_ = glCreateProgram();
-  glAttachShader(program_, vertex_shader);
-  glAttachShader(program_, fragment_shader);
-  glLinkProgram(program_);
-  glDeleteShader(vertex_shader);
-  glDeleteShader(fragment_shader);
-
-  glProgramUniformHandleui64ARB(program_, 1, font_handle_);
-  glProgramUniform1f(program_, 2, 1.0f / FONT_TEX_Y);
-
-  glCreateVertexArrays(1, &vao_);
-  glEnableVertexArrayAttrib(vao_, 0);
-  glVertexArrayAttribBinding(vao_, 0, 0);
-  glVertexArrayAttribFormat(vao_, 0, 2, GL_FLOAT, GL_FALSE,
-                            offsetof(Vertex, x));
-  glEnableVertexArrayAttrib(vao_, 1);
-  glVertexArrayAttribBinding(vao_, 1, 0);
-  glVertexArrayAttribFormat(vao_, 1, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-                            offsetof(Vertex, color));
-  glEnableVertexArrayAttrib(vao_, 2);
-  glVertexArrayAttribBinding(vao_, 2, 0);
-  glVertexArrayAttribFormat(vao_, 2, 2, GL_FLOAT, GL_FALSE,
-                            offsetof(Vertex, u));
-  glVertexArrayVertexBuffer(vao_, 0, vertex_buffer_.handle(), 0,
-                            sizeof(Vertex));
-
-  return true;
-}
-
-GLProfilerDisplay::~GLProfilerDisplay() {
-  vertex_buffer_.Shutdown();
-  glMakeTextureHandleNonResidentARB(font_handle_);
-  glDeleteTextures(1, &font_texture_);
-  glDeleteVertexArrays(1, &vao_);
-  glDeleteProgram(program_);
-}
-
-uint32_t GLProfilerDisplay::width() const { return window_->width(); }
-
-uint32_t GLProfilerDisplay::height() const { return window_->height(); }
-
-void GLProfilerDisplay::Begin() {
-  glEnablei(GL_BLEND, 0);
-  glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_STENCIL_TEST);
-  glDisable(GL_SCISSOR_TEST);
-
-  glViewport(0, 0, width(), height());
-
-  float left = 0.0f;
-  float right = static_cast<float>(width());
-  float bottom = static_cast<float>(height());
-  float top = 0.0f;
-  float z_near = -1.0f;
-  float z_far = 1.0f;
-  float projection[16] = {0};
-  projection[0] = 2.0f / (right - left);
-  projection[5] = 2.0f / (top - bottom);
-  projection[10] = -2.0f / (z_far - z_near);
-  projection[12] = -(right + left) / (right - left);
-  projection[13] = -(top + bottom) / (top - bottom);
-  projection[14] = -(z_far + z_near) / (z_far - z_near);
-  projection[15] = 1.0f;
-  glProgramUniformMatrix4fv(program_, 0, 1, GL_FALSE, projection);
-
-  glUseProgram(program_);
-  glBindVertexArray(vao_);
-}
-
-void GLProfilerDisplay::End() {
+void MicroprofileDrawer::End() {
   Flush();
-  glUseProgram(0);
-  glBindVertexArray(0);
+  graphics_context_->immediate_drawer()->End();
 }
 
-GLProfilerDisplay::Vertex* GLProfilerDisplay::BeginVertices(size_t count) {
-  if (draw_command_count_ + 1 > kMaxCommands) {
+ImmediateVertex* MicroprofileDrawer::BeginVertices(
+    ImmediatePrimitiveType primitive_type, int count) {
+  if (vertex_count_ + count > vertices_.size() ||
+      primitive_type != current_primitive_type_) {
     Flush();
   }
-  size_t total_length = sizeof(Vertex) * count;
-  if (!vertex_buffer_.CanAcquire(total_length)) {
-    Flush();
-  }
-  current_allocation_ = vertex_buffer_.Acquire(total_length);
-  return reinterpret_cast<Vertex*>(current_allocation_.host_ptr);
+  current_primitive_type_ = primitive_type;
+  auto ptr = vertices_.data() + vertex_count_;
+  vertex_count_ += count;
+  return ptr;
 }
 
-void GLProfilerDisplay::EndVertices(GLenum prim_type) {
-  size_t vertex_count = current_allocation_.length / sizeof(Vertex);
+void MicroprofileDrawer::EndVertices() {}
 
-  if (draw_command_count_ &&
-      draw_commands_[draw_command_count_ - 1].prim_type == prim_type) {
-    // Coalesce.
-    auto& prev_command = draw_commands_[draw_command_count_ - 1];
-    prev_command.vertex_count += vertex_count;
-  } else {
-    auto& command = draw_commands_[draw_command_count_++];
-    command.prim_type = prim_type;
-    command.vertex_offset = current_allocation_.offset / sizeof(Vertex);
-    command.vertex_count = vertex_count;
-  }
-
-  vertex_buffer_.Commit(std::move(current_allocation_));
-}
-
-void GLProfilerDisplay::Flush() {
-  if (!draw_command_count_) {
+void MicroprofileDrawer::Flush() {
+  if (!vertex_count_) {
     return;
   }
-  vertex_buffer_.Flush();
-  for (size_t i = 0; i < draw_command_count_; ++i) {
-    glDrawArrays(draw_commands_[i].prim_type,
-                 GLint(draw_commands_[i].vertex_offset),
-                 GLsizei(draw_commands_[i].vertex_count));
-  }
-  draw_command_count_ = 0;
-  // TODO(benvanik): don't finish here.
-  vertex_buffer_.WaitUntilClean();
+  ImmediateDrawBatch batch;
+  batch.primitive_type = current_primitive_type_;
+  batch.vertices = vertices_.data();
+  batch.vertex_count = vertex_count_;
+  batch.texture_handle = font_texture_->handle;
+  graphics_context_->immediate_drawer()->Draw(batch);
+  vertex_count_ = 0;
 }
 
-void GLProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
-                                BoxType type) {
-  auto v = BeginVertices(6);
+#define Q0(d, member, v) d[0].member = v
+#define Q1(d, member, v) \
+  d[1].member = v;       \
+  d[3].member = v
+#define Q2(d, member, v) d[4].member = v
+#define Q3(d, member, v) \
+  d[2].member = v;       \
+  d[5].member = v
+
+void MicroprofileDrawer::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
+                                 BoxType type) {
+  auto v = BeginVertices(ImmediatePrimitiveType::kTriangles, 6);
   if (type == BoxType::kFlat) {
     color =
         ((color & 0xff) << 16) | ((color >> 16) & 0xff) | (0xff00ff00 & color);
@@ -500,15 +286,15 @@ void GLProfilerDisplay::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     Q3(v, u, 2.0f);
     Q3(v, v, 3.0f);
   }
-  EndVertices(GL_TRIANGLES);
+  EndVertices();
 }
 
-void GLProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
-                                   uint32_t color) {
+void MicroprofileDrawer::DrawLine2D(uint32_t count, float* vertices,
+                                    uint32_t color) {
   if (!count || !vertices) {
     return;
   }
-  auto v = BeginVertices(2 * (count - 1));
+  auto v = BeginVertices(ImmediatePrimitiveType::kLines, 2 * (count - 1));
   color = 0xff000000 | ((color & 0xff) << 16) | (color & 0xff00ff00) |
           ((color >> 16) & 0xff);
   for (uint32_t i = 0; i < count - 1; ++i) {
@@ -524,21 +310,21 @@ void GLProfilerDisplay::DrawLine2D(uint32_t count, float* vertices,
     v[1].v = 2.0f;
     v += 2;
   }
-  EndVertices(GL_LINES);
+  EndVertices();
 }
 
-void GLProfilerDisplay::DrawText(int x, int y, uint32_t color, const char* text,
-                                 size_t text_length) {
+void MicroprofileDrawer::DrawText(int x, int y, uint32_t color,
+                                  const char* text, int text_length) {
   if (!text_length) {
     return;
   }
 
-  const float fOffsetU = 5.0f / 1024.0f;
+  const float fOffsetU = kFontCharWidth / static_cast<float>(kFontTextureWidth);
   float fX = static_cast<float>(x);
   float fY = static_cast<float>(y);
-  float fY2 = fY + (MICROPROFILE_TEXT_HEIGHT + 1);
+  float fY2 = fY + (kFontCharHeight + 1);
 
-  auto v = BeginVertices(6 * text_length);
+  auto v = BeginVertices(ImmediatePrimitiveType::kTriangles, 6 * text_length);
   const char* pStr = text;
   color = 0xff000000 | ((color & 0xff) << 16) | (color & 0xff00) |
           ((color >> 16) & 0xff);
@@ -552,13 +338,13 @@ void GLProfilerDisplay::DrawText(int x, int y, uint32_t color, const char* text,
     Q0(v, u, fOffset);
     Q0(v, v, 0.0f);
 
-    Q1(v, x, fX + MICROPROFILE_TEXT_WIDTH);
+    Q1(v, x, fX + kFontCharWidth);
     Q1(v, y, fY);
     Q1(v, color, color);
     Q1(v, u, fOffset + fOffsetU);
     Q1(v, v, 0.0f);
 
-    Q2(v, x, fX + MICROPROFILE_TEXT_WIDTH);
+    Q2(v, x, fX + kFontCharWidth);
     Q2(v, y, fY2);
     Q2(v, color, color);
     Q2(v, u, fOffset + fOffsetU);
@@ -570,13 +356,12 @@ void GLProfilerDisplay::DrawText(int x, int y, uint32_t color, const char* text,
     Q3(v, u, fOffset);
     Q3(v, v, 1.0f);
 
-    fX += MICROPROFILE_TEXT_WIDTH + 1;
+    fX += kFontCharWidth + 1;
     v += 6;
   }
 
-  EndVertices(GL_TRIANGLES);
+  EndVertices();
 }
 
-}  // namespace gl
 }  // namespace ui
 }  // namespace xe

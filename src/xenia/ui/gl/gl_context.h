@@ -28,6 +28,8 @@ namespace xe {
 namespace ui {
 namespace gl {
 
+class GLImmediateDrawer;
+
 class GLContext : public GraphicsContext {
  public:
   static std::unique_ptr<GLContext> Create(Window* target_window,
@@ -38,8 +40,9 @@ class GLContext : public GraphicsContext {
   HDC dc() const { return dc_; }
 
   std::unique_ptr<GraphicsContext> CreateShared() override;
-  std::unique_ptr<ProfilerDisplay> CreateProfilerDisplay() override;
   std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() override;
+
+  ImmediateDrawer* immediate_drawer() override;
 
   bool is_current() override;
   bool MakeCurrent() override;
@@ -73,6 +76,7 @@ class GLContext : public GraphicsContext {
   std::unique_ptr<WGLEWContext> wglew_context_;
 
   Blitter blitter_;
+  std::unique_ptr<GLImmediateDrawer> immediate_drawer_;
 };
 
 }  // namespace gl

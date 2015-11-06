@@ -2236,7 +2236,7 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
 
   auto graphics_system = emulator->graphics_system();
-  Profiler::set_display(nullptr);
+  Profiler::set_window(nullptr);
 
   TracePlayer player(loop.get(), emulator->graphics_system());
   if (!player.Open(abs_path)) {
