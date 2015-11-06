@@ -543,7 +543,8 @@ void X64Emitter::CallNativeSafe(void* fn) {
 }
 
 void X64Emitter::SetReturnAddress(uint64_t value) {
-  mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], value);
+  mov(rax, value);
+  mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
 }
 
 void X64Emitter::ReloadECX() {
