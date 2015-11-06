@@ -47,6 +47,9 @@ enum class ImmediatePrimitiveType {
 };
 
 // Simple vertex used by the immediate mode drawer.
+// To avoid translations, this matches both imgui and elemental-forms vertices:
+//   ImDrawVert
+//   el::graphics::Renderer::Vertex
 struct ImmediateVertex {
   float x, y;
   float u, v;
@@ -55,9 +58,6 @@ struct ImmediateVertex {
 
 // All parameters required to draw an immediate-mode batch of vertices.
 struct ImmediateDrawBatch {
-  // Primitive type the vertices/indices represent.
-  ImmediatePrimitiveType primitive_type = ImmediatePrimitiveType::kTriangles;
-
   // Vertices to draw.
   const ImmediateVertex* vertices = nullptr;
   int vertex_count = 0;
@@ -65,6 +65,17 @@ struct ImmediateDrawBatch {
   // Optional index buffer indices.
   const uint16_t* indices = nullptr;
   int index_count = 0;
+};
+
+struct ImmediateDraw {
+  // Primitive type the vertices/indices represent.
+  ImmediatePrimitiveType primitive_type = ImmediatePrimitiveType::kTriangles;
+  // Total number of elements to draw.
+  int count = 0;
+  // Starting offset in the index buffer.
+  int index_offset = 0;
+  // Base vertex of elements, if using an index buffer.
+  int base_vertex = 0;
 
   // Texture used when drawing, or nullptr if color only.
   // This is most commonly the handle of an ImmediateTexture.
@@ -91,8 +102,12 @@ class ImmediateDrawer {
 
   // Begins drawing in immediate mode using the given projection matrix.
   virtual void Begin(int render_target_width, int render_target_height) = 0;
-  // Issues an immediate mode draw batch.
-  virtual void Draw(const ImmediateDrawBatch& batch) = 0;
+  // Starts a draw batch.
+  virtual void BeginDrawBatch(const ImmediateDrawBatch& batch) = 0;
+  // Draws one set of a batch.
+  virtual void Draw(const ImmediateDraw& draw) = 0;
+  // Ends a draw batch.
+  virtual void EndDrawBatch() = 0;
   // Ends drawing in immediate mode and flushes contents.
   virtual void End() = 0;
 

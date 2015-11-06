@@ -32,7 +32,9 @@ class GLImmediateDrawer : public ImmediateDrawer {
   void UpdateTexture(ImmediateTexture* texture, const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
-  void Draw(const ImmediateDrawBatch& batch) override;
+  void BeginDrawBatch(const ImmediateDrawBatch& batch) override;
+  void Draw(const ImmediateDraw& draw) override;
+  void EndDrawBatch() override;
   void End() override;
 
  private:
@@ -44,6 +46,7 @@ class GLImmediateDrawer : public ImmediateDrawer {
   GLuint index_buffer_ = 0;
 
   bool was_current_ = false;
+  bool batch_has_index_buffer_ = false;
 };
 
 }  // namespace gl

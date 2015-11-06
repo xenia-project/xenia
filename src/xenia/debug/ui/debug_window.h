@@ -22,10 +22,14 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+namespace ui {
+class ImGuiDrawer;
+}  // namespace ui
+}  // namespace xe
+
+namespace xe {
 namespace debug {
 namespace ui {
-
-class ImGuiRenderer;
 
 class DebugWindow : public DebugListener {
  public:
@@ -91,7 +95,7 @@ class DebugWindow : public DebugListener {
   Debugger* debugger_ = nullptr;
   xe::ui::Loop* loop_ = nullptr;
   std::unique_ptr<xe::ui::Window> window_;
-  std::unique_ptr<ImGuiRenderer> imgui_renderer_;
+  std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
   uint64_t last_draw_tick_count_ = 0;
 
   uintptr_t capstone_handle_ = 0;

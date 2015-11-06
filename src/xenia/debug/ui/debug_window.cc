@@ -28,11 +28,11 @@
 #include "xenia/base/threading.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
 #include "xenia/cpu/stack_walker.h"
-#include "xenia/debug/ui/imgui_renderer.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/kernel/xmodule.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/imgui_drawer.h"
 
 DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.");
 
@@ -91,7 +91,7 @@ bool DebugWindow::Initialize() {
 
   window_->on_closed.AddListener([this](UIEvent* e) {
     // Kill now while we have a GL context.
-    imgui_renderer_.reset();
+    imgui_drawer_.reset();
   });
   loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
@@ -120,8 +120,7 @@ bool DebugWindow::Initialize() {
   window_->set_context(std::move(context));
 
   // Setup ImGui.
-  imgui_renderer_ =
-      std::make_unique<ImGuiRenderer>(window_.get(), window_->context());
+  imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window_.get());
   window_->on_key_char.AddListener([](xe::ui::KeyEvent* e) {
     auto& io = ImGui::GetIO();
     if (e->key_code() > 0 && e->key_code() < 0x10000) {

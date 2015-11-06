@@ -158,8 +158,8 @@ void MicroprofileDrawer::SetupFont() {
   }
 
   // Unpack font bitmap into an RGBA texture.
-  const int UNPACKED_SIZE = kFontTextureWidth * kFontTextureHeight * 4;
-  uint32_t unpacked[UNPACKED_SIZE];
+  const int kUnpackedSize = kFontTextureWidth * kFontTextureHeight * 4;
+  uint32_t unpacked[kUnpackedSize];
   int idx = 0;
   int end = kFontTextureWidth * kFontTextureHeight / 8;
   for (int i = 0; i < end; i++) {
@@ -175,7 +175,7 @@ void MicroprofileDrawer::SetupFont() {
       false, reinterpret_cast<uint8_t*>(unpacked));
 }
 
-MicroprofileDrawer::~MicroprofileDrawer() { font_texture_.reset(); }
+MicroprofileDrawer::~MicroprofileDrawer() = default;
 
 void MicroprofileDrawer::Begin() {
   graphics_context_->immediate_drawer()->Begin(window_->width(),
@@ -202,15 +202,24 @@ ImmediateVertex* MicroprofileDrawer::BeginVertices(
 void MicroprofileDrawer::EndVertices() {}
 
 void MicroprofileDrawer::Flush() {
+  auto drawer = graphics_context_->immediate_drawer();
   if (!vertex_count_) {
     return;
   }
+
   ImmediateDrawBatch batch;
-  batch.primitive_type = current_primitive_type_;
   batch.vertices = vertices_.data();
   batch.vertex_count = vertex_count_;
-  batch.texture_handle = font_texture_->handle;
-  graphics_context_->immediate_drawer()->Draw(batch);
+  drawer->BeginDrawBatch(batch);
+
+  ImmediateDraw draw;
+  draw.primitive_type = current_primitive_type_;
+  draw.count = vertex_count_;
+  draw.texture_handle = font_texture_->handle;
+  drawer->Draw(draw);
+
+  drawer->EndDrawBatch();
+
   vertex_count_ = 0;
 }
 

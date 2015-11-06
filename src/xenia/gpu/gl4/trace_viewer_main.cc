@@ -11,7 +11,6 @@
 #include <cstring>
 
 #include "third_party/imgui/imgui.h"
-
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -25,6 +24,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/profiling.h"
 #include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
 // HACK: until we have another impl, we just use gl4 directly.
@@ -2182,8 +2182,7 @@ void DrawUI(xe::ui::Window* window, TracePlayer& player, Memory* memory) {
   DrawPacketDisassemblerUI(window, player, memory);
 }
 
-void ImImpl_Setup();
-void ImImpl_Shutdown();
+std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
 
 int trace_viewer_main(const std::vector<std::wstring>& args) {
   // Create the emulator but don't initialize so we can setup the window.
@@ -2202,6 +2201,7 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   window->on_closed.AddListener([&loop](xe::ui::UIEvent* e) {
     loop->Quit();
     XELOGI("User-initiated death!");
+    imgui_drawer_.reset();
     exit(1);
   });
   loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
@@ -2236,9 +2236,10 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   window->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
 
   auto graphics_system = emulator->graphics_system();
-  Profiler::set_window(nullptr);
 
-  TracePlayer player(loop.get(), emulator->graphics_system());
+  imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
+
+  TracePlayer player(loop.get(), graphics_system);
   if (!player.Open(abs_path)) {
     XELOGE("Could not load trace file");
     return 1;
@@ -2290,11 +2291,6 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   });
 
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    static bool imgui_setup = false;
-    if (!imgui_setup) {
-      ImImpl_Setup();
-      imgui_setup = true;
-    }
     auto& io = ImGui::GetIO();
     auto current_ticks = Clock::QueryHostTickCount();
     static uint64_t last_ticks = 0;
@@ -2326,266 +2322,12 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   // Wait until we are exited.
   loop->AwaitQuit();
 
-  ImImpl_Shutdown();
+  imgui_drawer_.reset();
 
   emulator.reset();
   window.reset();
   loop.reset();
   return 0;
-}
-
-// TODO(benvanik): move to another file.
-
-static int shader_handle, vert_handle, frag_handle;
-static int texture_location, proj_mtx_location;
-static int position_location, uv_location, colour_location;
-static size_t vbo_max_size = 20000;
-static unsigned int vbo_handle, vao_handle;
-void ImImpl_RenderDrawLists(ImDrawData* data);
-void ImImpl_Setup() {
-  ImGuiIO& io = ImGui::GetIO();
-
-  const GLchar* vertex_shader =
-      "#version 330\n"
-      "uniform mat4 ProjMtx;\n"
-      "in vec2 Position;\n"
-      "in vec2 UV;\n"
-      "in vec4 Color;\n"
-      "out vec2 Frag_UV;\n"
-      "out vec4 Frag_Color;\n"
-      "void main()\n"
-      "{\n"
-      "	Frag_UV = UV;\n"
-      "	Frag_Color = Color;\n"
-      "	gl_Position = ProjMtx * vec4(Position.xy,0,1);\n"
-      "}\n";
-
-  const GLchar* fragment_shader =
-      "#version 330\n"
-      "uniform sampler2D Texture;\n"
-      "in vec2 Frag_UV;\n"
-      "in vec4 Frag_Color;\n"
-      "out vec4 Out_Color;\n"
-      "void main()\n"
-      "{\n"
-      "	Out_Color = Frag_Color * texture( Texture, Frag_UV.st);\n"
-      "}\n";
-
-  shader_handle = glCreateProgram();
-  vert_handle = glCreateShader(GL_VERTEX_SHADER);
-  frag_handle = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(vert_handle, 1, &vertex_shader, 0);
-  glShaderSource(frag_handle, 1, &fragment_shader, 0);
-  glCompileShader(vert_handle);
-  glCompileShader(frag_handle);
-  glAttachShader(shader_handle, vert_handle);
-  glAttachShader(shader_handle, frag_handle);
-  glLinkProgram(shader_handle);
-
-  texture_location = glGetUniformLocation(shader_handle, "Texture");
-  proj_mtx_location = glGetUniformLocation(shader_handle, "ProjMtx");
-  position_location = glGetAttribLocation(shader_handle, "Position");
-  uv_location = glGetAttribLocation(shader_handle, "UV");
-  colour_location = glGetAttribLocation(shader_handle, "Color");
-
-  glGenBuffers(1, &vbo_handle);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_handle);
-  glBufferData(GL_ARRAY_BUFFER, vbo_max_size, NULL, GL_DYNAMIC_DRAW);
-
-  glGenVertexArrays(1, &vao_handle);
-  glBindVertexArray(vao_handle);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_handle);
-  glEnableVertexAttribArray(position_location);
-  glEnableVertexAttribArray(uv_location);
-  glEnableVertexAttribArray(colour_location);
-
-  glVertexAttribPointer(position_location, 2, GL_FLOAT, GL_FALSE,
-                        sizeof(ImDrawVert), (GLvoid*)offsetof(ImDrawVert, pos));
-  glVertexAttribPointer(uv_location, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert),
-                        (GLvoid*)offsetof(ImDrawVert, uv));
-  glVertexAttribPointer(colour_location, 4, GL_UNSIGNED_BYTE, GL_TRUE,
-                        sizeof(ImDrawVert), (GLvoid*)offsetof(ImDrawVert, col));
-  glBindVertexArray(0);
-  glDisableVertexAttribArray(position_location);
-  glDisableVertexAttribArray(uv_location);
-  glDisableVertexAttribArray(colour_location);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-  unsigned char* pixels;
-  int width, height;
-  io.Fonts->GetTexDataAsRGBA32(
-      &pixels, &width, &height);  // Load as RGBA 32-bits for OpenGL3 demo
-  // because it is more likely to be compatible
-  // with user's existing shader.
-
-  GLuint tex_id;
-  glCreateTextures(GL_TEXTURE_2D, 1, &tex_id);
-  glTextureParameteri(tex_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTextureParameteri(tex_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTextureStorage2D(tex_id, 1, GL_RGBA8, width, height);
-  glTextureSubImage2D(tex_id, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
-                      pixels);
-
-  // Store our identifier
-  io.Fonts->TexID = (void*)(intptr_t)tex_id;
-
-  io.DeltaTime = 1.0f / 60.0f;
-  io.RenderDrawListsFn = ImImpl_RenderDrawLists;
-
-  auto& style = ImGui::GetStyle();
-  style.WindowRounding = 0;
-
-  style.Colors[ImGuiCol_Text] = ImVec4(0.89f, 0.90f, 0.90f, 1.00f);
-  style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
-  style.Colors[ImGuiCol_ChildWindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-  style.Colors[ImGuiCol_Border] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-  style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.60f);
-  style.Colors[ImGuiCol_FrameBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.22f);
-  style.Colors[ImGuiCol_TitleBg] = ImVec4(0.00f, 1.00f, 0.00f, 0.78f);
-  style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.58f, 0.00f, 0.61f);
-  style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.00f, 0.40f, 0.11f, 0.59f);
-  style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.00f, 0.68f, 0.00f, 0.68f);
-  style.Colors[ImGuiCol_ScrollbarGrabHovered] =
-      ImVec4(0.00f, 1.00f, 0.15f, 0.62f);
-  style.Colors[ImGuiCol_ScrollbarGrabActive] =
-      ImVec4(0.00f, 0.91f, 0.09f, 0.40f);
-  style.Colors[ImGuiCol_ComboBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.99f);
-  style.Colors[ImGuiCol_CheckMark] = ImVec4(0.74f, 0.90f, 0.72f, 0.50f);
-  style.Colors[ImGuiCol_SliderGrab] = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
-  style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.34f, 0.75f, 0.11f, 1.00f);
-  style.Colors[ImGuiCol_Button] = ImVec4(0.15f, 0.56f, 0.11f, 0.60f);
-  style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.19f, 0.72f, 0.09f, 1.00f);
-  style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.19f, 0.60f, 0.09f, 1.00f);
-  style.Colors[ImGuiCol_Header] = ImVec4(0.00f, 0.40f, 0.00f, 0.71f);
-  style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.00f, 0.60f, 0.26f, 0.80f);
-  style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.00f, 0.75f, 0.00f, 0.80f);
-  style.Colors[ImGuiCol_Column] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-  style.Colors[ImGuiCol_ColumnHovered] = ImVec4(0.36f, 0.89f, 0.38f, 1.00f);
-  style.Colors[ImGuiCol_ColumnActive] = ImVec4(0.13f, 0.50f, 0.11f, 1.00f);
-  style.Colors[ImGuiCol_ResizeGrip] = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
-  style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4(1.00f, 1.00f, 1.00f, 0.60f);
-  style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 1.00f, 1.00f, 0.90f);
-  style.Colors[ImGuiCol_CloseButton] = ImVec4(0.00f, 0.72f, 0.00f, 0.96f);
-  style.Colors[ImGuiCol_CloseButtonHovered] =
-      ImVec4(0.38f, 1.00f, 0.42f, 0.60f);
-  style.Colors[ImGuiCol_CloseButtonActive] = ImVec4(0.56f, 1.00f, 0.64f, 1.00f);
-  style.Colors[ImGuiCol_PlotLines] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-  style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-  style.Colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-  style.Colors[ImGuiCol_PlotHistogramHovered] =
-      ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-  style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.00f, 0.00f, 1.00f, 0.35f);
-  style.Colors[ImGuiCol_TooltipBg] = ImVec4(0.05f, 0.05f, 0.10f, 0.90f);
-
-  io.KeyMap[ImGuiKey_Tab] = VK_TAB;
-  io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
-  io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
-  io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
-  io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
-  io.KeyMap[ImGuiKey_Home] = VK_HOME;
-  io.KeyMap[ImGuiKey_End] = VK_END;
-  io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
-  io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
-  io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
-  io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
-  io.KeyMap[ImGuiKey_A] = 'A';
-  io.KeyMap[ImGuiKey_C] = 'C';
-  io.KeyMap[ImGuiKey_V] = 'V';
-  io.KeyMap[ImGuiKey_X] = 'X';
-  io.KeyMap[ImGuiKey_Y] = 'Y';
-  io.KeyMap[ImGuiKey_Z] = 'Z';
-}
-void ImImpl_Shutdown() {
-  ImGuiIO& io = ImGui::GetIO();
-  if (vao_handle) glDeleteVertexArrays(1, &vao_handle);
-  if (vbo_handle) glDeleteBuffers(1, &vbo_handle);
-  glDetachShader(shader_handle, vert_handle);
-  glDetachShader(shader_handle, frag_handle);
-  glDeleteShader(vert_handle);
-  glDeleteShader(frag_handle);
-  glDeleteProgram(shader_handle);
-  auto tex_id = static_cast<GLuint>(intptr_t(io.Fonts->TexID));
-  glDeleteTextures(1, &tex_id);
-  ImGui::Shutdown();
-}
-void ImImpl_RenderDrawLists(ImDrawData* data) {
-  if (data->CmdListsCount == 0) return;
-
-  // Setup render state: alpha-blending enabled, no face culling, no depth
-  // testing, scissor enabled
-  glEnable(GL_BLEND);
-  glBlendEquation(GL_FUNC_ADD);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDisable(GL_CULL_FACE);
-  glDisable(GL_DEPTH_TEST);
-  glEnable(GL_SCISSOR_TEST);
-  glActiveTexture(GL_TEXTURE0);
-
-  // Setup orthographic projection matrix
-  const float width = ImGui::GetIO().DisplaySize.x;
-  const float height = ImGui::GetIO().DisplaySize.y;
-  const float ortho_projection[4][4] = {
-      {2.0f / width, 0.0f, 0.0f, 0.0f},
-      {0.0f, 2.0f / -height, 0.0f, 0.0f},
-      {0.0f, 0.0f, -1.0f, 0.0f},
-      {-1.0f, 1.0f, 0.0f, 1.0f},
-  };
-  glProgramUniform1i(shader_handle, texture_location, 0);
-  glProgramUniformMatrix4fv(shader_handle, proj_mtx_location, 1, GL_FALSE,
-                            &ortho_projection[0][0]);
-
-  // Grow our buffer according to what we need
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_handle);
-  size_t neededBufferSize = data->TotalVtxCount * sizeof(ImDrawVert);
-  if (neededBufferSize > vbo_max_size) {
-    vbo_max_size = neededBufferSize + 5000;  // Grow buffer
-    glBufferData(GL_ARRAY_BUFFER, vbo_max_size, NULL, GL_STREAM_DRAW);
-  }
-
-  glBindVertexArray(vao_handle);
-  glUseProgram(shader_handle);
-
-  GLuint ib;
-  glGenBuffers(1, &ib);
-
-  ImTextureID prev_texture_id = 0;
-  for (int n = 0; n < data->CmdListsCount; n++) {
-    const ImDrawList* cmd_list = data->CmdLists[n];
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 (GLsizeiptr)cmd_list->IdxBuffer.size() * sizeof(ImDrawIdx),
-                 (GLvoid*)&cmd_list->IdxBuffer.front(), GL_STREAM_DRAW);
-    // Copy and convert all vertices into a single contiguous buffer
-    unsigned char* buffer_data =
-        (unsigned char*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-    memcpy(buffer_data, &cmd_list->VtxBuffer[0],
-           cmd_list->VtxBuffer.size() * sizeof(ImDrawVert));
-    glUnmapBuffer(GL_ARRAY_BUFFER);
-    const ImDrawIdx* idx_buffer_offset = 0;
-    for (auto cmd = cmd_list->CmdBuffer.begin();
-         cmd != cmd_list->CmdBuffer.end(); ++cmd) {
-      if (cmd->TextureId != prev_texture_id) {
-        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)cmd->TextureId);
-        prev_texture_id = cmd->TextureId;
-      }
-      glScissor((int)cmd->ClipRect.x, (int)(height - cmd->ClipRect.w),
-                (int)(cmd->ClipRect.z - cmd->ClipRect.x),
-                (int)(cmd->ClipRect.w - cmd->ClipRect.y));
-      glDrawElements(GL_TRIANGLES, (GLsizei)cmd->ElemCount, GL_UNSIGNED_SHORT,
-                     idx_buffer_offset);
-      idx_buffer_offset += cmd->ElemCount;
-    }
-  }
-
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  glDeleteBuffers(1, &ib);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-  // Restore modified state
-  glBindVertexArray(0);
-  glUseProgram(0);
-  glDisable(GL_SCISSOR_TEST);
-  glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 }  // namespace gpu

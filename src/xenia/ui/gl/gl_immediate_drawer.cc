@@ -25,8 +25,8 @@ class GLImmediateTexture : public ImmediateTexture {
   GLImmediateTexture(uint32_t width, uint32_t height,
                      ImmediateTextureFilter filter, bool repeat)
       : ImmediateTexture(width, height) {
-    GLuint handle;
-    glCreateTextures(GL_TEXTURE_2D, 1, &handle);
+    GLuint gl_handle;
+    glCreateTextures(GL_TEXTURE_2D, 1, &gl_handle);
 
     GLenum gl_filter = GL_NEAREST;
     switch (filter) {
@@ -37,21 +37,22 @@ class GLImmediateTexture : public ImmediateTexture {
         gl_filter = GL_LINEAR;
         break;
     }
-    glTextureParameteri(handle, GL_TEXTURE_MIN_FILTER, gl_filter);
-    glTextureParameteri(handle, GL_TEXTURE_MAG_FILTER, gl_filter);
+    glTextureParameteri(gl_handle, GL_TEXTURE_MIN_FILTER, gl_filter);
+    glTextureParameteri(gl_handle, GL_TEXTURE_MAG_FILTER, gl_filter);
 
-    glTextureParameteri(handle, GL_TEXTURE_WRAP_S,
+    glTextureParameteri(gl_handle, GL_TEXTURE_WRAP_S,
                         repeat ? GL_REPEAT : GL_CLAMP_TO_EDGE);
-    glTextureParameteri(handle, GL_TEXTURE_WRAP_T,
+    glTextureParameteri(gl_handle, GL_TEXTURE_WRAP_T,
                         repeat ? GL_REPEAT : GL_CLAMP_TO_EDGE);
 
-    glTextureStorage2D(handle, 1, GL_RGBA8, width, height);
+    glTextureStorage2D(gl_handle, 1, GL_RGBA8, width, height);
 
-    this->handle = static_cast<uintptr_t>(handle);
+    handle = static_cast<uintptr_t>(gl_handle);
   }
 
   ~GLImmediateTexture() override {
-    //
+    GLuint gl_handle = static_cast<GLuint>(handle);
+    glDeleteTextures(1, &gl_handle);
   }
 };
 
@@ -191,6 +192,7 @@ void GLImmediateDrawer::Begin(int render_target_width,
   // Prepare drawing resources.
   glUseProgram(program_);
   glBindVertexArray(vao_);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_);
 
   // Setup orthographic projection matrix and viewport.
   const float ortho_projection[4][4] = {
@@ -203,7 +205,7 @@ void GLImmediateDrawer::Begin(int render_target_width,
   glViewport(0, 0, render_target_width, render_target_height);
 }
 
-void GLImmediateDrawer::Draw(const ImmediateDrawBatch& batch) {
+void GLImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   glNamedBufferSubData(vertex_buffer_, 0,
                        batch.vertex_count * sizeof(ImmediateVertex),
                        batch.vertices);
@@ -212,22 +214,26 @@ void GLImmediateDrawer::Draw(const ImmediateDrawBatch& batch) {
                          batch.indices);
   }
 
-  if (batch.scissor) {
+  batch_has_index_buffer_ = !!batch.indices;
+}
+
+void GLImmediateDrawer::Draw(const ImmediateDraw& draw) {
+  if (draw.scissor) {
     glEnable(GL_SCISSOR_TEST);
-    glScissor(batch.scissor_rect[0], batch.scissor_rect[1],
-              batch.scissor_rect[2], batch.scissor_rect[3]);
+    glScissor(draw.scissor_rect[0], draw.scissor_rect[1], draw.scissor_rect[2],
+              draw.scissor_rect[3]);
   } else {
     glDisable(GL_SCISSOR_TEST);
   }
 
-  if (batch.texture_handle) {
-    glBindTextureUnit(0, static_cast<GLuint>(batch.texture_handle));
+  if (draw.texture_handle) {
+    glBindTextureUnit(0, static_cast<GLuint>(draw.texture_handle));
   } else {
     glBindTextureUnit(0, 0);
   }
 
   GLenum mode = GL_TRIANGLES;
-  switch (batch.primitive_type) {
+  switch (draw.primitive_type) {
     case ImmediatePrimitiveType::kLines:
       mode = GL_LINES;
       break;
@@ -236,14 +242,17 @@ void GLImmediateDrawer::Draw(const ImmediateDrawBatch& batch) {
       break;
   }
 
-  if (batch.indices) {
-    glDrawElements(mode, batch.index_count, GL_UNSIGNED_SHORT, nullptr);
+  if (batch_has_index_buffer_) {
+    glDrawElementsBaseVertex(
+        mode, draw.count, GL_UNSIGNED_SHORT,
+        reinterpret_cast<void*>(draw.index_offset * sizeof(uint16_t)),
+        draw.base_vertex);
   } else {
-    glDrawArrays(mode, 0, batch.vertex_count);
+    glDrawArrays(mode, draw.base_vertex, draw.count);
   }
-
-  glFlush();
 }
+
+void GLImmediateDrawer::EndDrawBatch() { glFlush(); }
 
 void GLImmediateDrawer::End() {
   // Restore modified state.
@@ -251,6 +260,7 @@ void GLImmediateDrawer::End() {
   glBindTextureUnit(0, 0);
   glUseProgram(0);
   glBindVertexArray(0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
   if (!was_current_) {
     graphics_context_->ClearCurrent();
