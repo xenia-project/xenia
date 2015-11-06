@@ -172,6 +172,7 @@ bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
   if (cur_access != memory::PageAccess::kReadOnly &&
       cur_access != memory::PageAccess::kNoAccess) {
     // Another thread has cleared this write watch. Abort.
+    global_critical_region_.mutex().unlock();
     return true;
   }
 
