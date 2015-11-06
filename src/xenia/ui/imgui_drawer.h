@@ -11,7 +11,6 @@
 #define XENIA_UI_IMGUI_DRAWER_H_
 
 #include <memory>
-#include <vector>
 
 #include "xenia/ui/immediate_drawer.h"
 
@@ -38,9 +37,6 @@ class ImGuiDrawer {
 
   Window* window_ = nullptr;
   GraphicsContext* graphics_context_ = nullptr;
-
-  std::vector<ImmediateVertex> vertices_;
-  std::vector<uint16_t> indices_;
 
   std::unique_ptr<ImmediateTexture> font_texture_;
 };

@@ -16,9 +16,6 @@
 namespace xe {
 namespace ui {
 
-constexpr uint32_t kMaxDrawVertices = 64 * 1024;
-constexpr uint32_t kMaxDrawIndices = 64 * 1024;
-
 // File: 'ProggyTiny.ttf' (35656 bytes)
 // Exported using binary_to_compressed_c.cpp
 const char kProggyTinyCompressedDataBase85[10950 + 1] =
@@ -27,10 +24,7 @@ const char kProggyTinyCompressedDataBase85[10950 + 1] =
 ImGuiDrawer* ImGuiDrawer::global_drawer_ = nullptr;
 
 ImGuiDrawer::ImGuiDrawer(xe::ui::Window* window)
-    : window_(window),
-      graphics_context_(window->context()),
-      vertices_(kMaxDrawVertices * sizeof(ImmediateVertex)),
-      indices_(kMaxDrawIndices * sizeof(uint16_t)) {
+    : window_(window), graphics_context_(window->context()) {
   assert_null(global_drawer_);
   global_drawer_ = this;
 
