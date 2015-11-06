@@ -14,8 +14,8 @@
 #include <algorithm>
 #include <utility>
 
-#include "third_party/capstone/include/capstone.h"
-#include "third_party/capstone/include/x86.h"
+#include "third_party/capstone/include/capstone/capstone.h"
+#include "third_party/capstone/include/capstone/x86.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"

@@ -40,7 +40,10 @@ project("capstone")
     "capstone/arch/X86/*.h",
     "capstone/arch/X86/*.inc",
   })
-  force_compile_as_cc({"capstone/**.c"})
+  force_compile_as_c({
+    "capstone/**.c",
+    "capstone/arch/X86/**.c",
+  })
 
   filter("platforms:Linux")
     -- Capstone code is... not fantastic.
