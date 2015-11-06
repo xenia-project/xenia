@@ -655,7 +655,13 @@ XEEMITTER(mtcrf, 0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
       f.StoreCR(f.LoadZeroInt64());
     }
   } else {
-    f.StoreCR(v);
+    uint32_t bits = (i.XFX.spr & 0x1FF) >> 1;
+    for (int b = 0; b <= 7; ++b) {
+      if (bits & (1 << b)) {
+        int cri = 7 - b;
+        f.StoreCR(cri, v);
+      }
+    }
   }
   return 0;
 }
