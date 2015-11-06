@@ -5767,14 +5767,24 @@ struct VECTOR_AVERAGE
         case INT32_TYPE:
           // No 32bit averages in AVX.
           if (is_unsigned) {
+            if (i.src2.is_constant) {
+              e.LoadConstantXmm(e.xmm0, i.src2.constant());
+              e.lea(e.r9, e.StashXmm(1, e.xmm0));
+            } else {
+              e.lea(e.r9, e.StashXmm(1, i.src2));
+            }
             e.lea(e.r8, e.StashXmm(0, i.src1));
-            e.lea(e.r9, e.StashXmm(1, i.src2));
             e.CallNativeSafe(
                 reinterpret_cast<void*>(EmulateVectorAverageUnsignedI32));
             e.vmovaps(i.dest, e.xmm0);
           } else {
+            if (i.src2.is_constant) {
+              e.LoadConstantXmm(e.xmm0, i.src2.constant());
+              e.lea(e.r9, e.StashXmm(1, e.xmm0));
+            } else {
+              e.lea(e.r9, e.StashXmm(1, i.src2));
+            }
             e.lea(e.r8, e.StashXmm(0, i.src1));
-            e.lea(e.r9, e.StashXmm(1, i.src2));
             e.CallNativeSafe(
                 reinterpret_cast<void*>(EmulateVectorAverageSignedI32));
             e.vmovaps(i.dest, e.xmm0);
@@ -6576,6 +6586,18 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(c));
   }
+  static __m128i EmulatePack8_IN_16_UN_UN(void*, __m128i src1, __m128i src2) {
+    alignas(16) uint8_t a[16];
+    alignas(16) uint8_t b[16];
+    alignas(16) uint8_t c[16];
+    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(b), src2);
+    for (int i = 0; i < 8; ++i) {
+      c[i] = a[i * 2];
+      c[i + 8] = b[i * 2];
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(c));
+  }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     // TODO(benvanik): handle src2 (or src1) being constant zero
     if (IsPackInUnsigned(flags)) {
@@ -6595,7 +6617,11 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
         } else {
           // unsigned -> unsigned
-          assert_always();
+          e.lea(e.r9, e.StashXmm(1, i.src2));
+          e.lea(e.r8, e.StashXmm(0, i.src1));
+          e.CallNativeSafe(reinterpret_cast<void*>(EmulatePack8_IN_16_UN_UN));
+          e.vmovaps(i.dest, e.xmm0);
+          e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
         }
       } else {
         if (IsPackOutSaturate(flags)) {
@@ -6630,32 +6656,51 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       }
     }
   }
+  static __m128i EmulatePack16_IN_32_UN_UN_SAT(void*, __m128i src1,
+                                               __m128i src2) {
+    alignas(16) uint32_t a[4];
+    alignas(16) uint32_t b[4];
+    alignas(16) uint16_t c[8];
+    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
+    _mm_store_si128(reinterpret_cast<__m128i*>(b), src2);
+    for (int i = 0; i < 4; ++i) {
+      c[i] = uint16_t(std::min(65535u, a[i]));
+      c[i + 4] = uint16_t(std::min(65535u, b[i]));
+    }
+    return _mm_load_si128(reinterpret_cast<__m128i*>(c));
+  }
   static void Emit16_IN_32(X64Emitter& e, const EmitArgType& i,
                            uint32_t flags) {
     // TODO(benvanik): handle src2 (or src1) being constant zero
     if (IsPackInUnsigned(flags)) {
       if (IsPackOutUnsigned(flags)) {
         if (IsPackOutSaturate(flags)) {
-          // TODO(gibbed): check if this is actually correct, it's a duplicate
-          // of the signed -> unsigned + saturate code, but seems to work.
           // unsigned -> unsigned + saturate
-          // PACKUSDW
-          // TMP[15:0] <- (DEST[31:0] < 0) ? 0 : DEST[15:0];
-          // DEST[15:0] <- (DEST[31:0] > FFFFH) ? FFFFH : TMP[15:0];
           Xmm src2;
-          if (!i.src2.is_constant) {
-            src2 = i.src2;
-          } else {
-            assert_false(i.src1 == e.xmm0);
+          if (i.src2.is_constant) {
             e.LoadConstantXmm(e.xmm0, i.src2.constant());
-            src2 = e.xmm0;
+            e.lea(e.r9, e.StashXmm(1, e.xmm0));
+          } else {
+            e.lea(e.r9, e.StashXmm(1, i.src2));
           }
-          e.vpackusdw(i.dest, i.src1, src2);
-          e.vpshuflw(i.dest, i.dest, 0b10110001);
-          e.vpshufhw(i.dest, i.dest, 0b10110001);
+          e.lea(e.r8, e.StashXmm(0, i.src1));
+          e.CallNativeSafe(
+              reinterpret_cast<void*>(EmulatePack16_IN_32_UN_UN_SAT));
+          e.vmovaps(i.dest, e.xmm0);
+          e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
         } else {
           // unsigned -> unsigned
-          assert_always();
+          e.vmovaps(e.xmm0, i.src1);
+          e.vpshuflw(e.xmm0, e.xmm0, 0b00100010);
+          e.vpshufhw(e.xmm0, e.xmm0, 0b00100010);
+          e.vpshufd(e.xmm0, e.xmm0, 0b00001000);
+
+          e.vmovaps(i.dest, i.src2);
+          e.vpshuflw(i.dest, i.dest, 0b00100010);
+          e.vpshufhw(i.dest, i.dest, 0b00100010);
+          e.vpshufd(i.dest, i.dest, 0b10000000);
+
+          e.vpblendw(i.dest, i.dest, e.xmm0, 0b00001111);
         }
       } else {
         if (IsPackOutSaturate(flags)) {
@@ -6795,7 +6840,15 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vpshufd(i.dest, i.dest, B10100100);
       e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
     } else {
-      e.lea(e.r8, e.StashXmm(0, i.src1));
+      Xmm src;
+      if (i.src1.is_constant) {
+        e.LoadConstantXmm(e.xmm0, i.src1.constant());
+        src = e.xmm0;
+      } else {
+        src = i.src1;
+      }
+
+      e.lea(e.r8, e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
