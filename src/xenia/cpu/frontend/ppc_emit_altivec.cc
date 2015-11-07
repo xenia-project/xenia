@@ -597,20 +597,20 @@ int InstrEmit_vcmpbfp_(PPCHIRBuilder& f, InstrData& i, uint32_t vd, uint32_t va,
   // if vA or vB are NaN, the 2 high-order bits are set (0xC0000000)
   Value* va_value = f.LoadVR(va);
   Value* vb_value = f.LoadVR(vb);
-  Value* ge = f.VectorCompareSGE(va_value, vb_value, FLOAT32_TYPE);
-  Value* le =
-      f.Not(f.VectorCompareSGT(va_value, f.Neg(vb_value), FLOAT32_TYPE));
+  Value* gt = f.VectorCompareSGT(va_value, vb_value, FLOAT32_TYPE);
+  Value* lt =
+      f.Not(f.VectorCompareSGE(va_value, f.Neg(vb_value), FLOAT32_TYPE));
   Value* v =
-      f.Or(f.And(ge, f.LoadConstantVec128(vec128i(0x80000000, 0x80000000,
+      f.Or(f.And(gt, f.LoadConstantVec128(vec128i(0x80000000, 0x80000000,
                                                   0x80000000, 0x80000000))),
-           f.And(le, f.LoadConstantVec128(vec128i(0x40000000, 0x40000000,
+           f.And(lt, f.LoadConstantVec128(vec128i(0x40000000, 0x40000000,
                                                   0x40000000, 0x40000000))));
   f.StoreVR(vd, v);
   if (rc) {
     // CR0:4 = 0; CR0:5 = VT == 0; CR0:6 = CR0:7 = 0;
     // If all of the elements are within bounds, CR6[2] is set
     // FIXME: Does not affect CR6[0], but the following function does.
-    f.UpdateCR6(f.Or(ge, le));
+    f.UpdateCR6(f.Or(gt, lt));
   }
   return 0;
 }
