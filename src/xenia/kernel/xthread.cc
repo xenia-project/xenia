@@ -16,13 +16,13 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xevent.h"
-#include "xenia/profiling.h"
 
 DEFINE_bool(ignore_thread_priorities, true,
             "Ignores game-specified thread priorities.");

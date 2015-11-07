@@ -14,12 +14,12 @@
 #include <cstring>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/symbol.h"
-#include "xenia/profiling.h"
 
 // Will scribble arena memory to hopefully find use before clears.
 // #define SCRIBBLE_ARENA_ON_RESET

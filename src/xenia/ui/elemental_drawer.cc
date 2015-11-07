@@ -13,7 +13,7 @@
 #include "el/util/math.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 #include "xenia/ui/window.h"
 
 namespace xe {

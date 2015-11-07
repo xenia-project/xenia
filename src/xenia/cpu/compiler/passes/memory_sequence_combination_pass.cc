@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/memory_sequence_combination_pass.h"
 
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 
 namespace xe {
 namespace cpu {

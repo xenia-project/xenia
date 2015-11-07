@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_PROFILING_H_
-#define XENIA_PROFILING_H_
+#ifndef XENIA_BASE_PROFILING_H_
+#define XENIA_BASE_PROFILING_H_
 
 #include <memory>
 
@@ -176,4 +176,4 @@ class Profiler {
 
 }  // namespace xe
 
-#endif  // XENIA_PROFILING_H_
+#endif  // XENIA_BASE_PROFILING_H_

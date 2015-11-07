@@ -11,9 +11,9 @@
 
 #include <gflags/gflags.h>
 
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/compiler/compiler.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/profiling.h"
 
 DECLARE_bool(debug);
 

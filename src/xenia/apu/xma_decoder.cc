@@ -14,12 +14,12 @@
 #include "xenia/apu/xma_context.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/xthread.h"
-#include "xenia/profiling.h"
 
 extern "C" {
 #include "third_party/libav/libavutil/log.h"

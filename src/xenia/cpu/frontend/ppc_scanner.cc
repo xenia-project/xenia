@@ -14,10 +14,10 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/profiling.h"
 
 #if 0
 #define LOGPPC(fmt, ...) XELOGCORE('p', fmt, ##__VA_ARGS__)

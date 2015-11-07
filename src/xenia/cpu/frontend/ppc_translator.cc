@@ -14,6 +14,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/reset_scope.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/cpu_flags.h"
@@ -24,7 +25,6 @@
 #include "xenia/cpu/frontend/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
-#include "xenia/profiling.h"
 
 DEFINE_bool(preserve_hir_disasm, true,
             "Preserves HIR disassembly for the debugger when it is attached.");

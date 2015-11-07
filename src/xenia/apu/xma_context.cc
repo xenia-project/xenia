@@ -16,8 +16,8 @@
 #include "xenia/apu/xma_helpers.h"
 #include "xenia/base/bit_stream.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/ring_buffer.h"
-#include "xenia/profiling.h"
 
 extern "C" {
 #include "third_party/libav/libavcodec/avcodec.h"

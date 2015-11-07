@@ -14,9 +14,9 @@
 #include <sstream>  // NOLINT(readability/streams): should be replaced.
 #include <string>
 
+#include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {

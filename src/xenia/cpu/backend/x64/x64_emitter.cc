@@ -19,6 +19,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
@@ -32,7 +33,6 @@
 #include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/debugger.h"
-#include "xenia/profiling.h"
 
 DEFINE_bool(enable_debugprint_log, false,
             "Log debugprint traps to the active debugger");

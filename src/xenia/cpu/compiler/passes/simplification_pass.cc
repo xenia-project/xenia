@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/simplification_pass.h"
 
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 
 namespace xe {
 namespace cpu {

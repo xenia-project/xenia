@@ -14,11 +14,11 @@
 #include "xenia/apu/xma_decoder.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/profiling.h"
 
 #include "xenia/apu/nop/nop_audio_system.h"
 #if XE_PLATFORM_WIN32

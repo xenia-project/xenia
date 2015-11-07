@@ -13,6 +13,7 @@
 
 #include "third_party/capstone/include/capstone/capstone.h"
 #include "third_party/capstone/include/capstone/x86.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/reset_scope.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -21,7 +22,6 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {

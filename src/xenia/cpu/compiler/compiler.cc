@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/compiler/compiler.h"
 
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/compiler/compiler_pass.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {

@@ -14,6 +14,7 @@
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/frontend/ppc_disasm.h"
@@ -21,7 +22,6 @@
 #include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {

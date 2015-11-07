@@ -9,9 +9,9 @@
 
 #include "xenia/hid/input_system.h"
 
+#include "xenia/base/profiling.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_driver.h"
-#include "xenia/profiling.h"
 
 #include "xenia/hid/nop/nop_hid.h"
 #if XE_PLATFORM_WIN32

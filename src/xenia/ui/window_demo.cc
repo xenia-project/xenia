@@ -17,8 +17,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/platform_win.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
-#include "xenia/profiling.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
@@ -200,4 +200,3 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 
 }  // namespace ui
 }  // namespace xe
-

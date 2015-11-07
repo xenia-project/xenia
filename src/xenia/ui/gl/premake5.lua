@@ -34,7 +34,6 @@ project("xenia-ui-window-gl-demo")
     "glew",
     "imgui",
     "xenia-base",
-    "xenia-core",
     "xenia-ui",
     "xenia-ui-gl",
   })

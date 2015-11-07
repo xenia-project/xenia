@@ -16,6 +16,7 @@
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
@@ -24,7 +25,6 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/debug/debugger.h"
-#include "xenia/profiling.h"
 
 // TODO(benvanik): based on compiler support
 #include "xenia/cpu/backend/x64/x64_backend.h"

@@ -30,7 +30,7 @@
 #include "third_party/microprofile/microprofile.h"
 
 #include "xenia/base/assert.h"
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 #include "xenia/ui/window.h"
 
 #if XE_OPTION_PROFILING

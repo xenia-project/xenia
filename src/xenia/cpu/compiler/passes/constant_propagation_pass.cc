@@ -12,9 +12,9 @@
 #include <gflags/gflags.h>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/profiling.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/profiling.h"
 
 DEFINE_bool(inline_mmio_access, true, "Inline constant MMIO loads and stores.");
 

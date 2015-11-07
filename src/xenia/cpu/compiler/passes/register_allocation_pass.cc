@@ -15,7 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 
 namespace xe {
 namespace cpu {

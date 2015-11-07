@@ -13,10 +13,10 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace app {

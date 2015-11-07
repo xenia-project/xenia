@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/entry_table.h"
 
+#include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
-#include "xenia/profiling.h"
 
 namespace xe {
 namespace cpu {

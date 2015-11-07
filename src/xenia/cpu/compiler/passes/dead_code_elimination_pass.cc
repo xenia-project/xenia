@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/dead_code_elimination_pass.h"
 
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 
 namespace xe {
 namespace cpu {

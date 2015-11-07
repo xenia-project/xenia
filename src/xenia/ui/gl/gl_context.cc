@@ -17,7 +17,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/profiling.h"
+#include "xenia/base/profiling.h"
 #include "xenia/ui/gl/gl_immediate_drawer.h"
 #include "xenia/ui/window.h"
 
