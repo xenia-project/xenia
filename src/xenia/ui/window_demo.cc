@@ -19,12 +19,14 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/profiling.h"
-#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
 namespace ui {
+
+// Implemented in one of the window_*_demo.cc files under a subdir.
+std::unique_ptr<GraphicsContext> CreateDemoContext(Window* window);
 
 std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
 
@@ -34,7 +36,7 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 
   // Create run loop and the window.
   auto loop = ui::Loop::Create();
-  auto window = xe::ui::Window::Create(loop.get(), L"xenia-ui-window-demo");
+  auto window = xe::ui::Window::Create(loop.get(), GetEntryInfo().name);
   loop->PostSynchronous([&window]() {
     xe::threading::set_name("Win32 Loop");
     xe::Profiler::ThreadEnter("Win32 Loop");
@@ -80,7 +82,7 @@ int window_demo_main(const std::vector<std::wstring>& args) {
     // Create context and give it to the window.
     // The window will finish initialization wtih the context (loading
     // resources, etc).
-    auto context = xe::ui::gl::GLContext::Create(window.get());
+    auto context = CreateDemoContext(window.get());
     window->set_context(std::move(context));
 
     // Setup the profiler display.
@@ -184,8 +186,6 @@ int window_demo_main(const std::vector<std::wstring>& args) {
     window->Invalidate();
   });
 
-  window->Invalidate();
-
   // Wait until we are exited.
   loop->AwaitQuit();
 
@@ -201,5 +201,3 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 }  // namespace ui
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-ui-window-demo", L"xenia-ui-window-demo",
-                   xe::ui::window_demo_main);
