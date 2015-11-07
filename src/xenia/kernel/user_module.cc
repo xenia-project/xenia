@@ -142,12 +142,14 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
 }
 
 X_STATUS UserModule::Unload() {
-  if (module_format_ == kModuleFormatXex && !xex_module()->loaded()) {
+  if (module_format_ == kModuleFormatXex &&
+      (!processor_module_ || !xex_module()->loaded())) {
     // Quick abort.
     return X_STATUS_SUCCESS;
   }
 
-  if (module_format_ == kModuleFormatXex && xex_module()->Unload()) {
+  if (module_format_ == kModuleFormatXex && processor_module_ &&
+      xex_module()->Unload()) {
     OnUnload();
     return X_STATUS_SUCCESS;
   }
