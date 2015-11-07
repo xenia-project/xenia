@@ -216,6 +216,7 @@ void MicroprofileDrawer::Flush() {
   draw.primitive_type = current_primitive_type_;
   draw.count = vertex_count_;
   draw.texture_handle = font_texture_->handle;
+  draw.restrict_texture_samples = true;
   drawer->Draw(draw);
 
   drawer->EndDrawBatch();

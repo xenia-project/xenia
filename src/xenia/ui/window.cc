@@ -23,6 +23,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
+#include "xenia/ui/elemental_drawer.h"
 
 namespace xe {
 namespace ui {
@@ -129,7 +130,7 @@ bool Window::InitializeElemental(Loop* loop, el::graphics::Renderer* renderer) {
 bool Window::OnCreate() { return true; }
 
 bool Window::MakeReady() {
-  renderer_ = context_->CreateElementalRenderer();
+  renderer_ = std::make_unique<ElementalDrawer>(this);
 
   // Initialize elemental.
   // TODO(benvanik): once? Do we care about multiple controls?
@@ -143,7 +144,7 @@ bool Window::MakeReady() {
   root_element_->set_background_skin(TBIDC("background"));
   root_element_->set_rect({0, 0, width(), height()});
 
-  // el::util::ShowDebugInfoSettingsWindow(root_element_.get());
+  el::util::ShowDebugInfoSettingsForm(root_element_.get());
 
   return true;
 }

@@ -12,8 +12,6 @@
 
 #include <memory>
 
-#include "el/graphics/renderer.h"
-
 namespace xe {
 namespace ui {
 
@@ -27,7 +25,6 @@ class GraphicsContext {
   Window* target_window() const { return target_window_; }
 
   virtual std::unique_ptr<GraphicsContext> CreateShared() = 0;
-  virtual std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() = 0;
 
   virtual ImmediateDrawer* immediate_drawer() = 0;
 

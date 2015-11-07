@@ -18,7 +18,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/profiling.h"
-#include "xenia/ui/gl/gl4_elemental_renderer.h"
 #include "xenia/ui/gl/gl_immediate_drawer.h"
 #include "xenia/ui/window.h"
 
@@ -411,10 +410,6 @@ void GLContext::SetupDebugging() {
   // Callback will be made from driver threads.
   glDebugMessageCallback(reinterpret_cast<GLDEBUGPROC>(&DebugMessageThunk),
                          this);
-}
-
-std::unique_ptr<el::graphics::Renderer> GLContext::CreateElementalRenderer() {
-  return GL4ElementalRenderer::Create(this);
 }
 
 ImmediateDrawer* GLContext::immediate_drawer() {

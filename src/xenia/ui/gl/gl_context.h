@@ -40,7 +40,6 @@ class GLContext : public GraphicsContext {
   HDC dc() const { return dc_; }
 
   std::unique_ptr<GraphicsContext> CreateShared() override;
-  std::unique_ptr<el::graphics::Renderer> CreateElementalRenderer() override;
 
   ImmediateDrawer* immediate_drawer() override;
 

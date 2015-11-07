@@ -11,6 +11,7 @@
 
 #include <string>
 
+#include "xenia/base/assert.h"
 #include "xenia/ui/graphics_context.h"
 
 namespace xe {
@@ -119,12 +120,13 @@ void main() {
   const std::string fragment_shader_source = header +
                                              R"(
 layout(location = 1) uniform sampler2D texture_sampler;
+layout(location = 2) uniform int restrict_texture_samples;
 layout(location = 0) in vec2 vtx_uv;
 layout(location = 1) in vec4 vtx_color;
 layout(location = 0) out vec4 out_color;
 void main() {
   out_color = vtx_color;
-  if (vtx_uv.x <= 1.0) {
+  if (restrict_texture_samples == 0 || vtx_uv.x <= 1.0) {
     vec4 tex_color = texture(texture_sampler, vtx_uv);
     out_color *= tex_color;
     // TODO(benvanik): microprofiler shadows.
@@ -159,9 +161,10 @@ std::unique_ptr<ImmediateTexture> GLImmediateDrawer::CreateTexture(
   GraphicsContextLock lock(graphics_context_);
   auto texture =
       std::make_unique<GLImmediateTexture>(width, height, filter, repeat);
+  glTextureStorage2D(static_cast<GLuint>(texture->handle), 1, GL_RGBA8, width,
+                     height);
   if (data) {
-    glTextureSubImage2D(static_cast<GLuint>(texture->handle), 0, 0, 0, width,
-                        height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    UpdateTexture(texture.get(), data);
   }
   return std::unique_ptr<ImmediateTexture>(texture.release());
 }
@@ -185,9 +188,8 @@ void GLImmediateDrawer::Begin(int render_target_width,
   glEnablei(GL_BLEND, 0);
   glBlendEquationi(0, GL_FUNC_ADD);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDisable(GL_CULL_FACE);
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_SCISSOR_TEST);
+  glDisablei(GL_DEPTH_TEST, 0);
+  glDisablei(GL_SCISSOR_TEST, 0);
 
   // Prepare drawing resources.
   glUseProgram(program_);
@@ -206,10 +208,12 @@ void GLImmediateDrawer::Begin(int render_target_width,
 }
 
 void GLImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
+  assert_true(batch.vertex_count <= kMaxDrawVertices);
   glNamedBufferSubData(vertex_buffer_, 0,
                        batch.vertex_count * sizeof(ImmediateVertex),
                        batch.vertices);
   if (batch.indices) {
+    assert_true(batch.index_count <= kMaxDrawIndices);
     glNamedBufferSubData(index_buffer_, 0, batch.index_count * sizeof(uint16_t),
                          batch.indices);
   }
@@ -219,11 +223,11 @@ void GLImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 
 void GLImmediateDrawer::Draw(const ImmediateDraw& draw) {
   if (draw.scissor) {
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(draw.scissor_rect[0], draw.scissor_rect[1], draw.scissor_rect[2],
-              draw.scissor_rect[3]);
+    glEnablei(GL_SCISSOR_TEST, 0);
+    glScissorIndexed(0, draw.scissor_rect[0], draw.scissor_rect[1],
+                     draw.scissor_rect[2], draw.scissor_rect[3]);
   } else {
-    glDisable(GL_SCISSOR_TEST);
+    glDisablei(GL_SCISSOR_TEST, 0);
   }
 
   if (draw.texture_handle) {
@@ -231,6 +235,7 @@ void GLImmediateDrawer::Draw(const ImmediateDraw& draw) {
   } else {
     glBindTextureUnit(0, 0);
   }
+  glProgramUniform1i(program_, 2, draw.restrict_texture_samples ? 1 : 0);
 
   GLenum mode = GL_TRIANGLES;
   switch (draw.primitive_type) {
@@ -256,7 +261,7 @@ void GLImmediateDrawer::EndDrawBatch() { glFlush(); }
 
 void GLImmediateDrawer::End() {
   // Restore modified state.
-  glDisable(GL_SCISSOR_TEST);
+  glDisablei(GL_SCISSOR_TEST, 0);
   glBindTextureUnit(0, 0);
   glUseProgram(0);
   glBindVertexArray(0);
