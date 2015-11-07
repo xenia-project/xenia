@@ -127,7 +127,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   });
 
   // Initialize the HID.
-  input_system_ = xe::hid::InputSystem::Create(this);
+  input_system_ = xe::hid::InputSystem::Create(display_window_);
   if (!input_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }

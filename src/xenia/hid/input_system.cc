@@ -9,8 +9,6 @@
 
 #include "xenia/hid/input_system.h"
 
-#include "xenia/cpu/processor.h"
-#include "xenia/emulator.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_driver.h"
 #include "xenia/profiling.h"
@@ -19,13 +17,13 @@
 #if XE_PLATFORM_WIN32
 #include "xenia/hid/winkey/winkey_hid.h"
 #include "xenia/hid/xinput/xinput_hid.h"
-#endif  // WIN32
+#endif  // XE_PLATFORM_WIN32
 
 namespace xe {
 namespace hid {
 
-std::unique_ptr<InputSystem> InputSystem::Create(Emulator* emulator) {
-  auto input_system = std::make_unique<InputSystem>(emulator);
+std::unique_ptr<InputSystem> InputSystem::Create(xe::ui::Window* window) {
+  std::unique_ptr<InputSystem> input_system(new InputSystem(window));
 
   if (FLAGS_hid.compare("nop") == 0) {
     input_system->AddDriver(xe::hid::nop::Create(input_system.get()));
@@ -63,16 +61,11 @@ std::unique_ptr<InputSystem> InputSystem::Create(Emulator* emulator) {
   return input_system;
 }
 
-InputSystem::InputSystem(Emulator* emulator)
-    : emulator_(emulator), memory_(emulator->memory()) {}
+InputSystem::InputSystem(xe::ui::Window* window) : window_(window) {}
 
 InputSystem::~InputSystem() = default;
 
-X_STATUS InputSystem::Setup() {
-  processor_ = emulator_->processor();
-
-  return X_STATUS_SUCCESS;
-}
+X_STATUS InputSystem::Setup() { return X_STATUS_SUCCESS; }
 
 void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
   drivers_.push_back(std::move(driver));

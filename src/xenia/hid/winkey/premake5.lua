@@ -9,6 +9,7 @@ project("xenia-hid-winkey")
   links({
     "xenia-base",
     "xenia-hid",
+    "xenia-ui",
   })
   defines({
   })

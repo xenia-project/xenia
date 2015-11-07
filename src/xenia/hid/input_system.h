@@ -13,13 +13,13 @@
 #include <memory>
 #include <vector>
 
-#include "xenia/cpu/processor.h"
 #include "xenia/hid/input.h"
-#include "xenia/memory.h"
 #include "xenia/xbox.h"
 
 namespace xe {
-class Emulator;
+namespace ui {
+class Window;
+}  // namespace ui
 }  // namespace xe
 
 namespace xe {
@@ -29,14 +29,11 @@ class InputDriver;
 
 class InputSystem {
  public:
-  explicit InputSystem(Emulator* emulator);
   ~InputSystem();
 
-  static std::unique_ptr<InputSystem> Create(Emulator* emulator);
+  static std::unique_ptr<InputSystem> Create(xe::ui::Window* window);
 
-  Emulator* emulator() const { return emulator_; }
-  Memory* memory() const { return memory_; }
-  cpu::Processor* processor() const { return processor_; }
+  xe::ui::Window* window() const { return window_; }
 
   X_STATUS Setup();
 
@@ -50,9 +47,9 @@ class InputSystem {
                         X_INPUT_KEYSTROKE* out_keystroke);
 
  private:
-  Emulator* emulator_ = nullptr;
-  Memory* memory_ = nullptr;
-  cpu::Processor* processor_ = nullptr;
+  explicit InputSystem(xe::ui::Window* window);
+
+  xe::ui::Window* window_ = nullptr;
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;
 };

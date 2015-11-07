@@ -22,28 +22,26 @@ namespace winkey {
 WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
     : InputDriver(input_system), packet_number_(1) {
   // Register a key listener.
-  input_system_->emulator()->display_window()->on_key_down.AddListener(
-      [this](ui::KeyEvent* evt) {
-        auto global_lock = global_critical_region_.Acquire();
+  input_system_->window()->on_key_down.AddListener([this](ui::KeyEvent* evt) {
+    auto global_lock = global_critical_region_.Acquire();
 
-        KeyEvent key;
-        key.vkey = evt->key_code();
-        key.transition = true;
-        key.prev_state = evt->prev_state();
-        key.repeat_count = evt->repeat_count();
-        key_events_.push(key);
-      });
-  input_system_->emulator()->display_window()->on_key_up.AddListener(
-      [this](ui::KeyEvent* evt) {
-        auto global_lock = global_critical_region_.Acquire();
+    KeyEvent key;
+    key.vkey = evt->key_code();
+    key.transition = true;
+    key.prev_state = evt->prev_state();
+    key.repeat_count = evt->repeat_count();
+    key_events_.push(key);
+  });
+  input_system_->window()->on_key_up.AddListener([this](ui::KeyEvent* evt) {
+    auto global_lock = global_critical_region_.Acquire();
 
-        KeyEvent key;
-        key.vkey = evt->key_code();
-        key.transition = false;
-        key.prev_state = evt->prev_state();
-        key.repeat_count = evt->repeat_count();
-        key_events_.push(key);
-      });
+    KeyEvent key;
+    key.vkey = evt->key_code();
+    key.transition = false;
+    key.prev_state = evt->prev_state();
+    key.repeat_count = evt->repeat_count();
+    key_events_.push(key);
+  });
 }
 
 WinKeyInputDriver::~WinKeyInputDriver() = default;
@@ -91,7 +89,7 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_rx = 0;
   int16_t thumb_ry = 0;
 
-  if (input_system_->emulator()->display_window()->has_focus()) {
+  if (input_system_->window()->has_focus()) {
     if (IS_KEY_TOGGLED(VK_CAPITAL)) {
       // dpad toggled
       if (IS_KEY_DOWN(0x41)) {
