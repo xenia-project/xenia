@@ -2238,6 +2238,7 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   auto graphics_system = emulator->graphics_system();
 
   imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
+  imgui_drawer_->SetupDefaultInput();
 
   TracePlayer player(loop.get(), graphics_system);
   if (!player.Open(abs_path)) {
@@ -2246,48 +2247,10 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
   }
 
   window->on_key_char.AddListener([graphics_system](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    if (e->key_code() > 0 && e->key_code() < 0x10000) {
-      if (e->key_code() == 0x74 /* VK_F5 */) {
-        graphics_system->ClearCaches();
-      } else {
-        io.AddInputCharacter(e->key_code());
-      }
+    if (e->key_code() == 0x74 /* VK_F5 */) {
+      graphics_system->ClearCaches();
+      e->set_handled(true);
     }
-    e->set_handled(true);
-  });
-  window->on_mouse_down.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft:
-        io.MouseDown[0] = true;
-        break;
-      case xe::ui::MouseEvent::Button::kRight:
-        io.MouseDown[1] = true;
-        break;
-    }
-  });
-  window->on_mouse_move.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-  });
-  window->on_mouse_up.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft:
-        io.MouseDown[0] = false;
-        break;
-      case xe::ui::MouseEvent::Button::kRight:
-        io.MouseDown[1] = false;
-        break;
-    }
-  });
-  window->on_mouse_wheel.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    io.MouseWheel += float(e->dy() / 120.0f);
   });
 
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {

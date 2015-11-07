@@ -121,74 +121,7 @@ bool DebugWindow::Initialize() {
 
   // Setup ImGui.
   imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window_.get());
-  window_->on_key_char.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    if (e->key_code() > 0 && e->key_code() < 0x10000) {
-      io.AddInputCharacter(e->key_code());
-    }
-    e->set_handled(true);
-  });
-  window_->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.KeysDown[e->key_code()] = true;
-    switch (e->key_code()) {
-      case 16:
-        io.KeyShift = true;
-        break;
-      case 17:
-        io.KeyCtrl = true;
-        break;
-    }
-  });
-  window_->on_key_up.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.KeysDown[e->key_code()] = false;
-    switch (e->key_code()) {
-      case 16:
-        io.KeyShift = false;
-        break;
-      case 17:
-        io.KeyCtrl = false;
-        break;
-    }
-  });
-  window_->on_mouse_down.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos =
-        ImVec2(static_cast<float>(e->x()), static_cast<float>(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft:
-        io.MouseDown[0] = true;
-        break;
-      case xe::ui::MouseEvent::Button::kRight:
-        io.MouseDown[1] = true;
-        break;
-    }
-  });
-  window_->on_mouse_move.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos =
-        ImVec2(static_cast<float>(e->x()), static_cast<float>(e->y()));
-  });
-  window_->on_mouse_up.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos =
-        ImVec2(static_cast<float>(e->x()), static_cast<float>(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft:
-        io.MouseDown[0] = false;
-        break;
-      case xe::ui::MouseEvent::Button::kRight:
-        io.MouseDown[1] = false;
-        break;
-    }
-  });
-  window_->on_mouse_wheel.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos =
-        ImVec2(static_cast<float>(e->x()), static_cast<float>(e->y()));
-    io.MouseWheel += e->dy() / 120.0f;
-  });
+  imgui_drawer_->SetupDefaultInput();
 
   window_->on_painting.AddListener([this](UIEvent* e) { DrawFrame(); });
 

@@ -91,77 +91,18 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 
     // Initialize the ImGui renderer we'll use.
     imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
+    imgui_drawer_->SetupDefaultInput();
 
     // Show the elemental-forms debug UI so we can see it working.
     el::util::ShowDebugInfoSettingsForm(window->root_element());
   });
 
-  window->on_key_char.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    if (e->key_code() > 0 && e->key_code() < 0x10000) {
-      io.AddInputCharacter(e->key_code());
-    }
-    e->set_handled(true);
-  });
   window->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.KeysDown[e->key_code()] = true;
     switch (e->key_code()) {
       case 0x72: {  // F3
         Profiler::ToggleDisplay();
       } break;
-      case 16: {
-        io.KeyShift = true;
-      } break;
-      case 17: {
-        io.KeyCtrl = true;
-      } break;
     }
-  });
-  window->on_key_up.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.KeysDown[e->key_code()] = false;
-    switch (e->key_code()) {
-      case 16: {
-        io.KeyShift = false;
-      } break;
-      case 17: {
-        io.KeyCtrl = false;
-      } break;
-    }
-  });
-  window->on_mouse_down.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft: {
-        io.MouseDown[0] = true;
-      } break;
-      case xe::ui::MouseEvent::Button::kRight: {
-        io.MouseDown[1] = true;
-      } break;
-    }
-  });
-  window->on_mouse_move.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-  });
-  window->on_mouse_up.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft: {
-        io.MouseDown[0] = false;
-      } break;
-      case xe::ui::MouseEvent::Button::kRight: {
-        io.MouseDown[1] = false;
-      } break;
-    }
-  });
-  window->on_mouse_wheel.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    io.MouseWheel += float(e->dy() / 120.0f);
   });
 
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {

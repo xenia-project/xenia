@@ -27,6 +27,8 @@ class ImGuiDrawer {
   ImGuiDrawer(Window* window);
   ~ImGuiDrawer();
 
+  void SetupDefaultInput();
+
  protected:
   void Initialize();
   void SetupFont();
