@@ -144,7 +144,7 @@ bool Window::MakeReady() {
   root_element_->set_background_skin(TBIDC("background"));
   root_element_->set_rect({0, 0, width(), height()});
 
-  el::util::ShowDebugInfoSettingsForm(root_element_.get());
+  // el::util::ShowDebugInfoSettingsForm(root_element_.get());
 
   return true;
 }
