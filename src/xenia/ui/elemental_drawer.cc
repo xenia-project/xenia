@@ -93,7 +93,7 @@ void ElementalDrawer::RenderBatch(Batch* batch) {
   draw.count = static_cast<int>(batch->vertex_count);
   auto bitmap = static_cast<ElementalBitmap*>(batch->bitmap);
   draw.texture_handle = bitmap ? bitmap->texture_->handle : 0;
-  draw.scissor = true;
+  draw.scissor = current_clip_.w && current_clip_.h;
   draw.scissor_rect[0] = current_clip_.x;
   draw.scissor_rect[1] =
       window_->height() - (current_clip_.y + current_clip_.h);
