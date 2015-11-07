@@ -15,3 +15,49 @@ project("xenia-hid")
     project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
+  removefiles({"*_demo.cc"})
+
+group("demos")
+project("xenia-hid-demo")
+  uuid("a56a209c-16d5-4913-85f9-86976fe7fddf")
+  kind("WindowedApp")
+  language("C++")
+  links({
+    "elemental-forms",
+    "gflags",
+    "glew",
+    "imgui",
+    "xenia-base",
+    "xenia-hid",
+    "xenia-hid-nop",
+    "xenia-ui",
+    "xenia-ui-gl",
+  })
+  flags({
+    "WinMain",  -- Use WinMain instead of main.
+  })
+  defines({
+    "GLEW_STATIC=1",
+    "GLEW_MX=1",
+  })
+  includedirs({
+    project_root.."/third_party/elemental-forms/src",
+    project_root.."/build_tools/third_party/gflags/src",
+  })
+  files({
+    "hid_demo.cc",
+    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+  })
+  files({
+    project_root.."/third_party/elemental-forms/resources.rc",
+  })
+  resincludedirs({
+    project_root,
+    project_root.."/third_party/elemental-forms",
+  })
+
+  filter("platforms:Windows")
+    links({
+      "xenia-hid-winkey",
+      "xenia-hid-xinput",
+    })
