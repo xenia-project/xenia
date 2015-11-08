@@ -19,10 +19,10 @@ namespace xe {
 namespace hid {
 namespace winkey {
 
-WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
-    : InputDriver(input_system), packet_number_(1) {
+WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
+    : InputDriver(window), packet_number_(1) {
   // Register a key listener.
-  input_system_->window()->on_key_down.AddListener([this](ui::KeyEvent* evt) {
+  window_->on_key_down.AddListener([this](ui::KeyEvent* evt) {
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
@@ -32,7 +32,7 @@ WinKeyInputDriver::WinKeyInputDriver(InputSystem* input_system)
     key.repeat_count = evt->repeat_count();
     key_events_.push(key);
   });
-  input_system_->window()->on_key_up.AddListener([this](ui::KeyEvent* evt) {
+  window_->on_key_up.AddListener([this](ui::KeyEvent* evt) {
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
@@ -89,7 +89,7 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_rx = 0;
   int16_t thumb_ry = 0;
 
-  if (input_system_->window()->has_focus()) {
+  if (window_->has_focus()) {
     if (IS_KEY_TOGGLED(VK_CAPITAL)) {
       // dpad toggled
       if (IS_KEY_DOWN(0x41)) {

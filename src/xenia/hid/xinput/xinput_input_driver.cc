@@ -19,8 +19,8 @@ namespace xe {
 namespace hid {
 namespace xinput {
 
-XInputInputDriver::XInputInputDriver(InputSystem* input_system)
-    : InputDriver(input_system) {
+XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
+    : InputDriver(window) {
   XInputEnable(TRUE);
 }
 

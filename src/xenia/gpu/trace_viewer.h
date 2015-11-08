@@ -44,6 +44,8 @@ class TraceViewer {
  protected:
   TraceViewer();
 
+  virtual std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() = 0;
+
   void DrawMultilineString(const std::string& str);
 
   virtual uintptr_t GetColorRenderTarget(

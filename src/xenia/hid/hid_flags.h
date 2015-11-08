@@ -12,6 +12,4 @@
 
 #include <gflags/gflags.h>
 
-DECLARE_string(hid);
-
 #endif  // XENIA_HID_HID_FLAGS_H_

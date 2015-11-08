@@ -22,6 +22,7 @@
 #include "xenia/base/string.h"
 #include "xenia/cpu/backend/code_cache.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/hid/input_driver.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/xam_module.h"
@@ -68,7 +69,14 @@ Emulator::~Emulator() {
   ExceptionHandler::Uninstall(Emulator::ExceptionCallbackThunk, this);
 }
 
-X_STATUS Emulator::Setup(ui::Window* display_window) {
+X_STATUS Emulator::Setup(
+    ui::Window* display_window,
+    std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
+        audio_system_factory,
+    std::function<std::unique_ptr<gpu::GraphicsSystem>()>
+        graphics_system_factory,
+    std::function<std::vector<std::unique_ptr<hid::InputDriver>>(ui::Window*)>
+        input_driver_factory) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
   display_window_ = display_window;
@@ -111,13 +119,15 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   }
 
   // Initialize the APU.
-  audio_system_ = xe::apu::AudioSystem::Create(processor_.get());
-  if (!audio_system_) {
-    return X_STATUS_NOT_IMPLEMENTED;
+  if (audio_system_factory) {
+    audio_system_ = audio_system_factory(processor_.get());
+    if (!audio_system_) {
+      return X_STATUS_NOT_IMPLEMENTED;
+    }
   }
 
   // Initialize the GPU.
-  graphics_system_ = xe::gpu::GraphicsSystem::Create();
+  graphics_system_ = graphics_system_factory();
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
@@ -127,9 +137,15 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   });
 
   // Initialize the HID.
-  input_system_ = xe::hid::InputSystem::Create(display_window_);
+  input_system_ = std::make_unique<xe::hid::InputSystem>(display_window_);
   if (!input_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
+  }
+  if (input_driver_factory) {
+    auto input_drivers = input_driver_factory(display_window_);
+    for (size_t i = 0; i < input_drivers.size(); ++i) {
+      input_system_->AddDriver(std::move(input_drivers[i]));
+    }
   }
 
   result = input_system_->Setup();
@@ -150,9 +166,11 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
     return result;
   }
 
-  result = audio_system_->Setup(kernel_state_.get());
-  if (result) {
-    return result;
+  if (audio_system_) {
+    result = audio_system_->Setup(kernel_state_.get());
+    if (result) {
+      return result;
+    }
   }
 
   // HLE kernel modules.

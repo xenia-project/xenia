@@ -30,6 +30,10 @@ using namespace xe::gpu::xenos;
 
 class GL4TraceViewer : public TraceViewer {
  public:
+  std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() override {
+    return std::unique_ptr<gpu::GraphicsSystem>(new GL4GraphicsSystem());
+  }
+
   uintptr_t GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
                                  uint32_t base,
                                  ColorRenderTargetFormat format) override {

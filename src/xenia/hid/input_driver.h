@@ -14,6 +14,12 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+namespace ui {
+class Window;
+}  // namespace ui
+}  // namespace xe
+
+namespace xe {
 namespace hid {
 
 class InputSystem;
@@ -33,9 +39,9 @@ class InputDriver {
                                 X_INPUT_KEYSTROKE* out_keystroke) = 0;
 
  protected:
-  explicit InputDriver(InputSystem* input_system);
+  explicit InputDriver(xe::ui::Window* window);
 
-  InputSystem* input_system_ = nullptr;
+  xe::ui::Window* window_ = nullptr;
 };
 
 }  // namespace hid

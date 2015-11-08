@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "xenia/hid/input.h"
+#include "xenia/hid/input_driver.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -25,13 +26,10 @@ class Window;
 namespace xe {
 namespace hid {
 
-class InputDriver;
-
 class InputSystem {
  public:
+  explicit InputSystem(xe::ui::Window* window);
   ~InputSystem();
-
-  static std::unique_ptr<InputSystem> Create(xe::ui::Window* window);
 
   xe::ui::Window* window() const { return window_; }
 
@@ -47,8 +45,6 @@ class InputSystem {
                         X_INPUT_KEYSTROKE* out_keystroke);
 
  private:
-  explicit InputSystem(xe::ui::Window* window);
-
   xe::ui::Window* window_ = nullptr;
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;

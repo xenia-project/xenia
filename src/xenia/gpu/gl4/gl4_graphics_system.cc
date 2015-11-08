@@ -24,10 +24,6 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
-std::unique_ptr<GraphicsSystem> Create() {
-  return std::make_unique<GL4GraphicsSystem>();
-}
-
 std::unique_ptr<ui::GraphicsContext> GL4GraphicsSystem::CreateContext(
     ui::Window* target_window) {
   // Setup the GL control that actually does the drawing.

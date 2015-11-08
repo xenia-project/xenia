@@ -17,10 +17,102 @@
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
 
+// Available audio systems:
+#include "xenia/apu/nop/nop_audio_system.h"
+#if XE_PLATFORM_WIN32
+#include "xenia/apu/xaudio2/xaudio2_audio_system.h"
+#endif  // XE_PLATFORM_WIN32
+
+// Available graphics systems:
+#include "xenia/gpu/gl4/gl4_graphics_system.h"
+
+// Available input drivers:
+#include "xenia/hid/nop/nop_hid.h"
+#if XE_PLATFORM_WIN32
+#include "xenia/hid/winkey/winkey_hid.h"
+#include "xenia/hid/xinput/xinput_hid.h"
+#endif  // XE_PLATFORM_WIN32
+
+DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
+DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
+
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 
 namespace xe {
 namespace app {
+
+std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
+  if (FLAGS_apu.compare("nop") == 0) {
+    return apu::nop::NopAudioSystem::Create(processor);
+#if XE_PLATFORM_WIN32
+  } else if (FLAGS_apu.compare("xaudio2") == 0) {
+    return apu::xaudio2::XAudio2AudioSystem::Create(processor);
+#endif  // XE_PLATFORM_WIN32
+  } else {
+    // Create best available.
+    std::unique_ptr<apu::AudioSystem> best;
+
+#if XE_PLATFORM_WIN32
+    best = apu::xaudio2::XAudio2AudioSystem::Create(processor);
+    if (best) {
+      return best;
+    }
+#endif  // XE_PLATFORM_WIN32
+
+    // Fallback to nop.
+    return apu::nop::NopAudioSystem::Create(processor);
+  }
+}
+
+std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
+  if (FLAGS_gpu.compare("gl4") == 0) {
+    return std::unique_ptr<gpu::GraphicsSystem>(
+        new xe::gpu::gl4::GL4GraphicsSystem());
+  } else {
+    // Create best available.
+    std::unique_ptr<gpu::GraphicsSystem> best;
+
+    best = std::unique_ptr<gpu::GraphicsSystem>(
+        new xe::gpu::gl4::GL4GraphicsSystem());
+    if (best) {
+      return best;
+    }
+
+    // Nothing!
+    return nullptr;
+  }
+}
+
+std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
+    ui::Window* window) {
+  std::vector<std::unique_ptr<hid::InputDriver>> drivers;
+  if (FLAGS_hid.compare("nop") == 0) {
+    drivers.emplace_back(xe::hid::nop::Create(window));
+#if XE_PLATFORM_WIN32
+  } else if (FLAGS_hid.compare("winkey") == 0) {
+    drivers.emplace_back(xe::hid::winkey::Create(window));
+  } else if (FLAGS_hid.compare("xinput") == 0) {
+    drivers.emplace_back(xe::hid::xinput::Create(window));
+#endif  // XE_PLATFORM_WIN32
+  } else {
+#if XE_PLATFORM_WIN32
+    auto xinput_driver = xe::hid::xinput::Create(window);
+    if (xinput_driver) {
+      drivers.emplace_back(std::move(xinput_driver));
+    }
+    auto winkey_driver = xe::hid::winkey::Create(window);
+    if (winkey_driver) {
+      drivers.emplace_back(std::move(winkey_driver));
+    }
+#endif  // XE_PLATFORM_WIN32
+    if (drivers.empty()) {
+      // Fallback to nop if none created.
+      drivers.emplace_back(xe::hid::nop::Create(window));
+    }
+  }
+  return drivers;
+}
 
 int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
@@ -34,7 +126,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   // Setup and initialize all subsystems. If we can't do something
   // (unsupported system, memory issues, etc) this will fail early.
-  X_STATUS result = emulator->Setup(emulator_window->window());
+  X_STATUS result =
+      emulator->Setup(emulator_window->window(), CreateAudioSystem,
+                      CreateGraphicsSystem, CreateInputDrivers);
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return 1;

@@ -34,7 +34,6 @@ class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
 
-  static std::unique_ptr<GraphicsSystem> Create();
   virtual std::unique_ptr<ui::GraphicsContext> CreateContext(
       ui::Window* target_window) = 0;
 

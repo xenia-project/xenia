@@ -9,6 +9,4 @@
 
 #include "xenia/apu/apu_flags.h"
 
-DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
-
 DEFINE_bool(mute, false, "Mutes all audio output.");

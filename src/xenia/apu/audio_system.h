@@ -30,8 +30,6 @@ class AudioSystem {
  public:
   virtual ~AudioSystem();
 
-  static std::unique_ptr<AudioSystem> Create(cpu::Processor* processor);
-
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
   XmaDecoder* xma_decoder() const { return xma_decoder_.get(); }

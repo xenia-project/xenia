@@ -21,27 +21,6 @@
 namespace xe {
 namespace gpu {
 
-namespace gl4 {
-std::unique_ptr<GraphicsSystem> Create();
-}  // namespace gl4
-
-std::unique_ptr<GraphicsSystem> GraphicsSystem::Create() {
-  if (FLAGS_gpu.compare("gl4") == 0) {
-    return xe::gpu::gl4::Create();
-  } else {
-    // Create best available.
-    std::unique_ptr<GraphicsSystem> best;
-
-    best = xe::gpu::gl4::Create();
-    if (best) {
-      return best;
-    }
-
-    // Nothing!
-    return nullptr;
-  }
-}
-
 GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
 GraphicsSystem::~GraphicsSystem() = default;

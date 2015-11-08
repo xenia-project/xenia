@@ -21,7 +21,7 @@ namespace winkey {
 
 class WinKeyInputDriver : public InputDriver {
  public:
-  explicit WinKeyInputDriver(InputSystem* input_system);
+  explicit WinKeyInputDriver(xe::ui::Window* window);
   ~WinKeyInputDriver() override;
 
   X_STATUS Setup() override;

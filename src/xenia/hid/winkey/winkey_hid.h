@@ -18,7 +18,7 @@ namespace xe {
 namespace hid {
 namespace winkey {
 
-std::unique_ptr<InputDriver> Create(InputSystem* input_system);
+std::unique_ptr<InputDriver> Create(xe::ui::Window* window);
 
 }  // namespace winkey
 }  // namespace hid

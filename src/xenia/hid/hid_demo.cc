@@ -22,11 +22,50 @@
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
+// Available input drivers:
+#include "xenia/hid/nop/nop_hid.h"
+#if XE_PLATFORM_WIN32
+#include "xenia/hid/winkey/winkey_hid.h"
+#include "xenia/hid/xinput/xinput_hid.h"
+#endif  // XE_PLATFORM_WIN32
+
+DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
+
 namespace xe {
 namespace hid {
 
 std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
 std::unique_ptr<xe::hid::InputSystem> input_system_;
+
+std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
+    ui::Window* window) {
+  std::vector<std::unique_ptr<hid::InputDriver>> drivers;
+  if (FLAGS_hid.compare("nop") == 0) {
+    drivers.emplace_back(xe::hid::nop::Create(window));
+#if XE_PLATFORM_WIN32
+  } else if (FLAGS_hid.compare("winkey") == 0) {
+    drivers.emplace_back(xe::hid::winkey::Create(window));
+  } else if (FLAGS_hid.compare("xinput") == 0) {
+    drivers.emplace_back(xe::hid::xinput::Create(window));
+#endif  // XE_PLATFORM_WIN32
+  } else {
+#if XE_PLATFORM_WIN32
+    auto xinput_driver = xe::hid::xinput::Create(window);
+    if (xinput_driver) {
+      drivers.emplace_back(std::move(xinput_driver));
+    }
+    auto winkey_driver = xe::hid::winkey::Create(window);
+    if (winkey_driver) {
+      drivers.emplace_back(std::move(winkey_driver));
+    }
+#endif  // XE_PLATFORM_WIN32
+    if (drivers.empty()) {
+      // Fallback to nop if none created.
+      drivers.emplace_back(xe::hid::nop::Create(window));
+    }
+  }
+  return drivers;
+}
 
 std::unique_ptr<xe::ui::GraphicsContext> CreateDemoContext(
     xe::ui::Window* window) {
@@ -70,7 +109,11 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
     imgui_drawer_->SetupDefaultInput();
 
     // Initialize input system and all drivers.
-    input_system_ = xe::hid::InputSystem::Create(window.get());
+    input_system_ = std::make_unique<xe::hid::InputSystem>(window.get());
+    auto drivers = CreateInputDrivers(window.get());
+    for (size_t i = 0; i < drivers.size(); ++i) {
+      input_system_->AddDriver(std::move(drivers[i]));
+    }
   });
 
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {

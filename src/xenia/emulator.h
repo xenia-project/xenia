@@ -10,6 +10,7 @@
 #ifndef XENIA_EMULATOR_H_
 #define XENIA_EMULATOR_H_
 
+#include <functional>
 #include <string>
 
 #include "xenia/base/exception_handler.h"
@@ -32,6 +33,7 @@ namespace gpu {
 class GraphicsSystem;
 }  // namespace gpu
 namespace hid {
+class InputDriver;
 class InputSystem;
 }  // namespace hid
 namespace ui {
@@ -68,7 +70,14 @@ class Emulator {
 
   kernel::KernelState* kernel_state() const { return kernel_state_.get(); }
 
-  X_STATUS Setup(ui::Window* display_window);
+  X_STATUS Setup(
+      ui::Window* display_window,
+      std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
+          audio_system_factory,
+      std::function<std::unique_ptr<gpu::GraphicsSystem>()>
+          graphics_system_factory,
+      std::function<std::vector<std::unique_ptr<hid::InputDriver>>(ui::Window*)>
+          input_driver_factory);
 
   X_STATUS LaunchPath(std::wstring path);
   X_STATUS LaunchXexFile(std::wstring path);

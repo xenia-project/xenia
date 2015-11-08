@@ -20,11 +20,6 @@
 #include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
 
-#include "xenia/apu/nop/nop_audio_system.h"
-#if XE_PLATFORM_WIN32
-#include "xenia/apu/xaudio2/xaudio2_audio_system.h"
-#endif  // XE_PLATFORM_WIN32
-
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
 // decoders. Later games use XAudio*() and direct memory writes to the XMA
@@ -39,29 +34,6 @@
 
 namespace xe {
 namespace apu {
-
-std::unique_ptr<AudioSystem> AudioSystem::Create(cpu::Processor* processor) {
-  if (FLAGS_apu.compare("nop") == 0) {
-    return nop::NopAudioSystem::Create(processor);
-#if XE_PLATFORM_WIN32
-  } else if (FLAGS_apu.compare("xaudio2") == 0) {
-    return xaudio2::XAudio2AudioSystem::Create(processor);
-#endif  // WIN32
-  } else {
-    // Create best available.
-    std::unique_ptr<AudioSystem> best;
-
-#if XE_PLATFORM_WIN32
-    best = xaudio2::XAudio2AudioSystem::Create(processor);
-    if (best) {
-      return best;
-    }
-#endif  // XE_PLATFORM_WIN32
-
-    // Fallback to nop.
-    return nop::NopAudioSystem::Create(processor);
-  }
-}
 
 AudioSystem::AudioSystem(cpu::Processor* processor)
     : memory_(processor->memory()),
