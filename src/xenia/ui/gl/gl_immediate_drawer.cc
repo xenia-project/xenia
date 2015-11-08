@@ -161,8 +161,6 @@ std::unique_ptr<ImmediateTexture> GLImmediateDrawer::CreateTexture(
   GraphicsContextLock lock(graphics_context_);
   auto texture =
       std::make_unique<GLImmediateTexture>(width, height, filter, repeat);
-  glTextureStorage2D(static_cast<GLuint>(texture->handle), 1, GL_RGBA8, width,
-                     height);
   if (data) {
     UpdateTexture(texture.get(), data);
   }
@@ -188,8 +186,8 @@ void GLImmediateDrawer::Begin(int render_target_width,
   glEnablei(GL_BLEND, 0);
   glBlendEquationi(0, GL_FUNC_ADD);
   glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDisablei(GL_DEPTH_TEST, 0);
-  glDisablei(GL_SCISSOR_TEST, 0);
+  glDisable(GL_DEPTH_TEST);
+  glDisable(GL_SCISSOR_TEST);
 
   // Prepare drawing resources.
   glUseProgram(program_);
@@ -223,11 +221,11 @@ void GLImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 
 void GLImmediateDrawer::Draw(const ImmediateDraw& draw) {
   if (draw.scissor) {
-    glEnablei(GL_SCISSOR_TEST, 0);
+    glEnable(GL_SCISSOR_TEST);
     glScissorIndexed(0, draw.scissor_rect[0], draw.scissor_rect[1],
                      draw.scissor_rect[2], draw.scissor_rect[3]);
   } else {
-    glDisablei(GL_SCISSOR_TEST, 0);
+    glDisable(GL_SCISSOR_TEST);
   }
 
   if (draw.texture_handle) {
@@ -261,7 +259,7 @@ void GLImmediateDrawer::EndDrawBatch() { glFlush(); }
 
 void GLImmediateDrawer::End() {
   // Restore modified state.
-  glDisablei(GL_SCISSOR_TEST, 0);
+  glDisable(GL_SCISSOR_TEST);
   glBindTextureUnit(0, 0);
   glUseProgram(0);
   glBindVertexArray(0);

@@ -117,7 +117,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   }
 
   // Initialize the GPU.
-  graphics_system_ = xe::gpu::GraphicsSystem::Create(this);
+  graphics_system_ = xe::gpu::GraphicsSystem::Create();
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
@@ -144,7 +144,7 @@ X_STATUS Emulator::Setup(ui::Window* display_window) {
   kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
 
   // Setup the core components.
-  result = graphics_system_->Setup(processor_.get(), display_window_->loop(),
+  result = graphics_system_->Setup(processor_.get(), kernel_state_.get(),
                                    display_window_);
   if (result) {
     return result;

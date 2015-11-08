@@ -12,10 +12,7 @@
 
 #include <memory>
 
-#include "xenia/gpu/gl4/command_processor.h"
 #include "xenia/gpu/graphics_system.h"
-#include "xenia/gpu/register_file.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
@@ -24,53 +21,22 @@ namespace gl4 {
 
 class GL4GraphicsSystem : public GraphicsSystem {
  public:
-  explicit GL4GraphicsSystem(Emulator* emulator);
+  GL4GraphicsSystem();
   ~GL4GraphicsSystem() override;
 
   std::unique_ptr<ui::GraphicsContext> CreateContext(
       ui::Window* target_window) override;
 
-  X_STATUS Setup(cpu::Processor* processor, ui::Loop* target_loop,
+  X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::Window* target_window) override;
   void Shutdown() override;
 
-  RegisterFile* register_file() { return &register_file_; }
-  CommandProcessor* command_processor() const {
-    return command_processor_.get();
-  }
-
-  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count) override;
-  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size) override;
-
-  void RequestFrameTrace() override;
-  void BeginTracing() override;
-  void EndTracing() override;
-  void PlayTrace(const uint8_t* trace_data, size_t trace_size,
-                 TracePlaybackMode playback_mode) override;
-  void ClearCaches() override;
-
  private:
-  void MarkVblank();
-  void Swap(xe::ui::UIEvent* e);
-  uint32_t ReadRegister(uint32_t addr);
-  void WriteRegister(uint32_t addr, uint32_t value);
+  std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 
-  static uint32_t MMIOReadRegisterThunk(void* ppc_context,
-                                        GL4GraphicsSystem* gs, uint32_t addr) {
-    return gs->ReadRegister(addr);
-  }
-  static void MMIOWriteRegisterThunk(void* ppc_context, GL4GraphicsSystem* gs,
-                                     uint32_t addr, uint32_t value) {
-    gs->WriteRegister(addr, value);
-  }
-
-  RegisterFile register_file_;
-  std::unique_ptr<CommandProcessor> command_processor_;
+  void Swap(xe::ui::UIEvent* e) override;
 
   xe::ui::gl::GLContext* display_context_ = nullptr;
-
-  std::atomic<bool> worker_running_;
-  kernel::object_ref<kernel::XHostThread> worker_thread_;
 };
 
 }  // namespace gl4

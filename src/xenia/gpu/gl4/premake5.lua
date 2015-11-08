@@ -66,7 +66,7 @@ project("xenia-gpu-gl4-trace-viewer")
     project_root.."/build_tools/third_party/gflags/src",
   })
   files({
-    "trace_viewer_main.cc",
+    "gl4_trace_viewer_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
 
