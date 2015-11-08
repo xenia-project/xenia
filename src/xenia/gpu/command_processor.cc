@@ -1079,8 +1079,20 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingbufferReader* reader,
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
   trace_writer_.WriteMemoryRead(CpuToGpu(addr), size_dwords * 4);
-  LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
-             size_dwords);
+  auto shader =
+      LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
+                 size_dwords);
+  switch (shader_type) {
+    case ShaderType::kVertex:
+      active_vertex_shader_ = shader;
+      break;
+    case ShaderType::kPixel:
+      active_pixel_shader_ = shader;
+      break;
+    default:
+      assert_unhandled_case(shader_type);
+      return false;
+  }
   return true;
 }
 
@@ -1095,8 +1107,20 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
   assert_true(start == 0);
   reader->CheckRead(size_dwords);
-  LoadShader(shader_type, reader->ptr(),
-             memory_->TranslatePhysical<uint32_t*>(reader->ptr()), size_dwords);
+  auto shader = LoadShader(shader_type, reader->ptr(),
+                           memory_->TranslatePhysical<uint32_t*>(reader->ptr()),
+                           size_dwords);
+  switch (shader_type) {
+    case ShaderType::kVertex:
+      active_vertex_shader_ = shader;
+      break;
+    case ShaderType::kPixel:
+      active_pixel_shader_ = shader;
+      break;
+    default:
+      assert_unhandled_case(shader_type);
+      return false;
+  }
   reader->Advance(size_dwords);
   return true;
 }

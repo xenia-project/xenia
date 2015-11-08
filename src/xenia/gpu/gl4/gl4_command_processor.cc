@@ -463,10 +463,10 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   texture_cache_.Scavenge();
 }
 
-bool GL4CommandProcessor::LoadShader(ShaderType shader_type,
-                                     uint32_t guest_address,
-                                     const uint32_t* host_address,
-                                     uint32_t dword_count) {
+Shader* GL4CommandProcessor::LoadShader(ShaderType shader_type,
+                                        uint32_t guest_address,
+                                        const uint32_t* host_address,
+                                        uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   GL4Shader* shader_ptr = nullptr;
   uint64_t hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
@@ -489,18 +489,7 @@ bool GL4CommandProcessor::LoadShader(ShaderType shader_type,
              guest_address, dword_count * 4,
              shader_ptr->ucode_disassembly().c_str());
   }
-  switch (shader_type) {
-    case ShaderType::kVertex:
-      active_vertex_shader_ = shader_ptr;
-      break;
-    case ShaderType::kPixel:
-      active_pixel_shader_ = shader_ptr;
-      break;
-    default:
-      assert_unhandled_case(shader_type);
-      return false;
-  }
-  return true;
+  return shader_ptr;
 }
 
 bool GL4CommandProcessor::IssueDraw(PrimitiveType prim_type,
@@ -622,8 +611,8 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.vertex_shader = active_vertex_shader_;
-  regs.pixel_shader = active_pixel_shader_;
+  regs.vertex_shader = static_cast<GL4Shader*>(active_vertex_shader_);
+  regs.pixel_shader = static_cast<GL4Shader*>(active_pixel_shader_);
   regs.prim_type = prim_type;
 
   SCOPE_profile_cpu_f("gpu");
@@ -632,30 +621,30 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
 
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = regs.sq_program_cntl;
-  if (!active_vertex_shader_->has_prepared()) {
-    if (!active_vertex_shader_->PrepareVertexShader(&shader_translator_,
-                                                    program_cntl)) {
+  if (!regs.vertex_shader->has_prepared()) {
+    if (!regs.vertex_shader->PrepareVertexShader(&shader_translator_,
+                                                 program_cntl)) {
       XELOGE("Unable to prepare vertex shader");
       return UpdateStatus::kError;
     }
-  } else if (!active_vertex_shader_->is_valid()) {
+  } else if (!regs.vertex_shader->is_valid()) {
     XELOGE("Vertex shader invalid");
     return UpdateStatus::kError;
   }
 
-  if (!active_pixel_shader_->has_prepared()) {
-    if (!active_pixel_shader_->PreparePixelShader(&shader_translator_,
-                                                  program_cntl)) {
+  if (!regs.pixel_shader->has_prepared()) {
+    if (!regs.pixel_shader->PreparePixelShader(&shader_translator_,
+                                               program_cntl)) {
       XELOGE("Unable to prepare pixel shader");
       return UpdateStatus::kError;
     }
-  } else if (!active_pixel_shader_->is_valid()) {
+  } else if (!regs.pixel_shader->is_valid()) {
     XELOGE("Pixel shader invalid");
     return UpdateStatus::kError;
   }
 
-  GLuint vertex_program = active_vertex_shader_->program();
-  GLuint fragment_program = active_pixel_shader_->program();
+  GLuint vertex_program = regs.vertex_shader->program();
+  GLuint fragment_program = regs.pixel_shader->program();
 
   uint64_t key = (uint64_t(vertex_program) << 32) | fragment_program;
   CachedPipeline* cached_pipeline = nullptr;
@@ -707,7 +696,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
     cached_pipeline->handles.line_quad_list_pipeline = pipelines[4];
 
     // This can be set once, as the buffer never changes.
-    glVertexArrayElementBuffer(active_vertex_shader_->vao(),
+    glVertexArrayElementBuffer(regs.vertex_shader->vao(),
                                scratch_buffer_.handle());
   }
 
@@ -741,11 +730,11 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
     }
   }
 
-  draw_batcher_.ReconfigurePipeline(active_vertex_shader_, active_pixel_shader_,
+  draw_batcher_.ReconfigurePipeline(regs.vertex_shader, regs.pixel_shader,
                                     pipeline);
 
   glBindProgramPipeline(pipeline);
-  glBindVertexArray(active_vertex_shader_->vao());
+  glBindVertexArray(regs.vertex_shader->vao());
 
   return UpdateStatus::kMismatch;
 }
@@ -1394,6 +1383,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
 
     trace_writer_.WriteMemoryRead(fetch->address << 2, valid_range);
 
+    auto vertex_shader = static_cast<GL4Shader*>(active_vertex_shader_);
     CircularBuffer::Allocation allocation;
     if (!scratch_buffer_.AcquireCached(fetch->address << 2, valid_range,
                                        &allocation)) {
@@ -1408,7 +1398,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
 
       // TODO(benvanik): if we could find a way to avoid this, we could use
       // multidraw without flushing.
-      glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+      glVertexArrayVertexBuffer(vertex_shader->vao(), buffer_index,
                                 scratch_buffer_.handle(), allocation.offset,
                                 desc.stride_words * 4);
 
@@ -1416,7 +1406,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
     } else {
       // TODO(benvanik): if we could find a way to avoid this, we could use
       // multidraw without flushing.
-      glVertexArrayVertexBuffer(active_vertex_shader_->vao(), buffer_index,
+      glVertexArrayVertexBuffer(vertex_shader->vao(), buffer_index,
                                 scratch_buffer_.handle(), allocation.offset,
                                 desc.stride_words * 4);
     }

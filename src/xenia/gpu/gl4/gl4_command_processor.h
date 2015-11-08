@@ -49,8 +49,6 @@ class GL4CommandProcessor : public CommandProcessor {
 
   // HACK: for debugging; would be good to have this in a base type.
   TextureCache* texture_cache() { return &texture_cache_; }
-  GL4Shader* active_vertex_shader() const { return active_vertex_shader_; }
-  GL4Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
   GLuint GetColorRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
                               uint32_t base,
@@ -111,8 +109,9 @@ class GL4CommandProcessor : public CommandProcessor {
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                    uint32_t frontbuffer_height) override;
 
-  bool LoadShader(ShaderType shader_type, uint32_t guest_address,
-                  const uint32_t* host_address, uint32_t dword_count) override;
+  Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
+                     const uint32_t* host_address,
+                     uint32_t dword_count) override;
 
   bool IssueDraw(PrimitiveType prim_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info) override;
@@ -135,8 +134,6 @@ class GL4CommandProcessor : public CommandProcessor {
   GL4ShaderTranslator shader_translator_;
   std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
   std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
-  GL4Shader* active_vertex_shader_ = nullptr;
-  GL4Shader* active_pixel_shader_ = nullptr;
   CachedFramebuffer* active_framebuffer_ = nullptr;
   GLuint last_framebuffer_texture_ = 0;
 

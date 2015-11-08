@@ -31,6 +31,7 @@ namespace xe {
 namespace gpu {
 
 class GraphicsSystem;
+class Shader;
 
 struct SwapState {
   // Lock must be held when changing data in this structure.
@@ -59,6 +60,9 @@ class CommandProcessor {
 
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
+
+  Shader* active_vertex_shader() const { return active_vertex_shader_; }
+  Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
   virtual bool Initialize(std::unique_ptr<xe::ui::GraphicsContext> context);
   virtual void Shutdown();
@@ -160,9 +164,9 @@ class CommandProcessor {
   bool ExecutePacketType3_INVALIDATE_STATE(RingbufferReader* reader,
                                            uint32_t packet, uint32_t count);
 
-  virtual bool LoadShader(ShaderType shader_type, uint32_t guest_address,
-                          const uint32_t* host_address,
-                          uint32_t dword_count) = 0;
+  virtual Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
+                             const uint32_t* host_address,
+                             uint32_t dword_count) = 0;
 
   virtual bool IssueDraw(PrimitiveType prim_type, uint32_t index_count,
                          IndexBufferInfo* index_buffer_info) = 0;
@@ -205,6 +209,9 @@ class CommandProcessor {
 
   uint64_t bin_select_ = 0xFFFFFFFFull;
   uint64_t bin_mask_ = 0xFFFFFFFFull;
+
+  Shader* active_vertex_shader_ = nullptr;
+  Shader* active_pixel_shader_ = nullptr;
 };
 
 }  // namespace gpu
