@@ -86,8 +86,22 @@ UserProfile::UserProfile() {
 }
 
 void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
-  settings_.insert({setting->setting_id, setting.get()});
-  setting_list_.push_back(std::move(setting));
+  Setting* previous_setting = setting.get();
+  std::swap(settings_[setting->setting_id], previous_setting);
+
+  if (previous_setting) {
+    // replace: swap out the old setting from the owning list
+    for (auto vec_it = setting_list_.begin(); vec_it != setting_list_.end();
+         ++vec_it) {
+      if (vec_it->get() == previous_setting) {
+        vec_it->swap(setting);
+        break;
+      }
+    }
+  } else {
+    // new setting: add to the owning list
+    setting_list_.push_back(std::move(setting));
+  }
 }
 
 UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {

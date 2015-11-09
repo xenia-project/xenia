@@ -253,6 +253,29 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
   }
 }
 
+typedef struct {
+  xe::be<uint32_t> from;
+  xe::be<uint32_t> unk_04;
+  xe::be<uint32_t> unk_08;
+  xe::be<uint32_t> unk_0c;
+  xe::be<uint32_t> setting_id;
+  xe::be<uint32_t> unk_14;
+
+  // UserProfile::Setting::Type. Appears to be 8-in-32 field, and the upper 24
+  // are not always zeroed by the game.
+  uint8_t type;
+
+  xe::be<uint32_t> unk_1c;
+  // TODO(sabretooth): not sure if this is a union, but it seems likely.
+  // Haven't run into cases other than "binary data" yet.
+  union {
+    struct {
+      xe::be<uint32_t> length;
+      xe::be<uint32_t> ptr;
+    } binary;
+  };
+} X_USER_WRITE_PROFILE_SETTING;
+
 SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_context,
                                            KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -261,10 +284,8 @@ SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_context,
   uint32_t settings_ptr = SHIM_GET_ARG_32(3);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
 
-  XELOGD(
-      "XamUserWriteProfileSettings(%.8X, %d, %d, %d, %d, %.8X, %.8X(%d), %.8X, "
-      "%.8X)",
-      user_index, unknown, setting_count, settings_ptr, overlapped_ptr);
+  XELOGD("XamUserWriteProfileSettings(%.8X, %d, %d, %.8X, %.8X)", user_index,
+         unknown, setting_count, settings_ptr, overlapped_ptr);
 
   if (!setting_count || !settings_ptr) {
     if (overlapped_ptr) {
@@ -287,8 +308,56 @@ SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_context,
     return;
   }
 
-  // TODO(benvanik): update and save settings.
-  // const auto& user_profile = kernel_state->user_profile();
+  // Update and save settings.
+  const auto& user_profile = kernel_state->user_profile();
+  auto settings_data_arr = reinterpret_cast<X_USER_WRITE_PROFILE_SETTING*>(
+      SHIM_MEM_ADDR(settings_ptr));
+
+  for (uint32_t n = 0; n < setting_count; ++n) {
+    const X_USER_WRITE_PROFILE_SETTING& settings_data = settings_data_arr[n];
+    XELOGD(
+        "XamUserWriteProfileSettings: setting index [%d]:"
+        " from=%d setting_id=%.8X data.type=%d",
+        n, (uint32_t)settings_data.from, (uint32_t)settings_data.setting_id,
+        settings_data.type);
+
+    xam::UserProfile::Setting::Type settingType =
+        static_cast<xam::UserProfile::Setting::Type>(settings_data.type);
+
+    switch (settingType) {
+      case UserProfile::Setting::Type::BINARY: {
+        uint8_t* settings_data_ptr = SHIM_MEM_ADDR(settings_data.binary.ptr);
+        size_t settings_data_len = settings_data.binary.length;
+        std::vector<uint8_t> data_vec;
+
+        if (settings_data.binary.ptr) {
+          // Copy provided data
+          data_vec.resize(settings_data_len);
+          memcpy(data_vec.data(), settings_data_ptr, settings_data_len);
+        } else {
+          // Data pointer was NULL, so just fill with zeroes
+          data_vec.resize(settings_data_len, 0);
+        }
+
+        user_profile->AddSetting(
+            std::make_unique<xam::UserProfile::BinarySetting>(
+                settings_data.setting_id, data_vec));
+
+      } break;
+
+      case UserProfile::Setting::Type::WSTRING:
+      case UserProfile::Setting::Type::DOUBLE:
+      case UserProfile::Setting::Type::FLOAT:
+      case UserProfile::Setting::Type::INT32:
+      case UserProfile::Setting::Type::INT64:
+      case UserProfile::Setting::Type::DATETIME:
+      default:
+
+        XELOGE("XamUserWriteProfileSettings: Unimplemented data type %d",
+               settingType);
+        break;
+    };
+  }
 
   if (overlapped_ptr) {
     kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
