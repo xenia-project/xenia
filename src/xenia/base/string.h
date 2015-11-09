@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_STRING_H_
 #define XENIA_BASE_STRING_H_
 
+#include <cstdarg>
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -21,6 +22,15 @@ namespace xe {
 
 std::string to_string(const std::wstring& source);
 std::wstring to_wstring(const std::string& source);
+
+std::string format_string(const char* format, va_list args);
+inline std::string format_string(const char* format, ...) {
+  va_list va;
+  va_start(va, format);
+  auto result = format_string(format, va);
+  va_end(va);
+  return result;
+}
 
 // find_first_of string, case insensitive.
 std::string::size_type find_first_of_case(const std::string& target,
