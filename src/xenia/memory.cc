@@ -1128,21 +1128,30 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
+  uint32_t region_size = 0;
+  if (QuerySize(base_address, &region_size)) {
+    cpu::MMIOHandler::global_handler()->InvalidateRange(parent_base_address,
+                                                        region_size);
+  }
+
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
     XELOGE("PhysicalHeap::Release failed due to parent heap failure");
     return false;
   }
+
   return BaseHeap::Release(base_address, out_region_size);
 }
 
 bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_address = GetPhysicalAddress(address);
-  bool parent_result = parent_heap_->Protect(parent_address, size, protect);
-  if (!parent_result) {
+  cpu::MMIOHandler::global_handler()->InvalidateRange(parent_address, size);
+
+  if (!parent_heap_->Protect(parent_address, size, protect)) {
     XELOGE("PhysicalHeap::Protect failed due to parent heap failure");
     return false;
   }
+
   return BaseHeap::Protect(address, size, protect);
 }
 

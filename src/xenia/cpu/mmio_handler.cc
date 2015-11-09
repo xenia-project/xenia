@@ -156,8 +156,29 @@ void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
   delete entry;
 }
 
-bool MMIOHandler::CheckWriteWatch(X64Context* thread_context,
-                                  uint64_t fault_address) {
+void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
+  auto lock = global_critical_region_.Acquire();
+
+  for (auto it = write_watches_.begin(); it != write_watches_.end();) {
+    auto entry = *it;
+    if ((entry->address <= physical_address &&
+         entry->address + entry->length > physical_address) ||
+        (entry->address >= physical_address &&
+         entry->address < physical_address + length)) {
+      // This watch lies within the range. End it.
+      ClearWriteWatch(entry);
+      entry->callback(entry->callback_context, entry->callback_data,
+                      entry->address);
+
+      it = write_watches_.erase(it);
+      continue;
+    }
+
+    ++it;
+  }
+}
+
+bool MMIOHandler::CheckWriteWatch(uint64_t fault_address) {
   uint32_t physical_address = uint32_t(fault_address);
   if (physical_address > 0x1FFFFFFF) {
     physical_address &= 0x1FFFFFFF;
@@ -395,7 +416,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   if (!range) {
     // Access is not found within any range, so fail and let the caller handle
     // it (likely by aborting).
-    return CheckWriteWatch(ex->thread_context(), ex->fault_address());
+    return CheckWriteWatch(ex->fault_address());
   }
 
   auto rip = ex->pc();
