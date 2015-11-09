@@ -63,6 +63,7 @@ class MMIOHandler {
                                   WriteWatchCallback callback,
                                   void* callback_context, void* callback_data);
   void CancelWriteWatch(uintptr_t watch_handle);
+  void InvalidateRange(uint32_t physical_address, size_t length);
 
  protected:
   struct WriteWatchEntry {
@@ -83,7 +84,7 @@ class MMIOHandler {
   bool ExceptionCallback(Exception* ex);
 
   void ClearWriteWatch(WriteWatchEntry* entry);
-  bool CheckWriteWatch(X64Context* thread_context, uint64_t fault_address);
+  bool CheckWriteWatch(uint64_t fault_address);
 
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;
