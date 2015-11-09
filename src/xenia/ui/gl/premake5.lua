@@ -50,7 +50,7 @@ project("xenia-ui-window-gl-demo")
   })
   files({
     "../window_demo.cc",
-    "window_gl_demo.cc",
+    "gl_window_demo.cc",
     project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
   })
   files({
