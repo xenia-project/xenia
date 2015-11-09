@@ -24,6 +24,7 @@
 namespace xe {
 namespace ui {
 
+typedef void* NativePlatformHandle;
 typedef void* NativeWindowHandle;
 
 class Window {
@@ -33,6 +34,7 @@ class Window {
   virtual ~Window();
 
   Loop* loop() const { return loop_; }
+  virtual NativePlatformHandle native_platform_handle() const = 0;
   virtual NativeWindowHandle native_handle() const = 0;
 
   MenuItem* main_menu() const { return main_menu_.get(); }

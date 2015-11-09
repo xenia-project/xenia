@@ -26,6 +26,7 @@ class Win32Window : public Window {
   Win32Window(Loop* loop, const std::wstring& title);
   ~Win32Window() override;
 
+  NativePlatformHandle native_platform_handle() const override;
   NativeWindowHandle native_handle() const override { return hwnd_; }
   HWND hwnd() const { return hwnd_; }
 

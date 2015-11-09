@@ -33,6 +33,10 @@ Win32Window::~Win32Window() {
   }
 }
 
+NativePlatformHandle Win32Window::native_platform_handle() const {
+  return ::GetModuleHandle(nullptr);
+}
+
 bool Win32Window::Initialize() { return OnCreate(); }
 
 bool Win32Window::OnCreate() {
