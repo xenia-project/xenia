@@ -81,6 +81,11 @@ void GL4CommandProcessor::ClearCaches() {
 }
 
 bool GL4CommandProcessor::SetupContext() {
+  if (!CommandProcessor::SetupContext()) {
+    XELOGE("Unable to initialize base command processor context");
+    return false;
+  }
+
   // Circular buffer holding scratch vertex/index data.
   if (!scratch_buffer_.Initialize()) {
     XELOGE("Unable to initialize scratch buffer");
@@ -321,7 +326,7 @@ void GL4CommandProcessor::ShutdownContext() {
   all_shaders_.clear();
   shader_cache_.clear();
 
-  context_.reset();
+  CommandProcessor::ShutdownContext();
 }
 
 void GL4CommandProcessor::MakeCoherent() {
