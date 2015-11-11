@@ -174,13 +174,13 @@ void GL4ShaderTranslator::AppendSrcReg(const ucode::instr_alu_t& op, int i) {
       break;
     }
     case 2: {
-      int const_slot = op.src1_sel ? 1 : 0;
+      int const_slot = op.src1_sel ? 0 : 1;
       AppendSrcReg(op, op.src2_reg, op.src2_sel, op.src2_swiz,
                    op.src2_reg_negate, const_slot);
       break;
     }
     case 3: {
-      int const_slot = (op.src1_sel || op.src2_sel) ? 1 : 0;
+      int const_slot = (op.src1_sel && op.src2_sel) ? 0 : 1;
       AppendSrcReg(op, op.src3_reg, op.src3_sel, op.src3_swiz,
                    op.src3_reg_negate, const_slot);
       break;
