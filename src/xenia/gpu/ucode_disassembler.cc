@@ -76,8 +76,8 @@ static const char chan_names[] = {
 };
 
 void print_srcreg(StringBuffer* output, uint32_t num, uint32_t type,
-                  uint32_t swiz, uint32_t negate, uint32_t abs_constants, bool const_rel,
-                  ShaderType shader_type) {
+                  uint32_t swiz, uint32_t negate, uint32_t abs_constants,
+                  bool const_rel, ShaderType shader_type) {
   if (negate) {
     output->Append('-');
   }
