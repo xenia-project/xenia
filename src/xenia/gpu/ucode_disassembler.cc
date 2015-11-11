@@ -76,7 +76,7 @@ static const char chan_names[] = {
 };
 
 void print_srcreg(StringBuffer* output, uint32_t num, uint32_t type,
-                  uint32_t swiz, uint32_t negate, uint32_t abs_constants,
+                  uint32_t swiz, uint32_t negate, uint32_t abs_constants, bool const_rel,
                   ShaderType shader_type) {
   if (negate) {
     output->Append('-');
@@ -94,7 +94,13 @@ void print_srcreg(StringBuffer* output, uint32_t num, uint32_t type,
       output->Append('|');
     }
     num += shader_type == ShaderType::kPixel ? 256 : 0;
-    output->AppendFormat("C%u", num);
+
+    if (const_rel) {
+      output->AppendFormat("C[%u + a0]", num);
+    } else {
+      output->AppendFormat("C%u", num);
+    }
+
     if (abs_constants) {
       output->Append('|');
     }
@@ -272,15 +278,19 @@ int disasm_alu(StringBuffer* output, const uint32_t* dwords, uint32_t alu_off,
     output->Append(" = ");
     if (vector_instructions[alu->vector_opc].num_srcs == 3) {
       print_srcreg(output, alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                   alu->src3_reg_negate, alu->abs_constants, type);
+                   alu->src3_reg_negate, alu->abs_constants, false, type);
       output->Append(", ");
     }
+    bool const_rel = alu->const_0_rel_abs && alu->relative_addr;
     print_srcreg(output, alu->src1_reg, alu->src1_sel, alu->src1_swiz,
-                 alu->src1_reg_negate, alu->abs_constants, type);
+                 alu->src1_reg_negate, alu->abs_constants, const_rel, type);
     if (vector_instructions[alu->vector_opc].num_srcs > 1) {
+      if (alu->src1_sel == 0) {
+        const_rel = alu->const_1_rel_abs && alu->relative_addr;
+      }
       output->Append(", ");
       print_srcreg(output, alu->src2_reg, alu->src2_sel, alu->src2_swiz,
-                   alu->src2_reg_negate, alu->abs_constants, type);
+                   alu->src2_reg_negate, alu->abs_constants, const_rel, type);
     }
 
     if (alu->vector_clamp) {
@@ -321,17 +331,17 @@ int disasm_alu(StringBuffer* output, const uint32_t* dwords, uint32_t alu_off,
       uint32_t swiz_a = ((src3_swiz >> 6) - 1) & 0x3;
       uint32_t swiz_b = (src3_swiz & 0x3);
       print_srcreg(output, alu->src3_reg, 0, 0, alu->src3_reg_negate,
-                   alu->abs_constants, type);
+                   alu->abs_constants, false, type);
       output->AppendFormat(".%c", chan_names[swiz_a]);
       output->Append(", ");
       uint32_t reg2 = (alu->scalar_opc & 1) | (alu->src3_swiz & 0x3C) |
                       (alu->src3_sel << 1);
       print_srcreg(output, reg2, 1, 0, alu->src3_reg_negate, alu->abs_constants,
-                   type);
+                   false, type);
       output->AppendFormat(".%c", chan_names[swiz_b]);
     } else {
       print_srcreg(output, alu->src3_reg, alu->src3_sel, alu->src3_swiz,
-                   alu->src3_reg_negate, alu->abs_constants, type);
+                   alu->src3_reg_negate, alu->abs_constants, false, type);
     }
     if (alu->scalar_clamp) {
       output->Append(" CLAMP");
