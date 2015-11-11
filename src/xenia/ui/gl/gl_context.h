@@ -29,17 +29,13 @@ namespace ui {
 namespace gl {
 
 class GLImmediateDrawer;
+class GLProvider;
 
 class GLContext : public GraphicsContext {
  public:
-  static std::unique_ptr<GLContext> Create(Window* target_window,
-                                           GLContext* share_context = nullptr);
-
   ~GLContext() override;
 
   HDC dc() const { return dc_; }
-
-  std::unique_ptr<GraphicsContext> CreateShared() override;
 
   ImmediateDrawer* immediate_drawer() override;
 
@@ -53,10 +49,18 @@ class GLContext : public GraphicsContext {
   Blitter* blitter() { return &blitter_; }
 
  private:
-  explicit GLContext(Window* target_window);
-  GLContext(Window* target_window, HGLRC glrc);
+  friend class GLProvider;
 
-  bool Initialize(Window* target_window, GLContext* share_context);
+  static std::unique_ptr<GLContext> Create(GraphicsProvider* provider,
+                                           Window* target_window,
+                                           GLContext* share_context = nullptr);
+  static std::unique_ptr<GLContext> CreateOffscreen(GraphicsProvider* provider,
+                                                    GLContext* parent_context);
+
+ private:
+  GLContext(GraphicsProvider* provider, Window* target_window);
+
+  bool Initialize(GLContext* share_context);
   void AssertExtensionsPresent();
 
   void SetupDebugging();

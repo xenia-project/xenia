@@ -16,6 +16,7 @@
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/loop.h"
 
 namespace xe {
@@ -33,14 +34,18 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   kernel_state_ = kernel_state;
   target_window_ = target_window;
 
-  // Initialize rendering context.
+  // Initialize display and rendering context.
   // This must happen on the UI thread.
   std::unique_ptr<xe::ui::GraphicsContext> processor_context;
   target_window_->loop()->PostSynchronous([&]() {
+    // Create the context used for presentation.
+    assert_null(target_window->context());
+    target_window_->set_context(provider_->CreateContext(target_window_));
+
     // Setup the GL context the command processor will do all its drawing in.
     // It's shared with the display context so that we can resolve framebuffers
     // from it.
-    processor_context = target_window->context()->CreateShared();
+    processor_context = provider()->CreateOffscreenContext();
     processor_context->ClearCurrent();
   });
   if (!processor_context) {

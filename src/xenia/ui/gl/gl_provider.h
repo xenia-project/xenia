@@ -7,18 +7,34 @@
  ******************************************************************************
  */
 
-#include "xenia/ui/graphics_context.h"
+#ifndef XENIA_UI_GL_GL_PROVIDER_H_
+#define XENIA_UI_GL_GL_PROVIDER_H_
+
+#include <memory>
 
 #include "xenia/ui/graphics_provider.h"
 
 namespace xe {
 namespace ui {
+namespace gl {
 
-GraphicsContext::GraphicsContext(GraphicsProvider* provider,
-                                 Window* target_window)
-    : provider_(provider), target_window_(target_window) {}
+class GLProvider : public GraphicsProvider {
+ public:
+  ~GLProvider() override;
 
-GraphicsContext::~GraphicsContext() = default;
+  static std::unique_ptr<GraphicsProvider> Create(Window* main_window);
 
+  std::unique_ptr<GraphicsContext> CreateContext(
+      Window* target_window) override;
+
+  std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
+
+ protected:
+  explicit GLProvider(Window* main_window);
+};
+
+}  // namespace gl
 }  // namespace ui
 }  // namespace xe
+
+#endif  // XENIA_UI_GL_GL_PROVIDER_H_

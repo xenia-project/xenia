@@ -34,12 +34,10 @@ class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
 
-  virtual std::unique_ptr<ui::GraphicsContext> CreateContext(
-      ui::Window* target_window) = 0;
-
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
   kernel::KernelState* kernel_state() const { return kernel_state_; }
+  ui::GraphicsProvider* provider() const { return provider_.get(); }
 
   virtual X_STATUS Setup(cpu::Processor* processor,
                          kernel::KernelState* kernel_state,
@@ -82,6 +80,7 @@ class GraphicsSystem {
   cpu::Processor* processor_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
   ui::Window* target_window_ = nullptr;
+  std::unique_ptr<ui::GraphicsProvider> provider_;
 
   uint32_t interrupt_callback_ = 0;
   uint32_t interrupt_callback_data_ = 0;

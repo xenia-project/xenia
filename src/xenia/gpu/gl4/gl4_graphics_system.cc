@@ -18,27 +18,23 @@
 #include "xenia/gpu/gl4/gl4_command_processor.h"
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/ui/gl/gl_provider.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
 namespace gpu {
 namespace gl4 {
 
-std::unique_ptr<ui::GraphicsContext> GL4GraphicsSystem::CreateContext(
-    ui::Window* target_window) {
-  // Setup the GL control that actually does the drawing.
-  // We run here in the loop and only touch it (and its context) on this
-  // thread. That means some sync-fu when we want to swap.
-  return xe::ui::gl::GLContext::Create(target_window);
-}
-
-GL4GraphicsSystem::GL4GraphicsSystem() : GraphicsSystem() {}
+GL4GraphicsSystem::GL4GraphicsSystem() = default;
 
 GL4GraphicsSystem::~GL4GraphicsSystem() = default;
 
 X_STATUS GL4GraphicsSystem::Setup(cpu::Processor* processor,
                                   kernel::KernelState* kernel_state,
                                   ui::Window* target_window) {
+  // Must create the provider so we can create contexts.
+  provider_ = xe::ui::gl::GLProvider::Create(target_window);
+
   auto result = GraphicsSystem::Setup(processor, kernel_state, target_window);
   if (result) {
     return result;

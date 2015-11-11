@@ -18,7 +18,7 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/input_system.h"
-#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/gl/gl_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
@@ -67,9 +67,9 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
   return drivers;
 }
 
-std::unique_ptr<xe::ui::GraphicsContext> CreateDemoContext(
+std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
     xe::ui::Window* window) {
-  return xe::ui::gl::GLContext::Create(window);
+  return xe::ui::gl::GLProvider::Create(window);
 }
 
 void DrawInputStatus();
@@ -97,12 +97,13 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
   window->Resize(600, 500);
 
   // Create the graphics context used for drawing and setup the window.
-  loop->PostSynchronous([&window]() {
+  std::unique_ptr<xe::ui::GraphicsProvider> graphics_provider;
+  loop->PostSynchronous([&window, &graphics_provider]() {
     // Create context and give it to the window.
     // The window will finish initialization wtih the context (loading
     // resources, etc).
-    auto context = CreateDemoContext(window.get());
-    window->set_context(std::move(context));
+    graphics_provider = CreateDemoGraphicsProvider(window.get());
+    window->set_context(graphics_provider->CreateContext(window.get()));
 
     // Initialize the ImGui renderer we'll use.
     imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
@@ -157,6 +158,7 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
   imgui_drawer_.reset();
   input_system_.reset();
 
+  loop->PostSynchronous([&graphics_provider]() { graphics_provider.reset(); });
   window.reset();
   loop.reset();
   return 0;

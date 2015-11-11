@@ -24,9 +24,6 @@ class GL4GraphicsSystem : public GraphicsSystem {
   GL4GraphicsSystem();
   ~GL4GraphicsSystem() override;
 
-  std::unique_ptr<ui::GraphicsContext> CreateContext(
-      ui::Window* target_window) override;
-
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::Window* target_window) override;
   void Shutdown() override;

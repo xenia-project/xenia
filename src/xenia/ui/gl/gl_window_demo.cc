@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "xenia/base/main.h"
-#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/gl/gl_provider.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
@@ -19,8 +19,8 @@ namespace ui {
 
 int window_demo_main(const std::vector<std::wstring>& args);
 
-std::unique_ptr<GraphicsContext> CreateDemoContext(Window* window) {
-  return xe::ui::gl::GLContext::Create(window);
+std::unique_ptr<GraphicsProvider> CreateDemoGraphicsProvider(Window* window) {
+  return xe::ui::gl::GLProvider::Create(window);
 }
 
 }  // namespace ui

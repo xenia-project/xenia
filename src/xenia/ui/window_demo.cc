@@ -19,6 +19,7 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
@@ -26,9 +27,7 @@ namespace xe {
 namespace ui {
 
 // Implemented in one of the window_*_demo.cc files under a subdir.
-std::unique_ptr<GraphicsContext> CreateDemoContext(Window* window);
-
-std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
+std::unique_ptr<GraphicsProvider> CreateDemoGraphicsProvider(Window* window);
 
 int window_demo_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
@@ -45,13 +44,6 @@ int window_demo_main(const std::vector<std::wstring>& args) {
       return;
     }
   });
-  window->on_closed.AddListener([&loop](xe::ui::UIEvent* e) {
-    loop->Quit();
-    XELOGI("User-initiated death!");
-    imgui_drawer_.reset();
-    exit(1);
-  });
-  loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
   // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
@@ -78,24 +70,36 @@ int window_demo_main(const std::vector<std::wstring>& args) {
   window->Resize(1920, 1200);
 
   // Create the graphics context used for drawing and setup the window.
-  loop->PostSynchronous([&window]() {
-    // Create context and give it to the window.
+  std::unique_ptr<GraphicsProvider> graphics_provider;
+  std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer;
+  loop->PostSynchronous([&window, &graphics_provider, &imgui_drawer]() {
+    // Create graphics provider and an initial context for the window.
     // The window will finish initialization wtih the context (loading
     // resources, etc).
-    auto context = CreateDemoContext(window.get());
-    window->set_context(std::move(context));
+    graphics_provider = CreateDemoGraphicsProvider(window.get());
+    window->set_context(graphics_provider->CreateContext(window.get()));
 
     // Setup the profiler display.
     GraphicsContextLock context_lock(window->context());
     Profiler::set_window(window.get());
 
     // Initialize the ImGui renderer we'll use.
-    imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
-    imgui_drawer_->SetupDefaultInput();
+    imgui_drawer = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
+    imgui_drawer->SetupDefaultInput();
 
     // Show the elemental-forms debug UI so we can see it working.
     el::util::ShowDebugInfoSettingsForm(window->root_element());
   });
+
+  window->on_closed.AddListener(
+      [&loop, &graphics_provider, &imgui_drawer](xe::ui::UIEvent* e) {
+        loop->Quit();
+        XELOGI("User-initiated death!");
+        imgui_drawer.reset();
+        graphics_provider.reset();
+        exit(1);
+      });
+  loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
   window->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
     switch (e->key_code()) {
@@ -130,8 +134,9 @@ int window_demo_main(const std::vector<std::wstring>& args) {
   // Wait until we are exited.
   loop->AwaitQuit();
 
-  imgui_drawer_.reset();
+  imgui_drawer.reset();
 
+  loop->PostSynchronous([&graphics_provider]() { graphics_provider.reset(); });
   window.reset();
   loop.reset();
   Profiler::Dump();

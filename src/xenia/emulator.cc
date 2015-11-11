@@ -131,10 +131,6 @@ X_STATUS Emulator::Setup(
   if (!graphics_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
-  display_window_->loop()->PostSynchronous([this]() {
-    display_window_->set_context(
-        graphics_system_->CreateContext(display_window_));
-  });
 
   // Initialize the HID.
   input_system_ = std::make_unique<xe::hid::InputSystem>(display_window_);

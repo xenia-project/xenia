@@ -58,24 +58,20 @@ void FatalGLError(std::string error) {
       "of supported GPUs.");
 }
 
-std::unique_ptr<GLContext> GLContext::Create(Window* target_window,
+std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
+                                             Window* target_window,
                                              GLContext* share_context) {
-  auto context = std::unique_ptr<GLContext>(new GLContext(target_window));
-  if (!context->Initialize(target_window, share_context)) {
+  auto context =
+      std::unique_ptr<GLContext>(new GLContext(provider, target_window));
+  if (!context->Initialize(share_context)) {
     return nullptr;
   }
   context->AssertExtensionsPresent();
   return context;
 }
 
-GLContext::GLContext(Window* target_window) : GraphicsContext(target_window) {
-  glew_context_.reset(new GLEWContext());
-  wglew_context_.reset(new WGLEWContext());
-}
-
-GLContext::GLContext(Window* target_window, HGLRC glrc)
-    : GraphicsContext(target_window), glrc_(glrc) {
-  dc_ = GetDC(HWND(target_window_->native_handle()));
+GLContext::GLContext(GraphicsProvider* provider, Window* target_window)
+    : GraphicsContext(provider, target_window) {
   glew_context_.reset(new GLEWContext());
   wglew_context_.reset(new WGLEWContext());
 }
@@ -93,8 +89,7 @@ GLContext::~GLContext() {
   }
 }
 
-bool GLContext::Initialize(Window* target_window, GLContext* share_context) {
-  target_window_ = target_window;
+bool GLContext::Initialize(GLContext* share_context) {
   dc_ = GetDC(HWND(target_window_->native_handle()));
 
   PIXELFORMATDESCRIPTOR pfd = {0};
@@ -193,12 +188,13 @@ bool GLContext::Initialize(Window* target_window, GLContext* share_context) {
   return true;
 }
 
-std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
-  assert_not_null(glrc_);
+std::unique_ptr<GLContext> GLContext::CreateOffscreen(
+    GraphicsProvider* provider, GLContext* parent_context) {
+  assert_not_null(parent_context->glrc_);
 
   HGLRC new_glrc = nullptr;
   {
-    GraphicsContextLock context_lock(this);
+    GraphicsContextLock context_lock(parent_context);
 
     int context_flags = 0;
     if (FLAGS_gl_debug) {
@@ -214,15 +210,19 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
                          WGL_CONTEXT_PROFILE_MASK_ARB,
                          WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
                          0};
-    new_glrc = wglCreateContextAttribsARB(dc_, glrc_, attrib_list);
+    new_glrc = wglCreateContextAttribsARB(parent_context->dc_,
+                                          parent_context->glrc_, attrib_list);
     if (!new_glrc) {
       FatalGLError("Could not create shared context.");
       return nullptr;
     }
   }
 
-  auto new_context =
-      std::unique_ptr<GLContext>(new GLContext(target_window_, new_glrc));
+  auto new_context = std::unique_ptr<GLContext>(
+      new GLContext(provider, parent_context->target_window_));
+  new_context->glrc_ = new_glrc;
+  new_context->dc_ =
+      GetDC(HWND(parent_context->target_window_->native_handle()));
   if (!new_context->MakeCurrent()) {
     FatalGLError("Could not make new GL context current.");
     return nullptr;
@@ -244,18 +244,16 @@ std::unique_ptr<GraphicsContext> GLContext::CreateShared() {
     return nullptr;
   }
 
-  SetupDebugging();
+  new_context->SetupDebugging();
 
   if (!new_context->blitter_.Initialize()) {
     FatalGLError("Unable to initialize blitter on shared context.");
     return nullptr;
   }
 
-  new_context->immediate_drawer_ = std::make_unique<GLImmediateDrawer>(this);
-
   new_context->ClearCurrent();
 
-  return std::unique_ptr<GraphicsContext>(new_context.release());
+  return new_context;
 }
 
 void GLContext::AssertExtensionsPresent() {

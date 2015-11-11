@@ -31,7 +31,7 @@
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/kernel/xmodule.h"
 #include "xenia/kernel/xthread.h"
-#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 
 DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.");
@@ -108,16 +108,9 @@ bool DebugWindow::Initialize() {
 
   window_->Resize(1500, 1000);
 
-  // If there exists a display window we need to share resources with it.
-  xe::ui::gl::GLContext* parent_context = nullptr;
-  if (emulator_->display_window()) {
-    parent_context = reinterpret_cast<xe::ui::gl::GLContext*>(
-        emulator_->display_window()->context());
-  }
-
-  // Create the GL context used for drawing.
-  auto context = xe::ui::gl::GLContext::Create(window_.get(), parent_context);
-  window_->set_context(std::move(context));
+  // Create the graphics context used for drawing.
+  auto provider = emulator_->display_window()->context()->provider();
+  window_->set_context(provider->CreateContext(window_.get()));
 
   // Setup ImGui.
   imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window_.get());
@@ -133,8 +126,6 @@ bool DebugWindow::Initialize() {
 
 void DebugWindow::DrawFrame() {
   xe::ui::GraphicsContextLock lock(window_->context());
-  glClearColor(0.0, 0.0, 0.0, 1.0);
-  glClear(GL_COLOR_BUFFER_BIT);
 
   auto& io = ImGui::GetIO();
   auto current_tick_count = Clock::QueryHostTickCount();
@@ -310,7 +301,8 @@ void DebugWindow::DrawToolbar() {
     if (thread_info == state_.thread_info) {
       current_thread_index = i;
     }
-    thread_combo.Append(thread_info->thread->name());
+    thread_combo.Append(thread_info->thread ? thread_info->thread->name()
+                                            : "(zombie)");
     thread_combo.Append(static_cast<char>(0));
     ++i;
   }
@@ -1021,6 +1013,7 @@ void DebugWindow::DrawThreadsPane() {
     auto thread_info = cache_.thread_execution_infos[i];
     auto thread = thread_info->thread;
     bool is_current_thread = thread == state_.thread;
+    assert_not_null(thread);  // TODO(benvanik): zombie thread states.
     if (is_current_thread && state_.has_changed_thread) {
       ImGui::SetScrollHere();
       state_.has_changed_thread = false;

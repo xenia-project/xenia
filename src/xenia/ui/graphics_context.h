@@ -15,6 +15,7 @@
 namespace xe {
 namespace ui {
 
+class GraphicsProvider;
 class ImmediateDrawer;
 class Window;
 
@@ -22,9 +23,9 @@ class GraphicsContext {
  public:
   virtual ~GraphicsContext();
 
+  GraphicsProvider* provider() const { return provider_; }
   Window* target_window() const { return target_window_; }
-
-  virtual std::unique_ptr<GraphicsContext> CreateShared() = 0;
+  bool is_offscreen() { return immediate_drawer() == nullptr; }
 
   virtual ImmediateDrawer* immediate_drawer() = 0;
 
@@ -36,8 +37,9 @@ class GraphicsContext {
   virtual void EndSwap() = 0;
 
  protected:
-  explicit GraphicsContext(Window* target_window);
+  explicit GraphicsContext(GraphicsProvider* provider, Window* target_window);
 
+  GraphicsProvider* provider_ = nullptr;
   Window* target_window_ = nullptr;
 };
 
