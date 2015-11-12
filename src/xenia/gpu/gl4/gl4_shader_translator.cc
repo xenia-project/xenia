@@ -803,7 +803,7 @@ bool GL4ShaderTranslator::TranslateALU_ADDs(const ucode::instr_alu_t& alu) {
   AppendScalarOpSrcReg(alu, 3);
   Append(".x + ");
   AppendScalarOpSrcReg(alu, 3);
-  Append(".z");
+  Append(".y");
   EndAppendScalarOp(alu);
   return true;
 }
@@ -822,7 +822,7 @@ bool GL4ShaderTranslator::TranslateALU_MULs(const ucode::instr_alu_t& alu) {
   AppendScalarOpSrcReg(alu, 3);
   Append(".x * ");
   AppendScalarOpSrcReg(alu, 3);
-  Append(".z");
+  Append(".y");
   EndAppendScalarOp(alu);
   return true;
 }
