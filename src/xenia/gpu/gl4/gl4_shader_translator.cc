@@ -1051,7 +1051,7 @@ bool GL4ShaderTranslator::TranslateALU_SUBs(const ucode::instr_alu_t& alu) {
   AppendScalarOpSrcReg(alu, 3);
   Append(".x - ");
   AppendScalarOpSrcReg(alu, 3);
-  Append(".z");
+  Append(".y");
   EndAppendScalarOp(alu);
   return true;
 }
