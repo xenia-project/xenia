@@ -38,7 +38,19 @@ class ObjectTable {
   template <typename T>
   object_ref<T> LookupObject(X_HANDLE handle) {
     auto object = LookupObject(handle, false);
+    if (object) {
+      assert_true(object->type() == T::kType);
+    }
+
     auto result = object_ref<T>(reinterpret_cast<T*>(object));
+    return result;
+  }
+
+  // Generic lookup
+  template <>
+  object_ref<XObject> LookupObject<XObject>(X_HANDLE handle) {
+    auto object = LookupObject(handle, false);
+    auto result = object_ref<XObject>(reinterpret_cast<XObject*>(object));
     return result;
   }
 
