@@ -21,6 +21,8 @@ class XThread;
 
 class XTimer : public XObject {
  public:
+  static const Type kType = kTypeTimer;
+
   explicit XTimer(KernelState* kernel_state);
   ~XTimer() override;
 
