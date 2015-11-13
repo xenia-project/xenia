@@ -103,6 +103,8 @@ static_assert_size(X_KTHREAD, 0xAB0);
 
 class XThread : public XObject {
  public:
+  static const Type kType = kTypeThread;
+
   struct CreationParams {
     uint32_t stack_size;
     uint32_t xapi_thread_startup;

@@ -23,6 +23,8 @@ namespace kernel {
 
 class NotifyListener : public XObject {
  public:
+  static const Type kType = kTypeNotifyListener;
+
   explicit NotifyListener(KernelState* kernel_state);
   ~NotifyListener() override;
 

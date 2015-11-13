@@ -19,6 +19,8 @@ namespace kernel {
 
 class XMutant : public XObject {
  public:
+  static const Type kType = kTypeMutant;
+
   explicit XMutant(KernelState* kernel_state);
   ~XMutant() override;
 

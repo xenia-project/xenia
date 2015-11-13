@@ -24,6 +24,8 @@ struct X_KSEMAPHORE {
 
 class XSemaphore : public XObject {
  public:
+  static const Type kType = kTypeSemaphore;
+
   explicit XSemaphore(KernelState* kernel_state);
   ~XSemaphore() override;
 

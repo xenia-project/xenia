@@ -77,6 +77,8 @@ static_assert_size(X_FILE_DIRECTORY_INFORMATION, 72);
 
 class XFile : public XObject {
  public:
+  static const Type kType = kTypeFile;
+
   ~XFile() override;
 
   vfs::Device* device() const { return entry_->device(); }

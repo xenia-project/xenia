@@ -24,6 +24,8 @@ struct X_KEVENT {
 
 class XEvent : public XObject {
  public:
+  static const Type kType = kTypeEvent;
+
   explicit XEvent(KernelState* kernel_state);
   ~XEvent() override;
 
