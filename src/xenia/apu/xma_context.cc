@@ -228,7 +228,7 @@ bool XmaContext::ValidFrameOffset(uint8_t* block, size_t size_bytes,
   size_t relative_offset_bits = frame_offset_bits % (kBytesPerPacket * 8);
 
   uint32_t first_frame_offset = xma::GetPacketFrameOffset(packet);
-  if (first_frame_offset == -1) {
+  if (first_frame_offset == -1 || first_frame_offset > kBytesPerPacket * 8) {
     // Packet only contains a partial frame, so no frames can start here.
     return false;
   }
