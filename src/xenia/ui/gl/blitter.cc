@@ -268,6 +268,15 @@ void Blitter::CopyColorTexture2D(GLuint src_texture, Rect2D src_rect,
   glDepthMask(GL_FALSE);
   glBindProgramPipeline(color_pipeline_);
 
+  // Make sure the texture swizzles match before performing a copy
+  // TODO: Is this a good place for this?
+  GLint swizzle_map[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+  glGetTextureParameteriv(src_texture, GL_TEXTURE_SWIZZLE_RGBA, swizzle_map[0]);
+  glGetTextureParameteriv(dest_texture, GL_TEXTURE_SWIZZLE_RGBA,
+                          swizzle_map[1]);
+
+  glTextureParameteriv(src_texture, GL_TEXTURE_SWIZZLE_RGBA, swizzle_map[1]);
+
   glNamedFramebufferTexture(scratch_framebuffer_, GL_COLOR_ATTACHMENT0,
                             dest_texture, 0);
   glNamedFramebufferDrawBuffer(scratch_framebuffer_, GL_COLOR_ATTACHMENT0);
@@ -276,6 +285,8 @@ void Blitter::CopyColorTexture2D(GLuint src_texture, Rect2D src_rect,
   glNamedFramebufferDrawBuffer(scratch_framebuffer_, GL_NONE);
   glNamedFramebufferTexture(scratch_framebuffer_, GL_COLOR_ATTACHMENT0, GL_NONE,
                             0);
+
+  glTextureParameteriv(src_texture, GL_TEXTURE_SWIZZLE_RGBA, swizzle_map[0]);
 
   state.Restore();
 }
