@@ -242,6 +242,7 @@ bool DrawBatcher::CommitDraw() {
 }
 
 bool DrawBatcher::Flush(FlushMode mode) {
+  GLboolean cull_enabled = 0;
   if (batch_state_.draw_count) {
 #if FINE_GRAINED_DRAW_SCOPES
     SCOPE_profile_cpu_f("gpu");
@@ -289,6 +290,8 @@ bool DrawBatcher::Flush(FlushMode mode) {
         // assert_true(
         // (register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32
         // & 0x3) == 0);
+        cull_enabled = glIsEnabled(GL_CULL_FACE);
+        glDisable(GL_CULL_FACE);
         break;
       case PrimitiveType::kQuadList:
         prim_type = GL_LINES_ADJACENCY;
@@ -340,6 +343,10 @@ bool DrawBatcher::Flush(FlushMode mode) {
     batch_state_.state_range_start = UINTPTR_MAX;
     batch_state_.state_range_length = 0;
     batch_state_.draw_count = 0;
+  }
+
+  if (batch_state_.prim_type == PrimitiveType::kRectangleList && cull_enabled) {
+    glEnable(GL_CULL_FACE);
   }
 
   if (mode == FlushMode::kReconfigure) {
