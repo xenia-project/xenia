@@ -164,6 +164,7 @@ solution("xenia")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")
   include("third_party/xxhash.lua")
+  include("third_party/zlib.lua")
   include("build_tools/third_party/gflags.lua")
 
   include("src/xenia")

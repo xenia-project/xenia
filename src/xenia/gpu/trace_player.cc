@@ -150,8 +150,14 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
       case TraceCommandType::kMemoryRead: {
         auto cmd = reinterpret_cast<const MemoryReadCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
-        std::memcpy(memory->TranslatePhysical(cmd->base_ptr), trace_ptr,
-                    cmd->length);
+        if (cmd->full_length) {
+          DecompressMemory(trace_ptr, cmd->length,
+                           memory->TranslatePhysical(cmd->base_ptr),
+                           cmd->full_length);
+        } else {
+          std::memcpy(memory->TranslatePhysical(cmd->base_ptr), trace_ptr,
+                      cmd->length);
+        }
         trace_ptr += cmd->length;
         break;
       }

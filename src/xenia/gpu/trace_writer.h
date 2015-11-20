@@ -40,8 +40,14 @@ class TraceWriter {
   void WriteEvent(EventType event_type);
 
  private:
+  size_t WriteCompressed(void* buf, size_t length);
+
   uint8_t* membase_;
   FILE* file_;
+
+  bool compress_output_ = true;
+  size_t compression_threshold_ = 0x1000;  // min. number of bytes to compress.
+  std::vector<uint8_t> tmp_buff_;
 };
 
 }  // namespace gpu

@@ -11,6 +11,7 @@ project("xenia-gpu")
     "xenia-base",
     "xenia-ui",
     "xxhash",
+    "zlib",
   })
   defines({
   })

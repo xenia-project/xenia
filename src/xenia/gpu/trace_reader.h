@@ -89,6 +89,8 @@ class TraceReader {
 
  protected:
   void ParseTrace();
+  bool DecompressMemory(const uint8_t* src, size_t src_size, uint8_t* dest,
+                        size_t dest_size);
 
   std::unique_ptr<MappedMemory> mmap_;
   const uint8_t* trace_data_ = nullptr;

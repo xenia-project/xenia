@@ -14,6 +14,8 @@
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/memory.h"
 
+#include "third_party/zlib/zlib.h"
+
 namespace xe {
 namespace gpu {
 
@@ -146,6 +148,14 @@ void TraceReader::ParseTrace() {
     current_frame.end_ptr = trace_ptr;
     frames_.push_back(std::move(current_frame));
   }
+}
+
+bool TraceReader::DecompressMemory(const uint8_t* src, size_t src_size,
+                                   uint8_t* dest, size_t dest_size) {
+  uLongf dest_len = uint32_t(dest_size);
+  int ret = uncompress(dest, &dest_len, src, uint32_t(src_size));
+  assert_true(ret >= 0);
+  return ret >= 0;
 }
 
 }  // namespace gpu

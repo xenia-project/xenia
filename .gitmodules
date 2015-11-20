@@ -19,3 +19,6 @@
 [submodule "third_party/libav"]
 	path = third_party/libav
 	url = https://github.com/xenia-project/libav.git
+[submodule "third_party/zlib"]
+	path = third_party/zlib
+	url = https://github.com/madler/zlib
