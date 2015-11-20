@@ -61,12 +61,14 @@ struct MemoryReadCommand {
   TraceCommandType type;
   uint32_t base_ptr;
   uint32_t length;
+  uint32_t full_length;  // Length after inflation. 0 if not deflated.
 };
 
 struct MemoryWriteCommand {
   TraceCommandType type;
   uint32_t base_ptr;
   uint32_t length;
+  uint32_t full_length;  // Length after inflation. 0 if not deflated.
 };
 
 enum class EventType {
