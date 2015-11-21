@@ -599,6 +599,7 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
       ImGui::Text("Cube: ?");
       break;
   }
+  ImGui::Text("Format: %d, swizzle: %d", texture_info.format_info->format, texture_info.swizzle);
   ImGui::Columns(1);
 }
 
