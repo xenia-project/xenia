@@ -17,12 +17,12 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform_win.h"
 #include "xenia/base/profiling.h"
 #include "xenia/ui/gl/gl_immediate_drawer.h"
 #include "xenia/ui/window.h"
 
 // TODO(benvanik): move win32 code to _win?
-#include "xenia/base/platform_win.h"
 #include "third_party/GL/wglew.h"
 
 DEFINE_bool(thread_safe_gl, false,

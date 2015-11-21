@@ -10,8 +10,10 @@
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
 // Must be included before xaudio2.h so we get the right windows.h include.
+// clang-format off
 #include "xenia/base/platform_win.h"
 #include <xaudio2.h>  // NOLINT(build/include_order)
+// clang-format on
 
 #include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"

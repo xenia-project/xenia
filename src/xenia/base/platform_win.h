@@ -20,14 +20,14 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #define NOMINMAX
-#include <SDKDDKVer.h>
-#include <windows.h>
 #include <ObjBase.h>
+#include <SDKDDKVer.h>
+#include <dwmapi.h>
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <shobjidl.h>
-#include <dwmapi.h>
 #include <tpcshrd.h>
+#include <windows.h>
 #include <windowsx.h>
 #undef DeleteBitmap
 #undef DeleteFile

@@ -10,8 +10,10 @@
 #include "xenia/hid/xinput/xinput_input_driver.h"
 
 // Must be included before xinput.h to avoid windows.h conflicts:
+// clang-format off
 #include "xenia/base/platform_win.h"
 #include <xinput.h>  // NOLINT(build/include_order)
+// clang-format on
 
 #include "xenia/hid/hid_flags.h"
 

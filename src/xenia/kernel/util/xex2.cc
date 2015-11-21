@@ -15,7 +15,6 @@
 #include <cstring>
 #include <vector>
 
-#include "third_party/crypto/rijndael-alg-fst.h"
 #include "third_party/crypto/rijndael-alg-fst.c"
 #include "third_party/mspack/lzx.h"
 #include "third_party/mspack/lzxd.c"

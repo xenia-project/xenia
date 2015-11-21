@@ -15,10 +15,12 @@
 #include "xenia/base/logging.h"
 
 // winsock includes must come after platform_win.h:
+// clang-format off
 #include "xenia/base/platform_win.h"
 #include <mstcpip.h>   // NOLINT(build/include_order)
 #include <winsock2.h>  // NOLINT(build/include_order)
 #include <ws2tcpip.h>  // NOLINT(build/include_order)
+// clang-format on
 
 namespace xe {
 
