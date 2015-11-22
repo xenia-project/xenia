@@ -517,6 +517,9 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
     case PM4_REG_RMW:
       result = ExecutePacketType3_REG_RMW(reader, packet, count);
       break;
+    case PM4_REG_TO_MEM:
+      result = ExecutePacketType3_REG_TO_MEM(reader, packet, count);
+      break;
     case PM4_COND_WRITE:
       result = ExecutePacketType3_COND_WRITE(reader, packet, count);
       break;
@@ -586,7 +589,14 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
       reader->Skip(count);
       break;
 
+    case 0x00:
+      // Not a valid opcode. Something's up.
+      XELOGGPU("Invalid GPU Opcode Detected 0x%x", 0x00);
+      assert_always();
+      break;
+
     default:
+      XELOGGPU("Not Implemented GPU OPCODE: 0x%X\t\tCOUNT: %d\n", opcode, count);
       reader->Skip(count);
       break;
   }
@@ -778,6 +788,29 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(RingbufferReader* reader,
     value &= and_mask;
   }
   WriteRegister(rmw_info & 0x1FFF, value);
+  return true;
+}
+
+bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(RingbufferReader* reader,
+                                                      uint32_t packet,
+                                                      uint32_t count) {
+  // Copy Register to Memory (?)
+  // Count is 2, assuming a Register Addr and a Memory Addr.
+
+  uint32_t reg_addr = reader->Read();
+  uint32_t mem_addr = reader->Read();
+
+  uint32_t reg_val;
+
+  assert_true(reg_addr < RegisterFile::kRegisterCount);
+  reg_val = register_file_->values[reg_addr].u32;
+
+  auto endianness = static_cast<Endian>(mem_addr & 0x3);
+  mem_addr &= ~0x3;
+  reg_val = GpuSwap(reg_val, endianness);
+  xe::store(memory_->TranslatePhysical(mem_addr), reg_val);
+  trace_writer_.WriteMemoryWrite(CpuToGpu(mem_addr), 4);
+
   return true;
 }
 
