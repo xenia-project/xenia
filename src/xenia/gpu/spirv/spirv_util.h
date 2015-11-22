@@ -10,8 +10,8 @@
 #ifndef XENIA_GPU_SPIRV_SPIRV_UTIL_H_
 #define XENIA_GPU_SPIRV_SPIRV_UTIL_H_
 
-#include "third_party/spirv/GLSL.std.450.hpp11"
-#include "third_party/spirv/spirv.hpp11"
+#include "third_party/spirv/GLSL.std.450.h"
+#include "third_party/spirv/spirv.h"
 
 namespace xe {
 namespace gpu {
