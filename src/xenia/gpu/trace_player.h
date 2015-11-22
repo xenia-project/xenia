@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_TRACE_PLAYER_H_
 #define XENIA_GPU_TRACE_PLAYER_H_
 
+#include <atomic>
 #include <string>
 
 #include "xenia/gpu/trace_protocol.h"
@@ -34,7 +35,13 @@ class TracePlayer : public TraceReader {
   GraphicsSystem* graphics_system() const { return graphics_system_; }
   int current_frame_index() const { return current_frame_index_; }
   int current_command_index() const { return current_command_index_; }
+  bool playing_trace() const { return playing_trace_; }
   const Frame* current_frame() const;
+
+  // Only valid if playing_trace is true.
+  const uint8_t* player_current_ptr() const { return player_current_ptr_; }
+  const uint8_t* player_start_ptr() const { return player_start_ptr_; }
+  const uint8_t* player_target_ptr() const { return player_target_ptr_; }
 
   void SeekFrame(int target_frame);
   void SeekCommand(int target_command);
@@ -49,6 +56,10 @@ class TracePlayer : public TraceReader {
   GraphicsSystem* graphics_system_;
   int current_frame_index_;
   int current_command_index_;
+  std::atomic<bool> playing_trace_ = false;
+  std::atomic<const uint8_t*> player_current_ptr_ = 0;
+  std::atomic<const uint8_t*> player_start_ptr_ = 0;
+  std::atomic<const uint8_t*> player_target_ptr_ = 0;
 };
 
 }  // namespace gpu

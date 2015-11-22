@@ -92,11 +92,17 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   auto command_processor = graphics_system_->command_processor();
 
   command_processor->set_swap_mode(SwapMode::kIgnored);
+  player_start_ptr_ = trace_data;
+  player_target_ptr_ = trace_data + trace_size;
+  player_current_ptr_ = trace_data;
 
+  playing_trace_ = true;
   auto trace_ptr = trace_data;
   bool pending_break = false;
   const PacketStartCommand* pending_packet = nullptr;
   while (trace_ptr < trace_data + trace_size) {
+    player_current_ptr_ = trace_ptr;
+
     auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
@@ -184,6 +190,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
     }
   }
 
+  playing_trace_ = false;
   command_processor->set_swap_mode(SwapMode::kNormal);
   command_processor->IssueSwap(0, 1280, 720);
 }
