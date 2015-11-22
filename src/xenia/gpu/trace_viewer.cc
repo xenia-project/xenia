@@ -1473,7 +1473,6 @@ void TraceViewer::DrawStateUI() {
   }
   if (ImGui::CollapsingHeader("Fetch Constants (raw)")) {
     ImGui::Columns(2);
-    ImGui::SetColumnOffset(1, 85.0f);
     for (int i = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
          i <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5; ++i) {
       ImGui::Text("f%02d_%d", (i - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6,
