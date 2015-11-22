@@ -137,7 +137,7 @@ class CommandProcessor {
   bool ExecutePacketType3_REG_RMW(RingbufferReader* reader, uint32_t packet,
                                   uint32_t count);
   bool ExecutePacketType3_REG_TO_MEM(RingbufferReader* reader, uint32_t packet,
-                                      uint32_t count);
+                                     uint32_t count);
   bool ExecutePacketType3_COND_WRITE(RingbufferReader* reader, uint32_t packet,
                                      uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE(RingbufferReader* reader, uint32_t packet,

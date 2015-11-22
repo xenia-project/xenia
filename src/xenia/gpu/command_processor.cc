@@ -596,7 +596,8 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
       break;
 
     default:
-      XELOGGPU("Not Implemented GPU OPCODE: 0x%X\t\tCOUNT: %d\n", opcode, count);
+      XELOGGPU("Not Implemented GPU OPCODE: 0x%X\t\tCOUNT: %d\n", opcode,
+               count);
       reader->Skip(count);
       break;
   }
@@ -792,8 +793,8 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(RingbufferReader* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(RingbufferReader* reader,
-                                                      uint32_t packet,
-                                                      uint32_t count) {
+                                                     uint32_t packet,
+                                                     uint32_t count) {
   // Copy Register to Memory (?)
   // Count is 2, assuming a Register Addr and a Memory Addr.
 
