@@ -820,6 +820,34 @@ static const char* kEndiannessNames[] = {
     "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
 };
 
+void ProgressBar(float frac, float width, float height = 0,
+                 const ImVec4& color = ImVec4(0, 1, 0, 1),
+                 const ImVec4& border_color = ImVec4(0, 1, 0, 1)) {
+  if (height == 0) {
+    height = ImGui::GetTextLineHeightWithSpacing();
+  }
+  frac = xe::saturate(frac);
+
+  const auto fontAtlas = ImGui::GetIO().Fonts;
+
+  auto pos = ImGui::GetCursorScreenPos();
+  auto col = ImGui::ColorConvertFloat4ToU32(color);
+  auto border_col = ImGui::ColorConvertFloat4ToU32(border_color);
+
+  if (frac > 0) {
+    // Progress bar
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        pos, ImVec2(pos.x + width * frac, pos.y + height), col);
+  }
+  if (border_color.w > 0.f) {
+    // Border
+    ImGui::GetWindowDrawList()->AddRect(
+        pos, ImVec2(pos.x + width, pos.y + height), border_col);
+  }
+
+  ImGui::Dummy(ImVec2(width, height));
+}
+
 void TraceViewer::DrawStateUI() {
   auto command_processor = graphics_system_->command_processor();
   auto& regs = *graphics_system_->register_file();
@@ -893,8 +921,25 @@ void TraceViewer::DrawStateUI() {
     }
   }
 
+  if (player_->playing_trace()) {
+    ImGui::Text("Playing trace...");
+    uint64_t start = uint64_t(player_->player_start_ptr());
+    uint64_t end = uint64_t(player_->player_target_ptr());
+    uint64_t cur = uint64_t(player_->player_current_ptr());
+
+    uint64_t rel_cur = cur - start;
+    uint64_t rel_end = end - start;
+
+    float width = ImGui::GetWindowWidth() - 20.f;
+
+    ProgressBar((float)rel_cur / (float)rel_end, width);
+    ImGui::End();
+    return;
+  }
+
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+
   const char* mode_name = "Unknown";
   switch (enable_mode) {
     case ModeControl::kIgnore:
@@ -915,9 +960,12 @@ void TraceViewer::DrawStateUI() {
                   kPrimNames[int(draw_info.prim_type)], draw_info.index_count);
       break;
     }
-    case ModeControl::kCopy:
-      ImGui::Text("Copy Command %d", player_->current_command_index());
+    case ModeControl::kCopy: {
+      uint32_t copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
+      ImGui::Text("Copy Command %d (to %.8X)", player_->current_command_index(),
+                  copy_dest_base);
       break;
+    }
   }
 
   ImGui::Columns(2);
