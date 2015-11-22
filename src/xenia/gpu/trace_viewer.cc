@@ -583,6 +583,7 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
   }
   ImGui::NextColumn();
   ImGui::Text("Fetch Slot: %d", desc.fetch_slot);
+  ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
   switch (texture_info.dimension) {
     case Dimension::k1D:
       ImGui::Text("1D: %dpx", texture_info.width + 1);
@@ -599,6 +600,14 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
       ImGui::Text("Cube: ?");
       break;
   }
+  static const char* swizzle_map[] = {"Red", "Green", "Blue", "Alpha", "Zero",
+                                      "One", "UNK6",  "UNK7"};
+  ImGui::Text("Swizzle: %s %s %s %s",
+              swizzle_map[(texture_info.swizzle >> 0) & 0x7],
+              swizzle_map[(texture_info.swizzle >> 3) & 0x7],
+              swizzle_map[(texture_info.swizzle >> 6) & 0x7],
+              swizzle_map[(texture_info.swizzle >> 9) & 0x7]);
+
   ImGui::Columns(1);
 }
 
