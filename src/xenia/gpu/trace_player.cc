@@ -64,9 +64,9 @@ void TracePlayer::SeekCommand(int target_command) {
   auto frame = current_frame();
   const auto& command = frame->commands[target_command];
   assert_true(frame->start_ptr <= command.end_ptr);
-  if (target_command && previous_command_index == target_command - 1) {
+  if (previous_command_index != -1 && target_command > previous_command_index) {
     // Seek forward.
-    const auto& previous_command = frame->commands[target_command - 1];
+    const auto& previous_command = frame->commands[previous_command_index];
     PlayTrace(previous_command.end_ptr,
               command.end_ptr - previous_command.end_ptr,
               TracePlaybackMode::kBreakOnSwap);
