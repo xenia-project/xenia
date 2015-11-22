@@ -192,9 +192,16 @@ void TraceViewer::DrawControllerUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Skip to last frame");
   }
+  if (player_->playing_trace()) {
+    // Don't allow the user to change the frame index just yet...
+    // TODO: Find a way to disable the slider below.
+    target_frame = player_->current_frame_index();
+  }
+
   ImGui::SameLine();
   ImGui::SliderInt("", &target_frame, 0, player_->frame_count() - 1);
-  if (target_frame != player_->current_frame_index()) {
+  if (target_frame != player_->current_frame_index() &&
+      !player_->playing_trace()) {
     player_->SeekFrame(target_frame);
   }
   ImGui::End();
