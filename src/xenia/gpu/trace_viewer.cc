@@ -615,8 +615,8 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
       ImGui::Text("Cube: ?");
       break;
   }
-  static const char* swizzle_map[] = {"Red", "Green", "Blue", "Alpha", "Zero",
-                                      "One", "UNK6",  "UNK7"};
+  static const char* swizzle_map[] = {"Red",  "Green", "Blue", "Alpha",
+                                      "Zero", "One",   "UNK6", "UNK7"};
   ImGui::Text("Swizzle: %s %s %s %s",
               swizzle_map[(texture_info.swizzle >> 0) & 0x7],
               swizzle_map[(texture_info.swizzle >> 3) & 0x7],
