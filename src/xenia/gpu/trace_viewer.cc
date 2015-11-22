@@ -947,16 +947,9 @@ void TraceViewer::DrawStateUI() {
 
   if (player_->playing_trace()) {
     ImGui::Text("Playing trace...");
-    uint64_t start = uint64_t(player_->player_start_ptr());
-    uint64_t end = uint64_t(player_->player_target_ptr());
-    uint64_t cur = uint64_t(player_->player_current_ptr());
-
-    uint64_t rel_cur = cur - start;
-    uint64_t rel_end = end - start;
-
     float width = ImGui::GetWindowWidth() - 20.f;
 
-    ProgressBar((float)rel_cur / (float)rel_end, width);
+    ProgressBar(float(player_->playback_percent()) / 10000.f, width);
     ImGui::End();
     return;
   }
