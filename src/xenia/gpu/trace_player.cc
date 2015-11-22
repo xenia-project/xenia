@@ -64,9 +64,9 @@ void TracePlayer::SeekCommand(int target_command) {
   auto frame = current_frame();
   const auto& command = frame->commands[target_command];
   assert_true(frame->start_ptr <= command.end_ptr);
-  if (target_command && previous_command_index == target_command - 1) {
+  if (previous_command_index != -1 && target_command > previous_command_index) {
     // Seek forward.
-    const auto& previous_command = frame->commands[target_command - 1];
+    const auto& previous_command = frame->commands[previous_command_index];
     PlayTrace(previous_command.end_ptr,
               command.end_ptr - previous_command.end_ptr,
               TracePlaybackMode::kBreakOnSwap);
@@ -92,11 +92,18 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   auto command_processor = graphics_system_->command_processor();
 
   command_processor->set_swap_mode(SwapMode::kIgnored);
+  playback_percent_ = 0;
+  auto trace_end = trace_data + trace_size;
 
+  playing_trace_ = true;
   auto trace_ptr = trace_data;
   bool pending_break = false;
   const PacketStartCommand* pending_packet = nullptr;
   while (trace_ptr < trace_data + trace_size) {
+    playback_percent_ = uint32_t(
+        (float(trace_ptr - trace_data) / float(trace_end - trace_data)) *
+        10000);
+
     auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
@@ -184,6 +191,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
     }
   }
 
+  playing_trace_ = false;
   command_processor->set_swap_mode(SwapMode::kNormal);
   command_processor->IssueSwap(0, 1280, 720);
 }

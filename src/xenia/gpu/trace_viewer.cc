@@ -192,9 +192,16 @@ void TraceViewer::DrawControllerUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Skip to last frame");
   }
+  if (player_->playing_trace()) {
+    // Don't allow the user to change the frame index just yet...
+    // TODO: Find a way to disable the slider below.
+    target_frame = player_->current_frame_index();
+  }
+
   ImGui::SameLine();
   ImGui::SliderInt("", &target_frame, 0, player_->frame_count() - 1);
-  if (target_frame != player_->current_frame_index()) {
+  if (target_frame != player_->current_frame_index() &&
+      !player_->playing_trace()) {
     player_->SeekFrame(target_frame);
   }
   ImGui::End();
@@ -398,10 +405,18 @@ void TraceViewer::DrawCommandListUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Move to the last command");
   }
+  if (player_->playing_trace()) {
+    // Don't allow the user to change the command index just yet...
+    // TODO: Find a way to disable the slider below.
+    target_command = player_->current_command_index();
+  }
+
   ImGui::PushItemWidth(float(column_width - 15));
   ImGui::SliderInt("", &target_command, -1, command_count - 1);
   ImGui::PopItemWidth();
-  if (target_command != player_->current_command_index()) {
+
+  if (target_command != player_->current_command_index() &&
+      !player_->playing_trace()) {
     did_seek = true;
     player_->SeekCommand(target_command);
   }
@@ -583,6 +598,7 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
   }
   ImGui::NextColumn();
   ImGui::Text("Fetch Slot: %d", desc.fetch_slot);
+  ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
   switch (texture_info.dimension) {
     case Dimension::k1D:
       ImGui::Text("1D: %dpx", texture_info.width + 1);
@@ -599,6 +615,14 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
       ImGui::Text("Cube: ?");
       break;
   }
+  static const char* swizzle_map[] = {"Red",  "Green", "Blue", "Alpha",
+                                      "Zero", "One",   "UNK6", "UNK7"};
+  ImGui::Text("Swizzle: %s %s %s %s",
+              swizzle_map[(texture_info.swizzle >> 0) & 0x7],
+              swizzle_map[(texture_info.swizzle >> 3) & 0x7],
+              swizzle_map[(texture_info.swizzle >> 6) & 0x7],
+              swizzle_map[(texture_info.swizzle >> 9) & 0x7]);
+
   ImGui::Columns(1);
 }
 
@@ -820,6 +844,34 @@ static const char* kEndiannessNames[] = {
     "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
 };
 
+void ProgressBar(float frac, float width, float height = 0,
+                 const ImVec4& color = ImVec4(0, 1, 0, 1),
+                 const ImVec4& border_color = ImVec4(0, 1, 0, 1)) {
+  if (height == 0) {
+    height = ImGui::GetTextLineHeightWithSpacing();
+  }
+  frac = xe::saturate(frac);
+
+  const auto fontAtlas = ImGui::GetIO().Fonts;
+
+  auto pos = ImGui::GetCursorScreenPos();
+  auto col = ImGui::ColorConvertFloat4ToU32(color);
+  auto border_col = ImGui::ColorConvertFloat4ToU32(border_color);
+
+  if (frac > 0) {
+    // Progress bar
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        pos, ImVec2(pos.x + width * frac, pos.y + height), col);
+  }
+  if (border_color.w > 0.f) {
+    // Border
+    ImGui::GetWindowDrawList()->AddRect(
+        pos, ImVec2(pos.x + width, pos.y + height), border_col);
+  }
+
+  ImGui::Dummy(ImVec2(width, height));
+}
+
 void TraceViewer::DrawStateUI() {
   auto command_processor = graphics_system_->command_processor();
   auto& regs = *graphics_system_->register_file();
@@ -893,8 +945,18 @@ void TraceViewer::DrawStateUI() {
     }
   }
 
+  if (player_->playing_trace()) {
+    ImGui::Text("Playing trace...");
+    float width = ImGui::GetWindowWidth() - 20.f;
+
+    ProgressBar(float(player_->playback_percent()) / 10000.f, width);
+    ImGui::End();
+    return;
+  }
+
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+
   const char* mode_name = "Unknown";
   switch (enable_mode) {
     case ModeControl::kIgnore:
@@ -915,9 +977,12 @@ void TraceViewer::DrawStateUI() {
                   kPrimNames[int(draw_info.prim_type)], draw_info.index_count);
       break;
     }
-    case ModeControl::kCopy:
-      ImGui::Text("Copy Command %d", player_->current_command_index());
+    case ModeControl::kCopy: {
+      uint32_t copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
+      ImGui::Text("Copy Command %d (to %.8X)", player_->current_command_index(),
+                  copy_dest_base);
       break;
+    }
   }
 
   ImGui::Columns(2);
@@ -1408,7 +1473,6 @@ void TraceViewer::DrawStateUI() {
   }
   if (ImGui::CollapsingHeader("Fetch Constants (raw)")) {
     ImGui::Columns(2);
-    ImGui::SetColumnOffset(1, 85.0f);
     for (int i = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
          i <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5; ++i) {
       ImGui::Text("f%02d_%d", (i - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6,
