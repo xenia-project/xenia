@@ -398,10 +398,18 @@ void TraceViewer::DrawCommandListUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Move to the last command");
   }
+  if (player_->playing_trace()) {
+    // Don't allow the user to change the command index just yet...
+    // TODO: Find a way to disable the slider below.
+    target_command = player_->current_command_index();
+  }
+
   ImGui::PushItemWidth(float(column_width - 15));
   ImGui::SliderInt("", &target_command, -1, command_count - 1);
   ImGui::PopItemWidth();
-  if (target_command != player_->current_command_index()) {
+
+  if (target_command != player_->current_command_index() &&
+      !player_->playing_trace()) {
     did_seek = true;
     player_->SeekCommand(target_command);
   }
