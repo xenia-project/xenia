@@ -22,7 +22,10 @@ namespace xe {
 namespace gpu {
 namespace spirv {
 
-int compiler_main(const std::vector<std::wstring>& args) { return 0; }
+int compiler_main(const std::vector<std::wstring>& args) {
+  SpirvCompiler c;
+  return 0;
+}
 
 }  // namespace spirv
 }  // namespace gpu
