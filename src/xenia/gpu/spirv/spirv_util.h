@@ -13,6 +13,16 @@
 #include "third_party/spirv/GLSL.std.450.h"
 #include "third_party/spirv/spirv.h"
 
+// Forward declarations from SPIRV-Tools so we don't pollute /so/ much.
+struct spv_binary_t;
+typedef spv_binary_t* spv_binary;
+struct spv_context_t;
+typedef spv_context_t* spv_context;
+struct spv_diagnostic_t;
+typedef spv_diagnostic_t* spv_diagnostic;
+struct spv_text_t;
+typedef spv_text_t* spv_text;
+
 namespace xe {
 namespace gpu {
 namespace spirv {

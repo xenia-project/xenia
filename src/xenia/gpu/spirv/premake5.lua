@@ -7,6 +7,7 @@ project("xenia-gpu-spirv")
   kind("StaticLib")
   language("C++")
   links({
+    "spirv-tools",
     "xenia-base",
     "xenia-gpu",
   })
@@ -14,6 +15,7 @@ project("xenia-gpu-spirv")
   })
   includedirs({
     project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/spirv-tools/external/include",
   })
   local_platform_files()
 
@@ -24,6 +26,7 @@ project("xenia-gpu-spirv-compiler")
   language("C++")
   links({
     "gflags",
+    "spirv-tools",
     "xenia-base",
     "xenia-gpu",
     "xenia-gpu-spirv",
