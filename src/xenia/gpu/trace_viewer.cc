@@ -446,7 +446,9 @@ void TraceViewer::DrawCommandListUI() {
         break;
     }
     if (ImGui::Selectable(label, &is_selected)) {
-      player_->SeekCommand(i);
+      if (!player_->playing_trace()) {
+        player_->SeekCommand(i);
+      }
     }
     ImGui::SameLine(column_width - 60.0f);
     ImGui::Text("%d", i);
