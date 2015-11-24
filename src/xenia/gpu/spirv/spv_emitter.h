@@ -64,87 +64,86 @@ class SpvEmitter {
   SpvEmitter();
   ~SpvEmitter();
 
-  void setSource(spv::SourceLanguage language, int version) {
+  // Document what source language and text this module was translated from.
+  void SetSourceLanguage(spv::SourceLanguage language, int version) {
     source_language_ = language;
     source_version_ = version;
   }
 
-  void addSourceExtension(const char* ext) { extensions_.push_back(ext); }
+  // Document an extension to the source language. Informational only.
+  void AddSourceExtension(const char* ext) {
+    source_extensions_.push_back(ext);
+  }
 
-  Id import(const char* name);
-
-  void setMemoryModel(spv::AddressingModel addressing_model,
+  // Set addressing model and memory model for the entire module.
+  void SetMemoryModel(spv::AddressingModel addressing_model,
                       spv::MemoryModel memory_model) {
     addressing_model_ = addressing_model;
     memory_model_ = memory_model;
   }
 
-  void addCapability(spv::Capability cap) { capabilities_.push_back(cap); }
+  // Declare a capability used by this module.
+  void DeclareCapability(spv::Capability cap) { capabilities_.push_back(cap); }
 
-  // To get a new <id> for anything needing a new one.
-  Id getUniqueId() { return ++unique_id_; }
-
-  // To get a set of new <id>s, e.g., for a set of function parameters
-  Id getUniqueIds(int numIds) {
-    Id id = unique_id_ + 1;
-    unique_id_ += numIds;
-    return id;
-  }
+  // Import an extended set of instructions that can be later referenced by the
+  // returned id.
+  Id ImportExtendedInstructions(const char* name);
 
   // For creating new types (will return old type if the requested one was
   // already made).
-  Id makeVoidType();
-  Id makeBoolType();
-  Id makePointer(spv::StorageClass, Id type);
-  Id makeIntegerType(int width, bool hasSign);  // generic
-  Id makeIntType(int width) { return makeIntegerType(width, true); }
-  Id makeUintType(int width) { return makeIntegerType(width, false); }
-  Id makeFloatType(int width);
-  Id makeStructType(std::vector<Id>& members, const char*);
-  Id makeStructResultType(Id type0, Id type1);
-  Id makeVectorType(Id component, int size);
-  Id makeMatrixType(Id component, int cols, int rows);
-  Id makeArrayType(Id element, unsigned size);
-  Id makeRuntimeArray(Id element);
-  Id makeFunctionType(Id return_type, std::vector<Id>& param_types);
-  Id makeImageType(Id sampledType, spv::Dim, bool depth, bool arrayed, bool ms,
-                   unsigned sampled, spv::ImageFormat format);
-  Id makeSamplerType();
-  Id makeSampledImageType(Id imageType);
+  Id MakeVoidType();
+  Id MakeBoolType();
+  Id MakePointer(spv::StorageClass storage_class, Id pointee);
+  Id MakeIntegerType(int bit_width, bool is_signed);
+  Id MakeIntType(int bit_width) { return MakeIntegerType(bit_width, true); }
+  Id MakeUintType(int bit_width) { return MakeIntegerType(bit_width, false); }
+  Id MakeFloatType(int bit_width);
+  Id MakeStructType(std::initializer_list<Id> members, const char* name);
+  Id MakePairStructType(Id type0, Id type1);
+  Id MakeVectorType(Id component_type, int component_count);
+  Id MakeMatrix2DType(Id component_type, int cols, int rows);
+  Id MakeArrayType(Id element_type, int length);
+  Id MakeRuntimeArray(Id element_type);
+  Id MakeFunctionType(Id return_type, std::initializer_list<Id> param_types);
+  Id MakeImageType(Id sampled_type, spv::Dim dim, bool has_depth,
+                   bool is_arrayed, bool is_multisampled, int sampled,
+                   spv::ImageFormat format);
+  Id MakeSamplerType();
+  Id MakeSampledImageType(Id image_type);
 
   // For querying about types.
-  Id getTypeId(Id result_id) const { return module_.getTypeId(result_id); }
-  Id getDerefTypeId(Id result_id) const;
-  Op getOpCode(Id id) const { return module_.getInstruction(id)->opcode(); }
-  Op getTypeClass(Id type_id) const { return getOpCode(type_id); }
-  Op getMostBasicTypeClass(Id type_id) const;
-  int getNumComponents(Id result_id) const {
-    return getNumTypeComponents(getTypeId(result_id));
+  Id GetTypeId(Id result_id) const { return module_.type_id(result_id); }
+  Id GetDerefTypeId(Id result_id) const;
+  Op GetOpcode(Id id) const { return module_.instruction(id)->opcode(); }
+  Op GetTypeClass(Id type_id) const { return GetOpcode(type_id); }
+  Op GetMostBasicTypeClass(Id type_id) const;
+  int GetComponentCount(Id result_id) const {
+    return GetTypeComponentCount(GetTypeId(result_id));
   }
-  int getNumTypeComponents(Id type_id) const;
-  Id getScalarTypeId(Id type_id) const;
-  Id getContainedTypeId(Id type_id) const;
-  Id getContainedTypeId(Id type_id, int) const;
-  spv::StorageClass getTypeStorageClass(Id type_id) const {
-    return module_.getStorageClass(type_id);
+  int GetTypeComponentCount(Id type_id) const;
+  Id GetScalarTypeId(Id type_id) const;
+  Id GetContainedTypeId(Id type_id) const;
+  Id GetContainedTypeId(Id type_id, int member) const;
+  spv::StorageClass GetTypeStorageClass(Id type_id) const {
+    return module_.storage_class(type_id);
   }
 
-  bool isPointer(Id result_id) const {
-    return isPointerType(getTypeId(result_id));
+  bool IsPointer(Id result_id) const {
+    return IsPointerType(GetTypeId(result_id));
   }
-  bool isScalar(Id result_id) const {
-    return isScalarType(getTypeId(result_id));
+  bool IsScalar(Id result_id) const {
+    return IsScalarType(GetTypeId(result_id));
   }
-  bool isVector(Id result_id) const {
-    return isVectorType(getTypeId(result_id));
+  bool IsVector(Id result_id) const {
+    return IsVectorType(GetTypeId(result_id));
   }
-  bool isMatrix(Id result_id) const {
-    return isMatrixType(getTypeId(result_id));
+  bool IsMatrix(Id result_id) const {
+    return IsMatrixType(GetTypeId(result_id));
   }
-  bool isAggregate(Id result_id) const {
-    return isAggregateType(getTypeId(result_id));
+  bool IsAggregate(Id result_id) const {
+    return IsAggregateType(GetTypeId(result_id));
   }
-  bool isBoolType(Id type_id) const {
+  bool IsBoolType(Id type_id) const {
     return grouped_types_[static_cast<int>(spv::Op::OpTypeBool)].size() > 0 &&
            type_id ==
                grouped_types_[static_cast<int>(spv::Op::OpTypeBool)]
@@ -152,222 +151,228 @@ class SpvEmitter {
                    ->result_id();
   }
 
-  bool isPointerType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypePointer;
+  bool IsPointerType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypePointer;
   }
-  bool isScalarType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeFloat ||
-           getTypeClass(type_id) == spv::Op::OpTypeInt ||
-           getTypeClass(type_id) == spv::Op::OpTypeBool;
+  bool IsScalarType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeFloat ||
+           GetTypeClass(type_id) == spv::Op::OpTypeInt ||
+           GetTypeClass(type_id) == spv::Op::OpTypeBool;
   }
-  bool isVectorType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeVector;
+  bool IsVectorType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeVector;
   }
-  bool isMatrixType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeMatrix;
+  bool IsMatrixType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeMatrix;
   }
-  bool isStructType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeStruct;
+  bool IsStructType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeStruct;
   }
-  bool isArrayType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeArray;
+  bool IsArrayType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeArray;
   }
-  bool isAggregateType(Id type_id) const {
-    return isArrayType(type_id) || isStructType(type_id);
+  bool IsAggregateType(Id type_id) const {
+    return IsArrayType(type_id) || IsStructType(type_id);
   }
-  bool isImageType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeImage;
+  bool IsImageType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeImage;
   }
-  bool isSamplerType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeSampler;
+  bool IsSamplerType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeSampler;
   }
-  bool isSampledImageType(Id type_id) const {
-    return getTypeClass(type_id) == spv::Op::OpTypeSampledImage;
-  }
-
-  bool isConstantOpCode(Op opcode) const;
-  bool isConstant(Id result_id) const {
-    return isConstantOpCode(getOpCode(result_id));
-  }
-  bool isConstantScalar(Id result_id) const {
-    return getOpCode(result_id) == spv::Op::OpConstant;
-  }
-  unsigned int getConstantScalar(Id result_id) const {
-    return module_.getInstruction(result_id)->immediate_operand(0);
-  }
-  spv::StorageClass getStorageClass(Id result_id) const {
-    return getTypeStorageClass(getTypeId(result_id));
+  bool IsSampledImageType(Id type_id) const {
+    return GetTypeClass(type_id) == spv::Op::OpTypeSampledImage;
   }
 
-  int getTypeNumColumns(Id type_id) const {
-    assert(isMatrixType(type_id));
-    return getNumTypeComponents(type_id);
+  bool IsConstantOpCode(Op opcode) const;
+  bool IsConstant(Id result_id) const {
+    return IsConstantOpCode(GetOpcode(result_id));
   }
-  int getNumColumns(Id result_id) const {
-    return getTypeNumColumns(getTypeId(result_id));
+  bool IsConstantScalar(Id result_id) const {
+    return GetOpcode(result_id) == spv::Op::OpConstant;
   }
-  int getTypeNumRows(Id type_id) const {
-    assert(isMatrixType(type_id));
-    return getNumTypeComponents(getContainedTypeId(type_id));
+  uint32_t GetConstantScalar(Id result_id) const {
+    return module_.instruction(result_id)->immediate_operand(0);
   }
-  int getNumRows(Id result_id) const {
-    return getTypeNumRows(getTypeId(result_id));
+  spv::StorageClass GetStorageClass(Id result_id) const {
+    return GetTypeStorageClass(GetTypeId(result_id));
   }
 
-  spv::Dim getTypeDimensionality(Id type_id) const {
-    assert(isImageType(type_id));
+  int GetTypeColumnCount(Id type_id) const {
+    assert(IsMatrixType(type_id));
+    return GetTypeComponentCount(type_id);
+  }
+  int GetColumnCount(Id result_id) const {
+    return GetTypeColumnCount(GetTypeId(result_id));
+  }
+  int GetTypeRowCount(Id type_id) const {
+    assert(IsMatrixType(type_id));
+    return GetTypeComponentCount(GetContainedTypeId(type_id));
+  }
+  int GetRowCount(Id result_id) const {
+    return GetTypeRowCount(GetTypeId(result_id));
+  }
+
+  spv::Dim GetTypeDimensionality(Id type_id) const {
+    assert(IsImageType(type_id));
     return static_cast<spv::Dim>(
-        module_.getInstruction(type_id)->immediate_operand(1));
+        module_.instruction(type_id)->immediate_operand(1));
   }
-  Id getImageType(Id result_id) const {
-    Id type_id = getTypeId(result_id);
-    assert(isImageType(type_id) || isSampledImageType(type_id));
-    return isSampledImageType(type_id)
-               ? module_.getInstruction(type_id)->id_operand(0)
+  Id GetImageType(Id result_id) const {
+    Id type_id = GetTypeId(result_id);
+    assert(IsImageType(type_id) || IsSampledImageType(type_id));
+    return IsSampledImageType(type_id)
+               ? module_.instruction(type_id)->id_operand(0)
                : type_id;
   }
-  bool isArrayedImageType(Id type_id) const {
-    assert(isImageType(type_id));
-    return module_.getInstruction(type_id)->immediate_operand(3) != 0;
+  bool IsArrayedImageType(Id type_id) const {
+    assert(IsImageType(type_id));
+    return module_.instruction(type_id)->immediate_operand(3) != 0;
   }
 
   // For making new constants (will return old constant if the requested one was
   // already made).
-  Id makeBoolConstant(bool b, bool is_spec_constant = false);
-  Id makeIntConstant(int i, bool is_spec_constant = false) {
-    return makeIntConstant(makeIntType(32), (unsigned)i, is_spec_constant);
+  Id MakeBoolConstant(bool value, bool is_spec_constant = false);
+  Id MakeIntConstant(int value, bool is_spec_constant = false) {
+    return MakeIntegerConstant(MakeIntType(32), static_cast<uint32_t>(value),
+                               is_spec_constant);
   }
-  Id makeUintConstant(uint32_t u, bool is_spec_constant = false) {
-    return makeIntConstant(makeUintType(32), u, is_spec_constant);
+  Id MakeUintConstant(uint32_t value, bool is_spec_constant = false) {
+    return MakeIntegerConstant(MakeUintType(32), value, is_spec_constant);
   }
   template <typename T>
-  Id makeUintConstant(T u, bool is_spec_constant = false) {
+  Id MakeUintConstant(T value, bool is_spec_constant = false) {
     static_assert(sizeof(T) == sizeof(uint32_t), "Invalid type");
-    return makeIntConstant(makeUintType(32), static_cast<uint32_t>(u),
-                           is_spec_constant);
+    return MakeIntegerConstant(MakeUintType(32), static_cast<uint32_t>(value),
+                               is_spec_constant);
   }
-  Id makeFloatConstant(float f, bool is_spec_constant = false);
-  Id makeDoubleConstant(double d, bool is_spec_constant = false);
+  Id MakeFloatConstant(float value, bool is_spec_constant = false);
+  Id MakeDoubleConstant(double value, bool is_spec_constant = false);
 
-  // Turn the array of constants into a proper spv constant of the requested
-  // type.
-  Id makeCompositeConstant(Id type, std::vector<Id>& comps);
+  // Turns the array of constants into a proper constant of the requested type.
+  Id MakeCompositeConstant(Id type, std::initializer_list<Id> components);
 
-  // Methods for adding information outside the CFG.
-  Instruction* addEntryPoint(spv::ExecutionModel, Function*, const char* name);
-  void addExecutionMode(Function*, spv::ExecutionMode mode, int value1 = -1,
+  // Declares an entry point and its execution model.
+  Instruction* AddEntryPoint(spv::ExecutionModel execution_model,
+                             Function* entry_point, const char* name);
+  void AddExecutionMode(Function* entry_point,
+                        spv::ExecutionMode execution_mode, int value1 = -1,
                         int value2 = -1, int value3 = -1);
-  void addName(Id, const char* name);
-  void addMemberName(Id, int member, const char* name);
-  void addLine(Id target, Id file_name, int line, int column);
-  void addDecoration(Id, spv::Decoration, int num = -1);
-  void addMemberDecoration(Id, unsigned int member, spv::Decoration,
+  void AddName(Id target_id, const char* name);
+  void AddMemberName(Id target_id, int member, const char* name);
+  void AddLine(Id target_id, Id file_name, int line_number, int column_number);
+  void AddDecoration(Id target_id, spv::Decoration decoration, int num = -1);
+  void AddMemberDecoration(Id target_id, int member, spv::Decoration,
                            int num = -1);
 
   // At the end of what block do the next create*() instructions go?
   Block* build_point() const { return build_point_; }
   void set_build_point(Block* build_point) { build_point_ = build_point; }
 
-  // Make the main function.
-  Function* makeMain();
+  // Makes the main function.
+  Function* MakeMainEntry();
 
-  // Make a shader-style function, and create its entry block if entry is
+  // Makes a shader-style function, and create its entry block if entry is
   // non-zero.
   // Return the function, pass back the entry.
-  Function* makeFunctionEntry(Id return_type, const char* name,
-                              std::vector<Id>& param_types, Block** entry = 0);
+  Function* MakeFunctionEntry(Id return_type, const char* name,
+                              std::initializer_list<Id> param_types,
+                              Block** entry = 0);
 
-  // Create a return. An 'implicit' return is one not appearing in the source
-  // code.  In the case of an implicit return, no post-return block is inserted.
-  void makeReturn(bool implicit, Id retVal = 0);
+  // Creates a return statement.
+  // An 'implicit' return is one not appearing in the source code. In the case
+  // of an implicit return, no post-return block is inserted.
+  void MakeReturn(bool implicit, Id return_value = 0);
 
-  // Generate all the code needed to finish up a function.
-  void leaveFunction();
+  // Generates all the code needed to finish up a function.
+  void LeaveFunction();
 
-  // Create a discard.
-  void makeDiscard();
+  // Creates a fragment-shader discard (kill).
+  void MakeDiscard();
 
-  // Create a global or function local or IO variable.
-  Id createVariable(spv::StorageClass storage_class, Id type,
+  // Creates a global or function local or IO variable.
+  Id CreateVariable(spv::StorageClass storage_class, Id type,
                     const char* name = 0);
 
-  // Create an imtermediate with an undefined value.
-  Id createUndefined(Id type);
+  // Creates an intermediate object whose value is undefined.
+  Id CreateUndefined(Id type);
 
-  // Store into an Id and return the l-value
-  void createStore(Id rvalue, Id lvalue);
+  // Stores the given value into the specified pointer.
+  void CreateStore(Id pointer_id, Id value_id);
 
-  // Load from an Id and return it
-  Id createLoad(Id lvalue);
+  // Loads the value from the given pointer.
+  Id CreateLoad(Id pointer_id);
 
-  // Create an OpAccessChain instruction
-  Id createAccessChain(spv::StorageClass storage_class, Id base,
-                       std::vector<Id>& offsets);
+  // Creates a pointer into a composite object that can be used with OpLoad and
+  // OpStore.
+  Id CreateAccessChain(spv::StorageClass storage_class, Id base_id,
+                       std::vector<Id> index_ids);
 
-  // Create an OpArrayLength instruction
-  Id createArrayLength(Id base, unsigned int member);
+  // Queries the length of a run-time array.
+  Id CreateArrayLength(Id struct_id, int array_member);
 
-  // Create an OpCompositeExtract instruction
-  Id createCompositeExtract(Id composite, Id type_id, unsigned index);
-  Id createCompositeExtract(Id composite, Id type_id,
-                            std::vector<unsigned>& indexes);
-  Id createCompositeInsert(Id object, Id composite, Id type_id, unsigned index);
-  Id createCompositeInsert(Id object, Id composite, Id type_id,
-                           std::vector<unsigned>& indexes);
+  Id CreateCompositeExtract(Id composite, Id type_id, uint32_t index);
+  Id CreateCompositeExtract(Id composite, Id type_id,
+                            std::vector<uint32_t> indexes);
+  Id CreateCompositeInsert(Id object, Id composite, Id type_id, uint32_t index);
+  Id CreateCompositeInsert(Id object, Id composite, Id type_id,
+                           std::vector<uint32_t> indexes);
 
-  Id createVectorExtractDynamic(Id vector, Id type_id, Id component_index);
-  Id createVectorInsertDynamic(Id vector, Id type_id, Id component,
+  Id CreateVectorExtractDynamic(Id vector, Id type_id, Id component_index);
+  Id CreateVectorInsertDynamic(Id vector, Id type_id, Id component,
                                Id component_index);
 
-  void createNoResultOp(Op);
-  void createNoResultOp(Op, Id operand);
-  void createNoResultOp(Op, const std::vector<Id>& operands);
-  void createControlBarrier(spv::Scope execution, spv::Scope memory,
-                            spv::MemorySemanticsMask);
-  void createMemoryBarrier(unsigned execution_scope, unsigned memory_semantics);
-  Id createUnaryOp(Op, Id type_id, Id operand);
-  Id createBinOp(Op, Id type_id, Id operand1, Id operand2);
-  Id createTriOp(Op, Id type_id, Id operand1, Id operand2, Id operand3);
-  Id createOp(Op, Id type_id, const std::vector<Id>& operands);
-  Id createFunctionCall(Function*, std::vector<spv::Id>&);
+  // Does nothing.
+  void CreateNop();
 
-  // Take an rvalue (source) and a set of channels to extract from it to
-  // make a new rvalue, which is returned.
-  Id createRvalueSwizzle(Id type_id, Id source,
-                         std::vector<unsigned>& channels);
+  // Waits for other invocations of this module to reach the current point of
+  // execution.
+  void CreateControlBarrier(spv::Scope execution_scope, spv::Scope memory_scope,
+                            spv::MemorySemanticsMask memory_semantics);
+  // Controls the order that memory accesses are observed.
+  void CreateMemoryBarrier(spv::Scope execution_scope,
+                           spv::MemorySemanticsMask memory_semantics);
 
-  // Take a copy of an lvalue (target) and a source of components, and set the
+  Id CreateUnaryOp(Op opcode, Id type_id, Id operand);
+  Id CreateBinOp(Op opcode, Id type_id, Id operand1, Id operand2);
+  Id CreateTriOp(Op opcode, Id type_id, Id operand1, Id operand2, Id operand3);
+  Id CreateOp(Op opcode, Id type_id, const std::vector<Id>& operands);
+  Id CreateFunctionCall(Function* function, std::vector<spv::Id> args);
+
+  // Takes an rvalue (source) and a set of channels to extract from it to
+  // make a new rvalue.
+  Id CreateSwizzle(Id type_id, Id source, std::vector<uint32_t> channels);
+
+  // Takes a copy of an lvalue (target) and a source of components, and sets the
   // source components into the lvalue where the 'channels' say to put them.
-  // An updated version of the target is returned.
-  // (No true lvalue or stores are used.)
-  Id createLvalueSwizzle(Id type_id, Id target, Id source,
-                         std::vector<unsigned>& channels);
+  Id CreateLvalueSwizzle(Id type_id, Id target, Id source,
+                         std::vector<uint32_t> channels);
 
   // If the value passed in is an instruction and the precision is not EMpNone,
   // it gets tagged with the requested precision.
-  void setPrecision(Id value, spv::Decoration precision) {
+  void SetPrecision(Id value, spv::Decoration precision) {
     CheckNotImplemented("setPrecision");
   }
 
-  // Can smear a scalar to a vector for the following forms:
-  //   - promoteScalar(scalar, vector)  // smear scalar to width of vector
-  //   - promoteScalar(vector, scalar)  // smear scalar to width of vector
-  //   - promoteScalar(pointer, scalar) // smear scalar to width of what pointer
-  //   points to
-  //   - promoteScalar(scalar, scalar)  // do nothing
+  // Smears a scalar to a vector for the following forms:
+  //   - PromoteScalar(scalar, vector)  // smear scalar to width of vector
+  //   - PromoteScalar(vector, scalar)  // smear scalar to width of vector
+  //   - PromoteScalar(pointer, scalar) // smear scalar to width of what pointer
+  //     points to
+  //   - PromoteScalar(scalar, scalar)  // do nothing
   // Other forms are not allowed.
   //
   // Note: One of the arguments will change, with the result coming back that
-  // way rather than
-  // through the return value.
-  void promoteScalar(spv::Decoration precision, Id& left, Id& right);
+  // way rather than through the return value.
+  void PromoteScalar(spv::Decoration precision, Id& left, Id& right);
 
-  // make a value by smearing the scalar to fill the type
-  Id smearScalar(spv::Decoration precision, Id scalarVal, Id);
+  // Makes a value by smearing the scalar to fill the type.
+  Id SmearScalar(spv::Decoration precision, Id scalar_value, Id vector_type_id);
 
-  // Create a call to a built-in function.
-  Id createBuiltinCall(spv::Decoration precision, Id result_type, Id builtins,
-                       int entry_point, std::initializer_list<Id> args);
+  // Executes an instruction in an imported set of extended instructions.
+  Id CreateExtendedInstructionCall(spv::Decoration precision, Id result_type,
+                                   Id instruction_set, int instruction_ordinal,
+                                   std::initializer_list<Id> args);
 
   // List of parameters used to create a texture operation
   struct TextureParameters {
@@ -375,45 +380,45 @@ class SpvEmitter {
     Id coords;
     Id bias;
     Id lod;
-    Id Dref;
+    Id depth_ref;
     Id offset;
     Id offsets;
-    Id gradX;
-    Id gradY;
+    Id grad_x;
+    Id grad_y;
     Id sample;
     Id comp;
   };
 
-  // Select the correct texture operation based on all inputs, and emit the
-  // correct instruction
-  Id createTextureCall(spv::Decoration precision, Id result_type, bool fetch,
-                       bool proj, bool gather, const TextureParameters&);
+  // Selects the correct texture operation based on all inputs, and emit the
+  // correct instruction.
+  Id CreateTextureCall(spv::Decoration precision, Id result_type, bool fetch,
+                       bool proj, bool gather,
+                       const TextureParameters& parameters);
 
-  // Emit the OpTextureQuery* instruction that was passed in.
-  // Figure out the right return value and type, and return it.
-  Id createTextureQueryCall(Op, const TextureParameters&);
+  // Emits the OpTextureQuery* instruction that was passed in and figures out
+  // the right return value and type.
+  Id CreateTextureQueryCall(Op opcode, const TextureParameters& parameters);
 
-  Id createSamplePositionCall(spv::Decoration precision, Id, Id);
-
-  Id createBitFieldExtractCall(spv::Decoration precision, Id, Id, Id,
+  Id CreateSamplePositionCall(spv::Decoration precision, Id, Id);
+  Id CreateBitFieldExtractCall(spv::Decoration precision, Id, Id, Id,
                                bool isSigned);
-  Id createBitFieldInsertCall(spv::Decoration precision, Id, Id, Id, Id);
+  Id CreateBitFieldInsertCall(spv::Decoration precision, Id, Id, Id, Id);
 
   // Reduction comparision for composites:  For equal and not-equal resulting in
   // a scalar.
-  Id createCompare(spv::Decoration precision, Id, Id,
-                   bool /* true if for equal, fales if for not-equal */);
+  Id CreateCompare(spv::Decoration precision, Id value1, Id value2,
+                   bool is_equal);
 
   // OpCompositeConstruct
-  Id createCompositeConstruct(Id type_id, std::vector<Id>& constituents);
+  Id CreateCompositeConstruct(Id type_id, std::vector<Id> constituent_ids);
 
   // vector or scalar constructor
-  Id createConstructor(spv::Decoration precision,
-                       const std::vector<Id>& sources, Id result_type_id);
+  Id CreateConstructor(spv::Decoration precision, std::vector<Id> source_ids,
+                       Id result_type_id);
 
   // matrix constructor
-  Id createMatrixConstructor(spv::Decoration precision,
-                             const std::vector<Id>& sources, Id constructee);
+  Id CreateMatrixConstructor(spv::Decoration precision, std::vector<Id> sources,
+                             Id constructee);
 
   // Helper to use for building nested control flow with if-then-else.
   class If {
@@ -421,8 +426,8 @@ class SpvEmitter {
     If(SpvEmitter& emitter, Id condition);
     ~If() = default;
 
-    void makeBeginElse();
-    void makeEndIf();
+    void MakeBeginElse();
+    void MakeEndIf();
 
    private:
     If(const If&) = delete;
@@ -437,7 +442,7 @@ class SpvEmitter {
     Block* merge_block_ = nullptr;
   };
 
-  // Make a switch statement.
+  // Makes a switch statement.
   // A switch has 'numSegments' of pieces of code, not containing any
   // case/default labels, all separated by one or more case/default labels.
   // Each possible case value v is a jump to the caseValues[v] segment. The
@@ -452,46 +457,46 @@ class SpvEmitter {
   //
   // Returns the right set of basic blocks to start each code segment with, so
   // that the caller's recursion stack can hold the memory for it.
-  void makeSwitch(Id condition, int numSegments, std::vector<int>& caseValues,
-                  std::vector<int>& valueToSegment, int defaultSegment,
-                  std::vector<Block*>& segmentBB);  // return argument
+  void MakeSwitch(Id condition, int segment_count, std::vector<int> case_values,
+                  std::vector<int> value_index_to_segment, int default_segment,
+                  std::vector<Block*>& segment_blocks);
 
-  // Add a branch to the innermost switch's merge block.
-  void addSwitchBreak();
+  // Adds a branch to the innermost switch's merge block.
+  void AddSwitchBreak();
 
-  // Move to the next code segment, passing in the return argument in
-  // makeSwitch()
-  void nextSwitchSegment(std::vector<Block*>& segmentBB, int segment);
+  // Move sto the next code segment, passing in the return argument in
+  // MakeSwitch().
+  void NextSwitchSegment(std::vector<Block*>& segment_block, int next_segment);
 
-  // Finish off the innermost switch.
-  void endSwitch(std::vector<Block*>& segmentBB);
+  // Finishes off the innermost switch.
+  void EndSwitch(std::vector<Block*>& segment_block);
 
-  // Start the beginning of a new loop, and prepare the builder to
+  // Starts the beginning of a new loop, and prepare the builder to
   // generate code for the loop test.
-  // The loopTestFirst parameter is true when the loop test executes before
-  // the body.  (It is false for do-while loops.)
-  void makeNewLoop(bool loopTestFirst);
+  // The test_first parameter is true when the loop test executes before
+  // the body (it is false for do-while loops).
+  void MakeNewLoop(bool test_first);
 
-  // Add the branch for the loop test, based on the given condition.
+  // Adds the branch for the loop test, based on the given condition.
   // The true branch goes to the first block in the loop body, and
   // the false branch goes to the loop's merge block.  The builder insertion
   // point will be placed at the start of the body.
-  void createLoopTestBranch(Id condition);
+  void CreateLoopTestBranch(Id condition);
 
-  // Generate an unconditional branch to the loop body.  The builder insertion
-  // point will be placed at the start of the body.  Use this when there is
-  // no loop test.
-  void createBranchToBody();
+  // Generates an unconditional branch to the loop body.
+  // The builder insertion point will be placed at the start of the body.
+  // Use this when there is no loop test.
+  void CreateBranchToBody();
 
-  // Add a branch to the test of the current (innermost) loop.
+  // Adds a branch to the test of the current (innermost) loop.
   // The way we generate code, that's also the loop header.
-  void createLoopContinue();
+  void CreateLoopContinue();
 
-  // Add an exit (e.g. "break") for the innermost loop that you're in
-  void createLoopExit();
+  // Adds an exit (e.g. "break") for the innermost loop that you're in.
+  void CreateLoopExit();
 
-  // Close the innermost loop that you're in
-  void closeLoop();
+  // Close the innermost loop that you're in.
+  void CloseLoop();
 
   // Access chain design for an R-Value vs. L-Value:
   //
@@ -528,7 +533,7 @@ class SpvEmitter {
               // base object
     std::vector<Id> index_chain;
     Id instr;  // cache the instruction that generates this access chain
-    std::vector<unsigned> swizzle;  // each std::vector element selects the next
+    std::vector<uint32_t> swizzle;  // each std::vector element selects the next
                                     // GLSL component number
     Id component;  // a dynamic component index, can coexist with a swizzle,
                    // done after the swizzle, NoResult if not present
@@ -549,83 +554,98 @@ class SpvEmitter {
   AccessChain access_chain() { return access_chain_; }
   void set_access_chain(AccessChain new_chain) { access_chain_ = new_chain; }
 
-  // clear accessChain
-  void clearAccessChain();
+  void ClearAccessChain();
 
   // set new base as an l-value base
-  void setAccessChainLValue(Id lvalue) {
-    assert(isPointer(lvalue));
+  void set_access_chain_lvalue(Id lvalue) {
+    assert(IsPointer(lvalue));
     access_chain_.base = lvalue;
   }
 
   // set new base value as an r-value
-  void setAccessChainRValue(Id rvalue) {
+  void set_access_chain_rvalue(Id rvalue) {
     access_chain_.is_rvalue = true;
     access_chain_.base = rvalue;
   }
 
   // push offset onto the end of the chain
-  void accessChainPush(Id offset) {
+  void PushAccessChainOffset(Id offset) {
     access_chain_.index_chain.push_back(offset);
   }
 
   // push new swizzle onto the end of any existing swizzle, merging into a
   // single swizzle
-  void accessChainPushSwizzle(std::vector<unsigned>& swizzle,
+  void PushAccessChainSwizzle(std::vector<uint32_t> swizzle,
                               Id pre_swizzle_base_type);
 
   // push a variable component selection onto the access chain; supporting only
   // one, so unsided
-  void accessChainPushComponent(Id component, Id pre_swizzle_base_type) {
+  void PushAccessChainComponent(Id component, Id pre_swizzle_base_type) {
     access_chain_.component = component;
-    if (access_chain_.pre_swizzle_base_type == NoType)
+    if (access_chain_.pre_swizzle_base_type == NoType) {
       access_chain_.pre_swizzle_base_type = pre_swizzle_base_type;
+    }
   }
 
   // use accessChain and swizzle to store value
-  void accessChainStore(Id rvalue);
+  void CreateAccessChainStore(Id rvalue);
 
   // use accessChain and swizzle to load an r-value
-  Id accessChainLoad(Id result_type);
+  Id CreateAccessChainLoad(Id result_type_id);
 
   // get the direct pointer for an l-value
-  Id accessChainGetLValue();
+  Id CreateAccessChainLValue();
 
-  void dump(std::vector<unsigned int>&) const;
+  void Serialize(std::vector<uint32_t>& out) const;
 
  private:
   // Maximum dimension for column/row in a matrix.
   static const int kMaxMatrixSize = 4;
 
-  // Asserts on unimplemnted functionality.
-  void CheckNotImplemented(const char* message);
+  // Allocates a new <id>.
+  Id AllocateUniqueId() { return ++unique_id_; }
 
-  Id makeIntConstant(Id type_id, unsigned value, bool is_spec_constant);
-  Id findScalarConstant(Op type_class, Op opcode, Id type_id,
-                        unsigned value) const;
-  Id findScalarConstant(Op type_class, Op opcode, Id type_id, unsigned v1,
-                        unsigned v2) const;
-  Id findCompositeConstant(Op type_class, std::vector<Id>& comps) const;
-  Id collapseAccessChain();
-  void transferAccessChainSwizzle(bool dynamic);
-  void simplifyAccessChainSwizzle();
-  void createAndSetNoPredecessorBlock(const char*);
-  void createBranch(Block* block);
-  void createSelectionMerge(Block* merge_block,
+  // Allocates a contiguous sequence of <id>s.
+  Id AllocateUniqueIds(int count) {
+    Id id = unique_id_ + 1;
+    unique_id_ += count;
+    return id;
+  }
+
+  Id MakeIntegerConstant(Id type_id, uint32_t value, bool is_spec_constant);
+  Id FindScalarConstant(Op type_class, Op opcode, Id type_id,
+                        uint32_t value) const;
+  Id FindScalarConstant(Op type_class, Op opcode, Id type_id, uint32_t v1,
+                        uint32_t v2) const;
+  Id FindCompositeConstant(Op type_class,
+                           std::initializer_list<Id> components) const;
+
+  Id CollapseAccessChain();
+  void SimplifyAccessChainSwizzle();
+  void TransferAccessChainSwizzle(bool dynamic);
+
+  void SerializeInstructions(
+      std::vector<uint32_t>& out,
+      const std::vector<Instruction*>& instructions) const;
+
+  void CreateAndSetNoPredecessorBlock(const char* name);
+  void CreateBranch(Block* block);
+  void CreateSelectionMerge(Block* merge_block,
                             spv::SelectionControlMask control);
-  void createLoopMerge(Block* merge_block, Block* continueBlock,
+  void CreateLoopMerge(Block* merge_block, Block* continueBlock,
                        spv::LoopControlMask control);
-  void createConditionalBranch(Id condition, Block* then_block,
+  void CreateConditionalBranch(Id condition, Block* then_block,
                                Block* else_block);
-  void dumpInstructions(std::vector<unsigned int>&,
-                        const std::vector<Instruction*>&) const;
 
   struct Loop;  // Defined below.
-  void createBranchToLoopHeaderFromInside(const Loop& loop);
+  void CreateBranchToLoopHeaderFromInside(const Loop& loop);
+
+  // Asserts on unimplemented functionality.
+  void CheckNotImplemented(const char* message);
 
   spv::SourceLanguage source_language_ = spv::SourceLanguage::Unknown;
   int source_version_ = 0;
-  std::vector<const char*> extensions_;
+  std::vector<const char*> source_extensions_;
   spv::AddressingModel addressing_model_ = spv::AddressingModel::Logical;
   spv::MemoryModel memory_model_ = spv::MemoryModel::GLSL450;
   std::vector<spv::Capability> capabilities_;
@@ -647,12 +667,13 @@ class SpvEmitter {
   std::vector<Instruction*> externals_;
 
   // not output, internally used for quick & dirty canonical (unique) creation
-  std::vector<Instruction*> grouped_constants_[static_cast<int>(
-      spv::Op::OpConstant)];  // all types appear before OpConstant
+  // All types appear before OpConstant.
+  std::vector<Instruction*>
+      grouped_constants_[static_cast<int>(spv::Op::OpConstant)];
   std::vector<Instruction*>
       grouped_types_[static_cast<int>(spv::Op::OpConstant)];
 
-  // stack of switches
+  // Stack of switches.
   std::stack<Block*> switch_merges_;
 
   // Data that needs to be kept in order to properly handle loops.

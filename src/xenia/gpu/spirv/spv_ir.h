@@ -86,55 +86,66 @@ class Instruction {
   explicit Instruction(Op opcode) : opcode_(opcode) {}
   ~Instruction() = default;
 
-  void addIdOperand(Id id) { operands_.push_back(id); }
+  void AddIdOperand(Id id) { operands_.push_back(id); }
 
-  void addIdOperands(const std::vector<Id>& ids) {
+  void AddIdOperands(const std::vector<Id>& ids) {
+    for (auto id : ids) {
+      operands_.push_back(id);
+    }
+  }
+  void AddIdOperands(std::initializer_list<Id> ids) {
     for (auto id : ids) {
       operands_.push_back(id);
     }
   }
 
-  void addImmediateOperand(uint32_t immediate) {
+  void AddImmediateOperand(uint32_t immediate) {
     operands_.push_back(immediate);
   }
 
   template <typename T>
-  void addImmediateOperand(T immediate) {
+  void AddImmediateOperand(T immediate) {
     static_assert(sizeof(T) == sizeof(uint32_t), "Invalid operand size");
     operands_.push_back(static_cast<uint32_t>(immediate));
   }
 
-  void addImmediateOperands(const std::vector<uint32_t>& immediates) {
+  void AddImmediateOperands(const std::vector<uint32_t>& immediates) {
     for (auto immediate : immediates) {
       operands_.push_back(immediate);
     }
   }
 
-  void addStringOperand(const char* str) {
+  void AddImmediateOperands(std::initializer_list<uint32_t> immediates) {
+    for (auto immediate : immediates) {
+      operands_.push_back(immediate);
+    }
+  }
+
+  void AddStringOperand(const char* str) {
     original_string_ = str;
     uint32_t word;
-    char* wordString = (char*)&word;
-    char* wordPtr = wordString;
-    int charCount = 0;
+    char* word_string = reinterpret_cast<char*>(&word);
+    char* word_ptr = word_string;
+    int char_count = 0;
     char c;
     do {
       c = *(str++);
-      *(wordPtr++) = c;
-      ++charCount;
-      if (charCount == 4) {
-        addImmediateOperand(word);
-        wordPtr = wordString;
-        charCount = 0;
+      *(word_ptr++) = c;
+      ++char_count;
+      if (char_count == 4) {
+        AddImmediateOperand(word);
+        word_ptr = word_string;
+        char_count = 0;
       }
     } while (c != 0);
 
     // deal with partial last word
-    if (charCount > 0) {
+    if (char_count > 0) {
       // pad with 0s
-      for (; charCount < 4; ++charCount) {
-        *(wordPtr++) = 0;
+      for (; char_count < 4; ++char_count) {
+        *(word_ptr++) = 0;
       }
-      addImmediateOperand(word);
+      AddImmediateOperand(word);
     }
   }
 
@@ -147,17 +158,17 @@ class Instruction {
   const char* string_operand() const { return original_string_.c_str(); }
 
   // Write out the binary form.
-  void dump(std::vector<uint32_t>& out) const {
-    uint32_t wordCount = 1;
+  void Serialize(std::vector<uint32_t>& out) const {
+    uint32_t word_count = 1;
     if (type_id_) {
-      ++wordCount;
+      ++word_count;
     }
     if (result_id_) {
-      ++wordCount;
+      ++word_count;
     }
-    wordCount += static_cast<uint32_t>(operands_.size());
+    word_count += static_cast<uint32_t>(operands_.size());
 
-    out.push_back((wordCount << spv::WordCountShift) |
+    out.push_back((word_count << spv::WordCountShift) |
                   static_cast<uint32_t>(opcode_));
     if (type_id_) {
       out.push_back(type_id_);
@@ -185,19 +196,24 @@ class Block {
  public:
   Block(Id id, Function& parent);
   ~Block() {
-    // TODO: free instructions
+    for (size_t i = 0; i < instructions_.size(); ++i) {
+      delete instructions_[i];
+    }
+    for (size_t i = 0; i < local_variables_.size(); ++i) {
+      delete local_variables_[i];
+    }
   }
 
   Id id() { return instructions_.front()->result_id(); }
 
   Function& parent() const { return parent_; }
 
-  void push_instruction(Instruction* inst);
-  void push_local_variable(Instruction* inst) {
-    local_variables_.push_back(inst);
+  void AddInstruction(Instruction* instr);
+  void AddLocalVariable(Instruction* instr) {
+    local_variables_.push_back(instr);
   }
 
-  void push_predecessor(Block* predecessor) {
+  void AddPredecessor(Block* predecessor) {
     predecessors_.push_back(predecessor);
   }
 
@@ -222,7 +238,7 @@ class Block {
     }
   }
 
-  void dump(std::vector<uint32_t>& out) const {
+  void Serialize(std::vector<uint32_t>& out) const {
     // skip the degenerate unreachable blocks
     // TODO: code gen: skip all unreachable blocks (transitive closure)
     //                 (but, until that's done safer to keep non-degenerate
@@ -231,12 +247,12 @@ class Block {
       return;
     }
 
-    instructions_[0]->dump(out);
+    instructions_[0]->Serialize(out);
     for (auto variable : local_variables_) {
-      variable->dump(out);
+      variable->Serialize(out);
     }
     for (int i = 1; i < instructions_.size(); ++i) {
-      instructions_[i]->dump(out);
+      instructions_[i]->Serialize(out);
     }
   }
 
@@ -275,32 +291,32 @@ class Function {
   Id param_id(int p) { return parameter_instructions_[p]->result_id(); }
 
   void push_block(Block* block) { blocks_.push_back(block); }
-  void pop_block(Block*) { blocks_.pop_back(); }
+  void pop_block(Block* block) { blocks_.pop_back(); }
 
   Module& parent() const { return parent_; }
   Block* entry_block() const { return blocks_.front(); }
   Block* last_block() const { return blocks_.back(); }
 
-  void push_local_variable(Instruction* inst);
+  void AddLocalVariable(Instruction* instr);
 
   Id return_type() const { return function_instruction_.type_id(); }
 
-  void dump(std::vector<uint32_t>& out) const {
+  void Serialize(std::vector<uint32_t>& out) const {
     // OpFunction
-    function_instruction_.dump(out);
+    function_instruction_.Serialize(out);
 
     // OpFunctionParameter
     for (auto instruction : parameter_instructions_) {
-      instruction->dump(out);
+      instruction->Serialize(out);
     }
 
     // Blocks
     for (auto block : blocks_) {
-      block->dump(out);
+      block->Serialize(out);
     }
 
     Instruction end(0, 0, spv::Op::OpFunctionEnd);
-    end.dump(out);
+    end.Serialize(out);
   }
 
  private:
@@ -317,32 +333,35 @@ class Module {
  public:
   Module() = default;
   ~Module() {
-    // TODO delete things
+    for (size_t i = 0; i < functions_.size(); ++i) {
+      delete functions_[i];
+    }
   }
 
-  void push_function(Function* function) { functions_.push_back(function); }
+  void AddFunction(Function* function) { functions_.push_back(function); }
 
-  void mapInstruction(Instruction* instruction) {
-    spv::Id result_id = instruction->result_id();
-    // map the instruction's result id
-    if (result_id >= id_to_instruction_.size())
+  void MapInstruction(Instruction* instr) {
+    spv::Id result_id = instr->result_id();
+    // Map the instruction's result id.
+    if (result_id >= id_to_instruction_.size()) {
       id_to_instruction_.resize(result_id + 16);
-    id_to_instruction_[result_id] = instruction;
+    }
+    id_to_instruction_[result_id] = instr;
   }
 
-  Instruction* getInstruction(Id id) const { return id_to_instruction_[id]; }
+  Instruction* instruction(Id id) const { return id_to_instruction_[id]; }
 
-  spv::Id getTypeId(Id result_id) const {
+  spv::Id type_id(Id result_id) const {
     return id_to_instruction_[result_id]->type_id();
   }
 
-  spv::StorageClass getStorageClass(Id type_id) const {
+  spv::StorageClass storage_class(Id type_id) const {
     return (spv::StorageClass)id_to_instruction_[type_id]->immediate_operand(0);
   }
 
-  void dump(std::vector<uint32_t>& out) const {
+  void Serialize(std::vector<uint32_t>& out) const {
     for (auto function : functions_) {
-      function->dump(out);
+      function->Serialize(out);
     }
   }
 
@@ -351,37 +370,36 @@ class Module {
 
   std::vector<Function*> functions_;
 
-  // map from result id to instruction having that result id
+  // Maps from result id to instruction having that result id.
   std::vector<Instruction*> id_to_instruction_;
-
-  // map from a result id to its type id
 };
 
-inline Function::Function(Id id, Id resultType, Id functionType,
-                          Id firstParamId, Module& parent)
+inline Function::Function(Id id, Id result_type_id, Id function_type_id,
+                          Id first_param_id, Module& parent)
     : parent_(parent),
-      function_instruction_(id, resultType, spv::Op::OpFunction) {
+      function_instruction_(id, result_type_id, spv::Op::OpFunction) {
   // OpFunction
-  function_instruction_.addImmediateOperand(
+  function_instruction_.AddImmediateOperand(
       static_cast<uint32_t>(spv::FunctionControlMask::MaskNone));
-  function_instruction_.addIdOperand(functionType);
-  parent.mapInstruction(&function_instruction_);
-  parent.push_function(this);
+  function_instruction_.AddIdOperand(function_type_id);
+  parent.MapInstruction(&function_instruction_);
+  parent.AddFunction(this);
 
   // OpFunctionParameter
-  Instruction* typeInst = parent.getInstruction(functionType);
-  int numParams = typeInst->operand_count() - 1;
-  for (int p = 0; p < numParams; ++p) {
-    auto param = new Instruction(firstParamId + p, typeInst->id_operand(p + 1),
-                                 spv::Op::OpFunctionParameter);
-    parent.mapInstruction(param);
+  Instruction* type_instr = parent.instruction(function_type_id);
+  int param_count = type_instr->operand_count() - 1;
+  for (int p = 0; p < param_count; ++p) {
+    auto param =
+        new Instruction(first_param_id + p, type_instr->id_operand(p + 1),
+                        spv::Op::OpFunctionParameter);
+    parent.MapInstruction(param);
     parameter_instructions_.push_back(param);
   }
 }
 
-inline void Function::push_local_variable(Instruction* inst) {
-  blocks_[0]->push_local_variable(inst);
-  parent_.mapInstruction(inst);
+inline void Function::AddLocalVariable(Instruction* instr) {
+  blocks_[0]->AddLocalVariable(instr);
+  parent_.MapInstruction(instr);
 }
 
 inline Block::Block(Id id, Function& parent)
@@ -389,10 +407,10 @@ inline Block::Block(Id id, Function& parent)
   instructions_.push_back(new Instruction(id, NoType, spv::Op::OpLabel));
 }
 
-inline void Block::push_instruction(Instruction* inst) {
+inline void Block::AddInstruction(Instruction* inst) {
   instructions_.push_back(inst);
   if (inst->result_id()) {
-    parent_.parent().mapInstruction(inst);
+    parent_.parent().MapInstruction(inst);
   }
 }
 

@@ -41,16 +41,16 @@ OpFunctionEnd
       spv_disasm.Disassemble(asm_result->words(), asm_result->word_count());
 
   SpvEmitter e;
-  auto glsl_std_450 = e.import("GLSL.std.450");
-  auto fn = e.makeMain();
-  auto float_1_0 = e.makeFloatConstant(1.0f);
-  auto acos = e.createBuiltinCall(
-      spv::Decoration::Invariant, e.makeFloatType(32), glsl_std_450,
+  auto glsl_std_450 = e.ImportExtendedInstructions("GLSL.std.450");
+  auto fn = e.MakeMainEntry();
+  auto float_1_0 = e.MakeFloatConstant(1.0f);
+  auto acos = e.CreateExtendedInstructionCall(
+      spv::Decoration::Invariant, e.MakeFloatType(32), glsl_std_450,
       static_cast<int>(spv::GLSLstd450::Acos), {{float_1_0}});
-  e.makeReturn(false);
+  e.MakeReturn(true);
 
   std::vector<uint32_t> words;
-  e.dump(words);
+  e.Serialize(words);
 
   auto disasm_result2 = spv_disasm.Disassemble(words.data(), words.size());
 
