@@ -338,8 +338,18 @@ bool GL4Shader::CompileProgram(std::string source) {
       xe::filesystem::CreateFolder(dump_shaders_path);
     }
 
+    char bin_file_name[kMaxPath];
+    snprintf(bin_file_name, xe::countof(file_name), "%s/gl4_gen_%.16llX.bin.%s",
+             base_path, data_hash_,
+             shader_type_ == ShaderType::kVertex ? "vert" : "frag");
+    FILE* f = fopen(bin_file_name, "w");
+    if (f) {
+      fwrite(data_.data(), 4, data_.size(), f);
+      fclose(f);
+    }
+
     // Note that we put the translated source first so we get good line numbers.
-    FILE* f = fopen(file_name, "w");
+    f = fopen(file_name, "w");
     if (f) {
       fprintf(f, "%s", translated_disassembly_.c_str());
       fprintf(f, "/*\n");
