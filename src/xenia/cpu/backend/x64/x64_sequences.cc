@@ -2008,6 +2008,15 @@ EMITTER_OPCODE_TABLE(OPCODE_STORE_CONTEXT, STORE_CONTEXT_I8, STORE_CONTEXT_I16,
                      STORE_CONTEXT_F64, STORE_CONTEXT_V128);
 
 // ============================================================================
+// OPCODE_CONTEXT_BARRIER
+// ============================================================================
+struct CONTEXT_BARRIER
+    : Sequence<CONTEXT_BARRIER, I<OPCODE_CONTEXT_BARRIER, VoidOp>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {}
+};
+EMITTER_OPCODE_TABLE(OPCODE_CONTEXT_BARRIER, CONTEXT_BARRIER);
+
+// ============================================================================
 // OPCODE_LOAD_MMIO
 // ============================================================================
 // Note: all types are always aligned in the context.
@@ -7112,6 +7121,7 @@ void RegisterSequences() {
   Register_OPCODE_STORE_LOCAL();
   Register_OPCODE_LOAD_CONTEXT();
   Register_OPCODE_STORE_CONTEXT();
+  Register_OPCODE_CONTEXT_BARRIER();
   Register_OPCODE_LOAD_MMIO();
   Register_OPCODE_STORE_MMIO();
   Register_OPCODE_LOAD();

@@ -1211,6 +1211,10 @@ void HIRBuilder::StoreContext(size_t offset, Value* value) {
   i->src3.value = NULL;
 }
 
+void HIRBuilder::ContextBarrier() {
+  AppendInstr(OPCODE_CONTEXT_BARRIER_info, 0);
+}
+
 Value* HIRBuilder::LoadMmio(cpu::MMIORange* mmio_range, uint32_t address,
                             TypeName type) {
   Instr* i = AppendInstr(OPCODE_LOAD_MMIO_info, 0, AllocValue(type));

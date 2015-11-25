@@ -123,6 +123,13 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     // Stash instruction offset. It's either the SOURCE_OFFSET or the COMMENT.
     instr_offset_list_[offset] = first_instr;
 
+    // Synchronize the PPC context as required.
+    // This will ensure all registers are saved to the PPC context before this
+    // instruction executes.
+    if (i.type->type & kXEPPCInstrTypeSynchronizeContext) {
+      ContextBarrier();
+    }
+
     if (!i.type) {
       XELOGE("Invalid instruction %.8llX %.8X", i.address, i.code);
       Comment("INVALID!");

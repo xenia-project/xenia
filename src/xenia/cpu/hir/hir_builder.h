@@ -142,6 +142,7 @@ class HIRBuilder {
 
   Value* LoadContext(size_t offset, TypeName type);
   void StoreContext(size_t offset, Value* value);
+  void ContextBarrier();
 
   Value* LoadMmio(cpu::MMIORange* mmio_range, uint32_t address, TypeName type);
   void StoreMmio(cpu::MMIORange* mmio_range, uint32_t address, Value* value);

@@ -74,10 +74,11 @@ enum xe_ppc_instr_mask_e : uint32_t {
 
 typedef enum {
   kXEPPCInstrTypeGeneral = (1 << 0),
-  kXEPPCInstrTypeBranch = (1 << 1),
-  kXEPPCInstrTypeBranchCond = kXEPPCInstrTypeBranch | (1 << 2),
-  kXEPPCInstrTypeBranchAlways = kXEPPCInstrTypeBranch | (1 << 3),
-  kXEPPCInstrTypeSyscall = (1 << 4),
+  kXEPPCInstrTypeSynchronizeContext = (1 << 1),
+  kXEPPCInstrTypeBranch = kXEPPCInstrTypeSynchronizeContext | (1 << 2),
+  kXEPPCInstrTypeBranchCond = kXEPPCInstrTypeBranch | (1 << 3),
+  kXEPPCInstrTypeBranchAlways = kXEPPCInstrTypeBranch | (1 << 4),
+  kXEPPCInstrTypeSyscall = kXEPPCInstrTypeSynchronizeContext | (1 << 5),
 } xe_ppc_instr_type_e;
 
 typedef enum {
