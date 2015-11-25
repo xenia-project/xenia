@@ -7,30 +7,25 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
+#ifndef XENIA_UI_SPIRV_SPIRV_OPTIMIZER_H_
+#define XENIA_UI_SPIRV_SPIRV_OPTIMIZER_H_
 
-#include <string>
-#include <vector>
-
-#include "xenia/base/logging.h"
-#include "xenia/base/main.h"
-#include "xenia/base/string.h"
-#include "xenia/gpu/spirv/spirv_compiler.h"
-#include "xenia/gpu/spirv/spirv_util.h"
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-int compiler_main(const std::vector<std::wstring>& args) {
-  SpirvCompiler c;
-  return 0;
-}
+class SpirvOptimizer {
+ public:
+  SpirvOptimizer();
+  ~SpirvOptimizer();
+
+ private:
+};
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-gpu-spirv-compiler",
-                   L"xenia-gpu-spirv-compiler shader.bin",
-                   xe::gpu::spirv::compiler_main);
+#endif  // XENIA_UI_SPIRV_SPIRV_OPTIMIZER_H_

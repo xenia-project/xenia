@@ -7,19 +7,19 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/spirv/spv_assembler.h"
+#include "xenia/ui/spirv/spirv_assembler.h"
 
 #include "third_party/spirv-tools/include/libspirv/libspirv.h"
 #include "xenia/base/logging.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-SpvAssembler::Result::Result(spv_binary binary, spv_diagnostic diagnostic)
+SpirvAssembler::Result::Result(spv_binary binary, spv_diagnostic diagnostic)
     : binary_(binary), diagnostic_(diagnostic) {}
 
-SpvAssembler::Result::~Result() {
+SpirvAssembler::Result::~Result() {
   if (binary_) {
     spvBinaryDestroy(binary_);
   }
@@ -28,33 +28,33 @@ SpvAssembler::Result::~Result() {
   }
 }
 
-bool SpvAssembler::Result::has_error() const { return !!diagnostic_; }
+bool SpirvAssembler::Result::has_error() const { return !!diagnostic_; }
 
-size_t SpvAssembler::Result::error_source_line() const {
+size_t SpirvAssembler::Result::error_source_line() const {
   return diagnostic_ ? diagnostic_->position.line : 0;
 }
 
-size_t SpvAssembler::Result::error_source_column() const {
+size_t SpirvAssembler::Result::error_source_column() const {
   return diagnostic_ ? diagnostic_->position.column : 0;
 }
 
-const char* SpvAssembler::Result::error_string() const {
+const char* SpirvAssembler::Result::error_string() const {
   return diagnostic_ ? diagnostic_->error : "";
 }
 
-const uint32_t* SpvAssembler::Result::words() const {
+const uint32_t* SpirvAssembler::Result::words() const {
   return binary_ ? binary_->code : nullptr;
 }
 
-size_t SpvAssembler::Result::word_count() const {
+size_t SpirvAssembler::Result::word_count() const {
   return binary_ ? binary_->wordCount : 0;
 }
 
-SpvAssembler::SpvAssembler() : spv_context_(spvContextCreate()) {}
+SpirvAssembler::SpirvAssembler() : spv_context_(spvContextCreate()) {}
 
-SpvAssembler::~SpvAssembler() { spvContextDestroy(spv_context_); }
+SpirvAssembler::~SpirvAssembler() { spvContextDestroy(spv_context_); }
 
-std::unique_ptr<SpvAssembler::Result> SpvAssembler::Assemble(
+std::unique_ptr<SpirvAssembler::Result> SpirvAssembler::Assemble(
     const char* source_text, size_t source_text_length) {
   spv_binary binary = nullptr;
   spv_diagnostic diagnostic = nullptr;
@@ -73,5 +73,5 @@ std::unique_ptr<SpvAssembler::Result> SpvAssembler::Assemble(
 }
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe

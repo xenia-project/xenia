@@ -43,8 +43,8 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef XENIA_GPU_SPIRV_SPV_EMITTER_H_
-#define XENIA_GPU_SPIRV_SPV_EMITTER_H_
+#ifndef XENIA_UI_SPIRV_SPIRV_EMITTER_H_
+#define XENIA_UI_SPIRV_SPIRV_EMITTER_H_
 
 #include <algorithm>
 #include <map>
@@ -52,17 +52,17 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
-#include "xenia/gpu/spirv/spirv_util.h"
-#include "xenia/gpu/spirv/spv_ir.h"
+#include "xenia/ui/spirv/spirv_ir.h"
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-class SpvEmitter {
+class SpirvEmitter {
  public:
-  SpvEmitter();
-  ~SpvEmitter();
+  SpirvEmitter();
+  ~SpirvEmitter();
 
   // Document what source language and text this module was translated from.
   void SetSourceLanguage(spv::SourceLanguage language, int version) {
@@ -423,7 +423,7 @@ class SpvEmitter {
   // Helper to use for building nested control flow with if-then-else.
   class If {
    public:
-    If(SpvEmitter& emitter, Id condition);
+    If(SpirvEmitter& emitter, Id condition);
     ~If() = default;
 
     void MakeBeginElse();
@@ -433,7 +433,7 @@ class SpvEmitter {
     If(const If&) = delete;
     If& operator=(If&) = delete;
 
-    SpvEmitter& emitter_;
+    SpirvEmitter& emitter_;
     Id condition_;
     Function* function_ = nullptr;
     Block* header_block_ = nullptr;
@@ -685,7 +685,7 @@ class SpvEmitter {
     // also create a phi instruction whose value indicates whether we're on
     // the first iteration of the loop.  The phi instruction is initialized
     // with no values or predecessor operands.
-    Loop(SpvEmitter& emitter, bool test_first);
+    Loop(SpirvEmitter& emitter, bool test_first);
 
     // The function containing the loop.
     Function* const function;
@@ -720,7 +720,7 @@ class SpvEmitter {
 };
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_SPIRV_SPV_EMITTER_H_
+#endif  // XENIA_UI_SPIRV_SPIRV_EMITTER_H_

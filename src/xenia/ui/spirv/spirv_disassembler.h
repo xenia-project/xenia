@@ -7,20 +7,20 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_SPIRV_SPV_DISASSEMBLER_H_
-#define XENIA_GPU_SPIRV_SPV_DISASSEMBLER_H_
+#ifndef XENIA_UI_SPIRV_SPIRV_DISASSEMBLER_H_
+#define XENIA_UI_SPIRV_SPIRV_DISASSEMBLER_H_
 
 #include <memory>
 #include <string>
 
 #include "xenia/base/string_buffer.h"
-#include "xenia/gpu/spirv/spirv_util.h"
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-class SpvDisassembler {
+class SpirvDisassembler {
  public:
   class Result {
    public:
@@ -47,8 +47,8 @@ class SpvDisassembler {
     spv_diagnostic diagnostic_ = nullptr;
   };
 
-  SpvDisassembler();
-  ~SpvDisassembler();
+  SpirvDisassembler();
+  ~SpirvDisassembler();
 
   // Disassembles the given SPIRV binary.
   // The return will be nullptr if disassembly fails due to a library error.
@@ -60,7 +60,7 @@ class SpvDisassembler {
 };
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_SPIRV_SPV_DISASSEMBLER_H_
+#endif  // XENIA_UI_SPIRV_SPIRV_DISASSEMBLER_H_

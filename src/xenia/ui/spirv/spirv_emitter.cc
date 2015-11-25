@@ -43,7 +43,7 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "xenia/gpu/spirv/spv_emitter.h"
+#include "xenia/ui/spirv/spirv_emitter.h"
 
 #include <unordered_set>
 
@@ -51,14 +51,14 @@
 #include "xenia/base/logging.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-SpvEmitter::SpvEmitter() { ClearAccessChain(); }
+SpirvEmitter::SpirvEmitter() { ClearAccessChain(); }
 
-SpvEmitter::~SpvEmitter() = default;
+SpirvEmitter::~SpirvEmitter() = default;
 
-Id SpvEmitter::ImportExtendedInstructions(const char* name) {
+Id SpirvEmitter::ImportExtendedInstructions(const char* name) {
   auto import =
       new Instruction(AllocateUniqueId(), NoType, Op::OpExtInstImport);
   import->AddStringOperand(name);
@@ -69,7 +69,7 @@ Id SpvEmitter::ImportExtendedInstructions(const char* name) {
 
 // For creating new grouped_types_ (will return old type if the requested one
 // was already made).
-Id SpvEmitter::MakeVoidType() {
+Id SpirvEmitter::MakeVoidType() {
   Instruction* type;
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeVoid)];
   if (grouped_type.empty()) {
@@ -84,7 +84,7 @@ Id SpvEmitter::MakeVoidType() {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeBoolType() {
+Id SpirvEmitter::MakeBoolType() {
   Instruction* type;
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeBool)];
   if (grouped_type.empty()) {
@@ -99,7 +99,7 @@ Id SpvEmitter::MakeBoolType() {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeSamplerType() {
+Id SpirvEmitter::MakeSamplerType() {
   Instruction* type;
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeSampler)];
   if (grouped_type.empty()) {
@@ -113,7 +113,7 @@ Id SpvEmitter::MakeSamplerType() {
   return type->result_id();
 }
 
-Id SpvEmitter::MakePointer(spv::StorageClass storage_class, Id pointee) {
+Id SpirvEmitter::MakePointer(spv::StorageClass storage_class, Id pointee) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypePointer)];
   for (auto& type : grouped_type) {
@@ -134,7 +134,7 @@ Id SpvEmitter::MakePointer(spv::StorageClass storage_class, Id pointee) {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeIntegerType(int bit_width, bool is_signed) {
+Id SpirvEmitter::MakeIntegerType(int bit_width, bool is_signed) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeInt)];
   for (auto& type : grouped_type) {
@@ -155,7 +155,7 @@ Id SpvEmitter::MakeIntegerType(int bit_width, bool is_signed) {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeFloatType(int bit_width) {
+Id SpirvEmitter::MakeFloatType(int bit_width) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeFloat)];
   for (auto& type : grouped_type) {
@@ -178,8 +178,8 @@ Id SpvEmitter::MakeFloatType(int bit_width) {
 // See makeStructResultType() for non-decorated structs
 // needed as the result of some instructions, which does
 // check for duplicates.
-Id SpvEmitter::MakeStructType(std::initializer_list<Id> members,
-                              const char* name) {
+Id SpirvEmitter::MakeStructType(std::initializer_list<Id> members,
+                                const char* name) {
   // Don't look for previous one, because in the general case,
   // structs can be duplicated except for decorations.
 
@@ -198,7 +198,7 @@ Id SpvEmitter::MakeStructType(std::initializer_list<Id> members,
 
 // Make a struct for the simple results of several instructions,
 // checking for duplication.
-Id SpvEmitter::MakePairStructType(Id type0, Id type1) {
+Id SpirvEmitter::MakePairStructType(Id type0, Id type1) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeStruct)];
   for (auto& type : grouped_type) {
@@ -215,7 +215,7 @@ Id SpvEmitter::MakePairStructType(Id type0, Id type1) {
   return MakeStructType({type0, type1}, "ResType");
 }
 
-Id SpvEmitter::MakeVectorType(Id component_type, int component_count) {
+Id SpirvEmitter::MakeVectorType(Id component_type, int component_count) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeVector)];
   for (auto& type : grouped_type) {
@@ -236,7 +236,7 @@ Id SpvEmitter::MakeVectorType(Id component_type, int component_count) {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeMatrix2DType(Id component_type, int cols, int rows) {
+Id SpirvEmitter::MakeMatrix2DType(Id component_type, int cols, int rows) {
   assert(cols <= kMaxMatrixSize && rows <= kMaxMatrixSize);
 
   Id column = MakeVectorType(component_type, rows);
@@ -261,7 +261,7 @@ Id SpvEmitter::MakeMatrix2DType(Id component_type, int cols, int rows) {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeArrayType(Id element_type, int length) {
+Id SpirvEmitter::MakeArrayType(Id element_type, int length) {
   // First, we need a constant instruction for the size
   Id length_id = MakeUintConstant(length);
 
@@ -285,7 +285,7 @@ Id SpvEmitter::MakeArrayType(Id element_type, int length) {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeRuntimeArray(Id element_type) {
+Id SpirvEmitter::MakeRuntimeArray(Id element_type) {
   auto type =
       new Instruction(AllocateUniqueId(), NoType, Op::OpTypeRuntimeArray);
   type->AddIdOperand(element_type);
@@ -295,8 +295,8 @@ Id SpvEmitter::MakeRuntimeArray(Id element_type) {
   return type->result_id();
 }
 
-Id SpvEmitter::MakeFunctionType(Id return_type,
-                                std::initializer_list<Id> param_types) {
+Id SpirvEmitter::MakeFunctionType(Id return_type,
+                                  std::initializer_list<Id> param_types) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeFunction)];
   for (auto& type : grouped_type) {
@@ -326,9 +326,9 @@ Id SpvEmitter::MakeFunctionType(Id return_type,
   return type->result_id();
 }
 
-Id SpvEmitter::MakeImageType(Id sampled_type, spv::Dim dim, bool has_depth,
-                             bool is_arrayed, bool is_multisampled, int sampled,
-                             spv::ImageFormat format) {
+Id SpirvEmitter::MakeImageType(Id sampled_type, spv::Dim dim, bool has_depth,
+                               bool is_arrayed, bool is_multisampled,
+                               int sampled, spv::ImageFormat format) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeImage)];
   for (auto& type : grouped_type) {
@@ -360,7 +360,7 @@ Id SpvEmitter::MakeImageType(Id sampled_type, spv::Dim dim, bool has_depth,
   return type->result_id();
 }
 
-Id SpvEmitter::MakeSampledImageType(Id image_type) {
+Id SpirvEmitter::MakeSampledImageType(Id image_type) {
   // try to find it
   auto& grouped_type = grouped_types_[static_cast<int>(Op::OpTypeSampledImage)];
   for (auto& type : grouped_type) {
@@ -381,13 +381,13 @@ Id SpvEmitter::MakeSampledImageType(Id image_type) {
   return type->result_id();
 }
 
-Id SpvEmitter::GetDerefTypeId(Id result_id) const {
+Id SpirvEmitter::GetDerefTypeId(Id result_id) const {
   Id type_id = GetTypeId(result_id);
   assert(IsPointerType(type_id));
   return module_.instruction(type_id)->immediate_operand(1);
 }
 
-Op SpvEmitter::GetMostBasicTypeClass(Id type_id) const {
+Op SpirvEmitter::GetMostBasicTypeClass(Id type_id) const {
   auto instr = module_.instruction(type_id);
 
   Op type_class = instr->opcode();
@@ -411,7 +411,7 @@ Op SpvEmitter::GetMostBasicTypeClass(Id type_id) const {
   }
 }
 
-int SpvEmitter::GetTypeComponentCount(Id type_id) const {
+int SpirvEmitter::GetTypeComponentCount(Id type_id) const {
   auto instr = module_.instruction(type_id);
 
   switch (instr->opcode()) {
@@ -434,7 +434,7 @@ int SpvEmitter::GetTypeComponentCount(Id type_id) const {
 // floats.
 // However, it includes returning a structure, if say, it is an array of
 // structure.
-Id SpvEmitter::GetScalarTypeId(Id type_id) const {
+Id SpirvEmitter::GetScalarTypeId(Id type_id) const {
   auto instr = module_.instruction(type_id);
 
   Op type_class = instr->opcode();
@@ -458,7 +458,7 @@ Id SpvEmitter::GetScalarTypeId(Id type_id) const {
 }
 
 // Return the type of 'member' of a composite.
-Id SpvEmitter::GetContainedTypeId(Id type_id, int member) const {
+Id SpirvEmitter::GetContainedTypeId(Id type_id, int member) const {
   auto instr = module_.instruction(type_id);
 
   Op type_class = instr->opcode();
@@ -479,14 +479,14 @@ Id SpvEmitter::GetContainedTypeId(Id type_id, int member) const {
 }
 
 // Return the immediately contained type of a given composite type.
-Id SpvEmitter::GetContainedTypeId(Id type_id) const {
+Id SpirvEmitter::GetContainedTypeId(Id type_id) const {
   return GetContainedTypeId(type_id, 0);
 }
 
 // See if a scalar constant of this type has already been created, so it
 // can be reused rather than duplicated.  (Required by the specification).
-Id SpvEmitter::FindScalarConstant(Op type_class, Op opcode, Id type_id,
-                                  uint32_t value) const {
+Id SpirvEmitter::FindScalarConstant(Op type_class, Op opcode, Id type_id,
+                                    uint32_t value) const {
   auto& grouped_constant = grouped_constants_[static_cast<int>(type_class)];
   for (auto constant : grouped_constant) {
     if (constant->opcode() == opcode && constant->type_id() == type_id &&
@@ -499,8 +499,8 @@ Id SpvEmitter::FindScalarConstant(Op type_class, Op opcode, Id type_id,
 
 // Version of findScalarConstant (see above) for scalars that take two operands
 // (e.g. a 'double').
-Id SpvEmitter::FindScalarConstant(Op type_class, Op opcode, Id type_id,
-                                  uint32_t v1, uint32_t v2) const {
+Id SpirvEmitter::FindScalarConstant(Op type_class, Op opcode, Id type_id,
+                                    uint32_t v1, uint32_t v2) const {
   auto& grouped_constant = grouped_constants_[static_cast<int>(type_class)];
   for (auto constant : grouped_constant) {
     if (constant->opcode() == opcode && constant->type_id() == type_id &&
@@ -515,7 +515,7 @@ Id SpvEmitter::FindScalarConstant(Op type_class, Op opcode, Id type_id,
 // Return true if consuming 'opcode' means consuming a constant.
 // "constant" here means after final transform to executable code,
 // the value consumed will be a constant, so includes specialization.
-bool SpvEmitter::IsConstantOpCode(Op opcode) const {
+bool SpirvEmitter::IsConstantOpCode(Op opcode) const {
   switch (opcode) {
     case Op::OpUndef:
     case Op::OpConstantTrue:
@@ -535,7 +535,7 @@ bool SpvEmitter::IsConstantOpCode(Op opcode) const {
   }
 }
 
-Id SpvEmitter::MakeBoolConstant(bool value, bool is_spec_constant) {
+Id SpirvEmitter::MakeBoolConstant(bool value, bool is_spec_constant) {
   Id type_id = MakeBoolType();
   Op opcode = is_spec_constant
                   ? (value ? Op::OpSpecConstantTrue : Op::OpSpecConstantFalse)
@@ -559,8 +559,8 @@ Id SpvEmitter::MakeBoolConstant(bool value, bool is_spec_constant) {
   return c->result_id();
 }
 
-Id SpvEmitter::MakeIntegerConstant(Id type_id, uint32_t value,
-                                   bool is_spec_constant) {
+Id SpirvEmitter::MakeIntegerConstant(Id type_id, uint32_t value,
+                                     bool is_spec_constant) {
   Op opcode = is_spec_constant ? Op::OpSpecConstant : Op::OpConstant;
   Id existing = FindScalarConstant(Op::OpTypeInt, opcode, type_id, value);
   if (existing) {
@@ -576,7 +576,7 @@ Id SpvEmitter::MakeIntegerConstant(Id type_id, uint32_t value,
   return c->result_id();
 }
 
-Id SpvEmitter::MakeFloatConstant(float value, bool is_spec_constant) {
+Id SpirvEmitter::MakeFloatConstant(float value, bool is_spec_constant) {
   Op opcode = is_spec_constant ? Op::OpSpecConstant : Op::OpConstant;
   Id type_id = MakeFloatType(32);
   uint32_t uint32_value = *reinterpret_cast<uint32_t*>(&value);
@@ -595,7 +595,7 @@ Id SpvEmitter::MakeFloatConstant(float value, bool is_spec_constant) {
   return c->result_id();
 }
 
-Id SpvEmitter::MakeDoubleConstant(double value, bool is_spec_constant) {
+Id SpirvEmitter::MakeDoubleConstant(double value, bool is_spec_constant) {
   Op opcode = is_spec_constant ? Op::OpSpecConstant : Op::OpConstant;
   Id type_id = MakeFloatType(64);
   uint64_t uint64_value = *reinterpret_cast<uint64_t*>(&value);
@@ -616,7 +616,7 @@ Id SpvEmitter::MakeDoubleConstant(double value, bool is_spec_constant) {
   return c->result_id();
 }
 
-Id SpvEmitter::FindCompositeConstant(
+Id SpirvEmitter::FindCompositeConstant(
     Op type_class, std::initializer_list<Id> components) const {
   auto& grouped_constant = grouped_constants_[static_cast<int>(type_class)];
   for (auto& constant : grouped_constant) {
@@ -641,8 +641,8 @@ Id SpvEmitter::FindCompositeConstant(
   return NoResult;
 }
 
-Id SpvEmitter::MakeCompositeConstant(Id type_id,
-                                     std::initializer_list<Id> components) {
+Id SpirvEmitter::MakeCompositeConstant(Id type_id,
+                                       std::initializer_list<Id> components) {
   assert(type_id);
   Op type_class = GetTypeClass(type_id);
 
@@ -672,9 +672,9 @@ Id SpvEmitter::MakeCompositeConstant(Id type_id,
   return c->result_id();
 }
 
-Instruction* SpvEmitter::AddEntryPoint(spv::ExecutionModel execution_model,
-                                       Function* entry_point,
-                                       const char* name) {
+Instruction* SpirvEmitter::AddEntryPoint(spv::ExecutionModel execution_model,
+                                         Function* entry_point,
+                                         const char* name) {
   auto instr = new Instruction(Op::OpEntryPoint);
   instr->AddImmediateOperand(execution_model);
   instr->AddIdOperand(entry_point->id());
@@ -687,9 +687,9 @@ Instruction* SpvEmitter::AddEntryPoint(spv::ExecutionModel execution_model,
 
 // Currently relying on the fact that all 'value' of interest are small
 // non-negative values.
-void SpvEmitter::AddExecutionMode(Function* entry_point,
-                                  spv::ExecutionMode execution_mode, int value1,
-                                  int value2, int value3) {
+void SpirvEmitter::AddExecutionMode(Function* entry_point,
+                                    spv::ExecutionMode execution_mode,
+                                    int value1, int value2, int value3) {
   auto instr = new Instruction(Op::OpExecutionMode);
   instr->AddIdOperand(entry_point->id());
   instr->AddImmediateOperand(execution_mode);
@@ -706,7 +706,7 @@ void SpvEmitter::AddExecutionMode(Function* entry_point,
   execution_modes_.push_back(instr);
 }
 
-void SpvEmitter::AddName(Id target_id, const char* value) {
+void SpirvEmitter::AddName(Id target_id, const char* value) {
   if (!value) {
     return;
   }
@@ -717,7 +717,7 @@ void SpvEmitter::AddName(Id target_id, const char* value) {
   names_.push_back(instr);
 }
 
-void SpvEmitter::AddMemberName(Id target_id, int member, const char* value) {
+void SpirvEmitter::AddMemberName(Id target_id, int member, const char* value) {
   if (!value) {
     return;
   }
@@ -729,8 +729,8 @@ void SpvEmitter::AddMemberName(Id target_id, int member, const char* value) {
   names_.push_back(instr);
 }
 
-void SpvEmitter::AddLine(Id target_id, Id file_name, int line_number,
-                         int column_number) {
+void SpirvEmitter::AddLine(Id target_id, Id file_name, int line_number,
+                           int column_number) {
   auto instr = new Instruction(Op::OpLine);
   instr->AddIdOperand(target_id);
   instr->AddIdOperand(file_name);
@@ -740,8 +740,8 @@ void SpvEmitter::AddLine(Id target_id, Id file_name, int line_number,
   lines_.push_back(instr);
 }
 
-void SpvEmitter::AddDecoration(Id target_id, spv::Decoration decoration,
-                               int num) {
+void SpirvEmitter::AddDecoration(Id target_id, spv::Decoration decoration,
+                                 int num) {
   if (decoration == static_cast<spv::Decoration>(BadValue)) {
     return;
   }
@@ -755,8 +755,8 @@ void SpvEmitter::AddDecoration(Id target_id, spv::Decoration decoration,
   decorations_.push_back(instr);
 }
 
-void SpvEmitter::AddMemberDecoration(Id target_id, int member,
-                                     spv::Decoration decoration, int num) {
+void SpirvEmitter::AddMemberDecoration(Id target_id, int member,
+                                       spv::Decoration decoration, int num) {
   auto instr = new Instruction(Op::OpMemberDecorate);
   instr->AddIdOperand(target_id);
   instr->AddImmediateOperand(member);
@@ -768,16 +768,16 @@ void SpvEmitter::AddMemberDecoration(Id target_id, int member,
   decorations_.push_back(instr);
 }
 
-Function* SpvEmitter::MakeMainEntry() {
+Function* SpirvEmitter::MakeMainEntry() {
   assert(!main_function_);
   Block* entry = nullptr;
   main_function_ = MakeFunctionEntry(MakeVoidType(), "main", {}, &entry);
   return main_function_;
 }
 
-Function* SpvEmitter::MakeFunctionEntry(Id return_type, const char* name,
-                                        std::initializer_list<Id> param_types,
-                                        Block** entry) {
+Function* SpirvEmitter::MakeFunctionEntry(Id return_type, const char* name,
+                                          std::initializer_list<Id> param_types,
+                                          Block** entry) {
   Id type_id = MakeFunctionType(return_type, param_types);
   Id first_param_id =
       param_types.size() ? AllocateUniqueIds((int)param_types.size()) : 0;
@@ -792,7 +792,7 @@ Function* SpvEmitter::MakeFunctionEntry(Id return_type, const char* name,
   return function;
 }
 
-void SpvEmitter::MakeReturn(bool implicit, Id return_value) {
+void SpirvEmitter::MakeReturn(bool implicit, Id return_value) {
   if (return_value) {
     auto inst = new Instruction(NoResult, NoType, Op::OpReturnValue);
     inst->AddIdOperand(return_value);
@@ -807,7 +807,7 @@ void SpvEmitter::MakeReturn(bool implicit, Id return_value) {
   }
 }
 
-void SpvEmitter::LeaveFunction() {
+void SpirvEmitter::LeaveFunction() {
   Block* block = build_point_;
   Function& function = build_point_->parent();
   assert(block);
@@ -836,13 +836,13 @@ void SpvEmitter::LeaveFunction() {
   }
 }
 
-void SpvEmitter::MakeDiscard() {
+void SpirvEmitter::MakeDiscard() {
   build_point_->AddInstruction(new Instruction(Op::OpKill));
   CreateAndSetNoPredecessorBlock("post-discard");
 }
 
-Id SpvEmitter::CreateVariable(spv::StorageClass storage_class, Id type,
-                              const char* name) {
+Id SpirvEmitter::CreateVariable(spv::StorageClass storage_class, Id type,
+                                const char* name) {
   Id pointer_type = MakePointer(storage_class, type);
   auto instr =
       new Instruction(AllocateUniqueId(), pointer_type, Op::OpVariable);
@@ -864,20 +864,20 @@ Id SpvEmitter::CreateVariable(spv::StorageClass storage_class, Id type,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateUndefined(Id type) {
+Id SpirvEmitter::CreateUndefined(Id type) {
   auto instr = new Instruction(AllocateUniqueId(), type, Op::OpUndef);
   build_point_->AddInstruction(instr);
   return instr->result_id();
 }
 
-void SpvEmitter::CreateStore(Id pointer_id, Id value_id) {
+void SpirvEmitter::CreateStore(Id pointer_id, Id value_id) {
   auto instr = new Instruction(Op::OpStore);
   instr->AddIdOperand(pointer_id);
   instr->AddIdOperand(value_id);
   build_point_->AddInstruction(instr);
 }
 
-Id SpvEmitter::CreateLoad(Id pointer_id) {
+Id SpirvEmitter::CreateLoad(Id pointer_id) {
   auto instr = new Instruction(AllocateUniqueId(), GetDerefTypeId(pointer_id),
                                Op::OpLoad);
   instr->AddIdOperand(pointer_id);
@@ -886,8 +886,8 @@ Id SpvEmitter::CreateLoad(Id pointer_id) {
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateAccessChain(spv::StorageClass storage_class, Id base_id,
-                                 std::vector<Id> index_ids) {
+Id SpirvEmitter::CreateAccessChain(spv::StorageClass storage_class, Id base_id,
+                                   std::vector<Id> index_ids) {
   // Figure out the final resulting type.
   auto base_type_id = GetTypeId(base_id);
   assert(IsPointerType(base_type_id) && index_ids.size());
@@ -912,7 +912,7 @@ Id SpvEmitter::CreateAccessChain(spv::StorageClass storage_class, Id base_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateArrayLength(Id struct_id, int array_member) {
+Id SpirvEmitter::CreateArrayLength(Id struct_id, int array_member) {
   auto instr =
       new Instruction(AllocateUniqueId(), MakeIntType(32), Op::OpArrayLength);
   instr->AddIdOperand(struct_id);
@@ -922,8 +922,8 @@ Id SpvEmitter::CreateArrayLength(Id struct_id, int array_member) {
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateCompositeExtract(Id composite, Id type_id,
-                                      uint32_t index) {
+Id SpirvEmitter::CreateCompositeExtract(Id composite, Id type_id,
+                                        uint32_t index) {
   auto instr =
       new Instruction(AllocateUniqueId(), type_id, Op::OpCompositeExtract);
   instr->AddIdOperand(composite);
@@ -933,8 +933,8 @@ Id SpvEmitter::CreateCompositeExtract(Id composite, Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateCompositeExtract(Id composite, Id type_id,
-                                      std::vector<uint32_t> indices) {
+Id SpirvEmitter::CreateCompositeExtract(Id composite, Id type_id,
+                                        std::vector<uint32_t> indices) {
   auto instr =
       new Instruction(AllocateUniqueId(), type_id, Op::OpCompositeExtract);
   instr->AddIdOperand(composite);
@@ -944,8 +944,8 @@ Id SpvEmitter::CreateCompositeExtract(Id composite, Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateCompositeInsert(Id object, Id composite, Id type_id,
-                                     uint32_t index) {
+Id SpirvEmitter::CreateCompositeInsert(Id object, Id composite, Id type_id,
+                                       uint32_t index) {
   auto instr =
       new Instruction(AllocateUniqueId(), type_id, Op::OpCompositeInsert);
   instr->AddIdOperand(object);
@@ -956,8 +956,8 @@ Id SpvEmitter::CreateCompositeInsert(Id object, Id composite, Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateCompositeInsert(Id object, Id composite, Id type_id,
-                                     std::vector<uint32_t> indices) {
+Id SpirvEmitter::CreateCompositeInsert(Id object, Id composite, Id type_id,
+                                       std::vector<uint32_t> indices) {
   auto instr =
       new Instruction(AllocateUniqueId(), type_id, Op::OpCompositeInsert);
   instr->AddIdOperand(object);
@@ -968,8 +968,8 @@ Id SpvEmitter::CreateCompositeInsert(Id object, Id composite, Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateVectorExtractDynamic(Id vector, Id type_id,
-                                          Id component_index) {
+Id SpirvEmitter::CreateVectorExtractDynamic(Id vector, Id type_id,
+                                            Id component_index) {
   auto instr =
       new Instruction(AllocateUniqueId(), type_id, Op::OpVectorExtractDynamic);
   instr->AddIdOperand(vector);
@@ -979,8 +979,8 @@ Id SpvEmitter::CreateVectorExtractDynamic(Id vector, Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateVectorInsertDynamic(Id vector, Id type_id, Id component,
-                                         Id component_index) {
+Id SpirvEmitter::CreateVectorInsertDynamic(Id vector, Id type_id, Id component,
+                                           Id component_index) {
   auto instr =
       new Instruction(AllocateUniqueId(), type_id, Op::OpVectorInsertDynamic);
   instr->AddIdOperand(vector);
@@ -991,12 +991,12 @@ Id SpvEmitter::CreateVectorInsertDynamic(Id vector, Id type_id, Id component,
   return instr->result_id();
 }
 
-void SpvEmitter::CreateNop() {
+void SpirvEmitter::CreateNop() {
   auto instr = new Instruction(spv::Op::OpNop);
   build_point_->AddInstruction(instr);
 }
 
-void SpvEmitter::CreateControlBarrier(
+void SpirvEmitter::CreateControlBarrier(
     spv::Scope execution_scope, spv::Scope memory_scope,
     spv::MemorySemanticsMask memory_semantics) {
   auto instr = new Instruction(Op::OpControlBarrier);
@@ -1006,7 +1006,7 @@ void SpvEmitter::CreateControlBarrier(
   build_point_->AddInstruction(instr);
 }
 
-void SpvEmitter::CreateMemoryBarrier(
+void SpirvEmitter::CreateMemoryBarrier(
     spv::Scope execution_scope, spv::MemorySemanticsMask memory_semantics) {
   auto instr = new Instruction(Op::OpMemoryBarrier);
   instr->AddImmediateOperand(MakeUintConstant(execution_scope));
@@ -1014,7 +1014,7 @@ void SpvEmitter::CreateMemoryBarrier(
   build_point_->AddInstruction(instr);
 }
 
-Id SpvEmitter::CreateUnaryOp(Op opcode, Id type_id, Id operand) {
+Id SpirvEmitter::CreateUnaryOp(Op opcode, Id type_id, Id operand) {
   auto instr = new Instruction(AllocateUniqueId(), type_id, opcode);
   instr->AddIdOperand(operand);
   build_point_->AddInstruction(instr);
@@ -1022,7 +1022,7 @@ Id SpvEmitter::CreateUnaryOp(Op opcode, Id type_id, Id operand) {
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateBinOp(Op opcode, Id type_id, Id left, Id right) {
+Id SpirvEmitter::CreateBinOp(Op opcode, Id type_id, Id left, Id right) {
   auto instr = new Instruction(AllocateUniqueId(), type_id, opcode);
   instr->AddIdOperand(left);
   instr->AddIdOperand(right);
@@ -1031,7 +1031,7 @@ Id SpvEmitter::CreateBinOp(Op opcode, Id type_id, Id left, Id right) {
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateTriOp(Op opcode, Id type_id, Id op1, Id op2, Id op3) {
+Id SpirvEmitter::CreateTriOp(Op opcode, Id type_id, Id op1, Id op2, Id op3) {
   auto instr = new Instruction(AllocateUniqueId(), type_id, opcode);
   instr->AddIdOperand(op1);
   instr->AddIdOperand(op2);
@@ -1041,8 +1041,8 @@ Id SpvEmitter::CreateTriOp(Op opcode, Id type_id, Id op1, Id op2, Id op3) {
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateOp(Op opcode, Id type_id,
-                        const std::vector<Id>& operands) {
+Id SpirvEmitter::CreateOp(Op opcode, Id type_id,
+                          const std::vector<Id>& operands) {
   auto instr = new Instruction(AllocateUniqueId(), type_id, opcode);
   instr->AddIdOperands(operands);
   build_point_->AddInstruction(instr);
@@ -1050,8 +1050,8 @@ Id SpvEmitter::CreateOp(Op opcode, Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateFunctionCall(Function* function,
-                                  std::vector<spv::Id> args) {
+Id SpirvEmitter::CreateFunctionCall(Function* function,
+                                    std::vector<spv::Id> args) {
   auto instr = new Instruction(AllocateUniqueId(), function->return_type(),
                                Op::OpFunctionCall);
   instr->AddIdOperand(function->id());
@@ -1061,8 +1061,8 @@ Id SpvEmitter::CreateFunctionCall(Function* function,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateSwizzle(Id type_id, Id source,
-                             std::vector<uint32_t> channels) {
+Id SpirvEmitter::CreateSwizzle(Id type_id, Id source,
+                               std::vector<uint32_t> channels) {
   if (channels.size() == 1) {
     return CreateCompositeExtract(source, type_id, channels.front());
   }
@@ -1077,8 +1077,8 @@ Id SpvEmitter::CreateSwizzle(Id type_id, Id source,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateLvalueSwizzle(Id type_id, Id target, Id source,
-                                   std::vector<uint32_t> channels) {
+Id SpirvEmitter::CreateLvalueSwizzle(Id type_id, Id target, Id source,
+                                     std::vector<uint32_t> channels) {
   assert(GetComponentCount(source) == channels.size());
   if (channels.size() == 1 && GetComponentCount(source) == 1) {
     return CreateCompositeInsert(source, target, type_id, channels.front());
@@ -1109,7 +1109,8 @@ Id SpvEmitter::CreateLvalueSwizzle(Id type_id, Id target, Id source,
   return instr->result_id();
 }
 
-void SpvEmitter::PromoteScalar(spv::Decoration precision, Id& left, Id& right) {
+void SpirvEmitter::PromoteScalar(spv::Decoration precision, Id& left,
+                                 Id& right) {
   int direction = GetComponentCount(right) - GetComponentCount(left);
   if (direction > 0) {
     left = SmearScalar(precision, left, GetTypeId(right));
@@ -1118,8 +1119,8 @@ void SpvEmitter::PromoteScalar(spv::Decoration precision, Id& left, Id& right) {
   }
 }
 
-Id SpvEmitter::SmearScalar(spv::Decoration precision, Id scalar_value,
-                           Id vector_type_id) {
+Id SpirvEmitter::SmearScalar(spv::Decoration precision, Id scalar_value,
+                             Id vector_type_id) {
   assert(GetComponentCount(scalar_value) == 1);
   int component_count = GetTypeComponentCount(vector_type_id);
   if (component_count == 1) {
@@ -1136,10 +1137,11 @@ Id SpvEmitter::SmearScalar(spv::Decoration precision, Id scalar_value,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateExtendedInstructionCall(spv::Decoration precision,
-                                             Id result_type, Id instruction_set,
-                                             int instruction_ordinal,
-                                             std::initializer_list<Id> args) {
+Id SpirvEmitter::CreateExtendedInstructionCall(spv::Decoration precision,
+                                               Id result_type,
+                                               Id instruction_set,
+                                               int instruction_ordinal,
+                                               std::initializer_list<Id> args) {
   auto instr = new Instruction(AllocateUniqueId(), result_type, Op::OpExtInst);
   instr->AddIdOperand(instruction_set);
   instr->AddImmediateOperand(instruction_ordinal);
@@ -1151,9 +1153,9 @@ Id SpvEmitter::CreateExtendedInstructionCall(spv::Decoration precision,
 
 // Accept all parameters needed to create a texture instruction.
 // Create the correct instruction based on the inputs, and make the call.
-Id SpvEmitter::CreateTextureCall(spv::Decoration precision, Id result_type,
-                                 bool fetch, bool proj, bool gather,
-                                 const TextureParameters& parameters) {
+Id SpirvEmitter::CreateTextureCall(spv::Decoration precision, Id result_type,
+                                   bool fetch, bool proj, bool gather,
+                                   const TextureParameters& parameters) {
   static const int kMaxTextureArgs = 10;
   Id tex_args[kMaxTextureArgs] = {};
 
@@ -1295,8 +1297,8 @@ Id SpvEmitter::CreateTextureCall(spv::Decoration precision, Id result_type,
   return result_id;
 }
 
-Id SpvEmitter::CreateTextureQueryCall(Op opcode,
-                                      const TextureParameters& parameters) {
+Id SpirvEmitter::CreateTextureQueryCall(Op opcode,
+                                        const TextureParameters& parameters) {
   // Figure out the result type.
   Id result_type = 0;
   switch (opcode) {
@@ -1358,8 +1360,8 @@ Id SpvEmitter::CreateTextureQueryCall(Op opcode,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateCompare(spv::Decoration precision, Id value1, Id value2,
-                             bool is_equal) {
+Id SpirvEmitter::CreateCompare(spv::Decoration precision, Id value1, Id value2,
+                               bool is_equal) {
   Id bool_type_id = MakeBoolType();
   Id value_type_id = GetTypeId(value1);
 
@@ -1440,8 +1442,8 @@ Id SpvEmitter::CreateCompare(spv::Decoration precision, Id value1, Id value2,
 }
 
 // OpCompositeConstruct
-Id SpvEmitter::CreateCompositeConstruct(Id type_id,
-                                        std::vector<Id> constituent_ids) {
+Id SpirvEmitter::CreateCompositeConstruct(Id type_id,
+                                          std::vector<Id> constituent_ids) {
   assert(IsAggregateType(type_id) ||
          (GetTypeComponentCount(type_id) > 1 &&
           GetTypeComponentCount(type_id) == constituent_ids.size()));
@@ -1454,9 +1456,9 @@ Id SpvEmitter::CreateCompositeConstruct(Id type_id,
   return instr->result_id();
 }
 
-Id SpvEmitter::CreateConstructor(spv::Decoration precision,
-                                 std::vector<Id> source_ids,
-                                 Id result_type_id) {
+Id SpirvEmitter::CreateConstructor(spv::Decoration precision,
+                                   std::vector<Id> source_ids,
+                                   Id result_type_id) {
   Id result = 0;
   int target_component_count = GetTypeComponentCount(result_type_id);
   int target_component = 0;
@@ -1504,9 +1506,9 @@ Id SpvEmitter::CreateConstructor(spv::Decoration precision,
   return result;
 }
 
-Id SpvEmitter::CreateMatrixConstructor(spv::Decoration precision,
-                                       std::vector<Id> sources,
-                                       Id result_type_id) {
+Id SpirvEmitter::CreateMatrixConstructor(spv::Decoration precision,
+                                         std::vector<Id> sources,
+                                         Id result_type_id) {
   Id component_type_id = GetScalarTypeId(result_type_id);
   int column_count = GetTypeColumnCount(result_type_id);
   int row_count = GetTypeRowCount(result_type_id);
@@ -1594,7 +1596,7 @@ Id SpvEmitter::CreateMatrixConstructor(spv::Decoration precision,
   return CreateCompositeConstruct(result_type_id, matrix_columns);
 }
 
-SpvEmitter::If::If(SpvEmitter& emitter, Id condition)
+SpirvEmitter::If::If(SpirvEmitter& emitter, Id condition)
     : emitter_(emitter), condition_(condition) {
   function_ = &emitter_.build_point()->parent();
 
@@ -1612,7 +1614,7 @@ SpvEmitter::If::If(SpvEmitter& emitter, Id condition)
   emitter_.set_build_point(then_block_);
 }
 
-void SpvEmitter::If::MakeBeginElse() {
+void SpirvEmitter::If::MakeBeginElse() {
   // Close out the "then" by having it jump to the merge_block
   emitter_.CreateBranch(merge_block_);
 
@@ -1624,7 +1626,7 @@ void SpvEmitter::If::MakeBeginElse() {
   emitter_.set_build_point(else_block_);
 }
 
-void SpvEmitter::If::MakeEndIf() {
+void SpirvEmitter::If::MakeEndIf() {
   // jump to the merge block
   emitter_.CreateBranch(merge_block_);
 
@@ -1643,11 +1645,11 @@ void SpvEmitter::If::MakeEndIf() {
   emitter_.set_build_point(merge_block_);
 }
 
-void SpvEmitter::MakeSwitch(Id selector, int segment_count,
-                            std::vector<int> case_values,
-                            std::vector<int> value_index_to_segment,
-                            int default_segment,
-                            std::vector<Block*>& segment_blocks) {
+void SpirvEmitter::MakeSwitch(Id selector, int segment_count,
+                              std::vector<int> case_values,
+                              std::vector<int> value_index_to_segment,
+                              int default_segment,
+                              std::vector<Block*>& segment_blocks) {
   Function& function = build_point_->parent();
 
   // Make all the blocks.
@@ -1676,14 +1678,14 @@ void SpvEmitter::MakeSwitch(Id selector, int segment_count,
   switch_merges_.push(merge_block);
 }
 
-void SpvEmitter::AddSwitchBreak() {
+void SpirvEmitter::AddSwitchBreak() {
   // Branch to the top of the merge block stack.
   CreateBranch(switch_merges_.top());
   CreateAndSetNoPredecessorBlock("post-switch-break");
 }
 
-void SpvEmitter::NextSwitchSegment(std::vector<Block*>& segment_block,
-                                   int next_segment) {
+void SpirvEmitter::NextSwitchSegment(std::vector<Block*>& segment_block,
+                                     int next_segment) {
   int last_segment = next_segment - 1;
   if (last_segment >= 0) {
     // Close out previous segment by jumping, if necessary, to next segment.
@@ -1696,7 +1698,7 @@ void SpvEmitter::NextSwitchSegment(std::vector<Block*>& segment_block,
   set_build_point(block);
 }
 
-void SpvEmitter::EndSwitch(std::vector<Block*>& segment_block) {
+void SpirvEmitter::EndSwitch(std::vector<Block*>& segment_block) {
   // Close out previous segment by jumping, if necessary, to next segment.
   if (!build_point_->is_terminated()) {
     AddSwitchBreak();
@@ -1708,7 +1710,7 @@ void SpvEmitter::EndSwitch(std::vector<Block*>& segment_block) {
   switch_merges_.pop();
 }
 
-void SpvEmitter::MakeNewLoop(bool test_first) {
+void SpirvEmitter::MakeNewLoop(bool test_first) {
   loops_.push(Loop(*this, test_first));
   const Loop& loop = loops_.top();
 
@@ -1765,7 +1767,7 @@ void SpvEmitter::MakeNewLoop(bool test_first) {
   }
 }
 
-void SpvEmitter::CreateLoopTestBranch(Id condition) {
+void SpirvEmitter::CreateLoopTestBranch(Id condition) {
   const Loop& loop = loops_.top();
 
   // Generate the merge instruction. If the loop test executes before
@@ -1797,7 +1799,7 @@ void SpvEmitter::CreateLoopTestBranch(Id condition) {
   }
 }
 
-void SpvEmitter::CreateBranchToBody() {
+void SpirvEmitter::CreateBranchToBody() {
   const Loop& loop = loops_.top();
   assert(loop.body);
 
@@ -1808,19 +1810,19 @@ void SpvEmitter::CreateBranchToBody() {
   set_build_point(loop.body);
 }
 
-void SpvEmitter::CreateLoopContinue() {
+void SpirvEmitter::CreateLoopContinue() {
   CreateBranchToLoopHeaderFromInside(loops_.top());
   // Set up a block for dead code.
   CreateAndSetNoPredecessorBlock("post-loop-continue");
 }
 
-void SpvEmitter::CreateLoopExit() {
+void SpirvEmitter::CreateLoopExit() {
   CreateBranch(loops_.top().merge);
   // Set up a block for dead code.
   CreateAndSetNoPredecessorBlock("post-loop-break");
 }
 
-void SpvEmitter::CloseLoop() {
+void SpirvEmitter::CloseLoop() {
   const Loop& loop = loops_.top();
 
   // Branch back to the top.
@@ -1833,7 +1835,7 @@ void SpvEmitter::CloseLoop() {
   loops_.pop();
 }
 
-void SpvEmitter::ClearAccessChain() {
+void SpirvEmitter::ClearAccessChain() {
   access_chain_.base = NoResult;
   access_chain_.index_chain.clear();
   access_chain_.instr = NoResult;
@@ -1848,7 +1850,7 @@ void SpvEmitter::ClearAccessChain() {
 // be handled after this is called, but it does include swizzles that select
 // an individual element, as a single address of a scalar type can be
 // computed by an OpAccessChain instruction.
-Id SpvEmitter::CollapseAccessChain() {
+Id SpirvEmitter::CollapseAccessChain() {
   assert(access_chain_.is_rvalue == false);
 
   if (!access_chain_.index_chain.empty()) {
@@ -1867,7 +1869,7 @@ Id SpvEmitter::CollapseAccessChain() {
 
 // Clear out swizzle if it is redundant, that is reselecting the same components
 // that would be present without the swizzle.
-void SpvEmitter::SimplifyAccessChainSwizzle() {
+void SpirvEmitter::SimplifyAccessChainSwizzle() {
   // If the swizzle has fewer components than the vector, it is subsetting, and
   // must stay to preserve that fact.
   if (GetTypeComponentCount(access_chain_.pre_swizzle_base_type) >
@@ -1898,7 +1900,7 @@ void SpvEmitter::SimplifyAccessChainSwizzle() {
 // for external storage, they should only be integer types,
 // function-local bool vectors could use sub-word indexing,
 // so keep that as a separate Insert/Extract on a loaded vector.
-void SpvEmitter::TransferAccessChainSwizzle(bool dynamic) {
+void SpirvEmitter::TransferAccessChainSwizzle(bool dynamic) {
   // too complex?
   if (access_chain_.swizzle.size() > 1) {
     return;
@@ -1933,8 +1935,8 @@ void SpvEmitter::TransferAccessChainSwizzle(bool dynamic) {
   }
 }
 
-void SpvEmitter::PushAccessChainSwizzle(std::vector<uint32_t> swizzle,
-                                        Id pre_swizzle_base_type) {
+void SpirvEmitter::PushAccessChainSwizzle(std::vector<uint32_t> swizzle,
+                                          Id pre_swizzle_base_type) {
   // Swizzles can be stacked in GLSL, but simplified to a single
   // one here; the base type doesn't change.
   if (access_chain_.pre_swizzle_base_type == NoType) {
@@ -1956,7 +1958,7 @@ void SpvEmitter::PushAccessChainSwizzle(std::vector<uint32_t> swizzle,
   SimplifyAccessChainSwizzle();
 }
 
-void SpvEmitter::CreateAccessChainStore(Id rvalue) {
+void SpirvEmitter::CreateAccessChainStore(Id rvalue) {
   assert(access_chain_.is_rvalue == false);
 
   TransferAccessChainSwizzle(true);
@@ -1992,7 +1994,7 @@ void SpvEmitter::CreateAccessChainStore(Id rvalue) {
   CreateStore(source, base);
 }
 
-Id SpvEmitter::CreateAccessChainLoad(Id result_type_id) {
+Id SpirvEmitter::CreateAccessChainLoad(Id result_type_id) {
   Id id;
 
   if (access_chain_.is_rvalue) {
@@ -2068,7 +2070,7 @@ Id SpvEmitter::CreateAccessChainLoad(Id result_type_id) {
   return id;
 }
 
-Id SpvEmitter::CreateAccessChainLValue() {
+Id SpirvEmitter::CreateAccessChainLValue() {
   assert(access_chain_.is_rvalue == false);
 
   TransferAccessChainSwizzle(true);
@@ -2083,7 +2085,7 @@ Id SpvEmitter::CreateAccessChainLValue() {
   return lvalue;
 }
 
-void SpvEmitter::Serialize(std::vector<uint32_t>& out) const {
+void SpirvEmitter::Serialize(std::vector<uint32_t>& out) const {
   // Header, before first instructions:
   out.push_back(spv::MagicNumber);
   out.push_back(spv::Version);
@@ -2134,7 +2136,7 @@ void SpvEmitter::Serialize(std::vector<uint32_t>& out) const {
   module_.Serialize(out);
 }
 
-void SpvEmitter::SerializeInstructions(
+void SpirvEmitter::SerializeInstructions(
     std::vector<unsigned int>& out,
     const std::vector<Instruction*>& instructions) const {
   for (auto instruction : instructions) {
@@ -2145,7 +2147,7 @@ void SpvEmitter::SerializeInstructions(
 // Utility method for creating a new block and setting the insert point to
 // be in it. This is useful for flow-control operations that need a "dummy"
 // block proceeding them (e.g. instructions after a discard, etc).
-void SpvEmitter::CreateAndSetNoPredecessorBlock(const char* name) {
+void SpirvEmitter::CreateAndSetNoPredecessorBlock(const char* name) {
   Block* block = new Block(AllocateUniqueId(), build_point_->parent());
   block->set_unreachable(true);
   build_point_->parent().push_block(block);
@@ -2154,23 +2156,23 @@ void SpvEmitter::CreateAndSetNoPredecessorBlock(const char* name) {
   AddName(block->id(), name);
 }
 
-void SpvEmitter::CreateBranch(Block* block) {
+void SpirvEmitter::CreateBranch(Block* block) {
   auto instr = new Instruction(Op::OpBranch);
   instr->AddIdOperand(block->id());
   build_point_->AddInstruction(instr);
   block->AddPredecessor(build_point_);
 }
 
-void SpvEmitter::CreateSelectionMerge(Block* merge_block,
-                                      spv::SelectionControlMask control) {
+void SpirvEmitter::CreateSelectionMerge(Block* merge_block,
+                                        spv::SelectionControlMask control) {
   auto instr = new Instruction(Op::OpSelectionMerge);
   instr->AddIdOperand(merge_block->id());
   instr->AddImmediateOperand(control);
   build_point_->AddInstruction(instr);
 }
 
-void SpvEmitter::CreateLoopMerge(Block* merge_block, Block* continueBlock,
-                                 spv::LoopControlMask control) {
+void SpirvEmitter::CreateLoopMerge(Block* merge_block, Block* continueBlock,
+                                   spv::LoopControlMask control) {
   auto instr = new Instruction(Op::OpLoopMerge);
   instr->AddIdOperand(merge_block->id());
   instr->AddIdOperand(continueBlock->id());
@@ -2178,8 +2180,8 @@ void SpvEmitter::CreateLoopMerge(Block* merge_block, Block* continueBlock,
   build_point_->AddInstruction(instr);
 }
 
-void SpvEmitter::CreateConditionalBranch(Id condition, Block* then_block,
-                                         Block* else_block) {
+void SpirvEmitter::CreateConditionalBranch(Id condition, Block* then_block,
+                                           Block* else_block) {
   auto instr = new Instruction(Op::OpBranchConditional);
   instr->AddIdOperand(condition);
   instr->AddIdOperand(then_block->id());
@@ -2189,7 +2191,7 @@ void SpvEmitter::CreateConditionalBranch(Id condition, Block* then_block,
   else_block->AddPredecessor(build_point_);
 }
 
-SpvEmitter::Loop::Loop(SpvEmitter& emitter, bool testFirstArg)
+SpirvEmitter::Loop::Loop(SpirvEmitter& emitter, bool testFirstArg)
     : function(&emitter.build_point()->parent()),
       header(new Block(emitter.AllocateUniqueId(), *function)),
       merge(new Block(emitter.AllocateUniqueId(), *function)),
@@ -2211,7 +2213,7 @@ SpvEmitter::Loop::Loop(SpvEmitter& emitter, bool testFirstArg)
 // Create a branch to the header of the given loop, from inside
 // the loop body.
 // Adjusts the phi node for the first-iteration value if needeed.
-void SpvEmitter::CreateBranchToLoopHeaderFromInside(const Loop& loop) {
+void SpirvEmitter::CreateBranchToLoopHeaderFromInside(const Loop& loop) {
   CreateBranch(loop.header);
   if (loop.is_first_iteration) {
     loop.is_first_iteration->AddIdOperand(MakeBoolConstant(false));
@@ -2219,10 +2221,10 @@ void SpvEmitter::CreateBranchToLoopHeaderFromInside(const Loop& loop) {
   }
 }
 
-void SpvEmitter::CheckNotImplemented(const char* message) {
+void SpirvEmitter::CheckNotImplemented(const char* message) {
   xe::FatalError("Missing functionality: %s", message);
 }
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe

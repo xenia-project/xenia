@@ -7,19 +7,19 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_SPIRV_SPV_ASSEMBLER_H_
-#define XENIA_GPU_SPIRV_SPV_ASSEMBLER_H_
+#ifndef XENIA_UI_SPIRV_SPIRV_ASSEMBLER_H_
+#define XENIA_UI_SPIRV_SPIRV_ASSEMBLER_H_
 
 #include <memory>
 #include <string>
 
-#include "xenia/gpu/spirv/spirv_util.h"
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-class SpvAssembler {
+class SpirvAssembler {
  public:
   class Result {
    public:
@@ -46,8 +46,8 @@ class SpvAssembler {
     spv_diagnostic diagnostic_ = nullptr;
   };
 
-  SpvAssembler();
-  ~SpvAssembler();
+  SpirvAssembler();
+  ~SpirvAssembler();
 
   // Assembles the given source text into a SPIRV binary.
   // The return will be nullptr if assembly fails due to a library error.
@@ -63,7 +63,7 @@ class SpvAssembler {
 };
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_SPIRV_SPV_ASSEMBLER_H_
+#endif  // XENIA_UI_SPIRV_SPIRV_ASSEMBLER_H_

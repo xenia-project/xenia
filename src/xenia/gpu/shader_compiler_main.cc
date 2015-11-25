@@ -7,16 +7,27 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/spirv/spv_optimizer.h"
+#include <gflags/gflags.h>
+
+#include <string>
+#include <vector>
+
+#include "xenia/base/logging.h"
+#include "xenia/base/main.h"
+#include "xenia/base/string.h"
+#include "xenia/gpu/shader_translator.h"
 
 namespace xe {
 namespace gpu {
-namespace spirv {
 
-SpvOptimizer::SpvOptimizer() = default;
+int shader_compiler_main(const std::vector<std::wstring>& args) {
+  ShaderTranslator c;
+  return 0;
+}
 
-SpvOptimizer::~SpvOptimizer() = default;
-
-}  // namespace spirv
 }  // namespace gpu
 }  // namespace xe
+
+DEFINE_ENTRY_POINT(L"xenia-gpu-shader-compiler",
+                   L"xenia-gpu-shader-compiler shader.bin",
+                   xe::gpu::shader_compiler_main);

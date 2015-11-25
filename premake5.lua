@@ -179,12 +179,12 @@ solution("xenia")
   include("src/xenia/debug/ui")
   include("src/xenia/gpu")
   include("src/xenia/gpu/gl4")
-  include("src/xenia/gpu/spirv")
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
   include("src/xenia/kernel")
   include("src/xenia/ui")
   include("src/xenia/ui/gl")
+  include("src/xenia/ui/spirv")
   include("src/xenia/vfs")
 
   if os.is("windows") then

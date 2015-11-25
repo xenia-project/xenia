@@ -7,24 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_SPIRV_SPIRV_COMPILER_H_
-#define XENIA_GPU_SPIRV_SPIRV_COMPILER_H_
-
-#include "xenia/gpu/spirv/spirv_util.h"
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-class SpirvCompiler {
- public:
-  SpirvCompiler();
-
- private:
-};
+//
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
-
-#endif  // XENIA_GPU_SPIRV_SPIRV_COMPILER_H_

@@ -7,14 +7,22 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/spirv/spirv_util.h"
+#ifndef XENIA_GPU_SHADER_TRANSLATOR_H_
+#define XENIA_GPU_SHADER_TRANSLATOR_H_
+
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
 namespace gpu {
-namespace spirv {
 
-//
+class ShaderTranslator {
+ public:
+  ShaderTranslator();
 
-}  // namespace spirv
+ private:
+};
+
 }  // namespace gpu
 }  // namespace xe
+
+#endif  // XENIA_GPU_SHADER_TRANSLATOR_H_

@@ -53,16 +53,16 @@
 //        - Instruction
 //
 
-#ifndef XENIA_GPU_SPIRV_SPV_IR_H_
-#define XENIA_GPU_SPIRV_SPV_IR_H_
+#ifndef XENIA_UI_SPIRV_SPIRV_IR_H_
+#define XENIA_UI_SPIRV_SPIRV_IR_H_
 
 #include <iostream>
 #include <vector>
 
-#include "xenia/gpu/spirv/spirv_util.h"
+#include "xenia/ui/spirv/spirv_util.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
 using spv::Id;
@@ -415,7 +415,7 @@ inline void Block::AddInstruction(Instruction* inst) {
 }
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_GPU_SPIRV_SPV_IR_H_
+#endif  // XENIA_UI_SPIRV_SPIRV_IR_H_

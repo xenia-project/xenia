@@ -7,20 +7,21 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/spirv/spirv_compiler.h"
+#include "xenia/gpu/shader_translator.h"
+
+#include <string>
 
 #include "third_party/spirv-tools/include/libspirv/libspirv.h"
-#include "xenia/gpu/spirv/spv_assembler.h"
-#include "xenia/gpu/spirv/spv_disassembler.h"
-#include "xenia/gpu/spirv/spv_emitter.h"
+#include "xenia/ui/spirv/spirv_assembler.h"
+#include "xenia/ui/spirv/spirv_disassembler.h"
+#include "xenia/ui/spirv/spirv_emitter.h"
 
 namespace xe {
 namespace gpu {
-namespace spirv {
 
-SpirvCompiler::SpirvCompiler() {
+ShaderTranslator::ShaderTranslator() {
   // HACK(benvanik): in-progress test code just to make sure things compile.
-  const std::string spirv = R"(
+  const std::string spirv_source = R"(
 OpCapability Shader
 %1 = OpExtInstImport "GLSL.std.450"
 OpMemoryModel Logical Simple
@@ -33,14 +34,14 @@ OpReturn
 OpFunctionEnd
 )";
 
-  SpvAssembler spv_asm;
-  auto asm_result = spv_asm.Assemble(spirv);
+  xe::ui::spirv::SpirvAssembler spirv_asm;
+  auto asm_result = spirv_asm.Assemble(spirv_source);
 
-  SpvDisassembler spv_disasm;
+  xe::ui::spirv::SpirvDisassembler spirv_disasm;
   auto disasm_result =
-      spv_disasm.Disassemble(asm_result->words(), asm_result->word_count());
+      spirv_disasm.Disassemble(asm_result->words(), asm_result->word_count());
 
-  SpvEmitter e;
+  xe::ui::spirv::SpirvEmitter e;
   auto glsl_std_450 = e.ImportExtendedInstructions("GLSL.std.450");
   auto fn = e.MakeMainEntry();
   auto float_1_0 = e.MakeFloatConstant(1.0f);
@@ -52,11 +53,10 @@ OpFunctionEnd
   std::vector<uint32_t> words;
   e.Serialize(words);
 
-  auto disasm_result2 = spv_disasm.Disassemble(words.data(), words.size());
+  auto disasm_result2 = spirv_disasm.Disassemble(words.data(), words.size());
 
   return;
 }
 
-}  // namespace spirv
 }  // namespace gpu
 }  // namespace xe

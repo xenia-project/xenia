@@ -7,30 +7,16 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_SPIRV_SPIRV_UTIL_H_
-#define XENIA_GPU_SPIRV_SPIRV_UTIL_H_
-
-#include "third_party/spirv/GLSL.std.450.h"
-#include "third_party/spirv/spirv.h"
-
-// Forward declarations from SPIRV-Tools so we don't pollute /so/ much.
-struct spv_binary_t;
-typedef spv_binary_t* spv_binary;
-struct spv_context_t;
-typedef spv_context_t* spv_context;
-struct spv_diagnostic_t;
-typedef spv_diagnostic_t* spv_diagnostic;
-struct spv_text_t;
-typedef spv_text_t* spv_text;
+#include "xenia/ui/spirv/spirv_optimizer.h"
 
 namespace xe {
-namespace gpu {
+namespace ui {
 namespace spirv {
 
-//
+SpirvOptimizer::SpirvOptimizer() = default;
+
+SpirvOptimizer::~SpirvOptimizer() = default;
 
 }  // namespace spirv
-}  // namespace gpu
+}  // namespace ui
 }  // namespace xe
-
-#endif  // XENIA_GPU_SPIRV_SPIRV_UTIL_H_
