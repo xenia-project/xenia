@@ -13,7 +13,7 @@ title: xenia
 description: >
   xenia is a BSD licensed open source research project for emulating Xbox 360
   games on modern PCs.
-baseurl: 
+baseurl:
 url: "http://xenia.jp"
 twitter_username: xeniaproject
 github_username:  xenia-project
