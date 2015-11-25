@@ -6,6 +6,10 @@ permalink: /compatibility/
 viewport_width: 675
 ---
 
+<link rel="stylesheet" href="//cdn.datatables.net/1.10.10/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+<script src="//cdn.datatables.net/1.10.10/js/jquery.dataTables.min.js"></script>
+
 <a href="https://github.com/xenia-project/game-compatibility/issues">Compatibility Tracker</a>
 <br/>
 If filing new issues, please follow the style of the existing ones (so this page works).
@@ -156,5 +160,9 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
     // Remove progress bar.
     tbody.removeChild(tbody.firstElementChild);
   }
+
+  $(document).ready(function(){
+    $('#issuesList').DataTable();
+});
 
 </script>
