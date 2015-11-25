@@ -71,16 +71,8 @@ void GL4ShaderTranslator::Reset(GL4Shader* shader) {
 }
 
 std::string GL4ShaderTranslator::TranslateVertexShader(
-    GL4Shader* vertex_shader,
-    const xenos::xe_gpu_program_cntl_t& program_cntl) {
+    GL4Shader* vertex_shader) {
   Reset(vertex_shader);
-
-  // Normal shaders only, for now.
-  // TODO(benvanik): transform feedback/memexport.
-  // 0 = normal
-  // 2 = point size
-  assert_true(program_cntl.vs_export_mode == 0 ||
-              program_cntl.vs_export_mode == 2);
 
   // Add vertex shader input.
   uint32_t el_index = 0;
@@ -102,8 +94,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
   Append("void processVertex(const in StateData state) {\n");
 
   // Add temporaries for any registers we may use.
-  uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
-  for (uint32_t n = 0; n <= temp_regs; n++) {
+  for (uint32_t n = 0; n < 64; n++) {
     Append("  vec4 r%d = state.float_consts[%d];\n", n, n);
   }
 
@@ -130,8 +121,7 @@ std::string GL4ShaderTranslator::TranslateVertexShader(
   return output_.to_string();
 }
 
-std::string GL4ShaderTranslator::TranslatePixelShader(
-    GL4Shader* pixel_shader, const xenos::xe_gpu_program_cntl_t& program_cntl) {
+std::string GL4ShaderTranslator::TranslatePixelShader(GL4Shader* pixel_shader) {
   Reset(pixel_shader);
 
   // We need an input VS to make decisions here.
@@ -143,8 +133,7 @@ std::string GL4ShaderTranslator::TranslatePixelShader(
   Append("void processFragment(const in StateData state) {\n");
 
   // Add temporary registers.
-  uint32_t temp_regs = program_cntl.vs_regs + program_cntl.ps_regs;
-  for (uint32_t n = 0; n <= std::max(15u, temp_regs); n++) {
+  for (uint32_t n = 0; n < 64; n++) {
     Append("  vec4 r%d = state.float_consts[%d];\n", n, n + 256);
   }
   Append("  vec4 t;\n");

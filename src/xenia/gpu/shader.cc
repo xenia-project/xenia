@@ -23,10 +23,7 @@ using namespace xe::gpu::xenos;
 
 Shader::Shader(ShaderType shader_type, uint64_t data_hash,
                const uint32_t* dword_ptr, uint32_t dword_count)
-    : shader_type_(shader_type),
-      data_hash_(data_hash),
-      has_prepared_(false),
-      is_valid_(false) {
+    : shader_type_(shader_type), data_hash_(data_hash) {
   data_.resize(dword_count);
   xe::copy_and_swap(data_.data(), dword_ptr, dword_count);
   std::memset(&alloc_counts_, 0, sizeof(alloc_counts_));

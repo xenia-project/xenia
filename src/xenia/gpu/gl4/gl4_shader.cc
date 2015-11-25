@@ -198,13 +198,11 @@ bool GL4Shader::PrepareVertexArrayObject() {
   return true;
 }
 
-bool GL4Shader::PrepareVertexShader(
-    GL4ShaderTranslator* shader_translator,
-    const xenos::xe_gpu_program_cntl_t& program_cntl) {
-  if (has_prepared_) {
+bool GL4Shader::PrepareVertexShader(GL4ShaderTranslator* shader_translator) {
+  if (is_valid_) {
     return is_valid_;
   }
-  has_prepared_ = true;
+  is_valid_ = false;
 
   // Build static vertex array descriptor.
   if (!PrepareVertexArrayObject()) {
@@ -253,7 +251,7 @@ bool GL4Shader::PrepareVertexShader(
       GetFooter();
 
   std::string translated_source =
-      shader_translator->TranslateVertexShader(this, program_cntl);
+      shader_translator->TranslateVertexShader(this);
   if (translated_source.empty()) {
     XELOGE("Vertex shader failed translation");
     return false;
@@ -268,13 +266,11 @@ bool GL4Shader::PrepareVertexShader(
   return true;
 }
 
-bool GL4Shader::PreparePixelShader(
-    GL4ShaderTranslator* shader_translator,
-    const xenos::xe_gpu_program_cntl_t& program_cntl) {
-  if (has_prepared_) {
+bool GL4Shader::PreparePixelShader(GL4ShaderTranslator* shader_translator) {
+  if (is_valid_) {
     return is_valid_;
   }
-  has_prepared_ = true;
+  is_valid_ = false;
 
   std::string source =
       GetHeader() +
@@ -306,8 +302,7 @@ bool GL4Shader::PreparePixelShader(
       "}\n" +
       GetFooter();
 
-  std::string translated_source =
-      shader_translator->TranslatePixelShader(this, program_cntl);
+  std::string translated_source = shader_translator->TranslatePixelShader(this);
   if (translated_source.empty()) {
     XELOGE("Pixel shader failed translation");
     return false;

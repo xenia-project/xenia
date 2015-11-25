@@ -30,10 +30,8 @@ class GL4Shader : public Shader {
   GLuint program() const { return program_; }
   GLuint vao() const { return vao_; }
 
-  bool PrepareVertexShader(GL4ShaderTranslator* shader_translator,
-                           const xenos::xe_gpu_program_cntl_t& program_cntl);
-  bool PreparePixelShader(GL4ShaderTranslator* shader_translator,
-                          const xenos::xe_gpu_program_cntl_t& program_cntl);
+  bool PrepareVertexShader(GL4ShaderTranslator* shader_translator);
+  bool PreparePixelShader(GL4ShaderTranslator* shader_translator);
 
  protected:
   std::string GetHeader();

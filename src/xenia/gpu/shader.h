@@ -24,7 +24,6 @@ class Shader {
   virtual ~Shader();
 
   ShaderType type() const { return shader_type_; }
-  bool has_prepared() const { return has_prepared_; }
   bool is_valid() const { return is_valid_; }
   const std::string& ucode_disassembly() const { return ucode_disassembly_; }
   const std::string& translated_disassembly() const {
@@ -78,7 +77,6 @@ class Shader {
     bool color_targets[4];
   };
   const AllocCounts& alloc_counts() const { return alloc_counts_; }
-  const std::vector<ucode::instr_cf_alloc_t>& allocs() const { return allocs_; }
 
  protected:
   Shader(ShaderType shader_type, uint64_t data_hash, const uint32_t* dword_ptr,
@@ -93,8 +91,7 @@ class Shader {
   ShaderType shader_type_;
   uint64_t data_hash_;
   std::vector<uint32_t> data_;
-  bool has_prepared_;
-  bool is_valid_;
+  bool is_valid_ = false;
 
   std::string ucode_disassembly_;
   std::string translated_disassembly_;

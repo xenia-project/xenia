@@ -482,12 +482,19 @@ Shader* GL4CommandProcessor::LoadShader(ShaderType shader_type,
     shader_ptr = it->second;
   } else {
     // Not found in cache.
-    // No translation is performed here, as it depends on program_cntl.
     auto shader = std::make_unique<GL4Shader>(shader_type, hash, host_address,
                                               dword_count);
     shader_ptr = shader.get();
     shader_cache_.insert({hash, shader_ptr});
     all_shaders_.emplace_back(std::move(shader));
+
+    // Perform translation.
+    // If this fails the shader will be marked as invalid and ignored later.
+    if (shader_type == ShaderType::kVertex) {
+      shader_ptr->PrepareVertexShader(&shader_translator_);
+    } else {
+      shader_ptr->PreparePixelShader(&shader_translator_);
+    }
 
     XELOGGPU("Set %s shader at %0.8X (%db):\n%s",
              shader_type == ShaderType::kVertex ? "vertex" : "pixel",
@@ -626,24 +633,19 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
 
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = regs.sq_program_cntl;
-  if (!regs.vertex_shader->has_prepared()) {
-    if (!regs.vertex_shader->PrepareVertexShader(&shader_translator_,
-                                                 program_cntl)) {
-      XELOGE("Unable to prepare vertex shader");
-      return UpdateStatus::kError;
-    }
-  } else if (!regs.vertex_shader->is_valid()) {
+
+  // Normal vertex shaders only, for now.
+  // TODO(benvanik): transform feedback/memexport.
+  // 0 = normal
+  // 2 = point size
+  assert_true(program_cntl.vs_export_mode == 0 ||
+              program_cntl.vs_export_mode == 2);
+
+  if (!regs.vertex_shader->is_valid()) {
     XELOGE("Vertex shader invalid");
     return UpdateStatus::kError;
   }
-
-  if (!regs.pixel_shader->has_prepared()) {
-    if (!regs.pixel_shader->PreparePixelShader(&shader_translator_,
-                                               program_cntl)) {
-      XELOGE("Unable to prepare pixel shader");
-      return UpdateStatus::kError;
-    }
-  } else if (!regs.pixel_shader->is_valid()) {
+  if (!regs.pixel_shader->is_valid()) {
     XELOGE("Pixel shader invalid");
     return UpdateStatus::kError;
   }

@@ -477,9 +477,9 @@ TraceViewer::ShaderDisplayType TraceViewer::DrawShaderTypeUI() {
 void TraceViewer::DrawShaderUI(Shader* shader, ShaderDisplayType display_type) {
   // Must be prepared for advanced display modes.
   if (display_type != ShaderDisplayType::kUcode) {
-    if (!shader->has_prepared()) {
+    if (!shader->is_valid()) {
       ImGui::TextColored(kColorError,
-                         "ERROR: shader not prepared (not used this frame?)");
+                         "ERROR: shader error during parsing/translation");
       return;
     }
   }
