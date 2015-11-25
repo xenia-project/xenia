@@ -20,7 +20,7 @@ REM ============================================================================
 REM Trampoline into xenia-build
 REM ============================================================================
 
-python xenia-build %*
+python2 xenia-build %*
 EXIT /b %ERRORLEVEL%
 
 
@@ -30,12 +30,12 @@ REM ============================================================================
 
 :check_python
 SETLOCAL
-1>NUL 2>NUL CMD /c where python
+1>NUL 2>NUL CMD /c where python2
 IF %ERRORLEVEL% NEQ 0 (
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
-CMD /c python -c "import sys; sys.exit(1 if not sys.version_info[:2] == (2, 7) else 0)"
+CMD /c python2 -c "import sys; sys.exit(1 if not sys.version_info[:2] == (2, 7) else 0)"
 IF %ERRORLEVEL% NEQ 0 (
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
