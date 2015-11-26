@@ -9,13 +9,16 @@
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
+#include "xenia/base/exception_handler.h"
 #include "xenia/cpu/backend/x64/x64_assembler.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
+#include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/cpu/stack_walker.h"
 
 DEFINE_bool(
     enable_haswell_instructions, true,
@@ -99,6 +102,9 @@ bool X64Backend::Initialize() {
   // Allocate emitter constant data.
   emitter_data_ = X64Emitter::PlaceData(processor()->memory());
 
+  // Setup exception callback
+  ExceptionHandler::Install(&ExceptionCallbackThunk, this);
+
   return true;
 }
 
@@ -114,6 +120,91 @@ std::unique_ptr<Assembler> X64Backend::CreateAssembler() {
 std::unique_ptr<GuestFunction> X64Backend::CreateGuestFunction(
     Module* module, uint32_t address) {
   return std::make_unique<X64Function>(module, address);
+}
+
+bool X64Backend::InstallBreakpoint(Breakpoint* bp) {
+  auto functions = processor()->FindFunctionsWithAddress(bp->address());
+  if (functions.empty()) {
+    // Go ahead and fail - let the caller handle this.
+    return false;
+  }
+
+  for (auto function : functions) {
+    assert_true(function->is_guest());
+    auto guest_function = reinterpret_cast<cpu::GuestFunction*>(function);
+    auto code = guest_function->MapGuestAddressToMachineCode(bp->address());
+    assert_not_zero(code);
+
+    bp->set_backend_data(
+        xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0)));
+    xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0), 0x0F0C);
+  }
+
+  return true;
+}
+
+bool X64Backend::UninstallBreakpoint(Breakpoint* bp) {
+  auto functions = processor()->FindFunctionsWithAddress(bp->address());
+  if (functions.empty()) {
+    // This should not happen.
+    assert_always();
+    return false;
+  }
+
+  for (auto function : functions) {
+    assert_true(function->is_guest());
+    auto guest_function = reinterpret_cast<cpu::GuestFunction*>(function);
+    auto code = guest_function->MapGuestAddressToMachineCode(bp->address());
+    assert_not_zero(code);
+
+    xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0),
+                                 uint16_t(bp->backend_data()));
+    bp->set_backend_data(0);
+  }
+
+  return true;
+}
+
+bool X64Backend::ExceptionCallbackThunk(Exception* ex, void* data) {
+  auto backend = reinterpret_cast<X64Backend*>(data);
+  return backend->ExceptionCallback(ex);
+}
+
+bool X64Backend::ExceptionCallback(Exception* ex) {
+  if (ex->code() != Exception::Code::kIllegalInstruction) {
+    // Has nothing to do with breakpoints. Not ours.
+    return false;
+  }
+
+  auto instruction_bytes =
+      xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(ex->pc()));
+  if (instruction_bytes != 0x0F0C) {
+    // Not a BP instruction - not ours.
+    return false;
+  }
+
+  uint64_t host_pcs[64];
+  cpu::StackFrame frames[64];
+  size_t count = processor()->stack_walker()->CaptureStackTrace(
+      host_pcs, 0, xe::countof(host_pcs));
+  processor()->stack_walker()->ResolveStack(host_pcs, frames, count);
+  if (count == 0) {
+    // Stack resolve failed.
+    return false;
+  }
+
+  for (int i = 0; i < count; i++) {
+    if (frames[i].type != cpu::StackFrame::Type::kGuest) {
+      continue;
+    }
+
+    if (processor()->BreakpointHit(frames[i].guest_pc, frames[i].host_pc)) {
+      return true;
+    }
+  }
+
+  // No breakpoints found at this address.
+  return false;
 }
 
 X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)

@@ -17,6 +17,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/threading.h"
+#include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
@@ -25,6 +27,7 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/debug/debugger.h"
+#include "xenia/kernel/xthread.h"
 
 // TODO(benvanik): based on compiler support
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -381,6 +384,67 @@ Irql Processor::RaiseIrql(Irql new_value) {
 void Processor::LowerIrql(Irql old_value) {
   xe::atomic_exchange(static_cast<uint32_t>(old_value),
                       reinterpret_cast<volatile uint32_t*>(&irql_));
+}
+
+bool Processor::InstallBreakpoint(Breakpoint* bp) {
+  std::lock_guard<std::mutex> lock(breakpoint_lock_);
+
+  if (FindBreakpoint(bp->address())) {
+    return false;
+  }
+
+  // We need to register the breakpoint before installing it with the backend
+  // in-case a thread hits it while we're here.
+  breakpoints_.push_back(bp);
+  if (!backend_->InstallBreakpoint(bp)) {
+    breakpoints_.pop_back();
+    return false;
+  }
+
+  return true;
+}
+
+bool Processor::UninstallBreakpoint(Breakpoint* bp) {
+  std::lock_guard<std::mutex> lock(breakpoint_lock_);
+
+  if (!backend_->UninstallBreakpoint(bp)) {
+    return false;
+  }
+
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
+    if ((*it)->address() == bp->address()) {
+      breakpoints_.erase(it);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
+  auto bp = FindBreakpoint(address);
+  if (bp) {
+    bp->Hit(host_pc);
+    
+    // TODO: Remove dependency on XThread for suspending ourselves
+    kernel::XThread::GetCurrentThread()->Suspend();
+
+    return true;
+  }
+
+  return false;
+}
+
+Breakpoint* Processor::FindBreakpoint(uint32_t address) {
+  std::lock_guard<std::mutex> lock(breakpoint_lock_);
+
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
+    if ((*it)->address() == address) {
+      return *it;
+    }
+  }
+
+  return nullptr;
 }
 
 }  // namespace cpu

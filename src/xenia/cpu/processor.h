@@ -25,6 +25,8 @@
 #include "xenia/memory.h"
 
 namespace xe {
+class Emulator;
+
 namespace debug {
 class Debugger;
 }  // namespace debug
@@ -33,6 +35,7 @@ class Debugger;
 namespace xe {
 namespace cpu {
 
+class Breakpoint;
 class StackWalker;
 class ThreadState;
 class XexModule;
@@ -89,7 +92,16 @@ class Processor {
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
+  bool InstallBreakpoint(Breakpoint* bp);
+  bool UninstallBreakpoint(Breakpoint* bp);
+  bool BreakpointHit(uint32_t address, uint64_t host_pc);
+  Breakpoint* FindBreakpoint(uint32_t address);
+  std::vector<Breakpoint*> breakpoints() const { return breakpoints_; }
+
  private:
+  static bool ExceptionCallbackThunk(Exception* ex, void* data);
+  bool ExceptionCallback(Exception* ex);
+
   bool DemandFunction(Function* function);
 
   Memory* memory_ = nullptr;
@@ -107,6 +119,9 @@ class Processor {
   std::vector<std::unique_ptr<Module>> modules_;
   Module* builtin_module_ = nullptr;
   uint32_t next_builtin_address_ = 0xFFFF0000u;
+
+  std::mutex breakpoint_lock_;
+  std::vector<Breakpoint*> breakpoints_;
 
   Irql irql_;
 };
