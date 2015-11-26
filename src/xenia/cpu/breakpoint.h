@@ -17,11 +17,17 @@ namespace cpu {
 
 class Breakpoint {
  public:
+  Breakpoint(Processor* processor,
+             std::function<void(uint32_t, uint64_t)> hit_callback);
   Breakpoint(Processor* processor, uint32_t address,
              std::function<void(uint32_t, uint64_t)> hit_callback);
   ~Breakpoint();
 
   uint32_t address() const { return address_; }
+  void set_address(uint32_t address) {
+    assert_false(installed_);
+    address_ = address;
+  }
   bool installed() const { return installed_; }
 
   bool Install();
