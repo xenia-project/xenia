@@ -19,6 +19,9 @@
 DECLARE_bool(enable_haswell_instructions);
 
 namespace xe {
+class Exception;
+}  // namespace xe
+namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
@@ -59,7 +62,13 @@ class X64Backend : public Backend {
   std::unique_ptr<GuestFunction> CreateGuestFunction(Module* module,
                                                      uint32_t address) override;
 
+  bool InstallBreakpoint(Breakpoint* bp) override;
+  bool UninstallBreakpoint(Breakpoint* bp) override;
+
  private:
+  static bool ExceptionCallbackThunk(Exception* ex, void* data);
+  bool ExceptionCallback(Exception* ex);
+
   std::unique_ptr<X64CodeCache> code_cache_;
 
   uint32_t emitter_data_;
