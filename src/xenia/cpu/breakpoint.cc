@@ -14,6 +14,9 @@
 namespace xe {
 namespace cpu {
 
+Breakpoint::Breakpoint(Processor* processor,
+                       std::function<void(uint32_t, uint64_t)> hit_callback)
+    : processor_(processor), hit_callback_(hit_callback) {}
 Breakpoint::Breakpoint(Processor* processor, uint32_t address,
                        std::function<void(uint32_t, uint64_t)> hit_callback)
     : processor_(processor), address_(address), hit_callback_(hit_callback) {}
