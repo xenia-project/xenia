@@ -709,6 +709,7 @@ XEEMITTER(mfmsr, 0x7C0000A6, X)(PPCHIRBuilder& f, InstrData& i) {
   // bit 48 = EE; interrupt enabled
   // bit 62 = RI; recoverable interrupt
   // return 8000h if unlocked (interrupts enabled), else 0
+  f.MemoryBarrier();
   f.CallExtern(f.builtins()->check_global_lock);
   f.StoreGPR(i.X.RT, f.LoadContext(offsetof(PPCContext, scratch), INT64_TYPE));
   return 0;
@@ -718,6 +719,7 @@ XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
   if (i.X.RA & 0x01) {
     // L = 1
     // iff storing from r13
+    f.MemoryBarrier();
     f.StoreContext(
         offsetof(PPCContext, scratch),
         f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
@@ -739,6 +741,7 @@ XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
 XEEMITTER(mtmsrd, 0x7C000164, X)(PPCHIRBuilder& f, InstrData& i) {
   if (i.X.RA & 0x01) {
     // L = 1
+    f.MemoryBarrier();
     f.StoreContext(offsetof(PPCContext, scratch),
                    f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
     if (i.X.RT == 13) {
