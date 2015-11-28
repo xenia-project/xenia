@@ -20,6 +20,7 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+class ByteStream;
 class Emulator;
 }  // namespace xe
 
@@ -109,15 +110,19 @@ struct X_OBJECT_TYPE {
 class XObject {
  public:
   enum Type {
-    kTypeModule,
-    kTypeThread,
+    kTypeUndefined,
+    kTypeEnumerator,
     kTypeEvent,
     kTypeFile,
-    kTypeSemaphore,
-    kTypeNotifyListener,
+    kTypeIOCompletion,
+    kTypeModule,
     kTypeMutant,
+    kTypeNotifyListener,
+    kTypeSemaphore,
+    kTypeSession,
+    kTypeSocket,
+    kTypeThread,
     kTypeTimer,
-    kTypeEnumerator,
   };
 
   XObject(KernelState* kernel_state, Type type);
@@ -142,6 +147,9 @@ class XObject {
   void Retain();
   void Release();
   X_STATUS Delete();
+
+  virtual bool Save(ByteStream* stream) { return false; };
+  virtual bool Restore(ByteStream* stream) { return false; };
 
   // Reference()
   // Dereference()
