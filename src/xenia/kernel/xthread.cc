@@ -35,6 +35,12 @@ namespace kernel {
 uint32_t next_xthread_id_ = 0;
 thread_local XThread* current_thread_tls_ = nullptr;
 
+XThread::XThread(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeThread), apc_list_(kernel_state->memory()) {
+  // The kernel does not take a reference. We must unregister in the dtor.
+  kernel_state_->RegisterThread(this);
+}
+
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
                  uint32_t start_context, uint32_t creation_flags,
@@ -124,11 +130,15 @@ void XThread::set_last_error(uint32_t error_code) {
 }
 
 void XThread::set_name(const std::string& name) {
-  name_ = name;
+  StringBuffer buff;
+  buff.Append(name);
+  buff.AppendFormat(" (%.8X)", handle());
+
+  name_ = buff.ToString();
   if (thread_) {
     // May be getting set before the thread is created.
     // One the thread is ready it will handle it.
-    thread_->set_name(name);
+    thread_->set_name(buff.ToString());
   }
 }
 
@@ -149,16 +159,96 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   return cpu_number;
 }
 
+void XThread::InitializeGuestObject() {
+  auto guest_thread = guest_object<X_KTHREAD>();
+
+  // Setup the thread state block (last error/etc).
+  uint8_t* p = memory()->TranslateVirtual(guest_object());
+  guest_thread->header.type = 6;
+  guest_thread->suspend_count =
+      (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
+
+  xe::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
+  xe::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
+
+  xe::store_and_swap<uint32_t>(p + 0x040, guest_object() + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x044, guest_object() + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x048, guest_object());
+  xe::store_and_swap<uint32_t>(p + 0x04C, guest_object() + 0x018);
+
+  xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
+  xe::store_and_swap<uint16_t>(p + 0x056, 1);
+  xe::store_and_swap<uint32_t>(p + 0x05C, stack_base_);
+  xe::store_and_swap<uint32_t>(p + 0x060, stack_limit_);
+  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
+  xe::store_and_swap<uint8_t>(p + 0x06C, 0);
+  xe::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x084,
+                               kernel_state_->process_info_block_address());
+  xe::store_and_swap<uint8_t>(p + 0x08B, 1);
+  // 0xD4 = APC
+  // 0xFC = semaphore (ptr, 0, 2)
+  // 0xA88 = APC
+  // 0x18 = timer
+  xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
+  xe::store_and_swap<uint32_t>(p + 0x0D0, stack_base_);
+  xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
+  xe::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x148, guest_object() + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
+  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
+  xe::store_and_swap<uint32_t>(p + 0x154, guest_object() + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x158, guest_object() + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
+  xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
+  xe::store_and_swap<uint32_t>(p + 0x17C, 1);
+}
+
+bool XThread::AllocateStack(uint32_t size) {
+  auto heap = memory()->LookupHeap(0x40000000);
+
+  auto alignment = heap->page_size();
+  auto padding = heap->page_size() * 2;  // Guard pages
+  size = xe::round_up(size, alignment);
+  auto actual_size = size + padding;
+
+  uint32_t address = 0;
+  if (!heap->AllocRange(0x40000000, 0x7F000000, actual_size, alignment,
+                        kMemoryAllocationReserve | kMemoryAllocationCommit,
+                        kMemoryProtectRead | kMemoryProtectWrite, false,
+                        &address)) {
+    return false;
+  }
+
+  stack_alloc_base_ = address;
+  stack_alloc_size_ = actual_size;
+  stack_limit_ = address + (padding / 2);
+  stack_base_ = stack_limit_ + size;
+
+  // Initialize the stack with junk
+  memory()->Fill(stack_alloc_base_, actual_size, 0xBE);
+
+  // Setup the guard pages
+  heap->Protect(stack_alloc_base_, padding / 2, kMemoryProtectNoAccess);
+  heap->Protect(stack_base_, padding / 2, kMemoryProtectNoAccess);
+
+  return true;
+}
+
 X_STATUS XThread::Create() {
   // Thread kernel object.
-  // This call will also setup the native pointer for us.
-  auto guest_thread = CreateNative<X_KTHREAD>();
-  if (!guest_thread) {
+  if (!CreateNative<X_KTHREAD>()) {
     XELOGW("Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
 
-  auto module = kernel_state()->GetExecutableModule();
+  // Allocate a stack.
+  if (!AllocateStack(creation_params_.stack_size)) {
+    return X_STATUS_NO_MEMORY;
+  }
 
   // Allocate thread scratch.
   // This is used by interrupts/APCs/etc so we can round-trip pointers through.
@@ -168,6 +258,7 @@ X_STATUS XThread::Create() {
   // Allocate TLS block.
   // Games will specify a certain number of 4b slots that each thread will get.
   xex2_opt_tls_info* tls_header = nullptr;
+  auto module = kernel_state()->GetExecutableModule();
   if (module) {
     module->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   }
@@ -224,18 +315,13 @@ X_STATUS XThread::Create() {
 
   // Allocate processor thread state.
   // This is thread safe.
-  thread_state_ = new cpu::ThreadState(
-      kernel_state()->processor(), thread_id_, cpu::ThreadStackType::kUserStack,
-      0, creation_params_.stack_size, pcr_address_);
-  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(),
-         thread_state_->thread_id(), thread_state_->stack_limit(),
-         thread_state_->stack_base());
+  thread_state_ = new cpu::ThreadState(kernel_state()->processor(), thread_id_,
+                                       stack_base_, pcr_address_);
+  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(), thread_id_,
+         stack_limit_, stack_base_);
 
   // Exports use this to get the kernel.
   thread_state_->context()->kernel_state = kernel_state_;
-
-  uint8_t proc_mask =
-      static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
   X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
@@ -243,65 +329,24 @@ X_STATUS XThread::Create() {
   pcr->pcr_ptr = pcr_address_;
   pcr->current_thread = guest_object();
 
-  pcr->stack_base_ptr =
-      thread_state_->stack_address() + thread_state_->stack_size();
-  pcr->stack_end_ptr = thread_state_->stack_address();
+  pcr->stack_base_ptr = stack_base_;
+  pcr->stack_end_ptr = stack_limit_;
+
+  uint8_t proc_mask =
+      static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
   pcr->current_cpu = GetFakeCpuNumber(proc_mask);  // Current CPU(?)
   pcr->dpc_active = 0;                             // DPC active bool?
 
-  // Setup the thread state block (last error/etc).
-  uint8_t* p = memory()->TranslateVirtual(guest_object());
-  guest_thread->header.type = 6;
-  guest_thread->suspend_count =
-      (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
-
-  xe::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
-  xe::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
-
-  xe::store_and_swap<uint32_t>(p + 0x040, guest_object() + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x044, guest_object() + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x048, guest_object());
-  xe::store_and_swap<uint32_t>(p + 0x04C, guest_object() + 0x018);
-
-  xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
-  xe::store_and_swap<uint16_t>(p + 0x056, 1);
-  xe::store_and_swap<uint32_t>(
-      p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
-  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
-  xe::store_and_swap<uint8_t>(p + 0x06C, 0);
-  xe::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x084,
-                               kernel_state_->process_info_block_address());
-  xe::store_and_swap<uint8_t>(p + 0x08B, 1);
-  // 0xD4 = APC
-  // 0xFC = semaphore (ptr, 0, 2)
-  // 0xA88 = APC
-  // 0x18 = timer
-  xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
-  xe::store_and_swap<uint32_t>(
-      p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
-  xe::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x148, guest_object() + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
-  xe::store_and_swap<uint32_t>(p + 0x154, guest_object() + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x158, guest_object() + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
-  xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
-  xe::store_and_swap<uint32_t>(p + 0x17C, 1);
+  // Initialize the KTHREAD object.
+  InitializeGuestObject();
 
   // Always retain when starting - the thread owns itself until exited.
   Retain();
   RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
-  params.stack_size = 16 * 1024 * 1024;  // Ignore game, always big!
+  params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
   params.create_suspended = true;
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
@@ -334,8 +379,8 @@ X_STATUS XThread::Create() {
   // Set the thread name based on host ID (for easier debugging).
   if (name_.empty()) {
     char thread_name[32];
-    snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)",
-             handle(), thread_->system_id());
+    snprintf(thread_name, xe::countof(thread_name), "XThread%.04X",
+             thread_->system_id());
     set_name(thread_name);
   }
 

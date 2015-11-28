@@ -113,6 +113,7 @@ class XThread : public XObject {
     uint32_t creation_flags;
   };
 
+  XThread(KernelState* kernel_state);
   XThread(KernelState* kernel_state, uint32_t stack_size,
           uint32_t xapi_thread_startup, uint32_t start_address,
           uint32_t start_context, uint32_t creation_flags, bool guest_thread);
@@ -174,13 +175,15 @@ class XThread : public XObject {
 
   uint32_t suspend_count();
   X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
-  X_STATUS Suspend(uint32_t* out_suspend_count);
+  X_STATUS Suspend(uint32_t* out_suspend_count = nullptr);
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable,
                  uint64_t interval);
 
   xe::threading::WaitHandle* GetWaitHandle() override { return thread_.get(); }
 
  protected:
+  bool AllocateStack(uint32_t size);
+  void InitializeGuestObject();
   void DeliverAPCs();
   void RundownAPCs();
 
@@ -192,6 +195,10 @@ class XThread : public XObject {
   uint32_t scratch_size_ = 0;
   uint32_t tls_address_ = 0;
   uint32_t pcr_address_ = 0;
+  uint32_t stack_alloc_base_ = 0;  // Stack alloc base
+  uint32_t stack_alloc_size_ = 0;  // Stack alloc size
+  uint32_t stack_base_ = 0;        // High address
+  uint32_t stack_limit_ = 0;       // Low address
   cpu::ThreadState* thread_state_ = nullptr;
   bool guest_thread_ = false;
   bool can_debugger_suspend_ = true;

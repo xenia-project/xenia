@@ -72,9 +72,8 @@ class TestFunction {
       uint32_t stack_size = 64 * 1024;
       uint32_t stack_address = memory_size - stack_size;
       uint32_t thread_state_address = stack_address - 0x1000;
-      auto thread_state = std::make_unique<ThreadState>(
-          processor.get(), 0x100, ThreadStackType::kUserStack, stack_address,
-          stack_size, thread_state_address);
+      auto thread_state = std::make_unique<ThreadState>(processor.get(), 0x100);
+      assert_always();  // TODO: Allocate a thread stack!!!
       auto ctx = thread_state->context();
       ctx->lr = 0xBCBCBCBC;
 
