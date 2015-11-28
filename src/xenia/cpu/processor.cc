@@ -27,7 +27,6 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
 #include "xenia/debug/debugger.h"
-#include "xenia/kernel/xthread.h"
 
 // TODO(benvanik): based on compiler support
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -454,9 +453,7 @@ bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
   if (bp) {
     bp->Hit(host_pc);
     
-    // TODO: Remove dependency on XThread for suspending ourselves
-    kernel::XThread::GetCurrentThread()->Suspend();
-
+    xe::threading::Thread::GetCurrentThread()->Suspend();
     return true;
   }
 

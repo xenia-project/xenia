@@ -442,7 +442,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
   HANDLE handle =
       CreateThread(NULL, params.stack_size, ThreadStartRoutine, start_data,
                    params.create_suspended ? CREATE_SUSPENDED : 0, NULL);
-  if (!handle) {
+  if (handle == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pass back?
     auto last_error = GetLastError();
     XELOGE("Unable to CreateThread: %d", last_error);
@@ -450,6 +450,15 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
     return nullptr;
   }
   GetThreadId(handle);
+  return std::make_unique<Win32Thread>(handle);
+}
+
+std::unique_ptr<Thread> Thread::GetCurrentThread() {
+  HANDLE handle = ::GetCurrentThread();
+  if (handle == INVALID_HANDLE_VALUE) {
+    return nullptr;
+  }
+
   return std::make_unique<Win32Thread>(handle);
 }
 
