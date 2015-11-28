@@ -60,9 +60,10 @@ GuestFunction::GuestFunction(Module* module, uint32_t address)
 
 GuestFunction::~GuestFunction() = default;
 
-void GuestFunction::SetupExtern(ExternHandler handler) {
+void GuestFunction::SetupExtern(ExternHandler handler, Export* export_data) {
   behavior_ = Behavior::kExtern;
   extern_handler_ = handler;
+  export_data_ = export_data;
 }
 
 const SourceMapEntry* GuestFunction::LookupGuestAddress(
