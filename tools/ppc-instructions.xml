@@ -852,7 +852,7 @@
     <out field="CR" conditional="true" />
     <disasm>mffs[Rc] [RD]</disasm>
   </insn>
-  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        group="c" desc="Move from Machine State Register">
+  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        group="c" desc="Move from Machine State Register" sync="true">
     <in field="MSR" />
     <out field="RD" />
     <disasm>mfmsr [RD]</disasm>
@@ -895,12 +895,12 @@
     <out field="CR" conditional="true" />
     <disasm>mtfsfi[Rc] [CRFD], [IMM]</disasm>
   </insn>
-  <insn mnem="mtmsr"        opcode="7c000124" form="X"        group="c" desc="Move to Machine State Register">
+  <insn mnem="mtmsr"        opcode="7c000124" form="X"        group="c" desc="Move to Machine State Register" sync="true">
     <in field="RS" />
     <out field="MSR" />
     <disasm>mtmsr [RS]</disasm>
   </insn>
-  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        group="c" desc="Move to Machine State Register Doubleword">
+  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        group="c" desc="Move to Machine State Register Doubleword" sync="true">
     <in field="RS" />
     <out field="MSR" />
     <disasm>mtmsrd [RS]</disasm>
