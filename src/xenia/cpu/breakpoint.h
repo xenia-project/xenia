@@ -35,8 +35,12 @@ class Breakpoint {
   void Hit(uint64_t host_pc) { hit_callback_(address_, host_pc); }
 
   // CPU backend data. Implementation specific - DO NOT TOUCH THIS!
-  uint64_t backend_data() const { return backend_data_; }
-  void set_backend_data(uint64_t backend_data) { backend_data_ = backend_data; }
+  std::vector<std::pair<uint64_t, uint64_t>> backend_data() const {
+    return backend_data_;
+  }
+  std::vector<std::pair<uint64_t, uint64_t>>& backend_data() {
+    return backend_data_;
+  }
 
  private:
   Processor* processor_ = nullptr;
@@ -46,7 +50,7 @@ class Breakpoint {
   std::function<void(uint32_t, uint64_t)> hit_callback_;
 
   // Opaque backend data. Don't touch this.
-  uint64_t backend_data_ = 0;
+  std::vector<std::pair<uint64_t, uint64_t>> backend_data_;
 };
 
 }  // namespace cpu
