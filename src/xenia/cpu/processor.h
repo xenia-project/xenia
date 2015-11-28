@@ -101,8 +101,7 @@ class Processor {
   std::vector<Breakpoint*> breakpoints() const { return breakpoints_; }
 
  private:
-  static bool ExceptionCallbackThunk(Exception* ex, void* data);
-  bool ExceptionCallback(Exception* ex);
+  void BreakpointFunctionDefined(Function* function);
 
   bool DemandFunction(Function* function);
 

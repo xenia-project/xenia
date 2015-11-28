@@ -63,6 +63,7 @@ class X64Backend : public Backend {
                                                      uint32_t address) override;
 
   bool InstallBreakpoint(Breakpoint* bp) override;
+  bool InstallBreakpoint(Breakpoint* bp, Function* func) override;
   bool UninstallBreakpoint(Breakpoint* bp) override;
 
  private:

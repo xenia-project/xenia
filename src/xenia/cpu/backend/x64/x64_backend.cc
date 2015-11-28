@@ -133,7 +133,11 @@ bool X64Backend::InstallBreakpoint(Breakpoint* bp) {
     assert_true(function->is_guest());
     auto guest_function = reinterpret_cast<cpu::GuestFunction*>(function);
     auto code = guest_function->MapGuestAddressToMachineCode(bp->address());
-    assert_not_zero(code);
+    if (!code) {
+      // This should not happen.
+      assert_always();
+      return false;
+    }
 
     auto orig_bytes =
         xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0));
@@ -142,6 +146,24 @@ bool X64Backend::InstallBreakpoint(Breakpoint* bp) {
     xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0), 0x0F0C);
   }
 
+  return true;
+}
+
+bool X64Backend::InstallBreakpoint(Breakpoint* bp, Function* func) {
+  assert_true(func->is_guest());
+  auto guest_function = reinterpret_cast<cpu::GuestFunction*>(func);
+  auto code = guest_function->MapGuestAddressToMachineCode(bp->address());
+  if (!code) {
+    assert_always();
+    return false;
+  }
+
+  // Assume we haven't already installed a breakpoint in this spot.
+  auto orig_bytes =
+      xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0));
+  bp->backend_data().push_back({code, orig_bytes});
+
+  xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0), 0x0F0C);
   return true;
 }
 
