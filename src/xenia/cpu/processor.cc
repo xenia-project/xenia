@@ -316,6 +316,21 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   return result;
 }
 
+bool Processor::ExecuteRaw(ThreadState* thread_state, uint32_t address) {
+  SCOPE_profile_cpu_f("cpu");
+
+  // Attempt to get the function.
+  auto function = ResolveFunction(address);
+  if (!function) {
+    // Symbol not found in any module.
+    XELOGCPU("Execute(%.8X): failed to find function", address);
+    return false;
+  }
+
+  auto context = thread_state->context();
+  return function->Call(thread_state, uint32_t(context->lr));
+}
+
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
                             uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
@@ -387,7 +402,7 @@ void Processor::LowerIrql(Irql old_value) {
 }
 
 bool Processor::InstallBreakpoint(Breakpoint* bp) {
-  std::lock_guard<std::mutex> lock(breakpoint_lock_);
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
 
   if (FindBreakpoint(bp->address())) {
     return false;
@@ -405,7 +420,7 @@ bool Processor::InstallBreakpoint(Breakpoint* bp) {
 }
 
 bool Processor::UninstallBreakpoint(Breakpoint* bp) {
-  std::lock_guard<std::mutex> lock(breakpoint_lock_);
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
 
   if (!backend_->UninstallBreakpoint(bp)) {
     return false;
@@ -436,7 +451,7 @@ bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
 }
 
 Breakpoint* Processor::FindBreakpoint(uint32_t address) {
-  std::lock_guard<std::mutex> lock(breakpoint_lock_);
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
 
   for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
     if ((*it)->address() == address) {
