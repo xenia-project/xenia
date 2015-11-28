@@ -32,6 +32,8 @@ struct ExportTag {
   static const type kHighFrequency = 1u << 3;
   // Export is important and should always be logged.
   static const type kImportant = 1u << 4;
+  // Export blocks the calling thread
+  static const type kBlocking = 1u << 5;
 
   static const type kThreading = 1u << 10;
   static const type kInput = 1u << 11;
