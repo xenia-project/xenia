@@ -49,6 +49,18 @@ class Function : public Symbol {
   void set_behavior(Behavior value) { behavior_ = value; }
   bool is_guest() const { return behavior_ != Behavior::kBuiltin; }
 
+  bool ContainsAddress(uint32_t address) const {
+    if (!address_ || !end_address_) {
+      return false;
+    }
+
+    if (address >= address_ && address < end_address_) {
+      return true;
+    }
+
+    return false;
+  }
+
   virtual bool Call(ThreadState* thread_state, uint32_t return_address) = 0;
 
  protected:

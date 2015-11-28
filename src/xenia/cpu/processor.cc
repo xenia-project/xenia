@@ -276,6 +276,8 @@ bool Processor::DemandFunction(Function* function) {
       debugger_->OnFunctionDefined(function);
     }
 
+    BreakpointFunctionDefined(function);
+
     function->set_status(Symbol::Status::kDefined);
     symbol_status = function->status();
   }
@@ -402,6 +404,16 @@ Irql Processor::RaiseIrql(Irql new_value) {
 void Processor::LowerIrql(Irql old_value) {
   xe::atomic_exchange(static_cast<uint32_t>(old_value),
                       reinterpret_cast<volatile uint32_t*>(&irql_));
+}
+
+void Processor::BreakpointFunctionDefined(Function* function) {
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
+
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
+    if (function->ContainsAddress((*it)->address())) {
+      backend_->InstallBreakpoint(*it, function);
+    }
+  }
 }
 
 bool Processor::InstallBreakpoint(Breakpoint* bp) {
