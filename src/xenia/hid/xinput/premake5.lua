@@ -13,6 +13,6 @@ project("xenia-hid-xinput")
   defines({
   })
   includedirs({
-	project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
