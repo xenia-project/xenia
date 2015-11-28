@@ -18,4 +18,3 @@ project("xenia-apu")
     project_root.."/third_party/libav/",
   })
   local_platform_files()
-
