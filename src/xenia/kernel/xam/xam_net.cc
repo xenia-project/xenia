@@ -266,7 +266,7 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(
     return ~0u;
   }
 
-  xe::be<uint64_t> timeout_wait = (uint64_t)timeout;
+  uint64_t timeout_wait = (uint64_t)timeout;
 
   X_STATUS result = 0;
   do {

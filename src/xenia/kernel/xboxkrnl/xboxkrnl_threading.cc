@@ -923,8 +923,7 @@ DECLARE_XBOXKRNL_EXPORT(KeWaitForMultipleObjects, ExportTag::kImplemented |
                                                       ExportTag::kThreading |
                                                       ExportTag::kBlocking);
 
-dword_result_t NtWaitForMultipleObjectsEx(dword_t count,
-                                          pointer_t<xe::be<uint32_t>> handles,
+dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
                                           dword_t wait_type, dword_t wait_mode,
                                           dword_t alertable,
                                           lpqword_t timeout_ptr) {
@@ -939,7 +938,7 @@ dword_result_t NtWaitForMultipleObjectsEx(dword_t count,
     if (!object) {
       return X_STATUS_INVALID_PARAMETER;
     }
-    objects[n] = std::move(object);
+    objects.push_back(std::move(object));
   }
 
   uint64_t timeout = timeout_ptr ? uint64_t(*timeout_ptr) : 0;
