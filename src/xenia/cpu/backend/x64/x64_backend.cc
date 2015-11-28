@@ -135,8 +135,10 @@ bool X64Backend::InstallBreakpoint(Breakpoint* bp) {
     auto code = guest_function->MapGuestAddressToMachineCode(bp->address());
     assert_not_zero(code);
 
-    bp->set_backend_data(
-        xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0)));
+    auto orig_bytes =
+        xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0));
+    bp->backend_data().push_back({code, orig_bytes });
+
     xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0), 0x0F0C);
   }
 
@@ -144,24 +146,12 @@ bool X64Backend::InstallBreakpoint(Breakpoint* bp) {
 }
 
 bool X64Backend::UninstallBreakpoint(Breakpoint* bp) {
-  auto functions = processor()->FindFunctionsWithAddress(bp->address());
-  if (functions.empty()) {
-    // This should not happen.
-    assert_always();
-    return false;
+  for (auto pair : bp->backend_data()) {
+    xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(pair.first),
+                                 uint16_t(pair.second));
   }
 
-  for (auto function : functions) {
-    assert_true(function->is_guest());
-    auto guest_function = reinterpret_cast<cpu::GuestFunction*>(function);
-    auto code = guest_function->MapGuestAddressToMachineCode(bp->address());
-    assert_not_zero(code);
-
-    xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0),
-                                 uint16_t(bp->backend_data()));
-    bp->set_backend_data(0);
-  }
-
+  bp->backend_data().clear();
   return true;
 }
 
