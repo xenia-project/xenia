@@ -49,10 +49,11 @@ enum class Irql : uint32_t {
 
 class Processor {
  public:
-  Processor(Memory* memory, ExportResolver* export_resolver,
+  Processor(Emulator* emulator, Memory* memory, ExportResolver* export_resolver,
             debug::Debugger* debugger);
   ~Processor();
 
+  Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   debug::Debugger* debugger() const { return debugger_; }
   StackWalker* stack_walker() const { return stack_walker_.get(); }
@@ -105,6 +106,7 @@ class Processor {
 
   bool DemandFunction(Function* function);
 
+  Emulator* emulator_ = nullptr;
   Memory* memory_ = nullptr;
   debug::Debugger* debugger_ = nullptr;
   std::unique_ptr<StackWalker> stack_walker_;

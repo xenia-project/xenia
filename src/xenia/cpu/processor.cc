@@ -55,9 +55,12 @@ class BuiltinModule : public Module {
   std::string name_;
 };
 
-Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
-                     debug::Debugger* debugger)
-    : memory_(memory), debugger_(debugger), export_resolver_(export_resolver) {}
+Processor::Processor(xe::Emulator* emulator, xe::Memory* memory,
+                     ExportResolver* export_resolver, debug::Debugger* debugger)
+    : emulator_(emulator),
+      memory_(memory),
+      debugger_(debugger),
+      export_resolver_(export_resolver) {}
 
 Processor::~Processor() {
   {
