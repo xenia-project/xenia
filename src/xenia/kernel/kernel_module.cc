@@ -105,7 +105,8 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
         handler =
             (cpu::GuestFunction::ExternHandler)export_entry->function_data.shim;
       }
-      static_cast<cpu::GuestFunction*>(function)->SetupExtern(handler);
+      static_cast<cpu::GuestFunction*>(function)
+          ->SetupExtern(handler, export_entry);
 
       function->set_status(cpu::Symbol::Status::kDeclared);
 
