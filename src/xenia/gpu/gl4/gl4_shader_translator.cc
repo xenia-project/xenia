@@ -756,7 +756,7 @@ bool GL4ShaderTranslator::TranslateALU_DSTv(const ucode::instr_alu_t& alu) {
   Append("vec4(1.0, (");
   AppendVectorOpSrcReg(alu, 1);
   Append(".y * ");
-  AppendVectorOpSrcReg(alu, 1);
+  AppendVectorOpSrcReg(alu, 2);
   Append(".y), ");
   AppendVectorOpSrcReg(alu, 1);
   Append(".z, ");
