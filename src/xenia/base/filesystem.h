@@ -42,6 +42,9 @@ bool DeleteFolder(const std::wstring& path);
 // Returns true if the given path exists and is a folder.
 bool IsFolder(const std::wstring& path);
 
+// Creates an empty file at the given path.
+bool CreateFile(const std::wstring& path);
+
 // Opens the file at the given path with the specified mode.
 // This behaves like fopen and the returned handle can be used with stdio.
 FILE* OpenFile(const std::wstring& path, const char* mode);
