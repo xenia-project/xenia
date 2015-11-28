@@ -84,6 +84,7 @@ class Processor {
   Function* ResolveFunction(uint32_t address);
 
   bool Execute(ThreadState* thread_state, uint32_t address);
+  bool ExecuteRaw(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                    size_t arg_count);
   uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
@@ -120,7 +121,7 @@ class Processor {
   Module* builtin_module_ = nullptr;
   uint32_t next_builtin_address_ = 0xFFFF0000u;
 
-  std::mutex breakpoint_lock_;
+  std::recursive_mutex breakpoint_lock_;
   std::vector<Breakpoint*> breakpoints_;
 
   Irql irql_;
