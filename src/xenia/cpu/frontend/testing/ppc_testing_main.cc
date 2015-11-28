@@ -177,7 +177,7 @@ class TestRunner {
     memory.reset(new Memory());
     memory->Initialize();
 
-    processor.reset(new Processor(memory.get(), nullptr, nullptr));
+    processor.reset(new Processor(nullptr, memory.get(), nullptr, nullptr));
     processor->Setup();
     processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
   }

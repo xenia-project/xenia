@@ -113,7 +113,7 @@ X_STATUS Emulator::Setup(
 
   // Initialize the CPU.
   processor_ = std::make_unique<xe::cpu::Processor>(
-      memory_.get(), export_resolver_.get(), debugger_.get());
+      this, memory_.get(), export_resolver_.get(), debugger_.get());
   if (!processor_->Setup()) {
     return X_STATUS_UNSUCCESSFUL;
   }
