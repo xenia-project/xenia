@@ -46,6 +46,8 @@ X64Backend::~X64Backend() {
     processor()->memory()->SystemHeapFree(emitter_data_);
     emitter_data_ = 0;
   }
+
+  ExceptionHandler::Uninstall(&ExceptionCallbackThunk, this);
 }
 
 bool X64Backend::Initialize() {
