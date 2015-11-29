@@ -12,7 +12,21 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
-#include "xenia/gpu/ucode.h"
+
+#if XE_COMPILER_MSVC
+#define XEPACKEDSTRUCT(name, value)                                  \
+  __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
+  typedef struct name##_s name;
+#define XEPACKEDSTRUCTANONYMOUS(value) \
+  __pragma(pack(push, 1)) struct value __pragma(pack(pop));
+#define XEPACKEDUNION(name, value)                                  \
+  __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
+  typedef union name##_s name;
+#else
+#define XEPACKEDSTRUCT(name, value) struct __attribute__((packed)) name value;
+#define XEPACKEDSTRUCTANONYMOUS(value) struct __attribute__((packed)) value;
+#define XEPACKEDUNION(name, value) union __attribute__((packed)) name value;
+#endif  // XE_PLATFORM_WIN32
 
 namespace xe {
 namespace gpu {
@@ -44,14 +58,45 @@ enum class Dimension : uint32_t {
   kCube = 3,
 };
 
-namespace xenos {
+enum class ClampMode : uint32_t {
+  kRepeat = 0,
+  kMirroredRepeat = 1,
+  kClampToEdge = 2,
+  kMirrorClampToEdge = 3,
+  kClampToHalfway = 4,
+  kMirrorClampToHalfway = 5,
+  kClampToBorder = 6,
+  kMirrorClampToBorder = 7,
+};
 
-typedef enum {
-  XE_GPU_INVALIDATE_MASK_VERTEX_SHADER = 1 << 8,
-  XE_GPU_INVALIDATE_MASK_PIXEL_SHADER = 1 << 9,
+enum class TextureFilter : uint32_t {
+  kPoint = 0,
+  kLinear = 1,
+  kBaseMap = 2,  // Only applicable for mip-filter.
+  kUseFetchConst = 3,
+};
 
-  XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
-} XE_GPU_INVALIDATE_MASK;
+enum class AnisoFilter : uint32_t {
+  kDisabled = 0,
+  kMax_1_1 = 1,
+  kMax_2_1 = 2,
+  kMax_4_1 = 3,
+  kMax_8_1 = 4,
+  kMax_16_1 = 5,
+  kUseFetchConst = 7,
+};
+
+enum class TextureDimension : uint32_t {
+  k1D = 0,
+  k2D = 1,
+  k3D = 2,
+  kCube = 3,
+};
+
+enum class SampleLocation : uint32_t {
+  kCentroid = 0,
+  kCenter = 1,
+};
 
 enum class Endian : uint32_t {
   kUnspecified = 0,
@@ -100,20 +145,6 @@ enum class DepthRenderTargetFormat : uint32_t {
   kD24FS8 = 1,
 };
 
-enum class ModeControl : uint32_t {
-  kIgnore = 0,
-  kColorDepth = 4,
-  kDepth = 5,
-  kCopy = 6,
-};
-
-enum class CopyCommand : uint32_t {
-  kRaw = 0,
-  kConvert = 1,
-  kConstantOne = 2,
-  kNull = 3,  // ?
-};
-
 // Subset of a2xx_sq_surfaceformat.
 enum class ColorFormat : uint32_t {
   k_8 = 2,
@@ -144,6 +175,7 @@ enum class ColorFormat : uint32_t {
 };
 
 enum class VertexFormat : uint32_t {
+  kUndefined = 0,
   k_8_8_8_8 = 6,
   k_2_10_10_10 = 7,
   k_10_11_11 = 16,
@@ -160,6 +192,30 @@ enum class VertexFormat : uint32_t {
   k_32_32_32_32_FLOAT = 38,
   k_32_32_32_FLOAT = 57,
 };
+
+namespace xenos {
+
+typedef enum {
+  XE_GPU_INVALIDATE_MASK_VERTEX_SHADER = 1 << 8,
+  XE_GPU_INVALIDATE_MASK_PIXEL_SHADER = 1 << 9,
+
+  XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
+} XE_GPU_INVALIDATE_MASK;
+
+enum class ModeControl : uint32_t {
+  kIgnore = 0,
+  kColorDepth = 4,
+  kDepth = 5,
+  kCopy = 6,
+};
+
+enum class CopyCommand : uint32_t {
+  kRaw = 0,
+  kConvert = 1,
+  kConstantOne = 2,
+  kNull = 3,  // ?
+};
+
 inline int GetVertexFormatComponentCount(VertexFormat format) {
   switch (format) {
     case VertexFormat::k_32:

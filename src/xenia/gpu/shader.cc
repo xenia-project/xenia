@@ -13,12 +13,12 @@
 
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
-#include "xenia/gpu/ucode_disassembler.h"
+#include "xenia/gpu/gl4/ucode_disassembler.h"
 
 namespace xe {
 namespace gpu {
 
-using namespace xe::gpu::ucode;
+using namespace xe::gpu::gl4::ucode;
 using namespace xe::gpu::xenos;
 
 Shader::Shader(ShaderType shader_type, uint64_t data_hash,
@@ -33,7 +33,7 @@ Shader::Shader(ShaderType shader_type, uint64_t data_hash,
   // Disassemble ucode and stash.
   // TODO(benvanik): debug only.
   ucode_disassembly_ =
-      DisassembleShader(shader_type_, data_.data(), data_.size());
+      gl4::DisassembleShader(shader_type_, data_.data(), data_.size());
 
   // Gather input/output registers/etc.
   GatherIO();

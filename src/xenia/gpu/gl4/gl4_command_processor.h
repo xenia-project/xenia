@@ -50,12 +50,10 @@ class GL4CommandProcessor : public CommandProcessor {
   // HACK: for debugging; would be good to have this in a base type.
   TextureCache* texture_cache() { return &texture_cache_; }
 
-  GLuint GetColorRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
-                              uint32_t base,
-                              xenos::ColorRenderTargetFormat format);
-  GLuint GetDepthRenderTarget(uint32_t pitch, xenos::MsaaSamples samples,
-                              uint32_t base,
-                              xenos::DepthRenderTargetFormat format);
+  GLuint GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
+                              uint32_t base, ColorRenderTargetFormat format);
+  GLuint GetDepthRenderTarget(uint32_t pitch, MsaaSamples samples,
+                              uint32_t base, DepthRenderTargetFormat format);
 
  private:
   enum class UpdateStatus {
@@ -73,14 +71,14 @@ class GL4CommandProcessor : public CommandProcessor {
     uint32_t base;
     uint32_t width;
     uint32_t height;
-    xenos::ColorRenderTargetFormat format;
+    ColorRenderTargetFormat format;
     GLuint texture;
   };
   struct CachedDepthRenderTarget {
     uint32_t base;
     uint32_t width;
     uint32_t height;
-    xenos::DepthRenderTargetFormat format;
+    DepthRenderTargetFormat format;
     GLuint texture;
   };
   struct CachedPipeline {

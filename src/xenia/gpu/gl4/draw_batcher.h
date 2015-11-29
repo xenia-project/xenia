@@ -90,7 +90,7 @@ class DrawBatcher {
 
   bool BeginDrawArrays(PrimitiveType prim_type, uint32_t index_count);
   bool BeginDrawElements(PrimitiveType prim_type, uint32_t index_count,
-                         xenos::IndexFormat index_format);
+                         IndexFormat index_format);
   void DiscardDraw();
   bool CommitDraw();
   bool Flush(FlushMode mode);

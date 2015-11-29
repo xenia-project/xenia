@@ -30,7 +30,7 @@
  * SOFTWARE.
  */
 
-#include "xenia/gpu/ucode_disassembler.h"
+#include "xenia/gpu/gl4/ucode_disassembler.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -39,11 +39,13 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/string_buffer.h"
+#include "xenia/gpu/gl4/ucode.h"
 
 namespace xe {
 namespace gpu {
+namespace gl4 {
 
-using namespace xe::gpu::ucode;
+using namespace xe::gpu::gl4::ucode;
 using namespace xe::gpu::xenos;
 
 static const char* levels[] = {
@@ -773,5 +775,6 @@ std::string DisassembleShader(ShaderType type, const uint32_t* dwords,
   return string_buffer.to_string();
 }
 
+}  // namespace gl4
 }  // namespace gpu
 }  // namespace xe

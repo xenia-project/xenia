@@ -95,8 +95,8 @@ class CommandProcessor {
   class RingbufferReader;
 
   struct IndexBufferInfo {
-    xenos::IndexFormat format = xenos::IndexFormat::kInt16;
-    xenos::Endian endianness = xenos::Endian::kUnspecified;
+    IndexFormat format = IndexFormat::kInt16;
+    Endian endianness = Endian::kUnspecified;
     uint32_t count = 0;
     uint32_t guest_base = 0;
     size_t length = 0;

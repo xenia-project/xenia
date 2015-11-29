@@ -20,9 +20,7 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
-using namespace xe::gpu::ucode;
-
-using xe::gpu::xenos::VertexFormat;
+using namespace xe::gpu::gl4::ucode;
 
 #define Append(...) output_.AppendFormat(__VA_ARGS__)
 

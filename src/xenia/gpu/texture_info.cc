@@ -18,7 +18,6 @@
 namespace xe {
 namespace gpu {
 
-using namespace xe::gpu::ucode;
 using namespace xe::gpu::xenos;
 
 const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {

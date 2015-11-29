@@ -20,8 +20,6 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
-using xe::gpu::xenos::VertexFormat;
-
 GL4Shader::GL4Shader(ShaderType shader_type, uint64_t data_hash,
                      const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count),
@@ -133,7 +131,7 @@ bool GL4Shader::PrepareVertexArrayObject() {
 
     for (uint32_t i = 0; i < desc.element_count; ++i, ++el_index) {
       const auto& el = desc.elements[i];
-      auto comp_count = GetVertexFormatComponentCount(el.format);
+      auto comp_count = xenos::GetVertexFormatComponentCount(el.format);
       GLenum comp_type;
       switch (el.format) {
         case VertexFormat::k_8_8_8_8:

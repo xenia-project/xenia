@@ -10,23 +10,23 @@
 #ifndef XENIA_GPU_SAMPLER_INFO_H_
 #define XENIA_GPU_SAMPLER_INFO_H_
 
-#include "xenia/gpu/ucode.h"
+#include "xenia/gpu/gl4/ucode.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {
 
 struct SamplerInfo {
-  ucode::instr_tex_filter_t min_filter;
-  ucode::instr_tex_filter_t mag_filter;
-  ucode::instr_tex_filter_t mip_filter;
-  uint32_t clamp_u;
-  uint32_t clamp_v;
-  uint32_t clamp_w;
-  ucode::instr_aniso_filter_t aniso_filter;
+  TextureFilter min_filter;
+  TextureFilter mag_filter;
+  TextureFilter mip_filter;
+  ClampMode clamp_u;
+  ClampMode clamp_v;
+  ClampMode clamp_w;
+  AnisoFilter aniso_filter;
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
-                      const ucode::instr_fetch_tex_t& fetch_instr,
+                      const gl4::ucode::instr_fetch_tex_t& fetch_instr,
                       SamplerInfo* out_info);
 
   uint64_t hash() const;

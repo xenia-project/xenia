@@ -7,21 +7,22 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_UCODE_DISASSEMBLER_H_
-#define XENIA_GPU_UCODE_DISASSEMBLER_H_
+#ifndef XENIA_GPU_GL4_UCODE_DISASSEMBLER_H_
+#define XENIA_GPU_GL4_UCODE_DISASSEMBLER_H_
 
 #include <string>
 
-#include "xenia/gpu/ucode.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {
+namespace gl4 {
 
 std::string DisassembleShader(ShaderType type, const uint32_t* dwords,
                               size_t dword_count);
 
+}  // namespace gl4
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_UCODE_DISASSEMBLER_H_
+#endif  // XENIA_GPU_GL4_UCODE_DISASSEMBLER_H_

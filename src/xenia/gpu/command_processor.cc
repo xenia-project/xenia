@@ -941,7 +941,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(
       0,          // min z
       1,          // max z
   };
-  assert_true(endianness == xenos::Endian::k8in16);
+  assert_true(endianness == Endian::k8in16);
   xe::copy_and_swap_16_aligned(
       reinterpret_cast<uint16_t*>(memory_->TranslatePhysical(address)), extents,
       xe::countof(extents));

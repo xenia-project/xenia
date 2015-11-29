@@ -14,7 +14,6 @@
 #include <memory>
 
 #include "xenia/base/assert.h"
-#include "xenia/gpu/ucode.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
@@ -89,37 +88,36 @@ enum class TextureFormat : uint32_t {
   kUnknown = 0xFFFFFFFFu,
 };
 
-inline TextureFormat ColorFormatToTextureFormat(
-    xenos::ColorFormat color_format) {
+inline TextureFormat ColorFormatToTextureFormat(ColorFormat color_format) {
   return static_cast<TextureFormat>(color_format);
 }
 
 inline TextureFormat ColorRenderTargetToTextureFormat(
-    xenos::ColorRenderTargetFormat color_format) {
+    ColorRenderTargetFormat color_format) {
   switch (color_format) {
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8:
       return TextureFormat::k_8_8_8_8;
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return TextureFormat::k_8_8_8_8;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10:
       return TextureFormat::k_2_10_10_10;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
       return TextureFormat::k_2_10_10_10_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_16_16:
+    case ColorRenderTargetFormat::k_16_16:
       return TextureFormat::k_16_16;
-    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
+    case ColorRenderTargetFormat::k_16_16_16_16:
       return TextureFormat::k_16_16_16_16;
-    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
       return TextureFormat::k_16_16_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       return TextureFormat::k_16_16_16_16_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_unknown:
+    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
       return TextureFormat::k_2_10_10_10;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
       return TextureFormat::k_2_10_10_10_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
+    case ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
       return TextureFormat::k_32_32_FLOAT;
     default:
       assert_unhandled_case(color_format);
@@ -128,11 +126,11 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
 }
 
 inline TextureFormat DepthRenderTargetToTextureFormat(
-    xenos::DepthRenderTargetFormat depth_format) {
+    DepthRenderTargetFormat depth_format) {
   switch (depth_format) {
-    case xenos::DepthRenderTargetFormat::kD24S8:
+    case DepthRenderTargetFormat::kD24S8:
       return TextureFormat::k_24_8;
-    case xenos::DepthRenderTargetFormat::kD24FS8:
+    case DepthRenderTargetFormat::kD24FS8:
       return TextureFormat::k_24_8_FLOAT;
     default:
       assert_unhandled_case(depth_format);
@@ -163,7 +161,7 @@ struct TextureInfo {
   uint32_t height;
   uint32_t depth;
   const FormatInfo* format_info;
-  xenos::Endian endianness;
+  Endian endianness;
   bool is_tiled;
   uint32_t input_length;
   uint32_t output_length;

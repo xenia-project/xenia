@@ -23,8 +23,6 @@ namespace xe {
 namespace gpu {
 namespace gl4 {
 
-using xe::gpu::xenos::Endian;
-
 struct TextureConfig {
   TextureFormat texture_format;
   GLenum internal_format;
@@ -296,25 +294,25 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
       GL_MIRROR_CLAMP_TO_BORDER_EXT,  //
   };
   glSamplerParameteri(entry->handle, GL_TEXTURE_WRAP_S,
-                      wrap_map[sampler_info.clamp_u]);
+                      wrap_map[static_cast<int>(sampler_info.clamp_u)]);
   glSamplerParameteri(entry->handle, GL_TEXTURE_WRAP_T,
-                      wrap_map[sampler_info.clamp_v]);
+                      wrap_map[static_cast<int>(sampler_info.clamp_v)]);
   glSamplerParameteri(entry->handle, GL_TEXTURE_WRAP_R,
-                      wrap_map[sampler_info.clamp_w]);
+                      wrap_map[static_cast<int>(sampler_info.clamp_w)]);
 
   // Texture level filtering.
   GLenum min_filter;
   switch (sampler_info.min_filter) {
-    case ucode::TEX_FILTER_POINT:
+    case TextureFilter::kPoint:
       switch (sampler_info.mip_filter) {
-        case ucode::TEX_FILTER_BASEMAP:
+        case TextureFilter::kBaseMap:
           min_filter = GL_NEAREST;
           break;
-        case ucode::TEX_FILTER_POINT:
+        case TextureFilter::kPoint:
           // min_filter = GL_NEAREST_MIPMAP_NEAREST;
           min_filter = GL_NEAREST;
           break;
-        case ucode::TEX_FILTER_LINEAR:
+        case TextureFilter::kLinear:
           // min_filter = GL_NEAREST_MIPMAP_LINEAR;
           min_filter = GL_NEAREST;
           break;
@@ -323,16 +321,16 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
           return nullptr;
       }
       break;
-    case ucode::TEX_FILTER_LINEAR:
+    case TextureFilter::kLinear:
       switch (sampler_info.mip_filter) {
-        case ucode::TEX_FILTER_BASEMAP:
+        case TextureFilter::kBaseMap:
           min_filter = GL_LINEAR;
           break;
-        case ucode::TEX_FILTER_POINT:
+        case TextureFilter::kPoint:
           // min_filter = GL_LINEAR_MIPMAP_NEAREST;
           min_filter = GL_LINEAR;
           break;
-        case ucode::TEX_FILTER_LINEAR:
+        case TextureFilter::kLinear:
           // min_filter = GL_LINEAR_MIPMAP_LINEAR;
           min_filter = GL_LINEAR;
           break;
@@ -347,10 +345,10 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
   }
   GLenum mag_filter;
   switch (sampler_info.mag_filter) {
-    case ucode::TEX_FILTER_POINT:
+    case TextureFilter::kPoint:
       mag_filter = GL_NEAREST;
       break;
-    case ucode::TEX_FILTER_LINEAR:
+    case TextureFilter::kLinear:
       mag_filter = GL_LINEAR;
       break;
     default:
@@ -362,22 +360,22 @@ TextureCache::SamplerEntry* TextureCache::LookupOrInsertSampler(
 
   GLfloat aniso;
   switch (sampler_info.aniso_filter) {
-    case ucode::ANISO_FILTER_DISABLED:
+    case AnisoFilter::kDisabled:
       aniso = 0.0f;
       break;
-    case ucode::ANISO_FILTER_MAX_1_1:
+    case AnisoFilter::kMax_1_1:
       aniso = 1.0f;
       break;
-    case ucode::ANISO_FILTER_MAX_2_1:
+    case AnisoFilter::kMax_2_1:
       aniso = 2.0f;
       break;
-    case ucode::ANISO_FILTER_MAX_4_1:
+    case AnisoFilter::kMax_4_1:
       aniso = 4.0f;
       break;
-    case ucode::ANISO_FILTER_MAX_8_1:
+    case AnisoFilter::kMax_8_1:
       aniso = 8.0f;
       break;
-    case ucode::ANISO_FILTER_MAX_16_1:
+    case AnisoFilter::kMax_16_1:
       aniso = 16.0f;
       break;
     default:

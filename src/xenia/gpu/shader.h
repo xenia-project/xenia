@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "xenia/gpu/ucode.h"
+#include "xenia/gpu/gl4/ucode.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
@@ -36,8 +36,8 @@ class Shader {
   uint32_t dword_count() const { return uint32_t(data_.size()); }
 
   struct BufferDescElement {
-    ucode::instr_fetch_vtx_t vtx_fetch;
-    xenos::VertexFormat format;
+    gl4::ucode::instr_fetch_vtx_t vtx_fetch;
+    VertexFormat format;
     uint32_t offset_words;
     uint32_t size_words;
     bool is_signed;
@@ -61,7 +61,7 @@ class Shader {
     uint32_t input_index;
     uint32_t fetch_slot;
     uint32_t format;
-    ucode::instr_fetch_tex_t tex_fetch;
+    gl4::ucode::instr_fetch_tex_t tex_fetch;
   };
   struct SamplerInputs {
     uint32_t count;
@@ -83,10 +83,10 @@ class Shader {
          uint32_t dword_count);
 
   void GatherIO();
-  void GatherAlloc(const ucode::instr_cf_alloc_t* cf);
-  void GatherExec(const ucode::instr_cf_exec_t* cf);
-  void GatherVertexFetch(const ucode::instr_fetch_vtx_t* vtx);
-  void GatherTextureFetch(const ucode::instr_fetch_tex_t* tex);
+  void GatherAlloc(const gl4::ucode::instr_cf_alloc_t* cf);
+  void GatherExec(const gl4::ucode::instr_cf_exec_t* cf);
+  void GatherVertexFetch(const gl4::ucode::instr_fetch_vtx_t* vtx);
+  void GatherTextureFetch(const gl4::ucode::instr_fetch_tex_t* tex);
 
   ShaderType shader_type_;
   uint64_t data_hash_;
@@ -100,7 +100,7 @@ class Shader {
   std::string error_log_;
 
   AllocCounts alloc_counts_;
-  std::vector<ucode::instr_cf_alloc_t> allocs_;
+  std::vector<gl4::ucode::instr_cf_alloc_t> allocs_;
   BufferInputs buffer_inputs_;
   SamplerInputs sampler_inputs_;
 };
