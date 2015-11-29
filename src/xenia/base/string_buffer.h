@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace xe {
 
@@ -34,6 +35,7 @@ class StringBuffer {
   const char* GetString() const;
   std::string to_string();
   char* ToString();
+  std::vector<uint8_t> ToBytes() const;
 
  private:
   void Grow(size_t additional_length);

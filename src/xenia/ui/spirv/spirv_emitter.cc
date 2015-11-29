@@ -1151,6 +1151,17 @@ Id SpirvEmitter::CreateExtendedInstructionCall(spv::Decoration precision,
   return instr->result_id();
 }
 
+Id SpirvEmitter::CreateGlslStd450InstructionCall(
+    spv::Decoration precision, Id result_type,
+    spv::GLSLstd450 instruction_ordinal, std::initializer_list<Id> args) {
+  if (!glsl_std_450_instruction_set_) {
+    glsl_std_450_instruction_set_ = ImportExtendedInstructions("GLSL.std.450");
+  }
+  return CreateExtendedInstructionCall(
+      precision, result_type, glsl_std_450_instruction_set_,
+      static_cast<int>(instruction_ordinal), args);
+}
+
 // Accept all parameters needed to create a texture instruction.
 // Create the correct instruction based on the inputs, and make the call.
 Id SpirvEmitter::CreateTextureCall(spv::Decoration precision, Id result_type,

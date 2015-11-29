@@ -83,4 +83,10 @@ std::string StringBuffer::to_string() {
 
 char* StringBuffer::ToString() { return strdup(buffer_); }
 
+std::vector<uint8_t> StringBuffer::ToBytes() const {
+  std::vector<uint8_t> bytes(buffer_offset_);
+  std::memcpy(bytes.data(), buffer_, buffer_offset_);
+  return bytes;
+}
+
 }  // namespace xe

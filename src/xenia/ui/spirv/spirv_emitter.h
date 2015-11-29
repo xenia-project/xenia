@@ -373,6 +373,10 @@ class SpirvEmitter {
   Id CreateExtendedInstructionCall(spv::Decoration precision, Id result_type,
                                    Id instruction_set, int instruction_ordinal,
                                    std::initializer_list<Id> args);
+  // Executes an instruction from the extended GLSL set.
+  Id CreateGlslStd450InstructionCall(spv::Decoration precision, Id result_type,
+                                     spv::GLSLstd450 instruction_ordinal,
+                                     std::initializer_list<Id> args);
 
   // List of parameters used to create a texture operation
   struct TextureParameters {
@@ -655,6 +659,7 @@ class SpirvEmitter {
   Id unique_id_ = 0;
   Function* main_function_ = nullptr;
   AccessChain access_chain_;
+  Id glsl_std_450_instruction_set_ = 0;
 
   // special blocks of instructions for output
   std::vector<Instruction*> imports_;
