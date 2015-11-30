@@ -93,6 +93,21 @@ enum class TextureDimension : uint32_t {
   kCube = 3,
 };
 
+inline int GetTextureDimensionComponentCount(TextureDimension dimension) {
+  switch (dimension) {
+    case TextureDimension::k1D:
+      return 1;
+    case TextureDimension::k2D:
+      return 2;
+    case TextureDimension::k3D:
+    case TextureDimension::kCube:
+      return 3;
+    default:
+      assert_unhandled_case(dimension);
+      return 1;
+  }
+}
+
 enum class SampleLocation : uint32_t {
   kCentroid = 0,
   kCenter = 1,

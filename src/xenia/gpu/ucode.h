@@ -102,6 +102,22 @@ constexpr bool IsControlFlowOpcodeExec(ControlFlowOpcode opcode) {
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
 
+// Returns true if the given control flow opcode terminates the shader after
+// executing.
+constexpr bool DoesControlFlowOpcodeEndShader(ControlFlowOpcode opcode) {
+  return opcode == ControlFlowOpcode::kExecEnd ||
+         opcode == ControlFlowOpcode::kCondExecEnd ||
+         opcode == ControlFlowOpcode::kCondExecPredEnd ||
+         opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
+}
+
+// Returns true if the given control flow opcode resets the predicate prior to
+// execution.
+constexpr bool DoesControlFlowOpcodeCleanPredicate(ControlFlowOpcode opcode) {
+  return opcode == ControlFlowOpcode::kCondExecPredClean ||
+         opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
+}
+
 // Determines whether addressing is based on a0 or aL.
 enum class AddressingMode : uint32_t {
   // Indexing into register sets is done based on aL.
@@ -117,7 +133,7 @@ enum class AddressingMode : uint32_t {
 // shader.
 enum class AllocType : uint32_t {
   // ?
-  kNoAlloc = 0,
+  kNone = 0,
   // Vertex shader exports a position.
   kVsPosition = 1,
   // Vertex shader exports interpolators.
@@ -791,9 +807,7 @@ struct AluInstruction {
   bool is_const_1_addressed() const { return data_.const_1_rel_abs == 1; }
   bool is_address_relative() const { return data_.address_absolute == 1; }
 
-  bool has_vector_op() const {
-    return vector_write_mask() || (is_export() && export_write_mask());
-  }
+  bool has_vector_op() const { return vector_write_mask() || is_export(); }
   AluVectorOpcode vector_opcode() const {
     return static_cast<AluVectorOpcode>(data_.vector_opc);
   }
@@ -804,7 +818,7 @@ struct AluInstruction {
 
   bool has_scalar_op() const {
     return scalar_opcode() != AluScalarOpcode::kRETAIN_PREV ||
-           scalar_write_mask() != 0;
+           (!is_export() && scalar_write_mask() != 0);
   }
   AluScalarOpcode scalar_opcode() const {
     return static_cast<AluScalarOpcode>(data_.scalar_opc);

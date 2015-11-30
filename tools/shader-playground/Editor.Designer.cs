@@ -25,14 +25,14 @@
     private void InitializeComponent() {
       this.wordsTextBox = new System.Windows.Forms.TextBox();
       this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+      this.compilerTranslatedTextBox = new System.Windows.Forms.TextBox();
       this.sourceCodeTextBox = new System.Windows.Forms.TextBox();
       this.outputTextBox = new System.Windows.Forms.TextBox();
       this.compilerUcodeTextBox = new System.Windows.Forms.TextBox();
       this.label1 = new System.Windows.Forms.Label();
       this.label2 = new System.Windows.Forms.Label();
       this.label3 = new System.Windows.Forms.Label();
-      this.label4 = new System.Windows.Forms.Label();
-      this.compilerTranslatedTextBox = new System.Windows.Forms.TextBox();
+      this.translationComboBox = new System.Windows.Forms.ComboBox();
       this.tableLayoutPanel1.SuspendLayout();
       this.SuspendLayout();
       // 
@@ -65,7 +65,7 @@
       this.tableLayoutPanel1.Controls.Add(this.label1, 0, 0);
       this.tableLayoutPanel1.Controls.Add(this.label2, 1, 0);
       this.tableLayoutPanel1.Controls.Add(this.label3, 2, 0);
-      this.tableLayoutPanel1.Controls.Add(this.label4, 3, 0);
+      this.tableLayoutPanel1.Controls.Add(this.translationComboBox, 3, 0);
       this.tableLayoutPanel1.Location = new System.Drawing.Point(12, 12);
       this.tableLayoutPanel1.Name = "tableLayoutPanel1";
       this.tableLayoutPanel1.RowCount = 2;
@@ -73,6 +73,20 @@
       this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
       this.tableLayoutPanel1.Size = new System.Drawing.Size(1631, 639);
       this.tableLayoutPanel1.TabIndex = 5;
+      // 
+      // compilerTranslatedTextBox
+      // 
+      this.compilerTranslatedTextBox.AcceptsReturn = true;
+      this.compilerTranslatedTextBox.AcceptsTab = true;
+      this.compilerTranslatedTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
+      this.compilerTranslatedTextBox.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+      this.compilerTranslatedTextBox.Location = new System.Drawing.Point(1224, 23);
+      this.compilerTranslatedTextBox.Multiline = true;
+      this.compilerTranslatedTextBox.Name = "compilerTranslatedTextBox";
+      this.compilerTranslatedTextBox.ReadOnly = true;
+      this.compilerTranslatedTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+      this.compilerTranslatedTextBox.Size = new System.Drawing.Size(404, 613);
+      this.compilerTranslatedTextBox.TabIndex = 11;
       // 
       // sourceCodeTextBox
       // 
@@ -142,28 +156,19 @@
       this.label3.TabIndex = 9;
       this.label3.Text = "xenia-gpu-shader-compiler Disassembly";
       // 
-      // label4
+      // translationComboBox
       // 
-      this.label4.AutoSize = true;
-      this.label4.Location = new System.Drawing.Point(1224, 0);
-      this.label4.Name = "label4";
-      this.label4.Size = new System.Drawing.Size(183, 13);
-      this.label4.TabIndex = 10;
-      this.label4.Text = "xenia-gpu-shader-compiler Translated";
-      // 
-      // compilerTranslatedTextBox
-      // 
-      this.compilerTranslatedTextBox.AcceptsReturn = true;
-      this.compilerTranslatedTextBox.AcceptsTab = true;
-      this.compilerTranslatedTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
-      this.compilerTranslatedTextBox.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.compilerTranslatedTextBox.Location = new System.Drawing.Point(1224, 23);
-      this.compilerTranslatedTextBox.Multiline = true;
-      this.compilerTranslatedTextBox.Name = "compilerTranslatedTextBox";
-      this.compilerTranslatedTextBox.ReadOnly = true;
-      this.compilerTranslatedTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-      this.compilerTranslatedTextBox.Size = new System.Drawing.Size(404, 613);
-      this.compilerTranslatedTextBox.TabIndex = 11;
+      this.translationComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+      this.translationComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+      this.translationComboBox.FormattingEnabled = true;
+      this.translationComboBox.Items.AddRange(new object[] {
+            "SPIRV"});
+      this.translationComboBox.Location = new System.Drawing.Point(1224, 0);
+      this.translationComboBox.Margin = new System.Windows.Forms.Padding(3, 0, 3, 0);
+      this.translationComboBox.Name = "translationComboBox";
+      this.translationComboBox.Size = new System.Drawing.Size(404, 21);
+      this.translationComboBox.TabIndex = 12;
       // 
       // Editor
       // 
@@ -191,7 +196,7 @@
     private System.Windows.Forms.Label label2;
     private System.Windows.Forms.Label label3;
     private System.Windows.Forms.TextBox compilerTranslatedTextBox;
-    private System.Windows.Forms.Label label4;
+    private System.Windows.Forms.ComboBox translationComboBox;
   }
 }
 

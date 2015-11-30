@@ -20,6 +20,428 @@
 
 namespace xe {
 namespace gpu {
+
+enum class InstructionStorageTarget {
+  // Result is not stored.
+  kNone,
+  // Result is stored to a temporary register indexed by storage_index [0-31].
+  kRegister,
+  // Result is stored into a vertex shader interpolant export [0-15].
+  kInterpolant,
+  // Result is stored to the position export (gl_Position).
+  kPosition,
+  // Result is stored to the point size export (gl_PointSize).
+  kPointSize,
+  // Result is stored to a color target export indexed by storage_index [0-3].
+  kColorTarget,
+  // Result is stored to the depth export (gl_FragDepth).
+  kDepth,
+};
+
+enum class InstructionStorageAddressingMode {
+  // The storage index is not dynamically addressed.
+  kStatic,
+  // The storage index is addressed by a0.
+  kAddressAbsolute,
+  // The storage index is addressed by aL.
+  kAddressRelative,
+};
+
+// Describes the source value of a particular component.
+enum class SwizzleSource {
+  // Component receives the source X.
+  kX,
+  // Component receives the source Y.
+  kY,
+  // Component receives the source Z.
+  kZ,
+  // Component receives the source W.
+  kW,
+  // Component receives constant 0.
+  k0,
+  // Component receives constant 1.
+  k1,
+};
+
+constexpr SwizzleSource GetSwizzleFromComponentIndex(int i) {
+  return static_cast<SwizzleSource>(i);
+}
+inline char GetCharForSwizzle(SwizzleSource swizzle_source) {
+  const static char kChars[] = {'x', 'y', 'z', 'w', '0', '1'};
+  return kChars[static_cast<int>(swizzle_source)];
+}
+
+struct InstructionResult {
+  // Where the result is going.
+  InstructionStorageTarget storage_target = InstructionStorageTarget::kNone;
+  // Index into the storage_target, if it is indexed.
+  int storage_index = 0;
+  // How the storage index is dynamically addressed, if it is.
+  InstructionStorageAddressingMode storage_addressing_mode =
+      InstructionStorageAddressingMode::kStatic;
+  // True if the result is exporting from the shader.
+  bool is_export = false;
+  // True to clamp the result value to [0-1].
+  bool is_clamped = false;
+  // Defines whether each output component is written.
+  bool write_mask[4] = {false, false, false, false};
+  // Defines the source for each output component xyzw.
+  SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY,
+                                 SwizzleSource::kZ, SwizzleSource::kW};
+  // Returns true if any component is written to.
+  bool has_any_writes() const {
+    return write_mask[0] || write_mask[1] || write_mask[2] || write_mask[3];
+  }
+  // Returns true if all components are written to.
+  bool has_all_writes() const {
+    return write_mask[0] && write_mask[1] && write_mask[2] && write_mask[3];
+  }
+  // True if the components are in their 'standard' swizzle arrangement (xyzw).
+  bool is_standard_swizzle() const {
+    return has_all_writes() && components[0] == SwizzleSource::kX &&
+           components[1] == SwizzleSource::kY &&
+           components[2] == SwizzleSource::kZ &&
+           components[3] == SwizzleSource::kW;
+  }
+};
+
+enum class InstructionStorageSource {
+  // Source is stored in a temporary register indexed by storage_index [0-31].
+  kRegister,
+  // Source is stored in a float constant indexed by storage_index [0-511].
+  kConstantFloat,
+  // Source is stored in a float constant indexed by storage_index [0-31].
+  kConstantInt,
+  // Source is stored in a float constant indexed by storage_index [0-255].
+  kConstantBool,
+  // Source is stored in a vertex fetch constant indexed by storage_index
+  // [0-95].
+  kVertexFetchConstant,
+  // Source is stored in a texture fetch constant indexed by storage_index
+  // [0-31].
+  kTextureFetchConstant,
+};
+
+struct InstructionOperand {
+  // Where the source comes from.
+  InstructionStorageSource storage_source = InstructionStorageSource::kRegister;
+  // Index into the storage_target, if it is indexed.
+  int storage_index = 0;
+  // How the storage index is dynamically addressed, if it is.
+  InstructionStorageAddressingMode storage_addressing_mode =
+      InstructionStorageAddressingMode::kStatic;
+  // True to negate the operand value.
+  bool is_negated = false;
+  // True to take the absolute value of the source (before any negation).
+  bool is_absolute_value = false;
+  // Number of components taken from the source operand.
+  int component_count = 0;
+  // Defines the source for each component xyzw (up to the given
+  // component_count).
+  SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY,
+                                 SwizzleSource::kZ, SwizzleSource::kW};
+  // True if the components are in their 'standard' swizzle arrangement (xyzw).
+  bool is_standard_swizzle() const {
+    switch (component_count) {
+      case 4:
+        return components[0] == SwizzleSource::kX &&
+               components[1] == SwizzleSource::kY &&
+               components[2] == SwizzleSource::kZ &&
+               components[3] == SwizzleSource::kW;
+    }
+    return false;
+  }
+};
+
+struct ParsedExecInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Opcode for the instruction.
+  ucode::ControlFlowOpcode opcode;
+  // Friendly name of the instruction.
+  const char* opcode_name = nullptr;
+
+  // Instruction address where ALU/fetch instructions reside.
+  uint32_t instruction_address = 0;
+  // Number of instructions to execute.
+  uint32_t instruction_count = 0;
+
+  enum class Type {
+    // Block is always executed.
+    kUnconditional,
+    // Execution is conditional on the value of the boolean constant.
+    kConditional,
+    // Execution is predicated.
+    kPredicated,
+  };
+  // Condition required to execute the instructions.
+  Type type = Type::kUnconditional;
+  // Constant index used as the conditional if kConditional.
+  uint32_t bool_constant_index = 0;
+  // Required condition value of the comparision (true or false).
+  bool condition = false;
+
+  // Whether to reset the current predicate.
+  bool clean = true;
+  // ?
+  bool is_yield = false;
+
+  // Sequence bits, 2 per instruction, indicating whether ALU or fetch.
+  uint32_t sequence = 0;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedLoopStartInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Integer constant register that holds the loop parameters.
+  // Byte-wise: [loop count, start, step [-128, 127], ?]
+  uint32_t loop_constant_index = 0;
+  // Whether to reuse the current aL instead of reset it to loop start.
+  bool is_repeat = false;
+
+  // Target address to jump to when skipping the loop.
+  uint32_t loop_skip_address = 0;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedLoopEndInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Break from the loop if the predicate matches the expected value.
+  bool is_predicated_break = false;
+  // Required condition value of the comparision (true or false).
+  bool predicate_condition = false;
+
+  // Integer constant register that holds the loop parameters.
+  // Byte-wise: [loop count, start, step [-128, 127], ?]
+  uint32_t loop_constant_index = 0;
+
+  // Target address of the start of the loop body.
+  uint32_t loop_body_address = 0;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedCallInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Target address.
+  uint32_t target_address = 0;
+
+  enum class Type {
+    // Call is always made.
+    kUnconditional,
+    // Call is conditional on the value of the boolean constant.
+    kConditional,
+    // Call is predicated.
+    kPredicated,
+  };
+  // Condition required to make the call.
+  Type type = Type::kUnconditional;
+  // Constant index used as the conditional if kConditional.
+  uint32_t bool_constant_index = 0;
+  // Required condition value of the comparision (true or false).
+  bool condition = false;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedReturnInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedJumpInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Target address.
+  uint32_t target_address = 0;
+
+  enum class Type {
+    // Jump is always taken.
+    kUnconditional,
+    // Jump is conditional on the value of the boolean constant.
+    kConditional,
+    // Jump is predicated.
+    kPredicated,
+  };
+  // Condition required to make the jump.
+  Type type = Type::kUnconditional;
+  // Constant index used as the conditional if kConditional.
+  uint32_t bool_constant_index = 0;
+  // Required condition value of the comparision (true or false).
+  bool condition = false;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedAllocInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // The type of resource being allocated.
+  ucode::AllocType type = ucode::AllocType::kNone;
+  // Total count associated with the allocation.
+  int count = 0;
+
+  // True if this allocation is in a vertex shader.
+  bool is_vertex_shader = false;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedVertexFetchInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Opcode for the instruction.
+  ucode::FetchOpcode opcode;
+  // Friendly name of the instruction.
+  const char* opcode_name = nullptr;
+
+  // True if the fetch is reusing a previous full fetch.
+  // The previous fetch source and constant data will be populated.
+  bool is_mini_fetch = false;
+
+  // True if the instruction is predicated on the specified
+  // predicate_condition.
+  bool is_predicated = false;
+  // Expected predication condition value if predicated.
+  bool predicate_condition = false;
+
+  // Describes how the instruction result is stored.
+  InstructionResult result;
+
+  // Number of source operands.
+  size_t operand_count = 0;
+  // Describes each source operand.
+  InstructionOperand operands[2];
+
+  struct Attributes {
+    VertexFormat data_format = VertexFormat::kUndefined;
+    int offset = 0;
+    int stride = 0;
+    int exp_adjust = 0;
+    bool is_index_rounded = false;
+    bool is_signed = false;
+    bool is_integer = false;
+    int prefetch_count = 0;
+  };
+  // Attributes describing the fetch operation.
+  Attributes attributes;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedTextureFetchInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  // Opcode for the instruction.
+  ucode::FetchOpcode opcode;
+  // Friendly name of the instruction.
+  const char* opcode_name = nullptr;
+  // Texture dimension for opcodes that have multiple dimension forms.
+  TextureDimension dimension = TextureDimension::k1D;
+
+  // True if the instruction is predicated on the specified
+  // predicate_condition.
+  bool is_predicated = false;
+  // Expected predication condition value if predicated.
+  bool predicate_condition = false;
+
+  // True if the instruction has a result.
+  bool has_result() const {
+    return result.storage_target != InstructionStorageTarget::kNone;
+  }
+  // Describes how the instruction result is stored.
+  InstructionResult result;
+
+  // Number of source operands.
+  size_t operand_count = 0;
+  // Describes each source operand.
+  InstructionOperand operands[2];
+
+  struct Attributes {
+    bool fetch_valid_only = true;
+    bool unnormalized_coordinates = false;
+    TextureFilter mag_filter = TextureFilter::kUseFetchConst;
+    TextureFilter min_filter = TextureFilter::kUseFetchConst;
+    TextureFilter mip_filter = TextureFilter::kUseFetchConst;
+    AnisoFilter aniso_filter = AnisoFilter::kUseFetchConst;
+    bool use_computed_lod = true;
+    bool use_register_lod = false;
+    bool use_register_gradients = false;
+    float offset_x = 0.0f;
+    float offset_y = 0.0f;
+    float offset_z = 0.0f;
+  };
+  // Attributes describing the fetch operation.
+  Attributes attributes;
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
+struct ParsedAluInstruction {
+  // Index into the ucode dword source.
+  uint32_t dword_index = 0;
+
+  enum class Type {
+    kNop,
+    kVector,
+    kScalar,
+  };
+  // Type of the instruction.
+  Type type = Type::kNop;
+  bool is_nop() const { return type == Type::kNop; }
+  bool is_vector_type() const { return type == Type::kVector; }
+  bool is_scalar_type() const { return type == Type::kScalar; }
+  // Opcode for the instruction if it is a vector type.
+  ucode::AluVectorOpcode vector_opcode = ucode::AluVectorOpcode::kADDv;
+  // Opcode for the instruction if it is a scalar type.
+  ucode::AluScalarOpcode scalar_opcode = ucode::AluScalarOpcode::kADDs;
+  // Friendly name of the instruction.
+  const char* opcode_name = nullptr;
+
+  // True if the instruction is paired with another instruction.
+  bool is_paired = false;
+  // True if the instruction is predicated on the specified
+  // predicate_condition.
+  bool is_predicated = false;
+  // Expected predication condition value if predicated.
+  bool predicate_condition = false;
+
+  // Describes how the instruction result is stored.
+  InstructionResult result;
+
+  // Number of source operands.
+  size_t operand_count = 0;
+  // Describes each source operand.
+  InstructionOperand operands[3];
+
+  // Disassembles the instruction into ucode assembly text.
+  void Disassemble(StringBuffer* out) const;
+};
+
 class TranslatedShader {
  public:
   struct Error {
@@ -33,15 +455,16 @@ class TranslatedShader {
     // Fetch constant index [0-95].
     uint32_t fetch_constant;
     // Fetch instruction with all parameters.
-    ucode::VertexFetchInstruction op;
+    ParsedVertexFetchInstruction fetch_instr;
   };
+
   struct TextureBinding {
     // Index within the texture binding listing.
     size_t binding_index;
     // Fetch constant index [0-31].
     uint32_t fetch_constant;
     // Fetch instruction with all parameters.
-    ucode::TextureFetchInstruction op;
+    ParsedTextureFetchInstruction fetch_instr;
   };
 
   ~TranslatedShader();
@@ -59,9 +482,9 @@ class TranslatedShader {
   }
 
   bool is_valid() const { return is_valid_; }
-  const std::vector<Error> errors() const { return errors_; }
+  const std::vector<Error>& errors() const { return errors_; }
 
-  const std::vector<uint8_t> binary() const { return binary_; }
+  const std::vector<uint8_t>& binary() const { return binary_; }
 
  private:
   friend class ShaderTranslator;
@@ -95,146 +518,80 @@ class ShaderTranslator {
  protected:
   ShaderTranslator();
 
+  // True if the current shader is a vertex shader.
+  bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
+  // True if the current shader is a pixel shader.
+  bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
+  // A list of all vertex bindings, populated before translation occurs.
+  const std::vector<TranslatedShader::VertexBinding>& vertex_bindings() const {
+    return vertex_bindings_;
+  }
+  // A list of all texture bindings, populated before translation occurs.
+  const std::vector<TranslatedShader::TextureBinding>& texture_bindings()
+      const {
+    return texture_bindings_;
+  }
+
+  // Current line number in the ucode disassembly.
   size_t ucode_disasm_line_number() const { return ucode_disasm_line_number_; }
+  // Ucode disassembly buffer accumulated during translation.
   StringBuffer& ucode_disasm_buffer() { return ucode_disasm_buffer_; }
+  // Emits a translation error that will be passed back in the result.
   void EmitTranslationError(const char* message);
 
+  // Handles the start of translation.
+  // At this point the vertex and texture bindings have been gathered.
+  virtual void StartTranslation() {}
+
+  // Handles the end of translation when all ucode has been processed.
+  // Returns the translated shader binary.
   virtual std::vector<uint8_t> CompleteTranslation() {
     return std::vector<uint8_t>();
   }
 
-  virtual void ProcessControlFlowNop(const ucode::ControlFlowInstruction& cf) {}
-  virtual void ProcessControlFlowExec(
-      const ucode::ControlFlowExecInstruction& cf) {}
-  virtual void ProcessControlFlowCondExec(
-      const ucode::ControlFlowCondExecInstruction& cf) {}
-  virtual void ProcessControlFlowCondExecPred(
-      const ucode::ControlFlowCondExecPredInstruction& cf) {}
-  virtual void ProcessControlFlowLoopStart(
-      const ucode::ControlFlowLoopStartInstruction& cf) {}
-  virtual void ProcessControlFlowLoopEnd(
-      const ucode::ControlFlowLoopEndInstruction& cf) {}
-  virtual void ProcessControlFlowCondCall(
-      const ucode::ControlFlowCondCallInstruction& cf) {}
-  virtual void ProcessControlFlowReturn(
-      const ucode::ControlFlowReturnInstruction& cf) {}
-  virtual void ProcessControlFlowCondJmp(
-      const ucode::ControlFlowCondJmpInstruction& cf) {}
-  virtual void ProcessControlFlowAlloc(
-      const ucode::ControlFlowAllocInstruction& cf) {}
+  // Handles translation for control flow label addresses.
+  // This is triggered once for each label required (due to control flow
+  // operations) before any of the instructions within the target exec.
+  virtual void ProcessLabel(uint32_t cf_index) {}
 
+  // Handles translation for control flow nop instructions.
+  virtual void ProcessControlFlowNopInstruction() {}
+  // Handles translation for control flow exec instructions prior to their
+  // contained ALU/fetch instructions.
+  virtual void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) {
+  }
+  // Handles translation for control flow exec instructions after their
+  // contained ALU/fetch instructions.
+  virtual void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) {}
+  // Handles translation for loop start instructions.
+  virtual void ProcessLoopStartInstruction(
+      const ParsedLoopStartInstruction& instr) {}
+  // Handles translation for loop end instructions.
+  virtual void ProcessLoopEndInstruction(
+      const ParsedLoopEndInstruction& instr) {}
+  // Handles translation for function call instructions.
+  virtual void ProcessCallInstruction(const ParsedCallInstruction& instr) {}
+  // Handles translation for function return instructions.
+  virtual void ProcessReturnInstruction(const ParsedReturnInstruction& instr) {}
+  // Handles translation for jump instructions.
+  virtual void ProcessJumpInstruction(const ParsedJumpInstruction& instr) {}
+  // Handles translation for alloc instructions.
+  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& instr) {}
+
+  // Handles translation for vertex fetch instructions.
   virtual void ProcessVertexFetchInstruction(
-      const ucode::VertexFetchInstruction& op) {}
-  virtual void ProcessTextureFetchTextureFetch(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchGetTextureBorderColorFrac(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchGetTextureComputedLod(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchGetTextureGradients(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchGetTextureWeights(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchSetTextureLod(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchSetTextureGradientsHorz(
-      const ucode::TextureFetchInstruction& op) {}
-  virtual void ProcessTextureFetchSetTextureGradientsVert(
-      const ucode::TextureFetchInstruction& op) {}
-
-  virtual void ProcessAluNop(const ucode::AluInstruction& op) {}
-
-  virtual void ProcessAluVectorAdd(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorMul(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorMax(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorMin(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorSetEQ(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorSetGT(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorSetGE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorSetNE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorFrac(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorTrunc(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorFloor(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorMad(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorCndEQ(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorCndGE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorCndGT(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorDp4(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorDp3(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorDp2Add(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorCube(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorMax4(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorPredSetEQPush(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorPredSetNEPush(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorPredSetGTPush(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorPredSetGEPush(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorKillEQ(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorKillGT(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorKillLGE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorKillNE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorDst(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluVectorMaxA(const ucode::AluInstruction& op) {}
-
-  virtual void ProcessAluScalarAdd(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarAddPrev(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMul(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMulPrev(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMulPrev2(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMax(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMin(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSetEQ(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSetGT(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSetGE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSetNE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarFrac(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarTrunc(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarFloor(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarExp(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarLogClamp(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarLog(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarRecipClamp(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarRecipFixedFunc(const ucode::AluInstruction& op) {
-  }
-  virtual void ProcessAluScalarRecip(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarRSqrtClamp(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarRSqrtFixedFunc(const ucode::AluInstruction& op) {
-  }
-  virtual void ProcessAluScalarRSqrt(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMovA(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMovAFloor(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSub(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSubPrev(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetEQ(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetNE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetGT(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetGE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetInv(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetPop(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetClear(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarPredSetRestore(const ucode::AluInstruction& op) {
-  }
-  virtual void ProcessAluScalarKillEQ(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarKillGT(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarKillGE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarKillNE(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarKillOne(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSqrt(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMulConst0(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarMulConst1(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarAddConst0(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarAddConst1(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSubConst0(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSubConst1(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarSin(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarCos(const ucode::AluInstruction& op) {}
-  virtual void ProcessAluScalarRetainPrev(const ucode::AluInstruction& op) {}
+      const ParsedVertexFetchInstruction& instr) {}
+  // Handles translation for texture fetch instructions.
+  virtual void ProcessTextureFetchInstruction(
+      const ParsedTextureFetchInstruction& instr) {}
+  // Handles translation for ALU instructions.
+  virtual void ProcessAluInstruction(const ParsedAluInstruction& instr) {}
 
  private:
   struct AluOpcodeInfo {
     const char* name;
     size_t argument_count;
     int src_swizzle_component_count;
-    void (ShaderTranslator::*fn)(const ucode::AluInstruction& op);
   };
 
   void MarkUcodeInstruction(uint32_t dword_offset);
@@ -266,28 +623,22 @@ class ShaderTranslator {
       const ucode::ControlFlowCondJmpInstruction& cf);
   void TranslateControlFlowAlloc(const ucode::ControlFlowAllocInstruction& cf);
 
-  void TranslateExecInstructions(uint32_t address, uint32_t count,
-                                 uint32_t sequence);
+  void TranslateExecInstructions(const ParsedExecInstruction& instr);
 
-  void DisasmFetchDestReg(uint32_t dest, uint32_t swizzle, bool is_relative);
-  void DisasmFetchSourceReg(uint32_t src, uint32_t swizzle, bool is_relative,
-                            int component_count);
   void TranslateVertexFetchInstruction(const ucode::VertexFetchInstruction& op);
+  void ParseVertexFetchInstruction(const ucode::VertexFetchInstruction& op,
+                                   ParsedVertexFetchInstruction* out_instr);
+
   void TranslateTextureFetchInstruction(
       const ucode::TextureFetchInstruction& op);
-  void DisasmVertexFetchAttributes(const ucode::VertexFetchInstruction& op);
-  void DisasmTextureFetchAttributes(const ucode::TextureFetchInstruction& op);
+  void ParseTextureFetchInstruction(const ucode::TextureFetchInstruction& op,
+                                    ParsedTextureFetchInstruction* out_instr);
 
   void TranslateAluInstruction(const ucode::AluInstruction& op);
-  void DisasmAluVectorInstruction(const ucode::AluInstruction& op,
-                                  const AluOpcodeInfo& opcode_info);
-  void DisasmAluScalarInstruction(const ucode::AluInstruction& op,
-                                  const AluOpcodeInfo& opcode_info);
-  void DisasmAluSourceReg(const ucode::AluInstruction& op, int i,
-                          int swizzle_component_count);
-  void DisasmAluSourceRegScalarSpecial(const ucode::AluInstruction& op,
-                                       uint32_t reg, bool is_temp, bool negate,
-                                       int const_slot, uint32_t swizzle);
+  void ParseAluVectorInstruction(const ucode::AluInstruction& op,
+                                 const AluOpcodeInfo& opcode_info);
+  void ParseAluScalarInstruction(const ucode::AluInstruction& op,
+                                 const AluOpcodeInfo& opcode_info);
 
   // Input shader metadata and microcode.
   ShaderType shader_type_;

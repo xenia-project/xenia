@@ -13,6 +13,7 @@ namespace shader_playground {
     string compilerPath_ = @"..\..\..\..\..\build\bin\Windows\Debug\xenia-gpu-shader-compiler.exe";
 
     FileSystemWatcher compilerWatcher_;
+    bool pendingTimer_ = false;
 
     public Editor() {
       InitializeComponent();
@@ -23,7 +24,20 @@ namespace shader_playground {
       compilerWatcher_.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
       compilerWatcher_.Changed += (object sender, FileSystemEventArgs e) => {
         if (e.Name == Path.GetFileName(compilerPath_)) {
-          Invoke((MethodInvoker)delegate { Process(sourceCodeTextBox.Text); });
+          Invoke((MethodInvoker)delegate {
+            if (pendingTimer_) {
+              return;
+            }
+            pendingTimer_ = true;
+            var timer = new Timer();
+            timer.Interval = 1000;
+            timer.Tick += (object sender1, EventArgs e1) => {
+              pendingTimer_ = false;
+              timer.Dispose();
+              Process(sourceCodeTextBox.Text);
+            };
+            timer.Start();
+          });
         }
       };
       compilerWatcher_.EnableRaisingEvents = true;
@@ -33,14 +47,19 @@ namespace shader_playground {
         wordsTextBox.Copy();
       };
 
-      this.sourceCodeTextBox.Click += (object sender, EventArgs e) => {
+      sourceCodeTextBox.Click += (object sender, EventArgs e) => {
         Process(sourceCodeTextBox.Text);
       };
       sourceCodeTextBox.TextChanged += (object sender, EventArgs e) => {
         Process(sourceCodeTextBox.Text);
       };
 
-      sourceCodeTextBox.Text = string.Join(
+      translationComboBox.SelectedIndex = 0;
+      translationComboBox.SelectedIndexChanged += (object sender, EventArgs e) => {
+        Process(sourceCodeTextBox.Text);
+      };
+
+    sourceCodeTextBox.Text = string.Join(
         "\r\n", new string[] {
 "xps_3_0",
 "dcl_texcoord1 r0",
@@ -59,6 +78,9 @@ namespace shader_playground {
 "(!p0)        setGradientV r1.zyx",
 "        getGradients r5, r1.xy, tf3",
 "        mad oC0, r0, r1.yyyy, c0",
+"        mad oC0._, r0, r1.yyyy, c0",
+"        mad oC0.x1_, r0, r1.yyyy, c0",
+"        mad oC0.x10w, r0, r1.yyyy, c0",
 "        mul r4.xyz, r1.xyzz, c5.xyzz",
 "        mul r4.xyz, r1.xyzz, c[0 + aL].xyzz",
 "        mul r4.xyz, r1.xyzz, c[6 + aL].xyzz",
@@ -67,6 +89,8 @@ namespace shader_playground {
 "      + adds r5.w, r0.xz",
 "        cos r6.w, r0.x",
 "        adds r5.w, r0.zx",
+"        mul r4.xyz, r[aL+1].xyzz, c[8 + a0].xyzz",
+"        adds r5.w, r[aL+0].zx",
 "        jmp l5",
 "ccall b1, l5",
 "nop",
@@ -151,15 +175,15 @@ namespace shader_playground {
     void TryCompiler(string shaderType, uint[] ucodeWords) {
       string ucodePath = Path.Combine(Path.GetTempPath(), "shader_playground_ucode.bin." + shaderType);
       string ucodeDisasmPath = Path.Combine(Path.GetTempPath(), "shader_playground_disasm.ucode.txt");
-      string spirvDisasmPath = Path.Combine(Path.GetTempPath(), "shader_playground_disasm.spirv.txt");
+      string translatedDisasmPath = Path.Combine(Path.GetTempPath(), "shader_playground_disasm.translated.txt");
       if (File.Exists(ucodePath)) {
         File.Delete(ucodePath);
       }
       if (File.Exists(ucodeDisasmPath)) {
         File.Delete(ucodeDisasmPath);
       }
-      if (File.Exists(spirvDisasmPath)) {
-        File.Delete(spirvDisasmPath);
+      if (File.Exists(translatedDisasmPath)) {
+        File.Delete(translatedDisasmPath);
       }
 
       byte[] ucodeBytes = new byte[ucodeWords.Length * 4];
@@ -190,12 +214,20 @@ namespace shader_playground {
         compilerUcodeTextBox.Text = "COMPILER FAILURE";
       }
 
+      string outputType;
+      switch (translationComboBox.SelectedIndex) {
+        default:
+        case 0:
+          outputType = "spirvtext";
+          break;
+      }
+
       startInfo = new ProcessStartInfo(compilerPath_);
       startInfo.Arguments = string.Join(" ", new string[]{
         "--shader_input=" + ucodePath,
         "--shader_input_type=" + shaderType,
-        "--shader_output=" + spirvDisasmPath,
-        "--shader_output_type=spirvtext",
+        "--shader_output=" + translatedDisasmPath,
+        "--shader_output_type=" + outputType,
       });
       startInfo.WindowStyle = ProcessWindowStyle.Hidden;
       startInfo.CreateNoWindow = true;
@@ -203,7 +235,7 @@ namespace shader_playground {
         using (var process = System.Diagnostics.Process.Start(startInfo)) {
           process.WaitForExit();
         }
-        string disasmText = File.ReadAllText(spirvDisasmPath);
+        string disasmText = File.ReadAllText(translatedDisasmPath);
         compilerTranslatedTextBox.Text = disasmText;
       } catch {
         compilerTranslatedTextBox.Text = "COMPILER FAILURE";

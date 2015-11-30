@@ -17,13 +17,15 @@
 #include "xenia/base/main.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/shader_translator.h"
+#include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/ui/spirv/spirv_disassembler.h"
 
 DEFINE_string(shader_input, "", "Input shader binary file path.");
 DEFINE_string(shader_input_type, "",
               "'vs', 'ps', or unspecified to infer from the given filename.");
 DEFINE_string(shader_output, "", "Output shader file path.");
 DEFINE_string(shader_output_type, "ucode",
-              "Translator to use: [ucode, spirvtext].");
+              "Translator to use: [ucode, spirv, spirvtext].");
 
 namespace xe {
 namespace gpu {
@@ -77,9 +79,9 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
          ucode_dwords.size(), ucode_dwords.size() * 4);
 
   std::unique_ptr<ShaderTranslator> translator;
-  if (FLAGS_shader_output_type == "spirvtext") {
-    // TODO(benvanik): SPIRV translator.
-    translator = std::make_unique<UcodeShaderTranslator>();
+  if (FLAGS_shader_output_type == "spirv" ||
+      FLAGS_shader_output_type == "spirvtext") {
+    translator = std::make_unique<SpirvShaderTranslator>();
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
@@ -89,10 +91,20 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   auto translated_shader = translator->Translate(
       shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
 
+  const void* source_data = translated_shader->binary().data();
+  size_t source_data_size = translated_shader->binary().size();
+
+  if (FLAGS_shader_output_type == "spirvtext") {
+    // Disassemble SPIRV.
+    auto disasm_result = xe::ui::spirv::SpirvDisassembler().Disassemble(
+        reinterpret_cast<const uint32_t*>(source_data), source_data_size / 4);
+    source_data = disasm_result->text();
+    source_data_size = std::strlen(disasm_result->text()) + 1;
+  }
+
   if (!FLAGS_shader_output.empty()) {
     auto output_file = fopen(FLAGS_shader_output.c_str(), "w");
-    fwrite(translated_shader->binary().data(),
-           translated_shader->binary().size(), 1, output_file);
+    fwrite(source_data, source_data_size, 1, output_file);
     fclose(output_file);
   }
 
