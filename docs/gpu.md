@@ -17,10 +17,49 @@ Buggy GL implementations can benefit from `--thread_safe_gl`.
 
 ## Tools
 
-### Shader Dumps
+### Shaders
+
+#### Shader Dumps
 
 Adding `--dump_shaders=path/` will write all translated shaders to the given
 path with names based on input hash (so they'll be stable across runs).
+Binaries containing the original microcode will be placed side-by-side with
+the dumped output to make it easy to pipe to `xe-gpu-shader-compiler`.
+
+#### xe-gpu-shader-compiler
+
+A standalone shader compiler exists to allow for quick shader translation
+testing. You can pass a binary ucode shader in and get either disassembled
+ucode or translated source out. This is best used through the Shader
+Playground tool.
+
+```
+  xe-gpu-shader-compiler \
+      --shader_input=input_file.bin.vs (or .fs)
+      --shader_output=output_file.txt
+      --shader_output_type=ucode (or spirvtext)
+```
+
+#### Shader Playground
+
+Built separately (for now) under [tools/shader-playground/](https://github.com/benvanik/xenia/blob/master/tools/shader-playground/)
+is a GUI for interactive shader assembly, disassembly, validation, and
+translation.
+
+TODO(benvanik): screen shot.
+
+Entering shader microcode on the left will invoke the XNA Game Studio
+D3D compiler to translate the ucode to binary. The D3D compiler is then
+used to disassemble the binary and display the optimized form. If
+`xe-gpu-shader-compiler` has been built the ucode will be passed to that
+for disassembly and that will then be passed through D3D compiler. If
+the output of D3D compiler on the xenia disassembly doesn't match the
+original D3D compiler output the box will turn red, indicating that the
+disassembly is broken. Finally, the right most box will show the
+translated shader in the desired format.
+
+For more information and setup instructions see
+[tools/shader-playground/README.md](https://github.com/benvanik/xenia/blob/master/tools/shader-playground/README.md).
 
 ### xe-gpu-trace-viewer
 
@@ -61,11 +100,3 @@ you to seek through them in the trace viewer. These files will get large.
 * [LLVM R600 Tables](https://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/R600/R600Instructions.td)
 ** The opcode formats don't match, but the name->psuedo code is correct.
 * [xemit](https://github.com/gligli/libxemit/blob/master/xemitops.c)
-
-## Tools
-
-### apitrace
-
-[apitrace](http://apitrace.github.io/) can be used to capture and replay D3D11
-call streams. To disable stdout spew first set `XE_OPTION_ENABLE_LOGGING` to 0
-in `logging.h`.

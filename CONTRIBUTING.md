@@ -41,9 +41,9 @@ identify regressions. Such tools require a clean git history to function
 properly. Incoming pull requests must follow good git rules, the most basic of
 which is that individual commits add functionality in somewhat working form and
 fully compile and run on their own. Small pull requests with a single commit are
-best, however multiple commits in a pull request are allowed only if they are
-kept clean. If not, you will be asked to rebase them (and if you don't know what
-that means, avoid getting into that situation ;).
+best and multiple commits in a pull request are allowed only if they are
+kept clean. If not clean, you will be asked to rebase your pulls (and if
+you don't know what that means, avoid getting into that situation ;).
 
 Example of a bad commit history:
 
@@ -75,4 +75,4 @@ change to a fundamentally incompatible license.
 Any `third_party/` code added will be reviewed for conformance with the license.
 In general, GPL code is forbidden unless it is used exclusively for
 development-time tooling (like compiling). LGPL code is strongly discouraged as
-it complicates building. Unless extremely trivial (such as )
+it complicates building.

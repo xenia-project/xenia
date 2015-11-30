@@ -4,32 +4,22 @@ Xenia - Xbox 360 Emulator Research Project
 Xenia is an experimental emulator for the Xbox 360. For more information see the
 [main xenia website](http://xenia.jp/).
 
-Pull requests are welcome but the code is in a very high churn state and may not
-be accepted, so ask in IRC before taking on anything big. Contributions are
-awesome but the focus of the developers is on writing new code, not teaching
-programming or answering questions. If you'd like to casually help out it may
-be better to wait a bit until things calm down and more of the code is documented.
-
-Come chat with us **about development topics** in
+Come chat with us about **emulator-related topics in
 [#xenia @ irc.freenode.net](http://webchat.freenode.net?channels=%23xenia&uio=MTE9NzIaa).
+For developer chat join `#xenia-dev` but stay on topic. Lurking is fine.
 Please check the [frequently asked questions](http://xenia.jp/faq/) page before
 asking questions. We've got jobs/lives/etc, so don't expect instant answers.
 Discussing illegal activities will get you banned. No warnings.
-
-**Before contributing code or issues be sure to read [CONTRIBUTING.md](CONTRIBUTING.md).**
 
 ## Status
 
 Buildbot:
 [![Build status](http://build.xenia.jp/png?builder=auto-builds)](http://build.xenia.jp/waterfall)
 
-Project tracker:
-[![Stories in Ready](https://badge.waffle.io/benvanik/xenia.svg?label=ready&title=Ready)](http://waffle.io/benvanik/xenia)
-[![Stories in In Progress](https://badge.waffle.io/benvanik/xenia.svg?label=in%20progress&title=In%20Progress)](http://waffle.io/benvanik/xenia)
-
-Some real games run. Most don't. Don't ask if GTA or whatever runs.
+Some real games run. Most don't.
 See the [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues)
-for currently tracked games.
+for currently tracked games and feel free to contribute your own updates,
+screenshots, and information there following the [existing conventions](https://github.com/xenia-project/game-compatibility/blob/master/README.md).
 
 ## Disclaimer
 
@@ -43,24 +33,24 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
 
-    > git clone https://github.com/benvanik/xenia.git
-    > cd xenia
-    > xb setup
+> git clone https://github.com/benvanik/xenia.git
+> cd xenia
+> xb setup
 
-    # Pull latest changes, rebase, and update submodules and premake:
-    > xb pull
+# Pull latest changes, rebase, and update submodules and premake:
+> xb pull
 
-    # Build on command line:
-    > xb build
+# Build on command line:
+> xb build
 
-    # Run premake and open Visual Studio (run the 'xenia-app' project):
-    > xb devenv
+# Run premake and open Visual Studio (run the 'xenia-app' project):
+> xb devenv
 
-    # Run premake to update the sln/vcproj's:
-    > xb premake
+# Run premake to update the sln/vcproj's:
+> xb premake
 
-    # Format code to the style guide:
-    > xb format
+# Format code to the style guide:
+> xb format
 
 When fetching updates use `xb pull` to automatically fetch everything and
 run premake for project files/etc.
@@ -72,6 +62,8 @@ See [building.md](building.md) for setup and information about the
 and be sure to run clang-format!
 
 ## Contributors Wanted!
+
+**Before contributing code or issues be sure to read [CONTRIBUTING.md](CONTRIBUTING.md).**
 
 Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
