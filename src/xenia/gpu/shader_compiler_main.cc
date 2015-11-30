@@ -94,17 +94,18 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   const void* source_data = translated_shader->binary().data();
   size_t source_data_size = translated_shader->binary().size();
 
+  std::unique_ptr<xe::ui::spirv::SpirvDisassembler::Result> spirv_disasm_result;
   if (FLAGS_shader_output_type == "spirvtext") {
     // Disassemble SPIRV.
-    auto disasm_result = xe::ui::spirv::SpirvDisassembler().Disassemble(
+    spirv_disasm_result = xe::ui::spirv::SpirvDisassembler().Disassemble(
         reinterpret_cast<const uint32_t*>(source_data), source_data_size / 4);
-    source_data = disasm_result->text();
-    source_data_size = std::strlen(disasm_result->text()) + 1;
+    source_data = spirv_disasm_result->text();
+    source_data_size = std::strlen(spirv_disasm_result->text()) + 1;
   }
 
   if (!FLAGS_shader_output.empty()) {
-    auto output_file = fopen(FLAGS_shader_output.c_str(), "w");
-    fwrite(source_data, source_data_size, 1, output_file);
+    auto output_file = fopen(FLAGS_shader_output.c_str(), "wb");
+    fwrite(source_data, 1, source_data_size, output_file);
     fclose(output_file);
   }
 

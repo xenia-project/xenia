@@ -60,7 +60,7 @@ namespace shader_playground {
       };
 
     sourceCodeTextBox.Text = string.Join(
-        "\r\n", new string[] {
+        Environment.NewLine, new string[] {
 "xps_3_0",
 "dcl_texcoord1 r0",
 "dcl_color r1.xy",
@@ -134,7 +134,7 @@ namespace shader_playground {
           Microsoft.Xna.Framework.TargetPlatform.Xbox360);
 
       var disassembledSourceCode = compiledShader.ErrorsAndWarnings;
-      disassembledSourceCode = disassembledSourceCode.Replace("\n", "\r\n");
+      disassembledSourceCode = disassembledSourceCode.Replace("\n", Environment.NewLine);
       if (disassembledSourceCode.IndexOf("// PDB hint 00000000-00000000-00000000") == -1) {
         outputTextBox.Text = disassembledSourceCode;
         compilerUcodeTextBox.Text = "";
@@ -147,11 +147,11 @@ namespace shader_playground {
       disassembledSourceCode =
           disassembledSourceCode.Replace(prefix + ": ", "");
       disassembledSourceCode = disassembledSourceCode.Replace(
-          "// PDB hint 00000000-00000000-00000000\r\n", "");
+          "// PDB hint 00000000-00000000-00000000" + Environment.NewLine, "");
       var firstLine = disassembledSourceCode.IndexOf("//");
       var warnings = "// " +
                      disassembledSourceCode.Substring(0, firstLine)
-                         .Replace("\r\n", "\r\n// ");
+                         .Replace(Environment.NewLine, Environment.NewLine + "// ");
       disassembledSourceCode =
           warnings + disassembledSourceCode.Substring(firstLine + 3);
       disassembledSourceCode = disassembledSourceCode.Trim();
@@ -209,7 +209,7 @@ namespace shader_playground {
           process.WaitForExit();
         }
         string disasmText = File.ReadAllText(ucodeDisasmPath);
-        compilerUcodeTextBox.Text = disasmText;
+        compilerUcodeTextBox.Text = disasmText.Replace("\n", Environment.NewLine);
       } catch {
         compilerUcodeTextBox.Text = "COMPILER FAILURE";
       }
@@ -236,7 +236,7 @@ namespace shader_playground {
           process.WaitForExit();
         }
         string disasmText = File.ReadAllText(translatedDisasmPath);
-        compilerTranslatedTextBox.Text = disasmText;
+        compilerTranslatedTextBox.Text = disasmText.Replace("\n", Environment.NewLine);
       } catch {
         compilerTranslatedTextBox.Text = "COMPILER FAILURE";
       }
@@ -300,8 +300,8 @@ namespace shader_playground {
       for (int i = 0; i < swappedCode.Length; ++i) {
         sb.AppendFormat("0x{0:X8}, ", swappedCode[i]);
       }
-      sb.Append("};\r\n");
-      sb.Append("shader_type = ShaderType::" + (shaderType == "vs" ? "kVertex" : "kPixel") + ";\r\n");
+      sb.Append("};" + Environment.NewLine);
+      sb.Append("shader_type = ShaderType::" + (shaderType == "vs" ? "kVertex" : "kPixel") + ";" + Environment.NewLine);
       wordsTextBox.Text = sb.ToString();
       wordsTextBox.SelectAll();
 

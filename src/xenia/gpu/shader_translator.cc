@@ -140,6 +140,14 @@ void ShaderTranslator::EmitTranslationError(const char* message) {
   errors_.push_back(std::move(error));
 }
 
+void ShaderTranslator::EmitUnimplementedTranslationError() {
+  TranslatedShader::Error error;
+  error.is_fatal = true;
+  error.message = "Unimplemented translation";
+  // TODO(benvanik): location information.
+  errors_.push_back(std::move(error));
+}
+
 void ShaderTranslator::GatherBindingInformation(
     const ControlFlowInstruction& cf) {
   switch (cf.opcode()) {
