@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/cpu/elf_module.h"
 #include "xenia/cpu/processor.h"
@@ -101,7 +102,8 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
     }
 
     // Copy the xex2 header into guest memory.
-    const xex2_header* header = this->xex_module()->xex_header();
+    auto header = this->xex_module()->xex_header();
+    auto security_header = this->xex_module()->xex_security_info();
     guest_xex_header_ = memory()->SystemHeapAlloc(header->header_size);
 
     uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
@@ -113,6 +115,15 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
 
     ldr_data->dll_base = 0;  // GetProcAddress will read this.
     ldr_data->xex_header_base = guest_xex_header_;
+    ldr_data->full_image_size = security_header->image_size;
+    this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT,
+                                     &ldr_data->entry_point);
+
+    xe::be<uint32_t>* image_base_ptr = nullptr;
+    if (this->xex_module()->GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS,
+                                         &image_base_ptr)) {
+      ldr_data->image_base = *image_base_ptr;
+    }
 
     // Cache some commonly used headers...
     this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
@@ -171,7 +182,7 @@ X_STATUS UserModule::GetSection(const char* name, uint32_t* out_section_data,
   if (!cpu::XexModule::GetOptHeader(xex_header(), XEX_HEADER_RESOURCE_INFO,
                                     &resource_header)) {
     // No resources.
-    return X_STATUS_UNSUCCESSFUL;
+    return X_STATUS_NOT_FOUND;
   }
 
   uint32_t count = (resource_header->size - 4) / 16;
@@ -186,7 +197,7 @@ X_STATUS UserModule::GetSection(const char* name, uint32_t* out_section_data,
     }
   }
 
-  return X_STATUS_UNSUCCESSFUL;
+  return X_STATUS_NOT_FOUND;
 }
 
 X_STATUS UserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
@@ -259,14 +270,14 @@ X_STATUS UserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS UserModule::Launch(uint32_t flags) {
+object_ref<XThread> UserModule::Launch(uint32_t flags) {
   XELOGI("Launching module...");
 
   // Create a thread to run in.
   // We start suspended so we can run the debugger prep.
-  auto thread = object_ref<XThread>(new XThread(kernel_state(), stack_size_, 0,
-                                                entry_point_, 0,
-                                                X_CREATE_SUSPENDED, true));
+  auto thread = object_ref<XThread>(
+      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0,
+                  X_CREATE_SUSPENDED, true, true));
 
   // We know this is the 'main thread'.
   char thread_name[32];
@@ -277,7 +288,7 @@ X_STATUS UserModule::Launch(uint32_t flags) {
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     XELOGE("Could not create launch thread: %.8X", result);
-    return result;
+    return nullptr;
   }
 
   // Waits for a debugger client, if desired.
@@ -290,8 +301,8 @@ X_STATUS UserModule::Launch(uint32_t flags) {
   // suspend count without resuming it until the debugger wants.
   thread->Resume();
 
-  // Wait until thread completes.
-  thread->Wait(0, 0, 0, nullptr);
+  return thread;
+}
 
   return X_STATUS_SUCCESS;
 }
