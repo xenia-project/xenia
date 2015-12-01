@@ -20,6 +20,10 @@
 #include "xenia/cpu/mmio_handler.h"
 
 namespace xe {
+class ByteStream;
+}  // namespace xe
+
+namespace xe {
 
 enum SystemHeapFlag : uint32_t {
   kSystemHeapVirtual = 1 << 0,
@@ -103,6 +107,11 @@ class BaseHeap {
   bool QuerySize(uint32_t address, uint32_t* out_size);
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
   uint32_t GetPhysicalAddress(uint32_t address);
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
+  void Reset();
 
  protected:
   BaseHeap();
@@ -206,6 +215,11 @@ class Memory {
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
 
   void DumpMap();
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
+  void Reset();
 
  private:
   int MapViews(uint8_t* mapping_base);
