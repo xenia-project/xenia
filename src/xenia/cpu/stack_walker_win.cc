@@ -134,7 +134,9 @@ class Win32StackWalker : public StackWalker {
   size_t CaptureStackTrace(uint64_t* frame_host_pcs, size_t frame_offset,
                            size_t frame_count,
                            uint64_t* out_stack_hash) override {
-    *out_stack_hash = 0;
+    if (out_stack_hash) {
+      *out_stack_hash = 0;
+    }
     // Simple method: captures just stack frame PC addresses, optionally
     // computing a whole-stack hash.
     ULONG back_trace_hash = 0;
