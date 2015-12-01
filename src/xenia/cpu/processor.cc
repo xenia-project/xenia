@@ -330,7 +330,7 @@ bool Processor::ExecuteRaw(ThreadState* thread_state, uint32_t address) {
   }
 
   auto context = thread_state->context();
-  return function->Call(thread_state, uint32_t(context->lr));
+  return function->Call(thread_state, 0xBCBCBCBC);
 }
 
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
