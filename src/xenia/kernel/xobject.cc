@@ -334,7 +334,7 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
 
   // Stash pointer in struct.
   // FIXME: This assumes the object has a dispatch header (some don't!)
-  StashNative(header, this);
+  StashHandle(header, handle());
 
   guest_object_ptr_ = native_ptr;
 }
@@ -348,10 +348,10 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   // we never see it and just randomly start getting passed events/timers/etc.
   // Luckily it seems like all other calls (Set/Reset/Wait/etc) are used and
   // we don't have to worry about PPC code poking the struct. Because of that,
-  // we init on first use, store our pointer in the struct, and dereference it
+  // we init on first use, store our handle in the struct, and dereference it
   // each time.
-  // We identify this by checking the low bit of wait_list_blink - if it's 1,
-  // we have already put our pointer in there.
+  // We identify this by setting wait_list_flink to a magic value. When set,
+  // wait_list_blink will hold a handle to our object.
 
   auto global_lock = xe::global_critical_region::AcquireDirect();
 
@@ -361,13 +361,14 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     as_type = header->type;
   }
 
-  if (header->wait_list_blink & 0x1) {
+  if (header->wait_list_flink == 'XEN\0') {
     // Already initialized.
-    uint64_t object_ptr = ((uint64_t)header->wait_list_flink << 32) |
-                          ((header->wait_list_blink) & ~0x1);
-    XObject* object = reinterpret_cast<XObject*>(object_ptr);
+    // TODO: assert if the type of the object != as_type
+    uint32_t handle = header->wait_list_blink;
+    auto object = kernel_state->object_table()->LookupObject<XObject>(handle);
+
     // TODO(benvanik): assert nothing has been changed in the struct.
-    return retain_object<XObject>(object);
+    return object;
   } else {
     // First use, create new.
     // http://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
@@ -412,7 +413,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
 
     // Stash pointer in struct.
     // FIXME: This assumes the object contains a dispatch header (some don't!)
-    StashNative(header, object);
+    StashHandle(header, object->handle());
 
     // NOTE: we are double-retaining, as the object is implicitly created and
     // can never be released.
