@@ -133,9 +133,21 @@ class XObject {
   Memory* memory() const;
 
   Type type();
-  X_HANDLE handle() const;
+
+  // Returns the primary handle of this object.
+  X_HANDLE handle() const { return handles_[0]; }
+
+  // Returns all associated handles with this object.
+  std::vector<X_HANDLE> handles() const { return handles_; }
+  std::vector<X_HANDLE>& handles() { return handles_; }
+
   const std::string& name() const { return name_; }
   uint32_t guest_object() const { return guest_object_ptr_; }
+
+  // Has this object been created for use by the host?
+  // Host objects are persisted through reloads/etc.
+  bool host_object() const { return host_object_; }
+  void set_host_object(bool host_object) { host_object_ = host_object; }
 
   template <typename T>
   T* guest_object() {
@@ -148,8 +160,9 @@ class XObject {
   void Release();
   X_STATUS Delete();
 
-  virtual bool Save(ByteStream* stream) { return false; };
-  virtual bool Restore(ByteStream* stream) { return false; };
+  virtual bool Save(ByteStream* stream) { return false; }
+  static object_ref<XObject> Restore(KernelState* kernel_state, Type type,
+                                     ByteStream* stream);
 
   // Reference()
   // Dereference()
@@ -176,6 +189,9 @@ class XObject {
   virtual xe::threading::WaitHandle* GetWaitHandle() { return nullptr; }
 
  protected:
+  bool SaveObject(ByteStream* stream);
+  bool RestoreObject(ByteStream* stream);
+
   // Creates the kernel object for guest code to use. Typically not needed.
   uint8_t* CreateNative(uint32_t size);
   void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
@@ -197,11 +213,14 @@ class XObject {
 
   KernelState* kernel_state_;
 
+  // Host objects are persisted through resets/etc.
+  bool host_object_ = false;
+
  private:
   std::atomic<int32_t> pointer_ref_count_;
 
   Type type_;
-  X_HANDLE handle_;
+  std::vector<X_HANDLE> handles_;
   std::string name_;  // May be zero length.
 
   // Guest pointer for kernel object. Remember: X_OBJECT_HEADER precedes this
@@ -291,6 +310,10 @@ class object_ref {
   void reset() noexcept { object_ref().swap(*this); }
 
   void reset(T* value) noexcept { object_ref(value).swap(*this); }
+
+  inline bool operator==(const T* right) noexcept {
+    return value_ == right;
+  }
 
  private:
   T* value_ = nullptr;
