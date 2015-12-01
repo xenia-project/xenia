@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -436,6 +437,35 @@ void Memory::DumpMap() {
   XELOGE("");
 }
 
+bool Memory::Save(ByteStream* stream) {
+  XELOGD("Serializing memory...");
+  heaps_.v00000000.Save(stream);
+  heaps_.v40000000.Save(stream);
+  heaps_.v80000000.Save(stream);
+  heaps_.v90000000.Save(stream);
+  heaps_.physical.Save(stream);
+
+  return true;
+}
+
+bool Memory::Restore(ByteStream* stream) {
+  heaps_.v00000000.Restore(stream);
+  heaps_.v40000000.Restore(stream);
+  heaps_.v80000000.Restore(stream);
+  heaps_.v90000000.Restore(stream);
+  heaps_.physical.Restore(stream);
+
+  return true;
+}
+
+void Memory::Reset() {
+  heaps_.v00000000.Reset();
+  heaps_.v40000000.Reset();
+  heaps_.v80000000.Reset();
+  heaps_.v90000000.Reset();
+  heaps_.physical.Reset();
+}
+
 xe::memory::PageAccess ToPageAccess(uint32_t protect) {
   if ((protect & kMemoryProtectRead) && !(protect & kMemoryProtectWrite)) {
     return xe::memory::PageAccess::kReadOnly;
@@ -519,6 +549,82 @@ void BaseHeap::DumpMap() {
     XELOGE("  %.8X-%.8X - %d unreserved pages)",
            heap_base_ + empty_span_start * page_size_, heap_base_ + heap_size_,
            page_table_.size() - empty_span_start);
+  }
+}
+
+bool BaseHeap::Save(ByteStream* stream) {
+  XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
+
+  for (size_t i = 0; i < page_table_.size(); i++) {
+    auto& page = page_table_[i];
+    stream->Write(page.qword);
+    if (!page.state) {
+      // Unallocated.
+      continue;
+    }
+
+    // TODO: Write compressed
+    if (page.state & kMemoryAllocationCommit &&
+        page.current_protect & kMemoryProtectRead) {
+      stream->Write((void*)(membase_ + heap_base_ + i * page_size_),
+                    page_size_);
+    }
+  }
+
+  return true;
+}
+
+bool BaseHeap::Restore(ByteStream* stream) {
+  for (size_t i = 0; i < page_table_.size(); i++) {
+    auto& page = page_table_[i];
+    page.qword = stream->Read<uint64_t>();
+    if (!page.state) {
+      // Unallocated.
+      continue;
+    }
+
+    memory::AllocationType alloc_type;
+    memory::PageAccess page_access = memory::PageAccess::kNoAccess;
+    if ((page.state & (kMemoryAllocationReserve | kMemoryAllocationCommit)) ==
+        3) {
+      alloc_type = memory::AllocationType::kReserveCommit;
+    } else if (page.state & kMemoryAllocationCommit) {
+      alloc_type = memory::AllocationType::kCommit;
+    } else if (page.state & kMemoryAllocationReserve) {
+      alloc_type = memory::AllocationType::kReserve;
+    }
+    if ((page.current_protect & (kMemoryProtectRead | kMemoryProtectWrite)) ==
+        3) {
+      page_access = memory::PageAccess::kReadWrite;
+    } else if (page.current_protect & kMemoryProtectRead) {
+      page_access = memory::PageAccess::kReadOnly;
+    }
+
+    // Blah allocate on page granularity for now
+    if ((uint32_t)alloc_type & (uint32_t)memory::AllocationType::kCommit) {
+      xe::memory::AllocFixed(membase_ + heap_base_ + i * page_size_, page_size_,
+                             alloc_type, page_access);
+    }
+
+    if (page.state & kMemoryAllocationCommit &&
+        page.current_protect & kMemoryProtectRead) {
+      if (!xe::memory::Protect(membase_ + heap_base_ + i * page_size_,
+                               page_size_, page_access, nullptr)) {
+        assert_always();
+      }
+
+      stream->Read((void*)(membase_ + heap_base_ + i * page_size_), page_size_);
+    }
+  }
+
+  return true;
+}
+
+void BaseHeap::Reset() {
+  // TODO: Protect pages
+  for (size_t i = 0; i < page_table_.size(); i++) {
+    auto& page = page_table_[i];
+    page.qword = 0;
   }
 }
 

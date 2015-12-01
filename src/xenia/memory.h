@@ -20,6 +20,10 @@
 #include "xenia/cpu/mmio_handler.h"
 
 namespace xe {
+class ByteStream;
+}  // namespace xe
+
+namespace xe {
 
 enum SystemHeapFlag : uint32_t {
   kSystemHeapVirtual = 1 << 0,
@@ -143,6 +147,11 @@ class BaseHeap {
   // Gets the physical address of a virtual address.
   // This is only valid if the page is backed by a physical allocation.
   uint32_t GetPhysicalAddress(uint32_t address);
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
+  void Reset();
 
  protected:
   BaseHeap();
@@ -319,6 +328,11 @@ class Memory {
 
   // Dumps a map of all allocated memory to the log.
   void DumpMap();
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
+  void Reset();
 
  private:
   int MapViews(uint8_t* mapping_base);
