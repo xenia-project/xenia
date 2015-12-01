@@ -118,6 +118,14 @@ class Emulator {
   // Launches a game from an STFS container file.
   X_STATUS LaunchStfsContainer(std::wstring path);
 
+  void Pause();
+  void Resume();
+
+  bool SaveToFile(const std::wstring& path);
+  bool RestoreFromFile(const std::wstring& path);
+
+  void WaitUntilExit();
+
  private:
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
@@ -142,6 +150,11 @@ class Emulator {
   std::unique_ptr<vfs::VirtualFileSystem> file_system_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
+  threading::Thread* main_thread_ = nullptr;
+
+  bool paused_ = false;
+  bool restoring_ = false;
+  threading::Fence restore_fence_;  // Fired on restore finish.
 };
 
 }  // namespace xe
