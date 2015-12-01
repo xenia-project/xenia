@@ -464,10 +464,10 @@ void Value::Abs() {
 void Value::Sqrt() {
   switch (type) {
     case FLOAT32_TYPE:
-      constant.f32 = 1.0f / std::sqrt(constant.f32);
+      constant.f32 = std::sqrt(constant.f32);
       break;
     case FLOAT64_TYPE:
-      constant.f64 = 1.0 / std::sqrt(constant.f64);
+      constant.f64 = std::sqrt(constant.f64);
       break;
     default:
       assert_unhandled_case(type);
@@ -478,10 +478,10 @@ void Value::Sqrt() {
 void Value::RSqrt() {
   switch (type) {
     case FLOAT32_TYPE:
-      constant.f32 = std::sqrt(constant.f32);
+      constant.f32 = 1.0f / std::sqrt(constant.f32);
       break;
     case FLOAT64_TYPE:
-      constant.f64 = std::sqrt(constant.f64);
+      constant.f64 = 1.0f / std::sqrt(constant.f64);
       break;
     default:
       assert_unhandled_case(type);
