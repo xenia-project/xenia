@@ -14,6 +14,8 @@
 #include <string>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
@@ -140,14 +142,14 @@ void KernelState::RegisterTitleTerminateNotification(uint32_t routine,
   notify.guest_routine = routine;
   notify.priority = priority;
 
-  terminate_notifications.push_back(notify);
+  terminate_notifications_.push_back(notify);
 }
 
 void KernelState::RemoveTitleTerminateNotification(uint32_t routine) {
-  for (auto it = terminate_notifications.begin();
-       it != terminate_notifications.end(); it++) {
+  for (auto it = terminate_notifications_.begin();
+       it != terminate_notifications_.end(); it++) {
     if (it->guest_routine == routine) {
-      terminate_notifications.erase(it);
+      terminate_notifications_.erase(it);
       break;
     }
   }
@@ -183,7 +185,7 @@ object_ref<KernelModule> KernelState::GetKernelModule(const char* name) {
   return nullptr;
 }
 
-object_ref<XModule> KernelState::GetModule(const char* name) {
+object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
   if (!name) {
     // NULL name = self.
     // TODO(benvanik): lookup module from caller address.
@@ -193,11 +195,15 @@ object_ref<XModule> KernelState::GetModule(const char* name) {
     return nullptr;
   }
   auto global_lock = global_critical_region_.Acquire();
-  for (auto kernel_module : kernel_modules_) {
-    if (kernel_module->Matches(name)) {
-      return retain_object(kernel_module.get());
+
+  if (!user_only) {
+    for (auto kernel_module : kernel_modules_) {
+      if (kernel_module->Matches(name)) {
+        return retain_object(kernel_module.get());
+      }
     }
   }
+
   for (auto user_module : user_modules_) {
     if (user_module->Matches(name)) {
       return retain_object(user_module.get());
@@ -275,7 +281,8 @@ void KernelState::LoadKernelModule(object_ref<KernelModule> kernel_module) {
   kernel_modules_.push_back(std::move(kernel_module));
 }
 
-object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name) {
+object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
+                                                   bool call_entry) {
   // Some games try to load relative to launch module, others specify full path.
   std::string name = xe::find_name_from_path(raw_name);
   std::string path(raw_name);
@@ -310,7 +317,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name) {
 
   module->Dump();
 
-  if (module->dll_module() && module->entry_point()) {
+  if (module->dll_module() && module->entry_point() && call_entry) {
     // Call DllMain(DLL_PROCESS_ATTACH):
     // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
     uint64_t args[] = {
@@ -329,21 +336,21 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name) {
 void KernelState::TerminateTitle(bool from_guest_thread) {
   auto global_lock = global_critical_region_.Acquire();
 
-  // First: call terminate routines.
+  // Call terminate routines.
   // TODO(benvanik): these might take arguments.
   // FIXME: Calling these will send some threads into kernel code and they'll
   // hold the lock when terminated! Do we need to wait for all threads to exit?
   /*
   if (from_guest_thread) {
-    for (auto routine : terminate_notifications) {
+    for (auto routine : terminate_notifications_) {
       auto thread_state = XThread::GetCurrentThread()->thread_state();
       processor()->Execute(thread_state, routine.guest_routine);
     }
   }
-  terminate_notifications.clear();
+  terminate_notifications_.clear();
   */
 
-  // Second: Kill all guest threads.
+  // Kill all guest threads.
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
     if (it->second->is_guest_thread()) {
       auto thread = it->second;
@@ -355,6 +362,10 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
       }
 
       if (thread->is_running()) {
+        // TODO: Need to step the thread to a safe point (returns it to guest
+        // code so it's guaranteed to not be holding any locks / in host kernel
+        // code / etc). Can't do that properly if we have the lock.
+        // thread->StepToSafePoint();
         thread->Terminate(0);
       }
 
@@ -373,6 +384,12 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
     object_table_.RemoveHandle(user_modules_[i]->handle());
   }
   user_modules_.clear();
+
+  // Release all objects in the object table.
+  object_table_.PurgeAllObjects();
+
+  // Unregister all notify listeners.
+  notify_listeners_.clear();
 
   if (from_guest_thread) {
     threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
@@ -573,6 +590,61 @@ void KernelState::CompleteOverlappedDeferredEx(
     CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
   });
   dispatch_cond_.notify_all();
+}
+
+bool KernelState::Save(ByteStream* stream) {
+  XELOGD("Serializing the kernel...");
+  stream->Write('KRNL');
+
+  // Save the object table
+  object_table_.Save(stream);
+
+  // Save all objects
+  auto objects = object_table_.GetAllObjects();
+  uint32_t* num_objects_ptr = (uint32_t*)(stream->data() + stream->offset());
+  size_t num_objects = objects.size();
+  stream->Write((uint32_t)num_objects);
+
+  XELOGD("Serializing %d objects", num_objects);
+  for (auto object : objects) {
+    auto prev_offset = stream->offset();
+
+    stream->Write((uint32_t)object->type());
+    if (!object->host_object() && !object->Save(stream)) {
+      // Revert backwards and overwrite if a save failed.
+      stream->set_offset(prev_offset);
+      num_objects--;
+    }
+  }
+
+  *num_objects_ptr = (uint32_t)num_objects;
+  return true;
+}
+
+bool KernelState::Restore(ByteStream* stream) {
+  // Check the magic value.
+  if (stream->Read<uint32_t>() != 'KRNL') {
+    return false;
+  }
+
+  // Restore the object table
+  object_table_.Restore(stream);
+
+  uint32_t num_objects = stream->Read<uint32_t>();
+  XELOGD("Loading %d objects...", num_objects);
+  for (uint32_t i = 0; i < num_objects; i++) {
+    uint32_t type = stream->Read<uint32_t>();
+
+    object_ref<XObject> obj =
+        XObject::Restore(this, XObject::Type(type), stream);
+    if (!obj) {
+      // Can't continue the restore or we risk misalignment.
+      assert_always();
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace kernel
