@@ -116,7 +116,8 @@ class XThread : public XObject {
   XThread(KernelState* kernel_state);
   XThread(KernelState* kernel_state, uint32_t stack_size,
           uint32_t xapi_thread_startup, uint32_t start_address,
-          uint32_t start_context, uint32_t creation_flags, bool guest_thread);
+          uint32_t start_context, uint32_t creation_flags, bool guest_thread,
+          bool main_thread = false);
   ~XThread() override;
 
   static bool IsInThread(XThread* other);
@@ -133,6 +134,7 @@ class XThread : public XObject {
   uint32_t pcr_ptr() const { return pcr_address_; }
   // True if the thread is created by the guest app.
   bool is_guest_thread() const { return guest_thread_; }
+  bool main_thread() const { return main_thread_; }
   // True if the thread should be paused by the debugger.
   // All threads that can run guest code must be stopped for the debugger to
   // work properly.
@@ -180,10 +182,22 @@ class XThread : public XObject {
                  uint64_t interval);
 
   xe::threading::WaitHandle* GetWaitHandle() override { return thread_.get(); }
+  xe::threading::Thread* thread() { return thread_.get(); }
+
+  virtual bool Save(ByteStream* stream) override;
+  static object_ref<XThread> Restore(KernelState* kernel_state,
+                                     ByteStream* stream);
+
+  // Steps the thread to a point where it's safe to terminate or read its
+  // context. Returns the PC after we've finished stepping.
+  uint32_t StepToSafePoint();
 
  protected:
   bool AllocateStack(uint32_t size);
   void InitializeGuestObject();
+
+  bool StepToAddress(uint32_t pc);
+  uint32_t StepIntoBranch(uint32_t pc);
   void DeliverAPCs();
   void RundownAPCs();
 
@@ -201,6 +215,7 @@ class XThread : public XObject {
   uint32_t stack_limit_ = 0;       // Low address
   cpu::ThreadState* thread_state_ = nullptr;
   bool guest_thread_ = false;
+  bool main_thread_ = false;  // Entry-point thread
   bool can_debugger_suspend_ = true;
   bool running_ = false;
 
