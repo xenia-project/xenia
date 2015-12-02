@@ -153,6 +153,14 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
+        case OPCODE_CONVERT:
+          if (i->src1.value->IsConstant()) {
+            TypeName target_type = v->type;
+            v->set_from(i->src1.value);
+            v->Convert(target_type, ROUND_TO_NEAREST);
+            i->Remove();
+          }
+          break;
         case OPCODE_ZERO_EXTEND:
           if (i->src1.value->IsConstant()) {
             TypeName target_type = v->type;
@@ -195,10 +203,29 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
                   !(protect & kMemoryProtectWrite) &&
                   (protect & kMemoryProtectRead)) {
                 // Memory is readonly - can just return the value.
+                auto host_addr = memory->TranslateVirtual(address);
                 switch (v->type) {
+                  case INT8_TYPE:
+                    v->set_constant(xe::load<uint8_t>(host_addr));
+                    i->Remove();
+                    break;
+                  case INT16_TYPE:
+                    v->set_constant(xe::load<uint16_t>(host_addr));
+                    i->Remove();
+                    break;
                   case INT32_TYPE:
-                    v->set_constant(
-                        xe::load<uint32_t>(memory->TranslateVirtual(address)));
+                    v->set_constant(xe::load<uint32_t>(host_addr));
+                    i->Remove();
+                    break;
+                  case INT64_TYPE:
+                    v->set_constant(xe::load<uint64_t>(host_addr));
+                    i->Remove();
+                    break;
+                  case VEC128_TYPE:
+                    vec128_t val;
+                    val.low = xe::load<uint64_t>(host_addr);
+                    val.high = xe::load<uint64_t>(host_addr + 8);
+                    v->set_constant(val);
                     i->Remove();
                     break;
                   default:
