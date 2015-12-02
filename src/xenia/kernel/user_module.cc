@@ -304,9 +304,6 @@ object_ref<XThread> UserModule::Launch(uint32_t flags) {
   return thread;
 }
 
-  return X_STATUS_SUCCESS;
-}
-
 void UserModule::Dump() {
   if (module_format_ == kModuleFormatElf) {
     // Quick die.
