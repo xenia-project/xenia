@@ -39,7 +39,12 @@ class XEvent : public XObject {
 
   xe::threading::WaitHandle* GetWaitHandle() override { return event_.get(); }
 
+  bool Save(ByteStream* stream) override;
+  static object_ref<XEvent> Restore(KernelState* kernel_state,
+                                    ByteStream* stream);
+
  private:
+  bool manual_reset_ = false;
   std::unique_ptr<xe::threading::Event> event_;
 };
 
