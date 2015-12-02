@@ -137,15 +137,12 @@ void XThread::set_last_error(uint32_t error_code) {
 }
 
 void XThread::set_name(const std::string& name) {
-  StringBuffer buff;
-  buff.Append(name);
-  buff.AppendFormat(" (%.8X)", handle());
+  name_ = xe::format_string("%s (%.8X)", name, handle());
 
-  name_ = buff.ToString();
   if (thread_) {
     // May be getting set before the thread is created.
     // One the thread is ready it will handle it.
-    thread_->set_name(buff.ToString());
+    thread_->set_name(name_);
   }
 }
 
