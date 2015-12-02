@@ -270,7 +270,7 @@ def run_platform_premake():
   """Runs all gyp configurations.
   """
   if sys.platform == 'darwin':
-    run_premake('macosx', 'xcode')
+    run_premake('macosx', 'xcode4')
   elif sys.platform == 'win32':
     run_premake('windows', 'vs2015')
   else:
