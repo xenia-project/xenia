@@ -157,7 +157,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           if (i->src1.value->IsConstant()) {
             TypeName target_type = v->type;
             v->set_from(i->src1.value);
-            v->Convert(target_type, ROUND_TO_NEAREST);
+            v->Convert(target_type, RoundMode(i->flags));
             i->Remove();
           }
           break;
