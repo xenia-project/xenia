@@ -77,8 +77,8 @@ uint64_t Value::AsUint64() {
 }
 
 void Value::Cast(TypeName target_type) {
-  // TODO(benvanik): big matrix.
-  assert_always();
+  // Only need a type change.
+  type = target_type;
 }
 
 void Value::ZeroExtend(TypeName target_type) {
@@ -199,8 +199,25 @@ void Value::Truncate(TypeName target_type) {
 }
 
 void Value::Convert(TypeName target_type, RoundMode round_mode) {
-  // TODO(benvanik): big matrix.
-  assert_always();
+  switch (type) {
+    case FLOAT32_TYPE:
+      switch (target_type) {
+        case FLOAT64_TYPE:
+          type = target_type;
+          constant.f64 = constant.f32;
+          return;
+      }
+    case FLOAT64_TYPE:
+      switch (target_type) {
+        case FLOAT32_TYPE:
+          type = target_type;
+          constant.f32 = (float)constant.f64;
+          return;
+      }
+    default:
+      assert_unhandled_case(target_type);
+      return;
+  }
 }
 
 void Value::Round(RoundMode round_mode) {
