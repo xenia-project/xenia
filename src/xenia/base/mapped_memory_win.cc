@@ -15,6 +15,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/platform_win.h"
 
 namespace xe {
@@ -22,26 +23,69 @@ namespace xe {
 class Win32MappedMemory : public MappedMemory {
  public:
   Win32MappedMemory(const std::wstring& path, Mode mode)
-      : MappedMemory(path, mode),
-        file_handle(nullptr),
-        mapping_handle(nullptr) {}
+      : MappedMemory(path, mode) {}
 
   ~Win32MappedMemory() override {
     if (data_) {
       UnmapViewOfFile(data_);
     }
-    if (mapping_handle) {
+    if (mapping_handle != INVALID_HANDLE_VALUE) {
       CloseHandle(mapping_handle);
     }
-    if (file_handle) {
+    if (file_handle != INVALID_HANDLE_VALUE) {
       CloseHandle(file_handle);
     }
   }
 
-  void Flush() override { FlushViewOfFile(data(), size()); }
+  void Close(uint64_t truncate_size) override {
+    if (data_) {
+      UnmapViewOfFile(data_);
+      data_ = nullptr;
+    }
+    if (mapping_handle != INVALID_HANDLE_VALUE) {
+      CloseHandle(mapping_handle);
+      mapping_handle = INVALID_HANDLE_VALUE;
+    }
+    if (file_handle != INVALID_HANDLE_VALUE) {
+      if (truncate_size) {
+        LONG distance_high = truncate_size >> 32;
+        SetFilePointer(file_handle, truncate_size & 0xFFFFFFFF, &distance_high,
+                       FILE_BEGIN);
+        SetEndOfFile(file_handle);
+      }
 
-  HANDLE file_handle;
-  HANDLE mapping_handle;
+      CloseHandle(file_handle);
+      file_handle = INVALID_HANDLE_VALUE;
+    }
+  }
+
+  void Flush() override { FlushViewOfFile(data(), size()); }
+  bool Remap(size_t offset, size_t length) override {
+    size_t aligned_offset = offset & ~(memory::allocation_granularity() - 1);
+    size_t aligned_length = length + (offset - aligned_offset);
+
+    UnmapViewOfFile(data_);
+    data_ = MapViewOfFile(mapping_handle, view_access_, aligned_offset >> 32,
+                          aligned_offset & 0xFFFFFFFF, aligned_length);
+    if (!data_) {
+      return false;
+    }
+
+    if (length) {
+      size_ = aligned_length;
+    } else {
+      DWORD length_high;
+      size_t map_length = GetFileSize(file_handle, &length_high);
+      map_length |= static_cast<uint64_t>(length_high) << 32;
+      size_ = map_length - aligned_offset;
+    }
+
+    return true;
+  }
+
+  HANDLE file_handle = INVALID_HANDLE_VALUE;
+  HANDLE mapping_handle = INVALID_HANDLE_VALUE;
+  DWORD view_access_ = 0;
 };
 
 std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
@@ -77,16 +121,18 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
   const size_t aligned_length = length + (offset - aligned_offset);
 
   auto mm = std::make_unique<Win32MappedMemory>(path, mode);
+  mm->view_access_ = view_access;
 
   mm->file_handle = CreateFile(path.c_str(), file_access, file_share, nullptr,
                                create_mode, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (!mm->file_handle) {
+  if (mm->file_handle == INVALID_HANDLE_VALUE) {
     return nullptr;
   }
 
   mm->mapping_handle = CreateFileMapping(mm->file_handle, nullptr,
-                                         mapping_protect, 0, 0, nullptr);
-  if (!mm->mapping_handle) {
+                                         mapping_protect, aligned_length >> 32,
+                                         aligned_length & 0xFFFFFFFF, nullptr);
+  if (mm->mapping_handle == INVALID_HANDLE_VALUE) {
     return nullptr;
   }
 
