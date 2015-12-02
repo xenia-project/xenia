@@ -197,8 +197,8 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
                 // Memory is readonly - can just return the value.
                 switch (v->type) {
                   case INT32_TYPE:
-                    v->set_constant(xe::load_and_swap<uint32_t>(
-                        memory->TranslateVirtual(address)));
+                    v->set_constant(
+                        xe::load<uint32_t>(memory->TranslateVirtual(address)));
                     i->Remove();
                     break;
                   default:
