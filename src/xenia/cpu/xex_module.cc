@@ -281,6 +281,34 @@ bool XexModule::Load(const std::string& name, const std::string& path,
     }
   }
 
+  // Setup memory protection.
+  // TODO: This introduces a load of constants into the JIT, and Xenia isn't
+  // quite set-up to handle constants yet...
+  /*
+  auto sec_header = xex_security_info();
+  auto heap = memory()->LookupHeap(sec_header->load_address);
+  auto page_size = heap->page_size();
+  for (uint32_t i = 0, page = 0; i < sec_header->page_descriptor_count; i++) {
+    // Byteswap the bitfield manually.
+    xex2_page_descriptor desc;
+    desc.value = xe::byte_swap(sec_header->page_descriptors[i].value);
+
+    auto address = sec_header->load_address + (page * page_size);
+    auto size = desc.size * page_size;
+    switch (desc.info) {
+    case XEX_SECTION_CODE:
+    case XEX_SECTION_READONLY_DATA:
+      heap->Protect(address, size, kMemoryProtectRead);
+      break;
+    case XEX_SECTION_DATA:
+      heap->Protect(address, size, kMemoryProtectRead | kMemoryProtectWrite);
+      break;
+    }
+
+    page += desc.size;
+  }
+  */
+
   return true;
 }
 
