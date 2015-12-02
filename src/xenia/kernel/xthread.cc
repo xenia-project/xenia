@@ -924,11 +924,16 @@ uint32_t XThread::StepToSafePoint() {
     // we are.
     cpu::GuestFunction* thunk_func = nullptr;
     cpu::Export* export_data = nullptr;
+    uint32_t first_pc = 0;
     for (int i = 0; i < count; i++) {
       auto& frame = cpu_frames[i];
       if (frame.type == cpu::StackFrame::Type::kGuest && frame.guest_pc) {
         auto func = frame.guest_symbol.function;
         assert_true(func->is_guest());
+
+        if (!first_pc) {
+          first_pc = frame.guest_pc;
+        }
 
         thunk_func = reinterpret_cast<cpu::GuestFunction*>(func);
         export_data = thunk_func->export_data();
@@ -947,8 +952,22 @@ uint32_t XThread::StepToSafePoint() {
       // Non-blocking. Run until we return from the thunk.
       StepToAddress(uint32_t(thread_state_->context()->lr));
     } else {
-      // We're in the MMIO handler or something. TODO.
-      assert_always();
+      // We're in the MMIO handler/mfmsr/something calling out of the guest
+      // that doesn't use an export. If the current instruction is
+      // synchronizing, we can just save here. Otherwise, step forward
+      // (and call ourselves again so we run the correct logic).
+      cpu::frontend::InstrData i;
+      i.address = first_pc;
+      i.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
+      i.type = cpu::frontend::GetInstrType(i.code);
+      if (i.type->type & cpu::frontend::kXEPPCInstrTypeSynchronizeContext) {
+        // Good to go.
+        return first_pc;
+      } else {
+        // Step forward.
+        StepToAddress(first_pc + 4);
+        StepToSafePoint();
+      }
     }
   }
 
