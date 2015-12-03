@@ -65,6 +65,9 @@ void RawModule::SetAddressRange(uint32_t base_address, uint32_t size) {
   base_address_ = base_address;
   low_address_ = base_address;
   high_address_ = base_address + size;
+
+  // Notify backend about executable code.
+  processor_->backend()->CommitExecutableRange(low_address_, high_address_);
 }
 
 bool RawModule::ContainsAddress(uint32_t address) {

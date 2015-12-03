@@ -23,6 +23,9 @@ namespace cpu {
 class XexModule;
 class ElfModule;
 }  // namespace cpu
+namespace kernel {
+class XThread;
+}  // namespace kernel
 }  // namespace xe
 
 namespace xe {
@@ -80,7 +83,7 @@ class UserModule : public XModule {
                                xe_xex2_header_keys key,
                                uint32_t* out_header_guest_ptr);
 
-  X_STATUS Launch(uint32_t flags);
+  object_ref<XThread> Launch(uint32_t flags = 0);
 
   void Dump();
 

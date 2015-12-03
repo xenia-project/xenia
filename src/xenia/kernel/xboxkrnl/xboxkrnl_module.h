@@ -32,8 +32,6 @@ class XboxkrnlModule : public KernelModule {
 
   static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
 
-  int LaunchModule(const char* path);
-
  private:
   std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
 };

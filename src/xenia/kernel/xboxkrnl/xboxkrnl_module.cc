@@ -170,33 +170,6 @@ void XboxkrnlModule::RegisterExportTable(
 
 XboxkrnlModule::~XboxkrnlModule() = default;
 
-int XboxkrnlModule::LaunchModule(const char* path) {
-  // Create and register the module. We keep it local to this function and
-  // dispose it on exit.
-  auto module = kernel_state_->LoadUserModule(path);
-  if (!module) {
-    XELOGE("Failed to load user module %s.", path);
-    return 2;
-  }
-
-  // Set as the main module, while running.
-  kernel_state_->SetExecutableModule(module);
-
-  // Launch the module.
-  // NOTE: this won't return until the module exits.
-  X_STATUS result_code = module->Launch(0);
-
-  // Main thread exited. Terminate the title.
-  kernel_state_->TerminateTitle();
-  kernel_state_->SetExecutableModule(NULL);
-  if (XFAILED(result_code)) {
-    XELOGE("Failed to launch module %s: %.8X", path, result_code);
-    return 2;
-  }
-
-  return 0;
-}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

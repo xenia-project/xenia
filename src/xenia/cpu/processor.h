@@ -25,6 +25,8 @@
 #include "xenia/memory.h"
 
 namespace xe {
+class Emulator;
+
 namespace debug {
 class Debugger;
 }  // namespace debug
@@ -33,6 +35,7 @@ class Debugger;
 namespace xe {
 namespace cpu {
 
+class Breakpoint;
 class StackWalker;
 class ThreadState;
 class XexModule;
@@ -46,10 +49,11 @@ enum class Irql : uint32_t {
 
 class Processor {
  public:
-  Processor(Memory* memory, ExportResolver* export_resolver,
+  Processor(Emulator* emulator, Memory* memory, ExportResolver* export_resolver,
             debug::Debugger* debugger);
   ~Processor();
 
+  Emulator* emulator() const { return emulator_; }
   Memory* memory() const { return memory_; }
   debug::Debugger* debugger() const { return debugger_; }
   StackWalker* stack_walker() const { return stack_walker_.get(); }
@@ -81,6 +85,7 @@ class Processor {
   Function* ResolveFunction(uint32_t address);
 
   bool Execute(ThreadState* thread_state, uint32_t address);
+  bool ExecuteRaw(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                    size_t arg_count);
   uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
@@ -89,9 +94,18 @@ class Processor {
   Irql RaiseIrql(Irql new_value);
   void LowerIrql(Irql old_value);
 
+  bool InstallBreakpoint(Breakpoint* bp);
+  bool UninstallBreakpoint(Breakpoint* bp);
+  bool BreakpointHit(uint32_t address, uint64_t host_pc);
+  Breakpoint* FindBreakpoint(uint32_t address);
+  std::vector<Breakpoint*> breakpoints() const { return breakpoints_; }
+
  private:
+  void BreakpointFunctionDefined(Function* function);
+
   bool DemandFunction(Function* function);
 
+  Emulator* emulator_ = nullptr;
   Memory* memory_ = nullptr;
   debug::Debugger* debugger_ = nullptr;
   std::unique_ptr<StackWalker> stack_walker_;
@@ -107,6 +121,9 @@ class Processor {
   std::vector<std::unique_ptr<Module>> modules_;
   Module* builtin_module_ = nullptr;
   uint32_t next_builtin_address_ = 0xFFFF0000u;
+
+  std::recursive_mutex breakpoint_lock_;
+  std::vector<Breakpoint*> breakpoints_;
 
   Irql irql_;
 };

@@ -7,8 +7,10 @@
  ******************************************************************************
  */
 
-#include "xenia/base/logging.h"
 #include "xenia/kernel/xevent.h"
+
+#include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
 
 namespace xe {
 namespace kernel {
@@ -32,13 +34,12 @@ void XEvent::Initialize(bool manual_reset, bool initial_state) {
 void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   assert_false(event_);
 
-  bool manual_reset;
   switch (header->type) {
     case 0x00:  // EventNotificationObject (manual reset)
-      manual_reset = true;
+      manual_reset_ = true;
       break;
     case 0x01:  // EventSynchronizationObject (auto reset)
-      manual_reset = false;
+      manual_reset_ = false;
       break;
     default:
       assert_always();
@@ -46,7 +47,7 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   }
 
   bool initial_state = header->signal_state ? true : false;
-  if (manual_reset) {
+  if (manual_reset_) {
     event_ = xe::threading::Event::CreateManualResetEvent(initial_state);
   } else {
     event_ = xe::threading::Event::CreateAutoResetEvent(initial_state);
@@ -69,6 +70,55 @@ int32_t XEvent::Reset() {
 }
 
 void XEvent::Clear() { event_->Reset(); }
+
+bool XEvent::Save(ByteStream* stream) {
+  XELOGD("XEvent %.8X (%s)", handle(), manual_reset_ ? "manual" : "auto");
+  SaveObject(stream);
+
+  bool signaled = true;
+  auto result =
+      xe::threading::Wait(event_.get(), false, std::chrono::milliseconds(0));
+  if (result == xe::threading::WaitResult::kSuccess) {
+    signaled = true;
+  } else if (result == xe::threading::WaitResult::kTimeout) {
+    signaled = false;
+  } else {
+    assert_always();
+  }
+
+  if (signaled) {
+    // Reset the event in-case it's an auto-reset.
+    event_->Set();
+  }
+
+  stream->Write<bool>(signaled);
+  stream->Write<bool>(manual_reset_);
+
+  return true;
+}
+
+object_ref<XEvent> XEvent::Restore(KernelState* kernel_state,
+                                   ByteStream* stream) {
+  auto evt = new XEvent(nullptr);
+  evt->kernel_state_ = kernel_state;
+
+  evt->RestoreObject(stream);
+  bool signaled = stream->Read<bool>();
+  evt->manual_reset_ = stream->Read<bool>();
+
+  if (evt->manual_reset_) {
+    evt->event_ = xe::threading::Event::CreateManualResetEvent(false);
+  } else {
+    evt->event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  }
+
+  if (signaled) {
+    evt->event_->Set();
+  }
+
+  evt->Retain();
+  return object_ref<XEvent>(evt);
+}
 
 }  // namespace kernel
 }  // namespace xe

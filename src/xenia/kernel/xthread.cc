@@ -13,12 +13,16 @@
 
 #include <cstring>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/cpu/breakpoint.h"
+#include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/cpu/stack_walker.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
@@ -35,13 +39,18 @@ namespace kernel {
 uint32_t next_xthread_id_ = 0;
 thread_local XThread* current_thread_tls_ = nullptr;
 
+XThread::XThread(KernelState* kernel_state)
+    : XObject(kernel_state, kTypeThread),
+      guest_thread_(true) {}
+
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
                  uint32_t start_context, uint32_t creation_flags,
-                 bool guest_thread)
+                 bool guest_thread, bool main_thread)
     : XObject(kernel_state, kTypeThread),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
+      main_thread_(main_thread),
       apc_list_(kernel_state->memory()) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
@@ -55,6 +64,10 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
   // Adjust stack size - min of 16k.
   if (creation_params_.stack_size < 16 * 1024) {
     creation_params_.stack_size = 16 * 1024;
+  }
+
+  if (!guest_thread_) {
+    host_object_ = true;
   }
 
   // The kernel does not take a reference. We must unregister in the dtor.
@@ -124,11 +137,12 @@ void XThread::set_last_error(uint32_t error_code) {
 }
 
 void XThread::set_name(const std::string& name) {
-  name_ = name;
+  name_ = xe::format_string("%s (%.8X)", name.c_str(), handle());
+
   if (thread_) {
     // May be getting set before the thread is created.
     // One the thread is ready it will handle it.
-    thread_->set_name(name);
+    thread_->set_name(name_);
   }
 }
 
@@ -149,16 +163,96 @@ uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   return cpu_number;
 }
 
+void XThread::InitializeGuestObject() {
+  auto guest_thread = guest_object<X_KTHREAD>();
+
+  // Setup the thread state block (last error/etc).
+  uint8_t* p = memory()->TranslateVirtual(guest_object());
+  guest_thread->header.type = 6;
+  guest_thread->suspend_count =
+      (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
+
+  xe::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
+  xe::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
+
+  xe::store_and_swap<uint32_t>(p + 0x040, guest_object() + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x044, guest_object() + 0x018 + 8);
+  xe::store_and_swap<uint32_t>(p + 0x048, guest_object());
+  xe::store_and_swap<uint32_t>(p + 0x04C, guest_object() + 0x018);
+
+  xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
+  xe::store_and_swap<uint16_t>(p + 0x056, 1);
+  xe::store_and_swap<uint32_t>(p + 0x05C, stack_base_);
+  xe::store_and_swap<uint32_t>(p + 0x060, stack_limit_);
+  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
+  xe::store_and_swap<uint8_t>(p + 0x06C, 0);
+  xe::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
+  xe::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
+  xe::store_and_swap<uint32_t>(p + 0x084,
+                               kernel_state_->process_info_block_address());
+  xe::store_and_swap<uint8_t>(p + 0x08B, 1);
+  // 0xD4 = APC
+  // 0xFC = semaphore (ptr, 0, 2)
+  // 0xA88 = APC
+  // 0x18 = timer
+  xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
+  xe::store_and_swap<uint32_t>(p + 0x0D0, stack_base_);
+  xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
+  xe::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x148, guest_object() + 0x144);
+  xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
+  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
+  xe::store_and_swap<uint32_t>(p + 0x154, guest_object() + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x158, guest_object() + 0x154);
+  xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
+  xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
+  xe::store_and_swap<uint32_t>(p + 0x17C, 1);
+}
+
+bool XThread::AllocateStack(uint32_t size) {
+  auto heap = memory()->LookupHeap(0x40000000);
+
+  auto alignment = heap->page_size();
+  auto padding = heap->page_size() * 2;  // Guard pages
+  size = xe::round_up(size, alignment);
+  auto actual_size = size + padding;
+
+  uint32_t address = 0;
+  if (!heap->AllocRange(0x40000000, 0x7F000000, actual_size, alignment,
+                        kMemoryAllocationReserve | kMemoryAllocationCommit,
+                        kMemoryProtectRead | kMemoryProtectWrite, false,
+                        &address)) {
+    return false;
+  }
+
+  stack_alloc_base_ = address;
+  stack_alloc_size_ = actual_size;
+  stack_limit_ = address + (padding / 2);
+  stack_base_ = stack_limit_ + size;
+
+  // Initialize the stack with junk
+  memory()->Fill(stack_alloc_base_, actual_size, 0xBE);
+
+  // Setup the guard pages
+  heap->Protect(stack_alloc_base_, padding / 2, kMemoryProtectNoAccess);
+  heap->Protect(stack_base_, padding / 2, kMemoryProtectNoAccess);
+
+  return true;
+}
+
 X_STATUS XThread::Create() {
   // Thread kernel object.
-  // This call will also setup the native pointer for us.
-  auto guest_thread = CreateNative<X_KTHREAD>();
-  if (!guest_thread) {
+  if (!CreateNative<X_KTHREAD>()) {
     XELOGW("Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
 
-  auto module = kernel_state()->GetExecutableModule();
+  // Allocate a stack.
+  if (!AllocateStack(creation_params_.stack_size)) {
+    return X_STATUS_NO_MEMORY;
+  }
 
   // Allocate thread scratch.
   // This is used by interrupts/APCs/etc so we can round-trip pointers through.
@@ -168,6 +262,7 @@ X_STATUS XThread::Create() {
   // Allocate TLS block.
   // Games will specify a certain number of 4b slots that each thread will get.
   xex2_opt_tls_info* tls_header = nullptr;
+  auto module = kernel_state()->GetExecutableModule();
   if (module) {
     module->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   }
@@ -224,18 +319,13 @@ X_STATUS XThread::Create() {
 
   // Allocate processor thread state.
   // This is thread safe.
-  thread_state_ = new cpu::ThreadState(
-      kernel_state()->processor(), thread_id_, cpu::ThreadStackType::kUserStack,
-      0, creation_params_.stack_size, pcr_address_);
-  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(),
-         thread_state_->thread_id(), thread_state_->stack_limit(),
-         thread_state_->stack_base());
+  thread_state_ = new cpu::ThreadState(kernel_state()->processor(), thread_id_,
+                                       stack_base_, pcr_address_);
+  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(), thread_id_,
+         stack_limit_, stack_base_);
 
   // Exports use this to get the kernel.
   thread_state_->context()->kernel_state = kernel_state_;
-
-  uint8_t proc_mask =
-      static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
   X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
@@ -243,65 +333,24 @@ X_STATUS XThread::Create() {
   pcr->pcr_ptr = pcr_address_;
   pcr->current_thread = guest_object();
 
-  pcr->stack_base_ptr =
-      thread_state_->stack_address() + thread_state_->stack_size();
-  pcr->stack_end_ptr = thread_state_->stack_address();
+  pcr->stack_base_ptr = stack_base_;
+  pcr->stack_end_ptr = stack_limit_;
+
+  uint8_t proc_mask =
+      static_cast<uint8_t>(creation_params_.creation_flags >> 24);
 
   pcr->current_cpu = GetFakeCpuNumber(proc_mask);  // Current CPU(?)
   pcr->dpc_active = 0;                             // DPC active bool?
 
-  // Setup the thread state block (last error/etc).
-  uint8_t* p = memory()->TranslateVirtual(guest_object());
-  guest_thread->header.type = 6;
-  guest_thread->suspend_count =
-      (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
-
-  xe::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
-  xe::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
-
-  xe::store_and_swap<uint32_t>(p + 0x040, guest_object() + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x044, guest_object() + 0x018 + 8);
-  xe::store_and_swap<uint32_t>(p + 0x048, guest_object());
-  xe::store_and_swap<uint32_t>(p + 0x04C, guest_object() + 0x018);
-
-  xe::store_and_swap<uint16_t>(p + 0x054, 0x102);
-  xe::store_and_swap<uint16_t>(p + 0x056, 1);
-  xe::store_and_swap<uint32_t>(
-      p + 0x05C, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint32_t>(p + 0x060, thread_state_->stack_address());
-  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
-  xe::store_and_swap<uint8_t>(p + 0x06C, 0);
-  xe::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
-  xe::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
-  xe::store_and_swap<uint32_t>(p + 0x084,
-                               kernel_state_->process_info_block_address());
-  xe::store_and_swap<uint8_t>(p + 0x08B, 1);
-  // 0xD4 = APC
-  // 0xFC = semaphore (ptr, 0, 2)
-  // 0xA88 = APC
-  // 0x18 = timer
-  xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
-  xe::store_and_swap<uint32_t>(
-      p + 0x0D0, thread_state_->stack_address() + thread_state_->stack_size());
-  xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
-  xe::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x148, guest_object() + 0x144);
-  xe::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  xe::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
-  xe::store_and_swap<uint32_t>(p + 0x154, guest_object() + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x158, guest_object() + 0x154);
-  xe::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
-  xe::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
-  xe::store_and_swap<uint32_t>(p + 0x17C, 1);
+  // Initialize the KTHREAD object.
+  InitializeGuestObject();
 
   // Always retain when starting - the thread owns itself until exited.
   Retain();
   RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
-  params.stack_size = 16 * 1024 * 1024;  // Ignore game, always big!
+  params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
   params.create_suspended = true;
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
@@ -334,8 +383,8 @@ X_STATUS XThread::Create() {
   // Set the thread name based on host ID (for easier debugging).
   if (name_.empty()) {
     char thread_name[32];
-    snprintf(thread_name, xe::countof(thread_name), "XThread%04X (%04X)",
-             handle(), thread_->system_id());
+    snprintf(thread_name, xe::countof(thread_name), "XThread%.04X",
+             thread_->system_id());
     set_name(thread_name);
   }
 
@@ -707,6 +756,395 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
     xe::threading::Sleep(std::chrono::milliseconds(timeout_ms));
     return X_STATUS_SUCCESS;
   }
+}
+
+bool XThread::StepToAddress(uint32_t pc) {
+  auto functions = emulator()->processor()->FindFunctionsWithAddress(pc);
+  if (functions.empty()) {
+    // Function hasn't been generated yet. Generate it.
+    if (!emulator()->processor()->ResolveFunction(pc)) {
+      XELOGE("XThread::StepToAddress(%.8X) - Function could not be resolved",
+             pc);
+      return false;
+    }
+  }
+
+  // Instruct the thread to step forwards.
+  threading::Fence fence;
+  cpu::Breakpoint bp(kernel_state()->processor(), pc,
+                     [&fence](uint32_t guest_address, uint64_t host_address) {
+                       fence.Signal();
+                     });
+  if (bp.Install()) {
+    thread_->Resume();
+    fence.Wait();
+    bp.Uninstall();
+  } else {
+    assert_always();
+    XELOGE("XThread: Could not install breakpoint to step forward!");
+    return false;
+  }
+
+  return true;
+}
+
+uint32_t XThread::StepIntoBranch(uint32_t pc) {
+  cpu::frontend::InstrData i;
+  i.address = pc;
+  i.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(i.address));
+  i.type = cpu::frontend::GetInstrType(i.code);
+
+  auto context = thread_state_->context();
+
+  if (i.type->type & (1 << 4) /* BranchAlways */) {
+    if (i.type->opcode == 0x48000000) {
+      // bx
+      uint32_t nia = 0;
+      if (i.I.AA) {
+        nia = (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
+      } else {
+        nia =
+            i.address + (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
+      }
+
+      StepToAddress(nia);
+    } else {
+      // Unknown opcode.
+      assert_always();
+    }
+  } else if (i.type->type & (1 << 3) /* BranchCond */) {
+    threading::Fence fence;
+    auto callback = [&fence, &pc](uint32_t guest_pc, uint64_t) {
+      pc = guest_pc;
+      fence.Signal();
+    };
+
+    cpu::Breakpoint bpt(kernel_state()->processor(), callback);
+    cpu::Breakpoint bpf(kernel_state()->processor(), pc + 4, callback);
+    if (!bpf.Install()) {
+      // FIXME: This won't work on non-conditional conditional branches.
+      XELOGE("XThread: Could not install breakpoint to step forward!");
+      assert_always();
+      return 0;
+    }
+
+    uint32_t nia = 0;
+    if (i.type->opcode == 0x40000000) {
+      // bcx
+      if (i.B.AA) {
+        nia = (uint32_t)cpu::frontend::XEEXTS16(i.B.BD << 2);
+      } else {
+        nia = (uint32_t)(i.address + cpu::frontend::XEEXTS16(i.B.BD << 2));
+      }
+    } else if (i.type->opcode == 0x4C000420) {
+      // bcctrx
+      nia = uint32_t(context->ctr);
+    } else if (i.type->opcode == 0x4C000020) {
+      // bclrx
+      nia = uint32_t(context->lr);
+    } else {
+      // Unknown opcode.
+      assert_always();
+    }
+
+    bpt.set_address(nia);
+    if (!bpt.Install()) {
+      assert_always();
+      return 0;
+    }
+
+    thread_->Resume();
+    fence.Wait();
+    bpf.Uninstall();
+    bpt.Uninstall();
+  }
+
+  return pc;
+}
+
+uint32_t XThread::StepToSafePoint() {
+  // This cannot be done if we're the calling thread!
+  if (IsInThread() && GetCurrentThread() == this) {
+    assert_always(
+        "XThread::StepToSafePoint(): target thread is the calling thread!");
+    return 0;
+  }
+
+  // Now the fun part begins: Registers are only guaranteed to be synchronized
+  // with the PPC context at a basic block boundary. Unfortunately, we most
+  // likely stopped the thread at some point other than a boundary. We need to
+  // step forward until we reach a boundary, and then perform the save.
+  auto stack_walker = kernel_state()->processor()->stack_walker();
+
+  uint64_t frame_host_pcs[64];
+  cpu::StackFrame cpu_frames[64];
+  size_t count = stack_walker->CaptureStackTrace(
+    thread_->native_handle(), frame_host_pcs, 0, xe::countof(frame_host_pcs),
+    nullptr, nullptr);
+  stack_walker->ResolveStack(frame_host_pcs, cpu_frames, count);
+  if (count == 0) {
+    return 0;
+  }
+
+  // Check if we're in guest code or host code.
+  uint32_t pc = 0;
+  if (cpu_frames[0].type == cpu::StackFrame::Type::kGuest) {
+    pc = cpu_frames[0].guest_pc;
+
+    // We're in guest code.
+    // First: Find a synchronizing instruction and go to it.
+    cpu::frontend::InstrData i;
+    i.address = cpu_frames[0].guest_pc - 4;
+    do {
+      i.address += 4;
+      i.code =
+          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(i.address));
+      i.type = cpu::frontend::GetInstrType(i.code);
+    } while ((i.type->type & (cpu::frontend::kXEPPCInstrTypeSynchronizeContext |
+                              cpu::frontend::kXEPPCInstrTypeBranch)) == 0);
+
+    if (i.address != pc) {
+      StepToAddress(i.address);
+      pc = i.address;
+    }
+
+    // Okay. Now we're on a synchronizing instruction but we need to step
+    // past it in order to get a synchronized context.
+    // If we're on a branching instruction, it's guaranteed only going to have
+    // two possible targets. For non-branching instructions, we can just step
+    // over them.
+    if (i.type->type & cpu::frontend::kXEPPCInstrTypeBranch) {
+      pc = StepIntoBranch(i.address);
+    }
+  } else {
+    // We're in host code. Search backwards til we can get an idea of where
+    // we are.
+    cpu::GuestFunction* thunk_func = nullptr;
+    cpu::Export* export_data = nullptr;
+    uint32_t first_pc = 0;
+    for (int i = 0; i < count; i++) {
+      auto& frame = cpu_frames[i];
+      if (frame.type == cpu::StackFrame::Type::kGuest && frame.guest_pc) {
+        auto func = frame.guest_symbol.function;
+        assert_true(func->is_guest());
+
+        if (!first_pc) {
+          first_pc = frame.guest_pc;
+        }
+
+        thunk_func = reinterpret_cast<cpu::GuestFunction*>(func);
+        export_data = thunk_func->export_data();
+        if (export_data) {
+          break;
+        }
+      }
+    }
+
+    // If the export is blocking, we wrap up and save inside the export thunk.
+    // When we're restored, we'll call the blocking export again.
+    // Otherwise, we return from the thunk and save.
+    if (export_data && export_data->tags & cpu::ExportTag::kBlocking) {
+      pc = thunk_func->address();
+    } else if (export_data) {
+      // Non-blocking. Run until we return from the thunk.
+      StepToAddress(uint32_t(thread_state_->context()->lr));
+    } else {
+      // We're in the MMIO handler/mfmsr/something calling out of the guest
+      // that doesn't use an export. If the current instruction is
+      // synchronizing, we can just save here. Otherwise, step forward
+      // (and call ourselves again so we run the correct logic).
+      cpu::frontend::InstrData i;
+      i.address = first_pc;
+      i.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
+      i.type = cpu::frontend::GetInstrType(i.code);
+      if (i.type->type & cpu::frontend::kXEPPCInstrTypeSynchronizeContext) {
+        // Good to go.
+        return first_pc;
+      } else {
+        // Step forward.
+        StepToAddress(first_pc + 4);
+        StepToSafePoint();
+      }
+    }
+  }
+
+  return pc;
+}
+
+struct ThreadSavedState {
+  uint32_t thread_id;
+  bool main_thread;
+  uint32_t tls_address;
+  uint32_t pcr_address;
+  uint32_t stack_base;        // High address
+  uint32_t stack_limit;       // Low address
+  uint32_t stack_alloc_base;  // Allocation address
+  uint32_t stack_alloc_size;  // Allocation size
+  struct {
+    uint64_t lr;
+    uint64_t ctr;
+    uint64_t r[32];
+    double f[32];
+    vec128_t v[128];
+    uint32_t cr[8];
+    uint32_t fpscr;
+    uint8_t xer_ca;
+    uint8_t xer_ov;
+    uint8_t xer_so;
+    uint8_t vscr_sat;
+    uint32_t pc;
+  } context;
+};
+
+bool XThread::Save(ByteStream* stream) {
+  if (!guest_thread_) {
+    // Host XThreads are expected to be recreated on their own.
+    return false;
+  }
+
+  XELOGD("XThread %.8X serializing...", handle());
+
+  uint32_t pc = StepToSafePoint();
+  if (!pc) {
+    XELOGE("XThread %.8X failed to save: could not step to a safe point!",
+           handle());
+    return false;
+  }
+
+  if (!SaveObject(stream)) {
+    return false;
+  }
+
+  stream->Write('THRD');
+  stream->Write(name_);
+
+  ThreadSavedState state;
+  state.thread_id = thread_id_;
+  state.main_thread = main_thread_;
+  state.tls_address = tls_address_;
+  state.pcr_address = pcr_address_;
+  state.stack_base = stack_base_;
+  state.stack_limit = stack_limit_;
+  state.stack_alloc_base = stack_alloc_base_;
+  state.stack_alloc_size = stack_alloc_size_;
+
+  // Context information
+  auto context = thread_state_->context();
+  state.context.lr = context->lr;
+  state.context.ctr = context->ctr;
+  std::memcpy(state.context.r, context->r, 32 * 8);
+  std::memcpy(state.context.f, context->f, 32 * 8);
+  std::memcpy(state.context.v, context->v, 128 * 16);
+  state.context.cr[0] = context->cr0.value;
+  state.context.cr[1] = context->cr1.value;
+  state.context.cr[2] = context->cr2.value;
+  state.context.cr[3] = context->cr3.value;
+  state.context.cr[4] = context->cr4.value;
+  state.context.cr[5] = context->cr5.value;
+  state.context.cr[6] = context->cr6.value;
+  state.context.cr[7] = context->cr7.value;
+  state.context.fpscr = context->fpscr.value;
+  state.context.xer_ca = context->xer_ca;
+  state.context.xer_ov = context->xer_ov;
+  state.context.xer_so = context->xer_so;
+  state.context.vscr_sat = context->vscr_sat;
+  state.context.pc = pc;
+
+  stream->Write(&state, sizeof(ThreadSavedState));
+  return true;
+}
+
+object_ref<XThread> XThread::Restore(KernelState* kernel_state,
+                                     ByteStream* stream) {
+  // Kind-of a hack, but we need to set the kernel state outside of the object
+  // constructor so it doesn't register a handle with the object table.
+  auto thread = new XThread(nullptr);
+  thread->kernel_state_ = kernel_state;
+
+  if (!thread->RestoreObject(stream)) {
+    return false;
+  }
+
+  if (stream->Read<uint32_t>() != 'THRD') {
+    XELOGE("Could not restore XThread - invalid magic!");
+    return false;
+  }
+
+  thread->name_ = stream->Read<std::string>();
+
+  ThreadSavedState state;
+  stream->Read(&state, sizeof(ThreadSavedState));
+  thread->thread_id_ = state.thread_id;
+  thread->main_thread_ = state.main_thread;
+  thread->tls_address_ = state.tls_address;
+  thread->pcr_address_ = state.pcr_address;
+  thread->stack_base_ = state.stack_base;
+  thread->stack_limit_ = state.stack_limit;
+  thread->stack_alloc_base_ = state.stack_alloc_base;
+  thread->stack_alloc_size_ = state.stack_alloc_size;
+
+  // Register now that we know our thread ID.
+  kernel_state->RegisterThread(thread);
+
+  thread->thread_state_ =
+      new cpu::ThreadState(kernel_state->processor(), thread->thread_id_,
+                           thread->stack_base_, thread->pcr_address_);
+  auto context = thread->thread_state_->context();
+  context->kernel_state = kernel_state;
+  context->lr = state.context.lr;
+  context->ctr = state.context.ctr;
+  std::memcpy(context->r, state.context.r, 32 * 8);
+  std::memcpy(context->f, state.context.f, 32 * 8);
+  std::memcpy(context->v, state.context.v, 128 * 16);
+  context->cr0.value = state.context.cr[0];
+  context->cr1.value = state.context.cr[1];
+  context->cr2.value = state.context.cr[2];
+  context->cr3.value = state.context.cr[3];
+  context->cr4.value = state.context.cr[4];
+  context->cr5.value = state.context.cr[5];
+  context->cr6.value = state.context.cr[6];
+  context->cr7.value = state.context.cr[7];
+  context->fpscr.value = state.context.fpscr;
+  context->xer_ca = state.context.xer_ca;
+  context->xer_ov = state.context.xer_ov;
+  context->xer_so = state.context.xer_so;
+  context->vscr_sat = state.context.vscr_sat;
+  auto pc = state.context.pc;
+
+  // Always retain when starting - the thread owns itself until exited.
+  thread->Retain();
+  thread->RetainHandle();
+
+  xe::threading::Thread::CreationParameters params;
+  params.create_suspended = true;  // Not done restoring yet.
+  params.stack_size = 16 * 1024 * 1024;
+  thread->thread_ = xe::threading::Thread::Create(params, [thread, pc]() {
+    // Set thread ID override. This is used by logging.
+    xe::threading::set_current_thread_id(thread->handle());
+
+    // Set name immediately, if we have one.
+    thread->thread_->set_name(thread->name());
+
+    // Profiler needs to know about the thread.
+    xe::Profiler::ThreadEnter(thread->name().c_str());
+
+    // Execute user code.
+    thread->running_ = true;
+    current_thread_tls_ = thread;
+    thread->kernel_state()->processor()->ExecuteRaw(thread->thread_state_, pc);
+    current_thread_tls_ = nullptr;
+
+    xe::Profiler::ThreadExit();
+
+    // Release the self-reference to the thread.
+    thread->Release();
+  });
+
+  if (thread->emulator()->debugger()) {
+    thread->emulator()->debugger()->OnThreadCreated(thread);
+  }
+
+  return retain_object(thread);
 }
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,

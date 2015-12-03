@@ -29,6 +29,7 @@ bool CreateFolder(const std::wstring& path);
 bool DeleteFolder(const std::wstring& path);
 bool IsFolder(const std::wstring& path);
 
+bool CreateFile(const std::wstring& path);
 FILE* OpenFile(const std::wstring& path, const char* mode);
 bool DeleteFile(const std::wstring& path);
 

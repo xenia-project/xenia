@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_THREADING_H_
 #define XENIA_BASE_THREADING_H_
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <climits>
@@ -344,6 +345,7 @@ class Thread : public WaitHandle {
   // within that thread.
   static std::unique_ptr<Thread> Create(CreationParameters params,
                                         std::function<void()> start_routine);
+  static Thread* GetCurrentThread();
 
   // Ends the calling thread.
   // No destructors are called, and this function does not return.

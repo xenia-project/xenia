@@ -16,6 +16,8 @@
 
 namespace xe {
 namespace cpu {
+class Breakpoint;
+class Function;
 class GuestFunction;
 class Module;
 class Processor;
@@ -50,6 +52,10 @@ class Backend {
 
   virtual std::unique_ptr<GuestFunction> CreateGuestFunction(
       Module* module, uint32_t address) = 0;
+
+  virtual bool InstallBreakpoint(Breakpoint* bp) { return false; }
+  virtual bool InstallBreakpoint(Breakpoint* bp, Function* func) { return false; }
+  virtual bool UninstallBreakpoint(Breakpoint* bp) { return false; }
 
  protected:
   Processor* processor_;

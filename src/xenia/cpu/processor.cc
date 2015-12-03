@@ -17,6 +17,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/threading.h"
+#include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/frontend/ppc_frontend.h"
@@ -54,9 +56,12 @@ class BuiltinModule : public Module {
   std::string name_;
 };
 
-Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver,
-                     debug::Debugger* debugger)
-    : memory_(memory), debugger_(debugger), export_resolver_(export_resolver) {}
+Processor::Processor(xe::Emulator* emulator, xe::Memory* memory,
+                     ExportResolver* export_resolver, debug::Debugger* debugger)
+    : emulator_(emulator),
+      memory_(memory),
+      debugger_(debugger),
+      export_resolver_(export_resolver) {}
 
 Processor::~Processor() {
   {
@@ -270,6 +275,8 @@ bool Processor::DemandFunction(Function* function) {
       debugger_->OnFunctionDefined(function);
     }
 
+    BreakpointFunctionDefined(function);
+
     function->set_status(Symbol::Status::kDefined);
     symbol_status = function->status();
   }
@@ -311,6 +318,21 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   context->r[1] += 64 + 112;
 
   return result;
+}
+
+bool Processor::ExecuteRaw(ThreadState* thread_state, uint32_t address) {
+  SCOPE_profile_cpu_f("cpu");
+
+  // Attempt to get the function.
+  auto function = ResolveFunction(address);
+  if (!function) {
+    // Symbol not found in any module.
+    XELOGCPU("Execute(%.8X): failed to find function", address);
+    return false;
+  }
+
+  auto context = thread_state->context();
+  return function->Call(thread_state, 0xBCBCBCBC);
 }
 
 uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
@@ -381,6 +403,75 @@ Irql Processor::RaiseIrql(Irql new_value) {
 void Processor::LowerIrql(Irql old_value) {
   xe::atomic_exchange(static_cast<uint32_t>(old_value),
                       reinterpret_cast<volatile uint32_t*>(&irql_));
+}
+
+void Processor::BreakpointFunctionDefined(Function* function) {
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
+
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
+    if (function->ContainsAddress((*it)->address())) {
+      backend_->InstallBreakpoint(*it, function);
+    }
+  }
+}
+
+bool Processor::InstallBreakpoint(Breakpoint* bp) {
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
+
+  if (FindBreakpoint(bp->address())) {
+    return false;
+  }
+
+  // We need to register the breakpoint before installing it with the backend
+  // in-case a thread hits it while we're here.
+  breakpoints_.push_back(bp);
+  if (!backend_->InstallBreakpoint(bp)) {
+    breakpoints_.pop_back();
+    return false;
+  }
+
+  return true;
+}
+
+bool Processor::UninstallBreakpoint(Breakpoint* bp) {
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
+
+  if (!backend_->UninstallBreakpoint(bp)) {
+    return false;
+  }
+
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
+    if ((*it)->address() == bp->address()) {
+      breakpoints_.erase(it);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
+  auto bp = FindBreakpoint(address);
+  if (bp) {
+    bp->Hit(host_pc);
+    
+    xe::threading::Thread::GetCurrentThread()->Suspend();
+    return true;
+  }
+
+  return false;
+}
+
+Breakpoint* Processor::FindBreakpoint(uint32_t address) {
+  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
+
+  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
+    if ((*it)->address() == address) {
+      return *it;
+    }
+  }
+
+  return nullptr;
 }
 
 }  // namespace cpu

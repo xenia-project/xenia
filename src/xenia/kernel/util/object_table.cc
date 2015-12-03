@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xthread.h"
 
@@ -61,21 +62,9 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
 
   // Table out of slots, expand.
   uint32_t new_table_capacity = std::max(16 * 1024u, table_capacity_ * 2);
-  size_t new_table_size = new_table_capacity * sizeof(ObjectTableEntry);
-  size_t old_table_size = table_capacity_ * sizeof(ObjectTableEntry);
-  auto new_table =
-      reinterpret_cast<ObjectTableEntry*>(realloc(table_, new_table_size));
-  if (!new_table) {
+  if (!Resize(new_table_capacity)) {
     return X_STATUS_NO_MEMORY;
   }
-  // Zero out new memory.
-  if (new_table_size > old_table_size) {
-    std::memset(reinterpret_cast<uint8_t*>(new_table) + old_table_size, 0,
-                new_table_size - old_table_size);
-  }
-  last_free_entry_ = table_capacity_;
-  table_capacity_ = new_table_capacity;
-  table_ = new_table;
 
   // Never allow 0 handles.
   slot = ++last_free_entry_;
@@ -84,16 +73,37 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
   return X_STATUS_SUCCESS;
 }
 
+bool ObjectTable::Resize(uint32_t new_capacity) {
+  uint32_t new_size = new_capacity * sizeof(ObjectTableEntry);
+  uint32_t old_size = table_capacity_ * sizeof(ObjectTableEntry);
+  auto new_table = reinterpret_cast<ObjectTableEntry*>(realloc(table_, new_size));
+  if (!new_table) {
+    return false;
+  }
+
+  // Zero out new entries.
+  if (new_size > old_size) {
+    std::memset(reinterpret_cast<uint8_t*>(new_table) + old_size, 0, new_size - old_size);
+  }
+
+  last_free_entry_ = table_capacity_;
+  table_capacity_ = new_capacity;
+  table_ = new_table;
+
+  return true;
+}
+
 X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
   assert_not_null(out_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  uint32_t slot = 0;
+  uint32_t handle = 0;
   {
     auto global_lock = global_critical_region_.Acquire();
 
     // Find a free slot.
+    uint32_t slot = 0;
     result = FindFreeSlot(&slot);
 
     // Stash.
@@ -102,13 +112,16 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
       entry.object = object;
       entry.handle_ref_count = 1;
 
+      handle = slot << 2;
+      object->handles().push_back(handle);
+
       // Retain so long as the object is in the table.
       object->Retain();
     }
   }
 
   if (XSUCCEEDED(result)) {
-    *out_handle = slot << 2;
+    *out_handle = handle;
   }
 
   return result;
@@ -178,11 +191,48 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
     entry->object = nullptr;
     entry->handle_ref_count = 0;
 
+    // Walk the object's handles and remove this one.
+    auto handle_entry =
+        std::find(object->handles().begin(), object->handles().end(), handle);
+    if (handle_entry != object->handles().end()) {
+      object->handles().erase(handle_entry);
+    }
+
     // Release now that the object has been removed from the table.
     object->Release();
   }
 
   return X_STATUS_SUCCESS;
+}
+
+std::vector<object_ref<XObject>> ObjectTable::GetAllObjects() {
+  auto lock = global_critical_region_.Acquire();
+  std::vector<object_ref<XObject>> results;
+
+  for (uint32_t slot = 0; slot < table_capacity_; slot++) {
+    auto& entry = table_[slot];
+    if (entry.object &&
+        std::find(results.begin(), results.end(), entry.object) ==
+            results.end()) {
+      entry.object->Retain();
+      results.push_back(object_ref<XObject>(entry.object));
+    }
+  }
+
+  return results;
+}
+
+void ObjectTable::PurgeAllObjects() {
+  auto lock = global_critical_region_.Acquire();
+  for (uint32_t slot = 0; slot < table_capacity_; slot++) {
+    auto& entry = table_[slot];
+    if (entry.object && !entry.object->is_host_object()) {
+      entry.handle_ref_count = 0;
+      entry.object->Release();
+
+      entry.object = nullptr;
+    }
+  }
 }
 
 ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
@@ -310,6 +360,39 @@ X_STATUS ObjectTable::GetObjectByName(const std::string& name,
   if (obj) {
     obj->RetainHandle();
     obj->Release();
+  }
+
+  return X_STATUS_SUCCESS;
+}
+
+bool ObjectTable::Save(ByteStream* stream) {
+  stream->Write<uint32_t>(table_capacity_);
+  for (uint32_t i = 0; i < table_capacity_; i++) {
+    auto& entry = table_[i];
+    stream->Write<int32_t>(entry.handle_ref_count);
+  }
+
+  return true;
+}
+
+bool ObjectTable::Restore(ByteStream* stream) {
+  Resize(stream->Read<uint32_t>());
+  for (uint32_t i = 0; i < table_capacity_; i++) {
+    auto& entry = table_[i];
+    // entry.object = nullptr;
+    entry.handle_ref_count = stream->Read<int32_t>();
+  }
+
+  return true;
+}
+
+X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {
+  uint32_t slot = handle >> 2;
+  assert_true(table_capacity_ >= slot);
+
+  if (table_capacity_ >= slot) {
+    auto& entry = table_[slot];
+    entry.object = object;
   }
 
   return X_STATUS_SUCCESS;

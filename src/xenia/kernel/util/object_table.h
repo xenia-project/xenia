@@ -19,6 +19,10 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+class ByteStream;
+}  // namespace xe
+
+namespace xe {
 namespace kernel {
 namespace util {
 
@@ -34,6 +38,13 @@ class ObjectTable {
   X_STATUS RetainHandle(X_HANDLE handle);
   X_STATUS ReleaseHandle(X_HANDLE handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
+  // Restores a XObject reference with a handle. Mainly for internal use - do not
+  // use.
+  X_STATUS RestoreHandle(X_HANDLE handle, XObject* object);
 
   template <typename T>
   object_ref<T> LookupObject(X_HANDLE handle) {
@@ -65,6 +76,18 @@ class ObjectTable {
     return results;
   }
 
+  template <typename T>
+  std::vector<object_ref<T>> GetObjectsByType() {
+    std::vector<object_ref<T>> results;
+    GetObjectsByType(
+        T::kType,
+        reinterpret_cast<std::vector<object_ref<XObject>>*>(&results));
+    return results;
+  }
+
+  std::vector<object_ref<XObject>> GetAllObjects();
+  void PurgeAllObjects(); // Purges the object table of all guest objects
+
  private:
   typedef struct {
     int handle_ref_count = 0;
@@ -78,6 +101,7 @@ class ObjectTable {
 
   X_HANDLE TranslateHandle(X_HANDLE handle);
   X_STATUS FindFreeSlot(uint32_t* out_slot);
+  bool Resize(uint32_t new_capacity);
 
   xe::global_critical_region global_critical_region_;
   uint32_t table_capacity_ = 0;

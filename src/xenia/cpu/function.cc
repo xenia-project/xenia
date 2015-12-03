@@ -60,9 +60,10 @@ GuestFunction::GuestFunction(Module* module, uint32_t address)
 
 GuestFunction::~GuestFunction() = default;
 
-void GuestFunction::SetupExtern(ExternHandler handler) {
+void GuestFunction::SetupExtern(ExternHandler handler, Export* export_data) {
   behavior_ = Behavior::kExtern;
   extern_handler_ = handler;
+  export_data_ = export_data;
 }
 
 const SourceMapEntry* GuestFunction::LookupGuestAddress(
@@ -128,20 +129,7 @@ bool GuestFunction::Call(ThreadState* thread_state, uint32_t return_address) {
     ThreadState::Bind(thread_state);
   }
 
-  bool result = false;
-  if (behavior_ == Behavior::kExtern) {
-    // Special handling for extern functions to speed things up (we don't
-    // trampoline into guest code only to trampoline back out).
-    if (extern_handler_) {
-      extern_handler_(thread_state->context(),
-                      thread_state->context()->kernel_state);
-    } else {
-      XELOGW("undefined extern call to %.8X %s", address(), name().c_str());
-      result = false;
-    }
-  } else {
-    result = CallImpl(thread_state, return_address);
-  }
+  bool result = CallImpl(thread_state, return_address);
 
   if (original_thread_state != thread_state) {
     ThreadState::Bind(original_thread_state);

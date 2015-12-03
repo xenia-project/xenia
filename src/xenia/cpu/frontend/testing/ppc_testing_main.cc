@@ -177,7 +177,7 @@ class TestRunner {
     memory.reset(new Memory());
     memory->Initialize();
 
-    processor.reset(new Processor(memory.get(), nullptr, nullptr));
+    processor.reset(new Processor(nullptr, memory.get(), nullptr, nullptr));
     processor->Setup();
     processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
   }
@@ -210,9 +210,8 @@ class TestRunner {
     uint32_t stack_size = 64 * 1024;
     uint32_t stack_address = START_ADDRESS - stack_size;
     uint32_t pcr_address = stack_address - 0x1000;
-    thread_state.reset(new ThreadState(processor.get(), 0x100,
-                                       ThreadStackType::kUserStack,
-                                       stack_address, stack_size, pcr_address));
+    thread_state.reset(
+        new ThreadState(processor.get(), 0x100, stack_address, pcr_address));
 
     return true;
   }

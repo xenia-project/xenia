@@ -39,7 +39,12 @@ class MappedMemory {
   uint8_t* data() const { return reinterpret_cast<uint8_t*>(data_); }
   size_t size() const { return size_; }
 
+  // Close, and optionally truncate file to size
+  virtual void Close(uint64_t truncate_size = 0) {}
   virtual void Flush() {}
+
+  // Changes the offset inside the file. This will update data() and size()!
+  virtual bool Remap(size_t offset, size_t length) { return false; }
 
  protected:
   std::wstring path_;

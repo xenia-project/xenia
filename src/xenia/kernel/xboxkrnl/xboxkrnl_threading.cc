@@ -345,22 +345,16 @@ SHIM_CALL KeQueryPerformanceFrequency_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL KeDelayExecutionThread_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t processor_mode = SHIM_GET_ARG_32(0);
-  uint32_t alertable = SHIM_GET_ARG_32(1);
-  uint32_t interval_ptr = SHIM_GET_ARG_32(2);
-  uint64_t interval = SHIM_MEM_64(interval_ptr);
-
-  // XELOGD(
-  //     "KeDelayExecutionThread(%.8X, %d, %.8X(%.16llX)",
-  //     processor_mode, alertable, interval_ptr, interval);
-
+dword_result_t KeDelayExecutionThread(dword_t processor_mode, dword_t alertable,
+                                      lpqword_t interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
-  X_STATUS result = thread->Delay(processor_mode, alertable, interval);
+  X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(KeDelayExecutionThread,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kHighFrequency | ExportTag::kBlocking);
 
 SHIM_CALL NtYieldExecution_shim(PPCContext* ppc_context,
                                 KernelState* kernel_state) {
@@ -853,104 +847,86 @@ SHIM_CALL NtCancelTimer_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL KeWaitForSingleObject_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  uint32_t object_ptr = SHIM_GET_ARG_32(0);
-  uint32_t wait_reason = SHIM_GET_ARG_32(1);
-  uint32_t processor_mode = SHIM_GET_ARG_32(2);
-  uint32_t alertable = SHIM_GET_ARG_32(3);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(4);
-
-  XELOGD("KeWaitForSingleObject(%.8X, %.8X, %.8X, %.1X, %.8X)", object_ptr,
-         wait_reason, processor_mode, alertable, timeout_ptr);
-
-  auto object = XObject::GetNativeObject<XObject>(kernel_state,
-                                                  SHIM_MEM_ADDR(object_ptr));
+dword_result_t KeWaitForSingleObject(lpvoid_t object_ptr, dword_t wait_reason,
+                                     dword_t processor_mode, dword_t alertable,
+                                     lpqword_t timeout_ptr) {
+  auto object = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
 
   if (!object) {
-    // The only kind-of failure code.
-    SHIM_SET_RETURN_32(X_STATUS_ABANDONED_WAIT_0);
-    return;
+    // The only kind-of failure code (though this should never happen)
+    assert_always();
+    return X_STATUS_ABANDONED_WAIT_0;
   }
 
-  uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+  uint64_t timeout = timeout_ptr ? *timeout_ptr : 0;
   X_STATUS result = object->Wait(wait_reason, processor_mode, alertable,
                                  timeout_ptr ? &timeout : nullptr);
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(KeWaitForSingleObject, ExportTag::kImplemented |
+                                                   ExportTag::kThreading |
+                                                   ExportTag::kBlocking);
 
-SHIM_CALL NtWaitForSingleObjectEx_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t object_handle = SHIM_GET_ARG_32(0);
-  uint8_t wait_mode = SHIM_GET_ARG_8(1);
-  uint32_t alertable = SHIM_GET_ARG_32(2);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(3);
-
-  XELOGD("NtWaitForSingleObjectEx(%.8X, %u, %.1X, %.8X)", object_handle,
-         (uint32_t)wait_mode, alertable, timeout_ptr);
-
+dword_result_t NtWaitForSingleObjectEx(dword_t object_handle, dword_t wait_mode,
+                                       dword_t alertable,
+                                       lpqword_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto object =
-      kernel_state->object_table()->LookupObject<XObject>(object_handle);
+      kernel_state()->object_table()->LookupObject<XObject>(object_handle);
   if (object) {
-    uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+    uint64_t timeout = timeout_ptr ? *timeout_ptr : 0;
     result =
         object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtWaitForSingleObjectEx, ExportTag::kImplemented |
+                                                     ExportTag::kThreading |
+                                                     ExportTag::kBlocking);
 
-SHIM_CALL KeWaitForMultipleObjects_shim(PPCContext* ppc_context,
-                                        KernelState* kernel_state) {
-  uint32_t count = SHIM_GET_ARG_32(0);
-  uint32_t objects_ptr = SHIM_GET_ARG_32(1);
-  uint32_t wait_type = SHIM_GET_ARG_32(2);
-  uint32_t wait_reason = SHIM_GET_ARG_32(3);
-  uint32_t processor_mode = SHIM_GET_ARG_32(4);
-  uint32_t alertable = SHIM_GET_ARG_32(5);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(6);
-  uint32_t wait_block_array_ptr = SHIM_GET_ARG_32(7);
-
-  XELOGD(
-      "KeWaitForMultipleObjects(%d, %.8X, %.8X, %.8X, %.8X, %.1X, %.8X, %.8X)",
-      count, objects_ptr, wait_type, wait_reason, processor_mode, alertable,
-      timeout_ptr, wait_block_array_ptr);
-
+dword_result_t KeWaitForMultipleObjects(dword_t count, lpdword_t objects_ptr,
+                                        dword_t wait_type, dword_t wait_reason,
+                                        dword_t processor_mode,
+                                        dword_t alertable,
+                                        lpqword_t timeout_ptr,
+                                        lpvoid_t wait_block_array_ptr) {
   assert_true(wait_type <= 1);
 
   X_STATUS result = X_STATUS_SUCCESS;
 
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
-    uint32_t object_ptr_ptr = SHIM_MEM_32(objects_ptr + n * 4);
-    void* object_ptr = SHIM_MEM_ADDR(object_ptr_ptr);
+    auto object_ptr = kernel_memory()->TranslateVirtual(objects_ptr[n]);
     auto object_ref =
-        XObject::GetNativeObject<XObject>(kernel_state, object_ptr);
+        XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
     if (!object_ref) {
-      SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
-      return;
+      return X_STATUS_INVALID_PARAMETER;
     }
+
     objects.push_back(std::move(object_ref));
   }
 
-  uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+  uint64_t timeout = timeout_ptr ? *timeout_ptr : 0;
   result = XObject::WaitMultiple(uint32_t(objects.size()),
                                  reinterpret_cast<XObject**>(objects.data()),
                                  wait_type, wait_reason, processor_mode,
                                  alertable, timeout_ptr ? &timeout : nullptr);
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(KeWaitForMultipleObjects, ExportTag::kImplemented |
+                                                      ExportTag::kThreading |
+                                                      ExportTag::kBlocking);
 
-dword_result_t NtWaitForMultipleObjectsEx(
-    dword_t count, pointer_t<xe::be<uint32_t>> handles, dword_t wait_type,
-    dword_t wait_mode, dword_t alertable,
-    pointer_t<xe::be<uint64_t>> timeout_ptr) {
+dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
+                                          dword_t wait_type, dword_t wait_mode,
+                                          dword_t alertable,
+                                          lpqword_t timeout_ptr) {
   assert_true(wait_type <= 1);
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -962,7 +938,7 @@ dword_result_t NtWaitForMultipleObjectsEx(
     if (!object) {
       return X_STATUS_INVALID_PARAMETER;
     }
-    objects[n] = std::move(object);
+    objects.push_back(std::move(object));
   }
 
   uint64_t timeout = timeout_ptr ? uint64_t(*timeout_ptr) : 0;
@@ -972,28 +948,22 @@ dword_result_t NtWaitForMultipleObjectsEx(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtWaitForMultipleObjectsEx,
-                        ExportTag::kImplemented | ExportTag::kThreading);
+DECLARE_XBOXKRNL_EXPORT(NtWaitForMultipleObjectsEx, ExportTag::kImplemented |
+                                                        ExportTag::kThreading |
+                                                        ExportTag::kBlocking);
 
-SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(PPCContext* ppc_context,
-                                                KernelState* kernel_state) {
-  uint32_t signal_handle = SHIM_GET_ARG_32(0);
-  uint32_t wait_handle = SHIM_GET_ARG_32(1);
-  uint32_t alertable = SHIM_GET_ARG_32(2);
-  uint32_t unk_3 = SHIM_GET_ARG_32(3);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(4);
-
-  XELOGD("NtSignalAndWaitForSingleObjectEx(%.8X, %.8X, %.1X, %.8X, %.8X)",
-         signal_handle, wait_handle, alertable, unk_3, timeout_ptr);
-
+dword_result_t NtSignalAndWaitForSingleObjectEx(dword_t signal_handle,
+                                                dword_t wait_handle,
+                                                dword_t alertable, dword_t r6,
+                                                lpqword_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto signal_object =
-      kernel_state->object_table()->LookupObject<XObject>(signal_handle);
+      kernel_state()->object_table()->LookupObject<XObject>(signal_handle);
   auto wait_object =
-      kernel_state->object_table()->LookupObject<XObject>(wait_handle);
+      kernel_state()->object_table()->LookupObject<XObject>(wait_handle);
   if (signal_object && wait_object) {
-    uint64_t timeout = timeout_ptr ? SHIM_MEM_64(timeout_ptr) : 0;
+    uint64_t timeout = timeout_ptr ? *timeout_ptr : 0;
     result =
         XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1,
                                alertable, timeout_ptr ? &timeout : nullptr);
@@ -1001,19 +971,19 @@ SHIM_CALL NtSignalAndWaitForSingleObjectEx_shim(PPCContext* ppc_context,
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtSignalAndWaitForSingleObjectEx,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kBlocking);
 
-SHIM_CALL KfAcquireSpinLock_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t lock_ptr = SHIM_GET_ARG_32(0);
-
+dword_result_t KfAcquireSpinLock(lpdword_t lock_ptr) {
   // XELOGD(
   //     "KfAcquireSpinLock(%.8X)",
   //     lock_ptr);
 
   // Lock.
-  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
@@ -1024,56 +994,45 @@ SHIM_CALL KfAcquireSpinLock_shim(PPCContext* ppc_context,
   XThread* thread = XThread::GetCurrentThread();
   auto old_irql = thread->RaiseIrql(2);
 
-  SHIM_SET_RETURN_32(old_irql);
+  return old_irql;
 }
+DECLARE_XBOXKRNL_EXPORT(KfAcquireSpinLock,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kHighFrequency | ExportTag::kBlocking);
 
-SHIM_CALL KfReleaseSpinLock_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t lock_ptr = SHIM_GET_ARG_32(0);
-  uint32_t old_irql = SHIM_GET_ARG_32(1);
-
-  // XELOGD(
-  //     "KfReleaseSpinLock(%.8X, %d)",
-  //     lock_ptr,
-  //     old_irql);
-
+void KfReleaseSpinLock(lpdword_t lock_ptr, dword_t old_irql) {
   // Restore IRQL.
   XThread* thread = XThread::GetCurrentThread();
   thread->LowerIrql(old_irql);
 
   // Unlock.
-  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   xe::atomic_dec(lock);
 }
+DECLARE_XBOXKRNL_EXPORT(KfReleaseSpinLock, ExportTag::kImplemented |
+                                               ExportTag::kThreading |
+                                               ExportTag::kHighFrequency);
 
-SHIM_CALL KeAcquireSpinLockAtRaisedIrql_shim(PPCContext* ppc_context,
-                                             KernelState* kernel_state) {
-  uint32_t lock_ptr = SHIM_GET_ARG_32(0);
-
-  // XELOGD(
-  //     "KeAcquireSpinLockAtRaisedIrql(%.8X)",
-  //     lock_ptr);
-
+void KeAcquireSpinLockAtRaisedIrql(lpdword_t lock_ptr) {
   // Lock.
-  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
   }
 }
+DECLARE_XBOXKRNL_EXPORT(KeAcquireSpinLockAtRaisedIrql,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kHighFrequency | ExportTag::kBlocking);
 
-SHIM_CALL KeReleaseSpinLockFromRaisedIrql_shim(PPCContext* ppc_context,
-                                               KernelState* kernel_state) {
-  uint32_t lock_ptr = SHIM_GET_ARG_32(0);
-
-  // XELOGD(
-  //     "KeReleaseSpinLockFromRaisedIrql(%.8X)",
-  //     lock_ptr);
-
+void KeReleaseSpinLockFromRaisedIrql(lpdword_t lock_ptr) {
   // Unlock.
-  auto lock = reinterpret_cast<uint32_t*>(SHIM_MEM_ADDR(lock_ptr));
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   xe::atomic_dec(lock);
 }
+DECLARE_XBOXKRNL_EXPORT(KeReleaseSpinLockFromRaisedIrql,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kHighFrequency);
 
 SHIM_CALL KeEnterCriticalRegion_shim(PPCContext* ppc_context,
                                      KernelState* kernel_state) {
@@ -1409,7 +1368,6 @@ void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", KeSetCurrentProcessType, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeDelayExecutionThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtYieldExecution, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQuerySystemTime, state);
 
@@ -1426,17 +1384,6 @@ void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateTimer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetTimerEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCancelTimer, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForSingleObject, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtWaitForSingleObjectEx, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeWaitForMultipleObjects, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtSignalAndWaitForSingleObjectEx, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", KfAcquireSpinLock, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KfReleaseSpinLock, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeAcquireSpinLockAtRaisedIrql, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeReleaseSpinLockFromRaisedIrql, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);

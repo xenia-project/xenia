@@ -14,10 +14,12 @@
 #include "third_party/elemental-forms/src/el/elements.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/backend/code_cache.h"
@@ -25,6 +27,7 @@
 #include "xenia/hid/input_driver.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
@@ -113,7 +116,7 @@ X_STATUS Emulator::Setup(
 
   // Initialize the CPU.
   processor_ = std::make_unique<xe::cpu::Processor>(
-      memory_.get(), export_resolver_.get(), debugger_.get());
+      this, memory_.get(), export_resolver_.get(), debugger_.get());
   if (!processor_->Setup()) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -285,6 +288,112 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
   return CompleteLaunch(path, "game:\\default.xex");
 }
 
+void Emulator::Pause() {
+  auto lock = global_critical_region::AcquireDirect();
+  if (paused_) {
+    return;
+  }
+  paused_ = true;
+
+  auto threads =
+      kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
+          kernel::XObject::kTypeThread);
+  for (auto thread : threads) {
+    if (!thread->can_debugger_suspend()) {
+      // Don't pause host threads.
+      continue;
+    }
+
+    thread->thread()->Suspend(nullptr);
+  }
+
+  XELOGD("! EMULATOR PAUSED !");
+}
+
+void Emulator::Resume() {
+  if (!paused_) {
+    return;
+  }
+  paused_ = false;
+  XELOGD("! EMULATOR RESUMED !");
+
+  auto threads =
+      kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
+          kernel::XObject::kTypeThread);
+  for (auto thread : threads) {
+    if (!thread->can_debugger_suspend()) {
+      // Don't pause host threads.
+      continue;
+    }
+
+    thread->thread()->Resume(nullptr);
+  }
+}
+
+bool Emulator::SaveToFile(const std::wstring& path) {
+  Pause();
+
+  filesystem::CreateFile(path);
+  auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite, 0,
+                                1024ull * 1024ull * 1024ull * 4ull);
+  if (!map) {
+    return false;
+  }
+
+  // Save the emulator state to a file
+  ByteStream stream(map->data(), map->size());
+  stream.Write('XSAV');
+
+  kernel_state_->Save(&stream);
+  memory_->Save(&stream);
+  map->Close(stream.offset());
+
+  Resume();
+  return true;
+}
+
+bool Emulator::RestoreFromFile(const std::wstring& path) {
+  // Restore the emulator state from a file
+  auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite);
+  if (!map) {
+    return false;
+  }
+
+  restoring_ = true;
+
+  // Terminate any loaded titles.
+  Pause();
+  kernel_state_->TerminateTitle();
+
+  ByteStream stream(map->data(), map->size());
+  if (stream.Read<uint32_t>() != 'XSAV') {
+    return false;
+  }
+
+  if (!kernel_state_->Restore(&stream)) {
+    return false;
+  }
+  if (!memory_->Restore(&stream)) {
+    return false;
+  }
+
+  // Update the main thread.
+  auto threads = kernel_state_->object_table()->GetObjectsByType<kernel::XThread>();
+  for (auto thread : threads) {
+    if (thread->main_thread()) {
+      main_thread_ = thread->thread();
+      break;
+    }
+  }
+
+  Resume();
+
+  restore_fence_.Signal();
+  restoring_ = false;
+
+  return true;
+}
+
 bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
   return reinterpret_cast<Emulator*>(data)->ExceptionCallback(ex);
 }
@@ -347,19 +456,42 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   return false;
 }
 
+void Emulator::WaitUntilExit() {
+  while (true) {
+    xe::threading::Wait(main_thread_, false);
+
+    if (restoring_) {
+      restore_fence_.Wait();
+    } else {
+      // Not restoring and the thread exited. We're finished.
+      break;
+    }
+  }
+}
+
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
-  auto xboxkrnl =
-      kernel_state()->GetKernelModule<kernel::xboxkrnl::XboxkrnlModule>(
-          "xboxkrnl.exe");
 
   int result = 0;
   auto next_module = module_path;
   while (next_module != "") {
     XELOGI("Launching module %s", next_module.c_str());
-    result = xboxkrnl->LaunchModule(next_module.c_str());
+    auto module = kernel_state_->LoadUserModule(next_module.c_str());
+    if (!module) {
+      XELOGE("Failed to load user module %s", path);
+      return X_STATUS_NOT_FOUND;
+    }
+
+    kernel_state_->SetExecutableModule(module);
+    auto main_xthread = module->Launch();
+    if (!main_xthread) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    main_thread_ = main_xthread->thread();
+    WaitUntilExit();
 
     // Check xam and see if they want us to load another module.
     auto& loader_data = xam->loader_data();

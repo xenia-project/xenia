@@ -31,6 +31,7 @@
 #include "xenia/xbox.h"
 
 namespace xe {
+class ByteStream;
 class Emulator;
 namespace cpu {
 class Processor;
@@ -120,11 +121,12 @@ class KernelState {
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
   bool IsKernelModule(const char* name);
-  object_ref<XModule> GetModule(const char* name);
+  object_ref<XModule> GetModule(const char* name, bool user_only = false);
 
   object_ref<UserModule> GetExecutableModule();
   void SetExecutableModule(object_ref<UserModule> module);
-  object_ref<UserModule> LoadUserModule(const char* name);
+  object_ref<UserModule> LoadUserModule(const char* name,
+                                        bool call_entry = true);
 
   object_ref<KernelModule> GetKernelModule(const char* name);
   template <typename T>
@@ -166,6 +168,9 @@ class KernelState {
                                     uint32_t overlapped_ptr, X_RESULT result,
                                     uint32_t extended_error, uint32_t length);
 
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
  private:
   void LoadKernelModule(object_ref<KernelModule> kernel_module);
 
@@ -190,7 +195,7 @@ class KernelState {
   object_ref<UserModule> executable_module_;
   std::vector<object_ref<KernelModule>> kernel_modules_;
   std::vector<object_ref<UserModule>> user_modules_;
-  std::vector<TerminateNotification> terminate_notifications;
+  std::vector<TerminateNotification> terminate_notifications_;
 
   uint32_t process_info_block_address_ = 0;
 

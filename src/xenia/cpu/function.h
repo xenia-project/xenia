@@ -21,6 +21,10 @@
 
 namespace xe {
 namespace cpu {
+class Export;
+}  // namespace cpu
+
+namespace cpu {
 
 struct SourceMapEntry {
   uint32_t guest_address;  // PPC guest address (0x82....).
@@ -48,6 +52,18 @@ class Function : public Symbol {
   Behavior behavior() const { return behavior_; }
   void set_behavior(Behavior value) { behavior_ = value; }
   bool is_guest() const { return behavior_ != Behavior::kBuiltin; }
+
+  bool ContainsAddress(uint32_t address) const {
+    if (!address_ || !end_address_) {
+      return false;
+    }
+
+    if (address >= address_ && address < end_address_) {
+      return true;
+    }
+
+    return false;
+  }
 
   virtual bool Call(ThreadState* thread_state, uint32_t return_address) = 0;
 
@@ -104,7 +120,8 @@ class GuestFunction : public Function {
   std::vector<SourceMapEntry>& source_map() { return source_map_; }
 
   ExternHandler extern_handler() const { return extern_handler_; }
-  void SetupExtern(ExternHandler handler);
+  Export* export_data() const { return export_data_; }
+  void SetupExtern(ExternHandler handler, Export* export_data = nullptr);
 
   const SourceMapEntry* LookupGuestAddress(uint32_t guest_address) const;
   const SourceMapEntry* LookupHIROffset(uint32_t offset) const;
@@ -124,6 +141,7 @@ class GuestFunction : public Function {
   debug::FunctionTraceData trace_data_;
   std::vector<SourceMapEntry> source_map_;
   ExternHandler extern_handler_ = nullptr;
+  Export* export_data_ = nullptr;
 };
 
 }  // namespace cpu

@@ -11,12 +11,17 @@
 
 #include <vector>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/notify_listener.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xmutant.h"
 #include "xenia/kernel/xsemaphore.h"
+#include "xenia/kernel/xthread.h"
 
 namespace xe {
 namespace kernel {
@@ -25,12 +30,11 @@ XObject::XObject(KernelState* kernel_state, Type type)
     : kernel_state_(kernel_state),
       pointer_ref_count_(1),
       type_(type),
-      handle_(X_INVALID_HANDLE_VALUE),
       guest_object_ptr_(0),
       allocated_guest_object_(false) {
-  // Added pointer check to support usage without a kernel_state
-  if (kernel_state != nullptr) {
-    kernel_state->object_table()->AddHandle(this, &handle_);
+  handles_.reserve(10);
+  if (kernel_state) {
+    kernel_state->object_table()->AddHandle(this, &handles_[0]);
   }
 }
 
@@ -56,15 +60,13 @@ Memory* XObject::memory() const { return kernel_state_->memory(); }
 
 XObject::Type XObject::type() { return type_; }
 
-X_HANDLE XObject::handle() const { return handle_; }
-
 void XObject::RetainHandle() {
-  kernel_state_->object_table()->RetainHandle(handle_);
+  kernel_state_->object_table()->RetainHandle(handles_[0]);
 }
 
 bool XObject::ReleaseHandle() {
   // FIXME: Return true when handle is actually released.
-  return kernel_state_->object_table()->ReleaseHandle(handle_) ==
+  return kernel_state_->object_table()->ReleaseHandle(handles_[0]) ==
          X_STATUS_SUCCESS;
 }
 
@@ -84,8 +86,66 @@ X_STATUS XObject::Delete() {
     if (!name_.empty()) {
       kernel_state_->object_table()->RemoveNameMapping(name_);
     }
-    return kernel_state_->object_table()->RemoveHandle(handle_);
+    return kernel_state_->object_table()->RemoveHandle(handles_[0]);
   }
+}
+
+bool XObject::SaveObject(ByteStream* stream) {
+  stream->Write<uint32_t>(allocated_guest_object_);
+  stream->Write<uint32_t>(guest_object_ptr_);
+
+  stream->Write(uint32_t(handles_.size()));
+  stream->Write(&handles_[0], handles_.size() * sizeof(X_HANDLE));
+
+  return true;
+}
+
+bool XObject::RestoreObject(ByteStream* stream) {
+  allocated_guest_object_ = stream->Read<uint32_t>() > 0;
+  guest_object_ptr_ = stream->Read<uint32_t>();
+
+  handles_.resize(stream->Read<uint32_t>());
+  stream->Read(&handles_[0], handles_.size() * sizeof(X_HANDLE));
+
+  // Restore our pointer to our handles in the object table.
+  for (size_t i = 0; i < handles_.size(); i++) {
+    kernel_state_->object_table()->RestoreHandle(handles_[i], this);
+  }
+
+  return true;
+}
+
+object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
+                                     ByteStream* stream) {
+  switch (type) {
+    case kTypeEnumerator:
+      break;
+    case kTypeEvent:
+      return XEvent::Restore(kernel_state, stream);
+    case kTypeFile:
+      break;
+    case kTypeIOCompletion:
+      break;
+    case kTypeModule:
+      break;
+    case kTypeMutant:
+      break;
+    case kTypeNotifyListener:
+      return NotifyListener::Restore(kernel_state, stream);
+    case kTypeSemaphore:
+      break;
+    case kTypeSession:
+      break;
+    case kTypeSocket:
+      break;
+    case kTypeThread:
+      return XThread::Restore(kernel_state, stream);
+    case kTypeTimer:
+      break;
+  }
+
+  assert_always("No restore handler exists for this object!");
+  return nullptr;
 }
 
 void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
@@ -97,7 +157,7 @@ void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
                                                 obj_attributes_ptr + 4);
   if (!name.empty()) {
     name_ = std::move(name);
-    kernel_state_->object_table()->AddNameMapping(name_, handle_);
+    kernel_state_->object_table()->AddNameMapping(name_, handles_[0]);
   }
 }
 
@@ -270,7 +330,7 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
 
   // Stash pointer in struct.
   // FIXME: This assumes the object has a dispatch header (some don't!)
-  StashNative(header, this);
+  StashHandle(header, handle());
 
   guest_object_ptr_ = native_ptr;
 }
@@ -284,10 +344,10 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   // we never see it and just randomly start getting passed events/timers/etc.
   // Luckily it seems like all other calls (Set/Reset/Wait/etc) are used and
   // we don't have to worry about PPC code poking the struct. Because of that,
-  // we init on first use, store our pointer in the struct, and dereference it
+  // we init on first use, store our handle in the struct, and dereference it
   // each time.
-  // We identify this by checking the low bit of wait_list_blink - if it's 1,
-  // we have already put our pointer in there.
+  // We identify this by setting wait_list_flink to a magic value. When set,
+  // wait_list_blink will hold a handle to our object.
 
   auto global_lock = xe::global_critical_region::AcquireDirect();
 
@@ -297,13 +357,14 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     as_type = header->type;
   }
 
-  if (header->wait_list_blink & 0x1) {
+  if (header->wait_list_flink == 'XEN\0') {
     // Already initialized.
-    uint64_t object_ptr = ((uint64_t)header->wait_list_flink << 32) |
-                          ((header->wait_list_blink) & ~0x1);
-    XObject* object = reinterpret_cast<XObject*>(object_ptr);
+    // TODO: assert if the type of the object != as_type
+    uint32_t handle = header->wait_list_blink;
+    auto object = kernel_state->object_table()->LookupObject<XObject>(handle);
+
     // TODO(benvanik): assert nothing has been changed in the struct.
-    return retain_object<XObject>(object);
+    return object;
   } else {
     // First use, create new.
     // http://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
@@ -348,7 +409,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
 
     // Stash pointer in struct.
     // FIXME: This assumes the object contains a dispatch header (some don't!)
-    StashNative(header, object);
+    StashHandle(header, object->handle());
 
     // NOTE: we are double-retaining, as the object is implicitly created and
     // can never be released.

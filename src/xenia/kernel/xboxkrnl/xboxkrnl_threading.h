@@ -20,10 +20,10 @@ namespace xboxkrnl {
 dword_result_t NtSetEvent(dword_t handle, lpdword_t previous_state_ptr);
 dword_result_t NtClearEvent(dword_t handle);
 
-dword_result_t NtWaitForMultipleObjectsEx(
-    dword_t count, pointer_t<xe::be<uint32_t>> handles, dword_t wait_type,
-    dword_t wait_mode, dword_t alertable,
-    pointer_t<xe::be<uint64_t>> timeout_ptr);
+dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
+                                          dword_t wait_type, dword_t wait_mode,
+                                          dword_t alertable,
+                                          lpqword_t timeout_ptr);
 
 }  // namespace xboxkrnl
 }  // namespace kernel
