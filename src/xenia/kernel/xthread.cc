@@ -137,7 +137,7 @@ void XThread::set_last_error(uint32_t error_code) {
 }
 
 void XThread::set_name(const std::string& name) {
-  name_ = xe::format_string("%s (%.8X)", name, handle());
+  name_ = xe::format_string("%s (%.8X)", name.c_str(), handle());
 
   if (thread_) {
     // May be getting set before the thread is created.
