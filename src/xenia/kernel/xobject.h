@@ -146,7 +146,7 @@ class XObject {
 
   // Has this object been created for use by the host?
   // Host objects are persisted through reloads/etc.
-  bool host_object() const { return host_object_; }
+  bool is_host_object() const { return host_object_; }
   void set_host_object(bool host_object) { host_object_ = host_object; }
 
   template <typename T>
