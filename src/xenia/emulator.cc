@@ -95,9 +95,8 @@ X_STATUS Emulator::Setup(
 
   // Create memory system first, as it is required for other systems.
   memory_ = std::make_unique<Memory>();
-  result = memory_->Initialize();
-  if (result) {
-    return result;
+  if (!memory_->Initialize()) {
+    return false;
   }
 
   // Shared export resolver used to attach and query for HLE exports.

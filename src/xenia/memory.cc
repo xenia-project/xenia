@@ -115,7 +115,7 @@ Memory::~Memory() {
   physical_membase_ = nullptr;
 }
 
-int Memory::Initialize() {
+bool Memory::Initialize() {
   file_name_ = std::wstring(L"Local\\xenia_memory_") +
                std::to_wstring(Clock::QueryHostTickCount());
 
@@ -128,7 +128,7 @@ int Memory::Initialize() {
   if (!mapping_) {
     XELOGE("Unable to reserve the 4gb guest address space.");
     assert_not_null(mapping_);
-    return 1;
+    return false;
   }
 
   // Attempt to create our views. This may fail at the first address
@@ -144,7 +144,7 @@ int Memory::Initialize() {
   if (!mapping_base_) {
     XELOGE("Unable to find a continuous block in the 64bit address space.");
     assert_always();
-    return 1;
+    return false;
   }
   virtual_membase_ = mapping_base_;
   physical_membase_ = mapping_base_ + 0x100000000ull;
@@ -189,7 +189,7 @@ int Memory::Initialize() {
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
-    return 1;
+    return false;
   }
 
   // ?
@@ -197,7 +197,7 @@ int Memory::Initialize() {
   heaps_.vA0000000.Alloc(0x340000, 64 * 1024, kMemoryAllocationReserve,
                          kMemoryProtectNoAccess, true, &unk_phys_alloc);
 
-  return 0;
+  return true;
 }
 
 static const struct {

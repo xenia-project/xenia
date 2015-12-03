@@ -20,16 +20,34 @@
 namespace xe {
 namespace filesystem {
 
+// Canonicalizes a path, removing ..'s.
 std::string CanonicalizePath(const std::string& original_path);
 
+// Returns true of the specified path exists as either a directory or file.
 bool PathExists(const std::wstring& path);
 
+// Creates the parent folder of the specified path if needed.
+// This can be used to ensure the destination path for a new file exists before
+// attempting to create it.
 bool CreateParentFolder(const std::wstring& path);
+  
+// Creates a folder at the specified path.
+// Returns true if the path was created.
 bool CreateFolder(const std::wstring& path);
+  
+// Recursively deletes the files and folders at the specified path.
+// Returns true if the path was found and removed.
 bool DeleteFolder(const std::wstring& path);
+  
+// Returns true if the given path exists and is a folder.
 bool IsFolder(const std::wstring& path);
 
+// Opens the file at the given path with the specified mode.
+// This behaves like fopen and the returned handle can be used with stdio.
 FILE* OpenFile(const std::wstring& path, const char* mode);
+  
+// Deletes the file at the given path.
+// Returns true if the file was found and removed.
 bool DeleteFile(const std::wstring& path);
 
 struct FileAccess {
