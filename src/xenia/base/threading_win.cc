@@ -426,10 +426,14 @@ class Win32Thread : public Win32Handle<Thread> {
   }
 };
 
+thread_local std::unique_ptr<Win32Thread> current_thread_ = nullptr;
+
 struct ThreadStartData {
   std::function<void()> start_routine;
 };
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
+  current_thread_ = std::make_unique<Win32Thread>(::GetCurrentThread());
+
   auto start_data = reinterpret_cast<ThreadStartData*>(parameter);
   start_data->start_routine();
   delete start_data;
@@ -449,17 +453,22 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
     delete start_data;
     return nullptr;
   }
-  GetThreadId(handle);
+
   return std::make_unique<Win32Thread>(handle);
 }
 
-std::unique_ptr<Thread> Thread::GetCurrentThread() {
+Thread* Thread::GetCurrentThread() {
+  if (current_thread_) {
+    return current_thread_.get();
+  }
+
   HANDLE handle = ::GetCurrentThread();
   if (handle == INVALID_HANDLE_VALUE) {
     return nullptr;
   }
 
-  return std::make_unique<Win32Thread>(handle);
+  current_thread_ = std::make_unique<Win32Thread>(handle);
+  return current_thread_.get();
 }
 
 void Thread::Exit(int exit_code) { ExitThread(exit_code); }

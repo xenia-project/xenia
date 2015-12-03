@@ -345,7 +345,7 @@ class Thread : public WaitHandle {
   // within that thread.
   static std::unique_ptr<Thread> Create(CreationParameters params,
                                         std::function<void()> start_routine);
-  static std::unique_ptr<Thread> GetCurrentThread();
+  static Thread* GetCurrentThread();
 
   // Ends the calling thread.
   // No destructors are called, and this function does not return.
