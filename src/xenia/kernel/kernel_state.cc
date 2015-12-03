@@ -380,7 +380,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
   for (int i = 0; i < user_modules_.size(); i++) {
     X_STATUS status = user_modules_[i]->Unload();
     assert_true(XSUCCEEDED(status));
-
+  
     object_table_.RemoveHandle(user_modules_[i]->handle());
   }
   user_modules_.clear();
@@ -610,7 +610,7 @@ bool KernelState::Save(ByteStream* stream) {
     auto prev_offset = stream->offset();
 
     stream->Write((uint32_t)object->type());
-    if (!object->host_object() && !object->Save(stream)) {
+    if (!object->is_host_object() && !object->Save(stream)) {
       // Revert backwards and overwrite if a save failed.
       stream->set_offset(prev_offset);
       num_objects--;

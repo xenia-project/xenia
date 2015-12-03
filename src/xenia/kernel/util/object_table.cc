@@ -226,7 +226,7 @@ void ObjectTable::PurgeAllObjects() {
   auto lock = global_critical_region_.Acquire();
   for (uint32_t slot = 0; slot < table_capacity_; slot++) {
     auto& entry = table_[slot];
-    if (entry.object && !entry.object->host_object()) {
+    if (entry.object && !entry.object->is_host_object()) {
       entry.handle_ref_count = 0;
       entry.object->Release();
 
