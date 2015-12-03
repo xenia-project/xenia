@@ -75,7 +75,23 @@ bool XEvent::Save(ByteStream* stream) {
   XELOGD("XEvent %.8X (%s)", handle(), manual_reset_ ? "manual" : "auto");
   SaveObject(stream);
 
-  // TODO: Write if we're currently signaled.
+  bool signaled = true;
+  auto result =
+      xe::threading::Wait(event_.get(), false, std::chrono::milliseconds(0));
+  if (result == xe::threading::WaitResult::kSuccess) {
+    signaled = true;
+  } else if (result == xe::threading::WaitResult::kTimeout) {
+    signaled = false;
+  } else {
+    assert_always();
+  }
+
+  if (signaled) {
+    // Reset the event in-case it's an auto-reset.
+    event_->Set();
+  }
+
+  stream->Write<bool>(signaled);
   stream->Write<bool>(manual_reset_);
 
   return true;
@@ -87,12 +103,17 @@ object_ref<XEvent> XEvent::Restore(KernelState* kernel_state,
   evt->kernel_state_ = kernel_state;
 
   evt->RestoreObject(stream);
+  bool signaled = stream->Read<bool>();
   evt->manual_reset_ = stream->Read<bool>();
 
   if (evt->manual_reset_) {
     evt->event_ = xe::threading::Event::CreateManualResetEvent(false);
   } else {
     evt->event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  }
+
+  if (signaled) {
+    evt->event_->Set();
   }
 
   evt->Retain();
