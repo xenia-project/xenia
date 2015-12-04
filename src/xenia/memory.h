@@ -103,14 +103,14 @@ class BaseHeap {
   virtual bool Alloc(uint32_t size, uint32_t alignment,
                      uint32_t allocation_type, uint32_t protect, bool top_down,
                      uint32_t* out_address);
-  
+
   // Allocates pages at the given address.
   // This can reserve and commit the pages as well as set protection modes.
   // This will fail if the pages are already allocated.
   virtual bool AllocFixed(uint32_t base_address, uint32_t size,
                           uint32_t alignment, uint32_t allocation_type,
                           uint32_t protect);
-  
+
   // Allocates pages at an address within the given address range.
   // This can reserve and commit the pages as well as set protection modes.
   // This will fail if not enough contiguous pages can be found.
@@ -118,28 +118,28 @@ class BaseHeap {
                           uint32_t size, uint32_t alignment,
                           uint32_t allocation_type, uint32_t protect,
                           bool top_down, uint32_t* out_address);
-  
+
   // Decommits pages in the given range.
   // Partial overlapping pages will also be decommitted.
   virtual bool Decommit(uint32_t address, uint32_t size);
-  
+
   // Decommits and releases pages in the given range.
   // Partial overlapping pages will also be released.
   virtual bool Release(uint32_t address, uint32_t* out_region_size = nullptr);
-  
+
   // Modifies the protection mode of pages within the given range.
   virtual bool Protect(uint32_t address, uint32_t size, uint32_t protect);
 
   // Queries information about the given region of pages.
   bool QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_info);
-  
+
   // Queries the size of the region containing the given address.
   bool QuerySize(uint32_t address, uint32_t* out_size);
-  
+
   // Queries the current protection mode of the region containing the given
   // address.
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
-  
+
   // Gets the physical address of a virtual address.
   // This is only valid if the page is backed by a physical allocation.
   uint32_t GetPhysicalAddress(uint32_t address);
@@ -180,7 +180,7 @@ class PhysicalHeap : public BaseHeap {
  public:
   PhysicalHeap();
   ~PhysicalHeap() override;
-  
+
   // Initializes the heap properties and allocates the page table.
   void Initialize(uint8_t* membase, uint32_t heap_base, uint32_t heap_size,
                   uint32_t page_size, VirtualHeap* parent_heap);
@@ -232,7 +232,7 @@ class Memory {
   // Base address of virtual memory in the host address space.
   // This is often something like 0x100000000.
   inline uint8_t* virtual_membase() const { return virtual_membase_; }
-  
+
   // Translates a guest virtual address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
@@ -247,7 +247,7 @@ class Memory {
   // Base address of physical memory in the host address space.
   // This is often something like 0x200000000.
   inline uint8_t* physical_membase() const { return physical_membase_; }
-  
+
   // Translates a guest physical address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
@@ -259,16 +259,16 @@ class Memory {
     return reinterpret_cast<T>(physical_membase_ +
                                (guest_address & 0x1FFFFFFF));
   }
-  
+
   // Zeros out a range of memory at the given guest address.
   void Zero(uint32_t address, uint32_t size);
-  
+
   // Fills a range of guest memory with the given byte value.
   void Fill(uint32_t address, uint32_t size, uint8_t value);
-  
+
   // Copies a non-overlapping range of guest memory (like a memcpy).
   void Copy(uint32_t dest, uint32_t src, uint32_t size);
-  
+
   // Searches the given range of guest memory for a run of dword values in
   // big-endian order.
   uint32_t SearchAligned(uint32_t start, uint32_t end, const uint32_t* values,
@@ -280,7 +280,7 @@ class Memory {
                              uint32_t size, void* context,
                              cpu::MMIOReadCallback read_callback,
                              cpu::MMIOWriteCallback write_callback);
-  
+
   // Gets the defined MMIO range for the given virtual address, if any.
   cpu::MMIORange* LookupVirtualMappedRange(uint32_t virtual_address);
 
@@ -294,7 +294,7 @@ class Memory {
   uintptr_t AddPhysicalWriteWatch(uint32_t physical_address, uint32_t length,
                                   cpu::WriteWatchCallback callback,
                                   void* callback_context, void* callback_data);
-  
+
   // Cancels a write watch requested with AddPhysicalWriteWatch.
   void CancelWriteWatch(uintptr_t watch_handle);
 
@@ -310,7 +310,7 @@ class Memory {
 
   // Gets the heap for the address space containing the given address.
   BaseHeap* LookupHeap(uint32_t address);
-  
+
   // Gets the heap with the given properties.
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
 

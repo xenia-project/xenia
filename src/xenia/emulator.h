@@ -65,15 +65,15 @@ class Emulator {
 
   // Virtualized processor that can execute PPC code.
   cpu::Processor* processor() const { return processor_.get(); }
-  
+
   // Audio hardware emulation for decoding and playback.
   apu::AudioSystem* audio_system() const { return audio_system_.get(); }
-  
+
   // GPU emulation for command list processing.
   gpu::GraphicsSystem* graphics_system() const {
     return graphics_system_.get();
   }
-  
+
   // Human-interface Device (HID) adapters for controllers.
   hid::InputSystem* input_system() const { return input_system_.get(); }
 
@@ -81,7 +81,7 @@ class Emulator {
   cpu::ExportResolver* export_resolver() const {
     return export_resolver_.get();
   }
-  
+
   // File systems mapped to disc images, folders, etc for games and save data.
   vfs::VirtualFileSystem* file_system() const { return file_system_.get(); }
 
@@ -107,14 +107,14 @@ class Emulator {
   // This will attempt to infer the type of the given file (such as an iso, etc)
   // using heuristics.
   X_STATUS LaunchPath(std::wstring path);
-  
+
   // Launches a game from a .xex file by mounting the containing folder as if it
   // was an extracted STFS container.
   X_STATUS LaunchXexFile(std::wstring path);
-  
+
   // Launches a game from a disc image file (.iso, etc).
   X_STATUS LaunchDiscImage(std::wstring path);
-  
+
   // Launches a game from an STFS container file.
   X_STATUS LaunchStfsContainer(std::wstring path);
 
