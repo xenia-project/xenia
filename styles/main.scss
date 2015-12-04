@@ -103,18 +103,3 @@ body {
   font-weight: 700;
   src: local('Roboto Bold Italic'), local('Roboto-BoldItalic'), url(http://fonts.gstatic.com/s/roboto/v15/t6Nd4cfPRhZP44Q5QAjcC4bN6UDyHWBl620a-IRfuBk.woff) format('woff');
 }
-
-// Compatibility Tracker Styling
-.issuesSearch {
-    display: block;
-    padding-bottom: 0;
-}
-
-.issuesSearch .mdl-textfield__label:after {
-    bottom: 0;
-}
-
-// Hide DataTable's search filter
-.dataTables_filter {
-    display: none;
-}

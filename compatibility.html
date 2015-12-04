@@ -6,12 +6,23 @@ permalink: /compatibility/
 viewport_width: 675
 ---
 
+<style>
+.issuesSearch {
+  display: block;
+  padding-bottom: 0;
+}
+.issuesSearch .mdl-textfield__label:after {
+  bottom: 0;
+}
+.dataTables_filter {
+  /* Hide DataTable's search filter */
+  display: none;
+}
+</style>
+
 <a href="https://github.com/xenia-project/game-compatibility/issues">Compatibility Tracker</a>
 <br/>
 If filing new issues, please follow the style of the existing ones (so this page works).
-<br/>
-<br/>
-TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xenia/blob/gh-pages/compatibility.html">Want to help?</a>
 <br/>
 <br/>
 <table id="issuesList" class="mdl-data-table mdl-js-data-table mdl-shadow--2dp">
@@ -46,8 +57,8 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
 <script src="{{ site.baseurl }}/scripts/merged-github-underscore.js"></script>
 
 <!-- jQuery and jQuery DataTables for table filtering -->
-<script src="https://code.jquery.com/jquery-1.11.2.js"></script>
-<script src="https://cdn.datatables.net/1.10.0/js/jquery.dataTables.js"></script>
+<script src="//code.jquery.com/jquery-1.11.2.js"></script>
+<script src="//cdn.datatables.net/1.10.0/js/jquery.dataTables.js"></script>
 <script>
   var issueBlobString = localStorage.getItem('game-compatibility-issues');
   if (!issueBlobString) {
@@ -169,25 +180,25 @@ TODO: a fancy sortable/searchable table. <a href="https://github.com/benvanik/xe
 
     // Remove progress bar.
     tbody.removeChild(tbody.firstElementChild);
+
+    var issuesTable = $('#issuesList').DataTable({
+      stateSave: true,
+      info: false,
+      paging: false,
+      order: [[3, 'desc']]
+    });
+
+    // Filter table on 'keyup' event, with a slight delay.
+    var lastKeyTimerId = -1;
+    $('#searchQuery').on('keyup', function() {
+      if (lastKeyTimerId != -1) {
+        clearTimeout(lastKeyTimerId);
+      }
+
+      var query = this.value;
+      lastKeyTimerId = setTimeout(function() {
+        issuesTable.search(query).draw();
+      }, 100);
+    });
   }
-
-  // Initialize DataTable for filtering
-  // table statistics and pagination disabled
-  var issuesList = $("#issuesList").DataTable({
-    info: false,
-    paging: false
-  });
-
-  // Filter table on 'keyup' event, with a
-  // slight delay
-  var timer = null;
-  $('#searchQuery').on('keyup', function() {
-    clearTimeout(timer);
-
-    var query = this.value;
-
-    time = setTimeout(function() {
-      issuesList.search( query ).draw();
-    }, 90);
-  });
 </script>
