@@ -35,8 +35,6 @@ class GLContext : public GraphicsContext {
  public:
   ~GLContext() override;
 
-  HDC dc() const { return dc_; }
-
   ImmediateDrawer* immediate_drawer() override;
 
   bool is_current() override;

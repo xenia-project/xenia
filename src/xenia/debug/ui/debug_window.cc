@@ -1245,13 +1245,13 @@ void DebugWindow::DrawBreakpointsPane() {
       if (has_any_call_filter && !call_rankings[i].second) {
         continue;
       }
-      auto export = all_exports[call_rankings[i].first];
-      if (export->type != cpu::Export::Type::kFunction ||
-          !export->is_implemented()) {
+      auto export_entry = all_exports[call_rankings[i].first];
+      if (export_entry->type != cpu::Export::Type::kFunction ||
+          !export_entry->is_implemented()) {
         continue;
       }
       // TODO(benvanik): skip unused kernel calls.
-      ImGui::PushID(export);
+      ImGui::PushID(export_entry);
       // TODO(benvanik): selection, hover info (module name, ordinal, etc).
       bool is_pre_enabled = false;
       bool is_post_enabled = false;
@@ -1275,7 +1275,7 @@ void DebugWindow::DrawBreakpointsPane() {
       ImGui::SameLine();
       ImGui::Dummy(ImVec2(4, 0));
       ImGui::SameLine();
-      ImGui::Text(export->name);
+      ImGui::Text(export_entry->name);
       ImGui::Dummy(ImVec2(0, 1));
       ImGui::PopID();
     }

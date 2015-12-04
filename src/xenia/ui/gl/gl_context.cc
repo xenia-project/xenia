@@ -463,7 +463,7 @@ void GLContext::BeginSwap() {
 
 void GLContext::EndSwap() {
   SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLContext::EndSwap");
-  SwapBuffers(dc());
+  SwapBuffers(dc_);
 }
 
 }  // namespace gl
