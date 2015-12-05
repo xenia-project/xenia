@@ -416,9 +416,9 @@ struct ParsedAluInstruction {
   bool is_vector_type() const { return type == Type::kVector; }
   bool is_scalar_type() const { return type == Type::kScalar; }
   // Opcode for the instruction if it is a vector type.
-  ucode::AluVectorOpcode vector_opcode = ucode::AluVectorOpcode::kADDv;
+  ucode::AluVectorOpcode vector_opcode = ucode::AluVectorOpcode::kAdd;
   // Opcode for the instruction if it is a scalar type.
-  ucode::AluScalarOpcode scalar_opcode = ucode::AluScalarOpcode::kADDs;
+  ucode::AluScalarOpcode scalar_opcode = ucode::AluScalarOpcode::kAdds;
   // Friendly name of the instruction.
   const char* opcode_name = nullptr;
 

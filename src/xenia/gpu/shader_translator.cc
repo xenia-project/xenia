@@ -803,8 +803,8 @@ const ShaderTranslator::AluOpcodeInfo
         {"rsqc", 1, 1},         // 20
         {"rsqf", 1, 1},         // 21
         {"rsq", 1, 1},          // 22
-        {"movas", 1, 1},        // 23
-        {"movasf", 1, 1},       // 24
+        {"maxas", 1, 2},        // 23
+        {"maxasf", 1, 2},       // 24
         {"subs", 1, 2},         // 25
         {"subs_prev", 1, 1},    // 26
         {"setp_eq", 1, 1},      // 27
@@ -901,8 +901,8 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
   } else if (swizzle_component_count == 2) {
     swizzle >>= 4;
-    uint32_t a = swizzle & 0x3;
-    uint32_t b = ((swizzle >> 2) + 1) & 0x3;
+    uint32_t a = ((swizzle >> 2) + 3) & 0x3;
+    uint32_t b = (swizzle + 2) & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
     out_op->components[1] = GetSwizzleFromComponentIndex(b);
   } else {

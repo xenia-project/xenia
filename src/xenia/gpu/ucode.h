@@ -706,90 +706,632 @@ struct TextureFetchInstruction {
 };
 static_assert_size(TextureFetchInstruction, 12);
 
+// What follows is largely a mash up of the microcode assembly naming and the
+// R600 docs that have a near 1:1 with the instructions available in the xenos
+// GPU. Some of the behavior has been experimentally verified. Some has been
+// guessed.
+// Docs: http://www.x.org/docs/AMD/old/r600isa.pdf
+//
+// Conventions:
+// - All temporary registers are vec4s.
+// - Scalar ops swizzle out a single component of their source registers denoted
+//   by 'a' or 'b'. src0.a means 'the first component specified for src0' and
+//   src0.ab means 'two components specified for src0, in order'.
+// - Scalar ops write the result to the entire destination register.
+// - pv and ps are the previous results of a vector or scalar ALU operation.
+//   Both are valid only within the current ALU clause. They are not modified
+//   when write masks are disabled or the instruction that would write them
+//   fails its predication check.
+
 enum class AluScalarOpcode {
-  kADDs = 0,
-  kADD_PREVs = 1,
-  kMULs = 2,
-  kMUL_PREVs = 3,
-  kMUL_PREV2s = 4,
-  kMAXs = 5,
-  kMINs = 6,
-  kSETEs = 7,
-  kSETGTs = 8,
-  kSETGTEs = 9,
-  kSETNEs = 10,
-  kFRACs = 11,
-  kTRUNCs = 12,
-  kFLOORs = 13,
-  kEXP_IEEE = 14,
-  kLOG_CLAMP = 15,
-  kLOG_IEEE = 16,
-  kRECIP_CLAMP = 17,
-  kRECIP_FF = 18,
-  kRECIP_IEEE = 19,
-  kRECIPSQ_CLAMP = 20,
-  kRECIPSQ_FF = 21,
-  kRECIPSQ_IEEE = 22,
-  kMOVAs = 23,
-  kMOVA_FLOORs = 24,
-  kSUBs = 25,
-  kSUB_PREVs = 26,
-  kPRED_SETEs = 27,
-  kPRED_SETNEs = 28,
-  kPRED_SETGTs = 29,
-  kPRED_SETGTEs = 30,
-  kPRED_SET_INVs = 31,
-  kPRED_SET_POPs = 32,
-  kPRED_SET_CLRs = 33,
-  kPRED_SET_RESTOREs = 34,
-  kKILLEs = 35,
-  kKILLGTs = 36,
-  kKILLGTEs = 37,
-  kKILLNEs = 38,
-  kKILLONEs = 39,
-  kSQRT_IEEE = 40,
-  kMUL_CONST_0 = 42,
-  kMUL_CONST_1 = 43,
-  kADD_CONST_0 = 44,
-  kADD_CONST_1 = 45,
-  kSUB_CONST_0 = 46,
-  kSUB_CONST_1 = 47,
-  kSIN = 48,
-  kCOS = 49,
-  kRETAIN_PREV = 50,
+  // Floating-Point Add
+  // adds dest, src0.ab
+  //     dest.xyzw = src0.a + src0.b;
+  kAdds = 0,
+
+  // Floating-Point Add (with Previous)
+  // adds_prev dest, src0.a
+  //     dest.xyzw = src0.a + ps;
+  kAddsPrev = 1,
+
+  // Floating-Point Multiply
+  // muls dest, src0.ab
+  //     dest.xyzw = src0.a * src0.b;
+  kMuls = 2,
+
+  // Floating-Point Multiply (with Previous)
+  // muls_prev dest, src0.a
+  //     dest.xyzw = src0.a * ps;
+  kMulsPrev = 3,
+
+  // Scalar Multiply Emulating LIT Operation
+  // muls_prev2 dest, src0.ab
+  //    dest.xyzw =
+  //        ps == -FLT_MAX || !isfinite(ps) || !isfinite(src0.b) || src0.b <= 0
+  //        ? -FLT_MAX : src0.a * ps;
+  kMulsPrev2 = 4,
+
+  // Floating-Point Maximum
+  // maxs dest, src0.ab
+  //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
+  kMaxs = 5,
+
+  // Floating-Point Minimum
+  // mins dest, src0.ab
+  //     dest.xyzw = src0.a < src0.b ? src0.a : src0.b;
+  kMins = 6,
+
+  // Floating-Point Set If Equal
+  // seqs dest, src0.a
+  //     dest.xyzw = src0.a == 0.0 ? 1.0 : 0.0;
+  kSeqs = 7,
+
+  // Floating-Point Set If Greater Than
+  // sgts dest, src0.a
+  //     dest.xyzw = src0.a > 0.0 ? 1.0 : 0.0;
+  kSgts = 8,
+
+  // Floating-Point Set If Greater Than Or Equal
+  // sges dest, src0.a
+  //     dest.xyzw = src0.a >= 0.0 ? 1.0 : 0.0;
+  kSges = 9,
+
+  // Floating-Point Set If Not Equal
+  // snes dest, src0.a
+  //     dest.xyzw = src0.a != 0.0 ? 1.0 : 0.0;
+  kSnes = 10,
+
+  // Floating-Point Fractional
+  // frcs dest, src0.a
+  //     dest.xyzw = src0.a - floor(src0.a);
+  kFrcs = 11,
+
+  // Floating-Point Truncate
+  // truncs dest, src0.a
+  //     dest.xyzw = src0.a >= 0 ? floor(src0.a) : -floor(-src0.a);
+  kTruncs = 12,
+
+  // Floating-Point Floor
+  // floors dest, src0.a
+  //     dest.xyzw = floor(src0.a);
+  kFloors = 13,
+
+  // Scalar Base-2 Exponent, IEEE
+  // exp dest, src0.a
+  //     dest.xyzw = src0.a == 0.0 ? 1.0 : pow(2, src0.a);
+  kExp = 14,
+
+  // Scalar Base-2 Log
+  // logc dest, src0.a
+  //     float t = src0.a == 1.0 ? 0.0 : log(src0.a) / log(2.0);
+  //     dest.xyzw = t == -INF ? -FLT_MAX : t;
+  kLogc = 15,
+
+  // Scalar Base-2 IEEE Log
+  // log dest, src0.a
+  //     dest.xyzw = src0.a == 1.0 ? 0.0 : log(src0.a) / log(2.0);
+  kLog = 16,
+
+  // Scalar Reciprocal, Clamp to Maximum
+  // rcpc dest, src0.a
+  //     float t = src0.a == 1.0 ? 1.0 : 1.0 / src0.a;
+  //     if (t == -INF) t = -FLT_MAX;
+  //     else if (t == INF) t = FLT_MAX;
+  //     dest.xyzw = t;
+  kRcpc = 17,
+
+  // Scalar Reciprocal, Clamp to Zero
+  // rcpf dest, src0.a
+  //     float t = src0.a == 1.0 ? 1.0 : 1.0 / src0.a;
+  //     if (t == -INF) t = -0.0;
+  //     else if (t == INF) t = 0.0;
+  //     dest.xyzw = t;
+  kRcpf = 18,
+
+  // Scalar Reciprocal, IEEE Approximation
+  // rcp dest, src0.a
+  //     dest.xyzw = src0.a == 1.0 ? 1.0 : 1.0 / src0.a;
+  kRcp = 19,
+
+  // Scalar Reciprocal Square Root, Clamp to Maximum
+  // rsqc dest, src0.a
+  //     float t = src0.a == 1.0 ? 1.0 : 1.0 / sqrt(src0.a);
+  //     if (t == -INF) t = -FLT_MAX;
+  //     else if (t == INF) t = FLT_MAX;
+  //     dest.xyzw = t;
+  kRsqc = 20,
+
+  // Scalar Reciprocal Square Root, Clamp to Zero
+  // rsqc dest, src0.a
+  //     float t = src0.a == 1.0 ? 1.0 : 1.0 / sqrt(src0.a);
+  //     if (t == -INF) t = -0.0;
+  //     else if (t == INF) t = 0.0;
+  //     dest.xyzw = t;
+  kRsqf = 21,
+
+  // Scalar Reciprocal Square Root, IEEE Approximation
+  // rsq dest, src0.a
+  //     dest.xyzw = src0.a == 1.0 ? 1.0 : 1.0 / sqrt(src0.a);
+  kRsq = 22,
+
+  // Floating-Point Maximum with Copy To Integer in AR
+  // maxas dest, src0.ab
+  // movas dest, src0.aa
+  //     int result = (int)floor(src0.a + 0.5);
+  //     a0 = clamp(result, -256, 255);
+  //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
+  kMaxAs = 23,
+
+  // Floating-Point Maximum with Copy Truncated To Integer in AR
+  // maxasf dest, src0.ab
+  // movasf dest, src0.aa
+  //     int result = (int)floor(src0.a);
+  //     a0 = clamp(result, -256, 255);
+  //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
+  kMaxAsf = 24,
+
+  // Floating-Point Subtract
+  // subs dest, src0.ab
+  //     dest.xyzw = src0.a - src0.b;
+  kSubs = 25,
+
+  // Floating-Point Subtract (with Previous)
+  // subs_prev dest, src0.a
+  //     dest.xyzw = src0.a - ps;
+  kSubsPrev = 26,
+
+  // Floating-Point Predicate Set If Equal
+  // setp_eq dest, src0.a
+  //     if (src0.a == 0.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       dest.xyzw = 1.0;
+  //       p0 = 0;
+  //     }
+  kSetpEq = 27,
+
+  // Floating-Point Predicate Set If Not Equal
+  // setp_ne dest, src0.a
+  //     if (src0.a != 0.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       dest.xyzw = 1.0;
+  //       p0 = 0;
+  //     }
+  kSetpNe = 28,
+
+  // Floating-Point Predicate Set If Greater Than
+  // setp_gt dest, src0.a
+  //     if (src0.a > 0.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       dest.xyzw = 1.0;
+  //       p0 = 0;
+  //     }
+  kSetpGt = 29,
+
+  // Floating-Point Predicate Set If Greater Than Or Equal
+  // setp_ge dest, src0.a
+  //     if (src0.a >= 0.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       dest.xyzw = 1.0;
+  //       p0 = 0;
+  //     }
+  kSetpGe = 30,
+
+  // Predicate Counter Invert
+  // setp_inv dest, src0.a
+  //     if (src0.a == 1.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       if (src0.a == 0.0) {
+  //         dest.xyzw = 1.0;
+  //       } else {
+  //         dest.xyzw = src1.a;
+  //       }
+  //       p0 = 0;
+  //     }
+  kSetpInv = 31,
+
+  // Predicate Counter Pop
+  // setp_pop dest, src0.a
+  //     if (src0.a - 1.0 <= 0.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       dest.xyzw = src0.a - 1.0;
+  //       p0 = 0;
+  //     }
+  kSetpPop = 32,
+
+  // Predicate Counter Clear
+  // setp_clr dest
+  //     dest.xyzw = FLT_MAX;
+  //     p0 = 0;
+  kSetpClr = 33,
+
+  // Predicate Counter Restore
+  // setp_rstr dest, src0.a
+  //     if (src0.a == 0.0) {
+  //       dest.xyzw = 0.0;
+  //       p0 = 1;
+  //     } else {
+  //       dest.xyzw = src0.a;
+  //       p0 = 0;
+  //     }
+  kSetpRstr = 34,
+
+  // Floating-Point Pixel Kill If Equal
+  // kills_eq dest, src0.a
+  //     if (src0.a == 0.0) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillsEq = 35,
+
+  // Floating-Point Pixel Kill If Greater Than
+  // kills_gt dest, src0.a
+  //     if (src0.a > 0.0) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillsGt = 36,
+
+  // Floating-Point Pixel Kill If Greater Than Or Equal
+  // kills_ge dest, src0.a
+  //     if (src0.a >= 0.0) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillsGe = 37,
+
+  // Floating-Point Pixel Kill If Not Equal
+  // kills_ne dest, src0.a
+  //     if (src0.a != 0.0) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillsNe = 38,
+
+  // Floating-Point Pixel Kill If One
+  // kills_one dest, src0.a
+  //     if (src0.a == 1.0) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillsOne = 39,
+
+  // Scalar Square Root, IEEE Aproximation
+  // sqrt dest, src0.a
+  //     dest.xyzw = sqrt(src0.a);
+  kSqrt = 40,
+
+  // mulsc dest, src0.a, src0.b
+  kMulsc0 = 42,
+  // mulsc dest, src0.a, src0.b
+  kMulsc1 = 43,
+  // addsc dest, src0.a, src0.b
+  kAddsc0 = 44,
+  // addsc dest, src0.a, src0.b
+  kAddsc1 = 45,
+  // subsc dest, src0.a, src0.b
+  kSubsc0 = 46,
+  // subsc dest, src0.a, src0.b
+  kSubsc1 = 47,
+
+  // Scalar Sin
+  // sin dest, src0.a
+  //     dest.xyzw = sin(src0.a);
+  kSin = 48,
+
+  // Scalar Cos
+  // cos dest, src0.a
+  //     dest.xyzw = cos(src0.a);
+  kCos = 49,
+
+  // retain_prev dest
+  //     dest.xyzw = ps;
+  kRetainPrev = 50,
 };
 
 enum class AluVectorOpcode {
-  kADDv = 0,
-  kMULv = 1,
-  kMAXv = 2,
-  kMINv = 3,
-  kSETEv = 4,
-  kSETGTv = 5,
-  kSETGTEv = 6,
-  kSETNEv = 7,
-  kFRACv = 8,
-  kTRUNCv = 9,
-  kFLOORv = 10,
-  kMULADDv = 11,
-  kCNDEv = 12,
-  kCNDGTEv = 13,
-  kCNDGTv = 14,
-  kDOT4v = 15,
-  kDOT3v = 16,
-  kDOT2ADDv = 17,
-  kCUBEv = 18,
-  kMAX4v = 19,
-  kPRED_SETE_PUSHv = 20,
-  kPRED_SETNE_PUSHv = 21,
-  kPRED_SETGT_PUSHv = 22,
-  kPRED_SETGTE_PUSHv = 23,
-  kKILLEv = 24,
-  kKILLGTv = 25,
-  kKILLGTEv = 26,
-  kKILLNEv = 27,
-  kDSTv = 28,
-  kMAXAv = 29,
+  // Per-Component Floating-Point Add
+  // add dest, src0, src1
+  //     dest.x = src0.x + src1.x;
+  //     dest.y = src0.y + src1.y;
+  //     dest.z = src0.z + src1.z;
+  //     dest.w = src0.w + src1.w;
+  kAdd = 0,
+
+  // Per-Component Floating-Point Multiply
+  // mul dest, src0, src1
+  //     dest.x = src0.x * src1.x;
+  //     dest.y = src0.y * src1.y;
+  //     dest.z = src0.z * src1.z;
+  //     dest.w = src0.w * src1.w;
+  kMul = 1,
+
+  // Per-Component Floating-Point Maximum
+  // max dest, src0, src1
+  //     dest.x = src0.x >= src1.x ? src0.x : src1.x;
+  //     dest.y = src0.x >= src1.y ? src0.y : src1.y;
+  //     dest.z = src0.x >= src1.z ? src0.z : src1.z;
+  //     dest.w = src0.x >= src1.w ? src0.w : src1.w;
+  kMax = 2,
+
+  // Per-Component Floating-Point Minimum
+  // min dest, src0, src1
+  //     dest.x = src0.x < src1.x ? src0.x : src1.x;
+  //     dest.y = src0.x < src1.y ? src0.y : src1.y;
+  //     dest.z = src0.x < src1.z ? src0.z : src1.z;
+  //     dest.w = src0.x < src1.w ? src0.w : src1.w;
+  kMin = 3,
+
+  // Per-Component Floating-Point Set If Equal
+  // seq dest, src0, src1
+  //     dest.x = src0.x == src1.x ? 1.0 : 0.0;
+  //     dest.y = src0.y == src1.y ? 1.0 : 0.0;
+  //     dest.z = src0.z == src1.z ? 1.0 : 0.0;
+  //     dest.w = src0.w == src1.w ? 1.0 : 0.0;
+  kSeq = 4,
+
+  // Per-Component Floating-Point Set If Greater Than
+  // sgt dest, src0, src1
+  //     dest.x = src0.x > src1.x ? 1.0 : 0.0;
+  //     dest.y = src0.y > src1.y ? 1.0 : 0.0;
+  //     dest.z = src0.z > src1.z ? 1.0 : 0.0;
+  //     dest.w = src0.w > src1.w ? 1.0 : 0.0;
+  kSgt = 5,
+
+  // Per-Component Floating-Point Set If Greater Than Or Equal
+  // sge dest, src0, src1
+  //     dest.x = src0.x >= src1.x ? 1.0 : 0.0;
+  //     dest.y = src0.y >= src1.y ? 1.0 : 0.0;
+  //     dest.z = src0.z >= src1.z ? 1.0 : 0.0;
+  //     dest.w = src0.w >= src1.w ? 1.0 : 0.0;
+  kSge = 6,
+
+  // Per-Component Floating-Point Set If Not Equal
+  // sne dest, src0, src1
+  //     dest.x = src0.x != src1.x ? 1.0 : 0.0;
+  //     dest.y = src0.y != src1.y ? 1.0 : 0.0;
+  //     dest.z = src0.z != src1.z ? 1.0 : 0.0;
+  //     dest.w = src0.w != src1.w ? 1.0 : 0.0;
+  kSne = 7,
+
+  // Per-Component Floating-Point Fractional
+  // frc dest, src0
+  //     dest.x = src0.x - floor(src0.x);
+  //     dest.y = src0.y - floor(src0.y);
+  //     dest.z = src0.z - floor(src0.z);
+  //     dest.w = src0.w - floor(src0.w);
+  kFrc = 8,
+
+  // Per-Component Floating-Point Truncate
+  // trunc dest, src0
+  //     dest.x = src0.x >= 0 ? floor(src0.x) : -floor(-src0.x);
+  //     dest.y = src0.y >= 0 ? floor(src0.y) : -floor(-src0.y);
+  //     dest.z = src0.z >= 0 ? floor(src0.z) : -floor(-src0.z);
+  //     dest.w = src0.w >= 0 ? floor(src0.w) : -floor(-src0.w);
+  kTrunc = 9,
+
+  // Per-Component Floating-Point Floor
+  // floor dest, src0
+  //     dest.x = floor(src0.x);
+  //     dest.y = floor(src0.y);
+  //     dest.z = floor(src0.z);
+  //     dest.w = floor(src0.w);
+  kFloor = 10,
+
+  // Per-Component Floating-Point Multiply-Add
+  // mad dest, src0, src1, src2
+  //     dest.x = src0.x * src1.x + src2.x;
+  //     dest.y = src0.y * src1.y + src2.y;
+  //     dest.z = src0.z * src1.z + src2.z;
+  //     dest.w = src0.w * src1.w + src2.w;
+  kMad = 11,
+
+  // Per-Component Floating-Point Conditional Move If Equal
+  // cndeq dest, src0, src1, src2
+  //     dest.x = src0.x == 0.0 ? src1.x : src2.x;
+  //     dest.y = src0.y == 0.0 ? src1.y : src2.y;
+  //     dest.z = src0.z == 0.0 ? src1.z : src2.z;
+  //     dest.w = src0.w == 0.0 ? src1.w : src2.w;
+  kCndEq = 12,
+
+  // Per-Component Floating-Point Conditional Move If Greater Than Or Equal
+  // cndge dest, src0, src1, src2
+  //     dest.x = src0.x >= 0.0 ? src1.x : src2.x;
+  //     dest.y = src0.y >= 0.0 ? src1.y : src2.y;
+  //     dest.z = src0.z >= 0.0 ? src1.z : src2.z;
+  //     dest.w = src0.w >= 0.0 ? src1.w : src2.w;
+  kCndGe = 13,
+
+  // Per-Component Floating-Point Conditional Move If Greater Than
+  // cndgt dest, src0, src1, src2
+  //     dest.x = src0.x > 0.0 ? src1.x : src2.x;
+  //     dest.y = src0.y > 0.0 ? src1.y : src2.y;
+  //     dest.z = src0.z > 0.0 ? src1.z : src2.z;
+  //     dest.w = src0.w > 0.0 ? src1.w : src2.w;
+  kCndGt = 14,
+
+  // Four-Element Dot Product
+  // dp4 dest, src0, src1
+  //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src0.z * src1.z +
+  //                 src0.w * src1.w;
+  // Note: only pv.x contains the value.
+  kDp4 = 15,
+
+  // Three-Element Dot Product
+  // dp3 dest, src0, src1
+  //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src0.z * src1.z;
+  // Note: only pv.x contains the value.
+  kDp3 = 16,
+
+  // Two-Element Dot Product and Add
+  // dp2add dest, src0, src1, src2
+  //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src3.x;
+  // Note: only pv.x contains the value.
+  kDp2Add = 17,
+
+  // Cube Map
+  // cube dest, src0, src1
+  //     dest.x = T cube coordinate;
+  //     dest.y = S cube coordinate;
+  //     dest.z = 2.0 * MajorAxis;
+  //     dest.w = FaceID;
+  // Expects src0.zzxy and src1.yxzz swizzles.
+  // FaceID is D3DCUBEMAP_FACES:
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/bb172528(v=vs.85).aspx
+  kCube = 18,
+
+  // Four-Element Maximum
+  // max4 dest, src0
+  //     dest.xyzw = max(src0.x, src0.y, src0.z, src0.w);
+  // Note: only pv.x contains the value.
+  kMax4 = 19,
+
+  // Floating-Point Predicate Counter Increment If Equal
+  // setp_eq_push dest, src0, src1
+  //     if (src0.w == 0.0 && src1.w == 0.0) {
+  //       p0 = 1;
+  //     } else {
+  //       p0 = 0;
+  //     }
+  //     if (src0.x == 0.0 && src1.x == 0.0) {
+  //       dest.xyzw = 0.0;
+  //     } else {
+  //       dest.xyzw = src0.x + 1.0;
+  //     }
+  kSetpEqPush = 20,
+
+  // Floating-Point Predicate Counter Increment If Not Equal
+  // setp_ne_push dest, src0, src1
+  //     if (src0.w == 0.0 && src1.w != 0.0) {
+  //       p0 = 1;
+  //     } else {
+  //       p0 = 0;
+  //     }
+  //     if (src0.x == 0.0 && src1.x != 0.0) {
+  //       dest.xyzw = 0.0;
+  //     } else {
+  //       dest.xyzw = src0.x + 1.0;
+  //     }
+  kSetpNePush = 21,
+
+  // Floating-Point Predicate Counter Increment If Greater Than
+  // setp_gt_push dest, src0, src1
+  //     if (src0.w == 0.0 && src1.w > 0.0) {
+  //       p0 = 1;
+  //     } else {
+  //       p0 = 0;
+  //     }
+  //     if (src0.x == 0.0 && src1.x > 0.0) {
+  //       dest.xyzw = 0.0;
+  //     } else {
+  //       dest.xyzw = src0.x + 1.0;
+  //     }
+  kSetpGtPush = 22,
+
+  // Floating-Point Predicate Counter Increment If Greater Than Or Equal
+  // setp_ge_push dest, src0, src1
+  //     if (src0.w == 0.0 && src1.w >= 0.0) {
+  //       p0 = 1;
+  //     } else {
+  //       p0 = 0;
+  //     }
+  //     if (src0.x == 0.0 && src1.x >= 0.0) {
+  //       dest.xyzw = 0.0;
+  //     } else {
+  //       dest.xyzw = src0.x + 1.0;
+  //     }
+  kSetpGePush = 23,
+
+  // Floating-Point Pixel Kill If Equal
+  // kill_eq dest, src0, src1
+  //     if (src0.x == src1.x ||
+  //         src0.y == src1.y ||
+  //         src0.z == src1.z ||
+  //         src0.w == src1.w) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillEq = 24,
+
+  // Floating-Point Pixel Kill If Greater Than
+  // kill_gt dest, src0, src1
+  //     if (src0.x > src1.x ||
+  //         src0.y > src1.y ||
+  //         src0.z > src1.z ||
+  //         src0.w > src1.w) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillGt = 25,
+
+  // Floating-Point Pixel Kill If Equal
+  // kill_ge dest, src0, src1
+  //     if (src0.x >= src1.x ||
+  //         src0.y >= src1.y ||
+  //         src0.z >= src1.z ||
+  //         src0.w >= src1.w) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillGe = 26,
+
+  // Floating-Point Pixel Kill If Equal
+  // kill_ne dest, src0, src1
+  //     if (src0.x != src1.x ||
+  //         src0.y != src1.y ||
+  //         src0.z != src1.z ||
+  //         src0.w != src1.w) {
+  //       dest.xyzw = 1.0;
+  //       discard;
+  //     } else {
+  //       dest.xyzw = 0.0;
+  //     }
+  kKillNe = 27,
+
+  // dst dest, src0, src1
+  //     dest.x = 1.0;
+  //     dest.y = src0.y * src1.y;
+  //     dest.z = src0.z;
+  //     dest.w = src1.w;
+  kDst = 28,
+
+  // Per-Component Floating-Point Maximum with Copy To Integer in AR
+  // maxa dest, src0, src1
+  // This is a combined max + mova.
+  //     int result = (int)floor(src0.w + 0.5);
+  //     a0 = clamp(result, -256, 255);
+  //     dest.x = src0.x >= src1.x ? src0.x : src1.x;
+  //     dest.y = src0.x >= src1.y ? src0.y : src1.y;
+  //     dest.z = src0.x >= src1.z ? src0.z : src1.z;
+  //     dest.w = src0.x >= src1.w ? src0.w : src1.w;
+  kMaxA = 29,
 };
 
 struct AluInstruction {
@@ -817,7 +1359,7 @@ struct AluInstruction {
   bool vector_clamp() const { return data_.vector_clamp == 1; }
 
   bool has_scalar_op() const {
-    return scalar_opcode() != AluScalarOpcode::kRETAIN_PREV ||
+    return scalar_opcode() != AluScalarOpcode::kRetainPrev ||
            (!is_export() && scalar_write_mask() != 0);
   }
   AluScalarOpcode scalar_opcode() const {
