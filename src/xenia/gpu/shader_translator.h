@@ -66,6 +66,10 @@ enum class SwizzleSource {
 constexpr SwizzleSource GetSwizzleFromComponentIndex(int i) {
   return static_cast<SwizzleSource>(i);
 }
+inline char GetCharForComponentIndex(int i) {
+  const static char kChars[] = {'x', 'y', 'z', 'w'};
+  return kChars[i];
+}
 inline char GetCharForSwizzle(SwizzleSource swizzle_source) {
   const static char kChars[] = {'x', 'y', 'z', 'w', '0', '1'};
   return kChars[static_cast<int>(swizzle_source)];
@@ -95,6 +99,16 @@ struct InstructionResult {
   // Returns true if all components are written to.
   bool has_all_writes() const {
     return write_mask[0] && write_mask[1] && write_mask[2] && write_mask[3];
+  }
+  // Returns true if any non-constant components are written.
+  bool stores_non_constants() const {
+    for (int i = 0; i < 4; ++i) {
+      if (write_mask[i] && components[i] != SwizzleSource::k0 &&
+          components[i] != SwizzleSource::k1) {
+        return true;
+      }
+    }
+    return false;
   }
   // True if the components are in their 'standard' swizzle arrangement (xyzw).
   bool is_standard_swizzle() const {
@@ -337,7 +351,7 @@ struct ParsedVertexFetchInstruction {
   struct Attributes {
     VertexFormat data_format = VertexFormat::kUndefined;
     int offset = 0;
-    int stride = 0;
+    int stride = 0;  // In dwords.
     int exp_adjust = 0;
     bool is_index_rounded = false;
     bool is_signed = false;
@@ -450,12 +464,23 @@ class TranslatedShader {
   };
 
   struct VertexBinding {
+    struct Attribute {
+      // Attribute index, 0-based in the entire shader.
+      int attrib_index;
+      // Fetch instruction with all parameters.
+      ParsedVertexFetchInstruction fetch_instr;
+      // Size of the attribute, in words.
+      uint32_t size_words;
+    };
+
     // Index within the vertex binding listing.
-    size_t binding_index;
+    int binding_index;
     // Fetch constant index [0-95].
     uint32_t fetch_constant;
-    // Fetch instruction with all parameters.
-    ParsedVertexFetchInstruction fetch_instr;
+    // Stride of the entire binding, in words.
+    uint32_t stride_words;
+    // Packed attributes within the binding buffer.
+    std::vector<Attribute> attributes;
   };
 
   struct TextureBinding {
@@ -480,11 +505,16 @@ class TranslatedShader {
   const std::vector<TextureBinding>& texture_bindings() const {
     return texture_bindings_;
   }
+  // Returns true if the given color target index [0-3].
+  bool writes_color_target(int i) const { return writes_color_targets_[i]; }
 
   bool is_valid() const { return is_valid_; }
   const std::vector<Error>& errors() const { return errors_; }
 
   const std::vector<uint8_t>& binary() const { return binary_; }
+  const std::string& ucode_disassembly() const { return ucode_disassembly_; }
+
+  std::string GetBinaryString() const;
 
  private:
   friend class ShaderTranslator;
@@ -499,10 +529,12 @@ class TranslatedShader {
 
   std::vector<VertexBinding> vertex_bindings_;
   std::vector<TextureBinding> texture_bindings_;
+  bool writes_color_targets_[4] = {false, false, false, false};
 
   bool is_valid_ = false;
   std::vector<Error> errors_;
 
+  std::string ucode_disassembly_;
   std::vector<uint8_t> binary_;
 };
 
@@ -517,6 +549,9 @@ class ShaderTranslator {
 
  protected:
   ShaderTranslator();
+
+  // Resets translator state before beginning translation.
+  virtual void Reset();
 
   // True if the current shader is a vertex shader.
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
@@ -662,8 +697,10 @@ class ShaderTranslator {
   ucode::VertexFetchInstruction previous_vfetch_full_;
 
   // Detected binding information gathered before translation.
+  int total_attrib_count_ = 0;
   std::vector<TranslatedShader::VertexBinding> vertex_bindings_;
   std::vector<TranslatedShader::TextureBinding> texture_bindings_;
+  bool writes_color_targets_[4] = {false, false, false, false};
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];
   static const AluOpcodeInfo alu_scalar_opcode_infos_[0x40];

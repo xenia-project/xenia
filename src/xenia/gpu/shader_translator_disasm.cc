@@ -96,7 +96,11 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
   }
   switch (op.storage_addressing_mode) {
     case InstructionStorageAddressingMode::kStatic:
-      out->AppendFormat("%d", op.storage_index);
+      if (op.is_absolute_value) {
+        out->AppendFormat("[%d]", op.storage_index);
+      } else {
+        out->AppendFormat("%d", op.storage_index);
+      }
       break;
     case InstructionStorageAddressingMode::kAddressAbsolute:
       out->AppendFormat("[%d+a0]", op.storage_index);

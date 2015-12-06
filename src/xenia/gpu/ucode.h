@@ -548,6 +548,29 @@ struct VertexFetchInstruction {
   uint32_t src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
 
+  // Returns true if the fetch actually fetches data.
+  // This may be false if it's used only to populate constants.
+  bool fetches_any_data() const {
+    uint32_t dst_swiz = data_.dst_swiz;
+    bool fetches_any_data = false;
+    for (int i = 0; i < 4; i++) {
+      if ((dst_swiz & 0x7) == 4) {
+        // 0.0
+      } else if ((dst_swiz & 0x7) == 5) {
+        // 1.0
+      } else if ((dst_swiz & 0x7) == 6) {
+        // ?
+      } else if ((dst_swiz & 0x7) == 7) {
+        // Previous register value.
+      } else {
+        fetches_any_data = true;
+        break;
+      }
+      dst_swiz >>= 3;
+    }
+    return fetches_any_data;
+  }
+
   uint32_t prefetch_count() const { return data_.prefetch_count; }
   bool is_mini_fetch() const { return data_.is_mini_fetch == 1; }
 

@@ -30,6 +30,8 @@ class GlslShaderTranslator : public ShaderTranslator {
   ~GlslShaderTranslator() override;
 
  protected:
+  void Reset() override;
+
   void EmitTranslationError(const char* message) override;
   void EmitUnimplementedTranslationError() override;
 

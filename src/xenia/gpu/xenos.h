@@ -208,6 +208,60 @@ enum class VertexFormat : uint32_t {
   k_32_32_32_FLOAT = 57,
 };
 
+inline int GetVertexFormatComponentCount(VertexFormat format) {
+  switch (format) {
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_FLOAT:
+      return 1;
+    case VertexFormat::k_16_16:
+    case VertexFormat::k_16_16_FLOAT:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_FLOAT:
+      return 2;
+    case VertexFormat::k_10_11_11:
+    case VertexFormat::k_11_11_10:
+    case VertexFormat::k_32_32_32_FLOAT:
+      return 3;
+    case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_2_10_10_10:
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      return 4;
+    default:
+      assert_unhandled_case(format);
+      return 0;
+  }
+}
+
+inline int GetVertexFormatSizeInWords(VertexFormat format) {
+  switch (format) {
+    case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_2_10_10_10:
+    case VertexFormat::k_10_11_11:
+    case VertexFormat::k_11_11_10:
+    case VertexFormat::k_16_16:
+    case VertexFormat::k_16_16_FLOAT:
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_FLOAT:
+      return 1;
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_FLOAT:
+      return 2;
+    case VertexFormat::k_32_32_32_FLOAT:
+      return 3;
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      return 4;
+    default:
+      assert_unhandled_case(format);
+      return 1;
+  }
+}
+
 namespace xenos {
 
 typedef enum {
@@ -230,37 +284,6 @@ enum class CopyCommand : uint32_t {
   kConstantOne = 2,
   kNull = 3,  // ?
 };
-
-inline int GetVertexFormatComponentCount(VertexFormat format) {
-  switch (format) {
-    case VertexFormat::k_32:
-    case VertexFormat::k_32_FLOAT:
-      return 1;
-      break;
-    case VertexFormat::k_16_16:
-    case VertexFormat::k_16_16_FLOAT:
-    case VertexFormat::k_32_32:
-    case VertexFormat::k_32_32_FLOAT:
-      return 2;
-      break;
-    case VertexFormat::k_10_11_11:
-    case VertexFormat::k_11_11_10:
-    case VertexFormat::k_32_32_32_FLOAT:
-      return 3;
-      break;
-    case VertexFormat::k_8_8_8_8:
-    case VertexFormat::k_2_10_10_10:
-    case VertexFormat::k_16_16_16_16:
-    case VertexFormat::k_16_16_16_16_FLOAT:
-    case VertexFormat::k_32_32_32_32:
-    case VertexFormat::k_32_32_32_32_FLOAT:
-      return 4;
-      break;
-    default:
-      assert_unhandled_case(format);
-      return 0;
-  }
-}
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
   (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | \

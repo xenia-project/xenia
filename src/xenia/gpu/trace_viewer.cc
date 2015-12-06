@@ -486,11 +486,11 @@ void TraceViewer::DrawShaderUI(Shader* shader, ShaderDisplayType display_type) {
 
   switch (display_type) {
     case ShaderDisplayType::kUcode: {
-      DrawMultilineString(shader->ucode_disassembly());
+      DrawMultilineString(shader->translated_shader()->ucode_disassembly());
       break;
     }
     case ShaderDisplayType::kTranslated: {
-      const auto& str = shader->translated_disassembly();
+      const auto& str = shader->translated_shader()->GetBinaryString();
       size_t i = 0;
       bool done = false;
       while (!done && i < str.size()) {
@@ -566,29 +566,33 @@ void TraceViewer::DrawBlendMode(uint32_t src_blend, uint32_t dest_blend,
   ImGui::Text(op_template, src_str, dest_str);
 }
 
-void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
+void TraceViewer::DrawTextureInfo(
+    const TranslatedShader::TextureBinding& texture_binding) {
   auto& regs = *graphics_system_->register_file();
 
-  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + desc.fetch_slot * 6;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+          texture_binding.fetch_constant * 6;
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
   if (fetch.type != 0x2) {
-    DrawFailedTextureInfo(desc, "Invalid fetch type");
+    DrawFailedTextureInfo(texture_binding, "Invalid fetch type");
     return;
   }
   TextureInfo texture_info;
   if (!TextureInfo::Prepare(fetch, &texture_info)) {
-    DrawFailedTextureInfo(desc, "Unable to parse texture fetcher info");
+    DrawFailedTextureInfo(texture_binding,
+                          "Unable to parse texture fetcher info");
     return;
   }
   SamplerInfo sampler_info;
-  if (!SamplerInfo::Prepare(fetch, desc.tex_fetch, &sampler_info)) {
-    DrawFailedTextureInfo(desc, "Unable to parse sampler info");
+  if (!SamplerInfo::Prepare(fetch, texture_binding.fetch_instr,
+                            &sampler_info)) {
+    DrawFailedTextureInfo(texture_binding, "Unable to parse sampler info");
     return;
   }
   auto texture = GetTextureEntry(texture_info, sampler_info);
   if (!texture) {
-    DrawFailedTextureInfo(desc, "Failed to demand texture");
+    DrawFailedTextureInfo(texture_binding, "Failed to demand texture");
     return;
   }
 
@@ -599,7 +603,7 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
     // show viewer
   }
   ImGui::NextColumn();
-  ImGui::Text("Fetch Slot: %d", desc.fetch_slot);
+  ImGui::Text("Fetch Slot: %u", texture_binding.fetch_constant);
   ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
   switch (texture_info.dimension) {
     case Dimension::k1D:
@@ -628,21 +632,21 @@ void TraceViewer::DrawTextureInfo(const Shader::SamplerDesc& desc) {
   ImGui::Columns(1);
 }
 
-void TraceViewer::DrawFailedTextureInfo(const Shader::SamplerDesc& desc,
-                                        const char* message) {
+void TraceViewer::DrawFailedTextureInfo(
+    const TranslatedShader::TextureBinding& texture_binding,
+    const char* message) {
   // TODO(benvanik): better error info/etc.
   ImGui::TextColored(kColorError, "ERROR: %s", message);
 }
 
-void TraceViewer::DrawVertexFetcher(Shader* shader,
-                                    const Shader::BufferDesc& desc,
-                                    const xe_gpu_vertex_fetch_t* fetch) {
+void TraceViewer::DrawVertexFetcher(
+    Shader* shader, const TranslatedShader::VertexBinding& vertex_binding,
+    const xe_gpu_vertex_fetch_t* fetch) {
   const uint8_t* addr = memory_->TranslatePhysical(fetch->address << 2);
-  uint32_t vertex_count = (fetch->size * 4) / desc.stride_words;
+  uint32_t vertex_count = (fetch->size * 4) / vertex_binding.stride_words;
   int column_count = 0;
-  for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
-    const auto& el = desc.elements[el_index];
-    switch (el.format) {
+  for (const auto& attrib : vertex_binding.attributes) {
+    switch (attrib.fetch_instr.attributes.data_format) {
       case VertexFormat::k_32:
       case VertexFormat::k_32_FLOAT:
         ++column_count;
@@ -679,9 +683,10 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
                        (display_start)*ImGui::GetTextLineHeight());
   ImGui::Columns(column_count);
   if (display_start <= 1) {
-    for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
-      const auto& el = desc.elements[el_index];
-      switch (el.format) {
+    for (size_t el_index = 0; el_index < vertex_binding.attributes.size();
+         ++el_index) {
+      const auto& attrib = vertex_binding.attributes[el_index];
+      switch (attrib.fetch_instr.attributes.data_format) {
         case VertexFormat::k_32:
         case VertexFormat::k_32_FLOAT:
           ImGui::Text("e%d.x", el_index);
@@ -729,13 +734,13 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
     ImGui::Separator();
   }
   for (int i = display_start; i < display_end; ++i) {
-    const uint8_t* vstart = addr + i * desc.stride_words * 4;
-    for (uint32_t el_index = 0; el_index < desc.element_count; ++el_index) {
-      const auto& el = desc.elements[el_index];
-#define LOADEL(type, wo)                                       \
-  GpuSwap(xe::load<type>(vstart + (el.offset_words + wo) * 4), \
+    const uint8_t* vstart = addr + i * vertex_binding.stride_words * 4;
+    for (const auto& attrib : vertex_binding.attributes) {
+#define LOADEL(type, wo)                                                   \
+  GpuSwap(xe::load<type>(vstart +                                          \
+                         (attrib.fetch_instr.attributes.offset + wo) * 4), \
           Endian(fetch->endian))
-      switch (el.format) {
+      switch (attrib.fetch_instr.attributes.data_format) {
         case VertexFormat::k_32:
           ImGui::Text("%.8X", LOADEL(uint32_t, 0));
           ImGui::NextColumn();
@@ -1406,16 +1411,15 @@ void TraceViewer::DrawStateUI() {
   if (ImGui::CollapsingHeader("Vertex Buffers")) {
     auto shader = command_processor->active_vertex_shader();
     if (shader) {
-      const auto& buffer_inputs = shader->buffer_inputs();
-      for (uint32_t buffer_index = 0; buffer_index < buffer_inputs.count;
-           ++buffer_index) {
-        const auto& desc = buffer_inputs.descs[buffer_index];
-        int r =
-            XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
+      const auto& vertex_bindings =
+          shader->translated_shader()->vertex_bindings();
+      for (const auto& vertex_binding : vertex_bindings) {
+        int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+                (vertex_binding.fetch_constant / 3) * 6;
         const auto group =
             reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
         const xe_gpu_vertex_fetch_t* fetch = nullptr;
-        switch (desc.fetch_slot % 3) {
+        switch (vertex_binding.fetch_constant % 3) {
           case 0:
             fetch = &group->vertex_fetch_0;
             break;
@@ -1428,13 +1432,14 @@ void TraceViewer::DrawStateUI() {
         }
         assert_true(fetch->endian == 2);
         char tree_root_id[32];
-        sprintf(tree_root_id, "#vertices_root_%d", desc.fetch_slot);
+        sprintf(tree_root_id, "#vertices_root_%d",
+                vertex_binding.fetch_constant);
         if (ImGui::TreeNode(tree_root_id, "vf%d: 0x%.8X (%db), %s",
-                            desc.fetch_slot, fetch->address << 2,
+                            vertex_binding.fetch_constant, fetch->address << 2,
                             fetch->size * 4,
                             kEndiannessNames[int(fetch->endian)])) {
           ImGui::BeginChild("#vertices", ImVec2(0, 300));
-          DrawVertexFetcher(shader, desc, fetch);
+          DrawVertexFetcher(shader, vertex_binding, fetch);
           ImGui::EndChild();
           ImGui::TreePop();
         }
@@ -1446,10 +1451,11 @@ void TraceViewer::DrawStateUI() {
   if (ImGui::CollapsingHeader("Vertex Textures")) {
     auto shader = command_processor->active_vertex_shader();
     if (shader) {
-      const auto& sampler_inputs = shader->sampler_inputs();
-      if (sampler_inputs.count) {
-        for (size_t i = 0; i < sampler_inputs.count; ++i) {
-          DrawTextureInfo(sampler_inputs.descs[i]);
+      const auto& texture_bindings =
+          shader->translated_shader()->texture_bindings();
+      if (!texture_bindings.empty()) {
+        for (const auto& texture_binding : texture_bindings) {
+          DrawTextureInfo(texture_binding);
         }
       } else {
         ImGui::Text("No vertex shader samplers");
@@ -1461,10 +1467,11 @@ void TraceViewer::DrawStateUI() {
   if (ImGui::CollapsingHeader("Textures")) {
     auto shader = command_processor->active_pixel_shader();
     if (shader) {
-      const auto& sampler_inputs = shader->sampler_inputs();
-      if (sampler_inputs.count) {
-        for (size_t i = 0; i < sampler_inputs.count; ++i) {
-          DrawTextureInfo(sampler_inputs.descs[i]);
+      const auto& texture_bindings =
+          shader->translated_shader()->texture_bindings();
+      if (!texture_bindings.empty()) {
+        for (const auto& texture_binding : texture_bindings) {
+          DrawTextureInfo(texture_binding);
         }
       } else {
         ImGui::Text("No pixel shader samplers");

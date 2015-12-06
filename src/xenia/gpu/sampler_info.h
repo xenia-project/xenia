@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_SAMPLER_INFO_H_
 #define XENIA_GPU_SAMPLER_INFO_H_
 
-#include "xenia/gpu/gl4/ucode.h"
+#include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
@@ -26,7 +26,7 @@ struct SamplerInfo {
   AnisoFilter aniso_filter;
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
-                      const gl4::ucode::instr_fetch_tex_t& fetch_instr,
+                      const ParsedTextureFetchInstruction& fetch_instr,
                       SamplerInfo* out_info);
 
   uint64_t hash() const;

@@ -85,11 +85,13 @@ class TraceViewer {
   void DrawBlendMode(uint32_t src_blend, uint32_t dest_blend,
                      uint32_t blend_op);
 
-  void DrawTextureInfo(const Shader::SamplerDesc& desc);
-  void DrawFailedTextureInfo(const Shader::SamplerDesc& desc,
-                             const char* message);
+  void DrawTextureInfo(const TranslatedShader::TextureBinding& texture_binding);
+  void DrawFailedTextureInfo(
+      const TranslatedShader::TextureBinding& texture_binding,
+      const char* message);
 
-  void DrawVertexFetcher(Shader* shader, const Shader::BufferDesc& desc,
+  void DrawVertexFetcher(Shader* shader,
+                         const TranslatedShader::VertexBinding& vertex_binding,
                          const xenos::xe_gpu_vertex_fetch_t* fetch);
 };
 

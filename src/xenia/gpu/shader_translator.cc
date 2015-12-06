@@ -46,7 +46,7 @@ TranslatedShader::TranslatedShader(ShaderType shader_type,
                                    size_t ucode_dword_count,
                                    std::vector<Error> errors)
     : shader_type_(shader_type),
-      ucode_data_hash_(ucode_data_hash_),
+      ucode_data_hash_(ucode_data_hash),
       errors_(std::move(errors)) {
   ucode_data_.resize(ucode_dword_count);
   std::memcpy(ucode_data_.data(), ucode_dwords,
@@ -63,13 +63,35 @@ TranslatedShader::TranslatedShader(ShaderType shader_type,
 
 TranslatedShader::~TranslatedShader() = default;
 
+std::string TranslatedShader::GetBinaryString() const {
+  std::string result;
+  result.resize(binary_.size());
+  std::memcpy(const_cast<char*>(result.data()), binary_.data(), binary_.size());
+  return result;
+}
+
 ShaderTranslator::ShaderTranslator() = default;
 
 ShaderTranslator::~ShaderTranslator() = default;
 
+void ShaderTranslator::Reset() {
+  errors_.clear();
+  ucode_disasm_buffer_.Reset();
+  ucode_disasm_line_number_ = 0;
+  previous_ucode_disasm_scan_offset_ = 0;
+  total_attrib_count_ = 0;
+  vertex_bindings_.clear();
+  texture_bindings_.clear();
+  for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
+    writes_color_targets_[i] = false;
+  }
+}
+
 std::unique_ptr<TranslatedShader> ShaderTranslator::Translate(
     ShaderType shader_type, uint64_t ucode_data_hash,
     const uint32_t* ucode_dwords, size_t ucode_dword_count) {
+  Reset();
+
   shader_type_ = shader_type;
   ucode_dwords_ = ucode_dwords;
   ucode_dword_count_ = ucode_dword_count;
@@ -101,8 +123,12 @@ std::unique_ptr<TranslatedShader> ShaderTranslator::Translate(
       new TranslatedShader(shader_type, ucode_data_hash, ucode_dwords,
                            ucode_dword_count, std::move(errors_)));
   translated_shader->binary_ = CompleteTranslation();
+  translated_shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
   translated_shader->vertex_bindings_ = std::move(vertex_bindings_);
   translated_shader->texture_bindings_ = std::move(texture_bindings_);
+  for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
+    translated_shader->writes_color_targets_[i] = writes_color_targets_[i];
+  }
   return translated_shader;
 }
 
@@ -165,6 +191,7 @@ void ShaderTranslator::GatherBindingInformation(
            ++instr_offset, sequence >>= 2) {
         bool is_fetch = (sequence & 0x1) == 0x1;
         if (is_fetch) {
+          // Gather vertex and texture fetches.
           auto fetch_opcode =
               static_cast<FetchOpcode>(ucode_dwords_[instr_offset * 3] & 0x1F);
           if (fetch_opcode == FetchOpcode::kVertexFetch) {
@@ -176,6 +203,20 @@ void ShaderTranslator::GatherBindingInformation(
                 *reinterpret_cast<const TextureFetchInstruction*>(
                     ucode_dwords_ + instr_offset * 3));
           }
+        } else if (is_pixel_shader()) {
+          // Gather up color targets written to.
+          auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords_ +
+                                                              instr_offset * 3);
+          if (op.has_vector_op() && op.is_export()) {
+            if (op.vector_dest() >= 0 && op.vector_dest() <= 3) {
+              writes_color_targets_[op.vector_dest()] = true;
+            }
+          }
+          if (op.has_scalar_op() && op.is_export()) {
+            if (op.vector_dest() >= 0 && op.vector_dest() <= 3) {
+              writes_color_targets_[op.vector_dest()] = true;
+            }
+          }
         }
       }
       break;
@@ -184,11 +225,39 @@ void ShaderTranslator::GatherBindingInformation(
 
 void ShaderTranslator::GatherVertexBindingInformation(
     const VertexFetchInstruction& op) {
-  TranslatedShader::VertexBinding binding;
-  binding.binding_index = vertex_bindings_.size();
-  ParseVertexFetchInstruction(op, &binding.fetch_instr);
-  binding.fetch_constant = binding.fetch_instr.operands[1].storage_index;
-  vertex_bindings_.emplace_back(std::move(binding));
+  if (!op.fetches_any_data()) {
+    return;
+  }
+
+  // Try to allocate an attribute on an existing binding.
+  // If no binding for this fetch slot is found create it.
+  using VertexBinding = TranslatedShader::VertexBinding;
+  VertexBinding::Attribute* attrib = nullptr;
+  for (auto& vertex_binding : vertex_bindings_) {
+    if (vertex_binding.fetch_constant == op.fetch_constant_index()) {
+      // It may not hold that all strides are equal, but I hope it does.
+      assert_true(!op.stride() || vertex_binding.stride_words == op.stride());
+      vertex_binding.attributes.push_back({});
+      attrib = &vertex_binding.attributes.back();
+      break;
+    }
+  }
+  if (!attrib) {
+    assert_not_zero(op.stride());
+    TranslatedShader::VertexBinding vertex_binding;
+    vertex_binding.binding_index = static_cast<int>(vertex_bindings_.size());
+    vertex_binding.fetch_constant = op.fetch_constant_index();
+    vertex_binding.stride_words = op.stride();
+    vertex_binding.attributes.push_back({});
+    vertex_bindings_.emplace_back(std::move(vertex_binding));
+    attrib = &vertex_bindings_.back().attributes.back();
+  }
+
+  // Populate attribute.
+  attrib->attrib_index = total_attrib_count_++;
+  ParseVertexFetchInstruction(op, &attrib->fetch_instr);
+  attrib->size_words =
+      GetVertexFormatSizeInWords(attrib->fetch_instr.attributes.data_format);
 }
 
 void ShaderTranslator::GatherTextureBindingInformation(

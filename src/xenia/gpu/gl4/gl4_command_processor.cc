@@ -54,6 +54,7 @@ GL4CommandProcessor::CachedPipeline::~CachedPipeline() {
 GL4CommandProcessor::GL4CommandProcessor(GL4GraphicsSystem* graphics_system,
                                          kernel::KernelState* kernel_state)
     : CommandProcessor(graphics_system, kernel_state),
+      shader_translator_(GlslShaderTranslator::Dialect::kGL45),
       draw_batcher_(graphics_system_->register_file()),
       scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {}
 
@@ -490,16 +491,12 @@ Shader* GL4CommandProcessor::LoadShader(ShaderType shader_type,
 
     // Perform translation.
     // If this fails the shader will be marked as invalid and ignored later.
-    if (shader_type == ShaderType::kVertex) {
-      shader_ptr->PrepareVertexShader(&shader_translator_);
-    } else {
-      shader_ptr->PreparePixelShader(&shader_translator_);
-    }
+    shader_ptr->Prepare(&shader_translator_);
 
     XELOGGPU("Set %s shader at %0.8X (%db):\n%s",
              shader_type == ShaderType::kVertex ? "vertex" : "pixel",
              guest_address, dword_count * 4,
-             shader_ptr->ucode_disassembly().c_str());
+             shader_ptr->translated_shader()->ucode_disassembly().c_str());
   }
   return shader_ptr;
 }
@@ -782,8 +779,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRenderTargets() {
   // Note that write mask may be more permissive than we want, so we mix that
   // with the actual targets the pixel shader writes to.
   GLenum draw_buffers[4] = {GL_NONE, GL_NONE, GL_NONE, GL_NONE};
-  const auto& shader_targets =
-      active_pixel_shader_->alloc_counts().color_targets;
+  auto pixel_shader = active_pixel_shader_->translated_shader();
   GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   if (enable_mode == ModeControl::kColorDepth) {
     uint32_t color_info[4] = {
@@ -793,7 +789,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRenderTargets() {
     // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
     for (int n = 0; n < xe::countof(color_info); n++) {
       uint32_t write_mask = (regs.rb_color_mask >> (n * 4)) & 0xF;
-      if (!write_mask || !shader_targets[n]) {
+      if (!write_mask || !pixel_shader->writes_color_target(n)) {
         // Unused, so keep disabled and set to wildcard so we'll take any
         // framebuffer that has it.
         continue;
@@ -1366,14 +1362,14 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
   auto& regs = *register_file_;
   assert_not_null(active_vertex_shader_);
 
-  const auto& buffer_inputs = active_vertex_shader_->buffer_inputs();
-  for (uint32_t buffer_index = 0; buffer_index < buffer_inputs.count;
-       ++buffer_index) {
-    const auto& desc = buffer_inputs.descs[buffer_index];
-    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (desc.fetch_slot / 3) * 6;
+  const auto& vertex_bindings =
+      active_vertex_shader_->translated_shader()->vertex_bindings();
+  for (const auto& vertex_binding : vertex_bindings) {
+    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+            (vertex_binding.fetch_constant / 3) * 6;
     const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
     const xe_gpu_vertex_fetch_t* fetch = nullptr;
-    switch (desc.fetch_slot % 3) {
+    switch (vertex_binding.fetch_constant % 3) {
       case 0:
         fetch = &group->vertex_fetch_0;
         break;
@@ -1405,17 +1401,21 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
 
       // TODO(benvanik): if we could find a way to avoid this, we could use
       // multidraw without flushing.
-      glVertexArrayVertexBuffer(vertex_shader->vao(), buffer_index,
-                                scratch_buffer_.handle(), allocation.offset,
-                                desc.stride_words * 4);
+      glVertexArrayVertexBuffer(
+          vertex_shader->vao(),
+          static_cast<GLuint>(vertex_binding.binding_index),
+          scratch_buffer_.handle(), allocation.offset,
+          vertex_binding.stride_words * 4);
 
       scratch_buffer_.Commit(std::move(allocation));
     } else {
       // TODO(benvanik): if we could find a way to avoid this, we could use
       // multidraw without flushing.
-      glVertexArrayVertexBuffer(vertex_shader->vao(), buffer_index,
-                                scratch_buffer_.handle(), allocation.offset,
-                                desc.stride_words * 4);
+      glVertexArrayVertexBuffer(
+          vertex_shader->vao(),
+          static_cast<GLuint>(vertex_binding.binding_index),
+          scratch_buffer_.handle(), allocation.offset,
+          vertex_binding.stride_words * 4);
     }
   }
 
@@ -1434,14 +1434,14 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSamplers() {
   bool has_setup_sampler[32] = {false};
 
   // Vertex texture samplers.
-  const auto& vertex_sampler_inputs = active_vertex_shader_->sampler_inputs();
-  for (size_t i = 0; i < vertex_sampler_inputs.count; ++i) {
-    const auto& desc = vertex_sampler_inputs.descs[i];
-    if (has_setup_sampler[desc.fetch_slot]) {
+  const auto& vertex_sampler_inputs =
+      active_vertex_shader_->translated_shader()->texture_bindings();
+  for (auto& texture_binding : vertex_sampler_inputs) {
+    if (has_setup_sampler[texture_binding.fetch_constant]) {
       continue;
     }
-    has_setup_sampler[desc.fetch_slot] = true;
-    auto status = PopulateSampler(desc);
+    has_setup_sampler[texture_binding.fetch_constant] = true;
+    auto status = PopulateSampler(texture_binding);
     if (status == UpdateStatus::kError) {
       return status;
     } else if (status == UpdateStatus::kMismatch) {
@@ -1450,14 +1450,14 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSamplers() {
   }
 
   // Pixel shader texture sampler.
-  const auto& pixel_sampler_inputs = active_pixel_shader_->sampler_inputs();
-  for (size_t i = 0; i < pixel_sampler_inputs.count; ++i) {
-    const auto& desc = pixel_sampler_inputs.descs[i];
-    if (has_setup_sampler[desc.fetch_slot]) {
+  const auto& pixel_sampler_inputs =
+      active_pixel_shader_->translated_shader()->texture_bindings();
+  for (auto& texture_binding : pixel_sampler_inputs) {
+    if (has_setup_sampler[texture_binding.fetch_constant]) {
       continue;
     }
-    has_setup_sampler[desc.fetch_slot] = true;
-    auto status = PopulateSampler(desc);
+    has_setup_sampler[texture_binding.fetch_constant] = true;
+    auto status = PopulateSampler(texture_binding);
     if (status == UpdateStatus::kError) {
       return UpdateStatus::kError;
     } else if (status == UpdateStatus::kMismatch) {
@@ -1469,15 +1469,16 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSamplers() {
 }
 
 GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSampler(
-    const Shader::SamplerDesc& desc) {
+    const TranslatedShader::TextureBinding& texture_binding) {
   auto& regs = *register_file_;
-  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + desc.fetch_slot * 6;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+          texture_binding.fetch_constant * 6;
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
 
   // Reset slot.
   // If we fail, we still draw but with an invalid texture.
-  draw_batcher_.set_texture_sampler(desc.fetch_slot, 0);
+  draw_batcher_.set_texture_sampler(texture_binding.fetch_constant, 0);
 
   if (FLAGS_disable_textures) {
     return UpdateStatus::kCompatible;
@@ -1495,7 +1496,8 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSampler(
     return UpdateStatus::kCompatible;  // invalid texture used
   }
   SamplerInfo sampler_info;
-  if (!SamplerInfo::Prepare(fetch, desc.tex_fetch, &sampler_info)) {
+  if (!SamplerInfo::Prepare(fetch, texture_binding.fetch_instr,
+                            &sampler_info)) {
     XELOGE("Unable to parse sampler info");
     return UpdateStatus::kCompatible;  // invalid texture used
   }
@@ -1511,7 +1513,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSampler(
   }
 
   // Shaders will use bindless to fetch right from it.
-  draw_batcher_.set_texture_sampler(desc.fetch_slot,
+  draw_batcher_.set_texture_sampler(texture_binding.fetch_constant,
                                     entry_view->texture_sampler_handle);
 
   return UpdateStatus::kCompatible;

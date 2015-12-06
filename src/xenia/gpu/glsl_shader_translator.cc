@@ -55,6 +55,13 @@ GlslShaderTranslator::GlslShaderTranslator(Dialect dialect)
 
 GlslShaderTranslator::~GlslShaderTranslator() = default;
 
+void GlslShaderTranslator::Reset() {
+  ShaderTranslator::Reset();
+  depth_ = 0;
+  depth_prefix_[0] = 0;
+  source_.Reset();
+}
+
 void GlslShaderTranslator::EmitTranslationError(const char* message) {
   ShaderTranslator::EmitTranslationError(message);
   EmitSourceDepth("// TRANSLATION ERROR: %s\n", message);
@@ -84,7 +91,7 @@ void GlslShaderTranslator::StartTranslation() {
   // We have a large amount of shared state defining uniforms and some common
   // utility functions used in both vertex and pixel shaders.
   EmitSource(R"(
-version 450
+#version 450
 #extension all : warn
 #extension GL_ARB_bindless_texture : require
 #extension GL_ARB_explicit_uniform_location : require
@@ -228,7 +235,7 @@ void applyAlphaTest(int alpha_func, float alpha_ref) {
   if (!passes) discard;
 }
 void processFragment(const in StateData state);
-void main() { +
+void main() {
   const StateData state = states[draw_id];
   processFragment(state);
   if (state.alpha_test.x != 0.0) {
@@ -241,11 +248,13 @@ void main() { +
   // Add vertex shader input declarations.
   if (is_vertex_shader()) {
     for (auto& binding : vertex_bindings()) {
-      const char* type_name =
-          GetVertexFormatTypeName(binding.fetch_instr.attributes.data_format);
-      EmitSource("layout(location = %d) in %s vf%u_%d;\n",
-                 binding.binding_index, type_name, binding.fetch_constant,
-                 binding.fetch_instr.attributes.offset);
+      for (auto& attrib : binding.attributes) {
+        const char* type_name =
+            GetVertexFormatTypeName(attrib.fetch_instr.attributes.data_format);
+        EmitSource("layout(location = %d) in %s vf%u_%d;\n",
+                   attrib.attrib_index, type_name, binding.fetch_constant,
+                   attrib.fetch_instr.attributes.offset);
+      }
     }
   }
 
@@ -273,6 +282,10 @@ void main() { +
   EmitSource("  bool p0 = false;\n");
   // Address register when using absolute addressing.
   EmitSource("  int a0 = 0;\n");
+  // Temps for source register values.
+  EmitSource("  vec4 src0;\n");
+  EmitSource("  vec4 src1;\n");
+  EmitSource("  vec4 src2;\n");
 }
 
 std::vector<uint8_t> GlslShaderTranslator::CompleteTranslation() {
@@ -300,7 +313,7 @@ void GlslShaderTranslator::ProcessExecInstructionBegin(
       EmitSourceDepth("{\n");
       break;
     case ParsedExecInstruction::Type::kConditional:
-      EmitSourceDepth("if (state.bool_consts[%d] & (1 << %d) == %c) {\n",
+      EmitSourceDepth("if ((state.bool_consts[%d] & (1 << %d)) == %c) {\n",
                       instr.bool_constant_index / 32,
                       instr.bool_constant_index % 32,
                       instr.condition ? '1' : '0');
@@ -374,18 +387,26 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
     Indent();
   }
 
-  for (size_t i = 0; i < instr.operand_count; ++i) {
-    if (instr.operands[i].storage_source !=
-        InstructionStorageSource::kVertexFetchConstant) {
-      EmitLoadOperand(i, instr.operands[i]);
+  if (instr.result.stores_non_constants()) {
+    for (size_t i = 0; i < instr.operand_count; ++i) {
+      if (instr.operands[i].storage_source !=
+          InstructionStorageSource::kVertexFetchConstant) {
+        EmitLoadOperand(i, instr.operands[i]);
+      }
     }
-  }
 
-  switch (instr.opcode) {
-    case FetchOpcode::kVertexFetch:
-      EmitSourceDepth("pv = vf%u_%d;\n", instr.operands[1].storage_index,
-                      instr.attributes.offset);
-      break;
+    switch (instr.opcode) {
+      case FetchOpcode::kVertexFetch:
+        EmitSourceDepth("pv.");
+        for (int i = 0;
+             i < GetVertexFormatComponentCount(instr.attributes.data_format);
+             ++i) {
+          EmitSource("%c", GetCharForComponentIndex(i));
+        }
+        EmitSource(" = vf%u_%d;\n", instr.operands[1].storage_index,
+                   instr.attributes.offset);
+        break;
+    }
   }
 
   EmitStoreVectorResult(instr.result);
@@ -417,7 +438,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
     case FetchOpcode::kTextureFetch:
       switch (instr.dimension) {
         case TextureDimension::k1D:
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0.0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(sampler1D(state.texture_samplers[%d]), "
@@ -428,7 +449,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           EmitSourceDepth("}\n");
           break;
         case TextureDimension::k2D:
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0.0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(sampler2D(state.texture_samplers[%d]), "
@@ -439,7 +460,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           EmitSourceDepth("}\n");
           break;
         case TextureDimension::k3D:
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0.0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(sampler3D(state.texture_samplers[%d]), "
@@ -451,7 +472,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           break;
         case TextureDimension::kCube:
           // TODO(benvanik): undo CUBEv logic on t? (s,t,faceid)
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0.0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(samplerCube(state.texture_samplers[%d]), "
@@ -835,35 +856,36 @@ void GlslShaderTranslator::ProcessVectorAluInstruction(
 
     // max4 dest, src0
     case AluVectorOpcode::kMax4:
-      EmitSourceDepth("pv = max(src0.x, src0.y, src0.z, src0.w).xxxx;\n");
+      EmitSourceDepth(
+          "pv = max(src0.x, max(src0.y, max(src0.z, src0.w))).xxxx;\n");
       break;
 
     // setp_eq_push dest, src0, src1
     case AluVectorOpcode::kSetpEqPush:
       EmitSourceDepth("p0 = src0.w == 0.0 && src1.w == 0.0 ? true : false;\n");
       EmitSourceDepth(
-          "pv = src0.x == 0.0 && src1.x == 0.0 ? 0.0 : src0.x + 1.0;\n");
+          "pv = vec4(src0.x == 0.0 && src1.x == 0.0 ? 0.0 : src0.x + 1.0);\n");
       break;
 
     // setp_ne_push dest, src0, src1
     case AluVectorOpcode::kSetpNePush:
       EmitSourceDepth("p0 = src0.w == 0.0 && src1.w != 0.0 ? true : false;\n");
       EmitSourceDepth(
-          "pv = src0.x == 0.0 && src1.x != 0.0 ? 0.0 : src0.x + 1.0;\n");
+          "pv = vec4(src0.x == 0.0 && src1.x != 0.0 ? 0.0 : src0.x + 1.0);\n");
       break;
 
     // setp_gt_push dest, src0, src1
     case AluVectorOpcode::kSetpGtPush:
       EmitSourceDepth("p0 = src0.w == 0.0 && src1.w > 0.0 ? true : false;\n");
       EmitSourceDepth(
-          "pv = src0.x == 0.0 && src1.x > 0.0 ? 0.0 : src0.x + 1.0;\n");
+          "pv = vec4(src0.x == 0.0 && src1.x > 0.0 ? 0.0 : src0.x + 1.0);\n");
       break;
 
     // setp_ge_push dest, src0, src1
     case AluVectorOpcode::kSetpGePush:
       EmitSourceDepth("p0 = src0.w == 0.0 && src1.w >= 0.0 ? true : false;\n");
       EmitSourceDepth(
-          "pv = src0.x == 0.0 && src1.x >= 0.0 ? 0.0 : src0.x + 1.0;\n");
+          "pv = vec4(src0.x == 0.0 && src1.x >= 0.0 ? 0.0 : src0.x + 1.0);\n");
       break;
 
     // kill_eq dest, src0, src1
@@ -951,7 +973,7 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
   switch (instr.scalar_opcode) {
     // adds dest, src0.ab
     case AluScalarOpcode::kAdds:
-      EmitSourceDepth("ps = src0.x + src1.y;\n");
+      EmitSourceDepth("ps = src0.x + src0.y;\n");
       break;
 
     // adds_prev dest, src0.a
@@ -961,7 +983,7 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
 
     // muls dest, src0.ab
     case AluScalarOpcode::kMuls:
-      EmitSourceDepth("ps = src0.x * src1.y;\n");
+      EmitSourceDepth("ps = src0.x * src0.y;\n");
       break;
 
     // muls_prev dest, src0.a
@@ -972,18 +994,18 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
     // muls_prev2 dest, src0.ab
     case AluScalarOpcode::kMulsPrev2:
       EmitSourceDepth(
-          "ps = ps == -FLT_MAX || isinf(ps) || isinf(src0.y) || src0.y <= 0.0 "
-          "? -FLT_MAX : src0.x * ps;\n");
+          "ps = ps == -FLT_MAX || isinf(ps) || isnan(ps) || isnan(src0.y) || "
+          "src0.y <= 0.0 ? -FLT_MAX : src0.x * ps;\n");
       break;
 
     // maxs dest, src0.ab
     case AluScalarOpcode::kMaxs:
-      EmitSourceDepth("ps = max(src0.x, src1.y);\n");
+      EmitSourceDepth("ps = max(src0.x, src0.y);\n");
       break;
 
     // mins dest, src0.ab
     case AluScalarOpcode::kMins:
-      EmitSourceDepth("ps = min(src0.x, src1.y);\n");
+      EmitSourceDepth("ps = min(src0.x, src0.y);\n");
       break;
 
     // seqs dest, src0.a
@@ -1023,52 +1045,52 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
 
     // exp dest, src0.a
     case AluScalarOpcode::kExp:
-      EmitSourceDepth("ps = src0.x == 0.0 ? 1.0 : exp2(src0.x);\n");
+      EmitSourceDepth("ps = exp2(src0.x);\n");
       break;
 
     // logc dest, src0.a
     case AluScalarOpcode::kLogc:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 0.0 : log2(src0.x);\n");
+      EmitSourceDepth("ps = log2(src0.x);\n");
       EmitSourceDepth("ps = isinf(ps) ? -FLT_MAX : ps;\n");
       break;
 
     // log dest, src0.a
     case AluScalarOpcode::kLog:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 0.0 : log2(src0.x);\n");
+      EmitSourceDepth("ps = log2(src0.x);\n");
       break;
 
     // rcpc dest, src0.a
     case AluScalarOpcode::kRcpc:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 1.0 : 1.0 / src0.x;\n");
+      EmitSourceDepth("ps = 1.0 / src0.x;\n");
       EmitSourceDepth("if (isinf(ps)) ps = FLT_MAX;\n");
       break;
 
     // rcpf dest, src0.a
     case AluScalarOpcode::kRcpf:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 1.0 : 1.0 / src0.x;\n");
+      EmitSourceDepth("ps = 1.0 / src0.x;\n");
       EmitSourceDepth("if (isinf(ps)) ps = 0.0;\n");
       break;
 
     // rcp dest, src0.a
     case AluScalarOpcode::kRcp:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 1.0 : 1.0 / src0.x;\n");
+      EmitSourceDepth("ps = 1.0 / src0.x;\n");
       break;
 
     // rsqc dest, src0.a
     case AluScalarOpcode::kRsqc:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 1.0 : inversesqrt(src0.x);\n");
+      EmitSourceDepth("ps = inversesqrt(src0.x);\n");
       EmitSourceDepth("if (isinf(ps)) ps = FLT_MAX;\n");
       break;
 
     // rsqc dest, src0.a
     case AluScalarOpcode::kRsqf:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 1.0 : inversesqrt(src0.x);\n");
+      EmitSourceDepth("ps = inversesqrt(src0.x);\n");
       EmitSourceDepth("if (isinf(ps)) ps = 0.0;\n");
       break;
 
     // rsq dest, src0.a
     case AluScalarOpcode::kRsq:
-      EmitSourceDepth("ps = src0.x == 1.0 ? 1.0 : inversesqrt(src0.x);\n");
+      EmitSourceDepth("ps = inversesqrt(src0.x);\n");
       break;
 
     // maxas dest, src0.ab
@@ -1145,7 +1167,7 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
       EmitSourceDepth("  ps = 0.0;\n");
       EmitSourceDepth("  p0 = true;\n");
       EmitSourceDepth("} else {\n");
-      EmitSourceDepth("  ps = src0.x == 0.0 ? 1.0 : src1.x;\n");
+      EmitSourceDepth("  ps = src0.x == 0.0 ? 1.0 : src0.x;\n");
       EmitSourceDepth("  p0 = false;\n");
       EmitSourceDepth("}\n");
       break;
@@ -1169,13 +1191,8 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
 
     // setp_rstr dest, src0.a
     case AluScalarOpcode::kSetpRstr:
-      EmitSourceDepth("if (src0.x == 0.0) {\n");
-      EmitSourceDepth("  ps = 0.0;\n");
-      EmitSourceDepth("  p0 = true;\n");
-      EmitSourceDepth("} else {\n");
-      EmitSourceDepth("  ps = src0.x;\n");
-      EmitSourceDepth("  p0 = false;\n");
-      EmitSourceDepth("}\n");
+      EmitSourceDepth("ps = src0.x;\n");
+      EmitSourceDepth("p0 = src0.x == 0.0 ? true : false;\n");
       break;
 
     // kills_eq dest, src0.a
