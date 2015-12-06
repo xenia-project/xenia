@@ -411,9 +411,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     // FIXME: This assumes the object contains a dispatch header (some don't!)
     StashHandle(header, object->handle());
 
-    // NOTE: we are double-retaining, as the object is implicitly created and
-    // can never be released.
-    return retain_object<XObject>(object);
+    return object_ref<XObject>(object);
   }
 }
 
