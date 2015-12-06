@@ -406,9 +406,9 @@ void Processor::LowerIrql(Irql old_value) {
 void Processor::BreakpointFunctionDefined(Function* function) {
   std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
 
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
-    if (function->ContainsAddress((*it)->address())) {
-      backend_->InstallBreakpoint(*it, function);
+  for (auto bp : breakpoints_) {
+    if (function->ContainsAddress(bp->address())) {
+      backend_->InstallBreakpoint(bp, function);
     }
   }
 }
@@ -463,9 +463,9 @@ bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
 Breakpoint* Processor::FindBreakpoint(uint32_t address) {
   std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
 
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
-    if ((*it)->address() == address) {
-      return *it;
+  for (auto bp : breakpoints_) {
+    if (bp->address() == address) {
+      return bp;
     }
   }
 
