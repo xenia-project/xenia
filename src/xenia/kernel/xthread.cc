@@ -825,7 +825,6 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
       // FIXME: This won't work on non-conditional conditional branches.
       XELOGE("XThread: Could not install breakpoint to step forward!");
       assert_always();
-      return 0;
     }
 
     uint32_t nia = 0;
@@ -974,6 +973,7 @@ uint32_t XThread::StepToSafePoint() {
 struct ThreadSavedState {
   uint32_t thread_id;
   bool main_thread;
+  uint32_t apc_head;
   uint32_t tls_address;
   uint32_t pcr_address;
   uint32_t stack_base;        // High address
@@ -1021,6 +1021,7 @@ bool XThread::Save(ByteStream* stream) {
   ThreadSavedState state;
   state.thread_id = thread_id_;
   state.main_thread = main_thread_;
+  state.apc_head = apc_list_.head();
   state.tls_address = tls_address_;
   state.pcr_address = pcr_address_;
   state.stack_base = stack_base_;
@@ -1076,12 +1077,15 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   stream->Read(&state, sizeof(ThreadSavedState));
   thread->thread_id_ = state.thread_id;
   thread->main_thread_ = state.main_thread;
+  thread->apc_list_.set_head(state.apc_head);
   thread->tls_address_ = state.tls_address;
   thread->pcr_address_ = state.pcr_address;
   thread->stack_base_ = state.stack_base;
   thread->stack_limit_ = state.stack_limit;
   thread->stack_alloc_base_ = state.stack_alloc_base;
   thread->stack_alloc_size_ = state.stack_alloc_size;
+
+  thread->apc_list_.set_memory(kernel_state->memory());
 
   // Register now that we know our thread ID.
   kernel_state->RegisterThread(thread);

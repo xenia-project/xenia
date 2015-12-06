@@ -38,6 +38,11 @@ class NativeList {
   uint32_t Shift();
   bool HasPending();
 
+  uint32_t head() const { return head_; }
+  void set_head(uint32_t head) { head_ = head; }
+
+  void set_memory(Memory* mem) { memory_ = mem; }
+
  private:
   const uint32_t kInvalidPointer = 0xE0FE0FFF;
 
