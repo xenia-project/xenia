@@ -34,10 +34,11 @@ XObject::XObject(Type type)
 
 XObject::XObject(KernelState* kernel_state, Type type)
     : kernel_state_(kernel_state),
+      type_(type),
       pointer_ref_count_(1),
       guest_object_ptr_(0),
       allocated_guest_object_(false) {
-  XObject::XObject(type);
+  handles_.reserve(10);
 
   // TODO: Assert kernel_state != nullptr in this constructor.
   if (kernel_state) {
