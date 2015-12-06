@@ -87,6 +87,10 @@ class UserModule : public XModule {
 
   void Dump();
 
+  bool Save(ByteStream* stream) override;
+  static object_ref<UserModule> Restore(KernelState* kernel_state,
+                                        ByteStream* stream, std::string path);
+
  private:
   uint32_t guest_xex_header_ = 0;
   ModuleFormat module_format_ = kModuleFormatUndefined;

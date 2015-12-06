@@ -19,6 +19,7 @@
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xfile.h"
+#include "xenia/kernel/xmodule.h"
 #include "xenia/kernel/xmutant.h"
 #include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xthread.h"
@@ -129,7 +130,7 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
     case kTypeIOCompletion:
       break;
     case kTypeModule:
-      break;
+      return XModule::Restore(kernel_state, stream);
     case kTypeMutant:
       break;
     case kTypeNotifyListener:
