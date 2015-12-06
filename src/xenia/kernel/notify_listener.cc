@@ -17,9 +17,7 @@ namespace kernel {
 NotifyListener::NotifyListener(KernelState* kernel_state)
     : XObject(kernel_state, kTypeNotifyListener) {}
 
-NotifyListener::~NotifyListener() {
-  kernel_state_->UnregisterNotifyListener(this);
-}
+NotifyListener::~NotifyListener() {}
 
 void NotifyListener::Initialize(uint64_t mask) {
   assert_false(wait_handle_);
