@@ -304,6 +304,38 @@ object_ref<XThread> UserModule::Launch(uint32_t flags) {
   return thread;
 }
 
+bool UserModule::Save(ByteStream* stream) {
+  if (!XModule::Save(stream)) {
+    return false;
+  }
+
+  // A lot of the information stored on this class can be reconstructed at
+  // runtime.
+
+  return true;
+}
+
+object_ref<UserModule> UserModule::Restore(KernelState* kernel_state,
+                                           ByteStream* stream,
+                                           std::string path) {
+  auto module = new UserModule(kernel_state, path.c_str());
+
+  // XModule::Save took care of this earlier...
+  // TODO: Find a nicer way to represent that here.
+  if (!module->RestoreObject(stream)) {
+    return false;
+  }
+
+  auto result = module->LoadFromFile(path);
+  if (XFAILED(result)) {
+    XELOGD("UserModule::Restore LoadFromFile(%s) FAILED - code %.8X",
+           path.c_str(), result);
+    return false;
+  }
+
+  return object_ref<UserModule>(module);
+}
+
 void UserModule::Dump() {
   if (module_format_ == kModuleFormatElf) {
     // Quick die.

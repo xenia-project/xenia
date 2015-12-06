@@ -9,8 +9,10 @@
 
 #include "xenia/kernel/xmodule.h"
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 
 namespace xe {
 namespace kernel {
@@ -22,19 +24,7 @@ XModule::XModule(KernelState* kernel_state, ModuleType module_type,
       path_(path),
       processor_module_(nullptr),
       hmodule_ptr_(0) {
-  auto last_slash = path.find_last_of('/');
-  if (last_slash == path.npos) {
-    last_slash = path.find_last_of('\\');
-  }
-  if (last_slash == path.npos) {
-    name_ = path_;
-  } else {
-    name_ = path_.substr(last_slash + 1);
-  }
-  auto dot = name_.find_last_of('.');
-  if (dot != name_.npos) {
-    name_ = name_.substr(0, dot);
-  }
+  name_ = NameFromPath(path);
 
   // Loader data (HMODULE)
   hmodule_ptr_ = memory()->SystemHeapAlloc(sizeof(X_LDR_DATA_TABLE_ENTRY));
@@ -84,6 +74,55 @@ object_ref<XModule> XModule::GetFromHModule(KernelState* kernel_state,
 uint32_t XModule::GetHandleFromHModule(void* hmodule) {
   auto ldr_data = reinterpret_cast<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
   return ldr_data->checksum;
+}
+
+std::string XModule::NameFromPath(std::string path) {
+  std::string name;
+  auto last_slash = path.find_last_of('/');
+  if (last_slash == path.npos) {
+    last_slash = path.find_last_of('\\');
+  }
+  if (last_slash == path.npos) {
+    name = path;
+  } else {
+    name = path.substr(last_slash + 1);
+  }
+  auto dot = name.find_last_of('.');
+  if (dot != name.npos) {
+    name = name.substr(0, dot);
+  }
+
+  return name;
+}
+
+bool XModule::Save(ByteStream* stream) {
+  stream->Write('XMOD');
+
+  stream->Write(path_);
+  stream->Write(hmodule_ptr_);
+
+  if (!SaveObject(stream)) {
+    return false;
+  }
+
+  return true;
+}
+
+object_ref<XModule> XModule::Restore(KernelState* kernel_state,
+                                     ByteStream* stream) {
+  if (stream->Read<uint32_t>() != 'XMOD') {
+    return false;
+  }
+
+  auto path = stream->Read<std::string>();
+  auto hmodule_ptr = stream->Read<uint32_t>();
+
+  // Can only save user modules at the moment, so just redirect.
+  // TODO: Find a way to call RestoreObject here before UserModule::Restore.
+  auto module = UserModule::Restore(kernel_state, stream, path);
+
+  module->hmodule_ptr_ = hmodule_ptr;
+  return module;
 }
 
 }  // namespace kernel

@@ -80,9 +80,13 @@ class XModule : public XObject {
                                             void* hmodule);
   static uint32_t GetHandleFromHModule(void* hmodule);
 
+  virtual bool Save(ByteStream* stream) override;
+  static object_ref<XModule> Restore(KernelState* kernel_state, ByteStream* stream);
+
  protected:
   void OnLoad();
   void OnUnload();
+  static std::string NameFromPath(std::string path);
 
   ModuleType module_type_;
   std::string name_;
