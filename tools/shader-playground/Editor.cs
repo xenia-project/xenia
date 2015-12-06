@@ -361,25 +361,23 @@ namespace shader_playground {
                        (shaderCode[6] << 8) | (shaderCode[7] << 0);
       int wordOffset = byteOffset / 4;
 
-      uint[] swappedCode = new uint[(shaderCode.Length - wordOffset) / sizeof(uint)];
-      Buffer.BlockCopy(shaderCode, wordOffset * 4, swappedCode, 0, shaderCode.Length - wordOffset * 4);
-      for (int i = 0; i < swappedCode.Length; ++i) {
-        swappedCode[i] = SwapBytes(swappedCode[i]);
-      }
+      uint[] shaderDwords = new uint[(shaderCode.Length - wordOffset) / sizeof(uint)];
+      Buffer.BlockCopy(shaderCode, wordOffset * 4, shaderDwords, 0, shaderCode.Length - wordOffset * 4);
+
       var sb = new StringBuilder();
       sb.Append("const uint32_t shader_dwords[] = {");
-      for (int i = 0; i < swappedCode.Length; ++i) {
-        sb.AppendFormat("0x{0:X8}, ", swappedCode[i]);
+      for (int i = 0; i < shaderDwords.Length; ++i) {
+        sb.AppendFormat("0x{0:X8}, ", SwapByte(shaderDwords[i]));
       }
       sb.Append("};" + Environment.NewLine);
       sb.Append("shader_type = ShaderType::" + (shaderType == "vs" ? "kVertex" : "kPixel") + ";" + Environment.NewLine);
       UpdateTextBox(wordsTextBox, sb.ToString(), true);
       wordsTextBox.SelectAll();
 
-      return swappedCode;
+      return shaderDwords;
     }
 
-    uint SwapBytes(uint x) {
+    uint SwapByte(uint x) {
       return ((x & 0x000000ff) << 24) +
              ((x & 0x0000ff00) << 8) +
              ((x & 0x00ff0000) >> 8) +

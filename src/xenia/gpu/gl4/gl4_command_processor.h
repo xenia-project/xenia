@@ -123,8 +123,7 @@ class GL4CommandProcessor : public CommandProcessor {
   UpdateStatus PopulateIndexBuffer(IndexBufferInfo* index_buffer_info);
   UpdateStatus PopulateVertexBuffers();
   UpdateStatus PopulateSamplers();
-  UpdateStatus PopulateSampler(
-      const TranslatedShader::TextureBinding& texture_binding);
+  UpdateStatus PopulateSampler(const Shader::TextureBinding& texture_binding);
   bool IssueCopy() override;
 
   CachedFramebuffer* GetFramebuffer(GLuint color_targets[4],

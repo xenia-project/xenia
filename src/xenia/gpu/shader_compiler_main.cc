@@ -79,6 +79,11 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
          shader_type == ShaderType::kVertex ? "vertex" : "pixel",
          ucode_dwords.size(), ucode_dwords.size() * 4);
 
+  // TODO(benvanik): hash? need to return the data to big-endian format first.
+  uint64_t ucode_data_hash = 0;
+  auto shader = std::make_unique<Shader>(
+      shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
+
   std::unique_ptr<ShaderTranslator> translator;
   if (FLAGS_shader_output_type == "spirv" ||
       FLAGS_shader_output_type == "spirvtext") {
@@ -90,13 +95,10 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
 
-  // TODO(benvanik): hash? need to return the data to big-endian format first.
-  uint64_t ucode_data_hash = 0;
-  auto translated_shader = translator->Translate(
-      shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
+  translator->Translate(shader.get());
 
-  const void* source_data = translated_shader->binary().data();
-  size_t source_data_size = translated_shader->binary().size();
+  const void* source_data = shader->translated_binary().data();
+  size_t source_data_size = shader->translated_binary().size();
 
   std::unique_ptr<xe::ui::spirv::SpirvDisassembler::Result> spirv_disasm_result;
   if (FLAGS_shader_output_type == "spirvtext") {

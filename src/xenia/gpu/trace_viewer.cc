@@ -486,11 +486,11 @@ void TraceViewer::DrawShaderUI(Shader* shader, ShaderDisplayType display_type) {
 
   switch (display_type) {
     case ShaderDisplayType::kUcode: {
-      DrawMultilineString(shader->translated_shader()->ucode_disassembly());
+      DrawMultilineString(shader->ucode_disassembly());
       break;
     }
     case ShaderDisplayType::kTranslated: {
-      const auto& str = shader->translated_shader()->GetBinaryString();
+      const auto& str = shader->GetTranslatedBinaryString();
       size_t i = 0;
       bool done = false;
       while (!done && i < str.size()) {
@@ -567,7 +567,7 @@ void TraceViewer::DrawBlendMode(uint32_t src_blend, uint32_t dest_blend,
 }
 
 void TraceViewer::DrawTextureInfo(
-    const TranslatedShader::TextureBinding& texture_binding) {
+    const Shader::TextureBinding& texture_binding) {
   auto& regs = *graphics_system_->register_file();
 
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
@@ -633,15 +633,14 @@ void TraceViewer::DrawTextureInfo(
 }
 
 void TraceViewer::DrawFailedTextureInfo(
-    const TranslatedShader::TextureBinding& texture_binding,
-    const char* message) {
+    const Shader::TextureBinding& texture_binding, const char* message) {
   // TODO(benvanik): better error info/etc.
   ImGui::TextColored(kColorError, "ERROR: %s", message);
 }
 
-void TraceViewer::DrawVertexFetcher(
-    Shader* shader, const TranslatedShader::VertexBinding& vertex_binding,
-    const xe_gpu_vertex_fetch_t* fetch) {
+void TraceViewer::DrawVertexFetcher(Shader* shader,
+                                    const Shader::VertexBinding& vertex_binding,
+                                    const xe_gpu_vertex_fetch_t* fetch) {
   const uint8_t* addr = memory_->TranslatePhysical(fetch->address << 2);
   uint32_t vertex_count = (fetch->size * 4) / vertex_binding.stride_words;
   int column_count = 0;
@@ -1411,9 +1410,7 @@ void TraceViewer::DrawStateUI() {
   if (ImGui::CollapsingHeader("Vertex Buffers")) {
     auto shader = command_processor->active_vertex_shader();
     if (shader) {
-      const auto& vertex_bindings =
-          shader->translated_shader()->vertex_bindings();
-      for (const auto& vertex_binding : vertex_bindings) {
+      for (const auto& vertex_binding : shader->vertex_bindings()) {
         int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
                 (vertex_binding.fetch_constant / 3) * 6;
         const auto group =
@@ -1451,8 +1448,7 @@ void TraceViewer::DrawStateUI() {
   if (ImGui::CollapsingHeader("Vertex Textures")) {
     auto shader = command_processor->active_vertex_shader();
     if (shader) {
-      const auto& texture_bindings =
-          shader->translated_shader()->texture_bindings();
+      const auto& texture_bindings = shader->texture_bindings();
       if (!texture_bindings.empty()) {
         for (const auto& texture_binding : texture_bindings) {
           DrawTextureInfo(texture_binding);
@@ -1467,8 +1463,7 @@ void TraceViewer::DrawStateUI() {
   if (ImGui::CollapsingHeader("Textures")) {
     auto shader = command_processor->active_pixel_shader();
     if (shader) {
-      const auto& texture_bindings =
-          shader->translated_shader()->texture_bindings();
+      const auto& texture_bindings = shader->texture_bindings();
       if (!texture_bindings.empty()) {
         for (const auto& texture_binding : texture_bindings) {
           DrawTextureInfo(texture_binding);

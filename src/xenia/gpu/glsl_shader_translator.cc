@@ -90,8 +90,7 @@ void GlslShaderTranslator::StartTranslation() {
   // Tons of boilerplate for shaders, here.
   // We have a large amount of shared state defining uniforms and some common
   // utility functions used in both vertex and pixel shaders.
-  EmitSource(R"(
-#version 450
+  EmitSource(R"(#version 450
 #extension all : warn
 #extension GL_ARB_bindless_texture : require
 #extension GL_ARB_explicit_uniform_location : require

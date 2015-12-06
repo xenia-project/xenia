@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_SAMPLER_INFO_H_
 #define XENIA_GPU_SAMPLER_INFO_H_
 
-#include "xenia/gpu/shader_translator.h"
+#include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {

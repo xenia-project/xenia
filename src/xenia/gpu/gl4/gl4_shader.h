@@ -13,7 +13,6 @@
 #include <string>
 
 #include "xenia/gpu/shader.h"
-#include "xenia/gpu/shader_translator.h"
 #include "xenia/ui/gl/gl_context.h"
 
 namespace xe {
@@ -29,7 +28,7 @@ class GL4Shader : public Shader {
   GLuint program() const { return program_; }
   GLuint vao() const { return vao_; }
 
-  bool Prepare(ShaderTranslator* shader_translator);
+  bool Prepare() override;
 
  protected:
   bool PrepareVertexArrayObject();

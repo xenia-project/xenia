@@ -491,12 +491,21 @@ Shader* GL4CommandProcessor::LoadShader(ShaderType shader_type,
 
     // Perform translation.
     // If this fails the shader will be marked as invalid and ignored later.
-    shader_ptr->Prepare(&shader_translator_);
+    if (shader_translator_.Translate(shader_ptr)) {
+      shader_ptr->Prepare();
+
+      // Dump shader files if desired.
+      if (!FLAGS_dump_shaders.empty()) {
+        shader_ptr->Dump(FLAGS_dump_shaders, "gl4");
+      }
+    } else {
+      XELOGE("Shader failed translation");
+    }
 
     XELOGGPU("Set %s shader at %0.8X (%db):\n%s",
              shader_type == ShaderType::kVertex ? "vertex" : "pixel",
              guest_address, dword_count * 4,
-             shader_ptr->translated_shader()->ucode_disassembly().c_str());
+             shader_ptr->ucode_disassembly().c_str());
   }
   return shader_ptr;
 }
@@ -779,7 +788,6 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRenderTargets() {
   // Note that write mask may be more permissive than we want, so we mix that
   // with the actual targets the pixel shader writes to.
   GLenum draw_buffers[4] = {GL_NONE, GL_NONE, GL_NONE, GL_NONE};
-  auto pixel_shader = active_pixel_shader_->translated_shader();
   GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   if (enable_mode == ModeControl::kColorDepth) {
     uint32_t color_info[4] = {
@@ -789,7 +797,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRenderTargets() {
     // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
     for (int n = 0; n < xe::countof(color_info); n++) {
       uint32_t write_mask = (regs.rb_color_mask >> (n * 4)) & 0xF;
-      if (!write_mask || !pixel_shader->writes_color_target(n)) {
+      if (!write_mask || !active_pixel_shader_->writes_color_target(n)) {
         // Unused, so keep disabled and set to wildcard so we'll take any
         // framebuffer that has it.
         continue;
@@ -1362,9 +1370,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
   auto& regs = *register_file_;
   assert_not_null(active_vertex_shader_);
 
-  const auto& vertex_bindings =
-      active_vertex_shader_->translated_shader()->vertex_bindings();
-  for (const auto& vertex_binding : vertex_bindings) {
+  for (const auto& vertex_binding : active_vertex_shader_->vertex_bindings()) {
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
             (vertex_binding.fetch_constant / 3) * 6;
     const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
@@ -1434,9 +1440,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSamplers() {
   bool has_setup_sampler[32] = {false};
 
   // Vertex texture samplers.
-  const auto& vertex_sampler_inputs =
-      active_vertex_shader_->translated_shader()->texture_bindings();
-  for (auto& texture_binding : vertex_sampler_inputs) {
+  for (auto& texture_binding : active_vertex_shader_->texture_bindings()) {
     if (has_setup_sampler[texture_binding.fetch_constant]) {
       continue;
     }
@@ -1450,9 +1454,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSamplers() {
   }
 
   // Pixel shader texture sampler.
-  const auto& pixel_sampler_inputs =
-      active_pixel_shader_->translated_shader()->texture_bindings();
-  for (auto& texture_binding : pixel_sampler_inputs) {
+  for (auto& texture_binding : active_pixel_shader_->texture_bindings()) {
     if (has_setup_sampler[texture_binding.fetch_constant]) {
       continue;
     }
@@ -1469,7 +1471,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSamplers() {
 }
 
 GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSampler(
-    const TranslatedShader::TextureBinding& texture_binding) {
+    const Shader::TextureBinding& texture_binding) {
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
           texture_binding.fetch_constant * 6;

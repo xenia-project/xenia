@@ -40,36 +40,6 @@ using namespace ucode;
 // Lots of naming comes from the disassembly spit out by the XNA GS compiler
 // and dumps of d3dcompiler and games: http://pastebin.com/i4kAv7bB
 
-TranslatedShader::TranslatedShader(ShaderType shader_type,
-                                   uint64_t ucode_data_hash,
-                                   const uint32_t* ucode_dwords,
-                                   size_t ucode_dword_count,
-                                   std::vector<Error> errors)
-    : shader_type_(shader_type),
-      ucode_data_hash_(ucode_data_hash),
-      errors_(std::move(errors)) {
-  ucode_data_.resize(ucode_dword_count);
-  std::memcpy(ucode_data_.data(), ucode_dwords,
-              ucode_dword_count * sizeof(uint32_t));
-
-  is_valid_ = true;
-  for (const auto& error : errors_) {
-    if (error.is_fatal) {
-      is_valid_ = false;
-      break;
-    }
-  }
-}
-
-TranslatedShader::~TranslatedShader() = default;
-
-std::string TranslatedShader::GetBinaryString() const {
-  std::string result;
-  result.resize(binary_.size());
-  std::memcpy(const_cast<char*>(result.data()), binary_.data(), binary_.size());
-  return result;
-}
-
 ShaderTranslator::ShaderTranslator() = default;
 
 ShaderTranslator::~ShaderTranslator() = default;
@@ -87,14 +57,12 @@ void ShaderTranslator::Reset() {
   }
 }
 
-std::unique_ptr<TranslatedShader> ShaderTranslator::Translate(
-    ShaderType shader_type, uint64_t ucode_data_hash,
-    const uint32_t* ucode_dwords, size_t ucode_dword_count) {
+bool ShaderTranslator::Translate(Shader* shader) {
   Reset();
 
-  shader_type_ = shader_type;
-  ucode_dwords_ = ucode_dwords;
-  ucode_dword_count_ = ucode_dword_count;
+  shader_type_ = shader->type();
+  ucode_dwords_ = shader->ucode_dwords();
+  ucode_dword_count_ = shader->ucode_dword_count();
 
   // Run through and gather all binding information.
   // Translators may need this before they start codegen.
@@ -119,17 +87,24 @@ std::unique_ptr<TranslatedShader> ShaderTranslator::Translate(
 
   TranslateBlocks();
 
-  std::unique_ptr<TranslatedShader> translated_shader(
-      new TranslatedShader(shader_type, ucode_data_hash, ucode_dwords,
-                           ucode_dword_count, std::move(errors_)));
-  translated_shader->binary_ = CompleteTranslation();
-  translated_shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
-  translated_shader->vertex_bindings_ = std::move(vertex_bindings_);
-  translated_shader->texture_bindings_ = std::move(texture_bindings_);
+  shader->errors_ = std::move(errors_);
+  shader->translated_binary_ = CompleteTranslation();
+  shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
+  shader->vertex_bindings_ = std::move(vertex_bindings_);
+  shader->texture_bindings_ = std::move(texture_bindings_);
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
-    translated_shader->writes_color_targets_[i] = writes_color_targets_[i];
+    shader->writes_color_targets_[i] = writes_color_targets_[i];
   }
-  return translated_shader;
+
+  shader->is_valid_ = true;
+  for (const auto& error : shader->errors_) {
+    if (error.is_fatal) {
+      shader->is_valid_ = false;
+      break;
+    }
+  }
+
+  return shader->is_valid_;
 }
 
 void ShaderTranslator::MarkUcodeInstruction(uint32_t dword_offset) {
@@ -159,7 +134,7 @@ void ShaderTranslator::AppendUcodeDisasmFormat(const char* format, ...) {
 }
 
 void ShaderTranslator::EmitTranslationError(const char* message) {
-  TranslatedShader::Error error;
+  Shader::Error error;
   error.is_fatal = true;
   error.message = message;
   // TODO(benvanik): location information.
@@ -167,7 +142,7 @@ void ShaderTranslator::EmitTranslationError(const char* message) {
 }
 
 void ShaderTranslator::EmitUnimplementedTranslationError() {
-  TranslatedShader::Error error;
+  Shader::Error error;
   error.is_fatal = true;
   error.message = "Unimplemented translation";
   // TODO(benvanik): location information.
@@ -195,6 +170,7 @@ void ShaderTranslator::GatherBindingInformation(
           auto fetch_opcode =
               static_cast<FetchOpcode>(ucode_dwords_[instr_offset * 3] & 0x1F);
           if (fetch_opcode == FetchOpcode::kVertexFetch) {
+            assert_true(is_vertex_shader());
             GatherVertexBindingInformation(
                 *reinterpret_cast<const VertexFetchInstruction*>(
                     ucode_dwords_ + instr_offset * 3));
@@ -231,7 +207,7 @@ void ShaderTranslator::GatherVertexBindingInformation(
 
   // Try to allocate an attribute on an existing binding.
   // If no binding for this fetch slot is found create it.
-  using VertexBinding = TranslatedShader::VertexBinding;
+  using VertexBinding = Shader::VertexBinding;
   VertexBinding::Attribute* attrib = nullptr;
   for (auto& vertex_binding : vertex_bindings_) {
     if (vertex_binding.fetch_constant == op.fetch_constant_index()) {
@@ -244,7 +220,7 @@ void ShaderTranslator::GatherVertexBindingInformation(
   }
   if (!attrib) {
     assert_not_zero(op.stride());
-    TranslatedShader::VertexBinding vertex_binding;
+    VertexBinding vertex_binding;
     vertex_binding.binding_index = static_cast<int>(vertex_bindings_.size());
     vertex_binding.fetch_constant = op.fetch_constant_index();
     vertex_binding.stride_words = op.stride();
@@ -269,7 +245,7 @@ void ShaderTranslator::GatherTextureBindingInformation(
       // Doesn't use bindings.
       return;
   }
-  TranslatedShader::TextureBinding binding;
+  Shader::TextureBinding binding;
   binding.binding_index = texture_bindings_.size();
   ParseTextureFetchInstruction(op, &binding.fetch_instr);
   binding.fetch_constant = binding.fetch_instr.operands[1].storage_index;
