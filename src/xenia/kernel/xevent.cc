@@ -116,7 +116,6 @@ object_ref<XEvent> XEvent::Restore(KernelState* kernel_state,
     evt->event_->Set();
   }
 
-  evt->Retain();
   return object_ref<XEvent>(evt);
 }
 
