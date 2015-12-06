@@ -46,7 +46,7 @@ Built separately (for now) under [tools/shader-playground/](https://github.com/b
 is a GUI for interactive shader assembly, disassembly, validation, and
 translation.
 
-TODO(benvanik): screen shot.
+![Shader Playground Screenshot](images/shader_playground.png?raw=true)
 
 Entering shader microcode on the left will invoke the XNA Game Studio
 D3D compiler to translate the ucode to binary. The D3D compiler is then
