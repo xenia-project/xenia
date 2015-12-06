@@ -258,9 +258,11 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
 }
 DECLARE_XAM_EXPORT(NetDll_WSARecvFrom, ExportTag::kNetworking);
 
-dword_result_t NetDll_WSAWaitForMultipleEvents(
-    dword_t num_events, pointer_t<xe::be<uint32_t>> events, dword_t wait_all,
-    dword_t timeout, dword_t alertable) {
+dword_result_t NetDll_WSAWaitForMultipleEvents(dword_t num_events,
+                                               lpdword_t events,
+                                               dword_t wait_all,
+                                               dword_t timeout,
+                                               dword_t alertable) {
   if (num_events > 64) {
     XThread::GetCurrentThread()->set_last_error(87);  // ERROR_INVALID_PARAMETER
     return ~0u;
