@@ -347,6 +347,8 @@ bool Emulator::SaveToFile(const std::wstring& path) {
   ByteStream stream(map->data(), map->size());
   stream.Write('XSAV');
 
+  // It's important we don't hold the global lock here! XThreads need to step
+  // forward (possibly through guarded regions) without worry!
   kernel_state_->Save(&stream);
   memory_->Save(&stream);
   map->Close(stream.offset());
@@ -356,6 +358,8 @@ bool Emulator::SaveToFile(const std::wstring& path) {
 }
 
 bool Emulator::RestoreFromFile(const std::wstring& path) {
+  auto lock = global_critical_region::AcquireDirect();
+
   // Restore the emulator state from a file
   auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite);
   if (!map) {
