@@ -40,6 +40,8 @@ class GlslShaderTranslator : public ShaderTranslator {
 
   void ProcessLabel(uint32_t cf_index) override;
   void ProcessControlFlowNopInstruction() override;
+  void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
+  void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
   void ProcessLoopStartInstruction(
@@ -70,6 +72,7 @@ class GlslShaderTranslator : public ShaderTranslator {
   StringBuffer source_;
   int depth_ = 0;
   char depth_prefix_[16] = {0};
+  bool cf_wrote_pc_ = false;
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);

@@ -303,22 +303,28 @@ bool ShaderTranslator::TranslateBlocks() {
     ControlFlowInstruction cf_b;
     UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
 
+    cf_index_ = cf_index;
     MarkUcodeInstruction(i);
     if (label_addresses.count(cf_index)) {
       AppendUcodeDisasmFormat("                label L%u\n", cf_index);
       ProcessLabel(cf_index);
     }
     AppendUcodeDisasmFormat("/* %4u.0 */ ", cf_index / 2);
+    ProcessControlFlowInstructionBegin(cf_index);
     TranslateControlFlowInstruction(cf_a);
+    ProcessControlFlowInstructionEnd(cf_index);
     ++cf_index;
 
+    cf_index_ = cf_index;
     MarkUcodeInstruction(i);
     if (label_addresses.count(cf_index)) {
       AppendUcodeDisasmFormat("                label L%u\n", cf_index);
       ProcessLabel(cf_index);
     }
     AppendUcodeDisasmFormat("/* %4u.1 */ ", cf_index / 2);
+    ProcessControlFlowInstructionBegin(cf_index);
     TranslateControlFlowInstruction(cf_b);
+    ProcessControlFlowInstructionEnd(cf_index);
     ++cf_index;
   }
 
@@ -399,12 +405,13 @@ void ShaderTranslator::TranslateControlFlowNop(
 void ShaderTranslator::TranslateControlFlowExec(
     const ControlFlowExecInstruction& cf) {
   ParsedExecInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.opcode = cf.opcode();
   i.opcode_name = cf.opcode() == ControlFlowOpcode::kExecEnd ? "exece" : "exec";
   i.instruction_address = cf.address();
   i.instruction_count = cf.count();
   i.type = ParsedExecInstruction::Type::kUnconditional;
+  i.is_end = cf.opcode() == ControlFlowOpcode::kExecEnd;
   i.clean = cf.clean();
   i.is_yield = cf.is_yield();
   i.sequence = cf.sequence();
@@ -415,13 +422,14 @@ void ShaderTranslator::TranslateControlFlowExec(
 void ShaderTranslator::TranslateControlFlowCondExec(
     const ControlFlowCondExecInstruction& cf) {
   ParsedExecInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.opcode = cf.opcode();
   i.opcode_name = "cexec";
   switch (cf.opcode()) {
     case ControlFlowOpcode::kCondExecEnd:
     case ControlFlowOpcode::kCondExecPredCleanEnd:
       i.opcode_name = "cexece";
+      i.is_end = true;
       break;
   }
   i.instruction_address = cf.address();
@@ -444,7 +452,7 @@ void ShaderTranslator::TranslateControlFlowCondExec(
 void ShaderTranslator::TranslateControlFlowCondExecPred(
     const ControlFlowCondExecPredInstruction& cf) {
   ParsedExecInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.opcode = cf.opcode();
   i.opcode_name =
       cf.opcode() == ControlFlowOpcode::kCondExecPredEnd ? "exece" : "exec";
@@ -452,6 +460,7 @@ void ShaderTranslator::TranslateControlFlowCondExecPred(
   i.instruction_count = cf.count();
   i.type = ParsedExecInstruction::Type::kPredicated;
   i.condition = cf.condition();
+  i.is_end = cf.opcode() == ControlFlowOpcode::kCondExecPredEnd;
   i.clean = cf.clean();
   i.is_yield = cf.is_yield();
   i.sequence = cf.sequence();
@@ -462,7 +471,7 @@ void ShaderTranslator::TranslateControlFlowCondExecPred(
 void ShaderTranslator::TranslateControlFlowLoopStart(
     const ControlFlowLoopStartInstruction& cf) {
   ParsedLoopStartInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.loop_constant_index = cf.loop_id();
   i.is_repeat = cf.is_repeat();
   i.loop_skip_address = cf.address();
@@ -475,7 +484,7 @@ void ShaderTranslator::TranslateControlFlowLoopStart(
 void ShaderTranslator::TranslateControlFlowLoopEnd(
     const ControlFlowLoopEndInstruction& cf) {
   ParsedLoopEndInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.is_predicated_break = cf.is_predicated_break();
   i.predicate_condition = cf.condition();
   i.loop_constant_index = cf.loop_id();
@@ -489,7 +498,7 @@ void ShaderTranslator::TranslateControlFlowLoopEnd(
 void ShaderTranslator::TranslateControlFlowCondCall(
     const ControlFlowCondCallInstruction& cf) {
   ParsedCallInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.target_address = cf.address();
   if (cf.is_unconditional()) {
     i.type = ParsedCallInstruction::Type::kUnconditional;
@@ -510,7 +519,7 @@ void ShaderTranslator::TranslateControlFlowCondCall(
 void ShaderTranslator::TranslateControlFlowReturn(
     const ControlFlowReturnInstruction& cf) {
   ParsedReturnInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
 
   i.Disassemble(&ucode_disasm_buffer_);
 
@@ -520,7 +529,7 @@ void ShaderTranslator::TranslateControlFlowReturn(
 void ShaderTranslator::TranslateControlFlowCondJmp(
     const ControlFlowCondJmpInstruction& cf) {
   ParsedJumpInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.target_address = cf.address();
   if (cf.is_unconditional()) {
     i.type = ParsedJumpInstruction::Type::kUnconditional;
@@ -541,7 +550,7 @@ void ShaderTranslator::TranslateControlFlowCondJmp(
 void ShaderTranslator::TranslateControlFlowAlloc(
     const ControlFlowAllocInstruction& cf) {
   ParsedAllocInstruction i;
-  i.dword_index = 0;
+  i.dword_index = cf_index_;
   i.type = cf.alloc_type();
   i.count = cf.size();
   i.is_vertex_shader = is_vertex_shader();

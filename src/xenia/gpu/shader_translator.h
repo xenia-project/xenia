@@ -74,6 +74,11 @@ class ShaderTranslator {
 
   // Handles translation for control flow nop instructions.
   virtual void ProcessControlFlowNopInstruction() {}
+  // Handles the start of a control flow instruction at the given address.
+  virtual void ProcessControlFlowInstructionBegin(uint32_t cf_index) {}
+  // Handles the end of a control flow instruction that began at the given
+  // address.
+  virtual void ProcessControlFlowInstructionEnd(uint32_t cf_index) {}
   // Handles translation for control flow exec instructions prior to their
   // contained ALU/fetch instructions.
   virtual void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) {
@@ -165,6 +170,9 @@ class ShaderTranslator {
 
   // Accumulated translation errors.
   std::vector<Shader::Error> errors_;
+
+  // Current control flow dword index.
+  uint32_t cf_index_ = 0;
 
   // Microcode disassembly buffer, accumulated throughout the translation.
   StringBuffer ucode_disasm_buffer_;

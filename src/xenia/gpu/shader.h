@@ -195,6 +195,8 @@ struct ParsedExecInstruction {
   // Required condition value of the comparision (true or false).
   bool condition = false;
 
+  // Whether this exec ends the shader.
+  bool is_end = false;
   // Whether to reset the current predicate.
   bool clean = true;
   // ?

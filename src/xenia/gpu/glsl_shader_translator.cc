@@ -287,21 +287,48 @@ void main() {
   EmitSource("  vec4 src0;\n");
   EmitSource("  vec4 src1;\n");
   EmitSource("  vec4 src2;\n");
+
+  // Master loop and switch for flow control.
+  EmitSourceDepth("int pc = 0;\n");
+  EmitSourceDepth("while (pc != 0xFFFF) {\n");
+  Indent();
+  EmitSourceDepth("switch (pc) {\n");
 }
 
 std::vector<uint8_t> GlslShaderTranslator::CompleteTranslation() {
+  // End of master switch.
+  EmitSourceDepth("default: pc = 0xFFFF; break;\n");
+  EmitSourceDepth("};  // switch\n");
+  Unindent();
+  EmitSourceDepth("}  // while\n");
+
   // End of process*() function.
   EmitSource("}\n");
 
   return source_.ToBytes();
 }
 
-void GlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
-  EmitUnimplementedTranslationError();
-}
+void GlslShaderTranslator::ProcessLabel(uint32_t cf_index) {}
 
 void GlslShaderTranslator::ProcessControlFlowNopInstruction() {
   EmitSource("//        cnop\n");
+}
+
+void GlslShaderTranslator::ProcessControlFlowInstructionBegin(
+    uint32_t cf_index) {
+  cf_wrote_pc_ = false;
+  EmitSourceDepth("case 0x%X:  // L%d\n", cf_index, cf_index);
+  Indent();
+}
+
+void GlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
+  if (!cf_wrote_pc_) {
+    uint32_t next_index = cf_index + 1;
+    EmitSourceDepth("pc = 0x%X;  // Fallthrough to L%d\n", next_index,
+                    next_index);
+  }
+  EmitSourceDepth("break;\n");
+  Unindent();
 }
 
 void GlslShaderTranslator::ProcessExecInstructionBegin(
@@ -330,6 +357,10 @@ void GlslShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
   Unindent();
   EmitSourceDepth("}\n");
+  if (instr.is_end) {
+    EmitSourceDepth("pc = 0xFFFF;\n");
+    cf_wrote_pc_ = true;
+  }
 }
 
 void GlslShaderTranslator::ProcessLoopStartInstruction(
@@ -369,7 +400,39 @@ void GlslShaderTranslator::ProcessJumpInstruction(
   EmitSource("// ");
   instr.Disassemble(&source_);
 
-  EmitUnimplementedTranslationError();
+  bool needs_fallthrough = false;
+  switch (instr.type) {
+    case ParsedJumpInstruction::Type::kUnconditional:
+      EmitSourceDepth("{\n");
+      break;
+    case ParsedJumpInstruction::Type::kConditional:
+      EmitSourceDepth("if ((state.bool_consts[%d] & (1 << %d)) == %c) {\n",
+                      instr.bool_constant_index / 32,
+                      instr.bool_constant_index % 32,
+                      instr.condition ? '1' : '0');
+      needs_fallthrough = true;
+      break;
+    case ParsedJumpInstruction::Type::kPredicated:
+      EmitSourceDepth("if (%cp0) {\n", instr.condition ? ' ' : '!');
+      needs_fallthrough = true;
+      break;
+  }
+  Indent();
+
+  EmitSourceDepth("pc = 0x%X;  // L%d\n", instr.target_address,
+                  instr.target_address);
+  cf_wrote_pc_ = true;
+
+  Unindent();
+  if (needs_fallthrough) {
+    uint32_t next_address = instr.dword_index + 1;
+    EmitSourceDepth("} else {\n");
+    EmitSourceDepth("  pc = 0x%X;  // Fallthrough to L%d\n", next_address,
+                    next_address);
+    EmitSourceDepth("}\n");
+  } else {
+    EmitSourceDepth("}\n");
+  }
 }
 
 void GlslShaderTranslator::ProcessAllocInstruction(
