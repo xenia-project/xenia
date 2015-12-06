@@ -13,6 +13,8 @@ namespace xe {
 namespace kernel {
 namespace util {
 
+NativeList::NativeList() = default;
+
 NativeList::NativeList(Memory* memory)
     : memory_(memory), head_(kInvalidPointer) {}
 

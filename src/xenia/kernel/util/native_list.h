@@ -29,6 +29,7 @@ namespace util {
 
 class NativeList {
  public:
+  NativeList();
   explicit NativeList(Memory* memory);
 
   void Insert(uint32_t list_entry_ptr);
@@ -41,7 +42,7 @@ class NativeList {
   const uint32_t kInvalidPointer = 0xE0FE0FFF;
 
  private:
-  Memory* memory_;
+  Memory* memory_ = nullptr;
   uint32_t head_;
 };
 
