@@ -91,6 +91,9 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       out->Append('b');
       break;
   }
+  if (op.is_absolute_value) {
+    out->Append("_abs");
+  }
   switch (op.storage_addressing_mode) {
     case InstructionStorageAddressingMode::kStatic:
       out->AppendFormat("%d", op.storage_index);
@@ -101,9 +104,6 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
     case InstructionStorageAddressingMode::kAddressRelative:
       out->AppendFormat("[%d+aL]", op.storage_index);
       break;
-  }
-  if (op.is_absolute_value) {
-    out->Append("_abs");
   }
   if (!op.is_standard_swizzle()) {
     out->Append('.');

@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 
@@ -17,6 +18,13 @@ namespace shader_playground {
 
     public Editor() {
       InitializeComponent();
+
+      var scrollUpdateTimer = new Timer();
+      scrollUpdateTimer.Interval = 200;
+      scrollUpdateTimer.Tick += (object sender, EventArgs e) => {
+        UpdateScrollStates();
+      };
+      scrollUpdateTimer.Start();
 
       var compilerBinPath = Path.Combine(Directory.GetCurrentDirectory(),
                                          Path.GetDirectoryName(compilerPath_));
@@ -136,9 +144,9 @@ namespace shader_playground {
       var disassembledSourceCode = compiledShader.ErrorsAndWarnings;
       disassembledSourceCode = disassembledSourceCode.Replace("\n", Environment.NewLine);
       if (disassembledSourceCode.IndexOf("// PDB hint 00000000-00000000-00000000") == -1) {
-        outputTextBox.Text = disassembledSourceCode;
-        compilerUcodeTextBox.Text = "";
-        wordsTextBox.Text = "";
+        UpdateTextBox(outputTextBox, disassembledSourceCode, false);
+        UpdateTextBox(compilerUcodeTextBox, "", false);
+        UpdateTextBox(wordsTextBox, "", false);
         return;
       }
       var prefix = disassembledSourceCode.Substring(
@@ -155,7 +163,7 @@ namespace shader_playground {
       disassembledSourceCode =
           warnings + disassembledSourceCode.Substring(firstLine + 3);
       disassembledSourceCode = disassembledSourceCode.Trim();
-      outputTextBox.Text = disassembledSourceCode;
+      UpdateTextBox(outputTextBox, disassembledSourceCode, true);
 
       string shaderType =
           shaderSourceCode.IndexOf("xvs_") == -1 ? "ps" : "vs";
@@ -163,7 +171,7 @@ namespace shader_playground {
       if (ucodeWords != null) {
         TryCompiler(shaderType, ucodeWords);
       } else {
-        compilerUcodeTextBox.Text = "";
+        UpdateTextBox(compilerUcodeTextBox, "", false);
       }
 
       if (compilerUcodeTextBox.Text.Length > 0) {
@@ -191,7 +199,7 @@ namespace shader_playground {
       File.WriteAllBytes(ucodePath, ucodeBytes);
 
       if (!File.Exists(compilerPath_)) {
-        compilerUcodeTextBox.Text = "Compiler not found: " + compilerPath_;
+        UpdateTextBox(compilerUcodeTextBox, "Compiler not found: " + compilerPath_, false);
         return;
       }
 
@@ -209,15 +217,18 @@ namespace shader_playground {
           process.WaitForExit();
         }
         string disasmText = File.ReadAllText(ucodeDisasmPath);
-        compilerUcodeTextBox.Text = disasmText.Replace("\n", Environment.NewLine);
+        UpdateTextBox(compilerUcodeTextBox, disasmText.Replace("\n", Environment.NewLine), true);
       } catch {
-        compilerUcodeTextBox.Text = "COMPILER FAILURE";
+        UpdateTextBox(compilerUcodeTextBox, "COMPILER FAILURE", false);
       }
 
       string outputType;
       switch (translationComboBox.SelectedIndex) {
         default:
         case 0:
+          outputType = "glsl45";
+          break;
+        case 1:
           outputType = "spirvtext";
           break;
       }
@@ -236,9 +247,9 @@ namespace shader_playground {
           process.WaitForExit();
         }
         string disasmText = File.ReadAllText(translatedDisasmPath);
-        compilerTranslatedTextBox.Text = disasmText.Replace("\n", Environment.NewLine);
+        UpdateTextBox(compilerTranslatedTextBox, disasmText.Replace("\n", Environment.NewLine), true);
       } catch {
-        compilerTranslatedTextBox.Text = "COMPILER FAILURE";
+        UpdateTextBox(compilerTranslatedTextBox, "COMPILER FAILURE", false);
       }
     }
 
@@ -262,6 +273,66 @@ namespace shader_playground {
       }
     }
 
+    void UpdateScrollStates() {
+      foreach (var handle in scrollPreserve_.Keys) {
+        if (scrollPreserve_[handle]) {
+          var scrollInfo = new ScrollInfo();
+          scrollInfo.cbSize = Marshal.SizeOf(scrollInfo);
+          scrollInfo.fMask = (uint)ScrollInfoMask.SIF_TRACKPOS;
+          bool hasScrollInfo = GetScrollInfo(handle, SB_VERT, ref scrollInfo);
+          scrollPositions_[handle] = scrollInfo.nTrackPos;
+        }
+      }
+    }
+
+    Dictionary<IntPtr, bool> scrollPreserve_ = new Dictionary<IntPtr, bool>();
+    Dictionary<IntPtr, int> scrollPositions_ = new Dictionary<IntPtr, int>();
+    void UpdateTextBox(TextBox textBox, string value, bool preserveScroll) {
+      scrollPreserve_[textBox.Handle] = preserveScroll;
+
+      textBox.Text = value;
+
+      int previousScroll;
+      if (!scrollPositions_.TryGetValue(textBox.Handle, out previousScroll)) {
+        previousScroll = 0;
+      }
+      var scrollInfo = new ScrollInfo();
+      scrollInfo.cbSize = Marshal.SizeOf(scrollInfo);
+      scrollInfo.fMask = (uint)ScrollInfoMask.SIF_TRACKPOS;
+      scrollInfo.nTrackPos = previousScroll;
+      SetScrollInfo(textBox.Handle, SB_VERT, ref scrollInfo, 1);
+
+      var ptrWparam = new IntPtr(SB_THUMBPOSITION | previousScroll << 16);
+      SendMessage(textBox.Handle, WM_VSCROLL, ptrWparam, IntPtr.Zero);
+    }
+
+    private const int SB_VERT = 1;
+    private const uint SB_THUMBPOSITION = 4;
+    private const uint WM_VSCROLL = 0x115;
+    public enum ScrollInfoMask : uint {
+      SIF_RANGE = 0x1,
+      SIF_PAGE = 0x2,
+      SIF_POS = 0x4,
+      SIF_DISABLENOSCROLL = 0x8,
+      SIF_TRACKPOS = 0x10,
+      SIF_ALL = (SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS),
+    }
+    private struct ScrollInfo {
+      public int cbSize;
+      public uint fMask;
+      public int nMin;
+      public int nMax;
+      public int nPage;
+      public int nPos;
+      public int nTrackPos;
+    }
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetScrollInfo(IntPtr hwnd, int bar, ref ScrollInfo scrollInfo);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetScrollInfo(IntPtr hwnd, int bar, ref ScrollInfo scrollInfo, int redraw);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    static extern IntPtr SendMessage(IntPtr hWnd, UInt32 Msg, IntPtr wParam, IntPtr lParam);
+
     bool MemCmp(byte[] a1, byte[] b1) {
       if (a1 == null || b1 == null) {
         return false;
@@ -281,7 +352,7 @@ namespace shader_playground {
 
     uint[] ExtractAndDumpWords(string shaderType, byte[] shaderCode) {
       if (shaderCode == null || shaderCode.Length == 0) {
-        wordsTextBox.Text = "";
+        UpdateTextBox(wordsTextBox, "", false);
         return null;
       }
 
@@ -302,7 +373,7 @@ namespace shader_playground {
       }
       sb.Append("};" + Environment.NewLine);
       sb.Append("shader_type = ShaderType::" + (shaderType == "vs" ? "kVertex" : "kPixel") + ";" + Environment.NewLine);
-      wordsTextBox.Text = sb.ToString();
+      UpdateTextBox(wordsTextBox, sb.ToString(), true);
       wordsTextBox.SelectAll();
 
       return swappedCode;

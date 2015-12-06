@@ -933,7 +933,7 @@ enum class AluScalarOpcode {
   //       if (src0.a == 0.0) {
   //         dest.xyzw = 1.0;
   //       } else {
-  //         dest.xyzw = src1.a;
+  //         dest.xyzw = src0.a;
   //       }
   //       p0 = 0;
   //     }
@@ -1186,7 +1186,7 @@ enum class AluVectorOpcode {
 
   // Two-Element Dot Product and Add
   // dp2add dest, src0, src1, src2
-  //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src3.x;
+  //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src2.x;
   // Note: only pv.x contains the value.
   kDp2Add = 17,
 

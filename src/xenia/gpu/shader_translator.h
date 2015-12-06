@@ -537,10 +537,10 @@ class ShaderTranslator {
   // Ucode disassembly buffer accumulated during translation.
   StringBuffer& ucode_disasm_buffer() { return ucode_disasm_buffer_; }
   // Emits a translation error that will be passed back in the result.
-  void EmitTranslationError(const char* message);
+  virtual void EmitTranslationError(const char* message);
   // Emits a translation error indicating that the current translation is not
   // implemented or supported.
-  void EmitUnimplementedTranslationError();
+  virtual void EmitUnimplementedTranslationError();
 
   // Handles the start of translation.
   // At this point the vertex and texture bindings have been gathered.
