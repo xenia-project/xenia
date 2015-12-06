@@ -125,6 +125,7 @@ class XObject {
     kTypeTimer,
   };
 
+  XObject(Type type);
   XObject(KernelState* kernel_state, Type type);
   virtual ~XObject();
 
@@ -223,8 +224,8 @@ class XObject {
 
   // Guest pointer for kernel object. Remember: X_OBJECT_HEADER precedes this
   // if we allocated it!
-  uint32_t guest_object_ptr_;
-  bool allocated_guest_object_;
+  uint32_t guest_object_ptr_ = 0;
+  bool allocated_guest_object_ = false;
 };
 
 template <typename T>
