@@ -25,6 +25,8 @@
 
 DEFINE_bool(protect_zero, false,
             "Protect the zero page from reads and writes.");
+DEFINE_bool(protect_on_release, false,
+            "Protect released memory to prevent accesses.");
 
 DEFINE_bool(scribble_heap, false,
             "Scribble 0xCD into all allocated heap memory.");
@@ -811,11 +813,16 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
                xe::memory::page_size() ==
            0 &&
        ((base_page_number * page_size_) % xe::memory::page_size() == 0))) {
-    if (!xe::memory::Protect(
-            membase_ + heap_base_ + base_page_number * page_size_,
-            base_page_entry.region_page_count * page_size_,
-            xe::memory::PageAccess::kNoAccess, nullptr)) {
-      XELOGW("BaseHeap::Release failed due to host VirtualProtect failure");
+    // TODO(benvanik): figure out why games are using memory after releasing it.
+    // It's possible this is some virtual/physical stuff where the GPU still can
+    // access it.
+    if (FLAGS_protect_on_release) {
+      if (!xe::memory::Protect(
+              membase_ + heap_base_ + base_page_number * page_size_,
+              base_page_entry.region_page_count * page_size_,
+              xe::memory::PageAccess::kNoAccess, nullptr)) {
+        XELOGW("BaseHeap::Release failed due to host VirtualProtect failure");
+      }
     }
   }
 
