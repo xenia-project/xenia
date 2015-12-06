@@ -1144,7 +1144,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     thread->emulator()->debugger()->OnThreadCreated(thread);
   }
 
-  return retain_object(thread);
+  return object_ref<XThread>(thread);
 }
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
