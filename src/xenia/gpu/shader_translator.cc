@@ -143,7 +143,7 @@ void ShaderTranslator::EmitTranslationError(const char* message) {
 
 void ShaderTranslator::EmitUnimplementedTranslationError() {
   Shader::Error error;
-  error.is_fatal = true;
+  error.is_fatal = false;
   error.message = "Unimplemented translation";
   // TODO(benvanik): location information.
   errors_.push_back(std::move(error));
