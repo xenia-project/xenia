@@ -66,7 +66,6 @@ PageAccess ToXeniaProtectFlags(DWORD access) {
     case PAGE_EXECUTE_READWRITE:
       return PageAccess::kExecuteReadWrite;
     default:
-      assert_unhandled_case(access);
       return PageAccess::kNoAccess;
   }
 }
