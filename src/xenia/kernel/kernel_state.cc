@@ -610,7 +610,7 @@ bool KernelState::Save(ByteStream* stream) {
     auto prev_offset = stream->offset();
 
     stream->Write((uint32_t)object->type());
-    if (!object->is_host_object() && !object->Save(stream)) {
+    if (object->is_host_object() || !object->Save(stream)) {
       // Revert backwards and overwrite if a save failed.
       stream->set_offset(prev_offset);
       num_objects--;
