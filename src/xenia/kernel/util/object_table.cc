@@ -401,6 +401,7 @@ X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {
   if (table_capacity_ >= slot) {
     auto& entry = table_[slot];
     entry.object = object;
+    object->Retain();
   }
 
   return X_STATUS_SUCCESS;
