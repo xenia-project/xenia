@@ -40,6 +40,10 @@ class NotifyListener : public XObject {
     return wait_handle_.get();
   }
 
+  bool Save(ByteStream* stream) override;
+  static object_ref<NotifyListener> Restore(KernelState* kernel_state,
+                                            ByteStream* stream);
+
  private:
   std::unique_ptr<xe::threading::Event> wait_handle_;
   xe::global_critical_region global_critical_region_;

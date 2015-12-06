@@ -9,6 +9,7 @@
 
 #include "xenia/kernel/notify_listener.h"
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/kernel/kernel_state.h"
 
 namespace xe {
@@ -81,6 +82,40 @@ bool NotifyListener::DequeueNotification(XNotificationID id,
     }
   }
   return dequeued;
+}
+
+bool NotifyListener::Save(ByteStream* stream) {
+  SaveObject(stream);
+
+  stream->Write(mask_);
+  stream->Write(notification_count_);
+  if (notification_count_) {
+    for (auto pair : notifications_) {
+      stream->Write<uint32_t>(pair.first);
+      stream->Write<uint32_t>(pair.second);
+    }
+  }
+
+  return true;
+}
+
+object_ref<NotifyListener> NotifyListener::Restore(KernelState* kernel_state,
+                                                   ByteStream* stream) {
+  auto notify = new NotifyListener(nullptr);
+  notify->kernel_state_ = kernel_state;
+
+  notify->RestoreObject(stream);
+  notify->Initialize(stream->Read<uint64_t>());
+
+  notify->notification_count_ = stream->Read<size_t>();
+  for (size_t i = 0; i < notify->notification_count_; i++) {
+    std::pair<XNotificationID, uint32_t> pair;
+    pair.first = stream->Read<uint32_t>();
+    pair.second = stream->Read<uint32_t>();
+    notify->notifications_.insert(pair);
+  }
+
+  return object_ref<NotifyListener>(notify);
 }
 
 }  // namespace kernel
