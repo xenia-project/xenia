@@ -162,6 +162,8 @@ void ParsedLoopStartInstruction::Disassemble(StringBuffer* out) const {
 void ParsedLoopEndInstruction::Disassemble(StringBuffer* out) const {
   if (is_predicated_break) {
     out->Append(predicate_condition ? " (p0) " : "(!p0) ");
+  } else {
+    out->Append("      ");
   }
   out->AppendFormat("endloop i%u, L%u", loop_constant_index, loop_body_address);
   out->Append('\n');

@@ -282,6 +282,8 @@ void main() {
   EmitSource("  bool p0 = false;\n");
   // Address register when using absolute addressing.
   EmitSource("  int a0 = 0;\n");
+  // TODO(benvanik): remove when loops are implemented.
+  EmitSource("  int aL = 0;\n");  // Hack!
   // Temps for source register values.
   EmitSource("  vec4 src0;\n");
   EmitSource("  vec4 src1;\n");
