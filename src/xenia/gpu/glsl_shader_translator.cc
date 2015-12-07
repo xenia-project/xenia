@@ -291,8 +291,11 @@ void main() {
   EmitSource("  bool p0 = false;\n");
   // Address register when using absolute addressing.
   EmitSource("  int a0 = 0;\n");
-  // TODO(benvanik): remove when loops are implemented.
-  EmitSource("  int aL = 0;\n");  // Hack!
+  // Loop index stack - .x is the active loop, shifted right to yzw on push.
+  EmitSource("  ivec4 aL = ivec4(0);\n");
+  // Loop counter stack, .x is the active loop.
+  // Represents number of times remaining to loop.
+  EmitSource("  ivec4 loop_count = ivec4(0);\n");
   // Temps for source register values.
   EmitSource("  vec4 src0;\n");
   EmitSource("  vec4 src1;\n");
@@ -378,7 +381,32 @@ void GlslShaderTranslator::ProcessLoopStartInstruction(
   EmitSource("// ");
   instr.Disassemble(&source_);
 
-  EmitUnimplementedTranslationError();
+  // Setup counter.
+  EmitSourceDepth(
+      "loop_count = ivec4(state.loop_consts[%u].x & 0xFF, "
+      "loop_count.x, loop_count.y, loop_count.z);\n",
+      instr.loop_constant_index);
+
+  // Setup relative indexing.
+  if (instr.is_repeat) {
+    // Reuse the current loop index.
+    EmitSourceDepth("aL = ivec4(aL.x, aL.x, aL.y, aL.z);\n");
+  } else {
+    // Push new loop starting index.
+    EmitSourceDepth(
+        "aL = ivec4((state.loop_consts[%u] >> 8) & 0xFF, aL.x, aL.y, aL.z);\n",
+        instr.loop_constant_index);
+  }
+
+  // Quick skip loop if zero count.
+  EmitSourceDepth("if (loop_count.x == 0) {\n");
+  EmitSourceDepth("  pc = 0x%X;  // Skip loop to L%d\n",
+                  instr.loop_skip_address, instr.loop_skip_address);
+  EmitSourceDepth("} else {\n");
+  EmitSourceDepth("  pc = 0x%X;  // Fallthrough to loop body L%d\n",
+                  instr.dword_index + 1, instr.dword_index + 1);
+  EmitSourceDepth("}\n");
+  cf_wrote_pc_ = true;
 }
 
 void GlslShaderTranslator::ProcessLoopEndInstruction(
@@ -386,7 +414,38 @@ void GlslShaderTranslator::ProcessLoopEndInstruction(
   EmitSource("// ");
   instr.Disassemble(&source_);
 
-  EmitUnimplementedTranslationError();
+  // Decrement loop counter, and if we are done break out.
+  EmitSourceDepth("if (--loop_count.x == 0");
+  if (instr.is_predicated_break) {
+    // If the predicate condition is met we 'break;' out of the loop.
+    // Need to restore stack and fall through to the next cf.
+    EmitSource(" || %cp0) {\n", instr.predicate_condition ? ' ' : '!');
+  } else {
+    EmitSource(") {\n");
+  }
+  Indent();
+
+  // Loop completed - pop and fall through to next cf.
+  EmitSourceDepth(
+      "loop_count = ivec4(loop_count.y, loop_count.z, loop_count.w, 0);\n");
+  EmitSourceDepth("aL = ivec4(aL.y, aL.z, aL.w, 0);\n");
+  uint32_t next_address = instr.dword_index + 1;
+  EmitSourceDepth("pc = 0x%X;  // Exit loop to L%d\n", instr.dword_index + 1,
+                  instr.dword_index + 1);
+
+  Unindent();
+  EmitSourceDepth("} else {\n");
+  Indent();
+
+  // Still looping. Adjust index and jump back to body.
+  EmitSourceDepth("aL.x += (state.loop_consts[%u] << 8) >> 24;\n",
+                  instr.loop_constant_index);
+  EmitSourceDepth("pc = 0x%X;  // Loop back to body L%d\n",
+                  instr.loop_body_address, instr.loop_body_address);
+
+  Unindent();
+  EmitSourceDepth("}\n");
+  cf_wrote_pc_ = true;
 }
 
 void GlslShaderTranslator::ProcessCallInstruction(
@@ -657,9 +716,9 @@ void GlslShaderTranslator::EmitLoadOperand(size_t i,
       break;
     case InstructionStorageAddressingMode::kAddressRelative:
       if (storage_index_offset) {
-        EmitSource("[%d+%d+aL]", storage_index_offset, op.storage_index);
+        EmitSource("[%d+%d+aL.x]", storage_index_offset, op.storage_index);
       } else {
-        EmitSource("[%d+aL]", op.storage_index);
+        EmitSource("[%d+aL.x]", op.storage_index);
       }
       break;
   }
@@ -736,7 +795,7 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
         EmitSource("[%d+a0]", result.storage_index);
         break;
       case InstructionStorageAddressingMode::kAddressRelative:
-        EmitSource("[%d+aL]", result.storage_index);
+        EmitSource("[%d+aL.x]", result.storage_index);
         break;
     }
   }
