@@ -93,6 +93,18 @@ bool EmulatorWindow::Initialize() {
       case 0x74: {  // VK_F5
         GpuClearCaches();
       } break;
+      case 0x76: {  // VK_F7
+        // Save to file
+        // TODO: Choose path based on user input, or from options
+        // TODO: Spawn a new thread to do this.
+        emulator()->SaveToFile(L"test.sav");
+      } break;
+      case 0x77: {  // VK_F8
+        // Restore from file
+        // TODO: Choose path from user
+        // TODO: Spawn a new thread to do this.
+        emulator()->RestoreFromFile(L"test.sav");
+      } break;
 
       case 0x7A: {  // VK_F11
         ToggleFullscreen();
