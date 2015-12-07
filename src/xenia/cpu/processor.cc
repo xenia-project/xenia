@@ -420,6 +420,15 @@ bool Processor::InstallBreakpoint(Breakpoint* bp) {
     return false;
   }
 
+  auto functions = FindFunctionsWithAddress(bp->address());
+  if (functions.empty()) {
+    // Go ahead and generate a function.
+    if (!ResolveFunction(bp->address())) {
+      // Could not generate a function - fail!
+      return false;
+    }
+  }
+
   // We need to register the breakpoint before installing it with the backend
   // in-case a thread hits it while we're here.
   breakpoints_.push_back(bp);
