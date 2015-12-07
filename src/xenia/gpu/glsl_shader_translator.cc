@@ -502,7 +502,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
     case FetchOpcode::kTextureFetch:
       switch (instr.dimension) {
         case TextureDimension::k1D:
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != uvec2(0)) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(sampler1D(state.texture_samplers[%d]), "
@@ -513,7 +513,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           EmitSourceDepth("}\n");
           break;
         case TextureDimension::k2D:
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != uvec2(0)) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(sampler2D(state.texture_samplers[%d]), "
@@ -524,7 +524,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           EmitSourceDepth("}\n");
           break;
         case TextureDimension::k3D:
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != uvec2(0)) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(sampler3D(state.texture_samplers[%d]), "
@@ -536,7 +536,7 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           break;
         case TextureDimension::kCube:
           // TODO(benvanik): undo CUBEv logic on t? (s,t,faceid)
-          EmitSourceDepth("if (state.texture_samplers[%d] != 0) {\n",
+          EmitSourceDepth("if (state.texture_samplers[%d] != uvec2(0)) {\n",
                           instr.operands[1].storage_index);
           EmitSourceDepth(
               "  pv = texture(samplerCube(state.texture_samplers[%d]), "
