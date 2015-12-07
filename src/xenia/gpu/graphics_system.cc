@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/graphics_system.h"
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -233,6 +234,32 @@ void GraphicsSystem::BeginTracing() {
 }
 
 void GraphicsSystem::EndTracing() { command_processor_->EndTracing(); }
+
+void GraphicsSystem::Pause() {
+  paused_ = true;
+
+  command_processor_->Pause();
+}
+
+void GraphicsSystem::Resume() {
+  paused_ = false;
+
+  command_processor_->Resume();
+}
+
+bool GraphicsSystem::Save(ByteStream* stream) {
+  stream->Write<uint32_t>(interrupt_callback_);
+  stream->Write<uint32_t>(interrupt_callback_data_);
+
+  return command_processor_->Save(stream);
+}
+
+bool GraphicsSystem::Restore(ByteStream* stream) {
+  interrupt_callback_ = stream->Read<uint32_t>();
+  interrupt_callback_data_ = stream->Read<uint32_t>();
+
+  return command_processor_->Restore(stream);
+}
 
 }  // namespace gpu
 }  // namespace xe
