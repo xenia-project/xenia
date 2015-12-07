@@ -819,10 +819,22 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
       fence.Signal();
     };
 
+    bool conditional = true;
+    if (i.type->opcode = 0x40000000) {
+      // bx
+      if (cpu::frontend::select_bits(i.B.BO, 4, 4)) {
+        conditional = false;
+      }
+    } else {
+      // bctrx/blrx
+      if (cpu::frontend::select_bits(i.XL.BO, 4, 4)) {
+        conditional = false;
+      }
+    }
+
     cpu::Breakpoint bpt(kernel_state()->processor(), callback);
     cpu::Breakpoint bpf(kernel_state()->processor(), pc + 4, callback);
-    if (!bpf.Install()) {
-      // FIXME: This won't work on non-conditional conditional branches.
+    if (conditional && !bpf.Install()) {
       XELOGE("XThread: Could not install breakpoint to step forward!");
       assert_always();
     }
@@ -854,8 +866,10 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
 
     thread_->Resume();
     fence.Wait();
-    bpf.Uninstall();
     bpt.Uninstall();
+    if (conditional) {
+      bpf.Uninstall();
+    }
   }
 
   return pc;
