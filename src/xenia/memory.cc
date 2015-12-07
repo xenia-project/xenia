@@ -584,7 +584,8 @@ bool BaseHeap::Restore(ByteStream* stream) {
     }
 
     memory::PageAccess page_access = memory::PageAccess::kNoAccess;
-    if (page.current_protect == (kMemoryProtectRead | kMemoryProtectWrite)) {
+    if ((page.current_protect & kMemoryProtectRead) &&
+        (page.current_protect & kMemoryProtectWrite)) {
       page_access = memory::PageAccess::kReadWrite;
     } else if (page.current_protect & kMemoryProtectRead) {
       page_access = memory::PageAccess::kReadOnly;
