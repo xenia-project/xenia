@@ -120,6 +120,7 @@ class Emulator {
 
   void Pause();
   void Resume();
+  bool is_paused() const { return paused_; }
 
   bool SaveToFile(const std::wstring& path);
   bool RestoreFromFile(const std::wstring& path);
