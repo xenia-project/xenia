@@ -40,9 +40,7 @@ AudioSystem::AudioSystem(cpu::Processor* processor)
       processor_(processor),
       worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
-  for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    unused_clients_.push(i);
-  }
+
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     client_semaphores_[i] =
         xe::threading::Semaphore::Create(0, kMaximumQueuedFrames);
@@ -131,6 +129,17 @@ void AudioSystem::WorkerThreadMain() {
   // TODO(benvanik): call module API to kill?
 }
 
+int AudioSystem::FindFreeClient() {
+  for (int i = 0; i < kMaximumClientCount; i++) {
+    auto& client = clients_[i];
+    if (!client.in_use) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
@@ -142,10 +151,10 @@ void AudioSystem::Shutdown() {
 
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
                                      size_t* out_index) {
-  assert_true(unused_clients_.size());
   auto global_lock = global_critical_region_.Acquire();
 
-  auto index = unused_clients_.front();
+  auto index = FindFreeClient();
+  assert_true(index >= 0);
 
   auto client_semaphore = client_semaphores_[index].get();
   auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
@@ -158,12 +167,10 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   }
   assert_not_null(driver);
 
-  unused_clients_.pop();
-
   uint32_t ptr = memory()->SystemHeapAlloc(0x4);
   xe::store_and_swap<uint32_t>(memory()->TranslateVirtual(ptr), callback_arg);
 
-  clients_[index] = {driver, callback, callback_arg, ptr};
+  clients_[index] = {driver, callback, callback_arg, ptr, true};
 
   if (out_index) {
     *out_index = index;
@@ -188,7 +195,6 @@ void AudioSystem::UnregisterClient(size_t index) {
   assert_true(index < kMaximumClientCount);
   DestroyDriver(clients_[index].driver);
   clients_[index] = {0};
-  unused_clients_.push(index);
 
   // Drain the semaphore of its count.
   auto client_semaphore = client_semaphores_[index].get();

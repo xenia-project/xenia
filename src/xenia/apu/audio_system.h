@@ -72,14 +72,16 @@ class AudioSystem {
     uint32_t callback;
     uint32_t callback_arg;
     uint32_t wrapped_callback_arg;
+    bool in_use;
   } clients_[kMaximumClientCount];
+
+  int FindFreeClient();
 
   std::unique_ptr<xe::threading::Semaphore>
       client_semaphores_[kMaximumClientCount];
   // Event is always there in case we have no clients.
   std::unique_ptr<xe::threading::Event> shutdown_event_;
   xe::threading::WaitHandle* wait_handles_[kMaximumClientCount + 1];
-  std::queue<size_t> unused_clients_;
 };
 
 }  // namespace apu
