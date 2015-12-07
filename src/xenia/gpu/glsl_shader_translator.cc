@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/glsl_shader_translator.h"
 
+#include <unordered_set>
+
 namespace xe {
 namespace gpu {
 
@@ -246,8 +248,16 @@ void main() {
 
   // Add vertex shader input declarations.
   if (is_vertex_shader()) {
+    std::unordered_set<uint64_t> defined_locations;
     for (auto& binding : vertex_bindings()) {
       for (auto& attrib : binding.attributes) {
+        uint64_t key = (static_cast<uint64_t>(binding.fetch_constant) << 32) |
+                       attrib.fetch_instr.attributes.offset;
+        if (defined_locations.count(key)) {
+          // Already defined.
+          continue;
+        }
+        defined_locations.insert(key);
         const char* type_name =
             GetVertexFormatTypeName(attrib.fetch_instr.attributes.data_format);
         EmitSource("layout(location = %d) in %s vf%u_%d;\n",
