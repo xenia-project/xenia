@@ -355,8 +355,6 @@ bool Emulator::SaveToFile(const std::wstring& path) {
 }
 
 bool Emulator::RestoreFromFile(const std::wstring& path) {
-  auto lock = global_critical_region::AcquireDirect();
-
   // Restore the emulator state from a file
   auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite);
   if (!map) {
@@ -369,6 +367,7 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
   Pause();
   kernel_state_->TerminateTitle();
 
+  auto lock = global_critical_region::AcquireDirect();
   ByteStream stream(map->data(), map->size());
   if (stream.Read<uint32_t>() != 'XSAV') {
     return false;

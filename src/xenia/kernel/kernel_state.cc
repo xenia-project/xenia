@@ -334,6 +334,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
 }
 
 void KernelState::TerminateTitle(bool from_guest_thread) {
+  XELOGD("KernelState::TerminateTitle");
   auto global_lock = global_critical_region_.Acquire();
 
   // Call terminate routines.
@@ -351,6 +352,8 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
   */
 
   // Kill all guest threads.
+  // Need to not be holding the lock to do this.
+  global_lock.unlock();
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
     if (it->second->is_guest_thread()) {
       auto thread = it->second;
@@ -362,10 +365,14 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
       }
 
       if (thread->is_running()) {
-        // TODO: Need to step the thread to a safe point (returns it to guest
-        // code so it's guaranteed to not be holding any locks / in host kernel
+        // Need to step the thread to a safe point (returns it to guest code
+        // so it's guaranteed to not be holding any locks / in host kernel
         // code / etc). Can't do that properly if we have the lock.
-        // thread->StepToSafePoint();
+        if (!emulator_->is_paused()) {
+          thread->thread()->Suspend();
+        }
+
+        thread->StepToSafePoint();
         thread->Terminate(0);
       }
 
@@ -375,6 +382,7 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
       ++it;
     }
   }
+  global_lock.lock();
 
   // Third: Unload all user modules (including the executable)
   for (int i = 0; i < user_modules_.size(); i++) {
@@ -611,6 +619,8 @@ bool KernelState::Save(ByteStream* stream) {
 
     stream->Write((uint32_t)object->type());
     if (object->is_host_object() || !object->Save(stream)) {
+      XELOGD("Did not save object of type %d", object->type());
+
       // Revert backwards and overwrite if a save failed.
       stream->set_offset(prev_offset);
       num_objects--;
