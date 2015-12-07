@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -161,6 +162,59 @@ void CommandProcessor::WorkerThreadMain() {
   }
 
   ShutdownContext();
+}
+
+void CommandProcessor::Pause() {
+  if (paused_) {
+    return;
+  }
+  paused_ = true;
+
+  threading::Fence fence;
+  CallInThread([&fence]() {
+    fence.Signal();
+    threading::Thread::GetCurrentThread()->Suspend();
+  });
+
+  // HACK - Prevents a hang in IssueSwap()
+  swap_state_.pending = false;
+
+  fence.Wait();
+}
+
+void CommandProcessor::Resume() {
+  if (!paused_) {
+    return;
+  }
+  paused_ = false;
+
+  worker_thread_->thread()->Resume();
+}
+
+bool CommandProcessor::Save(ByteStream* stream) {
+  assert_true(paused_);
+
+  stream->Write<uint32_t>(primary_buffer_ptr_);
+  stream->Write<uint32_t>(primary_buffer_size_);
+  stream->Write<uint32_t>(read_ptr_index_);
+  stream->Write<uint32_t>(read_ptr_update_freq_);
+  stream->Write<uint32_t>(read_ptr_writeback_ptr_);
+  stream->Write<uint32_t>(write_ptr_index_.load());
+
+  return true;
+}
+
+bool CommandProcessor::Restore(ByteStream* stream) {
+  assert_true(paused_);
+
+  primary_buffer_ptr_ = stream->Read<uint32_t>();
+  primary_buffer_size_ = stream->Read<uint32_t>();
+  read_ptr_index_ = stream->Read<uint32_t>();
+  read_ptr_update_freq_ = stream->Read<uint32_t>();
+  read_ptr_writeback_ptr_ = stream->Read<uint32_t>();
+  write_ptr_index_.store(stream->Read<uint32_t>());
+
+  return true;
 }
 
 bool CommandProcessor::SetupContext() { return true; }

@@ -292,12 +292,15 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
 }
 
 void Emulator::Pause() {
-  auto lock = global_critical_region::AcquireDirect();
   if (paused_) {
     return;
   }
   paused_ = true;
 
+  // Don't hold the lock on this (so any waits follow through)
+  graphics_system_->Pause();
+
+  auto lock = global_critical_region::AcquireDirect();
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
           kernel::XObject::kTypeThread);
@@ -319,6 +322,8 @@ void Emulator::Resume() {
   }
   paused_ = false;
   XELOGD("! EMULATOR RESUMED !");
+
+  graphics_system_->Resume();
 
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
@@ -349,6 +354,7 @@ bool Emulator::SaveToFile(const std::wstring& path) {
 
   // It's important we don't hold the global lock here! XThreads need to step
   // forward (possibly through guarded regions) without worry!
+  graphics_system_->Save(&stream);
   kernel_state_->Save(&stream);
   memory_->Save(&stream);
   map->Close(stream.offset());
@@ -376,6 +382,9 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
     return false;
   }
 
+  if (!graphics_system_->Restore(&stream)) {
+    return false;
+  }
   if (!kernel_state_->Restore(&stream)) {
     return false;
   }

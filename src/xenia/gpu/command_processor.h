@@ -28,6 +28,9 @@
 #include "xenia/ui/graphics_context.h"
 
 namespace xe {
+
+class ByteStream;
+
 namespace gpu {
 
 class GraphicsSystem;
@@ -90,6 +93,13 @@ class CommandProcessor {
   void UpdateWritePointer(uint32_t value);
 
   void ExecutePacket(uint32_t ptr, uint32_t count);
+
+  bool is_paused() const { return paused_; }
+  void Pause();
+  void Resume();
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
 
  protected:
   class RingbufferReader;
@@ -214,6 +224,9 @@ class CommandProcessor {
 
   Shader* active_vertex_shader_ = nullptr;
   Shader* active_pixel_shader_ = nullptr;
+
+  bool paused_ = false;
+
 };
 
 }  // namespace gpu

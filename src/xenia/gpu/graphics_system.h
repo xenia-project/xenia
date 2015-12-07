@@ -61,6 +61,13 @@ class GraphicsSystem {
   void BeginTracing();
   void EndTracing();
 
+  bool is_paused() const { return paused_; }
+  void Pause();
+  void Resume();
+
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
  protected:
   GraphicsSystem();
 
@@ -90,6 +97,8 @@ class GraphicsSystem {
 
   RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;
+
+  bool paused_ = false;
 };
 
 }  // namespace gpu
