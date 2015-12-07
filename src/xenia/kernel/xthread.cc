@@ -947,23 +947,31 @@ uint32_t XThread::StepToSafePoint() {
     } else if (export_data) {
       // Non-blocking. Run until we return from the thunk.
       StepToAddress(uint32_t(thread_state_->context()->lr));
-    } else {
+    } else if (first_pc) {
       // We're in the MMIO handler/mfmsr/something calling out of the guest
       // that doesn't use an export. If the current instruction is
       // synchronizing, we can just save here. Otherwise, step forward
       // (and call ourselves again so we run the correct logic).
       cpu::frontend::InstrData i;
       i.address = first_pc;
-      i.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
+      i.code =
+          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
       i.type = cpu::frontend::GetInstrType(i.code);
       if (i.type->type & cpu::frontend::kXEPPCInstrTypeSynchronizeContext) {
         // Good to go.
-        return first_pc;
+        pc = first_pc;
       } else {
         // Step forward.
         StepToAddress(first_pc + 4);
-        StepToSafePoint();
+        return StepToSafePoint();
       }
+    } else {
+      // We've managed to catch a thread before it called into the guest.
+      // Set a breakpoint on its startup procedure and capture it there.
+      pc = creation_params_.xapi_thread_startup
+               ? creation_params_.xapi_thread_startup
+               : creation_params_.start_address;
+      StepToAddress(pc);
     }
   }
 
