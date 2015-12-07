@@ -143,7 +143,7 @@ bool X64Backend::InstallBreakpoint(Breakpoint* bp) {
 
     auto orig_bytes =
         xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0));
-    bp->backend_data().push_back({code, orig_bytes });
+    bp->backend_data().push_back({code, orig_bytes});
 
     xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(code + 0x0), 0x0F0C);
   }
@@ -170,7 +170,7 @@ bool X64Backend::InstallBreakpoint(Breakpoint* bp, Function* func) {
 }
 
 bool X64Backend::UninstallBreakpoint(Breakpoint* bp) {
-  for (auto pair : bp->backend_data()) {
+  for (auto& pair : bp->backend_data()) {
     xe::store_and_swap<uint16_t>(reinterpret_cast<void*>(pair.first),
                                  uint16_t(pair.second));
   }
