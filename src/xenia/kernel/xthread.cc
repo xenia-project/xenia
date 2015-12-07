@@ -822,12 +822,21 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
     bool conditional = true;
     if (i.type->opcode = 0x40000000) {
       // bx
-      if (cpu::frontend::select_bits(i.B.BO, 4, 4)) {
+      if (cpu::frontend::select_bits(i.B.BO, 4, 4) &&
+          cpu::frontend::select_bits(i.B.BO, 2, 2)) {
         conditional = false;
       }
-    } else {
-      // bctrx/blrx
-      if (cpu::frontend::select_bits(i.XL.BO, 4, 4)) {
+    } else if (i.type->opcode == 0x4C000420) {
+      // bctrx
+      if (cpu::frontend::select_bits(i.XL.BO, 2, 2)) {
+        // ignore cond
+        conditional = false;
+      }
+    } else if (i.type->opcode == 0x4C000020) {
+      // blrx
+      if (cpu::frontend::select_bits(i.B.BO, 4, 4) &&
+          cpu::frontend::select_bits(i.B.BO, 2, 2)) {
+        // ignore ctr
         conditional = false;
       }
     }
@@ -902,7 +911,13 @@ uint32_t XThread::StepToSafePoint() {
   // Check if we're in guest code or host code.
   uint32_t pc = 0;
   if (cpu_frames[0].type == cpu::StackFrame::Type::kGuest) {
-    pc = cpu_frames[0].guest_pc;
+    auto& frame = cpu_frames[0];
+    if (!frame.guest_pc) {
+      // Lame.
+      frame = cpu_frames[1];
+    }
+
+    pc = frame.guest_pc;
 
     // We're in guest code.
     // First: Find a synchronizing instruction and go to it.
