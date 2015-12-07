@@ -560,10 +560,16 @@ bool BaseHeap::Save(ByteStream* stream) {
     }
 
     // TODO: Write compressed
-    if (page.state & kMemoryAllocationCommit &&
-        page.current_protect & kMemoryProtectRead) {
-      stream->Write((void*)(membase_ + heap_base_ + i * page_size_),
-                    page_size_);
+    if (page.state & kMemoryAllocationCommit) {
+      void* addr = membase_ + heap_base_ + i * page_size_;
+
+      memory::PageAccess old_access;
+      memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite,
+                      &old_access);
+
+      stream->Write(addr, page_size_);
+
+      memory::Protect(addr, page_size_, old_access, nullptr);
     }
   }
 
@@ -579,37 +585,32 @@ bool BaseHeap::Restore(ByteStream* stream) {
       continue;
     }
 
-    memory::AllocationType alloc_type;
     memory::PageAccess page_access = memory::PageAccess::kNoAccess;
-    if ((page.state & (kMemoryAllocationReserve | kMemoryAllocationCommit)) ==
-        3) {
-      alloc_type = memory::AllocationType::kReserveCommit;
-    } else if (page.state & kMemoryAllocationCommit) {
-      alloc_type = memory::AllocationType::kCommit;
-    } else if (page.state & kMemoryAllocationReserve) {
-      alloc_type = memory::AllocationType::kReserve;
-    }
-    if ((page.current_protect & (kMemoryProtectRead | kMemoryProtectWrite)) ==
-        3) {
+    if (page.current_protect == (kMemoryProtectRead | kMemoryProtectWrite)) {
       page_access = memory::PageAccess::kReadWrite;
     } else if (page.current_protect & kMemoryProtectRead) {
       page_access = memory::PageAccess::kReadOnly;
     }
 
-    // Blah allocate on page granularity for now
-    if ((uint32_t)alloc_type & (uint32_t)memory::AllocationType::kCommit) {
+    // Commit the memory if it isn't already. We do not need to reserve any
+    // memory, as the mapping has already taken care of that.
+    if (page.state & kMemoryAllocationCommit) {
       xe::memory::AllocFixed(membase_ + heap_base_ + i * page_size_, page_size_,
-                             alloc_type, page_access);
+                             memory::AllocationType::kCommit,
+                             memory::PageAccess::kReadWrite);
     }
 
-    if (page.state & kMemoryAllocationCommit &&
-        page.current_protect & kMemoryProtectRead) {
-      if (!xe::memory::Protect(membase_ + heap_base_ + i * page_size_,
-                               page_size_, page_access, nullptr)) {
-        assert_always();
-      }
+    // Now read into memory. We'll set R/W protection first, then set the
+    // protection back to its previous state.
+    // TODO: Read compressed
+    if (page.state & kMemoryAllocationCommit) {
+      void* addr = membase_ + heap_base_ + i * page_size_;
+      xe::memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite,
+                          nullptr);
 
-      stream->Read((void*)(membase_ + heap_base_ + i * page_size_), page_size_);
+      stream->Read(addr, page_size_);
+
+      xe::memory::Protect(addr, page_size_, page_access, nullptr);
     }
   }
 
