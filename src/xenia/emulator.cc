@@ -299,6 +299,7 @@ void Emulator::Pause() {
 
   // Don't hold the lock on this (so any waits follow through)
   graphics_system_->Pause();
+  audio_system_->Pause();
 
   auto lock = global_critical_region::AcquireDirect();
   auto threads =
@@ -324,6 +325,7 @@ void Emulator::Resume() {
   XELOGD("! EMULATOR RESUMED !");
 
   graphics_system_->Resume();
+  audio_system_->Resume();
 
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
@@ -355,6 +357,7 @@ bool Emulator::SaveToFile(const std::wstring& path) {
   // It's important we don't hold the global lock here! XThreads need to step
   // forward (possibly through guarded regions) without worry!
   graphics_system_->Save(&stream);
+  audio_system_->Save(&stream);
   kernel_state_->Save(&stream);
   memory_->Save(&stream);
   map->Close(stream.offset());
@@ -383,12 +386,19 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
   }
 
   if (!graphics_system_->Restore(&stream)) {
+    XELOGE("Could not restore graphics system!");
+    return false;
+  }
+  if (!audio_system_->Restore(&stream)) {
+    XELOGE("Could not restore audio system!");
     return false;
   }
   if (!kernel_state_->Restore(&stream)) {
+    XELOGE("Could not restore kernel state!");
     return false;
   }
   if (!memory_->Restore(&stream)) {
+    XELOGE("Could not restore memory!");
     return false;
   }
 
