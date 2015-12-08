@@ -111,8 +111,8 @@ struct StateData {
   vec4 window_scale;
   vec4 vtx_fmt;
   vec4 alpha_test;
-  int ps_param_gen;
-  int padding[3];
+  uint ps_param_gen;
+  uint padding[3];
   // TODO(benvanik): variable length.
   uvec2 texture_samplers[32];
   uint texture_swizzles[32];
@@ -304,10 +304,18 @@ void main() {
     for (int i = 0; i < kMaxInterpolators; ++i) {
       EmitSource("  r[%d] = vtx.o[%d];\n", i, i);
     }
-    EmitSource("  if (state.ps_param_gen != -1) {\n");
-    EmitSource("    pv = vec4(gl_FragCoord.xy, gl_PointCoord.xy);\n");
-    EmitSource("    pv.x *= (gl_FrontFacing ? 1.0 : -1.0);\n");
-    EmitSource("    r[state.ps_param_gen] = pv;\n");
+    EmitSource("  if (state.ps_param_gen < 16) {\n");
+    EmitSource(
+        "    vec4 ps_param_gen = vec4(gl_FragCoord.xy, gl_PointCoord.xy);\n");
+    EmitSource("    ps_param_gen.x *= (gl_FrontFacing ? 1.0 : -1.0);\n");
+    // This is insane, but r[ps_param_gen] causes nvidia to fully deopt?
+    // EmitSource("    r[state.ps_param_gen] = ps_param_gen;\n");
+    EmitSource("    if (state.ps_param_gen == 0) r[0] = ps_param_gen;\n");
+    for (int i = 1; i < kMaxInterpolators; ++i) {
+      EmitSource(
+          "    else if (state.ps_param_gen == %d) r[%d] = ps_param_gen;\n", i,
+          i);
+    }
     EmitSource("  }\n");
   }
 
