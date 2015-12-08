@@ -408,7 +408,7 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       ->blitter()
       ->CopyColorTexture2D(framebuffer_texture, src_rect,
                            static_cast<GLuint>(swap_state_.back_buffer_texture),
-                           dest_rect, GL_LINEAR);
+                           dest_rect, GL_LINEAR, true);
 
   if (FLAGS_draw_all_framebuffers) {
     int32_t offsetx = (1280 - (1280 / 5));
@@ -431,7 +431,7 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
             ->CopyColorTexture2D(
                 tex, src_rect,
                 static_cast<GLuint>(swap_state_.back_buffer_texture), dest_rect,
-                GL_LINEAR);
+                GL_LINEAR, true);
 
         offsety += 720 / 5;
       }
@@ -455,7 +455,7 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
           ->CopyColorTexture2D(
               tex, src_rect,
               static_cast<GLuint>(swap_state_.back_buffer_texture), dest_rect,
-              GL_LINEAR);
+              GL_LINEAR, false);
 
       doffsetx += 1280 / 5;
     }
@@ -1485,7 +1485,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSampler(
 
   // Reset slot.
   // If we fail, we still draw but with an invalid texture.
-  draw_batcher_.set_texture_sampler(texture_binding.fetch_constant, 0);
+  draw_batcher_.set_texture_sampler(texture_binding.fetch_constant, 0, 0);
 
   if (FLAGS_disable_textures) {
     return UpdateStatus::kCompatible;
@@ -1521,7 +1521,8 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateSampler(
 
   // Shaders will use bindless to fetch right from it.
   draw_batcher_.set_texture_sampler(texture_binding.fetch_constant,
-                                    entry_view->texture_sampler_handle);
+                                    entry_view->texture_sampler_handle,
+                                    fetch.swizzle);
 
   return UpdateStatus::kCompatible;
 }

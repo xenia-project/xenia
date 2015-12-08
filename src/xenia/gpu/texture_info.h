@@ -155,7 +155,6 @@ struct FormatInfo {
 
 struct TextureInfo {
   uint32_t guest_address;
-  uint32_t swizzle;
   Dimension dimension;
   uint32_t width;
   uint32_t height;

@@ -78,8 +78,9 @@ class DrawBatcher {
   void set_ps_param_gen(int register_index) {
     active_draw_.header->ps_param_gen = register_index;
   }
-  void set_texture_sampler(int index, GLuint64 handle) {
+  void set_texture_sampler(int index, GLuint64 handle, uint32_t swizzle) {
     active_draw_.header->texture_samplers[index] = handle;
+    active_draw_.header->texture_swizzles[index] = swizzle;
   }
   void set_index_buffer(const CircularBuffer::Allocation& allocation) {
     // Offset is used in glDrawElements.
@@ -140,6 +141,7 @@ class DrawBatcher {
 
     // TODO(benvanik): pack tightly
     GLuint64 texture_samplers[32];
+    GLuint texture_swizzles[32];
 
     float4 float_consts[512];
     uint32_t bool_consts[8];

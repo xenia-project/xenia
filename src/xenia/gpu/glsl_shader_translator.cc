@@ -115,6 +115,7 @@ struct StateData {
   int padding[3];
   // TODO(benvanik): variable length.
   uvec2 texture_samplers[32];
+  uint texture_swizzles[32];
   vec4 float_consts[512];
   int bool_consts[8];
   int loop_consts[32];
@@ -625,6 +626,16 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
           EmitSourceDepth("}\n");
           break;
       }
+      EmitSourceDepth("{\n");
+      EmitSourceDepth(
+          "  float swiz_source[6] = {pv.x, pv.y, pv.z, pv.w, 0.0, 1.0};\n");
+      EmitSourceDepth("  uint swiz = state.texture_swizzles[%d];\n",
+                      instr.operands[1].storage_index);
+      EmitSourceDepth("  pv = vec4(swiz_source[swiz & 0x7],\n");
+      EmitSourceDepth("            swiz_source[(swiz >> 3) & 0x7],\n");
+      EmitSourceDepth("            swiz_source[(swiz >> 6) & 0x7],\n");
+      EmitSourceDepth("            swiz_source[(swiz >> 9) & 0x7]);\n");
+      EmitSourceDepth("}\n");
       break;
     case FetchOpcode::kGetTextureBorderColorFrac:
       EmitUnimplementedTranslationError();

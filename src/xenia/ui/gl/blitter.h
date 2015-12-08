@@ -39,10 +39,11 @@ class Blitter {
   void Shutdown();
 
   void BlitTexture2D(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
-                     GLenum filter);
+                     GLenum filter, bool swap_channels);
 
   void CopyColorTexture2D(GLuint src_texture, Rect2D src_rect,
-                          GLuint dest_texture, Rect2D dest_rect, GLenum filter);
+                          GLuint dest_texture, Rect2D dest_rect, GLenum filter,
+                          bool swap_channels);
   void CopyDepthTexture(GLuint src_texture, Rect2D src_rect,
                         GLuint dest_texture, Rect2D dest_rect);
 

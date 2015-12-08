@@ -78,7 +78,7 @@ void GL4GraphicsSystem::Swap(xe::ui::UIEvent* e) {
       static_cast<GLuint>(swap_state.front_buffer_texture),
       Rect2D(0, 0, swap_state.width, swap_state.height),
       Rect2D(0, 0, target_window_->width(), target_window_->height()),
-      GL_LINEAR);
+      GL_LINEAR, false);
 }
 
 }  // namespace gl4

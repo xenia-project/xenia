@@ -473,25 +473,6 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   glTextureParameteri(entry->handle, GL_TEXTURE_BASE_LEVEL, 0);
   glTextureParameteri(entry->handle, GL_TEXTURE_MAX_LEVEL, 1);
 
-  // Pre-shader swizzle.
-  // TODO(benvanik): can this be dynamic? Maybe per view?
-  // We may have to emulate this in the shader.
-  uint32_t swizzle_r = texture_info.swizzle & 0x7;
-  uint32_t swizzle_g = (texture_info.swizzle >> 3) & 0x7;
-  uint32_t swizzle_b = (texture_info.swizzle >> 6) & 0x7;
-  uint32_t swizzle_a = (texture_info.swizzle >> 9) & 0x7;
-  static const GLenum swizzle_map[] = {
-      GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO, GL_ONE,
-  };
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_R,
-                      swizzle_map[swizzle_r]);
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_G,
-                      swizzle_map[swizzle_g]);
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_B,
-                      swizzle_map[swizzle_b]);
-  glTextureParameteri(entry->handle, GL_TEXTURE_SWIZZLE_A,
-                      swizzle_map[swizzle_a]);
-
   // Upload/convert.
   bool uploaded = false;
   switch (texture_info.dimension) {
@@ -590,7 +571,7 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
                                 dest_rect);
     } else {
       blitter->CopyColorTexture2D(src_texture, src_rect, texture_entry->handle,
-                                  dest_rect, GL_LINEAR);
+                                  dest_rect, GL_LINEAR, swap_channels);
     }
 
     // HACK: remove texture from write watch list so readback won't kill us.
@@ -615,7 +596,7 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
                                   dest_rect);
       } else {
         blitter->CopyColorTexture2D(src_texture, src_rect, entry->handle,
-                                    dest_rect, GL_LINEAR);
+                                    dest_rect, GL_LINEAR, swap_channels);
       }
       return entry->handle;
     }
@@ -642,7 +623,7 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
     blitter->CopyDepthTexture(src_texture, src_rect, entry->handle, dest_rect);
   } else {
     blitter->CopyColorTexture2D(src_texture, src_rect, entry->handle, dest_rect,
-                                GL_LINEAR);
+                                GL_LINEAR, swap_channels);
   }
 
   GLuint handle = entry->handle;

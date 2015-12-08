@@ -621,13 +621,11 @@ void TraceViewer::DrawTextureInfo(
       ImGui::Text("Cube: ?");
       break;
   }
-  static const char* swizzle_map[] = {"Red",  "Green", "Blue", "Alpha",
-                                      "Zero", "One",   "UNK6", "UNK7"};
-  ImGui::Text("Swizzle: %s %s %s %s",
-              swizzle_map[(texture_info.swizzle >> 0) & 0x7],
-              swizzle_map[(texture_info.swizzle >> 3) & 0x7],
-              swizzle_map[(texture_info.swizzle >> 6) & 0x7],
-              swizzle_map[(texture_info.swizzle >> 9) & 0x7]);
+  static const char* kSwizzleMap[] = {"R", "G", "B", "A", "0", "1"};
+  ImGui::Text("Swizzle: %s%s%s%s", kSwizzleMap[(fetch.swizzle >> 0) & 0x7],
+              kSwizzleMap[(fetch.swizzle >> 3) & 0x7],
+              kSwizzleMap[(fetch.swizzle >> 6) & 0x7],
+              kSwizzleMap[(fetch.swizzle >> 9) & 0x7]);
 
   ImGui::Columns(1);
 }

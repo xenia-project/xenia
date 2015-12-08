@@ -109,7 +109,6 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   // a2xx_sq_surfaceformat
   auto& info = *out_info;
   info.guest_address = fetch.address << 12;
-  info.swizzle = fetch.swizzle;
 
   info.dimension = static_cast<Dimension>(fetch.dimension);
   info.width = info.height = info.depth = 0;
