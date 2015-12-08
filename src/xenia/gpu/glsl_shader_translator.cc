@@ -277,10 +277,6 @@ void main() {
     EmitSource("void processFragment(const in StateData state) {\n");
   }
 
-  // Previous Vector result (used as a scratch).
-  EmitSource("  vec4 pv;\n");
-  // Previous Scalar result (used for RETAIN_PREV).
-  EmitSource("  float ps;\n");
   // Predicate temp, clause-local.
   EmitSource("  bool p0 = false;\n");
   // Address register when using absolute addressing.
@@ -290,10 +286,6 @@ void main() {
   // Loop counter stack, .x is the active loop.
   // Represents number of times remaining to loop.
   EmitSource("  ivec4 loop_count = ivec4(0);\n");
-  // Temps for source register values.
-  EmitSource("  vec4 src0;\n");
-  EmitSource("  vec4 src1;\n");
-  EmitSource("  vec4 src2;\n");
 
   // Temporary registers.
   if (is_vertex_shader()) {
@@ -382,6 +374,15 @@ void GlslShaderTranslator::ProcessExecInstructionBegin(
       break;
   }
   Indent();
+
+  // Previous Vector result (used as a scratch).
+  EmitSourceDepth("vec4 pv;\n");
+  // Previous Scalar result (used for RETAIN_PREV).
+  EmitSourceDepth("float ps;\n");
+  // Temps for source register values.
+  EmitSourceDepth("vec4 src0;\n");
+  EmitSourceDepth("vec4 src1;\n");
+  EmitSourceDepth("vec4 src2;\n");
 }
 
 void GlslShaderTranslator::ProcessExecInstructionEnd(
