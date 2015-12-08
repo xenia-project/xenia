@@ -109,28 +109,23 @@ void AudioSystem::WorkerThreadMain() {
     }
 
     // Number of clients pumped
-    size_t pumped = 0;
+    bool pumped = false;
     if (result.first == xe::threading::WaitResult::kSuccess) {
-      // Start from the first handle signaled and continue down.
-      size_t index = result.second;
-      do {
-        auto global_lock = global_critical_region_.Acquire();
-        uint32_t client_callback = clients_[index].callback;
-        uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
-        global_lock.unlock();
+      auto index = result.second;
 
-        if (client_callback) {
-          SCOPE_profile_cpu_i("apu", "xe::apu::AudioSystem->client_callback");
-          uint64_t args[] = {client_callback_arg};
-          processor_->Execute(worker_thread_->thread_state(), client_callback,
-                              args, xe::countof(args));
-        }
-        pumped++;
-        index++;
-      } while (index < kMaximumClientCount &&
-               xe::threading::Wait(client_semaphores_[index].get(), false,
-                                   std::chrono::milliseconds(0)) ==
-                   xe::threading::WaitResult::kSuccess);
+      auto global_lock = global_critical_region_.Acquire();
+      uint32_t client_callback = clients_[index].callback;
+      uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
+      global_lock.unlock();
+
+      if (client_callback) {
+        SCOPE_profile_cpu_i("apu", "xe::apu::AudioSystem->client_callback");
+        uint64_t args[] = {client_callback_arg};
+        processor_->Execute(worker_thread_->thread_state(), client_callback,
+                            args, xe::countof(args));
+      }
+
+      pumped = true;
     }
 
     if (!worker_running_) {
@@ -212,6 +207,7 @@ void AudioSystem::UnregisterClient(size_t index) {
   auto global_lock = global_critical_region_.Acquire();
   assert_true(index < kMaximumClientCount);
   DestroyDriver(clients_[index].driver);
+  memory()->SystemHeapFree(clients_[index].wrapped_callback_arg);
   clients_[index] = {0};
 
   // Drain the semaphore of its count.
@@ -264,16 +260,17 @@ bool AudioSystem::Restore(ByteStream* stream) {
     assert_true(id < kMaximumClientCount);
 
     auto& client = clients_[id];
-    client.callback = stream->Read<uint32_t>();
-    client.callback_arg = stream->Read<uint32_t>();
-    client.wrapped_callback_arg = stream->Read<uint32_t>();
-
-    client.in_use = true;
 
     // Reset the semaphore and recreate the driver ourselves.
     if (client.driver) {
       UnregisterClient(id);
     }
+
+    client.callback = stream->Read<uint32_t>();
+    client.callback_arg = stream->Read<uint32_t>();
+    client.wrapped_callback_arg = stream->Read<uint32_t>();
+
+    client.in_use = true;
 
     auto client_semaphore = client_semaphores_[id].get();
     auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
