@@ -21,6 +21,8 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
+#include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xthread.h"
 
 // For FileTimeToSystemTime and SystemTimeToFileTime:
@@ -296,28 +298,22 @@ DECLARE_XBOXKRNL_EXPORT(RtlImageXexHeaderField, ExportTag::kImplemented);
 // their embedded data and InitializeCriticalSection will never be called.
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
-  xe::be<uint8_t> unk_00;              // 0x0
-  xe::be<uint8_t> spin_count_div_256;  // 0x1
-  xe::be<uint16_t> __padding0;         // 0x2
-  xe::be<uint32_t> unk_04;             // 0x4 maybe the handle to the event?
-  xe::be<uint32_t> queue_head;  // 0x8 head of queue, pointing to this offset
-  xe::be<uint32_t> queue_tail;  // 0xC tail of queue?
-  int32_t lock_count;           // 0x10 -1 -> 0 on first lock 0x10
-  xe::be<int32_t> recursion_count;    // 0x14  0 -> 1 on first lock 0x14
-  xe::be<uint32_t> owning_thread_id;  // 0x18 0 unless locked 0x18
+  X_DISPATCH_HEADER header;
+  int32_t lock_count;               // 0x10 -1 -> 0 on first lock
+  xe::be<int32_t> recursion_count;  // 0x14  0 -> 1 on first lock
+  xe::be<uint32_t> owning_thread;   // 0x18 PKTHREAD 0 unless locked
 };
 #pragma pack(pop)
 static_assert_size(X_RTL_CRITICAL_SECTION, 28);
 
 void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
                                     uint32_t cs_ptr) {
-  cs->unk_00 = 1;
-  cs->spin_count_div_256 = 0;
-  cs->queue_head = cs_ptr + 8;
-  cs->queue_tail = cs_ptr + 8;
+  cs->header.type = 1;      // EventSynchronizationObject (auto reset)
+  cs->header.absolute = 0;  // spin count div 256
+  cs->header.signal_state = 0;
   cs->lock_count = -1;
   cs->recursion_count = 0;
-  cs->owning_thread_id = 0;
+  cs->owning_thread = 0;
 }
 
 void RtlInitializeCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
@@ -335,13 +331,12 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
     spin_count_div_256 = 255;
   }
 
-  cs->unk_00 = 1;
-  cs->spin_count_div_256 = spin_count_div_256;
-  cs->queue_head = cs_ptr + 8;
-  cs->queue_tail = cs_ptr + 8;
+  cs->header.type = 1;  // EventSynchronizationObject (auto reset)
+  cs->header.absolute = spin_count_div_256;
+  cs->header.signal_state = 0;
   cs->lock_count = -1;
   cs->recursion_count = 0;
-  cs->owning_thread_id = 0;
+  cs->owning_thread = 0;
 
   return X_STATUS_SUCCESS;
 }
@@ -354,90 +349,68 @@ dword_result_t RtlInitializeCriticalSectionAndSpinCount(
 DECLARE_XBOXKRNL_EXPORT(RtlInitializeCriticalSectionAndSpinCount,
                         ExportTag::kImplemented);
 
-SHIM_CALL RtlEnterCriticalSection_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  // VOID
-  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+void RtlEnterCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  uint32_t cur_thread = XThread::GetCurrentThread()->guest_object();
+  uint32_t spin_count = cs->header.absolute * 256;
 
-  // XELOGD("RtlEnterCriticalSection(%.8X)", cs_ptr);
+  if (cs->owning_thread == cur_thread) {
+    // We already own the lock.
+    xe::atomic_inc(&cs->lock_count);
+    cs->recursion_count++;
+    return;
+  }
 
-  uint32_t thread_id = XThread::GetCurrentThreadId();
-
-  auto cs = reinterpret_cast<X_RTL_CRITICAL_SECTION*>(SHIM_MEM_ADDR(cs_ptr));
-  uint32_t spin_wait_remaining = cs->spin_count_div_256 * 256;
-
-spin:
-  if (xe::atomic_inc(&cs->lock_count) != 0) {
-    // If this thread already owns the CS increment the recursion count.
-    if (cs->owning_thread_id == thread_id) {
-      cs->recursion_count++;
+  // Spin loop
+  while (spin_count--) {
+    if (xe::atomic_cas(-1, 0, &cs->lock_count)) {
+      // Acquired.
+      cs->owning_thread = cur_thread;
+      cs->recursion_count = 1;
       return;
     }
-    xe::atomic_dec(&cs->lock_count);
-
-    // Thread was locked - spin wait.
-    if (spin_wait_remaining) {
-      spin_wait_remaining--;
-      goto spin;
-    }
-
-    // All out of spin waits, create a full waiter.
-    // TODO(benvanik): contention - do a real wait!
-    // XELOGE("RtlEnterCriticalSection tried to really lock!");
-    spin_wait_remaining = 0;  // HACK: spin forever
-    xe::threading::MaybeYield();
-    goto spin;
   }
 
-  // Now own the lock.
-  cs->owning_thread_id = thread_id;
+  if (xe::atomic_inc(&cs->lock_count) != 0) {
+    // Create a full waiter.
+    KeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0,
+                          nullptr);
+  }
+
+  // We've now acquired the lock.
+  assert_true(cs->owning_thread == 0);
+  cs->owning_thread = cur_thread;
   cs->recursion_count = 1;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlEnterCriticalSection,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
-SHIM_CALL RtlTryEnterCriticalSection_shim(PPCContext* ppc_context,
-                                          KernelState* kernel_state) {
-  // DWORD
-  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+dword_result_t RtlTryEnterCriticalSection(
+    pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  uint32_t thread = XThread::GetCurrentThread()->guest_object();
 
-  // XELOGD("RtlTryEnterCriticalSection(%.8X)", cs_ptr);
-
-  uint32_t thread_id = XThread::GetCurrentThreadId();
-
-  auto cs = reinterpret_cast<X_RTL_CRITICAL_SECTION*>(SHIM_MEM_ADDR(cs_ptr));
-
-  uint32_t result = 0;
   if (xe::atomic_cas(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.
-    cs->owning_thread_id = thread_id;
+    cs->owning_thread = thread;
     cs->recursion_count = 1;
-    result = 1;
-  } else if (cs->owning_thread_id == thread_id) {
+    return 1;
+  } else if (cs->owning_thread == thread) {
+    // Already own the lock.
     xe::atomic_inc(&cs->lock_count);
     ++cs->recursion_count;
-    result = 1;
+    return 1;
   }
-  SHIM_SET_RETURN_32(result);
+
+  // Failed to acquire lock.
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(RtlTryEnterCriticalSection,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
-SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  // VOID
-  // _Inout_  LPCRITICAL_SECTION lpCriticalSection
-  uint32_t cs_ptr = SHIM_GET_ARG_32(0);
+void RtlLeaveCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  assert_true(cs->owning_thread == XThread::GetCurrentThread()->guest_object());
 
-  // XELOGD("RtlLeaveCriticalSection(%.8X)", cs_ptr);
-
-  // FYI: No need to check if the owning thread is calling this, as that should
-  // be the only case.
-
-  auto cs = reinterpret_cast<X_RTL_CRITICAL_SECTION*>(SHIM_MEM_ADDR(cs_ptr));
-
-  // Drop recursion count - if we are still not zero'ed return.
-  int32_t recursion_count = --cs->recursion_count;
-  assert_true(recursion_count > -1);
-  if (recursion_count) {
+  // Drop recursion count - if it isn't zero we still have the lock.
+  if (--cs->recursion_count != 0) {
     assert_true(cs->recursion_count > 0);
 
     xe::atomic_dec(&cs->lock_count);
@@ -445,15 +418,14 @@ SHIM_CALL RtlLeaveCriticalSection_shim(PPCContext* ppc_context,
   }
 
   // Not owned - unlock!
-  cs->owning_thread_id = 0;
+  cs->owning_thread = 0;
   if (xe::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
-    // TODO(benvanik): wake a waiter.
-    XELOGE("RtlLeaveCriticalSection would have woken a waiter");
+    KeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
   }
-
-  XThread::GetCurrentThread()->CheckApcs();
 }
+DECLARE_XBOXKRNL_EXPORT(RtlLeaveCriticalSection,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 struct X_TIME_FIELDS {
   xe::be<uint16_t> year;
@@ -515,10 +487,6 @@ void RegisterRtlExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeStringToAnsiString, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlMultiByteToUnicodeN, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", RtlUnicodeToMultiByteN, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlEnterCriticalSection, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlTryEnterCriticalSection, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", RtlLeaveCriticalSection, state);
 }
 
 }  // namespace xboxkrnl
