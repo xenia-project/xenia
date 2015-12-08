@@ -40,8 +40,7 @@ uint32_t next_xthread_id_ = 0;
 thread_local XThread* current_thread_tls_ = nullptr;
 
 XThread::XThread(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeThread),
-      guest_thread_(true) {}
+    : XObject(kernel_state, kTypeThread), guest_thread_(true) {}
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
@@ -803,8 +802,7 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
       if (i.I.AA) {
         nia = (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
       } else {
-        nia =
-            i.address + (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
+        nia = i.address + (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
       }
 
       StepToAddress(nia);
@@ -901,8 +899,8 @@ uint32_t XThread::StepToSafePoint() {
   uint64_t frame_host_pcs[64];
   cpu::StackFrame cpu_frames[64];
   size_t count = stack_walker->CaptureStackTrace(
-    thread_->native_handle(), frame_host_pcs, 0, xe::countof(frame_host_pcs),
-    nullptr, nullptr);
+      thread_->native_handle(), frame_host_pcs, 0, xe::countof(frame_host_pcs),
+      nullptr, nullptr);
   stack_walker->ResolveStack(frame_host_pcs, cpu_frames, count);
   if (count == 0) {
     return 0;
@@ -975,7 +973,8 @@ uint32_t XThread::StepToSafePoint() {
       pc = thunk_func->address();
     } else if (export_data) {
       // Non-blocking. Run until we return from the thunk.
-      StepToAddress(uint32_t(thread_state_->context()->lr));
+      pc = uint32_t(thread_state_->context()->lr);
+      StepToAddress(pc);
     } else if (first_pc) {
       // We're in the MMIO handler/mfmsr/something calling out of the guest
       // that doesn't use an export. If the current instruction is
@@ -990,7 +989,9 @@ uint32_t XThread::StepToSafePoint() {
         // Good to go.
         pc = first_pc;
       } else {
-        // Step forward.
+        // Step forward and run this logic again.
+        // FIXME: This is broken. Runs this code in an infinite loop because
+        // breakpoints call out of the guest.
         StepToAddress(first_pc + 4);
         return StepToSafePoint();
       }
@@ -1045,6 +1046,7 @@ bool XThread::Save(ByteStream* stream) {
   if (!pc) {
     XELOGE("XThread %.8X failed to save: could not step to a safe point!",
            handle());
+    assert_always();
     return false;
   }
 
