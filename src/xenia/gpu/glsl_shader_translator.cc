@@ -111,6 +111,8 @@ struct StateData {
   vec4 window_scale;
   vec4 vtx_fmt;
   vec4 alpha_test;
+  int ps_param_gen;
+  int padding[3];
   // TODO(benvanik): variable length.
   uvec2 texture_samplers[32];
   vec4 float_consts[512];
@@ -270,17 +272,8 @@ void main() {
   // Enter the main function, where all of our shader lives.
   if (is_vertex_shader()) {
     EmitSource("void processVertex(const in StateData state) {\n");
-
-    // Temporary registers.
-    EmitSource("  vec4 r[64];\n");
   } else {
     EmitSource("void processFragment(const in StateData state) {\n");
-
-    // Bring interpolators from vertex shader into temporary registers.
-    EmitSource("  vec4 r[64];\n");
-    for (int i = 0; i < kMaxInterpolators; ++i) {
-      EmitSource("  r[%d] = vtx.o[%d];\n", i, i);
-    }
   }
 
   // Previous Vector result (used as a scratch).
@@ -300,6 +293,22 @@ void main() {
   EmitSource("  vec4 src0;\n");
   EmitSource("  vec4 src1;\n");
   EmitSource("  vec4 src2;\n");
+
+  // Temporary registers.
+  if (is_vertex_shader()) {
+    EmitSource("  vec4 r[64];\n");
+  } else {
+    // Bring interpolators from vertex shader into temporary registers.
+    EmitSource("  vec4 r[64];\n");
+    for (int i = 0; i < kMaxInterpolators; ++i) {
+      EmitSource("  r[%d] = vtx.o[%d];\n", i, i);
+    }
+    EmitSource("  if (state.ps_param_gen != -1) {\n");
+    EmitSource("    pv = vec4(gl_FragCoord.xy, gl_PointCoord.xy);\n");
+    EmitSource("    pv.x *= (gl_FrontFacing ? 1.0 : -1.0);\n");
+    EmitSource("    r[state.ps_param_gen] = pv;\n");
+    EmitSource("  }\n");
+  }
 
   // Master loop and switch for flow control.
   EmitSourceDepth("int pc = 0;\n");

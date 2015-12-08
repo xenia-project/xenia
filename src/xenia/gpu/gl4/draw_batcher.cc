@@ -195,6 +195,7 @@ bool DrawBatcher::BeginDraw() {
   auto state_host_ptr =
       reinterpret_cast<uintptr_t>(active_draw_.state_allocation.host_ptr);
   active_draw_.header = reinterpret_cast<CommonHeader*>(state_host_ptr);
+  active_draw_.header->ps_param_gen = -1;
   // active_draw_.float_consts =
   //    reinterpret_cast<float4*>(state_host_ptr +
   //    batch_state_.float_consts_offset);

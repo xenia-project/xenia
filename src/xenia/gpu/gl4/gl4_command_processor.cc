@@ -623,6 +623,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
+  dirty |= SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
   dirty |= regs.vertex_shader != active_vertex_shader_;
   dirty |= regs.pixel_shader != active_pixel_shader_;
   dirty |= regs.prim_type != prim_type;
@@ -639,6 +640,10 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
 
   xe_gpu_program_cntl_t program_cntl;
   program_cntl.dword_0 = regs.sq_program_cntl;
+
+  // Populate a register in the pixel shader with frag coord.
+  int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
+  draw_batcher_.set_ps_param_gen(program_cntl.param_gen ? ps_param_gen : -1);
 
   // Normal vertex shaders only, for now.
   // TODO(benvanik): transform feedback/memexport.

@@ -213,6 +213,7 @@ class GL4CommandProcessor : public CommandProcessor {
     PrimitiveType prim_type;
     uint32_t pa_su_sc_mode_cntl;
     uint32_t sq_program_cntl;
+    uint32_t sq_context_misc;
     GL4Shader* vertex_shader;
     GL4Shader* pixel_shader;
 

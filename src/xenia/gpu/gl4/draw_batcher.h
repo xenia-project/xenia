@@ -75,6 +75,9 @@ class DrawBatcher {
     active_draw_.header->alpha_test.y = static_cast<float>(func);
     active_draw_.header->alpha_test.z = ref;
   }
+  void set_ps_param_gen(int register_index) {
+    active_draw_.header->ps_param_gen = register_index;
+  }
   void set_texture_sampler(int index, GLuint64 handle) {
     active_draw_.header->texture_samplers[index] = handle;
   }
@@ -132,6 +135,8 @@ class DrawBatcher {
     float4 window_scale;  // sx,sy, ?, ?
     float4 vtx_fmt;       //
     float4 alpha_test;    // alpha test enable, func, ref, ?
+    int ps_param_gen;
+    int padding[3];
 
     // TODO(benvanik): pack tightly
     GLuint64 texture_samplers[32];
