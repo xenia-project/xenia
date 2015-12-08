@@ -332,7 +332,7 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
         ", DataFormat=%s",
         kVertexFetchDataFormats[static_cast<int>(attributes.data_format)]);
   }
-  if (attributes.stride) {
+  if (!is_mini_fetch && attributes.stride) {
     out->AppendFormat(", Stride=%d", attributes.stride);
   }
   if (attributes.is_signed) {

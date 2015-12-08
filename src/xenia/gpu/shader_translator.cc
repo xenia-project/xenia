@@ -205,6 +205,9 @@ void ShaderTranslator::GatherVertexBindingInformation(
     return;
   }
 
+  ParsedVertexFetchInstruction fetch_instr;
+  ParseVertexFetchInstruction(op, &fetch_instr);
+
   // Try to allocate an attribute on an existing binding.
   // If no binding for this fetch slot is found create it.
   using VertexBinding = Shader::VertexBinding;
@@ -212,18 +215,19 @@ void ShaderTranslator::GatherVertexBindingInformation(
   for (auto& vertex_binding : vertex_bindings_) {
     if (vertex_binding.fetch_constant == op.fetch_constant_index()) {
       // It may not hold that all strides are equal, but I hope it does.
-      assert_true(!op.stride() || vertex_binding.stride_words == op.stride());
+      assert_true(!fetch_instr.attributes.stride ||
+                  vertex_binding.stride_words == fetch_instr.attributes.stride);
       vertex_binding.attributes.push_back({});
       attrib = &vertex_binding.attributes.back();
       break;
     }
   }
   if (!attrib) {
-    assert_not_zero(op.stride());
+    assert_not_zero(fetch_instr.attributes.stride);
     VertexBinding vertex_binding;
     vertex_binding.binding_index = static_cast<int>(vertex_bindings_.size());
     vertex_binding.fetch_constant = op.fetch_constant_index();
-    vertex_binding.stride_words = op.stride();
+    vertex_binding.stride_words = fetch_instr.attributes.stride;
     vertex_binding.attributes.push_back({});
     vertex_bindings_.emplace_back(std::move(vertex_binding));
     attrib = &vertex_bindings_.back().attributes.back();
@@ -231,7 +235,7 @@ void ShaderTranslator::GatherVertexBindingInformation(
 
   // Populate attribute.
   attrib->attrib_index = total_attrib_count_++;
-  ParseVertexFetchInstruction(op, &attrib->fetch_instr);
+  attrib->fetch_instr = fetch_instr;
   attrib->size_words =
       GetVertexFormatSizeInWords(attrib->fetch_instr.attributes.data_format);
 }
@@ -670,7 +674,7 @@ void ShaderTranslator::ParseVertexFetchInstruction(
 
   i.attributes.data_format = op.data_format();
   i.attributes.offset = op.offset();
-  i.attributes.stride = op.stride();
+  i.attributes.stride = full_op.stride();
   i.attributes.exp_adjust = op.exp_adjust();
   i.attributes.is_index_rounded = op.is_index_rounded();
   i.attributes.is_signed = op.is_signed();
