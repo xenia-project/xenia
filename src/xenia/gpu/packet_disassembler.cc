@@ -159,7 +159,8 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr,
       uint32_t frontbuffer_ptr = xe::load_and_swap<uint32_t>(ptr + 0);
       break;
     }
-    case PM4_INDIRECT_BUFFER: {
+    case PM4_INDIRECT_BUFFER:
+    case PM4_INDIRECT_BUFFER_PFD: {
       // indirect buffer dispatch
       static const PacketTypeInfo op_info = {PacketCategory::kGeneric,
                                              "PM4_INDIRECT_BUFFER"};

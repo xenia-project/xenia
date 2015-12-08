@@ -377,7 +377,7 @@ void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
 void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t length) {
   SCOPE_profile_cpu_f("gpu");
 
-  trace_writer_.WriteIndirectBufferStart(ptr, length / sizeof(uint32_t));
+  trace_writer_.WriteIndirectBufferStart(ptr, length * sizeof(uint32_t));
 
   // Execute commands!
   uint32_t ptr_mask = 0;
@@ -509,6 +509,7 @@ bool CommandProcessor::ExecutePacketType3(RingbufferReader* reader,
       result = ExecutePacketType3_XE_SWAP(reader, packet, count);
       break;
     case PM4_INDIRECT_BUFFER:
+    case PM4_INDIRECT_BUFFER_PFD:
       result = ExecutePacketType3_INDIRECT_BUFFER(reader, packet, count);
       break;
     case PM4_WAIT_REG_MEM:
@@ -683,7 +684,7 @@ bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(
     RingbufferReader* reader, uint32_t packet, uint32_t count) {
   // indirect buffer dispatch
   uint32_t list_ptr = CpuToGpu(reader->Read());
-  uint32_t list_length = reader->Read();
+  uint32_t list_length = reader->Read() & 0xFFFFF;
   ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
   return true;
 }
