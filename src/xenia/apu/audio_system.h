@@ -42,6 +42,13 @@ class AudioSystem {
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
+
+  bool is_paused() const { return paused_; }
+  void Pause();
+  void Resume();
+
  protected:
   explicit AudioSystem(cpu::Processor* processor);
 
@@ -82,6 +89,10 @@ class AudioSystem {
   // Event is always there in case we have no clients.
   std::unique_ptr<xe::threading::Event> shutdown_event_;
   xe::threading::WaitHandle* wait_handles_[kMaximumClientCount + 1];
+
+  bool paused_ = false;
+  threading::Fence pause_fence_;
+  std::unique_ptr<threading::Event> resume_event_;
 };
 
 }  // namespace apu
