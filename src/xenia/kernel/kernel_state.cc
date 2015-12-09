@@ -607,18 +607,49 @@ bool KernelState::Save(ByteStream* stream) {
   // Save the object table
   object_table_.Save(stream);
 
-  // Save all objects
-  auto objects = object_table_.GetAllObjects();
-  uint32_t* num_objects_ptr = (uint32_t*)(stream->data() + stream->offset());
-  size_t num_objects = objects.size();
-  stream->Write((uint32_t)num_objects);
+  // We save XThreads absolutely first, as they will execute code upon save
+  // (which could modify the kernel state)
+  auto threads = object_table_.GetObjectsByType<XThread>();
+  uint32_t* num_threads_ptr =
+      reinterpret_cast<uint32_t*>(stream->data() + stream->offset());
+  stream->Write(static_cast<uint32_t>(threads.size()));
 
-  XELOGD("Serializing %d objects", num_objects);
+  size_t num_threads = threads.size();
+  XELOGD("Serializing %d threads...", threads.size());
+  for (auto thread : threads) {
+    if (!thread->is_guest_thread()) {
+      // Don't save host threads. They can be reconstructed on startup.
+      num_threads--;
+      continue;
+    }
+
+    if (!thread->Save(stream)) {
+      XELOGD("Did not save thread \"%s\"", thread->name().c_str());
+      num_threads--;
+    }
+  }
+
+  *num_threads_ptr = static_cast<uint32_t>(num_threads);
+
+  // Save all other objects
+  auto objects = object_table_.GetAllObjects();
+  uint32_t* num_objects_ptr =
+      reinterpret_cast<uint32_t*>(stream->data() + stream->offset());
+  stream->Write(static_cast<uint32_t>(objects.size()));
+
+  size_t num_objects = objects.size();
+  XELOGD("Serializing %d objects...", num_objects);
   for (auto object : objects) {
     auto prev_offset = stream->offset();
 
-    stream->Write((uint32_t)object->type());
-    if (object->is_host_object() || !object->Save(stream)) {
+    if (object->is_host_object() || object->type() == XObject::kTypeThread) {
+      // Don't save host objects or save XThreads again
+      num_objects--;
+      continue;
+    }
+
+    stream->Write<uint32_t>(object->type());
+    if (!object->Save(stream)) {
       XELOGD("Did not save object of type %d", object->type());
 
       // Revert backwards and overwrite if a save failed.
@@ -627,7 +658,7 @@ bool KernelState::Save(ByteStream* stream) {
     }
   }
 
-  *num_objects_ptr = (uint32_t)num_objects;
+  *num_objects_ptr = static_cast<uint32_t>(num_objects);
   return true;
 }
 
@@ -640,13 +671,23 @@ bool KernelState::Restore(ByteStream* stream) {
   // Restore the object table
   object_table_.Restore(stream);
 
+  uint32_t num_threads = stream->Read<uint32_t>();
+  XELOGD("Loading %d threads...", num_threads);
+  for (uint32_t i = 0; i < num_threads; i++) {
+    auto thread = XObject::Restore(this, XObject::kTypeThread, stream);
+    if (!thread) {
+      // Can't continue the restore or we risk misalignment.
+      assert_always();
+      return false;
+    }
+  }
+
   uint32_t num_objects = stream->Read<uint32_t>();
   XELOGD("Loading %d objects...", num_objects);
   for (uint32_t i = 0; i < num_objects; i++) {
     uint32_t type = stream->Read<uint32_t>();
 
-    object_ref<XObject> obj =
-        XObject::Restore(this, XObject::Type(type), stream);
+    auto obj = XObject::Restore(this, XObject::Type(type), stream);
     if (!obj) {
       // Can't continue the restore or we risk misalignment.
       assert_always();
