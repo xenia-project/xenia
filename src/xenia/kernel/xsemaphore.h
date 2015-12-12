@@ -38,8 +38,13 @@ class XSemaphore : public XObject {
     return semaphore_.get();
   }
 
+  bool Save(ByteStream* stream) override;
+  static object_ref<XSemaphore> Restore(KernelState* kernel_state,
+                                        ByteStream* stream);
+
  private:
   std::unique_ptr<xe::threading::Semaphore> semaphore_;
+  uint32_t maximum_count_ = 0;
 };
 
 }  // namespace kernel
