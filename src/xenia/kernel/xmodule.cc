@@ -10,6 +10,7 @@
 #include "xenia/kernel/xmodule.h"
 
 #include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
@@ -96,6 +97,8 @@ std::string XModule::NameFromPath(std::string path) {
 }
 
 bool XModule::Save(ByteStream* stream) {
+  XELOGD("XModule %.8X (%s)", handle(), path_.c_str());
+
   stream->Write('XMOD');
 
   stream->Write(path_);
@@ -120,6 +123,7 @@ object_ref<XModule> XModule::Restore(KernelState* kernel_state,
   // Can only save user modules at the moment, so just redirect.
   // TODO: Find a way to call RestoreObject here before UserModule::Restore.
   auto module = UserModule::Restore(kernel_state, stream, path);
+  XELOGD("XModule %.8X (%s)", module->handle(), module->path_.c_str());
 
   module->hmodule_ptr_ = hmodule_ptr;
   return module;
