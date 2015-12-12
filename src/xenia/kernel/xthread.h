@@ -190,7 +190,9 @@ class XThread : public XObject {
 
   // Steps the thread to a point where it's safe to terminate or read its
   // context. Returns the PC after we've finished stepping.
-  uint32_t StepToSafePoint();
+  // Pass true for ignore_host if you've stopped the thread yourself
+  // in host code you want to ignore.
+  uint32_t StepToSafePoint(bool ignore_host = false);
 
  protected:
   bool AllocateStack(uint32_t size);
