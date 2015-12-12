@@ -456,11 +456,6 @@ DECLARE_XBOXKRNL_EXPORT(KeInitializeEvent,
 
 dword_result_t KeSetEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
                           dword_t wait) {
-  // Update dispatch header.
-  xe::atomic_exchange(
-      xe::byte_swap<uint32_t>(1),
-      reinterpret_cast<uint32_t*>(&event_ptr->header.signal_state));
-
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {
     assert_always();
@@ -485,10 +480,6 @@ dword_result_t KePulseEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
 DECLARE_XBOXKRNL_EXPORT(KePulseEvent, ExportTag::kImplemented);
 
 dword_result_t KeResetEvent(pointer_t<X_KEVENT> event_ptr) {
-  // Update dispatch header.
-  xe::atomic_exchange(
-      0, reinterpret_cast<uint32_t*>(&event_ptr->header.signal_state));
-
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {
     assert_always();
@@ -930,7 +921,7 @@ dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
   assert_true(wait_type <= 1);
   X_STATUS result = X_STATUS_SUCCESS;
 
-  std::vector<object_ref<XObject>> objects(count);
+  std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
     uint32_t object_handle = handles[n];
     auto object =
