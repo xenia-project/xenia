@@ -882,7 +882,7 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
   return pc;
 }
 
-uint32_t XThread::StepToSafePoint() {
+uint32_t XThread::StepToSafePoint(bool ignore_host) {
   // This cannot be done if we're the calling thread!
   if (IsInThread() && GetCurrentThread() == this) {
     assert_always(
@@ -906,12 +906,22 @@ uint32_t XThread::StepToSafePoint() {
     return 0;
   }
 
+  auto& first_frame = cpu_frames[0];
+  if (ignore_host) {
+    for (size_t i = 0; i < count; i++) {
+      if (cpu_frames[i].type == cpu::StackFrame::Type::kGuest &&
+          cpu_frames[i].guest_pc) {
+        first_frame = cpu_frames[i];
+      }
+    }
+  }
+
   // Check if we're in guest code or host code.
   uint32_t pc = 0;
-  if (cpu_frames[0].type == cpu::StackFrame::Type::kGuest) {
-    auto& frame = cpu_frames[0];
+  if (first_frame.type == cpu::StackFrame::Type::kGuest) {
+    auto& frame = first_frame;
     if (!frame.guest_pc) {
-      // Lame.
+      // Lame. The guest->host thunk is a "guest" function.
       frame = cpu_frames[1];
     }
 
@@ -990,10 +1000,8 @@ uint32_t XThread::StepToSafePoint() {
         pc = first_pc;
       } else {
         // Step forward and run this logic again.
-        // FIXME: This is broken. Runs this code in an infinite loop because
-        // breakpoints call out of the guest.
         StepToAddress(first_pc + 4);
-        return StepToSafePoint();
+        return StepToSafePoint(true);
       }
     } else {
       // We've managed to catch a thread before it called into the guest.
