@@ -32,7 +32,7 @@ RingBuffer::ReadRange RingBuffer::BeginRead(size_t count) {
 }
 
 void RingBuffer::EndRead(ReadRange read_range) {
-  if (read_range.second_length) {
+  if (read_range.second) {
     read_offset_ = read_range.second_length;
   } else {
     read_offset_ += read_range.first_length;
