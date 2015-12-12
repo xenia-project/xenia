@@ -47,6 +47,11 @@ class Clock {
   // Queries the milliseconds since the guest began, accounting for scaling.
   static uint32_t QueryGuestUptimeMillis();
 
+  // Sets the guest tick count for the current thread.
+  static void SetGuestTickCount(uint64_t tick_count);
+  // Sets the system time for the current thread.
+  static void SetGuestSystemTime(uint64_t system_time);
+
   // Scales a time duration in milliseconds, from guest time.
   static uint32_t ScaleGuestDurationMillis(uint32_t guest_ms);
   // Scales a time duration in 100ns ticks like FILETIME, from guest time.
