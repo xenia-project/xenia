@@ -84,6 +84,16 @@ uint32_t Clock::QueryGuestUptimeMillis() {
   return result;
 }
 
+void Clock::SetGuestTickCount(uint64_t tick_count) {
+  last_host_tick_count_ = Clock::QueryHostTickCount();
+  guest_tick_count_ = tick_count;
+}
+
+void Clock::SetGuestSystemTime(uint64_t system_time) {
+  last_host_tick_count_ = Clock::QueryHostTickCount();
+  guest_time_filetime_ = system_time - guest_system_time_base_;
+}
+
 uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
   if (guest_ms == UINT_MAX) {
     return UINT_MAX;

@@ -912,6 +912,7 @@ uint32_t XThread::StepToSafePoint(bool ignore_host) {
       if (cpu_frames[i].type == cpu::StackFrame::Type::kGuest &&
           cpu_frames[i].guest_pc) {
         first_frame = cpu_frames[i];
+        break;
       }
     }
   }
@@ -1019,6 +1020,11 @@ uint32_t XThread::StepToSafePoint(bool ignore_host) {
 struct ThreadSavedState {
   uint32_t thread_id;
   bool main_thread;
+
+  // Clock settings
+  uint64_t tick_count_;
+  uint64_t system_time_;
+
   uint32_t apc_head;
   uint32_t tls_address;
   uint32_t pcr_address;
@@ -1076,6 +1082,10 @@ bool XThread::Save(ByteStream* stream) {
   state.stack_alloc_base = stack_alloc_base_;
   state.stack_alloc_size = stack_alloc_size_;
 
+  state.tick_count_ = Clock::QueryGuestTickCount();
+  state.system_time_ =
+      Clock::QueryGuestSystemTime() - Clock::guest_system_time_base();
+
   // Context information
   auto context = thread_state_->context();
   state.context.lr = context->lr;
@@ -1117,6 +1127,8 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     XELOGE("Could not restore XThread - invalid magic!");
     return false;
   }
+
+  XELOGD("XThread %.8X", thread->handle());
 
   thread->name_ = stream->Read<std::string>();
 
@@ -1160,7 +1172,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   context->xer_ov = state.context.xer_ov;
   context->xer_so = state.context.xer_so;
   context->vscr_sat = state.context.vscr_sat;
-  auto pc = state.context.pc;
 
   // Always retain when starting - the thread owns itself until exited.
   thread->Retain();
@@ -1169,7 +1180,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   xe::threading::Thread::CreationParameters params;
   params.create_suspended = true;  // Not done restoring yet.
   params.stack_size = 16 * 1024 * 1024;
-  thread->thread_ = xe::threading::Thread::Create(params, [thread, pc]() {
+  thread->thread_ = xe::threading::Thread::Create(params, [thread, state]() {
     // Set thread ID override. This is used by logging.
     xe::threading::set_current_thread_id(thread->handle());
 
@@ -1179,10 +1190,17 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     // Profiler needs to know about the thread.
     xe::Profiler::ThreadEnter(thread->name().c_str());
 
+    // Setup the time now that we're in the thread.
+    Clock::SetGuestTickCount(state.tick_count_);
+    Clock::SetGuestSystemTime(state.system_time_);
+
     // Execute user code.
     thread->running_ = true;
     current_thread_tls_ = thread;
+
+    uint32_t pc = state.context.pc;
     thread->kernel_state()->processor()->ExecuteRaw(thread->thread_state_, pc);
+
     current_thread_tls_ = nullptr;
 
     xe::Profiler::ThreadExit();
