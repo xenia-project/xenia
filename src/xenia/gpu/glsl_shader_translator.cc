@@ -346,11 +346,8 @@ void GlslShaderTranslator::ProcessControlFlowInstructionBegin(
 
 void GlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
   if (!cf_wrote_pc_) {
-    uint32_t next_index = cf_index + 1;
-    EmitSourceDepth("pc = 0x%X;  // Fallthrough to L%d\n", next_index,
-                    next_index);
+    EmitSourceDepth("// Falling through to L%u\n", cf_index + 1);
   }
-  EmitSourceDepth("break;\n");
   Unindent();
 }
 
@@ -391,6 +388,7 @@ void GlslShaderTranslator::ProcessExecInstructionEnd(
   EmitSourceDepth("}\n");
   if (instr.is_end) {
     EmitSourceDepth("pc = 0xFFFF;\n");
+    EmitSourceDepth("break;\n");
     cf_wrote_pc_ = true;
   }
 }
@@ -425,6 +423,7 @@ void GlslShaderTranslator::ProcessLoopStartInstruction(
   EmitSourceDepth("  pc = 0x%X;  // Fallthrough to loop body L%d\n",
                   instr.dword_index + 1, instr.dword_index + 1);
   EmitSourceDepth("}\n");
+  EmitSourceDepth("break;\n");
   cf_wrote_pc_ = true;
 }
 
@@ -464,6 +463,7 @@ void GlslShaderTranslator::ProcessLoopEndInstruction(
 
   Unindent();
   EmitSourceDepth("}\n");
+  EmitSourceDepth("break;\n");
   cf_wrote_pc_ = true;
 }
 
@@ -521,6 +521,7 @@ void GlslShaderTranslator::ProcessJumpInstruction(
   } else {
     EmitSourceDepth("}\n");
   }
+  EmitSourceDepth("break;\n");
 }
 
 void GlslShaderTranslator::ProcessAllocInstruction(
