@@ -795,8 +795,18 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
 
   auto context = thread_state_->context();
 
-  if (i.type->type & (1 << 4) /* BranchAlways */) {
-    if (i.type->opcode == 0x48000000) {
+  if (i.type->type & (1 << 4) /* BranchAlways */
+      || i.code == 0x4E800020 /* blr */
+      || i.code == 0x4E800420 /* bctr */) {
+    if (i.code == 0x4E800020) {
+      // blr
+      uint32_t nia = uint32_t(context->lr);
+      StepToAddress(nia);
+    } else if (i.code == 0x4E800420) {
+      // bctr
+      uint32_t nia = uint32_t(context->ctr);
+      StepToAddress(nia);
+    } else if (i.type->opcode == 0x48000000) {
       // bx
       uint32_t nia = 0;
       if (i.I.AA) {
@@ -817,31 +827,9 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
       fence.Signal();
     };
 
-    bool conditional = true;
-    if (i.type->opcode = 0x40000000) {
-      // bx
-      if (cpu::frontend::select_bits(i.B.BO, 4, 4) &&
-          cpu::frontend::select_bits(i.B.BO, 2, 2)) {
-        conditional = false;
-      }
-    } else if (i.type->opcode == 0x4C000420) {
-      // bctrx
-      if (cpu::frontend::select_bits(i.XL.BO, 2, 2)) {
-        // ignore cond
-        conditional = false;
-      }
-    } else if (i.type->opcode == 0x4C000020) {
-      // blrx
-      if (cpu::frontend::select_bits(i.B.BO, 4, 4) &&
-          cpu::frontend::select_bits(i.B.BO, 2, 2)) {
-        // ignore ctr
-        conditional = false;
-      }
-    }
-
     cpu::Breakpoint bpt(kernel_state()->processor(), callback);
     cpu::Breakpoint bpf(kernel_state()->processor(), pc + 4, callback);
-    if (conditional && !bpf.Install()) {
+    if (!bpf.Install()) {
       XELOGE("XThread: Could not install breakpoint to step forward!");
       assert_always();
     }
@@ -874,9 +862,7 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
     thread_->Resume();
     fence.Wait();
     bpt.Uninstall();
-    if (conditional) {
-      bpf.Uninstall();
-    }
+    bpf.Uninstall();
   }
 
   return pc;
