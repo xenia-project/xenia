@@ -246,7 +246,7 @@ void TraceViewer::DrawControllerUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Skip to last frame");
   }
-  if (player_->playing_trace()) {
+  if (player_->is_playing_trace()) {
     // Don't allow the user to change the frame index just yet...
     // TODO: Find a way to disable the slider below.
     target_frame = player_->current_frame_index();
@@ -255,7 +255,7 @@ void TraceViewer::DrawControllerUI() {
   ImGui::SameLine();
   ImGui::SliderInt("", &target_frame, 0, player_->frame_count() - 1);
   if (target_frame != player_->current_frame_index() &&
-      !player_->playing_trace()) {
+      !player_->is_playing_trace()) {
     player_->SeekFrame(target_frame);
   }
   ImGui::End();
@@ -459,7 +459,7 @@ void TraceViewer::DrawCommandListUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Move to the last command");
   }
-  if (player_->playing_trace()) {
+  if (player_->is_playing_trace()) {
     // Don't allow the user to change the command index just yet...
     // TODO: Find a way to disable the slider below.
     target_command = player_->current_command_index();
@@ -470,7 +470,7 @@ void TraceViewer::DrawCommandListUI() {
   ImGui::PopItemWidth();
 
   if (target_command != player_->current_command_index() &&
-      !player_->playing_trace()) {
+      !player_->is_playing_trace()) {
     did_seek = true;
     player_->SeekCommand(target_command);
   }
@@ -500,7 +500,7 @@ void TraceViewer::DrawCommandListUI() {
         break;
     }
     if (ImGui::Selectable(label, &is_selected)) {
-      if (!player_->playing_trace()) {
+      if (!player_->is_playing_trace()) {
         player_->SeekCommand(i);
       }
     }
@@ -1003,7 +1003,7 @@ void TraceViewer::DrawStateUI() {
     }
   }
 
-  if (player_->playing_trace()) {
+  if (player_->is_playing_trace()) {
     ImGui::Text("Playing trace...");
     float width = ImGui::GetWindowWidth() - 20.f;
 

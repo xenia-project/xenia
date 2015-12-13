@@ -63,6 +63,29 @@ std::string format_string(const char* format, va_list args) {
   }
 }
 
+std::wstring format_string(const wchar_t* format, va_list args) {
+  if (!format) {
+    return L"";
+  }
+  size_t max_len = 64;
+  std::wstring new_s;
+  while (true) {
+    new_s.resize(max_len);
+    int ret = std::vswprintf(const_cast<wchar_t*>(new_s.data()), max_len,
+                             format, args);
+    if (ret > max_len) {
+      // Needed size is known (+2 for termination and avoid ambiguity).
+      max_len = ret + 2;
+    } else if (ret == -1 || ret >= max_len - 1) {
+      // Handle some buggy vsnprintf implementations.
+      max_len *= 2;
+    } else {
+      // Everything fit for sure.
+      return new_s;
+    }
+  }
+}
+
 std::string::size_type find_first_of_case(const std::string& target,
                                           const std::string& search) {
   const char* str = target.c_str();

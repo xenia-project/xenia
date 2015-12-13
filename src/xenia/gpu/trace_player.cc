@@ -28,6 +28,8 @@ TracePlayer::TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
       ->AllocFixed(0, 0x1FFFFFFF, 4096,
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
                    kMemoryProtectRead | kMemoryProtectWrite);
+
+  playback_event_ = xe::threading::Event::CreateAutoResetEvent(false);
 }
 
 TracePlayer::~TracePlayer() = default;
@@ -75,6 +77,10 @@ void TracePlayer::SeekCommand(int target_command) {
     PlayTrace(frame->start_ptr, command.end_ptr - frame->start_ptr,
               TracePlaybackMode::kBreakOnSwap);
   }
+}
+
+void TracePlayer::WaitOnPlayback() {
+  xe::threading::Wait(playback_event_.get(), true);
 }
 
 void TracePlayer::PlayTrace(const uint8_t* trace_data, size_t trace_size,
@@ -194,6 +200,8 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   playing_trace_ = false;
   command_processor->set_swap_mode(SwapMode::kNormal);
   command_processor->IssueSwap(0, 1280, 720);
+
+  playback_event_->Set();
 }
 
 }  // namespace gpu

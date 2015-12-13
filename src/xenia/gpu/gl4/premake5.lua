@@ -81,3 +81,56 @@ project("xenia-gpu-gl4-trace-viewer")
         "1>scratch/stdout-trace-viewer.txt",
       })
     end
+
+group("src")
+project("xenia-gpu-gl4-trace-dump")
+  uuid("5d47299d-f37d-46b4-af48-f4e54b9e5662")
+  kind("ConsoleApp")
+  language("C++")
+  links({
+    "elemental-forms",
+    "gflags",
+    "glew",
+    "imgui",
+    "xenia-apu",
+    "xenia-apu-nop",
+    "xenia-apu-xaudio2",
+    "xenia-base",
+    "xenia-core",
+    "xenia-cpu",
+    "xenia-cpu-backend-x64",
+    "xenia-debug",
+    "xenia-gpu",
+    "xenia-gpu-gl4",
+    "xenia-hid-nop",
+    "xenia-hid-winkey",
+    "xenia-hid-xinput",
+    "xenia-kernel",
+    "xenia-ui",
+    "xenia-ui-gl",
+    "xenia-vfs",
+  })
+  defines({
+    "GLEW_STATIC=1",
+    "GLEW_MX=1",
+  })
+  includedirs({
+    project_root.."/third_party/elemental-forms/src",
+    project_root.."/build_tools/third_party/gflags/src",
+  })
+  files({
+    "gl4_trace_dump_main.cc",
+    "../../base/main_"..platform_suffix..".cc",
+  })
+
+  filter("platforms:Windows")
+    -- Only create the .user file if it doesn't already exist.
+    local user_file = project_root.."/build/xenia-gpu-gl4-trace-dump.vcxproj.user"
+    if not os.isfile(user_file) then
+      debugdir(project_root)
+      debugargs({
+        "--flagfile=scratch/flags.txt",
+        "2>&1",
+        "1>scratch/stdout-trace-dump.txt",
+      })
+    end

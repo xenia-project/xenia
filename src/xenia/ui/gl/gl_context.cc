@@ -466,6 +466,32 @@ void GLContext::EndSwap() {
   SwapBuffers(dc_);
 }
 
+std::unique_ptr<RawImage> GLContext::Capture() {
+  GraphicsContextLock lock(this);
+
+  std::unique_ptr<RawImage> raw_image(new RawImage());
+  raw_image->width = target_window_->width();
+  raw_image->stride = raw_image->width * 4;
+  raw_image->height = target_window_->height();
+  raw_image->data.resize(raw_image->stride * raw_image->height);
+
+  glReadPixels(0, 0, target_window_->width(), target_window_->height(), GL_RGBA,
+               GL_UNSIGNED_BYTE, raw_image->data.data());
+
+  // Flip vertically in-place.
+  size_t yt = 0;
+  size_t yb = (raw_image->height - 1) * raw_image->stride;
+  while (yt < yb) {
+    for (size_t i = 0; i < raw_image->stride; ++i) {
+      std::swap(raw_image->data[yt + i], raw_image->data[yb + i]);
+    }
+    yt += raw_image->stride;
+    yb -= raw_image->stride;
+  }
+
+  return raw_image;
+}
+
 }  // namespace gl
 }  // namespace ui
 }  // namespace xe

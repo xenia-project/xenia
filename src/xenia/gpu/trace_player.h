@@ -13,6 +13,7 @@
 #include <atomic>
 #include <string>
 
+#include "xenia/base/threading.h"
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/gpu/trace_reader.h"
 #include "xenia/ui/loop.h"
@@ -35,7 +36,7 @@ class TracePlayer : public TraceReader {
   GraphicsSystem* graphics_system() const { return graphics_system_; }
   int current_frame_index() const { return current_frame_index_; }
   int current_command_index() const { return current_command_index_; }
-  bool playing_trace() const { return playing_trace_; }
+  bool is_playing_trace() const { return playing_trace_; }
   const Frame* current_frame() const;
 
   // Only valid if playing_trace is true.
@@ -44,6 +45,8 @@ class TracePlayer : public TraceReader {
 
   void SeekFrame(int target_frame);
   void SeekCommand(int target_command);
+
+  void WaitOnPlayback();
 
  private:
   void PlayTrace(const uint8_t* trace_data, size_t trace_size,
@@ -57,6 +60,7 @@ class TracePlayer : public TraceReader {
   int current_command_index_;
   bool playing_trace_ = false;
   std::atomic<uint32_t> playback_percent_ = 0;
+  std::unique_ptr<xe::threading::Event> playback_event_;
 };
 
 }  // namespace gpu

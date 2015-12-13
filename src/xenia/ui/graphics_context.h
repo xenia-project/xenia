@@ -11,6 +11,7 @@
 #define XENIA_UI_GRAPHICS_CONTEXT_H_
 
 #include <memory>
+#include <vector>
 
 namespace xe {
 namespace ui {
@@ -18,6 +19,17 @@ namespace ui {
 class GraphicsProvider;
 class ImmediateDrawer;
 class Window;
+
+class RawImage {
+ public:
+  RawImage() = default;
+  ~RawImage() = default;
+
+  size_t width = 0;
+  size_t height = 0;
+  size_t stride = 0;
+  std::vector<uint8_t> data;
+};
 
 class GraphicsContext {
  public:
@@ -35,6 +47,8 @@ class GraphicsContext {
 
   virtual void BeginSwap() = 0;
   virtual void EndSwap() = 0;
+
+  virtual std::unique_ptr<RawImage> Capture() = 0;
 
  protected:
   explicit GraphicsContext(GraphicsProvider* provider, Window* target_window);

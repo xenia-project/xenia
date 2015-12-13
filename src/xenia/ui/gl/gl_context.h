@@ -44,6 +44,8 @@ class GLContext : public GraphicsContext {
   void BeginSwap() override;
   void EndSwap() override;
 
+  std::unique_ptr<RawImage> Capture() override;
+
   Blitter* blitter() { return &blitter_; }
 
  private:

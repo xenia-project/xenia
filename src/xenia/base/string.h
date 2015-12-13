@@ -31,6 +31,14 @@ inline std::string format_string(const char* format, ...) {
   va_end(va);
   return result;
 }
+std::wstring format_string(const wchar_t* format, va_list args);
+inline std::wstring format_string(const wchar_t* format, ...) {
+  va_list va;
+  va_start(va, format);
+  auto result = format_string(format, va);
+  va_end(va);
+  return result;
+}
 
 // find_first_of string, case insensitive.
 std::string::size_type find_first_of_case(const std::string& target,
