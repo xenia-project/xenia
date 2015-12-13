@@ -71,9 +71,9 @@ class TraceReader {
       };
     };
 
-    const uint8_t* start_ptr;
-    const uint8_t* end_ptr;
-    int command_count;
+    const uint8_t* start_ptr = nullptr;
+    const uint8_t* end_ptr = nullptr;
+    int command_count = 0;
     std::vector<Command> commands;
   };
 

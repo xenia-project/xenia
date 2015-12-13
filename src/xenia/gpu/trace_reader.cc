@@ -43,9 +43,8 @@ void TraceReader::Close() {
 
 void TraceReader::ParseTrace() {
   auto trace_ptr = trace_data_;
-  Frame current_frame = {
-      trace_ptr, nullptr, 0,
-  };
+  Frame current_frame;
+  current_frame.start_ptr = trace_ptr;
   const PacketStartCommand* packet_start = nullptr;
   const uint8_t* packet_start_ptr = nullptr;
   const uint8_t* last_ptr = trace_ptr;

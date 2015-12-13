@@ -50,8 +50,12 @@ Emulator::~Emulator() {
   }
 
   // Give the systems time to shutdown before we delete them.
-  graphics_system_->Shutdown();
-  audio_system_->Shutdown();
+  if (graphics_system_) {
+    graphics_system_->Shutdown();
+  }
+  if (audio_system_) {
+    audio_system_->Shutdown();
+  }
 
   input_system_.reset();
   graphics_system_.reset();

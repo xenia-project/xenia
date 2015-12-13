@@ -7,21 +7,11 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
-#include <cstring>
-
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
-#include "xenia/gpu/trace_viewer.h"
-
-// HACK: until we have another impl, we just use gl4 directly.
 #include "xenia/gpu/gl4/gl4_command_processor.h"
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
-#include "xenia/gpu/gl4/gl4_shader.h"
-#include "xenia/ui/file_picker.h"
-
-DEFINE_string(target_trace_file, "", "Specifies the trace file to load.");
+#include "xenia/gpu/trace_viewer.h"
 
 namespace xe {
 namespace gpu {
@@ -69,55 +59,8 @@ class GL4TraceViewer : public TraceViewer {
 };
 
 int trace_viewer_main(const std::vector<std::wstring>& args) {
-  // Grab path from the flag or unnamed argument.
-  std::wstring path;
-  if (!FLAGS_target_trace_file.empty()) {
-    // Passed as a named argument.
-    // TODO(benvanik): find something better than gflags that supports
-    // unicode.
-    path = xe::to_wstring(FLAGS_target_trace_file);
-  } else if (args.size() >= 2) {
-    // Passed as an unnamed argument.
-    path = args[1];
-  }
-
-  // If no path passed, ask the user.
-  if (path.empty()) {
-    auto file_picker = xe::ui::FilePicker::Create();
-    file_picker->set_mode(ui::FilePicker::Mode::kOpen);
-    file_picker->set_type(ui::FilePicker::Type::kFile);
-    file_picker->set_multi_selection(false);
-    file_picker->set_title(L"Select Trace File");
-    file_picker->set_extensions({
-        {L"Supported Files", L"*.*"}, {L"All Files (*.*)", L"*.*"},
-    });
-    if (file_picker->Show()) {
-      auto selected_files = file_picker->selected_files();
-      if (!selected_files.empty()) {
-        path = selected_files[0];
-      }
-    }
-  }
-
-  if (path.empty()) {
-    xe::FatalError("No trace file specified");
-    return 1;
-  }
-
-  // Normalize the path and make absolute.
-  auto abs_path = xe::to_absolute_path(path);
-
   GL4TraceViewer trace_viewer;
-  if (!trace_viewer.Setup()) {
-    xe::FatalError("Unable to setup trace viewer");
-    return 1;
-  }
-  if (!trace_viewer.Load(std::move(abs_path))) {
-    xe::FatalError("Unable to load trace file; not found?");
-    return 1;
-  }
-  trace_viewer.Run();
-  return 0;
+  return trace_viewer.Main(args);
 }
 
 }  // namespace gl4
