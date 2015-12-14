@@ -89,6 +89,7 @@ XThread::~XThread() {
   kernel_state()->memory()->SystemHeapFree(scratch_address_);
   kernel_state()->memory()->SystemHeapFree(tls_address_);
   kernel_state()->memory()->SystemHeapFree(pcr_address_);
+  FreeStack();
 
   if (thread_) {
     // TODO(benvanik): platform kill
@@ -214,7 +215,7 @@ bool XThread::AllocateStack(uint32_t size) {
   auto heap = memory()->LookupHeap(0x40000000);
 
   auto alignment = heap->page_size();
-  auto padding = heap->page_size() * 2;  // Guard pages
+  auto padding = heap->page_size() * 2;  // Guard page size * 2
   size = xe::round_up(size, alignment);
   auto actual_size = size + padding;
 
@@ -239,6 +240,18 @@ bool XThread::AllocateStack(uint32_t size) {
   heap->Protect(stack_base_, padding / 2, kMemoryProtectNoAccess);
 
   return true;
+}
+
+void XThread::FreeStack() {
+  if (stack_alloc_base_) {
+    auto heap = memory()->LookupHeap(0x40000000);
+    heap->Release(stack_alloc_base_);
+
+    stack_alloc_base_ = 0;
+    stack_alloc_size_ = 0;
+    stack_base_ = 0;
+    stack_limit_ = 0;
+  }
 }
 
 X_STATUS XThread::Create() {

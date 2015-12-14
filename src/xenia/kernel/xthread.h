@@ -196,6 +196,7 @@ class XThread : public XObject {
 
  protected:
   bool AllocateStack(uint32_t size);
+  void FreeStack();
   void InitializeGuestObject();
 
   bool StepToAddress(uint32_t pc);
