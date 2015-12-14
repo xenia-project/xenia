@@ -775,7 +775,12 @@ bool XThread::StepToAddress(uint32_t pc) {
                        fence.Signal();
                      });
   if (bp.Install()) {
-    thread_->Resume();
+    // HACK
+    uint32_t suspend_count = 1;
+    while (suspend_count) {
+      thread_->Resume(&suspend_count);
+    }
+
     fence.Wait();
     bp.Uninstall();
   } else {
@@ -859,7 +864,12 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
       return 0;
     }
 
-    thread_->Resume();
+    // HACK
+    uint32_t suspend_count = 1;
+    while (suspend_count) {
+      thread_->Resume(&suspend_count);
+    }
+
     fence.Wait();
     bpt.Uninstall();
     bpf.Uninstall();
@@ -1005,9 +1015,10 @@ uint32_t XThread::StepToSafePoint(bool ignore_host) {
 
 struct ThreadSavedState {
   uint32_t thread_id;
-  bool main_thread;
+  bool is_main_thread;  // Is this the main thread?
+  bool is_running;
 
-  // Clock settings
+  // Clock settings (invalid if not running)
   uint64_t tick_count_;
   uint64_t system_time_;
 
@@ -1018,6 +1029,8 @@ struct ThreadSavedState {
   uint32_t stack_limit;       // Low address
   uint32_t stack_alloc_base;  // Allocation address
   uint32_t stack_alloc_size;  // Allocation size
+
+  // Context (invalid if not running)
   struct {
     uint64_t lr;
     uint64_t ctr;
@@ -1042,12 +1055,15 @@ bool XThread::Save(ByteStream* stream) {
 
   XELOGD("XThread %.8X serializing...", handle());
 
-  uint32_t pc = StepToSafePoint();
-  if (!pc) {
-    XELOGE("XThread %.8X failed to save: could not step to a safe point!",
-           handle());
-    assert_always();
-    return false;
+  uint32_t pc = 0;
+  if (running_) {
+    pc = StepToSafePoint();
+    if (!pc) {
+      XELOGE("XThread %.8X failed to save: could not step to a safe point!",
+             handle());
+      assert_always();
+      return false;
+    }
   }
 
   if (!SaveObject(stream)) {
@@ -1059,7 +1075,8 @@ bool XThread::Save(ByteStream* stream) {
 
   ThreadSavedState state;
   state.thread_id = thread_id_;
-  state.main_thread = main_thread_;
+  state.is_main_thread = main_thread_;
+  state.is_running = running_;
   state.apc_head = apc_list_.head();
   state.tls_address = tls_address_;
   state.pcr_address = pcr_address_;
@@ -1068,31 +1085,33 @@ bool XThread::Save(ByteStream* stream) {
   state.stack_alloc_base = stack_alloc_base_;
   state.stack_alloc_size = stack_alloc_size_;
 
-  state.tick_count_ = Clock::QueryGuestTickCount();
-  state.system_time_ =
-      Clock::QueryGuestSystemTime() - Clock::guest_system_time_base();
+  if (running_) {
+    state.tick_count_ = Clock::QueryGuestTickCount();
+    state.system_time_ =
+        Clock::QueryGuestSystemTime() - Clock::guest_system_time_base();
 
-  // Context information
-  auto context = thread_state_->context();
-  state.context.lr = context->lr;
-  state.context.ctr = context->ctr;
-  std::memcpy(state.context.r, context->r, 32 * 8);
-  std::memcpy(state.context.f, context->f, 32 * 8);
-  std::memcpy(state.context.v, context->v, 128 * 16);
-  state.context.cr[0] = context->cr0.value;
-  state.context.cr[1] = context->cr1.value;
-  state.context.cr[2] = context->cr2.value;
-  state.context.cr[3] = context->cr3.value;
-  state.context.cr[4] = context->cr4.value;
-  state.context.cr[5] = context->cr5.value;
-  state.context.cr[6] = context->cr6.value;
-  state.context.cr[7] = context->cr7.value;
-  state.context.fpscr = context->fpscr.value;
-  state.context.xer_ca = context->xer_ca;
-  state.context.xer_ov = context->xer_ov;
-  state.context.xer_so = context->xer_so;
-  state.context.vscr_sat = context->vscr_sat;
-  state.context.pc = pc;
+    // Context information
+    auto context = thread_state_->context();
+    state.context.lr = context->lr;
+    state.context.ctr = context->ctr;
+    std::memcpy(state.context.r, context->r, 32 * 8);
+    std::memcpy(state.context.f, context->f, 32 * 8);
+    std::memcpy(state.context.v, context->v, 128 * 16);
+    state.context.cr[0] = context->cr0.value;
+    state.context.cr[1] = context->cr1.value;
+    state.context.cr[2] = context->cr2.value;
+    state.context.cr[3] = context->cr3.value;
+    state.context.cr[4] = context->cr4.value;
+    state.context.cr[5] = context->cr5.value;
+    state.context.cr[6] = context->cr6.value;
+    state.context.cr[7] = context->cr7.value;
+    state.context.fpscr = context->fpscr.value;
+    state.context.xer_ca = context->xer_ca;
+    state.context.xer_ov = context->xer_ov;
+    state.context.xer_so = context->xer_so;
+    state.context.vscr_sat = context->vscr_sat;
+    state.context.pc = pc;
+  }
 
   stream->Write(&state, sizeof(ThreadSavedState));
   return true;
@@ -1121,7 +1140,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   ThreadSavedState state;
   stream->Read(&state, sizeof(ThreadSavedState));
   thread->thread_id_ = state.thread_id;
-  thread->main_thread_ = state.main_thread;
+  thread->main_thread_ = state.is_main_thread;
   thread->apc_list_.set_head(state.apc_head);
   thread->tls_address_ = state.tls_address;
   thread->pcr_address_ = state.pcr_address;
@@ -1138,65 +1157,69 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   thread->thread_state_ =
       new cpu::ThreadState(kernel_state->processor(), thread->thread_id_,
                            thread->stack_base_, thread->pcr_address_);
-  auto context = thread->thread_state_->context();
-  context->kernel_state = kernel_state;
-  context->lr = state.context.lr;
-  context->ctr = state.context.ctr;
-  std::memcpy(context->r, state.context.r, 32 * 8);
-  std::memcpy(context->f, state.context.f, 32 * 8);
-  std::memcpy(context->v, state.context.v, 128 * 16);
-  context->cr0.value = state.context.cr[0];
-  context->cr1.value = state.context.cr[1];
-  context->cr2.value = state.context.cr[2];
-  context->cr3.value = state.context.cr[3];
-  context->cr4.value = state.context.cr[4];
-  context->cr5.value = state.context.cr[5];
-  context->cr6.value = state.context.cr[6];
-  context->cr7.value = state.context.cr[7];
-  context->fpscr.value = state.context.fpscr;
-  context->xer_ca = state.context.xer_ca;
-  context->xer_ov = state.context.xer_ov;
-  context->xer_so = state.context.xer_so;
-  context->vscr_sat = state.context.vscr_sat;
 
-  // Always retain when starting - the thread owns itself until exited.
-  thread->Retain();
-  thread->RetainHandle();
+  if (state.is_running) {
+    auto context = thread->thread_state_->context();
+    context->kernel_state = kernel_state;
+    context->lr = state.context.lr;
+    context->ctr = state.context.ctr;
+    std::memcpy(context->r, state.context.r, 32 * 8);
+    std::memcpy(context->f, state.context.f, 32 * 8);
+    std::memcpy(context->v, state.context.v, 128 * 16);
+    context->cr0.value = state.context.cr[0];
+    context->cr1.value = state.context.cr[1];
+    context->cr2.value = state.context.cr[2];
+    context->cr3.value = state.context.cr[3];
+    context->cr4.value = state.context.cr[4];
+    context->cr5.value = state.context.cr[5];
+    context->cr6.value = state.context.cr[6];
+    context->cr7.value = state.context.cr[7];
+    context->fpscr.value = state.context.fpscr;
+    context->xer_ca = state.context.xer_ca;
+    context->xer_ov = state.context.xer_ov;
+    context->xer_so = state.context.xer_so;
+    context->vscr_sat = state.context.vscr_sat;
 
-  xe::threading::Thread::CreationParameters params;
-  params.create_suspended = true;  // Not done restoring yet.
-  params.stack_size = 16 * 1024 * 1024;
-  thread->thread_ = xe::threading::Thread::Create(params, [thread, state]() {
-    // Set thread ID override. This is used by logging.
-    xe::threading::set_current_thread_id(thread->handle());
+    // Always retain when starting - the thread owns itself until exited.
+    thread->Retain();
+    thread->RetainHandle();
 
-    // Set name immediately, if we have one.
-    thread->thread_->set_name(thread->name());
+    xe::threading::Thread::CreationParameters params;
+    params.create_suspended = true;  // Not done restoring yet.
+    params.stack_size = 16 * 1024 * 1024;
+    thread->thread_ = xe::threading::Thread::Create(params, [thread, state]() {
+      // Set thread ID override. This is used by logging.
+      xe::threading::set_current_thread_id(thread->handle());
 
-    // Profiler needs to know about the thread.
-    xe::Profiler::ThreadEnter(thread->name().c_str());
+      // Set name immediately, if we have one.
+      thread->thread_->set_name(thread->name());
 
-    // Setup the time now that we're in the thread.
-    Clock::SetGuestTickCount(state.tick_count_);
-    Clock::SetGuestSystemTime(state.system_time_);
+      // Profiler needs to know about the thread.
+      xe::Profiler::ThreadEnter(thread->name().c_str());
 
-    // Execute user code.
-    thread->running_ = true;
-    current_thread_tls_ = thread;
+      // Setup the time now that we're in the thread.
+      Clock::SetGuestTickCount(state.tick_count_);
+      Clock::SetGuestSystemTime(state.system_time_);
 
-    uint32_t pc = state.context.pc;
-    thread->kernel_state()->processor()->ExecuteRaw(thread->thread_state_, pc);
+      // Execute user code.
+      thread->running_ = true;
+      current_thread_tls_ = thread;
 
-    current_thread_tls_ = nullptr;
+      uint32_t pc = state.context.pc;
+      thread->kernel_state()->processor()->ExecuteRaw(thread->thread_state_,
+                                                      pc);
 
-    xe::Profiler::ThreadExit();
+      current_thread_tls_ = nullptr;
 
-    // Release the self-reference to the thread.
-    thread->Release();
-  });
+      xe::Profiler::ThreadExit();
 
-  if (thread->emulator()->debugger()) {
-    thread->emulator()->debugger()->OnThreadCreated(thread);
+      // Release the self-reference to the thread.
+      thread->Release();
+    });
+
+    if (thread->emulator()->debugger()) {
+      thread->emulator()->debugger()->OnThreadCreated(thread);
+    }
   }
 
   return object_ref<XThread>(thread);
