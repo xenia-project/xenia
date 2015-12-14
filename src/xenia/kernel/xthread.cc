@@ -359,7 +359,6 @@ X_STATUS XThread::Create() {
 
   // Always retain when starting - the thread owns itself until exited.
   Retain();
-  RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
   params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
@@ -1195,7 +1194,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
     // Always retain when starting - the thread owns itself until exited.
     thread->Retain();
-    thread->RetainHandle();
 
     xe::threading::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
