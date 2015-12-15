@@ -176,6 +176,7 @@ XEEMITTER(addzex, 0x7C000194, XO)(PPCHIRBuilder& f, InstrData& i) {
     // With XER[SO] update too.
     // e.update_xer_with_overflow_and_carry(b.CreateExtractValue(v, 1));
     assert_always();
+    return 1;
   } else {
     // Just CA update.
     f.StoreCA(AddWithCarryDidCarry(f, ra, f.LoadZeroInt64(), f.LoadCA()));
@@ -713,8 +714,7 @@ XEEMITTER(cntlzwx, 0x7C000034, X)(PPCHIRBuilder& f, InstrData& i) {
 
 XEEMITTER(eqvx, 0x7C000238, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- (RS) == (RB)
-  Value* ra = f.Xor(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
-  ra = f.Not(ra);
+  Value* ra = f.Not(f.Xor(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB)));
   f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);

@@ -22,62 +22,28 @@ using namespace xe::cpu::hir;
 
 using xe::cpu::hir::Value;
 
-#define TRUNCATE_ADDRESSES 0
-
 Value* CalculateEA(PPCHIRBuilder& f, uint32_t ra, uint32_t rb) {
-#if TRUNCATE_ADDRESSES
-  return f.ZeroExtend(f.Add(f.Truncate(f.LoadGPR(ra), INT32_TYPE),
-                            f.Truncate(f.LoadGPR(rb), INT32_TYPE)),
-                      INT64_TYPE);
-#else
   return f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
-#endif  // TRUNCATE_ADDRESSES
 }
 
 Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb) {
-#if TRUNCATE_ADDRESSES
-  if (ra) {
-    return f.ZeroExtend(f.Add(f.Truncate(f.LoadGPR(ra), INT32_TYPE),
-                              f.Truncate(f.LoadGPR(rb), INT32_TYPE)),
-                        INT64_TYPE);
-  } else {
-    return f.ZeroExtend(f.Truncate(f.LoadGPR(rb), INT32_TYPE), INT64_TYPE);
-  }
-#else
   if (ra) {
     return f.Add(f.LoadGPR(ra), f.LoadGPR(rb));
   } else {
     return f.LoadGPR(rb);
   }
-#endif  // TRUNCATE_ADDRESSES
 }
 
 Value* CalculateEA_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm) {
-#if TRUNCATE_ADDRESSES
-  return f.ZeroExtend(f.Add(f.Truncate(f.LoadGPR(ra), INT32_TYPE),
-                            f.LoadConstant((int32_t)imm)),
-                      INT64_TYPE);
-#else
   return f.Add(f.LoadGPR(ra), f.LoadConstantUint64(imm));
-#endif  // TRUNCATE_ADDRESSES
 }
 
 Value* CalculateEA_0_i(PPCHIRBuilder& f, uint32_t ra, uint64_t imm) {
-#if TRUNCATE_ADDRESSES
-  if (ra) {
-    return f.ZeroExtend(f.Add(f.Truncate(f.LoadGPR(ra), INT32_TYPE),
-                              f.LoadConstant((int32_t)imm)),
-                        INT64_TYPE);
-  } else {
-    return f.ZeroExtend(f.LoadConstant((int32_t)imm), INT64_TYPE);
-  }
-#else
   if (ra) {
     return f.Add(f.LoadGPR(ra), f.LoadConstantUint64(imm));
   } else {
     return f.LoadConstantUint64(imm);
   }
-#endif  // TRUNCATE_ADDRESSES
 }
 
 void StoreEA(PPCHIRBuilder& f, uint32_t rt, Value* ea) {
@@ -483,7 +449,6 @@ XEEMITTER(stwux, 0x7C00016E, X)(PPCHIRBuilder& f, InstrData& i) {
   // RA <- EA
   Value* ea = CalculateEA(f, i.X.RA, i.X.RB);
   f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE)));
-  f.StoreGPR(i.X.RA, f.ZeroExtend(f.Truncate(ea, INT32_TYPE), INT64_TYPE));
   StoreEA(f, i.X.RA, ea);
   return 0;
 }
