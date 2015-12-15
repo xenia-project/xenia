@@ -32,8 +32,7 @@ class DiscImageEntry : public Entry {
   size_t data_offset() const { return data_offset_; }
   size_t data_size() const { return data_size_; }
 
-  X_STATUS Open(kernel::KernelState* kernel_state, uint32_t desired_access,
-                kernel::object_ref<kernel::XFile>* out_file) override;
+  X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
   bool can_map() const override { return true; }
   std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,

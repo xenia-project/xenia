@@ -140,10 +140,10 @@ bool VirtualFileSystem::DeletePath(std::string path) {
   return parent->Delete(entry);
 }
 
-X_STATUS VirtualFileSystem::OpenFile(
-    kernel::KernelState* kernel_state, std::string path,
-    FileDisposition creation_disposition, uint32_t desired_access,
-    kernel::object_ref<kernel::XFile>* out_file, FileAction* out_action) {
+X_STATUS VirtualFileSystem::OpenFile(std::string path,
+                                     FileDisposition creation_disposition,
+                                     uint32_t desired_access, File** out_file,
+                                     FileAction* out_action) {
   // Cleanup access.
   if (desired_access & FileAccess::kGenericRead) {
     desired_access |= FileAccess::kFileReadData;
@@ -253,7 +253,7 @@ X_STATUS VirtualFileSystem::OpenFile(
   }
 
   // Open.
-  auto result = entry->Open(kernel_state, desired_access, out_file);
+  auto result = entry->Open(desired_access, out_file);
   if (XFAILED(result)) {
     *out_action = FileAction::kDoesNotExist;
   }

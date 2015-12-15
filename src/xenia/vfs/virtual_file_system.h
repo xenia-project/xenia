@@ -16,9 +16,9 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
-#include "xenia/kernel/xobject.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
+#include "xenia/vfs/file.h"
 
 namespace xe {
 namespace vfs {
@@ -39,10 +39,8 @@ class VirtualFileSystem {
   Entry* CreatePath(std::string path, uint32_t attributes);
   bool DeletePath(std::string path);
 
-  X_STATUS OpenFile(kernel::KernelState* kernel_state, std::string path,
-                    FileDisposition creation_disposition,
-                    uint32_t desired_access,
-                    kernel::object_ref<kernel::XFile>* out_file,
+  X_STATUS OpenFile(std::string path, FileDisposition creation_disposition,
+                    uint32_t desired_access, File** out_file,
                     FileAction* out_action);
 
  private:

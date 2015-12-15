@@ -14,9 +14,11 @@
 
 #include "xenia/base/filesystem.h"
 #include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xiocompletion.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
+#include "xenia/vfs/file.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -79,14 +81,16 @@ class XFile : public XObject {
  public:
   static const Type kType = kTypeFile;
 
+  XFile(KernelState* kernel_state, vfs::File* file);
   ~XFile() override;
 
-  vfs::Device* device() const { return entry_->device(); }
-  vfs::Entry* entry() const { return entry_; }
+  vfs::Device* device() const { return file_->entry()->device(); }
+  vfs::Entry* entry() const { return file_->entry(); }
+  vfs::File* file() const { return file_; }
   uint32_t file_access() const { return file_access_; }
 
-  const std::string& path() const { return entry_->path(); }
-  const std::string& name() const { return entry_->name(); }
+  const std::string& path() const { return file_->entry()->path(); }
+  const std::string& name() const { return file_->entry()->name(); }
 
   size_t position() const { return position_; }
   void set_position(size_t value) { position_ = value; }
@@ -95,28 +99,28 @@ class XFile : public XObject {
                           const char* file_name, bool restart);
 
   X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                size_t* out_bytes_read);
+                size_t* out_bytes_read, uint32_t apc_context);
 
   X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
-                 size_t* out_bytes_written);
+                 size_t* out_bytes_written, uint32_t apc_context);
 
   xe::threading::WaitHandle* GetWaitHandle() override {
     return async_event_->GetWaitHandle();
   }
 
+  void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
+  void RemoveIOCompletionPort(uint32_t key);
+
  protected:
-  XFile(KernelState* kernel_state, uint32_t file_access, vfs::Entry* entry);
-  virtual X_STATUS ReadSync(void* buffer, size_t buffer_length,
-                            size_t byte_offset, size_t* out_bytes_read) = 0;
-  virtual X_STATUS WriteSync(const void* buffer, size_t buffer_length,
-                             size_t byte_offset, size_t* out_bytes_written) {
-    return X_STATUS_ACCESS_DENIED;
-  }
+  void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
 
  private:
-  vfs::Entry* entry_ = nullptr;
+  vfs::File* file_ = nullptr;
   uint32_t file_access_ = 0;
   XEvent* async_event_ = nullptr;
+
+  std::mutex completion_port_lock_;
+  std::vector<std::pair<uint32_t, object_ref<XIOCompletion>>> completion_ports_;
 
   // TODO(benvanik): create flags, open state, etc.
 

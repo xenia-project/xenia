@@ -15,10 +15,8 @@
 namespace xe {
 namespace kernel {
 
-XFile::XFile(KernelState* kernel_state, uint32_t file_access, vfs::Entry* entry)
-    : XObject(kernel_state, kTypeFile),
-      entry_(entry),
-      file_access_(file_access) {
+XFile::XFile(KernelState* kernel_state, vfs::File* file)
+    : XObject(kernel_state, kTypeFile), file_(file) {
   async_event_ = new XEvent(kernel_state);
   async_event_->Initialize(false, false);
 }
@@ -27,6 +25,8 @@ XFile::~XFile() {
   // TODO(benvanik): signal that the file is closing?
   async_event_->Set(0, false);
   async_event_->Delete();
+
+  file_->Destroy();
 }
 
 X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
@@ -44,7 +44,7 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
 
     // Always restart the search?
     find_index_ = 0;
-    entry = entry_->IterateChildren(find_engine_, &find_index_);
+    entry = file_->entry()->IterateChildren(find_engine_, &find_index_);
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
@@ -53,7 +53,7 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
       find_index_ = 0;
     }
 
-    entry = entry_->IterateChildren(find_engine_, &find_index_);
+    entry = file_->entry()->IterateChildren(find_engine_, &find_index_);
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
@@ -83,33 +83,91 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
 }
 
 X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                     size_t* out_bytes_read) {
+                     size_t* out_bytes_read, uint32_t apc_context) {
   if (byte_offset == -1) {
     // Read from current position.
     byte_offset = position_;
   }
+
+  size_t bytes_read = 0;
   X_STATUS result =
-      ReadSync(buffer, buffer_length, byte_offset, out_bytes_read);
+      file_->ReadSync(buffer, buffer_length, byte_offset, &bytes_read);
   if (XSUCCEEDED(result)) {
-    position_ += *out_bytes_read;
+    position_ += bytes_read;
   }
+
+  XIOCompletion::IONotification notify;
+  notify.apc_context = apc_context;
+  notify.num_bytes = uint32_t(bytes_read);
+  notify.status = result;
+
+  NotifyIOCompletionPorts(notify);
+
+  if (out_bytes_read) {
+    *out_bytes_read = bytes_read;
+  }
+
   async_event_->Set(0, false);
   return result;
 }
 
 X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
-                      size_t byte_offset, size_t* out_bytes_written) {
+                      size_t byte_offset, size_t* out_bytes_written,
+                      uint32_t apc_context) {
   if (byte_offset == -1) {
     // Write from current position.
     byte_offset = position_;
   }
+
+  size_t bytes_written = 0;
   X_STATUS result =
-      WriteSync(buffer, buffer_length, byte_offset, out_bytes_written);
+      file_->WriteSync(buffer, buffer_length, byte_offset, &bytes_written);
   if (XSUCCEEDED(result)) {
-    position_ += *out_bytes_written;
+    position_ += bytes_written;
   }
+
+  XIOCompletion::IONotification notify;
+  notify.apc_context = apc_context;
+  notify.num_bytes = uint32_t(bytes_written);
+  notify.status = result;
+
+  NotifyIOCompletionPorts(notify);
+
+  if (out_bytes_written) {
+    *out_bytes_written = bytes_written;
+  }
+
   async_event_->Set(0, false);
   return result;
+}
+
+void XFile::RegisterIOCompletionPort(uint32_t key,
+                                     object_ref<XIOCompletion> port) {
+  std::lock_guard<std::mutex> lock(completion_port_lock_);
+
+  completion_ports_.push_back({key, port});
+}
+
+void XFile::RemoveIOCompletionPort(uint32_t key) {
+  std::lock_guard<std::mutex> lock(completion_port_lock_);
+
+  for (auto it = completion_ports_.begin(); it != completion_ports_.end();
+       it++) {
+    if (it->first == key) {
+      completion_ports_.erase(it);
+      break;
+    }
+  }
+}
+
+void XFile::NotifyIOCompletionPorts(
+    XIOCompletion::IONotification& notification) {
+  std::lock_guard<std::mutex> lock(completion_port_lock_);
+
+  for (auto port : completion_ports_) {
+    notification.key_context = port.first;
+    port.second->QueueNotification(notification);
+  }
 }
 
 }  // namespace kernel

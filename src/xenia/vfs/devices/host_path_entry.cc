@@ -14,6 +14,7 @@
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string.h"
+#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/host_path_file.h"
 
 namespace xe {
@@ -47,9 +48,7 @@ HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
   return entry;
 }
 
-X_STATUS HostPathEntry::Open(kernel::KernelState* kernel_state,
-                             uint32_t desired_access,
-                             kernel::object_ref<kernel::XFile>* out_file) {
+X_STATUS HostPathEntry::Open(uint32_t desired_access, File** out_file) {
   if (is_read_only() && (desired_access & (FileAccess::kFileWriteData |
                                            FileAccess::kFileAppendData))) {
     XELOGE("Attempting to open file for write access on read-only device");
@@ -61,8 +60,7 @@ X_STATUS HostPathEntry::Open(kernel::KernelState* kernel_state,
     // TODO(benvanik): pick correct response.
     return X_STATUS_NO_SUCH_FILE;
   }
-  *out_file = kernel::object_ref<kernel::XFile>(new HostPathFile(
-      kernel_state, desired_access, this, std::move(file_handle)));
+  *out_file = new HostPathFile(desired_access, this, std::move(file_handle));
   return X_STATUS_SUCCESS;
 }
 
