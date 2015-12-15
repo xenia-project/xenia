@@ -24,11 +24,8 @@ StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent,
 
 StfsContainerEntry::~StfsContainerEntry() = default;
 
-X_STATUS StfsContainerEntry::Open(kernel::KernelState* kernel_state,
-                                  uint32_t desired_access,
-                                  kernel::object_ref<kernel::XFile>* out_file) {
-  *out_file = kernel::object_ref<kernel::XFile>(
-      new StfsContainerFile(kernel_state, desired_access, this));
+X_STATUS StfsContainerEntry::Open(uint32_t desired_access, File** out_file) {
+  *out_file = new StfsContainerFile(desired_access, this);
   return X_STATUS_SUCCESS;
 }
 

@@ -18,7 +18,6 @@
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/string_buffer.h"
-#include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -32,6 +31,7 @@ namespace xe {
 namespace vfs {
 
 class Device;
+class File;
 
 // Matches http://source.winehq.org/source/include/winternl.h#1591.
 enum class FileAction {
@@ -106,9 +106,9 @@ class Entry {
   bool Delete();
   void Touch();
 
-  virtual X_STATUS Open(kernel::KernelState* kernel_state,
-                        uint32_t desired_access,
-                        kernel::object_ref<kernel::XFile>* out_file) = 0;
+  // If successful, out_file points to a new file. When finished, call
+  // file->Destroy()
+  virtual X_STATUS Open(uint32_t desired_access, File** out_file) = 0;
 
   virtual bool can_map() const { return false; }
   virtual std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,

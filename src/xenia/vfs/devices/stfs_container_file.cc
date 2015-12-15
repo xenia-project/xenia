@@ -16,12 +16,13 @@
 namespace xe {
 namespace vfs {
 
-StfsContainerFile::StfsContainerFile(kernel::KernelState* kernel_state,
-                                     uint32_t file_access,
+StfsContainerFile::StfsContainerFile(uint32_t file_access,
                                      StfsContainerEntry* entry)
-    : XFile(kernel_state, file_access, entry), entry_(entry) {}
+    : File(file_access, entry) {}
 
 StfsContainerFile::~StfsContainerFile() = default;
+
+void StfsContainerFile::Destroy() { delete this; }
 
 X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
                                      size_t byte_offset,

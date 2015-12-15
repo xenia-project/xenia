@@ -16,11 +16,12 @@
 namespace xe {
 namespace vfs {
 
-DiscImageFile::DiscImageFile(kernel::KernelState* kernel_state,
-                             uint32_t file_access, DiscImageEntry* entry)
-    : XFile(kernel_state, file_access, entry), entry_(entry) {}
+DiscImageFile::DiscImageFile(uint32_t file_access, DiscImageEntry* entry)
+    : File(file_access, entry), entry_(entry) {}
 
 DiscImageFile::~DiscImageFile() = default;
+
+void DiscImageFile::Destroy() { delete this; }
 
 X_STATUS DiscImageFile::ReadSync(void* buffer, size_t buffer_length,
                                  size_t byte_offset, size_t* out_bytes_read) {

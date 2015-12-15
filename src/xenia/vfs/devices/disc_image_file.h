@@ -10,22 +10,26 @@
 #ifndef XENIA_VFS_DEVICES_DISC_IMAGE_FILE_H_
 #define XENIA_VFS_DEVICES_DISC_IMAGE_FILE_H_
 
-#include "xenia/kernel/xfile.h"
+#include "xenia/vfs/file.h"
 
 namespace xe {
 namespace vfs {
 
 class DiscImageEntry;
 
-class DiscImageFile : public kernel::XFile {
+class DiscImageFile : public File {
  public:
-  DiscImageFile(kernel::KernelState* kernel_state, uint32_t file_access,
-                DiscImageEntry* entry);
+  DiscImageFile(uint32_t file_access, DiscImageEntry* entry);
   ~DiscImageFile() override;
 
- protected:
+  void Destroy() override;
+
   X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
                     size_t* out_bytes_read) override;
+  X_STATUS WriteSync(const void* buffer, size_t buffer_length,
+                     size_t byte_offset, size_t* out_bytes_written) override {
+    return X_STATUS_ACCESS_DENIED;
+  }
 
  private:
   DiscImageEntry* entry_;

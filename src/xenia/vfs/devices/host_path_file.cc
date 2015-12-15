@@ -15,17 +15,17 @@ namespace xe {
 namespace vfs {
 
 HostPathFile::HostPathFile(
-    kernel::KernelState* kernel_state, uint32_t file_access,
-    HostPathEntry* entry,
+    uint32_t file_access, HostPathEntry* entry,
     std::unique_ptr<xe::filesystem::FileHandle> file_handle)
-    : XFile(kernel_state, file_access, entry),
-      file_handle_(std::move(file_handle)) {}
+    : File(file_access, entry), file_handle_(std::move(file_handle)) {}
 
 HostPathFile::~HostPathFile() = default;
 
+void HostPathFile::Destroy() { delete this; }
+
 X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
                                 size_t byte_offset, size_t* out_bytes_read) {
-  if (!(file_access() & FileAccess::kFileReadData)) {
+  if (!(file_access_ & FileAccess::kFileReadData)) {
     return X_STATUS_ACCESS_DENIED;
   }
 
@@ -39,7 +39,7 @@ X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
 X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
                                  size_t byte_offset,
                                  size_t* out_bytes_written) {
-  if (!(file_access() &
+  if (!(file_access_ &
         (FileAccess::kFileWriteData | FileAccess::kFileAppendData))) {
     return X_STATUS_ACCESS_DENIED;
   }

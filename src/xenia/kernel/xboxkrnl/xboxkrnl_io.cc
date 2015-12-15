@@ -14,6 +14,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xiocompletion.h"
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/vfs/device.h"
@@ -120,15 +121,17 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
   }
 
   // Attempt open (or create).
-  object_ref<XFile> file;
-  xe::vfs::FileAction file_action;
+  vfs::File* vfs_file;
+  vfs::FileAction file_action;
   X_STATUS result = kernel_state()->file_system()->OpenFile(
-      kernel_state(), target_path,
-      xe::vfs::FileDisposition((uint32_t)creation_disposition), desired_access,
-      &file, &file_action);
+      target_path, vfs::FileDisposition((uint32_t)creation_disposition),
+      desired_access, &vfs_file, &file_action);
+  object_ref<XFile> file = nullptr;
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   if (XSUCCEEDED(result)) {
+    file = object_ref<XFile>(new XFile(kernel_state(), vfs_file));
+
     // Handle ref is incremented, so return that.
     handle = file->handle();
   }
@@ -178,7 +181,8 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       // Synchronous.
       size_t bytes_read = 0;
       result = file->Read(buffer, buffer_length,
-                          byte_offset_ptr ? *byte_offset_ptr : -1, &bytes_read);
+                          byte_offset_ptr ? *byte_offset_ptr : -1, &bytes_read,
+                          apc_context);
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = (uint32_t)bytes_read;
@@ -261,9 +265,9 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
     if (true) {
       // Synchronous request.
       size_t bytes_written = 0;
-      result =
-          file->Write(buffer, buffer_length,
-                      byte_offset_ptr ? *byte_offset_ptr : -1, &bytes_written);
+      result = file->Write(buffer, buffer_length,
+                           byte_offset_ptr ? *byte_offset_ptr : -1,
+                           &bytes_written, apc_context);
       if (XSUCCEEDED(result)) {
         info = (int32_t)bytes_written;
       }
@@ -291,12 +295,53 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
 }
 DECLARE_XBOXKRNL_EXPORT(NtWriteFile, ExportTag::kImplemented);
 
-dword_result_t NtCreateIoCompletion(lpvoid_t out_handle, dword_t desired_access,
+dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
+                                    dword_t desired_access,
                                     lpvoid_t object_attribs,
                                     dword_t num_concurrent_threads) {
-  return X_STATUS_UNSUCCESSFUL;
+  auto completion = new XIOCompletion(kernel_state());
+  if (out_handle) {
+    *out_handle = completion->handle();
+  }
+
+  return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT(NtCreateIoCompletion, ExportTag::kStub);
+
+// Dequeues a packet from the completion port.
+dword_result_t NtRemoveIoCompletion(
+    dword_t handle, lpdword_t key_context, lpdword_t apc_context,
+    pointer_t<X_IO_STATUS_BLOCK> io_status_block, lpqword_t timeout) {
+  X_STATUS status = X_STATUS_SUCCESS;
+  uint32_t info = 0;
+
+  auto port =
+      kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+  if (!port) {
+    status = X_STATUS_INVALID_HANDLE;
+  }
+
+  uint64_t timeout_ticks = timeout ? *timeout : 0;
+  if (port->WaitForNotification(timeout_ticks)) {
+    auto notification = port->DequeueNotification();
+    if (key_context) {
+      *key_context = notification.key_context;
+    }
+    if (apc_context) {
+      *apc_context = notification.apc_context;
+    }
+
+    if (io_status_block) {
+      io_status_block->status = notification.status;
+      io_status_block->information = notification.num_bytes;
+    }
+  } else {
+    status = X_STATUS_TIMEOUT;
+  }
+
+  return status;
+}
+DECLARE_XBOXKRNL_EXPORT(NtRemoveIoCompletion, ExportTag::kStub);
 
 dword_result_t NtSetInformationFile(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
@@ -335,9 +380,21 @@ dword_result_t NtSetInformationFile(
         info = 8;
         XELOGW("NtSetInformationFile ignoring alloc/eof");
         break;
-      case XFileCompletionInformation:
-        // Games appear to call NtCreateIoCompletion right before this
+      case XFileCompletionInformation: {
+        // Info contains IO Completion handle and completion key
+        assert_true(length == 8);
+
+        auto handle = xe::load_and_swap<uint32_t>(file_info + 0x0);
+        auto key = xe::load_and_swap<uint32_t>(file_info + 0x4);
+        auto port =
+            kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+        if (!port) {
+          return X_STATUS_INVALID_HANDLE;
+        }
+
+        file->RegisterIOCompletionPort(key, port);
         break;
+      }
       default:
         // Unsupported, for now.
         assert_always();

@@ -13,21 +13,21 @@
 #include <string>
 
 #include "xenia/base/filesystem.h"
-#include "xenia/kernel/xfile.h"
+#include "xenia/vfs/file.h"
 
 namespace xe {
 namespace vfs {
 
 class HostPathEntry;
 
-class HostPathFile : public kernel::XFile {
+class HostPathFile : public File {
  public:
-  HostPathFile(kernel::KernelState* kernel_state, uint32_t file_access,
-               HostPathEntry* entry,
+  HostPathFile(uint32_t file_access, HostPathEntry* entry,
                std::unique_ptr<xe::filesystem::FileHandle> file_handle);
   ~HostPathFile() override;
 
- protected:
+  void Destroy() override;
+
   X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
                     size_t* out_bytes_read) override;
   X_STATUS WriteSync(const void* buffer, size_t buffer_length,
