@@ -13,6 +13,7 @@
 
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/compiler/compiler.h"
+#include "xenia/cpu/frontend/ppc_context.h"
 #include "xenia/cpu/processor.h"
 
 DECLARE_bool(debug);
@@ -28,7 +29,6 @@ namespace passes {
 // TODO(benvanik): remove when enums redefined.
 using namespace xe::cpu::hir;
 
-using xe::cpu::frontend::ContextInfo;
 using xe::cpu::hir::Block;
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
@@ -44,9 +44,8 @@ bool ContextPromotionPass::Initialize(Compiler* compiler) {
   }
 
   // This is a terrible implementation.
-  ContextInfo* context_info = processor_->frontend()->context_info();
-  context_values_.resize(context_info->size());
-  context_validity_.resize(static_cast<uint32_t>(context_info->size()));
+  context_values_.resize(sizeof(frontend::PPCContext));
+  context_validity_.resize(static_cast<uint32_t>(sizeof(frontend::PPCContext)));
 
   return true;
 }

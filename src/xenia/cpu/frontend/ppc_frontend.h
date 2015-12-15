@@ -13,7 +13,6 @@
 #include <memory>
 
 #include "xenia/base/type_pool.h"
-#include "xenia/cpu/frontend/context_info.h"
 #include "xenia/cpu/function.h"
 #include "xenia/memory.h"
 
@@ -45,7 +44,6 @@ class PPCFrontend {
 
   Processor* processor() const { return processor_; }
   Memory* memory() const;
-  ContextInfo* context_info() const { return context_info_.get(); }
   PPCBuiltins* builtins() { return &builtins_; }
 
   bool DeclareFunction(GuestFunction* function);
@@ -53,7 +51,6 @@ class PPCFrontend {
 
  private:
   Processor* processor_;
-  std::unique_ptr<ContextInfo> context_info_;
   PPCBuiltins builtins_ = {0};
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
 };

@@ -43,12 +43,6 @@ void CleanupOnShutdown() {}
 
 PPCFrontend::PPCFrontend(Processor* processor) : processor_(processor) {
   InitializeIfNeeded();
-
-  std::unique_ptr<ContextInfo> context_info(
-      new ContextInfo(sizeof(PPCContext), offsetof(PPCContext, thread_state),
-                      offsetof(PPCContext, thread_id)));
-  // Add fields/etc.
-  context_info_ = std::move(context_info);
 }
 
 PPCFrontend::~PPCFrontend() {

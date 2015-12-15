@@ -277,8 +277,7 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
 
 void X64Emitter::EmitGetCurrentThreadId() {
   // rcx must point to context. We could fetch from the stack if needed.
-  mov(ax,
-      word[rcx + processor_->frontend()->context_info()->thread_id_offset()]);
+  mov(ax, word[rcx + offsetof(frontend::PPCContext, thread_id)]);
 }
 
 void X64Emitter::EmitTraceUserCallReturn() {}
