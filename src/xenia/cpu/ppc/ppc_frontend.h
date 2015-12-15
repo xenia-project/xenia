@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_FRONTEND_H_
-#define XENIA_CPU_FRONTEND_PPC_FRONTEND_H_
+#ifndef XENIA_CPU_PPC_PPC_FRONTEND_H_
+#define XENIA_CPU_PPC_PPC_FRONTEND_H_
 
 #include <memory>
 
@@ -24,7 +24,7 @@ class Processor;
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 class PPCTranslator;
 
@@ -55,8 +55,8 @@ class PPCFrontend {
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
 };
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_FRONTEND_H_
+#endif  // XENIA_CPU_PPC_PPC_FRONTEND_H_

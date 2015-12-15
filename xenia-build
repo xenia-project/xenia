@@ -564,7 +564,7 @@ class TestCommand(BaseBuildCommand):
 
     # The test executables that will be built and run.
     test_targets = args['target'] or [
-        'xenia-cpu-frontend-tests',
+        'xenia-cpu-ppc-tests',
         ]
     args['target'] = test_targets
 
@@ -615,7 +615,7 @@ class GenTestsCommand(Command):
         name='gentests',
         help_short='Generates test binaries.',
         help_long='''
-        Generates test binaries (under src/xenia/cpu/frontend/testing/bin/).
+        Generates test binaries (under src/xenia/cpu/ppc/testing/bin/).
         Run after modifying test .s files.
         ''',
         *args, **kwargs)
@@ -630,7 +630,7 @@ class GenTestsCommand(Command):
     ppc_objdump = os.path.join(binutils_path, 'powerpc-none-elf-objdump')
     ppc_nm = os.path.join(binutils_path, 'powerpc-none-elf-nm')
 
-    test_src = os.path.join('src', 'xenia', 'cpu', 'frontend', 'testing')
+    test_src = os.path.join('src', 'xenia', 'cpu', 'ppc', 'testing')
     test_bin = os.path.join(test_src, 'bin')
 
     # Ensure the test output path exists.

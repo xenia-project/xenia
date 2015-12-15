@@ -7,18 +7,18 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_INSTR_TABLES_H_
-#define XENIA_CPU_FRONTEND_PPC_INSTR_TABLES_H_
+#ifndef XENIA_CPU_PPC_PPC_INSTR_TABLES_H_
+#define XENIA_CPU_PPC_PPC_INSTR_TABLES_H_
 
 #include <cmath>
 
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 void Disasm_0(InstrData* i, StringBuffer* str);
 void Disasm__(InstrData* i, StringBuffer* str);
@@ -1093,8 +1093,8 @@ static InstrType instr_table_scan[] = {
 #undef EMPTY
 
 }  // namespace tables
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_INSTR_TABLES_H_
+#endif  // XENIA_CPU_PPC_PPC_INSTR_TABLES_H_

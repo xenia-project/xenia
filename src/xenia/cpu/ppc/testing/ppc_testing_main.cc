@@ -15,8 +15,8 @@
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
-#include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/raw_module.h"
 
@@ -24,16 +24,16 @@
 #include "xenia/base/platform_win.h"
 #endif  // XE_COMPILER_MSVC
 
-DEFINE_string(test_path, "src/xenia/cpu/frontend/testing/",
+DEFINE_string(test_path, "src/xenia/cpu/ppc/testing/",
               "Directory scanned for test files.");
-DEFINE_string(test_bin_path, "src/xenia/cpu/frontend/testing/bin/",
+DEFINE_string(test_bin_path, "src/xenia/cpu/ppc/testing/bin/",
               "Directory with binary outputs of the test files.");
 
 namespace xe {
 namespace cpu {
 namespace test {
 
-using xe::cpu::frontend::PPCContext;
+using xe::cpu::ppc::PPCContext;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 

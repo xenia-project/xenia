@@ -7,18 +7,18 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_frontend.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
 
 #include "xenia/base/atomic.h"
-#include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/cpu/frontend/ppc_disasm.h"
-#include "xenia/cpu/frontend/ppc_emit.h"
-#include "xenia/cpu/frontend/ppc_translator.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_emit.h"
+#include "xenia/cpu/ppc/ppc_translator.h"
 #include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 void InitializeIfNeeded();
 void CleanupOnShutdown();
@@ -107,6 +107,6 @@ bool PPCFrontend::DefineFunction(GuestFunction* function,
   return result;
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

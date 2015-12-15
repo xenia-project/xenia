@@ -13,7 +13,7 @@ using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::hir;
 using namespace xe::cpu::testing;
-using xe::cpu::frontend::PPCContext;
+using xe::cpu::ppc::PPCContext;
 
 TEST_CASE("PERMUTE_V128_BY_INT32_CONSTANT", "[instr]") {
   {

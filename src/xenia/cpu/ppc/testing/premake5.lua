@@ -2,7 +2,7 @@ project_root = "../../../../.."
 include(project_root.."/build_tools")
 
 group("tests")
-project("xenia-cpu-frontend-tests")
+project("xenia-cpu-ppc-tests")
   uuid("2a57d5ac-4024-4c49-9cd3-aa3a603c2ef8")
   kind("ConsoleApp")
   language("C++")

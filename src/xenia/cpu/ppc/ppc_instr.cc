@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 
 #include <cinttypes>
 #include <sstream>
@@ -16,11 +16,11 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
-#include "xenia/cpu/frontend/ppc_instr_tables.h"
+#include "xenia/cpu/ppc/ppc_instr_tables.h"
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 std::vector<InstrType*> all_instrs_;
 
@@ -405,6 +405,6 @@ int RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
   return 0;
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

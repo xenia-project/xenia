@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_hir_builder.h"
+#include "xenia/cpu/ppc/ppc_hir_builder.h"
 
 #include <cstring>
 
@@ -16,16 +16,16 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/cpu_flags.h"
-#include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/cpu/frontend/ppc_disasm.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/hir/label.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/processor.h"
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 // TODO(benvanik): remove when enums redefined.
 using namespace xe::cpu::hir;
@@ -439,6 +439,6 @@ void PPCHIRBuilder::StoreVR(uint32_t reg, Value* value) {
   trace_reg.value = value;
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

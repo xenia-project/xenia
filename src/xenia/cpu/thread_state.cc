@@ -23,8 +23,6 @@
 namespace xe {
 namespace cpu {
 
-using PPCContext = xe::cpu::frontend::PPCContext;
-
 thread_local ThreadState* thread_state_ = nullptr;
 
 ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
@@ -85,9 +83,9 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   assert_not_zero(stack_address_);
 
   // Allocate with 64b alignment.
-  context_ = memory::AlignedAlloc<PPCContext>(64);
+  context_ = memory::AlignedAlloc<ppc::PPCContext>(64);
   assert_true(((uint64_t)context_ & 0x3F) == 0);
-  std::memset(context_, 0, sizeof(PPCContext));
+  std::memset(context_, 0, sizeof(ppc::PPCContext));
 
   // Stash pointers to common structures that callbacks may need.
   context_->global_mutex = &xe::global_critical_region::mutex();

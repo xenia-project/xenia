@@ -18,9 +18,9 @@
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/entry_table.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/module.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/memory.h"
 
@@ -53,7 +53,7 @@ class Processor {
   Memory* memory() const { return memory_; }
   debug::Debugger* debugger() const { return debugger_; }
   StackWalker* stack_walker() const { return stack_walker_.get(); }
-  frontend::PPCFrontend* frontend() const { return frontend_.get(); }
+  ppc::PPCFrontend* frontend() const { return frontend_.get(); }
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
 
@@ -98,7 +98,7 @@ class Processor {
 
   uint32_t debug_info_flags_ = 0;
 
-  std::unique_ptr<frontend::PPCFrontend> frontend_;
+  std::unique_ptr<ppc::PPCFrontend> frontend_;
   std::unique_ptr<backend::Backend> backend_;
   ExportResolver* export_resolver_ = nullptr;
 

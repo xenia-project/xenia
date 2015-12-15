@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "xenia/cpu/debug_info.h"
-#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/debug/function_trace_data.h"
@@ -60,8 +60,7 @@ class Function : public Symbol {
 
 class BuiltinFunction : public Function {
  public:
-  typedef void (*Handler)(frontend::PPCContext* ppc_context, void* arg0,
-                          void* arg1);
+  typedef void (*Handler)(ppc::PPCContext* ppc_context, void* arg0, void* arg1);
 
   BuiltinFunction(Module* module, uint32_t address);
   ~BuiltinFunction() override;
@@ -82,7 +81,7 @@ class BuiltinFunction : public Function {
 
 class GuestFunction : public Function {
  public:
-  typedef void (*ExternHandler)(frontend::PPCContext* ppc_context,
+  typedef void (*ExternHandler)(ppc::PPCContext* ppc_context,
                                 kernel::KernelState* kernel_state);
 
   GuestFunction(Module* module, uint32_t address);

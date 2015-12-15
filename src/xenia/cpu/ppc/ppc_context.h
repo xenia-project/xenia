@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_CONTEXT_H_
-#define XENIA_CPU_FRONTEND_PPC_CONTEXT_H_
+#ifndef XENIA_CPU_PPC_PPC_CONTEXT_H_
+#define XENIA_CPU_PPC_PPC_CONTEXT_H_
 
 #include <cstdint>
 #include <mutex>
@@ -28,7 +28,7 @@ class KernelState;
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 // Map:
 // 0-31: GPR
@@ -435,8 +435,8 @@ typedef struct PPCContext_s {
 #pragma pack(pop)
 static_assert(sizeof(PPCContext) % 64 == 0, "64b padded");
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_CONTEXT_H_
+#endif  // XENIA_CPU_PPC_PPC_CONTEXT_H_

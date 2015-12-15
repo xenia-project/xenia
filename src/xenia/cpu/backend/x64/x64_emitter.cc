@@ -277,7 +277,7 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
 
 void X64Emitter::EmitGetCurrentThreadId() {
   // rcx must point to context. We could fetch from the stack if needed.
-  mov(ax, word[rcx + offsetof(frontend::PPCContext, thread_id)]);
+  mov(ax, word[rcx + offsetof(ppc::PPCContext, thread_id)]);
 }
 
 void X64Emitter::EmitTraceUserCallReturn() {}
@@ -482,7 +482,7 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // rcx = context
       // rdx = target host function
       mov(rdx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      mov(r8, qword[rcx + offsetof(cpu::frontend::PPCContext, kernel_state)]);
+      mov(r8, qword[rcx + offsetof(ppc::PPCContext, kernel_state)]);
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
       call(rax);

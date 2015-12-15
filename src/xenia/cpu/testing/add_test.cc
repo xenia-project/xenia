@@ -14,7 +14,7 @@
 using namespace xe::cpu::hir;
 using namespace xe::cpu;
 using namespace xe::cpu::testing;
-using xe::cpu::frontend::PPCContext;
+using xe::cpu::ppc::PPCContext;
 
 TEST_CASE("ADD_I8", "[instr]") {
   TestFunction test([](HIRBuilder& b) {

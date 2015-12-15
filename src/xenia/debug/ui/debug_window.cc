@@ -26,7 +26,7 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/string_util.h"
 #include "xenia/base/threading.h"
-#include "xenia/cpu/frontend/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_disasm.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/kernel/xmodule.h"
@@ -40,8 +40,6 @@ namespace xe {
 namespace debug {
 namespace ui {
 
-using xe::cpu::frontend::PPCContext;
-using xe::cpu::frontend::PPCRegister;
 using xe::kernel::XModule;
 using xe::kernel::XObject;
 using xe::kernel::XThread;
@@ -519,11 +517,11 @@ void DebugWindow::DrawGuestFunctionSource() {
     ImGui::Text(" %c ", is_current_instr ? '>' : ' ');
     ImGui::SameLine();
 
-    cpu::frontend::InstrData i;
+    cpu::ppc::InstrData i;
     i.address = address;
     i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
-    i.type = cpu::frontend::GetInstrType(i.code);
-    cpu::frontend::DisasmPPC(&i, &str);
+    i.type = cpu::ppc::GetInstrType(i.code);
+    cpu::ppc::DisasmPPC(&i, &str);
     ImGui::Text("%.8X %.8X   %s", address, i.code, str.GetString());
     str.Reset();
 

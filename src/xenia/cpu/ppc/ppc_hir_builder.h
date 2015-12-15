@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_
-#define XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_
+#ifndef XENIA_CPU_PPC_PPC_HIR_BUILDER_H_
+#define XENIA_CPU_PPC_PPC_HIR_BUILDER_H_
 
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/function.h"
@@ -16,7 +16,7 @@
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 struct PPCBuiltins;
 class PPCFrontend;
@@ -102,8 +102,8 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   } trace_info_;
 };
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_HIR_BUILDER_H_
+#endif  // XENIA_CPU_PPC_PPC_HIR_BUILDER_H_

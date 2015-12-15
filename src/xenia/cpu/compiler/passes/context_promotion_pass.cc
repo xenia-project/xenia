@@ -13,7 +13,7 @@
 
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/compiler/compiler.h"
-#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/processor.h"
 
 DECLARE_bool(debug);
@@ -44,8 +44,8 @@ bool ContextPromotionPass::Initialize(Compiler* compiler) {
   }
 
   // This is a terrible implementation.
-  context_values_.resize(sizeof(frontend::PPCContext));
-  context_validity_.resize(static_cast<uint32_t>(sizeof(frontend::PPCContext)));
+  context_values_.resize(sizeof(ppc::PPCContext));
+  context_validity_.resize(static_cast<uint32_t>(sizeof(ppc::PPCContext)));
 
   return true;
 }

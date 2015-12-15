@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_translator.h"
+#include "xenia/cpu/ppc/ppc_translator.h"
 
 #include <gflags/gflags.h>
 
@@ -18,11 +18,11 @@
 #include "xenia/base/reset_scope.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/cpu_flags.h"
-#include "xenia/cpu/frontend/ppc_disasm.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
-#include "xenia/cpu/frontend/ppc_hir_builder.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
-#include "xenia/cpu/frontend/ppc_scanner.h"
+#include "xenia/cpu/ppc/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
+#include "xenia/cpu/ppc/ppc_hir_builder.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
 
@@ -31,7 +31,7 @@ DEFINE_bool(preserve_hir_disasm, true,
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 using xe::cpu::backend::Backend;
 using xe::cpu::compiler::Compiler;
@@ -167,7 +167,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   }
 
   if (false) {
-    xe::cpu::frontend::DumpAllInstrCounts();
+    DumpAllInstrCounts();
   }
 
   // Emit function.
@@ -241,6 +241,6 @@ void PPCTranslator::DumpSource(GuestFunction* function,
   }
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

@@ -15,7 +15,7 @@ using namespace xe;
 using namespace xe::cpu;
 using namespace xe::cpu::hir;
 using namespace xe::cpu::testing;
-using xe::cpu::frontend::PPCContext;
+using xe::cpu::ppc::PPCContext;
 
 TEST_CASE("INSERT_INT8", "[instr]") {
   for (int i = 0; i < 16; ++i) {

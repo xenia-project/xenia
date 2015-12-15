@@ -19,8 +19,8 @@
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
 #include "xenia/cpu/module.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
@@ -31,8 +31,6 @@
 
 namespace xe {
 namespace cpu {
-
-using PPCContext = xe::cpu::frontend::PPCContext;
 
 class BuiltinModule : public Module {
  public:
@@ -72,7 +70,7 @@ bool Processor::Setup() {
   // TODO(benvanik): query mode from debugger?
   debug_info_flags_ = 0;
 
-  auto frontend = std::make_unique<xe::cpu::frontend::PPCFrontend>(this);
+  auto frontend = std::make_unique<ppc::PPCFrontend>(this);
   // TODO(benvanik): set options/etc.
 
   // Must be initialized by subclass before calling into this.
@@ -293,7 +291,7 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
     return false;
   }
 
-  PPCContext* context = thread_state->context();
+  auto context = thread_state->context();
 
   // Pad out stack a bit, as some games seem to overwrite the caller by about
   // 16 to 32b.
@@ -317,7 +315,7 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
                             uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
 
-  PPCContext* context = thread_state->context();
+  auto context = thread_state->context();
   for (size_t i = 0; i < std::min(arg_count, 8ull); ++i) {
     context->r[3 + i] = args[i];
   }
@@ -349,7 +347,7 @@ uint64_t Processor::ExecuteInterrupt(ThreadState* thread_state,
   // disabled) or if any other interrupt is executing.
   auto global_lock = global_critical_region_.Acquire();
 
-  PPCContext* context = thread_state->context();
+  auto context = thread_state->context();
   assert_true(arg_count <= 5);
   for (size_t i = 0; i < arg_count; ++i) {
     context->r[3 + i] = args[i];

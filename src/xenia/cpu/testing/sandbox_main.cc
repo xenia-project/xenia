@@ -10,8 +10,8 @@
 #include "xenia/base/main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/cpu.h"
-#include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/raw_module.h"
 
 #include <gflags/gflags.h>
@@ -20,7 +20,7 @@ namespace xe {
 namespace cpu {
 namespace sandbox {
 
-using xe::cpu::frontend::PPCContext;
+using xe::cpu::ppc::PPCContext;
 using xe::cpu::Runtime;
 
 // TODO(benvanik): simple memory? move more into core?

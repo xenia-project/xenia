@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/memory.h"
 
@@ -45,7 +45,7 @@ class ThreadState {
   uint32_t stack_base() const { return stack_base_; }
   uint32_t stack_limit() const { return stack_limit_; }
   uint32_t pcr_address() const { return pcr_address_; }
-  xe::cpu::frontend::PPCContext* context() const { return context_; }
+  ppc::PPCContext* context() const { return context_; }
 
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();
@@ -66,7 +66,7 @@ class ThreadState {
   uint32_t pcr_address_;
 
   // NOTE: must be 64b aligned for SSE ops.
-  xe::cpu::frontend::PPCContext* context_;
+  ppc::PPCContext* context_;
 };
 
 }  // namespace cpu

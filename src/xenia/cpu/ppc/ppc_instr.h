@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_INSTR_H_
-#define XENIA_CPU_FRONTEND_PPC_INSTR_H_
+#ifndef XENIA_CPU_PPC_PPC_INSTR_H_
+#define XENIA_CPU_PPC_PPC_INSTR_H_
 
 #include <cstdint>
 #include <string>
@@ -18,7 +18,7 @@
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 inline uint32_t make_bitmask(uint32_t a, uint32_t b) {
   return (static_cast<uint32_t>(-1) >> (31 - b)) & ~((1u << a) - 1);
@@ -519,8 +519,8 @@ void DumpAllInstrCounts();
 InstrType* GetInstrType(uint32_t code);
 int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_INSTR_H_
+#endif  // XENIA_CPU_PPC_PPC_INSTR_H_

@@ -22,8 +22,8 @@
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/backend/code_cache.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
 #include "xenia/cpu/function.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/emulator.h"
@@ -685,15 +685,15 @@ bool Debugger::OnUnhandledException(Exception* ex) {
   return true;
 }
 
-bool TestPpcCondition(const xe::cpu::frontend::PPCContext* context, uint32_t bo,
+bool TestPpcCondition(const xe::cpu::ppc::PPCContext* context, uint32_t bo,
                       uint32_t bi, bool check_ctr, bool check_cond) {
   bool ctr_ok = true;
   if (check_ctr) {
-    if (xe::cpu::frontend::select_bits(bo, 2, 2)) {
+    if (xe::cpu::ppc::select_bits(bo, 2, 2)) {
       ctr_ok = true;
     } else {
       uint32_t new_ctr_value = static_cast<uint32_t>(context->ctr - 1);
-      if (xe::cpu::frontend::select_bits(bo, 1, 1)) {
+      if (xe::cpu::ppc::select_bits(bo, 1, 1)) {
         ctr_ok = new_ctr_value == 0;
       } else {
         ctr_ok = new_ctr_value != 0;
@@ -702,12 +702,12 @@ bool TestPpcCondition(const xe::cpu::frontend::PPCContext* context, uint32_t bo,
   }
   bool cond_ok = true;
   if (check_cond) {
-    if (xe::cpu::frontend::select_bits(bo, 4, 4)) {
+    if (xe::cpu::ppc::select_bits(bo, 4, 4)) {
       cond_ok = true;
     } else {
       uint8_t cr = *(reinterpret_cast<const uint8_t*>(&context->cr0) +
                      (4 * (bi >> 2)) + (bi & 3));
-      if (xe::cpu::frontend::select_bits(bo, 3, 3)) {
+      if (xe::cpu::ppc::select_bits(bo, 3, 3)) {
         cond_ok = cr != 0;
       } else {
         cond_ok = cr == 0;
@@ -719,11 +719,11 @@ bool TestPpcCondition(const xe::cpu::frontend::PPCContext* context, uint32_t bo,
 
 uint32_t Debugger::CalculateNextGuestInstruction(
     ThreadExecutionInfo* thread_info, uint32_t current_pc) {
-  xe::cpu::frontend::InstrData i;
+  xe::cpu::ppc::InstrData i;
   i.address = current_pc;
   i.code = xe::load_and_swap<uint32_t>(
       emulator_->memory()->TranslateVirtual(i.address));
-  i.type = xe::cpu::frontend::GetInstrType(i.code);
+  i.type = xe::cpu::ppc::GetInstrType(i.code);
   if (!i.type) {
     return current_pc + 4;
   } else if (i.code == 0x4E800020) {
@@ -737,13 +737,13 @@ uint32_t Debugger::CalculateNextGuestInstruction(
   } else if (i.type->opcode == 0x48000000) {
     // b/ba/bl/bla
     uint32_t target_pc =
-        static_cast<uint32_t>(xe::cpu::frontend::XEEXTS26(i.I.LI << 2)) +
+        static_cast<uint32_t>(xe::cpu::ppc::XEEXTS26(i.I.LI << 2)) +
         (i.I.AA ? 0u : i.address);
     return target_pc;
   } else if (i.type->opcode == 0x40000000) {
     // bc/bca/bcl/bcla
     uint32_t target_pc =
-        static_cast<uint32_t>(xe::cpu::frontend::XEEXTS16(i.B.BD << 2)) +
+        static_cast<uint32_t>(xe::cpu::ppc::XEEXTS16(i.B.BD << 2)) +
         (i.B.AA ? 0u : i.address);
     bool test_passed = TestPpcCondition(&thread_info->guest_context, i.B.BO,
                                         i.B.BI, true, true);

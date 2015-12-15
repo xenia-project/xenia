@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_context.h"
 
 #include <cinttypes>
 #include <cstdlib>
@@ -17,7 +17,7 @@
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 std::string PPCContext::GetRegisterName(PPCRegister reg) {
   switch (reg) {
@@ -150,6 +150,6 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
   }
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

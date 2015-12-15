@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_scanner.h"
+#include "xenia/cpu/ppc/ppc_scanner.h"
 
 #include <algorithm>
 #include <map>
@@ -15,8 +15,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
-#include "xenia/cpu/frontend/ppc_frontend.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_frontend.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/processor.h"
 
 #if 0
@@ -29,7 +29,7 @@
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 PPCScanner::PPCScanner(PPCFrontend* frontend) : frontend_(frontend) {}
 
@@ -366,6 +366,6 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(GuestFunction* function) {
   return blocks;
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

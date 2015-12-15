@@ -7,15 +7,15 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_emit-private.h"
+#include "xenia/cpu/ppc/ppc_emit-private.h"
 
 #include "xenia/base/assert.h"
-#include "xenia/cpu/frontend/ppc_context.h"
-#include "xenia/cpu/frontend/ppc_hir_builder.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_hir_builder.h"
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 // TODO(benvanik): remove when enums redefined.
 using namespace xe::cpu::hir;
@@ -1304,6 +1304,6 @@ void RegisterEmitCategoryALU() {
   XEREGISTERINSTR(srawix, 0x7C000670);
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

@@ -7,20 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_DISASM_H_
-#define XENIA_CPU_FRONTEND_PPC_DISASM_H_
+#ifndef XENIA_CPU_PPC_PPC_EMIT_H_
+#define XENIA_CPU_PPC_PPC_EMIT_H_
 
-#include "xenia/base/string_buffer.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
-int DisasmPPC(InstrData* i, StringBuffer* str);
+void RegisterEmitCategoryAltivec();
+void RegisterEmitCategoryALU();
+void RegisterEmitCategoryControl();
+void RegisterEmitCategoryFPU();
+void RegisterEmitCategoryMemory();
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_DISASM_H_
+#endif  // XENIA_CPU_PPC_PPC_EMIT_H_

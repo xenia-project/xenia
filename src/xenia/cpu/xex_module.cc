@@ -26,10 +26,9 @@
 namespace xe {
 namespace cpu {
 
-using xe::cpu::frontend::PPCContext;
 using xe::kernel::KernelState;
 
-void UndefinedImport(PPCContext* ppc_context, KernelState* kernel_state) {
+void UndefinedImport(ppc::PPCContext* ppc_context, KernelState* kernel_state) {
   XELOGE("call to undefined import");
 }
 

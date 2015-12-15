@@ -98,7 +98,7 @@ struct ThreadExecutionInfo {
 
   // Last-sampled PPC context.
   // This is updated whenever the debugger stops.
-  xe::cpu::frontend::PPCContext guest_context;
+  xe::cpu::ppc::PPCContext guest_context;
   // Last-sampled host x64 context.
   // This is updated whenever the debugger stops and must be used instead of any
   // value taken from the StackWalker as it properly respects exception stacks.

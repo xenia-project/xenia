@@ -19,7 +19,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/kernel/kernel_state.h"
 
 DECLARE_bool(log_high_frequency_kernel_calls);
@@ -27,7 +27,7 @@ DECLARE_bool(log_high_frequency_kernel_calls);
 namespace xe {
 namespace kernel {
 
-using PPCContext = xe::cpu::frontend::PPCContext;
+using PPCContext = xe::cpu::ppc::PPCContext;
 
 #define SHIM_CALL void _cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \

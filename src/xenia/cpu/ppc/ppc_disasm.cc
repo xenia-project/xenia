@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/frontend/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_disasm.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
@@ -15,7 +15,7 @@
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 void Disasm_0(InstrData* i, StringBuffer* str) {
   str->AppendFormat("%-8s ???", i->type->name);
@@ -514,6 +514,6 @@ int DisasmPPC(InstrData* i, StringBuffer* str) {
   return 0;
 }
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

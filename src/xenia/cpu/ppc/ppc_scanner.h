@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_FRONTEND_PPC_SCANNER_H_
-#define XENIA_CPU_FRONTEND_PPC_SCANNER_H_
+#ifndef XENIA_CPU_PPC_PPC_SCANNER_H_
+#define XENIA_CPU_PPC_PPC_SCANNER_H_
 
 #include <vector>
 
@@ -17,7 +17,7 @@
 
 namespace xe {
 namespace cpu {
-namespace frontend {
+namespace ppc {
 
 class PPCFrontend;
 
@@ -41,8 +41,8 @@ class PPCScanner {
   PPCFrontend* frontend_ = nullptr;
 };
 
-}  // namespace frontend
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_FRONTEND_PPC_SCANNER_H_
+#endif  // XENIA_CPU_PPC_PPC_SCANNER_H_

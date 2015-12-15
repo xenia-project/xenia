@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "xenia/base/math.h"
-#include "xenia/cpu/frontend/ppc_context.h"
+#include "xenia/cpu/ppc/ppc_context.h"
 
 namespace xe {
 namespace cpu {
@@ -52,7 +52,7 @@ struct ExportTag {
 // DEPRECATED
 typedef void (*xe_kernel_export_shim_fn)(void*, void*);
 
-typedef void (*ExportTrampoline)(xe::cpu::frontend::PPCContext* ppc_context);
+typedef void (*ExportTrampoline)(ppc::PPCContext* ppc_context);
 
 class Export {
  public:
