@@ -193,6 +193,9 @@ class XObject {
   bool SaveObject(ByteStream* stream);
   bool RestoreObject(ByteStream* stream);
 
+  // Called on successful wait.
+  virtual void WaitCallback() {}
+
   // Creates the kernel object for guest code to use. Typically not needed.
   uint8_t* CreateNative(uint32_t size);
   void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);

@@ -202,6 +202,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode,
       xe::threading::Wait(wait_handle, alertable ? true : false, timeout_ms);
   switch (result) {
     case xe::threading::WaitResult::kSuccess:
+      WaitCallback();
       return X_STATUS_SUCCESS;
     case xe::threading::WaitResult::kUserCallback:
       // Or X_STATUS_ALERTED?
@@ -229,6 +230,7 @@ X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object,
       alertable ? true : false, timeout_ms);
   switch (result) {
     case xe::threading::WaitResult::kSuccess:
+      wait_object->WaitCallback();
       return X_STATUS_SUCCESS;
     case xe::threading::WaitResult::kUserCallback:
       // Or X_STATUS_ALERTED?
@@ -263,6 +265,8 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
                                          alertable ? true : false, timeout_ms);
     switch (result.first) {
       case xe::threading::WaitResult::kSuccess:
+        objects[result.second]->WaitCallback();
+
         return X_STATUS(result.second);
       case xe::threading::WaitResult::kUserCallback:
         // Or X_STATUS_ALERTED?
@@ -281,6 +285,10 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects,
                                          alertable ? true : false, timeout_ms);
     switch (result) {
       case xe::threading::WaitResult::kSuccess:
+        for (uint32_t i = 0; i < count; i++) {
+          objects[i]->WaitCallback();
+        }
+
         return X_STATUS_SUCCESS;
       case xe::threading::WaitResult::kUserCallback:
         // Or X_STATUS_ALERTED?
