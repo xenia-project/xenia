@@ -101,6 +101,7 @@ dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
     kernel_memory()->SystemHeapFree(loader_data.launch_data_ptr);
   }
 
+  loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data_ptr = kernel_memory()->SystemHeapAlloc(size);
   loader_data.launch_data_size = size;
 
@@ -114,18 +115,25 @@ DECLARE_XAM_EXPORT(XamLoaderSetLaunchData, ExportTag::kSketchy);
 
 dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto& loader_data = xam->loader_data();
 
-  *size_ptr = xam->loader_data().launch_data_size;
+  if (loader_data.launch_data_present) {
+    *size_ptr = xam->loader_data().launch_data_size;
+    return X_ERROR_SUCCESS;
+  }
 
-  return 0;
+  return X_ERROR_NOT_FOUND;
 }
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
 
 dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
                                       dword_t buffer_size) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
-
   auto& loader_data = xam->loader_data();
+  if (!loader_data.launch_data_present) {
+    return X_ERROR_NOT_FOUND;
+  }
+
   if (loader_data.launch_data_ptr) {
     uint8_t* loader_buffer_ptr =
         kernel_memory()->TranslateVirtual(loader_data.launch_data_ptr);
@@ -136,7 +144,7 @@ dword_result_t XamLoaderGetLaunchData(lpvoid_t buffer_ptr,
     std::memcpy(buffer_ptr, loader_buffer_ptr, copy_size);
   }
 
-  return 0;
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchData, ExportTag::kSketchy);
 
