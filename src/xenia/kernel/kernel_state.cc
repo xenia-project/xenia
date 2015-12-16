@@ -333,7 +333,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
   return module;
 }
 
-void KernelState::TerminateTitle(bool from_guest_thread) {
+void KernelState::TerminateTitle() {
   XELOGD("KernelState::TerminateTitle");
   auto global_lock = global_critical_region_.Acquire();
 
@@ -352,13 +352,11 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
   */
 
   // Kill all guest threads.
-  // Need to not be holding the lock to do this.
-  global_lock.unlock();
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
     if (it->second->is_guest_thread()) {
       auto thread = it->second;
 
-      if (from_guest_thread && XThread::IsInThread(thread)) {
+      if (XThread::IsInThread(thread)) {
         // Don't terminate ourselves.
         ++it;
         continue;
@@ -372,8 +370,10 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
           thread->thread()->Suspend();
         }
 
+        global_lock.unlock();
         thread->StepToSafePoint();
         thread->Terminate(0);
+        global_lock.lock();
       }
 
       // Erase it from the thread list.
@@ -382,13 +382,12 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
       ++it;
     }
   }
-  global_lock.lock();
 
   // Third: Unload all user modules (including the executable)
   for (int i = 0; i < user_modules_.size(); i++) {
     X_STATUS status = user_modules_[i]->Unload();
     assert_true(XSUCCEEDED(status));
-  
+
     object_table_.RemoveHandle(user_modules_[i]->handle());
   }
   user_modules_.clear();
@@ -399,13 +398,11 @@ void KernelState::TerminateTitle(bool from_guest_thread) {
   // Unregister all notify listeners.
   notify_listeners_.clear();
 
-  if (from_guest_thread) {
+  if (XThread::IsInThread()) {
     threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
 
     // Now commit suicide (using Terminate, because we can't call into guest
     // code anymore)
-    // Also, manually invoke the lock guard's destructor, because Terminate
-    // does not return.
     global_lock.unlock();
     XThread::GetCurrentThread()->Terminate(0);
   }
@@ -624,7 +621,7 @@ bool KernelState::Save(ByteStream* stream) {
     }
 
     if (!thread->Save(stream)) {
-      XELOGD("Did not save thread \"%s\"", thread->name().c_str());
+      XELOGD("Failed to save thread \"%s\"", thread->name().c_str());
       num_threads--;
     }
   }
