@@ -139,7 +139,7 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
     case kTypeModule:
       return XModule::Restore(kernel_state, stream);
     case kTypeMutant:
-      break;
+      return XMutant::Restore(kernel_state, stream);
     case kTypeNotifyListener:
       return NotifyListener::Restore(kernel_state, stream);
     case kTypeSemaphore:

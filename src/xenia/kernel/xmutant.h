@@ -16,6 +16,7 @@
 
 namespace xe {
 namespace kernel {
+class XThread;
 
 class XMutant : public XObject {
  public:
@@ -31,8 +32,18 @@ class XMutant : public XObject {
 
   xe::threading::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
 
+  bool Save(ByteStream* stream) override;
+  static object_ref<XMutant> Restore(KernelState* kernel_state,
+                                     ByteStream* stream);
+
+ protected:
+  void WaitCallback() override;
+
  private:
+  XMutant();
+
   std::unique_ptr<xe::threading::Mutant> mutant_;
+  XThread* owning_thread_ = nullptr;
 };
 
 }  // namespace kernel
