@@ -126,6 +126,8 @@ Win32X64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
   unwind_reservation.data_size = xe::round_up(kUnwindInfoSize, 16);
   unwind_reservation.table_slot = ++unwind_table_count_;
   unwind_reservation.entry_address = entry_address;
+  assert_false(unwind_table_count_ >= kMaximumFunctionCount);
+
   return unwind_reservation;
 }
 
@@ -259,6 +261,8 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
         7;  // end of instruction + 1 == offset of next instruction
     unwind_code.UnwindOp = UWOP_ALLOC_LARGE;
     unwind_code.OpInfo = 0;
+
+    assert_true((stack_size / 8) < 65536u);
     unwind_code = unwind_info->UnwindCode[co++];
     unwind_code.FrameOffset = (USHORT)(stack_size) / 8;
   }
