@@ -9,7 +9,10 @@
 
 #include "xenia/kernel/xfile.h"
 
+#include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xevent.h"
 
 namespace xe {
@@ -17,15 +20,14 @@ namespace kernel {
 
 XFile::XFile(KernelState* kernel_state, vfs::File* file)
     : XObject(kernel_state, kTypeFile), file_(file) {
-  async_event_ = new XEvent(kernel_state);
-  async_event_->Initialize(false, false);
+  async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
+
+XFile::XFile() : XObject(kTypeFile) {}
 
 XFile::~XFile() {
   // TODO(benvanik): signal that the file is closing?
-  async_event_->Set(0, false);
-  async_event_->Delete();
-
+  async_event_->Set();
   file_->Destroy();
 }
 
@@ -107,7 +109,7 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
     *out_bytes_read = bytes_read;
   }
 
-  async_event_->Set(0, false);
+  async_event_->Set();
   return result;
 }
 
@@ -137,7 +139,7 @@ X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
     *out_bytes_written = bytes_written;
   }
 
-  async_event_->Set(0, false);
+  async_event_->Set();
   return result;
 }
 
@@ -158,6 +160,50 @@ void XFile::RemoveIOCompletionPort(uint32_t key) {
       break;
     }
   }
+}
+
+bool XFile::Save(ByteStream* stream) {
+  XELOGD("XFile %.8X (%s)", handle(), file_->entry()->absolute_path().c_str());
+
+  if (!SaveObject(stream)) {
+    return false;
+  }
+
+  stream->Write(file_->entry()->absolute_path());
+  stream->Write<uint64_t>(position_);
+  stream->Write(file_access());
+
+  return true;
+}
+
+object_ref<XFile> XFile::Restore(KernelState* kernel_state,
+                                 ByteStream* stream) {
+  auto file = new XFile();
+  file->kernel_state_ = kernel_state;
+  if (!file->RestoreObject(stream)) {
+    delete file;
+    return nullptr;
+  }
+
+  auto abs_path = stream->Read<std::string>();
+  uint64_t position = stream->Read<uint64_t>();
+  auto access = stream->Read<uint32_t>();
+
+  XELOGD("XFile %.8X (%s)", file->handle(), abs_path.c_str());
+
+  vfs::File* vfs_file = nullptr;
+  vfs::FileAction action;
+  auto res = kernel_state->file_system()->OpenFile(
+      abs_path, vfs::FileDisposition::kOpen, access, &vfs_file, &action);
+  if (XFAILED(res)) {
+    XELOGE("Failed to open XFile: error %.8X", res);
+    return object_ref<XFile>(file);
+  }
+
+  file->file_ = vfs_file;
+  file->position_ = position;
+
+  return object_ref<XFile>(file);
 }
 
 void XFile::NotifyIOCompletionPorts(

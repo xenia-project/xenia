@@ -87,7 +87,7 @@ class XFile : public XObject {
   vfs::Device* device() const { return file_->entry()->device(); }
   vfs::Entry* entry() const { return file_->entry(); }
   vfs::File* file() const { return file_; }
-  uint32_t file_access() const { return file_access_; }
+  uint32_t file_access() const { return file_->file_access(); }
 
   const std::string& path() const { return file_->entry()->path(); }
   const std::string& name() const { return file_->entry()->name(); }
@@ -105,19 +105,24 @@ class XFile : public XObject {
                  size_t* out_bytes_written, uint32_t apc_context);
 
   xe::threading::WaitHandle* GetWaitHandle() override {
-    return async_event_->GetWaitHandle();
+    return async_event_.get();
   }
 
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
 
+  bool Save(ByteStream* stream);
+  static object_ref<XFile> Restore(KernelState* kernel_state,
+                                   ByteStream* stream);
+
  protected:
   void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
 
  private:
+  XFile();
+
   vfs::File* file_ = nullptr;
-  uint32_t file_access_ = 0;
-  XEvent* async_event_ = nullptr;
+  std::unique_ptr<threading::Event> async_event_ = nullptr;
 
   std::mutex completion_port_lock_;
   std::vector<std::pair<uint32_t, object_ref<XIOCompletion>>> completion_ports_;

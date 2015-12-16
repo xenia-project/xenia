@@ -133,7 +133,7 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
     case kTypeEvent:
       return XEvent::Restore(kernel_state, stream);
     case kTypeFile:
-      break;
+      return XFile::Restore(kernel_state, stream);
     case kTypeIOCompletion:
       break;
     case kTypeModule:
