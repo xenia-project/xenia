@@ -9,8 +9,15 @@
 
 #include "xenia/kernel/xmutant.h"
 
+#include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xthread.h"
+
 namespace xe {
 namespace kernel {
+
+XMutant::XMutant() : XObject(kTypeMutant) {}
 
 XMutant::XMutant(KernelState* kernel_state)
     : XObject(kernel_state, kTypeMutant) {}
@@ -32,6 +39,11 @@ void XMutant::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
 
 X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon,
                                 bool wait) {
+  // Call should succeed if we own the mutant, so go ahead and do this.
+  if (owning_thread_ == XThread::GetCurrentThread()) {
+    owning_thread_ = nullptr;
+  }
+
   // TODO(benvanik): abandoning.
   assert_false(abandon);
   if (mutant_->Release()) {
@@ -40,6 +52,39 @@ X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon,
     return X_STATUS_MUTANT_NOT_OWNED;
   }
 }
+
+bool XMutant::Save(ByteStream* stream) {
+  XELOGD("XMutant %.8X", handle());
+  if (!SaveObject(stream)) {
+    return false;
+  }
+
+  stream->Write(owning_thread_->handle());
+  return true;
+}
+
+object_ref<XMutant> XMutant::Restore(KernelState* kernel_state,
+                                     ByteStream* stream) {
+  auto mutant = new XMutant();
+  mutant->kernel_state_ = kernel_state;
+
+  if (!mutant->RestoreObject(stream)) {
+    delete mutant;
+    return nullptr;
+  }
+
+  mutant->Initialize(false);
+
+  // TODO: Make the thread acquire this mutex... Somehow.
+  auto owning_thread_handle = stream->Read<uint32_t>();
+  mutant->owning_thread_ = kernel_state->object_table()
+                               ->LookupObject<XThread>(owning_thread_handle)
+                               .get();
+
+  return object_ref<XMutant>(mutant);
+}
+
+void XMutant::WaitCallback() { owning_thread_ = XThread::GetCurrentThread(); }
 
 }  // namespace kernel
 }  // namespace xe
