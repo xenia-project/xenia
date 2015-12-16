@@ -143,7 +143,7 @@ class KernelState {
 
   // Terminates a title: Unloads all modules, and kills all guest threads.
   // This DOES NOT RETURN if called from a guest thread!
-  void TerminateTitle(bool from_guest_thread = false);
+  void TerminateTitle();
 
   void RegisterThread(XThread* thread);
   void UnregisterThread(XThread* thread);

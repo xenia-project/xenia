@@ -147,7 +147,9 @@ void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
   loader_data.launch_flags = flags;
 
   // Translate the launch path to a full path.
-  if (raw_name) {
+  if (raw_name && raw_name.value() == "") {
+    loader_data.launch_path = "game:\\default.xex";
+  } else if (raw_name) {
     std::string name = xe::find_name_from_path(std::string(raw_name));
     std::string path(raw_name);
     if (name == std::string(raw_name)) {
@@ -162,13 +164,13 @@ void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
   }
 
   // This function does not return.
-  kernel_state()->TerminateTitle(true);
+  kernel_state()->TerminateTitle();
 }
 DECLARE_XAM_EXPORT(XamLoaderLaunchTitle, ExportTag::kSketchy);
 
 void XamLoaderTerminateTitle() {
   // This function does not return.
-  kernel_state()->TerminateTitle(true);
+  kernel_state()->TerminateTitle();
 }
 DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 
