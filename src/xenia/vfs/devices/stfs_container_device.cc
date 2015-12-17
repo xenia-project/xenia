@@ -168,7 +168,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
         parent_entry = all_entries[path_indicator];
       }
 
-      auto entry = new StfsContainerEntry(
+      auto entry = StfsContainerEntry::Create(
           this, parent_entry,
           std::string(reinterpret_cast<const char*>(filename),
                       filename_length_flags & 0x3F),
@@ -187,7 +187,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
       entry->create_timestamp_ = update_timestamp;
       entry->access_timestamp_ = access_timestamp;
       entry->write_timestamp_ = update_timestamp;
-      all_entries.push_back(entry);
+      all_entries.push_back(entry.get());
 
       // Fill in all block records.
       // It's easier to do this now and just look them up later, at the cost
@@ -212,7 +212,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
         }
       }
 
-      parent_entry->children_.emplace_back(std::unique_ptr<Entry>(entry));
+      parent_entry->children_.emplace_back(std::move(entry));
     }
 
     auto block_hash = GetBlockHash(map_ptr, table_block_index, 0);

@@ -29,6 +29,11 @@ class StfsContainerEntry : public Entry {
                      MappedMemory* mmap);
   ~StfsContainerEntry() override;
 
+  static std::unique_ptr<StfsContainerEntry> Create(Device* device,
+                                                    Entry* parent,
+                                                    std::string name,
+                                                    MappedMemory* mmap);
+
   MappedMemory* mmap() const { return mmap_; }
   size_t data_offset() const { return data_offset_; }
   size_t data_size() const { return data_size_; }
