@@ -118,17 +118,14 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
     return false;
   }
 
-  auto entry = new DiscImageEntry(this, parent, std::string(name, name_length),
-                                  mmap_.get());
+  auto entry = DiscImageEntry::Create(
+      this, parent, std::string(name, name_length), mmap_.get());
   entry->attributes_ = attributes | kFileAttributeReadOnly;
   entry->size_ = length;
   entry->allocation_size_ = xe::round_up(length, bytes_per_sector());
   entry->create_timestamp_ = 0;
   entry->access_timestamp_ = 0;
   entry->write_timestamp_ = 0;
-
-  // Add to parent.
-  parent->children_.emplace_back(std::unique_ptr<Entry>(entry));
 
   if (attributes & kFileAttributeDirectory) {
     // Folder.
@@ -143,7 +140,7 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
       // Read child list.
       uint8_t* folder_ptr =
           state->ptr + state->game_offset + (sector * kXESectorSize);
-      if (!ReadEntry(state, folder_ptr, 0, entry)) {
+      if (!ReadEntry(state, folder_ptr, 0, entry.get())) {
         return false;
       }
     }
@@ -152,6 +149,9 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
     entry->data_offset_ = state->game_offset + (sector * kXESectorSize);
     entry->data_size_ = length;
   }
+
+  // Add to parent.
+  parent->children_.emplace_back(std::move(entry));
 
   // Read next file in the list.
   if (node_r && !ReadEntry(state, buffer, node_r, parent)) {

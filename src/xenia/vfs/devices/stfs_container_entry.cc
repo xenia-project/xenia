@@ -24,6 +24,14 @@ StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent,
 
 StfsContainerEntry::~StfsContainerEntry() = default;
 
+std::unique_ptr<StfsContainerEntry> StfsContainerEntry::Create(
+    Device* device, Entry* parent, std::string name, MappedMemory* mmap) {
+  auto path = xe::join_paths(parent->path(), name);
+  auto entry = std::make_unique<StfsContainerEntry>(device, parent, path, mmap);
+
+  return std::move(entry);
+}
+
 X_STATUS StfsContainerEntry::Open(uint32_t desired_access, File** out_file) {
   *out_file = new StfsContainerFile(desired_access, this);
   return X_STATUS_SUCCESS;

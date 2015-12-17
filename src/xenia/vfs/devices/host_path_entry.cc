@@ -29,8 +29,9 @@ HostPathEntry::~HostPathEntry() = default;
 HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
                                      const std::wstring& full_path,
                                      xe::filesystem::FileInfo file_info) {
-  auto entry = new HostPathEntry(device, parent, xe::to_string(file_info.name),
-                                 full_path);
+  auto path = xe::join_paths(parent->path(), xe::to_string(file_info.name));
+  auto entry = new HostPathEntry(device, parent, path, full_path);
+
   entry->create_timestamp_ = file_info.create_timestamp;
   entry->access_timestamp_ = file_info.access_timestamp;
   entry->write_timestamp_ = file_info.write_timestamp;
