@@ -169,6 +169,37 @@ SHIM_CALL ObDereferenceObject_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(0);
 }
 
+dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
+                                    pointer_t<X_ANSI_STRING> target) {
+  auto path_str = path->to_string(kernel_memory()->virtual_membase());
+  auto target_str = target->to_string(kernel_memory()->virtual_membase());
+  path_str = filesystem::CanonicalizePath(path_str);
+  target_str = filesystem::CanonicalizePath(target_str);
+
+  auto pos = path_str.find("\\??\\");
+  if (pos != path_str.npos && pos == 0) {
+    path_str = path_str.substr(4);  // Strip the full qualifier
+  }
+
+  if (!kernel_state()->file_system()->RegisterSymbolicLink(path_str,
+                                                           target_str)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT(ObCreateSymbolicLink, ExportTag::kImplemented);
+
+dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path) {
+  auto path_str = path->to_string(kernel_memory()->virtual_membase());
+  if (!kernel_state()->file_system()->UnregisterSymbolicLink(path_str)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT(ObDeleteSymbolicLink, ExportTag::kImplemented);
+
 dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
                                  dword_t options) {
   // NOTE: new_handle_ptr can be zero to just close a handle.

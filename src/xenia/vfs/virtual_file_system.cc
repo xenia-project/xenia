@@ -36,6 +36,8 @@ bool VirtualFileSystem::RegisterSymbolicLink(std::string path,
                                              std::string target) {
   auto global_lock = global_critical_region_.Acquire();
   symlinks_.insert({path, target});
+  XELOGD("Registered symbolic link: %s => %s", path.c_str(), target.c_str());
+
   return true;
 }
 
@@ -45,7 +47,19 @@ bool VirtualFileSystem::UnregisterSymbolicLink(std::string path) {
   if (it == symlinks_.end()) {
     return false;
   }
+  XELOGD("Unregistered symbolic link: %s => %s", it->first.c_str(),
+         it->second.c_str());
+
   symlinks_.erase(it);
+  return true;
+}
+
+bool VirtualFileSystem::IsSymbolicLink(const std::string& path) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = symlinks_.find(path);
+  if (it == symlinks_.end()) {
+    return false;
+  }
   return true;
 }
 
@@ -58,17 +72,29 @@ Entry* VirtualFileSystem::ResolvePath(std::string path) {
   // Resolve symlinks.
   std::string device_path;
   std::string relative_path;
-  for (const auto& it : symlinks_) {
-    if (xe::find_first_of_case(normalized_path, it.first) == 0) {
-      // Found symlink!
-      device_path = it.second;
-      relative_path = normalized_path.substr(it.first.size());
+  for (int i = 0; i < 2; i++) {
+    for (const auto& it : symlinks_) {
+      if (xe::find_first_of_case(normalized_path, it.first) == 0) {
+        // Found symlink!
+        device_path = it.second;
+        if (relative_path.empty()) {
+          relative_path = normalized_path.substr(it.first.size());
+        }
+
+        // Bit of a cheaty move here, but allows double symlinks to be resolved.
+        normalized_path = device_path;
+        break;
+      }
+    }
+
+    // Break as soon as we've completely resolved the symlinks to a device.
+    if (!IsSymbolicLink(device_path)) {
       break;
     }
   }
 
-  // Not to fret, check to see if the path is fully qualified.
   if (device_path.empty()) {
+    // Symlink wasn't passed in - Check if we've received a raw device name.
     for (auto& device : devices_) {
       if (xe::find_first_of_case(normalized_path, device->mount_path()) == 0) {
         device_path = device->mount_path();
