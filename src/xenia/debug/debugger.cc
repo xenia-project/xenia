@@ -313,7 +313,7 @@ void Debugger::UpdateThreadExecutionStates(uint32_t override_handle,
       in_host_context = override_context;
     }
     size_t count = stack_walker->CaptureStackTrace(
-        thread->GetWaitHandle()->native_handle(), frame_host_pcs, 0,
+        thread->thread()->native_handle(), frame_host_pcs, 0,
         xe::countof(frame_host_pcs), in_host_context,
         &thread_info->host_context, &hash);
     stack_walker->ResolveStack(frame_host_pcs, cpu_frames, count);
