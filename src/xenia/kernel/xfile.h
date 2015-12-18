@@ -104,10 +104,6 @@ class XFile : public XObject {
   X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
                  size_t* out_bytes_written, uint32_t apc_context);
 
-  xe::threading::WaitHandle* GetWaitHandle() override {
-    return async_event_.get();
-  }
-
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
 
@@ -117,6 +113,10 @@ class XFile : public XObject {
 
  protected:
   void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
+
+  xe::threading::WaitHandle* GetWaitHandle() override {
+    return async_event_.get();
+  }
 
  private:
   XFile();

@@ -34,13 +34,14 @@ class XSemaphore : public XObject {
 
   int32_t ReleaseSemaphore(int32_t release_count);
 
-  xe::threading::WaitHandle* GetWaitHandle() override {
-    return semaphore_.get();
-  }
-
   bool Save(ByteStream* stream) override;
   static object_ref<XSemaphore> Restore(KernelState* kernel_state,
                                         ByteStream* stream);
+
+ protected:
+  xe::threading::WaitHandle* GetWaitHandle() override {
+    return semaphore_.get();
+  }
 
  private:
   std::unique_ptr<xe::threading::Semaphore> semaphore_;

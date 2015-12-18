@@ -181,7 +181,6 @@ class XThread : public XObject {
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable,
                  uint64_t interval);
 
-  xe::threading::WaitHandle* GetWaitHandle() override { return thread_.get(); }
   xe::threading::Thread* thread() { return thread_.get(); }
 
   virtual bool Save(ByteStream* stream) override;
@@ -203,6 +202,8 @@ class XThread : public XObject {
   uint32_t StepIntoBranch(uint32_t pc);
   void DeliverAPCs();
   void RundownAPCs();
+
+  xe::threading::WaitHandle* GetWaitHandle() override { return thread_.get(); }
 
   CreationParams creation_params_ = {0};
 

@@ -32,6 +32,7 @@ class XTimer : public XObject {
                     uint32_t routine_arg, bool resume);
   X_STATUS Cancel();
 
+ protected:
   xe::threading::WaitHandle* GetWaitHandle() override { return timer_.get(); }
 
  private:

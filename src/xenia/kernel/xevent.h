@@ -37,11 +37,12 @@ class XEvent : public XObject {
   int32_t Reset();
   void Clear();
 
-  xe::threading::WaitHandle* GetWaitHandle() override { return event_.get(); }
-
   bool Save(ByteStream* stream) override;
   static object_ref<XEvent> Restore(KernelState* kernel_state,
                                     ByteStream* stream);
+
+ protected:
+  xe::threading::WaitHandle* GetWaitHandle() override { return event_.get(); }
 
  private:
   bool manual_reset_ = false;
