@@ -30,13 +30,12 @@ class XMutant : public XObject {
 
   X_STATUS ReleaseMutant(uint32_t priority_increment, bool abandon, bool wait);
 
-  xe::threading::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
-
   bool Save(ByteStream* stream) override;
   static object_ref<XMutant> Restore(KernelState* kernel_state,
                                      ByteStream* stream);
 
  protected:
+  xe::threading::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
   void WaitCallback() override;
 
  private:

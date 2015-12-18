@@ -187,7 +187,6 @@ class XObject {
   static object_ref<T> GetNativeObject(KernelState* kernel_state,
                                        void* native_ptr, int32_t as_type = -1);
 
-  virtual xe::threading::WaitHandle* GetWaitHandle() { return nullptr; }
 
  protected:
   bool SaveObject(ByteStream* stream);
@@ -195,6 +194,7 @@ class XObject {
 
   // Called on successful wait.
   virtual void WaitCallback() {}
+  virtual xe::threading::WaitHandle* GetWaitHandle() { return nullptr; }
 
   // Creates the kernel object for guest code to use. Typically not needed.
   uint8_t* CreateNative(uint32_t size);
