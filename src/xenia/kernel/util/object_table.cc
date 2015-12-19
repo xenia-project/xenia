@@ -202,6 +202,14 @@ ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
   return nullptr;
 }
 
+// Generic lookup
+template <>
+object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle) {
+  auto object = ObjectTable::LookupObject(handle, false);
+  auto result = object_ref<XObject>(reinterpret_cast<XObject*>(object));
+  return result;
+}
+
 XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
   handle = TranslateHandle(handle);
   if (!handle) {

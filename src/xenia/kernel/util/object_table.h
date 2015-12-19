@@ -46,14 +46,6 @@ class ObjectTable {
     return result;
   }
 
-  // Generic lookup
-  template <>
-  object_ref<XObject> LookupObject<XObject>(X_HANDLE handle) {
-    auto object = LookupObject(handle, false);
-    auto result = object_ref<XObject>(reinterpret_cast<XObject*>(object));
-    return result;
-  }
-
   X_STATUS AddNameMapping(const std::string& name, X_HANDLE handle);
   void RemoveNameMapping(const std::string& name);
   X_STATUS GetObjectByName(const std::string& name, X_HANDLE* out_handle);
@@ -85,6 +77,10 @@ class ObjectTable {
   uint32_t last_free_entry_ = 0;
   std::unordered_map<std::string, X_HANDLE> name_table_;
 };
+
+// Generic lookup
+template <>
+object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle);
 
 }  // namespace util
 }  // namespace kernel
