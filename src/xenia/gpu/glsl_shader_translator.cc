@@ -361,10 +361,10 @@ void GlslShaderTranslator::ProcessExecInstructionBegin(
       EmitSourceDepth("{\n");
       break;
     case ParsedExecInstruction::Type::kConditional:
-      EmitSourceDepth("if ((state.bool_consts[%d] & (1 << %d)) == %c) {\n",
+      EmitSourceDepth("if ((state.bool_consts[%d] & (1 << %d)) %c= 0) {\n",
                       instr.bool_constant_index / 32,
                       instr.bool_constant_index % 32,
-                      instr.condition ? '1' : '0');
+                      instr.condition ? '!' : '=');
       break;
     case ParsedExecInstruction::Type::kPredicated:
       EmitSourceDepth("if (%cp0) {\n", instr.condition ? ' ' : '!');
@@ -384,13 +384,13 @@ void GlslShaderTranslator::ProcessExecInstructionBegin(
 
 void GlslShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
-  Unindent();
-  EmitSourceDepth("}\n");
   if (instr.is_end) {
     EmitSourceDepth("pc = 0xFFFF;\n");
     EmitSourceDepth("break;\n");
     cf_wrote_pc_ = true;
   }
+  Unindent();
+  EmitSourceDepth("}\n");
 }
 
 void GlslShaderTranslator::ProcessLoopStartInstruction(
@@ -494,10 +494,10 @@ void GlslShaderTranslator::ProcessJumpInstruction(
       EmitSourceDepth("{\n");
       break;
     case ParsedJumpInstruction::Type::kConditional:
-      EmitSourceDepth("if ((state.bool_consts[%d] & (1 << %d)) == %c) {\n",
+      EmitSourceDepth("if ((state.bool_consts[%d] & (1 << %d)) %c= 0) {\n",
                       instr.bool_constant_index / 32,
                       instr.bool_constant_index % 32,
-                      instr.condition ? '1' : '0');
+                      instr.condition ? '!' : '=');
       needs_fallthrough = true;
       break;
     case ParsedJumpInstruction::Type::kPredicated:
