@@ -281,6 +281,8 @@ void GLContext::AssertExtensionsPresent() {
         "OpenGL extension ARB_fragment_coord_conventions is required.");
     return;
   }
+
+  ClearCurrent();
 }
 
 void GLContext::DebugMessage(GLenum source, GLenum type, GLuint id,
