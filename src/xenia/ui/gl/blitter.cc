@@ -202,6 +202,8 @@ struct SavedState {
 
 void Blitter::Draw(GLuint src_texture, Rect2D src_rect, Rect2D dest_rect,
                    GLenum filter) {
+  assert_not_zero(src_texture);
+
   glDisable(GL_SCISSOR_TEST);
   glDisable(GL_STENCIL_TEST);
   glDisablei(GL_BLEND, 0);
