@@ -83,6 +83,7 @@ class GLContext : public GraphicsContext {
   std::unique_ptr<GLImmediateDrawer> immediate_drawer_;
 
   bool context_lost_ = false;
+  bool robust_access_supported_ = false;
 };
 
 }  // namespace gl

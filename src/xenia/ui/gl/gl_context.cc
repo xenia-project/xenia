@@ -133,16 +133,15 @@ bool GLContext::Initialize(GLContext* share_context) {
     return false;
   }
 
-  bool robust_access_supported = false;
   if (GLEW_ARB_robustness) {
-    robust_access_supported = true;
+    robust_access_supported_ = true;
   }
 
   int context_flags = 0;
   if (FLAGS_gl_debug) {
     context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
   }
-  if (robust_access_supported) {
+  if (robust_access_supported_) {
     context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
   }
 
@@ -156,7 +155,7 @@ bool GLContext::Initialize(GLContext* share_context) {
       WGL_CONTEXT_PROFILE_MASK_ARB,
       WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
       WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB,
-      robust_access_supported ? WGL_LOSE_CONTEXT_ON_RESET_ARB : 0,
+      robust_access_supported_ ? WGL_LOSE_CONTEXT_ON_RESET_ARB : 0,
       0};
 
   glrc_ = wglCreateContextAttribsARB(
@@ -207,15 +206,12 @@ std::unique_ptr<GLContext> GLContext::CreateOffscreen(
   {
     GraphicsContextLock context_lock(parent_context);
 
-    bool robust_access_supported = false;
-    if (GLEW_ARB_robustness) {
-      robust_access_supported = true;
-    }
-
     int context_flags = 0;
     if (FLAGS_gl_debug) {
       context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }
+
+    bool robust_access_supported = parent_context->robust_access_supported_;
     if (robust_access_supported) {
       context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
     }
@@ -245,6 +241,8 @@ std::unique_ptr<GLContext> GLContext::CreateOffscreen(
   new_context->glrc_ = new_glrc;
   new_context->dc_ =
       GetDC(HWND(parent_context->target_window_->native_handle()));
+  new_context->robust_access_supported_ =
+      parent_context->robust_access_supported_;
   if (!new_context->MakeCurrent()) {
     FatalGLError("Could not make new GL context current.");
     return nullptr;
@@ -473,6 +471,11 @@ void GLContext::ClearCurrent() {
 }
 
 bool GLContext::WasLost() {
+  if (!robust_access_supported_) {
+    // Can't determine if we lost the context.
+    return false;
+  }
+
   if (context_lost_) {
     return true;
   }
