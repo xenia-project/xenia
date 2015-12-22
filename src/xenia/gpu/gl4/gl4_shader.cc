@@ -135,18 +135,21 @@ bool GL4Shader::CompileProgram() {
     return false;
   }
 
+  // Output info log.
+  // log_length includes the null character.
+  GLint log_length = 0;
+  glGetProgramiv(program_, GL_INFO_LOG_LENGTH, &log_length);
+  std::string info_log;
+  info_log.resize(log_length - 1);
+  glGetProgramInfoLog(program_, log_length, &log_length, &info_log[0]);
+  if (!info_log.empty()) {
+    XELOGD("Shader log: %s", info_log.c_str());
+  }
+
   // Get error log, if we failed to link.
   GLint link_status = 0;
   glGetProgramiv(program_, GL_LINK_STATUS, &link_status);
   if (!link_status) {
-    // log_length includes the null character.
-    GLint log_length = 0;
-    glGetProgramiv(program_, GL_INFO_LOG_LENGTH, &log_length);
-    std::string info_log;
-    info_log.resize(log_length - 1);
-    glGetProgramInfoLog(program_, log_length, &log_length,
-                        const_cast<char*>(info_log.data()));
-    XELOGE("Unable to link program: %s", info_log.c_str());
     host_error_log_ = std::move(info_log);
     assert_always("Unable to link generated shader");
     return false;
