@@ -465,6 +465,12 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // TODO(benvanik): prevent this? fences?
   glFinish();
 
+  if (context_->WasLost()) {
+    // We've lost the context due to a TDR.
+    // TODO: Dump the current commands to a tracefile.
+    assert_always();
+  }
+
   // Remove any dead textures, etc.
   texture_cache_.Scavenge();
 }
@@ -581,8 +587,15 @@ bool GL4CommandProcessor::IssueDraw(PrimitiveType prim_type,
   if (!draw_batcher_.CommitDraw()) {
     return false;
   }
+
   // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
   draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
+  if (context_->WasLost()) {
+    // This draw lost us the context. This typically isn't hit.
+    assert_always();
+    return false;
+  }
+
   return true;
 }
 
