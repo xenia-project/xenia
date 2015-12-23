@@ -396,19 +396,24 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   // HACK: just use whatever our current framebuffer is.
   GLuint framebuffer_texture = last_framebuffer_texture_;
-  /*GLuint framebuffer_texture = active_framebuffer_
-                                        ? active_framebuffer_->color_targets[0]
-                                        : last_framebuffer_texture_;*/
+
+  if (last_framebuffer_texture_ == 0) {
+    framebuffer_texture =
+        active_framebuffer_ ? active_framebuffer_->color_targets[0] : 0;
+  }
 
   // Copy the the given framebuffer to the current backbuffer.
   Rect2D src_rect(0, 0, frontbuffer_width ? frontbuffer_width : 1280,
                   frontbuffer_height ? frontbuffer_height : 720);
   Rect2D dest_rect(0, 0, swap_state_.width, swap_state_.height);
-  reinterpret_cast<xe::ui::gl::GLContext*>(context_.get())
-      ->blitter()
-      ->CopyColorTexture2D(framebuffer_texture, src_rect,
-                           static_cast<GLuint>(swap_state_.back_buffer_texture),
-                           dest_rect, GL_LINEAR, true);
+  if (framebuffer_texture != 0) {
+    reinterpret_cast<xe::ui::gl::GLContext*>(context_.get())
+        ->blitter()
+        ->CopyColorTexture2D(
+            framebuffer_texture, src_rect,
+            static_cast<GLuint>(swap_state_.back_buffer_texture), dest_rect,
+            GL_LINEAR, true);
+  }
 
   if (FLAGS_draw_all_framebuffers) {
     int32_t offsetx = (1280 - (1280 / 5));
@@ -464,6 +469,12 @@ void GL4CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // Need to finish to be sure the other context sees the right data.
   // TODO(benvanik): prevent this? fences?
   glFinish();
+
+  if (context_->WasLost()) {
+    // We've lost the context due to a TDR.
+    // TODO: Dump the current commands to a tracefile.
+    assert_always();
+  }
 
   // Remove any dead textures, etc.
   texture_cache_.Scavenge();
@@ -581,8 +592,15 @@ bool GL4CommandProcessor::IssueDraw(PrimitiveType prim_type,
   if (!draw_batcher_.CommitDraw()) {
     return false;
   }
+
   // TODO(benvanik): find a way to get around glVertexArrayVertexBuffer below.
   draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
+  if (context_->WasLost()) {
+    // This draw lost us the context. This typically isn't hit.
+    assert_always();
+    return false;
+  }
+
   return true;
 }
 

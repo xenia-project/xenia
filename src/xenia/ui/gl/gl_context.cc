@@ -133,20 +133,30 @@ bool GLContext::Initialize(GLContext* share_context) {
     return false;
   }
 
+  if (GLEW_ARB_robustness) {
+    robust_access_supported_ = true;
+  }
+
   int context_flags = 0;
   if (FLAGS_gl_debug) {
     context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
   }
+  if (robust_access_supported_) {
+    context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
+  }
 
-  int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,
-                       4,
-                       WGL_CONTEXT_MINOR_VERSION_ARB,
-                       5,
-                       WGL_CONTEXT_FLAGS_ARB,
-                       context_flags,
-                       WGL_CONTEXT_PROFILE_MASK_ARB,
-                       WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                       0};
+  int attrib_list[] = {
+      WGL_CONTEXT_MAJOR_VERSION_ARB,
+      4,
+      WGL_CONTEXT_MINOR_VERSION_ARB,
+      5,
+      WGL_CONTEXT_FLAGS_ARB,
+      context_flags,
+      WGL_CONTEXT_PROFILE_MASK_ARB,
+      WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+      WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB,
+      robust_access_supported_ ? WGL_LOSE_CONTEXT_ON_RESET_ARB : 0,
+      0};
 
   glrc_ = wglCreateContextAttribsARB(
       dc_, share_context ? share_context->glrc_ : nullptr, attrib_list);
@@ -201,15 +211,23 @@ std::unique_ptr<GLContext> GLContext::CreateOffscreen(
       context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }
 
-    int attrib_list[] = {WGL_CONTEXT_MAJOR_VERSION_ARB,
-                         4,
-                         WGL_CONTEXT_MINOR_VERSION_ARB,
-                         5,
-                         WGL_CONTEXT_FLAGS_ARB,
-                         context_flags,
-                         WGL_CONTEXT_PROFILE_MASK_ARB,
-                         WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                         0};
+    bool robust_access_supported = parent_context->robust_access_supported_;
+    if (robust_access_supported) {
+      context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
+    }
+
+    int attrib_list[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB,
+        4,
+        WGL_CONTEXT_MINOR_VERSION_ARB,
+        5,
+        WGL_CONTEXT_FLAGS_ARB,
+        context_flags,
+        WGL_CONTEXT_PROFILE_MASK_ARB,
+        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB,
+        robust_access_supported ? WGL_LOSE_CONTEXT_ON_RESET_ARB : 0,
+        0};
     new_glrc = wglCreateContextAttribsARB(parent_context->dc_,
                                           parent_context->glrc_, attrib_list);
     if (!new_glrc) {
@@ -223,6 +241,8 @@ std::unique_ptr<GLContext> GLContext::CreateOffscreen(
   new_context->glrc_ = new_glrc;
   new_context->dc_ =
       GetDC(HWND(parent_context->target_window_->native_handle()));
+  new_context->robust_access_supported_ =
+      parent_context->robust_access_supported_;
   if (!new_context->MakeCurrent()) {
     FatalGLError("Could not make new GL context current.");
     return nullptr;
@@ -281,6 +301,8 @@ void GLContext::AssertExtensionsPresent() {
         "OpenGL extension ARB_fragment_coord_conventions is required.");
     return;
   }
+
+  ClearCurrent();
 }
 
 void GLContext::DebugMessage(GLenum source, GLenum type, GLuint id,
@@ -446,6 +468,28 @@ void GLContext::ClearCurrent() {
   if (FLAGS_thread_safe_gl) {
     global_gl_mutex_.unlock();
   }
+}
+
+bool GLContext::WasLost() {
+  if (!robust_access_supported_) {
+    // Can't determine if we lost the context.
+    return false;
+  }
+
+  if (context_lost_) {
+    return true;
+  }
+
+  auto status = glGetGraphicsResetStatusARB();
+  if (status != GL_NO_ERROR) {
+    // Graphics card reset.
+    XELOGE("============= TDR detected on context %p! Context %s =============",
+           glrc_, status == GL_GUILTY_CONTEXT_RESET ? "guilty" : "innocent");
+    context_lost_ = true;
+    return true;
+  }
+
+  return false;
 }
 
 void GLContext::BeginSwap() {

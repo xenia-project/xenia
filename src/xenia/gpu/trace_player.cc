@@ -156,6 +156,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
           pending_packet = nullptr;
         }
         if (pending_break) {
+          playing_trace_ = false;
           return;
         }
         break;

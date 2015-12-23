@@ -40,6 +40,7 @@ class GLContext : public GraphicsContext {
   bool is_current() override;
   bool MakeCurrent() override;
   void ClearCurrent() override;
+  bool WasLost() override;
 
   void BeginSwap() override;
   void EndSwap() override;
@@ -80,6 +81,9 @@ class GLContext : public GraphicsContext {
 
   Blitter blitter_;
   std::unique_ptr<GLImmediateDrawer> immediate_drawer_;
+
+  bool context_lost_ = false;
+  bool robust_access_supported_ = false;
 };
 
 }  // namespace gl
