@@ -140,8 +140,11 @@ bool GL4Shader::CompileProgram() {
   GLint log_length = 0;
   glGetProgramiv(program_, GL_INFO_LOG_LENGTH, &log_length);
   std::string info_log;
-  info_log.resize(log_length - 1);
-  glGetProgramInfoLog(program_, log_length, &log_length, &info_log[0]);
+  if (log_length > 0) {
+    info_log.resize(log_length - 1);
+    glGetProgramInfoLog(program_, log_length, &log_length, &info_log[0]);
+  }
+
   if (!info_log.empty()) {
     XELOGD("Shader log: %s", info_log.c_str());
   }
