@@ -29,6 +29,7 @@ class XamModule : public KernelModule {
   static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
 
   struct LoaderData {
+    bool launch_data_present = false;
     uint32_t launch_data_ptr = 0;
     uint32_t launch_data_size = 0;
     uint32_t launch_flags = 0;
