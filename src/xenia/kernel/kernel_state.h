@@ -120,6 +120,8 @@ class KernelState {
 
   void RegisterModule(XModule* module);
   void UnregisterModule(XModule* module);
+  bool RegisterUserModule(object_ref<UserModule> module);
+  void UnregisterUserModule(UserModule* module);
   bool IsKernelModule(const char* name);
   object_ref<XModule> GetModule(const char* name, bool user_only = false);
 

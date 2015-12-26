@@ -114,7 +114,7 @@ bool XModule::Save(ByteStream* stream) {
 object_ref<XModule> XModule::Restore(KernelState* kernel_state,
                                      ByteStream* stream) {
   if (stream->Read<uint32_t>() != 'XMOD') {
-    return false;
+    return nullptr;
   }
 
   auto path = stream->Read<std::string>();
@@ -123,6 +123,10 @@ object_ref<XModule> XModule::Restore(KernelState* kernel_state,
   // Can only save user modules at the moment, so just redirect.
   // TODO: Find a way to call RestoreObject here before UserModule::Restore.
   auto module = UserModule::Restore(kernel_state, stream, path);
+  if (!module) {
+    return nullptr;
+  }
+
   XELOGD("XModule %.8X (%s)", module->handle(), module->path_.c_str());
 
   module->hmodule_ptr_ = hmodule_ptr;
