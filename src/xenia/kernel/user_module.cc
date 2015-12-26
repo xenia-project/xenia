@@ -325,14 +325,19 @@ object_ref<UserModule> UserModule::Restore(KernelState* kernel_state,
   // XModule::Save took care of this earlier...
   // TODO: Find a nicer way to represent that here.
   if (!module->RestoreObject(stream)) {
-    return false;
+    return nullptr;
   }
 
   auto result = module->LoadFromFile(path);
   if (XFAILED(result)) {
     XELOGD("UserModule::Restore LoadFromFile(%s) FAILED - code %.8X",
            path.c_str(), result);
-    return false;
+    return nullptr;
+  }
+
+  if (!kernel_state->RegisterUserModule(retain_object(module))) {
+    // Already loaded?
+    assert_always();
   }
 
   return object_ref<UserModule>(module);

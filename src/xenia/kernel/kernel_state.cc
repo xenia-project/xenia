@@ -159,6 +159,31 @@ void KernelState::RegisterModule(XModule* module) {}
 
 void KernelState::UnregisterModule(XModule* module) {}
 
+bool KernelState::RegisterUserModule(object_ref<UserModule> module) {
+  auto lock = global_critical_region_.Acquire();
+
+  for (auto user_module : user_modules_) {
+    if (user_module->path() == module->path()) {
+      // Already loaded.
+      return false;
+    }
+  }
+
+  user_modules_.push_back(module);
+  return true;
+}
+
+void KernelState::UnregisterUserModule(UserModule* module) {
+  auto lock = global_critical_region_.Acquire();
+
+  for (auto it = user_modules_.begin(); it != user_modules_.end(); it++) {
+    if ((*it)->path() == module->path()) {
+      user_modules_.erase(it);
+      return;
+    }
+  }
+}
+
 bool KernelState::IsKernelModule(const char* name) {
   if (!name) {
     // Executing module isn't a kernel module.
