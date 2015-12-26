@@ -32,6 +32,7 @@ class ByteStream {
   }
 
   const uint8_t* data() const { return data_; }
+  uint8_t* data() { return data_; }
   size_t data_length() const { return data_length_; }
 
   size_t offset() const { return offset_; }
