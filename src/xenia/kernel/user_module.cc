@@ -53,23 +53,25 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     std::vector<uint8_t> buffer(fs_entry->size());
 
     // Open file for reading.
-    object_ref<XFile> file;
-    result =
-        fs_entry->Open(kernel_state(), vfs::FileAccess::kGenericRead, &file);
-    if (result) {
+    vfs::File* file = nullptr;
+    result = fs_entry->Open(vfs::FileAccess::kGenericRead, &file);
+    if (XFAILED(result)) {
       return result;
     }
 
     // Read entire file into memory.
     // Ugh.
     size_t bytes_read = 0;
-    result = file->Read(buffer.data(), buffer.size(), 0, &bytes_read);
-    if (result) {
+    result = file->ReadSync(buffer.data(), buffer.size(), 0, &bytes_read);
+    if (XFAILED(result)) {
       return result;
     }
 
     // Load the module.
     result = LoadFromMemory(buffer.data(), bytes_read);
+
+    // Close the file.
+    file->Destroy();
   }
 
   return result;
