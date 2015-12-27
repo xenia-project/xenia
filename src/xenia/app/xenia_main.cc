@@ -26,16 +26,6 @@
 // Available graphics systems:
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
 
-// Nvidia Optimus/AMD PowerXpress support
-// http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
-// http://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
-#if XE_PLATFORM_WIN32
-extern "C" {
-	__declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
-	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
-}
-#endif // XE_PLATFORM_WIN32
-
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
 #if XE_PLATFORM_WIN32

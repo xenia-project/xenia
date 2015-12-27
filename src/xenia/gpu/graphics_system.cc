@@ -22,6 +22,18 @@
 namespace xe {
 namespace gpu {
 
+// Nvidia Optimus/AMD PowerXpress support.
+// These exports force the process to trigger the discrete GPU in multi-GPU
+// systems.
+// http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
+// http://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
+#if XE_PLATFORM_WIN32
+extern "C" {
+__declspec(dllexport) uint32_t NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) uint32_t AmdPowerXpressRequestHighPerformance = 1;
+}  // extern "C"
+#endif  // XE_PLATFORM_WIN32
+
 GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
 GraphicsSystem::~GraphicsSystem() = default;
