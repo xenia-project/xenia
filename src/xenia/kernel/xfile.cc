@@ -23,7 +23,9 @@ XFile::XFile(KernelState* kernel_state, vfs::File* file)
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
-XFile::XFile() : XObject(kTypeFile) {}
+XFile::XFile() : XObject(kTypeFile) {
+  async_event_ = threading::Event::CreateAutoResetEvent(false);
+}
 
 XFile::~XFile() {
   // TODO(benvanik): signal that the file is closing?
