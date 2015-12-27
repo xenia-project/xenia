@@ -33,24 +33,24 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
 
-> git clone https://github.com/benvanik/xenia.git
-> cd xenia
-> xb setup
+    > git clone https://github.com/benvanik/xenia.git
+    > cd xenia
+    > xb setup
 
-# Pull latest changes, rebase, and update submodules and premake:
-> xb pull
+    # Pull latest changes, rebase, and update submodules and premake:
+    > xb pull
 
-# Build on command line:
-> xb build
+    # Build on command line:
+    > xb build
 
-# Run premake and open Visual Studio (run the 'xenia-app' project):
-> xb devenv
+    # Run premake and open Visual Studio (run the 'xenia-app' project):
+    > xb devenv
 
-# Run premake to update the sln/vcproj's:
-> xb premake
+    # Run premake to update the sln/vcproj's:
+    > xb premake
 
-# Format code to the style guide:
-> xb format
+    # Format code to the style guide:
+    > xb format
 
 When fetching updates use `xb pull` to automatically fetch everything and
 run premake for project files/etc.

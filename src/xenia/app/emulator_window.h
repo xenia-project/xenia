@@ -11,6 +11,7 @@
 #define XENIA_APP_EMULATOR_WINDOW_H_
 
 #include <memory>
+#include <string>
 
 #include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
@@ -52,6 +53,7 @@ class EmulatorWindow {
   Emulator* emulator_;
   std::unique_ptr<ui::Loop> loop_;
   std::unique_ptr<ui::Window> window_;
+  std::wstring base_title_;
 };
 
 }  // namespace app
