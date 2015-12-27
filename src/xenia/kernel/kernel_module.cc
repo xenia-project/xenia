@@ -99,8 +99,8 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
 
       cpu::GuestFunction::ExternHandler handler = nullptr;
       if (export_entry->function_data.trampoline) {
-        handler = (cpu::GuestFunction::ExternHandler)
-                      export_entry->function_data.trampoline;
+        handler = (cpu::GuestFunction::ExternHandler)export_entry
+                      ->function_data.trampoline;
       } else {
         handler =
             (cpu::GuestFunction::ExternHandler)export_entry->function_data.shim;

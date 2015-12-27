@@ -7,7 +7,6 @@ project("xenia-ui-gl")
   kind("StaticLib")
   language("C++")
   links({
-    "elemental-forms",
     "glew",
     "xenia-base",
     "xenia-ui",
@@ -17,7 +16,6 @@ project("xenia-ui-gl")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
@@ -29,7 +27,6 @@ project("xenia-ui-window-gl-demo")
   kind("WindowedApp")
   language("C++")
   links({
-    "elemental-forms",
     "gflags",
     "glew",
     "imgui",
@@ -45,7 +42,6 @@ project("xenia-ui-window-gl-demo")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   files({
@@ -54,9 +50,7 @@ project("xenia-ui-window-gl-demo")
     project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
   })
   files({
-    project_root.."/third_party/elemental-forms/resources.rc",
   })
   resincludedirs({
     project_root,
-    project_root.."/third_party/elemental-forms",
   })

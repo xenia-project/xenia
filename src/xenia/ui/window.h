@@ -13,19 +13,20 @@
 #include <memory>
 #include <string>
 
-#include "el/element.h"
-#include "el/graphics/renderer.h"
 #include "xenia/base/delegate.h"
 #include "xenia/ui/graphics_context.h"
 #include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/ui_event.h"
+#include "xenia/ui/window_listener.h"
 
 namespace xe {
 namespace ui {
 
 typedef void* NativePlatformHandle;
 typedef void* NativeWindowHandle;
+
+class ImGuiDrawer;
 
 class Window {
  public:
@@ -71,8 +72,12 @@ class Window {
                       int32_t bottom) = 0;
 
   GraphicsContext* context() const { return context_.get(); }
-  el::graphics::Renderer* renderer() const { return renderer_.get(); }
-  el::Element* root_element() const { return root_element_.get(); }
+  ImGuiDrawer* imgui_drawer() const { return imgui_drawer_.get(); }
+  bool is_imgui_input_enabled() const { return is_imgui_input_enabled_; }
+  void set_imgui_input_enabled(bool value);
+
+  void AttachListener(WindowListener* listener);
+  void DetachListener(WindowListener* listener);
 
   virtual bool Initialize() { return true; }
   void set_context(std::unique_ptr<GraphicsContext> context) {
@@ -81,9 +86,6 @@ class Window {
       MakeReady();
     }
   }
-
-  bool LoadLanguage(std::string filename);
-  bool LoadSkin(std::string filename);
 
   void Layout();
   virtual void Invalidate();
@@ -94,19 +96,9 @@ class Window {
   Delegate<UIEvent*> on_closing;
   Delegate<UIEvent*> on_closed;
 
-  Delegate<int> on_command;
-
-  Delegate<UIEvent*> on_resize;
-  Delegate<UIEvent*> on_layout;
   Delegate<UIEvent*> on_painting;
   Delegate<UIEvent*> on_paint;
   Delegate<UIEvent*> on_painted;
-
-  Delegate<UIEvent*> on_visible;
-  Delegate<UIEvent*> on_hidden;
-
-  Delegate<UIEvent*> on_got_focus;
-  Delegate<UIEvent*> on_lost_focus;
 
   Delegate<KeyEvent*> on_key_down;
   Delegate<KeyEvent*> on_key_up;
@@ -121,9 +113,6 @@ class Window {
   Window(Loop* loop, const std::wstring& title);
 
   virtual bool MakeReady();
-
-  virtual bool InitializeElemental(Loop* loop,
-                                   el::graphics::Renderer* renderer);
 
   virtual bool OnCreate();
   virtual void OnMainMenuChange();
@@ -149,9 +138,7 @@ class Window {
   virtual void OnMouseUp(MouseEvent* e);
   virtual void OnMouseWheel(MouseEvent* e);
 
-  el::ModifierKeys GetModifierKeys();
   void OnKeyPress(KeyEvent* e, bool is_down, bool is_char);
-  bool CheckShortcutKey(KeyEvent* e, el::SpecialKey special_key, bool is_down);
 
   Loop* loop_ = nullptr;
   std::unique_ptr<MenuItem> main_menu_;
@@ -160,24 +147,24 @@ class Window {
   int32_t height_ = 0;
   bool has_focus_ = true;
   bool is_cursor_visible_ = true;
+  bool is_imgui_input_enabled_ = false;
 
   std::unique_ptr<GraphicsContext> context_;
-  std::unique_ptr<el::graphics::Renderer> renderer_;
-  std::unique_ptr<el::Element> root_element_;
+  std::unique_ptr<ImGuiDrawer> imgui_drawer_;
 
   uint32_t frame_count_ = 0;
   uint32_t fps_ = 0;
-  uint64_t fps_update_time_ = 0;
+  uint64_t fps_update_time_ns_ = 0;
   uint64_t fps_frame_count_ = 0;
+  uint64_t last_paint_time_ns_ = 0;
 
   bool modifier_shift_pressed_ = false;
   bool modifier_cntrl_pressed_ = false;
   bool modifier_alt_pressed_ = false;
   bool modifier_super_pressed_ = false;
-  uint64_t last_click_time_ = 0;
-  int last_click_x_ = 0;
-  int last_click_y_ = 0;
-  int last_click_counter_ = 0;
+
+  // All currently-attached listeners that get event notifications.
+  std::vector<WindowListener*> listeners_;
 };
 
 }  // namespace ui

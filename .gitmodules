@@ -10,9 +10,6 @@
 [submodule "third_party/capstone"]
 	path = third_party/capstone
 	url = https://github.com/xenia-project/capstone.git
-[submodule "third_party/elemental-forms"]
-	path = third_party/elemental-forms
-	url = https://github.com/xenia-project/elemental-forms.git
 [submodule "build_tools"]
 	path = build_tools
 	url = https://github.com/xenia-project/build-tools.git

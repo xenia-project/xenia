@@ -7,13 +7,11 @@ project("xenia-core")
   kind("StaticLib")
   language("C++")
   links({
-    "elemental-forms",
     "xenia-base",
   })
   defines({
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   files({"*.h", "*.cc"})

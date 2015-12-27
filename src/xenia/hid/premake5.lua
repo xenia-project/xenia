@@ -23,7 +23,6 @@ project("xenia-hid-demo")
   kind("WindowedApp")
   language("C++")
   links({
-    "elemental-forms",
     "gflags",
     "glew",
     "imgui",
@@ -41,7 +40,6 @@ project("xenia-hid-demo")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   files({
@@ -49,11 +47,9 @@ project("xenia-hid-demo")
     project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
   })
   files({
-    project_root.."/third_party/elemental-forms/resources.rc",
   })
   resincludedirs({
     project_root,
-    project_root.."/third_party/elemental-forms",
   })
 
   filter("platforms:Windows")

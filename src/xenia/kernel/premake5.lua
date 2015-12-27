@@ -7,7 +7,6 @@ project("xenia-kernel")
   kind("StaticLib")
   language("C++")
   links({
-    "elemental-forms",
     "xenia-apu",
     "xenia-base",
     "xenia-cpu",
@@ -19,7 +18,6 @@ project("xenia-kernel")
   defines({
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   recursive_platform_files()

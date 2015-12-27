@@ -9,7 +9,7 @@
 
 #include "xenia/app/emulator_window.h"
 
-#include "third_party/elemental-forms/src/el/elements.h"
+#include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
@@ -17,6 +17,8 @@
 #include "xenia/base/threading.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/imgui_drawer.h"
 
 namespace xe {
 namespace app {
@@ -221,11 +223,10 @@ void EmulatorWindow::CpuTimeScalarSetDouble() {
 void EmulatorWindow::CpuBreakIntoDebugger() {
   auto debugger = emulator()->debugger();
   if (!debugger) {
-    auto message_form = new el::MessageForm(window_->root_element(),
-                                            TBIDC("debug_error_window"));
-    message_form->Show("Xenia Debugger",
-                       "Xenia must be launched with the --debug flag in order "
-                       "to enable debugging.");
+    xe::ui::ImGuiDialog::ShowMessageBox(window_.get(), "Xenia Debugger",
+                                        "Xenia must be launched with the "
+                                        "--debug flag in order to enable "
+                                        "debugging.");
     return;
   }
   if (debugger->execution_state() == debug::ExecutionState::kRunning) {

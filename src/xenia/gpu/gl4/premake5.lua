@@ -7,7 +7,6 @@ project("xenia-gpu-gl4")
   kind("StaticLib")
   language("C++")
   links({
-    "elemental-forms",
     "glew",
     "xenia-base",
     "xenia-gpu",
@@ -20,7 +19,6 @@ project("xenia-gpu-gl4")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
@@ -32,7 +30,6 @@ project("xenia-gpu-gl4-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
-    "elemental-forms",
     "gflags",
     "glew",
     "imgui",
@@ -62,7 +59,6 @@ project("xenia-gpu-gl4-trace-viewer")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   files({
@@ -88,7 +84,6 @@ project("xenia-gpu-gl4-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
-    "elemental-forms",
     "gflags",
     "glew",
     "imgui",
@@ -115,7 +110,6 @@ project("xenia-gpu-gl4-trace-dump")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   files({

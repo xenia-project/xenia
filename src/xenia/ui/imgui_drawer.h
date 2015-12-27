@@ -11,10 +11,14 @@
 #define XENIA_UI_IMGUI_DRAWER_H_
 
 #include <memory>
+#include <vector>
 
 #include "xenia/ui/immediate_drawer.h"
+#include "xenia/ui/window_listener.h"
 
 struct ImDrawData;
+struct ImFontAtlas;
+struct ImGuiIO;
 
 namespace xe {
 namespace ui {
@@ -22,12 +26,14 @@ namespace ui {
 class GraphicsContext;
 class Window;
 
-class ImGuiDrawer {
+class ImGuiDrawer : public WindowListener {
  public:
   ImGuiDrawer(Window* window);
   ~ImGuiDrawer();
 
-  void SetupDefaultInput();
+  void SetupDefaultInput() {}
+
+  ImGuiIO& GetIO();
 
  protected:
   void Initialize();
@@ -35,11 +41,21 @@ class ImGuiDrawer {
 
   void RenderDrawLists(ImDrawData* data);
 
-  static ImGuiDrawer* global_drawer_;
+  void OnKeyDown(KeyEvent* e) override;
+  void OnKeyUp(KeyEvent* e) override;
+  void OnKeyChar(KeyEvent* e) override;
+  void OnMouseDown(MouseEvent* e) override;
+  void OnMouseMove(MouseEvent* e) override;
+  void OnMouseUp(MouseEvent* e) override;
+  void OnMouseWheel(MouseEvent* e) override;
+
+  static ImGuiDrawer* current_drawer_;
 
   Window* window_ = nullptr;
   GraphicsContext* graphics_context_ = nullptr;
 
+  std::vector<uint8_t> internal_state_;
+  std::unique_ptr<ImFontAtlas> font_atlas_;
   std::unique_ptr<ImmediateTexture> font_texture_;
 };
 

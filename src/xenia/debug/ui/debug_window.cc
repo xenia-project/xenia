@@ -17,7 +17,6 @@
 
 #include "third_party/capstone/include/capstone/capstone.h"
 #include "third_party/capstone/include/capstone/x86.h"
-#include "third_party/elemental-forms/src/el/util/clipboard.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_internal.h"
 #include "xenia/base/clock.h"
@@ -87,10 +86,6 @@ bool DebugWindow::Initialize() {
     return false;
   }
 
-  window_->on_closed.AddListener([this](UIEvent* e) {
-    // Kill now while we have a GL context.
-    imgui_drawer_.reset();
-  });
   loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
   // Main menu.
@@ -110,9 +105,8 @@ bool DebugWindow::Initialize() {
   auto provider = emulator_->display_window()->context()->provider();
   window_->set_context(provider->CreateContext(window_.get()));
 
-  // Setup ImGui.
-  imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window_.get());
-  imgui_drawer_->SetupDefaultInput();
+  // Enable imgui input.
+  window_->set_imgui_input_enabled(true);
 
   window_->on_painting.AddListener([this](UIEvent* e) { DrawFrame(); });
 
@@ -125,16 +119,7 @@ bool DebugWindow::Initialize() {
 void DebugWindow::DrawFrame() {
   xe::ui::GraphicsContextLock lock(window_->context());
 
-  auto& io = ImGui::GetIO();
-  auto current_tick_count = Clock::QueryHostTickCount();
-  io.DeltaTime = (current_tick_count - last_draw_tick_count_) /
-                 static_cast<float>(Clock::host_tick_frequency());
-  last_draw_tick_count_ = current_tick_count;
-
-  io.DisplaySize = ImVec2(static_cast<float>(window_->width()),
-                          static_cast<float>(window_->height()));
-
-  ImGui::NewFrame();
+  auto& io = window_->imgui_drawer()->GetIO();
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(-1, 0));
   ImGui::Begin("main_window", nullptr,
@@ -174,7 +159,7 @@ void DebugWindow::DrawFrame() {
   ImGui::InvisibleButton("##vsplitter0",
                          ImVec2(kSplitterWidth, top_panes_height));
   if (ImGui::IsItemActive()) {
-    function_pane_width += ImGui::GetIO().MouseDelta.x;
+    function_pane_width += io.MouseDelta.x;
     function_pane_width = xe::clamp(function_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
@@ -186,7 +171,7 @@ void DebugWindow::DrawFrame() {
   ImGui::InvisibleButton("##vsplitter1",
                          ImVec2(kSplitterWidth, top_panes_height));
   if (ImGui::IsItemActive()) {
-    source_pane_width += ImGui::GetIO().MouseDelta.x;
+    source_pane_width += io.MouseDelta.x;
     source_pane_width = xe::clamp(source_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
@@ -198,7 +183,7 @@ void DebugWindow::DrawFrame() {
   ImGui::InvisibleButton("##vsplitter2",
                          ImVec2(kSplitterWidth, top_panes_height));
   if (ImGui::IsItemActive()) {
-    registers_pane_width += ImGui::GetIO().MouseDelta.x;
+    registers_pane_width += io.MouseDelta.x;
     registers_pane_width = xe::clamp(registers_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
@@ -226,7 +211,7 @@ void DebugWindow::DrawFrame() {
   ImGui::EndChild();
   ImGui::InvisibleButton("##hsplitter0", ImVec2(-1, kSplitterWidth));
   if (ImGui::IsItemActive()) {
-    bottom_panes_height -= ImGui::GetIO().MouseDelta.y;
+    bottom_panes_height -= io.MouseDelta.y;
     bottom_panes_height = xe::clamp(bottom_panes_height, 30.0f, FLT_MAX);
   }
   ImGui::BeginChild("##log_pane", ImVec2(log_pane_width, bottom_panes_height),
@@ -237,7 +222,7 @@ void DebugWindow::DrawFrame() {
   ImGui::InvisibleButton("##vsplitter3",
                          ImVec2(kSplitterWidth, bottom_panes_height));
   if (ImGui::IsItemActive()) {
-    breakpoints_pane_width -= ImGui::GetIO().MouseDelta.x;
+    breakpoints_pane_width -= io.MouseDelta.x;
     breakpoints_pane_width = xe::clamp(breakpoints_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
@@ -397,7 +382,7 @@ void DebugWindow::DrawSourcePane() {
   ImGui::Dummy(ImVec2(16, 0));
   ImGui::SameLine();
   if (ImGui::Button("Copy")) {
-    el::util::Clipboard::SetText("TODO");
+    // TODO(benvanik): move clipboard abstraction into ui?
   }
   ImGui::SameLine();
   ImGui::Dummy(ImVec2(4, 0));

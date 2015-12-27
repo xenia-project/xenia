@@ -34,7 +34,6 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 namespace xe {
 namespace hid {
 
-std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
 std::unique_ptr<xe::hid::InputSystem> input_system_;
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
@@ -88,7 +87,6 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
   window->on_closed.AddListener([&loop](xe::ui::UIEvent* e) {
     loop->Quit();
     XELOGI("User-initiated death!");
-    imgui_drawer_.reset();
     exit(1);
   });
   loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
@@ -105,30 +103,18 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
     graphics_provider = CreateDemoGraphicsProvider(window.get());
     window->set_context(graphics_provider->CreateContext(window.get()));
 
-    // Initialize the ImGui renderer we'll use.
-    imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
-    imgui_drawer_->SetupDefaultInput();
-
     // Initialize input system and all drivers.
     input_system_ = std::make_unique<xe::hid::InputSystem>(window.get());
     auto drivers = CreateInputDrivers(window.get());
     for (size_t i = 0; i < drivers.size(); ++i) {
       input_system_->AddDriver(std::move(drivers[i]));
     }
+
+    window->Invalidate();
   });
 
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    auto& io = ImGui::GetIO();
-    auto current_tick_count = Clock::QueryHostTickCount();
-    static uint64_t last_draw_tick_count = 0;
-    io.DeltaTime = (current_tick_count - last_draw_tick_count) /
-                   static_cast<float>(Clock::host_tick_frequency());
-    last_draw_tick_count = current_tick_count;
-
-    io.DisplaySize = ImVec2(static_cast<float>(window->width()),
-                            static_cast<float>(window->height()));
-
-    ImGui::NewFrame();
+    auto& io = window->imgui_drawer()->GetIO();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(-1, 0));
     ImGui::Begin("main_window", nullptr, ImGuiWindowFlags_NoMove |
@@ -146,8 +132,6 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
     ImGui::End();
     ImGui::PopStyleVar();
 
-    ImGui::Render();
-
     // Continuous paint.
     window->Invalidate();
   });
@@ -155,7 +139,6 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
   // Wait until we are exited.
   loop->AwaitQuit();
 
-  imgui_drawer_.reset();
   input_system_.reset();
 
   loop->PostSynchronous([&graphics_provider]() { graphics_provider.reset(); });

@@ -7,12 +7,13 @@
  ******************************************************************************
  */
 
-#include "el/elemental_forms.h"
+#include "third_party/imgui/imgui.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
@@ -20,81 +21,66 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+std::atomic<int> xam_dialogs_shown_ = 0;
+
 SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
   XELOGD("XamIsUIActive()");
-  SHIM_SET_RETURN_32(el::ModalForm::is_any_visible());
+  SHIM_SET_RETURN_32(xam_dialogs_shown_ > 0 ? 1 : 0);
 }
 
-class MessageBoxWindow : public el::ModalForm {
+class MessageBoxDialog : public xe::ui::ImGuiDialog {
  public:
-  explicit MessageBoxWindow(xe::threading::Fence* fence)
-      : ModalForm([fence]() { fence->Signal(); }) {}
-  ~MessageBoxWindow() override = default;
-
-  // TODO(benvanik): icon.
-  void Show(el::Element* root_element, std::wstring title, std::wstring message,
-            std::vector<std::wstring> buttons, uint32_t default_button,
-            uint32_t* out_chosen_button) {
-    title_ = std::move(title);
-    message_ = std::move(message);
-    buttons_ = std::move(buttons);
-    default_button_ = default_button;
-    out_chosen_button_ = out_chosen_button;
-
-    // In case we are cancelled, always set default button.
-    *out_chosen_button_ = default_button;
-
-    ModalForm::Show(root_element);
-
-    EnsureFocus();
-  }
-
- protected:
-  void BuildUI() override {
-    using namespace el::dsl;  // NOLINT(build/namespaces)
-
-    set_text(xe::to_string(title_));
-
-    auto button_bar = LayoutBoxNode().distribution_position(
-        LayoutDistributionPosition::kRightBottom);
-    for (int32_t i = 0; i < buttons_.size(); ++i) {
-      button_bar.child(ButtonNode(xe::to_string(buttons_[i]).c_str())
-                           .id(100 + i)
-                           .data(100 + i));
+  MessageBoxDialog(xe::ui::Window* window, std::wstring title,
+                   std::wstring description, std::vector<std::wstring> buttons,
+                   uint32_t default_button, uint32_t* out_chosen_button)
+      : ImGuiDialog(window),
+        title_(xe::to_string(title)),
+        description_(xe::to_string(description)),
+        buttons_(std::move(buttons)),
+        default_button_(default_button),
+        out_chosen_button_(out_chosen_button) {
+    if (out_chosen_button) {
+      *out_chosen_button = default_button;
     }
-
-    LoadNodeTree(
-        LayoutBoxNode()
-            .axis(Axis::kY)
-            .gravity(Gravity::kAll)
-            .position(LayoutPosition::kLeftTop)
-            .distribution(LayoutDistribution::kAvailable)
-            .distribution_position(LayoutDistributionPosition::kLeftTop)
-            .child(LabelNode(xe::to_string(message_).c_str()))
-            .child(button_bar));
-
-    auto default_button = GetElementById<el::Button>(100 + default_button_);
-    el::Button::set_auto_focus_state(true);
-    default_button->set_focus(el::FocusReason::kNavigation);
   }
 
-  bool OnEvent(const el::Event& ev) override {
-    if (ev.target->IsOfType<el::Button>() &&
-        (ev.type == el::EventType::kClick ||
-         ev.special_key == el::SpecialKey::kEnter)) {
-      int data_value = ev.target->data.as_integer();
-      if (data_value) {
-        *out_chosen_button_ = data_value - 100;
+  void OnDraw(ImGuiIO& io) override {
+    bool first_draw = false;
+    if (!has_opened_) {
+      ImGui::OpenPopup(title_.c_str());
+      has_opened_ = true;
+      first_draw = true;
+    }
+    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::Text(description_.c_str());
+      if (first_draw) {
+        ImGui::SetKeyboardFocusHere();
       }
-      Die();
-      return true;
+      for (size_t i = 0; i < buttons_.size(); ++i) {
+        auto button_name = xe::to_string(buttons_[i]);
+        if (ImGui::Button(button_name.c_str())) {
+          if (out_chosen_button_) {
+            *out_chosen_button_ = static_cast<uint32_t>(i);
+          }
+          ImGui::CloseCurrentPopup();
+          Close();
+        }
+        ImGui::SameLine();
+      }
+      ImGui::Spacing();
+      ImGui::Spacing();
+      ImGui::EndPopup();
+    } else {
+      Close();
     }
-    return ModalForm::OnEvent(ev);
   }
 
-  std::wstring title_;
-  std::wstring message_;
+ private:
+  bool has_opened_ = false;
+  std::string title_;
+  std::string description_;
   std::vector<std::wstring> buttons_;
   uint32_t default_button_ = 0;
   uint32_t* out_chosen_button_ = nullptr;
@@ -142,8 +128,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     auto display_window = kernel_state->emulator()->display_window();
     xe::threading::Fence fence;
     display_window->loop()->PostSynchronous([&]() {
-      auto root_element = display_window->root_element();
-      auto window = new MessageBoxWindow(&fence);
+      // TODO(benvanik): setup icon states.
       switch (flags & 0xF) {
         case 0:
           // config.pszMainIcon = nullptr;
@@ -158,10 +143,13 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
           // config.pszMainIcon = TD_INFORMATION_ICON;
           break;
       }
-      window->Show(root_element, title, text, buttons, active_button,
-                   &chosen_button);
+      (new MessageBoxDialog(display_window, title, text, buttons, active_button,
+                            &chosen_button))
+          ->Then(&fence);
     });
+    ++xam_dialogs_shown_;
     fence.Wait();
+    --xam_dialogs_shown_;
   }
   SHIM_SET_MEM_32(result_ptr, chosen_button);
 
@@ -169,102 +157,81 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
 }
 
-class KeyboardInputWindow : public el::ModalForm {
+class KeyboardInputDialog : public xe::ui::ImGuiDialog {
  public:
-  explicit KeyboardInputWindow(xe::threading::Fence* fence)
-      : ModalForm([fence]() { fence->Signal(); }) {}
-  ~KeyboardInputWindow() override = default;
-
-  // TODO(benvanik): icon.
-  void Show(el::Element* root_element, std::wstring title,
-            std::wstring description, std::wstring default_text,
-            std::wstring* out_text, size_t max_length) {
-    title_ = std::move(title);
-    description_ = std::move(description);
-    default_text_ = std::move(default_text);
-    out_text_ = out_text;
-    max_length_ = max_length;
-
-    // Incase we're cancelled, set as the default text.
-    if (out_text) {
-      *out_text = default_text;
+  KeyboardInputDialog(xe::ui::Window* window, std::wstring title,
+                      std::wstring description, std::wstring default_text,
+                      std::wstring* out_text, size_t max_length)
+      : ImGuiDialog(window),
+        title_(xe::to_string(title)),
+        description_(xe::to_string(description)),
+        default_text_(xe::to_string(default_text)),
+        out_text_(out_text),
+        max_length_(max_length) {
+    if (out_text_) {
+      *out_text_ = default_text;
     }
-
-    ModalForm::Show(root_element);
-
-    EnsureFocus();
+    text_buffer_.resize(max_length);
+    std::strncpy(text_buffer_.data(), default_text_.c_str(),
+                 std::min(text_buffer_.size() - 1, default_text_.size()));
   }
 
- protected:
-  void BuildUI() override {
-    using namespace el::dsl;  // NOLINT(build/namespaces)
-
-    set_text(xe::to_string(title_));
-
-    LoadNodeTree(
-        LayoutBoxNode()
-            .axis(Axis::kY)
-            .gravity(Gravity::kAll)
-            .position(LayoutPosition::kLeftTop)
-            .min_width(300)
-            .distribution(LayoutDistribution::kAvailable)
-            .distribution_position(LayoutDistributionPosition::kLeftTop)
-            .child(LabelNode(xe::to_string(description_).c_str()))
-            .child(LayoutBoxNode()
-                       .axis(Axis::kX)
-                       .distribution(LayoutDistribution::kGravity)
-                       .child(TextBoxNode()
-                                  .id("text_input")
-                                  .gravity(Gravity::kLeftRight)
-                                  .placeholder(xe::to_string(default_text_))
-                                  .min_width(150)
-                                  .autofocus(true)))
-            .child(LayoutBoxNode()
-                       .distribution_position(
-                           LayoutDistributionPosition::kRightBottom)
-                       .child(ButtonNode("OK").id("ok_button"))
-                       .child(ButtonNode("Cancel").id("cancel_button"))));
-  }
-
-  bool OnEvent(const el::Event& ev) override {
-    if (ev.special_key == el::SpecialKey::kEnter ||
-        (ev.target->id() == TBIDC("ok_button") &&
-         ev.type == el::EventType::kClick)) {
-      // Pressed enter or clicked OK
-      // Grab the text.
-      if (out_text_) {
-        *out_text_ =
-            xe::to_wstring(GetElementById<el::TextBox>("text_input")->text());
+  void OnDraw(ImGuiIO& io) override {
+    bool first_draw = false;
+    if (!has_opened_) {
+      ImGui::OpenPopup(title_.c_str());
+      has_opened_ = true;
+      first_draw = true;
+    }
+    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::TextWrapped(description_.c_str());
+      if (first_draw) {
+        ImGui::SetKeyboardFocusHere();
       }
-
-      Die();
-      return true;
-    } else if (ev.target->id() == TBIDC("cancel_button") &&
-               ev.type == el::EventType::kClick) {
-      // Cancel.
-      Die();
-      return true;
+      if (ImGui::InputText("##body", text_buffer_.data(), text_buffer_.size(),
+                           ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (out_text_) {
+          *out_text_ = xe::to_wstring(text_buffer_.data());
+        }
+        ImGui::CloseCurrentPopup();
+        Close();
+      }
+      if (ImGui::Button("OK")) {
+        if (out_text_) {
+          *out_text_ = xe::to_wstring(text_buffer_.data());
+        }
+        ImGui::CloseCurrentPopup();
+        Close();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Cancel")) {
+        ImGui::CloseCurrentPopup();
+        Close();
+      }
+      ImGui::Spacing();
+      ImGui::EndPopup();
+    } else {
+      Close();
     }
-
-    return ModalForm::OnEvent(ev);
   }
 
-  std::wstring title_;
-  std::wstring description_;
-  std::wstring default_text_;
+ private:
+  bool has_opened_ = false;
+  std::string title_;
+  std::string description_;
+  std::string default_text_;
   std::wstring* out_text_ = nullptr;
+  std::vector<char> text_buffer_;
   size_t max_length_ = 0;
 };
 
 // http://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
-dword_result_t XamShowKeyboardUI(dword_t r3, dword_t flags,
+dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
                                  lpwstring_t default_text, lpwstring_t title,
                                  lpwstring_t description, lpwstring_t buffer,
                                  dword_t buffer_length,
                                  pointer_t<XAM_OVERLAPPED> overlapped) {
-  // Unknown parameters. I've only seen zero.
-  assert_zero(r3);
-
   if (!buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -289,14 +256,15 @@ dword_result_t XamShowKeyboardUI(dword_t r3, dword_t flags,
   auto display_window = kernel_state()->emulator()->display_window();
   xe::threading::Fence fence;
   display_window->loop()->PostSynchronous([&]() {
-    auto root_element = display_window->root_element();
-    auto window = new KeyboardInputWindow(&fence);
-    window->Show(root_element, title ? title.value() : L"",
-                 description ? description.value() : L"",
-                 default_text ? default_text.value() : L"", &out_text,
-                 buffer_length);
+    (new KeyboardInputDialog(display_window, title ? title.value() : L"",
+                             description ? description.value() : L"",
+                             default_text ? default_text.value() : L"",
+                             &out_text, buffer_length))
+        ->Then(&fence);
   });
+  ++xam_dialogs_shown_;
   fence.Wait();
+  --xam_dialogs_shown_;
 
   // Zero the output buffer.
   std::memset(buffer, 0, buffer_length * 2);
@@ -341,46 +309,6 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
 }
 DECLARE_XAM_EXPORT(XamShowDeviceSelectorUI, ExportTag::kImplemented);
 
-class DirtyDiscWindow : public el::ModalForm {
- public:
-  explicit DirtyDiscWindow(xe::threading::Fence* fence)
-      : ModalForm([fence]() { fence->Signal(); }) {}
-  ~DirtyDiscWindow() override = default;
-
- protected:
-  void BuildUI() override {
-    using namespace el::dsl;  // NOLINT(build/namespaces)
-
-    set_text("Disc Read Error");
-
-    LoadNodeTree(
-        LayoutBoxNode()
-            .axis(Axis::kY)
-            .gravity(Gravity::kAll)
-            .position(LayoutPosition::kLeftTop)
-            .distribution(LayoutDistribution::kAvailable)
-            .distribution_position(LayoutDistributionPosition::kLeftTop)
-            .child(LabelNode(
-                "There's been an issue reading content from the game disc."))
-            .child(LabelNode(
-                "This is likely caused by bad or unimplemented file IO "
-                "calls."))
-            .child(LayoutBoxNode()
-                       .distribution_position(
-                           LayoutDistributionPosition::kRightBottom)
-                       .child(ButtonNode("Exit").id("exit_button"))));
-  }
-
-  bool OnEvent(const el::Event& ev) override {
-    if (ev.target->id() == TBIDC("exit_button") &&
-        ev.type == el::EventType::kClick) {
-      Die();
-      return true;
-    }
-    return ModalForm::OnEvent(ev);
-  }
-};
-
 SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
                                        KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -396,11 +324,15 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
   auto display_window = kernel_state->emulator()->display_window();
   xe::threading::Fence fence;
   display_window->loop()->PostSynchronous([&]() {
-    auto root_element = display_window->root_element();
-    auto window = new DirtyDiscWindow(&fence);
-    window->Show(root_element);
+    xe::ui::ImGuiDialog::ShowMessageBox(
+        display_window, "Disc Read Error",
+        "There's been an issue reading content from the game disc.\nThis is "
+        "likely caused by bad or unimplemented file IO calls.")
+        ->Then(&fence);
   });
+  ++xam_dialogs_shown_;
   fence.Wait();
+  --xam_dialogs_shown_;
 
   // This is death, and should never return.
   // TODO(benvanik): cleaner exit.

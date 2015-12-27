@@ -11,7 +11,6 @@
 
 #include <gflags/gflags.h>
 
-#include "third_party/elemental-forms/src/el/elements.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
@@ -28,6 +27,7 @@
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
+#include "xenia/ui/imgui_dialog.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
@@ -334,11 +334,9 @@ bool Emulator::ExceptionCallback(Exception* ex) {
 
   // Display a dialog telling the user the guest has crashed.
   display_window()->loop()->PostSynchronous([&]() {
-    auto message_form = new el::MessageForm(display_window()->root_element(),
-                                            TBIDC("crash_form"));
-    message_form->Show("Uh-oh!",
-                       "The guest has crashed.\n\n"
-                       "Xenia has now paused itself.");
+    xe::ui::ImGuiDialog::ShowMessageBox(display_window(), "Uh-oh!",
+                                        "The guest has crashed.\n\n"
+                                        "Xenia has now paused itself.");
   });
 
   // Now suspend ourself (we should be a guest thread).

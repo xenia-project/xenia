@@ -11,6 +11,8 @@
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/filesystem.h"
+#include "xenia/base/logging.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
@@ -24,31 +26,42 @@ const char kProggyTinyCompressedDataBase85[10950 + 1] =
 static_assert(sizeof(ImmediateVertex) == sizeof(ImDrawVert),
               "Vertex types must match");
 
-ImGuiDrawer* ImGuiDrawer::global_drawer_ = nullptr;
+ImGuiDrawer* ImGuiDrawer::current_drawer_ = nullptr;
 
 ImGuiDrawer::ImGuiDrawer(xe::ui::Window* window)
     : window_(window), graphics_context_(window->context()) {
-  assert_null(global_drawer_);
-  global_drawer_ = this;
-
   Initialize();
 }
 
 ImGuiDrawer::~ImGuiDrawer() {
+  auto previous_state = ImGui::GetInternalState();
+  ImGui::SetInternalState(internal_state_.data());
   ImGui::Shutdown();
+  if (previous_state != internal_state_.data()) {
+    ImGui::SetInternalState(previous_state);
+  }
 
-  assert_true(global_drawer_ == this);
-  global_drawer_ = nullptr;
+  current_drawer_ = nullptr;
 }
 
 void ImGuiDrawer::Initialize() {
+  // Setup ImGui internal state.
+  // This will give us state we can swap to the ImGui globals when in use.
+  internal_state_.resize(ImGui::GetInternalStateSize());
+  ImGui::SetInternalState(internal_state_.data(), true);
+  current_drawer_ = this;
+
   auto& io = ImGui::GetIO();
+
+  font_atlas_ = std::make_unique<ImFontAtlas>();
+  io.Fonts = font_atlas_.get();
 
   SetupFont();
 
   io.DeltaTime = 1.0f / 60.0f;
   io.RenderDrawListsFn = [](ImDrawData* data) {
-    global_drawer_->RenderDrawLists(data);
+    assert_not_null(current_drawer_);
+    current_drawer_->RenderDrawLists(data);
   };
 
   auto& style = ImGui::GetStyle();
@@ -124,7 +137,7 @@ void ImGuiDrawer::Initialize() {
 }
 
 void ImGuiDrawer::SetupFont() {
-  auto& io = ImGui::GetIO();
+  auto& io = GetIO();
 
   ImFontConfig font_config;
   font_config.OversampleH = font_config.OversampleV = 1;
@@ -135,6 +148,21 @@ void ImGuiDrawer::SetupFont() {
   };
   io.Fonts->AddFontFromMemoryCompressedBase85TTF(
       kProggyTinyCompressedDataBase85, 10.0f, &font_config, font_glyph_ranges);
+
+  // TODO(benvanik): jp font on other platforms?
+  // https://github.com/Koruri/kibitaki looks really good, but is 1.5MiB.
+  const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
+  if (xe::filesystem::PathExists(xe::to_wstring(jp_font_path))) {
+    ImFontConfig jp_font_config;
+    jp_font_config.MergeMode = true;
+    jp_font_config.OversampleH = jp_font_config.OversampleV = 1;
+    jp_font_config.PixelSnapH = true;
+    jp_font_config.FontNo = 0;
+    io.Fonts->AddFontFromFileTTF(jp_font_path, 12.0f, &jp_font_config,
+                                 io.Fonts->GetGlyphRangesJapanese());
+  } else {
+    XELOGW("Unable to load japanese font; jp characters will be boxes");
+  }
 
   unsigned char* pixels;
   int width, height;
@@ -196,71 +224,81 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
   drawer->End();
 }
 
-void ImGuiDrawer::SetupDefaultInput() {
-  window_->on_key_char.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    if (e->key_code() > 0 && e->key_code() < 0x10000) {
-      io.AddInputCharacter(e->key_code());
-      e->set_handled(true);
-    }
-  });
-  window_->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.KeysDown[e->key_code()] = true;
-    switch (e->key_code()) {
-      case 16: {
-        io.KeyShift = true;
-      } break;
-      case 17: {
-        io.KeyCtrl = true;
-      } break;
-    }
-  });
-  window_->on_key_up.AddListener([](xe::ui::KeyEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.KeysDown[e->key_code()] = false;
-    switch (e->key_code()) {
-      case 16: {
-        io.KeyShift = false;
-      } break;
-      case 17: {
-        io.KeyCtrl = false;
-      } break;
-    }
-  });
-  window_->on_mouse_down.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft: {
-        io.MouseDown[0] = true;
-      } break;
-      case xe::ui::MouseEvent::Button::kRight: {
-        io.MouseDown[1] = true;
-      } break;
-    }
-  });
-  window_->on_mouse_move.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-  });
-  window_->on_mouse_up.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    switch (e->button()) {
-      case xe::ui::MouseEvent::Button::kLeft: {
-        io.MouseDown[0] = false;
-      } break;
-      case xe::ui::MouseEvent::Button::kRight: {
-        io.MouseDown[1] = false;
-      } break;
-    }
-  });
-  window_->on_mouse_wheel.AddListener([](xe::ui::MouseEvent* e) {
-    auto& io = ImGui::GetIO();
-    io.MousePos = ImVec2(float(e->x()), float(e->y()));
-    io.MouseWheel += float(e->dy() / 120.0f);
-  });
+ImGuiIO& ImGuiDrawer::GetIO() {
+  current_drawer_ = this;
+  ImGui::SetInternalState(internal_state_.data());
+  return ImGui::GetIO();
+}
+
+void ImGuiDrawer::OnKeyDown(KeyEvent* e) {
+  auto& io = GetIO();
+  io.KeysDown[e->key_code()] = true;
+  switch (e->key_code()) {
+    case 16: {
+      io.KeyShift = true;
+    } break;
+    case 17: {
+      io.KeyCtrl = true;
+    } break;
+  }
+}
+
+void ImGuiDrawer::OnKeyUp(KeyEvent* e) {
+  auto& io = GetIO();
+  io.KeysDown[e->key_code()] = false;
+  switch (e->key_code()) {
+    case 16: {
+      io.KeyShift = false;
+    } break;
+    case 17: {
+      io.KeyCtrl = false;
+    } break;
+  }
+}
+
+void ImGuiDrawer::OnKeyChar(KeyEvent* e) {
+  auto& io = GetIO();
+  if (e->key_code() > 0 && e->key_code() < 0x10000) {
+    io.AddInputCharacter(e->key_code());
+    e->set_handled(true);
+  }
+}
+
+void ImGuiDrawer::OnMouseDown(MouseEvent* e) {
+  auto& io = GetIO();
+  io.MousePos = ImVec2(float(e->x()), float(e->y()));
+  switch (e->button()) {
+    case xe::ui::MouseEvent::Button::kLeft: {
+      io.MouseDown[0] = true;
+    } break;
+    case xe::ui::MouseEvent::Button::kRight: {
+      io.MouseDown[1] = true;
+    } break;
+  }
+}
+
+void ImGuiDrawer::OnMouseMove(MouseEvent* e) {
+  auto& io = GetIO();
+  io.MousePos = ImVec2(float(e->x()), float(e->y()));
+}
+
+void ImGuiDrawer::OnMouseUp(MouseEvent* e) {
+  auto& io = GetIO();
+  io.MousePos = ImVec2(float(e->x()), float(e->y()));
+  switch (e->button()) {
+    case xe::ui::MouseEvent::Button::kLeft: {
+      io.MouseDown[0] = false;
+    } break;
+    case xe::ui::MouseEvent::Button::kRight: {
+      io.MouseDown[1] = false;
+    } break;
+  }
+}
+
+void ImGuiDrawer::OnMouseWheel(MouseEvent* e) {
+  auto& io = GetIO();
+  io.MousePos = ImVec2(float(e->x()), float(e->y()));
+  io.MouseWheel += float(e->dy() / 120.0f);
 }
 
 }  // namespace ui

@@ -98,8 +98,8 @@ bool X64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
   }
 
   function->set_debug_info(std::move(debug_info));
-  static_cast<X64Function*>(function)
-      ->Setup(reinterpret_cast<uint8_t*>(machine_code), code_size);
+  static_cast<X64Function*>(function)->Setup(
+      reinterpret_cast<uint8_t*>(machine_code), code_size);
 
   return true;
 }

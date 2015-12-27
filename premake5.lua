@@ -159,7 +159,6 @@ solution("xenia")
 
   -- Include third party files first so they don't have to deal with gflags.
   include("third_party/capstone.lua")
-  include("third_party/elemental-forms")
   include("third_party/glew.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")

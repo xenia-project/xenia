@@ -775,25 +775,13 @@ def find_xenia_source_files():
       if name.endswith(('.cc', '.c', '.h', '.inl'))]
 
 
-def find_elemental_source_files():
-  """Gets all elemental-forms source files in the project.
-
-  Returns:
-    A list of file paths.
-  """
-  return [os.path.join(root, name)
-      for root, dirs, files in os.walk('third_party/elemental-forms/src/')
-      for name in files
-      if name.endswith(('.cc', '.c', '.h', '.inl'))]
-
-
 def find_all_source_files():
   """Gets all interesting source files in the project.
 
   Returns:
     A list of file paths.
   """
-  return find_xenia_source_files() + find_elemental_source_files()
+  return find_xenia_source_files()
 
 
 class LintCommand(Command):

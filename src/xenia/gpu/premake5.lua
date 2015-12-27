@@ -7,7 +7,6 @@ project("xenia-gpu")
   kind("StaticLib")
   language("C++")
   links({
-    "elemental-forms",
     "spirv-tools",
     "xenia-base",
     "xenia-ui",
@@ -18,12 +17,11 @@ project("xenia-gpu")
   defines({
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/third_party/spirv-tools/external/include",
     project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
-  
+
 group("src")
 project("xenia-gpu-shader-compiler")
   uuid("ad76d3e4-4c62-439b-a0f6-f83fcf0e83c5")

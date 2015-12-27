@@ -23,11 +23,6 @@ class Loop {
  public:
   static std::unique_ptr<Loop> Create();
 
-  static Loop* elemental_loop();
-  // Sets the loop designated as being the main loop elemental-forms will use
-  // for all activity.
-  static void set_elemental_loop(Loop* loop);
-
   Loop();
   virtual ~Loop();
 

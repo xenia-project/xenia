@@ -11,7 +11,6 @@
 
 #include <cstring>
 
-#include "third_party/elemental-forms/src/el/util/debug.h"
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -20,6 +19,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/graphics_provider.h"
+#include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
@@ -71,8 +71,7 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 
   // Create the graphics context used for drawing and setup the window.
   std::unique_ptr<GraphicsProvider> graphics_provider;
-  std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer;
-  loop->PostSynchronous([&window, &graphics_provider, &imgui_drawer]() {
+  loop->PostSynchronous([&window, &graphics_provider]() {
     // Create graphics provider and an initial context for the window.
     // The window will finish initialization wtih the context (loading
     // resources, etc).
@@ -83,19 +82,14 @@ int window_demo_main(const std::vector<std::wstring>& args) {
     GraphicsContextLock context_lock(window->context());
     Profiler::set_window(window.get());
 
-    // Initialize the ImGui renderer we'll use.
-    imgui_drawer = std::make_unique<xe::ui::ImGuiDrawer>(window.get());
-    imgui_drawer->SetupDefaultInput();
-
-    // Show the elemental-forms debug UI so we can see it working.
-    el::util::ShowDebugInfoSettingsForm(window->root_element());
+    // Enable imgui input.
+    window->set_imgui_input_enabled(true);
   });
 
   window->on_closed.AddListener(
-      [&loop, &graphics_provider, &imgui_drawer](xe::ui::UIEvent* e) {
+      [&loop, &graphics_provider](xe::ui::UIEvent* e) {
         loop->Quit();
         XELOGI("User-initiated death!");
-        imgui_drawer.reset();
         graphics_provider.reset();
         exit(1);
       });
@@ -110,22 +104,10 @@ int window_demo_main(const std::vector<std::wstring>& args) {
   });
 
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    auto& io = ImGui::GetIO();
-    auto current_tick_count = Clock::QueryHostTickCount();
-    static uint64_t last_draw_tick_count = 0;
-    io.DeltaTime = (current_tick_count - last_draw_tick_count) /
-                   static_cast<float>(Clock::host_tick_frequency());
-    last_draw_tick_count = current_tick_count;
-
-    io.DisplaySize = ImVec2(static_cast<float>(window->width()),
-                            static_cast<float>(window->height()));
-
-    ImGui::NewFrame();
+    auto& io = window->imgui_drawer()->GetIO();
 
     ImGui::ShowTestWindow();
     ImGui::ShowMetricsWindow();
-
-    ImGui::Render();
 
     // Continuous paint.
     window->Invalidate();
@@ -133,8 +115,6 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 
   // Wait until we are exited.
   loop->AwaitQuit();
-
-  imgui_drawer.reset();
 
   loop->PostSynchronous([&graphics_provider]() { graphics_provider.reset(); });
   window.reset();

@@ -112,7 +112,6 @@ bool TraceViewer::Setup() {
   window_->on_closed.AddListener([&](xe::ui::UIEvent* e) {
     loop_->Quit();
     XELOGI("User-initiated death!");
-    imgui_drawer_.reset();
     exit(1);
   });
   loop_->on_quit.AddListener([&](xe::ui::UIEvent* e) { window_.reset(); });
@@ -130,6 +129,8 @@ bool TraceViewer::Setup() {
   memory_ = emulator_->memory();
   graphics_system_ = emulator_->graphics_system();
 
+  window_->set_imgui_input_enabled(true);
+
   window_->on_key_char.AddListener([&](xe::ui::KeyEvent* e) {
     if (e->key_code() == 0x74 /* VK_F5 */) {
       graphics_system_->ClearCaches();
@@ -139,25 +140,8 @@ bool TraceViewer::Setup() {
 
   player_ = std::make_unique<TracePlayer>(loop_.get(), graphics_system_);
 
-  imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(window_.get());
-  imgui_drawer_->SetupDefaultInput();
-
   window_->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    auto& io = ImGui::GetIO();
-    auto current_ticks = Clock::QueryHostTickCount();
-    static uint64_t last_ticks = 0;
-    io.DeltaTime =
-        (current_ticks - last_ticks) / float(Clock::host_tick_frequency());
-    last_ticks = current_ticks;
-
-    io.DisplaySize =
-        ImVec2(float(e->target()->width()), float(e->target()->height()));
-
-    ImGui::NewFrame();
-
     DrawUI();
-
-    ImGui::Render();
 
     // Continuous paint.
     window_->Invalidate();
@@ -185,7 +169,6 @@ void TraceViewer::Run() {
 
   player_.reset();
   emulator_.reset();
-  imgui_drawer_.reset();
   window_.reset();
   loop_.reset();
 }

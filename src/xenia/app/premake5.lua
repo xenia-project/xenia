@@ -8,7 +8,6 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
-    "elemental-forms",
     "gflags",
     "imgui",
     "xenia-apu",
@@ -33,7 +32,6 @@ project("xenia-app")
   defines({
   })
   includedirs({
-    project_root.."/third_party/elemental-forms/src",
     project_root.."/build_tools/third_party/gflags/src",
   })
   local_platform_files()
@@ -46,7 +44,6 @@ project("xenia-app")
   })
   resincludedirs({
     project_root,
-    project_root.."/third_party/elemental-forms",
   })
 
   filter("platforms:Windows")

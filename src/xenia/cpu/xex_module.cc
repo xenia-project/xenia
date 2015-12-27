@@ -465,8 +465,8 @@ bool XexModule::SetupLibraryImports(const char* name,
         GuestFunction::ExternHandler handler = nullptr;
         if (kernel_export) {
           if (kernel_export->function_data.trampoline) {
-            handler = (GuestFunction::ExternHandler)
-                          kernel_export->function_data.trampoline;
+            handler = (GuestFunction::ExternHandler)kernel_export
+                          ->function_data.trampoline;
           } else {
             handler =
                 (GuestFunction::ExternHandler)kernel_export->function_data.shim;

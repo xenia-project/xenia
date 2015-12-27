@@ -21,7 +21,6 @@
 
 namespace xe {
 namespace ui {
-class ImGuiDrawer;
 class Loop;
 class Window;
 }  // namespace ui
@@ -61,8 +60,6 @@ class TraceViewer {
   Memory* memory_ = nullptr;
   GraphicsSystem* graphics_system_ = nullptr;
   std::unique_ptr<TracePlayer> player_;
-
-  std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
 
  private:
   enum class ShaderDisplayType : int {
