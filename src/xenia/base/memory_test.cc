@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include "third_party/catch/include/catch.hpp"
 #include "xenia/base/memory.h"
+
+#include "third_party/catch/include/catch.hpp"
 
 TEST_CASE("copy_and_swap_16_aligned", "Copy and Swap") {
   // TODO(benvanik): tests.

@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/kernel/xboxkrnl/xboxkrnl_video.h"
+
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
@@ -15,7 +17,6 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
-#include "xenia/kernel/xboxkrnl/xboxkrnl_video.h"
 #include "xenia/xbox.h"
 
 namespace xe {

@@ -7,8 +7,9 @@
  ******************************************************************************
  */
 
-#include "xenia/base/logging.h"
 #include "xenia/kernel/xevent.h"
+
+#include "xenia/base/logging.h"
 
 namespace xe {
 namespace kernel {
