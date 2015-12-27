@@ -57,14 +57,13 @@ bool XSemaphore::Save(ByteStream* stream) {
     free_count++;
   }
 
-  uint32_t used_count = maximum_count_ - free_count;
-  XELOGD("XSemaphore %.8X (count %d/%d)", handle(), used_count, maximum_count_);
+  XELOGD("XSemaphore %.8X (count %d/%d)", handle(), free_count, maximum_count_);
 
   // Restore the semaphore back to its previous count.
   semaphore_->Release(free_count, nullptr);
 
   stream->Write(maximum_count_);
-  stream->Write(used_count);
+  stream->Write(free_count);
 
   return true;
 }
@@ -79,12 +78,12 @@ object_ref<XSemaphore> XSemaphore::Restore(KernelState* kernel_state,
   }
 
   sem->maximum_count_ = stream->Read<uint32_t>();
-  auto initial_count = stream->Read<uint32_t>();
-  XELOGD("XSemaphore %.8X (count %d/%d)", sem->handle(), initial_count,
+  auto free_count = stream->Read<uint32_t>();
+  XELOGD("XSemaphore %.8X (count %d/%d)", sem->handle(), free_count,
          sem->maximum_count_);
 
   sem->semaphore_ =
-      threading::Semaphore::Create(initial_count, sem->maximum_count_);
+      threading::Semaphore::Create(free_count, sem->maximum_count_);
 
   return object_ref<XSemaphore>(sem);
 }
