@@ -51,8 +51,8 @@ bool Win32Window::OnCreate() {
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
-    wcex.hIcon = nullptr;    // LoadIcon(hInstance, (LPCTSTR)IDI_TUTORIAL1);
-    wcex.hIconSm = nullptr;  // LoadIcon(hInstance, (LPCTSTR)IDI_TUTORIAL1);
+    wcex.hIcon = LoadIcon(hInstance, L"MAINICON");
+    wcex.hIconSm = LoadIcon(hInstance, L"MAINICON");
     wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = nullptr;
