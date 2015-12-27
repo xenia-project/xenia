@@ -27,6 +27,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xmutant.h"
 
 DEFINE_bool(ignore_thread_priorities, true,
             "Ignores game-specified thread priorities.");
@@ -1218,13 +1219,21 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       Clock::SetGuestTickCount(state.tick_count_);
       Clock::SetGuestSystemTime(state.system_time_);
 
-      // Execute user code.
-      thread->running_ = true;
       current_thread_tls_ = thread;
 
+      // Acquire any mutants
+      for (auto mutant : thread->pending_mutant_acquires_) {
+        uint64_t timeout = 0;
+        auto status = mutant->Wait(0, 0, 0, &timeout);
+        assert_true(status == X_STATUS_SUCCESS);
+      }
+      thread->pending_mutant_acquires_.clear();
+
+      // Execute user code.
+      thread->running_ = true;
+
       uint32_t pc = state.context.pc;
-      thread->kernel_state()->processor()->ExecuteRaw(thread->thread_state_,
-                                                      pc);
+      thread->kernel_state_->processor()->ExecuteRaw(thread->thread_state_, pc);
 
       current_thread_tls_ = nullptr;
 

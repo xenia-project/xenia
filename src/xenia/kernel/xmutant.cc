@@ -54,12 +54,14 @@ X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon,
 }
 
 bool XMutant::Save(ByteStream* stream) {
-  XELOGD("XMutant %.8X", handle());
   if (!SaveObject(stream)) {
     return false;
   }
 
-  stream->Write(owning_thread_->handle());
+  uint32_t owning_thread_handle = owning_thread_ ? owning_thread_->handle() : 0;
+  stream->Write<uint32_t>(owning_thread_handle);
+  XELOGD("XMutant %.8X (owner: %.8X)", handle(), owning_thread_handle);
+
   return true;
 }
 
@@ -75,11 +77,13 @@ object_ref<XMutant> XMutant::Restore(KernelState* kernel_state,
 
   mutant->Initialize(false);
 
-  // TODO: Make the thread acquire this mutex... Somehow.
   auto owning_thread_handle = stream->Read<uint32_t>();
-  mutant->owning_thread_ = kernel_state->object_table()
-                               ->LookupObject<XThread>(owning_thread_handle)
-                               .get();
+  if (owning_thread_handle) {
+    mutant->owning_thread_ = kernel_state->object_table()
+                                 ->LookupObject<XThread>(owning_thread_handle)
+                                 .get();
+    mutant->owning_thread_->AcquireMutantOnStartup(retain_object(mutant));
+  }
 
   return object_ref<XMutant>(mutant);
 }
