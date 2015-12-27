@@ -17,13 +17,13 @@ namespace xe {
 
 BitMap::BitMap() = default;
 
-BitMap::BitMap(size_t size) { Resize(size); }
+BitMap::BitMap(size_t size_bits) { Resize(size_bits); }
 
-BitMap::BitMap(uint32_t* data, size_t size) {
-  assert_true(size % 4 == 0);
+BitMap::BitMap(uint32_t* data, size_t size_bits) {
+  assert_true(size_bits % 32 == 0);
 
-  data_.resize(size / 4);
-  std::memcpy(data_.data(), data, size);
+  data_.resize(size_bits / 32);
+  std::memcpy(data_.data(), data, size_bits / 32);
 }
 
 size_t BitMap::Acquire() {
@@ -74,10 +74,10 @@ void BitMap::Release(size_t index) {
   } while (!atomic_cas(entry, new_entry, &data_[slot]));
 }
 
-void BitMap::Resize(size_t new_size) {
+void BitMap::Resize(size_t new_size_bits) {
   auto old_size = data_.size();
-  assert_true(new_size % 4 == 0);
-  data_.resize(new_size / 4);
+  assert_true(new_size_bits % 32 == 0);
+  data_.resize(new_size_bits / 32);
 
   // Initialize new entries.
   if (data_.size() > old_size) {
