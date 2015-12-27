@@ -18,6 +18,7 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/xobject.h"
+#include "xenia/kernel/xmutant.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -190,6 +191,11 @@ class XThread : public XObject {
   static object_ref<XThread> Restore(KernelState* kernel_state,
                                      ByteStream* stream);
 
+  // Internal - do not use.
+  void AcquireMutantOnStartup(object_ref<XMutant> mutant) {
+    pending_mutant_acquires_.push_back(mutant);
+  }
+
   // Steps the thread to a point where it's safe to terminate or read its
   // context. Returns the PC after we've finished stepping.
   // Pass true for ignore_host if you've stopped the thread yourself
@@ -209,6 +215,8 @@ class XThread : public XObject {
   xe::threading::WaitHandle* GetWaitHandle() override { return thread_.get(); }
 
   CreationParams creation_params_ = {0};
+
+  std::vector<object_ref<XMutant>> pending_mutant_acquires_;
 
   uint32_t thread_id_ = 0;
   std::unique_ptr<xe::threading::Thread> thread_;
