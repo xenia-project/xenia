@@ -19,6 +19,7 @@
 #include <memory>
 #include <vector>
 
+#include "xenia/base/bit_map.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/util/native_list.h"
@@ -115,6 +116,9 @@ class KernelState {
     return process_info_block_address_;
   }
 
+  uint32_t AllocateTLS();
+  void FreeTLS(uint32_t slot);
+
   void RegisterTitleTerminateNotification(uint32_t routine, uint32_t priority);
   void RemoveTitleTerminateNotification(uint32_t routine);
 
@@ -208,6 +212,8 @@ class KernelState {
   util::NativeList dpc_list_;
   std::condition_variable_any dispatch_cond_;
   std::list<std::function<void()>> dispatch_queue_;
+
+  BitMap tls_bitmap_;
 
   friend class XObject;
 };

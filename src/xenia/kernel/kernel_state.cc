@@ -79,6 +79,9 @@ KernelState::KernelState(Emulator* emulator)
   // TODO(benvanik): figure out what this list is.
   pib->unk_54 = pib->unk_58 = 0;
 
+  // Hardcoded maximum of 2048 TLS slots.
+  tls_bitmap_.Resize(64 * 4);
+
   xam::AppManager::RegisterApps(this, app_manager_.get());
 }
 
@@ -134,6 +137,14 @@ void KernelState::set_process_type(uint32_t value) {
   auto pib =
       memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
   pib->process_type = uint8_t(value);
+}
+
+uint32_t KernelState::AllocateTLS() {
+  return uint32_t(tls_bitmap_.Acquire());
+}
+
+void KernelState::FreeTLS(uint32_t slot) {
+  tls_bitmap_.Release(slot);
 }
 
 void KernelState::RegisterTitleTerminateNotification(uint32_t routine,
@@ -428,6 +439,9 @@ void KernelState::TerminateTitle() {
   // Unregister all notify listeners.
   notify_listeners_.clear();
 
+  // Clear the TLS map.
+  tls_bitmap_.Reset();
+
   if (XThread::IsInThread()) {
     threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
 
@@ -634,6 +648,13 @@ bool KernelState::Save(ByteStream* stream) {
   // Save the object table
   object_table_.Save(stream);
 
+  // Write the TLS allocation bitmap
+  auto tls_bitmap = tls_bitmap_.data();
+  stream->Write(uint32_t(tls_bitmap.size()));
+  for (size_t i = 0; i < tls_bitmap.size(); i++) {
+    stream->Write<uint32_t>(tls_bitmap[i]);
+  }
+
   // We save XThreads absolutely first, as they will execute code upon save
   // (which could modify the kernel state)
   auto threads = object_table_.GetObjectsByType<XThread>();
@@ -697,6 +718,14 @@ bool KernelState::Restore(ByteStream* stream) {
 
   // Restore the object table
   object_table_.Restore(stream);
+
+  // Read the TLS allocation bitmap
+  auto num_bitmap_entries = stream->Read<uint32_t>();
+  auto& tls_bitmap = tls_bitmap_.data();
+  tls_bitmap.resize(num_bitmap_entries);
+  for (uint32_t i = 0; i < num_bitmap_entries; i++) {
+    tls_bitmap[i] = stream->Read<uint32_t>();
+  }
 
   uint32_t num_threads = stream->Read<uint32_t>();
   XELOGD("Loading %d threads...", num_threads);

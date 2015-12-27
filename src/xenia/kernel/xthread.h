@@ -175,6 +175,9 @@ class XThread : public XObject {
   uint32_t active_cpu() const;
   void SetActiveCpu(uint32_t cpu_index);
 
+  bool GetTLSValue(uint32_t slot, uint32_t* value_out);
+  bool SetTLSValue(uint32_t slot, uint32_t value);
+
   uint32_t suspend_count();
   X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
   X_STATUS Suspend(uint32_t* out_suspend_count = nullptr);
@@ -212,6 +215,7 @@ class XThread : public XObject {
   uint32_t scratch_address_ = 0;
   uint32_t scratch_size_ = 0;
   uint32_t tls_address_ = 0;
+  uint32_t tls_total_size_ = 0;
   uint32_t pcr_address_ = 0;
   uint32_t stack_alloc_base_ = 0;  // Stack alloc base
   uint32_t stack_alloc_size_ = 0;  // Stack alloc size
