@@ -226,6 +226,9 @@ class Memory {
   // mapping to the file system fails.
   bool Initialize();
 
+  // Resets all memory to zero and resets all allocations.
+  void Reset();
+
   // Full file name and path of the memory-mapped file backing all memory.
   const std::wstring& file_name() const { return file_name_; }
 

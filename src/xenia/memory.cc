@@ -270,6 +270,10 @@ void Memory::UnmapViews() {
   }
 }
 
+void Memory::Reset() {
+  // TODO(benvanik): zero memory, free all heap page tables, etc.
+}
+
 BaseHeap* Memory::LookupHeap(uint32_t address) {
   if (address < 0x40000000) {
     return &heaps_.v00000000;

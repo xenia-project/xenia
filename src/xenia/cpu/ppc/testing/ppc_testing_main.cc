@@ -176,10 +176,6 @@ class TestRunner {
     memory_size = 64 * 1024 * 1024;
     memory.reset(new Memory());
     memory->Initialize();
-
-    processor.reset(new Processor(memory.get(), nullptr, nullptr));
-    processor->Setup();
-    processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
   }
 
   ~TestRunner() {
@@ -189,6 +185,14 @@ class TestRunner {
   }
 
   bool Setup(TestSuite& suite) {
+    // Reset memory.
+    memory->Reset();
+
+    // Setup a fresh processor.
+    processor.reset(new Processor(memory.get(), nullptr, nullptr));
+    processor->Setup();
+    processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
+
     // Load the binary module.
     auto module = std::make_unique<xe::cpu::RawModule>(processor.get());
     if (!module->LoadFile(START_ADDRESS, suite.bin_file_path)) {
@@ -417,12 +421,12 @@ bool RunTests(const std::wstring& test_name) {
     return false;
   }
 
+  TestRunner runner;
   for (auto& test_suite : test_suites) {
     XELOGI("%ls.s:", test_suite.name.c_str());
 
     for (auto& test_case : test_suite.test_cases) {
       XELOGI("  - %s", test_case.name.c_str());
-      TestRunner runner;
       ProtectedRunTest(test_suite, runner, test_case, failed_count,
                        passed_count);
     }
