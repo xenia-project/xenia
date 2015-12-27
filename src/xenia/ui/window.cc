@@ -38,6 +38,10 @@ Window::~Window() {
 }
 
 void Window::AttachListener(WindowListener* listener) {
+  if (in_listener_loop_) {
+    pending_listener_attaches_.push_back(listener);
+    return;
+  }
   auto it = std::find(listeners_.begin(), listeners_.end(), listener);
   if (it != listeners_.end()) {
     return;
@@ -47,11 +51,55 @@ void Window::AttachListener(WindowListener* listener) {
 }
 
 void Window::DetachListener(WindowListener* listener) {
+  if (in_listener_loop_) {
+    pending_listener_detaches_.push_back(listener);
+    return;
+  }
   auto it = std::find(listeners_.begin(), listeners_.end(), listener);
   if (it == listeners_.end()) {
     return;
   }
   listeners_.erase(it);
+}
+
+void Window::ForEachListener(std::function<void(WindowListener*)> fn) {
+  assert_false(in_listener_loop_);
+  in_listener_loop_ = true;
+  for (auto listener : listeners_) {
+    fn(listener);
+  }
+  in_listener_loop_ = false;
+  while (!pending_listener_attaches_.empty()) {
+    auto listener = pending_listener_attaches_.back();
+    pending_listener_attaches_.pop_back();
+    AttachListener(listener);
+  }
+  while (!pending_listener_detaches_.empty()) {
+    auto listener = pending_listener_detaches_.back();
+    pending_listener_detaches_.pop_back();
+    DetachListener(listener);
+  }
+}
+
+void Window::TryForEachListener(std::function<bool(WindowListener*)> fn) {
+  assert_false(in_listener_loop_);
+  in_listener_loop_ = true;
+  for (auto listener : listeners_) {
+    if (fn(listener)) {
+      break;
+    }
+  }
+  in_listener_loop_ = false;
+  while (!pending_listener_attaches_.empty()) {
+    auto listener = pending_listener_attaches_.back();
+    pending_listener_attaches_.pop_back();
+    AttachListener(listener);
+  }
+  while (!pending_listener_detaches_.empty()) {
+    auto listener = pending_listener_detaches_.back();
+    pending_listener_detaches_.pop_back();
+    DetachListener(listener);
+  }
 }
 
 void Window::set_imgui_input_enabled(bool value) {
@@ -75,20 +123,14 @@ bool Window::MakeReady() {
 }
 
 void Window::OnMainMenuChange() {
-  for (auto listener : listeners_) {
-    listener->OnMainMenuChange();
-  }
+  ForEachListener([](auto listener) { listener->OnMainMenuChange(); });
 }
 
 void Window::OnClose() {
   UIEvent e(this);
-  for (auto listener : listeners_) {
-    listener->OnClosing(&e);
-  }
+  ForEachListener([&e](auto listener) { listener->OnClosing(&e); });
   on_closing(&e);
-  for (auto listener : listeners_) {
-    listener->OnClosed(&e);
-  }
+  ForEachListener([&e](auto listener) { listener->OnClosed(&e); });
   on_closed(&e);
 }
 
@@ -111,15 +153,11 @@ void Window::Layout() {
 void Window::Invalidate() {}
 
 void Window::OnResize(UIEvent* e) {
-  for (auto listener : listeners_) {
-    listener->OnResize(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnResize(e); });
 }
 
 void Window::OnLayout(UIEvent* e) {
-  for (auto listener : listeners_) {
-    listener->OnLayout(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnLayout(e); });
 }
 
 void Window::OnPaint(UIEvent* e) {
@@ -154,21 +192,15 @@ void Window::OnPaint(UIEvent* e) {
   ImGui::NewFrame();
 
   context_->BeginSwap();
-  for (auto listener : listeners_) {
-    listener->OnPainting(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnPainting(e); });
   on_painting(e);
-  for (auto listener : listeners_) {
-    listener->OnPaint(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnPaint(e); });
   on_paint(e);
 
   // Flush ImGui buffers before we swap.
   ImGui::Render();
 
-  for (auto listener : listeners_) {
-    listener->OnPainted(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnPainted(e); });
   on_painted(e);
 
   context_->EndSwap();
@@ -180,21 +212,15 @@ void Window::OnPaint(UIEvent* e) {
 }
 
 void Window::OnVisible(UIEvent* e) {
-  for (auto listener : listeners_) {
-    listener->OnVisible(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnVisible(e); });
 }
 
 void Window::OnHidden(UIEvent* e) {
-  for (auto listener : listeners_) {
-    listener->OnHidden(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnHidden(e); });
 }
 
 void Window::OnGotFocus(UIEvent* e) {
-  for (auto listener : listeners_) {
-    listener->OnGotFocus(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnGotFocus(e); });
 }
 
 void Window::OnLostFocus(UIEvent* e) {
@@ -202,9 +228,7 @@ void Window::OnLostFocus(UIEvent* e) {
   modifier_cntrl_pressed_ = false;
   modifier_alt_pressed_ = false;
   modifier_super_pressed_ = false;
-  for (auto listener : listeners_) {
-    listener->OnLostFocus(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnLostFocus(e); });
 }
 
 void Window::OnKeyPress(KeyEvent* e, bool is_down, bool is_char) {
@@ -232,12 +256,10 @@ void Window::OnKeyDown(KeyEvent* e) {
   if (e->is_handled()) {
     return;
   }
-  for (auto listener : listeners_) {
+  TryForEachListener([e](auto listener) {
     listener->OnKeyDown(e);
-    if (e->is_handled()) {
-      return;
-    }
-  }
+    return e->is_handled();
+  });
   OnKeyPress(e, true, false);
 }
 
@@ -246,21 +268,17 @@ void Window::OnKeyUp(KeyEvent* e) {
   if (e->is_handled()) {
     return;
   }
-  for (auto listener : listeners_) {
+  TryForEachListener([e](auto listener) {
     listener->OnKeyUp(e);
-    if (e->is_handled()) {
-      return;
-    }
-  }
+    return e->is_handled();
+  });
   OnKeyPress(e, false, false);
 }
 
 void Window::OnKeyChar(KeyEvent* e) {
   OnKeyPress(e, true, true);
   on_key_char(e);
-  for (auto listener : listeners_) {
-    listener->OnKeyChar(e);
-  }
+  ForEachListener([e](auto listener) { listener->OnKeyChar(e); });
   OnKeyPress(e, false, true);
 }
 
@@ -269,12 +287,10 @@ void Window::OnMouseDown(MouseEvent* e) {
   if (e->is_handled()) {
     return;
   }
-  for (auto listener : listeners_) {
+  TryForEachListener([e](auto listener) {
     listener->OnMouseDown(e);
-    if (e->is_handled()) {
-      return;
-    }
-  }
+    return e->is_handled();
+  });
 }
 
 void Window::OnMouseMove(MouseEvent* e) {
@@ -282,12 +298,10 @@ void Window::OnMouseMove(MouseEvent* e) {
   if (e->is_handled()) {
     return;
   }
-  for (auto listener : listeners_) {
+  TryForEachListener([e](auto listener) {
     listener->OnMouseMove(e);
-    if (e->is_handled()) {
-      return;
-    }
-  }
+    return e->is_handled();
+  });
 }
 
 void Window::OnMouseUp(MouseEvent* e) {
@@ -295,12 +309,10 @@ void Window::OnMouseUp(MouseEvent* e) {
   if (e->is_handled()) {
     return;
   }
-  for (auto listener : listeners_) {
+  TryForEachListener([e](auto listener) {
     listener->OnMouseUp(e);
-    if (e->is_handled()) {
-      return;
-    }
-  }
+    return e->is_handled();
+  });
 }
 
 void Window::OnMouseWheel(MouseEvent* e) {
@@ -308,12 +320,10 @@ void Window::OnMouseWheel(MouseEvent* e) {
   if (e->is_handled()) {
     return;
   }
-  for (auto listener : listeners_) {
+  TryForEachListener([e](auto listener) {
     listener->OnMouseWheel(e);
-    if (e->is_handled()) {
-      return;
-    }
-  }
+    return e->is_handled();
+  });
 }
 
 }  // namespace ui

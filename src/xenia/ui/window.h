@@ -112,6 +112,9 @@ class Window {
  protected:
   Window(Loop* loop, const std::wstring& title);
 
+  void ForEachListener(std::function<void(WindowListener*)> fn);
+  void TryForEachListener(std::function<bool(WindowListener*)> fn);
+
   virtual bool MakeReady();
 
   virtual bool OnCreate();
@@ -164,7 +167,10 @@ class Window {
   bool modifier_super_pressed_ = false;
 
   // All currently-attached listeners that get event notifications.
+  bool in_listener_loop_ = false;
   std::vector<WindowListener*> listeners_;
+  std::vector<WindowListener*> pending_listener_attaches_;
+  std::vector<WindowListener*> pending_listener_detaches_;
 };
 
 }  // namespace ui
