@@ -382,62 +382,50 @@ SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_context,
 // hoping for the best.
 
 // http://msdn.microsoft.com/en-us/library/ms686801
-SHIM_CALL KeTlsAlloc_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  XELOGD("KeTlsAlloc()");
+dword_result_t KeTlsAlloc() {
+  uint32_t slot = kernel_state()->AllocateTLS();
+  XThread::GetCurrentThread()->SetTLSValue(slot, 0);
 
-  auto tls_index = xe::threading::AllocateTlsHandle();
-  if (tls_index == xe::threading::kInvalidTlsHandle) {
-    tls_index = X_TLS_OUT_OF_INDEXES;
-  }
-
-  SHIM_SET_RETURN_32(tls_index);
+  return slot;
 }
+DECLARE_XBOXKRNL_EXPORT(KeTlsAlloc, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ms686804
-SHIM_CALL KeTlsFree_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t tls_index = SHIM_GET_ARG_32(0);
-
-  XELOGD("KeTlsFree(%.8X)", tls_index);
-
+dword_result_t KeTlsFree(dword_t tls_index) {
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
-    SHIM_SET_RETURN_32(0);
-    return;
+    return 0;
   }
 
-  uint32_t result = xe::threading::FreeTlsHandle(tls_index) ? 1 : 0;
-  SHIM_SET_RETURN_32(result);
+  kernel_state()->FreeTLS(tls_index);
+  return 1;
 }
+DECLARE_XBOXKRNL_EXPORT(KeTlsFree, ExportTag::kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/ms686812
-SHIM_CALL KeTlsGetValue_shim(PPCContext* ppc_context,
-                             KernelState* kernel_state) {
-  uint32_t tls_index = SHIM_GET_ARG_32(0);
-
-  // Logging disabled, as some games spam this.
-  // XELOGD(
-  //    "KeTlsGetValue(%.8X)",
-  //    tls_index);
-
-  uint32_t value = static_cast<uint32_t>(xe::threading::GetTlsValue(tls_index));
-  if (!value) {
-    // XELOGW("KeTlsGetValue should SetLastError if result is NULL");
-    // TODO(benvanik): SetLastError? Or does user code do this?
+dword_result_t KeTlsGetValue(dword_t tls_index) {
+  // xboxkrnl doesn't actually have an error branch - it always succeeds, even
+  // if it overflows the TLS.
+  uint32_t value = 0;
+  if (XThread::GetCurrentThread()->GetTLSValue(tls_index, &value)) {
+    return value;
   }
 
-  SHIM_SET_RETURN_32(value);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(KeTlsGetValue,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 // http://msdn.microsoft.com/en-us/library/ms686818
-SHIM_CALL KeTlsSetValue_shim(PPCContext* ppc_context,
-                             KernelState* kernel_state) {
-  uint32_t tls_index = SHIM_GET_ARG_32(0);
-  uint32_t tls_value = SHIM_GET_ARG_32(1);
+dword_result_t KeTlsSetValue(dword_t tls_index, dword_t tls_value) {
+  // xboxkrnl doesn't actually have an error branch - it always succeeds, even
+  // if it overflows the TLS.
+  if (XThread::GetCurrentThread()->SetTLSValue(tls_index, tls_value)) {
+    return 1;
+  }
 
-  XELOGD("KeTlsSetValue(%.8X, %.8X)", tls_index, tls_value);
-
-  uint32_t result = xe::threading::SetTlsValue(tls_index, tls_value) ? 1 : 0;
-  SHIM_SET_RETURN_32(result);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(KeTlsSetValue, ExportTag::kImplemented);
 
 void KeInitializeEvent(pointer_t<X_KEVENT> event_ptr, dword_t event_type,
                        dword_t initial_state) {
@@ -1361,11 +1349,6 @@ void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtYieldExecution, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQuerySystemTime, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsAlloc, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsFree, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsGetValue, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeTlsSetValue, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);

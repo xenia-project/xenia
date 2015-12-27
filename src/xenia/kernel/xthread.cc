@@ -281,7 +281,7 @@ X_STATUS XThread::Create() {
     module->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   }
 
-  const uint32_t kDefaultTlsSlotCount = 32;
+  const uint32_t kDefaultTlsSlotCount = 1024;
   uint32_t tls_slots = kDefaultTlsSlotCount;
   uint32_t tls_extended_size = 0;
   if (tls_header && tls_header->slot_count) {
@@ -293,16 +293,16 @@ X_STATUS XThread::Create() {
   // HACK: we're currently not using the extra memory allocated for TLS slots
   // and instead relying on native TLS slots, so don't allocate anything for
   // the slots.
-  uint32_t tls_slot_size = 0;  // tls_slots * 4;
-  uint32_t tls_total_size = tls_slot_size + tls_extended_size;
-  tls_address_ = memory()->SystemHeapAlloc(tls_total_size);
+  uint32_t tls_slot_size = tls_slots * 4;
+  tls_total_size_ = tls_slot_size + tls_extended_size;
+  tls_address_ = memory()->SystemHeapAlloc(tls_total_size_);
   if (!tls_address_) {
     XELOGW("Unable to allocate thread local storage block");
     return X_STATUS_NO_MEMORY;
   }
 
   // Zero all of TLS.
-  memory()->Fill(tls_address_, tls_total_size, 0);
+  memory()->Fill(tls_address_, tls_total_size_, 0);
   if (tls_extended_size) {
     // If game has extended data, copy in the default values.
     assert_not_zero(tls_header->raw_data_address);
@@ -441,7 +441,6 @@ X_STATUS XThread::Exit(int exit_code) {
 
   running_ = false;
   Release();
-  ReleaseHandle();
 
   // NOTE: this does not return!
   xe::threading::Thread::Exit(exit_code);
@@ -462,7 +461,6 @@ X_STATUS XThread::Terminate(int exit_code) {
 
   running_ = false;
   Release();
-  ReleaseHandle();
 
   thread_->Terminate(exit_code);
   return X_STATUS_SUCCESS;
@@ -479,7 +477,7 @@ void XThread::Execute() {
   // All threads get a mandatory sleep. This is to deal with some buggy
   // games that are assuming the 360 is so slow to create threads that they
   // have time to initialize shared structures AFTER CreateThread (RR).
-  xe::threading::Sleep(std::chrono::milliseconds(100));
+  xe::threading::Sleep(std::chrono::milliseconds(10));
 
   int exit_code = 0;
 
@@ -706,6 +704,26 @@ uint32_t XThread::active_cpu() const {
 void XThread::SetActiveCpu(uint32_t cpu_index) {
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   xe::store_and_swap<uint8_t>(pcr + 0x10C, cpu_index);
+}
+
+bool XThread::GetTLSValue(uint32_t slot, uint32_t* value_out) {
+  if (slot * 4 > tls_total_size_) {
+    return false;
+  }
+
+  auto mem = memory()->TranslateVirtual(tls_address_ + slot * 4);
+  *value_out = xe::load_and_swap<uint32_t>(mem);
+  return true;
+}
+
+bool XThread::SetTLSValue(uint32_t slot, uint32_t value) {
+  if (slot * 4 >= tls_total_size_) {
+    return false;
+  }
+
+  auto mem = memory()->TranslateVirtual(tls_address_ + slot * 4);
+  xe::store_and_swap<uint32_t>(mem, value);
+  return true;
 }
 
 uint32_t XThread::suspend_count() {
@@ -1021,6 +1039,7 @@ struct ThreadSavedState {
 
   uint32_t apc_head;
   uint32_t tls_address;
+  uint32_t tls_total_size;
   uint32_t pcr_address;
   uint32_t stack_base;        // High address
   uint32_t stack_limit;       // Low address
@@ -1076,6 +1095,7 @@ bool XThread::Save(ByteStream* stream) {
   state.is_running = running_;
   state.apc_head = apc_list_.head();
   state.tls_address = tls_address_;
+  state.tls_total_size = tls_total_size_;
   state.pcr_address = pcr_address_;
   state.stack_base = stack_base_;
   state.stack_limit = stack_limit_;
@@ -1140,6 +1160,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   thread->main_thread_ = state.is_main_thread;
   thread->apc_list_.set_head(state.apc_head);
   thread->tls_address_ = state.tls_address;
+  thread->tls_total_size_ = state.tls_total_size;
   thread->pcr_address_ = state.pcr_address;
   thread->stack_base_ = state.stack_base;
   thread->stack_limit_ = state.stack_limit;
