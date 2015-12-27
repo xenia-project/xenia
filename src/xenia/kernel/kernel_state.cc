@@ -80,7 +80,7 @@ KernelState::KernelState(Emulator* emulator)
   pib->unk_54 = pib->unk_58 = 0;
 
   // Hardcoded maximum of 2048 TLS slots.
-  tls_bitmap_.Resize(64 * 4);
+  tls_bitmap_.Resize(2048);
 
   xam::AppManager::RegisterApps(this, app_manager_.get());
 }
