@@ -378,7 +378,9 @@ X_STATUS XThread::Create() {
 
     // Execute user code.
     current_thread_tls_ = this;
+    running_ = true;
     Execute();
+    running_ = false;
     current_thread_tls_ = nullptr;
 
     xe::Profiler::ThreadExit();
@@ -470,7 +472,6 @@ X_STATUS XThread::Terminate(int exit_code) {
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
               thread_id_, handle(), name_.c_str(), thread_->system_id());
-  running_ = true;
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
@@ -504,7 +505,6 @@ void XThread::Execute() {
     // Treat the return code as an implicit exit code.
   }
 
-  running_ = false;
   Exit(exit_code);
 }
 
