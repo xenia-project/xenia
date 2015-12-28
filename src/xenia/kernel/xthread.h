@@ -131,7 +131,7 @@ class XThread : public XObject {
   static void SetLastError(uint32_t error_code);
 
   const CreationParams* creation_params() const { return &creation_params_; }
-  uint32_t tls_ptr() const { return tls_address_; }
+  uint32_t tls_ptr() const { return tls_static_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
   // True if the thread is created by the guest app.
   bool is_guest_thread() const { return guest_thread_; }
@@ -222,7 +222,8 @@ class XThread : public XObject {
   std::unique_ptr<xe::threading::Thread> thread_;
   uint32_t scratch_address_ = 0;
   uint32_t scratch_size_ = 0;
-  uint32_t tls_address_ = 0;
+  uint32_t tls_static_address_ = 0;
+  uint32_t tls_dynamic_address_ = 0;
   uint32_t tls_total_size_ = 0;
   uint32_t pcr_address_ = 0;
   uint32_t stack_alloc_base_ = 0;  // Stack alloc base
