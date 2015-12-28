@@ -652,7 +652,7 @@ bool KernelState::Save(ByteStream* stream) {
   auto tls_bitmap = tls_bitmap_.data();
   stream->Write(uint32_t(tls_bitmap.size()));
   for (size_t i = 0; i < tls_bitmap.size(); i++) {
-    stream->Write<uint32_t>(tls_bitmap[i]);
+    stream->Write<uint64_t>(tls_bitmap[i]);
   }
 
   // We save XThreads absolutely first, as they will execute code upon save
@@ -699,6 +699,7 @@ bool KernelState::Save(ByteStream* stream) {
     stream->Write<uint32_t>(object->type());
     if (!object->Save(stream)) {
       XELOGD("Did not save object of type %d", object->type());
+      assert_always();
 
       // Revert backwards and overwrite if a save failed.
       stream->set_offset(prev_offset);
@@ -724,7 +725,7 @@ bool KernelState::Restore(ByteStream* stream) {
   auto& tls_bitmap = tls_bitmap_.data();
   tls_bitmap.resize(num_bitmap_entries);
   for (uint32_t i = 0; i < num_bitmap_entries; i++) {
-    tls_bitmap[i] = stream->Read<uint32_t>();
+    tls_bitmap[i] = stream->Read<uint64_t>();
   }
 
   uint32_t num_threads = stream->Read<uint32_t>();
