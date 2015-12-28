@@ -90,7 +90,7 @@ XThread::~XThread() {
     delete thread_state_;
   }
   kernel_state()->memory()->SystemHeapFree(scratch_address_);
-  kernel_state()->memory()->SystemHeapFree(tls_address_);
+  kernel_state()->memory()->SystemHeapFree(tls_static_address_);
   kernel_state()->memory()->SystemHeapFree(pcr_address_);
   FreeStack();
 
@@ -187,7 +187,7 @@ void XThread::InitializeGuestObject() {
   xe::store_and_swap<uint16_t>(p + 0x056, 1);
   xe::store_and_swap<uint32_t>(p + 0x05C, stack_base_);
   xe::store_and_swap<uint32_t>(p + 0x060, stack_limit_);
-  xe::store_and_swap<uint32_t>(p + 0x068, tls_address_);
+  xe::store_and_swap<uint32_t>(p + 0x068, tls_static_address_);
   xe::store_and_swap<uint8_t>(p + 0x06C, 0);
   xe::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
   xe::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
@@ -291,23 +291,23 @@ X_STATUS XThread::Create() {
   }
 
   // Allocate both the slots and the extended data.
-  // HACK: we're currently not using the extra memory allocated for TLS slots
-  // and instead relying on native TLS slots, so don't allocate anything for
-  // the slots.
+  // Some TLS is compiled with the binary (declspec(thread)) vars. The game
+  // will directly access those through 0(r13).
   uint32_t tls_slot_size = tls_slots * 4;
   tls_total_size_ = tls_slot_size + tls_extended_size;
-  tls_address_ = memory()->SystemHeapAlloc(tls_total_size_);
-  if (!tls_address_) {
+  tls_static_address_ = memory()->SystemHeapAlloc(tls_total_size_);
+  tls_dynamic_address_ = tls_static_address_ + tls_extended_size;
+  if (!tls_static_address_) {
     XELOGW("Unable to allocate thread local storage block");
     return X_STATUS_NO_MEMORY;
   }
 
   // Zero all of TLS.
-  memory()->Fill(tls_address_, tls_total_size_, 0);
+  memory()->Fill(tls_static_address_, tls_total_size_, 0);
   if (tls_extended_size) {
     // If game has extended data, copy in the default values.
     assert_not_zero(tls_header->raw_data_address);
-    memory()->Copy(tls_address_, tls_header->raw_data_address,
+    memory()->Copy(tls_static_address_, tls_header->raw_data_address,
                    tls_header->raw_data_size);
   }
 
@@ -344,7 +344,7 @@ X_STATUS XThread::Create() {
 
   X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
-  pcr->tls_ptr = tls_address_;
+  pcr->tls_ptr = tls_static_address_;
   pcr->pcr_ptr = pcr_address_;
   pcr->current_thread = guest_object();
 
@@ -712,7 +712,7 @@ bool XThread::GetTLSValue(uint32_t slot, uint32_t* value_out) {
     return false;
   }
 
-  auto mem = memory()->TranslateVirtual(tls_address_ + slot * 4);
+  auto mem = memory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
   *value_out = xe::load_and_swap<uint32_t>(mem);
   return true;
 }
@@ -722,7 +722,7 @@ bool XThread::SetTLSValue(uint32_t slot, uint32_t value) {
     return false;
   }
 
-  auto mem = memory()->TranslateVirtual(tls_address_ + slot * 4);
+  auto mem = memory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
   xe::store_and_swap<uint32_t>(mem, value);
   return true;
 }
@@ -1039,7 +1039,8 @@ struct ThreadSavedState {
   uint64_t system_time_;
 
   uint32_t apc_head;
-  uint32_t tls_address;
+  uint32_t tls_static_address;
+  uint32_t tls_dynamic_address;
   uint32_t tls_total_size;
   uint32_t pcr_address;
   uint32_t stack_base;        // High address
@@ -1095,7 +1096,8 @@ bool XThread::Save(ByteStream* stream) {
   state.is_main_thread = main_thread_;
   state.is_running = running_;
   state.apc_head = apc_list_.head();
-  state.tls_address = tls_address_;
+  state.tls_static_address = tls_static_address_;
+  state.tls_dynamic_address = tls_dynamic_address_;
   state.tls_total_size = tls_total_size_;
   state.pcr_address = pcr_address_;
   state.stack_base = stack_base_;
@@ -1159,8 +1161,10 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   stream->Read(&state, sizeof(ThreadSavedState));
   thread->thread_id_ = state.thread_id;
   thread->main_thread_ = state.is_main_thread;
+  thread->running_ = state.is_running;
   thread->apc_list_.set_head(state.apc_head);
-  thread->tls_address_ = state.tls_address;
+  thread->tls_static_address_ = state.tls_static_address;
+  thread->tls_dynamic_address_ = state.tls_dynamic_address;
   thread->tls_total_size_ = state.tls_total_size;
   thread->pcr_address_ = state.pcr_address;
   thread->stack_base_ = state.stack_base;
