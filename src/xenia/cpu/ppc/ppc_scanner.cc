@@ -17,6 +17,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
 
 #if 0
@@ -63,23 +64,24 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
   size_t blocks_found = 0;
   bool in_block = false;
   bool starts_with_mfspr_lr = false;
-  InstrData i;
   while (true) {
-    i.address = address;
-    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    uint32_t code =
+        xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
 
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
-    if (!i.code) {
+    if (!code) {
       LOGPPC("function end %.8X (0x00000000 read)", address);
       // Don't include the 0's.
       address -= 4;
       break;
     }
 
-    // TODO(benvanik): find a way to avoid using the opcode tables.
-    // This lookup is *expensive* and should be avoided when scanning.
-    i.type = GetInstrType(i.code);
+    auto opcode = LookupOpcode(code);
+
+    InstrData i;
+    i.address = address;
+    i.code = code;
 
     // TODO(benvanik): switch on instruction metadata.
     ++address_reference_count;
@@ -88,7 +90,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
     // Check if the function starts with a mfspr lr, as that's a good indication
     // of whether or not this is a normal function with a prolog/epilog.
     // Some valid leaf functions won't have this, but most will.
-    if (address == start_address && i.type && i.type->opcode == 0x7C0002A6 &&
+    if (address == start_address && opcode == PPCOpcode::mfspr &&
         (((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F)) == 8) {
       starts_with_mfspr_lr = true;
     }
@@ -100,12 +102,12 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
 
     bool ends_fn = false;
     bool ends_block = false;
-    if (!i.type) {
+    if (opcode == PPCOpcode::kInvalid) {
       // Invalid instruction.
       // We can just ignore it because there's (very little)/no chance it'll
       // affect flow control.
-      LOGPPC("Invalid instruction at %.8X: %.8X", address, i.code);
-    } else if (i.code == 0x4E800020) {
+      LOGPPC("Invalid instruction at %.8X: %.8X", address, code);
+    } else if (code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
       if (furthest_target > address) {
@@ -117,7 +119,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
         ends_fn = true;
       }
       ends_block = true;
-    } else if (i.code == 0x4E800420) {
+    } else if (code == 0x4E800420) {
       // bctr -- unconditional branch to CTR.
       // This is generally a jump to a function pointer (non-return).
       // This is almost always a jump table.
@@ -131,7 +133,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
         ends_fn = true;
       }
       ends_block = true;
-    } else if (i.type->opcode == 0x48000000) {
+    } else if (opcode == PPCOpcode::bx) {
       // b/ba/bl/bla
       uint32_t target =
           (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
@@ -209,7 +211,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
         }
       }
       ends_block = true;
-    } else if (i.type->opcode == 0x40000000) {
+    } else if (opcode == PPCOpcode::bcx) {
       // bc/bca/bcl/bcla
       uint32_t target =
           (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
@@ -230,7 +232,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
         }
       }
       ends_block = true;
-    } else if (i.type->opcode == 0x4C000020) {
+    } else if (opcode == PPCOpcode::bclrx) {
       // bclr/bclrl
       if (i.XL.LK) {
         LOGPPC("bclrl %.8X", address);
@@ -238,7 +240,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
         LOGPPC("bclr %.8X", address);
       }
       ends_block = true;
-    } else if (i.type->opcode == 0x4C000420) {
+    } else if (opcode == PPCOpcode::bcctrx) {
       // bcctr/bcctrl
       if (i.XL.LK) {
         LOGPPC("bcctrl %.8X", address);
@@ -299,17 +301,13 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(GuestFunction* function) {
   uint32_t end_address = function->end_address();
   bool in_block = false;
   uint32_t block_start = 0;
-  InstrData i;
   for (uint32_t address = start_address; address <= end_address; address += 4) {
-    i.address = address;
-    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
-    if (!i.code) {
+    uint32_t code =
+        xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    if (!code) {
       continue;
     }
-
-    // TODO(benvanik): find a way to avoid using the opcode tables.
-    // This lookup is *expensive* and should be avoided when scanning.
-    i.type = GetInstrType(i.code);
+    auto opcode = xe::cpu::ppc::LookupOpcode(code);
 
     if (!in_block) {
       in_block = true;
@@ -317,30 +315,28 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(GuestFunction* function) {
     }
 
     bool ends_block = false;
-    if (!i.type) {
-      // Invalid instruction.
-    } else if (i.code == 0x4E800020) {
+    if (code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       ends_block = true;
-    } else if (i.code == 0x4E800420) {
+    } else if (code == 0x4E800420) {
       // bctr -- unconditional branch to CTR.
       // This is almost always a jump table.
       // TODO(benvanik): decode jump tables.
       ends_block = true;
-    } else if (i.type->opcode == 0x48000000) {
+    } else if (opcode == PPCOpcode::bx) {
       // b/ba/bl/bla
       // uint32_t target =
       //    (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
       ends_block = true;
-    } else if (i.type->opcode == 0x40000000) {
+    } else if (opcode == PPCOpcode::bcx) {
       // bc/bca/bcl/bcla
       // uint32_t target =
       //    (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
       ends_block = true;
-    } else if (i.type->opcode == 0x4C000020) {
+    } else if (opcode == PPCOpcode::bclrx) {
       // bclr/bclrl
       ends_block = true;
-    } else if (i.type->opcode == 0x4C000420) {
+    } else if (opcode == PPCOpcode::bcctrx) {
       // bcctr/bcctrl
       ends_block = true;
     }

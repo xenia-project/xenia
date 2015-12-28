@@ -21,6 +21,7 @@
 #include "xenia/cpu/ppc/ppc_disasm.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
 
 namespace xe {
@@ -84,14 +85,13 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
 
   uint32_t start_address = function_->address();
   uint32_t end_address = function_->end_address();
-  InstrData i;
   for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
-    i.address = address;
-    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
-    // TODO(benvanik): find a way to avoid using the opcode tables.
-    i.type = GetInstrType(i.code);
     trace_info_.dest_count = 0;
+    uint32_t code =
+        xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    auto opcode = LookupOpcode(code);
+    auto& opcode_info = GetOpcodeInfo(opcode);
 
     // Mark label, if we were assigned one earlier on in the walk.
     // We may still get a label, but it'll be inserted by LookupLabel
@@ -107,15 +107,15 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
         AnnotateLabel(address, label);
       }
       comment_buffer_.Reset();
-      comment_buffer_.AppendFormat("%.8X %.8X ", address, i.code);
-      DisasmPPC(&i, &comment_buffer_);
+      comment_buffer_.AppendFormat("%.8X %.8X ", address, code);
+      DisasmPPC(address, code, &comment_buffer_);
       Comment(comment_buffer_);
       first_instr = last_instr();
     }
 
     // Mark source offset for debugging.
     // We could omit this if we never wanted to debug.
-    SourceOffset(i.address);
+    SourceOffset(address);
     if (!first_instr) {
       first_instr = last_instr();
     }
@@ -123,8 +123,13 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     // Stash instruction offset. It's either the SOURCE_OFFSET or the COMMENT.
     instr_offset_list_[offset] = first_instr;
 
+    InstrData i;
+    i.address = address;
+    i.code = code;
+    i.type = GetInstrType(code);
+
     if (!i.type) {
-      XELOGE("Invalid instruction %.8llX %.8X", i.address, i.code);
+      XELOGE("Invalid instruction %.8llX %.8X", address, code);
       Comment("INVALID!");
       // TraceInvalidInstruction(i);
       continue;
@@ -141,7 +146,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     typedef int (*InstrEmitter)(PPCHIRBuilder& f, InstrData& i);
     InstrEmitter emit = (InstrEmitter)i.type->emit;
 
-    if (i.address == FLAGS_break_on_instruction) {
+    if (address == FLAGS_break_on_instruction) {
       Comment("--break-on-instruction target");
 
       if (FLAGS_break_condition_gpr < 0) {
@@ -158,8 +163,8 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     }
 
     if (!i.type->emit || emit(*this, i)) {
-      XELOGE("Unimplemented instr %.8llX %.8X %s", i.address, i.code,
-             i.type->name);
+      XELOGE("Unimplemented instr %.8llX %.8X %s", address, code,
+             opcode_info.name);
       Comment("UNIMPLEMENTED!");
       // DebugBreak();
       // TraceInvalidInstruction(i);

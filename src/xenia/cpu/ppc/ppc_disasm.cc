@@ -11,7 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-#include "xenia/base/string_buffer.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 
 namespace xe {
 namespace cpu {
@@ -505,11 +505,15 @@ void Disasm_vspltisw(InstrData* i, StringBuffer* str) {
   str->AppendFormat("%-8s v%d, %.8X", i->type->name, i->VX.VD, simm);
 }
 
-int DisasmPPC(InstrData* i, StringBuffer* str) {
-  if (!i->type) {
+int DisasmPPC(uint32_t address, uint32_t code, StringBuffer* str) {
+  InstrData i;
+  i.address = address;
+  i.code = code;
+  i.type = GetInstrType(i.code);
+  if (!i.type) {
     str->Append("???");
   } else {
-    i->type->disasm(i, str);
+    i.type->disasm(&i, str);
   }
   return 0;
 }

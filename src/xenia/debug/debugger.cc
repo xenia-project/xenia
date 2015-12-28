@@ -24,6 +24,7 @@
 #include "xenia/cpu/backend/code_cache.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/ppc/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/emulator.h"
@@ -47,6 +48,7 @@ namespace xe {
 namespace debug {
 
 using xe::cpu::ThreadState;
+using xe::cpu::ppc::PPCOpcode;
 using xe::kernel::XObject;
 using xe::kernel::XThread;
 
@@ -723,10 +725,8 @@ uint32_t Debugger::CalculateNextGuestInstruction(
   i.address = current_pc;
   i.code = xe::load_and_swap<uint32_t>(
       emulator_->memory()->TranslateVirtual(i.address));
-  i.type = xe::cpu::ppc::GetInstrType(i.code);
-  if (!i.type) {
-    return current_pc + 4;
-  } else if (i.code == 0x4E800020) {
+  auto opcode = xe::cpu::ppc::LookupOpcode(i.code);
+  if (i.code == 0x4E800020) {
     // blr -- unconditional branch to LR.
     uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.lr);
     return target_pc;
@@ -734,13 +734,13 @@ uint32_t Debugger::CalculateNextGuestInstruction(
     // bctr -- unconditional branch to CTR.
     uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.ctr);
     return target_pc;
-  } else if (i.type->opcode == 0x48000000) {
+  } else if (opcode == PPCOpcode::bx) {
     // b/ba/bl/bla
     uint32_t target_pc =
         static_cast<uint32_t>(xe::cpu::ppc::XEEXTS26(i.I.LI << 2)) +
         (i.I.AA ? 0u : i.address);
     return target_pc;
-  } else if (i.type->opcode == 0x40000000) {
+  } else if (opcode == PPCOpcode::bcx) {
     // bc/bca/bcl/bcla
     uint32_t target_pc =
         static_cast<uint32_t>(xe::cpu::ppc::XEEXTS16(i.B.BD << 2)) +
@@ -748,13 +748,13 @@ uint32_t Debugger::CalculateNextGuestInstruction(
     bool test_passed = TestPpcCondition(&thread_info->guest_context, i.B.BO,
                                         i.B.BI, true, true);
     return test_passed ? target_pc : current_pc + 4;
-  } else if (i.type->opcode == 0x4C000020) {
+  } else if (opcode == PPCOpcode::bclrx) {
     // bclr/bclrl
     uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.lr);
     bool test_passed = TestPpcCondition(&thread_info->guest_context, i.XL.BO,
                                         i.XL.BI, true, true);
     return test_passed ? target_pc : current_pc + 4;
-  } else if (i.type->opcode == 0x4C000420) {
+  } else if (opcode == PPCOpcode::bcctrx) {
     // bcctr/bcctrl
     uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.ctr);
     bool test_passed = TestPpcCondition(&thread_info->guest_context, i.XL.BO,

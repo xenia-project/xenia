@@ -298,6 +298,10 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
     case 3:  // title/publisher update?
       *device_id_ptr = 0xF00D0000 | 0x0003;
       break;
+    default:
+      assert_unhandled_case(content_type);
+      *device_id_ptr = 0xF00D0000 | 0x0001;
+      break;
   }
 
   if (overlapped) {

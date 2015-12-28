@@ -219,14 +219,11 @@ void PPCTranslator::DumpSource(GuestFunction* function,
 
   uint32_t start_address = function->address();
   uint32_t end_address = function->end_address();
-  InstrData i;
   auto block_it = blocks.begin();
   for (uint32_t address = start_address, offset = 0; address <= end_address;
        address += 4, offset++) {
-    i.address = address;
-    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
-    // TODO(benvanik): find a way to avoid using the opcode tables.
-    i.type = GetInstrType(i.code);
+    uint32_t code =
+        xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
 
     // Check labels.
     if (block_it != blocks.end() && block_it->start_address == address) {
@@ -235,8 +232,8 @@ void PPCTranslator::DumpSource(GuestFunction* function,
       ++block_it;
     }
 
-    string_buffer->AppendFormat("%.8X %.8X   ", address, i.code);
-    DisasmPPC(&i, string_buffer);
+    string_buffer->AppendFormat("%.8X %.8X   ", address, code);
+    DisasmPPC(address, code, string_buffer);
     string_buffer->Append('\n');
   }
 }

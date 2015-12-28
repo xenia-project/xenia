@@ -502,12 +502,10 @@ void DebugWindow::DrawGuestFunctionSource() {
     ImGui::Text(" %c ", is_current_instr ? '>' : ' ');
     ImGui::SameLine();
 
-    cpu::ppc::InstrData i;
-    i.address = address;
-    i.code = xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
-    i.type = cpu::ppc::GetInstrType(i.code);
-    cpu::ppc::DisasmPPC(&i, &str);
-    ImGui::Text("%.8X %.8X   %s", address, i.code, str.GetString());
+    uint32_t code =
+        xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
+    cpu::ppc::DisasmPPC(address, code, &str);
+    ImGui::Text("%.8X %.8X   %s", address, code, str.GetString());
     str.Reset();
 
     if (is_current_instr) {
