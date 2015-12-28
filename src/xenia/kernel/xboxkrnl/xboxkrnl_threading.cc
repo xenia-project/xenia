@@ -376,11 +376,6 @@ SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_context,
   }
 }
 
-// The TLS system used here is a bit hacky, but seems to work.
-// Both Win32 and pthreads use unsigned longs as TLS indices, so we can map
-// right into the system for these calls. We're just round tripping the IDs and
-// hoping for the best.
-
 // http://msdn.microsoft.com/en-us/library/ms686801
 dword_result_t KeTlsAlloc() {
   uint32_t slot = kernel_state()->AllocateTLS();
