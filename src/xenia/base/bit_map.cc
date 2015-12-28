@@ -19,18 +19,18 @@ BitMap::BitMap() = default;
 
 BitMap::BitMap(size_t size_bits) { Resize(size_bits); }
 
-BitMap::BitMap(uint32_t* data, size_t size_bits) {
-  assert_true(size_bits % 32 == 0);
+BitMap::BitMap(uint64_t* data, size_t size_bits) {
+  assert_true(size_bits % kDataSizeBits == 0);
 
-  data_.resize(size_bits / 32);
-  std::memcpy(data_.data(), data, size_bits / 32);
+  data_.resize(size_bits / kDataSizeBits);
+  std::memcpy(data_.data(), data, size_bits / kDataSizeBits);
 }
 
 size_t BitMap::Acquire() {
   for (size_t i = 0; i < data_.size(); i++) {
-    uint32_t entry = 0;
-    uint32_t new_entry = 0;
-    int acquired_idx = -1;
+    uint64_t entry = 0;
+    uint64_t new_entry = 0;
+    int64_t acquired_idx = -1;
 
     do {
       entry = data_[i];
@@ -42,7 +42,7 @@ size_t BitMap::Acquire() {
       }
 
       // Entry has a free bit. Acquire it.
-      uint32_t bit = 1 << (kDataSizeBits - index - 1);
+      uint64_t bit = 1ull << (kDataSizeBits - index - 1);
       new_entry = entry & ~bit;
       assert_not_zero(entry & bit);
 
@@ -62,10 +62,10 @@ void BitMap::Release(size_t index) {
   auto slot = index / kDataSizeBits;
   index -= slot * kDataSizeBits;
 
-  uint32_t bit = 1 << (kDataSizeBits - index - 1);
+  uint64_t bit = 1ull << (kDataSizeBits - index - 1);
 
-  uint32_t entry = 0;
-  uint32_t new_entry = 0;
+  uint64_t entry = 0;
+  uint64_t new_entry = 0;
   do {
     entry = data_[slot];
     assert_zero(entry & bit);
@@ -76,8 +76,8 @@ void BitMap::Release(size_t index) {
 
 void BitMap::Resize(size_t new_size_bits) {
   auto old_size = data_.size();
-  assert_true(new_size_bits % 32 == 0);
-  data_.resize(new_size_bits / 32);
+  assert_true(new_size_bits % kDataSizeBits == 0);
+  data_.resize(new_size_bits / kDataSizeBits);
 
   // Initialize new entries.
   if (data_.size() > old_size) {
