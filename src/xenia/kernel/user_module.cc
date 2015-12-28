@@ -23,8 +23,8 @@
 namespace xe {
 namespace kernel {
 
-UserModule::UserModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, ModuleType::kUserModule, path) {}
+UserModule::UserModule(KernelState* kernel_state)
+    : XModule(kernel_state, ModuleType::kUserModule) {}
 
 UserModule::~UserModule() { Unload(); }
 
@@ -38,6 +38,9 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     XELOGE("File not found: %s", path.c_str());
     return X_STATUS_NO_SUCH_FILE;
   }
+
+  path_ = fs_entry->absolute_path();
+  name_ = NameFromPath(path_);
 
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
@@ -320,7 +323,7 @@ bool UserModule::Save(ByteStream* stream) {
 object_ref<UserModule> UserModule::Restore(KernelState* kernel_state,
                                            ByteStream* stream,
                                            std::string path) {
-  auto module = new UserModule(kernel_state, path.c_str());
+  auto module = new UserModule(kernel_state);
 
   // XModule::Save took care of this earlier...
   // TODO: Find a nicer way to represent that here.

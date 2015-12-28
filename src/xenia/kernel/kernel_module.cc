@@ -19,10 +19,16 @@ namespace xe {
 namespace kernel {
 
 KernelModule::KernelModule(KernelState* kernel_state, const char* path)
-    : XModule(kernel_state, ModuleType::kKernelModule, path) {
+    : XModule(kernel_state, ModuleType::kKernelModule) {
   emulator_ = kernel_state->emulator();
   memory_ = emulator_->memory();
   export_resolver_ = kernel_state->emulator()->export_resolver();
+
+  path_ = path;
+  name_ = NameFromPath(path);
+
+  // Persist this object through reloads.
+  host_object_ = true;
 
   // HACK: Allocates memory where xboxkrnl.exe would be!
   // TODO: Need to free this memory when necessary.

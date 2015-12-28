@@ -33,7 +33,7 @@ namespace kernel {
 
 class UserModule : public XModule {
  public:
-  UserModule(KernelState* kernel_state, const char* path);
+  UserModule(KernelState* kernel_state);
   ~UserModule() override;
 
   enum ModuleFormat {

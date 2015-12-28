@@ -342,7 +342,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
     global_lock.unlock();
 
     // Module wasn't loaded, so load it.
-    module = object_ref<UserModule>(new UserModule(this, path.c_str()));
+    module = object_ref<UserModule>(new UserModule(this));
     X_STATUS status = module->LoadFromFile(path);
     if (XFAILED(status)) {
       object_table()->RemoveHandle(module->handle());
