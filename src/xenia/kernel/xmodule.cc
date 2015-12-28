@@ -18,15 +18,11 @@
 namespace xe {
 namespace kernel {
 
-XModule::XModule(KernelState* kernel_state, ModuleType module_type,
-                 const std::string& path)
+XModule::XModule(KernelState* kernel_state, ModuleType module_type)
     : XObject(kernel_state, kTypeModule),
       module_type_(module_type),
-      path_(path),
       processor_module_(nullptr),
       hmodule_ptr_(0) {
-  name_ = NameFromPath(path);
-
   // Loader data (HMODULE)
   hmodule_ptr_ = memory()->SystemHeapAlloc(sizeof(X_LDR_DATA_TABLE_ENTRY));
 
