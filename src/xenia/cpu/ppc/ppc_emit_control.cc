@@ -142,7 +142,7 @@ int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
 return 0;
 }
 
-XEEMITTER(bx, 0x48000000, I)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_bx(PPCHIRBuilder& f, const InstrData& i) {
   // if AA then
   //   NIA <- EXTS(LI || 0b00)
   // else
@@ -161,7 +161,7 @@ XEEMITTER(bx, 0x48000000, I)(PPCHIRBuilder& f, InstrData& i) {
                           i.I.LK);
 }
 
-XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_bcx(PPCHIRBuilder& f, const InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3])
@@ -238,7 +238,7 @@ XEEMITTER(bcx, 0x40000000, B)(PPCHIRBuilder& f, InstrData& i) {
                           i.B.LK, ok, expect_true);
 }
 
-XEEMITTER(bcctrx, 0x4C000420, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_bcctrx(PPCHIRBuilder& f, const InstrData& i) {
   // cond_ok <- BO[0] | (CR[BI+32] ≡ BO[1])
   // if cond_ok then
   //   NIA <- CTR[0:61] || 0b00
@@ -270,7 +270,7 @@ XEEMITTER(bcctrx, 0x4C000420, XL)(PPCHIRBuilder& f, InstrData& i) {
                           expect_true);
 }
 
-XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_bclrx(PPCHIRBuilder& f, const InstrData& i) {
   // if ¬BO[2] then
   //   CTR <- CTR - 1
   // ctr_ok <- BO[2] | ((CTR[0:63] != 0) XOR BO[3]
@@ -340,7 +340,7 @@ XEEMITTER(bclrx, 0x4C000020, XL)(PPCHIRBuilder& f, InstrData& i) {
 
 // Condition register logical (A-23)
 
-XEEMITTER(crand, 0x4C000202, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_crand(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- CR[ba] & CR[bb]   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -349,7 +349,7 @@ XEEMITTER(crand, 0x4C000202, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(crandc, 0x4C000102, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_crandc(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- CR[ba] & ¬CR[bb]   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -358,7 +358,7 @@ XEEMITTER(crandc, 0x4C000102, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(creqv, 0x4C000242, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_creqv(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- CR[ba] == CR[bb]   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -367,7 +367,7 @@ XEEMITTER(creqv, 0x4C000242, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(crnand, 0x4C0001C2, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_crnand(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- ¬(CR[ba] & CR[bb])   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -376,7 +376,7 @@ XEEMITTER(crnand, 0x4C0001C2, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(crnor, 0x4C000042, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_crnor(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- ¬(CR[ba] | CR[bb])   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -385,7 +385,7 @@ XEEMITTER(crnor, 0x4C000042, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(cror, 0x4C000382, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_cror(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- CR[ba] | CR[bb]   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -394,7 +394,7 @@ XEEMITTER(cror, 0x4C000382, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(crorc, 0x4C000342, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_crorc(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- CR[ba] | ¬CR[bb]   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -403,7 +403,7 @@ XEEMITTER(crorc, 0x4C000342, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(crxor, 0x4C000182, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_crxor(PPCHIRBuilder& f, const InstrData& i) {
   // CR[bt] <- CR[ba] xor CR[bb]   bt=bo, ba=bi, bb=bb
   Value* ba = f.LoadCRField(i.XL.BI >> 2, i.XL.BI & 3);
   Value* bb = f.LoadCRField(i.XL.BB >> 2, i.XL.BB & 3);
@@ -412,21 +412,21 @@ XEEMITTER(crxor, 0x4C000182, XL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mcrf, 0x4C000000, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mcrf(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
 // System linkage (A-24)
 
-XEEMITTER(sc, 0x44000002, SC)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sc(PPCHIRBuilder& f, const InstrData& i) {
   f.CallExtern(f.function());
   return 0;
 }
 
 // Trap (A-25)
 
-int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i, Value* va, Value* vb,
+int InstrEmit_trap(PPCHIRBuilder& f, const InstrData& i, Value* va, Value* vb,
                    uint32_t TO) {
   // if (a < b) & TO[0] then TRAP
   // if (a > b) & TO[1] then TRAP
@@ -471,7 +471,7 @@ int InstrEmit_trap(PPCHIRBuilder& f, InstrData& i, Value* va, Value* vb,
   return 0;
 }
 
-XEEMITTER(td, 0x7C000088, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_td(PPCHIRBuilder& f, const InstrData& i) {
   // a <- (RA)
   // b <- (RB)
   // if (a < b) & TO[0] then TRAP
@@ -484,7 +484,7 @@ XEEMITTER(td, 0x7C000088, X)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.X.RT);
 }
 
-XEEMITTER(tdi, 0x08000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_tdi(PPCHIRBuilder& f, const InstrData& i) {
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -496,7 +496,7 @@ XEEMITTER(tdi, 0x08000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.D.RT);
 }
 
-XEEMITTER(tw, 0x7C000008, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_tw(PPCHIRBuilder& f, const InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
   // if (a < b) & TO[0] then TRAP
@@ -511,7 +511,7 @@ XEEMITTER(tw, 0x7C000008, X)(PPCHIRBuilder& f, InstrData& i) {
   return InstrEmit_trap(f, i, ra, rb, i.X.RT);
 }
 
-XEEMITTER(twi, 0x0C000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_twi(PPCHIRBuilder& f, const InstrData& i) {
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -532,7 +532,7 @@ XEEMITTER(twi, 0x0C000000, D)(PPCHIRBuilder& f, InstrData& i) {
 
 // Processor control (A-26)
 
-XEEMITTER(mfcr, 0x7C000026, XFX)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mfcr(PPCHIRBuilder& f, const InstrData& i) {
   // mfocrf RT,FXM
   // RT <- undefined
   // count <- 0
@@ -573,7 +573,7 @@ XEEMITTER(mfcr, 0x7C000026, XFX)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mfspr(PPCHIRBuilder& f, const InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   RT <- SPR(n)
@@ -614,7 +614,7 @@ XEEMITTER(mfspr, 0x7C0002A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mftb, 0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mftb(PPCHIRBuilder& f, const InstrData& i) {
   Value* time = f.LoadClock();
   const uint32_t n = ((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F);
   if (n == 268) {
@@ -627,7 +627,7 @@ XEEMITTER(mftb, 0x7C0002E6, XFX)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mtcrf, 0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtcrf(PPCHIRBuilder& f, const InstrData& i) {
   // mtocrf FXM,RS
   // count <- 0
   // do i = 0 to 7
@@ -666,7 +666,7 @@ XEEMITTER(mtcrf, 0x7C000120, XFX)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtspr(PPCHIRBuilder& f, const InstrData& i) {
   // n <- spr[5:9] || spr[0:4]
   // if length(SPR(n)) = 64 then
   //   SPR(n) <- (RS)
@@ -705,7 +705,7 @@ XEEMITTER(mtspr, 0x7C0003A6, XFX)(PPCHIRBuilder& f, InstrData& i) {
 // code requires it. Sequences of mtmsr/lwar/stcw/mtmsr come up a lot, and
 // without the lock here threads can livelock.
 
-XEEMITTER(mfmsr, 0x7C0000A6, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
   // bit 48 = EE; interrupt enabled
   // bit 62 = RI; recoverable interrupt
   // return 8000h if unlocked (interrupts enabled), else 0
@@ -715,7 +715,7 @@ XEEMITTER(mfmsr, 0x7C0000A6, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
   if (i.X.RA & 0x01) {
     // L = 1
     // iff storing from r13
@@ -738,7 +738,7 @@ XEEMITTER(mtmsr, 0x7C000124, X)(PPCHIRBuilder& f, InstrData& i) {
   }
 }
 
-XEEMITTER(mtmsrd, 0x7C000164, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
   if (i.X.RA & 0x01) {
     // L = 1
     f.MemoryBarrier();
@@ -760,32 +760,32 @@ XEEMITTER(mtmsrd, 0x7C000164, X)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 void RegisterEmitCategoryControl() {
-  XEREGISTERINSTR(bx, 0x48000000);
-  XEREGISTERINSTR(bcx, 0x40000000);
-  XEREGISTERINSTR(bcctrx, 0x4C000420);
-  XEREGISTERINSTR(bclrx, 0x4C000020);
-  XEREGISTERINSTR(crand, 0x4C000202);
-  XEREGISTERINSTR(crandc, 0x4C000102);
-  XEREGISTERINSTR(creqv, 0x4C000242);
-  XEREGISTERINSTR(crnand, 0x4C0001C2);
-  XEREGISTERINSTR(crnor, 0x4C000042);
-  XEREGISTERINSTR(cror, 0x4C000382);
-  XEREGISTERINSTR(crorc, 0x4C000342);
-  XEREGISTERINSTR(crxor, 0x4C000182);
-  XEREGISTERINSTR(mcrf, 0x4C000000);
-  XEREGISTERINSTR(sc, 0x44000002);
-  XEREGISTERINSTR(td, 0x7C000088);
-  XEREGISTERINSTR(tdi, 0x08000000);
-  XEREGISTERINSTR(tw, 0x7C000008);
-  XEREGISTERINSTR(twi, 0x0C000000);
-  XEREGISTERINSTR(mfcr, 0x7C000026);
-  XEREGISTERINSTR(mfspr, 0x7C0002A6);
-  XEREGISTERINSTR(mftb, 0x7C0002E6);
-  XEREGISTERINSTR(mtcrf, 0x7C000120);
-  XEREGISTERINSTR(mtspr, 0x7C0003A6);
-  XEREGISTERINSTR(mfmsr, 0x7C0000A6);
-  XEREGISTERINSTR(mtmsr, 0x7C000124);
-  XEREGISTERINSTR(mtmsrd, 0x7C000164);
+  XEREGISTERINSTR(bx);
+  XEREGISTERINSTR(bcx);
+  XEREGISTERINSTR(bcctrx);
+  XEREGISTERINSTR(bclrx);
+  XEREGISTERINSTR(crand);
+  XEREGISTERINSTR(crandc);
+  XEREGISTERINSTR(creqv);
+  XEREGISTERINSTR(crnand);
+  XEREGISTERINSTR(crnor);
+  XEREGISTERINSTR(cror);
+  XEREGISTERINSTR(crorc);
+  XEREGISTERINSTR(crxor);
+  XEREGISTERINSTR(mcrf);
+  XEREGISTERINSTR(sc);
+  XEREGISTERINSTR(td);
+  XEREGISTERINSTR(tdi);
+  XEREGISTERINSTR(tw);
+  XEREGISTERINSTR(twi);
+  XEREGISTERINSTR(mfcr);
+  XEREGISTERINSTR(mfspr);
+  XEREGISTERINSTR(mftb);
+  XEREGISTERINSTR(mtcrf);
+  XEREGISTERINSTR(mtspr);
+  XEREGISTERINSTR(mfmsr);
+  XEREGISTERINSTR(mtmsr);
+  XEREGISTERINSTR(mtmsrd);
 }
 
 }  // namespace ppc

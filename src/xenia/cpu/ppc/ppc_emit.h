@@ -10,8 +10,6 @@
 #ifndef XENIA_CPU_PPC_PPC_EMIT_H_
 #define XENIA_CPU_PPC_PPC_EMIT_H_
 
-#include "xenia/cpu/ppc/ppc_instr.h"
-
 namespace xe {
 namespace cpu {
 namespace ppc {

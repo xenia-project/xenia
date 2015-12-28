@@ -1,466 +1,466 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
 <ppc-isa name="6xx_pem">
-  <insn desc="Add" form="XO" group="int" mnem="addx" opcode="7c000214" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Add Carrying" form="XO" group="int" mnem="addcx" opcode="7c000014" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Add Extended" form="XO" group="int" mnem="addex" opcode="7c000114" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Add Immediate" form="D" group="int" mnem="addi" opcode="38000000" sub-form="D-A-SIMM" />
-  <insn desc="Add Immediate Carrying" form="D" group="int" mnem="addic" opcode="30000000" sub-form="D-A-SIMM" />
-  <insn desc="Add Immediate Carrying and Record" form="D" group="int" mnem="addic." opcode="34000000" sub-form="D-A-SIMM" />
-  <insn desc="Add Immediate Shifted" form="D" group="int" mnem="addis" opcode="3c000000" sub-form="D-A-SIMM" />
-  <insn desc="Add to Minus One Extended" form="XO" group="int" mnem="addmex" opcode="7c0001d4" sub-form="D-A-0-OE-Rc" />
-  <insn desc="Add to Zero Extended" form="XO" group="int" mnem="addzex" opcode="7c000194" sub-form="D-A-0-OE-Rc" />
-  <insn desc="AND" form="X" group="int" mnem="andx" opcode="7c000038" sub-form="S-A-B-Rc" />
-  <insn desc="AND with Complement" form="X" group="int" mnem="andcx" opcode="7c000078" sub-form="S-A-B-Rc" />
-  <insn desc="AND Immediate" form="D" group="int" mnem="andi." opcode="70000000" sub-form="S-A-UIMM" />
-  <insn desc="AND Immediate Shifted" form="D" group="int" mnem="andis." opcode="74000000" sub-form="S-A-UIMM" />
-  <insn desc="Branch" form="I" group="int" mnem="bx" opcode="48000000" sub-form="LI-AA-LK" />
-  <insn desc="Branch Conditional" form="B" group="int" mnem="bcx" opcode="40000000" sub-form="BO-BI-BD-AA-LK" />
-  <insn desc="Branch Conditional to Count Register" form="XL" group="int" mnem="bcctrx" opcode="4c000420" sub-form="BO-BI-0-LK" />
-  <insn desc="Branch Conditional to Link Register" form="XL" group="int" mnem="bclrx" opcode="4c000020" sub-form="BO-BI-0-LK" />
-  <insn desc="Compare" form="X" group="int" mnem="cmp" opcode="7c000000" sub-form="crfD-L-A-B" />
-  <insn desc="Compare Immediate" form="D" group="int" mnem="cmpi" opcode="2c000000" sub-form="crfD-L-A-SIMM" />
-  <insn desc="Compare Logical" form="X" group="int" mnem="cmpl" opcode="7c000040" sub-form="crfD-L-A-B" />
-  <insn desc="Compare Logical Immediate" form="D" group="int" mnem="cmpli" opcode="28000000" sub-form="crfD-L-A-UIMM" />
-  <insn desc="Count Leading Zeros Doubleword" form="X" group="int" mnem="cntlzdx" opcode="7c000074" sub-form="S-A-0-Rc" />
-  <insn desc="Count Leading Zeros Word" form="X" group="int" mnem="cntlzwx" opcode="7c000034" sub-form="S-A-0-Rc" />
-  <insn desc="Condition Register AND" form="XL" group="int" mnem="crand" opcode="4c000202" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register AND with Complement" form="XL" group="int" mnem="crandc" opcode="4c000102" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register Equivalent" form="XL" group="int" mnem="creqv" opcode="4c000242" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register NAND" form="XL" group="int" mnem="crnand" opcode="4c0001c2" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register NOR" form="XL" group="int" mnem="crnor" opcode="4c000042" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register OR" form="XL" group="int" mnem="cror" opcode="4c000382" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register OR with Complement" form="XL" group="int" mnem="crorc" opcode="4c000342" sub-form="crbD-crbA-crbB" />
-  <insn desc="Condition Register XOR" form="XL" group="int" mnem="crxor" opcode="4c000182" sub-form="crbD-crbA-crbB" />
-  <insn desc="Data Cache Block Allocate" form="X" group="int" mnem="dcba" opcode="7c0005ec" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Flush" form="X" group="int" mnem="dcbf" opcode="7c0000ac" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Invalidate" form="X" group="int" mnem="dcbi" opcode="7c0003ac" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Store" form="X" group="int" mnem="dcbst" opcode="7c00006c" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Touch" form="X" group="int" mnem="dcbt" opcode="7c00022c" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Touch for Store" form="X" group="int" mnem="dcbtst" opcode="7c0001ec" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Clear to Zero" form="DCBZ" group="int" mnem="dcbz" opcode="7c0007ec" sub-form="0-A-B" />
-  <insn desc="Data Cache Block Clear to Zero 128" form="DCBZ" group="int" mnem="dcbz128" opcode="7c2007ec" sub-form="0-A-B" />
-  <insn desc="Divide Doubleword" form="XO" group="int" mnem="divdx" opcode="7c0003d2" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Divide Doubleword Unsigned" form="XO" group="int" mnem="divdux" opcode="7c000392" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Divide Word" form="XO" group="int" mnem="divwx" opcode="7c0003d6" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Divide Word Unsigned" form="XO" group="int" mnem="divwux" opcode="7c000396" sub-form="D-A-B-OE-Rc" />
-  <insn desc="External Control In Word Indexed" form="X" group="int" mnem="eciwx" opcode="7c00026c" sub-form="D-A-B" />
-  <insn desc="External Control Out Word Indexed" form="X" group="int" mnem="ecowx" opcode="7c00036c" sub-form="S-A-B" />
-  <insn desc="Enforce In-Order Execution of I/O" form="X" group="int" mnem="eieio" opcode="7c0006ac" sub-form="0-0-0" />
-  <insn desc="Equivalent" form="X" group="int" mnem="eqvx" opcode="7c000238" sub-form="S-A-B-Rc" />
-  <insn desc="Extend Sign Byte" form="X" group="int" mnem="extsbx" opcode="7c000774" sub-form="S-A-0-Rc" />
-  <insn desc="Extend Sign Half Word" form="X" group="int" mnem="extshx" opcode="7c000734" sub-form="S-A-0-Rc" />
-  <insn desc="Extend Sign Word" form="X" group="int" mnem="extswx" opcode="7c0007B4" sub-form="S-A-0-Rc" />
-  <insn desc="Floating Absolute Value" form="X" group="fp" mnem="fabsx" opcode="fc000210" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Add" form="A" group="fp" mnem="faddx" opcode="fc00002a" sub-form="D-A-B-0-Rc" />
-  <insn desc="Floating Add Single" form="A" group="fp" mnem="faddsx" opcode="ec00002a" sub-form="D-A-B-0-Rc" />
-  <insn desc="Floating Convert From Integer Doubleword" form="X" group="fp" mnem="fcfidx" opcode="FC00069C" sub-form="D-A-B-Rc" />
-  <insn desc="Floating Compare Ordered" form="X" group="fp" mnem="fcmpo" opcode="fc000040" sub-form="crfD-A-B" />
-  <insn desc="Floating Compare Unordered" form="X" group="fp" mnem="fcmpu" opcode="fc000000" sub-form="crfD-A-B" />
-  <insn desc="Floating Convert to Integer Doubleword" form="X" group="fp" mnem="fctidx" opcode="fc00065c" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Convert to Integer Doubleword with Round Toward Zero" form="X" group="fp" mnem="fctidzx" opcode="fc00065e" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Convert to Integer Word" form="X" group="fp" mnem="fctiwx" opcode="fc00001c" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Convert to Integer Word with Round Toward Zero" form="X" group="fp" mnem="fctiwzx" opcode="fc00001e" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Divide" form="A" group="fp" mnem="fdivx" opcode="fc000024" sub-form="D-A-B-0-Rc" />
-  <insn desc="Floating Divide Single" form="A" group="fp" mnem="fdivsx" opcode="ec000024" sub-form="D-A-B-0-Rc" />
-  <insn desc="Floating Multiply-Add" form="A" group="fp" mnem="fmaddx" opcode="fc00003a" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Multiply-Add Single" form="A" group="fp" mnem="fmaddsx" opcode="ec00003a" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Move Register" form="X" group="fp" mnem="fmrx" opcode="fc000090" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Multiply-Subtract" form="A" group="fp" mnem="fmsubx" opcode="fc000038" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Multiply-Subtract Single" form="A" group="fp" mnem="fmsubsx" opcode="ec000038" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Multiply" form="A" group="fp" mnem="fmulx" opcode="fc000032" sub-form="D-A-0-C-Rc" />
-  <insn desc="Floating Multiply Single" form="A" group="fp" mnem="fmulsx" opcode="ec000032" sub-form="D-A-0-C-Rc" />
-  <insn desc="Floating Negative Absolute Value" form="X" group="fp" mnem="fnabsx" opcode="fc000110" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Negate" form="X" group="fp" mnem="fnegx" opcode="fc000050" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Negative Multiply-Add" form="A" group="fp" mnem="fnmaddx" opcode="fc00003e" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Negative Multiply-Add Single" form="A" group="fp" mnem="fnmaddsx" opcode="ec00003e" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Negative Multiply-Subtract" form="A" group="fp" mnem="fnmsubx" opcode="fc00003c" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Negative Multiply-Subtract Single" form="A" group="fp" mnem="fnmsubsx" opcode="ec00003c" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Reciprocal Estimate Single" form="A" group="fp" mnem="fresx" opcode="ec000030" sub-form="D-0-B-0-Rc" />
-  <insn desc="Floating Round to Single" form="X" group="fp" mnem="frspx" opcode="fc000018" sub-form="D-0-B-Rc" />
-  <insn desc="Floating Reciprocal Square Root Estimate" form="A" group="fp" mnem="frsqrtex" opcode="fc000034" sub-form="D-0-B-0-Rc" />
-  <insn desc="Floating Select" form="A" group="fp" mnem="fselx" opcode="fc00002e" sub-form="D-A-B-C-Rc" />
-  <insn desc="Floating Square Root" form="A" group="fp" mnem="fsqrtx" opcode="fc00002c" sub-form="D-0-B-0-Rc" />
-  <insn desc="Floating Square Root Single" form="A" group="fp" mnem="fsqrtsx" opcode="ec00002c" sub-form="D-0-B-0-Rc" />
-  <insn desc="Floating Subtract" form="A" group="fp" mnem="fsubx" opcode="fc000028" sub-form="D-A-B-0-Rc" />
-  <insn desc="Floating Subtract Single" form="A" group="fp" mnem="fsubsx" opcode="ec000028" sub-form="D-A-B-0-Rc" />
-  <insn desc="Instruction Cache Block Invalidate" form="X" group="int" mnem="icbi" opcode="7c0007ac" sub-form="0-A-B" />
-  <insn desc="Instruction Synchronize" form="XL" group="int" mnem="isync" opcode="4c00012c" sub-form="0-0-0" />
-  <insn desc="Load Byte and Zero" form="D" group="int" mnem="lbz" opcode="88000000" sub-form="D-A-d" />
-  <insn desc="Load Byte and Zero with Update" form="D" group="int" mnem="lbzu" opcode="8c000000" sub-form="D-A-d" />
-  <insn desc="Load Byte and Zero with Update Indexed" form="X" group="int" mnem="lbzux" opcode="7c0000ee" sub-form="D-A-B" />
-  <insn desc="Load Byte and Zero Indexed" form="X" group="int" mnem="lbzx" opcode="7c0000ae" sub-form="D-A-B" />
-  <insn desc="Load Doubleword" form="DS" group="int" mnem="ld" opcode="E8000000" sub-form="D-A-d" />
-  <insn desc="Load Doubleword and Reserve Indexed" form="X" group="int" mnem="ldarx" opcode="7C0000A8" sub-form="D-A-B" />
-  <insn desc="Load Doubleword Byte-Reverse Indexed" form="X" group="int" mnem="ldbrx" opcode="7C000428" sub-form="D-A-B" />
-  <insn desc="Load Doubleword with Update" form="DS" group="int" mnem="ldu" opcode="E8000001" sub-form="D-A-d" />
-  <insn desc="Load Doubleword with Update Indexed" form="X" group="int" mnem="ldux" opcode="7c00006a" sub-form="D-A-B" />
-  <insn desc="Load Doubleword Indexed" form="X" group="int" mnem="ldx" opcode="7c00002a" sub-form="D-A-B" />
-  <insn desc="Load Floating-Point Double" form="D" group="fp" mnem="lfd" opcode="c8000000" sub-form="D-A-d" />
-  <insn desc="Load Floating-Point Double with Update" form="D" group="fp" mnem="lfdu" opcode="cc000000" sub-form="D-A-d" />
-  <insn desc="Load Floating-Point Double with Update Indexed" form="X" group="fp" mnem="lfdux" opcode="7c0004ee" sub-form="D-A-B" />
-  <insn desc="Load Floating-Point Double Indexed" form="X" group="fp" mnem="lfdx" opcode="7c0004ae" sub-form="D-A-B" />
-  <insn desc="Load Floating-Point Single" form="D" group="fp" mnem="lfs" opcode="c0000000" sub-form="D-A-d" />
-  <insn desc="Load Floating-Point Single with Update" form="D" group="fp" mnem="lfsu" opcode="c4000000" sub-form="D-A-d" />
-  <insn desc="Load Floating-Point Single with Update Indexed" form="X" group="fp" mnem="lfsux" opcode="7c00046e" sub-form="D-A-B" />
-  <insn desc="Load Floating-Point Single Indexed" form="X" group="fp" mnem="lfsx" opcode="7c00042e" sub-form="D-A-B" />
-  <insn desc="Load Half Word Algebraic" form="D" group="int" mnem="lha" opcode="a8000000" sub-form="D-A-d" />
-  <insn desc="Load Half Word Algebraic with Update" form="D" group="int" mnem="lhau" opcode="ac000000" sub-form="D-A-d" />
-  <insn desc="Load Half Word Algebraic with Update Indexed" form="X" group="int" mnem="lhaux" opcode="7c0002ee" sub-form="D-A-B" />
-  <insn desc="Load Half Word Algebraic Indexed" form="X" group="int" mnem="lhax" opcode="7c0002ae" sub-form="D-A-B" />
-  <insn desc="Load Half Word Byte-Reverse Indexed" form="X" group="int" mnem="lhbrx" opcode="7c00062c" sub-form="D-A-B" />
-  <insn desc="Load Half Word and Zero" form="D" group="int" mnem="lhz" opcode="a0000000" sub-form="D-A-d" />
-  <insn desc="Load Half Word and Zero with Update" form="D" group="int" mnem="lhzu" opcode="a4000000" sub-form="D-A-d" />
-  <insn desc="Load Half Word and Zero with Update Indexed" form="X" group="int" mnem="lhzux" opcode="7c00026e" sub-form="D-A-B" />
-  <insn desc="Load Half Word and Zero Indexed" form="X" group="int" mnem="lhzx" opcode="7c00022e" sub-form="D-A-B" />
-  <insn desc="Load Multiple Word" form="D" group="int" mnem="lmw" opcode="b8000000" sub-form="D-A-d" />
-  <insn desc="Load String Word Immediate" form="X" group="int" mnem="lswi" opcode="7c0004aa" sub-form="D-A-NB" />
-  <insn desc="Load String Word Indexed" form="X" group="int" mnem="lswx" opcode="7c00042a" sub-form="D-A-B" />
-  <insn desc="Load Vector Element Byte Indexed" form="X" group="vmx" mnem="lvebx" opcode="7c00000e" sub-form="D-A-B" />
-  <insn desc="Load Vector Element Half Word Indexed" form="X" group="vmx" mnem="lvehx" opcode="7c00004e" sub-form="D-A-B" />
-  <insn desc="Load Vector Element Word Indexed" form="X" group="vmx" mnem="lvewx" opcode="7c00008e" sub-form="D-A-B" />
-  <insn desc="Load Vector Element Word Indexed 128" form="VX128_1" group="vmx" mnem="lvewx128" opcode="10000083" sub-form="D-A-B" />
-  <insn desc="Load Vector for Shift Left Indexed" form="X" group="vmx" mnem="lvsl" opcode="7c00000c" sub-form="D-A-B" />
-  <insn desc="Load Vector for Shift Left Indexed 128" form="VX128_1" group="vmx" mnem="lvsl128" opcode="10000003" sub-form="D-A-B" />
-  <insn desc="Load Vector for Shift Right Indexed" form="X" group="vmx" mnem="lvsr" opcode="7c00004c" sub-form="D-A-B" />
-  <insn desc="Load Vector for Shift Right Indexed 128" form="VX128_1" group="vmx" mnem="lvsr128" opcode="10000043" sub-form="D-A-B" />
-  <insn desc="Load Vector Indexed" form="X" group="vmx" mnem="lvx" opcode="7c0000ce" sub-form="D-A-B" />
-  <insn desc="Load Vector Indexed 128" form="VX128_1" group="vmx" mnem="lvx128" opcode="100000C3" sub-form="D-A-B" />
-  <insn desc="Load Vector Indexed LRU" form="X" group="vmx" mnem="lvxl" opcode="7c0002ce" sub-form="D-A-B" />
-  <insn desc="Load Vector Indexed LRU 128" form="VX128_1" group="vmx" mnem="lvxl128" opcode="100002C3" sub-form="D-A-B" />
-  <insn desc="Load Vector Left Indexed" form="X" group="vmx" mnem="lvlx" opcode="7C00040E" sub-form="D-A-B" />
-  <insn desc="Load Vector Left Indexed 128" form="VX128_1" group="vmx" mnem="lvlx128" opcode="10000403" sub-form="D-A-B" />
-  <insn desc="Load Vector Left Indexed LRU" form="X" group="vmx" mnem="lvlxl" opcode="7C00060E" sub-form="D-A-B" />
-  <insn desc="Load Vector Left Indexed LRU 128" form="VX128_1" group="vmx" mnem="lvlxl128" opcode="10000603" sub-form="D-A-B" />
-  <insn desc="Load Vector Right Indexed" form="X" group="vmx" mnem="lvrx" opcode="7C00044E" sub-form="D-A-B" />
-  <insn desc="Load Vector Right Indexed 128" form="VX128_1" group="vmx" mnem="lvrx128" opcode="10000443" sub-form="D-A-B" />
-  <insn desc="Load Vector Right Indexed LRU" form="X" group="vmx" mnem="lvrxl" opcode="7C00064E" sub-form="D-A-B" />
-  <insn desc="Load Vector Right Indexed LRU 128" form="VX128_1" group="vmx" mnem="lvrxl128" opcode="10000643" sub-form="D-A-B" />
-  <insn desc="Load Word Algebraic" form="DS" group="int" mnem="lwa" opcode="e8000002" sub-form="D-A-d" />
-  <insn desc="Load Word and Reserve Indexed" form="X" group="int" mnem="lwarx" opcode="7c000028" sub-form="D-A-B" />
-  <insn desc="Load Word Algebraic with Update Indexed" form="X" group="int" mnem="lwaux" opcode="7c0002ea" sub-form="D-A-B" />
-  <insn desc="Load Word Algebraic Indexed" form="X" group="int" mnem="lwax" opcode="7c0002aa" sub-form="D-A-B" />
-  <insn desc="Load Word Byte-Reverse Indexed" form="X" group="int" mnem="lwbrx" opcode="7c00042c" sub-form="D-A-B" />
-  <insn desc="Load Word and Zero" form="D" group="int" mnem="lwz" opcode="80000000" sub-form="D-A-d" />
-  <insn desc="Load Word and Zero with Update" form="D" group="int" mnem="lwzu" opcode="84000000" sub-form="D-A-d" />
-  <insn desc="Load Word and Zero with Update Indexed" form="X" group="int" mnem="lwzux" opcode="7c00006e" sub-form="D-A-B" />
-  <insn desc="Load Word and Zero Indexed" form="X" group="int" mnem="lwzx" opcode="7c00002e" sub-form="D-A-B" />
-  <insn desc="Move Condition Register Field" form="XL" group="int" mnem="mcrf" opcode="4c000000" sub-form="crfD-crfS-0" />
-  <insn desc="Move to Condition Register from FPSCR" form="X" group="fp" mnem="mcrfs" opcode="fc000080" sub-form="crfD-crfS-0" />
-  <insn desc="Move to Condition Register from XER" form="X" group="int" mnem="mcrxr" opcode="7c000400" sub-form="crfD-0-0" />
-  <insn desc="Move from Condition Register" form="X" group="int" mnem="mfcr" opcode="7c000026" sub-form="D-0-0" />
-  <insn desc="Move from FPSCR" form="X" group="fp" mnem="mffsx" opcode="fc00048e" sub-form="D-0-0-Rc" />
-  <insn desc="Move from Machine State Register" form="X" group="int" mnem="mfmsr" opcode="7c0000a6" sub-form="D-0-0" />
-  <insn desc="Move from Special-Purpose Register" form="XFX" group="int" mnem="mfspr" opcode="7c0002a6" sub-form="D-spr" />
-  <insn desc="Move from Time Base" form="XFX" group="int" mnem="mftb" opcode="7c0002e6" sub-form="D-tbr" />
-  <insn desc="Move from VSCR" form="VX" group="int" mnem="mfvscr" opcode="10000604" sub-form="D-0-0" />
-  <insn desc="Move to Condition Register Fields" form="XFX" group="int" mnem="mtcrf" opcode="7c000120" sub-form="S-CRM" />
-  <insn desc="Move to FPSCR Bit 0" form="X" group="fp" mnem="mtfsb0x" opcode="fc00008c" sub-form="crbD-0-0-Rc" />
-  <insn desc="Move to FPSCR Bit 1" form="X" group="fp" mnem="mtfsb1x" opcode="fc00004c" sub-form="crbD-0-0-Rc" />
-  <insn desc="Move to FPSCR Fields" form="XFL" group="fp" mnem="mtfsfx" opcode="fc00058e" sub-form="FM-B-Rc" />
-  <insn desc="Move to FPSCR Field Immediate" form="X" group="fp" mnem="mtfsfix" opcode="fc00010c" sub-form="crfD-0-IMM-Rc" />
-  <insn desc="Move to Machine State Register" form="X" group="int" mnem="mtmsr" opcode="7c000124" sub-form="S-0-0" />
-  <insn desc="Move to Machine State Register Doubleword" form="X" group="int" mnem="mtmsrd" opcode="7c000164" sub-form="S-0-0" />
-  <insn desc="Move to Special-Purpose Register" form="XFX" group="int" mnem="mtspr" opcode="7c0003a6" sub-form="S-spr" />
-  <insn desc="Move to VSCR" form="VX" group="int" mnem="mtvscr" opcode="10000644" sub-form="S-0-0" />
-  <insn desc="Multiply High Doubleword" form="XO" group="int" mnem="mulhdx" opcode="7c000092" sub-form="D-A-B-Rc" />
-  <insn desc="Multiply High Doubleword Unsigned" form="XO" group="int" mnem="mulhdux" opcode="7c000012" sub-form="D-A-B-Rc" />
-  <insn desc="Multiply High Word" form="XO" group="int" mnem="mulhwx" opcode="7c000096" sub-form="D-A-B-Rc" />
-  <insn desc="Multiply High Word Unsigned" form="XO" group="int" mnem="mulhwux" opcode="7c000016" sub-form="D-A-B-Rc" />
-  <insn desc="Multiply Low Doubleword" form="XO" group="int" mnem="mulldx" opcode="7c0001d2" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Multiply Low Immediate" form="D" group="int" mnem="mulli" opcode="1c000000" sub-form="D-A-SIMM" />
-  <insn desc="Multiply Low Word" form="XO" group="int" mnem="mullwx" opcode="7c0001d6" sub-form="D-A-B-OE-Rc" />
-  <insn desc="NAND" form="X" group="int" mnem="nandx" opcode="7c0003b8" sub-form="S-A-B-Rc" />
-  <insn desc="Negate" form="XO" group="int" mnem="negx" opcode="7c0000d0" sub-form="D-A-0-OE-Rc" />
-  <insn desc="NOR" form="X" group="int" mnem="norx" opcode="7c0000f8" sub-form="S-A-B-Rc" />
-  <insn desc="OR" form="X" group="int" mnem="orx" opcode="7c000378" sub-form="S-A-B-Rc" />
-  <insn desc="OR with Complement" form="X" group="int" mnem="orcx" opcode="7c000338" sub-form="S-A-B-Rc" />
-  <insn desc="OR Immediate" form="D" group="int" mnem="ori" opcode="60000000" sub-form="S-A-UIMM" />
-  <insn desc="OR Immediate Shifted" form="D" group="int" mnem="oris" opcode="64000000" sub-form="S-A-UIMM" />
-  <insn desc="Rotate Left Doubleword then Clear Left" form="MDS" group="int" mnem="rldclx" opcode="78000010" sub-form="S-A-B-MB-ME-Rc" />
-  <insn desc="Rotate Left Doubleword then Clear Right" form="MDS" group="int" mnem="rldcrx" opcode="78000012" sub-form="S-A-B-MB-ME-Rc" />
-  <insn desc="Rotate Left Doubleword Immediate then Clear" form="MDSH" group="int" mnem="rldicx" opcode="78000008" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="Rotate Left Doubleword Immediate then Clear Left" form="MDSH" group="int" mnem="rldiclx" opcode="78000000" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="Rotate Left Doubleword Immediate then Clear Right" form="MDSH" group="int" mnem="rldicrx" opcode="78000004" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="Rotate Left Doubleword Immediate then Mask Insert" form="MDSH" group="int" mnem="rldimix" opcode="7800000C" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="Rotate Left Word Immediate then Mask Insert" form="M" group="int" mnem="rlwimix" opcode="50000000" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="Rotate Left Word Immediate then AND with Mask" form="M" group="int" mnem="rlwinmx" opcode="54000000" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="Rotate Left Word then AND with Mask" form="M" group="int" mnem="rlwnmx" opcode="5c000000" sub-form="S-A-SH-MB-ME-Rc" />
-  <insn desc="System Call" form="SC" group="int" mnem="sc" opcode="44000002" sub-form="sc" />
-  <insn desc="Shift Left Doubleword" form="X" group="int" mnem="sldx" opcode="7c000036" sub-form="S-A-B-Rc" />
-  <insn desc="Shift Left Word" form="X" group="int" mnem="slwx" opcode="7c000030" sub-form="S-A-B-Rc" />
-  <insn desc="Shift Right Algebraic Doubleword" form="X" group="int" mnem="sradx" opcode="7c000634" sub-form="S-A-B-Rc" />
-  <insn desc="Shift Right Algebraic Doubleword Immediate" form="XS" group="int" mnem="sradix" opcode="7c000674" sub-form="S-A-SH-Rc" />
-  <insn desc="Shift Right Algebraic Word" form="X" group="int" mnem="srawx" opcode="7c000630" sub-form="S-A-B-Rc" />
-  <insn desc="Shift Right Algebraic Word Immediate" form="X" group="int" mnem="srawix" opcode="7c000670" sub-form="S-A-SH-Rc" />
-  <insn desc="Shift Right Doubleword" form="X" group="int" mnem="srdx" opcode="7c000436" sub-form="S-A-B-Rc" />
-  <insn desc="Shift Right Word" form="X" group="int" mnem="srwx" opcode="7c000430" sub-form="S-A-B-Rc" />
-  <insn desc="Store Byte" form="D" group="int" mnem="stb" opcode="98000000" sub-form="S-A-d" />
-  <insn desc="Store Byte with Update" form="D" group="int" mnem="stbu" opcode="9c000000" sub-form="S-A-d" />
-  <insn desc="Store Byte with Update Indexed" form="X" group="int" mnem="stbux" opcode="7c0001ee" sub-form="S-A-B" />
-  <insn desc="Store Byte Indexed" form="X" group="int" mnem="stbx" opcode="7c0001ae" sub-form="S-A-B" />
-  <insn desc="Store Doubleword" form="DS" group="int" mnem="std" opcode="f8000000" sub-form="S-A-d" />
-  <insn desc="Store Doubleword Byte-Reverse Indexed" form="X" group="int" mnem="stdbrx" opcode="7c000528" sub-form="S-A-B" />
-  <insn desc="Store Doubleword Conditional Indexed" form="X" group="int" mnem="stdcx" opcode="7c0001ad" sub-form="S-A-B-1" />
-  <insn desc="Store Doubleword with Update" form="DS" group="int" mnem="stdu" opcode="f8000001" sub-form="S-A-d" />
-  <insn desc="Store Doubleword with Update Indexed" form="X" group="int" mnem="stdux" opcode="7c00016a" sub-form="S-A-B" />
-  <insn desc="Store Doubleword Indexed" form="X" group="int" mnem="stdx" opcode="7c00012a" sub-form="S-A-B" />
-  <insn desc="Store Floating-Point Double" form="D" group="fp" mnem="stfd" opcode="d8000000" sub-form="S-A-d" />
-  <insn desc="Store Floating-Point Double with Update" form="D" group="fp" mnem="stfdu" opcode="dc000000" sub-form="S-A-d" />
-  <insn desc="Store Floating-Point Double with Update Indexed" form="X" group="fp" mnem="stfdux" opcode="7c0005ee" sub-form="S-A-B" />
-  <insn desc="Store Floating-Point Double Indexed" form="X" group="fp" mnem="stfdx" opcode="7c0005ae" sub-form="S-A-B" />
-  <insn desc="Store Floating-Point as Integer Word Indexed" form="X" group="fp" mnem="stfiwx" opcode="7c0007ae" sub-form="S-A-B" />
-  <insn desc="Store Floating-Point Single" form="D" group="fp" mnem="stfs" opcode="d0000000" sub-form="S-A-d" />
-  <insn desc="Store Floating-Point Single with Update" form="D" group="fp" mnem="stfsu" opcode="d4000000" sub-form="S-A-d" />
-  <insn desc="Store Floating-Point Single with Update Indexed" form="X" group="fp" mnem="stfsux" opcode="7c00056e" sub-form="S-A-B" />
-  <insn desc="Store Floating-Point Single Indexed" form="X" group="fp" mnem="stfsx" opcode="7c00052e" sub-form="S-A-B" />
-  <insn desc="Store Half Word" form="D" group="int" mnem="sth" opcode="b0000000" sub-form="S-A-d" />
-  <insn desc="Store Half Word Byte-Reverse Indexed" form="X" group="int" mnem="sthbrx" opcode="7c00072c" sub-form="S-A-B" />
-  <insn desc="Store Half Word with Update" form="D" group="int" mnem="sthu" opcode="b4000000" sub-form="S-A-d" />
-  <insn desc="Store Half Word with Update Indexed" form="X" group="int" mnem="sthux" opcode="7c00036e" sub-form="S-A-B" />
-  <insn desc="Store Half Word Indexed" form="X" group="int" mnem="sthx" opcode="7c00032e" sub-form="S-A-B" />
-  <insn desc="Store Multiple Word" form="D" group="int" mnem="stmw" opcode="bc000000" sub-form="S-A-d" />
-  <insn desc="Store String Word Immediate" form="X" group="int" mnem="stswi" opcode="7c0005aa" sub-form="S-A-NB" />
-  <insn desc="Store String Word Indexed" form="X" group="int" mnem="stswx" opcode="7c00052a" sub-form="S-A-B" />
-  <insn desc="Store Vector Element Byte Indexed" form="X" group="vmx" mnem="stvebx" opcode="7c00010e" sub-form="S-A-B" />
-  <insn desc="Store Vector Element Half Word Indexed" form="X" group="vmx" mnem="stvehx" opcode="7c00014e" sub-form="S-A-B" />
-  <insn desc="Store Vector Element Word Indexed" form="X" group="vmx" mnem="stvewx" opcode="7c00018e" sub-form="S-A-B" />
-  <insn desc="Store Vector Element Word Indexed 128" form="VX128_1" group="vmx" mnem="stvewx128" opcode="10000183" sub-form="S-A-B" />
-  <insn desc="Store Vector Indexed" form="X" group="vmx" mnem="stvx" opcode="7c0001ce" sub-form="S-A-B" />
-  <insn desc="Store Vector Indexed 128" form="VX128_1" group="vmx" mnem="stvx128" opcode="100001c3" sub-form="S-A-B" />
-  <insn desc="Store Vector Indexed LRU" form="X" group="vmx" mnem="stvxl" opcode="7c0003ce" sub-form="S-A-B" />
-  <insn desc="Store Vector Indexed LRU 128" form="VX128_1" group="vmx" mnem="stvxl128" opcode="100003c3" sub-form="S-A-B" />
-  <insn desc="Store Vector Left Indexed" form="X" group="vmx" mnem="stvlx" opcode="7c00050e" sub-form="S-A-B" />
-  <insn desc="Store Vector Left Indexed 128" form="VX128_1" group="vmx" mnem="stvlx128" opcode="10000503" sub-form="S-A-B" />
-  <insn desc="Store Vector Left Indexed LRU" form="X" group="vmx" mnem="stvlxl" opcode="7c00070e" sub-form="S-A-B" />
-  <insn desc="Store Vector Left Indexed LRU 128" form="VX128_1" group="vmx" mnem="stvlxl128" opcode="10000703" sub-form="S-A-B" />
-  <insn desc="Store Vector Right Indexed" form="X" group="vmx" mnem="stvrx" opcode="7c00054e" sub-form="S-A-B" />
-  <insn desc="Store Vector Right Indexed 128" form="VX128_1" group="vmx" mnem="stvrx128" opcode="10000543" sub-form="S-A-B" />
-  <insn desc="Store Vector Right Indexed LRU" form="X" group="vmx" mnem="stvrxl" opcode="7c00074e" sub-form="S-A-B" />
-  <insn desc="Store Vector Right Indexed LRU 128" form="VX128_1" group="vmx" mnem="stvrxl128" opcode="10000743" sub-form="S-A-B" />
-  <insn desc="Store Word" form="D" group="int" mnem="stw" opcode="90000000" sub-form="S-A-d" />
-  <insn desc="Store Word Byte-Reverse Indexed" form="X" group="int" mnem="stwbrx" opcode="7c00052c" sub-form="S-A-B" />
-  <insn desc="Store Word Conditional Indexed" form="X" group="int" mnem="stwcx" opcode="7c00012d" sub-form="S-A-B-1" />
-  <insn desc="Store Word with Update" form="D" group="int" mnem="stwu" opcode="94000000" sub-form="S-A-d" />
-  <insn desc="Store Word with Update Indexed" form="X" group="int" mnem="stwux" opcode="7c00016e" sub-form="S-A-B" />
-  <insn desc="Store Word Indexed" form="X" group="int" mnem="stwx" opcode="7c00012e" sub-form="S-A-B" />
-  <insn desc="Subtract From" form="XO" group="int" mnem="subfx" opcode="7c000050" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Subtract From Carrying" form="XO" group="int" mnem="subfcx" opcode="7c000010" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Subtract From Extended" form="XO" group="int" mnem="subfex" opcode="7c000110" sub-form="D-A-B-OE-Rc" />
-  <insn desc="Subtract From Immediate Carrying" form="D" group="int" mnem="subficx" opcode="20000000" sub-form="D-A-SIMM" />
-  <insn desc="Subtract From Minus One Extended" form="XO" group="int" mnem="subfmex" opcode="7c0001d0" sub-form="D-A-0-OE-Rc" />
-  <insn desc="Subtract From Zero Extended" form="XO" group="int" mnem="subfzex" opcode="7c000190" sub-form="D-A-0-OE-Rc" />
-  <insn desc="Synchronize" form="X" group="int" mnem="sync" opcode="7c0004ac" sub-form="0-0-0" />
-  <insn desc="Trap Doubleword" form="X" group="int" mnem="td" opcode="7c000088" sub-form="TO-A-B" />
-  <insn desc="Trap Doubleword Immediate" form="D" group="int" mnem="tdi" opcode="08000000" sub-form="TO-A-SIMM" />
-  <insn desc="Trap Word" form="X" group="int" mnem="tw" opcode="7c000008" sub-form="TO-A-B" />
-  <insn desc="Trap Word Immediate" form="D" group="int" mnem="twi" opcode="0c000000" sub-form="TO-A-SIMM" />
-  <insn desc="XOR" form="X" group="int" mnem="xorx" opcode="7c000278" sub-form="S-A-B-Rc" />
-  <insn desc="XOR Immediate" form="D" group="int" mnem="xori" opcode="68000000" sub-form="S-A-UIMM" />
-  <insn desc="XOR Immediate Shifted" form="D" group="int" mnem="xoris" opcode="6c000000" sub-form="S-A-UIMM" />
+  <insn mnem="addx"         opcode="7c000214" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Add" />
+  <insn mnem="addcx"        opcode="7c000014" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Add Carrying" />
+  <insn mnem="addex"        opcode="7c000114" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Add Extended" />
+  <insn mnem="addi"         opcode="38000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate" />
+  <insn mnem="addic"        opcode="30000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate Carrying" />
+  <insn mnem="addic."       opcode="34000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate Carrying and Record" />
+  <insn mnem="addis"        opcode="3c000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate Shifted" />
+  <insn mnem="addmex"       opcode="7c0001d4" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Add to Minus One Extended" />
+  <insn mnem="addzex"       opcode="7c000194" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Add to Zero Extended" />
+  <insn mnem="andx"         opcode="7c000038" form="X"        sub-form="S-A-B-Rc"         group="i" desc="AND" />
+  <insn mnem="andcx"        opcode="7c000078" form="X"        sub-form="S-A-B-Rc"         group="i" desc="AND with Complement" />
+  <insn mnem="andi."        opcode="70000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="AND Immediate" />
+  <insn mnem="andis."       opcode="74000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="AND Immediate Shifted" />
+  <insn mnem="bx"           opcode="48000000" form="I"        sub-form="LI-AA-LK"         group="i" desc="Branch" sync="true" />
+  <insn mnem="bcx"          opcode="40000000" form="B"        sub-form="BO-BI-BD-AA-LK"   group="i" desc="Branch Conditional" sync="true" />
+  <insn mnem="bcctrx"       opcode="4c000420" form="XL"       sub-form="BO-BI-0-LK"       group="i" desc="Branch Conditional to Count Register" sync="true" />
+  <insn mnem="bclrx"        opcode="4c000020" form="XL"       sub-form="BO-BI-0-LK"       group="i" desc="Branch Conditional to Link Register" sync="true" />
+  <insn mnem="cmp"          opcode="7c000000" form="X"        sub-form="crfD-L-A-B"       group="i" desc="Compare" />
+  <insn mnem="cmpi"         opcode="2c000000" form="D"        sub-form="crfD-L-A-SIMM"    group="i" desc="Compare Immediate" />
+  <insn mnem="cmpl"         opcode="7c000040" form="X"        sub-form="crfD-L-A-B"       group="i" desc="Compare Logical" />
+  <insn mnem="cmpli"        opcode="28000000" form="D"        sub-form="crfD-L-A-UIMM"    group="i" desc="Compare Logical Immediate" />
+  <insn mnem="cntlzdx"      opcode="7c000074" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Count Leading Zeros Doubleword" />
+  <insn mnem="cntlzwx"      opcode="7c000034" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Count Leading Zeros Word" />
+  <insn mnem="crand"        opcode="4c000202" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register AND" />
+  <insn mnem="crandc"       opcode="4c000102" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register AND with Complement" />
+  <insn mnem="creqv"        opcode="4c000242" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register Equivalent" />
+  <insn mnem="crnand"       opcode="4c0001c2" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register NAND" />
+  <insn mnem="crnor"        opcode="4c000042" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register NOR" />
+  <insn mnem="cror"         opcode="4c000382" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register OR" />
+  <insn mnem="crorc"        opcode="4c000342" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register OR with Complement" />
+  <insn mnem="crxor"        opcode="4c000182" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register XOR" />
+  <insn mnem="dcba"         opcode="7c0005ec" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Allocate" />
+  <insn mnem="dcbf"         opcode="7c0000ac" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Flush" />
+  <insn mnem="dcbi"         opcode="7c0003ac" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Invalidate" />
+  <insn mnem="dcbst"        opcode="7c00006c" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Store" />
+  <insn mnem="dcbt"         opcode="7c00022c" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Touch" />
+  <insn mnem="dcbtst"       opcode="7c0001ec" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Touch for Store" />
+  <insn mnem="dcbz"         opcode="7c0007ec" form="DCBZ"     sub-form="0-A-B"            group="i" desc="Data Cache Block Clear to Zero" />
+  <insn mnem="dcbz128"      opcode="7c2007ec" form="DCBZ"     sub-form="0-A-B"            group="i" desc="Data Cache Block Clear to Zero 128" />
+  <insn mnem="divdx"        opcode="7c0003d2" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Doubleword" />
+  <insn mnem="divdux"       opcode="7c000392" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Doubleword Unsigned" />
+  <insn mnem="divwx"        opcode="7c0003d6" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Word" />
+  <insn mnem="divwux"       opcode="7c000396" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Word Unsigned" />
+  <insn mnem="eciwx"        opcode="7c00026c" form="X"        sub-form="D-A-B"            group="i" desc="External Control In Word Indexed" />
+  <insn mnem="ecowx"        opcode="7c00036c" form="X"        sub-form="S-A-B"            group="i" desc="External Control Out Word Indexed" />
+  <insn mnem="eieio"        opcode="7c0006ac" form="X"        sub-form="0-0-0"            group="i" desc="Enforce In-Order Execution of I/O" />
+  <insn mnem="eqvx"         opcode="7c000238" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Equivalent" />
+  <insn mnem="extsbx"       opcode="7c000774" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Extend Sign Byte" />
+  <insn mnem="extshx"       opcode="7c000734" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Extend Sign Half Word" />
+  <insn mnem="extswx"       opcode="7c0007B4" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Extend Sign Word" />
+  <insn mnem="fabsx"        opcode="fc000210" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Absolute Value" />
+  <insn mnem="faddx"        opcode="fc00002a" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Add" />
+  <insn mnem="faddsx"       opcode="ec00002a" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Add Single" />
+  <insn mnem="fcfidx"       opcode="FC00069C" form="X"        sub-form="D-A-B-Rc"         group="f" desc="Floating Convert From Integer Doubleword" />
+  <insn mnem="fcmpo"        opcode="fc000040" form="X"        sub-form="crfD-A-B"         group="f" desc="Floating Compare Ordered" />
+  <insn mnem="fcmpu"        opcode="fc000000" form="X"        sub-form="crfD-A-B"         group="f" desc="Floating Compare Unordered" />
+  <insn mnem="fctidx"       opcode="fc00065c" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Doubleword" />
+  <insn mnem="fctidzx"      opcode="fc00065e" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Doubleword with Round Toward Zero" />
+  <insn mnem="fctiwx"       opcode="fc00001c" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Word" />
+  <insn mnem="fctiwzx"      opcode="fc00001e" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Word with Round Toward Zero" />
+  <insn mnem="fdivx"        opcode="fc000024" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Divide" />
+  <insn mnem="fdivsx"       opcode="ec000024" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Divide Single" />
+  <insn mnem="fmaddx"       opcode="fc00003a" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Add" />
+  <insn mnem="fmaddsx"      opcode="ec00003a" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Add Single" />
+  <insn mnem="fmrx"         opcode="fc000090" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Move Register" />
+  <insn mnem="fmsubx"       opcode="fc000038" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Subtract" />
+  <insn mnem="fmsubsx"      opcode="ec000038" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Subtract Single" />
+  <insn mnem="fmulx"        opcode="fc000032" form="A"        sub-form="D-A-0-C-Rc"       group="f" desc="Floating Multiply" />
+  <insn mnem="fmulsx"       opcode="ec000032" form="A"        sub-form="D-A-0-C-Rc"       group="f" desc="Floating Multiply Single" />
+  <insn mnem="fnabsx"       opcode="fc000110" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Negative Absolute Value" />
+  <insn mnem="fnegx"        opcode="fc000050" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Negate" />
+  <insn mnem="fnmaddx"      opcode="fc00003e" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Add" />
+  <insn mnem="fnmaddsx"     opcode="ec00003e" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Add Single" />
+  <insn mnem="fnmsubx"      opcode="fc00003c" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Subtract" />
+  <insn mnem="fnmsubsx"     opcode="ec00003c" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Subtract Single" />
+  <insn mnem="fresx"        opcode="ec000030" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Reciprocal Estimate Single" />
+  <insn mnem="frspx"        opcode="fc000018" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Round to Single" />
+  <insn mnem="frsqrtex"     opcode="fc000034" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Reciprocal Square Root Estimate" />
+  <insn mnem="fselx"        opcode="fc00002e" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Select" />
+  <insn mnem="fsqrtx"       opcode="fc00002c" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Square Root" />
+  <insn mnem="fsqrtsx"      opcode="ec00002c" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Square Root Single" />
+  <insn mnem="fsubx"        opcode="fc000028" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Subtract" />
+  <insn mnem="fsubsx"       opcode="ec000028" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Subtract Single" />
+  <insn mnem="icbi"         opcode="7c0007ac" form="X"        sub-form="0-A-B"            group="i" desc="Instruction Cache Block Invalidate" />
+  <insn mnem="isync"        opcode="4c00012c" form="XL"       sub-form="0-0-0"            group="i" desc="Instruction Synchronize" />
+  <insn mnem="lbz"          opcode="88000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Byte and Zero" />
+  <insn mnem="lbzu"         opcode="8c000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Byte and Zero with Update" />
+  <insn mnem="lbzux"        opcode="7c0000ee" form="X"        sub-form="D-A-B"            group="i" desc="Load Byte and Zero with Update Indexed" />
+  <insn mnem="lbzx"         opcode="7c0000ae" form="X"        sub-form="D-A-B"            group="i" desc="Load Byte and Zero Indexed" />
+  <insn mnem="ld"           opcode="E8000000" form="DS"       sub-form="D-A-d"            group="i" desc="Load Doubleword" />
+  <insn mnem="ldarx"        opcode="7C0000A8" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword and Reserve Indexed" />
+  <insn mnem="ldbrx"        opcode="7C000428" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword Byte-Reverse Indexed" />
+  <insn mnem="ldu"          opcode="E8000001" form="DS"       sub-form="D-A-d"            group="i" desc="Load Doubleword with Update" />
+  <insn mnem="ldux"         opcode="7c00006a" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword with Update Indexed" />
+  <insn mnem="ldx"          opcode="7c00002a" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword Indexed" />
+  <insn mnem="lfd"          opcode="c8000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Double" />
+  <insn mnem="lfdu"         opcode="cc000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Double with Update" />
+  <insn mnem="lfdux"        opcode="7c0004ee" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Double with Update Indexed" />
+  <insn mnem="lfdx"         opcode="7c0004ae" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Double Indexed" />
+  <insn mnem="lfs"          opcode="c0000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Single" />
+  <insn mnem="lfsu"         opcode="c4000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Single with Update" />
+  <insn mnem="lfsux"        opcode="7c00046e" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Single with Update Indexed" />
+  <insn mnem="lfsx"         opcode="7c00042e" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Single Indexed" />
+  <insn mnem="lha"          opcode="a8000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word Algebraic" />
+  <insn mnem="lhau"         opcode="ac000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word Algebraic with Update" />
+  <insn mnem="lhaux"        opcode="7c0002ee" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word Algebraic with Update Indexed" />
+  <insn mnem="lhax"         opcode="7c0002ae" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word Algebraic Indexed" />
+  <insn mnem="lhbrx"        opcode="7c00062c" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word Byte-Reverse Indexed" />
+  <insn mnem="lhz"          opcode="a0000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word and Zero" />
+  <insn mnem="lhzu"         opcode="a4000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word and Zero with Update" />
+  <insn mnem="lhzux"        opcode="7c00026e" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word and Zero with Update Indexed" />
+  <insn mnem="lhzx"         opcode="7c00022e" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word and Zero Indexed" />
+  <insn mnem="lmw"          opcode="b8000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Multiple Word" />
+  <insn mnem="lswi"         opcode="7c0004aa" form="X"        sub-form="D-A-NB"           group="i" desc="Load String Word Immediate" />
+  <insn mnem="lswx"         opcode="7c00042a" form="X"        sub-form="D-A-B"            group="i" desc="Load String Word Indexed" />
+  <insn mnem="lvebx"        opcode="7c00000e" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Element Byte Indexed" />
+  <insn mnem="lvehx"        opcode="7c00004e" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Element Half Word Indexed" />
+  <insn mnem="lvewx"        opcode="7c00008e" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Element Word Indexed" />
+  <insn mnem="lvewx128"     opcode="10000083" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Element Word Indexed 128" />
+  <insn mnem="lvsl"         opcode="7c00000c" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector for Shift Left Indexed" />
+  <insn mnem="lvsl128"      opcode="10000003" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector for Shift Left Indexed 128" />
+  <insn mnem="lvsr"         opcode="7c00004c" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector for Shift Right Indexed" />
+  <insn mnem="lvsr128"      opcode="10000043" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector for Shift Right Indexed 128" />
+  <insn mnem="lvx"          opcode="7c0000ce" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Indexed" />
+  <insn mnem="lvx128"       opcode="100000C3" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Indexed 128" />
+  <insn mnem="lvxl"         opcode="7c0002ce" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Indexed LRU" />
+  <insn mnem="lvxl128"      opcode="100002C3" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Indexed LRU 128" />
+  <insn mnem="lvlx"         opcode="7C00040E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed" />
+  <insn mnem="lvlx128"      opcode="10000403" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed 128" />
+  <insn mnem="lvlxl"        opcode="7C00060E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed LRU" />
+  <insn mnem="lvlxl128"     opcode="10000603" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed LRU 128" />
+  <insn mnem="lvrx"         opcode="7C00044E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed" />
+  <insn mnem="lvrx128"      opcode="10000443" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed 128" />
+  <insn mnem="lvrxl"        opcode="7C00064E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed LRU" />
+  <insn mnem="lvrxl128"     opcode="10000643" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed LRU 128" />
+  <insn mnem="lwa"          opcode="e8000002" form="DS"       sub-form="D-A-d"            group="i" desc="Load Word Algebraic" />
+  <insn mnem="lwarx"        opcode="7c000028" form="X"        sub-form="D-A-B"            group="i" desc="Load Word and Reserve Indexed" />
+  <insn mnem="lwaux"        opcode="7c0002ea" form="X"        sub-form="D-A-B"            group="i" desc="Load Word Algebraic with Update Indexed" />
+  <insn mnem="lwax"         opcode="7c0002aa" form="X"        sub-form="D-A-B"            group="i" desc="Load Word Algebraic Indexed" />
+  <insn mnem="lwbrx"        opcode="7c00042c" form="X"        sub-form="D-A-B"            group="i" desc="Load Word Byte-Reverse Indexed" />
+  <insn mnem="lwz"          opcode="80000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Word and Zero" />
+  <insn mnem="lwzu"         opcode="84000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Word and Zero with Update" />
+  <insn mnem="lwzux"        opcode="7c00006e" form="X"        sub-form="D-A-B"            group="i" desc="Load Word and Zero with Update Indexed" />
+  <insn mnem="lwzx"         opcode="7c00002e" form="X"        sub-form="D-A-B"            group="i" desc="Load Word and Zero Indexed" />
+  <insn mnem="mcrf"         opcode="4c000000" form="XL"       sub-form="crfD-crfS-0"      group="i" desc="Move Condition Register Field" />
+  <insn mnem="mcrfs"        opcode="fc000080" form="X"        sub-form="crfD-crfS-0"      group="f" desc="Move to Condition Register from FPSCR" />
+  <insn mnem="mcrxr"        opcode="7c000400" form="X"        sub-form="crfD-0-0"         group="i" desc="Move to Condition Register from XER" />
+  <insn mnem="mfcr"         opcode="7c000026" form="X"        sub-form="D-0-0"            group="i" desc="Move from Condition Register" />
+  <insn mnem="mffsx"        opcode="fc00048e" form="X"        sub-form="D-0-0-Rc"         group="f" desc="Move from FPSCR" />
+  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        sub-form="D-0-0"            group="i" desc="Move from Machine State Register" />
+  <insn mnem="mfspr"        opcode="7c0002a6" form="XFX"      sub-form="D-spr"            group="i" desc="Move from Special-Purpose Register" />
+  <insn mnem="mftb"         opcode="7c0002e6" form="XFX"      sub-form="D-tbr"            group="i" desc="Move from Time Base" />
+  <insn mnem="mfvscr"       opcode="10000604" form="VX"       sub-form="D-0-0"            group="i" desc="Move from VSCR" />
+  <insn mnem="mtcrf"        opcode="7c000120" form="XFX"      sub-form="S-CRM"            group="i" desc="Move to Condition Register Fields" />
+  <insn mnem="mtfsb0x"      opcode="fc00008c" form="X"        sub-form="crbD-0-0-Rc"      group="f" desc="Move to FPSCR Bit 0" />
+  <insn mnem="mtfsb1x"      opcode="fc00004c" form="X"        sub-form="crbD-0-0-Rc"      group="f" desc="Move to FPSCR Bit 1" />
+  <insn mnem="mtfsfx"       opcode="fc00058e" form="XFL"      sub-form="FM-B-Rc"          group="f" desc="Move to FPSCR Fields" />
+  <insn mnem="mtfsfix"      opcode="fc00010c" form="X"        sub-form="crfD-0-IMM-Rc"    group="f" desc="Move to FPSCR Field Immediate" />
+  <insn mnem="mtmsr"        opcode="7c000124" form="X"        sub-form="S-0-0"            group="i" desc="Move to Machine State Register" />
+  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        sub-form="S-0-0"            group="i" desc="Move to Machine State Register Doubleword" />
+  <insn mnem="mtspr"        opcode="7c0003a6" form="XFX"      sub-form="S-spr"            group="i" desc="Move to Special-Purpose Register" />
+  <insn mnem="mtvscr"       opcode="10000644" form="VX"       sub-form="S-0-0"            group="i" desc="Move to VSCR" />
+  <insn mnem="mulhdx"       opcode="7c000092" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Doubleword" />
+  <insn mnem="mulhdux"      opcode="7c000012" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Doubleword Unsigned" />
+  <insn mnem="mulhwx"       opcode="7c000096" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Word" />
+  <insn mnem="mulhwux"      opcode="7c000016" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Word Unsigned" />
+  <insn mnem="mulldx"       opcode="7c0001d2" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Multiply Low Doubleword" />
+  <insn mnem="mulli"        opcode="1c000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Multiply Low Immediate" />
+  <insn mnem="mullwx"       opcode="7c0001d6" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Multiply Low Word" />
+  <insn mnem="nandx"        opcode="7c0003b8" form="X"        sub-form="S-A-B-Rc"         group="i" desc="NAND" />
+  <insn mnem="negx"         opcode="7c0000d0" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Negate" />
+  <insn mnem="norx"         opcode="7c0000f8" form="X"        sub-form="S-A-B-Rc"         group="i" desc="NOR" />
+  <insn mnem="orx"          opcode="7c000378" form="X"        sub-form="S-A-B-Rc"         group="i" desc="OR" />
+  <insn mnem="orcx"         opcode="7c000338" form="X"        sub-form="S-A-B-Rc"         group="i" desc="OR with Complement" />
+  <insn mnem="ori"          opcode="60000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="OR Immediate" />
+  <insn mnem="oris"         opcode="64000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="OR Immediate Shifted" />
+  <insn mnem="rldclx"       opcode="78000010" form="MDS"      sub-form="S-A-B-MB-ME-Rc"   group="i" desc="Rotate Left Doubleword then Clear Left" />
+  <insn mnem="rldcrx"       opcode="78000012" form="MDS"      sub-form="S-A-B-MB-ME-Rc"   group="i" desc="Rotate Left Doubleword then Clear Right" />
+  <insn mnem="rldicx"       opcode="78000008" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Clear" />
+  <insn mnem="rldiclx"      opcode="78000000" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Clear Left" />
+  <insn mnem="rldicrx"      opcode="78000004" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Clear Right" />
+  <insn mnem="rldimix"      opcode="7800000C" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Mask Insert" />
+  <insn mnem="rlwimix"      opcode="50000000" form="M"        sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Word Immediate then Mask Insert" />
+  <insn mnem="rlwinmx"      opcode="54000000" form="M"        sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Word Immediate then AND with Mask" />
+  <insn mnem="rlwnmx"       opcode="5c000000" form="M"        sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Word then AND with Mask" />
+  <insn mnem="sc"           opcode="44000002" form="SC"       sub-form="sc"               group="i" desc="System Call" sync="true" />
+  <insn mnem="sldx"         opcode="7c000036" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Left Doubleword" />
+  <insn mnem="slwx"         opcode="7c000030" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Left Word" />
+  <insn mnem="sradx"        opcode="7c000634" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Algebraic Doubleword" />
+  <insn mnem="sradix"       opcode="7c000674" form="XS"       sub-form="S-A-SH-Rc"        group="i" desc="Shift Right Algebraic Doubleword Immediate" />
+  <insn mnem="srawx"        opcode="7c000630" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Algebraic Word" />
+  <insn mnem="srawix"       opcode="7c000670" form="X"        sub-form="S-A-SH-Rc"        group="i" desc="Shift Right Algebraic Word Immediate" />
+  <insn mnem="srdx"         opcode="7c000436" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Doubleword" />
+  <insn mnem="srwx"         opcode="7c000430" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Word" />
+  <insn mnem="stb"          opcode="98000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Byte" />
+  <insn mnem="stbu"         opcode="9c000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Byte with Update" />
+  <insn mnem="stbux"        opcode="7c0001ee" form="X"        sub-form="S-A-B"            group="i" desc="Store Byte with Update Indexed" />
+  <insn mnem="stbx"         opcode="7c0001ae" form="X"        sub-form="S-A-B"            group="i" desc="Store Byte Indexed" />
+  <insn mnem="std"          opcode="f8000000" form="DS"       sub-form="S-A-d"            group="i" desc="Store Doubleword" />
+  <insn mnem="stdbrx"       opcode="7c000528" form="X"        sub-form="S-A-B"            group="i" desc="Store Doubleword Byte-Reverse Indexed" />
+  <insn mnem="stdcx"        opcode="7c0001ad" form="X"        sub-form="S-A-B-1"          group="i" desc="Store Doubleword Conditional Indexed" />
+  <insn mnem="stdu"         opcode="f8000001" form="DS"       sub-form="S-A-d"            group="i" desc="Store Doubleword with Update" />
+  <insn mnem="stdux"        opcode="7c00016a" form="X"        sub-form="S-A-B"            group="i" desc="Store Doubleword with Update Indexed" />
+  <insn mnem="stdx"         opcode="7c00012a" form="X"        sub-form="S-A-B"            group="i" desc="Store Doubleword Indexed" />
+  <insn mnem="stfd"         opcode="d8000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Double" />
+  <insn mnem="stfdu"        opcode="dc000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Double with Update" />
+  <insn mnem="stfdux"       opcode="7c0005ee" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Double with Update Indexed" />
+  <insn mnem="stfdx"        opcode="7c0005ae" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Double Indexed" />
+  <insn mnem="stfiwx"       opcode="7c0007ae" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point as Integer Word Indexed" />
+  <insn mnem="stfs"         opcode="d0000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Single" />
+  <insn mnem="stfsu"        opcode="d4000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Single with Update" />
+  <insn mnem="stfsux"       opcode="7c00056e" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Single with Update Indexed" />
+  <insn mnem="stfsx"        opcode="7c00052e" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Single Indexed" />
+  <insn mnem="sth"          opcode="b0000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Half Word" />
+  <insn mnem="sthbrx"       opcode="7c00072c" form="X"        sub-form="S-A-B"            group="i" desc="Store Half Word Byte-Reverse Indexed" />
+  <insn mnem="sthu"         opcode="b4000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Half Word with Update" />
+  <insn mnem="sthux"        opcode="7c00036e" form="X"        sub-form="S-A-B"            group="i" desc="Store Half Word with Update Indexed" />
+  <insn mnem="sthx"         opcode="7c00032e" form="X"        sub-form="S-A-B"            group="i" desc="Store Half Word Indexed" />
+  <insn mnem="stmw"         opcode="bc000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Multiple Word" />
+  <insn mnem="stswi"        opcode="7c0005aa" form="X"        sub-form="S-A-NB"           group="i" desc="Store String Word Immediate" />
+  <insn mnem="stswx"        opcode="7c00052a" form="X"        sub-form="S-A-B"            group="i" desc="Store String Word Indexed" />
+  <insn mnem="stvebx"       opcode="7c00010e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Element Byte Indexed" />
+  <insn mnem="stvehx"       opcode="7c00014e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Element Half Word Indexed" />
+  <insn mnem="stvewx"       opcode="7c00018e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Element Word Indexed" />
+  <insn mnem="stvewx128"    opcode="10000183" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Element Word Indexed 128" />
+  <insn mnem="stvx"         opcode="7c0001ce" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Indexed" />
+  <insn mnem="stvx128"      opcode="100001c3" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Indexed 128" />
+  <insn mnem="stvxl"        opcode="7c0003ce" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Indexed LRU" />
+  <insn mnem="stvxl128"     opcode="100003c3" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Indexed LRU 128" />
+  <insn mnem="stvlx"        opcode="7c00050e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed" />
+  <insn mnem="stvlx128"     opcode="10000503" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed 128" />
+  <insn mnem="stvlxl"       opcode="7c00070e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed LRU" />
+  <insn mnem="stvlxl128"    opcode="10000703" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed LRU 128" />
+  <insn mnem="stvrx"        opcode="7c00054e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed" />
+  <insn mnem="stvrx128"     opcode="10000543" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed 128" />
+  <insn mnem="stvrxl"       opcode="7c00074e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed LRU" />
+  <insn mnem="stvrxl128"    opcode="10000743" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed LRU 128" />
+  <insn mnem="stw"          opcode="90000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Word" />
+  <insn mnem="stwbrx"       opcode="7c00052c" form="X"        sub-form="S-A-B"            group="i" desc="Store Word Byte-Reverse Indexed" />
+  <insn mnem="stwcx"        opcode="7c00012d" form="X"        sub-form="S-A-B-1"          group="i" desc="Store Word Conditional Indexed" />
+  <insn mnem="stwu"         opcode="94000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Word with Update" />
+  <insn mnem="stwux"        opcode="7c00016e" form="X"        sub-form="S-A-B"            group="i" desc="Store Word with Update Indexed" />
+  <insn mnem="stwx"         opcode="7c00012e" form="X"        sub-form="S-A-B"            group="i" desc="Store Word Indexed" />
+  <insn mnem="subfx"        opcode="7c000050" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Subtract From" />
+  <insn mnem="subfcx"       opcode="7c000010" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Subtract From Carrying" />
+  <insn mnem="subfex"       opcode="7c000110" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Subtract From Extended" />
+  <insn mnem="subficx"      opcode="20000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Subtract From Immediate Carrying" />
+  <insn mnem="subfmex"      opcode="7c0001d0" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Subtract From Minus One Extended" />
+  <insn mnem="subfzex"      opcode="7c000190" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Subtract From Zero Extended" />
+  <insn mnem="sync"         opcode="7c0004ac" form="X"        sub-form="0-0-0"            group="i" desc="Synchronize" />
+  <insn mnem="td"           opcode="7c000088" form="X"        sub-form="TO-A-B"           group="i" desc="Trap Doubleword" />
+  <insn mnem="tdi"          opcode="08000000" form="D"        sub-form="TO-A-SIMM"        group="i" desc="Trap Doubleword Immediate" />
+  <insn mnem="tw"           opcode="7c000008" form="X"        sub-form="TO-A-B"           group="i" desc="Trap Word" />
+  <insn mnem="twi"          opcode="0c000000" form="D"        sub-form="TO-A-SIMM"        group="i" desc="Trap Word Immediate" />
+  <insn mnem="xorx"         opcode="7c000278" form="X"        sub-form="S-A-B-Rc"         group="i" desc="XOR" />
+  <insn mnem="xori"         opcode="68000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="XOR Immediate" />
+  <insn mnem="xoris"        opcode="6c000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="XOR Immediate Shifted" />
 </ppc-isa>
 <ppc-isa name="vmx">
-  <insn mnem="vaddcuw" opcode="10000180" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Carryout Unsigned Word" />
-  <insn mnem="vaddfp" opcode="1000000A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Floating Point" />
-  <insn mnem="vaddsbs" opcode="10000300" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Signed Byte Saturate" />
-  <insn mnem="vaddshs" opcode="10000340" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Signed Half Word Saturate" />
-  <insn mnem="vaddsws" opcode="10000380" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Signed Word Saturate" />
-  <insn mnem="vaddubm" opcode="10000000" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Unsigned Byte Modulo" />
-  <insn mnem="vaddubs" opcode="10000200" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Unsigned Byte Saturate" />
-  <insn mnem="vadduhm" opcode="10000040" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Unsigned Half Word Modulo" />
-  <insn mnem="vadduhs" opcode="10000240" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Unsigned Half Word Saturate" />
-  <insn mnem="vadduwm" opcode="10000080" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Unsigned Word Modulo" />
-  <insn mnem="vadduws" opcode="10000280" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Add Unsigned Word Saturate" />
-  <insn mnem="vand" opcode="10000404" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Logical AND" />
-  <insn mnem="vandc" opcode="10000444" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Logical AND with Complement" />
-  <insn mnem="vavgsb" opcode="10000502" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Average Signed Byte" />
-  <insn mnem="vavgsh" opcode="10000542" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Average Signed Half Word" />
-  <insn mnem="vavgsw" opcode="10000582" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Average Signed Word" />
-  <insn mnem="vavgub" opcode="10000402" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Average Unsigned Byte" />
-  <insn mnem="vavguh" opcode="10000442" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Average Unsigned Half Word" />
-  <insn mnem="vavguw" opcode="10000482" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Average Unsigned Word" />
-  <insn mnem="vcfsx" opcode="1000034A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Convert from Signed Fixed-Point Word" />
-  <insn mnem="vcfux" opcode="1000030A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Convert from Unsigned Fixed-Point Word" />
-  <insn mnem="vctsxs" opcode="100003CA" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Convert to Signed Fixed-Point Word Saturate" />
-  <insn mnem="vctuxs" opcode="1000038A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Convert to Unsigned Fixed-Point Word Saturate" />
-  <insn mnem="vexptefp" opcode="1000018A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector 2 Raised to the Exponent Estimate Floating Point" />
-  <insn mnem="vlogefp" opcode="100001CA" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Log2 Estimate Floating Point" />
-  <insn mnem="vmaxfp" opcode="1000040A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Floating Point" />
-  <insn mnem="vmaxsb" opcode="10000102" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Signed Byte" />
-  <insn mnem="vmaxsh" opcode="10000142" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Signed Half Word" />
-  <insn mnem="vmaxsw" opcode="10000182" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Signed Word" />
-  <insn mnem="vmaxub" opcode="10000002" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Unsigned Byte" />
-  <insn mnem="vmaxuh" opcode="10000042" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Unsigned Half Word" />
-  <insn mnem="vmaxuw" opcode="10000082" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Maximum Unsigned Word" />
-  <insn mnem="vminfp" opcode="1000044A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Floating Point" />
-  <insn mnem="vminsb" opcode="10000302" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Signed Byte" />
-  <insn mnem="vminsh" opcode="10000342" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Signed Half Word" />
-  <insn mnem="vminsw" opcode="10000382" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Signed Word" />
-  <insn mnem="vminub" opcode="10000202" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Unsigned Byte" />
-  <insn mnem="vminuh" opcode="10000242" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Unsigned Half Word" />
-  <insn mnem="vminuw" opcode="10000282" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Minimum Unsigned Word" />
-  <insn mnem="vmrghb" opcode="1000000C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Merge High Byte" />
-  <insn mnem="vmrghh" opcode="1000004C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Merge High Half Word" />
-  <insn mnem="vmrghw" opcode="1000008C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Merge High Word" />
-  <insn mnem="vmrglb" opcode="1000010C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Merge Low Byte" />
-  <insn mnem="vmrglh" opcode="1000014C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Merge Low Half Word" />
-  <insn mnem="vmrglw" opcode="1000018C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Merge Low Word" />
-  <insn mnem="vmulesb" opcode="10000308" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Even Signed Byte" />
-  <insn mnem="vmulesh" opcode="10000348" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Even Signed Half Word" />
-  <insn mnem="vmuleub" opcode="10000208" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Even Unsigned Byte" />
-  <insn mnem="vmuleuh" opcode="10000248" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Even Unsigned Half Word" />
-  <insn mnem="vmulosb" opcode="10000108" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Odd Signed Byte" />
-  <insn mnem="vmulosh" opcode="10000148" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Odd Signed Half Word" />
-  <insn mnem="vmuloub" opcode="10000008" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Odd Unsigned Byte" />
-  <insn mnem="vmulouh" opcode="10000048" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Multiply Odd Unsigned Half Word" />
-  <insn mnem="vnor" opcode="10000504" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Logical NOR" />
-  <insn mnem="vor" opcode="10000484" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Logical OR" />
-  <insn mnem="vpkpx" opcode="1000030E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Pixel" />
-  <insn mnem="vpkshss" opcode="1000018E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Signed Half Word Signed Saturate" />
-  <insn mnem="vpkshus" opcode="1000010E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Signed Half Word Unsigned Saturate" />
-  <insn mnem="vpkswss" opcode="100001CE" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Signed Word Signed Saturate" />
-  <insn mnem="vpkswus" opcode="1000014E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Signed Word Unsigned Saturate" />
-  <insn mnem="vpkuhum" opcode="1000000E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Unsigned Half Word Unsigned Modulo" />
-  <insn mnem="vpkuhus" opcode="1000008E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Unsigned Half Word Unsigned Saturate" />
-  <insn mnem="vpkuwum" opcode="1000004E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Unsigned Word Unsigned Modulo" />
-  <insn mnem="vpkuwus" opcode="100000CE" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Pack Unsigned Word Unsigned Saturate" />
-  <insn mnem="vrefp" opcode="1000010A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Reciprocal Estimate Floating Point" />
-  <insn mnem="vrfim" opcode="100002CA" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Round to Floating-Point Integer toward -Infinity" />
-  <insn mnem="vrfin" opcode="1000020A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Round to Floating-Point Integer Nearest" />
-  <insn mnem="vrfip" opcode="1000028A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Round to Floating-Point Integer toward +Infinity" />
-  <insn mnem="vrfiz" opcode="1000024A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Round to Floating-Point Integer toward Zero" />
-  <insn mnem="vrlb" opcode="10000004" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Rotate Left Integer Byte" />
-  <insn mnem="vrlh" opcode="10000044" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Rotate Left Integer Half Word" />
-  <insn mnem="vrlw" opcode="10000084" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Rotate Left Integer Word" />
-  <insn mnem="vrsqrtefp" opcode="1000014A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Reciprocal Square Root Estimate Floating Point" />
-  <insn mnem="vsl" opcode="100001C4" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Left" />
-  <insn mnem="vslb" opcode="10000104" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Left Integer Byte" />
-  <insn mnem="vslh" opcode="10000144" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Left Integer Half Word" />
-  <insn mnem="vslo" opcode="1000040C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Left by Octet" />
-  <insn mnem="vslw" opcode="10000184" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Left Integer Word" />
-  <insn mnem="vspltb" opcode="1000020C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Splat Byte" />
-  <insn mnem="vsplth" opcode="1000024C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Splat Half Word" />
-  <insn mnem="vspltisb" opcode="1000030C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Splat Immediate Signed Byte" />
-  <insn mnem="vspltish" opcode="1000034C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Splat Immediate Signed Half Word" />
-  <insn mnem="vspltisw" opcode="1000038C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Splat Immediate Signed Word" />
-  <insn mnem="vspltw" opcode="1000028C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Splat Word" />
-  <insn mnem="vsr" opcode="100002C4" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right" />
-  <insn mnem="vsrab" opcode="10000304" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Algebraic Byte" />
-  <insn mnem="vsrah" opcode="10000344" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Algebraic Half Word" />
-  <insn mnem="vsraw" opcode="10000384" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Algebraic Word" />
-  <insn mnem="vsrb" opcode="10000204" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Byte" />
-  <insn mnem="vsrh" opcode="10000244" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Half Word" />
-  <insn mnem="vsro" opcode="1000044C" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Octet" />
-  <insn mnem="vsrw" opcode="10000284" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Shift Right Word" />
-  <insn mnem="vsubcuw" opcode="10000580" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Carryout Unsigned Word" />
-  <insn mnem="vsubfp" opcode="1000004A" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Floating Point" />
-  <insn mnem="vsubsbs" opcode="10000700" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Signed Byte Saturate" />
-  <insn mnem="vsubshs" opcode="10000740" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Signed Half Word Saturate" />
-  <insn mnem="vsubsws" opcode="10000780" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Signed Word Saturate" />
-  <insn mnem="vsububm" opcode="10000400" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Unsigned Byte Modulo" />
-  <insn mnem="vsububs" opcode="10000600" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Unsigned Byte Saturate" />
-  <insn mnem="vsubuhm" opcode="10000440" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Unsigned Half Word Modulo" />
-  <insn mnem="vsubuhs" opcode="10000640" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Unsigned Half Word Saturate" />
-  <insn mnem="vsubuwm" opcode="10000480" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Unsigned Word Modulo" />
-  <insn mnem="vsubuws" opcode="10000680" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Subtract Unsigned Word Saturate" />
-  <insn mnem="vsumsws" opcode="10000788" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Sum Across Signed Word Saturate" />
-  <insn mnem="vsum2sws" opcode="10000688" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Sum Across Partial (1/2) Signed Word Saturate" />
-  <insn mnem="vsum4sbs" opcode="10000708" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Sum Across Partial (1/4) Signed Byte Saturate" />
-  <insn mnem="vsum4shs" opcode="10000648" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Sum Across Partial (1/4) Signed Half Word Saturate" />
-  <insn mnem="vsum4ubs" opcode="10000608" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Sum Across Partial (1/4) Unsigned Byte Saturate" />
-  <insn mnem="vupkhpx" opcode="1000034E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Unpack High Pixel" />
-  <insn mnem="vupkhsb" opcode="1000020E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Unpack High Signed Byte" />
-  <insn mnem="vupkhsh" opcode="1000024E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Unpack High Signed Half Word" />
-  <insn mnem="vupklpx" opcode="100003CE" form="VX" group="vmx" sub-form="D-A-B"  desc="Vector Unpack Low Pixel" />
-  <insn mnem="vupklsb" opcode="1000028E" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Unpack Low Signed Byte" />
-  <insn mnem="vupklsh" opcode="100002CE" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Unpack Low Signed Half Word" />
-  <insn mnem="vxor" opcode="100004C4" form="VX" group="vmx" sub-form="D-A-B" desc="Vector Logical XOR" />
+  <insn mnem="vaddcuw"      opcode="10000180" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Carryout Unsigned Word" />
+  <insn mnem="vaddfp"       opcode="1000000A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Floating Point" />
+  <insn mnem="vaddsbs"      opcode="10000300" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Signed Byte Saturate" />
+  <insn mnem="vaddshs"      opcode="10000340" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Signed Half Word Saturate" />
+  <insn mnem="vaddsws"      opcode="10000380" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Signed Word Saturate" />
+  <insn mnem="vaddubm"      opcode="10000000" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Byte Modulo" />
+  <insn mnem="vaddubs"      opcode="10000200" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Byte Saturate" />
+  <insn mnem="vadduhm"      opcode="10000040" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Half Word Modulo" />
+  <insn mnem="vadduhs"      opcode="10000240" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Half Word Saturate" />
+  <insn mnem="vadduwm"      opcode="10000080" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Word Modulo" />
+  <insn mnem="vadduws"      opcode="10000280" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Word Saturate" />
+  <insn mnem="vand"         opcode="10000404" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical AND" />
+  <insn mnem="vandc"        opcode="10000444" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical AND with Complement" />
+  <insn mnem="vavgsb"       opcode="10000502" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Signed Byte" />
+  <insn mnem="vavgsh"       opcode="10000542" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Signed Half Word" />
+  <insn mnem="vavgsw"       opcode="10000582" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Signed Word" />
+  <insn mnem="vavgub"       opcode="10000402" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Unsigned Byte" />
+  <insn mnem="vavguh"       opcode="10000442" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Unsigned Half Word" />
+  <insn mnem="vavguw"       opcode="10000482" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Unsigned Word" />
+  <insn mnem="vcfsx"        opcode="1000034A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert from Signed Fixed-Point Word" />
+  <insn mnem="vcfux"        opcode="1000030A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert from Unsigned Fixed-Point Word" />
+  <insn mnem="vctsxs"       opcode="100003CA" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert to Signed Fixed-Point Word Saturate" />
+  <insn mnem="vctuxs"       opcode="1000038A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert to Unsigned Fixed-Point Word Saturate" />
+  <insn mnem="vexptefp"     opcode="1000018A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector 2 Raised to the Exponent Estimate Floating Point" />
+  <insn mnem="vlogefp"      opcode="100001CA" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Log2 Estimate Floating Point" />
+  <insn mnem="vmaxfp"       opcode="1000040A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Floating Point" />
+  <insn mnem="vmaxsb"       opcode="10000102" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Signed Byte" />
+  <insn mnem="vmaxsh"       opcode="10000142" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Signed Half Word" />
+  <insn mnem="vmaxsw"       opcode="10000182" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Signed Word" />
+  <insn mnem="vmaxub"       opcode="10000002" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Unsigned Byte" />
+  <insn mnem="vmaxuh"       opcode="10000042" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Unsigned Half Word" />
+  <insn mnem="vmaxuw"       opcode="10000082" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Unsigned Word" />
+  <insn mnem="vminfp"       opcode="1000044A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Floating Point" />
+  <insn mnem="vminsb"       opcode="10000302" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Signed Byte" />
+  <insn mnem="vminsh"       opcode="10000342" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Signed Half Word" />
+  <insn mnem="vminsw"       opcode="10000382" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Signed Word" />
+  <insn mnem="vminub"       opcode="10000202" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Unsigned Byte" />
+  <insn mnem="vminuh"       opcode="10000242" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Unsigned Half Word" />
+  <insn mnem="vminuw"       opcode="10000282" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Unsigned Word" />
+  <insn mnem="vmrghb"       opcode="1000000C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge High Byte" />
+  <insn mnem="vmrghh"       opcode="1000004C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge High Half Word" />
+  <insn mnem="vmrghw"       opcode="1000008C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge High Word" />
+  <insn mnem="vmrglb"       opcode="1000010C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge Low Byte" />
+  <insn mnem="vmrglh"       opcode="1000014C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge Low Half Word" />
+  <insn mnem="vmrglw"       opcode="1000018C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge Low Word" />
+  <insn mnem="vmulesb"      opcode="10000308" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Signed Byte" />
+  <insn mnem="vmulesh"      opcode="10000348" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Signed Half Word" />
+  <insn mnem="vmuleub"      opcode="10000208" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Unsigned Byte" />
+  <insn mnem="vmuleuh"      opcode="10000248" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Unsigned Half Word" />
+  <insn mnem="vmulosb"      opcode="10000108" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Signed Byte" />
+  <insn mnem="vmulosh"      opcode="10000148" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Signed Half Word" />
+  <insn mnem="vmuloub"      opcode="10000008" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Unsigned Byte" />
+  <insn mnem="vmulouh"      opcode="10000048" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Unsigned Half Word" />
+  <insn mnem="vnor"         opcode="10000504" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical NOR" />
+  <insn mnem="vor"          opcode="10000484" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical OR" />
+  <insn mnem="vpkpx"        opcode="1000030E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Pixel" />
+  <insn mnem="vpkshss"      opcode="1000018E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Half Word Signed Saturate" />
+  <insn mnem="vpkshus"      opcode="1000010E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Half Word Unsigned Saturate" />
+  <insn mnem="vpkswss"      opcode="100001CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Word Signed Saturate" />
+  <insn mnem="vpkswus"      opcode="1000014E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Word Unsigned Saturate" />
+  <insn mnem="vpkuhum"      opcode="1000000E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Half Word Unsigned Modulo" />
+  <insn mnem="vpkuhus"      opcode="1000008E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Half Word Unsigned Saturate" />
+  <insn mnem="vpkuwum"      opcode="1000004E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Word Unsigned Modulo" />
+  <insn mnem="vpkuwus"      opcode="100000CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Word Unsigned Saturate" />
+  <insn mnem="vrefp"        opcode="1000010A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Reciprocal Estimate Floating Point" />
+  <insn mnem="vrfim"        opcode="100002CA" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer toward -Infinity" />
+  <insn mnem="vrfin"        opcode="1000020A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer Nearest" />
+  <insn mnem="vrfip"        opcode="1000028A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer toward +Infinity" />
+  <insn mnem="vrfiz"        opcode="1000024A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer toward Zero" />
+  <insn mnem="vrlb"         opcode="10000004" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Rotate Left Integer Byte" />
+  <insn mnem="vrlh"         opcode="10000044" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Rotate Left Integer Half Word" />
+  <insn mnem="vrlw"         opcode="10000084" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Rotate Left Integer Word" />
+  <insn mnem="vrsqrtefp"    opcode="1000014A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Reciprocal Square Root Estimate Floating Point" />
+  <insn mnem="vsl"          opcode="100001C4" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left" />
+  <insn mnem="vslb"         opcode="10000104" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left Integer Byte" />
+  <insn mnem="vslh"         opcode="10000144" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left Integer Half Word" />
+  <insn mnem="vslo"         opcode="1000040C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left by Octet" />
+  <insn mnem="vslw"         opcode="10000184" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left Integer Word" />
+  <insn mnem="vspltb"       opcode="1000020C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Byte" />
+  <insn mnem="vsplth"       opcode="1000024C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Half Word" />
+  <insn mnem="vspltisb"     opcode="1000030C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Immediate Signed Byte" />
+  <insn mnem="vspltish"     opcode="1000034C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Immediate Signed Half Word" />
+  <insn mnem="vspltisw"     opcode="1000038C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Immediate Signed Word" />
+  <insn mnem="vspltw"       opcode="1000028C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Word" />
+  <insn mnem="vsr"          opcode="100002C4" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right" />
+  <insn mnem="vsrab"        opcode="10000304" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Algebraic Byte" />
+  <insn mnem="vsrah"        opcode="10000344" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Algebraic Half Word" />
+  <insn mnem="vsraw"        opcode="10000384" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Algebraic Word" />
+  <insn mnem="vsrb"         opcode="10000204" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Byte" />
+  <insn mnem="vsrh"         opcode="10000244" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Half Word" />
+  <insn mnem="vsro"         opcode="1000044C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Octet" />
+  <insn mnem="vsrw"         opcode="10000284" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Word" />
+  <insn mnem="vsubcuw"      opcode="10000580" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Carryout Unsigned Word" />
+  <insn mnem="vsubfp"       opcode="1000004A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Floating Point" />
+  <insn mnem="vsubsbs"      opcode="10000700" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Signed Byte Saturate" />
+  <insn mnem="vsubshs"      opcode="10000740" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Signed Half Word Saturate" />
+  <insn mnem="vsubsws"      opcode="10000780" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Signed Word Saturate" />
+  <insn mnem="vsububm"      opcode="10000400" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Byte Modulo" />
+  <insn mnem="vsububs"      opcode="10000600" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Byte Saturate" />
+  <insn mnem="vsubuhm"      opcode="10000440" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Half Word Modulo" />
+  <insn mnem="vsubuhs"      opcode="10000640" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Half Word Saturate" />
+  <insn mnem="vsubuwm"      opcode="10000480" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Word Modulo" />
+  <insn mnem="vsubuws"      opcode="10000680" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Word Saturate" />
+  <insn mnem="vsumsws"      opcode="10000788" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Signed Word Saturate" />
+  <insn mnem="vsum2sws"     opcode="10000688" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/2) Signed Word Saturate" />
+  <insn mnem="vsum4sbs"     opcode="10000708" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/4) Signed Byte Saturate" />
+  <insn mnem="vsum4shs"     opcode="10000648" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/4) Signed Half Word Saturate" />
+  <insn mnem="vsum4ubs"     opcode="10000608" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/4) Unsigned Byte Saturate" />
+  <insn mnem="vupkhpx"      opcode="1000034E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack High Pixel" />
+  <insn mnem="vupkhsb"      opcode="1000020E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack High Signed Byte" />
+  <insn mnem="vupkhsh"      opcode="1000024E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack High Signed Half Word" />
+  <insn mnem="vupklpx"      opcode="100003CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack Low Pixel" />
+  <insn mnem="vupklsb"      opcode="1000028E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack Low Signed Byte" />
+  <insn mnem="vupklsh"      opcode="100002CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack Low Signed Half Word" />
+  <insn mnem="vxor"         opcode="100004C4" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical XOR" />
 
-  <insn mnem="vcmpbfp" opcode="100003C6" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Bounds Floating Point" />
-  <insn mnem="vcmpeqfp" opcode="100000C6" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Equal-to Floating Point" />
-  <insn mnem="vcmpequb" opcode="10000006" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Equal-to Unsigned Byte" />
-  <insn mnem="vcmpequh" opcode="10000046" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Equal-to Unsigned Half Word" />
-  <insn mnem="vcmpequw" opcode="10000086" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Equal-to Unsigned Word" />
-  <insn mnem="vcmpgefp" opcode="100001C6" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than-or-Equal-to Floating Point" />
-  <insn mnem="vcmpgtfp" opcode="100002C6" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Floating Point" />
-  <insn mnem="vcmpgtsb" opcode="10000306" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Signed Byte" />
-  <insn mnem="vcmpgtsh" opcode="10000346" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Signed Half Word" />
-  <insn mnem="vcmpgtsw" opcode="10000386" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Signed Word" />
-  <insn mnem="vcmpgtub" opcode="10000206" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Unsigned Byte" />
-  <insn mnem="vcmpgtuh" opcode="10000246" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Unsigned Half Word" />
-  <insn mnem="vcmpgtuw" opcode="10000286" form="VC" group="vmx" sub-form="D-A-B" desc="Vector Compare Greater-Than Unsigned Word" />
-  <insn mnem="vmaddfp" opcode="1000002E" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Add Floating Point" />
-  <insn mnem="vmhaddshs" opcode="10000020" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-High and Add Signed Signed Half Word Saturate" />
-  <insn mnem="vmhraddshs" opcode="10000021" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-High Round and Add Signed Signed Half Word Saturate" />
-  <insn mnem="vmladduhm" opcode="10000022" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Low and Add Unsigned Half Word Modulo" />
-  <insn mnem="vmsummbm" opcode="10000025" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Sum Mixed-Sign Byte Modulo" />
-  <insn mnem="vmsumshm" opcode="10000028" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Sum Signed Half Word Modulo" />
-  <insn mnem="vmsumshs" opcode="10000029" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Sum Signed Half Word Saturate" />
-  <insn mnem="vmsumubm" opcode="10000024" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Sum Unsigned Byte Modulo" />
-  <insn mnem="vmsumuhm" opcode="10000026" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Sum Unsigned Half Word Modulo" />
-  <insn mnem="vmsumuhs" opcode="10000027" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Multiply-Sum Unsigned Half Word Saturate" />
-  <insn mnem="vnmsubfp" opcode="1000002F" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Negative Multiply-Subtract Floating Point" />
-  <insn mnem="vperm" opcode="1000002B" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Permute" />
-  <insn mnem="vsel" opcode="1000002A" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Conditional Select" />
-  <insn mnem="vsldoi" opcode="1000002C" form="VA" group="vmx" sub-form="D-A-B-C" desc="Vector Shift Left Double by Octet Immediate" />
-  <insn mnem="vsldoi128" opcode="10000010" form="VX128_5" group="vmx" sub-form="D-A-B-I" desc="Vector128 Shift Left Double by Octet Immediate" />
-  <insn mnem="vperm128" opcode="14000000" form="VX128_2" group="vmx" sub-form="D-A-B-C" desc="Vector128 Permute" />
-  <insn mnem="vaddfp128" opcode="14000010" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Add Floating Point" />
-  <insn mnem="vsubfp128" opcode="14000050" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Subtract Floating Point" />
-  <insn mnem="vmulfp128" opcode="14000090" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Multiply Floating-Point" />
-  <insn mnem="vmaddfp128" opcode="140000D0" form="VX128" group="vmx" sub-form="D-A-D-B" desc="Vector128 Multiply Add Floating Point" />
-  <insn mnem="vmaddcfp128" opcode="14000110" form="VX128" group="vmx" sub-form="D-A-D-B" desc="Vector128 Multiply Add Floating Point" />
-  <insn mnem="vnmsubfp128" opcode="14000150" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Negative Multiply-Subtract Floating Point" />
-  <insn mnem="vmsum3fp128" opcode="14000190" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Multiply Sum 3-way Floating Point" />
-  <insn mnem="vmsum4fp128" opcode="140001D0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Multiply Sum 4-way Floating-Point" />
-  <insn mnem="vpkshss128" opcode="14000200" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Signed Half Word Signed Saturate" />
-  <insn mnem="vand128" opcode="14000210" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Logical AND" />
-  <insn mnem="vpkshus128" opcode="14000240" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Signed Half Word Unsigned Saturate" />
-  <insn mnem="vandc128" opcode="14000250" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Logical AND with Complement" />
-  <insn mnem="vpkswss128" opcode="14000280" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Signed Word Signed Saturate" />
-  <insn mnem="vnor128" opcode="14000290" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Logical NOR" />
-  <insn mnem="vpkswus128" opcode="140002C0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Signed Word Unsigned Saturate" />
-  <insn mnem="vor128" opcode="140002D0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Logical OR" />
-  <insn mnem="vpkuhum128" opcode="14000300" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Unsigned Half Word Unsigned Modulo" />
-  <insn mnem="vxor128" opcode="14000310" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Logical XOR" />
-  <insn mnem="vpkuhus128" opcode="14000340" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Unsigned Half Word Unsigned Saturate" />
-  <insn mnem="vsel128" opcode="14000350" form="VX128" group="vmx" sub-form="D-A-B-D" desc="Vector128 Conditional Select" />
-  <insn mnem="vpkuwum128" opcode="14000380" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Unsigned Word Unsigned Modulo" />
-  <insn mnem="vslo128" opcode="14000390" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Shift Left Octet" />
-  <insn mnem="vpkuwus128" opcode="140003C0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Pack Unsigned Word Unsigned Saturate" />
-  <insn mnem="vsro128" opcode="140003D0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Shift Right Octet" />
-  <insn mnem="vpermwi128" opcode="18000210" form="VX128_P" group="vmx" sub-form="D-A-B-C" desc="Vector128 Permutate Word Immediate" />
-  <insn mnem="vcfpsxws128" opcode="18000230" form="VX128_3" group="vmx" sub-form="D-B-SIMM" desc="Vector128 Convert From Floating-Point to Signed Fixed-Point Word Saturate" />
-  <insn mnem="vcfpuxws128" opcode="18000270" form="VX128_3" group="vmx" sub-form="D-B-UIMM" desc="Vector128 Convert From Floating-Point to Unsigned Fixed-Point Word Saturate" />
-  <insn mnem="vcsxwfp128" opcode="180002B0" form="VX128_3" group="vmx" sub-form="D-B-SIMM" desc="Vector128 Convert From Signed Fixed-Point Word to Floating-Point" />
-  <insn mnem="vcuxwfp128" opcode="180002F0" form="VX128_3" group="vmx" sub-form="D-B-SIMM" desc="Vector128 Convert From Unsigned Fixed-Point Word to Floating-Point" />
-  <insn mnem="vrfim128" opcode="18000330" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Round to Floating-Point Integer toward -Infinity" />
-  <insn mnem="vrfin128" opcode="18000370" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Round to Floating-Point Integer Nearest" />
-  <insn mnem="vrfip128" opcode="180003B0" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Round to Floating-Point Integer toward +Infinity" />
-  <insn mnem="vrfiz128" opcode="180003F0" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Round to Floating-Point Integer toward Zero" />
-  <insn mnem="vpkd3d128" opcode="18000610" form="VX128_4" group="vmx" sub-form="D-B" desc="Vector128 Pack D3Dtype, Rotate Left Immediate and Mask Insert" />
-  <insn mnem="vrefp128" opcode="18000630" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Reciprocal Estimate Floating Point" />
-  <insn mnem="vrsqrtefp128" opcode="18000670" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Reciprocal Square Root Estimate Floating Point" />
-  <insn mnem="vexptefp128" opcode="180006B0" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Log2 Estimate Floating Point" />
-  <insn mnem="vlogefp128" opcode="180006F0" form="VX128_3" group="vmx" sub-form="D-B" desc="Vector128 Log2 Estimate Floating Point" />
-  <insn mnem="vrlimi128" opcode="18000710" form="VX128_4" group="vmx" sub-form="D-B-UIMM" desc="Vector128 Rotate Left Immediate and Mask Insert" />
-  <insn mnem="vspltw128" opcode="18000730" form="VX128_3" group="vmx" sub-form="D-B-SIMM" desc="Vector128 Splat Word" />
-  <insn mnem="vspltisw128" opcode="18000770" form="VX128_3" group="vmx" sub-form="D-B-SIMM" desc="Vector128 Splat Immediate Signed Word" />
-  <insn mnem="vupkd3d128" opcode="180007F0" form="VX128_3" group="vmx" sub-form="D-B-SIMM" desc="Vector128 Unpack D3Dtype" />
-  <insn mnem="vcmpeqfp128" opcode="18000000" form="VX128_R" group="vmx" sub-form="D-A-B" desc="Vector128 Compare Equal-to Floating Point" />
-  <insn mnem="vrlw128" opcode="18000050" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Rotate Left Word" />
-  <insn mnem="vcmpgefp128" opcode="18000080" form="VX128_R" group="vmx" sub-form="D-A-B" desc="Vector128 Compare Greater-Than-or-Equal-to Floating Point" />
-  <insn mnem="vslw128" opcode="180000D0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Shift Left Integer Word" />
-  <insn mnem="vcmpgtfp128" opcode="18000100" form="VX128_R" group="vmx" sub-form="D-A-B" desc="Vector128 Compare Greater-Than Floating-Point" />
-  <insn mnem="vsraw128" opcode="18000150" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Shift Right Arithmetic Word" />
-  <insn mnem="vcmpbfp128" opcode="18000180" form="VX128_R" group="vmx" sub-form="D-A-B" desc="Vector128 Compare Bounds Floating Point" />
-  <insn mnem="vsrw128" opcode="180001D0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Shift Right Word" />
-  <insn mnem="vcmpequw128" opcode="18000200" form="VX128_R" group="vmx" sub-form="D-A-B" desc="Vector128 Compare Equal-to Unsigned Word" />
-  <insn mnem="vmaxfp128" opcode="18000280" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Maximum Floating Point" />
-  <insn mnem="vminfp128" opcode="180002C0" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Minimum Floating Point" />
-  <insn mnem="vmrghw128" opcode="18000300" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Merge High Word" />
-  <insn mnem="vmrglw128" opcode="18000340" form="VX128" group="vmx" sub-form="D-A-B" desc="Vector128 Merge Low Word" />
-  <insn mnem="vupkhsb128" opcode="18000380" form="VX128" group="vmx" sub-form="D-B" desc="Vector128 Unpack High Signed Byte" />
-  <insn mnem="vupklsb128" opcode="180003C0" form="VX128" group="vmx" sub-form="D-B" desc="Vector128 Unpack Low Signed Byte" />
+  <insn mnem="vcmpbfp"      opcode="100003C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Bounds Floating Point" />
+  <insn mnem="vcmpeqfp"     opcode="100000C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Floating Point" />
+  <insn mnem="vcmpequb"     opcode="10000006" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Unsigned Byte" />
+  <insn mnem="vcmpequh"     opcode="10000046" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Unsigned Half Word" />
+  <insn mnem="vcmpequw"     opcode="10000086" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Unsigned Word" />
+  <insn mnem="vcmpgefp"     opcode="100001C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than-or-Equal-to Floating Point" />
+  <insn mnem="vcmpgtfp"     opcode="100002C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Floating Point" />
+  <insn mnem="vcmpgtsb"     opcode="10000306" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Signed Byte" />
+  <insn mnem="vcmpgtsh"     opcode="10000346" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Signed Half Word" />
+  <insn mnem="vcmpgtsw"     opcode="10000386" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Signed Word" />
+  <insn mnem="vcmpgtub"     opcode="10000206" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Unsigned Byte" />
+  <insn mnem="vcmpgtuh"     opcode="10000246" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Unsigned Half Word" />
+  <insn mnem="vcmpgtuw"     opcode="10000286" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Unsigned Word" />
+  <insn mnem="vmaddfp"      opcode="1000002E" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Add Floating Point" />
+  <insn mnem="vmhaddshs"    opcode="10000020" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-High and Add Signed Signed Half Word Saturate" />
+  <insn mnem="vmhraddshs"   opcode="10000021" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-High Round and Add Signed Signed Half Word Saturate" />
+  <insn mnem="vmladduhm"    opcode="10000022" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Low and Add Unsigned Half Word Modulo" />
+  <insn mnem="vmsummbm"     opcode="10000025" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Mixed-Sign Byte Modulo" />
+  <insn mnem="vmsumshm"     opcode="10000028" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Signed Half Word Modulo" />
+  <insn mnem="vmsumshs"     opcode="10000029" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Signed Half Word Saturate" />
+  <insn mnem="vmsumubm"     opcode="10000024" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Unsigned Byte Modulo" />
+  <insn mnem="vmsumuhm"     opcode="10000026" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Unsigned Half Word Modulo" />
+  <insn mnem="vmsumuhs"     opcode="10000027" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Unsigned Half Word Saturate" />
+  <insn mnem="vnmsubfp"     opcode="1000002F" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Negative Multiply-Subtract Floating Point" />
+  <insn mnem="vperm"        opcode="1000002B" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Permute" />
+  <insn mnem="vsel"         opcode="1000002A" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Conditional Select" />
+  <insn mnem="vsldoi"       opcode="1000002C" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Shift Left Double by Octet Immediate" />
+  <insn mnem="vsldoi128"    opcode="10000010" form="VX128_5"  sub-form="D-A-B-I"          group="v" desc="Vector128 Shift Left Double by Octet Immediate" />
+  <insn mnem="vperm128"     opcode="14000000" form="VX128_2"  sub-form="D-A-B-C"          group="v" desc="Vector128 Permute" />
+  <insn mnem="vaddfp128"    opcode="14000010" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Add Floating Point" />
+  <insn mnem="vsubfp128"    opcode="14000050" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Subtract Floating Point" />
+  <insn mnem="vmulfp128"    opcode="14000090" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Multiply Floating-Point" />
+  <insn mnem="vmaddfp128"   opcode="140000D0" form="VX128"    sub-form="D-A-D-B"          group="v" desc="Vector128 Multiply Add Floating Point" />
+  <insn mnem="vmaddcfp128"  opcode="14000110" form="VX128"    sub-form="D-A-D-B"          group="v" desc="Vector128 Multiply Add Floating Point" />
+  <insn mnem="vnmsubfp128"  opcode="14000150" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Negative Multiply-Subtract Floating Point" />
+  <insn mnem="vmsum3fp128"  opcode="14000190" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Multiply Sum 3-way Floating Point" />
+  <insn mnem="vmsum4fp128"  opcode="140001D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Multiply Sum 4-way Floating-Point" />
+  <insn mnem="vpkshss128"   opcode="14000200" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Half Word Signed Saturate" />
+  <insn mnem="vand128"      opcode="14000210" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical AND" />
+  <insn mnem="vpkshus128"   opcode="14000240" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Half Word Unsigned Saturate" />
+  <insn mnem="vandc128"     opcode="14000250" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical AND with Complement" />
+  <insn mnem="vpkswss128"   opcode="14000280" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Word Signed Saturate" />
+  <insn mnem="vnor128"      opcode="14000290" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical NOR" />
+  <insn mnem="vpkswus128"   opcode="140002C0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Word Unsigned Saturate" />
+  <insn mnem="vor128"       opcode="140002D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical OR" />
+  <insn mnem="vpkuhum128"   opcode="14000300" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Half Word Unsigned Modulo" />
+  <insn mnem="vxor128"      opcode="14000310" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical XOR" />
+  <insn mnem="vpkuhus128"   opcode="14000340" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Half Word Unsigned Saturate" />
+  <insn mnem="vsel128"      opcode="14000350" form="VX128"    sub-form="D-A-B-D"          group="v" desc="Vector128 Conditional Select" />
+  <insn mnem="vpkuwum128"   opcode="14000380" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Word Unsigned Modulo" />
+  <insn mnem="vslo128"      opcode="14000390" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Left Octet" />
+  <insn mnem="vpkuwus128"   opcode="140003C0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Word Unsigned Saturate" />
+  <insn mnem="vsro128"      opcode="140003D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Right Octet" />
+  <insn mnem="vpermwi128"   opcode="18000210" form="VX128_P"  sub-form="D-A-B-C"          group="v" desc="Vector128 Permutate Word Immediate" />
+  <insn mnem="vcfpsxws128"  opcode="18000230" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Convert From Floating-Point to Signed Fixed-Point Word Saturate" />
+  <insn mnem="vcfpuxws128"  opcode="18000270" form="VX128_3"  sub-form="D-B-UIMM"         group="v" desc="Vector128 Convert From Floating-Point to Unsigned Fixed-Point Word Saturate" />
+  <insn mnem="vcsxwfp128"   opcode="180002B0" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Convert From Signed Fixed-Point Word to Floating-Point" />
+  <insn mnem="vcuxwfp128"   opcode="180002F0" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Convert From Unsigned Fixed-Point Word to Floating-Point" />
+  <insn mnem="vrfim128"     opcode="18000330" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer toward -Infinity" />
+  <insn mnem="vrfin128"     opcode="18000370" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer Nearest" />
+  <insn mnem="vrfip128"     opcode="180003B0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer toward +Infinity" />
+  <insn mnem="vrfiz128"     opcode="180003F0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer toward Zero" />
+  <insn mnem="vpkd3d128"    opcode="18000610" form="VX128_4"  sub-form="D-B"              group="v" desc="Vector128 Pack D3Dtype, Rotate Left Immediate and Mask Insert" />
+  <insn mnem="vrefp128"     opcode="18000630" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Reciprocal Estimate Floating Point" />
+  <insn mnem="vrsqrtefp128" opcode="18000670" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Reciprocal Square Root Estimate Floating Point" />
+  <insn mnem="vexptefp128"  opcode="180006B0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Log2 Estimate Floating Point" />
+  <insn mnem="vlogefp128"   opcode="180006F0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Log2 Estimate Floating Point" />
+  <insn mnem="vrlimi128"    opcode="18000710" form="VX128_4"  sub-form="D-B-UIMM"         group="v" desc="Vector128 Rotate Left Immediate and Mask Insert" />
+  <insn mnem="vspltw128"    opcode="18000730" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Splat Word" />
+  <insn mnem="vspltisw128"  opcode="18000770" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Splat Immediate Signed Word" />
+  <insn mnem="vupkd3d128"   opcode="180007F0" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Unpack D3Dtype" />
+  <insn mnem="vcmpeqfp128"  opcode="18000000" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Equal-to Floating Point" />
+  <insn mnem="vrlw128"      opcode="18000050" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Rotate Left Word" />
+  <insn mnem="vcmpgefp128"  opcode="18000080" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Greater-Than-or-Equal-to Floating Point" />
+  <insn mnem="vslw128"      opcode="180000D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Left Integer Word" />
+  <insn mnem="vcmpgtfp128"  opcode="18000100" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Greater-Than Floating-Point" />
+  <insn mnem="vsraw128"     opcode="18000150" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Right Arithmetic Word" />
+  <insn mnem="vcmpbfp128"   opcode="18000180" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Bounds Floating Point" />
+  <insn mnem="vsrw128"      opcode="180001D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Right Word" />
+  <insn mnem="vcmpequw128"  opcode="18000200" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Equal-to Unsigned Word" />
+  <insn mnem="vmaxfp128"    opcode="18000280" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Maximum Floating Point" />
+  <insn mnem="vminfp128"    opcode="180002C0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Minimum Floating Point" />
+  <insn mnem="vmrghw128"    opcode="18000300" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Merge High Word" />
+  <insn mnem="vmrglw128"    opcode="18000340" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Merge Low Word" />
+  <insn mnem="vupkhsb128"   opcode="18000380" form="VX128"    sub-form="D-B"              group="v" desc="Vector128 Unpack High Signed Byte" />
+  <insn mnem="vupklsb128"   opcode="180003C0" form="VX128"    sub-form="D-B"              group="v" desc="Vector128 Unpack Low Signed Byte" />
 </ppc-isa>
 </root>

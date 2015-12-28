@@ -54,7 +54,7 @@ void StoreEA(PPCHIRBuilder& f, uint32_t rt, Value* ea) {
 
 // Integer load (A-13)
 
-XEEMITTER(lbz, 0x88000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lbz(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -67,7 +67,7 @@ XEEMITTER(lbz, 0x88000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lbzu, 0x8C000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lbzu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i56.0 || MEM(EA, 1)
   // RA <- EA
@@ -78,7 +78,7 @@ XEEMITTER(lbzu, 0x8C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lbzux, 0x7C0000EE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lbzux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- i56.0 || MEM(EA, 1)
   // RA <- EA
@@ -89,7 +89,7 @@ XEEMITTER(lbzux, 0x7C0000EE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lbzx, 0x7C0000AE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lbzx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -102,7 +102,7 @@ XEEMITTER(lbzx, 0x7C0000AE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lha, 0xA8000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lha(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -115,7 +115,7 @@ XEEMITTER(lha, 0xA8000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhau, 0xAC000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhau(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- EXTS(MEM(EA, 2))
   // RA <- EA
@@ -126,7 +126,7 @@ XEEMITTER(lhau, 0xAC000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhaux, 0x7C0002EE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhaux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- EXTS(MEM(EA, 2))
   // RA <- EA
@@ -137,7 +137,7 @@ XEEMITTER(lhaux, 0x7C0002EE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhax, 0x7C0002AE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhax(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -150,7 +150,7 @@ XEEMITTER(lhax, 0x7C0002AE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhz, 0xA0000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhz(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -163,7 +163,7 @@ XEEMITTER(lhz, 0xA0000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhzu, 0xA4000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhzu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i48.0 || MEM(EA, 2)
   // RA <- EA
@@ -174,7 +174,7 @@ XEEMITTER(lhzu, 0xA4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhzux, 0x7C00026E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhzux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- i48.0 || MEM(EA, 2)
   // RA <- EA
@@ -185,7 +185,7 @@ XEEMITTER(lhzux, 0x7C00026E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lhzx, 0x7C00022E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhzx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -198,7 +198,7 @@ XEEMITTER(lhzx, 0x7C00022E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwa, 0xE8000002, DS)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwa(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -211,7 +211,7 @@ XEEMITTER(lwa, 0xE8000002, DS)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwaux, 0x7C0002EA, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwaux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- EXTS(MEM(EA, 4))
   // RA <- EA
@@ -222,7 +222,7 @@ XEEMITTER(lwaux, 0x7C0002EA, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwax, 0x7C0002AA, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwax(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -235,7 +235,7 @@ XEEMITTER(lwax, 0x7C0002AA, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwz, 0x80000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwz(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -248,7 +248,7 @@ XEEMITTER(lwz, 0x80000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwzu, 0x84000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwzu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i32.0 || MEM(EA, 4)
   // RA <- EA
@@ -259,7 +259,7 @@ XEEMITTER(lwzu, 0x84000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwzux, 0x7C00006E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwzux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- i32.0 || MEM(EA, 4)
   // RA <- EA
@@ -270,7 +270,7 @@ XEEMITTER(lwzux, 0x7C00006E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwzx, 0x7C00002E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwzx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -283,7 +283,7 @@ XEEMITTER(lwzx, 0x7C00002E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(ld, 0xE8000000, DS)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_ld(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -296,7 +296,7 @@ XEEMITTER(ld, 0xE8000000, DS)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(ldu, 0xE8000001, DS)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_ldu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(DS || 0b00)
   // RT <- MEM(EA, 8)
   // RA <- EA
@@ -307,7 +307,7 @@ XEEMITTER(ldu, 0xE8000001, DS)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(ldux, 0x7C00006A, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_ldux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // RT <- MEM(EA, 8)
   // RA <- EA
@@ -318,7 +318,7 @@ XEEMITTER(ldux, 0x7C00006A, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(ldx, 0x7C00002A, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_ldx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -333,7 +333,7 @@ XEEMITTER(ldx, 0x7C00002A, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Integer store (A-14)
 
-XEEMITTER(stb, 0x98000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stb(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -345,7 +345,7 @@ XEEMITTER(stb, 0x98000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stbu, 0x9C000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stbu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 1) <- (RS)[56:63]
   // RA <- EA
@@ -355,7 +355,7 @@ XEEMITTER(stbu, 0x9C000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stbux, 0x7C0001EE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stbux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // MEM(EA, 1) <- (RS)[56:63]
   // RA <- EA
@@ -365,7 +365,7 @@ XEEMITTER(stbux, 0x7C0001EE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stbx, 0x7C0001AE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stbx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -377,7 +377,7 @@ XEEMITTER(stbx, 0x7C0001AE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(sth, 0xB0000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sth(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -389,7 +389,7 @@ XEEMITTER(sth, 0xB0000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(sthu, 0xB4000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sthu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 2) <- (RS)[48:63]
   // RA <- EA
@@ -399,7 +399,7 @@ XEEMITTER(sthu, 0xB4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(sthux, 0x7C00036E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sthux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // MEM(EA, 2) <- (RS)[48:63]
   // RA <- EA
@@ -409,7 +409,7 @@ XEEMITTER(sthux, 0x7C00036E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(sthx, 0x7C00032E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sthx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -421,7 +421,7 @@ XEEMITTER(sthx, 0x7C00032E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stw, 0x90000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stw(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -433,7 +433,7 @@ XEEMITTER(stw, 0x90000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stwu, 0x94000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stwu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 4) <- (RS)[32:63]
   // RA <- EA
@@ -443,7 +443,7 @@ XEEMITTER(stwu, 0x94000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stwux, 0x7C00016E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stwux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // MEM(EA, 4) <- (RS)[32:63]
   // RA <- EA
@@ -453,7 +453,7 @@ XEEMITTER(stwux, 0x7C00016E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stwx, 0x7C00012E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stwx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -465,7 +465,7 @@ XEEMITTER(stwx, 0x7C00012E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(std, 0xF8000000, DS)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_std(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -477,7 +477,7 @@ XEEMITTER(std, 0xF8000000, DS)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stdu, 0xF8000001, DS)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stdu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(DS || 0b00)
   // MEM(EA, 8) <- (RS)
   // RA <- EA
@@ -487,7 +487,7 @@ XEEMITTER(stdu, 0xF8000001, DS)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stdux, 0x7C00016A, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stdux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // MEM(EA, 8) <- (RS)
   // RA <- EA
@@ -497,7 +497,7 @@ XEEMITTER(stdux, 0x7C00016A, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stdx, 0x7C00012A, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stdx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -511,7 +511,7 @@ XEEMITTER(stdx, 0x7C00012A, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Integer load and store with byte reverse (A-1
 
-XEEMITTER(lhbrx, 0x7C00062C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lhbrx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -524,7 +524,7 @@ XEEMITTER(lhbrx, 0x7C00062C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwbrx, 0x7C00042C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwbrx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -537,7 +537,7 @@ XEEMITTER(lwbrx, 0x7C00042C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(ldbrx, 0x7C000428, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_ldbrx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -550,7 +550,7 @@ XEEMITTER(ldbrx, 0x7C000428, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(sthbrx, 0x7C00072C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sthbrx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -562,7 +562,7 @@ XEEMITTER(sthbrx, 0x7C00072C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stwbrx, 0x7C00052C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stwbrx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -574,7 +574,7 @@ XEEMITTER(stwbrx, 0x7C00052C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stdbrx, 0x7C000528, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stdbrx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -588,57 +588,57 @@ XEEMITTER(stdbrx, 0x7C000528, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Integer load and store multiple (A-16)
 
-XEEMITTER(lmw, 0xB8000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lmw(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stmw, 0xBC000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stmw(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
 // Integer load and store string (A-17)
 
-XEEMITTER(lswi, 0x7C0004AA, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lswi(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(lswx, 0x7C00042A, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lswx(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stswi, 0x7C0005AA, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stswi(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(stswx, 0x7C00052A, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stswx(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
 // Memory synchronization (A-18)
 
-XEEMITTER(eieio, 0x7C0006AC, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_eieio(PPCHIRBuilder& f, const InstrData& i) {
   f.MemoryBarrier();
   return 0;
 }
 
-XEEMITTER(sync, 0x7C0004AC, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_sync(PPCHIRBuilder& f, const InstrData& i) {
   f.MemoryBarrier();
   return 0;
 }
 
-XEEMITTER(isync, 0x4C00012C, XL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_isync(PPCHIRBuilder& f, const InstrData& i) {
   // XEINSTRNOTIMPLEMENTED();
   f.Nop();
   return 0;
 }
 
-XEEMITTER(ldarx, 0x7C0000A8, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_ldarx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -662,7 +662,7 @@ XEEMITTER(ldarx, 0x7C0000A8, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lwarx, 0x7C000028, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lwarx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -686,7 +686,7 @@ XEEMITTER(lwarx, 0x7C000028, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stdcx, 0x7C0001AD, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stdcx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -715,7 +715,7 @@ XEEMITTER(stdcx, 0x7C0001AD, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stwcx, 0x7C00012D, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stwcx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -746,7 +746,7 @@ XEEMITTER(stwcx, 0x7C00012D, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Floating-point load (A-19)
 
-XEEMITTER(lfd, 0xC8000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfd(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -759,7 +759,7 @@ XEEMITTER(lfd, 0xC8000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfdu, 0xCC000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfdu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // FRT <- MEM(EA, 8)
   // RA <- EA
@@ -770,7 +770,7 @@ XEEMITTER(lfdu, 0xCC000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfdux, 0x7C0004EE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfdux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // FRT <- MEM(EA, 8)
   // RA <- EA
@@ -781,7 +781,7 @@ XEEMITTER(lfdux, 0x7C0004EE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfdx, 0x7C0004AE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfdx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -794,7 +794,7 @@ XEEMITTER(lfdx, 0x7C0004AE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfs, 0xC0000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfs(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -808,7 +808,7 @@ XEEMITTER(lfs, 0xC0000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfsu, 0xC4000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfsu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // FRT <- DOUBLE(MEM(EA, 4))
   // RA <- EA
@@ -820,7 +820,7 @@ XEEMITTER(lfsu, 0xC4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfsux, 0x7C00046E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfsux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // FRT <- DOUBLE(MEM(EA, 4))
   // RA <- EA
@@ -832,7 +832,7 @@ XEEMITTER(lfsux, 0x7C00046E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(lfsx, 0x7C00042E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_lfsx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -848,7 +848,7 @@ XEEMITTER(lfsx, 0x7C00042E, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Floating-point store (A-20)
 
-XEEMITTER(stfd, 0xD8000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfd(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -860,7 +860,7 @@ XEEMITTER(stfd, 0xD8000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfdu, 0xDC000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfdu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 8) <- (FRS)
   // RA <- EA
@@ -870,7 +870,7 @@ XEEMITTER(stfdu, 0xDC000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfdux, 0x7C0005EE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfdux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // MEM(EA, 8) <- (FRS)
   // RA <- EA
@@ -880,7 +880,7 @@ XEEMITTER(stfdux, 0x7C0005EE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfdx, 0x7C0005AE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfdx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -892,7 +892,7 @@ XEEMITTER(stfdx, 0x7C0005AE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfiwx, 0x7C0007AE, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfiwx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -905,7 +905,7 @@ XEEMITTER(stfiwx, 0x7C0007AE, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfs, 0xD0000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfs(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -918,7 +918,7 @@ XEEMITTER(stfs, 0xD0000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfsu, 0xD4000000, D)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfsu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // MEM(EA, 4) <- SINGLE(FRS)
   // RA <- EA
@@ -929,7 +929,7 @@ XEEMITTER(stfsu, 0xD4000000, D)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfsux, 0x7C00056E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfsux(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // MEM(EA, 4) <- SINGLE(FRS)
   // RA <- EA
@@ -940,7 +940,7 @@ XEEMITTER(stfsux, 0x7C00056E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(stfsx, 0x7C00052E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_stfsx(PPCHIRBuilder& f, const InstrData& i) {
   // if RA = 0 then
   //   b <- 0
   // else
@@ -955,7 +955,7 @@ XEEMITTER(stfsx, 0x7C00052E, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Cache management (A-27)
 
-XEEMITTER(dcbf, 0x7C0000AC, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_dcbf(PPCHIRBuilder& f, const InstrData& i) {
   // No-op for now.
   // TODO(benvanik): use prefetch
   // XEINSTRNOTIMPLEMENTED();
@@ -963,7 +963,7 @@ XEEMITTER(dcbf, 0x7C0000AC, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(dcbst, 0x7C00006C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_dcbst(PPCHIRBuilder& f, const InstrData& i) {
   // No-op for now.
   // TODO(benvanik): use prefetch
   // XEINSTRNOTIMPLEMENTED();
@@ -971,7 +971,7 @@ XEEMITTER(dcbst, 0x7C00006C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(dcbt, 0x7C00022C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_dcbt(PPCHIRBuilder& f, const InstrData& i) {
   // No-op for now.
   // TODO(benvanik): use prefetch
   // XEINSTRNOTIMPLEMENTED();
@@ -979,7 +979,7 @@ XEEMITTER(dcbt, 0x7C00022C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(dcbtst, 0x7C0001EC, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_dcbtst(PPCHIRBuilder& f, const InstrData& i) {
   // No-op for now.
   // TODO(benvanik): use prefetch
   // XEINSTRNOTIMPLEMENTED();
@@ -987,115 +987,119 @@ XEEMITTER(dcbtst, 0x7C0001EC, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(dcbz, 0x7C0007EC, X)(PPCHIRBuilder& f, InstrData& i) {
-  // or dcbz128 0x7C2007EC
+int InstrEmit_dcbz(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + (RB)
   // memset(EA & ~31, 0, 32)
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  int block_size;
-  int address_mask;
-  if (i.X.RT == 1) {
-    // dcbz128 - 128 byte set
-    block_size = 128;
-    address_mask = ~127;
-  } else {
-    // dcbz - 32 byte set
-    block_size = 32;
-    address_mask = ~31;
-  }
+  // dcbz - 32 byte set
+  int block_size = 32;
+  int address_mask = ~31;
   f.Memset(f.And(ea, f.LoadConstantInt64(address_mask)), f.LoadZeroInt8(),
            f.LoadConstantInt64(block_size));
   return 0;
 }
 
-XEEMITTER(icbi, 0x7C0007AC, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_dcbz128(PPCHIRBuilder& f, const InstrData& i) {
+  // EA <- (RA) + (RB)
+  // memset(EA & ~31, 0, 32)
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  // dcbz128 - 128 byte set
+  int block_size = 128;
+  int address_mask = ~127;
+  f.Memset(f.And(ea, f.LoadConstantInt64(address_mask)), f.LoadZeroInt8(),
+           f.LoadConstantInt64(block_size));
+  return 0;
+}
+
+int InstrEmit_icbi(PPCHIRBuilder& f, const InstrData& i) {
   // XEINSTRNOTIMPLEMENTED();
   f.Nop();
   return 0;
 }
 
 void RegisterEmitCategoryMemory() {
-  XEREGISTERINSTR(lbz, 0x88000000);
-  XEREGISTERINSTR(lbzu, 0x8C000000);
-  XEREGISTERINSTR(lbzux, 0x7C0000EE);
-  XEREGISTERINSTR(lbzx, 0x7C0000AE);
-  XEREGISTERINSTR(lha, 0xA8000000);
-  XEREGISTERINSTR(lhau, 0xAC000000);
-  XEREGISTERINSTR(lhaux, 0x7C0002EE);
-  XEREGISTERINSTR(lhax, 0x7C0002AE);
-  XEREGISTERINSTR(lhz, 0xA0000000);
-  XEREGISTERINSTR(lhzu, 0xA4000000);
-  XEREGISTERINSTR(lhzux, 0x7C00026E);
-  XEREGISTERINSTR(lhzx, 0x7C00022E);
-  XEREGISTERINSTR(lwa, 0xE8000002);
-  XEREGISTERINSTR(lwaux, 0x7C0002EA);
-  XEREGISTERINSTR(lwax, 0x7C0002AA);
-  XEREGISTERINSTR(lwz, 0x80000000);
-  XEREGISTERINSTR(lwzu, 0x84000000);
-  XEREGISTERINSTR(lwzux, 0x7C00006E);
-  XEREGISTERINSTR(lwzx, 0x7C00002E);
-  XEREGISTERINSTR(ld, 0xE8000000);
-  XEREGISTERINSTR(ldu, 0xE8000001);
-  XEREGISTERINSTR(ldux, 0x7C00006A);
-  XEREGISTERINSTR(ldx, 0x7C00002A);
-  XEREGISTERINSTR(stb, 0x98000000);
-  XEREGISTERINSTR(stbu, 0x9C000000);
-  XEREGISTERINSTR(stbux, 0x7C0001EE);
-  XEREGISTERINSTR(stbx, 0x7C0001AE);
-  XEREGISTERINSTR(sth, 0xB0000000);
-  XEREGISTERINSTR(sthu, 0xB4000000);
-  XEREGISTERINSTR(sthux, 0x7C00036E);
-  XEREGISTERINSTR(sthx, 0x7C00032E);
-  XEREGISTERINSTR(stw, 0x90000000);
-  XEREGISTERINSTR(stwu, 0x94000000);
-  XEREGISTERINSTR(stwux, 0x7C00016E);
-  XEREGISTERINSTR(stwx, 0x7C00012E);
-  XEREGISTERINSTR(std, 0xF8000000);
-  XEREGISTERINSTR(stdu, 0xF8000001);
-  XEREGISTERINSTR(stdux, 0x7C00016A);
-  XEREGISTERINSTR(stdx, 0x7C00012A);
-  XEREGISTERINSTR(lhbrx, 0x7C00062C);
-  XEREGISTERINSTR(lwbrx, 0x7C00042C);
-  XEREGISTERINSTR(ldbrx, 0x7C000428);
-  XEREGISTERINSTR(sthbrx, 0x7C00072C);
-  XEREGISTERINSTR(stwbrx, 0x7C00052C);
-  XEREGISTERINSTR(stdbrx, 0x7C000528);
-  XEREGISTERINSTR(lmw, 0xB8000000);
-  XEREGISTERINSTR(stmw, 0xBC000000);
-  XEREGISTERINSTR(lswi, 0x7C0004AA);
-  XEREGISTERINSTR(lswx, 0x7C00042A);
-  XEREGISTERINSTR(stswi, 0x7C0005AA);
-  XEREGISTERINSTR(stswx, 0x7C00052A);
-  XEREGISTERINSTR(eieio, 0x7C0006AC);
-  XEREGISTERINSTR(sync, 0x7C0004AC);
-  XEREGISTERINSTR(isync, 0x4C00012C);
-  XEREGISTERINSTR(ldarx, 0x7C0000A8);
-  XEREGISTERINSTR(lwarx, 0x7C000028);
-  XEREGISTERINSTR(stdcx, 0x7C0001AD);
-  XEREGISTERINSTR(stwcx, 0x7C00012D);
-  XEREGISTERINSTR(lfd, 0xC8000000);
-  XEREGISTERINSTR(lfdu, 0xCC000000);
-  XEREGISTERINSTR(lfdux, 0x7C0004EE);
-  XEREGISTERINSTR(lfdx, 0x7C0004AE);
-  XEREGISTERINSTR(lfs, 0xC0000000);
-  XEREGISTERINSTR(lfsu, 0xC4000000);
-  XEREGISTERINSTR(lfsux, 0x7C00046E);
-  XEREGISTERINSTR(lfsx, 0x7C00042E);
-  XEREGISTERINSTR(stfd, 0xD8000000);
-  XEREGISTERINSTR(stfdu, 0xDC000000);
-  XEREGISTERINSTR(stfdux, 0x7C0005EE);
-  XEREGISTERINSTR(stfdx, 0x7C0005AE);
-  XEREGISTERINSTR(stfiwx, 0x7C0007AE);
-  XEREGISTERINSTR(stfs, 0xD0000000);
-  XEREGISTERINSTR(stfsu, 0xD4000000);
-  XEREGISTERINSTR(stfsux, 0x7C00056E);
-  XEREGISTERINSTR(stfsx, 0x7C00052E);
-  XEREGISTERINSTR(dcbf, 0x7C0000AC);
-  XEREGISTERINSTR(dcbst, 0x7C00006C);
-  XEREGISTERINSTR(dcbt, 0x7C00022C);
-  XEREGISTERINSTR(dcbtst, 0x7C0001EC);
-  XEREGISTERINSTR(dcbz, 0x7C0007EC);
-  XEREGISTERINSTR(icbi, 0x7C0007AC);
+  XEREGISTERINSTR(lbz);
+  XEREGISTERINSTR(lbzu);
+  XEREGISTERINSTR(lbzux);
+  XEREGISTERINSTR(lbzx);
+  XEREGISTERINSTR(lha);
+  XEREGISTERINSTR(lhau);
+  XEREGISTERINSTR(lhaux);
+  XEREGISTERINSTR(lhax);
+  XEREGISTERINSTR(lhz);
+  XEREGISTERINSTR(lhzu);
+  XEREGISTERINSTR(lhzux);
+  XEREGISTERINSTR(lhzx);
+  XEREGISTERINSTR(lwa);
+  XEREGISTERINSTR(lwaux);
+  XEREGISTERINSTR(lwax);
+  XEREGISTERINSTR(lwz);
+  XEREGISTERINSTR(lwzu);
+  XEREGISTERINSTR(lwzux);
+  XEREGISTERINSTR(lwzx);
+  XEREGISTERINSTR(ld);
+  XEREGISTERINSTR(ldu);
+  XEREGISTERINSTR(ldux);
+  XEREGISTERINSTR(ldx);
+  XEREGISTERINSTR(stb);
+  XEREGISTERINSTR(stbu);
+  XEREGISTERINSTR(stbux);
+  XEREGISTERINSTR(stbx);
+  XEREGISTERINSTR(sth);
+  XEREGISTERINSTR(sthu);
+  XEREGISTERINSTR(sthux);
+  XEREGISTERINSTR(sthx);
+  XEREGISTERINSTR(stw);
+  XEREGISTERINSTR(stwu);
+  XEREGISTERINSTR(stwux);
+  XEREGISTERINSTR(stwx);
+  XEREGISTERINSTR(std);
+  XEREGISTERINSTR(stdu);
+  XEREGISTERINSTR(stdux);
+  XEREGISTERINSTR(stdx);
+  XEREGISTERINSTR(lhbrx);
+  XEREGISTERINSTR(lwbrx);
+  XEREGISTERINSTR(ldbrx);
+  XEREGISTERINSTR(sthbrx);
+  XEREGISTERINSTR(stwbrx);
+  XEREGISTERINSTR(stdbrx);
+  XEREGISTERINSTR(lmw);
+  XEREGISTERINSTR(stmw);
+  XEREGISTERINSTR(lswi);
+  XEREGISTERINSTR(lswx);
+  XEREGISTERINSTR(stswi);
+  XEREGISTERINSTR(stswx);
+  XEREGISTERINSTR(eieio);
+  XEREGISTERINSTR(sync);
+  XEREGISTERINSTR(isync);
+  XEREGISTERINSTR(ldarx);
+  XEREGISTERINSTR(lwarx);
+  XEREGISTERINSTR(stdcx);
+  XEREGISTERINSTR(stwcx);
+  XEREGISTERINSTR(lfd);
+  XEREGISTERINSTR(lfdu);
+  XEREGISTERINSTR(lfdux);
+  XEREGISTERINSTR(lfdx);
+  XEREGISTERINSTR(lfs);
+  XEREGISTERINSTR(lfsu);
+  XEREGISTERINSTR(lfsux);
+  XEREGISTERINSTR(lfsx);
+  XEREGISTERINSTR(stfd);
+  XEREGISTERINSTR(stfdu);
+  XEREGISTERINSTR(stfdux);
+  XEREGISTERINSTR(stfdx);
+  XEREGISTERINSTR(stfiwx);
+  XEREGISTERINSTR(stfs);
+  XEREGISTERINSTR(stfsu);
+  XEREGISTERINSTR(stfsux);
+  XEREGISTERINSTR(stfsx);
+  XEREGISTERINSTR(dcbf);
+  XEREGISTERINSTR(dcbst);
+  XEREGISTERINSTR(dcbt);
+  XEREGISTERINSTR(dcbtst);
+  XEREGISTERINSTR(dcbz);
+  XEREGISTERINSTR(dcbz128);
+  XEREGISTERINSTR(icbi);
 }
 
 }  // namespace ppc

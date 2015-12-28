@@ -35,6 +35,25 @@ using xe::cpu::hir::Label;
 using xe::cpu::hir::TypeName;
 using xe::cpu::hir::Value;
 
+// The number of times each opcode has been translated.
+// Accumulated across the entire run.
+uint32_t opcode_translation_counts[static_cast<int>(PPCOpcode::kInvalid)] = {0};
+
+void DumpAllOpcodeCounts() {
+  StringBuffer sb;
+  sb.Append("Instruction translation counts:\n");
+  for (size_t i = 0; i < xe::countof(opcode_translation_counts); ++i) {
+    auto opcode = static_cast<PPCOpcode>(i);
+    auto& opcode_info = GetOpcodeInfo(opcode);
+    auto translation_count = opcode_translation_counts[i];
+    if (translation_count) {
+      sb.AppendFormat("%8d : %s\n", translation_count, opcode_info.name);
+    }
+  }
+  fprintf(stdout, "%s", sb.GetString());
+  fflush(stdout);
+}
+
 PPCHIRBuilder::PPCHIRBuilder(PPCFrontend* frontend)
     : HIRBuilder(), frontend_(frontend), comment_buffer_(4096) {}
 
@@ -123,28 +142,20 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     // Stash instruction offset. It's either the SOURCE_OFFSET or the COMMENT.
     instr_offset_list_[offset] = first_instr;
 
-    InstrData i;
-    i.address = address;
-    i.code = code;
-    i.type = GetInstrType(code);
-
-    if (!i.type) {
+    if (opcode == PPCOpcode::kInvalid) {
       XELOGE("Invalid instruction %.8llX %.8X", address, code);
       Comment("INVALID!");
       // TraceInvalidInstruction(i);
       continue;
     }
-    ++i.type->translation_count;
+    ++opcode_translation_counts[static_cast<int>(opcode)];
 
     // Synchronize the PPC context as required.
     // This will ensure all registers are saved to the PPC context before this
     // instruction executes.
-    if (i.type->type & kXEPPCInstrTypeSynchronizeContext) {
+    if (opcode_info.type == PPCOpcodeType::kSync) {
       ContextBarrier();
     }
-
-    typedef int (*InstrEmitter)(PPCHIRBuilder& f, InstrData& i);
-    InstrEmitter emit = (InstrEmitter)i.type->emit;
 
     if (address == FLAGS_break_on_instruction) {
       Comment("--break-on-instruction target");
@@ -162,13 +173,21 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
       }
     }
 
-    if (!i.type->emit || emit(*this, i)) {
+    InstrData i;
+    i.address = address;
+    i.code = code;
+    i.opcode = opcode;
+    i.opcode_info = &opcode_info;
+    if (!opcode_info.emit || opcode_info.emit(*this, i)) {
       XELOGE("Unimplemented instr %.8llX %.8X %s", address, code,
              opcode_info.name);
       Comment("UNIMPLEMENTED!");
-      // DebugBreak();
-      // TraceInvalidInstruction(i);
+      DebugBreak();
     }
+  }
+
+  if (false) {
+    DumpAllOpcodeCounts();
   }
 
   return Finalize();

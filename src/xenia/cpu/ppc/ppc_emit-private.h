@@ -13,15 +13,14 @@
 #include "xenia/base/logging.h"
 #include "xenia/cpu/ppc/ppc_emit.h"
 #include "xenia/cpu/ppc/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 
 namespace xe {
 namespace cpu {
 namespace ppc {
 
-#define XEEMITTER(name, opcode, format) int InstrEmit_##name
-
-#define XEREGISTERINSTR(name, opcode) \
-  RegisterInstrEmit(opcode, (InstrEmitFn)InstrEmit_##name);
+#define XEREGISTERINSTR(name) \
+  RegisterOpcodeEmitter(PPCOpcode::name, InstrEmit_##name);
 
 #define XEINSTRNOTIMPLEMENTED()                          \
   XELOGE("Unimplemented instruction: %s", __FUNCTION__); \

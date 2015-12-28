@@ -22,21 +22,6 @@ namespace xe {
 namespace cpu {
 namespace ppc {
 
-std::vector<InstrType*> all_instrs_;
-
-void DumpAllInstrCounts() {
-  StringBuffer sb;
-  sb.Append("Instruction translation counts:\n");
-  for (auto instr_type : all_instrs_) {
-    if (instr_type->translation_count) {
-      sb.AppendFormat("%8d : %s\n", instr_type->translation_count,
-                      instr_type->name);
-    }
-  }
-  fprintf(stdout, "%s", sb.GetString());
-  fflush(stdout);
-}
-
 void InstrOperand::Dump(std::string& out_str) {
   if (display) {
     out_str += display;
@@ -391,18 +376,6 @@ InstrType* GetInstrType(uint32_t code) {
   }
 
   return NULL;
-}
-
-int RegisterInstrEmit(uint32_t code, InstrEmitFn emit) {
-  InstrType* instr_type = GetInstrType(code);
-  assert_not_null(instr_type);
-  if (!instr_type) {
-    return 1;
-  }
-  all_instrs_.push_back(instr_type);
-  assert_null(instr_type->emit);
-  instr_type->emit = emit;
-  return 0;
 }
 
 }  // namespace ppc

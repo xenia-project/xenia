@@ -21,7 +21,6 @@
 #include "xenia/cpu/ppc/ppc_disasm.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
-#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/ppc/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
@@ -164,10 +163,6 @@ bool PPCTranslator::Translate(GuestFunction* function,
     DumpSource(function, &string_buffer_);
     debug_info->set_source_disasm(string_buffer_.ToString());
     string_buffer_.Reset();
-  }
-
-  if (false) {
-    DumpAllInstrCounts();
   }
 
   // Emit function.

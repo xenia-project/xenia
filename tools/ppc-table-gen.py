@@ -81,12 +81,15 @@ def parse_insns(filename):
   # Convert to python types
   for e in root.findall('.//insn'):
     i = Insn()
-    i.desc = e.attrib['desc']
-    i.form = e.attrib['form']
-    i.group = e.attrib['group']
-    i.mnem = e.attrib['mnem']
     i.opcode = int(e.attrib['opcode'], 16)
+    i.mnem = e.attrib['mnem']
+    i.form = e.attrib['form']
     i.subform = e.attrib['sub-form']
+    i.group = e.attrib['group']
+    i.desc = e.attrib['desc']
+    i.type = 'General'
+    if 'sync' in e.attrib and e.attrib['sync'] == 'true':
+      i.type = 'Sync'
     i.op_primary = opcode_primary(i.opcode)
     i.op_extended = opcode_extended(i.opcode, i.form)
     insns.append(i)
@@ -137,7 +140,7 @@ def generate_opcodes(insns):
     i.subform = c_subform(i.subform)
   insns = sorted(insns, key = lambda i: i.mnem)
 
-  w0('// All PPC opcodes in the same order they appear in ppc_instr_table.h:')
+  w0('// All PPC opcodes in the same order they appear in ppc_opcode_table.h:')
   w0('enum class PPCOpcode : uint32_t {')
   for i in insns:
     w1('%s,' % (i.mnem))
@@ -167,6 +170,7 @@ def generate_table(insns):
   w0('// clang-format off')
   w0('#include <cstdint>')
   w0('')
+  w0('#include "xenia/base/assert.h"')
   w0('#include "xenia/cpu/ppc/ppc_opcode.h"')
   w0('#include "xenia/cpu/ppc/ppc_opcode_info.h"')
   w0('')
@@ -181,17 +185,19 @@ def generate_table(insns):
     i.subform = c_subform(i.subform)
     i.desc = '"' + i.desc + '"'
     i.group = c_group(i.group)
+    i.type = c_group(i.type)
 
   mnem_len = len(max(insns, key = lambda i: len(i.mnem)).mnem)
   form_len = len(max(insns, key = lambda i: len(i.form)).form)
   subform_len = len(max(insns, key = lambda i: len(i.subform)).subform)
   desc_len = len(max(insns, key = lambda i: len(i.desc)).desc)
   group_len = len(max(insns, key = lambda i: len(i.group)).group)
+  type_len = len(max(insns, key = lambda i: len(i.type)).type)
 
   insns = sorted(insns, key = lambda i: i.mnem)
 
-  w0('#define INSTRUCTION(opcode, mnem, form, subform, group, desc) \\')
-  w0('    {opcode, mnem, PPCOpcodeFormat::form, PPCOpcodeGroup::group, desc}')
+  w0('#define INSTRUCTION(opcode, mnem, form, subform, group, type, desc) \\')
+  w0('    {opcode, mnem, PPCOpcodeFormat::form, PPCOpcodeGroup::group, PPCOpcodeType::type, desc, nullptr, nullptr}')
   w0('PPCOpcodeInfo ppc_opcode_table[] = {')
   fmt = 'INSTRUCTION(' + ', '.join([
       '0x%08x',
@@ -199,15 +205,24 @@ def generate_table(insns):
       '%-' + str(form_len) + 's',
       '%-' + str(subform_len) + 's',
       '%-' + str(group_len) + 's',
+      '%-' + str(type_len) + 's',
       '%-' + str(desc_len) + 's',
       ]) + '),'
   for i in insns:
-    w1(fmt % (i.opcode, i.mnem, i.form, i.subform, i.group, i.desc))
+    w1(fmt % (i.opcode, i.mnem, i.form, i.subform, i.group, i.type, i.desc))
   w0('};')
   w0('static_assert(sizeof(ppc_opcode_table) / sizeof(PPCOpcodeInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");')
   w0('')
   w0('const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode) {')
   w1('return ppc_opcode_table[static_cast<int>(opcode)];')
+  w0('}')
+  w0('void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn fn) {')
+  w1('assert_null(ppc_opcode_table[static_cast<int>(opcode)].disasm);')
+  w1('ppc_opcode_table[static_cast<int>(opcode)].disasm = fn;')
+  w0('}')
+  w0('void RegisterOpcodeEmitter(PPCOpcode opcode, InstrEmitFn fn) {')
+  w1('assert_null(ppc_opcode_table[static_cast<int>(opcode)].emit);')
+  w1('ppc_opcode_table[static_cast<int>(opcode)].emit = fn;')
   w0('}')
 
   w0('')

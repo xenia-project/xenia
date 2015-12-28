@@ -12,11 +12,15 @@
 
 #include <cstdint>
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/ppc/ppc_opcode.h"
 
 namespace xe {
 namespace cpu {
 namespace ppc {
+
+struct InstrData;
+class PPCHIRBuilder;
 
 enum class PPCOpcodeFormat {
   kSC,
@@ -51,22 +55,37 @@ enum class PPCOpcodeFormat {
 };
 
 enum class PPCOpcodeGroup {
-  kInt,
-  kFp,
-  kVmx,
+  kI,
+  kF,
+  kV,
 };
+
+enum class PPCOpcodeType {
+  kGeneral,
+  kSync,
+};
+
+typedef void (*InstrDisasmFn1)(const InstrData* i, StringBuffer* str);
+typedef int (*InstrEmitFn)(PPCHIRBuilder& f, const InstrData& i);
 
 struct PPCOpcodeInfo {
   uint32_t opcode;
   const char* name;
   PPCOpcodeFormat format;
   PPCOpcodeGroup group;
+  PPCOpcodeType type;
   const char* description;
+
+  InstrDisasmFn1 disasm;
+  InstrEmitFn emit;
 };
 
 PPCOpcode LookupOpcode(uint32_t code);
 
 const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode);
+
+void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn1 fn);
+void RegisterOpcodeEmitter(PPCOpcode opcode, InstrEmitFn fn);
 
 inline const PPCOpcodeInfo& LookupOpcodeInfo(uint32_t code) {
   return GetOpcodeInfo(LookupOpcode(code));

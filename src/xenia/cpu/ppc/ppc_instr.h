@@ -15,16 +15,17 @@
 #include <vector>
 
 #include "xenia/base/string_buffer.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 
 namespace xe {
 namespace cpu {
 namespace ppc {
 
-inline uint32_t make_bitmask(uint32_t a, uint32_t b) {
+constexpr uint32_t make_bitmask(uint32_t a, uint32_t b) {
   return (static_cast<uint32_t>(-1) >> (31 - b)) & ~((1u << a) - 1);
 }
 
-inline uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
+constexpr uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
   return (value & make_bitmask(a, b)) >> a;
 }
 
@@ -72,26 +73,13 @@ enum xe_ppc_instr_mask_e : uint32_t {
   kXEPPCInstrMaskVX128_R = 0xFC000390,
 };
 
-typedef enum {
-  kXEPPCInstrTypeGeneral = (1 << 0),
-  kXEPPCInstrTypeSynchronizeContext = (1 << 1),
-  kXEPPCInstrTypeBranch = kXEPPCInstrTypeSynchronizeContext | (1 << 2),
-  kXEPPCInstrTypeBranchCond = kXEPPCInstrTypeBranch | (1 << 3),
-  kXEPPCInstrTypeBranchAlways = kXEPPCInstrTypeBranch | (1 << 4),
-  kXEPPCInstrTypeSyscall = kXEPPCInstrTypeSynchronizeContext | (1 << 5),
-} xe_ppc_instr_type_e;
-
-typedef enum {
-  kXEPPCInstrFlagReserved = 0,
-} xe_ppc_instr_flag_e;
-
 class InstrType;
 
-static inline int64_t XEEXTS16(uint32_t v) { return (int64_t)((int16_t)v); }
-static inline int64_t XEEXTS26(uint32_t v) {
+constexpr int64_t XEEXTS16(uint32_t v) { return (int64_t)((int16_t)v); }
+constexpr int64_t XEEXTS26(uint32_t v) {
   return (int64_t)(v & 0x02000000 ? (int32_t)v | 0xFC000000 : (int32_t)(v));
 }
-static inline uint64_t XEEXTZ16(uint32_t v) { return (uint64_t)((uint16_t)v); }
+constexpr uint64_t XEEXTZ16(uint32_t v) { return (uint64_t)((uint16_t)v); }
 static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
   // if mstart ≤ mstop then
   //   mask[mstart:mstop] = ones
@@ -107,8 +95,9 @@ static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
   return mstart <= mstop ? value : ~value;
 }
 
-typedef struct {
-  InstrType* type;
+struct InstrData {
+  PPCOpcode opcode;
+  const PPCOpcodeInfo* opcode_info;
   uint32_t address;
 
   union {
@@ -394,7 +383,7 @@ typedef struct {
     struct {
     } XDSS;
   };
-} InstrData;
+};
 
 typedef struct {
   enum RegisterSet {
@@ -498,26 +487,17 @@ class InstrDisasm {
   void Dump(std::string& out_str, size_t pad = 13);
 };
 
-typedef void (*InstrDisasmFn)(InstrData* i, StringBuffer* str);
-typedef void* InstrEmitFn;
+typedef void (*InstrDisasmFn)(const InstrData& i, StringBuffer* str);
 
 class InstrType {
  public:
   uint32_t opcode;
   uint32_t opcode_mask;  // Only used for certain opcodes (altivec, etc).
   uint32_t format;       // xe_ppc_instr_format_e
-  uint32_t type;         // xe_ppc_instr_type_e
-  uint32_t flags;        // xe_ppc_instr_flag_e
   InstrDisasmFn disasm;
-  char name[16];
-  uint32_t translation_count;
-
-  InstrEmitFn emit;
 };
 
-void DumpAllInstrCounts();
 InstrType* GetInstrType(uint32_t code);
-int RegisterInstrEmit(uint32_t code, InstrEmitFn emit);
 
 }  // namespace ppc
 }  // namespace cpu

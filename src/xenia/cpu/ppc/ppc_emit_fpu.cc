@@ -33,7 +33,7 @@ using xe::cpu::hir::Value;
 
 // Floating-point arithmetic (A-8)
 
-XEEMITTER(faddx, 0xFC00002A, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_faddx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) + (frB)
   Value* v = f.Add(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
@@ -46,7 +46,7 @@ XEEMITTER(faddx, 0xFC00002A, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(faddsx, 0xEC00002A, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_faddsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) + (frB)
   Value* v = f.Add(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -60,7 +60,7 @@ XEEMITTER(faddsx, 0xEC00002A, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fdivx, 0xFC000024, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fdivx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- frA / frB
   Value* v = f.Div(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
@@ -73,7 +73,7 @@ XEEMITTER(fdivx, 0xFC000024, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fdivsx, 0xEC000024, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fdivsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- frA / frB
   Value* v = f.Div(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -87,7 +87,7 @@ XEEMITTER(fdivsx, 0xEC000024, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmulx, 0xFC000032, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmulx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) x (frC)
   Value* v = f.Mul(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC));
   f.StoreFPR(i.A.FRT, v);
@@ -100,7 +100,7 @@ XEEMITTER(fmulx, 0xFC000032, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmulsx, 0xEC000032, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmulsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) x (frC)
   Value* v = f.Mul(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -114,7 +114,7 @@ XEEMITTER(fmulsx, 0xEC000032, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fresx, 0xEC000030, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fresx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- 1.0 / (frB)
   Value* v = f.Convert(f.Div(f.LoadConstantFloat32(1.0f),
                              f.Convert(f.LoadFPR(i.A.FRB), FLOAT32_TYPE)),
@@ -129,7 +129,7 @@ XEEMITTER(fresx, 0xEC000030, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(frsqrtex, 0xFC000034, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_frsqrtex(PPCHIRBuilder& f, const InstrData& i) {
   // Double precision:
   // frD <- 1/sqrt(frB)
   Value* v = f.RSqrt(f.LoadFPR(i.A.FRB));
@@ -143,7 +143,7 @@ XEEMITTER(frsqrtex, 0xFC000034, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsubx, 0xFC000028, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fsubx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) - (frB)
   Value* v = f.Sub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
@@ -156,7 +156,7 @@ XEEMITTER(fsubx, 0xFC000028, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsubsx, 0xEC000028, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fsubsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) - (frB)
   Value* v = f.Sub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
@@ -170,7 +170,7 @@ XEEMITTER(fsubsx, 0xEC000028, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fselx, 0xFC00002E, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fselx(PPCHIRBuilder& f, const InstrData& i) {
   // if (frA) >= 0.0
   // then frD <- (frC)
   // else frD <- (frB)
@@ -185,7 +185,7 @@ XEEMITTER(fselx, 0xFC00002E, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsqrtx, 0xFC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fsqrtx(PPCHIRBuilder& f, const InstrData& i) {
   // Double precision:
   // frD <- sqrt(frB)
   Value* v = f.Sqrt(f.LoadFPR(i.A.FRB));
@@ -199,7 +199,7 @@ XEEMITTER(fsqrtx, 0xFC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fsqrtsx, 0xEC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fsqrtsx(PPCHIRBuilder& f, const InstrData& i) {
   // Single precision:
   // frD <- sqrt(frB)
   Value* v = f.Sqrt(f.LoadFPR(i.A.FRB));
@@ -216,7 +216,7 @@ XEEMITTER(fsqrtsx, 0xEC00002C, A)(PPCHIRBuilder& f, InstrData& i) {
 
 // Floating-point multiply-add (A-9)
 
-XEEMITTER(fmaddx, 0xFC00003A, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmaddx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA x frC) + frB
   Value* v =
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
@@ -230,7 +230,7 @@ XEEMITTER(fmaddx, 0xFC00003A, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmaddsx, 0xEC00003A, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmaddsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA x frC) + frB
   Value* v =
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
@@ -245,7 +245,7 @@ XEEMITTER(fmaddsx, 0xEC00003A, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmsubx, 0xFC000038, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmsubx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA x frC) - frB
   Value* v =
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
@@ -259,7 +259,7 @@ XEEMITTER(fmsubx, 0xFC000038, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmsubsx, 0xEC000038, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmsubsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA x frC) - frB
   Value* v =
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
@@ -274,7 +274,7 @@ XEEMITTER(fmsubsx, 0xEC000038, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnmaddx, 0xFC00003E, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fnmaddx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] + frB)
   Value* v = f.Neg(
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
@@ -288,7 +288,7 @@ XEEMITTER(fnmaddx, 0xFC00003E, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnmaddsx, 0xEC00003E, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fnmaddsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] + frB)
   Value* v = f.Neg(
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
@@ -303,7 +303,7 @@ XEEMITTER(fnmaddsx, 0xEC00003E, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnmsubx, 0xFC00003C, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fnmsubx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] - frB)
   Value* v = f.Neg(
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
@@ -317,7 +317,7 @@ XEEMITTER(fnmsubx, 0xFC00003C, A)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnmsubsx, 0xEC00003C, A)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fnmsubsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] - frB)
   Value* v = f.Neg(
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
@@ -334,7 +334,7 @@ XEEMITTER(fnmsubsx, 0xEC00003C, A)(PPCHIRBuilder& f, InstrData& i) {
 
 // Floating-point rounding and conversion (A-10)
 
-XEEMITTER(fcfidx, 0xFC00069C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fcfidx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- signed_int64_to_double( frB )
   Value* v = f.Convert(f.Cast(f.LoadFPR(i.X.RB), INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
@@ -347,7 +347,7 @@ XEEMITTER(fcfidx, 0xFC00069C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fctidx, 0xFC00065C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fctidx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- double_to_signed_int64( frB )
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
@@ -363,12 +363,12 @@ XEEMITTER(fctidx, 0xFC00065C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fctidzx, 0xFC00065E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fctidzx(PPCHIRBuilder& f, const InstrData& i) {
   // TODO(benvanik): assuming round to zero is always set, is that ok?
   return InstrEmit_fctidx(f, i);
 }
 
-XEEMITTER(fctiwx, 0xFC00001C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fctiwx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- double_to_signed_int32( frB )
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
@@ -384,12 +384,12 @@ XEEMITTER(fctiwx, 0xFC00001C, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fctiwzx, 0xFC00001E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fctiwzx(PPCHIRBuilder& f, const InstrData& i) {
   // TODO(benvanik): assuming round to zero is always set, is that ok?
   return InstrEmit_fctiwx(f, i);
 }
 
-XEEMITTER(frspx, 0xFC000018, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_frspx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- Round_single(frB)
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
@@ -407,7 +407,7 @@ XEEMITTER(frspx, 0xFC000018, X)(PPCHIRBuilder& f, InstrData& i) {
 
 // Floating-point compare (A-11)
 
-int InstrEmit_fcmpx_(PPCHIRBuilder& f, InstrData& i, bool ordered) {
+int InstrEmit_fcmpx_(PPCHIRBuilder& f, const InstrData& i, bool ordered) {
   // if (FRA) is a NaN or (FRB) is a NaN then
   //   c <- 0b0001
   // else if (FRA) < (FRB) then
@@ -429,21 +429,21 @@ int InstrEmit_fcmpx_(PPCHIRBuilder& f, InstrData& i, bool ordered) {
   f.UpdateCR(crf, f.LoadFPR(i.X.RA), f.LoadFPR(i.X.RB), false);
   return 0;
 }
-XEEMITTER(fcmpo, 0xFC000040, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fcmpo(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_fcmpx_(f, i, true);
 }
-XEEMITTER(fcmpu, 0xFC000000, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fcmpu(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_fcmpx_(f, i, false);
 }
 
 // Floating-point status and control register (A
 
-XEEMITTER(mcrfs, 0xFC000080, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mcrfs(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mffsx, 0xFC00048E, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mffsx(PPCHIRBuilder& f, const InstrData& i) {
   if (i.X.Rc) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
@@ -453,17 +453,17 @@ XEEMITTER(mffsx, 0xFC00048E, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mtfsb0x, 0xFC00008C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtfsb0x(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsb1x, 0xFC00004C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtfsb1x(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
-XEEMITTER(mtfsfx, 0xFC00058E, XFL)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
   if (i.XFL.Rc) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
@@ -482,14 +482,14 @@ XEEMITTER(mtfsfx, 0xFC00058E, XFL)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(mtfsfix, 0xFC00010C, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_mtfsfix(PPCHIRBuilder& f, const InstrData& i) {
   XEINSTRNOTIMPLEMENTED();
   return 1;
 }
 
 // Floating-point move (A-21)
 
-XEEMITTER(fabsx, 0xFC000210, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- abs(frB)
   Value* v = f.Abs(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
@@ -501,7 +501,7 @@ XEEMITTER(fabsx, 0xFC000210, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fmrx, 0xFC000090, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fmrx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frB)
   Value* v = f.LoadFPR(i.X.RB);
   f.StoreFPR(i.X.RT, v);
@@ -513,7 +513,7 @@ XEEMITTER(fmrx, 0xFC000090, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnabsx, 0xFC000110, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fnabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- !abs(frB)
   Value* v = f.Neg(f.Abs(f.LoadFPR(i.X.RB)));
   f.StoreFPR(i.X.RT, v);
@@ -525,7 +525,7 @@ XEEMITTER(fnabsx, 0xFC000110, X)(PPCHIRBuilder& f, InstrData& i) {
   return 0;
 }
 
-XEEMITTER(fnegx, 0xFC000050, X)(PPCHIRBuilder& f, InstrData& i) {
+int InstrEmit_fnegx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- ¬ frB[0] || frB[1-63]
   Value* v = f.Neg(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
@@ -538,45 +538,45 @@ XEEMITTER(fnegx, 0xFC000050, X)(PPCHIRBuilder& f, InstrData& i) {
 }
 
 void RegisterEmitCategoryFPU() {
-  XEREGISTERINSTR(faddx, 0xFC00002A);
-  XEREGISTERINSTR(faddsx, 0xEC00002A);
-  XEREGISTERINSTR(fdivx, 0xFC000024);
-  XEREGISTERINSTR(fdivsx, 0xEC000024);
-  XEREGISTERINSTR(fmulx, 0xFC000032);
-  XEREGISTERINSTR(fmulsx, 0xEC000032);
-  XEREGISTERINSTR(fresx, 0xEC000030);
-  XEREGISTERINSTR(frsqrtex, 0xFC000034);
-  XEREGISTERINSTR(fsubx, 0xFC000028);
-  XEREGISTERINSTR(fsubsx, 0xEC000028);
-  XEREGISTERINSTR(fselx, 0xFC00002E);
-  XEREGISTERINSTR(fsqrtx, 0xFC00002C);
-  XEREGISTERINSTR(fsqrtsx, 0xEC00002C);
-  XEREGISTERINSTR(fmaddx, 0xFC00003A);
-  XEREGISTERINSTR(fmaddsx, 0xEC00003A);
-  XEREGISTERINSTR(fmsubx, 0xFC000038);
-  XEREGISTERINSTR(fmsubsx, 0xEC000038);
-  XEREGISTERINSTR(fnmaddx, 0xFC00003E);
-  XEREGISTERINSTR(fnmaddsx, 0xEC00003E);
-  XEREGISTERINSTR(fnmsubx, 0xFC00003C);
-  XEREGISTERINSTR(fnmsubsx, 0xEC00003C);
-  XEREGISTERINSTR(fcfidx, 0xFC00069C);
-  XEREGISTERINSTR(fctidx, 0xFC00065C);
-  XEREGISTERINSTR(fctidzx, 0xFC00065E);
-  XEREGISTERINSTR(fctiwx, 0xFC00001C);
-  XEREGISTERINSTR(fctiwzx, 0xFC00001E);
-  XEREGISTERINSTR(frspx, 0xFC000018);
-  XEREGISTERINSTR(fcmpo, 0xFC000040);
-  XEREGISTERINSTR(fcmpu, 0xFC000000);
-  XEREGISTERINSTR(mcrfs, 0xFC000080);
-  XEREGISTERINSTR(mffsx, 0xFC00048E);
-  XEREGISTERINSTR(mtfsb0x, 0xFC00008C);
-  XEREGISTERINSTR(mtfsb1x, 0xFC00004C);
-  XEREGISTERINSTR(mtfsfx, 0xFC00058E);
-  XEREGISTERINSTR(mtfsfix, 0xFC00010C);
-  XEREGISTERINSTR(fabsx, 0xFC000210);
-  XEREGISTERINSTR(fmrx, 0xFC000090);
-  XEREGISTERINSTR(fnabsx, 0xFC000110);
-  XEREGISTERINSTR(fnegx, 0xFC000050);
+  XEREGISTERINSTR(faddx);
+  XEREGISTERINSTR(faddsx);
+  XEREGISTERINSTR(fdivx);
+  XEREGISTERINSTR(fdivsx);
+  XEREGISTERINSTR(fmulx);
+  XEREGISTERINSTR(fmulsx);
+  XEREGISTERINSTR(fresx);
+  XEREGISTERINSTR(frsqrtex);
+  XEREGISTERINSTR(fsubx);
+  XEREGISTERINSTR(fsubsx);
+  XEREGISTERINSTR(fselx);
+  XEREGISTERINSTR(fsqrtx);
+  XEREGISTERINSTR(fsqrtsx);
+  XEREGISTERINSTR(fmaddx);
+  XEREGISTERINSTR(fmaddsx);
+  XEREGISTERINSTR(fmsubx);
+  XEREGISTERINSTR(fmsubsx);
+  XEREGISTERINSTR(fnmaddx);
+  XEREGISTERINSTR(fnmaddsx);
+  XEREGISTERINSTR(fnmsubx);
+  XEREGISTERINSTR(fnmsubsx);
+  XEREGISTERINSTR(fcfidx);
+  XEREGISTERINSTR(fctidx);
+  XEREGISTERINSTR(fctidzx);
+  XEREGISTERINSTR(fctiwx);
+  XEREGISTERINSTR(fctiwzx);
+  XEREGISTERINSTR(frspx);
+  XEREGISTERINSTR(fcmpo);
+  XEREGISTERINSTR(fcmpu);
+  XEREGISTERINSTR(mcrfs);
+  XEREGISTERINSTR(mffsx);
+  XEREGISTERINSTR(mtfsb0x);
+  XEREGISTERINSTR(mtfsb1x);
+  XEREGISTERINSTR(mtfsfx);
+  XEREGISTERINSTR(mtfsfix);
+  XEREGISTERINSTR(fabsx);
+  XEREGISTERINSTR(fmrx);
+  XEREGISTERINSTR(fnabsx);
+  XEREGISTERINSTR(fnegx);
 }
 
 }  // namespace ppc
