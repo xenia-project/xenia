@@ -200,7 +200,7 @@ def generate_table(insns):
   insns = sorted(insns, key = lambda i: i.mnem)
 
   w0('#define INSTRUCTION(opcode, mnem, form, group, type) \\')
-  w0('    {PPCOpcodeType::type, nullptr}')
+  w0('    {PPCOpcodeGroup::group, PPCOpcodeType::type, nullptr}')
   w0('PPCOpcodeInfo ppc_opcode_table[] = {')
   fmt = 'INSTRUCTION(' + ', '.join([
       '0x%08x',

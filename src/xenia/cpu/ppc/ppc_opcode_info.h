@@ -69,6 +69,7 @@ enum class PPCOpcodeType {
 typedef int (*InstrEmitFn)(PPCHIRBuilder& f, const InstrData& i);
 
 struct PPCOpcodeInfo {
+  PPCOpcodeGroup group;
   PPCOpcodeType type;
   InstrEmitFn emit;
 };

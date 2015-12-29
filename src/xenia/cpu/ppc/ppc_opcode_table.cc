@@ -11,7 +11,7 @@ namespace cpu {
 namespace ppc {
 
 #define INSTRUCTION(opcode, mnem, form, group, type) \
-    {PPCOpcodeType::type, nullptr}
+    {PPCOpcodeGroup::group, PPCOpcodeType::type, nullptr}
 PPCOpcodeInfo ppc_opcode_table[] = {
   INSTRUCTION(0x7c000014, "addcx"       , kXO     , kI, kGeneral),
   INSTRUCTION(0x7c000114, "addex"       , kXO     , kI, kGeneral),

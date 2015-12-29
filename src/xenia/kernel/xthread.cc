@@ -20,7 +20,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/breakpoint.h"
-#include "xenia/cpu/frontend/ppc_instr.h"
+#include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/emulator.h"
@@ -35,6 +35,8 @@ DEFINE_bool(ignore_thread_affinities, true,
 
 namespace xe {
 namespace kernel {
+
+using xe::cpu::ppc::PPCOpcode;
 
 uint32_t next_xthread_id_ = 0;
 thread_local XThread* current_thread_tls_ = nullptr;
@@ -805,39 +807,27 @@ bool XThread::StepToAddress(uint32_t pc) {
 }
 
 uint32_t XThread::StepIntoBranch(uint32_t pc) {
-  cpu::frontend::InstrData i;
-  i.address = pc;
-  i.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(i.address));
-  i.type = cpu::frontend::GetInstrType(i.code);
+  xe::cpu::ppc::PPCDecodeData d;
+  d.address = pc;
+  d.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(d.address));
+  auto opcode = xe::cpu::ppc::LookupOpcode(d.code);
 
   auto context = thread_state_->context();
 
-  if (i.type->type & (1 << 4) /* BranchAlways */
-      || i.code == 0x4E800020 /* blr */
-      || i.code == 0x4E800420 /* bctr */) {
-    if (i.code == 0x4E800020) {
-      // blr
-      uint32_t nia = uint32_t(context->lr);
-      StepToAddress(nia);
-    } else if (i.code == 0x4E800420) {
-      // bctr
-      uint32_t nia = uint32_t(context->ctr);
-      StepToAddress(nia);
-    } else if (i.type->opcode == 0x48000000) {
-      // bx
-      uint32_t nia = 0;
-      if (i.I.AA) {
-        nia = (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
-      } else {
-        nia = i.address + (uint32_t)cpu::frontend::XEEXTS26(i.I.LI << 2);
-      }
-
-      StepToAddress(nia);
-    } else {
-      // Unknown opcode.
-      assert_always();
-    }
-  } else if (i.type->type & (1 << 3) /* BranchCond */) {
+  if (d.code == 0x4E800020) {
+    // blr
+    uint32_t nia = uint32_t(context->lr);
+    StepToAddress(nia);
+  } else if (d.code == 0x4E800420) {
+    // bctr
+    uint32_t nia = uint32_t(context->ctr);
+    StepToAddress(nia);
+  } else if (opcode == PPCOpcode::bx) {
+    // bx
+    uint32_t nia = d.I.ADDR();
+    StepToAddress(nia);
+  } else if (opcode == PPCOpcode::bcx || opcode == PPCOpcode::bcctrx ||
+             opcode == PPCOpcode::bclrx) {
     threading::Fence fence;
     auto callback = [&fence, &pc](uint32_t guest_pc, uint64_t) {
       pc = guest_pc;
@@ -852,22 +842,15 @@ uint32_t XThread::StepIntoBranch(uint32_t pc) {
     }
 
     uint32_t nia = 0;
-    if (i.type->opcode == 0x40000000) {
+    if (opcode == PPCOpcode::bcx) {
       // bcx
-      if (i.B.AA) {
-        nia = (uint32_t)cpu::frontend::XEEXTS16(i.B.BD << 2);
-      } else {
-        nia = (uint32_t)(i.address + cpu::frontend::XEEXTS16(i.B.BD << 2));
-      }
-    } else if (i.type->opcode == 0x4C000420) {
+      nia = d.B.ADDR();
+    } else if (opcode == PPCOpcode::bcctrx) {
       // bcctrx
       nia = uint32_t(context->ctr);
-    } else if (i.type->opcode == 0x4C000020) {
+    } else if (opcode == PPCOpcode::bclrx) {
       // bclrx
       nia = uint32_t(context->lr);
-    } else {
-      // Unknown opcode.
-      assert_always();
     }
 
     bpt.set_address(nia);
@@ -938,19 +921,23 @@ uint32_t XThread::StepToSafePoint(bool ignore_host) {
 
     // We're in guest code.
     // First: Find a synchronizing instruction and go to it.
-    cpu::frontend::InstrData i;
-    i.address = cpu_frames[0].guest_pc - 4;
+    xe::cpu::ppc::PPCDecodeData d;
+    const xe::cpu::ppc::PPCOpcodeInfo* sync_info = nullptr;
+    d.address = cpu_frames[0].guest_pc - 4;
     do {
-      i.address += 4;
-      i.code =
-          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(i.address));
-      i.type = cpu::frontend::GetInstrType(i.code);
-    } while ((i.type->type & (cpu::frontend::kXEPPCInstrTypeSynchronizeContext |
-                              cpu::frontend::kXEPPCInstrTypeBranch)) == 0);
+      d.address += 4;
+      d.code =
+          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(d.address));
+      auto& opcode_info = xe::cpu::ppc::LookupOpcodeInfo(d.code);
+      if (opcode_info.type == cpu::ppc::PPCOpcodeType::kSync) {
+        sync_info = &opcode_info;
+        break;
+      }
+    } while (true);
 
-    if (i.address != pc) {
-      StepToAddress(i.address);
-      pc = i.address;
+    if (d.address != pc) {
+      StepToAddress(d.address);
+      pc = d.address;
     }
 
     // Okay. Now we're on a synchronizing instruction but we need to step
@@ -958,8 +945,8 @@ uint32_t XThread::StepToSafePoint(bool ignore_host) {
     // If we're on a branching instruction, it's guaranteed only going to have
     // two possible targets. For non-branching instructions, we can just step
     // over them.
-    if (i.type->type & cpu::frontend::kXEPPCInstrTypeBranch) {
-      pc = StepIntoBranch(i.address);
+    if (sync_info->group == xe::cpu::ppc::PPCOpcodeGroup::kB) {
+      pc = StepIntoBranch(d.address);
     }
   } else {
     // We're in host code. Search backwards til we can get an idea of where
@@ -999,12 +986,10 @@ uint32_t XThread::StepToSafePoint(bool ignore_host) {
       // that doesn't use an export. If the current instruction is
       // synchronizing, we can just save here. Otherwise, step forward
       // (and call ourselves again so we run the correct logic).
-      cpu::frontend::InstrData i;
-      i.address = first_pc;
-      i.code =
+      uint32_t code =
           xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
-      i.type = cpu::frontend::GetInstrType(i.code);
-      if (i.type->type & cpu::frontend::kXEPPCInstrTypeSynchronizeContext) {
+      auto& opcode_info = xe::cpu::ppc::LookupOpcodeInfo(code);
+      if (opcode_info.type == xe::cpu::ppc::PPCOpcodeType::kSync) {
         // Good to go.
         pc = first_pc;
       } else {
