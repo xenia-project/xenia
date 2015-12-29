@@ -115,7 +115,7 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(std::wstring path,
     open_access |= GENERIC_EXECUTE;
   }
   if (desired_access & FileAccess::kGenericAll) {
-    open_access |= GENERIC_ALL;
+    open_access |= GENERIC_READ | GENERIC_WRITE;
   }
   if (desired_access & FileAccess::kFileReadData) {
     open_access |= FILE_READ_DATA;
@@ -126,12 +126,12 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(std::wstring path,
   if (desired_access & FileAccess::kFileAppendData) {
     open_access |= FILE_APPEND_DATA;
   }
-  DWORD share_mode = FILE_SHARE_READ;
+  DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE;
   // We assume we've already created the file in the caller.
   DWORD creation_disposition = OPEN_EXISTING;
   HANDLE handle =
-      CreateFileW(path.c_str(), open_access, share_mode, NULL,
-                  creation_disposition, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+      CreateFileW(path.c_str(), open_access, share_mode, nullptr,
+                  creation_disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
     return nullptr;
