@@ -42,9 +42,7 @@ XObject::XObject(KernelState* kernel_state, Type type)
 
   // TODO: Assert kernel_state != nullptr in this constructor.
   if (kernel_state) {
-    X_HANDLE handle;
-    kernel_state->object_table()->AddHandle(this, &handle);
-    handles_[0] = handle;
+    kernel_state->object_table()->AddHandle(this, nullptr);
   }
 }
 

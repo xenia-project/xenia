@@ -96,8 +96,6 @@ bool ObjectTable::Resize(uint32_t new_capacity) {
 }
 
 X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
-  assert_not_null(out_handle);
-
   X_STATUS result = X_STATUS_SUCCESS;
 
   uint32_t handle = 0;
@@ -123,7 +121,9 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
   }
 
   if (XSUCCEEDED(result)) {
-    *out_handle = handle;
+    if (out_handle) {
+      *out_handle = handle;
+    }
   }
 
   return result;
