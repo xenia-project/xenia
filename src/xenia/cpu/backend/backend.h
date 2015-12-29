@@ -54,7 +54,9 @@ class Backend {
       Module* module, uint32_t address) = 0;
 
   virtual bool InstallBreakpoint(Breakpoint* bp) { return false; }
-  virtual bool InstallBreakpoint(Breakpoint* bp, Function* func) { return false; }
+  virtual bool InstallBreakpoint(Breakpoint* bp, Function* func) {
+    return false;
+  }
   virtual bool UninstallBreakpoint(Breakpoint* bp) { return false; }
 
  protected:

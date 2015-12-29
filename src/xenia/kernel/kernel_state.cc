@@ -139,13 +139,9 @@ void KernelState::set_process_type(uint32_t value) {
   pib->process_type = uint8_t(value);
 }
 
-uint32_t KernelState::AllocateTLS() {
-  return uint32_t(tls_bitmap_.Acquire());
-}
+uint32_t KernelState::AllocateTLS() { return uint32_t(tls_bitmap_.Acquire()); }
 
-void KernelState::FreeTLS(uint32_t slot) {
-  tls_bitmap_.Release(slot);
-}
+void KernelState::FreeTLS(uint32_t slot) { tls_bitmap_.Release(slot); }
 
 void KernelState::RegisterTitleTerminateNotification(uint32_t routine,
                                                      uint32_t priority) {

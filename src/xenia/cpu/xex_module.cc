@@ -475,7 +475,8 @@ bool XexModule::SetupLibraryImports(const char* name,
           XELOGW("WARNING: Imported kernel function %s is unimplemented!",
                  import_name.GetString());
         }
-        static_cast<GuestFunction*>(function)->SetupExtern(handler, kernel_export);
+        static_cast<GuestFunction*>(function)->SetupExtern(handler,
+                                                           kernel_export);
       }
       function->set_status(Symbol::Status::kDeclared);
     } else {

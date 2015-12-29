@@ -226,7 +226,6 @@ class CommandProcessor {
   Shader* active_pixel_shader_ = nullptr;
 
   bool paused_ = false;
-
 };
 
 }  // namespace gpu

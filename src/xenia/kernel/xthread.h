@@ -17,8 +17,8 @@
 #include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/util/native_list.h"
-#include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xmutant.h"
+#include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
 namespace xe {

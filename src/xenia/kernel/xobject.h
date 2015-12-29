@@ -187,7 +187,6 @@ class XObject {
   static object_ref<T> GetNativeObject(KernelState* kernel_state,
                                        void* native_ptr, int32_t as_type = -1);
 
-
  protected:
   bool SaveObject(ByteStream* stream);
   bool RestoreObject(ByteStream* stream);
@@ -313,9 +312,7 @@ class object_ref {
 
   void reset(T* value) noexcept { object_ref(value).swap(*this); }
 
-  inline bool operator==(const T* right) noexcept {
-    return value_ == right;
-  }
+  inline bool operator==(const T* right) noexcept { return value_ == right; }
 
  private:
   T* value_ = nullptr;

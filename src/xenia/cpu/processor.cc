@@ -461,7 +461,7 @@ bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
   auto bp = FindBreakpoint(address);
   if (bp) {
     bp->Hit(host_pc);
-    
+
     xe::threading::Thread::GetCurrentThread()->Suspend();
     return true;
   }

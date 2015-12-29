@@ -42,8 +42,8 @@ class ObjectTable {
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
-  // Restores a XObject reference with a handle. Mainly for internal use - do not
-  // use.
+  // Restores a XObject reference with a handle. Mainly for internal use - do
+  // not use.
   X_STATUS RestoreHandle(X_HANDLE handle, XObject* object);
 
   template <typename T>
@@ -78,7 +78,7 @@ class ObjectTable {
   }
 
   std::vector<object_ref<XObject>> GetAllObjects();
-  void PurgeAllObjects(); // Purges the object table of all guest objects
+  void PurgeAllObjects();  // Purges the object table of all guest objects
 
  private:
   typedef struct {

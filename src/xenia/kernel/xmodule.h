@@ -80,7 +80,8 @@ class XModule : public XObject {
   static uint32_t GetHandleFromHModule(void* hmodule);
 
   virtual bool Save(ByteStream* stream) override;
-  static object_ref<XModule> Restore(KernelState* kernel_state, ByteStream* stream);
+  static object_ref<XModule> Restore(KernelState* kernel_state,
+                                     ByteStream* stream);
 
  protected:
   void OnLoad();

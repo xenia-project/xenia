@@ -403,7 +403,8 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
   }
 
   // Update the main thread.
-  auto threads = kernel_state_->object_table()->GetObjectsByType<kernel::XThread>();
+  auto threads =
+      kernel_state_->object_table()->GetObjectsByType<kernel::XThread>();
   for (auto thread : threads) {
     if (thread->main_thread()) {
       main_thread_ = thread->thread();

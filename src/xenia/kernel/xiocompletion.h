@@ -51,4 +51,4 @@ class XIOCompletion : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif // XENIA_KERNEL_XIOCOMPLETION_H_
+#endif  // XENIA_KERNEL_XIOCOMPLETION_H_

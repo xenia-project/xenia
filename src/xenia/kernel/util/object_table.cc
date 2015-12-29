@@ -76,14 +76,16 @@ X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
 bool ObjectTable::Resize(uint32_t new_capacity) {
   uint32_t new_size = new_capacity * sizeof(ObjectTableEntry);
   uint32_t old_size = table_capacity_ * sizeof(ObjectTableEntry);
-  auto new_table = reinterpret_cast<ObjectTableEntry*>(realloc(table_, new_size));
+  auto new_table =
+      reinterpret_cast<ObjectTableEntry*>(realloc(table_, new_size));
   if (!new_table) {
     return false;
   }
 
   // Zero out new entries.
   if (new_size > old_size) {
-    std::memset(reinterpret_cast<uint8_t*>(new_table) + old_size, 0, new_size - old_size);
+    std::memset(reinterpret_cast<uint8_t*>(new_table) + old_size, 0,
+                new_size - old_size);
   }
 
   last_free_entry_ = table_capacity_;

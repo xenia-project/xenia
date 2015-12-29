@@ -18,9 +18,7 @@ ByteStream::ByteStream(uint8_t* data, size_t data_length, size_t offset)
 
 ByteStream::~ByteStream() = default;
 
-void ByteStream::Advance(size_t num_bytes) {
-  offset_ += num_bytes;
-}
+void ByteStream::Advance(size_t num_bytes) { offset_ += num_bytes; }
 
 void ByteStream::Read(uint8_t* buf, size_t len) {
   assert_true(offset_ < data_length_);
