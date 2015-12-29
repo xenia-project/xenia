@@ -34,7 +34,9 @@ XObject::XObject(KernelState* kernel_state, Type type)
       allocated_guest_object_(false) {
   handles_.reserve(10);
   if (kernel_state) {
-    kernel_state->object_table()->AddHandle(this, &handles_[0]);
+    X_HANDLE handle;
+    kernel_state->object_table()->AddHandle(this, &handle);
+    handles_[0] = handle;
   }
 }
 
