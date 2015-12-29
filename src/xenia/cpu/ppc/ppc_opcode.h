@@ -42,7 +42,6 @@ enum class PPCOpcode : uint32_t {
   cror,
   crorc,
   crxor,
-  dcba,
   dcbf,
   dcbi,
   dcbst,

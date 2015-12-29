@@ -411,7 +411,6 @@ PPCOpcode LookupOpcode(uint32_t code) {
       case 0b1010110111: PPC_DECODER_HIT(stfsux);
       case 0b1011010101: PPC_DECODER_HIT(stswi);
       case 0b1011010111: PPC_DECODER_HIT(stfdx);
-      case 0b1011110110: PPC_DECODER_HIT(dcba);
       case 0b1011110111: PPC_DECODER_HIT(stfdux);
       case 0b1100000111: PPC_DECODER_HIT(lvlxl);
       case 0b1100010110: PPC_DECODER_HIT(lhbrx);

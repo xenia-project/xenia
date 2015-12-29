@@ -14,6 +14,7 @@
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
+    <out field="CA" />
     <out field="OE" conditional="true" />
     <out field="CR" conditional="true" />
     <disasm>addc[OE][Rc] [RD], [RA], [RB]</disasm>
@@ -21,7 +22,7 @@
   <insn mnem="addex"        opcode="7c000114" form="XO"       group="i" desc="Add Extended">
     <in field="RA" />
     <in field="RB" />
-    <in field="CR" />
+    <in field="CA" />
     <out field="RD" />
     <out field="OE" conditional="true" />
     <out field="CR" conditional="true" />
@@ -100,14 +101,14 @@
     <out field="CR" />
     <disasm>andis. [RA], [RS], [UIMM]</disasm>
   </insn>
-  <insn mnem="bx"           opcode="48000000" form="I"        group="i" desc="Branch" sync="true">
+  <insn mnem="bx"           opcode="48000000" form="I"        group="b" desc="Branch" sync="true">
     <in field="LK" />
     <in field="AA" />
     <in field="ADDR" />
     <out field="LR" conditional="true" />
     <disasm>b[LK][AA] [ADDR]</disasm>
   </insn>
-  <insn mnem="bcx"          opcode="40000000" form="B"        group="i" desc="Branch Conditional" sync="true">
+  <insn mnem="bcx"          opcode="40000000" form="B"        group="b" desc="Branch Conditional" sync="true">
     <in field="LK" />
     <in field="AA" />
     <in field="BO" />
@@ -119,7 +120,7 @@
     <out field="LR" conditional="true" />
     <disasm>bc[LK][AA] [BO], [BI], [ADDR]</disasm>
   </insn>
-  <insn mnem="bcctrx"       opcode="4c000420" form="XL"       group="i" desc="Branch Conditional to Count Register" sync="true">
+  <insn mnem="bcctrx"       opcode="4c000420" form="XL"       group="b" desc="Branch Conditional to Count Register" sync="true">
     <in field="LK" />
     <in field="BO" />
     <in field="BI" />
@@ -128,7 +129,7 @@
     <out field="LR" conditional="true" />
     <disasm>bcctr[LK] [BO], [BI]</disasm>
   </insn>
-  <insn mnem="bclrx"        opcode="4c000020" form="XL"       group="i" desc="Branch Conditional to Link Register" sync="true">
+  <insn mnem="bclrx"        opcode="4c000020" form="XL"       group="b" desc="Branch Conditional to Link Register" sync="true">
     <in field="LK" />
     <in field="BO" />
     <in field="BI" />
@@ -171,7 +172,8 @@
     <in field="RS" />
     <out field="RA" />
     <out field="CR" conditional="true" />
-    <disasm>cntlzd[Rc] [RA], [RS]</disasm>
+    <!-- note: rc may not be supported? -->
+    <disasm>cntlzd [RA], [RS]</disasm>
   </insn>
   <insn mnem="cntlzwx"      opcode="7c000034" form="X"        group="i" desc="Count Leading Zeros Word">
     <in field="RS" />
@@ -179,58 +181,53 @@
     <out field="CR" conditional="true" />
     <disasm>cntlzw[Rc] [RA], [RS]</disasm>
   </insn>
-  <insn mnem="crand"        opcode="4c000202" form="XL"       group="i" desc="Condition Register AND">
+  <insn mnem="crand"        opcode="4c000202" form="XL"       group="c" desc="Condition Register AND">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>crand [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="crandc"       opcode="4c000102" form="XL"       group="i" desc="Condition Register AND with Complement">
+  <insn mnem="crandc"       opcode="4c000102" form="XL"       group="c" desc="Condition Register AND with Complement">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>crandc [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="creqv"        opcode="4c000242" form="XL"       group="i" desc="Condition Register Equivalent">
+  <insn mnem="creqv"        opcode="4c000242" form="XL"       group="c" desc="Condition Register Equivalent">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>creqv [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="crnand"       opcode="4c0001c2" form="XL"       group="i" desc="Condition Register NAND">
+  <insn mnem="crnand"       opcode="4c0001c2" form="XL"       group="c" desc="Condition Register NAND">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>crnand [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="crnor"        opcode="4c000042" form="XL"       group="i" desc="Condition Register NOR">
+  <insn mnem="crnor"        opcode="4c000042" form="XL"       group="c" desc="Condition Register NOR">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>crnor [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="cror"         opcode="4c000382" form="XL"       group="i" desc="Condition Register OR">
+  <insn mnem="cror"         opcode="4c000382" form="XL"       group="c" desc="Condition Register OR">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>cror [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="crorc"        opcode="4c000342" form="XL"       group="i" desc="Condition Register OR with Complement">
+  <insn mnem="crorc"        opcode="4c000342" form="XL"       group="c" desc="Condition Register OR with Complement">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>crorc [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="crxor"        opcode="4c000182" form="XL"       group="i" desc="Condition Register XOR">
+  <insn mnem="crxor"        opcode="4c000182" form="XL"       group="c" desc="Condition Register XOR">
     <in field="CRBA" />
     <in field="CRBB" />
     <out field="CRBD" />
     <disasm>crxor [CRBD], [CRBA], [CRBB]</disasm>
-  </insn>
-  <insn mnem="dcba"         opcode="7c0005ec" form="X"        group="i" desc="Data Cache Block Allocate">
-    <in field="RA0" />
-    <in field="RB" />
-    <disasm>dcba [RA0], [RB]</disasm>
   </insn>
   <insn mnem="dcbf"         opcode="7c0000ac" form="X"        group="i" desc="Data Cache Block Flush">
     <in field="RA0" />
@@ -257,12 +254,12 @@
     <in field="RB" />
     <disasm>dcbtst [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="dcbz"         opcode="7c0007ec" form="DCBZ"     group="i" desc="Data Cache Block Clear to Zero">
+  <insn mnem="dcbz"         opcode="7c0007ec" form="DCBZ"     group="m" desc="Data Cache Block Clear to Zero">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbz [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="dcbz128"      opcode="7c2007ec" form="DCBZ"     group="i" desc="Data Cache Block Clear to Zero 128">
+  <insn mnem="dcbz128"      opcode="7c2007ec" form="DCBZ"     group="m" desc="Data Cache Block Clear to Zero 128">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbz128 [RA0], [RB]</disasm>
@@ -587,328 +584,328 @@
   <insn mnem="isync"        opcode="4c00012c" form="XL"       group="i" desc="Instruction Synchronize">
     <disasm>isync</disasm>
   </insn>
-  <insn mnem="lbz"          opcode="88000000" form="D"        group="i" desc="Load Byte and Zero">
+  <insn mnem="lbz"          opcode="88000000" form="D"        group="m" desc="Load Byte and Zero">
     <in field="RA0" />
     <in field="d" />
     <out field="RD" />
     <disasm>lbz [RD], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="lbzu"         opcode="8c000000" form="D"        group="i" desc="Load Byte and Zero with Update">
+  <insn mnem="lbzu"         opcode="8c000000" form="D"        group="m" desc="Load Byte and Zero with Update">
     <in field="RA" />
     <in field="d" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lbzu [RD], [d]([RA])</disasm>
   </insn>
-  <insn mnem="lbzux"        opcode="7c0000ee" form="X"        group="i" desc="Load Byte and Zero with Update Indexed">
+  <insn mnem="lbzux"        opcode="7c0000ee" form="X"        group="m" desc="Load Byte and Zero with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lbzux [RD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lbzx"         opcode="7c0000ae" form="X"        group="i" desc="Load Byte and Zero Indexed">
+  <insn mnem="lbzx"         opcode="7c0000ae" form="X"        group="m" desc="Load Byte and Zero Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lbzx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="ld"           opcode="E8000000" form="DS"       group="i" desc="Load Doubleword">
+  <insn mnem="ld"           opcode="E8000000" form="DS"       group="m" desc="Load Doubleword">
     <in field="RA0" />
     <in field="ds" />
     <out field="RD" />
     <disasm>ld [RD], [ds]([RA0])</disasm>
   </insn>
-  <insn mnem="ldarx"        opcode="7C0000A8" form="X"        group="i" desc="Load Doubleword and Reserve Indexed">
+  <insn mnem="ldarx"        opcode="7C0000A8" form="X"        group="m" desc="Load Doubleword and Reserve Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>ldarx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="ldbrx"        opcode="7C000428" form="X"        group="i" desc="Load Doubleword Byte-Reverse Indexed">
+  <insn mnem="ldbrx"        opcode="7C000428" form="X"        group="m" desc="Load Doubleword Byte-Reverse Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>ldbrx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="ldu"          opcode="E8000001" form="DS"       group="i" desc="Load Doubleword with Update">
+  <insn mnem="ldu"          opcode="E8000001" form="DS"       group="m" desc="Load Doubleword with Update">
     <in field="RA" />
     <in field="ds" />
     <out field="RD" />
     <out field="RA" />
     <disasm>ldu [RD], [ds]([RA])</disasm>
   </insn>
-  <insn mnem="ldux"         opcode="7c00006a" form="X"        group="i" desc="Load Doubleword with Update Indexed">
+  <insn mnem="ldux"         opcode="7c00006a" form="X"        group="m" desc="Load Doubleword with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
     <out field="RA" />
     <disasm>ldux [RD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="ldx"          opcode="7c00002a" form="X"        group="i" desc="Load Doubleword Indexed">
+  <insn mnem="ldx"          opcode="7c00002a" form="X"        group="m" desc="Load Doubleword Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>ldx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lfd"          opcode="c8000000" form="D"        group="f" desc="Load Floating-Point Double">
+  <insn mnem="lfd"          opcode="c8000000" form="D"        group="m" desc="Load Floating-Point Double">
     <in field="RA0" />
     <in field="d" />
     <out field="FD" />
     <disasm>lfd [FD], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="lfdu"         opcode="cc000000" form="D"        group="f" desc="Load Floating-Point Double with Update">
+  <insn mnem="lfdu"         opcode="cc000000" form="D"        group="m" desc="Load Floating-Point Double with Update">
     <in field="RA" />
     <in field="d" />
     <out field="FD" />
     <out field="RA" />
     <disasm>lfdu [FD], [d]([RA])</disasm>
   </insn>
-  <insn mnem="lfdux"        opcode="7c0004ee" form="X"        group="f" desc="Load Floating-Point Double with Update Indexed">
+  <insn mnem="lfdux"        opcode="7c0004ee" form="X"        group="m" desc="Load Floating-Point Double with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="FD" />
     <out field="RA" />
     <disasm>lfdux [FD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lfdx"         opcode="7c0004ae" form="X"        group="f" desc="Load Floating-Point Double Indexed">
+  <insn mnem="lfdx"         opcode="7c0004ae" form="X"        group="m" desc="Load Floating-Point Double Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="FD" />
     <disasm>lfdx [FD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lfs"          opcode="c0000000" form="D"        group="f" desc="Load Floating-Point Single">
+  <insn mnem="lfs"          opcode="c0000000" form="D"        group="m" desc="Load Floating-Point Single">
     <in field="RA0" />
     <in field="d" />
     <out field="FD" />
     <disasm>lfs [FD], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="lfsu"         opcode="c4000000" form="D"        group="f" desc="Load Floating-Point Single with Update">
+  <insn mnem="lfsu"         opcode="c4000000" form="D"        group="m" desc="Load Floating-Point Single with Update">
     <in field="RA" />
     <in field="d" />
     <out field="FD" />
     <out field="RA" />
     <disasm>lfsu [FD], [d]([RA])</disasm>
   </insn>
-  <insn mnem="lfsux"        opcode="7c00046e" form="X"        group="f" desc="Load Floating-Point Single with Update Indexed">
+  <insn mnem="lfsux"        opcode="7c00046e" form="X"        group="m" desc="Load Floating-Point Single with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="FD" />
     <out field="RA" />
     <disasm>lfsux [FD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lfsx"         opcode="7c00042e" form="X"        group="f" desc="Load Floating-Point Single Indexed">
+  <insn mnem="lfsx"         opcode="7c00042e" form="X"        group="m" desc="Load Floating-Point Single Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="FD" />
     <disasm>lfsx [FD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lha"          opcode="a8000000" form="D"        group="i" desc="Load Half Word Algebraic">
+  <insn mnem="lha"          opcode="a8000000" form="D"        group="m" desc="Load Half Word Algebraic">
     <in field="RA0" />
     <in field="d" />
     <out field="RD" />
     <disasm>lha [RD], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="lhau"         opcode="ac000000" form="D"        group="i" desc="Load Half Word Algebraic with Update">
+  <insn mnem="lhau"         opcode="ac000000" form="D"        group="m" desc="Load Half Word Algebraic with Update">
     <in field="RA" />
     <in field="d" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lhau [RD], [d]([RA])</disasm>
   </insn>
-  <insn mnem="lhaux"        opcode="7c0002ee" form="X"        group="i" desc="Load Half Word Algebraic with Update Indexed">
+  <insn mnem="lhaux"        opcode="7c0002ee" form="X"        group="m" desc="Load Half Word Algebraic with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lhaux [RD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lhax"         opcode="7c0002ae" form="X"        group="i" desc="Load Half Word Algebraic Indexed">
+  <insn mnem="lhax"         opcode="7c0002ae" form="X"        group="m" desc="Load Half Word Algebraic Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lhax [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lhbrx"        opcode="7c00062c" form="X"        group="i" desc="Load Half Word Byte-Reverse Indexed">
+  <insn mnem="lhbrx"        opcode="7c00062c" form="X"        group="m" desc="Load Half Word Byte-Reverse Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lhbrx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lhz"          opcode="a0000000" form="D"        group="i" desc="Load Half Word and Zero">
+  <insn mnem="lhz"          opcode="a0000000" form="D"        group="m" desc="Load Half Word and Zero">
     <in field="RA0" />
     <in field="d" />
     <out field="RD" />
     <disasm>lhz [RD], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="lhzu"         opcode="a4000000" form="D"        group="i" desc="Load Half Word and Zero with Update">
+  <insn mnem="lhzu"         opcode="a4000000" form="D"        group="m" desc="Load Half Word and Zero with Update">
     <in field="RA" />
     <in field="d" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lhzu [RD], [d]([RA])</disasm>
   </insn>
-  <insn mnem="lhzux"        opcode="7c00026e" form="X"        group="i" desc="Load Half Word and Zero with Update Indexed">
+  <insn mnem="lhzux"        opcode="7c00026e" form="X"        group="m" desc="Load Half Word and Zero with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lhzux [RD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lhzx"         opcode="7c00022e" form="X"        group="i" desc="Load Half Word and Zero Indexed">
+  <insn mnem="lhzx"         opcode="7c00022e" form="X"        group="m" desc="Load Half Word and Zero Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lhzx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lmw"          opcode="b8000000" form="D"        group="i" desc="Load Multiple Word">
+  <insn mnem="lmw"          opcode="b8000000" form="D"        group="m" desc="Load Multiple Word">
     <!-- ? -->
   </insn>
-  <insn mnem="lswi"         opcode="7c0004aa" form="X"        group="i" desc="Load String Word Immediate">
+  <insn mnem="lswi"         opcode="7c0004aa" form="X"        group="m" desc="Load String Word Immediate">
     <!-- ? -->
   </insn>
-  <insn mnem="lswx"         opcode="7c00042a" form="X"        group="i" desc="Load String Word Indexed">
+  <insn mnem="lswx"         opcode="7c00042a" form="X"        group="m" desc="Load String Word Indexed">
     <!-- ? -->
   </insn>
-  <insn mnem="lwa"          opcode="e8000002" form="DS"       group="i" desc="Load Word Algebraic">
+  <insn mnem="lwa"          opcode="e8000002" form="DS"       group="m" desc="Load Word Algebraic">
     <in field="RA0" />
     <in field="ds" />
     <out field="RD" />
     <disasm>lwa [RD], [ds]([RA0])</disasm>
   </insn>
-  <insn mnem="lwarx"        opcode="7c000028" form="X"        group="i" desc="Load Word and Reserve Indexed">
+  <insn mnem="lwarx"        opcode="7c000028" form="X"        group="m" desc="Load Word and Reserve Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lwarx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lwaux"        opcode="7c0002ea" form="X"        group="i" desc="Load Word Algebraic with Update Indexed">
+  <insn mnem="lwaux"        opcode="7c0002ea" form="X"        group="m" desc="Load Word Algebraic with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lwaux [RD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lwax"         opcode="7c0002aa" form="X"        group="i" desc="Load Word Algebraic Indexed">
+  <insn mnem="lwax"         opcode="7c0002aa" form="X"        group="m" desc="Load Word Algebraic Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lwax [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lwbrx"        opcode="7c00042c" form="X"        group="i" desc="Load Word Byte-Reverse Indexed">
+  <insn mnem="lwbrx"        opcode="7c00042c" form="X"        group="m" desc="Load Word Byte-Reverse Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lwbrx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lwz"          opcode="80000000" form="D"        group="i" desc="Load Word and Zero">
+  <insn mnem="lwz"          opcode="80000000" form="D"        group="m" desc="Load Word and Zero">
     <in field="RA0" />
     <in field="d" />
     <out field="RD" />
     <disasm>lwz [RD], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="lwzu"         opcode="84000000" form="D"        group="i" desc="Load Word and Zero with Update">
+  <insn mnem="lwzu"         opcode="84000000" form="D"        group="m" desc="Load Word and Zero with Update">
     <in field="RA" />
     <in field="d" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lwzu [RD], [d]([RA])</disasm>
   </insn>
-  <insn mnem="lwzux"        opcode="7c00006e" form="X"        group="i" desc="Load Word and Zero with Update Indexed">
+  <insn mnem="lwzux"        opcode="7c00006e" form="X"        group="m" desc="Load Word and Zero with Update Indexed">
     <in field="RA" />
     <in field="RB" />
     <out field="RD" />
     <out field="RA" />
     <disasm>lwzux [RD], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="lwzx"         opcode="7c00002e" form="X"        group="i" desc="Load Word and Zero Indexed">
+  <insn mnem="lwzx"         opcode="7c00002e" form="X"        group="m" desc="Load Word and Zero Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="RD" />
     <disasm>lwzx [RD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="mcrf"         opcode="4c000000" form="XL"       group="i" desc="Move Condition Register Field">
+  <insn mnem="mcrf"         opcode="4c000000" form="XL"       group="c" desc="Move Condition Register Field">
     <in field="CRFS" />
     <out field="CRFD" />
     <disasm>mcrf [CRFD], [CRFS]</disasm>
   </insn>
-  <insn mnem="mcrfs"        opcode="fc000080" form="X"        group="f" desc="Move to Condition Register from FPSCR">
+  <insn mnem="mcrfs"        opcode="fc000080" form="X"        group="c" desc="Move to Condition Register from FPSCR">
     <in field="CRFS" />
     <in field="FPSCR" />
     <out field="CRFD" />
     <out field="FPSCR" />
     <disasm>mcrfs [CRFD], [CRFS]</disasm>
   </insn>
-  <insn mnem="mcrxr"        opcode="7c000400" form="X"        group="i" desc="Move to Condition Register from XER">
+  <insn mnem="mcrxr"        opcode="7c000400" form="X"        group="c" desc="Move to Condition Register from XER">
     <in field="CR" />
     <out field="CRFD" />
     <disasm>mcrxr [CRFD]</disasm>
   </insn>
-  <insn mnem="mfcr"         opcode="7c000026" form="X"        group="i" desc="Move from Condition Register">
+  <insn mnem="mfcr"         opcode="7c000026" form="X"        group="c" desc="Move from Condition Register">
     <in field="CR" />
     <out field="RD" />
     <disasm>mfcr [RD]</disasm>
   </insn>
-  <insn mnem="mffsx"        opcode="fc00048e" form="X"        group="f" desc="Move from FPSCR">
+  <insn mnem="mffsx"        opcode="fc00048e" form="X"        group="c" desc="Move from FPSCR">
     <in field="FPSCR" />
     <out field="FD" />
     <out field="CR" conditional="true" />
     <disasm>mffs[Rc] [RD]</disasm>
   </insn>
-  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        group="i" desc="Move from Machine State Register">
+  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        group="c" desc="Move from Machine State Register">
     <in field="MSR" />
     <out field="RD" />
     <disasm>mfmsr [RD]</disasm>
   </insn>
-  <insn mnem="mfspr"        opcode="7c0002a6" form="XFX"      group="i" desc="Move from Special-Purpose Register">
+  <insn mnem="mfspr"        opcode="7c0002a6" form="XFX"      group="c" desc="Move from Special-Purpose Register">
     <in field="SPR" />
     <out field="RD" />
     <disasm>mfspr [RD], [SPR]</disasm>
   </insn>
-  <insn mnem="mftb"         opcode="7c0002e6" form="XFX"      group="i" desc="Move from Time Base">
+  <insn mnem="mftb"         opcode="7c0002e6" form="XFX"      group="c" desc="Move from Time Base">
     <in field="TBR" />
     <out field="RD" />
     <disasm>mftb [RD], [TBR]</disasm>
   </insn>
-  <insn mnem="mtcrf"        opcode="7c000120" form="XFX"      group="i" desc="Move to Condition Register Fields">
+  <insn mnem="mtcrf"        opcode="7c000120" form="XFX"      group="c" desc="Move to Condition Register Fields">
     <in field="RS" />
     <out field="CRM" />
     <disasm>mtcrf [CRM], [RS]</disasm>
   </insn>
-  <insn mnem="mtfsb0x"      opcode="fc00008c" form="X"        group="f" desc="Move to FPSCR Bit 0">
+  <insn mnem="mtfsb0x"      opcode="fc00008c" form="X"        group="c" desc="Move to FPSCR Bit 0">
     <out field="FPSCRD" />
     <out field="CR" conditional="true" />
     <disasm>mtfsb0[Rc] [FPSCRD]</disasm>
   </insn>
-  <insn mnem="mtfsb1x"      opcode="fc00004c" form="X"        group="f" desc="Move to FPSCR Bit 1">
+  <insn mnem="mtfsb1x"      opcode="fc00004c" form="X"        group="c" desc="Move to FPSCR Bit 1">
     <out field="FPSCRD" />
     <out field="CR" conditional="true" />
     <disasm>mtfsb1[Rc] [FPSCRD]</disasm>
   </insn>
-  <insn mnem="mtfsfx"       opcode="fc00058e" form="XFL"      group="f" desc="Move to FPSCR Fields">
+  <insn mnem="mtfsfx"       opcode="fc00058e" form="XFL"      group="c" desc="Move to FPSCR Fields">
     <in field="FM" />
     <in field="FB" />
     <out field="FPSCR" />
     <out field="CR" conditional="true" />
     <disasm>mtfsf[Rc] [FM], [FB]</disasm>
   </insn>
-  <insn mnem="mtfsfix"      opcode="fc00010c" form="X"        group="f" desc="Move to FPSCR Field Immediate">
+  <insn mnem="mtfsfix"      opcode="fc00010c" form="X"        group="c" desc="Move to FPSCR Field Immediate">
     <in field="IMM" />
     <out field="CRFD" />
     <out field="CR" conditional="true" />
     <disasm>mtfsfi[Rc] [CRFD], [IMM]</disasm>
   </insn>
-  <insn mnem="mtmsr"        opcode="7c000124" form="X"        group="i" desc="Move to Machine State Register">
+  <insn mnem="mtmsr"        opcode="7c000124" form="X"        group="c" desc="Move to Machine State Register">
     <in field="RS" />
     <out field="MSR" />
     <disasm>mtmsr [RS]</disasm>
   </insn>
-  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        group="i" desc="Move to Machine State Register Doubleword">
+  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        group="c" desc="Move to Machine State Register Doubleword">
     <in field="RS" />
     <out field="MSR" />
     <disasm>mtmsrd [RS]</disasm>
   </insn>
-  <insn mnem="mtspr"        opcode="7c0003a6" form="XFX"      group="i" desc="Move to Special-Purpose Register">
+  <insn mnem="mtspr"        opcode="7c0003a6" form="XFX"      group="c" desc="Move to Special-Purpose Register">
     <in field="RS" />
     <out field="SPR" />
     <disasm>mtmspr [SPR], [RS]</disasm>
@@ -1085,7 +1082,7 @@
     <out field="CR" conditional="true" />
     <disasm>rlwnm[Rc] [RA], [RS], [RB], [MB], [ME]</disasm>
   </insn>
-  <insn mnem="sc"           opcode="44000002" form="SC"       group="i" desc="System Call" sync="true">
+  <insn mnem="sc"           opcode="44000002" form="SC"       group="b" desc="System Call" sync="true">
     <disasm>sc</disasm>
   </insn>
   <insn mnem="sldx"         opcode="7c000036" form="X"        group="i" desc="Shift Left Doubleword">
@@ -1148,204 +1145,204 @@
     <out field="CR" conditional="true" />
     <disasm>srw[Rc] [RA], [RS], [RB]</disasm>
   </insn>
-  <insn mnem="stb"          opcode="98000000" form="D"        group="i" desc="Store Byte">
+  <insn mnem="stb"          opcode="98000000" form="D"        group="m" desc="Store Byte">
     <in field="RS" />
     <in field="RA0" />
     <in field="d" />
     <disasm>stb [RS], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="stbu"         opcode="9c000000" form="D"        group="i" desc="Store Byte with Update">
+  <insn mnem="stbu"         opcode="9c000000" form="D"        group="m" desc="Store Byte with Update">
     <in field="RS" />
     <in field="RA" />
     <in field="d" />
     <out field="RA" />
     <disasm>stbu [RS], [d]([RA])</disasm>
   </insn>
-  <insn mnem="stbux"        opcode="7c0001ee" form="X"        group="i" desc="Store Byte with Update Indexed">
+  <insn mnem="stbux"        opcode="7c0001ee" form="X"        group="m" desc="Store Byte with Update Indexed">
     <in field="RS" />
     <in field="RA" />
     <in field="RB" />
     <out field="RA" />
     <disasm>stbux [RS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="stbx"         opcode="7c0001ae" form="X"        group="i" desc="Store Byte Indexed">
+  <insn mnem="stbx"         opcode="7c0001ae" form="X"        group="m" desc="Store Byte Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stbx [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="std"          opcode="f8000000" form="DS"       group="i" desc="Store Doubleword">
+  <insn mnem="std"          opcode="f8000000" form="DS"       group="m" desc="Store Doubleword">
     <in field="RS" />
     <in field="RA" />
     <in field="ds" />
     <disasm>std [RS], [ds]([RA0])</disasm>
   </insn>
-  <insn mnem="stdbrx"       opcode="7c000528" form="X"        group="i" desc="Store Doubleword Byte-Reverse Indexed">
+  <insn mnem="stdbrx"       opcode="7c000528" form="X"        group="m" desc="Store Doubleword Byte-Reverse Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stdbrx [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stdcx"        opcode="7c0001ad" form="X"        group="i" desc="Store Doubleword Conditional Indexed">
+  <insn mnem="stdcx"        opcode="7c0001ad" form="X"        group="m" desc="Store Doubleword Conditional Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <out field="CR" />
     <disasm>stdcx. [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stdu"         opcode="f8000001" form="DS"       group="i" desc="Store Doubleword with Update">
+  <insn mnem="stdu"         opcode="f8000001" form="DS"       group="m" desc="Store Doubleword with Update">
     <in field="RS" />
     <in field="RA" />
     <in field="ds" />
     <out field="RA" />
     <disasm>stdu [RS], [ds]([RA])</disasm>
   </insn>
-  <insn mnem="stdux"        opcode="7c00016a" form="X"        group="i" desc="Store Doubleword with Update Indexed">
+  <insn mnem="stdux"        opcode="7c00016a" form="X"        group="m" desc="Store Doubleword with Update Indexed">
     <in field="RS" />
     <in field="RA" />
     <in field="RB" />
     <out field="RA" />
     <disasm>stdux [RS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="stdx"         opcode="7c00012a" form="X"        group="i" desc="Store Doubleword Indexed">
+  <insn mnem="stdx"         opcode="7c00012a" form="X"        group="m" desc="Store Doubleword Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stdx [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stfd"         opcode="d8000000" form="D"        group="f" desc="Store Floating-Point Double">
+  <insn mnem="stfd"         opcode="d8000000" form="D"        group="m" desc="Store Floating-Point Double">
     <in field="FS" />
     <in field="RA0" />
     <in field="d" />
     <disasm>stfd [FS], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="stfdu"        opcode="dc000000" form="D"        group="f" desc="Store Floating-Point Double with Update">
+  <insn mnem="stfdu"        opcode="dc000000" form="D"        group="m" desc="Store Floating-Point Double with Update">
     <in field="FS" />
     <in field="RA" />
     <in field="d" />
     <out field="RA" />
     <disasm>stfdu [FS], [d]([RA])</disasm>
   </insn>
-  <insn mnem="stfdux"       opcode="7c0005ee" form="X"        group="f" desc="Store Floating-Point Double with Update Indexed">
+  <insn mnem="stfdux"       opcode="7c0005ee" form="X"        group="m" desc="Store Floating-Point Double with Update Indexed">
     <in field="FS" />
     <in field="RA" />
     <in field="RB" />
     <out field="RA" />
     <disasm>stfdux [FS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="stfdx"        opcode="7c0005ae" form="X"        group="f" desc="Store Floating-Point Double Indexed">
+  <insn mnem="stfdx"        opcode="7c0005ae" form="X"        group="m" desc="Store Floating-Point Double Indexed">
     <in field="FS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stfdx [FS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stfiwx"       opcode="7c0007ae" form="X"        group="f" desc="Store Floating-Point as Integer Word Indexed">
+  <insn mnem="stfiwx"       opcode="7c0007ae" form="X"        group="m" desc="Store Floating-Point as Integer Word Indexed">
     <in field="FS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stfiwx [FS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stfs"         opcode="d0000000" form="D"        group="f" desc="Store Floating-Point Single">
+  <insn mnem="stfs"         opcode="d0000000" form="D"        group="m" desc="Store Floating-Point Single">
     <in field="FS" />
     <in field="RA0" />
     <in field="d" />
     <disasm>stfs [FS], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="stfsu"        opcode="d4000000" form="D"        group="f" desc="Store Floating-Point Single with Update">
+  <insn mnem="stfsu"        opcode="d4000000" form="D"        group="m" desc="Store Floating-Point Single with Update">
     <in field="FS" />
     <in field="RA" />
     <in field="d" />
     <out field="RA" />
     <disasm>stfsu [FS], [d]([RA])</disasm>
   </insn>
-  <insn mnem="stfsux"       opcode="7c00056e" form="X"        group="f" desc="Store Floating-Point Single with Update Indexed">
+  <insn mnem="stfsux"       opcode="7c00056e" form="X"        group="m" desc="Store Floating-Point Single with Update Indexed">
     <in field="FS" />
     <in field="RA" />
     <in field="RB" />
     <out field="RA" />
     <disasm>stfsux [FS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="stfsx"        opcode="7c00052e" form="X"        group="f" desc="Store Floating-Point Single Indexed">
+  <insn mnem="stfsx"        opcode="7c00052e" form="X"        group="m" desc="Store Floating-Point Single Indexed">
     <in field="FS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stfsx [FS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="sth"          opcode="b0000000" form="D"        group="i" desc="Store Half Word">
+  <insn mnem="sth"          opcode="b0000000" form="D"        group="m" desc="Store Half Word">
     <in field="RS" />
     <in field="RA0" />
     <in field="d" />
     <disasm>sth [RS], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="sthbrx"       opcode="7c00072c" form="X"        group="i" desc="Store Half Word Byte-Reverse Indexed">
+  <insn mnem="sthbrx"       opcode="7c00072c" form="X"        group="m" desc="Store Half Word Byte-Reverse Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>sthbrx [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="sthu"         opcode="b4000000" form="D"        group="i" desc="Store Half Word with Update">
+  <insn mnem="sthu"         opcode="b4000000" form="D"        group="m" desc="Store Half Word with Update">
     <in field="RS" />
     <in field="RA" />
     <in field="d" />
     <out field="RA" />
     <disasm>sthu [RS], [d]([RA])</disasm>
   </insn>
-  <insn mnem="sthux"        opcode="7c00036e" form="X"        group="i" desc="Store Half Word with Update Indexed">
+  <insn mnem="sthux"        opcode="7c00036e" form="X"        group="m" desc="Store Half Word with Update Indexed">
     <in field="RS" />
     <in field="RA" />
     <in field="RB" />
     <out field="RA" />
     <disasm>sthux [RS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="sthx"         opcode="7c00032e" form="X"        group="i" desc="Store Half Word Indexed">
+  <insn mnem="sthx"         opcode="7c00032e" form="X"        group="m" desc="Store Half Word Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>sthx [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stmw"         opcode="bc000000" form="D"        group="i" desc="Store Multiple Word">
+  <insn mnem="stmw"         opcode="bc000000" form="D"        group="m" desc="Store Multiple Word">
     <!-- ? -->
   </insn>
-  <insn mnem="stswi"        opcode="7c0005aa" form="X"        group="i" desc="Store String Word Immediate">
+  <insn mnem="stswi"        opcode="7c0005aa" form="X"        group="m" desc="Store String Word Immediate">
     <!-- ? -->
   </insn>
-  <insn mnem="stswx"        opcode="7c00052a" form="X"        group="i" desc="Store String Word Indexed">
+  <insn mnem="stswx"        opcode="7c00052a" form="X"        group="m" desc="Store String Word Indexed">
     <!-- ? -->
   </insn>
-  <insn mnem="stw"          opcode="90000000" form="D"        group="i" desc="Store Word">
+  <insn mnem="stw"          opcode="90000000" form="D"        group="m" desc="Store Word">
     <in field="RS" />
     <in field="RA0" />
     <in field="d" />
     <disasm>stw [RS], [d]([RA0])</disasm>
   </insn>
-  <insn mnem="stwbrx"       opcode="7c00052c" form="X"        group="i" desc="Store Word Byte-Reverse Indexed">
+  <insn mnem="stwbrx"       opcode="7c00052c" form="X"        group="m" desc="Store Word Byte-Reverse Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stwbrx [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stwcx"        opcode="7c00012d" form="X"        group="i" desc="Store Word Conditional Indexed">
+  <insn mnem="stwcx"        opcode="7c00012d" form="X"        group="m" desc="Store Word Conditional Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
     <out field="CR" />
     <disasm>stwcx. [RS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stwu"         opcode="94000000" form="D"        group="i" desc="Store Word with Update">
+  <insn mnem="stwu"         opcode="94000000" form="D"        group="m" desc="Store Word with Update">
     <in field="RS" />
     <in field="RA" />
     <in field="d" />
     <out field="RA" />
     <disasm>stwu [RS], [d]([RA])</disasm>
   </insn>
-  <insn mnem="stwux"        opcode="7c00016e" form="X"        group="i" desc="Store Word with Update Indexed">
+  <insn mnem="stwux"        opcode="7c00016e" form="X"        group="m" desc="Store Word with Update Indexed">
     <in field="RS" />
     <in field="RA" />
     <in field="RB" />
     <out field="RA" />
     <disasm>stwux [RS], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="stwx"         opcode="7c00012e" form="X"        group="i" desc="Store Word Indexed">
+  <insn mnem="stwx"         opcode="7c00012e" form="X"        group="m" desc="Store Word Indexed">
     <in field="RS" />
     <in field="RA0" />
     <in field="RB" />
@@ -1403,25 +1400,25 @@
   <insn mnem="sync"         opcode="7c0004ac" form="X"        group="i" desc="Synchronize">
     <disasm>sync</disasm>
   </insn>
-  <insn mnem="td"           opcode="7c000088" form="X"        group="i" desc="Trap Doubleword">
+  <insn mnem="td"           opcode="7c000088" form="X"        group="b" desc="Trap Doubleword">
     <in field="TO" />
     <in field="RA" />
     <in field="RB" />
     <disasm>td [TO], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="tdi"          opcode="08000000" form="D"        group="i" desc="Trap Doubleword Immediate">
+  <insn mnem="tdi"          opcode="08000000" form="D"        group="b" desc="Trap Doubleword Immediate">
     <in field="TO" />
     <in field="RA" />
     <in field="SIMM" />
     <disasm>tdi [TO], [RA], [SIMM]</disasm>
   </insn>
-  <insn mnem="tw"           opcode="7c000008" form="X"        group="i" desc="Trap Word">
+  <insn mnem="tw"           opcode="7c000008" form="X"        group="b" desc="Trap Word">
     <in field="TO" />
     <in field="RA" />
     <in field="RB" />
     <disasm>tw [TO], [RA], [RB]</disasm>
   </insn>
-  <insn mnem="twi"          opcode="0c000000" form="D"        group="i" desc="Trap Word Immediate">
+  <insn mnem="twi"          opcode="0c000000" form="D"        group="b" desc="Trap Word Immediate">
     <in field="TO" />
     <in field="RA" />
     <in field="SIMM" />
@@ -1449,25 +1446,25 @@
 </ppc-isa>
 <ppc-isa name="vmx">
   <!-- These match docs/ppc/altivec_instructions.pdf -->
-  <insn mnem="lvebx"        opcode="7c00000e" form="X"        group="v" desc="Load Vector Element Byte Indexed">
+  <insn mnem="lvebx"        opcode="7c00000e" form="X"        group="m" desc="Load Vector Element Byte Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvebx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvehx"        opcode="7c00004e" form="X"        group="v" desc="Load Vector Element Half Word Indexed">
+  <insn mnem="lvehx"        opcode="7c00004e" form="X"        group="m" desc="Load Vector Element Half Word Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvehx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvewx"        opcode="7c00008e" form="X"        group="v" desc="Load Vector Element Word Indexed">
+  <insn mnem="lvewx"        opcode="7c00008e" form="X"        group="m" desc="Load Vector Element Word Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvewx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvewx128"     opcode="10000083" form="VX128_1"  group="v" desc="Load Vector Element Word Indexed 128">
+  <insn mnem="lvewx128"     opcode="10000083" form="VX128_1"  group="m" desc="Load Vector Element Word Indexed 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
@@ -1497,177 +1494,177 @@
     <out field="VD" />
     <disasm>lvsr128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvx"          opcode="7c0000ce" form="X"        group="v" desc="Load Vector Indexed">
+  <insn mnem="lvx"          opcode="7c0000ce" form="X"        group="m" desc="Load Vector Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvx128"       opcode="100000C3" form="VX128_1"  group="v" desc="Load Vector Indexed 128">
+  <insn mnem="lvx128"       opcode="100000C3" form="VX128_1"  group="m" desc="Load Vector Indexed 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvx128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvxl"         opcode="7c0002ce" form="X"        group="v" desc="Load Vector Indexed LRU">
+  <insn mnem="lvxl"         opcode="7c0002ce" form="X"        group="m" desc="Load Vector Indexed LRU">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvslx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvxl128"      opcode="100002C3" form="VX128_1"  group="v" desc="Load Vector Indexed LRU 128">
+  <insn mnem="lvxl128"      opcode="100002C3" form="VX128_1"  group="m" desc="Load Vector Indexed LRU 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvxl128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvlx"         opcode="7C00040E" form="X"        group="v" desc="Load Vector Left Indexed">
+  <insn mnem="lvlx"         opcode="7C00040E" form="X"        group="m" desc="Load Vector Left Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvlx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvlx128"      opcode="10000403" form="VX128_1"  group="v" desc="Load Vector Left Indexed 128">
+  <insn mnem="lvlx128"      opcode="10000403" form="VX128_1"  group="m" desc="Load Vector Left Indexed 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvlx128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvlxl"        opcode="7C00060E" form="X"        group="v" desc="Load Vector Left Indexed LRU">
+  <insn mnem="lvlxl"        opcode="7C00060E" form="X"        group="m" desc="Load Vector Left Indexed LRU">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvlxl [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvlxl128"     opcode="10000603" form="VX128_1"  group="v" desc="Load Vector Left Indexed LRU 128">
+  <insn mnem="lvlxl128"     opcode="10000603" form="VX128_1"  group="m" desc="Load Vector Left Indexed LRU 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvlxl128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvrx"         opcode="7C00044E" form="X"        group="v" desc="Load Vector Right Indexed">
+  <insn mnem="lvrx"         opcode="7C00044E" form="X"        group="m" desc="Load Vector Right Indexed">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvrx [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvrx128"      opcode="10000443" form="VX128_1"  group="v" desc="Load Vector Right Indexed 128">
+  <insn mnem="lvrx128"      opcode="10000443" form="VX128_1"  group="m" desc="Load Vector Right Indexed 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvrx128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvrxl"        opcode="7C00064E" form="X"        group="v" desc="Load Vector Right Indexed LRU">
+  <insn mnem="lvrxl"        opcode="7C00064E" form="X"        group="m" desc="Load Vector Right Indexed LRU">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvrxl [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="lvrxl128"     opcode="10000643" form="VX128_1"  group="v" desc="Load Vector Right Indexed LRU 128">
+  <insn mnem="lvrxl128"     opcode="10000643" form="VX128_1"  group="m" desc="Load Vector Right Indexed LRU 128">
     <in field="RA0" />
     <in field="RB" />
     <out field="VD" />
     <disasm>lvrxl128 [VD], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="mfvscr"       opcode="10000604" form="VX"       group="v" desc="Move from VSCR">
+  <insn mnem="mfvscr"       opcode="10000604" form="VX"       group="c" desc="Move from VSCR">
     <in field="VSCR" />
     <out field="VD" />
   </insn>
-  <insn mnem="mtvscr"       opcode="10000644" form="VX"       group="v" desc="Move to VSCR">
+  <insn mnem="mtvscr"       opcode="10000644" form="VX"       group="c" desc="Move to VSCR">
     <in field="VB" />
     <out field="VSCR" />
   </insn>
-  <insn mnem="stvebx"       opcode="7c00010e" form="X"        group="v" desc="Store Vector Element Byte Indexed">
+  <insn mnem="stvebx"       opcode="7c00010e" form="X"        group="m" desc="Store Vector Element Byte Indexed">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvebx [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvehx"       opcode="7c00014e" form="X"        group="v" desc="Store Vector Element Half Word Indexed">
+  <insn mnem="stvehx"       opcode="7c00014e" form="X"        group="m" desc="Store Vector Element Half Word Indexed">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvehx [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvewx"       opcode="7c00018e" form="X"        group="v" desc="Store Vector Element Word Indexed">
+  <insn mnem="stvewx"       opcode="7c00018e" form="X"        group="m" desc="Store Vector Element Word Indexed">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvewx [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvewx128"    opcode="10000183" form="VX128_1"  group="v" desc="Store Vector Element Word Indexed 128">
+  <insn mnem="stvewx128"    opcode="10000183" form="VX128_1"  group="m" desc="Store Vector Element Word Indexed 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvewx128 [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvx"         opcode="7c0001ce" form="X"        group="v" desc="Store Vector Indexed">
+  <insn mnem="stvx"         opcode="7c0001ce" form="X"        group="m" desc="Store Vector Indexed">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvx [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvx128"      opcode="100001c3" form="VX128_1"  group="v" desc="Store Vector Indexed 128">
+  <insn mnem="stvx128"      opcode="100001c3" form="VX128_1"  group="m" desc="Store Vector Indexed 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvx128 [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvxl"        opcode="7c0003ce" form="X"        group="v" desc="Store Vector Indexed LRU">
+  <insn mnem="stvxl"        opcode="7c0003ce" form="X"        group="m" desc="Store Vector Indexed LRU">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvxl [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvxl128"     opcode="100003c3" form="VX128_1"  group="v" desc="Store Vector Indexed LRU 128">
+  <insn mnem="stvxl128"     opcode="100003c3" form="VX128_1"  group="m" desc="Store Vector Indexed LRU 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvxl128 [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvlx"        opcode="7c00050e" form="X"        group="v" desc="Store Vector Left Indexed">
+  <insn mnem="stvlx"        opcode="7c00050e" form="X"        group="m" desc="Store Vector Left Indexed">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvlx [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvlx128"     opcode="10000503" form="VX128_1"  group="v" desc="Store Vector Left Indexed 128">
+  <insn mnem="stvlx128"     opcode="10000503" form="VX128_1"  group="m" desc="Store Vector Left Indexed 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvlx128 [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvlxl"       opcode="7c00070e" form="X"        group="v" desc="Store Vector Left Indexed LRU">
+  <insn mnem="stvlxl"       opcode="7c00070e" form="X"        group="m" desc="Store Vector Left Indexed LRU">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvlxl [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvlxl128"    opcode="10000703" form="VX128_1"  group="v" desc="Store Vector Left Indexed LRU 128">
+  <insn mnem="stvlxl128"    opcode="10000703" form="VX128_1"  group="m" desc="Store Vector Left Indexed LRU 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvlxl128 [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvrx"        opcode="7c00054e" form="X"        group="v" desc="Store Vector Right Indexed">
+  <insn mnem="stvrx"        opcode="7c00054e" form="X"        group="m" desc="Store Vector Right Indexed">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvrx [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvrx128"     opcode="10000543" form="VX128_1"  group="v" desc="Store Vector Right Indexed 128">
+  <insn mnem="stvrx128"     opcode="10000543" form="VX128_1"  group="m" desc="Store Vector Right Indexed 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvrx128 [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvrxl"       opcode="7c00074e" form="X"        group="v" desc="Store Vector Right Indexed LRU">
+  <insn mnem="stvrxl"       opcode="7c00074e" form="X"        group="m" desc="Store Vector Right Indexed LRU">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />
     <disasm>stvrxl [VS], [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="stvrxl128"    opcode="10000743" form="VX128_1"  group="v" desc="Store Vector Right Indexed LRU 128">
+  <insn mnem="stvrxl128"    opcode="10000743" form="VX128_1"  group="m" desc="Store Vector Right Indexed LRU 128">
     <in field="VS" />
     <in field="RA0" />
     <in field="RB" />

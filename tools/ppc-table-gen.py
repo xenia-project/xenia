@@ -20,10 +20,6 @@ from xml.etree.ElementTree import ElementTree, Element, SubElement, tostring, du
 self_path = os.path.dirname(os.path.abspath(__file__))
 
 
-class Insn:
-  pass
-
-
 def bit_extract(x, leftmost, rightmost):
   return (x >> (32 - 1 - rightmost)) & ((1 << (rightmost - leftmost + 1)) - 1)
 
@@ -72,6 +68,10 @@ def opcode_extended(insn, form):
     return value
   else:
     return -1
+
+
+class Insn:
+  pass
 
 
 def parse_insns(filename):

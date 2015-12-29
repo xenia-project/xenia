@@ -53,9 +53,12 @@ enum class PPCOpcodeFormat {
 };
 
 enum class PPCOpcodeGroup {
-  kI,
-  kF,
-  kV,
+  kB,  // Branching/traps/etc.
+  kC,  // Control.
+  kM,  // Memory load/store (of all types).
+  kI,  // Integer.
+  kF,  // Floating-point.
+  kV,  // VMX.
 };
 
 enum class PPCOpcodeType {
