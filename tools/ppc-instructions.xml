@@ -1,466 +1,2928 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
 <ppc-isa name="6xx_pem">
-  <insn mnem="addx"         opcode="7c000214" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Add" />
-  <insn mnem="addcx"        opcode="7c000014" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Add Carrying" />
-  <insn mnem="addex"        opcode="7c000114" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Add Extended" />
-  <insn mnem="addi"         opcode="38000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate" />
-  <insn mnem="addic"        opcode="30000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate Carrying" />
-  <insn mnem="addic."       opcode="34000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate Carrying and Record" />
-  <insn mnem="addis"        opcode="3c000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Add Immediate Shifted" />
-  <insn mnem="addmex"       opcode="7c0001d4" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Add to Minus One Extended" />
-  <insn mnem="addzex"       opcode="7c000194" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Add to Zero Extended" />
-  <insn mnem="andx"         opcode="7c000038" form="X"        sub-form="S-A-B-Rc"         group="i" desc="AND" />
-  <insn mnem="andcx"        opcode="7c000078" form="X"        sub-form="S-A-B-Rc"         group="i" desc="AND with Complement" />
-  <insn mnem="andi."        opcode="70000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="AND Immediate" />
-  <insn mnem="andis."       opcode="74000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="AND Immediate Shifted" />
-  <insn mnem="bx"           opcode="48000000" form="I"        sub-form="LI-AA-LK"         group="i" desc="Branch" sync="true" />
-  <insn mnem="bcx"          opcode="40000000" form="B"        sub-form="BO-BI-BD-AA-LK"   group="i" desc="Branch Conditional" sync="true" />
-  <insn mnem="bcctrx"       opcode="4c000420" form="XL"       sub-form="BO-BI-0-LK"       group="i" desc="Branch Conditional to Count Register" sync="true" />
-  <insn mnem="bclrx"        opcode="4c000020" form="XL"       sub-form="BO-BI-0-LK"       group="i" desc="Branch Conditional to Link Register" sync="true" />
-  <insn mnem="cmp"          opcode="7c000000" form="X"        sub-form="crfD-L-A-B"       group="i" desc="Compare" />
-  <insn mnem="cmpi"         opcode="2c000000" form="D"        sub-form="crfD-L-A-SIMM"    group="i" desc="Compare Immediate" />
-  <insn mnem="cmpl"         opcode="7c000040" form="X"        sub-form="crfD-L-A-B"       group="i" desc="Compare Logical" />
-  <insn mnem="cmpli"        opcode="28000000" form="D"        sub-form="crfD-L-A-UIMM"    group="i" desc="Compare Logical Immediate" />
-  <insn mnem="cntlzdx"      opcode="7c000074" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Count Leading Zeros Doubleword" />
-  <insn mnem="cntlzwx"      opcode="7c000034" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Count Leading Zeros Word" />
-  <insn mnem="crand"        opcode="4c000202" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register AND" />
-  <insn mnem="crandc"       opcode="4c000102" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register AND with Complement" />
-  <insn mnem="creqv"        opcode="4c000242" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register Equivalent" />
-  <insn mnem="crnand"       opcode="4c0001c2" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register NAND" />
-  <insn mnem="crnor"        opcode="4c000042" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register NOR" />
-  <insn mnem="cror"         opcode="4c000382" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register OR" />
-  <insn mnem="crorc"        opcode="4c000342" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register OR with Complement" />
-  <insn mnem="crxor"        opcode="4c000182" form="XL"       sub-form="crbD-crbA-crbB"   group="i" desc="Condition Register XOR" />
-  <insn mnem="dcba"         opcode="7c0005ec" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Allocate" />
-  <insn mnem="dcbf"         opcode="7c0000ac" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Flush" />
-  <insn mnem="dcbi"         opcode="7c0003ac" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Invalidate" />
-  <insn mnem="dcbst"        opcode="7c00006c" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Store" />
-  <insn mnem="dcbt"         opcode="7c00022c" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Touch" />
-  <insn mnem="dcbtst"       opcode="7c0001ec" form="X"        sub-form="0-A-B"            group="i" desc="Data Cache Block Touch for Store" />
-  <insn mnem="dcbz"         opcode="7c0007ec" form="DCBZ"     sub-form="0-A-B"            group="i" desc="Data Cache Block Clear to Zero" />
-  <insn mnem="dcbz128"      opcode="7c2007ec" form="DCBZ"     sub-form="0-A-B"            group="i" desc="Data Cache Block Clear to Zero 128" />
-  <insn mnem="divdx"        opcode="7c0003d2" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Doubleword" />
-  <insn mnem="divdux"       opcode="7c000392" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Doubleword Unsigned" />
-  <insn mnem="divwx"        opcode="7c0003d6" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Word" />
-  <insn mnem="divwux"       opcode="7c000396" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Divide Word Unsigned" />
-  <insn mnem="eciwx"        opcode="7c00026c" form="X"        sub-form="D-A-B"            group="i" desc="External Control In Word Indexed" />
-  <insn mnem="ecowx"        opcode="7c00036c" form="X"        sub-form="S-A-B"            group="i" desc="External Control Out Word Indexed" />
-  <insn mnem="eieio"        opcode="7c0006ac" form="X"        sub-form="0-0-0"            group="i" desc="Enforce In-Order Execution of I/O" />
-  <insn mnem="eqvx"         opcode="7c000238" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Equivalent" />
-  <insn mnem="extsbx"       opcode="7c000774" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Extend Sign Byte" />
-  <insn mnem="extshx"       opcode="7c000734" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Extend Sign Half Word" />
-  <insn mnem="extswx"       opcode="7c0007B4" form="X"        sub-form="S-A-0-Rc"         group="i" desc="Extend Sign Word" />
-  <insn mnem="fabsx"        opcode="fc000210" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Absolute Value" />
-  <insn mnem="faddx"        opcode="fc00002a" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Add" />
-  <insn mnem="faddsx"       opcode="ec00002a" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Add Single" />
-  <insn mnem="fcfidx"       opcode="FC00069C" form="X"        sub-form="D-A-B-Rc"         group="f" desc="Floating Convert From Integer Doubleword" />
-  <insn mnem="fcmpo"        opcode="fc000040" form="X"        sub-form="crfD-A-B"         group="f" desc="Floating Compare Ordered" />
-  <insn mnem="fcmpu"        opcode="fc000000" form="X"        sub-form="crfD-A-B"         group="f" desc="Floating Compare Unordered" />
-  <insn mnem="fctidx"       opcode="fc00065c" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Doubleword" />
-  <insn mnem="fctidzx"      opcode="fc00065e" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Doubleword with Round Toward Zero" />
-  <insn mnem="fctiwx"       opcode="fc00001c" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Word" />
-  <insn mnem="fctiwzx"      opcode="fc00001e" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Convert to Integer Word with Round Toward Zero" />
-  <insn mnem="fdivx"        opcode="fc000024" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Divide" />
-  <insn mnem="fdivsx"       opcode="ec000024" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Divide Single" />
-  <insn mnem="fmaddx"       opcode="fc00003a" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Add" />
-  <insn mnem="fmaddsx"      opcode="ec00003a" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Add Single" />
-  <insn mnem="fmrx"         opcode="fc000090" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Move Register" />
-  <insn mnem="fmsubx"       opcode="fc000038" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Subtract" />
-  <insn mnem="fmsubsx"      opcode="ec000038" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Multiply-Subtract Single" />
-  <insn mnem="fmulx"        opcode="fc000032" form="A"        sub-form="D-A-0-C-Rc"       group="f" desc="Floating Multiply" />
-  <insn mnem="fmulsx"       opcode="ec000032" form="A"        sub-form="D-A-0-C-Rc"       group="f" desc="Floating Multiply Single" />
-  <insn mnem="fnabsx"       opcode="fc000110" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Negative Absolute Value" />
-  <insn mnem="fnegx"        opcode="fc000050" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Negate" />
-  <insn mnem="fnmaddx"      opcode="fc00003e" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Add" />
-  <insn mnem="fnmaddsx"     opcode="ec00003e" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Add Single" />
-  <insn mnem="fnmsubx"      opcode="fc00003c" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Subtract" />
-  <insn mnem="fnmsubsx"     opcode="ec00003c" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Negative Multiply-Subtract Single" />
-  <insn mnem="fresx"        opcode="ec000030" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Reciprocal Estimate Single" />
-  <insn mnem="frspx"        opcode="fc000018" form="X"        sub-form="D-0-B-Rc"         group="f" desc="Floating Round to Single" />
-  <insn mnem="frsqrtex"     opcode="fc000034" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Reciprocal Square Root Estimate" />
-  <insn mnem="fselx"        opcode="fc00002e" form="A"        sub-form="D-A-B-C-Rc"       group="f" desc="Floating Select" />
-  <insn mnem="fsqrtx"       opcode="fc00002c" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Square Root" />
-  <insn mnem="fsqrtsx"      opcode="ec00002c" form="A"        sub-form="D-0-B-0-Rc"       group="f" desc="Floating Square Root Single" />
-  <insn mnem="fsubx"        opcode="fc000028" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Subtract" />
-  <insn mnem="fsubsx"       opcode="ec000028" form="A"        sub-form="D-A-B-0-Rc"       group="f" desc="Floating Subtract Single" />
-  <insn mnem="icbi"         opcode="7c0007ac" form="X"        sub-form="0-A-B"            group="i" desc="Instruction Cache Block Invalidate" />
-  <insn mnem="isync"        opcode="4c00012c" form="XL"       sub-form="0-0-0"            group="i" desc="Instruction Synchronize" />
-  <insn mnem="lbz"          opcode="88000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Byte and Zero" />
-  <insn mnem="lbzu"         opcode="8c000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Byte and Zero with Update" />
-  <insn mnem="lbzux"        opcode="7c0000ee" form="X"        sub-form="D-A-B"            group="i" desc="Load Byte and Zero with Update Indexed" />
-  <insn mnem="lbzx"         opcode="7c0000ae" form="X"        sub-form="D-A-B"            group="i" desc="Load Byte and Zero Indexed" />
-  <insn mnem="ld"           opcode="E8000000" form="DS"       sub-form="D-A-d"            group="i" desc="Load Doubleword" />
-  <insn mnem="ldarx"        opcode="7C0000A8" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword and Reserve Indexed" />
-  <insn mnem="ldbrx"        opcode="7C000428" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword Byte-Reverse Indexed" />
-  <insn mnem="ldu"          opcode="E8000001" form="DS"       sub-form="D-A-d"            group="i" desc="Load Doubleword with Update" />
-  <insn mnem="ldux"         opcode="7c00006a" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword with Update Indexed" />
-  <insn mnem="ldx"          opcode="7c00002a" form="X"        sub-form="D-A-B"            group="i" desc="Load Doubleword Indexed" />
-  <insn mnem="lfd"          opcode="c8000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Double" />
-  <insn mnem="lfdu"         opcode="cc000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Double with Update" />
-  <insn mnem="lfdux"        opcode="7c0004ee" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Double with Update Indexed" />
-  <insn mnem="lfdx"         opcode="7c0004ae" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Double Indexed" />
-  <insn mnem="lfs"          opcode="c0000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Single" />
-  <insn mnem="lfsu"         opcode="c4000000" form="D"        sub-form="D-A-d"            group="f" desc="Load Floating-Point Single with Update" />
-  <insn mnem="lfsux"        opcode="7c00046e" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Single with Update Indexed" />
-  <insn mnem="lfsx"         opcode="7c00042e" form="X"        sub-form="D-A-B"            group="f" desc="Load Floating-Point Single Indexed" />
-  <insn mnem="lha"          opcode="a8000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word Algebraic" />
-  <insn mnem="lhau"         opcode="ac000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word Algebraic with Update" />
-  <insn mnem="lhaux"        opcode="7c0002ee" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word Algebraic with Update Indexed" />
-  <insn mnem="lhax"         opcode="7c0002ae" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word Algebraic Indexed" />
-  <insn mnem="lhbrx"        opcode="7c00062c" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word Byte-Reverse Indexed" />
-  <insn mnem="lhz"          opcode="a0000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word and Zero" />
-  <insn mnem="lhzu"         opcode="a4000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Half Word and Zero with Update" />
-  <insn mnem="lhzux"        opcode="7c00026e" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word and Zero with Update Indexed" />
-  <insn mnem="lhzx"         opcode="7c00022e" form="X"        sub-form="D-A-B"            group="i" desc="Load Half Word and Zero Indexed" />
-  <insn mnem="lmw"          opcode="b8000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Multiple Word" />
-  <insn mnem="lswi"         opcode="7c0004aa" form="X"        sub-form="D-A-NB"           group="i" desc="Load String Word Immediate" />
-  <insn mnem="lswx"         opcode="7c00042a" form="X"        sub-form="D-A-B"            group="i" desc="Load String Word Indexed" />
-  <insn mnem="lvebx"        opcode="7c00000e" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Element Byte Indexed" />
-  <insn mnem="lvehx"        opcode="7c00004e" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Element Half Word Indexed" />
-  <insn mnem="lvewx"        opcode="7c00008e" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Element Word Indexed" />
-  <insn mnem="lvewx128"     opcode="10000083" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Element Word Indexed 128" />
-  <insn mnem="lvsl"         opcode="7c00000c" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector for Shift Left Indexed" />
-  <insn mnem="lvsl128"      opcode="10000003" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector for Shift Left Indexed 128" />
-  <insn mnem="lvsr"         opcode="7c00004c" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector for Shift Right Indexed" />
-  <insn mnem="lvsr128"      opcode="10000043" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector for Shift Right Indexed 128" />
-  <insn mnem="lvx"          opcode="7c0000ce" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Indexed" />
-  <insn mnem="lvx128"       opcode="100000C3" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Indexed 128" />
-  <insn mnem="lvxl"         opcode="7c0002ce" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Indexed LRU" />
-  <insn mnem="lvxl128"      opcode="100002C3" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Indexed LRU 128" />
-  <insn mnem="lvlx"         opcode="7C00040E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed" />
-  <insn mnem="lvlx128"      opcode="10000403" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed 128" />
-  <insn mnem="lvlxl"        opcode="7C00060E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed LRU" />
-  <insn mnem="lvlxl128"     opcode="10000603" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Left Indexed LRU 128" />
-  <insn mnem="lvrx"         opcode="7C00044E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed" />
-  <insn mnem="lvrx128"      opcode="10000443" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed 128" />
-  <insn mnem="lvrxl"        opcode="7C00064E" form="X"        sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed LRU" />
-  <insn mnem="lvrxl128"     opcode="10000643" form="VX128_1"  sub-form="D-A-B"            group="v" desc="Load Vector Right Indexed LRU 128" />
-  <insn mnem="lwa"          opcode="e8000002" form="DS"       sub-form="D-A-d"            group="i" desc="Load Word Algebraic" />
-  <insn mnem="lwarx"        opcode="7c000028" form="X"        sub-form="D-A-B"            group="i" desc="Load Word and Reserve Indexed" />
-  <insn mnem="lwaux"        opcode="7c0002ea" form="X"        sub-form="D-A-B"            group="i" desc="Load Word Algebraic with Update Indexed" />
-  <insn mnem="lwax"         opcode="7c0002aa" form="X"        sub-form="D-A-B"            group="i" desc="Load Word Algebraic Indexed" />
-  <insn mnem="lwbrx"        opcode="7c00042c" form="X"        sub-form="D-A-B"            group="i" desc="Load Word Byte-Reverse Indexed" />
-  <insn mnem="lwz"          opcode="80000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Word and Zero" />
-  <insn mnem="lwzu"         opcode="84000000" form="D"        sub-form="D-A-d"            group="i" desc="Load Word and Zero with Update" />
-  <insn mnem="lwzux"        opcode="7c00006e" form="X"        sub-form="D-A-B"            group="i" desc="Load Word and Zero with Update Indexed" />
-  <insn mnem="lwzx"         opcode="7c00002e" form="X"        sub-form="D-A-B"            group="i" desc="Load Word and Zero Indexed" />
-  <insn mnem="mcrf"         opcode="4c000000" form="XL"       sub-form="crfD-crfS-0"      group="i" desc="Move Condition Register Field" />
-  <insn mnem="mcrfs"        opcode="fc000080" form="X"        sub-form="crfD-crfS-0"      group="f" desc="Move to Condition Register from FPSCR" />
-  <insn mnem="mcrxr"        opcode="7c000400" form="X"        sub-form="crfD-0-0"         group="i" desc="Move to Condition Register from XER" />
-  <insn mnem="mfcr"         opcode="7c000026" form="X"        sub-form="D-0-0"            group="i" desc="Move from Condition Register" />
-  <insn mnem="mffsx"        opcode="fc00048e" form="X"        sub-form="D-0-0-Rc"         group="f" desc="Move from FPSCR" />
-  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        sub-form="D-0-0"            group="i" desc="Move from Machine State Register" />
-  <insn mnem="mfspr"        opcode="7c0002a6" form="XFX"      sub-form="D-spr"            group="i" desc="Move from Special-Purpose Register" />
-  <insn mnem="mftb"         opcode="7c0002e6" form="XFX"      sub-form="D-tbr"            group="i" desc="Move from Time Base" />
-  <insn mnem="mfvscr"       opcode="10000604" form="VX"       sub-form="D-0-0"            group="i" desc="Move from VSCR" />
-  <insn mnem="mtcrf"        opcode="7c000120" form="XFX"      sub-form="S-CRM"            group="i" desc="Move to Condition Register Fields" />
-  <insn mnem="mtfsb0x"      opcode="fc00008c" form="X"        sub-form="crbD-0-0-Rc"      group="f" desc="Move to FPSCR Bit 0" />
-  <insn mnem="mtfsb1x"      opcode="fc00004c" form="X"        sub-form="crbD-0-0-Rc"      group="f" desc="Move to FPSCR Bit 1" />
-  <insn mnem="mtfsfx"       opcode="fc00058e" form="XFL"      sub-form="FM-B-Rc"          group="f" desc="Move to FPSCR Fields" />
-  <insn mnem="mtfsfix"      opcode="fc00010c" form="X"        sub-form="crfD-0-IMM-Rc"    group="f" desc="Move to FPSCR Field Immediate" />
-  <insn mnem="mtmsr"        opcode="7c000124" form="X"        sub-form="S-0-0"            group="i" desc="Move to Machine State Register" />
-  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        sub-form="S-0-0"            group="i" desc="Move to Machine State Register Doubleword" />
-  <insn mnem="mtspr"        opcode="7c0003a6" form="XFX"      sub-form="S-spr"            group="i" desc="Move to Special-Purpose Register" />
-  <insn mnem="mtvscr"       opcode="10000644" form="VX"       sub-form="S-0-0"            group="i" desc="Move to VSCR" />
-  <insn mnem="mulhdx"       opcode="7c000092" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Doubleword" />
-  <insn mnem="mulhdux"      opcode="7c000012" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Doubleword Unsigned" />
-  <insn mnem="mulhwx"       opcode="7c000096" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Word" />
-  <insn mnem="mulhwux"      opcode="7c000016" form="XO"       sub-form="D-A-B-Rc"         group="i" desc="Multiply High Word Unsigned" />
-  <insn mnem="mulldx"       opcode="7c0001d2" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Multiply Low Doubleword" />
-  <insn mnem="mulli"        opcode="1c000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Multiply Low Immediate" />
-  <insn mnem="mullwx"       opcode="7c0001d6" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Multiply Low Word" />
-  <insn mnem="nandx"        opcode="7c0003b8" form="X"        sub-form="S-A-B-Rc"         group="i" desc="NAND" />
-  <insn mnem="negx"         opcode="7c0000d0" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Negate" />
-  <insn mnem="norx"         opcode="7c0000f8" form="X"        sub-form="S-A-B-Rc"         group="i" desc="NOR" />
-  <insn mnem="orx"          opcode="7c000378" form="X"        sub-form="S-A-B-Rc"         group="i" desc="OR" />
-  <insn mnem="orcx"         opcode="7c000338" form="X"        sub-form="S-A-B-Rc"         group="i" desc="OR with Complement" />
-  <insn mnem="ori"          opcode="60000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="OR Immediate" />
-  <insn mnem="oris"         opcode="64000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="OR Immediate Shifted" />
-  <insn mnem="rldclx"       opcode="78000010" form="MDS"      sub-form="S-A-B-MB-ME-Rc"   group="i" desc="Rotate Left Doubleword then Clear Left" />
-  <insn mnem="rldcrx"       opcode="78000012" form="MDS"      sub-form="S-A-B-MB-ME-Rc"   group="i" desc="Rotate Left Doubleword then Clear Right" />
-  <insn mnem="rldicx"       opcode="78000008" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Clear" />
-  <insn mnem="rldiclx"      opcode="78000000" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Clear Left" />
-  <insn mnem="rldicrx"      opcode="78000004" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Clear Right" />
-  <insn mnem="rldimix"      opcode="7800000C" form="MDSH"     sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Doubleword Immediate then Mask Insert" />
-  <insn mnem="rlwimix"      opcode="50000000" form="M"        sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Word Immediate then Mask Insert" />
-  <insn mnem="rlwinmx"      opcode="54000000" form="M"        sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Word Immediate then AND with Mask" />
-  <insn mnem="rlwnmx"       opcode="5c000000" form="M"        sub-form="S-A-SH-MB-ME-Rc"  group="i" desc="Rotate Left Word then AND with Mask" />
-  <insn mnem="sc"           opcode="44000002" form="SC"       sub-form="sc"               group="i" desc="System Call" sync="true" />
-  <insn mnem="sldx"         opcode="7c000036" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Left Doubleword" />
-  <insn mnem="slwx"         opcode="7c000030" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Left Word" />
-  <insn mnem="sradx"        opcode="7c000634" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Algebraic Doubleword" />
-  <insn mnem="sradix"       opcode="7c000674" form="XS"       sub-form="S-A-SH-Rc"        group="i" desc="Shift Right Algebraic Doubleword Immediate" />
-  <insn mnem="srawx"        opcode="7c000630" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Algebraic Word" />
-  <insn mnem="srawix"       opcode="7c000670" form="X"        sub-form="S-A-SH-Rc"        group="i" desc="Shift Right Algebraic Word Immediate" />
-  <insn mnem="srdx"         opcode="7c000436" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Doubleword" />
-  <insn mnem="srwx"         opcode="7c000430" form="X"        sub-form="S-A-B-Rc"         group="i" desc="Shift Right Word" />
-  <insn mnem="stb"          opcode="98000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Byte" />
-  <insn mnem="stbu"         opcode="9c000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Byte with Update" />
-  <insn mnem="stbux"        opcode="7c0001ee" form="X"        sub-form="S-A-B"            group="i" desc="Store Byte with Update Indexed" />
-  <insn mnem="stbx"         opcode="7c0001ae" form="X"        sub-form="S-A-B"            group="i" desc="Store Byte Indexed" />
-  <insn mnem="std"          opcode="f8000000" form="DS"       sub-form="S-A-d"            group="i" desc="Store Doubleword" />
-  <insn mnem="stdbrx"       opcode="7c000528" form="X"        sub-form="S-A-B"            group="i" desc="Store Doubleword Byte-Reverse Indexed" />
-  <insn mnem="stdcx"        opcode="7c0001ad" form="X"        sub-form="S-A-B-1"          group="i" desc="Store Doubleword Conditional Indexed" />
-  <insn mnem="stdu"         opcode="f8000001" form="DS"       sub-form="S-A-d"            group="i" desc="Store Doubleword with Update" />
-  <insn mnem="stdux"        opcode="7c00016a" form="X"        sub-form="S-A-B"            group="i" desc="Store Doubleword with Update Indexed" />
-  <insn mnem="stdx"         opcode="7c00012a" form="X"        sub-form="S-A-B"            group="i" desc="Store Doubleword Indexed" />
-  <insn mnem="stfd"         opcode="d8000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Double" />
-  <insn mnem="stfdu"        opcode="dc000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Double with Update" />
-  <insn mnem="stfdux"       opcode="7c0005ee" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Double with Update Indexed" />
-  <insn mnem="stfdx"        opcode="7c0005ae" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Double Indexed" />
-  <insn mnem="stfiwx"       opcode="7c0007ae" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point as Integer Word Indexed" />
-  <insn mnem="stfs"         opcode="d0000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Single" />
-  <insn mnem="stfsu"        opcode="d4000000" form="D"        sub-form="S-A-d"            group="f" desc="Store Floating-Point Single with Update" />
-  <insn mnem="stfsux"       opcode="7c00056e" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Single with Update Indexed" />
-  <insn mnem="stfsx"        opcode="7c00052e" form="X"        sub-form="S-A-B"            group="f" desc="Store Floating-Point Single Indexed" />
-  <insn mnem="sth"          opcode="b0000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Half Word" />
-  <insn mnem="sthbrx"       opcode="7c00072c" form="X"        sub-form="S-A-B"            group="i" desc="Store Half Word Byte-Reverse Indexed" />
-  <insn mnem="sthu"         opcode="b4000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Half Word with Update" />
-  <insn mnem="sthux"        opcode="7c00036e" form="X"        sub-form="S-A-B"            group="i" desc="Store Half Word with Update Indexed" />
-  <insn mnem="sthx"         opcode="7c00032e" form="X"        sub-form="S-A-B"            group="i" desc="Store Half Word Indexed" />
-  <insn mnem="stmw"         opcode="bc000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Multiple Word" />
-  <insn mnem="stswi"        opcode="7c0005aa" form="X"        sub-form="S-A-NB"           group="i" desc="Store String Word Immediate" />
-  <insn mnem="stswx"        opcode="7c00052a" form="X"        sub-form="S-A-B"            group="i" desc="Store String Word Indexed" />
-  <insn mnem="stvebx"       opcode="7c00010e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Element Byte Indexed" />
-  <insn mnem="stvehx"       opcode="7c00014e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Element Half Word Indexed" />
-  <insn mnem="stvewx"       opcode="7c00018e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Element Word Indexed" />
-  <insn mnem="stvewx128"    opcode="10000183" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Element Word Indexed 128" />
-  <insn mnem="stvx"         opcode="7c0001ce" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Indexed" />
-  <insn mnem="stvx128"      opcode="100001c3" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Indexed 128" />
-  <insn mnem="stvxl"        opcode="7c0003ce" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Indexed LRU" />
-  <insn mnem="stvxl128"     opcode="100003c3" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Indexed LRU 128" />
-  <insn mnem="stvlx"        opcode="7c00050e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed" />
-  <insn mnem="stvlx128"     opcode="10000503" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed 128" />
-  <insn mnem="stvlxl"       opcode="7c00070e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed LRU" />
-  <insn mnem="stvlxl128"    opcode="10000703" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Left Indexed LRU 128" />
-  <insn mnem="stvrx"        opcode="7c00054e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed" />
-  <insn mnem="stvrx128"     opcode="10000543" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed 128" />
-  <insn mnem="stvrxl"       opcode="7c00074e" form="X"        sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed LRU" />
-  <insn mnem="stvrxl128"    opcode="10000743" form="VX128_1"  sub-form="S-A-B"            group="v" desc="Store Vector Right Indexed LRU 128" />
-  <insn mnem="stw"          opcode="90000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Word" />
-  <insn mnem="stwbrx"       opcode="7c00052c" form="X"        sub-form="S-A-B"            group="i" desc="Store Word Byte-Reverse Indexed" />
-  <insn mnem="stwcx"        opcode="7c00012d" form="X"        sub-form="S-A-B-1"          group="i" desc="Store Word Conditional Indexed" />
-  <insn mnem="stwu"         opcode="94000000" form="D"        sub-form="S-A-d"            group="i" desc="Store Word with Update" />
-  <insn mnem="stwux"        opcode="7c00016e" form="X"        sub-form="S-A-B"            group="i" desc="Store Word with Update Indexed" />
-  <insn mnem="stwx"         opcode="7c00012e" form="X"        sub-form="S-A-B"            group="i" desc="Store Word Indexed" />
-  <insn mnem="subfx"        opcode="7c000050" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Subtract From" />
-  <insn mnem="subfcx"       opcode="7c000010" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Subtract From Carrying" />
-  <insn mnem="subfex"       opcode="7c000110" form="XO"       sub-form="D-A-B-OE-Rc"      group="i" desc="Subtract From Extended" />
-  <insn mnem="subficx"      opcode="20000000" form="D"        sub-form="D-A-SIMM"         group="i" desc="Subtract From Immediate Carrying" />
-  <insn mnem="subfmex"      opcode="7c0001d0" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Subtract From Minus One Extended" />
-  <insn mnem="subfzex"      opcode="7c000190" form="XO"       sub-form="D-A-0-OE-Rc"      group="i" desc="Subtract From Zero Extended" />
-  <insn mnem="sync"         opcode="7c0004ac" form="X"        sub-form="0-0-0"            group="i" desc="Synchronize" />
-  <insn mnem="td"           opcode="7c000088" form="X"        sub-form="TO-A-B"           group="i" desc="Trap Doubleword" />
-  <insn mnem="tdi"          opcode="08000000" form="D"        sub-form="TO-A-SIMM"        group="i" desc="Trap Doubleword Immediate" />
-  <insn mnem="tw"           opcode="7c000008" form="X"        sub-form="TO-A-B"           group="i" desc="Trap Word" />
-  <insn mnem="twi"          opcode="0c000000" form="D"        sub-form="TO-A-SIMM"        group="i" desc="Trap Word Immediate" />
-  <insn mnem="xorx"         opcode="7c000278" form="X"        sub-form="S-A-B-Rc"         group="i" desc="XOR" />
-  <insn mnem="xori"         opcode="68000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="XOR Immediate" />
-  <insn mnem="xoris"        opcode="6c000000" form="D"        sub-form="S-A-UIMM"         group="i" desc="XOR Immediate Shifted" />
+  <!-- These match docs/ppc/core_instructions.pdf -->
+  <insn mnem="addx"         opcode="7c000214" form="XO"       group="i" desc="Add">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>add[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="addcx"        opcode="7c000014" form="XO"       group="i" desc="Add Carrying">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>addc[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="addex"        opcode="7c000114" form="XO"       group="i" desc="Add Extended">
+    <in field="RA" />
+    <in field="RB" />
+    <in field="CR" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>adde[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="addi"         opcode="38000000" form="D"        group="i" desc="Add Immediate">
+    <in field="RA0" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <disasm>addi [RD], [RA0], [SIMM]</disasm>
+  </insn>
+  <insn mnem="addic"        opcode="30000000" form="D"        group="i" desc="Add Immediate Carrying">
+    <in field="RA" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <out field="CA" />
+    <disasm>addic [RD], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="addic."       opcode="34000000" form="D"        group="i" desc="Add Immediate Carrying and Record">
+    <in field="RA" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <out field="CA" />
+    <out field="CR" />
+    <disasm>addic. [RD], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="addis"        opcode="3c000000" form="D"        group="i" desc="Add Immediate Shifted">
+    <in field="RA0" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <disasm>addis [RD], [RA0], [SIMM]</disasm>
+  </insn>
+  <insn mnem="addmex"       opcode="7c0001d4" form="XO"       group="i" desc="Add to Minus One Extended">
+    <in field="RA" />
+    <in field="CA" />
+    <out field="RD" />
+    <out field="CA" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>addme[OE][Rc] [RD], [RA]</disasm>
+  </insn>
+  <insn mnem="addzex"       opcode="7c000194" form="XO"       group="i" desc="Add to Zero Extended">
+    <in field="RA" />
+    <in field="CA" />
+    <out field="RD" />
+    <out field="CA" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>addze[OE][Rc] [RD], [RA]</disasm>
+  </insn>
+  <insn mnem="andx"         opcode="7c000038" form="X"        group="i" desc="AND">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>and[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="andcx"        opcode="7c000078" form="X"        group="i" desc="AND with Complement">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>andc[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="andi."        opcode="70000000" form="D"        group="i" desc="AND Immediate">
+    <in field="RS" />
+    <in field="UIMM" />
+    <out field="RA" />
+    <out field="CR" />
+    <disasm>andi. [RA], [RS], [UIMM]</disasm>
+  </insn>
+  <insn mnem="andis."       opcode="74000000" form="D"        group="i" desc="AND Immediate Shifted">
+    <in field="RS" />
+    <in field="UIMM" />
+    <out field="RA" />
+    <out field="CR" />
+    <disasm>andis. [RA], [RS], [UIMM]</disasm>
+  </insn>
+  <insn mnem="bx"           opcode="48000000" form="I"        group="i" desc="Branch" sync="true">
+    <in field="LK" />
+    <in field="AA" />
+    <in field="ADDR" />
+    <out field="LR" conditional="true" />
+    <disasm>b[LK][AA] [ADDR]</disasm>
+  </insn>
+  <insn mnem="bcx"          opcode="40000000" form="B"        group="i" desc="Branch Conditional" sync="true">
+    <in field="LK" />
+    <in field="AA" />
+    <in field="BO" />
+    <in field="BI" />
+    <in field="ADDR" />
+    <in field="CR" conditional="true" />
+    <in field="CTR" conditional="true" />
+    <out field="CTR" conditional="true" />
+    <out field="LR" conditional="true" />
+    <disasm>bc[LK][AA] [BO], [BI], [ADDR]</disasm>
+  </insn>
+  <insn mnem="bcctrx"       opcode="4c000420" form="XL"       group="i" desc="Branch Conditional to Count Register" sync="true">
+    <in field="LK" />
+    <in field="BO" />
+    <in field="BI" />
+    <in field="CR" />
+    <in field="CTR" />
+    <out field="LR" conditional="true" />
+    <disasm>bcctr[LK] [BO], [BI]</disasm>
+  </insn>
+  <insn mnem="bclrx"        opcode="4c000020" form="XL"       group="i" desc="Branch Conditional to Link Register" sync="true">
+    <in field="LK" />
+    <in field="BO" />
+    <in field="BI" />
+    <in field="CR" conditional="true" />
+    <in field="CTR" conditional="true" />
+    <out field="CTR" conditional="true" />
+    <out field="LR" conditional="true" />
+    <disasm>bclr[LK] [BO], [BI]</disasm>
+  </insn>
+  <insn mnem="cmp"          opcode="7c000000" form="X"        group="i" desc="Compare">
+    <in field="L" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="CRFD" />
+    <disasm>cmp [CRFD], [L], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="cmpi"         opcode="2c000000" form="D"        group="i" desc="Compare Immediate">
+    <in field="L" />
+    <in field="RA" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <out field="CRFD" />
+    <disasm>cmpi [CRFD], [L], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="cmpl"         opcode="7c000040" form="X"        group="i" desc="Compare Logical">
+    <in field="L" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="CRFD" />
+    <disasm>cmpl [CRFD], [L], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="cmpli"        opcode="28000000" form="D"        group="i" desc="Compare Logical Immediate">
+    <in field="L" />
+    <in field="RA" />
+    <in field="UIMM" />
+    <out field="CRFD" />
+    <disasm>cmpli [CRFD], [L], [RA], [UIMM]</disasm>
+  </insn>
+  <insn mnem="cntlzdx"      opcode="7c000074" form="X"        group="i" desc="Count Leading Zeros Doubleword">
+    <in field="RS" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>cntlzd[Rc] [RA], [RS]</disasm>
+  </insn>
+  <insn mnem="cntlzwx"      opcode="7c000034" form="X"        group="i" desc="Count Leading Zeros Word">
+    <in field="RS" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>cntlzw[Rc] [RA], [RS]</disasm>
+  </insn>
+  <insn mnem="crand"        opcode="4c000202" form="XL"       group="i" desc="Condition Register AND">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>crand [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="crandc"       opcode="4c000102" form="XL"       group="i" desc="Condition Register AND with Complement">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>crandc [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="creqv"        opcode="4c000242" form="XL"       group="i" desc="Condition Register Equivalent">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>creqv [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="crnand"       opcode="4c0001c2" form="XL"       group="i" desc="Condition Register NAND">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>crnand [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="crnor"        opcode="4c000042" form="XL"       group="i" desc="Condition Register NOR">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>crnor [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="cror"         opcode="4c000382" form="XL"       group="i" desc="Condition Register OR">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>cror [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="crorc"        opcode="4c000342" form="XL"       group="i" desc="Condition Register OR with Complement">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>crorc [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="crxor"        opcode="4c000182" form="XL"       group="i" desc="Condition Register XOR">
+    <in field="CRBA" />
+    <in field="CRBB" />
+    <out field="CRBD" />
+    <disasm>crxor [CRBD], [CRBA], [CRBB]</disasm>
+  </insn>
+  <insn mnem="dcba"         opcode="7c0005ec" form="X"        group="i" desc="Data Cache Block Allocate">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcba [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbf"         opcode="7c0000ac" form="X"        group="i" desc="Data Cache Block Flush">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbf [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbi"         opcode="7c0003ac" form="X"        group="i" desc="Data Cache Block Invalidate">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbi [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbst"        opcode="7c00006c" form="X"        group="i" desc="Data Cache Block Store">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbst [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbt"         opcode="7c00022c" form="X"        group="i" desc="Data Cache Block Touch">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbt [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbtst"       opcode="7c0001ec" form="X"        group="i" desc="Data Cache Block Touch for Store">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbtst [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbz"         opcode="7c0007ec" form="DCBZ"     group="i" desc="Data Cache Block Clear to Zero">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbz [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="dcbz128"      opcode="7c2007ec" form="DCBZ"     group="i" desc="Data Cache Block Clear to Zero 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>dcbz128 [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="divdx"        opcode="7c0003d2" form="XO"       group="i" desc="Divide Doubleword">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>divd[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="divdux"       opcode="7c000392" form="XO"       group="i" desc="Divide Doubleword Unsigned">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>divdu[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="divwx"        opcode="7c0003d6" form="XO"       group="i" desc="Divide Word">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>divw[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="divwux"       opcode="7c000396" form="XO"       group="i" desc="Divide Word Unsigned">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="OE" conditional="true" />
+    <out field="CR" conditional="true" />
+    <disasm>divwu[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="eieio"        opcode="7c0006ac" form="X"        group="i" desc="Enforce In-Order Execution of I/O">
+    <disasm>eieio</disasm>
+  </insn>
+  <insn mnem="eqvx"         opcode="7c000238" form="X"        group="i" desc="Equivalent">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>eqv[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="extsbx"       opcode="7c000774" form="X"        group="i" desc="Extend Sign Byte">
+    <in field="RS" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>extsb[Rc] [RA], [RS]</disasm>
+  </insn>
+  <insn mnem="extshx"       opcode="7c000734" form="X"        group="i" desc="Extend Sign Half Word">
+    <in field="RS" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>extsh[Rc] [RA], [RS]</disasm>
+  </insn>
+  <insn mnem="extswx"       opcode="7c0007B4" form="X"        group="i" desc="Extend Sign Word">
+    <in field="RS" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>extsw[Rc] [RA], [RS]</disasm>
+  </insn>
+  <insn mnem="fabsx"        opcode="fc000210" form="X"        group="f" desc="Floating Absolute Value">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <disasm>fabs[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="faddx"        opcode="fc00002a" form="A"        group="f" desc="Floating Add">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fadd[Rc] [FD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="faddsx"       opcode="ec00002a" form="A"        group="f" desc="Floating Add Single">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fadds[Rc] [FD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="fcfidx"       opcode="FC00069C" form="X"        group="f" desc="Floating Convert From Integer Doubleword">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fcfid[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fcmpo"        opcode="fc000040" form="X"        group="f" desc="Floating Compare Ordered">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="CRFD" />
+    <out field="FPSCR" />
+    <disasm>fcmpo [CRFD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="fcmpu"        opcode="fc000000" form="X"        group="f" desc="Floating Compare Unordered">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="CRFD" />
+    <out field="FPSCR" />
+    <disasm>fcmpu [CRFD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="fctidx"       opcode="fc00065c" form="X"        group="f" desc="Floating Convert to Integer Doubleword">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fctid[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fctidzx"      opcode="fc00065e" form="X"        group="f" desc="Floating Convert to Integer Doubleword with Round Toward Zero">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fctidz[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fctiwx"       opcode="fc00001c" form="X"        group="f" desc="Floating Convert to Integer Word">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fctiw[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fctiwzx"      opcode="fc00001e" form="X"        group="f" desc="Floating Convert to Integer Word with Round Toward Zero">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fctiwz[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fdivx"        opcode="fc000024" form="A"        group="f" desc="Floating Divide">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fdiv[Rc] [FD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="fdivsx"       opcode="ec000024" form="A"        group="f" desc="Floating Divide Single">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fdivs[Rc] [FD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="fmaddx"       opcode="fc00003a" form="A"        group="f" desc="Floating Multiply-Add">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fmadd[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fmaddsx"      opcode="ec00003a" form="A"        group="f" desc="Floating Multiply-Add Single">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fmadds[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fmrx"         opcode="fc000090" form="X"        group="f" desc="Floating Move Register">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <disasm>fmr[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fmsubx"       opcode="fc000038" form="A"        group="f" desc="Floating Multiply-Subtract">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fmsub[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fmsubsx"      opcode="ec000038" form="A"        group="f" desc="Floating Multiply-Subtract Single">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fmsubs[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fmulx"        opcode="fc000032" form="A"        group="f" desc="Floating Multiply">
+    <in field="FA" />
+    <in field="FC" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fmul[Rc] [FD], [FA], [FC]</disasm>
+  </insn>
+  <insn mnem="fmulsx"       opcode="ec000032" form="A"        group="f" desc="Floating Multiply Single">
+    <in field="FA" />
+    <in field="FC" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fmuls[Rc] [FD], [FA], [FC]</disasm>
+  </insn>
+  <insn mnem="fnabsx"       opcode="fc000110" form="X"        group="f" desc="Floating Negative Absolute Value">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <disasm>fnabs[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fnegx"        opcode="fc000050" form="X"        group="f" desc="Floating Negate">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <disasm>fneg[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fnmaddx"      opcode="fc00003e" form="A"        group="f" desc="Floating Negative Multiply-Add">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fnmadd[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fnmaddsx"     opcode="ec00003e" form="A"        group="f" desc="Floating Negative Multiply-Add Single">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fnmadds[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fnmsubx"      opcode="fc00003c" form="A"        group="f" desc="Floating Negative Multiply-Subtract">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fnmsub[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fnmsubsx"     opcode="ec00003c" form="A"        group="f" desc="Floating Negative Multiply-Subtract Single">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fnmsubs[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fresx"        opcode="ec000030" form="A"        group="f" desc="Floating Reciprocal Estimate Single">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fres[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="frspx"        opcode="fc000018" form="X"        group="f" desc="Floating Round to Single">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>frsp[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="frsqrtex"     opcode="fc000034" form="A"        group="f" desc="Floating Reciprocal Square Root Estimate">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>frsqrte[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fselx"        opcode="fc00002e" form="A"        group="f" desc="Floating Select">
+    <in field="FA" />
+    <in field="FC" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <disasm>fsel[Rc] [FD], [FA], [FC], [FB]</disasm>
+  </insn>
+  <insn mnem="fsqrtx"       opcode="fc00002c" form="A"        group="f" desc="Floating Square Root">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fsqrt[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fsqrtsx"      opcode="ec00002c" form="A"        group="f" desc="Floating Square Root Single">
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fsqrts[Rc] [FD], [FB]</disasm>
+  </insn>
+  <insn mnem="fsubx"        opcode="fc000028" form="A"        group="f" desc="Floating Subtract">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fsub[Rc] [FD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="fsubsx"       opcode="ec000028" form="A"        group="f" desc="Floating Subtract Single">
+    <in field="FA" />
+    <in field="FB" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <out field="FPSCR" />
+    <disasm>fsubs[Rc] [FD], [FA], [FB]</disasm>
+  </insn>
+  <insn mnem="icbi"         opcode="7c0007ac" form="X"        group="i" desc="Instruction Cache Block Invalidate">
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>icbi [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="isync"        opcode="4c00012c" form="XL"       group="i" desc="Instruction Synchronize">
+    <disasm>isync</disasm>
+  </insn>
+  <insn mnem="lbz"          opcode="88000000" form="D"        group="i" desc="Load Byte and Zero">
+    <in field="RA0" />
+    <in field="d" />
+    <out field="RD" />
+    <disasm>lbz [RD], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="lbzu"         opcode="8c000000" form="D"        group="i" desc="Load Byte and Zero with Update">
+    <in field="RA" />
+    <in field="d" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lbzu [RD], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="lbzux"        opcode="7c0000ee" form="X"        group="i" desc="Load Byte and Zero with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lbzux [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lbzx"         opcode="7c0000ae" form="X"        group="i" desc="Load Byte and Zero Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lbzx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="ld"           opcode="E8000000" form="DS"       group="i" desc="Load Doubleword">
+    <in field="RA0" />
+    <in field="ds" />
+    <out field="RD" />
+    <disasm>ld [RD], [ds]([RA0])</disasm>
+  </insn>
+  <insn mnem="ldarx"        opcode="7C0000A8" form="X"        group="i" desc="Load Doubleword and Reserve Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>ldarx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="ldbrx"        opcode="7C000428" form="X"        group="i" desc="Load Doubleword Byte-Reverse Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>ldbrx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="ldu"          opcode="E8000001" form="DS"       group="i" desc="Load Doubleword with Update">
+    <in field="RA" />
+    <in field="ds" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>ldu [RD], [ds]([RA])</disasm>
+  </insn>
+  <insn mnem="ldux"         opcode="7c00006a" form="X"        group="i" desc="Load Doubleword with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>ldux [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="ldx"          opcode="7c00002a" form="X"        group="i" desc="Load Doubleword Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>ldx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lfd"          opcode="c8000000" form="D"        group="f" desc="Load Floating-Point Double">
+    <in field="RA0" />
+    <in field="d" />
+    <out field="FD" />
+    <disasm>lfd [FD], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="lfdu"         opcode="cc000000" form="D"        group="f" desc="Load Floating-Point Double with Update">
+    <in field="RA" />
+    <in field="d" />
+    <out field="FD" />
+    <out field="RA" />
+    <disasm>lfdu [FD], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="lfdux"        opcode="7c0004ee" form="X"        group="f" desc="Load Floating-Point Double with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="FD" />
+    <out field="RA" />
+    <disasm>lfdux [FD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lfdx"         opcode="7c0004ae" form="X"        group="f" desc="Load Floating-Point Double Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="FD" />
+    <disasm>lfdx [FD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lfs"          opcode="c0000000" form="D"        group="f" desc="Load Floating-Point Single">
+    <in field="RA0" />
+    <in field="d" />
+    <out field="FD" />
+    <disasm>lfs [FD], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="lfsu"         opcode="c4000000" form="D"        group="f" desc="Load Floating-Point Single with Update">
+    <in field="RA" />
+    <in field="d" />
+    <out field="FD" />
+    <out field="RA" />
+    <disasm>lfsu [FD], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="lfsux"        opcode="7c00046e" form="X"        group="f" desc="Load Floating-Point Single with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="FD" />
+    <out field="RA" />
+    <disasm>lfsux [FD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lfsx"         opcode="7c00042e" form="X"        group="f" desc="Load Floating-Point Single Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="FD" />
+    <disasm>lfsx [FD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lha"          opcode="a8000000" form="D"        group="i" desc="Load Half Word Algebraic">
+    <in field="RA0" />
+    <in field="d" />
+    <out field="RD" />
+    <disasm>lha [RD], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="lhau"         opcode="ac000000" form="D"        group="i" desc="Load Half Word Algebraic with Update">
+    <in field="RA" />
+    <in field="d" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lhau [RD], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="lhaux"        opcode="7c0002ee" form="X"        group="i" desc="Load Half Word Algebraic with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lhaux [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lhax"         opcode="7c0002ae" form="X"        group="i" desc="Load Half Word Algebraic Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lhax [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lhbrx"        opcode="7c00062c" form="X"        group="i" desc="Load Half Word Byte-Reverse Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lhbrx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lhz"          opcode="a0000000" form="D"        group="i" desc="Load Half Word and Zero">
+    <in field="RA0" />
+    <in field="d" />
+    <out field="RD" />
+    <disasm>lhz [RD], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="lhzu"         opcode="a4000000" form="D"        group="i" desc="Load Half Word and Zero with Update">
+    <in field="RA" />
+    <in field="d" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lhzu [RD], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="lhzux"        opcode="7c00026e" form="X"        group="i" desc="Load Half Word and Zero with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lhzux [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lhzx"         opcode="7c00022e" form="X"        group="i" desc="Load Half Word and Zero Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lhzx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lmw"          opcode="b8000000" form="D"        group="i" desc="Load Multiple Word">
+    <!-- ? -->
+  </insn>
+  <insn mnem="lswi"         opcode="7c0004aa" form="X"        group="i" desc="Load String Word Immediate">
+    <!-- ? -->
+  </insn>
+  <insn mnem="lswx"         opcode="7c00042a" form="X"        group="i" desc="Load String Word Indexed">
+    <!-- ? -->
+  </insn>
+  <insn mnem="lwa"          opcode="e8000002" form="DS"       group="i" desc="Load Word Algebraic">
+    <in field="RA0" />
+    <in field="ds" />
+    <out field="RD" />
+    <disasm>lwa [RD], [ds]([RA0])</disasm>
+  </insn>
+  <insn mnem="lwarx"        opcode="7c000028" form="X"        group="i" desc="Load Word and Reserve Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lwarx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lwaux"        opcode="7c0002ea" form="X"        group="i" desc="Load Word Algebraic with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lwaux [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lwax"         opcode="7c0002aa" form="X"        group="i" desc="Load Word Algebraic Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lwax [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lwbrx"        opcode="7c00042c" form="X"        group="i" desc="Load Word Byte-Reverse Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lwbrx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lwz"          opcode="80000000" form="D"        group="i" desc="Load Word and Zero">
+    <in field="RA0" />
+    <in field="d" />
+    <out field="RD" />
+    <disasm>lwz [RD], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="lwzu"         opcode="84000000" form="D"        group="i" desc="Load Word and Zero with Update">
+    <in field="RA" />
+    <in field="d" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lwzu [RD], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="lwzux"        opcode="7c00006e" form="X"        group="i" desc="Load Word and Zero with Update Indexed">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="RA" />
+    <disasm>lwzux [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="lwzx"         opcode="7c00002e" form="X"        group="i" desc="Load Word and Zero Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="RD" />
+    <disasm>lwzx [RD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="mcrf"         opcode="4c000000" form="XL"       group="i" desc="Move Condition Register Field">
+    <in field="CRFS" />
+    <out field="CRFD" />
+    <disasm>mcrf [CRFD], [CRFS]</disasm>
+  </insn>
+  <insn mnem="mcrfs"        opcode="fc000080" form="X"        group="f" desc="Move to Condition Register from FPSCR">
+    <in field="CRFS" />
+    <in field="FPSCR" />
+    <out field="CRFD" />
+    <out field="FPSCR" />
+    <disasm>mcrfs [CRFD], [CRFS]</disasm>
+  </insn>
+  <insn mnem="mcrxr"        opcode="7c000400" form="X"        group="i" desc="Move to Condition Register from XER">
+    <in field="CR" />
+    <out field="CRFD" />
+    <disasm>mcrxr [CRFD]</disasm>
+  </insn>
+  <insn mnem="mfcr"         opcode="7c000026" form="X"        group="i" desc="Move from Condition Register">
+    <in field="CR" />
+    <out field="RD" />
+    <disasm>mfcr [RD]</disasm>
+  </insn>
+  <insn mnem="mffsx"        opcode="fc00048e" form="X"        group="f" desc="Move from FPSCR">
+    <in field="FPSCR" />
+    <out field="FD" />
+    <out field="CR" conditional="true" />
+    <disasm>mffs[Rc] [RD]</disasm>
+  </insn>
+  <insn mnem="mfmsr"        opcode="7c0000a6" form="X"        group="i" desc="Move from Machine State Register">
+    <in field="MSR" />
+    <out field="RD" />
+    <disasm>mfmsr [RD]</disasm>
+  </insn>
+  <insn mnem="mfspr"        opcode="7c0002a6" form="XFX"      group="i" desc="Move from Special-Purpose Register">
+    <in field="SPR" />
+    <out field="RD" />
+    <disasm>mfspr [RD], [SPR]</disasm>
+  </insn>
+  <insn mnem="mftb"         opcode="7c0002e6" form="XFX"      group="i" desc="Move from Time Base">
+    <in field="TBR" />
+    <out field="RD" />
+    <disasm>mftb [RD], [TBR]</disasm>
+  </insn>
+  <insn mnem="mtcrf"        opcode="7c000120" form="XFX"      group="i" desc="Move to Condition Register Fields">
+    <in field="RS" />
+    <out field="CRM" />
+    <disasm>mtcrf [CRM], [RS]</disasm>
+  </insn>
+  <insn mnem="mtfsb0x"      opcode="fc00008c" form="X"        group="f" desc="Move to FPSCR Bit 0">
+    <out field="FPSCRD" />
+    <out field="CR" conditional="true" />
+    <disasm>mtfsb0[Rc] [FPSCRD]</disasm>
+  </insn>
+  <insn mnem="mtfsb1x"      opcode="fc00004c" form="X"        group="f" desc="Move to FPSCR Bit 1">
+    <out field="FPSCRD" />
+    <out field="CR" conditional="true" />
+    <disasm>mtfsb1[Rc] [FPSCRD]</disasm>
+  </insn>
+  <insn mnem="mtfsfx"       opcode="fc00058e" form="XFL"      group="f" desc="Move to FPSCR Fields">
+    <in field="FM" />
+    <in field="FB" />
+    <out field="FPSCR" />
+    <out field="CR" conditional="true" />
+    <disasm>mtfsf[Rc] [FM], [FB]</disasm>
+  </insn>
+  <insn mnem="mtfsfix"      opcode="fc00010c" form="X"        group="f" desc="Move to FPSCR Field Immediate">
+    <in field="IMM" />
+    <out field="CRFD" />
+    <out field="CR" conditional="true" />
+    <disasm>mtfsfi[Rc] [CRFD], [IMM]</disasm>
+  </insn>
+  <insn mnem="mtmsr"        opcode="7c000124" form="X"        group="i" desc="Move to Machine State Register">
+    <in field="RS" />
+    <out field="MSR" />
+    <disasm>mtmsr [RS]</disasm>
+  </insn>
+  <insn mnem="mtmsrd"       opcode="7c000164" form="X"        group="i" desc="Move to Machine State Register Doubleword">
+    <in field="RS" />
+    <out field="MSR" />
+    <disasm>mtmsrd [RS]</disasm>
+  </insn>
+  <insn mnem="mtspr"        opcode="7c0003a6" form="XFX"      group="i" desc="Move to Special-Purpose Register">
+    <in field="RS" />
+    <out field="SPR" />
+    <disasm>mtmspr [SPR], [RS]</disasm>
+  </insn>
+  <insn mnem="mulhdx"       opcode="7c000092" form="XO"       group="i" desc="Multiply High Doubleword">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <disasm>mulhd[Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="mulhdux"      opcode="7c000012" form="XO"       group="i" desc="Multiply High Doubleword Unsigned">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <disasm>mulhdu[Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="mulhwx"       opcode="7c000096" form="XO"       group="i" desc="Multiply High Word">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <disasm>mulhw[Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="mulhwux"      opcode="7c000016" form="XO"       group="i" desc="Multiply High Word Unsigned">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <disasm>mulhwu[Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="mulldx"       opcode="7c0001d2" form="XO"       group="i" desc="Multiply Low Doubleword">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <disasm>mulld[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="mulli"        opcode="1c000000" form="D"        group="i" desc="Multiply Low Immediate">
+    <in field="RA" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <disasm>mulli [RD], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="mullwx"       opcode="7c0001d6" form="XO"       group="i" desc="Multiply Low Word">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <disasm>mullw[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="nandx"        opcode="7c0003b8" form="X"        group="i" desc="NAND">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>nand[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="negx"         opcode="7c0000d0" form="XO"       group="i" desc="Negate">
+    <in field="RA" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <disasm>neg[OE][Rc] [RD], [RA]</disasm>
+  </insn>
+  <insn mnem="norx"         opcode="7c0000f8" form="X"        group="i" desc="NOR">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>nor[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="orx"          opcode="7c000378" form="X"        group="i" desc="OR">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>or[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="orcx"         opcode="7c000338" form="X"        group="i" desc="OR with Complement">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>orc[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="ori"          opcode="60000000" form="D"        group="i" desc="OR Immediate">
+    <in field="RS" />
+    <in field="UIMM" />
+    <out field="RA" />
+    <disasm>ori [RA], [RS], [UIMM]</disasm>
+  </insn>
+  <insn mnem="oris"         opcode="64000000" form="D"        group="i" desc="OR Immediate Shifted">
+    <in field="RS" />
+    <in field="UIMM" />
+    <out field="RA" />
+    <disasm>oris [RA], [RS], [UIMM]</disasm>
+  </insn>
+  <insn mnem="rldclx"       opcode="78000010" form="MDS"      group="i" desc="Rotate Left Doubleword then Clear Left">
+    <in field="RS" />
+    <in field="RB" />
+    <in field="MB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rldcl[Rc] [RA], [RS], [RB], [MB]</disasm>
+  </insn>
+  <insn mnem="rldcrx"       opcode="78000012" form="MDS"      group="i" desc="Rotate Left Doubleword then Clear Right">
+    <in field="RS" />
+    <in field="RB" />
+    <in field="ME" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rldcr[Rc] [RA], [RS], [RB], [ME]</disasm>
+  </insn>
+  <insn mnem="rldicx"       opcode="78000008" form="MD"       group="i" desc="Rotate Left Doubleword Immediate then Clear">
+    <in field="RS" />
+    <in field="SH" />
+    <in field="MB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rldic[Rc] [RA], [RS], [SH], [MB]</disasm>
+  </insn>
+  <insn mnem="rldiclx"      opcode="78000000" form="MD"       group="i" desc="Rotate Left Doubleword Immediate then Clear Left">
+    <in field="RS" />
+    <in field="SH" />
+    <in field="MB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rldicl[Rc] [RA], [RS], [SH], [MB]</disasm>
+  </insn>
+  <insn mnem="rldicrx"      opcode="78000004" form="MD"       group="i" desc="Rotate Left Doubleword Immediate then Clear Right">
+    <in field="RS" />
+    <in field="SH" />
+    <in field="ME" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rldicr[Rc] [RA], [RS], [SH], [ME]</disasm>
+  </insn>
+  <insn mnem="rldimix"      opcode="7800000C" form="MD"       group="i" desc="Rotate Left Doubleword Immediate then Mask Insert">
+    <in field="RS" />
+    <in field="SH" />
+    <in field="MB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rldimi[Rc] [RA], [RS], [SH], [MB]</disasm>
+  </insn>
+  <insn mnem="rlwimix"      opcode="50000000" form="M"        group="i" desc="Rotate Left Word Immediate then Mask Insert">
+    <in field="RS" />
+    <in field="SH" />
+    <in field="MB" />
+    <in field="ME" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rlwimi[Rc] [RA], [RS], [SH], [MB], [ME]</disasm>
+  </insn>
+  <insn mnem="rlwinmx"      opcode="54000000" form="M"        group="i" desc="Rotate Left Word Immediate then AND with Mask">
+    <in field="RS" />
+    <in field="SH" />
+    <in field="MB" />
+    <in field="ME" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rlwinm[Rc] [RA], [RS], [SH], [MB], [ME]</disasm>
+  </insn>
+  <insn mnem="rlwnmx"       opcode="5c000000" form="M"        group="i" desc="Rotate Left Word then AND with Mask">
+    <in field="RS" />
+    <in field="RB" />
+    <in field="MB" />
+    <in field="ME" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>rlwnm[Rc] [RA], [RS], [RB], [MB], [ME]</disasm>
+  </insn>
+  <insn mnem="sc"           opcode="44000002" form="SC"       group="i" desc="System Call" sync="true">
+    <disasm>sc</disasm>
+  </insn>
+  <insn mnem="sldx"         opcode="7c000036" form="X"        group="i" desc="Shift Left Doubleword">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>sld[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="slwx"         opcode="7c000030" form="X"        group="i" desc="Shift Left Word">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>slw[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="sradx"        opcode="7c000634" form="X"        group="i" desc="Shift Right Algebraic Doubleword">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <out field="CA" />
+    <disasm>srad[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="sradix"       opcode="7c000674" form="XS"       group="i" desc="Shift Right Algebraic Doubleword Immediate">
+    <in field="RS" />
+    <in field="SH" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <out field="CA" />
+    <disasm>sradi[Rc] [RA], [RS], [SH]</disasm>
+  </insn>
+  <insn mnem="srawx"        opcode="7c000630" form="X"        group="i" desc="Shift Right Algebraic Word">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <out field="CA" />
+    <disasm>sraw[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="srawix"       opcode="7c000670" form="X"        group="i" desc="Shift Right Algebraic Word Immediate">
+    <in field="RS" />
+    <in field="SH" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <out field="CA" />
+    <disasm>srawi[Rc] [RA], [RS], [SH]</disasm>
+  </insn>
+  <insn mnem="srdx"         opcode="7c000436" form="X"        group="i" desc="Shift Right Doubleword">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>srd[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="srwx"         opcode="7c000430" form="X"        group="i" desc="Shift Right Word">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>srw[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="stb"          opcode="98000000" form="D"        group="i" desc="Store Byte">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="d" />
+    <disasm>stb [RS], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="stbu"         opcode="9c000000" form="D"        group="i" desc="Store Byte with Update">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="d" />
+    <out field="RA" />
+    <disasm>stbu [RS], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="stbux"        opcode="7c0001ee" form="X"        group="i" desc="Store Byte with Update Indexed">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RA" />
+    <disasm>stbux [RS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="stbx"         opcode="7c0001ae" form="X"        group="i" desc="Store Byte Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stbx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="std"          opcode="f8000000" form="DS"       group="i" desc="Store Doubleword">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="ds" />
+    <disasm>std [RS], [ds]([RA0])</disasm>
+  </insn>
+  <insn mnem="stdbrx"       opcode="7c000528" form="X"        group="i" desc="Store Doubleword Byte-Reverse Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stdbrx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stdcx"        opcode="7c0001ad" form="X"        group="i" desc="Store Doubleword Conditional Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="CR" />
+    <disasm>stdcx. [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stdu"         opcode="f8000001" form="DS"       group="i" desc="Store Doubleword with Update">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="ds" />
+    <out field="RA" />
+    <disasm>stdu [RS], [ds]([RA])</disasm>
+  </insn>
+  <insn mnem="stdux"        opcode="7c00016a" form="X"        group="i" desc="Store Doubleword with Update Indexed">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RA" />
+    <disasm>stdux [RS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="stdx"         opcode="7c00012a" form="X"        group="i" desc="Store Doubleword Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stdx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stfd"         opcode="d8000000" form="D"        group="f" desc="Store Floating-Point Double">
+    <in field="FS" />
+    <in field="RA0" />
+    <in field="d" />
+    <disasm>stfd [FS], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="stfdu"        opcode="dc000000" form="D"        group="f" desc="Store Floating-Point Double with Update">
+    <in field="FS" />
+    <in field="RA" />
+    <in field="d" />
+    <out field="RA" />
+    <disasm>stfdu [FS], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="stfdux"       opcode="7c0005ee" form="X"        group="f" desc="Store Floating-Point Double with Update Indexed">
+    <in field="FS" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RA" />
+    <disasm>stfdux [FS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="stfdx"        opcode="7c0005ae" form="X"        group="f" desc="Store Floating-Point Double Indexed">
+    <in field="FS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stfdx [FS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stfiwx"       opcode="7c0007ae" form="X"        group="f" desc="Store Floating-Point as Integer Word Indexed">
+    <in field="FS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stfiwx [FS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stfs"         opcode="d0000000" form="D"        group="f" desc="Store Floating-Point Single">
+    <in field="FS" />
+    <in field="RA0" />
+    <in field="d" />
+    <disasm>stfs [FS], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="stfsu"        opcode="d4000000" form="D"        group="f" desc="Store Floating-Point Single with Update">
+    <in field="FS" />
+    <in field="RA" />
+    <in field="d" />
+    <out field="RA" />
+    <disasm>stfsu [FS], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="stfsux"       opcode="7c00056e" form="X"        group="f" desc="Store Floating-Point Single with Update Indexed">
+    <in field="FS" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RA" />
+    <disasm>stfsux [FS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="stfsx"        opcode="7c00052e" form="X"        group="f" desc="Store Floating-Point Single Indexed">
+    <in field="FS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stfsx [FS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="sth"          opcode="b0000000" form="D"        group="i" desc="Store Half Word">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="d" />
+    <disasm>sth [RS], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="sthbrx"       opcode="7c00072c" form="X"        group="i" desc="Store Half Word Byte-Reverse Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>sthbrx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="sthu"         opcode="b4000000" form="D"        group="i" desc="Store Half Word with Update">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="d" />
+    <out field="RA" />
+    <disasm>sthu [RS], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="sthux"        opcode="7c00036e" form="X"        group="i" desc="Store Half Word with Update Indexed">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RA" />
+    <disasm>sthux [RS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="sthx"         opcode="7c00032e" form="X"        group="i" desc="Store Half Word Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>sthx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stmw"         opcode="bc000000" form="D"        group="i" desc="Store Multiple Word">
+    <!-- ? -->
+  </insn>
+  <insn mnem="stswi"        opcode="7c0005aa" form="X"        group="i" desc="Store String Word Immediate">
+    <!-- ? -->
+  </insn>
+  <insn mnem="stswx"        opcode="7c00052a" form="X"        group="i" desc="Store String Word Indexed">
+    <!-- ? -->
+  </insn>
+  <insn mnem="stw"          opcode="90000000" form="D"        group="i" desc="Store Word">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="d" />
+    <disasm>stw [RS], [d]([RA0])</disasm>
+  </insn>
+  <insn mnem="stwbrx"       opcode="7c00052c" form="X"        group="i" desc="Store Word Byte-Reverse Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stwbrx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stwcx"        opcode="7c00012d" form="X"        group="i" desc="Store Word Conditional Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="CR" />
+    <disasm>stwcx. [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stwu"         opcode="94000000" form="D"        group="i" desc="Store Word with Update">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="d" />
+    <out field="RA" />
+    <disasm>stwu [RS], [d]([RA])</disasm>
+  </insn>
+  <insn mnem="stwux"        opcode="7c00016e" form="X"        group="i" desc="Store Word with Update Indexed">
+    <in field="RS" />
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RA" />
+    <disasm>stwux [RS], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="stwx"         opcode="7c00012e" form="X"        group="i" desc="Store Word Indexed">
+    <in field="RS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stwx [RS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="subfx"        opcode="7c000050" form="XO"       group="i" desc="Subtract From">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <disasm>subf[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="subfcx"       opcode="7c000010" form="XO"       group="i" desc="Subtract From Carrying">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <disasm>subfc[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="subfex"       opcode="7c000110" form="XO"       group="i" desc="Subtract From Extended">
+    <in field="RA" />
+    <in field="RB" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <disasm>subfe[OE][Rc] [RD], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="subficx"      opcode="20000000" form="D"        group="i" desc="Subtract From Immediate Carrying">
+    <in field="RA" />
+    <in field="SIMM" />
+    <out field="RD" />
+    <out field="CA" />
+    <disasm>subfic [RD], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="subfmex"      opcode="7c0001d0" form="XO"       group="i" desc="Subtract From Minus One Extended">
+    <in field="RA" />
+    <in field="CA" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <out field="CA" />
+    <disasm>subfme[OE][Rc] [RD], [RA]</disasm>
+  </insn>
+  <insn mnem="subfzex"      opcode="7c000190" form="XO"       group="i" desc="Subtract From Zero Extended">
+    <in field="RA" />
+    <in field="CA" />
+    <out field="RD" />
+    <out field="CR" conditional="true" />
+    <out field="OE" conditional="true" />
+    <out field="CA" />
+    <disasm>subfze[OE][Rc] [RD], [RA]</disasm>
+  </insn>
+  <insn mnem="sync"         opcode="7c0004ac" form="X"        group="i" desc="Synchronize">
+    <disasm>sync</disasm>
+  </insn>
+  <insn mnem="td"           opcode="7c000088" form="X"        group="i" desc="Trap Doubleword">
+    <in field="TO" />
+    <in field="RA" />
+    <in field="RB" />
+    <disasm>td [TO], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="tdi"          opcode="08000000" form="D"        group="i" desc="Trap Doubleword Immediate">
+    <in field="TO" />
+    <in field="RA" />
+    <in field="SIMM" />
+    <disasm>tdi [TO], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="tw"           opcode="7c000008" form="X"        group="i" desc="Trap Word">
+    <in field="TO" />
+    <in field="RA" />
+    <in field="RB" />
+    <disasm>tw [TO], [RA], [RB]</disasm>
+  </insn>
+  <insn mnem="twi"          opcode="0c000000" form="D"        group="i" desc="Trap Word Immediate">
+    <in field="TO" />
+    <in field="RA" />
+    <in field="SIMM" />
+    <disasm>tw [TO], [RA], [SIMM]</disasm>
+  </insn>
+  <insn mnem="xorx"         opcode="7c000278" form="X"        group="i" desc="XOR">
+    <in field="RS" />
+    <in field="RB" />
+    <out field="RA" />
+    <out field="CR" conditional="true" />
+    <disasm>xor[Rc] [RA], [RS], [RB]</disasm>
+  </insn>
+  <insn mnem="xori"         opcode="68000000" form="D"        group="i" desc="XOR Immediate">
+    <in field="RS" />
+    <in field="UIMM" />
+    <out field="RA" />
+    <disasm>xori [RA], [RS], [UIMM]</disasm>
+  </insn>
+  <insn mnem="xoris"        opcode="6c000000" form="D"        group="i" desc="XOR Immediate Shifted">
+    <in field="RS" />
+    <in field="UIMM" />
+    <out field="RA" />
+    <disasm>xoris [RA], [RS], [UIMM]</disasm>
+  </insn>
 </ppc-isa>
 <ppc-isa name="vmx">
-  <insn mnem="vaddcuw"      opcode="10000180" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Carryout Unsigned Word" />
-  <insn mnem="vaddfp"       opcode="1000000A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Floating Point" />
-  <insn mnem="vaddsbs"      opcode="10000300" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Signed Byte Saturate" />
-  <insn mnem="vaddshs"      opcode="10000340" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Signed Half Word Saturate" />
-  <insn mnem="vaddsws"      opcode="10000380" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Signed Word Saturate" />
-  <insn mnem="vaddubm"      opcode="10000000" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Byte Modulo" />
-  <insn mnem="vaddubs"      opcode="10000200" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Byte Saturate" />
-  <insn mnem="vadduhm"      opcode="10000040" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Half Word Modulo" />
-  <insn mnem="vadduhs"      opcode="10000240" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Half Word Saturate" />
-  <insn mnem="vadduwm"      opcode="10000080" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Word Modulo" />
-  <insn mnem="vadduws"      opcode="10000280" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Add Unsigned Word Saturate" />
-  <insn mnem="vand"         opcode="10000404" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical AND" />
-  <insn mnem="vandc"        opcode="10000444" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical AND with Complement" />
-  <insn mnem="vavgsb"       opcode="10000502" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Signed Byte" />
-  <insn mnem="vavgsh"       opcode="10000542" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Signed Half Word" />
-  <insn mnem="vavgsw"       opcode="10000582" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Signed Word" />
-  <insn mnem="vavgub"       opcode="10000402" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Unsigned Byte" />
-  <insn mnem="vavguh"       opcode="10000442" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Unsigned Half Word" />
-  <insn mnem="vavguw"       opcode="10000482" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Average Unsigned Word" />
-  <insn mnem="vcfsx"        opcode="1000034A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert from Signed Fixed-Point Word" />
-  <insn mnem="vcfux"        opcode="1000030A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert from Unsigned Fixed-Point Word" />
-  <insn mnem="vctsxs"       opcode="100003CA" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert to Signed Fixed-Point Word Saturate" />
-  <insn mnem="vctuxs"       opcode="1000038A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Convert to Unsigned Fixed-Point Word Saturate" />
-  <insn mnem="vexptefp"     opcode="1000018A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector 2 Raised to the Exponent Estimate Floating Point" />
-  <insn mnem="vlogefp"      opcode="100001CA" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Log2 Estimate Floating Point" />
-  <insn mnem="vmaxfp"       opcode="1000040A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Floating Point" />
-  <insn mnem="vmaxsb"       opcode="10000102" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Signed Byte" />
-  <insn mnem="vmaxsh"       opcode="10000142" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Signed Half Word" />
-  <insn mnem="vmaxsw"       opcode="10000182" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Signed Word" />
-  <insn mnem="vmaxub"       opcode="10000002" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Unsigned Byte" />
-  <insn mnem="vmaxuh"       opcode="10000042" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Unsigned Half Word" />
-  <insn mnem="vmaxuw"       opcode="10000082" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Maximum Unsigned Word" />
-  <insn mnem="vminfp"       opcode="1000044A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Floating Point" />
-  <insn mnem="vminsb"       opcode="10000302" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Signed Byte" />
-  <insn mnem="vminsh"       opcode="10000342" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Signed Half Word" />
-  <insn mnem="vminsw"       opcode="10000382" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Signed Word" />
-  <insn mnem="vminub"       opcode="10000202" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Unsigned Byte" />
-  <insn mnem="vminuh"       opcode="10000242" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Unsigned Half Word" />
-  <insn mnem="vminuw"       opcode="10000282" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Minimum Unsigned Word" />
-  <insn mnem="vmrghb"       opcode="1000000C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge High Byte" />
-  <insn mnem="vmrghh"       opcode="1000004C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge High Half Word" />
-  <insn mnem="vmrghw"       opcode="1000008C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge High Word" />
-  <insn mnem="vmrglb"       opcode="1000010C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge Low Byte" />
-  <insn mnem="vmrglh"       opcode="1000014C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge Low Half Word" />
-  <insn mnem="vmrglw"       opcode="1000018C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Merge Low Word" />
-  <insn mnem="vmulesb"      opcode="10000308" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Signed Byte" />
-  <insn mnem="vmulesh"      opcode="10000348" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Signed Half Word" />
-  <insn mnem="vmuleub"      opcode="10000208" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Unsigned Byte" />
-  <insn mnem="vmuleuh"      opcode="10000248" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Even Unsigned Half Word" />
-  <insn mnem="vmulosb"      opcode="10000108" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Signed Byte" />
-  <insn mnem="vmulosh"      opcode="10000148" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Signed Half Word" />
-  <insn mnem="vmuloub"      opcode="10000008" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Unsigned Byte" />
-  <insn mnem="vmulouh"      opcode="10000048" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Multiply Odd Unsigned Half Word" />
-  <insn mnem="vnor"         opcode="10000504" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical NOR" />
-  <insn mnem="vor"          opcode="10000484" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical OR" />
-  <insn mnem="vpkpx"        opcode="1000030E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Pixel" />
-  <insn mnem="vpkshss"      opcode="1000018E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Half Word Signed Saturate" />
-  <insn mnem="vpkshus"      opcode="1000010E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Half Word Unsigned Saturate" />
-  <insn mnem="vpkswss"      opcode="100001CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Word Signed Saturate" />
-  <insn mnem="vpkswus"      opcode="1000014E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Signed Word Unsigned Saturate" />
-  <insn mnem="vpkuhum"      opcode="1000000E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Half Word Unsigned Modulo" />
-  <insn mnem="vpkuhus"      opcode="1000008E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Half Word Unsigned Saturate" />
-  <insn mnem="vpkuwum"      opcode="1000004E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Word Unsigned Modulo" />
-  <insn mnem="vpkuwus"      opcode="100000CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Pack Unsigned Word Unsigned Saturate" />
-  <insn mnem="vrefp"        opcode="1000010A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Reciprocal Estimate Floating Point" />
-  <insn mnem="vrfim"        opcode="100002CA" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer toward -Infinity" />
-  <insn mnem="vrfin"        opcode="1000020A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer Nearest" />
-  <insn mnem="vrfip"        opcode="1000028A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer toward +Infinity" />
-  <insn mnem="vrfiz"        opcode="1000024A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Round to Floating-Point Integer toward Zero" />
-  <insn mnem="vrlb"         opcode="10000004" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Rotate Left Integer Byte" />
-  <insn mnem="vrlh"         opcode="10000044" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Rotate Left Integer Half Word" />
-  <insn mnem="vrlw"         opcode="10000084" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Rotate Left Integer Word" />
-  <insn mnem="vrsqrtefp"    opcode="1000014A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Reciprocal Square Root Estimate Floating Point" />
-  <insn mnem="vsl"          opcode="100001C4" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left" />
-  <insn mnem="vslb"         opcode="10000104" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left Integer Byte" />
-  <insn mnem="vslh"         opcode="10000144" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left Integer Half Word" />
-  <insn mnem="vslo"         opcode="1000040C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left by Octet" />
-  <insn mnem="vslw"         opcode="10000184" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Left Integer Word" />
-  <insn mnem="vspltb"       opcode="1000020C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Byte" />
-  <insn mnem="vsplth"       opcode="1000024C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Half Word" />
-  <insn mnem="vspltisb"     opcode="1000030C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Immediate Signed Byte" />
-  <insn mnem="vspltish"     opcode="1000034C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Immediate Signed Half Word" />
-  <insn mnem="vspltisw"     opcode="1000038C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Immediate Signed Word" />
-  <insn mnem="vspltw"       opcode="1000028C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Splat Word" />
-  <insn mnem="vsr"          opcode="100002C4" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right" />
-  <insn mnem="vsrab"        opcode="10000304" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Algebraic Byte" />
-  <insn mnem="vsrah"        opcode="10000344" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Algebraic Half Word" />
-  <insn mnem="vsraw"        opcode="10000384" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Algebraic Word" />
-  <insn mnem="vsrb"         opcode="10000204" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Byte" />
-  <insn mnem="vsrh"         opcode="10000244" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Half Word" />
-  <insn mnem="vsro"         opcode="1000044C" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Octet" />
-  <insn mnem="vsrw"         opcode="10000284" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Shift Right Word" />
-  <insn mnem="vsubcuw"      opcode="10000580" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Carryout Unsigned Word" />
-  <insn mnem="vsubfp"       opcode="1000004A" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Floating Point" />
-  <insn mnem="vsubsbs"      opcode="10000700" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Signed Byte Saturate" />
-  <insn mnem="vsubshs"      opcode="10000740" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Signed Half Word Saturate" />
-  <insn mnem="vsubsws"      opcode="10000780" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Signed Word Saturate" />
-  <insn mnem="vsububm"      opcode="10000400" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Byte Modulo" />
-  <insn mnem="vsububs"      opcode="10000600" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Byte Saturate" />
-  <insn mnem="vsubuhm"      opcode="10000440" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Half Word Modulo" />
-  <insn mnem="vsubuhs"      opcode="10000640" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Half Word Saturate" />
-  <insn mnem="vsubuwm"      opcode="10000480" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Word Modulo" />
-  <insn mnem="vsubuws"      opcode="10000680" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Subtract Unsigned Word Saturate" />
-  <insn mnem="vsumsws"      opcode="10000788" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Signed Word Saturate" />
-  <insn mnem="vsum2sws"     opcode="10000688" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/2) Signed Word Saturate" />
-  <insn mnem="vsum4sbs"     opcode="10000708" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/4) Signed Byte Saturate" />
-  <insn mnem="vsum4shs"     opcode="10000648" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/4) Signed Half Word Saturate" />
-  <insn mnem="vsum4ubs"     opcode="10000608" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Sum Across Partial (1/4) Unsigned Byte Saturate" />
-  <insn mnem="vupkhpx"      opcode="1000034E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack High Pixel" />
-  <insn mnem="vupkhsb"      opcode="1000020E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack High Signed Byte" />
-  <insn mnem="vupkhsh"      opcode="1000024E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack High Signed Half Word" />
-  <insn mnem="vupklpx"      opcode="100003CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack Low Pixel" />
-  <insn mnem="vupklsb"      opcode="1000028E" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack Low Signed Byte" />
-  <insn mnem="vupklsh"      opcode="100002CE" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Unpack Low Signed Half Word" />
-  <insn mnem="vxor"         opcode="100004C4" form="VX"       sub-form="D-A-B"            group="v" desc="Vector Logical XOR" />
+  <!-- These match docs/ppc/altivec_instructions.pdf -->
+  <insn mnem="lvebx"        opcode="7c00000e" form="X"        group="v" desc="Load Vector Element Byte Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvebx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvehx"        opcode="7c00004e" form="X"        group="v" desc="Load Vector Element Half Word Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvehx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvewx"        opcode="7c00008e" form="X"        group="v" desc="Load Vector Element Word Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvewx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvewx128"     opcode="10000083" form="VX128_1"  group="v" desc="Load Vector Element Word Indexed 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvewx128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvsl"         opcode="7c00000c" form="X"        group="v" desc="Load Vector for Shift Left Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvsl [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvsl128"      opcode="10000003" form="VX128_1"  group="v" desc="Load Vector for Shift Left Indexed 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvsl128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvsr"         opcode="7c00004c" form="X"        group="v" desc="Load Vector for Shift Right Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvsr [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvsr128"      opcode="10000043" form="VX128_1"  group="v" desc="Load Vector for Shift Right Indexed 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvsr128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvx"          opcode="7c0000ce" form="X"        group="v" desc="Load Vector Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvx128"       opcode="100000C3" form="VX128_1"  group="v" desc="Load Vector Indexed 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvx128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvxl"         opcode="7c0002ce" form="X"        group="v" desc="Load Vector Indexed LRU">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvslx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvxl128"      opcode="100002C3" form="VX128_1"  group="v" desc="Load Vector Indexed LRU 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvxl128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvlx"         opcode="7C00040E" form="X"        group="v" desc="Load Vector Left Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvlx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvlx128"      opcode="10000403" form="VX128_1"  group="v" desc="Load Vector Left Indexed 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvlx128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvlxl"        opcode="7C00060E" form="X"        group="v" desc="Load Vector Left Indexed LRU">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvlxl [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvlxl128"     opcode="10000603" form="VX128_1"  group="v" desc="Load Vector Left Indexed LRU 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvlxl128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvrx"         opcode="7C00044E" form="X"        group="v" desc="Load Vector Right Indexed">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvrx [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvrx128"      opcode="10000443" form="VX128_1"  group="v" desc="Load Vector Right Indexed 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvrx128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvrxl"        opcode="7C00064E" form="X"        group="v" desc="Load Vector Right Indexed LRU">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvrxl [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="lvrxl128"     opcode="10000643" form="VX128_1"  group="v" desc="Load Vector Right Indexed LRU 128">
+    <in field="RA0" />
+    <in field="RB" />
+    <out field="VD" />
+    <disasm>lvrxl128 [VD], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="mfvscr"       opcode="10000604" form="VX"       group="v" desc="Move from VSCR">
+    <in field="VSCR" />
+    <out field="VD" />
+  </insn>
+  <insn mnem="mtvscr"       opcode="10000644" form="VX"       group="v" desc="Move to VSCR">
+    <in field="VB" />
+    <out field="VSCR" />
+  </insn>
+  <insn mnem="stvebx"       opcode="7c00010e" form="X"        group="v" desc="Store Vector Element Byte Indexed">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvebx [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvehx"       opcode="7c00014e" form="X"        group="v" desc="Store Vector Element Half Word Indexed">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvehx [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvewx"       opcode="7c00018e" form="X"        group="v" desc="Store Vector Element Word Indexed">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvewx [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvewx128"    opcode="10000183" form="VX128_1"  group="v" desc="Store Vector Element Word Indexed 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvewx128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvx"         opcode="7c0001ce" form="X"        group="v" desc="Store Vector Indexed">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvx [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvx128"      opcode="100001c3" form="VX128_1"  group="v" desc="Store Vector Indexed 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvx128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvxl"        opcode="7c0003ce" form="X"        group="v" desc="Store Vector Indexed LRU">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvxl [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvxl128"     opcode="100003c3" form="VX128_1"  group="v" desc="Store Vector Indexed LRU 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvxl128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvlx"        opcode="7c00050e" form="X"        group="v" desc="Store Vector Left Indexed">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvlx [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvlx128"     opcode="10000503" form="VX128_1"  group="v" desc="Store Vector Left Indexed 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvlx128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvlxl"       opcode="7c00070e" form="X"        group="v" desc="Store Vector Left Indexed LRU">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvlxl [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvlxl128"    opcode="10000703" form="VX128_1"  group="v" desc="Store Vector Left Indexed LRU 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvlxl128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvrx"        opcode="7c00054e" form="X"        group="v" desc="Store Vector Right Indexed">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvrx [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvrx128"     opcode="10000543" form="VX128_1"  group="v" desc="Store Vector Right Indexed 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvrx128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvrxl"       opcode="7c00074e" form="X"        group="v" desc="Store Vector Right Indexed LRU">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvrxl [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="stvrxl128"    opcode="10000743" form="VX128_1"  group="v" desc="Store Vector Right Indexed LRU 128">
+    <in field="VS" />
+    <in field="RA0" />
+    <in field="RB" />
+    <disasm>stvrxl128 [VS], [RA0], [RB]</disasm>
+  </insn>
+  <insn mnem="vaddcuw"      opcode="10000180" form="VX"       group="v" desc="Vector Add Carryout Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vaddcuw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddfp"       opcode="1000000A" form="VX"       group="v" desc="Vector Add Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vaddfp [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddfp128"    opcode="14000010" form="VX128"    group="v" desc="Vector128 Add Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vaddfp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddsbs"      opcode="10000300" form="VX"       group="v" desc="Vector Add Signed Byte Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vaddsbs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddshs"      opcode="10000340" form="VX"       group="v" desc="Vector Add Signed Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vaddshs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddsws"      opcode="10000380" form="VX"       group="v" desc="Vector Add Signed Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vaddsws [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddubm"      opcode="10000000" form="VX"       group="v" desc="Vector Add Unsigned Byte Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vaddubm [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vaddubs"      opcode="10000200" form="VX"       group="v" desc="Vector Add Unsigned Byte Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vaddubs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vadduhm"      opcode="10000040" form="VX"       group="v" desc="Vector Add Unsigned Half Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vadduhm [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vadduhs"      opcode="10000240" form="VX"       group="v" desc="Vector Add Unsigned Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vadduhs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vadduwm"      opcode="10000080" form="VX"       group="v" desc="Vector Add Unsigned Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vadduwm [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vadduws"      opcode="10000280" form="VX"       group="v" desc="Vector Add Unsigned Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vadduws [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vand"         opcode="10000404" form="VX"       group="v" desc="Vector Logical AND">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vand [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vand128"      opcode="14000210" form="VX128"    group="v" desc="Vector128 Logical AND">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vand128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vandc"        opcode="10000444" form="VX"       group="v" desc="Vector Logical AND with Complement">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vandc [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vandc128"     opcode="14000250" form="VX128"    group="v" desc="Vector128 Logical AND with Complement">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vandc128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vavgsb"       opcode="10000502" form="VX"       group="v" desc="Vector Average Signed Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vavgsb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vavgsh"       opcode="10000542" form="VX"       group="v" desc="Vector Average Signed Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vavgsh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vavgsw"       opcode="10000582" form="VX"       group="v" desc="Vector Average Signed Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vavgsw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vavgub"       opcode="10000402" form="VX"       group="v" desc="Vector Average Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vavgub [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vavguh"       opcode="10000442" form="VX"       group="v" desc="Vector Average Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vavguh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vavguw"       opcode="10000482" form="VX"       group="v" desc="Vector Average Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vavguw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcfsx"        opcode="1000034A" form="VX"       group="v" desc="Vector Convert from Signed Fixed-Point Word">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vcfsx [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vcfux"        opcode="1000030A" form="VX"       group="v" desc="Vector Convert from Unsigned Fixed-Point Word">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vcfux [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vcmpbfp"      opcode="100003C6" form="VC"       group="v" desc="Vector Compare Bounds Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpbfp[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpbfp128"   opcode="18000180" form="VX128_R"  group="v" desc="Vector128 Compare Bounds Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpbfp128[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpeqfp"     opcode="100000C6" form="VC"       group="v" desc="Vector Compare Equal-to Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpeqfp[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpeqfp128"  opcode="18000000" form="VX128_R"  group="v" desc="Vector128 Compare Equal-to Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpeqfp128[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpequb"     opcode="10000006" form="VC"       group="v" desc="Vector Compare Equal-to Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpequb[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpequh"     opcode="10000046" form="VC"       group="v" desc="Vector Compare Equal-to Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpequh[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpequw"     opcode="10000086" form="VC"       group="v" desc="Vector Compare Equal-to Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpequw[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpequw128"  opcode="18000200" form="VX128_R"  group="v" desc="Vector128 Compare Equal-to Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpequw128[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgefp"     opcode="100001C6" form="VC"       group="v" desc="Vector Compare Greater-Than-or-Equal-to Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgefp[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgefp128"  opcode="18000080" form="VX128_R"  group="v" desc="Vector128 Compare Greater-Than-or-Equal-to Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgefp128[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtfp"     opcode="100002C6" form="VC"       group="v" desc="Vector Compare Greater-Than Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtfp[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtfp128"  opcode="18000100" form="VX128_R"  group="v" desc="Vector128 Compare Greater-Than Floating-Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtfp128[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtsb"     opcode="10000306" form="VC"       group="v" desc="Vector Compare Greater-Than Signed Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtsb[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtsh"     opcode="10000346" form="VC"       group="v" desc="Vector Compare Greater-Than Signed Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtsh[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtsw"     opcode="10000386" form="VC"       group="v" desc="Vector Compare Greater-Than Signed Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtsw[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtub"     opcode="10000206" form="VC"       group="v" desc="Vector Compare Greater-Than Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtub[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtuh"     opcode="10000246" form="VC"       group="v" desc="Vector Compare Greater-Than Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtuh[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vcmpgtuw"     opcode="10000286" form="VC"       group="v" desc="Vector Compare Greater-Than Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="CR" conditional="true" />
+    <disasm>vcmpgtuw[Rc] [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vctsxs"       opcode="100003CA" form="VX"       group="v" desc="Vector Convert to Signed Fixed-Point Word Saturate">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vctsxs [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vctuxs"       opcode="1000038A" form="VX"       group="v" desc="Vector Convert to Unsigned Fixed-Point Word Saturate">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vctuxs [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vexptefp"     opcode="1000018A" form="VX"       group="v" desc="Vector 2 Raised to the Exponent Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vexptefp [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vexptefp128"  opcode="180006B0" form="VX128_3"  group="v" desc="Vector128 Log2 Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vexptefp128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vlogefp"      opcode="100001CA" form="VX"       group="v" desc="Vector Log2 Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vlogefp [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vlogefp128"   opcode="180006F0" form="VX128_3"  group="v" desc="Vector128 Log2 Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vlogefp128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaddfp"      opcode="1000002E" form="VA"       group="v" desc="Vector Multiply-Add Floating Point">
+    <in field="VA" />
+    <in field="VC" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaddfp [VD], [VA], [VC], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaddfp128"   opcode="140000D0" form="VX128"    group="v" desc="Vector128 Multiply Add Floating Point">
+    <in field="VA" />
+    <in field="VC" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaddfp128 [VD], [VA], [VB], [VD]</disasm>
+  </insn>
+  <insn mnem="vmaxfp"       opcode="1000040A" form="VX"       group="v" desc="Vector Maximum Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxfp [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxfp128"    opcode="18000280" form="VX128"    group="v" desc="Vector128 Maximum Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxfp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxsb"       opcode="10000102" form="VX"       group="v" desc="Vector Maximum Signed Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxsb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxsh"       opcode="10000142" form="VX"       group="v" desc="Vector Maximum Signed Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxsh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxsw"       opcode="10000182" form="VX"       group="v" desc="Vector Maximum Signed Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxsw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxub"       opcode="10000002" form="VX"       group="v" desc="Vector Maximum Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxub [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxuh"       opcode="10000042" form="VX"       group="v" desc="Vector Maximum Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxuh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaxuw"       opcode="10000082" form="VX"       group="v" desc="Vector Maximum Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaxuw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmhaddshs"    opcode="10000020" form="VA"       group="v" desc="Vector Multiply-High and Add Signed Signed Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vmhaddshs [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmhraddshs"   opcode="10000021" form="VA"       group="v" desc="Vector Multiply-High Round and Add Signed Signed Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vmhraddshs [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vminfp"       opcode="1000044A" form="VX"       group="v" desc="Vector Minimum Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminfp [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminfp128"    opcode="180002C0" form="VX128"    group="v" desc="Vector128 Minimum Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminfp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminsb"       opcode="10000302" form="VX"       group="v" desc="Vector Minimum Signed Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminsb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminsh"       opcode="10000342" form="VX"       group="v" desc="Vector Minimum Signed Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminsh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminsw"       opcode="10000382" form="VX"       group="v" desc="Vector Minimum Signed Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminsw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminub"       opcode="10000202" form="VX"       group="v" desc="Vector Minimum Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminub [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminuh"       opcode="10000242" form="VX"       group="v" desc="Vector Minimum Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminuh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vminuw"       opcode="10000282" form="VX"       group="v" desc="Vector Minimum Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vminuw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmladduhm"    opcode="10000022" form="VA"       group="v" desc="Vector Multiply-Low and Add Unsigned Half Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vmladduhm [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmrghb"       opcode="1000000C" form="VX"       group="v" desc="Vector Merge High Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrghb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrghh"       opcode="1000004C" form="VX"       group="v" desc="Vector Merge High Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrghh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrghw"       opcode="1000008C" form="VX"       group="v" desc="Vector Merge High Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrghw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrghw128"    opcode="18000300" form="VX128"    group="v" desc="Vector128 Merge High Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrghw128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrglb"       opcode="1000010C" form="VX"       group="v" desc="Vector Merge Low Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrglb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrglh"       opcode="1000014C" form="VX"       group="v" desc="Vector Merge Low Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrglh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrglw"       opcode="1000018C" form="VX"       group="v" desc="Vector Merge Low Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrglw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmrglw128"    opcode="18000340" form="VX128"    group="v" desc="Vector128 Merge Low Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmrglw128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmsummbm"     opcode="10000025" form="VA"       group="v" desc="Vector Multiply-Sum Mixed-Sign Byte Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vmsummbm [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmsumshm"     opcode="10000028" form="VA"       group="v" desc="Vector Multiply-Sum Signed Half Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vmsumshm [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmsumshs"     opcode="10000029" form="VA"       group="v" desc="Vector Multiply-Sum Signed Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vmsumshs [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmsumubm"     opcode="10000024" form="VA"       group="v" desc="Vector Multiply-Sum Unsigned Byte Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vmsumubm [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmsumuhm"     opcode="10000026" form="VA"       group="v" desc="Vector Multiply-Sum Unsigned Half Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vmsumuhm [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmsumuhs"     opcode="10000027" form="VA"       group="v" desc="Vector Multiply-Sum Unsigned Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vmsumuhs [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vmulesb"      opcode="10000308" form="VX"       group="v" desc="Vector Multiply Even Signed Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmulesb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmulesh"      opcode="10000348" form="VX"       group="v" desc="Vector Multiply Even Signed Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmulesh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmuleub"      opcode="10000208" form="VX"       group="v" desc="Vector Multiply Even Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmuleub [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmuleuh"      opcode="10000248" form="VX"       group="v" desc="Vector Multiply Even Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmuleuh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmulosb"      opcode="10000108" form="VX"       group="v" desc="Vector Multiply Odd Signed Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmulosb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmulosh"      opcode="10000148" form="VX"       group="v" desc="Vector Multiply Odd Signed Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmulosh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmuloub"      opcode="10000008" form="VX"       group="v" desc="Vector Multiply Odd Unsigned Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmuloub [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmulouh"      opcode="10000048" form="VX"       group="v" desc="Vector Multiply Odd Unsigned Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmulouh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vnmsubfp"     opcode="1000002F" form="VA"       group="v" desc="Vector Negative Multiply-Subtract Floating Point">
+    <in field="VA" />
+    <in field="VC" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vnmsubfp [VD], [VA], [VC], [VB]</disasm>
+  </insn>
+  <insn mnem="vnmsubfp128"  opcode="14000150" form="VX128"    group="v" desc="Vector128 Negative Multiply-Subtract Floating Point">
+    <in field="VA" />
+    <in field="VD" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vnmsubfp128 [VD], [VA], [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vnor"         opcode="10000504" form="VX"       group="v" desc="Vector Logical NOR">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vnor [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vnor128"      opcode="14000290" form="VX128"    group="v" desc="Vector128 Logical NOR">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vnor128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vor"          opcode="10000484" form="VX"       group="v" desc="Vector Logical OR">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vor [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vor128"       opcode="140002D0" form="VX128"    group="v" desc="Vector128 Logical OR">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vor128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vperm"        opcode="1000002B" form="VA"       group="v" desc="Vector Permute">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vperm [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vperm128"     opcode="14000000" form="VX128_2"  group="v" desc="Vector128 Permute">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vperm128 [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vpkpx"        opcode="1000030E" form="VX"       group="v" desc="Vector Pack Pixel">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vpkpx [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkshss"      opcode="1000018E" form="VX"       group="v" desc="Vector Pack Signed Half Word Signed Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkshss [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkshss128"   opcode="14000200" form="VX128"    group="v" desc="Vector128 Pack Signed Half Word Signed Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkshss128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkshus"      opcode="1000010E" form="VX"       group="v" desc="Vector Pack Signed Half Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkshus [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkshus128"   opcode="14000240" form="VX128"    group="v" desc="Vector128 Pack Signed Half Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkshus128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkswss"      opcode="100001CE" form="VX"       group="v" desc="Vector Pack Signed Word Signed Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkswss [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkswss128"   opcode="14000280" form="VX128"    group="v" desc="Vector128 Pack Signed Word Signed Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkswss128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkswus"      opcode="1000014E" form="VX"       group="v" desc="Vector Pack Signed Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkswus [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkswus128"   opcode="140002C0" form="VX128"    group="v" desc="Vector128 Pack Signed Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkswus128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuhum"      opcode="1000000E" form="VX"       group="v" desc="Vector Pack Unsigned Half Word Unsigned Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vpkuhum [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuhum128"   opcode="14000300" form="VX128"    group="v" desc="Vector128 Pack Unsigned Half Word Unsigned Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vpkuhum128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuhus"      opcode="1000008E" form="VX"       group="v" desc="Vector Pack Unsigned Half Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkuhus [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuhus128"   opcode="14000340" form="VX128"    group="v" desc="Vector128 Pack Unsigned Half Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkuhus128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuwum"      opcode="1000004E" form="VX"       group="v" desc="Vector Pack Unsigned Word Unsigned Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vpkuwum [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuwum128"   opcode="14000380" form="VX128"    group="v" desc="Vector128 Pack Unsigned Word Unsigned Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vpkuwum128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuwus"      opcode="100000CE" form="VX"       group="v" desc="Vector Pack Unsigned Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkuwus [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpkuwus128"   opcode="140003C0" form="VX128"    group="v" desc="Vector128 Pack Unsigned Word Unsigned Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vpkuwus128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vrefp"        opcode="1000010A" form="VX"       group="v" desc="Vector Reciprocal Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrefp [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrefp128"     opcode="18000630" form="VX128_3"  group="v" desc="Vector128 Reciprocal Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrefp128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfim"        opcode="100002CA" form="VX"       group="v" desc="Vector Round to Floating-Point Integer toward -Infinity">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfim [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfim128"     opcode="18000330" form="VX128_3"  group="v" desc="Vector128 Round to Floating-Point Integer toward -Infinity">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfim128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfin"        opcode="1000020A" form="VX"       group="v" desc="Vector Round to Floating-Point Integer Nearest">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfin [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfin128"     opcode="18000370" form="VX128_3"  group="v" desc="Vector128 Round to Floating-Point Integer Nearest">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfin128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfip"        opcode="1000028A" form="VX"       group="v" desc="Vector Round to Floating-Point Integer toward +Infinity">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfip [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfip128"     opcode="180003B0" form="VX128_3"  group="v" desc="Vector128 Round to Floating-Point Integer toward +Infinity">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfip128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfiz"        opcode="1000024A" form="VX"       group="v" desc="Vector Round to Floating-Point Integer toward Zero">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfiz [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrfiz128"     opcode="180003F0" form="VX128_3"  group="v" desc="Vector128 Round to Floating-Point Integer toward Zero">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrfiz128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrlb"         opcode="10000004" form="VX"       group="v" desc="Vector Rotate Left Integer Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrlb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vrlh"         opcode="10000044" form="VX"       group="v" desc="Vector Rotate Left Integer Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrlh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vrlw"         opcode="10000084" form="VX"       group="v" desc="Vector Rotate Left Integer Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrlw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vrlw128"      opcode="18000050" form="VX128"    group="v" desc="Vector128 Rotate Left Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrlw128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vrsqrtefp"    opcode="1000014A" form="VX"       group="v" desc="Vector Reciprocal Square Root Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrsqrtefp [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vrsqrtefp128" opcode="18000670" form="VX128_3"  group="v" desc="Vector128 Reciprocal Square Root Estimate Floating Point">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrsqrtefp128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vsel"         opcode="1000002A" form="VA"       group="v" desc="Vector Conditional Select">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VC" />
+    <out field="VD" />
+    <disasm>vsel [VD], [VA], [VB], [VC]</disasm>
+  </insn>
+  <insn mnem="vsel128"      opcode="14000350" form="VX128"    group="v" desc="Vector128 Conditional Select">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="VD" />
+    <out field="VD" />
+    <disasm>vsel128 [VD], [VA], [VB], [VD]</disasm>
+  </insn>
+  <insn mnem="vsl"          opcode="100001C4" form="VX"       group="v" desc="Vector Shift Left">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsl [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vslb"         opcode="10000104" form="VX"       group="v" desc="Vector Shift Left Integer Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vslb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsldoi"       opcode="1000002C" form="VA"       group="v" desc="Vector Shift Left Double by Octet Immediate">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="SHB" />
+    <out field="VD" />
+    <disasm>vsldoi [VD], [VA], [VB], [SHB]</disasm>
+  </insn>
+  <insn mnem="vsldoi128"    opcode="10000010" form="VX128_5"  group="v" desc="Vector128 Shift Left Double by Octet Immediate">
+    <in field="VA" />
+    <in field="VB" />
+    <in field="SHB" />
+    <out field="VD" />
+    <disasm>vsldoi128 [VD], [VA], [VB], [SHB]</disasm>
+  </insn>
+  <insn mnem="vslh"         opcode="10000144" form="VX"       group="v" desc="Vector Shift Left Integer Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vslh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vslo"         opcode="1000040C" form="VX"       group="v" desc="Vector Shift Left by Octet">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vslo [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vslo128"      opcode="14000390" form="VX128"    group="v" desc="Vector128 Shift Left Octet">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vslo128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vslw"         opcode="10000184" form="VX"       group="v" desc="Vector Shift Left Integer Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vslw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vslw128"      opcode="180000D0" form="VX128"    group="v" desc="Vector128 Shift Left Integer Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vslw128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vspltb"       opcode="1000020C" form="VX"       group="v" desc="Vector Splat Byte">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vspltb [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vsplth"       opcode="1000024C" form="VX"       group="v" desc="Vector Splat Half Word">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vsplth [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vspltisb"     opcode="1000030C" form="VX"       group="v" desc="Vector Splat Immediate Signed Byte">
+    <in field="SIMM" />
+    <out field="VD" />
+    <disasm>vspltisb [VD], [SIMM]</disasm>
+  </insn>
+  <insn mnem="vspltish"     opcode="1000034C" form="VX"       group="v" desc="Vector Splat Immediate Signed Half Word">
+    <in field="SIMM" />
+    <out field="VD" />
+    <disasm>vspltish [VD], [SIMM]</disasm>
+  </insn>
+  <insn mnem="vspltisw"     opcode="1000038C" form="VX"       group="v" desc="Vector Splat Immediate Signed Word">
+    <in field="SIMM" />
+    <out field="VD" />
+    <disasm>vspltisw [VD], [SIMM]</disasm>
+  </insn>
+  <insn mnem="vspltisw128"  opcode="18000770" form="VX128_3"  group="v" desc="Vector128 Splat Immediate Signed Word">
+    <in field="SIMM" />
+    <out field="VD" />
+    <disasm>vspltisw128 [VD], [SIMM]</disasm>
+  </insn>
+  <insn mnem="vspltw"       opcode="1000028C" form="VX"       group="v" desc="Vector Splat Word">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vspltw [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vspltw128"    opcode="18000730" form="VX128_3"  group="v" desc="Vector128 Splat Word">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vspltw128 [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vsr"          opcode="100002C4" form="VX"       group="v" desc="Vector Shift Right">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsr [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsrab"        opcode="10000304" form="VX"       group="v" desc="Vector Shift Right Algebraic Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsrab [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsrah"        opcode="10000344" form="VX"       group="v" desc="Vector Shift Right Algebraic Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsrah [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsraw"        opcode="10000384" form="VX"       group="v" desc="Vector Shift Right Algebraic Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsraw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsraw128"     opcode="18000150" form="VX128"    group="v" desc="Vector128 Shift Right Arithmetic Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsraw128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsrb"         opcode="10000204" form="VX"       group="v" desc="Vector Shift Right Byte">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsrb [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsrh"         opcode="10000244" form="VX"       group="v" desc="Vector Shift Right Half Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsrh [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsro"         opcode="1000044C" form="VX"       group="v" desc="Vector Shift Right Octet">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsro [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsro128"      opcode="140003D0" form="VX128"    group="v" desc="Vector128 Shift Right Octet">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsro128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsrw"         opcode="10000284" form="VX"       group="v" desc="Vector Shift Right Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsrw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsrw128"      opcode="180001D0" form="VX128"    group="v" desc="Vector128 Shift Right Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsrw128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubcuw"      opcode="10000580" form="VX"       group="v" desc="Vector Subtract Carryout Unsigned Word">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsubcuw [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubfp"       opcode="1000004A" form="VX"       group="v" desc="Vector Subtract Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsubfp [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubfp128"    opcode="14000050" form="VX128"    group="v" desc="Vector128 Subtract Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsubfp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubsbs"      opcode="10000700" form="VX"       group="v" desc="Vector Subtract Signed Byte Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsubsbs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubshs"      opcode="10000740" form="VX"       group="v" desc="Vector Subtract Signed Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsubshs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubsws"      opcode="10000780" form="VX"       group="v" desc="Vector Subtract Signed Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsubsws [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsububm"      opcode="10000400" form="VX"       group="v" desc="Vector Subtract Unsigned Byte Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsububm [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsububs"      opcode="10000600" form="VX"       group="v" desc="Vector Subtract Unsigned Byte Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsububs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubuhm"      opcode="10000440" form="VX"       group="v" desc="Vector Subtract Unsigned Half Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsubuhm [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubuhs"      opcode="10000640" form="VX"       group="v" desc="Vector Subtract Unsigned Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsubuhs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubuwm"      opcode="10000480" form="VX"       group="v" desc="Vector Subtract Unsigned Word Modulo">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vsubuwm [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsubuws"      opcode="10000680" form="VX"       group="v" desc="Vector Subtract Unsigned Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsubuws [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsumsws"      opcode="10000788" form="VX"       group="v" desc="Vector Sum Across Signed Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsumsws [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsum2sws"     opcode="10000688" form="VX"       group="v" desc="Vector Sum Across Partial (1/2) Signed Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsum2sws [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsum4sbs"     opcode="10000708" form="VX"       group="v" desc="Vector Sum Across Partial (1/4) Signed Byte Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsum4sbs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsum4shs"     opcode="10000648" form="VX"       group="v" desc="Vector Sum Across Partial (1/4) Signed Half Word Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsum4shs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vsum4ubs"     opcode="10000608" form="VX"       group="v" desc="Vector Sum Across Partial (1/4) Unsigned Byte Saturate">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vsum4ubs [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vupkhpx"      opcode="1000034E" form="VX"       group="v" desc="Vector Unpack High Pixel">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupkhpx [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupkhsb"      opcode="1000020E" form="VX"       group="v" desc="Vector Unpack High Signed Byte">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupkhsb [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupkhsb128"   opcode="18000380" form="VX128"    group="v" desc="Vector128 Unpack High Signed Byte">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupkhsb128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupkhsh"      opcode="1000024E" form="VX"       group="v" desc="Vector Unpack High Signed Half Word">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupkhsh [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupklpx"      opcode="100003CE" form="VX"       group="v" desc="Vector Unpack Low Pixel">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupklpx [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupklsb"      opcode="1000028E" form="VX"       group="v" desc="Vector Unpack Low Signed Byte">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupklsb [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupklsb128"   opcode="180003C0" form="VX128"    group="v" desc="Vector128 Unpack Low Signed Byte">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupklsb128 [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vupklsh"      opcode="100002CE" form="VX"       group="v" desc="Vector Unpack Low Signed Half Word">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vupklsh [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vxor"         opcode="100004C4" form="VX"       group="v" desc="Vector Logical XOR">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vxor [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vxor128"      opcode="14000310" form="VX128"    group="v" desc="Vector128 Logical XOR">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vxor128 [VD], [VA], [VB]</disasm>
+  </insn>
 
-  <insn mnem="vcmpbfp"      opcode="100003C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Bounds Floating Point" />
-  <insn mnem="vcmpeqfp"     opcode="100000C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Floating Point" />
-  <insn mnem="vcmpequb"     opcode="10000006" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Unsigned Byte" />
-  <insn mnem="vcmpequh"     opcode="10000046" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Unsigned Half Word" />
-  <insn mnem="vcmpequw"     opcode="10000086" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Equal-to Unsigned Word" />
-  <insn mnem="vcmpgefp"     opcode="100001C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than-or-Equal-to Floating Point" />
-  <insn mnem="vcmpgtfp"     opcode="100002C6" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Floating Point" />
-  <insn mnem="vcmpgtsb"     opcode="10000306" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Signed Byte" />
-  <insn mnem="vcmpgtsh"     opcode="10000346" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Signed Half Word" />
-  <insn mnem="vcmpgtsw"     opcode="10000386" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Signed Word" />
-  <insn mnem="vcmpgtub"     opcode="10000206" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Unsigned Byte" />
-  <insn mnem="vcmpgtuh"     opcode="10000246" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Unsigned Half Word" />
-  <insn mnem="vcmpgtuw"     opcode="10000286" form="VC"       sub-form="D-A-B"            group="v" desc="Vector Compare Greater-Than Unsigned Word" />
-  <insn mnem="vmaddfp"      opcode="1000002E" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Add Floating Point" />
-  <insn mnem="vmhaddshs"    opcode="10000020" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-High and Add Signed Signed Half Word Saturate" />
-  <insn mnem="vmhraddshs"   opcode="10000021" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-High Round and Add Signed Signed Half Word Saturate" />
-  <insn mnem="vmladduhm"    opcode="10000022" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Low and Add Unsigned Half Word Modulo" />
-  <insn mnem="vmsummbm"     opcode="10000025" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Mixed-Sign Byte Modulo" />
-  <insn mnem="vmsumshm"     opcode="10000028" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Signed Half Word Modulo" />
-  <insn mnem="vmsumshs"     opcode="10000029" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Signed Half Word Saturate" />
-  <insn mnem="vmsumubm"     opcode="10000024" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Unsigned Byte Modulo" />
-  <insn mnem="vmsumuhm"     opcode="10000026" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Unsigned Half Word Modulo" />
-  <insn mnem="vmsumuhs"     opcode="10000027" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Multiply-Sum Unsigned Half Word Saturate" />
-  <insn mnem="vnmsubfp"     opcode="1000002F" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Negative Multiply-Subtract Floating Point" />
-  <insn mnem="vperm"        opcode="1000002B" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Permute" />
-  <insn mnem="vsel"         opcode="1000002A" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Conditional Select" />
-  <insn mnem="vsldoi"       opcode="1000002C" form="VA"       sub-form="D-A-B-C"          group="v" desc="Vector Shift Left Double by Octet Immediate" />
-  <insn mnem="vsldoi128"    opcode="10000010" form="VX128_5"  sub-form="D-A-B-I"          group="v" desc="Vector128 Shift Left Double by Octet Immediate" />
-  <insn mnem="vperm128"     opcode="14000000" form="VX128_2"  sub-form="D-A-B-C"          group="v" desc="Vector128 Permute" />
-  <insn mnem="vaddfp128"    opcode="14000010" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Add Floating Point" />
-  <insn mnem="vsubfp128"    opcode="14000050" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Subtract Floating Point" />
-  <insn mnem="vmulfp128"    opcode="14000090" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Multiply Floating-Point" />
-  <insn mnem="vmaddfp128"   opcode="140000D0" form="VX128"    sub-form="D-A-D-B"          group="v" desc="Vector128 Multiply Add Floating Point" />
-  <insn mnem="vmaddcfp128"  opcode="14000110" form="VX128"    sub-form="D-A-D-B"          group="v" desc="Vector128 Multiply Add Floating Point" />
-  <insn mnem="vnmsubfp128"  opcode="14000150" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Negative Multiply-Subtract Floating Point" />
-  <insn mnem="vmsum3fp128"  opcode="14000190" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Multiply Sum 3-way Floating Point" />
-  <insn mnem="vmsum4fp128"  opcode="140001D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Multiply Sum 4-way Floating-Point" />
-  <insn mnem="vpkshss128"   opcode="14000200" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Half Word Signed Saturate" />
-  <insn mnem="vand128"      opcode="14000210" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical AND" />
-  <insn mnem="vpkshus128"   opcode="14000240" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Half Word Unsigned Saturate" />
-  <insn mnem="vandc128"     opcode="14000250" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical AND with Complement" />
-  <insn mnem="vpkswss128"   opcode="14000280" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Word Signed Saturate" />
-  <insn mnem="vnor128"      opcode="14000290" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical NOR" />
-  <insn mnem="vpkswus128"   opcode="140002C0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Signed Word Unsigned Saturate" />
-  <insn mnem="vor128"       opcode="140002D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical OR" />
-  <insn mnem="vpkuhum128"   opcode="14000300" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Half Word Unsigned Modulo" />
-  <insn mnem="vxor128"      opcode="14000310" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Logical XOR" />
-  <insn mnem="vpkuhus128"   opcode="14000340" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Half Word Unsigned Saturate" />
-  <insn mnem="vsel128"      opcode="14000350" form="VX128"    sub-form="D-A-B-D"          group="v" desc="Vector128 Conditional Select" />
-  <insn mnem="vpkuwum128"   opcode="14000380" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Word Unsigned Modulo" />
-  <insn mnem="vslo128"      opcode="14000390" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Left Octet" />
-  <insn mnem="vpkuwus128"   opcode="140003C0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Pack Unsigned Word Unsigned Saturate" />
-  <insn mnem="vsro128"      opcode="140003D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Right Octet" />
-  <insn mnem="vpermwi128"   opcode="18000210" form="VX128_P"  sub-form="D-A-B-C"          group="v" desc="Vector128 Permutate Word Immediate" />
-  <insn mnem="vcfpsxws128"  opcode="18000230" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Convert From Floating-Point to Signed Fixed-Point Word Saturate" />
-  <insn mnem="vcfpuxws128"  opcode="18000270" form="VX128_3"  sub-form="D-B-UIMM"         group="v" desc="Vector128 Convert From Floating-Point to Unsigned Fixed-Point Word Saturate" />
-  <insn mnem="vcsxwfp128"   opcode="180002B0" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Convert From Signed Fixed-Point Word to Floating-Point" />
-  <insn mnem="vcuxwfp128"   opcode="180002F0" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Convert From Unsigned Fixed-Point Word to Floating-Point" />
-  <insn mnem="vrfim128"     opcode="18000330" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer toward -Infinity" />
-  <insn mnem="vrfin128"     opcode="18000370" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer Nearest" />
-  <insn mnem="vrfip128"     opcode="180003B0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer toward +Infinity" />
-  <insn mnem="vrfiz128"     opcode="180003F0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Round to Floating-Point Integer toward Zero" />
-  <insn mnem="vpkd3d128"    opcode="18000610" form="VX128_4"  sub-form="D-B"              group="v" desc="Vector128 Pack D3Dtype, Rotate Left Immediate and Mask Insert" />
-  <insn mnem="vrefp128"     opcode="18000630" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Reciprocal Estimate Floating Point" />
-  <insn mnem="vrsqrtefp128" opcode="18000670" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Reciprocal Square Root Estimate Floating Point" />
-  <insn mnem="vexptefp128"  opcode="180006B0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Log2 Estimate Floating Point" />
-  <insn mnem="vlogefp128"   opcode="180006F0" form="VX128_3"  sub-form="D-B"              group="v" desc="Vector128 Log2 Estimate Floating Point" />
-  <insn mnem="vrlimi128"    opcode="18000710" form="VX128_4"  sub-form="D-B-UIMM"         group="v" desc="Vector128 Rotate Left Immediate and Mask Insert" />
-  <insn mnem="vspltw128"    opcode="18000730" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Splat Word" />
-  <insn mnem="vspltisw128"  opcode="18000770" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Splat Immediate Signed Word" />
-  <insn mnem="vupkd3d128"   opcode="180007F0" form="VX128_3"  sub-form="D-B-SIMM"         group="v" desc="Vector128 Unpack D3Dtype" />
-  <insn mnem="vcmpeqfp128"  opcode="18000000" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Equal-to Floating Point" />
-  <insn mnem="vrlw128"      opcode="18000050" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Rotate Left Word" />
-  <insn mnem="vcmpgefp128"  opcode="18000080" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Greater-Than-or-Equal-to Floating Point" />
-  <insn mnem="vslw128"      opcode="180000D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Left Integer Word" />
-  <insn mnem="vcmpgtfp128"  opcode="18000100" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Greater-Than Floating-Point" />
-  <insn mnem="vsraw128"     opcode="18000150" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Right Arithmetic Word" />
-  <insn mnem="vcmpbfp128"   opcode="18000180" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Bounds Floating Point" />
-  <insn mnem="vsrw128"      opcode="180001D0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Shift Right Word" />
-  <insn mnem="vcmpequw128"  opcode="18000200" form="VX128_R"  sub-form="D-A-B"            group="v" desc="Vector128 Compare Equal-to Unsigned Word" />
-  <insn mnem="vmaxfp128"    opcode="18000280" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Maximum Floating Point" />
-  <insn mnem="vminfp128"    opcode="180002C0" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Minimum Floating Point" />
-  <insn mnem="vmrghw128"    opcode="18000300" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Merge High Word" />
-  <insn mnem="vmrglw128"    opcode="18000340" form="VX128"    sub-form="D-A-B"            group="v" desc="Vector128 Merge Low Word" />
-  <insn mnem="vupkhsb128"   opcode="18000380" form="VX128"    sub-form="D-B"              group="v" desc="Vector128 Unpack High Signed Byte" />
-  <insn mnem="vupklsb128"   opcode="180003C0" form="VX128"    sub-form="D-B"              group="v" desc="Vector128 Unpack Low Signed Byte" />
+  <insn mnem="vmulfp128"    opcode="14000090" form="VX128"    group="v" desc="Vector128 Multiply Floating-Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmulfp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmaddcfp128"  opcode="14000110" form="VX128"    group="v" desc="Vector128 Multiply Add Floating Point">
+    <in field="VA" />
+    <in field="VD" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmaddcfp128 [VD], [VA], [VD], [VB]</disasm>
+  </insn>
+  <insn mnem="vmsum3fp128"  opcode="14000190" form="VX128"    group="v" desc="Vector128 Multiply Sum 3-way Floating Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmsum3fp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vmsum4fp128"  opcode="140001D0" form="VX128"    group="v" desc="Vector128 Multiply Sum 4-way Floating-Point">
+    <in field="VA" />
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vmsum4fp128 [VD], [VA], [VB]</disasm>
+  </insn>
+  <insn mnem="vpermwi128"   opcode="18000210" form="VX128_P"  group="v" desc="Vector128 Permutate Word Immediate">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vpermwi128 [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vcfpsxws128"  opcode="18000230" form="VX128_3"  group="v" desc="Vector128 Convert From Floating-Point to Signed Fixed-Point Word Saturate">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vcfpsxws128 [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vcfpuxws128"  opcode="18000270" form="VX128_3"  group="v" desc="Vector128 Convert From Floating-Point to Unsigned Fixed-Point Word Saturate">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <out field="VSCR" />
+    <disasm>vcfpuxws128 [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vcsxwfp128"   opcode="180002B0" form="VX128_3"  group="v" desc="Vector128 Convert From Signed Fixed-Point Word to Floating-Point">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vcsxwfp128 [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vcuxwfp128"   opcode="180002F0" form="VX128_3"  group="v" desc="Vector128 Convert From Unsigned Fixed-Point Word to Floating-Point">
+    <in field="VB" />
+    <in field="UIMM" />
+    <out field="VD" />
+    <disasm>vcuxwfp128 [VD], [VB], [UIMM]</disasm>
+  </insn>
+  <insn mnem="vpkd3d128"    opcode="18000610" form="VX128_4"  group="v" desc="Vector128 Pack D3Dtype, Rotate Left Immediate and Mask Insert">
+    <in field="VB" />
+    <out field="VD" />
+    <!-- TODO(benvanik): arg types -->
+  </insn>
+  <insn mnem="vrlimi128"    opcode="18000710" form="VX128_4"  group="v" desc="Vector128 Rotate Left Immediate and Mask Insert">
+    <in field="VB" />
+    <out field="VD" />
+    <disasm>vrlimi128 [VD], [VB], [IMM], [z]</disasm>
+  </insn>
+  <insn mnem="vupkd3d128"   opcode="180007F0" form="VX128_3"  group="v" desc="Vector128 Unpack D3Dtype">
+    <in field="VB" />
+    <out field="VD" />
+    <!-- TODO(benvanik): arg types -->
+  </insn>
 </ppc-isa>
 </root>

@@ -1,0 +1,610 @@
+ 2006/09/01                                         Revision 1.2
+-----------------------------------------------------------------
+
+
+   This is a description of the VMX128-type opcodes found on
+   the xbox360 processor. I figured this out by looking at
+   various disassmblies, so there might some errors and
+   missing instructions. Some instructions have unknown
+   semantics for me.
+
+   See comments or corrections to sb#biallas.net
+
+
+=================================================================
+Conventions:
+   VD128, VS128:  5 lower bits of a VMX128 vector register 
+                  number
+   VDh:	          upper 2 bits of VD128
+                  (so register number is (VDh << 5 | VD128))
+		 
+   VA128:         same as VD128
+   A:             bit 6 of VA128
+   a:             bit 5 of VA128
+                  (so register number is (A<<6 | a<<5 | VA128))
+                     
+   VB128:         same as VD128
+   VBh:           same as VDh
+   
+   VC128:         3 bits of a VMX128 vector register number
+                  (you can only use vr0-vr7 here)
+   
+   RA, RB:        general purpose register number
+
+   UIMM:          unsigned immediate value
+   SIMM:          signed immediate value
+   
+   PERMh:         upper 3 bits of a permutation
+   PERMl:         lower 5 bits of a permutation
+   
+   x, y, z:       unknown immediate values
+
+=================================================================
+   lvewx128                  Load Vector128 Element Word Indexed
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |0 0 0 1 0 0 0|VDh|1 1|
+
+   lvewx128      vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvlx128                           Load Vector128 Left Indexed
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |1 0 0 0 0 0 0|VDh|1 1|
+
+   lvlx128       vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvrx128                          Load Vector128 Right Indexed
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |1 0 0 0 1 0 0|VDh|1 1|
+
+   lvrx128       vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvlxl128                      Load Vector128 Left Indexed LRU
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |1 1 0 0 0 0 0|VDh|1 1|
+
+   lvlxl128      vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvrxl128                     Load Vector128 Right Indexed LRU
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |1 1 0 0 1 0 0|VDh|1 1|
+
+   lvrxl128      vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvsl128                         Load Vector128 for Shift Left
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |0 0 0 0 0 0 0|VDh|1 1|
+
+   lvsl128       vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvsr128                        Load Vector128 for Shift Right
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |0 0 0 0 1 0 0|VDh|1 1|
+
+   lvsr128       vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvx128                                 Load Vector128 Indexed
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |0 0 0 1 1 0 0|VDh|1 1|
+
+   lvx128        vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   lvxl128                            Load Vector128 Indexed LRU
+|0 0 0 1 0 0|  VD128  |   RA    |   RB    |0 1 0 1 1 0 0|VDh|1 1|
+
+   lvxl128       vr(VD128), r(RA), r(RB)
+
+
+=================================================================
+   stewx128                 Store Vector128 Element Word Indexed
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |0 1 1 0 0 0 0|VDh|1 1|
+
+   stvewx128     vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   stvlx128                         Store Vector128 Left Indexed
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |1 0 1 0 0 0 0|VDh|1 1|
+
+   stvlx128      vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   stvlxl128                    Store Vector128 Left Indexed LRU
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |1 1 1 0 0 0 0|VDh|1 1|
+
+   lvlxl128      vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   stvrx128                        Store Vector128 Right Indexed
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |1 0 1 0 1 0 0|VDh|1 1|
+
+   stvrx128       vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   stvrxl128                   Store Vector128 Right Indexed LRU
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |1 1 1 0 1 0 0|VDh|1 1|
+
+   stvrxl128     vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   stvx128                               Store Vector128 Indexed
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |0 0 1 1 1 0 0|VDh|1 1|
+
+   stvx128       vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   stvxl128                          Store Vector128 Indexed LRU
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |0 1 1 1 1 0 0|VDh|1 1|
+
+   stvxl128      vr(VS128), r(RA), r(RB)
+
+
+=================================================================
+   vaddfp128                        Vector128 Add Floating Point
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 0 0 0|a|1|VDh|VBh|
+
+   vaddfp128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vand128                                 Vector128 Logical AND
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 0 0|a|1|VDh|VBh|
+
+   vand128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vandc128                                Vector128 Logical AND 
+                                                 with Complement
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 1 0|a|1|VDh|VBh|
+
+   vandc128      vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vcfpsxws128          Vector128 Convert From Floating-Point to 
+                                Signed Fixed-Point Word Saturate
+|0 0 0 1 1 0|  VD128  |  SIMM   |  VB128  |0 1 0 0 0 1 1|VDh|VBh|
+
+   vcfpsxws128   vr(VD128), vr(VB128), SIMM
+
+
+=================================================================
+   vcfpuxws128          Vector128 Convert From Floating-Point to 
+                              Unsigned Fixed-Point Word Saturate
+|0 0 0 1 1 0|  VD128  |  UIMM   |  VB128  |0 1 0 0 1 1 1|VDh|VBh|
+
+   vcfpuxws128   vr(VD128), vr(VB128), UIMM
+
+
+=================================================================
+   vcmpbfp128                           Vector128 Compare Bounds 
+                                                  Floating Point
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 1 1|R|a|0|VDh|VBh|
+
+   vcmpbfp128    vr(VD128), vr(VA128), vr(VB128)         (R == 0)
+   vcmpbfp128.   vr(VD128), vr(VA128), vr(VB128)         (R == 1)
+
+
+=================================================================
+   vcmpeqfp128                        Vector128 Compare Equal-to
+                                                  Floating Point
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 0 0|R|a|0|VDh|VBh|
+
+   vcmpeqfp128   vr(VD128), vr(VA128), vr(VB128)         (R == 0)
+   vcmpeqfp128.  vr(VD128), vr(VA128), vr(VB128)         (R == 1)
+
+
+=================================================================
+   vcmpequw128                        Vector128 Compare Equal-to 
+                                                   Unsigned Word
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 0 0|R|a|0|VDh|VBh|
+
+   vcmpequw128   vr(VD128), vr(VA128), vr(VB128)         (R == 0)
+   vcmpequw128.  vr(VD128), vr(VA128), vr(VB128)         (R == 1)
+
+
+=================================================================
+   vcmpgefp128                    Vector128 Compare Greater-Than-
+                                      or-Equal-to Floating Point
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 0 1|R|a|0|VDh|VBh|
+
+   vcmpgefp128   vr(VD128), vr(VA128), vr(VB128)         (R == 0)
+   vcmpgefp128.  vr(VD128), vr(VA128), vr(VB128)         (R == 1)
+
+
+=================================================================
+   vcmpgtfp128                    Vector128 Compare Greater-Than 
+                                                  Floating-Point
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 1 0|R|a|0|VDh|VBh|
+
+   vcmpgtfp128   vr(VD128), vr(VA128), vr(VB128)         (R == 0)
+   vcmpgtfp128.  vr(VD128), vr(VA128), vr(VB128)         (R == 1)
+
+
+=================================================================
+   vcsxwfp128          Vector128 Convert From Signed Fixed-Point 
+                                          Word to Floating-Point
+|0 0 0 1 1 0|  VD128  |  UIMM   |  VB128  |0 1 0 1 0 1 1|VDh|VBh|
+
+   vcsxwfp128    vr(VD128), vr(VB128), SIMM
+
+
+=================================================================
+   vcuxwfp128        Vector128 Convert From Unsigned Fixed-Point
+                                          Word to Floating-Point
+|0 0 0 1 1 0|  VD128  |  UIMM   |  VB128  |0 1 0 1 1 1 1|VDh|VBh|
+
+   vcuxwfp128    vr(VD128), vr(VB128), UIMM
+
+
+=================================================================
+   vexptefp128                Vector128 2 Raised to the Exponent 
+                                         Estimate Floating Point
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |1 1 0 1 0 1 1|VDh|VBh|
+
+   vexptefp128   vr(VD128), vr(VB128)
+
+
+=================================================================
+   vlogefp128                            Vector128 Log2 Estimate 
+                                                  Floating Point
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |1 1 0 1 1 1 1|VDh|VBh|
+
+   vlogefp128    vr(VD128), vr(VB128)
+
+
+=================================================================
+   vmaddcfp128                            Vector128 Multiply Add 
+                                                  Floating Point
+|0 0 0 1 0 1|  VDS128 |  VA128  |  VB128  |A|0 1 0 0|a|1|VDh|VBh|
+
+   vmaddcfp128   vr(VDS128), vr(VA128), vr(VSD128), vr(VB128)
+
+
+=================================================================
+   vmaddfp128                             Vector128 Multiply Add 
+                                                  Floating Point
+|0 0 0 1 0 1|  VDS128 |  VA128  |  VB128  |A|0 0 1 1|a|1|VDh|VBh|
+
+   vmaddfp128    vr(VDS128), vr(VA128), vr(VB128), vr(VDS128)
+
+
+=================================================================
+   vmaxfp128                                   Vector128 Maximum 
+                                                  Floating Point
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 0 1 0|a|0|VDh|VBh|
+
+   vmaxfp128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vminfp128                                   Vector128 Minimum
+                                                  Floating Point
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 0 1 1|a|0|VDh|VBh|
+
+   vminfp128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vmrghw128                           Vector128 Merge High Word
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 1 0 0|a|0|VDh|VBh|
+
+   vmrghw128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vmrglw128                            Vector128 Merge Low Word
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 1 0 1|a|0|VDh|VBh|
+
+   vmrglw128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vmsum3fp128                      Vector128 Multiply Sum 3-way 
+                                                  Floating Point
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 1 1 0|a|1|VDh|VBh|
+
+   vmsub3fp128   vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vmsum4fp128                      Vector128 Multiply Sum 4-way 
+                                                  Floating-Point
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 1 1 1|a|1|VDh|VBh|
+
+   vmsub4fp128   vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vmulfp128                                  Vector128 Multiply
+                                                  Floating-Point
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 0 1 0|a|1|VDh|VBh|
+
+   vmulfp128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vnmsubfp128              Vector128 Negative Multiply-Subtract 
+                                                  Floating Point
+|0 0 0 1 0 1|  VDS128 |  VA128  |  VB128  |A|0 1 0 1|a|1|VDh|VBh|
+
+   vnmsubfp128   vr(VDS128), vr(VA128), vr(VB128), vr(VDS128)
+
+
+=================================================================
+   vnor128                                 Vector128 Logical NOR
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 1 0|a|1|VDh|VBh|
+
+   vnor128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vor128                                   Vector128 Logical OR
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 1 1|a|1|VDh|VBh|
+
+   vor128        vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vperm128                                Vector128 Permutation
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0| VC  |a|0|VDh|VBh|
+
+   vperm128      vr(VD128), vr(VA128), vr(VB128), vr(VC)
+
+
+=================================================================
+   vpermwi128                 Vector128 Permutate Word Immediate
+|0 0 0 1 1 0|  VD128  |  PERMl  |  VB128  |0|1|PERMh|0|1|VDh|VBh|
+
+   vpermwi128    vr(VD128), vr(VB128), (PERMh << 5 | PERMl)
+
+
+=================================================================
+   vpkd3d128                 Vector128 Pack D3Dtype, Rotate Left 
+                                       Immediate and Mask Insert
+|0 0 0 1 1 0|  VD128  |  x  | y |  VB128  |1 1 0| z |0 1|VDh|VBh|
+
+   vpkd3d128     vr(VD128), vr(VB128), x, y, z
+
+
+=================================================================
+   vpkshss128                    Vector128 Pack Signed Half Word 
+                                                 Signed Saturate
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 0 0|a|0|VDh|VBh|
+
+   vpkshss128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkshus128                    Vector128 Pack Signed Half Word 
+                                               Unsigned Saturate
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 0 1|a|0|VDh|VBh|
+
+   vpkshus128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkswss128                         Vector128 Pack Signed Word
+                                                 Signed Saturate
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 1 0|a|0|VDh|VBh|
+
+   vpkswss128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkswus128                         Vector128 Pack Signed Word   
+                                               Unsigned Saturate
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 1 1|a|0|VDh|VBh|
+
+   vpkswus128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkuhum128                  Vector128 Pack Unsigned Half Word 
+                                                 Unsigned Modulo
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 0 0|a|0|VDh|VBh|
+
+   vpkuhum128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkuhus128                  Vector128 Pack Unsigned Half Word 
+                                               Unsigned Saturate
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 0 1|a|0|VDh|VBh|
+
+   vpkuhus128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkuwum128                       Vector128 Pack Unsigned Word
+                                                 Unsigned Modulo
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 1 0|a|0|VDh|VBh|
+
+   vpkuwum128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vpkuwus128                       Vector128 Pack Unsigned Word
+                                               Unsigned Saturate
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 1 1|a|0|VDh|VBh|
+
+   vpkuwus128    vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vrefp128                        Vector128 Reciprocal Estimate 
+                                                  Floating Point
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |1 1 0 0 0 1 1|VDh|VBh|
+
+   vrefp128      vr(VD128), vr(VB128)
+
+
+=================================================================
+   vrfim128                    Vector128 Round to Floating-Point 
+                                              Integer toward -oo
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 0 0 1 1|VDh|VBh|
+
+   vrfim128      vr(VD128), vr(VB128)
+
+
+=================================================================
+   vrfin128                    Vector128 Round to Floating-Point 
+                                          Integer toward Nearest
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 0 1 1 1|VDh|VBh|
+
+   vrfin128      vr(VD128), vr(VB128)
+
+
+=================================================================
+   vrfip128                    Vector128 Round to Floating-Point 
+                                              Integer toward +oo
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 1 0 1 1|VDh|VBh|
+
+   vrfip128      vr(VD128), vr(VB128)
+
+
+=================================================================
+   vrfiz128                    Vector128 Round to Floating-Point 
+                                             Integer toward Zero
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 1 1 1 1|VDh|VBh|
+
+   vrfiz128      vr(VD128), vr(VB128)
+
+
+=================================================================
+   vrlimi128                     Vector128 Rotate Left Immediate 
+                                                 and Mask Insert
+|0 0 0 1 1 0|  VD128  |  UIMM   |  VB128  |1 1 1| z |0 1|VDh|VBh|
+
+   vrlimi128     vr(VD128), vr(VB128), UIMM, z
+
+
+=================================================================
+   vrlw128                            Vector128 Rotate Left Word
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 0 0 1|a|1|VDh|VBh|
+
+   vrlw128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vrsqrtefp128                 Vector128 Reciprocal Square Root 
+                                         Estimate Floating Point
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |1 1 0 0 1 1 1|VDh|VBh|
+
+   vrsqrtefp128  vr(VD128), vr(VB128)
+
+
+=================================================================
+   vsel128                                      Vector128 Select
+|0 0 0 1 0 1| VDS128  |  VA128  |  VB128  |A|1 1 0 1|a|1|VDh|VBh|
+
+   vsel128       vr(VDS128), vr(VA128), vr(VB128), vr(VDS128)
+
+
+=================================================================
+   vsldoi128                         Vector128 Shift Left Double 
+                                              by Octet Immediate
+|0 0 0 1 0 0|  VD128  |  VA128  |  VB128  |A|  SHB  |a|1|VDh|VBh|
+
+   vsldoi128     vr(VD128), vr(VA128), vr(VB128), SHB
+
+
+=================================================================
+   vslo128                            Vector128 Shift Left Octet
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 1 0|a|1|VDh|VBh|
+
+   vslo128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vslw128                             Vector128 Shift Left Word
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 0 1 1|a|1|VDh|VBh|
+
+   vslw128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vspltisw128                         Vector128 Splat Immediate 
+                                                     Signed Word
+|0 0 0 1 1 0|  VD128  |  SIMM   |  VB128  |1 1 1 0 1 1 1|VDh|VBh|
+
+   vspltisw128   vr(VD128), vr(VB128), SIMM
+
+
+=================================================================
+   vspltw128                                Vector128 Splat Word
+|0 0 0 1 1 0|  VD128  |  UIMM   |  VB128  |1 1 1 0 0 1 1|VDh|VBh|
+
+   vspltw128     vr(VD128), vr(VB128), UIMM
+
+
+=================================================================
+   vsraw128                                Vector128 Shift Right 
+                                                 Arithmetic Word
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 1 0 1|a|1|VDh|VBh|
+
+   vsraw128      vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vsro128                           Vector128 Shift Right Octet
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 1 1 1|a|1|VDh|VBh|
+
+   vsro128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vsrw128                            Vector128 Shift Right Word
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 1 1 1|a|1|VDh|VBh|
+
+   vsrw128       vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vsubfp128                   Vector128 Subtract Floating Point
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 0 0 1|a|1|VDh|VBh|
+
+   vsubfp128     vr(VD128), vr(VA128), vr(VB128)
+
+
+=================================================================
+   vupkd3d128                           Vector128 Unpack D3Dtype
+|0 0 0 1 1 0|  VD128  |  UIMM   |  VB128  |1 1 1 1 1 1 1|VDh|VBh|
+
+   vupkd3d128    vr(VD128), vr(VB128), UIMM
+
+
+=================================================================
+   vupkhsb128                                   Vector128 Unpack 
+                                                High Signed Byte
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 1 0 0 0|VDh|VBh|
+
+   vupkhsb128    vr(VD128), vr(VB128)
+
+
+=================================================================
+   vupklsb128                                   Vector128 Unpack 
+                                                 Low Signed Byte
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 1 1 0 0|VDh|VBh|
+
+   vupkhsb128    vr(VD128), vr(VB128)
+
+
+=================================================================
+   vxor128                                 Vector128 Logical XOR
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 0 0|a|1|VDh|VBh|
+
+   vxor128       vr(VD128), vr(VA128), vr(VB128)

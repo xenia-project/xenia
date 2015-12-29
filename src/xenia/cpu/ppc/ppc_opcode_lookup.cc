@@ -371,7 +371,6 @@ PPCOpcode LookupOpcode(uint32_t code) {
       case 0b0100010110: PPC_DECODER_HIT(dcbt);
       case 0b0100010111: PPC_DECODER_HIT(lhzx);
       case 0b0100011100: PPC_DECODER_HIT(eqvx);
-      case 0b0100110110: PPC_DECODER_HIT(eciwx);
       case 0b0100110111: PPC_DECODER_HIT(lhzux);
       case 0b0100111100: PPC_DECODER_HIT(xorx);
       case 0b0101010011: PPC_DECODER_HIT(mfspr);
@@ -383,7 +382,6 @@ PPCOpcode LookupOpcode(uint32_t code) {
       case 0b0101110111: PPC_DECODER_HIT(lhaux);
       case 0b0110010111: PPC_DECODER_HIT(sthx);
       case 0b0110011100: PPC_DECODER_HIT(orcx);
-      case 0b0110110110: PPC_DECODER_HIT(ecowx);
       case 0b0110110111: PPC_DECODER_HIT(sthux);
       case 0b0110111100: PPC_DECODER_HIT(orx);
       case 0b0111010011: PPC_DECODER_HIT(mtspr);

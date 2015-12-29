@@ -9,7 +9,7 @@ namespace xe {
 namespace cpu {
 namespace ppc {
 
-// All PPC opcodes in the same order they appear in ppc_instr_table.h:
+// All PPC opcodes in the same order they appear in ppc_opcode_table.h:
 enum class PPCOpcode : uint32_t {
   addcx,
   addex,
@@ -54,8 +54,6 @@ enum class PPCOpcode : uint32_t {
   divdx,
   divwux,
   divwx,
-  eciwx,
-  ecowx,
   eieio,
   eqvx,
   extsbx,

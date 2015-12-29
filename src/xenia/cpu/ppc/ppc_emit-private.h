@@ -11,8 +11,8 @@
 #define XENIA_CPU_PPC_PPC_EMIT_PRIVATE_H_
 
 #include "xenia/base/logging.h"
+#include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/ppc/ppc_emit.h"
-#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 
 namespace xe {

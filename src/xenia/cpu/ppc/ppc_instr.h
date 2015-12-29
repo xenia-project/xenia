@@ -21,80 +21,8 @@ namespace xe {
 namespace cpu {
 namespace ppc {
 
-constexpr uint32_t make_bitmask(uint32_t a, uint32_t b) {
-  return (static_cast<uint32_t>(-1) >> (31 - b)) & ~((1u << a) - 1);
-}
-
-constexpr uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
-  return (value & make_bitmask(a, b)) >> a;
-}
-
-// TODO(benvanik): rename these
-typedef enum {
-  kXEPPCInstrFormatI = 0,
-  kXEPPCInstrFormatB = 1,
-  kXEPPCInstrFormatSC = 2,
-  kXEPPCInstrFormatD = 3,
-  kXEPPCInstrFormatDS = 4,
-  kXEPPCInstrFormatX = 5,
-  kXEPPCInstrFormatXL = 6,
-  kXEPPCInstrFormatXFX = 7,
-  kXEPPCInstrFormatXFL = 8,
-  kXEPPCInstrFormatXS = 9,
-  kXEPPCInstrFormatXO = 10,
-  kXEPPCInstrFormatA = 11,
-  kXEPPCInstrFormatM = 12,
-  kXEPPCInstrFormatMD = 13,
-  kXEPPCInstrFormatMDS = 14,
-  kXEPPCInstrFormatVXA = 15,
-  kXEPPCInstrFormatVX = 16,
-  kXEPPCInstrFormatVXR = 17,
-  kXEPPCInstrFormatVX128 = 18,
-  kXEPPCInstrFormatVX128_1 = 19,
-  kXEPPCInstrFormatVX128_2 = 20,
-  kXEPPCInstrFormatVX128_3 = 21,
-  kXEPPCInstrFormatVX128_4 = 22,
-  kXEPPCInstrFormatVX128_5 = 23,
-  kXEPPCInstrFormatVX128_P = 24,
-  kXEPPCInstrFormatVX128_R = 25,
-  kXEPPCInstrFormatXDSS = 26,
-} xe_ppc_instr_format_e;
-
-enum xe_ppc_instr_mask_e : uint32_t {
-  kXEPPCInstrMaskVXR = 0xFC0003FF,
-  kXEPPCInstrMaskVXA = 0xFC00003F,
-  kXEPPCInstrMaskVX128 = 0xFC0003D0,
-  kXEPPCInstrMaskVX128_1 = 0xFC0007F3,
-  kXEPPCInstrMaskVX128_2 = 0xFC000210,
-  kXEPPCInstrMaskVX128_3 = 0xFC0007F0,
-  kXEPPCInstrMaskVX128_4 = 0xFC000730,
-  kXEPPCInstrMaskVX128_5 = 0xFC000010,
-  kXEPPCInstrMaskVX128_P = 0xFC000630,
-  kXEPPCInstrMaskVX128_R = 0xFC000390,
-};
-
-class InstrType;
-
-constexpr int64_t XEEXTS16(uint32_t v) { return (int64_t)((int16_t)v); }
-constexpr int64_t XEEXTS26(uint32_t v) {
-  return (int64_t)(v & 0x02000000 ? (int32_t)v | 0xFC000000 : (int32_t)(v));
-}
-constexpr uint64_t XEEXTZ16(uint32_t v) { return (uint64_t)((uint16_t)v); }
-static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
-  // if mstart ≤ mstop then
-  //   mask[mstart:mstop] = ones
-  //   mask[all other bits] = zeros
-  // else
-  //   mask[mstart:63] = ones
-  //   mask[0:mstop] = ones
-  //   mask[all other bits] = zeros
-  mstart &= 0x3F;
-  mstop &= 0x3F;
-  uint64_t value =
-      (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
-  return mstart <= mstop ? value : ~value;
-}
-
+// DEPRECATED
+// TODO(benvanik): move code to PPCDecodeData.
 struct InstrData {
   PPCOpcode opcode;
   const PPCOpcodeInfo* opcode_info;
@@ -235,6 +163,17 @@ struct InstrData {
       uint32_t RT : 5;
       uint32_t : 6;
     } MDS;
+    // kXEPPCInstrFormatMDSH
+    struct {
+      uint32_t Rc : 1;
+      uint32_t idx : 4;
+      uint32_t MB5 : 1;
+      uint32_t MB : 5;
+      uint32_t RB : 5;
+      uint32_t RA : 5;
+      uint32_t RT : 5;
+      uint32_t : 6;
+    } MDSH;
     // kXEPPCInstrFormatVXA
     struct {
       uint32_t : 6;
@@ -384,120 +323,6 @@ struct InstrData {
     } XDSS;
   };
 };
-
-typedef struct {
-  enum RegisterSet {
-    kXER,
-    kLR,
-    kCTR,
-    kCR,  // 0-7
-    kFPSCR,
-    kGPR,  // 0-31
-    kFPR,  // 0-31
-    kVMX,  // 0-127
-  };
-
-  enum Access {
-    kRead = 1 << 0,
-    kWrite = 1 << 1,
-    kReadWrite = kRead | kWrite,
-  };
-
-  RegisterSet set;
-  uint32_t ordinal;
-  Access access;
-} InstrRegister;
-
-typedef struct {
-  enum OperandType {
-    kRegister,
-    kImmediate,
-  };
-
-  OperandType type;
-  const char* display;
-  union {
-    InstrRegister reg;
-    struct {
-      bool is_signed;
-      uint64_t value;
-      size_t width;
-    } imm;
-  };
-
-  void Dump(std::string& out_str);
-} InstrOperand;
-
-class InstrAccessBits {
- public:
-  InstrAccessBits()
-      : spr(0),
-        cr(0),
-        gpr(0),
-        fpr(0),
-        vr31_0(0),
-        vr63_32(0),
-        vr95_64(0),
-        vr127_96(0) {}
-
-  // Bitmasks derived from the accesses to registers.
-  // Format is 2 bits for each register, even bits indicating reads and odds
-  // indicating writes.
-  uint64_t spr;  // fpcsr/ctr/lr/xer
-  uint64_t cr;   // cr7/6/5/4/3/2/1/0
-  uint64_t gpr;  // r31-0
-  uint64_t fpr;  // f31-0
-  uint64_t vr31_0;
-  uint64_t vr63_32;
-  uint64_t vr95_64;
-  uint64_t vr127_96;
-
-  void Clear();
-  void Extend(InstrAccessBits& other);
-  void MarkAccess(InstrRegister& reg);
-  void Dump(std::string& out_str);
-};
-
-class InstrDisasm {
- public:
-  enum Flags {
-    kOE = 1 << 0,
-    kRc = 1 << 1,
-    kCA = 1 << 2,
-    kLR = 1 << 4,
-    kFP = 1 << 5,
-    kVMX = 1 << 6,
-  };
-
-  const char* name;
-  const char* info;
-  uint32_t flags;
-
-  void Init(const char* new_name, const char* new_info, uint32_t new_flags);
-  void AddLR(InstrRegister::Access access);
-  void AddCTR(InstrRegister::Access access);
-  void AddCR(uint32_t bf, InstrRegister::Access access);
-  void AddFPSCR(InstrRegister::Access access);
-  void AddRegOperand(InstrRegister::RegisterSet set, uint32_t ordinal,
-                     InstrRegister::Access access, const char* display = NULL);
-  void AddSImmOperand(uint64_t value, size_t width, const char* display = NULL);
-  void AddUImmOperand(uint64_t value, size_t width, const char* display = NULL);
-  int Finish();
-
-  void Dump(std::string& out_str, size_t pad = 13);
-};
-
-typedef void (*InstrDisasmFn)(const InstrData& i, StringBuffer* str);
-
-class InstrType {
- public:
-  uint32_t opcode;
-  uint32_t opcode_mask;  // Only used for certain opcodes (altivec, etc).
-  uint32_t format;       // xe_ppc_instr_format_e
-  InstrDisasmFn disasm;
-};
-
-InstrType* GetInstrType(uint32_t code);
 
 }  // namespace ppc
 }  // namespace cpu

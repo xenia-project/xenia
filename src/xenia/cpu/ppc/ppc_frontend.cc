@@ -11,8 +11,8 @@
 
 #include "xenia/base/atomic.h"
 #include "xenia/cpu/ppc/ppc_context.h"
-#include "xenia/cpu/ppc/ppc_disasm.h"
 #include "xenia/cpu/ppc/ppc_emit.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/ppc/ppc_translator.h"
 #include "xenia/cpu/processor.h"
 

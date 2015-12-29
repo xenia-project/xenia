@@ -48,9 +48,8 @@ extended_opcode_bits = {
     'XW': [(25, 30)],
     'A': [(26, 30)],
     'DS': [(30, 31)],
-    'MD': [(27, 30)],
+    'MD': [(27, 29)],
     'MDS': [(27, 30)],
-    'MDSH': [(27, 29)],
     'XS': [(21, 29)],
     'DCBZ': [(6, 10), (21, 30)],  # like X
     }
@@ -84,7 +83,6 @@ def parse_insns(filename):
     i.opcode = int(e.attrib['opcode'], 16)
     i.mnem = e.attrib['mnem']
     i.form = e.attrib['form']
-    i.subform = e.attrib['sub-form']
     i.group = e.attrib['group']
     i.desc = e.attrib['desc']
     i.type = 'General'
@@ -92,6 +90,17 @@ def parse_insns(filename):
       i.type = 'Sync'
     i.op_primary = opcode_primary(i.opcode)
     i.op_extended = opcode_extended(i.opcode, i.form)
+    i.reads = []
+    i.writes = []
+    for r in e.findall('.//in'):
+      is_conditional = 'conditional' in r.attrib and r.attrib['conditional'] == 'true'
+      i.reads.append((r.attrib['field'], is_conditional))
+    for w in e.findall('.//out'):
+      is_conditional = 'conditional' in w.attrib and w.attrib['conditional'] == 'true'
+      i.writes.append((w.attrib['field'], is_conditional))
+    i.disasm_str = None
+    for d in e.findall('.//disasm'):
+      i.disasm_str = d.text
     insns.append(i)
   return insns
 
@@ -100,19 +109,18 @@ def c_mnem(x):
   return x.replace('.', 'x')
 
 
-def c_subform(x):
-  x = x.replace('-', '_')
-  if x[0] >= '0' and x[0] <= '9':
-    x = '_' + x
-  return x
-
-
 def c_group(x):
   return 'k' + x[0].upper() + x[1:]
 
 
 def c_bool(x):
   return 'true' if x else 'false'
+
+
+def c_field(x):
+  base_name = 'k' + x[0]
+  cond_name = 'cond' if x[1] else ''
+  return base_name + cond_name
 
 
 def generate_opcodes(insns):
@@ -137,7 +145,6 @@ def generate_opcodes(insns):
 
   for i in insns:
     i.mnem = c_mnem(i.mnem)
-    i.subform = c_subform(i.subform)
   insns = sorted(insns, key = lambda i: i.mnem)
 
   w0('// All PPC opcodes in the same order they appear in ppc_opcode_table.h:')
@@ -182,47 +189,202 @@ def generate_table(insns):
   for i in insns:
     i.mnem = '"' + c_mnem(i.mnem) + '"'
     i.form = c_group(i.form)
-    i.subform = c_subform(i.subform)
-    i.desc = '"' + i.desc + '"'
     i.group = c_group(i.group)
     i.type = c_group(i.type)
 
   mnem_len = len(max(insns, key = lambda i: len(i.mnem)).mnem)
   form_len = len(max(insns, key = lambda i: len(i.form)).form)
-  subform_len = len(max(insns, key = lambda i: len(i.subform)).subform)
-  desc_len = len(max(insns, key = lambda i: len(i.desc)).desc)
   group_len = len(max(insns, key = lambda i: len(i.group)).group)
   type_len = len(max(insns, key = lambda i: len(i.type)).type)
 
   insns = sorted(insns, key = lambda i: i.mnem)
 
-  w0('#define INSTRUCTION(opcode, mnem, form, subform, group, type, desc) \\')
-  w0('    {opcode, mnem, PPCOpcodeFormat::form, PPCOpcodeGroup::group, PPCOpcodeType::type, desc, nullptr, nullptr}')
+  w0('#define INSTRUCTION(opcode, mnem, form, group, type) \\')
+  w0('    {PPCOpcodeType::type, nullptr}')
   w0('PPCOpcodeInfo ppc_opcode_table[] = {')
   fmt = 'INSTRUCTION(' + ', '.join([
       '0x%08x',
       '%-' + str(mnem_len) + 's',
       '%-' + str(form_len) + 's',
-      '%-' + str(subform_len) + 's',
       '%-' + str(group_len) + 's',
       '%-' + str(type_len) + 's',
-      '%-' + str(desc_len) + 's',
       ]) + '),'
   for i in insns:
-    w1(fmt % (i.opcode, i.mnem, i.form, i.subform, i.group, i.type, i.desc))
+    w1(fmt % (i.opcode, i.mnem, i.form, i.group, i.type))
   w0('};')
   w0('static_assert(sizeof(ppc_opcode_table) / sizeof(PPCOpcodeInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");')
   w0('')
   w0('const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode) {')
   w1('return ppc_opcode_table[static_cast<int>(opcode)];')
   w0('}')
-  w0('void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn fn) {')
-  w1('assert_null(ppc_opcode_table[static_cast<int>(opcode)].disasm);')
-  w1('ppc_opcode_table[static_cast<int>(opcode)].disasm = fn;')
-  w0('}')
   w0('void RegisterOpcodeEmitter(PPCOpcode opcode, InstrEmitFn fn) {')
   w1('assert_null(ppc_opcode_table[static_cast<int>(opcode)].emit);')
   w1('ppc_opcode_table[static_cast<int>(opcode)].emit = fn;')
+  w0('}')
+
+  w0('')
+  w0('}  // namespace ppc')
+  w0('}  // namespace cpu')
+  w0('}  // namespace xe')
+  w0('')
+
+  return '\n'.join(l)
+
+
+def literal_mnem(x):
+  x = x.replace('.', '_')
+  x = x.replace('"', '')
+  return x
+
+def generate_token_append(i, token):
+  # Rc = . iff Rc=1
+  # OE = o iff OE=1
+  if token == 'Rc':
+    return 'if (d.%s.Rc()) str->Append(\'.\');' % (i.o_form)
+  elif token == 'OE':
+    return 'if (d.%s.OE()) str->Append(\'o\');' % (i.o_form)
+  elif token == 'LK':
+    return 'if (d.%s.LK()) str->Append(\'l\');' % (i.o_form)
+  elif token == 'AA':
+    return 'if (d.%s.AA()) str->Append(\'a\');' % (i.o_form)
+  elif token in ['RA', 'RA0', 'RB', 'RC', 'RT', 'RS', 'RD']:
+    return 'str->AppendFormat("r%%d", d.%s.%s());' % (i.o_form, token)
+  elif token in ['FA', 'FB', 'FC', 'FT', 'FS', 'FD']:
+    return 'str->AppendFormat("fr%%d", d.%s.%s());' % (i.o_form, token)
+  elif token in ['VA', 'VB', 'VC', 'VT', 'VS', 'VD']:
+    return 'str->AppendFormat("vr%%d", d.%s.%s());' % (i.o_form, token)
+  elif token in ['CRFD', 'CRFS']:
+    return 'str->AppendFormat("crf%%d", d.%s.%s());' % (i.o_form, token)
+  elif token in ['CRBA', 'CRBB', 'CRBD']:
+    return 'str->AppendFormat("crb%%d", d.%s.%s());' % (i.o_form, token)
+  elif token in ['BO', 'BI', 'TO', 'SPR', 'TBR', 'L', 'FM', 'MB', 'ME', 'SH', 'IMM', 'z']:
+    return 'str->AppendFormat("%%d", d.%s.%s());' % (i.o_form, token)
+  elif token == 'UIMM':
+    return 'str->AppendFormat("0x%%X", d.%s.%s());' % (i.o_form, token)
+  elif token in ['d', 'ds', 'SIMM']:
+    return 'str->AppendFormat(d.%s.%s() < 0 ? "-0x%%X" : "0x%%X", std::abs(d.%s.%s()));' % (i.o_form, token, i.o_form, token)
+  elif token == 'ADDR':
+    return 'str->AppendFormat("0x%%X", d.%s.%s());' % (i.o_form, token)
+  return 'str->AppendFormat("(UNHANDLED %s)");' % token
+
+
+def generate_disasm(insns):
+  l = []
+  TAB = ' ' * 2
+  def w0(x): l.append(x)
+  def w1(x): w0(TAB * 1 + x)
+  def w2(x): w0(TAB * 2 + x)
+  def w3(x): w0(TAB * 3 + x)
+
+  w0('// This code was autogenerated by %s. Do not modify!' % (sys.argv[0]))
+  w0('// clang-format off')
+  w0('#include <cstdint>')
+  w0('')
+  w0('#include "xenia/base/assert.h"')
+  w0('#include "xenia/cpu/ppc/ppc_decode_data.h"')
+  w0('#include "xenia/cpu/ppc/ppc_opcode.h"')
+  w0('#include "xenia/cpu/ppc/ppc_opcode_info.h"')
+  w0('')
+  w0('namespace xe {')
+  w0('namespace cpu {')
+  w0('namespace ppc {')
+  w0('')
+  w0('constexpr size_t kNamePad = 11;')
+  w0('const uint8_t kSpaces[kNamePad] = {0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20};')
+  w0('void PadStringBuffer(StringBuffer* str, size_t base, size_t pad) {')
+  w1('size_t added_len = str->length() - base;')
+  w1('if (added_len < pad) str->AppendBytes(kSpaces, kNamePad - added_len);')
+  w0('}')
+  w0('')
+
+  for i in insns:
+    i.mnem = '"' + c_mnem(i.mnem) + '"'
+    i.o_form = i.form
+    i.form = c_group(i.form)
+    i.desc = '"' + i.desc + '"'
+    i.group = c_group(i.group)
+    i.type = c_group(i.type)
+
+  mnem_len = len(max(insns, key = lambda i: len(i.mnem)).mnem)
+  form_len = len(max(insns, key = lambda i: len(i.form)).form)
+  desc_len = len(max(insns, key = lambda i: len(i.desc)).desc)
+  group_len = len(max(insns, key = lambda i: len(i.group)).group)
+  type_len = len(max(insns, key = lambda i: len(i.type)).type)
+
+  insns = sorted(insns, key = lambda i: i.mnem)
+
+  # TODO(benvanik): support alts:
+  # <disasm cond="![RA]">li [RD], [SIMM]</disasm>
+  for i in insns:
+    if not i.disasm_str:
+      continue
+    w0('void PrintDisasm_%s(const PPCDecodeData& d, StringBuffer* str) {' % (literal_mnem(i.mnem)))
+    w1('// ' + i.disasm_str)
+    w1('size_t str_start = str->length();')
+    current_str = ''
+    j = 0
+    first_space = False
+    while j < len(i.disasm_str):
+      c = i.disasm_str[j]
+      if c == '[':
+        if current_str:
+          w1('str->Append("%s");' % (current_str))
+          current_str = ''
+        token = i.disasm_str[j + 1 : i.disasm_str.index(']', j)]
+        j += len(token) + 1
+        w1(generate_token_append(i, token))
+      else:
+        if c == ' ' and not first_space:
+          if current_str:
+            w1('str->Append("%s");' % (current_str))
+            current_str = ''
+          w1('PadStringBuffer(str, str_start, kNamePad);')
+          first_space = True
+        else:
+          current_str += c
+      j += 1
+    if current_str:
+      w1('str->Append("%s");' % (current_str))
+    if not first_space:
+      w1('PadStringBuffer(str, str_start, kNamePad);')
+    w0('}')
+
+  w0('#define INIT_LIST(...) {__VA_ARGS__}')
+  w0('#define INSTRUCTION(opcode, mnem, form, group, type, desc, reads, writes, fn) \\')
+  w0('    {PPCOpcodeGroup::group, PPCOpcodeFormat::form, opcode, mnem, desc, INIT_LIST reads, INIT_LIST writes, fn}')
+  w0('PPCOpcodeDisasmInfo ppc_opcode_disasm_table[] = {')
+  fmt = 'INSTRUCTION(' + ', '.join([
+      '0x%08x',
+      '%-' + str(mnem_len) + 's',
+      '%-' + str(form_len) + 's',
+      '%-' + str(group_len) + 's',
+      '%-' + str(type_len) + 's',
+      '%-' + str(desc_len) + 's',
+      '(%s)',
+      '(%s)',
+      '%s',
+      ]) + '),'
+  for i in insns:
+    w1(fmt % (
+        i.opcode,
+        i.mnem,
+        i.form,
+        i.group,
+        i.type,
+        i.desc,
+        ','.join(['PPCOpcodeField::' + c_field(r) for r in i.reads]),
+        ','.join(['PPCOpcodeField::' + c_field(w) for w in i.writes]),
+        ('PrintDisasm_' + literal_mnem(i.mnem)) if i.disasm_str else 'nullptr',
+        ))
+  w0('};')
+  w0('static_assert(sizeof(ppc_opcode_disasm_table) / sizeof(PPCOpcodeDisasmInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");')
+  w0('')
+  w0('const PPCOpcodeDisasmInfo& GetOpcodeDisasmInfo(PPCOpcode opcode) {')
+  w1('return ppc_opcode_disasm_table[static_cast<int>(opcode)];')
+  w0('}')
+  w0('void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn fn) {')
+  w1('assert_null(ppc_opcode_disasm_table[static_cast<int>(opcode)].disasm);')
+  w1('ppc_opcode_disasm_table[static_cast<int>(opcode)].disasm = fn;')
   w0('}')
 
   w0('')
@@ -355,6 +517,9 @@ if __name__ == '__main__':
   insns = parse_insns(os.path.join(self_path, 'ppc-instructions.xml'))
   with open(os.path.join(ppc_src_path, 'ppc_opcode_table.cc'), 'w') as f:
     f.write(generate_table(insns))
+  insns = parse_insns(os.path.join(self_path, 'ppc-instructions.xml'))
+  with open(os.path.join(ppc_src_path, 'ppc_opcode_disasm.cc'), 'w') as f:
+    f.write(generate_disasm(insns))
   insns = parse_insns(os.path.join(self_path, 'ppc-instructions.xml'))
   with open(os.path.join(ppc_src_path, 'ppc_opcode_lookup.cc'), 'w') as f:
     f.write(generate_lookup(insns))

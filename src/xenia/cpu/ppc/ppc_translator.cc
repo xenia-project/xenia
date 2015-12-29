@@ -18,15 +18,12 @@
 #include "xenia/base/reset_scope.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/cpu_flags.h"
-#include "xenia/cpu/ppc/ppc_disasm.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/ppc/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/debug/debugger.h"
-
-DEFINE_bool(preserve_hir_disasm, true,
-            "Preserves HIR disassembly for the debugger when it is attached.");
 
 namespace xe {
 namespace cpu {
@@ -106,11 +103,6 @@ bool PPCTranslator::Translate(GuestFunction* function,
   xe::make_reset_scope(&string_buffer_);
 
   // NOTE: we only want to do this when required, as it's expensive to build.
-  if (FLAGS_preserve_hir_disasm && frontend_->processor()->debugger() &&
-      frontend_->processor()->debugger()->is_attached()) {
-    debug_info_flags |= DebugInfoFlags::kDebugInfoDisasmRawHir |
-                        DebugInfoFlags::kDebugInfoDisasmHir;
-  }
   if (FLAGS_disassemble_functions) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoAllDisasm;
   }
@@ -167,9 +159,9 @@ bool PPCTranslator::Translate(GuestFunction* function,
 
   // Emit function.
   uint32_t emit_flags = 0;
-  // if (debug_info) {
-  emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
-  //}
+  if (debug_info) {
+    emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
+  }
   if (!builder_->Emit(function, emit_flags)) {
     return false;
   }

@@ -56,6 +56,14 @@ T next_pow2(T value) {
   return value;
 }
 
+constexpr uint32_t make_bitmask(uint32_t a, uint32_t b) {
+  return (static_cast<uint32_t>(-1) >> (31 - b)) & ~((1u << a) - 1);
+}
+
+constexpr uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
+  return (value & make_bitmask(a, b)) >> a;
+}
+
 // lzcnt instruction, typed for integers of all sizes.
 // The number of leading zero bits in the value parameter. If value is zero, the
 // return value is the size of the input operand (8, 16, 32, or 64). If the most

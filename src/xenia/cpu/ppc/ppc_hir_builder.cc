@@ -18,9 +18,8 @@
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/ppc/ppc_context.h"
-#include "xenia/cpu/ppc/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
-#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
 
@@ -45,9 +44,10 @@ void DumpAllOpcodeCounts() {
   for (size_t i = 0; i < xe::countof(opcode_translation_counts); ++i) {
     auto opcode = static_cast<PPCOpcode>(i);
     auto& opcode_info = GetOpcodeInfo(opcode);
+    auto& disasm_info = GetOpcodeDisasmInfo(opcode);
     auto translation_count = opcode_translation_counts[i];
     if (translation_count) {
-      sb.AppendFormat("%8d : %s\n", translation_count, opcode_info.name);
+      sb.AppendFormat("%8d : %s\n", translation_count, disasm_info.name);
     }
   }
   fprintf(stdout, "%s", sb.GetString());
@@ -179,8 +179,9 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     i.opcode = opcode;
     i.opcode_info = &opcode_info;
     if (!opcode_info.emit || opcode_info.emit(*this, i)) {
+      auto& disasm_info = GetOpcodeDisasmInfo(opcode);
       XELOGE("Unimplemented instr %.8llX %.8X %s", address, code,
-             opcode_info.name);
+             disasm_info.name);
       Comment("UNIMPLEMENTED!");
       DebugBreak();
     }

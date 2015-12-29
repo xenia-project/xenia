@@ -1,4 +1,4 @@
-/**
+﻿/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -25,13 +25,23 @@ class PPCHIRBuilder;
 enum class PPCOpcodeFormat {
   kSC,
   kD,
+  kDS,
   kB,
   kI,
   kX,
   kXL,
   kXFX,
   kXFL,
+  kXS,
+  kXO,
+  kA,
+  kM,
+  kMD,
+  kMDS,
+  kDCBZ,
   kVX,
+  kVC,
+  kVA,
   kVX128,
   kVX128_1,
   kVX128_2,
@@ -40,18 +50,6 @@ enum class PPCOpcodeFormat {
   kVX128_5,
   kVX128_R,
   kVX128_P,
-  kVC,
-  kVA,
-  kXO,
-  kXW,
-  kA,
-  kDS,
-  kM,
-  kMD,
-  kMDS,
-  kMDSH,
-  kXS,
-  kDCBZ,
 };
 
 enum class PPCOpcodeGroup {
@@ -65,31 +63,96 @@ enum class PPCOpcodeType {
   kSync,
 };
 
-typedef void (*InstrDisasmFn1)(const InstrData* i, StringBuffer* str);
 typedef int (*InstrEmitFn)(PPCHIRBuilder& f, const InstrData& i);
 
 struct PPCOpcodeInfo {
+  PPCOpcodeType type;
+  InstrEmitFn emit;
+};
+
+struct PPCDecodeData;
+typedef void (*InstrDisasmFn)(const PPCDecodeData& d, StringBuffer* str);
+
+enum class PPCOpcodeField : uint32_t {
+  kRA,
+  kRA0,  // 0 if RA==0 else RA
+  kRB,
+  kRD,
+  kRS,  // alias for RD
+  kOE,
+  kOEcond,  // iff OE=1
+  kCR,
+  kCRcond,  // iff Rc=1
+  kCA,
+  kCRM,
+  kIMM,
+  kSIMM,
+  kUIMM,
+  kd,  // displacement
+  kds,
+  kLR,
+  kLRcond,
+  kADDR,
+  kBI,
+  kBO,
+  kCTR,
+  kCTRcond,
+  kL,
+  kLK,
+  kAA,
+  kCRFD,
+  kCRFS,
+  kCRBA,
+  kCRBB,
+  kCRBD,
+  kFPSCR,
+  kFPSCRD,
+  kMSR,
+  kSPR,
+  kVSCR,
+  kTBR,
+  kFM,
+  kFA,
+  kFB,
+  kFC,
+  kFD,
+  kFS,
+  kVA,
+  kVB,
+  kVC,
+  kVD,
+  kVS,
+  kSH,
+  kSHB,
+  kME,
+  kMB,
+  kTO,
+};
+
+struct PPCOpcodeDisasmInfo {
+  PPCOpcodeGroup group;
+  PPCOpcodeFormat format;
   uint32_t opcode;
   const char* name;
-  PPCOpcodeFormat format;
-  PPCOpcodeGroup group;
-  PPCOpcodeType type;
   const char* description;
-
-  InstrDisasmFn1 disasm;
-  InstrEmitFn emit;
+  std::vector<PPCOpcodeField> reads;
+  std::vector<PPCOpcodeField> writes;
+  InstrDisasmFn disasm;
 };
 
 PPCOpcode LookupOpcode(uint32_t code);
 
 const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode);
+const PPCOpcodeDisasmInfo& GetOpcodeDisasmInfo(PPCOpcode opcode);
 
-void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn1 fn);
 void RegisterOpcodeEmitter(PPCOpcode opcode, InstrEmitFn fn);
+void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn fn);
 
 inline const PPCOpcodeInfo& LookupOpcodeInfo(uint32_t code) {
   return GetOpcodeInfo(LookupOpcode(code));
 }
+
+bool DisasmPPC(uint32_t address, uint32_t code, StringBuffer* str);
 
 }  // namespace ppc
 }  // namespace cpu

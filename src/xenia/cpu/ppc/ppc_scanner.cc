@@ -15,8 +15,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
+#include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
-#include "xenia/cpu/ppc/ppc_instr.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
 
@@ -79,9 +79,9 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
 
     auto opcode = LookupOpcode(code);
 
-    InstrData i;
-    i.address = address;
-    i.code = code;
+    PPCDecodeData d;
+    d.address = address;
+    d.code = code;
 
     // TODO(benvanik): switch on instruction metadata.
     ++address_reference_count;
@@ -91,7 +91,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
     // of whether or not this is a normal function with a prolog/epilog.
     // Some valid leaf functions won't have this, but most will.
     if (address == start_address && opcode == PPCOpcode::mfspr &&
-        (((i.XFX.spr & 0x1F) << 5) | ((i.XFX.spr >> 5) & 0x1F)) == 8) {
+        (((d.XFX.SPR() & 0x1F) << 5) | ((d.XFX.SPR() >> 5) & 0x1F)) == 8) {
       starts_with_mfspr_lr = true;
     }
 
@@ -135,10 +135,8 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
       ends_block = true;
     } else if (opcode == PPCOpcode::bx) {
       // b/ba/bl/bla
-      uint32_t target =
-          (uint32_t)XEEXTS26(i.I.LI << 2) + (i.I.AA ? 0 : (int32_t)address);
-
-      if (i.I.LK) {
+      uint32_t target = d.I.ADDR();
+      if (d.I.LK()) {
         LOGPPC("bl %.8X -> %.8X", address, target);
         // Queue call target if needed.
         // GetOrInsertFunction(target);
@@ -213,9 +211,8 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
       ends_block = true;
     } else if (opcode == PPCOpcode::bcx) {
       // bc/bca/bcl/bcla
-      uint32_t target =
-          (uint32_t)XEEXTS16(i.B.BD << 2) + (i.B.AA ? 0 : (int32_t)address);
-      if (i.B.LK) {
+      uint32_t target = d.B.ADDR();
+      if (d.B.LK()) {
         LOGPPC("bcl %.8X -> %.8X", address, target);
 
         // Queue call target if needed.
@@ -234,7 +231,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
       ends_block = true;
     } else if (opcode == PPCOpcode::bclrx) {
       // bclr/bclrl
-      if (i.XL.LK) {
+      if (d.XL.LK()) {
         LOGPPC("bclrl %.8X", address);
       } else {
         LOGPPC("bclr %.8X", address);
@@ -242,7 +239,7 @@ bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
       ends_block = true;
     } else if (opcode == PPCOpcode::bcctrx) {
       // bcctr/bcctrl
-      if (i.XL.LK) {
+      if (d.XL.LK()) {
         LOGPPC("bcctrl %.8X", address);
       } else {
         LOGPPC("bcctr %.8X", address);

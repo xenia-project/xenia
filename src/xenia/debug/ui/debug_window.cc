@@ -25,7 +25,7 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/string_util.h"
 #include "xenia/base/threading.h"
-#include "xenia/cpu/ppc/ppc_disasm.h"
+#include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/kernel/xmodule.h"
@@ -571,7 +571,7 @@ void DebugWindow::DrawMachineCodeSource(const uint8_t* machine_code_ptr,
 
     ImGui::Text("    %c ", is_current_instr ? '>' : ' ');
     ImGui::SameLine();
-    ImGui::Text(" %.8X        %-8s %s", uint32_t(insn.address), insn.mnemonic,
+    ImGui::Text(" %.8X        %-10s %s", uint32_t(insn.address), insn.mnemonic,
                 insn.op_str);
 
     if (is_current_instr) {
