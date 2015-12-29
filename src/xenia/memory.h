@@ -332,8 +332,6 @@ class Memory {
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
-  void Reset();
-
  private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();

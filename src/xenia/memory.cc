@@ -272,7 +272,11 @@ void Memory::UnmapViews() {
 }
 
 void Memory::Reset() {
-  // TODO(benvanik): zero memory, free all heap page tables, etc.
+  heaps_.v00000000.Reset();
+  heaps_.v40000000.Reset();
+  heaps_.v80000000.Reset();
+  heaps_.v90000000.Reset();
+  heaps_.physical.Reset();
 }
 
 BaseHeap* Memory::LookupHeap(uint32_t address) {
@@ -456,14 +460,6 @@ bool Memory::Restore(ByteStream* stream) {
   heaps_.physical.Restore(stream);
 
   return true;
-}
-
-void Memory::Reset() {
-  heaps_.v00000000.Reset();
-  heaps_.v40000000.Reset();
-  heaps_.v80000000.Reset();
-  heaps_.v90000000.Reset();
-  heaps_.physical.Reset();
 }
 
 xe::memory::PageAccess ToPageAccess(uint32_t protect) {
