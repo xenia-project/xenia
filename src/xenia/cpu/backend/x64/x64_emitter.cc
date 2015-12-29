@@ -304,7 +304,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
 
 uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  XELOGE("Trap!");
+  XELOGE("tw/td forced trap hit! This should be a crash!");
   if (FLAGS_break_on_debugbreak) {
     xe::debugging::Break();
   }
