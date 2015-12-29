@@ -995,6 +995,9 @@ void DebugWindow::DrawThreadsPane() {
     auto thread = thread_info->thread;
     bool is_current_thread = thread == state_.thread;
     assert_not_null(thread);  // TODO(benvanik): zombie thread states.
+    if (!thread) {
+      continue;
+    }
     if (is_current_thread && state_.has_changed_thread) {
       ImGui::SetScrollHere();
       state_.has_changed_thread = false;

@@ -294,6 +294,9 @@ void Debugger::UpdateThreadExecutionStates(uint32_t override_handle,
   for (auto& it : thread_execution_infos_) {
     auto thread_info = it.second.get();
     auto thread = thread_info->thread;
+    if (!thread) {
+      continue;
+    }
 
     // Grab PPC context.
     // Note that this is only up to date if --store_all_context_values is
