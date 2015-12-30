@@ -393,8 +393,9 @@ void PPCHIRBuilder::StoreFPSCR(Value* value) {
 }
 
 Value* PPCHIRBuilder::LoadXER() {
-  assert_always();
-  return NULL;
+  Value* v = Shl(ZeroExtend(LoadCA(), INT64_TYPE), 29);
+  // TODO(benvanik): construct with other flags; overflow, etc?
+  return v;
 }
 
 void PPCHIRBuilder::StoreXER(Value* value) { assert_always(); }
