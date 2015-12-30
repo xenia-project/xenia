@@ -994,8 +994,8 @@ void DebugWindow::DrawThreadsPane() {
     auto thread_info = cache_.thread_execution_infos[i];
     auto thread = thread_info->thread;
     bool is_current_thread = thread == state_.thread;
-    assert_not_null(thread);  // TODO(benvanik): zombie thread states.
     if (!thread) {
+      // TODO(benvanik): better display of zombie thread states.
       continue;
     }
     if (is_current_thread && state_.has_changed_thread) {

@@ -201,7 +201,7 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
                           apc_context);
       if (io_status_block) {
         io_status_block->status = result;
-        io_status_block->information = (uint32_t)bytes_read;
+        io_status_block->information = static_cast<uint32_t>(bytes_read);
       }
 
       // Queue the APC callback. It must be delivered via the APC mechanism even

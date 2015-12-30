@@ -123,6 +123,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
         return 0;
       }));
   worker_thread_->set_name("XMA Decoder Worker");
+  worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->Create();
 
   return X_STATUS_SUCCESS;
