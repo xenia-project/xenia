@@ -9,6 +9,8 @@
 
 #include "xenia/base/byte_stream.h"
 
+#include <cstring>
+
 #include "xenia/base/assert.h"
 
 namespace xe {
