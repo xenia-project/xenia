@@ -392,9 +392,9 @@ int InstrEmit_mullwx(PPCHIRBuilder& f, const InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
-  Value* v = f.SignExtend(f.Mul(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
-                                f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE)),
-                          INT64_TYPE);
+  Value* v = f.Mul(
+      f.SignExtend(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), INT64_TYPE),
+      f.SignExtend(f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), INT64_TYPE));
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
