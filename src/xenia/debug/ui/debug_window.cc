@@ -1344,6 +1344,10 @@ void DebugWindow::DrawBreakpointsPane() {
             }
             break;
           }
+          default: {
+            // Ignored.
+            break;
+          }
         }
       }
       if (ImGui::BeginPopupContextItem("##breakpoint_context_menu")) {
