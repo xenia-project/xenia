@@ -559,7 +559,7 @@ bool BaseHeap::Save(ByteStream* stream) {
       continue;
     }
 
-    // TODO: Write compressed
+    // TODO(DrChat): write compressed with snappy.
     if (page.state & kMemoryAllocationCommit) {
       void* addr = membase_ + heap_base_ + i * page_size_;
 
@@ -603,7 +603,7 @@ bool BaseHeap::Restore(ByteStream* stream) {
 
     // Now read into memory. We'll set R/W protection first, then set the
     // protection back to its previous state.
-    // TODO: Read compressed
+    // TODO(DrChat): read compressed with snappy.
     if (page.state & kMemoryAllocationCommit) {
       void* addr = membase_ + heap_base_ + i * page_size_;
       xe::memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite,
@@ -619,11 +619,8 @@ bool BaseHeap::Restore(ByteStream* stream) {
 }
 
 void BaseHeap::Reset() {
-  // TODO: Protect pages
-  for (size_t i = 0; i < page_table_.size(); i++) {
-    auto& page = page_table_[i];
-    page.qword = 0;
-  }
+  // TODO(DrChat): protect pages.
+  std::memset(page_table_.data(), 0, sizeof(PageEntry) * page_table_.size());
 }
 
 bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
