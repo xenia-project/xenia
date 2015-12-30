@@ -9,6 +9,8 @@
 
 #include "xenia/ui/window.h"
 
+#include <algorithm>
+
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
