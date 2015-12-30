@@ -206,12 +206,18 @@ void Value::Convert(TypeName target_type, RoundMode round_mode) {
           type = target_type;
           constant.f64 = constant.f32;
           return;
+        default:
+          assert_unhandled_case(target_type);
+          return;
       }
     case FLOAT64_TYPE:
       switch (target_type) {
         case FLOAT32_TYPE:
           type = target_type;
           constant.f32 = (float)constant.f64;
+          return;
+        default:
+          assert_unhandled_case(target_type);
           return;
       }
     default:
