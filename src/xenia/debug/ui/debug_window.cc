@@ -715,7 +715,7 @@ bool DebugWindow::DrawRegisterTextBox(int id, double* value) {
   } else {
     input_flags |=
         ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_AutoSelectAll;
-    std::snprintf(buffer, xe::countof(buffer), "%.8LF", *value);
+    std::snprintf(buffer, xe::countof(buffer), "%.8F", *value);
   }
   char label[16] = {0};
   std::snprintf(label, xe::countof(label), "##dregister%d", id);
