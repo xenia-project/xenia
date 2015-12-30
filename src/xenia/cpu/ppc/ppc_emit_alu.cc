@@ -234,7 +234,7 @@ int InstrEmit_divdux(PPCHIRBuilder& f, const InstrData& i) {
     return 1;
   }
   if (i.XO.Rc) {
-    f.UpdateCR(0, v, false);
+    f.UpdateCR(0, v);
   }
   return 0;
 }
@@ -291,7 +291,7 @@ int InstrEmit_divwux(PPCHIRBuilder& f, const InstrData& i) {
     return 1;
   }
   if (i.XO.Rc) {
-    f.UpdateCR(0, v, false);
+    f.UpdateCR(0, v);
   }
   return 0;
 }
@@ -357,7 +357,7 @@ int InstrEmit_mulhwux(PPCHIRBuilder& f, const InstrData& i) {
       INT64_TYPE);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
-    f.UpdateCR(0, v, false);
+    f.UpdateCR(0, v);
   }
   return 0;
 }

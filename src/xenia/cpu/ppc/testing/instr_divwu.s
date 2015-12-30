@@ -219,3 +219,21 @@ test_divwu_12_constant:
   #_ REGISTER_OUT r3 0
   #_ REGISTER_OUT r4 0x80000000
   #_ REGISTER_OUT r5 -1
+
+test_divwu_13:
+  #_ REGISTER_IN r0 0x1
+  #_ REGISTER_IN r3 0xFFFFFFFF
+  divwu. r0, r3, r0
+  blr
+  #_ REGISTER_OUT r0 0xFFFFFFFF
+  #_ REGISTER_OUT r3 0xFFFFFFFF
+  #_ REGISTER_OUT cr 0x0000000080000000
+
+test_divwu_14:
+  #_ REGISTER_IN r0 0x1
+  #_ REGISTER_IN r3 0xFFFFFFFF
+  divwu. r0, r0, r3
+  blr
+  #_ REGISTER_OUT r0 0
+  #_ REGISTER_OUT r3 0xFFFFFFFF
+  #_ REGISTER_OUT cr 0x0000000020000000

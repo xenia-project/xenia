@@ -260,14 +260,16 @@ typedef struct PPCContext_s {
   double f[32];     // Floating-point registers
   vec128_t v[128];  // VMX128 vector registers
 
-  // XER register
+  // XER register:
   // Split to make it easier to do individual updates.
   uint8_t xer_ca;
   uint8_t xer_ov;
   uint8_t xer_so;
 
-  // Condition registers
+  // Condition registers:
   // These are split to make it easier to do DCE on unused stores.
+  uint64_t cr() const;
+  void set_cr(uint64_t value);
   union {
     uint32_t value;
     struct {

@@ -19,6 +19,23 @@ namespace xe {
 namespace cpu {
 namespace ppc {
 
+uint64_t PPCContext::cr() const {
+  uint64_t final_bits = 0;
+  for (int i = 0; i < 8; ++i) {
+    uint32_t crf = *(&cr0.value + i);
+    uint64_t bits = (crf & 0x1) << (4 * (7 - i) + 3) |
+                    ((crf >> 8) & 0x1) << (4 * (7 - i) + 2) |
+                    ((crf >> 16) & 0x1) << (4 * (7 - i) + 1) |
+                    ((crf >> 24) & 0x1) << (4 * (7 - i) + 0);
+    final_bits |= bits << (i * 4);
+  }
+  return final_bits;
+}
+
+void PPCContext::set_cr(uint64_t value) {
+  assert_always("not yet implemented");
+}
+
 std::string PPCContext::GetRegisterName(PPCRegister reg) {
   switch (reg) {
     case PPCRegister::kLR:
@@ -111,6 +128,8 @@ void PPCContext::SetRegFromString(const char* name, const char* value) {
     this->f[n] = string_util::from_string<double>(value);
   } else if (sscanf(name, "v%d", &n) == 1) {
     this->v[n] = string_util::from_string<vec128_t>(value);
+  } else if (std::strcmp(name, "cr") == 0) {
+    this->set_cr(string_util::from_string<uint64_t>(value));
   } else {
     printf("Unrecognized register name: %s\n", name);
   }
@@ -141,6 +160,14 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
       std::snprintf(out_value, out_value_size, "[%.8X, %.8X, %.8X, %.8X]",
                     this->v[n].i32[0], this->v[n].i32[1], this->v[n].i32[2],
                     this->v[n].i32[3]);
+      return false;
+    }
+    return true;
+  } else if (std::strcmp(name, "cr") == 0) {
+    uint64_t actual = this->cr();
+    uint64_t expected = string_util::from_string<uint64_t>(value);
+    if (actual != expected) {
+      std::snprintf(out_value, out_value_size, "%016" PRIX64, actual);
       return false;
     }
     return true;
