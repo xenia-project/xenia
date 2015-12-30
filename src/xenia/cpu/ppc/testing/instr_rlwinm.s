@@ -253,7 +253,7 @@ test_rlwinm_11:
   rlwinm r6, r8, 8, 2, 0
   blr
   #_ REGISTER_OUT r6 0xABCDEF89ABCDEF89
-  #_ REGISTER_OUT r8 0x1
+  #_ REGISTER_OUT r8 0x0123456789ABCDEF
 
 test_rlwinm_12:
   #_ REGISTER_IN r4 0xFFFFFFFFFFFFFFFF

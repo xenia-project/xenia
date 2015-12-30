@@ -958,18 +958,19 @@ int InstrEmit_rlwimix(PPCHIRBuilder& f, const InstrData& i) {
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
   // RA <- r&m | (RA)&¬m
-  Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
+  Value* v = f.LoadGPR(i.M.RT);
+  // (x||x)
+  v = f.Or(f.Shl(v, 32), f.And(v, f.LoadConstantUint64(0xFFFFFFFF)));
   if (i.M.SH) {
-    v = f.RotateLeft(v, f.LoadConstantUint32(i.M.SH));
+    v = f.RotateLeft(v, f.LoadConstantInt8(i.M.SH));
   }
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
-  uint32_t m = (uint32_t)XEMASK(i.M.MB + 32, i.M.ME + 32);
-  if (!(i.M.MB == 0 && i.M.ME == 31)) {
-    v = f.And(v, f.LoadConstantUint32(m));
+  uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
+  if (m != 0xFFFFFFFFFFFFFFFFull) {
+    v = f.And(v, f.LoadConstantUint64(m));
   }
-  v = f.ZeroExtend(v, INT64_TYPE);
-  v = f.Or(v, f.And(f.LoadGPR(i.M.RA), f.LoadConstantUint64(~(uint64_t)m)));
+  v = f.Or(v, f.And(f.LoadGPR(i.M.RA), f.LoadConstantUint64(~m)));
   f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
@@ -982,22 +983,23 @@ int InstrEmit_rlwinmx(PPCHIRBuilder& f, const InstrData& i) {
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
-  Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
+  Value* v = f.LoadGPR(i.M.RT);
+  // (x||x)
+  v = f.Or(f.Shl(v, 32), f.And(v, f.LoadConstantUint64(0xFFFFFFFF)));
   // TODO(benvanik): optimize srwi
   // TODO(benvanik): optimize slwi
   // The compiler will generate a bunch of these for the special case of SH=0.
   // Which seems to just select some bits and set cr0 for use with a branch.
   // We can detect this and do less work.
   if (i.M.SH) {
-    v = f.RotateLeft(v, f.LoadConstantUint32(i.M.SH));
+    v = f.RotateLeft(v, f.LoadConstantInt8(i.M.SH));
   }
   // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
   // as our truncation/zero-extend does it for us.
-  if (!(i.M.MB == 0 && i.M.ME == 31)) {
-    v = f.And(v,
-              f.LoadConstantUint32(uint32_t(XEMASK(i.M.MB + 32, i.M.ME + 32))));
+  uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
+  if (m != 0xFFFFFFFFFFFFFFFFull) {
+    v = f.And(v, f.LoadConstantUint64(m));
   }
-  v = f.ZeroExtend(v, INT64_TYPE);
   f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
@@ -1010,17 +1012,13 @@ int InstrEmit_rlwnmx(PPCHIRBuilder& f, const InstrData& i) {
   // r <- ROTL32((RS)[32:63], n)
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
-  Value* v = f.Truncate(f.LoadGPR(i.M.RT), INT32_TYPE);
-  Value* sh = f.And(f.Truncate(f.LoadGPR(i.M.SH), INT32_TYPE),
-                    f.LoadConstantUint32(0x1F));
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.M.SH), INT8_TYPE), f.LoadConstantInt8(0x1F));
+  Value* v = f.LoadGPR(i.M.RT);
+  // (x||x)
+  v = f.Or(f.Shl(v, 32), f.And(v, f.LoadConstantUint64(0xFFFFFFFF)));
   v = f.RotateLeft(v, sh);
-  // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
-  // as our truncation/zero-extend does it for us.
-  if (!(i.M.MB == 0 && i.M.ME == 31)) {
-    v = f.And(v,
-              f.LoadConstantUint32(uint32_t(XEMASK(i.M.MB + 32, i.M.ME + 32))));
-  }
-  v = f.ZeroExtend(v, INT64_TYPE);
+  v = f.And(v, f.LoadConstantUint64(XEMASK(i.M.MB + 32, i.M.ME + 32)));
   f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {
     f.UpdateCR(0, v);
