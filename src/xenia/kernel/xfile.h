@@ -81,7 +81,7 @@ class XFile : public XObject {
  public:
   static const Type kType = kTypeFile;
 
-  XFile(KernelState* kernel_state, vfs::File* file);
+  XFile(KernelState* kernel_state, vfs::File* file, bool synchronous);
   ~XFile() override;
 
   vfs::Device* device() const { return file_->entry()->device(); }
@@ -111,6 +111,8 @@ class XFile : public XObject {
   static object_ref<XFile> Restore(KernelState* kernel_state,
                                    ByteStream* stream);
 
+  bool is_synchronous() const { return is_synchronous_; }
+
  protected:
   void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
 
@@ -133,6 +135,8 @@ class XFile : public XObject {
 
   xe::filesystem::WildcardEngine find_engine_;
   size_t find_index_ = 0;
+
+  bool is_synchronous_ = false;
 };
 
 }  // namespace kernel
