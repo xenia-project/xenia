@@ -504,7 +504,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     XELOGI("Launching module %s", next_module.c_str());
     auto module = kernel_state_->LoadUserModule(next_module.c_str());
     if (!module) {
-      XELOGE("Failed to load user module %s", path);
+      XELOGE("Failed to load user module %s", path.c_str());
       return X_STATUS_NOT_FOUND;
     }
 
