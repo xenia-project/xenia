@@ -215,7 +215,7 @@ void Value::Convert(TypeName target_type, RoundMode round_mode) {
           return;
       }
     default:
-      assert_unhandled_case(target_type);
+      assert_unhandled_case(type);
       return;
   }
 }
