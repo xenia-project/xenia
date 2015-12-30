@@ -229,27 +229,27 @@
     <out field="CRBD" />
     <disasm>crxor [CRBD], [CRBA], [CRBB]</disasm>
   </insn>
-  <insn mnem="dcbf"         opcode="7c0000ac" form="X"        group="i" desc="Data Cache Block Flush">
+  <insn mnem="dcbf"         opcode="7c0000ac" form="X"        group="m" desc="Data Cache Block Flush">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbf [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="dcbi"         opcode="7c0003ac" form="X"        group="i" desc="Data Cache Block Invalidate">
+  <insn mnem="dcbi"         opcode="7c0003ac" form="X"        group="m" desc="Data Cache Block Invalidate">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbi [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="dcbst"        opcode="7c00006c" form="X"        group="i" desc="Data Cache Block Store">
+  <insn mnem="dcbst"        opcode="7c00006c" form="X"        group="m" desc="Data Cache Block Store">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbst [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="dcbt"         opcode="7c00022c" form="X"        group="i" desc="Data Cache Block Touch">
+  <insn mnem="dcbt"         opcode="7c00022c" form="X"        group="m" desc="Data Cache Block Touch">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbt [RA0], [RB]</disasm>
   </insn>
-  <insn mnem="dcbtst"       opcode="7c0001ec" form="X"        group="i" desc="Data Cache Block Touch for Store">
+  <insn mnem="dcbtst"       opcode="7c0001ec" form="X"        group="m" desc="Data Cache Block Touch for Store">
     <in field="RA0" />
     <in field="RB" />
     <disasm>dcbtst [RA0], [RB]</disasm>
@@ -576,7 +576,7 @@
     <out field="FPSCR" />
     <disasm>fsubs[Rc] [FD], [FA], [FB]</disasm>
   </insn>
-  <insn mnem="icbi"         opcode="7c0007ac" form="X"        group="i" desc="Instruction Cache Block Invalidate">
+  <insn mnem="icbi"         opcode="7c0007ac" form="X"        group="m" desc="Instruction Cache Block Invalidate">
     <in field="RA0" />
     <in field="RB" />
     <disasm>icbi [RA], [RB]</disasm>
