@@ -191,3 +191,25 @@ test_rlwnm_10_constant:
   #_ REGISTER_OUT r3 0x12345678
   #_ REGISTER_OUT r4 0x12345678
   #_ REGISTER_OUT r5 32
+
+test_rlwnm_11:
+  #_ REGISTER_IN r0 0x1
+  rlwnm r0, r0, r0, 1, 0
+  blr
+  #_ REGISTER_OUT r0 0x0000000200000002
+
+test_rlwnm_12:
+  #_ REGISTER_IN r3 0xFFFFFFFF
+  rlwnm r0, r3, r3, 30, 1
+  blr
+  #_ REGISTER_OUT r0 0x1
+  #_ REGISTER_OUT r3 0xFFFFFFFFC0000003
+
+test_rlwnm_13:
+  #_ REGISTER_IN r7 0x01234567
+  #_ REGISTER_IN r8 0x0123456789ABCDEFull
+  rlwnm r6, r8, r7, 31, 30
+  blr
+  #_ REGISTER_OUT r6 0xD5E6F7C4D5E6F7C4
+  #_ REGISTER_OUT r7 0x01234567
+  #_ REGISTER_OUT r8 0x0123456789ABCDEFull
