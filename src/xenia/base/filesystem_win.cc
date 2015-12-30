@@ -141,9 +141,9 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(std::wstring path,
   DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE;
   // We assume we've already created the file in the caller.
   DWORD creation_disposition = OPEN_EXISTING;
-  HANDLE handle =
-      CreateFileW(path.c_str(), open_access, share_mode, nullptr,
-                  creation_disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
+  HANDLE handle = CreateFileW(
+      path.c_str(), open_access, share_mode, nullptr, creation_disposition,
+      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
     return nullptr;
