@@ -274,6 +274,9 @@ void ImGuiDrawer::OnMouseDown(MouseEvent* e) {
     case xe::ui::MouseEvent::Button::kRight: {
       io.MouseDown[1] = true;
     } break;
+    default: {
+      // Ignored.
+    } break;
   }
 }
 
@@ -291,6 +294,9 @@ void ImGuiDrawer::OnMouseUp(MouseEvent* e) {
     } break;
     case xe::ui::MouseEvent::Button::kRight: {
       io.MouseDown[1] = false;
+    } break;
+    default: {
+      // Ignored.
     } break;
   }
 }
