@@ -184,12 +184,12 @@ void ShaderTranslator::GatherBindingInformation(
           auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords_ +
                                                               instr_offset * 3);
           if (op.has_vector_op() && op.is_export()) {
-            if (op.vector_dest() >= 0 && op.vector_dest() <= 3) {
+            if (op.vector_dest() <= 3) {
               writes_color_targets_[op.vector_dest()] = true;
             }
           }
           if (op.has_scalar_op() && op.is_export()) {
-            if (op.vector_dest() >= 0 && op.vector_dest() <= 3) {
+            if (op.vector_dest() <= 3) {
               writes_color_targets_[op.vector_dest()] = true;
             }
           }
