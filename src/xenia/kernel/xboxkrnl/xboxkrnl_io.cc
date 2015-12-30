@@ -83,6 +83,18 @@ class X_FILE_FS_ATTRIBUTE_INFORMATION {
 };
 static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
+struct CreateOptions {
+  // http://processhacker.sourceforge.net/doc/ntioapi_8h.html
+  static const uint32_t FILE_DIRECTORY_FILE = 0x00000001;
+  // Optimization - files access will be sequential, not random.
+  static const uint32_t FILE_SEQUENTIAL_ONLY = 0x00000004;
+  static const uint32_t FILE_SYNCHRONOUS_IO_ALERT = 0x00000010;
+  static const uint32_t FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
+  static const uint32_t FILE_NON_DIRECTORY_FILE = 0x00000040;
+  // Optimization - file access will be random, not sequential.
+  static const uint32_t FILE_RANDOM_ACCESS = 0x00000800;
+};
+
 dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
                             pointer_t<X_OBJECT_ATTRIBUTES> object_attrs,
                             pointer_t<X_IO_STATUS_BLOCK> io_status_block,
@@ -130,7 +142,11 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   if (XSUCCEEDED(result)) {
-    file = object_ref<XFile>(new XFile(kernel_state(), vfs_file));
+    // If true, desired_access SYNCHRONIZE flag must be set.
+    bool synchronous =
+        (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_ALERT) ||
+        (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_NONALERT);
+    file = object_ref<XFile>(new XFile(kernel_state(), vfs_file, synchronous));
 
     // Handle ref is incremented, so return that.
     handle = file->handle();
@@ -177,7 +193,7 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
   }
 
   if (XSUCCEEDED(result)) {
-    if (true) {
+    if (true || file->is_synchronous()) {
       // Synchronous.
       size_t bytes_read = 0;
       result = file->Read(buffer, buffer_length,
@@ -190,12 +206,17 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
       // Queue the APC callback. It must be delivered via the APC mechanism even
       // though were are completing immediately.
+      // Low bit probably means do not queue to IO ports.
       if ((uint32_t)apc_routine_ptr & ~1) {
         if (apc_context) {
           auto thread = XThread::GetCurrentThread();
           thread->EnqueueApc((uint32_t)apc_routine_ptr & ~1, apc_context,
                              io_status_block, 0);
         }
+      }
+
+      if (!file->is_synchronous()) {
+        result = X_STATUS_PENDING;
       }
 
       // Mark that we should signal the event now. We do this after
@@ -262,7 +283,7 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
   // Execute write.
   if (XSUCCEEDED(result)) {
     // TODO(benvanik): async path.
-    if (true) {
+    if (true || file->is_synchronous()) {
       // Synchronous request.
       size_t bytes_written = 0;
       result = file->Write(buffer, buffer_length,
@@ -272,6 +293,15 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
         info = (int32_t)bytes_written;
       }
 
+      if (!file->is_synchronous()) {
+        result = X_STATUS_PENDING;
+      }
+
+      if (io_status_block) {
+        io_status_block->status = X_STATUS_SUCCESS;
+        io_status_block->information = info;
+      }
+
       // Mark that we should signal the event now. We do this after
       // we have written the info out.
       signal_event = true;
@@ -279,12 +309,17 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
       // X_STATUS_PENDING if not returning immediately.
       result = X_STATUS_PENDING;
       info = 0;
+
+      if (io_status_block) {
+        io_status_block->status = X_STATUS_SUCCESS;
+        io_status_block->information = info;
+      }
     }
   }
 
-  if (io_status_block) {
+  if (XFAILED(result) && io_status_block) {
     io_status_block->status = result;
-    io_status_block->information = info;
+    io_status_block->information = 0;
   }
 
   if (ev && signal_event) {
@@ -306,7 +341,7 @@ dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(NtCreateIoCompletion, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(NtCreateIoCompletion, ExportTag::kImplemented);
 
 // Dequeues a packet from the completion port.
 dword_result_t NtRemoveIoCompletion(
@@ -341,7 +376,7 @@ dword_result_t NtRemoveIoCompletion(
 
   return status;
 }
-DECLARE_XBOXKRNL_EXPORT(NtRemoveIoCompletion, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT(NtRemoveIoCompletion, ExportTag::kImplemented);
 
 dword_result_t NtSetInformationFile(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
@@ -389,7 +424,8 @@ dword_result_t NtSetInformationFile(
         auto port =
             kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
         if (!port) {
-          return X_STATUS_INVALID_HANDLE;
+          result = X_STATUS_INVALID_HANDLE;
+          break;
         }
 
         file->RegisterIOCompletionPort(key, port);
@@ -496,6 +532,7 @@ dword_result_t NtQueryInformationFile(
         file->set_position(cur_pos);
         info = 4;
         */
+        xe::store_and_swap<uint32_t>(file_info_ptr, 0);
         result = X_STATUS_UNSUCCESSFUL;
         info = 0;
       } break;
