@@ -959,6 +959,8 @@ void DebugWindow::DrawRegistersPane() {
     case RegisterGroup::kHostVector: {
       ImGui::BeginChild("##host_vector");
       for (int i = 0; i < 16; ++i) {
+        float f[4];
+        _mm_storeu_ps(f, thread_info->host_context.xmm_registers[i]);
         auto reg =
             static_cast<X64Register>(static_cast<int>(X64Register::kXmm0) + i);
         ImGui::BeginGroup();
@@ -967,8 +969,7 @@ void DebugWindow::DrawRegistersPane() {
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
         ImGui::SameLine();
-        dirty_host_context |= DrawRegisterTextBoxes(
-            i, thread_info->host_context.xmm_registers[i].m128_f32);
+        dirty_host_context |= DrawRegisterTextBoxes(i, f);
         ImGui::EndGroup();
       }
       ImGui::EndChild();
