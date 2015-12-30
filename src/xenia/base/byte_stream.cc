@@ -36,4 +36,24 @@ void ByteStream::Write(const uint8_t* buf, size_t len) {
   Advance(len);
 }
 
+template <>
+std::string ByteStream::Read() {
+  std::string str;
+  uint32_t len = Read<uint32_t>();
+  str.resize(len);
+
+  Read(reinterpret_cast<uint8_t*>(&str[0]), len);
+  return str;
+}
+
+template <>
+std::wstring ByteStream::Read() {
+  std::wstring str;
+  uint32_t len = Read<uint32_t>();
+  str.resize(len);
+
+  Read(reinterpret_cast<uint8_t*>(&str[0]), len * 2);
+  return str;
+}
+
 }  // namespace xe

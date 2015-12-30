@@ -46,26 +46,6 @@ class ByteStream {
     return data;
   }
 
-  template <>
-  std::string Read() {
-    std::string str;
-    uint32_t len = Read<uint32_t>();
-    str.resize(len);
-
-    Read(reinterpret_cast<uint8_t*>(&str[0]), len);
-    return str;
-  }
-
-  template <>
-  std::wstring Read() {
-    std::wstring str;
-    uint32_t len = Read<uint32_t>();
-    str.resize(len);
-
-    Read(reinterpret_cast<uint8_t*>(&str[0]), len * 2);
-    return str;
-  }
-
   template <typename T>
   void Write(T data) {
     Write(reinterpret_cast<uint8_t*>(&data), sizeof(T));
@@ -86,6 +66,12 @@ class ByteStream {
   size_t data_length_ = 0;
   size_t offset_ = 0;
 };
+
+template <>
+std::string ByteStream::Read();
+
+template <>
+std::wstring ByteStream::Read();
 
 }  // namespace xe
 
