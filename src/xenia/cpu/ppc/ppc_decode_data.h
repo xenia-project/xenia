@@ -120,7 +120,7 @@ struct PPCDecodeData {
   struct FormatI {
     uint32_t LI() const { return bits_.LI; }
     uint32_t ADDR() const {
-      return static_cast<uint32_t>(XEEXTS16(LI() << 2)) + (AA() ? 0 : address_);
+      return static_cast<uint32_t>(XEEXTS26(LI() << 2)) + (AA() ? 0 : address_);
     }
     bool AA() const { return bits_.AA ? true : false; }
     bool LK() const { return bits_.LK ? true : false; }
