@@ -56,12 +56,12 @@ install:
 #---------------------------------#
 
 # build platform, i.e. x86, x64, Any CPU. This setting is optional.
-platform: x64
+platform: Windows
 
 # build Configuration, i.e. Debug, Release, etc.
 configuration:
-  #- Checked Windows
-  - Release Windows
+  #- Checked
+  - Release
 
 build:
   parallel: true                  # enable MSBuild parallel builds
