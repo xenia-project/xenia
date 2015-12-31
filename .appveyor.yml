@@ -74,7 +74,7 @@ build:
 # scripts to run before build
 before_build:
   - xb.bat premake
-  - xb.bat lint --all
+  #- xb.bat lint --all
 
 # scripts to run after build
 after_build:
