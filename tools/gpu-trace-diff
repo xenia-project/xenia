@@ -48,7 +48,10 @@ def main():
   parser.add_argument('-t', '--trace_file', action='append')
   parser.add_argument('-p', '--trace_path')
   parser.add_argument('-o', '--output_path', default='')
+  parser.add_argument('-r', '--reference_path', default='')
   parser.add_argument('-u', '--update_reference_files', action='store_true')
+  parser.add_argument('-n', '--generate_missing_reference_files',
+                      action='store_true')
   args = vars(parser.parse_args(sys.argv[1:]))
 
   exe_path = args['executable']
@@ -60,8 +63,7 @@ def main():
   trace_files = args['trace_file'] or []
   if args['trace_path']:
     for child_path in os.listdir(args['trace_path']):
-      if (child_path.startswith('gpu_trace_') or
-          os.path.splitext(child_path)[1] == '.trace'):
+      if (os.path.splitext(child_path)[1] == '.xenia_gpu_trace'):
         trace_files.append(os.path.join(args['trace_path'], child_path))
 
   # If the user passed no args, die nicely.
@@ -70,13 +72,19 @@ def main():
     sys.exit(1)
     return
 
-  output_path = args['output_path'].replace('/', '\\')
+  output_path = args['output_path'].replace('/', os.pathsep)
   if not os.path.exists(output_path):
     os.makedirs(output_path)
 
   html_path = os.path.join(output_path, 'results.html')
   if os.path.exists(html_path):
     os.remove(html_path)
+
+  reference_path = args['reference_path'].replace('/', os.pathsep)
+  if not os.path.exists(reference_path):
+    print('Reference path %s not found; forcing to update mode')
+    os.makedirs(reference_path)
+    args['update_reference_files'] = True
 
   html_file = None
   if not args['update_reference_files']:
@@ -97,13 +105,17 @@ def main():
 
   diff_count = 0
   for trace_file in trace_files:
-    trace_file = trace_file.replace('/', '\\')
+    trace_file = trace_file.replace('/', os.pathsep)
     base_path = os.path.dirname(trace_file)
     file_name = os.path.basename(trace_file)
-    reference_file_path = os.path.join(base_path, 'reference',
-                                       file_name + '.png')
+    reference_file_path = os.path.join(reference_path, file_name + '.png')
     output_file_path = os.path.join(output_path, file_name + '.png')
     diff_file_path = os.path.join(output_path, file_name + '.diff.png')
+
+    if (args['generate_missing_reference_files'] and
+        os.path.exists(reference_file_path)):
+      # Only process tracess that are missing reference files.
+      continue
 
     print '--------------------------------------------------------------------'
     print '    Trace: %s' % (trace_file)
@@ -117,9 +129,9 @@ def main():
 
     # Run the trace dump too to produce a new png.
     run_args = [
-        exe_path.replace('/', '\\'),
-        '--target_trace_file=%s' % (trace_file.replace('\\', '/')),
-        '--trace_dump_path=%s' % (output_path.replace('\\', '/')),
+        exe_path.replace('/', os.pathsep),
+        '--target_trace_file=%s' % (trace_file.replace(os.pathsep, '/')),
+        '--trace_dump_path=%s' % (output_path.replace(os.pathsep, '/')),
         ]
     tries_remaining = 3
     while tries_remaining:
@@ -161,6 +173,16 @@ def main():
     # If updating references, move the output into place.
     if args['update_reference_files']:
       print 'Updating reference file...'
+      if not os.path.exists(os.path.dirname(reference_file_path)):
+        os.makedirs(os.path.dirname(reference_file_path))
+      shutil.copy2(output_file_path, reference_file_path)
+      continue
+
+    # If we didn't have a reference file for this and are in gen mode, just copy
+    # and ignore.
+    if (not os.path.exists(reference_file_path) and
+        args['generate_missing_reference_files']):
+      print 'Adding new reference file...'
       if not os.path.exists(os.path.dirname(reference_file_path)):
         os.makedirs(os.path.dirname(reference_file_path))
       shutil.copy2(output_file_path, reference_file_path)

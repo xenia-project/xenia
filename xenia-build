@@ -137,15 +137,36 @@ def import_vs_environment():
 
 def has_bin(bin):
   """Checks whether the given binary is present.
+
+  Args:
+    bin: binary name (without .exe, etc).
+
+  Returns:
+    True if the binary exists.
   """
-  for path in os.environ["PATH"].split(os.pathsep):
+  bin_path = get_bin(bin)
+  if not bin_path:
+    return False
+  return True
+
+
+def get_bin(bin):
+  """Checks whether the given binary is present and returns the path.
+
+  Args:
+    bin: binary name (without .exe, etc).
+
+  Returns:
+    Full path to the binary or None if not found.
+  """
+  for path in os.environ['PATH'].split(os.pathsep):
     path = path.strip('"')
     exe_file = os.path.join(path, bin)
     if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-      return True
+      return exe_file
     exe_file = exe_file + '.exe'
     if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-      return True
+      return exe_file
   return None
 
 
@@ -377,6 +398,7 @@ def discover_commands(subparsers):
       'build': BuildCommand(subparsers),
       'gentests': GenTestsCommand(subparsers),
       'test': TestCommand(subparsers),
+      'gputest': GpuTestCommand(subparsers),
       'clean': CleanCommand(subparsers),
       'nuke': NukeCommand(subparsers),
       'lint': LintCommand(subparsers),
@@ -540,7 +562,7 @@ class BaseBuildCommand(Command):
         '--force', action='store_true',
         help='Forces a full rebuild.')
     self.parser.add_argument(
-        '--no-premake', action='store_true',
+        '--no_premake', action='store_true',
         help='Skips running premake before building.')
 
   def execute(self, args, pass_args, cwd):
@@ -615,7 +637,7 @@ class TestCommand(BaseBuildCommand):
         ''',
         *args, **kwargs)
     self.parser.add_argument(
-        '--no-build', action='store_true',
+        '--no_build', action='store_true',
         help='Don\'t build before running tests.')
     self.parser.add_argument(
         '--continue', action='store_true',
@@ -640,7 +662,7 @@ class TestCommand(BaseBuildCommand):
 
     # Ensure all targets exist before we run.
     test_executables = [
-        os.path.join(get_build_bin_path(args), test_target)
+        get_bin(os.path.join(get_build_bin_path(args), test_target))
         for test_target in test_targets]
     for test_executable in test_executables:
       if not has_bin(test_executable):
@@ -766,6 +788,88 @@ class GenTestsCommand(Command):
       return 1
 
     return 0
+
+
+class GpuTestCommand(BaseBuildCommand):
+  """'gputest' command."""
+
+  def __init__(self, subparsers, *args, **kwargs):
+    super(GpuTestCommand, self).__init__(
+        subparsers,
+        name='gputest',
+        help_short='Runs automated GPU diff tests against reference imagery.',
+        help_long='''
+        To pass arguments to the test executables separate them with `--`.
+        ''',
+        *args, **kwargs)
+    self.parser.add_argument(
+        '--no_build', action='store_true',
+        help='Don\'t build before running tests.')
+    self.parser.add_argument(
+        '--update_reference_files', action='store_true',
+        help='Update all reference imagery.')
+    self.parser.add_argument(
+        '--generate_missing_reference_files', action='store_true',
+        help='Create reference files for new traces.')
+
+  def execute(self, args, pass_args, cwd):
+    print('Testinging...')
+    print('')
+
+    # The test executables that will be built and run.
+    test_targets = args['target'] or [
+        'xenia-gpu-gl4-trace-dump',
+        ]
+    args['target'] = test_targets
+
+    # Build all targets (if desired).
+    if not args['no_build']:
+      result = super(GpuTestCommand, self).execute(args, [], cwd)
+      if result:
+        print('Failed to build, aborting test run.')
+        return result
+
+    # Ensure all targets exist before we run.
+    test_executables = [
+        get_bin(os.path.join(get_build_bin_path(args), test_target))
+        for test_target in test_targets]
+    for test_executable in test_executables:
+      if not has_bin(test_executable):
+        print('ERROR: Unable to find %s - build it.' % (test_executable))
+        return 1
+
+    output_path = os.path.join(self_path, 'build', 'gputest')
+    if os.path.isdir(output_path):
+      shutil.rmtree(output_path)
+    os.makedirs(output_path)
+    print('Running tests and outputting to %s...' % (output_path))
+
+    reference_trace_root = os.path.join(self_path, 'testdata',
+                                        'reference-gpu-traces')
+
+    # Run tests.
+    any_failed = False
+    result = shell_call([
+        'python',
+        os.path.join(self_path, 'tools', 'gpu-trace-diff'),
+        '--executable=' + test_executables[0],
+        '--trace_path=' + os.path.join(reference_trace_root, 'traces'),
+        '--output_path=' + output_path,
+        '--reference_path=' + os.path.join(reference_trace_root, 'references'),
+        ] + (['--generate_missing_reference_files']
+             if args['generate_missing_reference_files'] else []) +
+            (['--update_reference_files']
+             if args['update_reference_files'] else []) +
+        pass_args,
+        throw_on_error=False)
+    if result:
+      any_failed = True
+
+    if any_failed:
+      print('ERROR: one or more tests failed.')
+      result = 1
+    print('Check %s/results.html for more details.' % (output_path))
+    return result
 
 
 class CleanCommand(Command):
