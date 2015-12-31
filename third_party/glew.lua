@@ -8,6 +8,7 @@ project("glew")
   defines({
     "GLEW_STATIC=1",
     "GLEW_MX=1",
+    "GLEW_NO_GLU=1",
     "_LIB",
   })
   includedirs({
