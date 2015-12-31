@@ -42,7 +42,7 @@ environment:
   my_var2: value2
 
 # build cache to preserve files/folders between builds
-cache:
+#cache:
 
 # scripts that run after cloning repository
 install:
