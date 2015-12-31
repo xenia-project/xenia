@@ -37,12 +37,7 @@ int InstrEmit_faddx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) + (frB)
   Value* v = f.Add(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -51,12 +46,7 @@ int InstrEmit_faddsx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Add(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -64,12 +54,7 @@ int InstrEmit_fdivx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- frA / frB
   Value* v = f.Div(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -78,12 +63,7 @@ int InstrEmit_fdivsx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Div(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -91,12 +71,7 @@ int InstrEmit_fmulx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) x (frC)
   Value* v = f.Mul(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -105,12 +80,7 @@ int InstrEmit_fmulsx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Mul(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -120,12 +90,7 @@ int InstrEmit_fresx(PPCHIRBuilder& f, const InstrData& i) {
                              f.Convert(f.LoadFPR(i.A.FRB), FLOAT32_TYPE)),
                        FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -134,12 +99,7 @@ int InstrEmit_frsqrtex(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- 1/sqrt(frB)
   Value* v = f.RSqrt(f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -147,12 +107,7 @@ int InstrEmit_fsubx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frA) - (frB)
   Value* v = f.Sub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -161,12 +116,7 @@ int InstrEmit_fsubsx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Sub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -177,11 +127,7 @@ int InstrEmit_fselx(PPCHIRBuilder& f, const InstrData& i) {
   Value* ge = f.CompareSGE(f.LoadFPR(i.A.FRA), f.LoadZeroFloat64());
   Value* v = f.Select(ge, f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -190,12 +136,7 @@ int InstrEmit_fsqrtx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- sqrt(frB)
   Value* v = f.Sqrt(f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -205,12 +146,7 @@ int InstrEmit_fsqrtsx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Sqrt(f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -221,12 +157,7 @@ int InstrEmit_fmaddx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v =
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -236,12 +167,7 @@ int InstrEmit_fmaddsx(PPCHIRBuilder& f, const InstrData& i) {
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -250,12 +176,7 @@ int InstrEmit_fmsubx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v =
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -265,12 +186,7 @@ int InstrEmit_fmsubsx(PPCHIRBuilder& f, const InstrData& i) {
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -279,12 +195,7 @@ int InstrEmit_fnmaddx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Neg(
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -294,12 +205,7 @@ int InstrEmit_fnmaddsx(PPCHIRBuilder& f, const InstrData& i) {
       f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -308,12 +214,7 @@ int InstrEmit_fnmsubx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Neg(
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -323,12 +224,7 @@ int InstrEmit_fnmsubsx(PPCHIRBuilder& f, const InstrData& i) {
       f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   v = f.Convert(f.Convert(v, FLOAT32_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.A.FRT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -338,12 +234,7 @@ int InstrEmit_fcfidx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- signed_int64_to_double( frB )
   Value* v = f.Convert(f.Cast(f.LoadFPR(i.X.RB), INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
-  // f.UpdateFPRF(v);
-  if (i.A.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.A.Rc);
   return 0;
 }
 
@@ -354,12 +245,7 @@ int InstrEmit_fctidx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Convert(f.LoadFPR(i.X.RB), INT64_TYPE, round_mode);
   v = f.Cast(v, FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
-  // f.UpdateFPRF(v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 
@@ -375,12 +261,7 @@ int InstrEmit_fctiwx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Convert(f.LoadFPR(i.X.RB), INT32_TYPE, round_mode);
   v = f.Cast(f.ZeroExtend(v, INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
-  // f.UpdateFPRF(v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 
@@ -396,12 +277,7 @@ int InstrEmit_frspx(PPCHIRBuilder& f, const InstrData& i) {
   Value* v = f.Convert(f.LoadFPR(i.X.RB), FLOAT32_TYPE, round_mode);
   v = f.Convert(v, FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
-  // f.UpdateFPRF(v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 
@@ -425,8 +301,7 @@ int InstrEmit_fcmpx_(PPCHIRBuilder& f, const InstrData& i, bool ordered) {
   // TODO(benvanik): update FPCC for mffsx/etc
   // TODO(benvanik): update VXSNAN
   const uint32_t crf = i.X.RT >> 2;
-  // f.UpdateFPRF(v);
-  f.UpdateCR(crf, f.LoadFPR(i.X.RA), f.LoadFPR(i.X.RB), false);
+  f.UpdateCR(crf, f.LoadFPR(i.X.RA), f.LoadFPR(i.X.RB));
   return 0;
 }
 int InstrEmit_fcmpo(PPCHIRBuilder& f, const InstrData& i) {
@@ -448,7 +323,7 @@ int InstrEmit_mffsx(PPCHIRBuilder& f, const InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
-  Value* v = f.Cast(f.LoadFPSCR(), FLOAT64_TYPE);
+  Value* v = f.Cast(f.ZeroExtend(f.LoadFPSCR(), INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
   return 0;
 }
@@ -464,10 +339,6 @@ int InstrEmit_mtfsb1x(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
-  if (i.XFL.Rc) {
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
   if (i.XFL.L) {
     // Move/shift.
     XEINSTRNOTIMPLEMENTED();
@@ -477,7 +348,11 @@ int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
     // TODO(benvanik): use w/field mask to select bits.
     // i.XFL.W;
     // i.XFL.FM;
-    f.StoreFPSCR(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE));
+    f.StoreFPSCR(
+        f.Truncate(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE), INT32_TYPE));
+  }
+  if (i.XFL.Rc) {
+    f.CopyFPSCRToCR1();
   }
   return 0;
 }
@@ -493,11 +368,7 @@ int InstrEmit_fabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- abs(frB)
   Value* v = f.Abs(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 
@@ -505,11 +376,7 @@ int InstrEmit_fmrx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- (frB)
   Value* v = f.LoadFPR(i.X.RB);
   f.StoreFPR(i.X.RT, v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 
@@ -517,11 +384,7 @@ int InstrEmit_fnabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- !abs(frB)
   Value* v = f.Neg(f.Abs(f.LoadFPR(i.X.RB)));
   f.StoreFPR(i.X.RT, v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 
@@ -529,11 +392,7 @@ int InstrEmit_fnegx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- ¬ frB[0] || frB[1-63]
   Value* v = f.Neg(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
-  if (i.X.Rc) {
-    // e.update_cr_with_cond(1, v);
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.UpdateFPSCR(v, i.X.Rc);
   return 0;
 }
 

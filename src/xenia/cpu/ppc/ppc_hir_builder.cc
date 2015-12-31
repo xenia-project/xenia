@@ -380,16 +380,59 @@ void PPCHIRBuilder::UpdateCR6(Value* src_value) {
 }
 
 Value* PPCHIRBuilder::LoadFPSCR() {
-  return LoadContext(offsetof(PPCContext, fpscr), INT64_TYPE);
+  return LoadContext(offsetof(PPCContext, fpscr), INT32_TYPE);
 }
 
 void PPCHIRBuilder::StoreFPSCR(Value* value) {
-  assert_true(value->type == INT64_TYPE);
+  assert_true(value->type == INT32_TYPE);
   StoreContext(offsetof(PPCContext, fpscr), value);
 
   auto& trace_reg = trace_info_.dests[trace_info_.dest_count++];
   trace_reg.reg = 67;
   trace_reg.value = value;
+}
+
+void PPCHIRBuilder::UpdateFPSCR(Value* result, bool update_cr1) {
+  // TODO(benvanik): detect overflow and nan cases.
+  // fx and vx are the most important.
+  Value* fx = LoadConstantInt8(0);
+  Value* fex = LoadConstantInt8(0);
+  Value* vx = LoadConstantInt8(0);
+  Value* ox = LoadConstantInt8(0);
+
+  if (update_cr1) {
+    // Store into the CR1 field.
+    // We do this instead of just calling CopyFPSCRToCR1 so that we don't
+    // have to read back the bits and do shifting work.
+    StoreContext(offsetof(PPCContext, cr1.cr1_fx), fx);
+    StoreContext(offsetof(PPCContext, cr1.cr1_fex), fex);
+    StoreContext(offsetof(PPCContext, cr1.cr1_vx), vx);
+    StoreContext(offsetof(PPCContext, cr1.cr1_ox), ox);
+  }
+
+  // Generate our new bits.
+  Value* new_bits = Shl(ZeroExtend(fx, INT32_TYPE), 31);
+  new_bits = Or(new_bits, Shl(ZeroExtend(fex, INT32_TYPE), 30));
+  new_bits = Or(new_bits, Shl(ZeroExtend(vx, INT32_TYPE), 29));
+  new_bits = Or(new_bits, Shl(ZeroExtend(ox, INT32_TYPE), 28));
+
+  // Mix into fpscr while preserving sticky bits (FX and OX).
+  Value* bits = LoadFPSCR();
+  bits = Or(And(bits, LoadConstantUint32(0x9FFFFFFF)), new_bits);
+  StoreFPSCR(bits);
+}
+
+void PPCHIRBuilder::CopyFPSCRToCR1() {
+  // Pull out of FPSCR.
+  Value* fpscr = LoadFPSCR();
+  StoreContext(offsetof(PPCContext, cr1.cr1_fx),
+               And(Truncate(Shr(fpscr, 31), INT8_TYPE), LoadConstantInt8(1)));
+  StoreContext(offsetof(PPCContext, cr1.cr1_fex),
+               And(Truncate(Shr(fpscr, 30), INT8_TYPE), LoadConstantInt8(1)));
+  StoreContext(offsetof(PPCContext, cr1.cr1_vx),
+               And(Truncate(Shr(fpscr, 29), INT8_TYPE), LoadConstantInt8(1)));
+  StoreContext(offsetof(PPCContext, cr1.cr1_ox),
+               And(Truncate(Shr(fpscr, 28), INT8_TYPE), LoadConstantInt8(1)));
 }
 
 Value* PPCHIRBuilder::LoadXER() {
@@ -398,7 +441,10 @@ Value* PPCHIRBuilder::LoadXER() {
   return v;
 }
 
-void PPCHIRBuilder::StoreXER(Value* value) { assert_always(); }
+void PPCHIRBuilder::StoreXER(Value* value) {
+  // TODO(benvanik): use other fields? For now, just pull out CA.
+  StoreCA(Truncate(And(Shr(value, 29), LoadConstantInt64(1)), INT8_TYPE));
+}
 
 Value* PPCHIRBuilder::LoadCA() {
   return LoadContext(offsetof(PPCContext, xer_ca), INT8_TYPE);
