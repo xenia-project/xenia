@@ -59,7 +59,7 @@ platform: Windows
 
 # build Configuration, i.e. Debug, Release, etc.
 configuration:
-  #- Checked
+  - Checked
   - Release
 
 build:
@@ -76,6 +76,7 @@ before_build:
 
 # scripts to run after build
 after_build:
+  - 7z a xenia-$(APPVEYOR_REPO_BRANCH)-$(APPVEYOR_REPO_COMMIT)-$(CONFIGURATION).zip build\bin\Windows\$(CONFIGURATION)\xenia.exe
 
 # to run your custom scripts instead of automatic MSBuild
 #build_script:
@@ -122,7 +123,8 @@ artifacts:
   # pushing all *.nupkg files in directory
   #- path: out\*.nupkg
 
-  path: xenia-cpu-ppc-test.log
+  - path: xenia-cpu-ppc-test.log
+  - path: xenia-$(APPVEYOR_REPO_BRANCH)-$(APPVEYOR_REPO_COMMIT)-$(CONFIGURATION).zip
 
 
 #---------------------------------#
@@ -131,15 +133,15 @@ artifacts:
 
 # providers: Local, FTP, WebDeploy, AzureCS, AzureBlob, S3, NuGet, Environment
 # provider names are case-sensitive!
-#deploy:
-  # Deploy to GitHub Releases
-  #- provider: GitHub
-  #  artifact: /.*\.nupkg/           # upload all NuGet packages to release assets
-  #  draft: false
-  #  prerelease: false
-  #  on:
-  #    branch: master                # release from master branch only
-  #    appveyor_repo_tag: true       # deploy on tag push only
+deploy:
+  - provider: Environment
+    name: xenia-master
+    artifact: xenia-$(APPVEYOR_REPO_BRANCH)-$(APPVEYOR_REPO_COMMIT)-$(CONFIGURATION).zip
+    draft: false
+    prerelease: true
+    on:
+      branch: master                # release from master branch only
+      appveyor_repo_tag: true       # deploy on tag push only
 
 # scripts to run before deployment
 before_deploy:
@@ -151,7 +153,7 @@ after_deploy:
 deploy_script:
 
 # to disable deployment
-deploy: off
+# deploy: off
 
 
 #---------------------------------#
