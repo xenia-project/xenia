@@ -18,7 +18,7 @@ namespace vfs {
 
 StfsContainerFile::StfsContainerFile(uint32_t file_access,
                                      StfsContainerEntry* entry)
-    : File(file_access, entry) {}
+    : File(file_access, entry), entry_(entry) {}
 
 StfsContainerFile::~StfsContainerFile() = default;
 
