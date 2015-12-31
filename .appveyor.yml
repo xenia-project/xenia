@@ -60,8 +60,8 @@ platform: x64
 
 # build Configuration, i.e. Debug, Release, etc.
 configuration:
-  - Checked
-  - Release
+  #- Checked Windows
+  - Release Windows
 
 build:
   parallel: true                  # enable MSBuild parallel builds
@@ -73,7 +73,6 @@ build:
 
 # scripts to run before build
 before_build:
-  - xb.bat premake
   #- xb.bat lint --all
 
 # scripts to run after build
