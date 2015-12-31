@@ -261,7 +261,9 @@ void Profiler::OnMouseDown(bool left_button, bool right_button) {}
 void Profiler::OnMouseUp() {}
 void Profiler::OnMouseMove(int x, int y) {}
 void Profiler::OnMouseWheel(int x, int y, int dy) {}
-void Profiler::set_display(std::unique_ptr<ui::MicroprofilerDrawer> display) {}
+void Profiler::ToggleDisplay() {}
+void Profiler::TogglePause() {}
+void Profiler::set_window(ui::Window* window) {}
 void Profiler::Present() {}
 
 #endif  // XE_OPTION_PROFILING

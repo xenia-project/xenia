@@ -15,6 +15,8 @@
 #include <cstdint>
 #include <string>
 
+#include "xenia/base/vec128.h"
+
 namespace xe {
 
 enum class X64Register {
@@ -84,24 +86,24 @@ class X64Context {
 
   union {
     struct {
-      __m128 xmm0;
-      __m128 xmm1;
-      __m128 xmm2;
-      __m128 xmm3;
-      __m128 xmm4;
-      __m128 xmm5;
-      __m128 xmm6;
-      __m128 xmm7;
-      __m128 xmm8;
-      __m128 xmm9;
-      __m128 xmm10;
-      __m128 xmm11;
-      __m128 xmm12;
-      __m128 xmm13;
-      __m128 xmm14;
-      __m128 xmm15;
+      vec128_t xmm0;
+      vec128_t xmm1;
+      vec128_t xmm2;
+      vec128_t xmm3;
+      vec128_t xmm4;
+      vec128_t xmm5;
+      vec128_t xmm6;
+      vec128_t xmm7;
+      vec128_t xmm8;
+      vec128_t xmm9;
+      vec128_t xmm10;
+      vec128_t xmm11;
+      vec128_t xmm12;
+      vec128_t xmm13;
+      vec128_t xmm14;
+      vec128_t xmm15;
     };
-    __m128 xmm_registers[16];
+    vec128_t xmm_registers[16];
   };
 
   static const char* GetRegisterName(X64Register reg);

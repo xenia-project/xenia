@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/shader.h"
 
+#include <cinttypes>
 #include <cstring>
 
 #include "xenia/base/filesystem.h"
@@ -47,8 +48,8 @@ void Shader::Dump(const std::string& base_path, const char* path_prefix) {
 
   char txt_file_name[kMaxPath];
   std::snprintf(txt_file_name, xe::countof(txt_file_name),
-                "%s/shader_%s_%.16llX.%s", base_path.c_str(), path_prefix,
-                ucode_data_hash_,
+                "%s/shader_%s_%.16" PRIX64 ".%s", base_path.c_str(),
+                path_prefix, ucode_data_hash_,
                 shader_type_ == ShaderType::kVertex ? "vert" : "frag");
   FILE* f = fopen(txt_file_name, "w");
   if (f) {
@@ -70,8 +71,8 @@ void Shader::Dump(const std::string& base_path, const char* path_prefix) {
 
   char bin_file_name[kMaxPath];
   std::snprintf(bin_file_name, xe::countof(bin_file_name),
-                "%s/shader_%s_%.16llX.bin.%s", base_path.c_str(), path_prefix,
-                ucode_data_hash_,
+                "%s/shader_%s_%.16" PRIX64 ".bin.%s", base_path.c_str(),
+                path_prefix, ucode_data_hash_,
                 shader_type_ == ShaderType::kVertex ? "vert" : "frag");
   f = fopen(bin_file_name, "w");
   if (f) {

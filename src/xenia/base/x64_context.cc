@@ -45,8 +45,7 @@ std::string X64Context::GetStringFromValue(X64Register reg, bool hex) const {
                      static_cast<int>(X64Register::kXmm15)) {
         auto value = xmm_registers[static_cast<int>(reg) -
                                    static_cast<int>(X64Register::kXmm0)];
-        return hex ? string_util::to_hex_string(value)
-                   : string_util::to_string(value);
+        return hex ? string_util::to_hex_string(value) : xe::to_string(value);
       } else {
         assert_unhandled_case(reg);
         return "";

@@ -559,6 +559,9 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
         EmitSource(" = vf%u_%d;\n", instr.operands[1].storage_index,
                    instr.attributes.offset);
         break;
+      default:
+        assert_always();
+        break;
     }
   }
 
@@ -676,6 +679,9 @@ void GlslShaderTranslator::ProcessTextureFetchInstruction(
       EmitUnimplementedTranslationError();
       EmitSourceDepth("pv = vec4(0.0);\n");
       break;
+    case FetchOpcode::kVertexFetch:
+      assert_always();
+      break;
   }
 
   EmitStoreVectorResult(instr.result);
@@ -727,6 +733,10 @@ void GlslShaderTranslator::EmitLoadOperand(size_t i,
       break;
     case InstructionStorageSource::kConstantBool:
       EmitSource("state.bool_consts");
+      break;
+    case InstructionStorageSource::kTextureFetchConstant:
+    case InstructionStorageSource::kVertexFetchConstant:
+      assert_always();
       break;
   }
   switch (op.storage_addressing_mode) {
@@ -814,6 +824,8 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
       break;
     case InstructionStorageTarget::kDepth:
       EmitSourceDepth("gl_FragDepth");
+      break;
+    case InstructionStorageTarget::kNone:
       break;
   }
   if (uses_storage_index) {

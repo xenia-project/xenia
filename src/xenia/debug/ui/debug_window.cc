@@ -318,7 +318,7 @@ void DebugWindow::DrawSourcePane() {
   //   name text box (editable)
   //   combo for interleaved + [ppc, hir, opt hir, x64 + byte with sizes]
   ImGui::AlignFirstTextHeightToWidgets();
-  ImGui::Text(function->module()->name().c_str());
+  ImGui::Text("%s", function->module()->name().c_str());
   ImGui::SameLine();
   ImGui::Dummy(ImVec2(4, 0));
   ImGui::SameLine();
@@ -657,7 +657,7 @@ bool DebugWindow::DrawRegisterTextBox(int id, uint32_t* value) {
     auto alt_value = state_.register_input_hex
                          ? std::to_string(*value)
                          : string_util::to_hex_string(*value);
-    ImGui::SetTooltip(alt_value.c_str());
+    ImGui::SetTooltip("%s", alt_value.c_str());
   }
   return any_changed;
 }
@@ -697,7 +697,7 @@ bool DebugWindow::DrawRegisterTextBox(int id, uint64_t* value) {
     auto alt_value = state_.register_input_hex
                          ? std::to_string(*value)
                          : string_util::to_hex_string(*value);
-    ImGui::SetTooltip(alt_value.c_str());
+    ImGui::SetTooltip("%s", alt_value.c_str());
   }
   return any_changed;
 }
@@ -715,7 +715,7 @@ bool DebugWindow::DrawRegisterTextBox(int id, double* value) {
   } else {
     input_flags |=
         ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_AutoSelectAll;
-    std::snprintf(buffer, xe::countof(buffer), "%.8LF", *value);
+    std::snprintf(buffer, xe::countof(buffer), "%.8F", *value);
   }
   char label[16] = {0};
   std::snprintf(label, xe::countof(label), "##dregister%d", id);
@@ -736,7 +736,7 @@ bool DebugWindow::DrawRegisterTextBox(int id, double* value) {
     auto alt_value = state_.register_input_hex
                          ? std::to_string(*value)
                          : string_util::to_hex_string(*value);
-    ImGui::SetTooltip(alt_value.c_str());
+    ImGui::SetTooltip("%s", alt_value.c_str());
   }
   return any_changed;
 }
@@ -779,7 +779,7 @@ bool DebugWindow::DrawRegisterTextBoxes(int id, float* value) {
       auto alt_value = state_.register_input_hex
                            ? std::to_string(value[i])
                            : string_util::to_hex_string(value[i]);
-      ImGui::SetTooltip(alt_value.c_str());
+      ImGui::SetTooltip("%s", alt_value.c_str());
     }
     if (i < 3) {
       ImGui::SameLine();
@@ -968,7 +968,7 @@ void DebugWindow::DrawRegistersPane() {
         ImGui::Dummy(ImVec2(4, 0));
         ImGui::SameLine();
         dirty_host_context |= DrawRegisterTextBoxes(
-            i, thread_info->host_context.xmm_registers[i].m128_f32);
+            i, thread_info->host_context.xmm_registers[i].f32);
         ImGui::EndGroup();
       }
       ImGui::EndChild();
@@ -1067,9 +1067,9 @@ void DebugWindow::DrawThreadsPane() {
         ImGui::Dummy(ImVec2(8, 0));
         ImGui::SameLine();
         if (frame.guest_function) {
-          ImGui::Text(frame.guest_function->name().c_str());
+          ImGui::Text("%s", frame.guest_function->name().c_str());
         } else {
-          ImGui::Text(frame.name);
+          ImGui::Text("%s", frame.name);
         }
         if (is_current_thread && !frame.guest_pc) {
           ImGui::PopStyleColor();
@@ -1259,7 +1259,7 @@ void DebugWindow::DrawBreakpointsPane() {
       ImGui::SameLine();
       ImGui::Dummy(ImVec2(4, 0));
       ImGui::SameLine();
-      ImGui::Text(export_entry->name);
+      ImGui::Text("%s", export_entry->name);
       ImGui::Dummy(ImVec2(0, 1));
       ImGui::PopID();
     }
@@ -1342,6 +1342,10 @@ void DebugWindow::DrawBreakpointsPane() {
                                      code_breakpoint->host_address()),
                                  code_breakpoint->host_address());
             }
+            break;
+          }
+          default: {
+            // Ignored.
             break;
           }
         }

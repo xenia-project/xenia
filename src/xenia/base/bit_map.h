@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_BIT_MAP_H_
 #define XENIA_BASE_BIT_MAP_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 

@@ -338,7 +338,7 @@ uint64_t Processor::Execute(ThreadState* thread_state, uint32_t address,
   SCOPE_profile_cpu_f("cpu");
 
   auto context = thread_state->context();
-  for (size_t i = 0; i < std::min(arg_count, 8ull); ++i) {
+  for (size_t i = 0; i < std::min(arg_count, static_cast<size_t>(8)); ++i) {
     context->r[3 + i] = args[i];
   }
 
