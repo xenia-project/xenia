@@ -1,4 +1,5 @@
 include("tools/build")
+require("third_party/premake-export-compile-commands/export-compile-commands")
 
 location(build_root)
 targetdir(build_bin)

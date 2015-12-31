@@ -329,6 +329,18 @@ def run_platform_premake():
     run_premake('linux', 'codelite')
 
 
+def run_premake_export_commands():
+  """Runs premake to generate an LLVM compile_commands.json file.
+  """
+  # TODO(benvanik): only do linux? whatever clang-tidy is ok with.
+  if sys.platform == 'darwin':
+    run_premake('macosx', 'export-compile-commands')
+  elif sys.platform == 'win32':
+    run_premake('windows', 'export-compile-commands')
+  else:
+    run_premake('linux', 'export-compile-commands')
+
+
 def get_build_bin_path(args):
   """Returns the path of the bin/ path with build results based on the
   configuration specified in the parsed arguments.
