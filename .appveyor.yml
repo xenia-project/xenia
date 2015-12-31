@@ -43,7 +43,6 @@ environment:
 
 # build cache to preserve files/folders between builds
 cache:
-  - third_party\premake-core
 
 # scripts that run after cloning repository
 install:
