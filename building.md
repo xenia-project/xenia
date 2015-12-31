@@ -42,6 +42,16 @@ swappable right now.
 [CodeLite](http://codelite.org) is the IDE of choice and `xb premake` will spit
 out files for that. Make also works via `xb build`.
 
+To get the latest Clang on an ubuntu system:
+
+```
+sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
+curl -sSL "http://llvm.org/apt/llvm-snapshot.gpg.key" | sudo -E apt-key add -
+echo "deb http://llvm.org/apt/precise/ llvm-toolchain-precise main" | sudo tee -a /etc/apt/sources.list > /dev/null
+sudo -E apt-get -yq update &>> ~/apt-get-update.log
+sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-3.8 clang-format-3.8
+```
+
 ## Running
 
 To make life easier you can use `--flagfile=myflags.txt` to specify all
