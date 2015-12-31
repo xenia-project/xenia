@@ -1,5 +1,5 @@
 project_root = "../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-ui")
@@ -12,7 +12,7 @@ project("xenia-ui")
   defines({
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
   removefiles({"*_demo.cc"})

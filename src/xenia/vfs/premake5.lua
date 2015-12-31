@@ -1,5 +1,5 @@
 project_root = "../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-vfs")
@@ -12,6 +12,6 @@ project("xenia-vfs")
   defines({
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."third_party/gflags/src",
   })
   recursive_platform_files()

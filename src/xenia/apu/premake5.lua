@@ -1,5 +1,5 @@
 project_root = "../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-apu")
@@ -14,7 +14,7 @@ project("xenia-apu")
   defines({
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
     project_root.."/third_party/libav/",
   })
   local_platform_files()

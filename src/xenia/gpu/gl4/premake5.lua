@@ -1,5 +1,5 @@
 project_root = "../../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-gpu-gl4")
@@ -19,7 +19,7 @@ project("xenia-gpu-gl4")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
 
@@ -59,7 +59,7 @@ project("xenia-gpu-gl4-trace-viewer")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   files({
     "gl4_trace_viewer_main.cc",
@@ -110,7 +110,7 @@ project("xenia-gpu-gl4-trace-dump")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   files({
     "gl4_trace_dump_main.cc",

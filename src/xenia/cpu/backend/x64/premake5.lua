@@ -1,5 +1,5 @@
 project_root = "../../../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-cpu-backend-x64")
@@ -21,6 +21,6 @@ project("xenia-cpu-backend-x64")
   })
   includedirs({
     project_root.."/third_party/capstone/include",
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   local_platform_files()

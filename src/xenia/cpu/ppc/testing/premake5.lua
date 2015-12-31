@@ -1,5 +1,5 @@
 project_root = "../../../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("tests")
 project("xenia-cpu-ppc-tests")
@@ -25,7 +25,7 @@ project("xenia-cpu-ppc-tests")
     "*.s",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   filter("files:*.s")
     flags({"ExcludeFromBuild"})

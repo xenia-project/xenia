@@ -1,5 +1,5 @@
 project_root = "../../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-ui-gl")
@@ -16,7 +16,7 @@ project("xenia-ui-gl")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
   removefiles({"*_demo.cc"})
@@ -42,7 +42,7 @@ project("xenia-ui-window-gl-demo")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   files({
     "../window_demo.cc",

@@ -1,5 +1,5 @@
 project_root = "../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-gpu")
@@ -18,7 +18,7 @@ project("xenia-gpu")
   })
   includedirs({
     project_root.."/third_party/spirv-tools/external/include",
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
 
@@ -37,7 +37,7 @@ project("xenia-gpu-shader-compiler")
   defines({
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   files({
     "shader_compiler_main.cc",

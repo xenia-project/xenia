@@ -1,9 +1,9 @@
 project_root = "../../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 test_suite("xenia-cpu-tests", project_root, ".", {
   includedirs = {
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   },
   links = {
     "xenia-base",

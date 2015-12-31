@@ -1,4 +1,4 @@
-include("build_tools")
+include("tools/build")
 
 location(build_root)
 targetdir(build_bin)
@@ -159,13 +159,13 @@ solution("xenia")
 
   -- Include third party files first so they don't have to deal with gflags.
   include("third_party/capstone.lua")
+  include("third_party/gflags.lua")
   include("third_party/glew.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")
   include("third_party/spirv-tools.lua")
   include("third_party/xxhash.lua")
   include("third_party/zlib.lua")
-  include("build_tools/third_party/gflags.lua")
 
   include("src/xenia")
   include("src/xenia/app")

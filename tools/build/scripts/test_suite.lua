@@ -1,0 +1,75 @@
+include("build_paths.lua")
+include("util.lua")
+
+newoption({
+  trigger = "test-suite-mode",
+  description = "Whether to merge all tests in a test_suite into a single project",
+  value = "MODE",
+  allowed = {
+    { "individual", "One binary per test." },
+    { "combined", "One binary per test suite (default)." },
+  },
+})
+
+local function combined_test_suite(test_suite_name, project_root, base_path, config)
+  group("tests")
+  project(test_suite_name)
+    kind("ConsoleApp")
+    language("C++")
+    includedirs(merge_arrays(config["includedirs"], {
+      project_root.."/"..build_tools,
+      project_root.."/"..build_tools_src,
+      project_root.."/"..build_tools.."/third_party/catch/include",
+    }))
+    libdirs(merge_arrays(config["libdirs"], {
+      project_root.."/"..build_bin,
+    }))
+    links(merge_arrays(config["links"], {
+      "gflags",
+    }))
+    files({
+      project_root.."/"..build_tools_src.."/test_suite_main.cc",
+      base_path.."/**_test.cc",
+    })
+end
+
+local function split_test_suite(test_suite_name, project_root, base_path, config)
+  local test_paths = os.matchfiles(base_path.."/**_test.cc")
+  for _, file_path in pairs(test_paths) do
+    local test_name = file_path:match("(.*).cc")
+    group("tests/"..test_suite_name)
+    project(test_suite_name.."-"..test_name)
+      kind("ConsoleApp")
+      language("C++")
+      includedirs(merge_arrays(config["includedirs"], {
+        project_root.."/"..build_tools,
+        project_root.."/"..build_tools_src,
+        project_root.."/"..build_tools.."/third_party/catch/include",
+      }))
+      libdirs(merge_arrays(config["libdirs"], {
+        project_root.."/"..build_bin,
+      }))
+      links(merge_arrays(config["links"], {
+        "gflags",
+      }))
+      files({
+        project_root.."/"..build_tools_src.."/test_suite_main.cc",
+        file_path,
+      })
+  end
+end
+
+-- Defines a test suite binary.
+-- Can either be a single binary with all tests or one binary per test based on
+-- the --test-suite-mode= option.
+function test_suite(
+    test_suite_name,        -- Project or group name for the entire suite.
+    project_root,           -- Project root path (with build_tools/ under it).
+    base_path,              -- Base source path to search for _test.cc files.
+    config)                 -- Include/lib directories and links for binaries.
+  if _OPTIONS["test-suite-mode"] == "individual" then
+    split_test_suite(test_suite_name, project_root, base_path, config)
+  else
+    combined_test_suite(test_suite_name, project_root, base_path, config)
+  end
+end

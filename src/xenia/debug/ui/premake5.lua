@@ -1,5 +1,5 @@
 project_root = "../../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-debug-ui")
@@ -20,6 +20,6 @@ project("xenia-debug-ui")
     "GLEW_MX=1",
   })
   includedirs({
-    project_root.."/build_tools/third_party/gflags/src",
+    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
