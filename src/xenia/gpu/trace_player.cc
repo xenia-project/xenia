@@ -162,31 +162,26 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         break;
       }
       case TraceCommandType::kMemoryRead: {
-        auto cmd = reinterpret_cast<const MemoryReadCommand*>(trace_ptr);
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
-        if (cmd->full_length) {
-          DecompressMemory(trace_ptr, cmd->length,
-                           memory->TranslatePhysical(cmd->base_ptr),
-                           cmd->full_length);
-        } else {
-          std::memcpy(memory->TranslatePhysical(cmd->base_ptr), trace_ptr,
-                      cmd->length);
-        }
-        trace_ptr += cmd->length;
+        DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
+                         memory->TranslatePhysical(cmd->base_ptr),
+                         cmd->decoded_length);
+        trace_ptr += cmd->encoded_length;
         break;
       }
       case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryWriteCommand*>(trace_ptr);
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         // ?
-        trace_ptr += cmd->length;
+        trace_ptr += cmd->encoded_length;
         break;
       }
       case TraceCommandType::kEvent: {
         auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         switch (cmd->event_type) {
-          case EventType::kSwap: {
+          case EventCommand::Type::kSwap: {
             if (playback_mode == TracePlaybackMode::kBreakOnSwap) {
               pending_break = true;
             }

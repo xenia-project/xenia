@@ -25,7 +25,7 @@ class TraceWriter {
 
   bool is_open() const { return file_ != nullptr; }
 
-  bool Open(const std::wstring& path);
+  bool Open(const std::wstring& path, uint32_t title_id);
   void Flush();
   void Close();
 
@@ -37,17 +37,17 @@ class TraceWriter {
   void WritePacketEnd();
   void WriteMemoryRead(uint32_t base_ptr, size_t length);
   void WriteMemoryWrite(uint32_t base_ptr, size_t length);
-  void WriteEvent(EventType event_type);
+  void WriteEvent(EventCommand::Type event_type);
 
  private:
-  size_t WriteCompressed(void* buf, size_t length);
+  void WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
+                          size_t length);
 
   uint8_t* membase_;
   FILE* file_;
 
   bool compress_output_ = true;
-  size_t compression_threshold_ = 0x1000;  // min. number of bytes to compress.
-  std::vector<uint8_t> tmp_buff_;
+  size_t compression_threshold_ = 1024;  // Min. number of bytes to compress.
 };
 
 }  // namespace gpu

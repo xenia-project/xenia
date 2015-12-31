@@ -20,6 +20,8 @@
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 
 namespace xe {
 namespace gpu {
@@ -86,9 +88,9 @@ void CommandProcessor::BeginTracing(const std::wstring& root_path) {
     XELOGE("Frame trace pending; ignoring streaming request.");
     return;
   }
-  std::wstring path = root_path + L"stream";
+  // Streaming starts on the next primary buffer execute.
   trace_state_ = TraceState::kStreaming;
-  trace_writer_.Open(path);
+  trace_stream_path_ = root_path;
 }
 
 void CommandProcessor::EndTracing() {
@@ -406,6 +408,18 @@ void CommandProcessor::ExecutePrimaryBuffer(uint32_t start_index,
                                             uint32_t end_index) {
   SCOPE_profile_cpu_f("gpu");
 
+  // If we have a pending trace stream open it now. That way we ensure we get
+  // all commands.
+  if (!trace_writer_.is_open() && trace_state_ == TraceState::kStreaming) {
+    uint32_t title_id = kernel_state_->GetExecutableModule()
+                            ? kernel_state_->GetExecutableModule()->title_id()
+                            : 0;
+    auto file_name =
+        xe::format_string(L"title_%8X_stream.xenia_gpu_trace", title_id);
+    auto path = trace_stream_path_ + file_name;
+    trace_writer_.Open(path, title_id);
+  }
+
   // Adjust pointer base.
   uint32_t start_ptr = primary_buffer_ptr_ + start_index * sizeof(uint32_t);
   start_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (start_ptr & 0x1FFFFFFF);
@@ -718,7 +732,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
   }
 
   if (trace_writer_.is_open()) {
-    trace_writer_.WriteEvent(EventType::kSwap);
+    trace_writer_.WriteEvent(EventCommand::Type::kSwap);
     trace_writer_.Flush();
     if (trace_state_ == TraceState::kSingleFrame) {
       trace_state_ = TraceState::kDisabled;
@@ -726,9 +740,11 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingbufferReader* reader,
     }
   } else if (trace_state_ == TraceState::kSingleFrame) {
     // New trace request - we only start tracing at the beginning of a frame.
-    auto frame_number = L"frame_" + std::to_wstring(counter_);
-    auto path = trace_frame_path_ + frame_number;
-    trace_writer_.Open(path);
+    uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
+    auto file_name = xe::format_string(L"title_%8X_frame_%u.xenia_gpu_trace",
+                                       title_id, counter_);
+    auto path = trace_frame_path_ + file_name;
+    trace_writer_.Open(path, title_id);
   }
   ++counter_;
   return true;

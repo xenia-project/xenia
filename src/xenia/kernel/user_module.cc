@@ -28,6 +28,24 @@ UserModule::UserModule(KernelState* kernel_state)
 
 UserModule::~UserModule() { Unload(); }
 
+uint32_t UserModule::title_id() const {
+  if (module_format_ != kModuleFormatXex) {
+    return 0;
+  }
+  auto header = xex_header();
+  for (uint32_t i = 0; i < header->header_count; i++) {
+    auto& opt_header = header->headers[i];
+    if (opt_header.key == XEX_HEADER_EXECUTION_INFO) {
+      auto opt_header_ptr =
+          reinterpret_cast<const uint8_t*>(header) + opt_header.offset;
+      auto opt_exec_info =
+          reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
+      return static_cast<uint32_t>(opt_exec_info->title_id);
+    }
+  }
+  return 0;
+}
+
 X_STATUS UserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
@@ -134,7 +152,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
     this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
     this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
                                      &stack_size_);
-    dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
+    is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
   } else if (module_format_ == kModuleFormatElf) {
     auto elf_module =
         std::make_unique<cpu::ElfModule>(processor, kernel_state());
@@ -144,7 +162,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
 
     entry_point_ = elf_module->entry_point();
     stack_size_ = 1024 * 1024;  // 1 MB
-    dll_module_ = false;        // Hardcoded not a DLL (for now)
+    is_dll_module_ = false;     // Hardcoded not a DLL (for now)
 
     processor_module_ = elf_module.get();
     if (!processor->AddModule(std::move(elf_module))) {

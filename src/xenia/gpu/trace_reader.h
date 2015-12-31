@@ -80,6 +80,10 @@ class TraceReader {
   TraceReader() = default;
   virtual ~TraceReader() = default;
 
+  const TraceHeader* header() const {
+    return reinterpret_cast<const TraceHeader*>(trace_data_);
+  }
+
   const Frame* frame(int n) const { return &frames_[n]; }
   int frame_count() const { return int(frames_.size()); }
 
@@ -89,7 +93,8 @@ class TraceReader {
 
  protected:
   void ParseTrace();
-  bool DecompressMemory(const uint8_t* src, size_t src_size, uint8_t* dest,
+  bool DecompressMemory(MemoryEncodingFormat encoding_format,
+                        const uint8_t* src, size_t src_size, uint8_t* dest,
                         size_t dest_size);
 
   std::unique_ptr<MappedMemory> mmap_;

@@ -196,6 +196,7 @@ class CommandProcessor {
     kSingleFrame,
   };
   TraceState trace_state_ = TraceState::kDisabled;
+  std::wstring trace_stream_path_;
   std::wstring trace_frame_path_;
 
   std::atomic<bool> worker_running_;

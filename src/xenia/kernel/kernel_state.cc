@@ -354,7 +354,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
 
   module->Dump();
 
-  if (module->dll_module() && module->entry_point() && call_entry) {
+  if (module->is_dll_module() && module->entry_point() && call_entry) {
     // Call DllMain(DLL_PROCESS_ATTACH):
     // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
     uint64_t args[] = {
@@ -479,7 +479,7 @@ void KernelState::OnThreadExecute(XThread* thread) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
   auto thread_state = thread->thread_state();
   for (auto user_module : user_modules_) {
-    if (user_module->dll_module() && user_module->entry_point()) {
+    if (user_module->is_dll_module() && user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
           2,  // DLL_THREAD_ATTACH
@@ -501,7 +501,7 @@ void KernelState::OnThreadExit(XThread* thread) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
   auto thread_state = thread->thread_state();
   for (auto user_module : user_modules_) {
-    if (user_module->dll_module() && user_module->entry_point()) {
+    if (user_module->is_dll_module() && user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
           3,  // DLL_THREAD_DETACH

@@ -7,12 +7,12 @@ project("xenia-gpu")
   kind("StaticLib")
   language("C++")
   links({
+    "snappy",
     "spirv-tools",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",
     "xxhash",
-    "zlib",
   })
   defines({
   })

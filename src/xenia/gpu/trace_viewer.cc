@@ -68,7 +68,8 @@ int TraceViewer::Main(const std::vector<std::wstring>& args) {
     file_picker->set_multi_selection(false);
     file_picker->set_title(L"Select Trace File");
     file_picker->set_extensions({
-        {L"Supported Files", L"*.*"}, {L"All Files (*.*)", L"*.*"},
+        {L"Supported Files", L"*.xenia_gpu_trace"},
+        {L"All Files (*.*)", L"*.*"},
     });
     if (file_picker->Show()) {
       auto selected_files = file_picker->selected_files();
@@ -358,14 +359,14 @@ void TraceViewer::DrawPacketDisassemblerUI() {
         break;
       }
       case TraceCommandType::kMemoryRead: {
-        auto cmd = reinterpret_cast<const MemoryReadCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->length;
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
         // ImGui::BulletText("MemoryRead");
         break;
       }
       case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryWriteCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->length;
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
         // ImGui::BulletText("MemoryWrite");
         break;
       }
@@ -373,7 +374,7 @@ void TraceViewer::DrawPacketDisassemblerUI() {
         auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         switch (cmd->event_type) {
-          case EventType::kSwap: {
+          case EventCommand::Type::kSwap: {
             ImGui::BulletText("<swap>");
             break;
           }

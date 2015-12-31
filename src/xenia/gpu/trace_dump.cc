@@ -60,7 +60,8 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
     file_picker->set_multi_selection(false);
     file_picker->set_title(L"Select Trace File");
     file_picker->set_extensions({
-        {L"Supported Files", L"*.*"}, {L"All Files (*.*)", L"*.*"},
+        {L"Supported Files", L"*.xenia_gpu_trace"},
+        {L"All Files (*.*)", L"*.*"},
     });
     if (file_picker->Show()) {
       auto selected_files = file_picker->selected_files();

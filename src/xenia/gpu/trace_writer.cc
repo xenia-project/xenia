@@ -9,11 +9,14 @@
 
 #include "xenia/gpu/trace_writer.h"
 
+#include "third_party/snappy/snappy-sinksource.h"
+#include "third_party/snappy/snappy.h"
+
+#include "build/version.h"
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
-
-#include "third_party/zlib/zlib.h"
 
 namespace xe {
 namespace gpu {
@@ -23,18 +26,27 @@ TraceWriter::TraceWriter(uint8_t* membase)
 
 TraceWriter::~TraceWriter() = default;
 
-bool TraceWriter::Open(const std::wstring& path) {
+bool TraceWriter::Open(const std::wstring& path, uint32_t title_id) {
   Close();
-
-  // Reserve 2 MB of space.
-  tmp_buff_.reserve(1024 * 2048);
 
   auto canonical_path = xe::to_absolute_path(path);
   auto base_path = xe::find_base_path(canonical_path);
   xe::filesystem::CreateFolder(base_path);
 
   file_ = xe::filesystem::OpenFile(canonical_path, "wb");
-  return file_ != nullptr;
+  if (!file_) {
+    return false;
+  }
+
+  // Write header first. Must be at the top of the file.
+  TraceHeader header;
+  header.version = kTraceFormatVersion;
+  std::memcpy(header.build_commit_sha, XE_BUILD_COMMIT,
+              sizeof(header.build_commit_sha));
+  header.title_id = title_id;
+  fwrite(&header, sizeof(header), 1, file_);
+
+  return true;
 }
 
 void TraceWriter::Flush() {
@@ -55,9 +67,9 @@ void TraceWriter::WritePrimaryBufferStart(uint32_t base_ptr, uint32_t count) {
   if (!file_) {
     return;
   }
-  auto cmd = PrimaryBufferStartCommand({
+  PrimaryBufferStartCommand cmd = {
       TraceCommandType::kPrimaryBufferStart, base_ptr, 0,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
 
@@ -65,9 +77,9 @@ void TraceWriter::WritePrimaryBufferEnd() {
   if (!file_) {
     return;
   }
-  auto cmd = PrimaryBufferEndCommand({
+  PrimaryBufferEndCommand cmd = {
       TraceCommandType::kPrimaryBufferEnd,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
 
@@ -75,9 +87,9 @@ void TraceWriter::WriteIndirectBufferStart(uint32_t base_ptr, uint32_t count) {
   if (!file_) {
     return;
   }
-  auto cmd = IndirectBufferStartCommand({
+  IndirectBufferStartCommand cmd = {
       TraceCommandType::kIndirectBufferStart, base_ptr, 0,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
 
@@ -85,9 +97,9 @@ void TraceWriter::WriteIndirectBufferEnd() {
   if (!file_) {
     return;
   }
-  auto cmd = IndirectBufferEndCommand({
+  IndirectBufferEndCommand cmd = {
       TraceCommandType::kIndirectBufferEnd,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
 
@@ -95,9 +107,9 @@ void TraceWriter::WritePacketStart(uint32_t base_ptr, uint32_t count) {
   if (!file_) {
     return;
   }
-  auto cmd = PacketStartCommand({
+  PacketStartCommand cmd = {
       TraceCommandType::kPacketStart, base_ptr, count,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
   fwrite(membase_ + base_ptr, 4, count, file_);
 }
@@ -106,9 +118,9 @@ void TraceWriter::WritePacketEnd() {
   if (!file_) {
     return;
   }
-  auto cmd = PacketEndCommand({
+  PacketEndCommand cmd = {
       TraceCommandType::kPacketEnd,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
 
@@ -116,68 +128,72 @@ void TraceWriter::WriteMemoryRead(uint32_t base_ptr, size_t length) {
   if (!file_) {
     return;
   }
-
-  bool compress = compress_output_ && length > compression_threshold_;
-
-  auto cmd = MemoryReadCommand({
-      TraceCommandType::kMemoryRead, base_ptr, uint32_t(length), 0,
-  });
-
-  if (compress) {
-    size_t written = WriteCompressed(membase_ + base_ptr, length);
-    cmd.length = uint32_t(written);
-    cmd.full_length = uint32_t(length);
-
-    fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(tmp_buff_.data(), 1, written, file_);
-  } else {
-    fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(membase_ + base_ptr, 1, length, file_);
-  }
+  WriteMemoryCommand(TraceCommandType::kMemoryRead, base_ptr, length);
 }
 
 void TraceWriter::WriteMemoryWrite(uint32_t base_ptr, size_t length) {
   if (!file_) {
     return;
   }
+  WriteMemoryCommand(TraceCommandType::kMemoryWrite, base_ptr, length);
+}
+
+class SnappySink : public snappy::Sink {
+ public:
+  SnappySink(FILE* file) : file_(file) {}
+
+  void Append(const char* bytes, size_t n) override {
+    fwrite(bytes, 1, n, file_);
+  }
+
+ private:
+  FILE* file_ = nullptr;
+};
+
+void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
+                                     size_t length) {
+  MemoryCommand cmd;
+  cmd.type = type;
+  cmd.base_ptr = base_ptr;
+  cmd.encoding_format = MemoryEncodingFormat::kNone;
+  cmd.encoded_length = cmd.decoded_length = static_cast<uint32_t>(length);
 
   bool compress = compress_output_ && length > compression_threshold_;
-
-  auto cmd = MemoryWriteCommand({
-      TraceCommandType::kMemoryWrite, base_ptr, uint32_t(length), 0,
-  });
-
   if (compress) {
-    size_t written = WriteCompressed(membase_ + base_ptr, length);
-    cmd.length = uint32_t(written);
-    cmd.full_length = uint32_t(length);
+    // Write the header now so we reserve space in the buffer.
+    long header_position = std::ftell(file_);
+    cmd.encoding_format = MemoryEncodingFormat::kSnappy;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
 
+    // Stream the content right to the buffer.
+    snappy::ByteArraySource snappy_source(
+        reinterpret_cast<const char*>(membase_ + cmd.base_ptr),
+        cmd.decoded_length);
+    SnappySink snappy_sink(file_);
+    cmd.encoded_length =
+        static_cast<uint32_t>(snappy::Compress(&snappy_source, &snappy_sink));
+
+    // Seek back and overwrite the header with our final size.
+    std::fseek(file_, header_position, SEEK_SET);
     fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(tmp_buff_.data(), 1, written, file_);
+    std::fseek(file_, header_position + sizeof(cmd) + cmd.encoded_length,
+               SEEK_SET);
   } else {
+    // Uncompressed - write buffer directly to the file.
+    cmd.encoding_format = MemoryEncodingFormat::kNone;
     fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(membase_ + base_ptr, 1, length, file_);
+    fwrite(membase_ + cmd.base_ptr, 1, cmd.decoded_length, file_);
   }
 }
 
-void TraceWriter::WriteEvent(EventType event_type) {
+void TraceWriter::WriteEvent(EventCommand::Type event_type) {
   if (!file_) {
     return;
   }
-  auto cmd = EventCommand({
+  EventCommand cmd = {
       TraceCommandType::kEvent, event_type,
-  });
+  };
   fwrite(&cmd, 1, sizeof(cmd), file_);
-}
-
-size_t TraceWriter::WriteCompressed(void* buf, size_t length) {
-  tmp_buff_.resize(compressBound(uint32_t(length)));
-
-  uLongf dest_len = (uint32_t)tmp_buff_.size();
-  int ret =
-      compress(tmp_buff_.data(), &dest_len, (uint8_t*)buf, uint32_t(length));
-  assert_true(ret >= 0);
-  return dest_len;
 }
 
 }  //  namespace gpu

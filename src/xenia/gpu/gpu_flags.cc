@@ -9,7 +9,7 @@
 
 #include "xenia/gpu/gpu_flags.h"
 
-DEFINE_string(trace_gpu_prefix, "scratch/gpu/gpu_trace_",
+DEFINE_string(trace_gpu_prefix, "scratch/gpu/",
               "Prefix path for GPU trace files.");
 DEFINE_bool(trace_gpu_stream, false, "Trace all GPU packets.");
 

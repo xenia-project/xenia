@@ -9,12 +9,16 @@
 
 #include "xenia/gpu/trace_reader.h"
 
+#include <cinttypes>
+
+#include "third_party/snappy/snappy.h"
+
+#include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/packet_disassembler.h"
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/memory.h"
-
-#include "third_party/zlib/zlib.h"
 
 namespace xe {
 namespace gpu {
@@ -30,6 +34,25 @@ bool TraceReader::Open(const std::wstring& path) {
   trace_data_ = reinterpret_cast<const uint8_t*>(mmap_->data());
   trace_size_ = mmap_->size();
 
+  // Verify version.
+  auto header = reinterpret_cast<const TraceHeader*>(trace_data_);
+  if (header->version != kTraceFormatVersion) {
+    XELOGE("Trace format version mismatch, code has %u, file has %u",
+           kTraceFormatVersion, header->version);
+    if (header->version < kTraceFormatVersion) {
+      XELOGE("You need to regenerate your trace for the latest version");
+    }
+    return false;
+  }
+
+  auto path_str = xe::to_string(path);
+  XELOGI("Mapped %" PRId64 "b trace from %s", trace_size_, path_str.c_str());
+  XELOGI("   Version: %u", header->version);
+  auto commit_str = std::string(header->build_commit_sha,
+                                xe::countof(header->build_commit_sha));
+  XELOGI("    Commit: %s", commit_str.c_str());
+  XELOGI("  Title ID: %u", header->title_id);
+
   ParseTrace();
 
   return true;
@@ -42,7 +65,10 @@ void TraceReader::Close() {
 }
 
 void TraceReader::ParseTrace() {
+  // Skip file header.
   auto trace_ptr = trace_data_;
+  trace_ptr += sizeof(TraceHeader);
+
   Frame current_frame;
   current_frame.start_ptr = trace_ptr;
   const PacketStartCommand* packet_start = nullptr;
@@ -117,20 +143,20 @@ void TraceReader::ParseTrace() {
         break;
       }
       case TraceCommandType::kMemoryRead: {
-        auto cmd = reinterpret_cast<const MemoryReadCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->length;
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
         break;
       }
       case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryWriteCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->length;
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
         break;
       }
       case TraceCommandType::kEvent: {
         auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         switch (cmd->event_type) {
-          case EventType::kSwap: {
+          case EventCommand::Type::kSwap: {
             pending_break = true;
             break;
           }
@@ -149,12 +175,21 @@ void TraceReader::ParseTrace() {
   }
 }
 
-bool TraceReader::DecompressMemory(const uint8_t* src, size_t src_size,
+bool TraceReader::DecompressMemory(MemoryEncodingFormat encoding_format,
+                                   const uint8_t* src, size_t src_size,
                                    uint8_t* dest, size_t dest_size) {
-  uLongf dest_len = uint32_t(dest_size);
-  int ret = uncompress(dest, &dest_len, src, uint32_t(src_size));
-  assert_true(ret >= 0);
-  return ret >= 0;
+  switch (encoding_format) {
+    case MemoryEncodingFormat::kNone:
+      assert_true(src_size == dest_size);
+      std::memcpy(dest, src, src_size);
+      return true;
+    case MemoryEncodingFormat::kSnappy:
+      return snappy::RawUncompress(reinterpret_cast<const char*>(src), src_size,
+                                   reinterpret_cast<char*>(dest));
+    default:
+      assert_unhandled_case(encoding_format);
+      return false;
+  }
 }
 
 }  // namespace gpu
