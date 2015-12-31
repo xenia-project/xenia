@@ -45,6 +45,8 @@ void DisassembleResultOperand(const InstructionResult& result,
     case InstructionStorageTarget::kDepth:
       out->Append("oDepth");
       break;
+    case InstructionStorageTarget::kNone:
+      break;
   }
   if (uses_storage_index) {
     switch (result.storage_addressing_mode) {
@@ -89,6 +91,10 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       break;
     case InstructionStorageSource::kConstantBool:
       out->Append('b');
+      break;
+    case InstructionStorageSource::kTextureFetchConstant:
+    case InstructionStorageSource::kVertexFetchConstant:
+      assert_always();
       break;
   }
   if (op.is_absolute_value) {

@@ -159,7 +159,7 @@ void ShaderTranslator::GatherBindingInformation(
     case ControlFlowOpcode::kCondExecPred:
     case ControlFlowOpcode::kCondExecPredEnd:
     case ControlFlowOpcode::kCondExecPredClean:
-    case ControlFlowOpcode::kCondExecPredCleanEnd:
+    case ControlFlowOpcode::kCondExecPredCleanEnd: {
       uint32_t sequence = cf.exec.sequence();
       for (uint32_t instr_offset = cf.exec.address();
            instr_offset < cf.exec.address() + cf.exec.count();
@@ -184,17 +184,19 @@ void ShaderTranslator::GatherBindingInformation(
           auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords_ +
                                                               instr_offset * 3);
           if (op.has_vector_op() && op.is_export()) {
-            if (op.vector_dest() >= 0 && op.vector_dest() <= 3) {
+            if (op.vector_dest() <= 3) {
               writes_color_targets_[op.vector_dest()] = true;
             }
           }
           if (op.has_scalar_op() && op.is_export()) {
-            if (op.vector_dest() >= 0 && op.vector_dest() <= 3) {
+            if (op.vector_dest() <= 3) {
               writes_color_targets_[op.vector_dest()] = true;
             }
           }
         }
       }
+    } break;
+    default:
       break;
   }
 }
@@ -248,6 +250,9 @@ void ShaderTranslator::GatherTextureBindingInformation(
     case FetchOpcode::kSetTextureGradientsVert:
       // Doesn't use bindings.
       return;
+    default:
+      // Continue.
+      break;
   }
   Shader::TextureBinding binding;
   binding.binding_index = texture_bindings_.size();
@@ -270,6 +275,9 @@ void AddControlFlowTargetLabel(const ControlFlowInstruction& cf,
       break;
     case ControlFlowOpcode::kCondJmp:
       label_addresses->insert(cf.cond_jmp.address());
+      break;
+    default:
+      // Ignored.
       break;
   }
 }
@@ -435,6 +443,8 @@ void ShaderTranslator::TranslateControlFlowCondExec(
       i.opcode_name = "cexece";
       i.is_end = true;
       break;
+    default:
+      break;
   }
   i.instruction_address = cf.address();
   i.instruction_count = cf.count();
@@ -445,6 +455,8 @@ void ShaderTranslator::TranslateControlFlowCondExec(
     case ControlFlowOpcode::kCondExec:
     case ControlFlowOpcode::kCondExecEnd:
       i.clean = false;
+      break;
+    default:
       break;
   }
   i.is_yield = cf.is_yield();
