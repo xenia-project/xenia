@@ -183,10 +183,9 @@ std::vector<ThreadExecutionInfo*> Debugger::QueryThreadExecutionInfos() {
   return result;
 }
 
-ThreadExecutionInfo* Debugger::QueryThreadExecutionInfo(
-    uint32_t thread_handle) {
+ThreadExecutionInfo* Debugger::QueryThreadExecutionInfo(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
-  const auto& it = thread_execution_infos_.find(thread_handle);
+  const auto& it = thread_execution_infos_.find(thread_id);
   if (it == thread_execution_infos_.end()) {
     return nullptr;
   }
@@ -232,8 +231,7 @@ bool Debugger::SuspendAllThreads() {
       // Thread is a host thread, and we aren't suspending those (for now).
       continue;
     } else if (XThread::IsInThread() &&
-               thread_info->thread_handle ==
-                   XThread::GetCurrentThreadHandle()) {
+               thread_info->thread_id == XThread::GetCurrentThreadId()) {
       // Can't suspend ourselves.
       continue;
     }
@@ -244,9 +242,9 @@ bool Debugger::SuspendAllThreads() {
   return true;
 }
 
-bool Debugger::ResumeThread(uint32_t thread_handle) {
+bool Debugger::ResumeThread(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = thread_execution_infos_.find(thread_handle);
+  auto it = thread_execution_infos_.find(thread_id);
   if (it == thread_execution_infos_.end()) {
     return false;
   }
@@ -273,8 +271,7 @@ bool Debugger::ResumeAllThreads() {
       // Thread is a host thread, and we aren't suspending those (for now).
       continue;
     } else if (XThread::IsInThread() &&
-               thread_info->thread_handle ==
-                   XThread::GetCurrentThreadHandle()) {
+               thread_info->thread_id == XThread::GetCurrentThreadId()) {
       // Can't resume ourselves.
       continue;
     }
@@ -285,7 +282,7 @@ bool Debugger::ResumeAllThreads() {
   return true;
 }
 
-void Debugger::UpdateThreadExecutionStates(uint32_t override_handle,
+void Debugger::UpdateThreadExecutionStates(uint32_t override_thread_id,
                                            X64Context* override_context) {
   auto global_lock = global_critical_region_.Acquire();
   auto stack_walker = emulator_->processor()->stack_walker();
@@ -310,7 +307,7 @@ void Debugger::UpdateThreadExecutionStates(uint32_t override_handle,
     // Grab stack trace and X64 context then resolve all symbols.
     uint64_t hash;
     X64Context* in_host_context = nullptr;
-    if (override_handle == thread_info->thread_handle) {
+    if (override_thread_id == thread_info->thread_id) {
       // If we were passed an override context we use that. Otherwise, ask the
       // stack walker for a new context.
       in_host_context = override_context;
@@ -392,12 +389,12 @@ void Debugger::Continue() {
   }
 }
 
-void Debugger::StepGuestInstruction(uint32_t thread_handle) {
+void Debugger::StepGuestInstruction(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
   assert_true(execution_state_ == ExecutionState::kPaused);
   execution_state_ = ExecutionState::kStepping;
 
-  auto thread_info = thread_execution_infos_[thread_handle].get();
+  auto thread_info = thread_execution_infos_[thread_id].get();
 
   uint32_t next_pc = CalculateNextGuestInstruction(
       thread_info, thread_info->frames[0].guest_pc);
@@ -409,15 +406,15 @@ void Debugger::StepGuestInstruction(uint32_t thread_handle) {
   thread_info->step_breakpoint->Resume();
 
   // ResumeAllBreakpoints();
-  ResumeThread(thread_handle);
+  ResumeThread(thread_id);
 }
 
-void Debugger::StepHostInstruction(uint32_t thread_handle) {
+void Debugger::StepHostInstruction(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
   assert_true(execution_state_ == ExecutionState::kPaused);
   execution_state_ = ExecutionState::kStepping;
 
-  auto thread_info = thread_execution_infos_[thread_handle].get();
+  auto thread_info = thread_execution_infos_[thread_id].get();
   uint64_t new_host_pc =
       CalculateNextHostInstruction(thread_info, thread_info->frames[0].host_pc);
 
@@ -428,23 +425,24 @@ void Debugger::StepHostInstruction(uint32_t thread_handle) {
   thread_info->step_breakpoint->Resume();
 
   // ResumeAllBreakpoints();
-  ResumeThread(thread_handle);
+  ResumeThread(thread_id);
 }
 
 void Debugger::OnThreadCreated(XThread* thread) {
   auto global_lock = global_critical_region_.Acquire();
   auto thread_info = std::make_unique<ThreadExecutionInfo>();
   thread_info->thread_handle = thread->handle();
+  thread_info->thread_id = thread->thread_id();
   thread_info->thread = thread;
   thread_info->state = ThreadExecutionInfo::State::kAlive;
   thread_info->suspended = false;
-  thread_execution_infos_.emplace(thread_info->thread_handle,
+  thread_execution_infos_.emplace(thread_info->thread_id,
                                   std::move(thread_info));
 }
 
 void Debugger::OnThreadExit(XThread* thread) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = thread_execution_infos_.find(thread->handle());
+  auto it = thread_execution_infos_.find(thread->thread_id());
   assert_true(it != thread_execution_infos_.end());
   auto thread_info = it->second.get();
   thread_info->state = ThreadExecutionInfo::State::kExited;
@@ -452,7 +450,7 @@ void Debugger::OnThreadExit(XThread* thread) {
 
 void Debugger::OnThreadDestroyed(XThread* thread) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = thread_execution_infos_.find(thread->handle());
+  auto it = thread_execution_infos_.find(thread->thread_id());
   assert_true(it != thread_execution_infos_.end());
   auto thread_info = it->second.get();
   // TODO(benvanik): retain the thread?
@@ -462,7 +460,7 @@ void Debugger::OnThreadDestroyed(XThread* thread) {
 
 void Debugger::OnThreadEnteringWait(XThread* thread) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = thread_execution_infos_.find(thread->handle());
+  auto it = thread_execution_infos_.find(thread->thread_id());
   assert_true(it != thread_execution_infos_.end());
   auto thread_info = it->second.get();
   thread_info->state = ThreadExecutionInfo::State::kWaiting;
@@ -470,7 +468,7 @@ void Debugger::OnThreadEnteringWait(XThread* thread) {
 
 void Debugger::OnThreadLeavingWait(XThread* thread) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = thread_execution_infos_.find(thread->handle());
+  auto it = thread_execution_infos_.find(thread->thread_id());
   assert_true(it != thread_execution_infos_.end());
   auto thread_info = it->second.get();
   if (thread_info->state == ThreadExecutionInfo::State::kWaiting) {
@@ -531,7 +529,7 @@ bool Debugger::ExceptionCallback(Exception* ex) {
   SuspendAllThreads();
 
   // Lookup thread info block.
-  auto it = thread_execution_infos_.find(XThread::GetCurrentThreadHandle());
+  auto it = thread_execution_infos_.find(XThread::GetCurrentThreadId());
   if (it == thread_execution_infos_.end()) {
     // Not found - exception on a thread we don't know about?
     assert_always("UD2 on a thread we don't track");
@@ -548,7 +546,7 @@ bool Debugger::ExceptionCallback(Exception* ex) {
   // Update all thread states with their latest values, using the context we got
   // from the exception instead of a sampled value (as it would just show the
   // exception handler).
-  UpdateThreadExecutionStates(thread_info->thread_handle, ex->thread_context());
+  UpdateThreadExecutionStates(thread_info->thread_id, ex->thread_context());
 
   // Whether we should block waiting for a continue event.
   bool wait_for_continue = false;
@@ -673,7 +671,7 @@ bool Debugger::OnUnhandledException(Exception* ex) {
   // Suspend all guest threads (but this one).
   SuspendAllThreads();
 
-  UpdateThreadExecutionStates(XThread::GetCurrentThreadHandle(),
+  UpdateThreadExecutionStates(XThread::GetCurrentThreadId(),
                               ex->thread_context());
 
   // Stop and notify the listener.

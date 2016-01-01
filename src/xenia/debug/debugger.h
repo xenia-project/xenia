@@ -74,7 +74,10 @@ struct ThreadExecutionInfo {
     kZombie,
   };
 
+  // XThread::thread_id(), unique to the thread for the run of the emulator.
+  uint32_t thread_id = 0;
   // XThread::handle() of the thread.
+  // This will be invalidated when the thread dies.
   uint32_t thread_handle = 0;
   // Target XThread, if it has not been destroyed.
   // TODO(benvanik): hold a ref here to keep zombie threads around?
@@ -203,7 +206,7 @@ class Debugger {
   // the kernel.
   std::vector<ThreadExecutionInfo*> QueryThreadExecutionInfos();
   // Returns the debugger info for the given thread.
-  ThreadExecutionInfo* QueryThreadExecutionInfo(uint32_t thread_handle);
+  ThreadExecutionInfo* QueryThreadExecutionInfo(uint32_t thread_id);
 
   // Adds a breakpoint to the debugger and activates it (if enabled).
   // The given breakpoint will not be owned by the debugger and must remain
@@ -230,10 +233,10 @@ class Debugger {
 
   // Steps the given thread a single PPC guest instruction.
   // If the step is over a branch the branch will be followed.
-  void StepGuestInstruction(uint32_t thread_handle);
+  void StepGuestInstruction(uint32_t thread_id);
   // Steps the given thread a single x64 host instruction.
   // If the step is over a branch the branch will be followed.
-  void StepHostInstruction(uint32_t thread_handle);
+  void StepHostInstruction(uint32_t thread_id);
 
  public:
   // TODO(benvanik): hide.
@@ -254,7 +257,7 @@ class Debugger {
   // Suspends all known threads (except the caller).
   bool SuspendAllThreads();
   // Resumes the given thread.
-  bool ResumeThread(uint32_t thread_handle);
+  bool ResumeThread(uint32_t thread_id);
   // Resumes all known threads (except the caller).
   bool ResumeAllThreads();
   // Updates all cached thread execution info (state, call stacks, etc).

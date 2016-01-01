@@ -69,8 +69,8 @@ class DebugWindow : public DebugListener {
   void DrawBreakpointsPane();
   void DrawLogPane();
 
-  void SelectThreadStackFrame(kernel::XThread* thread, size_t stack_frame_index,
-                              bool always_navigate);
+  void SelectThreadStackFrame(ThreadExecutionInfo* thread_info,
+                              size_t stack_frame_index, bool always_navigate);
   void NavigateToFunction(cpu::Function* function, uint32_t guest_pc = 0,
                           uint64_t host_pc = 0);
   // void NavigateToMemory(uint64_t address, uint64_t length = 0);
@@ -117,7 +117,6 @@ class DebugWindow : public DebugListener {
     static const int kRightPaneMemory = 1;
     int right_pane_tab = kRightPaneThreads;
 
-    xe::kernel::XThread* thread = nullptr;
     ThreadExecutionInfo* thread_info = nullptr;
     size_t thread_stack_frame_index = 0;
     bool has_changed_thread = false;

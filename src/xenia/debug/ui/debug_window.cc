@@ -293,8 +293,8 @@ void DebugWindow::DrawToolbar() {
   if (ImGui::Combo("##thread_combo", &current_thread_index,
                    thread_combo.GetString(), 10)) {
     // Thread changed.
-    SelectThreadStackFrame(
-        cache_.thread_execution_infos[current_thread_index]->thread, 0, true);
+    SelectThreadStackFrame(cache_.thread_execution_infos[current_thread_index],
+                           0, true);
   }
 }
 
@@ -347,12 +347,12 @@ void DebugWindow::DrawSourcePane() {
 
   ImGui::BeginGroup();
   ImGui::PushButtonRepeat(true);
-  bool can_step = !cache_.is_running && state_.thread;
+  bool can_step = !cache_.is_running && state_.thread_info;
   if (ImGui::ButtonEx("Step PPC", ImVec2(0, 0),
                       can_step ? 0 : ImGuiButtonFlags_Disabled)) {
     // By enabling the button when stepping we allow repeat behavior.
     if (debugger_->execution_state() != ExecutionState::kStepping) {
-      debugger_->StepGuestInstruction(state_.thread->handle());
+      debugger_->StepGuestInstruction(state_.thread_info->thread_id);
     }
   }
   ImGui::PopButtonRepeat();
@@ -370,7 +370,7 @@ void DebugWindow::DrawSourcePane() {
                         can_step ? 0 : ImGuiButtonFlags_Disabled)) {
       // By enabling the button when stepping we allow repeat behavior.
       if (debugger_->execution_state() != ExecutionState::kStepping) {
-        debugger_->StepHostInstruction(state_.thread->handle());
+        debugger_->StepHostInstruction(state_.thread_info->thread_id);
       }
     }
     ImGui::PopButtonRepeat();
@@ -993,8 +993,8 @@ void DebugWindow::DrawThreadsPane() {
   ImGui::BeginChild("##threads_listing");
   for (size_t i = 0; i < cache_.thread_execution_infos.size(); ++i) {
     auto thread_info = cache_.thread_execution_infos[i];
+    bool is_current_thread = thread_info == state_.thread_info;
     auto thread = thread_info->thread;
-    bool is_current_thread = thread == state_.thread;
     if (!thread) {
       // TODO(benvanik): better display of zombie thread states.
       continue;
@@ -1009,7 +1009,7 @@ void DebugWindow::DrawThreadsPane() {
       ImGui::PushStyleColor(ImGuiCol_Header,
                             ImGui::GetStyle().Colors[ImGuiCol_HeaderActive]);
     }
-    ImGui::PushID(thread);
+    ImGui::PushID(thread_info);
     if (is_current_thread) {
       ImGui::SetNextTreeNodeOpened(true, ImGuiSetCond_Always);
     }
@@ -1049,7 +1049,7 @@ void DebugWindow::DrawThreadsPane() {
                       frame.host_pc, &frame);
         if (ImGui::Selectable(host_label, is_current_frame,
                               ImGuiSelectableFlags_SpanAllColumns)) {
-          SelectThreadStackFrame(thread, j, true);
+          SelectThreadStackFrame(thread_info, j, true);
         }
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(8, 0));
@@ -1386,21 +1386,13 @@ void DebugWindow::DrawLogPane() {
   //   if big, click to open dialog with contents
 }
 
-void DebugWindow::SelectThreadStackFrame(XThread* thread,
+void DebugWindow::SelectThreadStackFrame(ThreadExecutionInfo* thread_info,
                                          size_t stack_frame_index,
                                          bool always_navigate) {
   state_.has_changed_thread = false;
-  if (thread != state_.thread) {
+  if (thread_info != state_.thread_info) {
     state_.has_changed_thread = true;
-    state_.thread = thread;
-
-    state_.thread_info = nullptr;
-    for (auto thread_info : cache_.thread_execution_infos) {
-      if (thread_info->thread == thread) {
-        state_.thread_info = thread_info;
-        break;
-      }
-    }
+    state_.thread_info = thread_info;
   }
   if (state_.thread_info) {
     stack_frame_index =
@@ -1469,7 +1461,8 @@ void DebugWindow::UpdateCache() {
 
   cache_.thread_execution_infos = debugger_->QueryThreadExecutionInfos();
 
-  SelectThreadStackFrame(state_.thread, state_.thread_stack_frame_index, false);
+  SelectThreadStackFrame(state_.thread_info, state_.thread_stack_frame_index,
+                         false);
 }
 
 void DebugWindow::CreateCodeBreakpoint(CodeBreakpoint::AddressType address_type,
@@ -1582,14 +1575,16 @@ void DebugWindow::OnExecutionEnded() {
 
 void DebugWindow::OnStepCompleted(xe::kernel::XThread* thread) {
   UpdateCache();
-  SelectThreadStackFrame(thread, 0, true);
+  auto thread_info = debugger_->QueryThreadExecutionInfo(thread->thread_id());
+  SelectThreadStackFrame(thread_info, 0, true);
   loop_->Post([this]() { window_->set_focus(true); });
 }
 
 void DebugWindow::OnBreakpointHit(Breakpoint* breakpoint,
                                   xe::kernel::XThread* thread) {
   UpdateCache();
-  SelectThreadStackFrame(thread, 0, true);
+  auto thread_info = debugger_->QueryThreadExecutionInfo(thread->thread_id());
+  SelectThreadStackFrame(thread_info, 0, true);
   loop_->Post([this]() { window_->set_focus(true); });
 }
 
