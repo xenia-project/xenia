@@ -11,6 +11,8 @@
 
 #include <gflags/gflags.h>
 
+#include <cinttypes>
+
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -317,7 +319,7 @@ void TraceViewer::DrawPacketDisassemblerUI() {
             if (packet_info.predicated) {
               ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
             }
-            ImGui::BulletText(packet_info.type_info->name);
+            ImGui::BulletText("%s", packet_info.type_info->name);
             ImGui::TreePush((const char*)0);
             for (auto action : packet_info.actions) {
               switch (action.type) {
@@ -338,11 +340,11 @@ void TraceViewer::DrawPacketDisassemblerUI() {
                   break;
                 }
                 case PacketAction::Type::kSetBinMask: {
-                  ImGui::Text("%.16llX", action.set_bin_mask.value);
+                  ImGui::Text("%.16" PRIX64, action.set_bin_mask.value);
                   break;
                 }
                 case PacketAction::Type::kSetBinSelect: {
-                  ImGui::Text("%.16llX", action.set_bin_select.value);
+                  ImGui::Text("%.16" PRIX64, action.set_bin_select.value);
                   break;
                 }
               }
@@ -707,6 +709,9 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
       case VertexFormat::k_32_32_32_32_FLOAT:
         column_count += 4;
         break;
+      case VertexFormat::kUndefined:
+        assert_unhandled_case(attrib.fetch_instr.attributes.data_format);
+        break;
     }
   }
   ImGui::BeginChild("#indices", ImVec2(0, 300));
@@ -724,30 +729,30 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
       switch (attrib.fetch_instr.attributes.data_format) {
         case VertexFormat::k_32:
         case VertexFormat::k_32_FLOAT:
-          ImGui::Text("e%d.x", el_index);
+          ImGui::Text("e%" PRId64 ".x", el_index);
           ImGui::NextColumn();
           break;
         case VertexFormat::k_16_16:
         case VertexFormat::k_16_16_FLOAT:
         case VertexFormat::k_32_32:
         case VertexFormat::k_32_32_FLOAT:
-          ImGui::Text("e%d.x", el_index);
+          ImGui::Text("e%" PRId64 ".x", el_index);
           ImGui::NextColumn();
-          ImGui::Text("e%d.y", el_index);
+          ImGui::Text("e%" PRId64 ".y", el_index);
           ImGui::NextColumn();
           break;
         case VertexFormat::k_10_11_11:
         case VertexFormat::k_11_11_10:
         case VertexFormat::k_32_32_32_FLOAT:
-          ImGui::Text("e%d.x", el_index);
+          ImGui::Text("e%" PRId64 ".x", el_index);
           ImGui::NextColumn();
-          ImGui::Text("e%d.y", el_index);
+          ImGui::Text("e%" PRId64 ".y", el_index);
           ImGui::NextColumn();
-          ImGui::Text("e%d.z", el_index);
+          ImGui::Text("e%" PRId64 ".z", el_index);
           ImGui::NextColumn();
           break;
         case VertexFormat::k_8_8_8_8:
-          ImGui::Text("e%d.xyzw", el_index);
+          ImGui::Text("e%" PRId64 ".xyzw", el_index);
           ImGui::NextColumn();
           break;
         case VertexFormat::k_2_10_10_10:
@@ -755,14 +760,17 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
         case VertexFormat::k_32_32_32_32:
         case VertexFormat::k_16_16_16_16_FLOAT:
         case VertexFormat::k_32_32_32_32_FLOAT:
-          ImGui::Text("e%d.x", el_index);
+          ImGui::Text("e%" PRId64 ".x", el_index);
           ImGui::NextColumn();
-          ImGui::Text("e%d.y", el_index);
+          ImGui::Text("e%" PRId64 ".y", el_index);
           ImGui::NextColumn();
-          ImGui::Text("e%d.z", el_index);
+          ImGui::Text("e%" PRId64 ".z", el_index);
           ImGui::NextColumn();
-          ImGui::Text("e%d.w", el_index);
+          ImGui::Text("e%" PRId64 ".w", el_index);
           ImGui::NextColumn();
+          break;
+        case VertexFormat::kUndefined:
+          assert_unhandled_case(attrib.fetch_instr.attributes.data_format);
           break;
       }
     }
@@ -864,6 +872,9 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::NextColumn();
           ImGui::Text("%.2f", LOADEL(float, 3));
           ImGui::NextColumn();
+          break;
+        case VertexFormat::kUndefined:
+          assert_unhandled_case(attrib.fetch_instr.attributes.data_format);
           break;
       }
     }

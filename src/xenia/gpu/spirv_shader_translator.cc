@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
+#include <cstring>
+
 namespace xe {
 namespace gpu {
 
@@ -23,7 +25,7 @@ void SpirvShaderTranslator::StartTranslation() {
   auto float_1_0 = e.MakeFloatConstant(1.0f);
   auto acos = e.CreateGlslStd450InstructionCall(
       spv::Decoration::Invariant, e.MakeFloatType(32), spv::GLSLstd450::Acos,
-      {{float_1_0}});
+      {float_1_0});
   e.MakeReturn(true);
 }
 
@@ -164,28 +166,22 @@ spv::Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
   // storage_addressing_mode
   switch (op.storage_source) {
     case InstructionStorageSource::kRegister:
-      //
-      op.storage_index;
+      // TODO(benvanik): op.storage_index
       break;
     case InstructionStorageSource::kConstantFloat:
-      //
-      op.storage_index;
+      // TODO(benvanik): op.storage_index
       break;
     case InstructionStorageSource::kConstantInt:
-      //
-      op.storage_index;
+      // TODO(benvanik): op.storage_index
       break;
     case InstructionStorageSource::kConstantBool:
-      //
-      op.storage_index;
+      // TODO(benvanik): op.storage_index
       break;
     case InstructionStorageSource::kVertexFetchConstant:
-      //
-      op.storage_index;
+      // TODO(benvanik): op.storage_index
       break;
     case InstructionStorageSource::kTextureFetchConstant:
-      //
-      op.storage_index;
+      // TODO(benvanik): op.storage_index
       break;
   }
 
@@ -217,25 +213,25 @@ void SpirvShaderTranslator::StoreToResult(spv::Id source_value_id,
   // storage_addressing_mode
   switch (result.storage_target) {
     case InstructionStorageTarget::kRegister:
-      //
-      result.storage_index;
+      // TODO(benvanik): result.storage_index
       break;
     case InstructionStorageTarget::kInterpolant:
-      //
-      result.storage_index;
+      // TODO(benvanik): result.storage_index
       break;
     case InstructionStorageTarget::kPosition:
-      //
+      // TODO(benvanik): result.storage_index
       break;
     case InstructionStorageTarget::kPointSize:
-      //
+      // TODO(benvanik): result.storage_index
       break;
     case InstructionStorageTarget::kColorTarget:
-      //
-      result.storage_index;
+      // TODO(benvanik): result.storage_index
       break;
     case InstructionStorageTarget::kDepth:
-      //
+      // TODO(benvanik): result.storage_index
+      break;
+    case InstructionStorageTarget::kNone:
+      assert_unhandled_case(result.storage_target);
       break;
   }
 

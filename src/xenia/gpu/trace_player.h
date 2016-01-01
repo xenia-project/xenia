@@ -59,7 +59,7 @@ class TracePlayer : public TraceReader {
   int current_frame_index_;
   int current_command_index_;
   bool playing_trace_ = false;
-  std::atomic<uint32_t> playback_percent_ = 0;
+  std::atomic<uint32_t> playback_percent_ = {0};
   std::unique_ptr<xe::threading::Event> playback_event_;
 };
 

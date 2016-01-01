@@ -127,8 +127,9 @@ void TraceReader::ParseTrace() {
             last_ptr = trace_ptr;
             break;
           }
-          case PacketCategory::kSwap: {
-            //
+          case PacketCategory::kSwap:
+          case PacketCategory::kGeneric: {
+            // Ignored.
             break;
           }
         }

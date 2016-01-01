@@ -9,11 +9,12 @@
 
 #include "xenia/gpu/trace_writer.h"
 
+#include <cstring>
+
 #include "third_party/snappy/snappy-sinksource.h"
 #include "third_party/snappy/snappy.h"
 
 #include "build/version.h"
-
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
