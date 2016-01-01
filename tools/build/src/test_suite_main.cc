@@ -9,7 +9,7 @@
 
 #include <gflags/gflags.h>
 
-#include <codecvt>
+#include <cstdlib>
 #include <cstring>
 #include <locale>
 #include <string>
@@ -33,7 +33,7 @@ int main(int argc, wchar_t* argv[]) {
   for (int n = 0; n < argca; n++) {
     size_t len = wcslen(argv[n]);
     argva[n] = (char*)alloca(len + 1);
-    wcstombs_s(nullptr, argva[n], len + 1, argv[n], _TRUNCATE);
+    std::wcstombs(argva[n], argv[n], len + 1);
   }
 
   // Parse flags; this may delete some of them.
