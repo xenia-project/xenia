@@ -832,7 +832,7 @@ dword_result_t KeWaitForSingleObject(lpvoid_t object_ptr, dword_t wait_reason,
     return X_STATUS_ABANDONED_WAIT_0;
   }
 
-  uint64_t timeout = timeout_ptr ? static_cast<uint32_t>(*timeout_ptr) : 0u;
+  uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   X_STATUS result = object->Wait(wait_reason, processor_mode, alertable,
                                  timeout_ptr ? &timeout : nullptr);
 
@@ -850,7 +850,7 @@ dword_result_t NtWaitForSingleObjectEx(dword_t object_handle, dword_t wait_mode,
   auto object =
       kernel_state()->object_table()->LookupObject<XObject>(object_handle);
   if (object) {
-    uint64_t timeout = timeout_ptr ? static_cast<uint32_t>(*timeout_ptr) : 0u;
+    uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result =
         object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
   } else {
@@ -885,7 +885,7 @@ dword_result_t KeWaitForMultipleObjects(dword_t count, lpdword_t objects_ptr,
     objects.push_back(std::move(object_ref));
   }
 
-  uint64_t timeout = timeout_ptr ? static_cast<uint32_t>(*timeout_ptr) : 0u;
+  uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   result = XObject::WaitMultiple(uint32_t(objects.size()),
                                  reinterpret_cast<XObject**>(objects.data()),
                                  wait_type, wait_reason, processor_mode,
@@ -915,7 +915,7 @@ dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
     objects.push_back(std::move(object));
   }
 
-  uint64_t timeout = timeout_ptr ? uint64_t(*timeout_ptr) : 0;
+  uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   result = XObject::WaitMultiple(
       count, reinterpret_cast<XObject**>(objects.data()), wait_type, 6,
       wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
@@ -937,7 +937,7 @@ dword_result_t NtSignalAndWaitForSingleObjectEx(dword_t signal_handle,
   auto wait_object =
       kernel_state()->object_table()->LookupObject<XObject>(wait_handle);
   if (signal_object && wait_object) {
-    uint64_t timeout = timeout_ptr ? static_cast<uint32_t>(*timeout_ptr) : 0u;
+    uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result =
         XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1,
                                alertable, timeout_ptr ? &timeout : nullptr);
