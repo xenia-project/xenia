@@ -76,7 +76,7 @@ build:
 
 # scripts to run after build
 after_build:
-  - 7z a xenia-%appveyor_repo_branch%-%appveyor_repo_commit%.zip %APPVEYOR_BUILD_FOLDER%\build\bin\Windows\Release\xenia.exe
+  - 7z a xenia-%appveyor_repo_branch%-%appveyor_repo_commit%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\Windows\Release\xenia.exe
 
 # to run your custom scripts instead of automatic MSBuild
 #build_script:

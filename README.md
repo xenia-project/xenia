@@ -87,4 +87,5 @@ For more see the main [frequently asked questions](http://xenia.jp/faq/) page.
 
 ### Can I get an exe?
 
-Not yet.
+Check the [Releases](https://github.com/benvanik/xenia/releases) tab to see
+what's there. Updated irregularly.
