@@ -14,6 +14,9 @@ includedirs({
 defines({
   "_UNICODE",
   "UNICODE",
+
+  -- TODO(benvanik): find a better place for this stuff.
+  "GLEW_NO_GLU=1",
 })
 
 vectorextensions("AVX")

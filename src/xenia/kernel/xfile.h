@@ -107,7 +107,7 @@ class XFile : public XObject {
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
 
-  bool Save(ByteStream* stream);
+  bool Save(ByteStream* stream) override;
   static object_ref<XFile> Restore(KernelState* kernel_state,
                                    ByteStream* stream);
 

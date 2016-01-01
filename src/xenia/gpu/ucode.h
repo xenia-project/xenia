@@ -147,83 +147,75 @@ enum class AllocType : uint32_t {
 // Instruction data for ControlFlowOpcode::kExec and kExecEnd.
 struct ControlFlowExecInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Address of the instructions to execute.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Number of instructions being executed.
-  uint32_t count() const { return data_.count; }
+  uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction, indicating whether ALU or fetch.
-  uint32_t sequence() const { return data_.serialize; }
+  uint32_t sequence() const { return serialize_; }
   // Whether to reset the current predicate.
-  bool clean() const { return data_.clean == 1; }
+  bool clean() const { return clean_ == 1; }
   // ?
-  bool is_yield() const { return data_.is_yeild == 1; }
+  bool is_yield() const { return is_yeild_ == 1; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 12;
-      uint32_t count : 3;
-      uint32_t is_yeild : 1;
-      uint32_t serialize : 12;
-      uint32_t vc_hi : 4;  // Vertex cache?
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t vc_lo : 2;
-      uint32_t unused_0 : 7;
-      uint32_t clean : 1;
-      uint32_t unused_1 : 1;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 12;
+  uint32_t count_ : 3;
+  uint32_t is_yeild_ : 1;
+  uint32_t serialize_ : 12;
+  uint32_t vc_hi_ : 4;  // Vertex cache?
+
+  // Word 1: (16 bits)
+  uint32_t vc_lo_ : 2;
+  uint32_t : 7;
+  uint32_t clean_ : 1;
+  uint32_t : 1;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowExecInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondExec and kCondExecEnd.
 struct ControlFlowCondExecInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Address of the instructions to execute.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Number of instructions being executed.
-  uint32_t count() const { return data_.count; }
+  uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction, indicating whether ALU or fetch.
-  uint32_t sequence() const { return data_.serialize; }
+  uint32_t sequence() const { return serialize_; }
   // Constant index used as the conditional.
-  uint32_t bool_address() const { return data_.bool_address; }
+  uint32_t bool_address() const { return bool_address_; }
   // Required condition value of the comparision (true or false).
-  bool condition() const { return data_.condition == 1; }
+  bool condition() const { return condition_ == 1; }
   // ?
-  bool is_yield() const { return data_.is_yeild == 1; }
+  bool is_yield() const { return is_yeild_ == 1; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 12;
-      uint32_t count : 3;
-      uint32_t is_yeild : 1;
-      uint32_t serialize : 12;
-      uint32_t vc_hi : 4;  // Vertex cache?
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t vc_lo : 2;
-      uint32_t bool_address : 8;
-      uint32_t condition : 1;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 12;
+  uint32_t count_ : 3;
+  uint32_t is_yeild_ : 1;
+  uint32_t serialize_ : 12;
+  uint32_t vc_hi_ : 4;  // Vertex cache?
+
+  // Word 1: (16 bits)
+  uint32_t vc_lo_ : 2;
+  uint32_t bool_address_ : 8;
+  uint32_t condition_ : 1;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowCondExecInstruction, 8);
 
@@ -231,247 +223,219 @@ static_assert_size(ControlFlowCondExecInstruction, 8);
 // kCondExecPredClean, kCondExecPredCleanEnd.
 struct ControlFlowCondExecPredInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Address of the instructions to execute.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Number of instructions being executed.
-  uint32_t count() const { return data_.count; }
+  uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction, indicating whether ALU or fetch.
-  uint32_t sequence() const { return data_.serialize; }
+  uint32_t sequence() const { return serialize_; }
   // Whether to reset the current predicate.
-  bool clean() const { return data_.clean == 1; }
+  bool clean() const { return clean_ == 1; }
   // Required condition value of the comparision (true or false).
-  bool condition() const { return data_.condition == 1; }
+  bool condition() const { return condition_ == 1; }
   // ?
-  bool is_yield() const { return data_.is_yeild == 1; }
+  bool is_yield() const { return is_yeild_ == 1; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 12;
-      uint32_t count : 3;
-      uint32_t is_yeild : 1;
-      uint32_t serialize : 12;
-      uint32_t vc_hi : 4;  // Vertex cache?
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t vc_lo : 2;
-      uint32_t unused_0 : 7;
-      uint32_t clean : 1;
-      uint32_t condition : 1;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 12;
+  uint32_t count_ : 3;
+  uint32_t is_yeild_ : 1;
+  uint32_t serialize_ : 12;
+  uint32_t vc_hi_ : 4;  // Vertex cache?
+
+  // Word 1: (16 bits)
+  uint32_t vc_lo_ : 2;
+  uint32_t : 7;
+  uint32_t clean_ : 1;
+  uint32_t condition_ : 1;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowCondExecPredInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kLoopStart.
 struct ControlFlowLoopStartInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Target address to jump to when skipping the loop.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Whether to reuse the current aL instead of reset it to loop start.
-  bool is_repeat() const { return data_.is_repeat; }
+  bool is_repeat() const { return is_repeat_; }
   // Integer constant register that holds the loop parameters.
   // Byte-wise: [loop count, start, step [-128, 127], ?]
-  uint32_t loop_id() const { return data_.loop_id; }
+  uint32_t loop_id() const { return loop_id_; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 13;
-      uint32_t is_repeat : 1;
-      uint32_t unused_0 : 2;
-      uint32_t loop_id : 5;
-      uint32_t unused_1 : 11;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t unused_2 : 11;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 13;
+  uint32_t is_repeat_ : 1;
+  uint32_t : 2;
+  uint32_t loop_id_ : 5;
+  uint32_t : 11;
+
+  // Word 1: (16 bits)
+  uint32_t : 11;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowLoopStartInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kLoopEnd.
 struct ControlFlowLoopEndInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Target address of the start of the loop body.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Integer constant register that holds the loop parameters.
   // Byte-wise: [loop count, start, step [-128, 127], ?]
-  uint32_t loop_id() const { return data_.loop_id; }
+  uint32_t loop_id() const { return loop_id_; }
   // Break from the loop if the predicate matches the expected value.
-  bool is_predicated_break() const { return data_.is_predicated_break; }
+  bool is_predicated_break() const { return is_predicated_break_; }
   // Required condition value of the comparision (true or false).
-  bool condition() const { return data_.condition == 1; }
+  bool condition() const { return condition_ == 1; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 13;
-      uint32_t unused_0 : 3;
-      uint32_t loop_id : 5;
-      uint32_t is_predicated_break : 1;
-      uint32_t unused_1 : 10;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t unused_2 : 10;
-      uint32_t condition : 1;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 13;
+  uint32_t : 3;
+  uint32_t loop_id_ : 5;
+  uint32_t is_predicated_break_ : 1;
+  uint32_t : 10;
+
+  // Word 1: (16 bits)
+  uint32_t : 10;
+  uint32_t condition_ : 1;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowLoopEndInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondCall.
 struct ControlFlowCondCallInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Target address.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Unconditional call - ignores condition/predication.
-  bool is_unconditional() const { return data_.is_unconditional; }
+  bool is_unconditional() const { return is_unconditional_; }
   // Whether the call is predicated (or conditional).
-  bool is_predicated() const { return data_.is_predicated; }
+  bool is_predicated() const { return is_predicated_; }
   // Constant index used as the conditional.
-  uint32_t bool_address() const { return data_.bool_address; }
+  uint32_t bool_address() const { return bool_address_; }
   // Required condition value of the comparision (true or false).
-  bool condition() const { return data_.condition == 1; }
+  bool condition() const { return condition_ == 1; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 13;
-      uint32_t is_unconditional : 1;
-      uint32_t is_predicated : 1;
-      uint32_t unused_0 : 17;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t unused_1 : 2;
-      uint32_t bool_address : 8;
-      uint32_t condition : 1;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 13;
+  uint32_t is_unconditional_ : 1;
+  uint32_t is_predicated_ : 1;
+  uint32_t : 17;
+
+  // Word 1: (16 bits)
+  uint32_t : 2;
+  uint32_t bool_address_ : 8;
+  uint32_t condition_ : 1;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowCondCallInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kReturn.
 struct ControlFlowReturnInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    uint32_t unused_0;
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t unused_1 : 11;
-      AddressingMode address_mode : 1;
-      ControlFlowOpcode opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t : 32;
+
+  // Word 1: (16 bits)
+  uint32_t : 11;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowReturnInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondJmp.
 struct ControlFlowCondJmpInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(data_.address_mode);
+    return static_cast<AddressingMode>(address_mode_);
   }
   // Target address.
-  uint32_t address() const { return data_.address; }
+  uint32_t address() const { return address_; }
   // Unconditional jump - ignores condition/predication.
-  bool is_unconditional() const { return data_.is_unconditional; }
+  bool is_unconditional() const { return is_unconditional_; }
   // Whether the jump is predicated (or conditional).
-  bool is_predicated() const { return data_.is_predicated; }
+  bool is_predicated() const { return is_predicated_; }
   // Constant index used as the conditional.
-  uint32_t bool_address() const { return data_.bool_address; }
+  uint32_t bool_address() const { return bool_address_; }
   // Required condition value of the comparision (true or false).
-  bool condition() const { return data_.condition == 1; }
+  bool condition() const { return condition_ == 1; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t address : 13;
-      uint32_t is_unconditional : 1;
-      uint32_t is_predicated : 1;
-      uint32_t unused_0 : 17;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t unused_1 : 1;
-      uint32_t direction : 1;
-      uint32_t bool_address : 8;
-      uint32_t condition : 1;
-      uint32_t address_mode : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t address_ : 13;
+  uint32_t is_unconditional_ : 1;
+  uint32_t is_predicated_ : 1;
+  uint32_t : 17;
+
+  // Word 1: (16 bits)
+  uint32_t : 1;
+  uint32_t direction_ : 1;
+  uint32_t bool_address_ : 8;
+  uint32_t condition_ : 1;
+  uint32_t address_mode_ : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowCondJmpInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kAlloc.
 struct ControlFlowAllocInstruction {
   ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(data_.opcode);
+    return static_cast<ControlFlowOpcode>(opcode_);
   }
   // The total number of the given type allocated by this instruction.
-  uint32_t size() const { return data_.size; }
+  uint32_t size() const { return size_; }
   // Unconditional jump - ignores condition/predication.
-  AllocType alloc_type() const {
-    return static_cast<AllocType>(data_.alloc_type);
-  }
+  AllocType alloc_type() const { return static_cast<AllocType>(alloc_type_); }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t size : 3;
-      uint32_t unused_0 : 29;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
-      uint32_t unused_1 : 8;
-      uint32_t is_unserialized : 1;
-      uint32_t alloc_type : 2;
-      uint32_t unused_2 : 1;
-      uint32_t opcode : 4;
-    });
-  });
-  Data data_;
+  // Word 0: (32 bits)
+  uint32_t size_ : 3;
+  uint32_t : 29;
+
+  // Word 1: (16 bits)
+  uint32_t : 8;
+  uint32_t is_unserialized_ : 1;
+  uint32_t alloc_type_ : 2;
+  uint32_t : 1;
+  uint32_t opcode_ : 4;
 };
 static_assert_size(ControlFlowAllocInstruction, 8);
 
