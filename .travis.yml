@@ -37,6 +37,9 @@ script:
   - ./xenia-build lint --all
   # Run style checker.
   #- ./xenia-build style
+  # Build and run our simple hello world test.
+  - ./xenia-build build --config=debug --target=xenia-base-tests
+  - ./build/bin/Linux/Debug/xenia-base-tests
   # Build all of xenia.
   #- ./xenia-build build --config=debug
   # All tests (without haswell support).
