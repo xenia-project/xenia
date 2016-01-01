@@ -869,9 +869,17 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
   // IAT              Import Address Table ptr
   // opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
 
+// The macros in pe_image.h don't work with clang, for some reason.
+// offsetof seems to be unable to find OptionalHeader.
+#define offsetof1(type, member) ((std::size_t) & (((type*)0)->member))
+#define IMAGE_FIRST_SECTION1(ntheader)                                   \
+  ((PIMAGE_SECTION_HEADER)(                                              \
+      (uint8_t*)ntheader + offsetof1(IMAGE_NT_HEADERS, OptionalHeader) + \
+      ((PIMAGE_NT_HEADERS)(ntheader))->FileHeader.SizeOfOptionalHeader))
+
   // Quick scan to determine bounds of sections.
   size_t upper_address = 0;
-  const IMAGE_SECTION_HEADER* sechdr = IMAGE_FIRST_SECTION(nthdr);
+  const IMAGE_SECTION_HEADER* sechdr = IMAGE_FIRST_SECTION1(nthdr);
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
     const size_t physical_address = opthdr->ImageBase + sechdr->VirtualAddress;
     upper_address =
@@ -879,7 +887,7 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
   }
 
   // Setup/load sections.
-  sechdr = IMAGE_FIRST_SECTION(nthdr);
+  sechdr = IMAGE_FIRST_SECTION1(nthdr);
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
     PESection* section = (PESection*)calloc(1, sizeof(PESection));
     memcpy(section->name, sechdr->Name, sizeof(sechdr->Name));

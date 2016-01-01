@@ -323,7 +323,8 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
 void AppendParam(StringBuffer* string_buffer,
                  pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg) {
   string_buffer->AppendFormat("%.8X(%.8X, %.8X)", reg.guest_address(),
-                              reg->notification_routine, reg->priority);
+                              static_cast<uint32_t>(reg->notification_routine),
+                              static_cast<uint32_t>(reg->priority));
 }
 
 void ExRegisterTitleTerminateNotification(

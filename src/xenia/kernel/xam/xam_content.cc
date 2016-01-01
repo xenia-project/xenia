@@ -182,7 +182,9 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
 
   // Get all content data.
   auto content_datas = kernel_state()->content_manager()->ListContent(
-      device_id ? device_id : dummy_device_info_.device_id, content_type);
+      device_id ? static_cast<uint32_t>(device_id)
+                : dummy_device_info_.device_id,
+      content_type);
   for (auto& content_data : content_datas) {
     auto ptr = e->AppendItem();
     if (!ptr) {

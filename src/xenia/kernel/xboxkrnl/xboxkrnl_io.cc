@@ -196,9 +196,10 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
     if (true || file->is_synchronous()) {
       // Synchronous.
       size_t bytes_read = 0;
-      result = file->Read(buffer, buffer_length,
-                          byte_offset_ptr ? *byte_offset_ptr : -1, &bytes_read,
-                          apc_context);
+      result = file->Read(
+          buffer, buffer_length,
+          byte_offset_ptr ? static_cast<uint32_t>(*byte_offset_ptr) : -1u,
+          &bytes_read, apc_context);
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = static_cast<uint32_t>(bytes_read);
@@ -210,8 +211,8 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       if ((uint32_t)apc_routine_ptr & ~1) {
         if (apc_context) {
           auto thread = XThread::GetCurrentThread();
-          thread->EnqueueApc((uint32_t)apc_routine_ptr & ~1, apc_context,
-                             io_status_block, 0);
+          thread->EnqueueApc(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
+                             apc_context, io_status_block, 0);
         }
       }
 
@@ -286,9 +287,10 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
     if (true || file->is_synchronous()) {
       // Synchronous request.
       size_t bytes_written = 0;
-      result = file->Write(buffer, buffer_length,
-                           byte_offset_ptr ? *byte_offset_ptr : -1,
-                           &bytes_written, apc_context);
+      result = file->Write(
+          buffer, buffer_length,
+          byte_offset_ptr ? static_cast<uint32_t>(*byte_offset_ptr) : -1u,
+          &bytes_written, apc_context);
       if (XSUCCEEDED(result)) {
         info = (int32_t)bytes_written;
       }
@@ -356,7 +358,7 @@ dword_result_t NtRemoveIoCompletion(
     status = X_STATUS_INVALID_HANDLE;
   }
 
-  uint64_t timeout_ticks = timeout ? *timeout : 0;
+  uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout) : 0u;
   if (port->WaitForNotification(timeout_ticks)) {
     auto notification = port->DequeueNotification();
     if (key_context) {

@@ -7,17 +7,13 @@ project("xenia-debug-ui")
   kind("StaticLib")
   language("C++")
   links({
-    "glew",
     "imgui",
     "xenia-base",
     "xenia-cpu",
     "xenia-debug",
     "xenia-ui",
-    "xenia-ui-gl",
   })
   defines({
-    "GLEW_STATIC=1",
-    "GLEW_MX=1",
   })
   includedirs({
     project_root.."/third_party/gflags/src",

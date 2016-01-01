@@ -21,7 +21,7 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-std::atomic<int> xam_dialogs_shown_ = 0;
+std::atomic<int> xam_dialogs_shown_ = {0};
 
 SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
                              KernelState* kernel_state) {
@@ -54,7 +54,7 @@ class MessageBoxDialog : public xe::ui::ImGuiDialog {
     }
     if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::Text(description_.c_str());
+      ImGui::Text("%s", description_.c_str());
       if (first_draw) {
         ImGui::SetKeyboardFocusHere();
       }
@@ -185,7 +185,7 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
     }
     if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::TextWrapped(description_.c_str());
+      ImGui::TextWrapped("%s", description_.c_str());
       if (first_draw) {
         ImGui::SetKeyboardFocusHere();
       }

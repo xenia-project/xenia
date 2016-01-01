@@ -16,6 +16,7 @@
 #include <string>
 
 #include "xenia/base/byte_order.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
@@ -29,7 +30,7 @@ namespace kernel {
 
 using PPCContext = xe::cpu::ppc::PPCContext;
 
-#define SHIM_CALL void _cdecl
+#define SHIM_CALL void __cdecl
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
   export_resolver->SetFunctionMapping(                         \
       library_name, ordinals::export_name,                     \
@@ -403,7 +404,7 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
   string_buffer.Append('(');
   AppendKernelCallParams(string_buffer, export_entry, params);
   string_buffer.Append(')');
-  if (export_entry->tags & ExportTag::kImportant) {
+  if (export_entry->tags & xe::cpu::ExportTag::kImportant) {
     xe::LogLine('i', string_buffer.GetString(), string_buffer.length());
   } else {
     xe::LogLine('d', string_buffer.GetString(), string_buffer.length());
@@ -418,9 +419,9 @@ auto KernelTrampoline(F&& f, Tuple&& t, std::index_sequence<I...>) {
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
 xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
-  static const auto export_entry =
-      new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
-                      tags | ExportTag::kImplemented | ExportTag::kLog);
+  static const auto export_entry = new cpu::Export(
+      ORDINAL, xe::cpu::Export::Type::kFunction, name,
+      tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
   static R (*FN)(Ps&...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
@@ -429,8 +430,8 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
           ppc_context, sizeof...(Ps), 0,
       };
       auto params = std::make_tuple<Ps...>(Ps(init)...);
-      if (export_entry->tags & ExportTag::kLog &&
-          (!(export_entry->tags & ExportTag::kHighFrequency) ||
+      if (export_entry->tags & xe::cpu::ExportTag::kLog &&
+          (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
            FLAGS_log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }
@@ -438,7 +439,8 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
           KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
                            std::make_index_sequence<sizeof...(Ps)>());
       result.Store(ppc_context);
-      if (export_entry->tags & (ExportTag::kLog | ExportTag::kLogResult)) {
+      if (export_entry->tags &
+          (xe::cpu::ExportTag::kLog | xe::cpu::ExportTag::kLogResult)) {
         // TODO(benvanik): log result.
       }
     }
@@ -450,9 +452,9 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename... Ps>
 xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
-  static const auto export_entry =
-      new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name,
-                      tags | ExportTag::kImplemented | ExportTag::kLog);
+  static const auto export_entry = new cpu::Export(
+      ORDINAL, xe::cpu::Export::Type::kFunction, name,
+      tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
   static void (*FN)(Ps&...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
@@ -461,8 +463,8 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
           ppc_context, sizeof...(Ps),
       };
       auto params = std::make_tuple<Ps...>(Ps(init)...);
-      if (export_entry->tags & ExportTag::kLog &&
-          (!(export_entry->tags & ExportTag::kHighFrequency) ||
+      if (export_entry->tags & xe::cpu::ExportTag::kLog &&
+          (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
            FLAGS_log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }

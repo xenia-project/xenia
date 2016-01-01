@@ -150,6 +150,8 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
       return XThread::Restore(kernel_state, stream);
     case kTypeTimer:
       break;
+    case kTypeUndefined:
+      break;
   }
 
   assert_always("No restore handler exists for this object!");

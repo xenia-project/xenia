@@ -64,7 +64,7 @@ class XStaticEnumerator : public XEnumerator {
     std::memcpy(buffer, buffer_.data(), item_count_ * item_size_);
   }
 
-  bool WriteItem(uint8_t* buffer) {
+  bool WriteItem(uint8_t* buffer) override {
     if (current_item_ >= item_count_) {
       return false;
     }
