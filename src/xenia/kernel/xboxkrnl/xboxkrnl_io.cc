@@ -198,7 +198,7 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       size_t bytes_read = 0;
       result = file->Read(
           buffer, buffer_length,
-          byte_offset_ptr ? static_cast<uint32_t>(*byte_offset_ptr) : -1u,
+          byte_offset_ptr ? static_cast<uint32_t>(*byte_offset_ptr) : -1,
           &bytes_read, apc_context);
       if (io_status_block) {
         io_status_block->status = result;
