@@ -77,7 +77,11 @@ inline T* AlignedAlloc(size_t alignment) {
 #if XE_COMPILER_MSVC
   return reinterpret_cast<T*>(_aligned_malloc(sizeof(T), alignment));
 #else
-  return reinterpret_cast<T*>(aligned_alloc(alignment, sizeof(T)));
+  void* ptr = nullptr;
+  if (posix_memalign(&ptr, alignment, sizeof(T))) {
+    return nullptr;
+  }
+  return reinterpret_cast<T*>(ptr);
 #endif  // XE_COMPILER_MSVC
 }
 
