@@ -422,7 +422,7 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
   static const auto export_entry = new cpu::Export(
       ORDINAL, xe::cpu::Export::Type::kFunction, name,
       tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
-  static R (*FN)(Ps&...) = fn;
+  static R (*FN)(Ps & ...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
       ++export_entry->function_data.call_count;
@@ -455,7 +455,7 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
   static const auto export_entry = new cpu::Export(
       ORDINAL, xe::cpu::Export::Type::kFunction, name,
       tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
-  static void (*FN)(Ps&...) = fn;
+  static void (*FN)(Ps & ...) = fn;
   struct X {
     static void Trampoline(PPCContext* ppc_context) {
       ++export_entry->function_data.call_count;

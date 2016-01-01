@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/xbox.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/cpu/processor.h"
@@ -18,7 +19,6 @@
 #include "xenia/kernel/xiocompletion.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/vfs/device.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

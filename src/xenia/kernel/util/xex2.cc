@@ -854,20 +854,20 @@ int xe_xex2_load_pe(xe_xex2_ref xex) {
     return 1;
   }
 
-  // Linker version - likely 8+
-  // Could be useful for recognizing certain patterns
-  // opthdr->MajorLinkerVersion; opthdr->MinorLinkerVersion;
+// Linker version - likely 8+
+// Could be useful for recognizing certain patterns
+// opthdr->MajorLinkerVersion; opthdr->MinorLinkerVersion;
 
-  // Data directories of interest:
-  // EXPORT           IMAGE_EXPORT_DIRECTORY
-  // IMPORT           IMAGE_IMPORT_DESCRIPTOR[]
-  // EXCEPTION        IMAGE_CE_RUNTIME_FUNCTION_ENTRY[]
-  // BASERELOC
-  // DEBUG            IMAGE_DEBUG_DIRECTORY[]
-  // ARCHITECTURE     /IMAGE_ARCHITECTURE_HEADER/ ----- import thunks!
-  // TLS              IMAGE_TLS_DIRECTORY
-  // IAT              Import Address Table ptr
-  // opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
+// Data directories of interest:
+// EXPORT           IMAGE_EXPORT_DIRECTORY
+// IMPORT           IMAGE_IMPORT_DESCRIPTOR[]
+// EXCEPTION        IMAGE_CE_RUNTIME_FUNCTION_ENTRY[]
+// BASERELOC
+// DEBUG            IMAGE_DEBUG_DIRECTORY[]
+// ARCHITECTURE     /IMAGE_ARCHITECTURE_HEADER/ ----- import thunks!
+// TLS              IMAGE_TLS_DIRECTORY
+// IAT              Import Address Table ptr
+// opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
 
 // The macros in pe_image.h don't work with clang, for some reason.
 // offsetof seems to be unable to find OptionalHeader.
