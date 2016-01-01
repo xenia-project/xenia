@@ -404,6 +404,7 @@ def discover_commands(subparsers):
       'lint': LintCommand(subparsers),
       'format': FormatCommand(subparsers),
       'style': StyleCommand(subparsers),
+      'tidy': TidyCommand(subparsers),
       }
   if sys.platform == 'win32':
     commands['devenv'] = DevenvCommand(subparsers)
@@ -1131,6 +1132,70 @@ class StyleCommand(Command):
       return 1
     else:
       print('Style linting completed successfully.')
+      return 0
+
+    return 0
+
+
+# TODO(benvanik): merge into linter, or as lint --anal?
+class TidyCommand(Command):
+  """'tidy' command."""
+
+  def __init__(self, subparsers, *args, **kwargs):
+    super(TidyCommand, self).__init__(
+        subparsers,
+        name='tidy',
+        help_short='Runs the clang-tiday checker on all code.',
+        *args, **kwargs)
+    self.parser.add_argument(
+        '--fix', action='store_true',
+        help='Applies suggested fixes, where possible.')
+
+  def execute(self, args, pass_args, cwd):
+    # Run premake to generate our compile_commands.json file for clang to use.
+    run_premake_export_commands()
+
+    platform_name = ''
+    if sys.platform == 'darwin':
+      platform_name = 'darwin'
+    elif sys.platform == 'win32':
+      platform_name = 'windows'
+    else:
+      platform_name = 'linux'
+    tool_root = 'build/llvm_tools/debug_%s' % (platform_name)
+
+    all_files = [file_path for file_path in find_all_source_files()
+                 if not file_path.endswith('_test.cc')]
+    # Tidy only likes .cc files.
+    all_files = [file_path for file_path in all_files
+                 if file_path.endswith('.cc')]
+
+    any_errors = False
+    for file in all_files:
+      print('- clang-tidy %s' % (file))
+      ret = shell_call([
+          'clang-tidy',
+          '-p', tool_root,
+          '-checks=' + ','.join([
+            'clang-analyzer-*',
+            'google-*',
+            'misc-*',
+            'modernize-*'
+            # TODO(benvanik): pick the ones we want - some are silly.
+            # 'readability-*',
+          ]),
+          ] + (['-fix'] if args['fix'] else []) + [
+          file,
+          ], throw_on_error=False)
+      if ret:
+        any_errors = True
+
+    print('')
+    if any_errors:
+      print('ERROR: 1+ clang-tidy calls failed.')
+      return 1
+    else:
+      print('Tidy completed successfully.')
       return 0
 
     return 0
