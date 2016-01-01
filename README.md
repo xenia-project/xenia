@@ -13,8 +13,11 @@ Discussing illegal activities will get you banned. No warnings.
 
 ## Status
 
-Buildbot:
-[![Build status](http://build.xenia.jp/png?builder=auto-builds)](http://build.xenia.jp/waterfall)
+Buildbot | Status
+-------- | ------
+[All](http://build.xenia.jp/waterfall) | [![Build status](http://build.xenia.jp/png?builder=auto-builds)](http://build.xenia.jp/waterfall)
+[Windows](https://ci.appveyor.com/project/benvanik/xenia/history) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/)
+[Linux](https://travis-ci.org/benvanik/xenia) | [![Build status](https://travis-ci.org/benvanik/xenia.svg)](https://travis-ci.org/benvanik/xenia)
 
 Some real games run. Most don't.
 See the [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues)
