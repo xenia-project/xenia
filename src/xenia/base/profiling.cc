@@ -46,8 +46,10 @@ DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
 
 namespace xe {
 
+#if XE_OPTION_PROFILING_UI
 ui::Window* Profiler::window_ = nullptr;
 std::unique_ptr<ui::MicroprofileDrawer> Profiler::drawer_ = nullptr;
+#endif  // XE_OPTION_PROFILING_UI
 
 #if XE_OPTION_PROFILING
 
