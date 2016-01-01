@@ -19,6 +19,7 @@
 #include "third_party/capstone/include/x86.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_internal.h"
+#include "third_party/yaml-cpp/include/yaml-cpp/yaml.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"

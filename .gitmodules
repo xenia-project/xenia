@@ -34,3 +34,6 @@
 [submodule "testdata/reference-gpu-traces"]
 	path = testdata/reference-gpu-traces
 	url = https://github.com/xenia-project/reference-gpu-traces.git
+[submodule "third_party/yaml-cpp"]
+	path = third_party/yaml-cpp
+	url = https://github.com/blair1618/yaml-cpp.git
