@@ -60,8 +60,8 @@ run premake for project files/etc.
 
 ## Building
 
-See [building.md](building.md) for setup and information about the
-`xb` script. When writing code, check the [style guide](style_guide.md)
+See [building.md](docs/building.md) for setup and information about the
+`xb` script. When writing code, check the [style guide](docs/style_guide.md)
 and be sure to run clang-format!
 
 ## Contributors Wanted!

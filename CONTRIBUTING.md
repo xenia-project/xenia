@@ -26,9 +26,9 @@ could result in the project being terminated, so just don't do it.
 
 ## Style Guide
 
-Please read over [style_guide.md](style_guide.md) before sending pull requests
+Please read over [style_guide.md](docs/style_guide.md) before sending pull requests
 and ensure your code is clean as the buildbot (or I) will make you to fix it :)
-[style_guide.md](style_guide.md) has information about using `xb format` and
+[style_guide.md](docs/style_guide.md) has information about using `xb format` and
 various IDE auto formatting tools so that you can avoid having to clean things
 up later, so be sure to check it out.
 
