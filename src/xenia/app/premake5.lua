@@ -25,6 +25,7 @@ project("xenia-app")
     "xenia-ui",
     "xenia-ui-gl",
     "xenia-vfs",
+    "xenia-xdbf",
   })
   flags({
     "WinMain",  -- Use WinMain instead of main.
