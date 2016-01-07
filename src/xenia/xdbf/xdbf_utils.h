@@ -112,7 +112,7 @@ namespace xdbf {
 		XdbfState state_;
 	};
 
-	std::vector<uint8_t> get_icon(XdbfWrapper& ref);
+	XdbfBlock get_icon(XdbfWrapper& ref);
 	std::string get_title(XdbfWrapper& ref);
 
 

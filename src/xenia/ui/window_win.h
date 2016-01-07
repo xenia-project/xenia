@@ -31,6 +31,7 @@ class Win32Window : public Window {
   HWND hwnd() const { return hwnd_; }
 
   bool set_title(const std::wstring& title) override;
+  bool set_icon_from_buffer(void *buffer, size_t size) override;
 
   bool is_fullscreen() const override;
   void ToggleFullscreen(bool fullscreen) override;
@@ -68,6 +69,7 @@ class Win32Window : public Window {
   bool HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam);
 
   HWND hwnd_ = nullptr;
+  HICON icon_ = nullptr;
   bool closing_ = false;
   bool fullscreen_ = false;
 

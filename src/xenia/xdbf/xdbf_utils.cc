@@ -81,18 +81,9 @@ namespace xdbf {
 		return block;
 	}
 
-	std::vector<uint8_t> get_icon(XdbfWrapper& ref)
+	XdbfBlock get_icon(XdbfWrapper& ref)
 	{
-		std::vector<uint8_t> icon;
-
-		XdbfBlock block = ref.get_entry(kSectionImage, 0x8000);
-
-		if (block.buffer != nullptr) {
-			icon.resize(block.size);
-			std::copy(block.buffer, block.buffer + block.size, icon.data());
-		}
-
-		return icon;
+		return ref.get_entry(kSectionImage, 0x8000);
 	}
 
 	std::string get_title(XdbfWrapper& ref)

@@ -526,9 +526,13 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
 		if (xdb_ptr != nullptr) {
 			xe::xdbf::XdbfWrapper db;
 			if (db.initialize(xdb_ptr, static_cast<size_t>(resource_size))) {
-				// TODO(x1nixmzeng): Set the application icon
 				std::wstring title(xe::to_wstring(xe::xdbf::get_title(db)));
 				display_window_->set_title(title);
+
+				xe::xdbf::XdbfBlock icon_block = xe::xdbf::get_icon(db);
+				if (icon_block.buffer != nullptr) {
+					display_window_->set_icon_from_buffer(icon_block.buffer, icon_block.size);
+				}
 			}
 		}
 	}

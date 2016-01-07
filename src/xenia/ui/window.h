@@ -53,6 +53,8 @@ class Window {
     return true;
   }
 
+  virtual bool set_icon_from_buffer(void *buffer, size_t size) = 0;
+
   virtual bool is_fullscreen() const { return false; }
   virtual void ToggleFullscreen(bool fullscreen) {}
 
