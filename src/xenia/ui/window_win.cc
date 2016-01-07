@@ -167,22 +167,23 @@ bool Win32Window::set_title(const std::wstring& title) {
   return true;
 }
 
-bool Win32Window::set_icon_from_buffer(void *buffer, size_t size) {
+bool Win32Window::set_icon_from_buffer(void* buffer, size_t size) {
+  if (icon_ != nullptr) {
+    DestroyIcon(icon_);
+  }
 
-	if (icon_ != nullptr) {
-		DestroyIcon(icon_);
-	}
-	
-	HICON icon = CreateIconFromResourceEx(reinterpret_cast<BYTE *>(buffer), static_cast<DWORD>(size), TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
+  HICON icon = CreateIconFromResourceEx(reinterpret_cast<BYTE*>(buffer),
+                                        static_cast<DWORD>(size), TRUE,
+                                        0x00030000, 0, 0, LR_DEFAULTCOLOR);
 
-	if (icon != nullptr) {
-		icon_ = icon;
+  if (icon != nullptr) {
+    icon_ = icon;
 
-		SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
-		SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
-	}
-	
-	return false;
+    SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
+    SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
+  }
+
+  return false;
 }
 
 bool Win32Window::is_fullscreen() const { return fullscreen_; }

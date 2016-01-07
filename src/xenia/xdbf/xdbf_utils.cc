@@ -12,121 +12,114 @@
 namespace xe {
 namespace xdbf {
 
-	XdbfWrapper::XdbfWrapper() = default;
+XdbfWrapper::XdbfWrapper() = default;
 
-	XBDF_HEADER& XdbfWrapper::get_header() const
-	{
-		return *state_.header;
-	}
-	
-	XBDF_ENTRY& XdbfWrapper::get_entry(uint32_t n) const
-	{
-		return state_.entries[n];
-	}
+XBDF_HEADER& XdbfWrapper::get_header() const { return *state_.header; }
 
-	XBDF_FILE_LOC& XdbfWrapper::get_file(uint32_t n) const
-	{
-		return state_.files[n];
-	}
+XBDF_ENTRY& XdbfWrapper::get_entry(uint32_t n) const {
+  return state_.entries[n];
+}
 
-	bool XdbfWrapper::initialize(uint8_t* buffer, size_t length)
-	{
-		if (length <= sizeof(XBDF_HEADER)) {
-			return false;
-		}
+XBDF_FILE_LOC& XdbfWrapper::get_file(uint32_t n) const {
+  return state_.files[n];
+}
 
-		XdbfState state;
+bool XdbfWrapper::initialize(uint8_t* buffer, size_t length) {
+  if (length <= sizeof(XBDF_HEADER)) {
+    return false;
+  }
 
-		state.data = buffer;
-		state.size = length;
+  XdbfState state;
 
-		uint8_t* ptr = state.data;
+  state.data = buffer;
+  state.size = length;
 
-		state.header = reinterpret_cast<XBDF_HEADER*>(ptr);
-		ptr += sizeof(XBDF_HEADER);
+  uint8_t* ptr = state.data;
 
-		state.entries = reinterpret_cast<XBDF_ENTRY*>(ptr);
-		ptr += (sizeof(XBDF_ENTRY) * state.header->entry_max);
+  state.header = reinterpret_cast<XBDF_HEADER*>(ptr);
+  ptr += sizeof(XBDF_HEADER);
 
-		state.files = reinterpret_cast<XBDF_FILE_LOC*>(ptr);
-		ptr += (sizeof(XBDF_FILE_LOC) * state.header->free_max);
+  state.entries = reinterpret_cast<XBDF_ENTRY*>(ptr);
+  ptr += (sizeof(XBDF_ENTRY) * state.header->entry_max);
 
-		state.offset = ptr;
+  state.files = reinterpret_cast<XBDF_FILE_LOC*>(ptr);
+  ptr += (sizeof(XBDF_FILE_LOC) * state.header->free_max);
 
-		if (state.header->magic == 'XDBF') {
-			state_ = state;
-			return true;
-		}
+  state.offset = ptr;
 
-		return false;
-	}
+  if (state.header->magic == 'XDBF') {
+    state_ = state;
+    return true;
+  }
 
-	XdbfBlock XdbfWrapper::get_entry(XdbfSection section, uint64_t id) const {
-		
-		XdbfBlock block = { nullptr,0 };
-		uint32_t x = 0;
+  return false;
+}
 
-		while( x < get_header().entry_current ) {
-			auto &entry = get_entry(x);
+XdbfBlock XdbfWrapper::get_entry(XdbfSection section, uint64_t id) const {
+  XdbfBlock block = {nullptr, 0};
+  uint32_t x = 0;
 
-			if (entry.section == section && entry.id == id) {
-				block.buffer = state_.offset + entry.offset;
-				block.size = entry.size;
-				break;
-			}
+  while (x < get_header().entry_current) {
+    auto& entry = get_entry(x);
 
-			++x;
-		}
+    if (entry.section == section && entry.id == id) {
+      block.buffer = state_.offset + entry.offset;
+      block.size = entry.size;
+      break;
+    }
 
-		return block;
-	}
+    ++x;
+  }
 
-	XdbfBlock get_icon(XdbfWrapper& ref)
-	{
-		return ref.get_entry(kSectionImage, 0x8000);
-	}
+  return block;
+}
 
-	std::string get_title(XdbfWrapper& ref)
-	{
-		std::string title_str;
+XdbfBlock get_icon(XdbfWrapper& ref) {
+  return ref.get_entry(kSectionImage, 0x8000);
+}
 
-		XdbfBlock block = ref.get_entry(kSectionMetadata, 0x58535443);
-		if (block.buffer != nullptr) {
-			XDBF_XSTC* xstc = reinterpret_cast<XDBF_XSTC*>(block.buffer);
+std::string get_title(XdbfWrapper& ref) {
+  std::string title_str;
 
-			assert_true(xstc->magic == 'XSTC');
-			uint32_t def_language = xstc->default_language;
+  XdbfBlock block = ref.get_entry(kSectionMetadata, 0x58535443);
+  if (block.buffer != nullptr) {
+    XDBF_XSTC* xstc = reinterpret_cast<XDBF_XSTC*>(block.buffer);
 
-			XdbfBlock lang_block = ref.get_entry(kSectionStringTable, static_cast<uint64_t>(def_language));
+    assert_true(xstc->magic == 'XSTC');
+    uint32_t def_language = xstc->default_language;
 
-			if (lang_block.buffer != nullptr) {
-				XDBF_XSTR_HEADER* xstr_head = reinterpret_cast<XDBF_XSTR_HEADER*>(lang_block.buffer);
+    XdbfBlock lang_block =
+        ref.get_entry(kSectionStringTable, static_cast<uint64_t>(def_language));
 
-				assert_true(xstr_head->magic == 'XSTR');
-				assert_true(xstr_head->version == 1);
+    if (lang_block.buffer != nullptr) {
+      XDBF_XSTR_HEADER* xstr_head =
+          reinterpret_cast<XDBF_XSTR_HEADER*>(lang_block.buffer);
 
-				uint16_t str_count = xstr_head->string_count;
-				uint8_t *currentAddress = lang_block.buffer + sizeof(XDBF_XSTR_HEADER);
+      assert_true(xstr_head->magic == 'XSTR');
+      assert_true(xstr_head->version == 1);
 
-				uint16_t s = 0;
-				while( s < str_count && title_str.empty() ) {
-					XDBF_STRINGTABLE_ENTRY* entry = reinterpret_cast<XDBF_STRINGTABLE_ENTRY*>(currentAddress);
-					currentAddress += sizeof(XDBF_STRINGTABLE_ENTRY);
-					uint16_t len = entry->string_length;
+      uint16_t str_count = xstr_head->string_count;
+      uint8_t* currentAddress = lang_block.buffer + sizeof(XDBF_XSTR_HEADER);
 
-					if (entry->id == 0x00008000) {
-						title_str.resize(static_cast<size_t>(len));
-						std::copy(currentAddress, currentAddress + len, title_str.begin());
-					}
+      uint16_t s = 0;
+      while (s < str_count && title_str.empty()) {
+        XDBF_STRINGTABLE_ENTRY* entry =
+            reinterpret_cast<XDBF_STRINGTABLE_ENTRY*>(currentAddress);
+        currentAddress += sizeof(XDBF_STRINGTABLE_ENTRY);
+        uint16_t len = entry->string_length;
 
-					currentAddress += len;
-				}
-			}
-		}
+        if (entry->id == 0x00008000) {
+          title_str.resize(static_cast<size_t>(len));
+          std::copy(currentAddress, currentAddress + len, title_str.begin());
+        }
 
-		return title_str;
-	}
+        currentAddress += len;
+      }
+    }
+  }
 
+  return title_str;
+}
 
 }  // namespace xdbf
 }  // namespace xe

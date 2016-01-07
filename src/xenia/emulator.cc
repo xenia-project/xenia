@@ -514,28 +514,29 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     if (!main_xthread) {
       return X_STATUS_UNSUCCESSFUL;
     }
-	
-	// Try and load the resource database (xex only)
-	char title[9] = { 0 };
-	sprintf(title, "%08X", module->title_id());
-	
-	uint32_t resource_data = 0;
-	uint32_t resource_size = 0;
-	if (XSUCCEEDED(module->GetSection(title, &resource_data, &resource_size))) {
-		auto xdb_ptr = module->memory()->TranslateVirtual(resource_data);
-		if (xdb_ptr != nullptr) {
-			xe::xdbf::XdbfWrapper db;
-			if (db.initialize(xdb_ptr, static_cast<size_t>(resource_size))) {
-				std::wstring title(xe::to_wstring(xe::xdbf::get_title(db)));
-				display_window_->set_title(title);
 
-				xe::xdbf::XdbfBlock icon_block = xe::xdbf::get_icon(db);
-				if (icon_block.buffer != nullptr) {
-					display_window_->set_icon_from_buffer(icon_block.buffer, icon_block.size);
-				}
-			}
-		}
-	}
+    // Try and load the resource database (xex only)
+    char title[9] = {0};
+    sprintf(title, "%08X", module->title_id());
+
+    uint32_t resource_data = 0;
+    uint32_t resource_size = 0;
+    if (XSUCCEEDED(module->GetSection(title, &resource_data, &resource_size))) {
+      auto xdb_ptr = module->memory()->TranslateVirtual(resource_data);
+      if (xdb_ptr != nullptr) {
+        xe::xdbf::XdbfWrapper db;
+        if (db.initialize(xdb_ptr, static_cast<size_t>(resource_size))) {
+          std::wstring title(xe::to_wstring(xe::xdbf::get_title(db)));
+          display_window_->set_title(title);
+
+          xe::xdbf::XdbfBlock icon_block = xe::xdbf::get_icon(db);
+          if (icon_block.buffer != nullptr) {
+            display_window_->set_icon_from_buffer(icon_block.buffer,
+                                                  icon_block.size);
+          }
+        }
+      }
+    }
 
     main_thread_ = main_xthread->thread();
     WaitUntilExit();
