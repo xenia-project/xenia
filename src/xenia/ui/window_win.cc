@@ -14,11 +14,6 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/ui/window_win.h"
 
-#include "third_party/stb/stb_image.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb/stb_image.h"
-
 namespace xe {
 namespace ui {
 
@@ -35,6 +30,10 @@ Win32Window::~Win32Window() {
     SetWindowLongPtr(hwnd_, GWLP_USERDATA, 0);
     CloseWindow(hwnd_);
     hwnd_ = nullptr;
+  }
+  if (icon_ != nullptr) {
+	  DestroyIcon(icon_);
+	  icon_ = nullptr;
   }
 }
 
@@ -174,35 +173,13 @@ bool Win32Window::set_icon_from_buffer(void *buffer, size_t size) {
 		DestroyIcon(icon_);
 	}
 	
-	// Convert the buffer for Windows
-	int width, height, bpp;
-	unsigned char *data = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(buffer), static_cast<int>(size), &width, &height, &bpp, 0);
-
-	int iSize = sizeof(BITMAPINFOHEADER);
-	int iSizeImage = width * height * bpp;
-
-	std::vector<uint8_t> bitmap(iSize + iSizeImage);
-	BITMAPINFOHEADER *pBitmap(reinterpret_cast<BITMAPINFOHEADER *>(bitmap.data()));
-
-	pBitmap->biSize = sizeof(BITMAPINFOHEADER);
-	pBitmap->biWidth = width;
-	pBitmap->biHeight = height;
-	pBitmap->biPlanes = 1;
-	pBitmap->biBitCount = bpp * 8;
-	pBitmap->biCompression = BI_RGB;
-	pBitmap->biSizeImage = iSizeImage;
-
-	unsigned char *pImage = bitmap.data() + iSize;
-
-	std::copy(data, data + iSizeImage, pImage);
-
-	HICON icon = CreateIconFromResourceEx((BYTE *)pBitmap, iSize + iSizeImage, TRUE, 0x00030000, width, height, LR_DEFAULTCOLOR);
+	HICON icon = CreateIconFromResourceEx(reinterpret_cast<BYTE *>(buffer), static_cast<DWORD>(size), TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
 
 	if (icon != nullptr) {
+		icon_ = icon;
+
 		SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
 		SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
-
-		icon_ = icon;
 	}
 	
 	return false;
@@ -339,9 +316,6 @@ void Win32Window::Close() {
   Close();
   OnClose();
   DestroyWindow(hwnd_);
-  if (icon_ != nullptr) {
-	  DestroyIcon(icon_);
-  }
 }
 
 void Win32Window::OnMainMenuChange() {
