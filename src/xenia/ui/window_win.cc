@@ -32,8 +32,8 @@ Win32Window::~Win32Window() {
     hwnd_ = nullptr;
   }
   if (icon_ != nullptr) {
-	  DestroyIcon(icon_);
-	  icon_ = nullptr;
+    DestroyIcon(icon_);
+    icon_ = nullptr;
   }
 }
 
@@ -167,7 +167,7 @@ bool Win32Window::set_title(const std::wstring& title) {
   return true;
 }
 
-bool Win32Window::set_icon_from_buffer(void* buffer, size_t size) {
+bool Win32Window::SetIconFromBuffer(void *buffer, size_t size) {
   if (icon_ != nullptr) {
     DestroyIcon(icon_);
   }

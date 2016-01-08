@@ -10,8 +10,8 @@
 #ifndef XENIA_XDBF_XDBF_UTILS_H_
 #define XENIA_XDBF_XDBF_UTILS_H_
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "xenia/base/memory.h"
 
@@ -27,19 +27,26 @@ enum XdbfSection : uint16_t {
   kSectionStringTable = 0x0003,
 };
 
+// Found by dumping the kSectionStringTable sections of various games:
+
 enum XdbfLocale : uint32_t {
-  kLocaleDefault = 0,
   kLocaleEnglish = 1,
   kLocaleJapanese = 2,
+  kLocaleGerman = 3,
+  kLocaleFrench = 4,
+  kLocaleSpanish = 5,
+  kLocaleItalian = 6,
+  kLocaleKorean = 7,
+  kLocaleChinese = 8,
 };
 
 struct XBDF_HEADER {
   xe::be<uint32_t> magic;
   xe::be<uint32_t> version;
-  xe::be<uint32_t> entry_max;
-  xe::be<uint32_t> entry_current;
-  xe::be<uint32_t> free_max;
-  xe::be<uint32_t> free_current;
+  xe::be<uint32_t> entry_count;
+  xe::be<uint32_t> entry_used;
+  xe::be<uint32_t> free_count;
+  xe::be<uint32_t> free_used;
 };
 static_assert_size(XBDF_HEADER, 24);
 
@@ -112,8 +119,9 @@ class XdbfWrapper {
   XdbfState state_;
 };
 
-XdbfBlock get_icon(XdbfWrapper& ref);
-std::string get_title(XdbfWrapper& ref);
+XdbfBlock get_icon(const XdbfWrapper &ref);
+XdbfLocale get_default_language(const XdbfWrapper &ref);
+std::string get_title(const XdbfWrapper &ref);
 
 }  // namespace xdbf
 }  // namespace xe

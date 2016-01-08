@@ -12,6 +12,16 @@
 namespace xe {
 namespace xdbf {
 
+enum XdbfId : uint64_t {
+  kIdTitle = 0x8000,
+  kIdXSTC = 0x58535443,
+};
+
+enum XdbgMagic : uint32_t {
+  kMagicXSTC = 'XSTC',
+  kMagicXSTR = 'XSTR',
+};
+
 XdbfWrapper::XdbfWrapper() = default;
 
 XBDF_HEADER& XdbfWrapper::get_header() const { return *state_.header; }
@@ -40,10 +50,10 @@ bool XdbfWrapper::initialize(uint8_t* buffer, size_t length) {
   ptr += sizeof(XBDF_HEADER);
 
   state.entries = reinterpret_cast<XBDF_ENTRY*>(ptr);
-  ptr += (sizeof(XBDF_ENTRY) * state.header->entry_max);
+  ptr += (sizeof(XBDF_ENTRY) * state.header->entry_count);
 
   state.files = reinterpret_cast<XBDF_FILE_LOC*>(ptr);
-  ptr += (sizeof(XBDF_FILE_LOC) * state.header->free_max);
+  ptr += (sizeof(XBDF_FILE_LOC) * state.header->free_count);
 
   state.offset = ptr;
 
@@ -59,7 +69,7 @@ XdbfBlock XdbfWrapper::get_entry(XdbfSection section, uint64_t id) const {
   XdbfBlock block = {nullptr, 0};
   uint32_t x = 0;
 
-  while (x < get_header().entry_current) {
+  while (x < get_header().entry_used) {
     auto& entry = get_entry(x);
 
     if (entry.section == section && entry.id == id) {
@@ -74,47 +84,54 @@ XdbfBlock XdbfWrapper::get_entry(XdbfSection section, uint64_t id) const {
   return block;
 }
 
-XdbfBlock get_icon(XdbfWrapper& ref) {
-  return ref.get_entry(kSectionImage, 0x8000);
+XdbfBlock get_icon(const XdbfWrapper &ref) {
+  return ref.get_entry(kSectionImage, kIdTitle);
 }
 
-std::string get_title(XdbfWrapper& ref) {
+XdbfLocale get_default_language(const XdbfWrapper &ref) {
+  XdbfBlock block = ref.get_entry(kSectionMetadata, kIdXSTC);
+  if (block.buffer != nullptr) {
+    XDBF_XSTC *xstc = reinterpret_cast<XDBF_XSTC *>(block.buffer);
+    assert_true(xstc->magic == kMagicXSTC);
+
+    uint32_t default_language = xstc->default_language;
+    return static_cast<XdbfLocale>(default_language);
+  }
+
+  return kLocaleEnglish;
+}
+
+std::string get_title(const XdbfWrapper &ref) {
   std::string title_str;
 
-  XdbfBlock block = ref.get_entry(kSectionMetadata, 0x58535443);
-  if (block.buffer != nullptr) {
-    XDBF_XSTC* xstc = reinterpret_cast<XDBF_XSTC*>(block.buffer);
+  uint64_t language_id = static_cast<uint64_t>(get_default_language(ref));
 
-    assert_true(xstc->magic == 'XSTC');
-    uint32_t def_language = xstc->default_language;
+  XdbfBlock lang_block = ref.get_entry(kSectionStringTable, language_id);
 
-    XdbfBlock lang_block =
-        ref.get_entry(kSectionStringTable, static_cast<uint64_t>(def_language));
+  if (lang_block.buffer != nullptr) {
+    XDBF_XSTR_HEADER *xstr_head =
+        reinterpret_cast<XDBF_XSTR_HEADER *>(lang_block.buffer);
 
-    if (lang_block.buffer != nullptr) {
-      XDBF_XSTR_HEADER* xstr_head =
-          reinterpret_cast<XDBF_XSTR_HEADER*>(lang_block.buffer);
+    assert_true(xstr_head->magic == kMagicXSTR);
+    assert_true(xstr_head->version == 1);
 
-      assert_true(xstr_head->magic == 'XSTR');
-      assert_true(xstr_head->version == 1);
+    uint16_t str_count = xstr_head->string_count;
+    uint8_t *currentAddress = lang_block.buffer + sizeof(XDBF_XSTR_HEADER);
 
-      uint16_t str_count = xstr_head->string_count;
-      uint8_t* currentAddress = lang_block.buffer + sizeof(XDBF_XSTR_HEADER);
+    uint16_t s = 0;
+    while (s < str_count && title_str.empty()) {
+      XDBF_STRINGTABLE_ENTRY *entry =
+          reinterpret_cast<XDBF_STRINGTABLE_ENTRY *>(currentAddress);
+      currentAddress += sizeof(XDBF_STRINGTABLE_ENTRY);
+      uint16_t len = entry->string_length;
 
-      uint16_t s = 0;
-      while (s < str_count && title_str.empty()) {
-        XDBF_STRINGTABLE_ENTRY* entry =
-            reinterpret_cast<XDBF_STRINGTABLE_ENTRY*>(currentAddress);
-        currentAddress += sizeof(XDBF_STRINGTABLE_ENTRY);
-        uint16_t len = entry->string_length;
-
-        if (entry->id == 0x00008000) {
-          title_str.resize(static_cast<size_t>(len));
-          std::copy(currentAddress, currentAddress + len, title_str.begin());
-        }
-
-        currentAddress += len;
+      if (entry->id == static_cast<uint16_t>(kIdTitle)) {
+        title_str.resize(static_cast<size_t>(len));
+        std::copy(currentAddress, currentAddress + len, title_str.begin());
       }
+
+      ++s;
+      currentAddress += len;
     }
   }
 

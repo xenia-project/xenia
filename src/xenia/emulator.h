@@ -53,6 +53,9 @@ class Emulator {
   // Full command line used when launching the process.
   const std::wstring& command_line() const { return command_line_; }
 
+  // Title of the game in the default language.
+  const std::wstring &game_title() const { return game_title_; }
+
   // Window used for displaying graphical output.
   ui::Window* display_window() const { return display_window_; }
 
@@ -135,6 +138,7 @@ class Emulator {
                           const std::string& module_path);
 
   std::wstring command_line_;
+  std::wstring game_title_;
 
   ui::Window* display_window_;
 

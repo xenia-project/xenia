@@ -526,13 +526,19 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
       if (xdb_ptr != nullptr) {
         xe::xdbf::XdbfWrapper db;
         if (db.initialize(xdb_ptr, static_cast<size_t>(resource_size))) {
-          std::wstring title(xe::to_wstring(xe::xdbf::get_title(db)));
-          display_window_->set_title(title);
 
+          std::string game_title(xe::xdbf::get_title(db));
+          if (!game_title.empty()) {
+            game_title_ = xe::to_wstring(game_title);
+            // TODO(x1nixmzeng): Need to somehow callback to
+            // EmulatorWindow::UpdateTitle
+            display_window_->set_title(game_title_ + L" - " +
+                                       display_window_->title());
+          }
           xe::xdbf::XdbfBlock icon_block = xe::xdbf::get_icon(db);
           if (icon_block.buffer != nullptr) {
-            display_window_->set_icon_from_buffer(icon_block.buffer,
-                                                  icon_block.size);
+            display_window_->SetIconFromBuffer(icon_block.buffer,
+                                               icon_block.size);
           }
         }
       }
