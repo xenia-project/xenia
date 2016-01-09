@@ -264,8 +264,7 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   for (uint32_t i = 0; i < library_count; i++) {
     auto library =
         reinterpret_cast<xex2_import_library*>(libraries_ptr + library_offset);
-    SetupLibraryImports(string_table[library->name_index % library_count],
-                        library);
+    SetupLibraryImports(string_table[library->name_index & 0xFF], library);
     library_offset += library->size;
   }
 

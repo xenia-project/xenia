@@ -479,7 +479,7 @@ void UserModule::Dump() {
         for (uint32_t l = 0; l < library_count; l++) {
           auto library = reinterpret_cast<const xex2_import_library*>(
               libraries + library_offset);
-          auto name = string_table[library->name_index % library_count];
+          auto name = string_table[library->name_index & 0xFF];
           sb.AppendFormat("    %s - %d imports\n", name,
                           (uint16_t)library->count);
 

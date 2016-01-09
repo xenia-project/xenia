@@ -286,7 +286,7 @@ int xe_xex2_read_header(const uint8_t* addr, const size_t length,
           library->min_version.value = src_library->version_min.value;
 
           std::strncpy(library->name,
-                       string_table[src_library->name_index % count],
+                       string_table[src_library->name_index & 0xFF],
                        xe::countof(library->name));
 
           library->record_count = src_library->count;
