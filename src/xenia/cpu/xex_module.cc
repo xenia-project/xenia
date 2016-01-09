@@ -242,13 +242,15 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   // FIXME: Don't know if 32 is the actual limit, but haven't seen more than 2.
   const char* string_table[32];
   std::memset(string_table, 0, sizeof(string_table));
+  size_t max_string_table_index = 0;
 
   // Parse the string table
-  for (size_t i = 0, j = 0; i < opt_import_header->string_table_size; j++) {
-    assert_true(j < xe::countof(string_table));
+  for (size_t i = 0; i < opt_import_header->string_table_size;
+       ++max_string_table_index) {
+    assert_true(max_string_table_index < xe::countof(string_table));
     const char* str = opt_import_header->string_table + i;
 
-    string_table[j] = str;
+    string_table[max_string_table_index] = str;
     i += std::strlen(str) + 1;
 
     // Padding
@@ -264,7 +266,9 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   for (uint32_t i = 0; i < library_count; i++) {
     auto library =
         reinterpret_cast<xex2_import_library*>(libraries_ptr + library_offset);
-    SetupLibraryImports(string_table[library->name_index & 0xFF], library);
+    size_t library_name_index = library->name_index & 0xFF;
+    assert_true(library_name_index < max_string_table_index);
+    SetupLibraryImports(string_table[library_name_index], library);
     library_offset += library->size;
   }
 
