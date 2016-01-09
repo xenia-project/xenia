@@ -167,7 +167,7 @@ bool Win32Window::set_title(const std::wstring& title) {
   return true;
 }
 
-bool Win32Window::SetIconFromBuffer(void *buffer, size_t size) {
+bool Win32Window::SetIconFromBuffer(void* buffer, size_t size) {
   if (icon_ != nullptr) {
     DestroyIcon(icon_);
   }

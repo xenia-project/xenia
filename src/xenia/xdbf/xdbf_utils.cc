@@ -84,14 +84,14 @@ XdbfBlock XdbfWrapper::get_entry(XdbfSection section, uint64_t id) const {
   return block;
 }
 
-XdbfBlock get_icon(const XdbfWrapper &ref) {
+XdbfBlock get_icon(const XdbfWrapper& ref) {
   return ref.get_entry(kSectionImage, kIdTitle);
 }
 
-XdbfLocale get_default_language(const XdbfWrapper &ref) {
+XdbfLocale get_default_language(const XdbfWrapper& ref) {
   XdbfBlock block = ref.get_entry(kSectionMetadata, kIdXSTC);
   if (block.buffer != nullptr) {
-    XDBF_XSTC *xstc = reinterpret_cast<XDBF_XSTC *>(block.buffer);
+    XDBF_XSTC* xstc = reinterpret_cast<XDBF_XSTC*>(block.buffer);
     assert_true(xstc->magic == kMagicXSTC);
 
     uint32_t default_language = xstc->default_language;
@@ -101,7 +101,7 @@ XdbfLocale get_default_language(const XdbfWrapper &ref) {
   return kLocaleEnglish;
 }
 
-std::string get_title(const XdbfWrapper &ref) {
+std::string get_title(const XdbfWrapper& ref) {
   std::string title_str;
 
   uint64_t language_id = static_cast<uint64_t>(get_default_language(ref));
@@ -109,19 +109,19 @@ std::string get_title(const XdbfWrapper &ref) {
   XdbfBlock lang_block = ref.get_entry(kSectionStringTable, language_id);
 
   if (lang_block.buffer != nullptr) {
-    XDBF_XSTR_HEADER *xstr_head =
-        reinterpret_cast<XDBF_XSTR_HEADER *>(lang_block.buffer);
+    XDBF_XSTR_HEADER* xstr_head =
+        reinterpret_cast<XDBF_XSTR_HEADER*>(lang_block.buffer);
 
     assert_true(xstr_head->magic == kMagicXSTR);
     assert_true(xstr_head->version == 1);
 
     uint16_t str_count = xstr_head->string_count;
-    uint8_t *currentAddress = lang_block.buffer + sizeof(XDBF_XSTR_HEADER);
+    uint8_t* currentAddress = lang_block.buffer + sizeof(XDBF_XSTR_HEADER);
 
     uint16_t s = 0;
     while (s < str_count && title_str.empty()) {
-      XDBF_STRINGTABLE_ENTRY *entry =
-          reinterpret_cast<XDBF_STRINGTABLE_ENTRY *>(currentAddress);
+      XDBF_STRINGTABLE_ENTRY* entry =
+          reinterpret_cast<XDBF_STRINGTABLE_ENTRY*>(currentAddress);
       currentAddress += sizeof(XDBF_STRINGTABLE_ENTRY);
       uint16_t len = entry->string_length;
 

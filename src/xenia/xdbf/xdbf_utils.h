@@ -119,9 +119,9 @@ class XdbfWrapper {
   XdbfState state_;
 };
 
-XdbfBlock get_icon(const XdbfWrapper &ref);
-XdbfLocale get_default_language(const XdbfWrapper &ref);
-std::string get_title(const XdbfWrapper &ref);
+XdbfBlock get_icon(const XdbfWrapper& ref);
+XdbfLocale get_default_language(const XdbfWrapper& ref);
+std::string get_title(const XdbfWrapper& ref);
 
 }  // namespace xdbf
 }  // namespace xe

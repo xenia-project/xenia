@@ -192,7 +192,8 @@ X_STATUS Emulator::Setup(
   return result;
 }
 
-X_STATUS Emulator::LaunchPath(std::wstring path) {
+X_STATUS Emulator::LaunchPath(std::wstring path,
+                              std::function<void()> on_launch) {
   // Launch based on file type.
   // This is a silly guess based on file extension.
   auto last_slash = path.find_last_of(xe::kPathSeparator);
@@ -202,18 +203,19 @@ X_STATUS Emulator::LaunchPath(std::wstring path) {
   }
   if (last_dot == std::wstring::npos) {
     // Likely an STFS container.
-    return LaunchStfsContainer(path);
+    return LaunchStfsContainer(path, on_launch);
   } else if (path.substr(last_dot) == L".xex" ||
              path.substr(last_dot) == L".elf") {
     // Treat as a naked xex file.
-    return LaunchXexFile(path);
+    return LaunchXexFile(path, on_launch);
   } else {
     // Assume a disc image.
-    return LaunchDiscImage(path);
+    return LaunchDiscImage(path, on_launch);
   }
 }
 
-X_STATUS Emulator::LaunchXexFile(std::wstring path) {
+X_STATUS Emulator::LaunchXexFile(std::wstring path,
+                                 std::function<void()> on_launch) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.
   // e.g., /my/files/foo.xex will get a local fs at:
@@ -245,10 +247,11 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
 
   // Launch the game.
   std::string fs_path = "game:\\" + xe::to_string(file_name);
-  return CompleteLaunch(path, fs_path);
+  return CompleteLaunch(path, fs_path, on_launch);
 }
 
-X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
+X_STATUS Emulator::LaunchDiscImage(std::wstring path,
+                                   std::function<void()> on_launch) {
   auto mount_path = "\\Device\\Cdrom0";
 
   // Register the disc image in the virtual filesystem.
@@ -267,10 +270,11 @@ X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
-  return CompleteLaunch(path, "game:\\default.xex");
+  return CompleteLaunch(path, "game:\\default.xex", on_launch);
 }
 
-X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
+X_STATUS Emulator::LaunchStfsContainer(std::wstring path,
+                                       std::function<void()> on_launch) {
   auto mount_path = "\\Device\\Cdrom0";
 
   // Register the container in the virtual filesystem.
@@ -289,7 +293,7 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
-  return CompleteLaunch(path, "game:\\default.xex");
+  return CompleteLaunch(path, "game:\\default.xex", on_launch);
 }
 
 void Emulator::Pause() {
@@ -494,8 +498,9 @@ void Emulator::WaitUntilExit() {
   }
 }
 
-X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
-                                  const std::string& module_path) {
+X_STATUS Emulator::CompleteLaunch(const std::wstring &path,
+                                  const std::string &module_path,
+                                  std::function<void()> on_launch) {
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
@@ -510,10 +515,6 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     }
 
     kernel_state_->SetExecutableModule(module);
-    auto main_xthread = module->Launch();
-    if (!main_xthread) {
-      return X_STATUS_UNSUCCESSFUL;
-    }
 
     // Try and load the resource database (xex only)
     char title[9] = {0};
@@ -526,15 +527,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
       if (xdb_ptr != nullptr) {
         xe::xdbf::XdbfWrapper db;
         if (db.initialize(xdb_ptr, static_cast<size_t>(resource_size))) {
-
-          std::string game_title(xe::xdbf::get_title(db));
-          if (!game_title.empty()) {
-            game_title_ = xe::to_wstring(game_title);
-            // TODO(x1nixmzeng): Need to somehow callback to
-            // EmulatorWindow::UpdateTitle
-            display_window_->set_title(game_title_ + L" - " +
-                                       display_window_->title());
-          }
+          game_title_ = xe::to_wstring(xe::xdbf::get_title(db));
           xe::xdbf::XdbfBlock icon_block = xe::xdbf::get_icon(db);
           if (icon_block.buffer != nullptr) {
             display_window_->SetIconFromBuffer(icon_block.buffer,
@@ -544,6 +537,12 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
       }
     }
 
+    auto main_xthread = module->Launch();
+    if (!main_xthread) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    on_launch();
     main_thread_ = main_xthread->thread();
     WaitUntilExit();
 
