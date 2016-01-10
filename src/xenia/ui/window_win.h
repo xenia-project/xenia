@@ -31,7 +31,8 @@ class Win32Window : public Window {
   HWND hwnd() const { return hwnd_; }
 
   bool set_title(const std::wstring& title) override;
-  bool SetIconFromBuffer(void* buffer, size_t size) override;
+
+  bool SetIcon(const void* buffer, size_t size) override;
 
   bool is_fullscreen() const override;
   void ToggleFullscreen(bool fullscreen) override;

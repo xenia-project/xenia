@@ -31,7 +31,7 @@ Win32Window::~Win32Window() {
     CloseWindow(hwnd_);
     hwnd_ = nullptr;
   }
-  if (icon_ != nullptr) {
+  if (icon_) {
     DestroyIcon(icon_);
     icon_ = nullptr;
   }
@@ -167,20 +167,29 @@ bool Win32Window::set_title(const std::wstring& title) {
   return true;
 }
 
-bool Win32Window::SetIconFromBuffer(void* buffer, size_t size) {
+bool Win32Window::SetIcon(const void* buffer, size_t size) {
   if (icon_ != nullptr) {
     DestroyIcon(icon_);
+    icon_ = nullptr;
   }
 
-  HICON icon = CreateIconFromResourceEx(reinterpret_cast<BYTE*>(buffer),
-                                        static_cast<DWORD>(size), TRUE,
-                                        0x00030000, 0, 0, LR_DEFAULTCOLOR);
+  // Reset icon to default.
+  auto default_icon = LoadIcon(GetModuleHandle(nullptr), L"MAINICON");
+  SendMessage(hwnd_, WM_SETICON, ICON_BIG,
+              reinterpret_cast<LPARAM>(default_icon));
+  SendMessage(hwnd_, WM_SETICON, ICON_SMALL,
+              reinterpret_cast<LPARAM>(default_icon));
+  if (!buffer || !size) {
+    return true;
+  }
 
-  if (icon != nullptr) {
-    icon_ = icon;
-
-    SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
-    SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
+  // Create icon and set on window (if it's valid).
+  icon_ = CreateIconFromResourceEx(
+      reinterpret_cast<PBYTE>(const_cast<void*>(buffer)),
+      static_cast<DWORD>(size), TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
+  if (icon_) {
+    SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon_));
+    SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon_));
   }
 
   return false;

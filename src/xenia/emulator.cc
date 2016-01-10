@@ -27,6 +27,7 @@
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
@@ -35,7 +36,6 @@
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/virtual_file_system.h"
-#include "xenia/xdbf/xdbf_utils.h"
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
@@ -498,8 +498,8 @@ void Emulator::WaitUntilExit() {
   }
 }
 
-X_STATUS Emulator::CompleteLaunch(const std::wstring &path,
-                                  const std::string &module_path,
+X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
+                                  const std::string& module_path,
                                   std::function<void()> on_launch) {
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
@@ -516,22 +516,21 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring &path,
 
     kernel_state_->SetExecutableModule(module);
 
-    // Try and load the resource database (xex only)
-    char title[9] = {0};
-    sprintf(title, "%08X", module->title_id());
-
-    uint32_t resource_data = 0;
-    uint32_t resource_size = 0;
-    if (XSUCCEEDED(module->GetSection(title, &resource_data, &resource_size))) {
-      auto xdb_ptr = module->memory()->TranslateVirtual(resource_data);
-      if (xdb_ptr != nullptr) {
-        xe::xdbf::XdbfWrapper db;
-        if (db.initialize(xdb_ptr, static_cast<size_t>(resource_size))) {
-          game_title_ = xe::to_wstring(xe::xdbf::get_title(db));
-          xe::xdbf::XdbfBlock icon_block = xe::xdbf::get_icon(db);
-          if (icon_block.buffer != nullptr) {
-            display_window_->SetIconFromBuffer(icon_block.buffer,
-                                               icon_block.size);
+    // Try and load the resource database (xex only).
+    if (module->title_id()) {
+      char title_id[9] = {0};
+      std::sprintf(title_id, "%08X", module->title_id());
+      uint32_t resource_data = 0;
+      uint32_t resource_size = 0;
+      if (XSUCCEEDED(
+              module->GetSection(title_id, &resource_data, &resource_size))) {
+        kernel::util::XdbfGameData db(
+            module->memory()->TranslateVirtual(resource_data), resource_size);
+        if (db.is_valid()) {
+          game_title_ = xe::to_wstring(db.title());
+          auto icon_block = db.icon();
+          if (icon_block) {
+            display_window_->SetIcon(icon_block.buffer, icon_block.size);
           }
         }
       }

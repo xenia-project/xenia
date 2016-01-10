@@ -35,7 +35,7 @@ TracePlayer::TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
 TracePlayer::~TracePlayer() = default;
 
 const TraceReader::Frame* TracePlayer::current_frame() const {
-  if (current_frame_index_ > frame_count()) {
+  if (current_frame_index_ >= frame_count()) {
     return nullptr;
   }
   return frame(current_frame_index_);
