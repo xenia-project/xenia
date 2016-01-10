@@ -31,6 +31,10 @@ Win32Window::~Win32Window() {
     CloseWindow(hwnd_);
     hwnd_ = nullptr;
   }
+  if (icon_ != nullptr) {
+    DestroyIcon(icon_);
+    icon_ = nullptr;
+  }
 }
 
 NativePlatformHandle Win32Window::native_platform_handle() const {
@@ -161,6 +165,25 @@ bool Win32Window::set_title(const std::wstring& title) {
   }
   SetWindowText(hwnd_, title.c_str());
   return true;
+}
+
+bool Win32Window::SetIconFromBuffer(void* buffer, size_t size) {
+  if (icon_ != nullptr) {
+    DestroyIcon(icon_);
+  }
+
+  HICON icon = CreateIconFromResourceEx(reinterpret_cast<BYTE*>(buffer),
+                                        static_cast<DWORD>(size), TRUE,
+                                        0x00030000, 0, 0, LR_DEFAULTCOLOR);
+
+  if (icon != nullptr) {
+    icon_ = icon;
+
+    SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
+    SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
+  }
+
+  return false;
 }
 
 bool Win32Window::is_fullscreen() const { return fullscreen_; }

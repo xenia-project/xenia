@@ -35,11 +35,12 @@ class EmulatorWindow {
   ui::Loop* loop() const { return loop_.get(); }
   ui::Window* window() const { return window_.get(); }
 
+  void UpdateTitle();
+
  private:
   explicit EmulatorWindow(Emulator* emulator);
 
   bool Initialize();
-  void UpdateTitle();
 
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();

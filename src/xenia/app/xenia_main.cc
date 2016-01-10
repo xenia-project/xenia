@@ -195,7 +195,8 @@ int xenia_main(const std::vector<std::wstring>& args) {
     // Normalize the path and make absolute.
     std::wstring abs_path = xe::to_absolute_path(path);
 
-    result = emulator->LaunchPath(abs_path);
+    result = emulator->LaunchPath(abs_path,
+                                  [&]() { emulator_window->UpdateTitle(); });
     if (XFAILED(result)) {
       XELOGE("Failed to launch target: %.8X", result);
       emulator.reset();

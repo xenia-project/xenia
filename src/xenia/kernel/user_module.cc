@@ -208,7 +208,7 @@ X_STATUS UserModule::GetSection(const char* name, uint32_t* out_section_data,
     return X_STATUS_NOT_FOUND;
   }
 
-  uint32_t count = (resource_header->size - 4) / 16;
+  uint32_t count = (resource_header->size - 4) / sizeof(xex2_resource);
   for (uint32_t i = 0; i < count; i++) {
     auto& res = resource_header->resources[i];
     if (std::strncmp(name, res.name, 8) == 0) {

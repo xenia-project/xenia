@@ -190,6 +190,7 @@ solution("xenia")
   include("src/xenia/ui/gl")
   include("src/xenia/ui/spirv")
   include("src/xenia/vfs")
+  include("src/xenia/xdbf")
 
   if os.is("windows") then
     include("src/xenia/apu/xaudio2")
