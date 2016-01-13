@@ -2,6 +2,31 @@
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
   <!-- Automatically convert endianness for xe::be -->
+  <Type Name="xe::be&lt;unsigned __int64&gt;">
+    <DisplayString>
+      {(((value &amp; 0xFF00000000000000) &gt;&gt; 56) |
+        ((value &amp; 0x00FF000000000000) &gt;&gt; 40) |
+        ((value &amp; 0x0000FF0000000000) &gt;&gt; 24) |
+        ((value &amp; 0x000000FF00000000) &gt;&gt; 8 ) |
+        ((value &amp; 0x00000000FF000000) &lt;&lt; 8 ) |
+        ((value &amp; 0x0000000000FF0000) &lt;&lt; 24) |
+        ((value &amp; 0x000000000000FF00) &lt;&lt; 40) |
+        ((value &amp; 0x00000000000000FF) &lt;&lt; 56))}
+    </DisplayString>
+  </Type>
+  <Type Name="xe::be&lt;__int64&gt;">
+    <DisplayString>
+      {(((value &amp; 0xFF00000000000000) &gt;&gt; 56) |
+        ((value &amp; 0x00FF000000000000) &gt;&gt; 40) |
+        ((value &amp; 0x0000FF0000000000) &gt;&gt; 24) |
+        ((value &amp; 0x000000FF00000000) &gt;&gt; 8 ) |
+        ((value &amp; 0x00000000FF000000) &lt;&lt; 8 ) |
+        ((value &amp; 0x0000000000FF0000) &lt;&lt; 24) |
+        ((value &amp; 0x000000000000FF00) &lt;&lt; 40) |
+        ((value &amp; 0x00000000000000FF) &lt;&lt; 56))}
+    </DisplayString>
+  </Type>
+
   <Type Name="xe::be&lt;unsigned int&gt;">
     <DisplayString>
       {(((value &amp; 0xFF000000) &gt;&gt; 24) |
