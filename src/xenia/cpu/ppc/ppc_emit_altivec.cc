@@ -2149,6 +2149,9 @@ int InstrEmit_vupkd3d128(PPCHIRBuilder& f, const InstrData& i) {
     case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_2);
       break;
+    case 4:
+      v = f.Unpack(v, PACK_TYPE_FLOAT16_3);
+      break;
     case 5:  // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_4);
       break;
