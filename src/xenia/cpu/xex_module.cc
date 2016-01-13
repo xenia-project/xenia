@@ -286,9 +286,6 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   }
 
   // Setup memory protection.
-  // TODO: This introduces a load of constants into the JIT, and Xenia isn't
-  // quite set-up to handle constants yet...
-  /*
   auto sec_header = xex_security_info();
   auto heap = memory()->LookupHeap(sec_header->load_address);
   auto page_size = heap->page_size();
@@ -311,7 +308,6 @@ bool XexModule::Load(const std::string& name, const std::string& path,
 
     page += desc.size;
   }
-  */
 
   return true;
 }
