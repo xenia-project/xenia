@@ -78,6 +78,9 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   Value* LoadVR(uint32_t reg);
   void StoreVR(uint32_t reg, Value* value);
 
+  void StoreReserved(Value* val);
+  Value* LoadReserved();
+
  private:
   void AnnotateLabel(uint32_t address, Label* label);
 
