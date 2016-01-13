@@ -161,6 +161,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
+        case OPCODE_ROUND:
+          if (i->src1.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->Round(RoundMode(i->flags));
+            i->Remove();
+          }
+          break;
         case OPCODE_ZERO_EXTEND:
           if (i->src1.value->IsConstant()) {
             TypeName target_type = v->type;
@@ -188,6 +195,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
 
         case OPCODE_LOAD:
           if (i->src1.value->IsConstant()) {
+            assert_false(i->flags & LOAD_STORE_BYTE_SWAP);
             auto memory = processor_->memory();
             auto address = i->src1.value->constant.i32;
             auto mmio_range =
@@ -253,12 +261,23 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
 
         case OPCODE_SELECT:
           if (i->src1.value->IsConstant()) {
-            if (i->src1.value->IsConstantTrue()) {
-              v->set_from(i->src2.value);
+            if (i->src1.value->type != VEC128_TYPE) {
+              if (i->src1.value->IsConstantTrue()) {
+                v->set_from(i->src2.value);
+                i->Remove();
+              } else if (i->src1.value->IsConstantFalse()) {
+                v->set_from(i->src3.value);
+                i->Remove();
+              } else if (i->src2.value->IsConstant() &&
+                         i->src3.value->IsConstant()) {
+                // TODO
+                // v->set_from(i->src2.value);
+                // v->Select(i->src3.value, i->src1.value);
+                // i->Remove();
+              }
             } else {
-              v->set_from(i->src3.value);
+              // TODO
             }
-            i->Remove();
           }
           break;
         case OPCODE_IS_TRUE:
@@ -355,7 +374,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
 
         case OPCODE_DID_SATURATE:
-          assert_true(!i->src1.value->IsConstant());
+          // assert_true(!i->src1.value->IsConstant());
           break;
 
         case OPCODE_ADD:
@@ -413,8 +432,33 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
-        // case OPCODE_MUL_ADD:
-        // case OPCODE_MUL_SUB
+        case OPCODE_MUL_ADD:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            // Multiply part is constant.
+            if (i->src3.value->IsConstant()) {
+              v->set_from(i->src1.value);
+              Value::MulAdd(v, i->src1.value, i->src2.value, i->src3.value);
+              i->Remove();
+            }
+          }
+          break;
+        case OPCODE_MUL_SUB:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            // Multiply part is constant.
+            if (i->src3.value->IsConstant()) {
+              v->set_from(i->src1.value);
+              Value::MulSub(v, i->src1.value, i->src2.value, i->src3.value);
+              i->Remove();
+            }
+          }
+          break;
+        case OPCODE_MAX:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->Max(i->src2.value);
+            i->Remove();
+          }
+          break;
         case OPCODE_NEG:
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
@@ -484,7 +528,6 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
-        // TODO(benvanik): VECTOR_SHL
         case OPCODE_SHR:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
@@ -515,13 +558,80 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
         // TODO(benvanik): INSERT/EXTRACT
-        // TODO(benvanik): SPLAT/PERMUTE/SWIZZLE
-        case OPCODE_SPLAT:
-          if (i->src1.value->IsConstant()) {
-            // Quite a few of these, from building vec128s.
+        // TODO(benvanik): PERMUTE/SWIZZLE
+        case OPCODE_EXTRACT:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_zero(v->type);
+            v->Extract(i->src1.value, i->src2.value);
+            i->Remove();
           }
           break;
-
+        case OPCODE_SPLAT:
+          if (i->src1.value->IsConstant()) {
+            v->set_zero(v->type);
+            v->Splat(i->src1.value);
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_COMPARE_EQ:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorCompareEQ(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_COMPARE_SGT:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorCompareSGT(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_CONVERT_F2I:
+          if (i->src1.value->IsConstant()) {
+            v->set_zero(VEC128_TYPE);
+            v->VectorConvertF2I(i->src1.value);
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_CONVERT_I2F:
+          if (i->src1.value->IsConstant()) {
+            v->set_zero(VEC128_TYPE);
+            v->VectorConvertI2F(i->src1.value);
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_SHL:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorShl(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_SHR:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorShr(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_ROTATE_LEFT:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorRol(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_SUB:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            uint32_t arith_flags = i->flags >> 8;
+            v->VectorSub(i->src2.value, hir::TypeName(i->flags & 0xFF),
+                         !!(arith_flags & ARITHMETIC_UNSIGNED),
+                         !!(arith_flags & ARITHMETIC_SATURATE));
+            i->Remove();
+          }
+          break;
         default:
           // Ignored.
           break;
