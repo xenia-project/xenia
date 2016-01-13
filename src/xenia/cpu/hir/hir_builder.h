@@ -236,6 +236,8 @@ class HIRBuilder {
   Value* Unpack(Value* value, uint32_t pack_flags = 0);
 
   Value* AtomicExchange(Value* address, Value* new_value);
+  Value* AtomicCompareExchange(Value* address, Value* old_value,
+                               Value* new_value);
   Value* AtomicAdd(Value* address, Value* value);
   Value* AtomicSub(Value* address, Value* value);
 

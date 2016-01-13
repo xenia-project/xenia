@@ -2074,6 +2074,17 @@ Value* HIRBuilder::AtomicExchange(Value* address, Value* new_value) {
   return i->dest;
 }
 
+Value* HIRBuilder::AtomicCompareExchange(Value* address, Value* old_value,
+                                         Value* new_value) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_ATOMIC_COMPARE_EXCHANGE_info, 0,
+                         AllocValue(INT8_TYPE));
+  i->set_src1(address);
+  i->set_src2(old_value);
+  i->set_src3(new_value);
+  return i->dest;
+}
+
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe
