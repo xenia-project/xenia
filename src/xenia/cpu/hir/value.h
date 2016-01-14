@@ -77,9 +77,13 @@ class Value {
   } Use;
   typedef union {
     int8_t i8;
+    uint8_t u8;
     int16_t i16;
+    uint16_t u16;
     int32_t i32;
+    uint32_t u32;
     int64_t i64;
+    uint64_t u64;
     float f32;
     double f64;
     vec128_t v128;
@@ -190,6 +194,8 @@ class Value {
           return !!constant.f32;
         case FLOAT64_TYPE:
           return !!constant.f64;
+        case VEC128_TYPE:
+          return constant.v128.low || constant.v128.high;
         default:
           assert_unhandled_case(type);
           return false;
@@ -199,9 +205,6 @@ class Value {
     }
   }
   bool IsConstantFalse() const {
-    if (type == VEC128_TYPE) {
-      assert_always();
-    }
     if (flags & VALUE_IS_CONSTANT) {
       switch (type) {
         case INT8_TYPE:
@@ -216,6 +219,8 @@ class Value {
           return !constant.f32;
         case FLOAT64_TYPE:
           return !constant.f64;
+        case VEC128_TYPE:
+          return !(constant.v128.low || constant.v128.high);
         default:
           assert_unhandled_case(type);
           return false;
@@ -475,6 +480,7 @@ class Value {
   void Mul(Value* other);
   void MulHi(Value* other, bool is_unsigned);
   void Div(Value* other, bool is_unsigned);
+  void Max(Value* other);
   static void MulAdd(Value* dest, Value* value1, Value* value2, Value* value3);
   static void MulSub(Value* dest, Value* value1, Value* value2, Value* value3);
   void Neg();
@@ -488,6 +494,17 @@ class Value {
   void Shl(Value* other);
   void Shr(Value* other);
   void Sha(Value* other);
+  void Extract(Value* vec, Value* index);
+  void Select(Value* other, Value* ctrl);
+  void Splat(Value* other);
+  void VectorCompareEQ(Value* other, TypeName type);
+  void VectorCompareSGT(Value* other, TypeName type);
+  void VectorConvertI2F(Value* other);
+  void VectorConvertF2I(Value* other);
+  void VectorShl(Value* other, TypeName type);
+  void VectorShr(Value* other, TypeName type);
+  void VectorRol(Value* other, TypeName type);
+  void VectorSub(Value* other, TypeName type, bool is_unsigned, bool saturate);
   void ByteSwap();
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);

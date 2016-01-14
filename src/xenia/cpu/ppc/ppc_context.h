@@ -423,8 +423,8 @@ typedef struct PPCContext_s {
 
   uint8_t* physical_membase;
 
-  // Keep the struct padded out to 64b total.
-  uint8_t _padding[8];
+  // Value of last reserved load
+  uint64_t reserved_val;
 
   static std::string GetRegisterName(PPCRegister reg);
   std::string GetStringFromValue(PPCRegister reg) const;

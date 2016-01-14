@@ -631,3 +631,9 @@ DEFINE_OPCODE(
     "atomic_exchange",
     OPCODE_SIG_V_V_V,
     OPCODE_FLAG_VOLATILE)
+
+DEFINE_OPCODE(
+    OPCODE_ATOMIC_COMPARE_EXCHANGE,
+    "atomic_compare_exchange",
+    OPCODE_SIG_V_V_V_V,
+    OPCODE_FLAG_VOLATILE)

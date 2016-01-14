@@ -23,6 +23,8 @@ DECLARE_bool(trace_function_coverage);
 DECLARE_bool(trace_function_references);
 DECLARE_bool(trace_function_data);
 
+DECLARE_bool(disable_global_lock);
+
 DECLARE_bool(validate_hir);
 
 DECLARE_uint64(break_on_instruction);

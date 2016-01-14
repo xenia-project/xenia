@@ -535,6 +535,14 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
   EmitSource("// ");
   instr.Disassemble(&source_);
 
+  if (instr.operands[0].storage_index != 0) {
+    // Unimplemented for now.
+    EmitUnimplementedTranslationError();
+    EmitSourceDepth("pv.xyzw = vec4(0.0, 0.0, 0.0, 0.0);\n");
+    EmitStoreVectorResult(instr.result);
+    return;
+  }
+
   if (instr.is_predicated) {
     EmitSourceDepth("if (%cp0) {\n", instr.predicate_condition ? ' ' : '!');
     Indent();

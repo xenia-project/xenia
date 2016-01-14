@@ -76,13 +76,14 @@ enum PackType : uint16_t {
   // Special types:
   PACK_TYPE_D3DCOLOR = 0,
   PACK_TYPE_FLOAT16_2 = 1,
-  PACK_TYPE_FLOAT16_4 = 2,
-  PACK_TYPE_SHORT_2 = 3,
-  PACK_TYPE_UINT_2101010 = 4,
+  PACK_TYPE_FLOAT16_3 = 2,  // FIXME: Not verified, but looks correct.
+  PACK_TYPE_FLOAT16_4 = 3,
+  PACK_TYPE_SHORT_2 = 4,
+  PACK_TYPE_UINT_2101010 = 5,
 
   // Types which use the bitmasks below for configuration:
-  PACK_TYPE_8_IN_16 = 5,
-  PACK_TYPE_16_IN_32 = 6,
+  PACK_TYPE_8_IN_16 = 6,
+  PACK_TYPE_16_IN_32 = 7,
 
   PACK_TYPE_MODE = 0x000F,  // just to get the mode
 
@@ -220,6 +221,7 @@ enum Opcode {
   OPCODE_PACK,
   OPCODE_UNPACK,
   OPCODE_ATOMIC_EXCHANGE,
+  OPCODE_ATOMIC_COMPARE_EXCHANGE,
   __OPCODE_MAX_VALUE,  // Keep at end.
 };
 

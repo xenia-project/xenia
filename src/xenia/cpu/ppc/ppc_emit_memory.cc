@@ -658,6 +658,7 @@ int InstrEmit_ldarx(PPCHIRBuilder& f, const InstrData& i) {
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.Load(ea, INT64_TYPE));
+  f.StoreReserved(rt);
   f.StoreGPR(i.X.RT, rt);
   return 0;
 }
@@ -682,6 +683,7 @@ int InstrEmit_lwarx(PPCHIRBuilder& f, const InstrData& i) {
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
+  f.StoreReserved(rt);
   f.StoreGPR(i.X.RT, rt);
   return 0;
 }
@@ -700,11 +702,15 @@ int InstrEmit_stdcx(PPCHIRBuilder& f, const InstrData& i) {
   // NOTE: we assume we are within a global lock.
   // As we have been exclusively executing this entire time, we assume that no
   // one else could have possibly touched the memory and must always succeed.
+  // We use atomic compare exchange here to support reserved load/store without
+  // being under the global lock (flag disable_global_lock - see mtmsr/mtmsrd).
+  // This will always succeed if under the global lock, however.
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.LoadGPR(i.X.RT));
-  f.Store(ea, rt);
-  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), f.LoadConstantInt8(1));
+  Value* res = f.ByteSwap(f.LoadReserved());
+  Value* v = f.AtomicCompareExchange(ea, res, rt);
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), v);
   f.StoreContext(offsetof(PPCContext, cr0.cr0_lt), f.LoadZeroInt8());
   f.StoreContext(offsetof(PPCContext, cr0.cr0_gt), f.LoadZeroInt8());
 
@@ -729,11 +735,15 @@ int InstrEmit_stwcx(PPCHIRBuilder& f, const InstrData& i) {
   // NOTE: we assume we are within a global lock.
   // As we have been exclusively executing this entire time, we assume that no
   // one else could have possibly touched the memory and must always succeed.
+  // We use atomic compare exchange here to support reserved load/store without
+  // being under the global lock (flag disable_global_lock - see mtmsr/mtmsrd).
+  // This will always succeed if under the global lock, however.
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE));
-  f.Store(ea, rt);
-  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), f.LoadConstantInt8(1));
+  Value* res = f.ByteSwap(f.Truncate(f.LoadReserved(), INT32_TYPE));
+  Value* v = f.AtomicCompareExchange(ea, res, rt);
+  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), v);
   f.StoreContext(offsetof(PPCContext, cr0.cr0_lt), f.LoadZeroInt8());
   f.StoreContext(offsetof(PPCContext, cr0.cr0_gt), f.LoadZeroInt8());
 

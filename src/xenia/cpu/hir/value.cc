@@ -46,13 +46,13 @@ uint32_t Value::AsUint32() {
   assert_true(IsConstant());
   switch (type) {
     case INT8_TYPE:
-      return constant.i8;
+      return constant.u8;
     case INT16_TYPE:
-      return constant.i16;
+      return constant.u16;
     case INT32_TYPE:
-      return constant.i32;
+      return constant.u32;
     case INT64_TYPE:
-      return (uint32_t)constant.i64;
+      return (uint32_t)constant.u64;
     default:
       assert_unhandled_case(type);
       return 0;
@@ -63,13 +63,13 @@ uint64_t Value::AsUint64() {
   assert_true(IsConstant());
   switch (type) {
     case INT8_TYPE:
-      return constant.i8;
+      return constant.u8;
     case INT16_TYPE:
-      return constant.i16;
+      return constant.u16;
     case INT32_TYPE:
-      return constant.i32;
+      return constant.u32;
     case INT64_TYPE:
-      return constant.i64;
+      return constant.u64;
     default:
       assert_unhandled_case(type);
       return 0;
@@ -85,15 +85,15 @@ void Value::ZeroExtend(TypeName target_type) {
   switch (type) {
     case INT8_TYPE:
       type = target_type;
-      constant.i64 = constant.i64 & 0xFF;
+      constant.u64 = constant.u8;
       return;
     case INT16_TYPE:
       type = target_type;
-      constant.i64 = constant.i64 & 0xFFFF;
+      constant.u64 = constant.u16;
       return;
     case INT32_TYPE:
       type = target_type;
-      constant.i64 = constant.i64 & 0xFFFFFFFF;
+      constant.u64 = constant.u32;
       return;
     default:
       assert_unhandled_case(type);
@@ -210,11 +210,29 @@ void Value::Convert(TypeName target_type, RoundMode round_mode) {
           assert_unhandled_case(target_type);
           return;
       }
+    case INT64_TYPE:
+      switch (target_type) {
+        case FLOAT64_TYPE:
+          type = target_type;
+          constant.f64 = (double)constant.i64;
+          return;
+        default:
+          assert_unhandled_case(target_type);
+          return;
+      }
     case FLOAT64_TYPE:
       switch (target_type) {
         case FLOAT32_TYPE:
           type = target_type;
           constant.f32 = (float)constant.f64;
+          return;
+        case INT32_TYPE:
+          type = target_type;
+          constant.i32 = (int32_t)constant.f64;
+          return;
+        case INT64_TYPE:
+          type = target_type;
+          constant.i64 = (int64_t)constant.f64;
           return;
         default:
           assert_unhandled_case(target_type);
@@ -227,8 +245,28 @@ void Value::Convert(TypeName target_type, RoundMode round_mode) {
 }
 
 void Value::Round(RoundMode round_mode) {
-  // TODO(benvanik): big matrix.
-  assert_always();
+  switch (type) {
+    case FLOAT32_TYPE:
+      switch (round_mode) {
+        case ROUND_TO_NEAREST:
+          constant.f32 = std::round(constant.f32);
+          return;
+      }
+      return;
+    case FLOAT64_TYPE:
+      return;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        switch (round_mode) {
+          case ROUND_TO_NEAREST:
+            constant.v128.f32[i] = std::round(constant.v128.f32[i]);
+            return;
+        }
+      }
+      return;
+    default:
+      assert_unhandled_case(type);
+  }
 }
 
 bool Value::Add(Value* other) {
@@ -325,6 +363,11 @@ void Value::Mul(Value* other) {
     case FLOAT64_TYPE:
       constant.f64 *= other->constant.f64;
       break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.f32[i] *= other->constant.v128.f32[i];
+      }
+      break;
     default:
       assert_unhandled_case(type);
       break;
@@ -406,6 +449,32 @@ void Value::Div(Value* other, bool is_unsigned) {
     case FLOAT64_TYPE:
       constant.f64 /= other->constant.f64;
       break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.f32[i] /= other->constant.v128.f32[i];
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::Max(Value* other) {
+  assert_true(type == other->type);
+  switch (type) {
+    case FLOAT32_TYPE:
+      constant.f32 = std::max(constant.f32, other->constant.f32);
+      break;
+    case FLOAT64_TYPE:
+      constant.f64 = std::max(constant.f64, other->constant.f64);
+      break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.f32[i] =
+            std::max(constant.v128.f32[i], other->constant.v128.f32[i]);
+      }
+      break;
     default:
       assert_unhandled_case(type);
       break;
@@ -413,13 +482,49 @@ void Value::Div(Value* other, bool is_unsigned) {
 }
 
 void Value::MulAdd(Value* dest, Value* value1, Value* value2, Value* value3) {
-  // TODO(benvanik): big matrix.
-  assert_always();
+  switch (dest->type) {
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        dest->constant.v128.f32[i] =
+            (value1->constant.v128.f32[i] * value2->constant.v128.f32[i]) +
+            value3->constant.v128.f32[i];
+      }
+      break;
+    case FLOAT32_TYPE:
+      dest->constant.f32 =
+          (value1->constant.f32 * value2->constant.f32) + value3->constant.f32;
+      break;
+    case FLOAT64_TYPE:
+      dest->constant.f64 =
+          (value1->constant.f64 * value2->constant.f64) + value3->constant.f64;
+      break;
+    default:
+      assert_unhandled_case(dest->type);
+      break;
+  }
 }
 
 void Value::MulSub(Value* dest, Value* value1, Value* value2, Value* value3) {
-  // TODO(benvanik): big matrix.
-  assert_always();
+  switch (dest->type) {
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        dest->constant.v128.f32[i] =
+            (value1->constant.v128.f32[i] * value2->constant.v128.f32[i]) -
+            value3->constant.v128.f32[i];
+      }
+      break;
+    case FLOAT32_TYPE:
+      dest->constant.f32 =
+          (value1->constant.f32 * value2->constant.f32) - value3->constant.f32;
+      break;
+    case FLOAT64_TYPE:
+      dest->constant.f64 =
+          (value1->constant.f64 * value2->constant.f64) - value3->constant.f64;
+      break;
+    default:
+      assert_unhandled_case(dest->type);
+      break;
+  }
 }
 
 void Value::Neg() {
@@ -527,6 +632,9 @@ void Value::And(Value* other) {
     case INT64_TYPE:
       constant.i64 &= other->constant.i64;
       break;
+    case VEC128_TYPE:
+      constant.v128 &= other->constant.v128;
+      break;
     default:
       assert_unhandled_case(type);
       break;
@@ -548,6 +656,9 @@ void Value::Or(Value* other) {
     case INT64_TYPE:
       constant.i64 |= other->constant.i64;
       break;
+    case VEC128_TYPE:
+      constant.v128 |= other->constant.v128;
+      break;
     default:
       assert_unhandled_case(type);
       break;
@@ -568,6 +679,9 @@ void Value::Xor(Value* other) {
       break;
     case INT64_TYPE:
       constant.i64 ^= other->constant.i64;
+      break;
+    case VEC128_TYPE:
+      constant.v128 ^= other->constant.v128;
       break;
     default:
       assert_unhandled_case(type);
@@ -603,16 +717,16 @@ void Value::Shl(Value* other) {
   assert_true(other->type == INT8_TYPE);
   switch (type) {
     case INT8_TYPE:
-      constant.i8 <<= other->constant.i8;
+      constant.u8 <<= other->constant.u8;
       break;
     case INT16_TYPE:
-      constant.i16 <<= other->constant.i8;
+      constant.u16 <<= other->constant.u8;
       break;
     case INT32_TYPE:
-      constant.i32 <<= other->constant.i8;
+      constant.u32 <<= other->constant.u8;
       break;
     case INT64_TYPE:
-      constant.i64 <<= other->constant.i8;
+      constant.u64 <<= other->constant.u8;
       break;
     default:
       assert_unhandled_case(type);
@@ -624,16 +738,16 @@ void Value::Shr(Value* other) {
   assert_true(other->type == INT8_TYPE);
   switch (type) {
     case INT8_TYPE:
-      constant.i8 = (uint8_t)constant.i8 >> other->constant.i8;
+      constant.u8 = constant.u8 >> other->constant.u8;
       break;
     case INT16_TYPE:
-      constant.i16 = (uint16_t)constant.i16 >> other->constant.i8;
+      constant.u16 = constant.u16 >> other->constant.u8;
       break;
     case INT32_TYPE:
-      constant.i32 = (uint32_t)constant.i32 >> other->constant.i8;
+      constant.u32 = constant.u32 >> other->constant.u8;
       break;
     case INT64_TYPE:
-      constant.i64 = (uint64_t)constant.i64 >> other->constant.i8;
+      constant.u64 = constant.u64 >> other->constant.u8;
       break;
     default:
       assert_unhandled_case(type);
@@ -645,20 +759,260 @@ void Value::Sha(Value* other) {
   assert_true(other->type == INT8_TYPE);
   switch (type) {
     case INT8_TYPE:
-      constant.i8 = constant.i8 >> other->constant.i8;
+      constant.i8 = constant.i8 >> other->constant.u8;
       break;
     case INT16_TYPE:
-      constant.i16 = constant.i16 >> other->constant.i8;
+      constant.i16 = constant.i16 >> other->constant.u8;
       break;
     case INT32_TYPE:
-      constant.i32 = constant.i32 >> other->constant.i8;
+      constant.i32 = constant.i32 >> other->constant.u8;
       break;
     case INT64_TYPE:
-      constant.i64 = constant.i64 >> other->constant.i8;
+      constant.i64 = constant.i64 >> other->constant.u8;
       break;
     default:
       assert_unhandled_case(type);
       break;
+  }
+}
+
+void Value::Extract(Value* vec, Value* index) {
+  assert_true(vec->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE:
+      constant.u8 = vec->constant.v128.u8[index->constant.u8];
+      break;
+    case INT16_TYPE:
+      constant.u16 = vec->constant.v128.u16[index->constant.u16];
+      break;
+    case INT32_TYPE:
+      constant.u32 = vec->constant.v128.u32[index->constant.u32];
+      break;
+    case INT64_TYPE:
+      constant.u64 = vec->constant.v128.u64[index->constant.u64];
+      break;
+  }
+}
+
+void Value::Select(Value* other, Value* ctrl) {
+  // TODO
+  assert_always();
+}
+
+void Value::Splat(Value* other) {
+  assert_true(type == VEC128_TYPE);
+  switch (other->type) {
+    case INT8_TYPE:
+      for (int i = 0; i < 16; i++) {
+        constant.v128.i8[i] = other->constant.i8;
+      }
+      break;
+    case INT16_TYPE:
+      for (int i = 0; i < 8; i++) {
+        constant.v128.i16[i] = other->constant.i16;
+      }
+      break;
+    case INT32_TYPE:
+    case FLOAT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.i32[i] = other->constant.i32;
+      }
+      break;
+    case INT64_TYPE:
+    case FLOAT64_TYPE:
+      for (int i = 0; i < 2; i++) {
+        constant.v128.i64[i] = other->constant.i64;
+      }
+      break;
+    default:
+      assert_unhandled_case(other->type);
+      break;
+  }
+}
+
+void Value::VectorCompareEQ(Value* other, TypeName type) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE:
+      for (int i = 0; i < 16; i++) {
+        constant.v128.u8[i] =
+            constant.v128.u8[i] == other->constant.v128.u8[i] ? -1 : 0;
+      }
+      break;
+    case INT16_TYPE:
+      for (int i = 0; i < 8; i++) {
+        constant.v128.u16[i] =
+            constant.v128.u16[i] == other->constant.v128.u16[i] ? -1 : 0;
+      }
+      break;
+    case INT32_TYPE:
+    case FLOAT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.u32[i] =
+            constant.v128.u32[i] == other->constant.v128.u32[i] ? -1 : 0;
+      }
+      break;
+    case INT64_TYPE:
+    case FLOAT64_TYPE:
+      for (int i = 0; i < 2; i++) {
+        constant.v128.u64[i] =
+            constant.v128.u64[i] == other->constant.v128.u64[i] ? -1 : 0;
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::VectorCompareSGT(Value* other, TypeName type) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE:
+      for (int i = 0; i < 16; i++) {
+        constant.v128.u8[i] =
+            constant.v128.i8[i] > other->constant.v128.i8[i] ? -1 : 0;
+      }
+      break;
+    case INT16_TYPE:
+      for (int i = 0; i < 8; i++) {
+        constant.v128.u16[i] =
+            constant.v128.i16[i] > other->constant.v128.i16[i] ? -1 : 0;
+      }
+      break;
+    case INT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.u32[i] =
+            constant.v128.i32[i] > other->constant.v128.i32[i] ? -1 : 0;
+      }
+      break;
+    case FLOAT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.u32[i] =
+            constant.v128.f32[i] > other->constant.v128.f32[i] ? -1 : 0;
+      }
+      break;
+    case INT64_TYPE:
+      for (int i = 0; i < 2; i++) {
+        constant.v128.u64[i] =
+            constant.v128.i64[i] > other->constant.v128.i64[i] ? -1 : 0;
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::VectorConvertI2F(Value* other) {
+  assert_true(type == VEC128_TYPE);
+  for (int i = 0; i < 4; i++) {
+    constant.v128.f32[i] = (float)other->constant.v128.i32[i];
+  }
+}
+
+void Value::VectorConvertF2I(Value* other) {
+  assert_true(type == VEC128_TYPE);
+  for (int i = 0; i < 4; i++) {
+    constant.v128.i32[i] = (int32_t)other->constant.v128.f32[i];
+  }
+}
+
+void Value::VectorShl(Value* other, TypeName type) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE:
+      for (int i = 0; i < 16; i++) {
+        constant.v128.u8[i] <<= other->constant.v128.u8[i] & 0x7;
+      }
+      break;
+    case INT16_TYPE:
+      for (int i = 0; i < 8; i++) {
+        constant.v128.u16[i] <<= other->constant.v128.u16[i] & 0xF;
+      }
+      break;
+    case INT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.u32[i] <<= other->constant.v128.u32[i] & 0x1F;
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::VectorShr(Value* other, TypeName type) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE:
+      for (int i = 0; i < 16; i++) {
+        constant.v128.u8[i] >>= other->constant.v128.u8[i] & 0x7;
+      }
+      break;
+    case INT16_TYPE:
+      for (int i = 0; i < 8; i++) {
+        constant.v128.u16[i] >>= other->constant.v128.u16[i] & 0xF;
+      }
+      break;
+    case INT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.u32[i] >>= other->constant.v128.u32[i] & 0x1F;
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::VectorRol(Value* other, TypeName type) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE:
+      for (int i = 0; i < 16; i++) {
+        constant.v128.u8[i] = xe::rotate_left(constant.v128.u8[i],
+                                              other->constant.v128.i8[i] & 0x7);
+      }
+      break;
+    case INT16_TYPE:
+      for (int i = 0; i < 8; i++) {
+        constant.v128.u16[i] = xe::rotate_left(
+            constant.v128.u16[i], other->constant.v128.u16[i] & 0xF);
+      }
+      break;
+    case INT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.u32[i] = xe::rotate_left(
+            constant.v128.u32[i], other->constant.v128.u32[i] & 0x1F);
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
+                      bool saturate) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT32_TYPE:
+      for (int i = 0; i < 4; i++) {
+        if (is_unsigned) {
+          if (saturate) {
+            assert_always();
+          } else {
+            constant.v128.u32[i] -= other->constant.v128.u32[i];
+          }
+        } else {
+          if (saturate) {
+            assert_always();
+          } else {
+            constant.v128.i32[i] -= other->constant.v128.i32[i];
+          }
+        }
+      }
   }
 }
 
