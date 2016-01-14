@@ -297,13 +297,13 @@ bool XexModule::Load(const std::string& name, const std::string& path,
     auto address = sec_header->load_address + (page * page_size);
     auto size = desc.size * page_size;
     switch (desc.info) {
-    case XEX_SECTION_CODE:
-    case XEX_SECTION_READONLY_DATA:
-      heap->Protect(address, size, kMemoryProtectRead);
-      break;
-    case XEX_SECTION_DATA:
-      heap->Protect(address, size, kMemoryProtectRead | kMemoryProtectWrite);
-      break;
+      case XEX_SECTION_CODE:
+      case XEX_SECTION_READONLY_DATA:
+        heap->Protect(address, size, kMemoryProtectRead);
+        break;
+      case XEX_SECTION_DATA:
+        heap->Protect(address, size, kMemoryProtectRead | kMemoryProtectWrite);
+        break;
     }
 
     page += desc.size;
