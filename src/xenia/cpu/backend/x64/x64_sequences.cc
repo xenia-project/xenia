@@ -4402,16 +4402,20 @@ struct MUL_ADD_F32
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
                                             const Xmm& src1, const Xmm& src2) {
+        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm1, i.src3.constant());
+        }
         if (i.dest == src1) {
-          e.vfmadd213ss(i.dest, src2, i.src3);
+          e.vfmadd213ss(i.dest, src2, src3);
         } else if (i.dest == src2) {
-          e.vfmadd213ss(i.dest, src1, i.src3);
+          e.vfmadd213ss(i.dest, src1, src3);
         } else if (i.dest == i.src3) {
           e.vfmadd231ss(i.dest, src1, src2);
         } else {
           // Dest not equal to anything
           e.vmovss(i.dest, src1);
-          e.vfmadd213ss(i.dest, src2, i.src3);
+          e.vfmadd213ss(i.dest, src2, src3);
         }
       });
     } else {
@@ -4455,16 +4459,20 @@ struct MUL_ADD_F64
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
                                             const Xmm& src1, const Xmm& src2) {
+        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm1, i.src3.constant());
+        }
         if (i.dest == src1) {
-          e.vfmadd213sd(i.dest, src2, i.src3);
+          e.vfmadd213sd(i.dest, src2, src3);
         } else if (i.dest == src2) {
-          e.vfmadd213sd(i.dest, src1, i.src3);
+          e.vfmadd213sd(i.dest, src1, src3);
         } else if (i.dest == i.src3) {
           e.vfmadd231sd(i.dest, src1, src2);
         } else {
           // Dest not equal to anything
           e.vmovsd(i.dest, src1);
-          e.vfmadd213sd(i.dest, src2, i.src3);
+          e.vfmadd213sd(i.dest, src2, src3);
         }
       });
     } else {
@@ -4514,16 +4522,20 @@ struct MUL_ADD_V128
     if (false && e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
                                             const Xmm& src1, const Xmm& src2) {
+        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm1, i.src3.constant());
+        }
         if (i.dest == src1) {
-          e.vfmadd213ps(i.dest, src2, i.src3);
+          e.vfmadd213ps(i.dest, src2, src3);
         } else if (i.dest == src2) {
-          e.vfmadd213ps(i.dest, src1, i.src3);
+          e.vfmadd213ps(i.dest, src1, src3);
         } else if (i.dest == i.src3) {
           e.vfmadd231ps(i.dest, src1, src2);
         } else {
           // Dest not equal to anything
           e.vmovdqa(i.dest, src1);
-          e.vfmadd213ps(i.dest, src2, i.src3);
+          e.vfmadd213ps(i.dest, src2, src3);
         }
       });
     } else {
@@ -4581,16 +4593,20 @@ struct MUL_SUB_F32
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
                                             const Xmm& src1, const Xmm& src2) {
+        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm1, i.src3.constant());
+        }
         if (i.dest == src1) {
-          e.vfmsub213ss(i.dest, src2, i.src3);
+          e.vfmsub213ss(i.dest, src2, src3);
         } else if (i.dest == src2) {
-          e.vfmsub213ss(i.dest, src1, i.src3);
+          e.vfmsub213ss(i.dest, src1, src3);
         } else if (i.dest == i.src3) {
           e.vfmsub231ss(i.dest, src1, src2);
         } else {
           // Dest not equal to anything
           e.vmovss(i.dest, src1);
-          e.vfmsub213ss(i.dest, src2, i.src3);
+          e.vfmsub213ss(i.dest, src2, src3);
         }
       });
     } else {
@@ -4634,16 +4650,20 @@ struct MUL_SUB_F64
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
                                             const Xmm& src1, const Xmm& src2) {
+        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm1, i.src3.constant());
+        }
         if (i.dest == src1) {
-          e.vfmsub213sd(i.dest, src2, i.src3);
+          e.vfmsub213sd(i.dest, src2, src3);
         } else if (i.dest == src2) {
-          e.vfmsub213sd(i.dest, src1, i.src3);
+          e.vfmsub213sd(i.dest, src1, src3);
         } else if (i.dest == i.src3) {
           e.vfmsub231sd(i.dest, src1, src2);
         } else {
           // Dest not equal to anything
           e.vmovsd(i.dest, src1);
-          e.vfmsub213sd(i.dest, src2, i.src3);
+          e.vfmsub213sd(i.dest, src2, src3);
         }
       });
     } else {
@@ -4691,16 +4711,20 @@ struct MUL_SUB_V128
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
                                             const Xmm& src1, const Xmm& src2) {
+        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+        if (i.src3.is_constant) {
+          e.LoadConstantXmm(e.xmm1, i.src3.constant());
+        }
         if (i.dest == src1) {
-          e.vfmsub213ps(i.dest, src2, i.src3);
+          e.vfmsub213ps(i.dest, src2, src3);
         } else if (i.dest == src2) {
-          e.vfmsub213ps(i.dest, src1, i.src3);
+          e.vfmsub213ps(i.dest, src1, src3);
         } else if (i.dest == i.src3) {
           e.vfmsub231ps(i.dest, src1, src2);
         } else {
           // Dest not equal to anything
           e.vmovdqa(i.dest, src1);
-          e.vfmsub213ps(i.dest, src2, i.src3);
+          e.vfmsub213ps(i.dest, src2, src3);
         }
       });
     } else {
