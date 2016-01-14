@@ -31,9 +31,6 @@
 [submodule "third_party/premake-export-compile-commands"]
 	path = third_party/premake-export-compile-commands
 	url = https://github.com/xenia-project/premake-export-compile-commands.git
-[submodule "testdata/reference-gpu-traces"]
-	path = testdata/reference-gpu-traces
-	url = https://github.com/xenia-project/reference-gpu-traces.git
 [submodule "third_party/yaml-cpp"]
 	path = third_party/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
