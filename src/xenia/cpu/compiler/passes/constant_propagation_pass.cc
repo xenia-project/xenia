@@ -270,13 +270,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
                 i->Remove();
               } else if (i->src2.value->IsConstant() &&
                          i->src3.value->IsConstant()) {
-                // TODO
+                // TODO: Select
                 // v->set_from(i->src2.value);
                 // v->Select(i->src3.value, i->src1.value);
                 // i->Remove();
               }
             } else {
-              // TODO
+              // TODO: vec128 select
             }
           }
           break;
