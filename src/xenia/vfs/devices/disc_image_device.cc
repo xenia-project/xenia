@@ -84,6 +84,10 @@ DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
 }
 
 bool DiscImageDevice::VerifyMagic(ParseState* state, size_t offset) {
+  if (offset >= state->size) {
+    return false;
+  }
+
   // Simple check to see if the given offset contains the magic value.
   return std::memcmp(state->ptr + offset, "MICROSOFT*XBOX*MEDIA", 20) == 0;
 }
