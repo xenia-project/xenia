@@ -10,6 +10,7 @@
 #include "xenia/cpu/ppc/ppc_emit-private.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
@@ -725,10 +726,14 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
         f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
-      f.CallExtern(f.builtins()->enter_global_lock);
+      if (!FLAGS_disable_global_lock) {
+        f.CallExtern(f.builtins()->enter_global_lock);
+      }
     } else {
       // Otherwise we are restoring interrupts (probably).
-      f.CallExtern(f.builtins()->leave_global_lock);
+      if (!FLAGS_disable_global_lock) {
+        f.CallExtern(f.builtins()->leave_global_lock);
+      }
     }
     return 0;
   } else {
@@ -746,10 +751,14 @@ int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
                    f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
-      f.CallExtern(f.builtins()->enter_global_lock);
+      if (!FLAGS_disable_global_lock) {
+        f.CallExtern(f.builtins()->enter_global_lock);
+      }
     } else {
       // Otherwise we are restoring interrupts (probably).
-      f.CallExtern(f.builtins()->leave_global_lock);
+      if (!FLAGS_disable_global_lock) {
+        f.CallExtern(f.builtins()->leave_global_lock);
+      }
     }
     return 0;
   } else {

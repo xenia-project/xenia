@@ -702,6 +702,9 @@ int InstrEmit_stdcx(PPCHIRBuilder& f, const InstrData& i) {
   // NOTE: we assume we are within a global lock.
   // As we have been exclusively executing this entire time, we assume that no
   // one else could have possibly touched the memory and must always succeed.
+  // We use atomic compare exchange here to support reserved load/store without
+  // being under the global lock (flag disable_global_lock - see mtmsr/mtmsrd).
+  // This will always succeed if under the global lock, however.
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.LoadGPR(i.X.RT));
@@ -732,6 +735,9 @@ int InstrEmit_stwcx(PPCHIRBuilder& f, const InstrData& i) {
   // NOTE: we assume we are within a global lock.
   // As we have been exclusively executing this entire time, we assume that no
   // one else could have possibly touched the memory and must always succeed.
+  // We use atomic compare exchange here to support reserved load/store without
+  // being under the global lock (flag disable_global_lock - see mtmsr/mtmsrd).
+  // This will always succeed if under the global lock, however.
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE));

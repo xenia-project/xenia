@@ -1251,22 +1251,20 @@ pointer_result_t InterlockedPushEntrySList(
   assert_not_null(plist_ptr);
   assert_not_null(entry);
 
-  // Hold a global lock during this method. Once in the lock we assume we have
-  // exclusive access to the structure.
-  auto global_lock = xe::global_critical_region::AcquireDirect();
-
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
-  new_hdr.depth = old_hdr.depth + 1;
-  new_hdr.sequence = old_hdr.sequence + 1;
+  uint32_t old_head = 0;
+  do {
+    old_hdr = *plist_ptr;
+    new_hdr.depth = old_hdr.depth + 1;
+    new_hdr.sequence = old_hdr.sequence + 1;
 
-  uint32_t old_head = old_hdr.next.next;
-  entry->next = old_hdr.next.next;
-  new_hdr.next.next = entry.guest_address();
-
-  *reinterpret_cast<uint64_t*>(plist_ptr.host_address()) =
-      *reinterpret_cast<uint64_t*>(&new_hdr);
-  xe::threading::SyncMemory();
+    uint32_t old_head = old_hdr.next.next;
+    entry->next = old_hdr.next.next;
+    new_hdr.next.next = entry.guest_address();
+  } while (
+      !xe::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return old_head;
 }
@@ -1276,28 +1274,24 @@ DECLARE_XBOXKRNL_EXPORT(InterlockedPushEntrySList,
 pointer_result_t InterlockedPopEntrySList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
-  // Hold a global lock during this method. Once in the lock we assume we have
-  // exclusive access to the structure.
-  auto global_lock = xe::global_critical_region::AcquireDirect();
-
   uint32_t popped = 0;
-
-  alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
+  alignas(8) X_SLIST_HEADER old_hdr = {0};
   alignas(8) X_SLIST_HEADER new_hdr = {0};
-  auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
-      old_hdr.next.next);
-  if (!old_hdr.next.next) {
-    return 0;
-  }
-  popped = old_hdr.next.next;
+  do {
+    old_hdr = *plist_ptr;
+    auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
+        old_hdr.next.next);
+    if (!old_hdr.next.next) {
+      return 0;
+    }
+    popped = old_hdr.next.next;
 
-  new_hdr.depth = old_hdr.depth - 1;
-  new_hdr.next.next = next->next;
-  new_hdr.sequence = old_hdr.sequence;
-
-  *reinterpret_cast<uint64_t*>(plist_ptr.host_address()) =
-      *reinterpret_cast<uint64_t*>(&new_hdr);
-  xe::threading::SyncMemory();
+    new_hdr.depth = old_hdr.depth - 1;
+    new_hdr.next.next = next->next;
+    new_hdr.sequence = old_hdr.sequence;
+  } while (
+      !xe::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return popped;
 }
@@ -1307,20 +1301,18 @@ DECLARE_XBOXKRNL_EXPORT(InterlockedPopEntrySList,
 pointer_result_t InterlockedFlushSList(pointer_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
-  // Hold a global lock during this method. Once in the lock we assume we have
-  // exclusive access to the structure.
-  auto global_lock = xe::global_critical_region::AcquireDirect();
-
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
   alignas(8) X_SLIST_HEADER new_hdr = {0};
-  uint32_t first = old_hdr.next.next;
-  new_hdr.next.next = 0;
-  new_hdr.depth = 0;
-  new_hdr.sequence = 0;
-
-  *reinterpret_cast<uint64_t*>(plist_ptr.host_address()) =
-      *reinterpret_cast<uint64_t*>(&new_hdr);
-  xe::threading::SyncMemory();
+  uint32_t first = 0;
+  do {
+    old_hdr = *plist_ptr;
+    first = old_hdr.next.next;
+    new_hdr.next.next = 0;
+    new_hdr.depth = 0;
+    new_hdr.sequence = 0;
+  } while (
+      !xe::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return first;
 }
