@@ -203,12 +203,13 @@ void ShaderTranslator::GatherBindingInformation(
 
 void ShaderTranslator::GatherVertexBindingInformation(
     const VertexFetchInstruction& op) {
+  ParsedVertexFetchInstruction fetch_instr;
+  ParseVertexFetchInstruction(op, &fetch_instr);
+
+  // Don't bother setting up a binding for an instruction that fetches nothing.
   if (!op.fetches_any_data()) {
     return;
   }
-
-  ParsedVertexFetchInstruction fetch_instr;
-  ParseVertexFetchInstruction(op, &fetch_instr);
 
   // Try to allocate an attribute on an existing binding.
   // If no binding for this fetch slot is found create it.
