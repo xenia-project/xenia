@@ -1256,7 +1256,8 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
 
     // rcp dest, src0.a
     case AluScalarOpcode::kRcp:
-      EmitSourceDepth("ps = 1.0 / src0.x;\n");
+      // Prevent divide by zero.
+      EmitSourceDepth("ps = src0.x != 0.0 ? 1.0 / src0.x : 0.0;\n");
       break;
 
     // rsqc dest, src0.a
@@ -1273,7 +1274,8 @@ void GlslShaderTranslator::ProcessScalarAluInstruction(
 
     // rsq dest, src0.a
     case AluScalarOpcode::kRsq:
-      EmitSourceDepth("ps = inversesqrt(src0.x);\n");
+      // Prevent divide by zero.
+      EmitSourceDepth("ps = src0.x != 0.0 ? inversesqrt(src0.x) : 0.0;\n");
       break;
 
     // maxas dest, src0.ab
