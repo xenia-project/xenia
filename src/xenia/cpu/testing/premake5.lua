@@ -12,7 +12,6 @@ test_suite("xenia-cpu-tests", project_root, ".", {
     "xenia-cpu-backend-x64",
 
     -- TODO(benvanik): cut these dependencies?
-    "xenia-debug",
     "xenia-kernel",
   },
 })

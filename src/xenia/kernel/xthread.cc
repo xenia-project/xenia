@@ -22,7 +22,6 @@
 #include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/cpu/stack_walker.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
@@ -80,9 +79,8 @@ XThread::~XThread() {
   // Unregister first to prevent lookups while deleting.
   kernel_state_->UnregisterThread(this);
 
-  if (emulator()->debugger()) {
-    emulator()->debugger()->OnThreadDestroyed(this);
-  }
+  // Notify processor of our impending destruction.
+  emulator()->processor()->OnThreadDestroyed(thread_id_);
 
   thread_.reset();
 
@@ -408,9 +406,8 @@ X_STATUS XThread::Create() {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
   }
 
-  if (emulator()->debugger()) {
-    emulator()->debugger()->OnThreadCreated(this);
-  }
+  // Notify processor of our creation.
+  emulator()->processor()->OnThreadCreated(handle(), thread_state_, this);
 
   if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
     // Start the thread now that we're all setup.
@@ -434,9 +431,8 @@ X_STATUS XThread::Exit(int exit_code) {
 
   kernel_state()->OnThreadExit(this);
 
-  if (emulator()->debugger()) {
-    emulator()->debugger()->OnThreadExit(this);
-  }
+  // Notify processor of our exit.
+  emulator()->processor()->OnThreadExit(thread_id_);
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_thread_tls_ = nullptr;
@@ -458,9 +454,8 @@ X_STATUS XThread::Terminate(int exit_code) {
   thread->header.signal_state = 1;
   thread->exit_status = exit_code;
 
-  if (emulator()->debugger()) {
-    emulator()->debugger()->OnThreadExit(this);
-  }
+  // Notify processor of our exit.
+  emulator()->processor()->OnThreadExit(thread_id_);
 
   running_ = false;
   Release();
@@ -790,245 +785,6 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
   }
 }
 
-bool XThread::StepToAddress(uint32_t pc) {
-  auto functions = emulator()->processor()->FindFunctionsWithAddress(pc);
-  if (functions.empty()) {
-    // Function hasn't been generated yet. Generate it.
-    if (!emulator()->processor()->ResolveFunction(pc)) {
-      XELOGE("XThread::StepToAddress(%.8X) - Function could not be resolved",
-             pc);
-      return false;
-    }
-  }
-
-  // Instruct the thread to step forwards.
-  threading::Fence fence;
-  cpu::Breakpoint bp(kernel_state()->processor(), pc,
-                     [&fence](uint32_t guest_address, uint64_t host_address) {
-                       fence.Signal();
-                     });
-  if (bp.Install()) {
-    // HACK
-    uint32_t suspend_count = 1;
-    while (suspend_count) {
-      thread_->Resume(&suspend_count);
-    }
-
-    fence.Wait();
-    bp.Uninstall();
-  } else {
-    assert_always();
-    XELOGE("XThread: Could not install breakpoint to step forward!");
-    return false;
-  }
-
-  return true;
-}
-
-uint32_t XThread::StepIntoBranch(uint32_t pc) {
-  xe::cpu::ppc::PPCDecodeData d;
-  d.address = pc;
-  d.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(d.address));
-  auto opcode = xe::cpu::ppc::LookupOpcode(d.code);
-
-  auto context = thread_state_->context();
-
-  if (d.code == 0x4E800020) {
-    // blr
-    uint32_t nia = uint32_t(context->lr);
-    StepToAddress(nia);
-  } else if (d.code == 0x4E800420) {
-    // bctr
-    uint32_t nia = uint32_t(context->ctr);
-    StepToAddress(nia);
-  } else if (opcode == PPCOpcode::bx) {
-    // bx
-    uint32_t nia = d.I.ADDR();
-    StepToAddress(nia);
-  } else if (opcode == PPCOpcode::bcx || opcode == PPCOpcode::bcctrx ||
-             opcode == PPCOpcode::bclrx) {
-    threading::Fence fence;
-    auto callback = [&fence, &pc](uint32_t guest_pc, uint64_t) {
-      pc = guest_pc;
-      fence.Signal();
-    };
-
-    cpu::Breakpoint bpt(kernel_state()->processor(), callback);
-    cpu::Breakpoint bpf(kernel_state()->processor(), pc + 4, callback);
-    if (!bpf.Install()) {
-      XELOGE("XThread: Could not install breakpoint to step forward!");
-      assert_always();
-    }
-
-    uint32_t nia = 0;
-    if (opcode == PPCOpcode::bcx) {
-      // bcx
-      nia = d.B.ADDR();
-    } else if (opcode == PPCOpcode::bcctrx) {
-      // bcctrx
-      nia = uint32_t(context->ctr);
-    } else if (opcode == PPCOpcode::bclrx) {
-      // bclrx
-      nia = uint32_t(context->lr);
-    }
-
-    bpt.set_address(nia);
-    if (!bpt.Install()) {
-      assert_always();
-      return 0;
-    }
-
-    // HACK
-    uint32_t suspend_count = 1;
-    while (suspend_count) {
-      thread_->Resume(&suspend_count);
-    }
-
-    fence.Wait();
-    bpt.Uninstall();
-    bpf.Uninstall();
-  }
-
-  return pc;
-}
-
-uint32_t XThread::StepToSafePoint(bool ignore_host) {
-  // This cannot be done if we're the calling thread!
-  if (IsInThread() && GetCurrentThread() == this) {
-    assert_always(
-        "XThread::StepToSafePoint(): target thread is the calling thread!");
-    return 0;
-  }
-
-  // Now the fun part begins: Registers are only guaranteed to be synchronized
-  // with the PPC context at a basic block boundary. Unfortunately, we most
-  // likely stopped the thread at some point other than a boundary. We need to
-  // step forward until we reach a boundary, and then perform the save.
-  auto stack_walker = kernel_state()->processor()->stack_walker();
-
-  uint64_t frame_host_pcs[64];
-  cpu::StackFrame cpu_frames[64];
-  size_t count = stack_walker->CaptureStackTrace(
-      thread_->native_handle(), frame_host_pcs, 0, xe::countof(frame_host_pcs),
-      nullptr, nullptr);
-  stack_walker->ResolveStack(frame_host_pcs, cpu_frames, count);
-  if (count == 0) {
-    return 0;
-  }
-
-  auto& first_frame = cpu_frames[0];
-  if (ignore_host) {
-    for (size_t i = 0; i < count; i++) {
-      if (cpu_frames[i].type == cpu::StackFrame::Type::kGuest &&
-          cpu_frames[i].guest_pc) {
-        first_frame = cpu_frames[i];
-        break;
-      }
-    }
-  }
-
-  // Check if we're in guest code or host code.
-  uint32_t pc = 0;
-  if (first_frame.type == cpu::StackFrame::Type::kGuest) {
-    auto& frame = first_frame;
-    if (!frame.guest_pc) {
-      // Lame. The guest->host thunk is a "guest" function.
-      frame = cpu_frames[1];
-    }
-
-    pc = frame.guest_pc;
-
-    // We're in guest code.
-    // First: Find a synchronizing instruction and go to it.
-    xe::cpu::ppc::PPCDecodeData d;
-    const xe::cpu::ppc::PPCOpcodeInfo* sync_info = nullptr;
-    d.address = cpu_frames[0].guest_pc - 4;
-    do {
-      d.address += 4;
-      d.code =
-          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(d.address));
-      auto& opcode_info = xe::cpu::ppc::LookupOpcodeInfo(d.code);
-      if (opcode_info.type == cpu::ppc::PPCOpcodeType::kSync) {
-        sync_info = &opcode_info;
-        break;
-      }
-    } while (true);
-
-    if (d.address != pc) {
-      StepToAddress(d.address);
-      pc = d.address;
-    }
-
-    // Okay. Now we're on a synchronizing instruction but we need to step
-    // past it in order to get a synchronized context.
-    // If we're on a branching instruction, it's guaranteed only going to have
-    // two possible targets. For non-branching instructions, we can just step
-    // over them.
-    if (sync_info->group == xe::cpu::ppc::PPCOpcodeGroup::kB) {
-      pc = StepIntoBranch(d.address);
-    }
-  } else {
-    // We're in host code. Search backwards til we can get an idea of where
-    // we are.
-    cpu::GuestFunction* thunk_func = nullptr;
-    cpu::Export* export_data = nullptr;
-    uint32_t first_pc = 0;
-    for (int i = 0; i < count; i++) {
-      auto& frame = cpu_frames[i];
-      if (frame.type == cpu::StackFrame::Type::kGuest && frame.guest_pc) {
-        auto func = frame.guest_symbol.function;
-        assert_true(func->is_guest());
-
-        if (!first_pc) {
-          first_pc = frame.guest_pc;
-        }
-
-        thunk_func = reinterpret_cast<cpu::GuestFunction*>(func);
-        export_data = thunk_func->export_data();
-        if (export_data) {
-          break;
-        }
-      }
-    }
-
-    // If the export is blocking, we wrap up and save inside the export thunk.
-    // When we're restored, we'll call the blocking export again.
-    // Otherwise, we return from the thunk and save.
-    if (export_data && export_data->tags & cpu::ExportTag::kBlocking) {
-      pc = thunk_func->address();
-    } else if (export_data) {
-      // Non-blocking. Run until we return from the thunk.
-      pc = uint32_t(thread_state_->context()->lr);
-      StepToAddress(pc);
-    } else if (first_pc) {
-      // We're in the MMIO handler/mfmsr/something calling out of the guest
-      // that doesn't use an export. If the current instruction is
-      // synchronizing, we can just save here. Otherwise, step forward
-      // (and call ourselves again so we run the correct logic).
-      uint32_t code =
-          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
-      auto& opcode_info = xe::cpu::ppc::LookupOpcodeInfo(code);
-      if (opcode_info.type == xe::cpu::ppc::PPCOpcodeType::kSync) {
-        // Good to go.
-        pc = first_pc;
-      } else {
-        // Step forward and run this logic again.
-        StepToAddress(first_pc + 4);
-        return StepToSafePoint(true);
-      }
-    } else {
-      // We've managed to catch a thread before it called into the guest.
-      // Set a breakpoint on its startup procedure and capture it there.
-      pc = creation_params_.xapi_thread_startup
-               ? creation_params_.xapi_thread_startup
-               : creation_params_.start_address;
-      StepToAddress(pc);
-    }
-  }
-
-  return pc;
-}
-
 struct ThreadSavedState {
   uint32_t thread_id;
   bool is_main_thread;  // Is this the main thread?
@@ -1075,7 +831,7 @@ bool XThread::Save(ByteStream* stream) {
 
   uint32_t pc = 0;
   if (running_) {
-    pc = StepToSafePoint();
+    pc = emulator()->processor()->StepToGuestSafePoint(thread_id_);
     if (!pc) {
       XELOGE("XThread %.8X failed to save: could not step to a safe point!",
              handle());
@@ -1247,9 +1003,9 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       thread->Release();
     });
 
-    if (thread->emulator()->debugger()) {
-      thread->emulator()->debugger()->OnThreadCreated(thread);
-    }
+    // Notify processor we were recreated.
+    thread->emulator()->processor()->OnThreadCreated(
+        thread->handle(), thread->thread_state(), thread);
   }
 
   return object_ref<XThread>(thread);

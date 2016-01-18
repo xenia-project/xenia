@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_DEBUG_INFO_H_
-#define XENIA_CPU_DEBUG_INFO_H_
+#ifndef XENIA_CPU_FUNCTION_DEBUG_INFO_H_
+#define XENIA_CPU_FUNCTION_DEBUG_INFO_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -38,10 +38,10 @@ enum DebugInfoFlags : uint32_t {
 // DEPRECATED
 // This will be getting removed or refactored to contain only on-demand
 // disassembly data.
-class DebugInfo {
+class FunctionDebugInfo {
  public:
-  DebugInfo();
-  ~DebugInfo();
+  FunctionDebugInfo();
+  ~FunctionDebugInfo();
 
   uint32_t address_reference_count() const { return address_reference_count_; }
   void set_address_reference_count(uint32_t value) {
@@ -78,4 +78,4 @@ class DebugInfo {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_DEBUG_INFO_H_
+#endif  // XENIA_CPU_FUNCTION_DEBUG_INFO_H_

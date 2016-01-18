@@ -408,7 +408,7 @@ void KernelState::TerminateTitle() {
         }
 
         global_lock.unlock();
-        thread->StepToSafePoint();
+        processor_->StepToGuestSafePoint(thread->thread_id());
         thread->Terminate(0);
         global_lock.lock();
       }
@@ -420,8 +420,8 @@ void KernelState::TerminateTitle() {
     }
   }
 
-  // Third: Unload all user modules (including the executable)
-  for (int i = 0; i < user_modules_.size(); i++) {
+  // Third: Unload all user modules (including the executable).
+  for (size_t i = 0; i < user_modules_.size(); i++) {
     X_STATUS status = user_modules_[i]->Unload();
     assert_true(XSUCCEEDED(status));
 
@@ -442,7 +442,7 @@ void KernelState::TerminateTitle() {
     threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
 
     // Now commit suicide (using Terminate, because we can't call into guest
-    // code anymore)
+    // code anymore).
     global_lock.unlock();
     XThread::GetCurrentThread()->Terminate(0);
   }
@@ -512,9 +512,7 @@ void KernelState::OnThreadExit(XThread* thread) {
     }
   }
 
-  if (emulator()->debugger()) {
-    emulator()->debugger()->OnThreadExit(thread);
-  }
+  emulator()->processor()->OnThreadExit(thread->thread_id());
 }
 
 object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {

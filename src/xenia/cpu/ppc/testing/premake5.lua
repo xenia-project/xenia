@@ -14,7 +14,6 @@ project("xenia-cpu-ppc-tests")
     "xenia-cpu-backend-x64",
 
     -- TODO(benvanik): remove these dependencies.
-    "xenia-debug",
     "xenia-kernel"
   })
   files({

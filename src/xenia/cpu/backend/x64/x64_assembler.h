@@ -37,7 +37,7 @@ class X64Assembler : public Assembler {
 
   bool Assemble(GuestFunction* function, hir::HIRBuilder* builder,
                 uint32_t debug_info_flags,
-                std::unique_ptr<DebugInfo> debug_info) override;
+                std::unique_ptr<FunctionDebugInfo> debug_info) override;
 
  private:
   void DumpMachineCode(void* machine_code, size_t code_size,

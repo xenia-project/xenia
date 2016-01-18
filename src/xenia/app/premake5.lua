@@ -16,7 +16,6 @@ project("xenia-app")
     "xenia-core",
     "xenia-cpu",
     "xenia-cpu-backend-x64",
-    "xenia-debug",
     "xenia-debug-ui",
     "xenia-gpu",
     "xenia-gpu-gl4",

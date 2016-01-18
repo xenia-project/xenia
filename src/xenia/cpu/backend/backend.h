@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/cpu/backend/machine_info.h"
+#include "xenia/cpu/thread_debug_info.h"
 
 namespace xe {
 namespace cpu {
@@ -53,11 +54,15 @@ class Backend {
   virtual std::unique_ptr<GuestFunction> CreateGuestFunction(
       Module* module, uint32_t address) = 0;
 
-  virtual bool InstallBreakpoint(Breakpoint* bp) { return false; }
-  virtual bool InstallBreakpoint(Breakpoint* bp, Function* func) {
-    return false;
-  }
-  virtual bool UninstallBreakpoint(Breakpoint* bp) { return false; }
+  // Calculates the next host instruction based on the current thread state and
+  // current PC. This will look for branches and other control flow
+  // instructions.
+  virtual uint64_t CalculateNextHostInstruction(ThreadDebugInfo* thread_info,
+                                                uint64_t current_pc) = 0;
+
+  virtual void InstallBreakpoint(Breakpoint* breakpoint) {}
+  virtual void InstallBreakpoint(Breakpoint* breakpoint, Function* fn) {}
+  virtual void UninstallBreakpoint(Breakpoint* breakpoint) {}
 
  protected:
   Processor* processor_;

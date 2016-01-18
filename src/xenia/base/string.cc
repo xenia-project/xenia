@@ -58,6 +58,7 @@ std::string format_string(const char* format, va_list args) {
       max_len *= 2;
     } else {
       // Everything fit for sure.
+      new_s.resize(ret);
       return new_s;
     }
   }
@@ -81,6 +82,7 @@ std::wstring format_string(const wchar_t* format, va_list args) {
       max_len *= 2;
     } else {
       // Everything fit for sure.
+      new_s.resize(ret);
       return new_s;
     }
   }

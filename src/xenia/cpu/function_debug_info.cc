@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/debug_info.h"
+#include "xenia/cpu/function_debug_info.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -17,20 +17,20 @@
 namespace xe {
 namespace cpu {
 
-DebugInfo::DebugInfo()
+FunctionDebugInfo::FunctionDebugInfo()
     : source_disasm_(nullptr),
       raw_hir_disasm_(nullptr),
       hir_disasm_(nullptr),
       machine_code_disasm_(nullptr) {}
 
-DebugInfo::~DebugInfo() {
+FunctionDebugInfo::~FunctionDebugInfo() {
   free(source_disasm_);
   free(raw_hir_disasm_);
   free(hir_disasm_);
   free(machine_code_disasm_);
 }
 
-void DebugInfo::Dump() {
+void FunctionDebugInfo::Dump() {
   if (source_disasm_) {
     XELOGD("PPC:\n%s\n", source_disasm_);
   }

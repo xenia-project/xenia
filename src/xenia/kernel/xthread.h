@@ -196,19 +196,11 @@ class XThread : public XObject {
     pending_mutant_acquires_.push_back(mutant);
   }
 
-  // Steps the thread to a point where it's safe to terminate or read its
-  // context. Returns the PC after we've finished stepping.
-  // Pass true for ignore_host if you've stopped the thread yourself
-  // in host code you want to ignore.
-  uint32_t StepToSafePoint(bool ignore_host = false);
-
  protected:
   bool AllocateStack(uint32_t size);
   void FreeStack();
   void InitializeGuestObject();
 
-  bool StepToAddress(uint32_t pc);
-  uint32_t StepIntoBranch(uint32_t pc);
   void DeliverAPCs();
   void RundownAPCs();
 

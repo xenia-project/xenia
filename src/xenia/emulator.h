@@ -14,7 +14,6 @@
 #include <string>
 
 #include "xenia/base/exception_handler.h"
-#include "xenia/debug/debugger.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
@@ -62,9 +61,6 @@ class Emulator {
   // Guest memory system modelling the RAM (both virtual and physical) of the
   // system.
   Memory* memory() const { return memory_.get(); }
-
-  // Active debugger, which may or may not be attached.
-  debug::Debugger* debugger() const { return debugger_.get(); }
 
   // Virtualized processor that can execute PPC code.
   cpu::Processor* processor() const { return processor_.get(); }
@@ -145,8 +141,6 @@ class Emulator {
   ui::Window* display_window_;
 
   std::unique_ptr<Memory> memory_;
-
-  std::unique_ptr<debug::Debugger> debugger_;
 
   std::unique_ptr<cpu::Processor> processor_;
   std::unique_ptr<apu::AudioSystem> audio_system_;

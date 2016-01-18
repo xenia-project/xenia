@@ -10,7 +10,6 @@ project("xenia-debug-ui")
     "imgui",
     "xenia-base",
     "xenia-cpu",
-    "xenia-debug",
     "xenia-ui",
     "yaml-cpp",
   })

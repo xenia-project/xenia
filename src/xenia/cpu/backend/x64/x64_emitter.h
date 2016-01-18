@@ -14,10 +14,10 @@
 
 #include "xenia/base/arena.h"
 #include "xenia/cpu/function.h"
+#include "xenia/cpu/function_trace_data.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
-#include "xenia/debug/function_trace_data.h"
 #include "xenia/memory.h"
 
 // NOTE: must be included last as it expects windows.h to already be included.
@@ -115,7 +115,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Backend* backend() const { return backend_; }
 
   bool Emit(GuestFunction* function, hir::HIRBuilder* builder,
-            uint32_t debug_info_flags, DebugInfo* debug_info,
+            uint32_t debug_info_flags, FunctionDebugInfo* debug_info,
             void** out_code_address, size_t* out_code_size,
             std::vector<SourceMapEntry>* out_source_map);
 
@@ -190,7 +190,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
     return (feature_flags_ & feature_flag) != 0;
   }
 
-  DebugInfo* debug_info() const { return debug_info_; }
+  FunctionDebugInfo* debug_info() const { return debug_info_; }
 
   size_t stack_size() const { return stack_size_; }
 
@@ -212,9 +212,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   hir::Instr* current_instr_ = nullptr;
 
-  DebugInfo* debug_info_ = nullptr;
+  FunctionDebugInfo* debug_info_ = nullptr;
   uint32_t debug_info_flags_ = 0;
-  debug::FunctionTraceData* trace_data_ = nullptr;
+  FunctionTraceData* trace_data_ = nullptr;
   Arena source_map_arena_;
 
   size_t stack_size_ = 0;

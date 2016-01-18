@@ -12,8 +12,8 @@
 
 #include <vector>
 
-#include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/function.h"
+#include "xenia/cpu/function_debug_info.h"
 
 namespace xe {
 namespace cpu {
@@ -31,7 +31,7 @@ class PPCScanner {
   explicit PPCScanner(PPCFrontend* frontend);
   ~PPCScanner();
 
-  bool Scan(GuestFunction* function, DebugInfo* debug_info);
+  bool Scan(GuestFunction* function, FunctionDebugInfo* debug_info);
 
   std::vector<BlockInfo> FindBlocks(GuestFunction* function);
 

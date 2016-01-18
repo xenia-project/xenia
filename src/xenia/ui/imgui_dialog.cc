@@ -66,7 +66,7 @@ class MessageBoxDialog : public ImGuiDialog {
                                ImGuiWindowFlags_AlwaysAutoResize)) {
       char* text = const_cast<char*>(body_.c_str());
       ImGui::InputTextMultiline(
-          "##body", text, body_.size(), ImVec2(0, 0),
+          "##body", text, body_.size(), ImVec2(600, 0),
           ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
       if (ImGui::Button("OK")) {
         ImGui::CloseCurrentPopup();

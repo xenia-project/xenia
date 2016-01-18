@@ -315,9 +315,7 @@ object_ref<XThread> UserModule::Launch(uint32_t flags) {
   }
 
   // Waits for a debugger client, if desired.
-  if (emulator()->debugger()) {
-    emulator()->debugger()->PreLaunch();
-  }
+  emulator()->processor()->PreLaunch();
 
   // Resume the thread now.
   // If the debugger has requested a suspend this will just decrement the

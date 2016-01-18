@@ -48,11 +48,6 @@ Emulator::Emulator(const std::wstring& command_line)
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
 
-  if (debugger_) {
-    // Kill the debugger first, so that we don't have it messing with things.
-    debugger_->StopSession();
-  }
-
   // Give the systems time to shutdown before we delete them.
   if (graphics_system_) {
     graphics_system_->Shutdown();
@@ -69,8 +64,6 @@ Emulator::~Emulator() {
   file_system_.reset();
 
   processor_.reset();
-
-  debugger_.reset();
 
   export_resolver_.reset();
 
@@ -110,17 +103,9 @@ X_STATUS Emulator::Setup(
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = std::make_unique<xe::cpu::ExportResolver>();
 
-  if (FLAGS_debug) {
-    // Debugger first, as other parts hook into it.
-    debugger_.reset(new debug::Debugger(this));
-
-    // Create debugger first. Other types hook up to it.
-    debugger_->StartSession();
-  }
-
   // Initialize the CPU.
-  processor_ = std::make_unique<xe::cpu::Processor>(
-      this, memory_.get(), export_resolver_.get(), debugger_.get());
+  processor_ = std::make_unique<xe::cpu::Processor>(memory_.get(),
+                                                    export_resolver_.get());
   if (!processor_->Setup()) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -361,6 +346,7 @@ bool Emulator::SaveToFile(const std::wstring& path) {
 
   // It's important we don't hold the global lock here! XThreads need to step
   // forward (possibly through guarded regions) without worry!
+  processor_->Save(&stream);
   graphics_system_->Save(&stream);
   audio_system_->Save(&stream);
   kernel_state_->Save(&stream);
@@ -390,6 +376,10 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
     return false;
   }
 
+  if (!processor_->Restore(&stream)) {
+    XELOGE("Could not restore processor!");
+    return false;
+  }
   if (!graphics_system_->Restore(&stream)) {
     XELOGE("Could not restore graphics system!");
     return false;
@@ -435,15 +425,14 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   auto code_base = code_cache->base_address();
   auto code_end = code_base + code_cache->total_size();
 
-  if (!debugger() ||
-      (!debugger()->is_attached() && debugging::IsDebuggerAttached())) {
+  if (!processor()->is_debugger_attached() && debugging::IsDebuggerAttached()) {
     // If Xenia's debugger isn't attached but another one is, pass it to that
     // debugger.
     return false;
-  } else if (debugger() && debugger()->is_attached()) {
+  } else if (processor()->is_debugger_attached()) {
     // Let the debugger handle this exception. It may decide to continue past it
     // (if it was a stepping breakpoint, etc).
-    return debugger()->OnUnhandledException(ex);
+    return processor()->OnUnhandledException(ex);
   }
 
   if (!(ex->pc() >= code_base && ex->pc() < code_end)) {

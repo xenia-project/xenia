@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_FUNCTION_TRACE_DATA_H_
-#define XENIA_DEBUG_FUNCTION_TRACE_DATA_H_
+#ifndef XENIA_CPU_FUNCTION_TRACE_DATA_H_
+#define XENIA_CPU_FUNCTION_TRACE_DATA_H_
 
 #include <cstdint>
 #include <cstring>
@@ -16,28 +16,7 @@
 #include "xenia/base/memory.h"
 
 namespace xe {
-namespace debug {
-
-class FunctionDisasmData {
- public:
-  struct Header {
-    // Format is used by tooling, changes must be made across all targets.
-    // + 0   4b  (data size)
-    // + 4   4b  start_address
-    // + 8   4b  end_address
-    // +12   4b  type (user, external, etc)
-    // +16   4b  offset of source disasm
-    // +20   4b  length of source disasm
-    // +24   4b  offset of raw hir disasm
-    // +28   4b  length of raw hir disasm
-    // +32   4b  offset of opt hir disasm
-    // +36   4b  length of opt hir disasm
-    // +40   4b  offset of machine code disasm
-    // +44   4b  length of machine code disasm
-  };
-
-  static size_t SizeOfHeader() { return sizeof(Header); }
-};
+namespace cpu {
 
 class FunctionTraceData {
  public:
@@ -108,7 +87,7 @@ class FunctionTraceData {
   Header* header_;
 };
 
-}  // namespace debug
+}  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_FUNCTION_TRACE_DATA_H_
+#endif  // XENIA_CPU_FUNCTION_TRACE_DATA_H_

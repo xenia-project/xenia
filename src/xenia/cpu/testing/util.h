@@ -39,8 +39,7 @@ class TestFunction {
 
 #if XENIA_TEST_X64
     {
-      auto processor =
-          std::make_unique<Processor>(nullptr, memory.get(), nullptr, nullptr);
+      auto processor = std::make_unique<Processor>(memory.get(), nullptr);
       processor->Setup();
       processors.emplace_back(std::move(processor));
     }

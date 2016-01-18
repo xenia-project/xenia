@@ -41,7 +41,7 @@ bool PPCScanner::IsRestGprLr(uint32_t address) {
   return function && function->behavior() == Function::Behavior::kEpilogReturn;
 }
 
-bool PPCScanner::Scan(GuestFunction* function, DebugInfo* debug_info) {
+bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
   // This is a simple basic block analyizer. It walks the start address to the
   // end address looking for branches. Each span of instructions between
   // branches is considered a basic block. When the last blr (that has no

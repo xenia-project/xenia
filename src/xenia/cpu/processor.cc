@@ -14,6 +14,9 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/byte_stream.h"
+#include "xenia/base/debugging.h"
+#include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
@@ -22,17 +25,34 @@
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/module.h"
+#include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/cpu/xex_module.h"
-#include "xenia/debug/debugger.h"
+
+// HACK(benvanik): XThread has too much stuff :/
+#include "xenia/kernel/xthread.h"
 
 // TODO(benvanik): based on compiler support
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
+#if 0 && DEBUG
+#define DEFAULT_DEBUG_FLAG true
+#else
+#define DEFAULT_DEBUG_FLAG false
+#endif
+
+DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
+            "Allow debugging and retain debug information.");
+DEFINE_string(trace_function_data_path, "", "File to write trace data to.");
+DEFINE_bool(break_on_start, false, "Break into the debugger on startup.");
+
 namespace xe {
 namespace cpu {
+
+using xe::cpu::ppc::PPCOpcode;
+using xe::kernel::XThread;
 
 class BuiltinModule : public Module {
  public:
@@ -54,12 +74,8 @@ class BuiltinModule : public Module {
   std::string name_;
 };
 
-Processor::Processor(xe::Emulator* emulator, xe::Memory* memory,
-                     ExportResolver* export_resolver, debug::Debugger* debugger)
-    : emulator_(emulator),
-      memory_(memory),
-      debugger_(debugger),
-      export_resolver_(export_resolver) {}
+Processor::Processor(xe::Memory* memory, ExportResolver* export_resolver)
+    : memory_(memory), export_resolver_(export_resolver) {}
 
 Processor::~Processor() {
   {
@@ -69,6 +85,11 @@ Processor::~Processor() {
 
   frontend_.reset();
   backend_.reset();
+
+  if (functions_trace_file_) {
+    functions_trace_file_->Flush();
+    functions_trace_file_.reset();
+  }
 }
 
 bool Processor::Setup() {
@@ -125,7 +146,26 @@ bool Processor::Setup() {
     return false;
   }
 
+  // Open the trace data path, if requested.
+  functions_trace_path_ = xe::to_wstring(FLAGS_trace_function_data_path);
+  if (!functions_trace_path_.empty()) {
+    functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
+        functions_trace_path_, 32 * 1024 * 1024, true);
+  }
+
   return true;
+}
+
+void Processor::PreLaunch() {
+  if (FLAGS_break_on_start) {
+    // Start paused.
+    XELOGI("Breaking into debugger because of --break_on_start...");
+    execution_state_ = ExecutionState::kRunning;
+    Pause();
+  } else {
+    // Start running.
+    execution_state_ = ExecutionState::kRunning;
+  }
 }
 
 bool Processor::AddModule(std::unique_ptr<Module> module) {
@@ -269,11 +309,7 @@ bool Processor::DemandFunction(Function* function) {
     }
 
     // Before we give the symbol back to the rest, let the debugger know.
-    if (debugger_) {
-      debugger_->OnFunctionDefined(function);
-    }
-
-    BreakpointFunctionDefined(function);
+    OnFunctionDefined(function);
 
     function->set_status(Symbol::Status::kDefined);
     symbol_status = function->status();
@@ -403,82 +439,856 @@ void Processor::LowerIrql(Irql old_value) {
                       reinterpret_cast<volatile uint32_t*>(&irql_));
 }
 
-void Processor::BreakpointFunctionDefined(Function* function) {
-  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
-
-  for (auto bp : breakpoints_) {
-    if (function->ContainsAddress(bp->address())) {
-      backend_->InstallBreakpoint(bp, function);
-    }
-  }
+bool Processor::Save(ByteStream* stream) {
+  stream->Write('PROC');
+  return true;
 }
 
-bool Processor::InstallBreakpoint(Breakpoint* bp) {
-  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
-
-  if (FindBreakpoint(bp->address())) {
+bool Processor::Restore(ByteStream* stream) {
+  if (stream->Read<uint32_t>() != 'PROC') {
+    XELOGE("Processor::Restore - Invalid magic value!");
     return false;
   }
 
-  auto functions = FindFunctionsWithAddress(bp->address());
-  if (functions.empty()) {
-    // Go ahead and generate a function.
-    if (!ResolveFunction(bp->address())) {
-      // Could not generate a function - fail!
-      return false;
+  // Clear cached thread data for zombie threads.
+  std::vector<uint32_t> to_delete;
+  for (auto& it : thread_debug_infos_) {
+    if (it.second->state == ThreadDebugInfo::State::kZombie) {
+      to_delete.push_back(it.first);
     }
   }
-
-  // We need to register the breakpoint before installing it with the backend
-  // in-case a thread hits it while we're here.
-  breakpoints_.push_back(bp);
-  if (!backend_->InstallBreakpoint(bp)) {
-    breakpoints_.pop_back();
-    return false;
+  for (uint32_t thread_id : to_delete) {
+    thread_debug_infos_.erase(thread_id);
   }
 
   return true;
 }
 
-bool Processor::UninstallBreakpoint(Breakpoint* bp) {
-  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
-
-  if (!backend_->UninstallBreakpoint(bp)) {
-    return false;
+uint8_t* Processor::AllocateFunctionTraceData(size_t size) {
+  if (!functions_trace_file_) {
+    return nullptr;
   }
-
-  for (auto it = breakpoints_.begin(); it != breakpoints_.end(); it++) {
-    if ((*it)->address() == bp->address()) {
-      breakpoints_.erase(it);
-      return true;
-    }
-  }
-
-  return false;
+  return functions_trace_file_->Allocate(size);
 }
 
-bool Processor::BreakpointHit(uint32_t address, uint64_t host_pc) {
-  auto bp = FindBreakpoint(address);
-  if (bp) {
-    bp->Hit(host_pc);
+void Processor::OnFunctionDefined(Function* function) {
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto breakpoint : breakpoints_) {
+    if (breakpoint->address_type() == Breakpoint::AddressType::kGuest) {
+      if (function->ContainsAddress(breakpoint->guest_address())) {
+        if (breakpoint->is_installed()) {
+          backend_->InstallBreakpoint(breakpoint, function);
+        }
+      }
+    }
+  }
+}
 
-    xe::threading::Thread::GetCurrentThread()->Suspend();
-    return true;
+void Processor::OnThreadCreated(uint32_t thread_handle,
+                                ThreadState* thread_state,
+                                kernel::XThread* thread) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto thread_info = std::make_unique<ThreadDebugInfo>();
+  thread_info->thread_handle = thread_handle;
+  thread_info->thread_id = thread_state->thread_id();
+  thread_info->thread = thread;
+  thread_info->state = ThreadDebugInfo::State::kAlive;
+  thread_info->suspended = false;
+  thread_debug_infos_.emplace(thread_info->thread_id, std::move(thread_info));
+}
+
+void Processor::OnThreadExit(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = thread_debug_infos_.find(thread_id);
+  assert_true(it != thread_debug_infos_.end());
+  auto thread_info = it->second.get();
+  thread_info->state = ThreadDebugInfo::State::kExited;
+}
+
+void Processor::OnThreadDestroyed(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = thread_debug_infos_.find(thread_id);
+  assert_true(it != thread_debug_infos_.end());
+  auto thread_info = it->second.get();
+  thread_info->state = ThreadDebugInfo::State::kZombie;
+  thread_info->thread = nullptr;
+}
+
+void Processor::OnThreadEnteringWait(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = thread_debug_infos_.find(thread_id);
+  assert_true(it != thread_debug_infos_.end());
+  auto thread_info = it->second.get();
+  thread_info->state = ThreadDebugInfo::State::kWaiting;
+}
+
+void Processor::OnThreadLeavingWait(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = thread_debug_infos_.find(thread_id);
+  assert_true(it != thread_debug_infos_.end());
+  auto thread_info = it->second.get();
+  if (thread_info->state == ThreadDebugInfo::State::kWaiting) {
+    thread_info->state = ThreadDebugInfo::State::kAlive;
+  }
+}
+
+std::vector<ThreadDebugInfo*> Processor::QueryThreadDebugInfos() {
+  auto global_lock = global_critical_region_.Acquire();
+  std::vector<ThreadDebugInfo*> result;
+  for (auto& it : thread_debug_infos_) {
+    result.push_back(it.second.get());
+  }
+  return result;
+}
+
+ThreadDebugInfo* Processor::QueryThreadDebugInfo(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  const auto& it = thread_debug_infos_.find(thread_id);
+  if (it == thread_debug_infos_.end()) {
+    return nullptr;
+  }
+  return it->second.get();
+}
+
+void Processor::AddBreakpoint(Breakpoint* breakpoint) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  // Add to breakpoints map.
+  breakpoints_.push_back(breakpoint);
+
+  if (execution_state_ == ExecutionState::kRunning) {
+    breakpoint->Resume();
+  }
+}
+
+void Processor::RemoveBreakpoint(Breakpoint* breakpoint) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  // Uninstall (if needed).
+  if (execution_state_ == ExecutionState::kRunning) {
+    breakpoint->Suspend();
   }
 
-  return false;
+  // Remove from breakpoint map.
+  auto it = std::find(breakpoints_.begin(), breakpoints_.end(), breakpoint);
+  breakpoints_.erase(it);
 }
 
 Breakpoint* Processor::FindBreakpoint(uint32_t address) {
-  std::lock_guard<std::recursive_mutex> lock(breakpoint_lock_);
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto breakpoint : breakpoints_) {
+    if (breakpoint->address() == address) {
+      return breakpoint;
+    }
+  }
+  return nullptr;
+}
 
-  for (auto bp : breakpoints_) {
-    if (bp->address() == address) {
-      return bp;
+void Processor::set_debug_listener(DebugListener* debug_listener) {
+  if (debug_listener == debug_listener_) {
+    return;
+  }
+  if (debug_listener_) {
+    // Detach old debug listener.
+    debug_listener_->OnDetached();
+    debug_listener_ = nullptr;
+  }
+  if (debug_listener) {
+    debug_listener_ = debug_listener;
+  } else {
+    if (execution_state_ == ExecutionState::kPaused) {
+      XELOGI("Debugger detaching while execution is paused; continuing...");
+      Continue();
+    }
+  }
+}
+
+void Processor::DemandDebugListener() {
+  if (debug_listener_) {
+    // Already present.
+    debug_listener_->OnFocus();
+    return;
+  }
+  if (!debug_listener_handler_) {
+    XELOGE("Debugger demanded a listener but no handler was registered.");
+    xe::debugging::Break();
+    return;
+  }
+  set_debug_listener(debug_listener_handler_(this));
+}
+
+bool Processor::OnThreadBreakpointHit(Exception* ex) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  // Suspend all threads (but ourselves).
+  SuspendAllThreads();
+
+  // Lookup thread info block.
+  auto it = thread_debug_infos_.find(ThreadState::GetThreadID());
+  if (it == thread_debug_infos_.end()) {
+    // Not found - exception on a thread we don't know about?
+    assert_always("UD2 on a thread we don't track");
+    return false;
+  }
+  auto thread_info = it->second.get();
+
+  // Run through and uninstall all breakpoint UD2s to get us back to a clean
+  // state.
+  if (execution_state_ != ExecutionState::kStepping) {
+    SuspendAllBreakpoints();
+  }
+
+  // Update all thread states with their latest values, using the context we got
+  // from the exception instead of a sampled value (as it would just show the
+  // exception handler).
+  UpdateThreadExecutionStates(thread_info->thread_id, ex->thread_context());
+
+  // Walk the captured thread stack and look for breakpoints at any address in
+  // the stack. We just look for the first one.
+  Breakpoint* breakpoint = nullptr;
+  for (size_t i = 0; i < thread_info->frames.size(); ++i) {
+    auto& frame = thread_info->frames[i];
+    for (auto scan_breakpoint : breakpoints_) {
+      if ((scan_breakpoint->address_type() == Breakpoint::AddressType::kGuest &&
+           scan_breakpoint->guest_address() == frame.guest_pc) ||
+          (scan_breakpoint->address_type() == Breakpoint::AddressType::kHost &&
+           scan_breakpoint->host_address() == frame.host_pc)) {
+        breakpoint = scan_breakpoint;
+        break;
+      }
+    }
+    if (breakpoint) {
+      breakpoint->OnHit(thread_info, frame.host_pc);
+      break;
     }
   }
 
-  return nullptr;
+  // We are waiting on the debugger now. Either wait for it to continue, add a
+  // new step, or direct us somewhere else.
+  // The debugger will ResumeAllThreads or just resume us (depending on what
+  // it wants to do).
+  execution_state_ = ExecutionState::kPaused;
+  thread_info->suspended = true;
+
+  // Must unlock, or we will deadlock.
+  global_lock.unlock();
+
+  if (debug_listener_) {
+    debug_listener_->OnExecutionPaused();
+  }
+
+  thread_info->thread->Suspend(nullptr);
+
+  // Apply thread context changes.
+  // TODO(benvanik): apply to all threads?
+  ex->set_resume_pc(thread_info->host_context.rip);
+
+  // Resume execution.
+  return true;
+}
+
+void Processor::OnStepCompleted(ThreadDebugInfo* thread_info) {
+  auto global_lock = global_critical_region_.Acquire();
+  execution_state_ = ExecutionState::kPaused;
+  if (debug_listener_) {
+    debug_listener_->OnExecutionPaused();
+  }
+
+  // Note that we stay suspended.
+}
+
+bool Processor::OnUnhandledException(Exception* ex) {
+  // If we have no listener return right away.
+  // TODO(benvanik): DemandDebugListener()?
+  if (!debug_listener_) {
+    return false;
+  }
+
+  // If this isn't a managed thread, fail - let VS handle it for now.
+  if (!XThread::IsInThread()) {
+    return false;
+  }
+
+  auto global_lock = global_critical_region_.Acquire();
+
+  // Suspend all guest threads (but this one).
+  SuspendAllThreads();
+
+  UpdateThreadExecutionStates(XThread::GetCurrentThreadId(),
+                              ex->thread_context());
+
+  // Stop and notify the listener.
+  // This will take control.
+  assert_true(execution_state_ == ExecutionState::kRunning);
+  execution_state_ = ExecutionState::kPaused;
+
+  // Notify debugger that exceution stopped.
+  // debug_listener_->OnException(info);
+  debug_listener_->OnExecutionPaused();
+
+  // Suspend self.
+  XThread::GetCurrentThread()->Suspend(nullptr);
+
+  return true;
+}
+
+void Processor::ShowDebugger() {
+  if (debug_listener_) {
+    debug_listener_->OnFocus();
+  } else {
+    DemandDebugListener();
+  }
+}
+
+bool Processor::SuspendAllThreads() {
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto& it : thread_debug_infos_) {
+    auto thread_info = it.second.get();
+    if (thread_info->suspended) {
+      // Already suspended - ignore.
+      continue;
+    } else if (thread_info->state == ThreadDebugInfo::State::kZombie ||
+               thread_info->state == ThreadDebugInfo::State::kExited) {
+      // Thread is dead and cannot be suspended - ignore.
+      continue;
+    } else if (XThread::IsInThread() &&
+               thread_info->thread_id == XThread::GetCurrentThreadId()) {
+      // Can't suspend ourselves.
+      continue;
+    }
+    auto thread = thread_info->thread;
+    if (!thread->can_debugger_suspend()) {
+      // Thread is a host thread, and we aren't suspending those (for now).
+      continue;
+    }
+    bool did_suspend = XSUCCEEDED(thread->Suspend(nullptr));
+    assert_true(did_suspend);
+    thread_info->suspended = true;
+  }
+  return true;
+}
+
+bool Processor::ResumeThread(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = thread_debug_infos_.find(thread_id);
+  if (it == thread_debug_infos_.end()) {
+    return false;
+  }
+  auto thread_info = it->second.get();
+  assert_true(thread_info->suspended);
+  assert_false(thread_info->state == ThreadDebugInfo::State::kExited ||
+               thread_info->state == ThreadDebugInfo::State::kZombie);
+  thread_info->suspended = false;
+  auto thread = thread_info->thread;
+  return XSUCCEEDED(thread->Resume());
+}
+
+bool Processor::ResumeAllThreads() {
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto& it : thread_debug_infos_) {
+    auto thread_info = it.second.get();
+    if (!thread_info->suspended) {
+      // Not suspended by us - ignore.
+      continue;
+    } else if (thread_info->state == ThreadDebugInfo::State::kZombie ||
+               thread_info->state == ThreadDebugInfo::State::kExited) {
+      // Thread is dead and cannot be resumed - ignore.
+      continue;
+    } else if (XThread::IsInThread() &&
+               thread_info->thread_id == XThread::GetCurrentThreadId()) {
+      // Can't resume ourselves.
+      continue;
+    }
+    auto thread = thread_info->thread;
+    if (!thread->can_debugger_suspend()) {
+      // Thread is a host thread, and we aren't suspending those (for now).
+      continue;
+    }
+    thread_info->suspended = false;
+    bool did_resume = XSUCCEEDED(thread->Resume());
+    assert_true(did_resume);
+  }
+  return true;
+}
+
+void Processor::UpdateThreadExecutionStates(uint32_t override_thread_id,
+                                            X64Context* override_context) {
+  auto global_lock = global_critical_region_.Acquire();
+  uint64_t frame_host_pcs[64];
+  xe::cpu::StackFrame cpu_frames[64];
+  for (auto& it : thread_debug_infos_) {
+    auto thread_info = it.second.get();
+    auto thread = thread_info->thread;
+    if (!thread) {
+      continue;
+    }
+
+    // Grab PPC context.
+    // Note that this is only up to date if --store_all_context_values is
+    // enabled (or --debug).
+    if (thread->can_debugger_suspend()) {
+      std::memcpy(&thread_info->guest_context,
+                  thread->thread_state()->context(),
+                  sizeof(thread_info->guest_context));
+    }
+
+    // Grab stack trace and X64 context then resolve all symbols.
+    uint64_t hash;
+    X64Context* in_host_context = nullptr;
+    if (override_thread_id == thread_info->thread_id) {
+      // If we were passed an override context we use that. Otherwise, ask the
+      // stack walker for a new context.
+      in_host_context = override_context;
+    }
+    size_t count = stack_walker_->CaptureStackTrace(
+        thread->thread()->native_handle(), frame_host_pcs, 0,
+        xe::countof(frame_host_pcs), in_host_context,
+        &thread_info->host_context, &hash);
+    stack_walker_->ResolveStack(frame_host_pcs, cpu_frames, count);
+    thread_info->frames.resize(count);
+    for (size_t i = 0; i < count; ++i) {
+      auto& cpu_frame = cpu_frames[i];
+      auto& frame = thread_info->frames[i];
+      frame.host_pc = cpu_frame.host_pc;
+      frame.host_function_address = cpu_frame.host_symbol.address;
+      frame.guest_pc = cpu_frame.guest_pc;
+      frame.guest_function_address = 0;
+      frame.guest_function = nullptr;
+      auto function = cpu_frame.guest_symbol.function;
+      if (cpu_frame.type == cpu::StackFrame::Type::kGuest && function) {
+        frame.guest_function_address = function->address();
+        frame.guest_function = function;
+      } else {
+        std::strncpy(frame.name, cpu_frame.host_symbol.name,
+                     xe::countof(frame.name));
+        frame.name[xe::countof(frame.name) - 1] = 0;
+      }
+    }
+  }
+}
+
+void Processor::SuspendAllBreakpoints() {
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto breakpoint : breakpoints_) {
+    breakpoint->Suspend();
+  }
+}
+
+void Processor::ResumeAllBreakpoints() {
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto breakpoint : breakpoints_) {
+    breakpoint->Resume();
+  }
+}
+
+void Processor::Pause() {
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    assert_true(execution_state_ == ExecutionState::kRunning);
+    SuspendAllThreads();
+    SuspendAllBreakpoints();
+    UpdateThreadExecutionStates();
+    execution_state_ = ExecutionState::kPaused;
+    if (debug_listener_) {
+      debug_listener_->OnExecutionPaused();
+    }
+  }
+  DemandDebugListener();
+}
+
+void Processor::Continue() {
+  auto global_lock = global_critical_region_.Acquire();
+  if (execution_state_ == ExecutionState::kRunning) {
+    return;
+  } else if (execution_state_ == ExecutionState::kStepping) {
+    assert_always("cancel stepping not done yet");
+  }
+  execution_state_ = ExecutionState::kRunning;
+  ResumeAllBreakpoints();
+  ResumeAllThreads();
+  if (debug_listener_) {
+    debug_listener_->OnExecutionContinued();
+  }
+}
+
+void Processor::StepHostInstruction(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  assert_true(execution_state_ == ExecutionState::kPaused);
+  execution_state_ = ExecutionState::kStepping;
+
+  auto thread_info = QueryThreadDebugInfo(thread_id);
+  uint64_t new_host_pc = backend_->CalculateNextHostInstruction(
+      thread_info, thread_info->frames[0].host_pc);
+
+  assert_null(thread_info->step_breakpoint.get());
+  thread_info->step_breakpoint.reset(
+      new Breakpoint(this, Breakpoint::AddressType::kHost, new_host_pc,
+                     [this, thread_info](Breakpoint* breakpoint,
+                                         ThreadDebugInfo* breaking_thread_info,
+                                         uint64_t host_address) {
+                       if (thread_info != breaking_thread_info) {
+                         assert_always("Step in another thread?");
+                       }
+                       // Our step request has completed. Remove the breakpoint
+                       // and fire event.
+                       breakpoint->Suspend();
+                       RemoveBreakpoint(breakpoint);
+                       thread_info->step_breakpoint.reset();
+                       OnStepCompleted(thread_info);
+                     }));
+  AddBreakpoint(thread_info->step_breakpoint.get());
+  thread_info->step_breakpoint->Resume();
+
+  // ResumeAllBreakpoints();
+  ResumeThread(thread_id);
+}
+
+void Processor::StepGuestInstruction(uint32_t thread_id) {
+  auto global_lock = global_critical_region_.Acquire();
+  assert_true(execution_state_ == ExecutionState::kPaused);
+  execution_state_ = ExecutionState::kStepping;
+
+  auto thread_info = QueryThreadDebugInfo(thread_id);
+
+  uint32_t next_pc = CalculateNextGuestInstruction(
+      thread_info, thread_info->frames[0].guest_pc);
+
+  assert_null(thread_info->step_breakpoint.get());
+  thread_info->step_breakpoint.reset(
+      new Breakpoint(this, Breakpoint::AddressType::kGuest, next_pc,
+                     [this, thread_info](Breakpoint* breakpoint,
+                                         ThreadDebugInfo* breaking_thread_info,
+                                         uint64_t host_address) {
+                       if (thread_info != breaking_thread_info) {
+                         assert_always("Step in another thread?");
+                       }
+                       // Our step request has completed. Remove the breakpoint
+                       // and fire event.
+                       breakpoint->Suspend();
+                       RemoveBreakpoint(breakpoint);
+                       thread_info->step_breakpoint.reset();
+                       OnStepCompleted(thread_info);
+                     }));
+  AddBreakpoint(thread_info->step_breakpoint.get());
+  thread_info->step_breakpoint->Resume();
+
+  // ResumeAllBreakpoints();
+  ResumeThread(thread_id);
+}
+
+bool Processor::StepToGuestAddress(uint32_t thread_id, uint32_t pc) {
+  auto functions = FindFunctionsWithAddress(pc);
+  if (functions.empty()) {
+    // Function hasn't been generated yet. Generate it.
+    if (!ResolveFunction(pc)) {
+      XELOGE("XThread::StepToAddress(%.8X) - Function could not be resolved",
+             pc);
+      return false;
+    }
+  }
+
+  // Instruct the thread to step forwards.
+  threading::Fence fence;
+  cpu::Breakpoint bp(
+      this, Breakpoint::AddressType::kGuest, pc,
+      [&fence](Breakpoint* breakpoint, ThreadDebugInfo* thread_info,
+               uint64_t host_address) { fence.Signal(); });
+  bp.Resume();
+
+  // HACK
+  auto thread_info = QueryThreadDebugInfo(thread_id);
+  uint32_t suspend_count = 1;
+  while (suspend_count) {
+    thread_info->thread->Resume(&suspend_count);
+  }
+
+  fence.Wait();
+  bp.Suspend();
+
+  return true;
+}
+
+uint32_t Processor::StepIntoGuestBranchTarget(uint32_t thread_id, uint32_t pc) {
+  xe::cpu::ppc::PPCDecodeData d;
+  d.address = pc;
+  d.code = xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(d.address));
+  auto opcode = xe::cpu::ppc::LookupOpcode(d.code);
+
+  // Must be on a branch.
+  assert_true(xe::cpu::ppc::GetOpcodeInfo(opcode).group ==
+              xe::cpu::ppc::PPCOpcodeGroup::kB);
+
+  auto thread_info = QueryThreadDebugInfo(thread_id);
+  auto thread = thread_info->thread;
+  auto context = thread->thread_state()->context();
+
+  if (d.code == 0x4E800020) {
+    // blr
+    uint32_t nia = uint32_t(context->lr);
+    StepToGuestAddress(thread_id, nia);
+    pc = nia;
+  } else if (d.code == 0x4E800420) {
+    // bctr
+    uint32_t nia = uint32_t(context->ctr);
+    StepToGuestAddress(thread_id, nia);
+    pc = nia;
+  } else if (opcode == PPCOpcode::bx) {
+    // bx
+    uint32_t nia = d.I.ADDR();
+    StepToGuestAddress(thread_id, nia);
+    pc = nia;
+  } else if (opcode == PPCOpcode::bcx || opcode == PPCOpcode::bcctrx ||
+             opcode == PPCOpcode::bclrx) {
+    threading::Fence fence;
+    auto callback = [&fence, &pc](Breakpoint* breakpoint,
+                                  ThreadDebugInfo* thread_info,
+                                  uint64_t host_address) {
+      pc = breakpoint->guest_address();
+      fence.Signal();
+    };
+
+    cpu::Breakpoint bpf(this, Breakpoint::AddressType::kGuest, pc + 4,
+                        callback);
+    bpf.Resume();
+
+    uint32_t nia = 0;
+    if (opcode == PPCOpcode::bcx) {
+      // bcx
+      nia = d.B.ADDR();
+    } else if (opcode == PPCOpcode::bcctrx) {
+      // bcctrx
+      nia = uint32_t(context->ctr);
+    } else if (opcode == PPCOpcode::bclrx) {
+      // bclrx
+      nia = uint32_t(context->lr);
+    }
+
+    cpu::Breakpoint bpt(this, Breakpoint::AddressType::kGuest, nia, callback);
+    bpt.Resume();
+
+    // HACK
+    uint32_t suspend_count = 1;
+    while (suspend_count) {
+      thread->Resume(&suspend_count);
+    }
+
+    fence.Wait();
+    bpt.Suspend();
+    bpf.Suspend();
+  }
+
+  return pc;
+}
+
+uint32_t Processor::StepToGuestSafePoint(uint32_t thread_id, bool ignore_host) {
+  // This cannot be done if we're the calling thread!
+  if (thread_id == ThreadState::GetThreadID()) {
+    assert_always(
+        "XThread::StepToSafePoint(): target thread is the calling thread!");
+    return 0;
+  }
+  auto thread_info = QueryThreadDebugInfo(thread_id);
+  auto thread = thread_info->thread;
+
+  // Now the fun part begins: Registers are only guaranteed to be synchronized
+  // with the PPC context at a basic block boundary. Unfortunately, we most
+  // likely stopped the thread at some point other than a boundary. We need to
+  // step forward until we reach a boundary, and then perform the save.
+  uint64_t frame_host_pcs[64];
+  cpu::StackFrame cpu_frames[64];
+  size_t count = stack_walker_->CaptureStackTrace(
+      thread->thread()->native_handle(), frame_host_pcs, 0,
+      xe::countof(frame_host_pcs), nullptr, nullptr);
+  stack_walker_->ResolveStack(frame_host_pcs, cpu_frames, count);
+  if (count == 0) {
+    return 0;
+  }
+
+  auto& first_frame = cpu_frames[0];
+  if (ignore_host) {
+    for (size_t i = 0; i < count; i++) {
+      if (cpu_frames[i].type == cpu::StackFrame::Type::kGuest &&
+          cpu_frames[i].guest_pc) {
+        first_frame = cpu_frames[i];
+        break;
+      }
+    }
+  }
+
+  // Check if we're in guest code or host code.
+  uint32_t pc = 0;
+  if (first_frame.type == cpu::StackFrame::Type::kGuest) {
+    auto& frame = first_frame;
+    if (!frame.guest_pc) {
+      // Lame. The guest->host thunk is a "guest" function.
+      frame = cpu_frames[1];
+    }
+
+    pc = frame.guest_pc;
+
+    // We're in guest code.
+    // First: Find a synchronizing instruction and go to it.
+    xe::cpu::ppc::PPCDecodeData d;
+    const xe::cpu::ppc::PPCOpcodeInfo* sync_info = nullptr;
+    d.address = cpu_frames[0].guest_pc - 4;
+    do {
+      d.address += 4;
+      d.code =
+          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(d.address));
+      auto& opcode_info = xe::cpu::ppc::LookupOpcodeInfo(d.code);
+      if (opcode_info.type == cpu::ppc::PPCOpcodeType::kSync) {
+        sync_info = &opcode_info;
+        break;
+      }
+    } while (true);
+
+    if (d.address != pc) {
+      StepToGuestAddress(thread_id, d.address);
+      pc = d.address;
+    }
+
+    // Okay. Now we're on a synchronizing instruction but we need to step
+    // past it in order to get a synchronized context.
+    // If we're on a branching instruction, it's guaranteed only going to have
+    // two possible targets. For non-branching instructions, we can just step
+    // over them.
+    if (sync_info->group == xe::cpu::ppc::PPCOpcodeGroup::kB) {
+      pc = StepIntoGuestBranchTarget(thread_id, d.address);
+    }
+  } else {
+    // We're in host code. Search backwards til we can get an idea of where
+    // we are.
+    cpu::GuestFunction* thunk_func = nullptr;
+    cpu::Export* export_data = nullptr;
+    uint32_t first_pc = 0;
+    for (int i = 0; i < count; i++) {
+      auto& frame = cpu_frames[i];
+      if (frame.type == cpu::StackFrame::Type::kGuest && frame.guest_pc) {
+        auto func = frame.guest_symbol.function;
+        assert_true(func->is_guest());
+
+        if (!first_pc) {
+          first_pc = frame.guest_pc;
+        }
+
+        thunk_func = reinterpret_cast<cpu::GuestFunction*>(func);
+        export_data = thunk_func->export_data();
+        if (export_data) {
+          break;
+        }
+      }
+    }
+
+    // If the export is blocking, we wrap up and save inside the export thunk.
+    // When we're restored, we'll call the blocking export again.
+    // Otherwise, we return from the thunk and save.
+    if (export_data && export_data->tags & cpu::ExportTag::kBlocking) {
+      pc = thunk_func->address();
+    } else if (export_data) {
+      // Non-blocking. Run until we return from the thunk.
+      pc = static_cast<uint32_t>(thread->thread_state()->context()->lr);
+      StepToGuestAddress(thread_id, pc);
+    } else if (first_pc) {
+      // We're in the MMIO handler/mfmsr/something calling out of the guest
+      // that doesn't use an export. If the current instruction is
+      // synchronizing, we can just save here. Otherwise, step forward
+      // (and call ourselves again so we run the correct logic).
+      uint32_t code =
+          xe::load_and_swap<uint32_t>(memory()->TranslateVirtual(first_pc));
+      auto& opcode_info = xe::cpu::ppc::LookupOpcodeInfo(code);
+      if (opcode_info.type == xe::cpu::ppc::PPCOpcodeType::kSync) {
+        // Good to go.
+        pc = first_pc;
+      } else {
+        // Step forward and run this logic again.
+        StepToGuestAddress(thread_id, first_pc + 4);
+        return StepToGuestSafePoint(thread_id, true);
+      }
+    } else {
+      // We've managed to catch a thread before it called into the guest.
+      // Set a breakpoint on its startup procedure and capture it there.
+      auto creation_params = thread->creation_params();
+      pc = creation_params->xapi_thread_startup
+               ? creation_params->xapi_thread_startup
+               : creation_params->start_address;
+      StepToGuestAddress(thread_id, pc);
+    }
+  }
+
+  return pc;
+}
+
+bool TestPpcCondition(const xe::cpu::ppc::PPCContext* context, uint32_t bo,
+                      uint32_t bi, bool check_ctr, bool check_cond) {
+  bool ctr_ok = true;
+  if (check_ctr) {
+    if (select_bits(bo, 2, 2)) {
+      ctr_ok = true;
+    } else {
+      uint32_t new_ctr_value = static_cast<uint32_t>(context->ctr - 1);
+      if (select_bits(bo, 1, 1)) {
+        ctr_ok = new_ctr_value == 0;
+      } else {
+        ctr_ok = new_ctr_value != 0;
+      }
+    }
+  }
+  bool cond_ok = true;
+  if (check_cond) {
+    if (select_bits(bo, 4, 4)) {
+      cond_ok = true;
+    } else {
+      uint8_t cr = *(reinterpret_cast<const uint8_t*>(&context->cr0) +
+                     (4 * (bi >> 2)) + (bi & 3));
+      if (select_bits(bo, 3, 3)) {
+        cond_ok = cr != 0;
+      } else {
+        cond_ok = cr == 0;
+      }
+    }
+  }
+  return ctr_ok && cond_ok;
+}
+
+uint32_t Processor::CalculateNextGuestInstruction(ThreadDebugInfo* thread_info,
+                                                  uint32_t current_pc) {
+  xe::cpu::ppc::PPCDecodeData d;
+  d.address = current_pc;
+  d.code = xe::load_and_swap<uint32_t>(memory_->TranslateVirtual(d.address));
+  auto opcode = xe::cpu::ppc::LookupOpcode(d.code);
+  if (d.code == 0x4E800020) {
+    // blr -- unconditional branch to LR.
+    uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.lr);
+    return target_pc;
+  } else if (d.code == 0x4E800420) {
+    // bctr -- unconditional branch to CTR.
+    uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.ctr);
+    return target_pc;
+  } else if (opcode == PPCOpcode::bx) {
+    // b/ba/bl/bla
+    uint32_t target_pc = d.I.ADDR();
+    return target_pc;
+  } else if (opcode == PPCOpcode::bcx) {
+    // bc/bca/bcl/bcla
+    uint32_t target_pc = d.B.ADDR();
+    bool test_passed = TestPpcCondition(&thread_info->guest_context, d.B.BO(),
+                                        d.B.BI(), true, true);
+    return test_passed ? target_pc : current_pc + 4;
+  } else if (opcode == PPCOpcode::bclrx) {
+    // bclr/bclrl
+    uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.lr);
+    bool test_passed = TestPpcCondition(&thread_info->guest_context, d.XL.BO(),
+                                        d.XL.BI(), true, true);
+    return test_passed ? target_pc : current_pc + 4;
+  } else if (opcode == PPCOpcode::bcctrx) {
+    // bcctr/bcctrl
+    uint32_t target_pc = static_cast<uint32_t>(thread_info->guest_context.ctr);
+    bool test_passed = TestPpcCondition(&thread_info->guest_context, d.XL.BO(),
+                                        d.XL.BI(), false, true);
+    return test_passed ? target_pc : current_pc + 4;
+  } else {
+    return current_pc + 4;
+  }
 }
 
 }  // namespace cpu

@@ -7,14 +7,13 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_THREAD_EXECUTION_INFO_H_
-#define XENIA_DEBUG_THREAD_EXECUTION_INFO_H_
+#ifndef XENIA_CPU_THREAD_DEBUG_INFO_H_
+#define XENIA_CPU_THREAD_DEBUG_INFO_H_
 
 #include <vector>
 
 #include "xenia/base/x64_context.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/debug/breakpoint.h"
 
 namespace xe {
 namespace kernel {
@@ -23,17 +22,20 @@ class XThread;
 }  // namespace xe
 
 namespace xe {
-namespace debug {
+namespace cpu {
 
-// Per-XThread structure holding debugger state and a cache of the sampled call
+class Breakpoint;
+class Function;
+
+// Per-thread structure holding debugger state and a cache of the sampled call
 // stack.
 //
 // In most cases debug consumers should rely only on data in this structure as
 // it is never removed (even when a thread is destroyed) and always available
 // even when running.
-struct ThreadExecutionInfo {
-  ThreadExecutionInfo();
-  ~ThreadExecutionInfo();
+struct ThreadDebugInfo {
+  ThreadDebugInfo() = default;
+  ~ThreadDebugInfo() = default;
 
   enum class State {
     // Thread is alive and running.
@@ -51,8 +53,7 @@ struct ThreadExecutionInfo {
   // XThread::handle() of the thread.
   // This will be invalidated when the thread dies.
   uint32_t thread_handle = 0;
-  // Target XThread, if it has not been destroyed.
-  // TODO(benvanik): hold a ref here to keep zombie threads around?
+  // Kernel thread object. Only valid when the thread is alive.
   kernel::XThread* thread = nullptr;
   // Current state of the thread.
   State state = State::kAlive;
@@ -61,7 +62,7 @@ struct ThreadExecutionInfo {
 
   // A breakpoint managed by the stepping system, installed as required to
   // trigger a break at the next instruction.
-  std::unique_ptr<StepBreakpoint> step_breakpoint;
+  std::unique_ptr<Breakpoint> step_breakpoint;
   // A breakpoint managed by the stepping system, installed as required to
   // trigger after a step over a disabled breakpoint.
   // When this breakpoint is hit the breakpoint referenced in
@@ -73,7 +74,7 @@ struct ThreadExecutionInfo {
 
   // Last-sampled PPC context.
   // This is updated whenever the debugger stops.
-  xe::cpu::ppc::PPCContext guest_context;
+  ppc::PPCContext guest_context;
   // Last-sampled host x64 context.
   // This is updated whenever the debugger stops and must be used instead of any
   // value taken from the StackWalker as it properly respects exception stacks.
@@ -91,7 +92,7 @@ struct ThreadExecutionInfo {
     // Base of the function the current guest_pc is located within.
     uint32_t guest_function_address = 0;
     // Function the current guest_pc is located within.
-    cpu::Function* guest_function = nullptr;
+    Function* guest_function = nullptr;
     // Name of the function, if known.
     // TODO(benvanik): string table?
     char name[256] = {0};
@@ -102,7 +103,7 @@ struct ThreadExecutionInfo {
   std::vector<Frame> frames;
 };
 
-}  // namespace debug
+}  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_THREAD_EXECUTION_INFO_H_
+#endif  // XENIA_CPU_THREAD_DEBUG_INFO_H_

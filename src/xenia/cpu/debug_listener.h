@@ -7,20 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_DEBUG_DEBUG_LISTENER_H_
-#define XENIA_DEBUG_DEBUG_LISTENER_H_
-
-#include "xenia/cpu/thread_state.h"
-#include "xenia/debug/breakpoint.h"
+#ifndef XENIA_CPU_DEBUG_LISTENER_H_
+#define XENIA_CPU_DEBUG_LISTENER_H_
 
 namespace xe {
-namespace kernel {
-class XThread;
-}  // namespace kernel
-}  // namespace xe
+namespace cpu {
 
-namespace xe {
-namespace debug {
+class Breakpoint;
+struct ThreadDebugInfo;
 
 // Debug event listener interface.
 // Implementations will receive calls from arbitrary threads and must marshal
@@ -49,15 +43,15 @@ class DebugListener {
   // The thread is the one that hit its step target. Note that because multiple
   // threads could be stepping simultaneously (such as a run-to-cursor) use the
   // thread passed instead of keeping any other state.
-  virtual void OnStepCompleted(xe::kernel::XThread* thread) = 0;
+  virtual void OnStepCompleted(ThreadDebugInfo* thread_info) = 0;
 
   // Handles breakpoint events as they are hit per-thread.
   // Breakpoints may be hit during stepping.
   virtual void OnBreakpointHit(Breakpoint* breakpoint,
-                               xe::kernel::XThread* thread) = 0;
+                               ThreadDebugInfo* thread_info) = 0;
 };
 
-}  // namespace debug
+}  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_DEBUG_DEBUG_LISTENER_H_
+#endif  // XENIA_CPU_DEBUG_LISTENER_H_

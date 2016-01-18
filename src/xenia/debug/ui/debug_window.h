@@ -14,7 +14,9 @@
 #include <vector>
 
 #include "xenia/base/x64_context.h"
-#include "xenia/debug/debugger.h"
+#include "xenia/cpu/breakpoint.h"
+#include "xenia/cpu/debug_listener.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
@@ -25,7 +27,7 @@ namespace xe {
 namespace debug {
 namespace ui {
 
-class DebugWindow : public DebugListener {
+class DebugWindow : public cpu::DebugListener {
  public:
   ~DebugWindow();
 
@@ -41,9 +43,9 @@ class DebugWindow : public DebugListener {
   void OnExecutionPaused() override;
   void OnExecutionContinued() override;
   void OnExecutionEnded() override;
-  void OnStepCompleted(xe::kernel::XThread* thread) override;
-  void OnBreakpointHit(Breakpoint* breakpoint,
-                       xe::kernel::XThread* thread) override;
+  void OnStepCompleted(cpu::ThreadDebugInfo* thread_info) override;
+  void OnBreakpointHit(cpu::Breakpoint* breakpoint,
+                       cpu::ThreadDebugInfo* thread_info) override;
 
  private:
   explicit DebugWindow(Emulator* emulator, xe::ui::Loop* loop);
@@ -56,7 +58,7 @@ class DebugWindow : public DebugListener {
   void DrawGuestFunctionSource();
   void DrawMachineCodeSource(const uint8_t* ptr, size_t length);
   void DrawBreakpointGutterButton(bool has_breakpoint,
-                                  CodeBreakpoint::AddressType address_type,
+                                  cpu::Breakpoint::AddressType address_type,
                                   uint64_t address);
   void ScrollToSourceIfPcChanged();
   void DrawRegistersPane();
@@ -69,7 +71,7 @@ class DebugWindow : public DebugListener {
   void DrawBreakpointsPane();
   void DrawLogPane();
 
-  void SelectThreadStackFrame(ThreadExecutionInfo* thread_info,
+  void SelectThreadStackFrame(cpu::ThreadDebugInfo* thread_info,
                               size_t stack_frame_index, bool always_navigate);
   void NavigateToFunction(cpu::Function* function, uint32_t guest_pc = 0,
                           uint64_t host_pc = 0);
@@ -78,15 +80,14 @@ class DebugWindow : public DebugListener {
 
   void UpdateCache();
 
-  void CreateCodeBreakpoint(CodeBreakpoint::AddressType address_type,
+  void CreateCodeBreakpoint(cpu::Breakpoint::AddressType address_type,
                             uint64_t address);
-  void DeleteCodeBreakpoint(CodeBreakpoint* breakpoint);
-  void DeleteBreakpoint(Breakpoint* breakpoint);
-  CodeBreakpoint* LookupBreakpointAtAddress(
-      CodeBreakpoint::AddressType address_type, uint64_t address);
+  void DeleteCodeBreakpoint(cpu::Breakpoint* breakpoint);
+  cpu::Breakpoint* LookupBreakpointAtAddress(
+      cpu::Breakpoint::AddressType address_type, uint64_t address);
 
   Emulator* emulator_ = nullptr;
-  Debugger* debugger_ = nullptr;
+  cpu::Processor* processor_ = nullptr;
   xe::ui::Loop* loop_ = nullptr;
   std::unique_ptr<xe::ui::Window> window_;
   uint64_t last_draw_tick_count_ = 0;
@@ -99,7 +100,7 @@ class DebugWindow : public DebugListener {
   struct ImDataCache {
     bool is_running = false;
     std::vector<kernel::object_ref<kernel::XModule>> modules;
-    std::vector<ThreadExecutionInfo*> thread_execution_infos;
+    std::vector<cpu::ThreadDebugInfo*> thread_debug_infos;
   } cache_;
 
   enum class RegisterGroup {
@@ -117,7 +118,7 @@ class DebugWindow : public DebugListener {
     static const int kRightPaneMemory = 1;
     int right_pane_tab = kRightPaneThreads;
 
-    ThreadExecutionInfo* thread_info = nullptr;
+    cpu::ThreadDebugInfo* thread_info = nullptr;
     size_t thread_stack_frame_index = 0;
     bool has_changed_thread = false;
 
@@ -131,10 +132,10 @@ class DebugWindow : public DebugListener {
 
     struct {
       char kernel_call_filter[64] = {0};
-      std::vector<std::unique_ptr<Breakpoint>> all_breakpoints;
-      std::unordered_map<uint32_t, CodeBreakpoint*>
+      std::vector<std::unique_ptr<cpu::Breakpoint>> all_breakpoints;
+      std::unordered_map<uint32_t, cpu::Breakpoint*>
           code_breakpoints_by_guest_address;
-      std::unordered_map<uintptr_t, CodeBreakpoint*>
+      std::unordered_map<uintptr_t, cpu::Breakpoint*>
           code_breakpoints_by_host_address;
     } breakpoints;
 

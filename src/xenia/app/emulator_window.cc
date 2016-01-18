@@ -255,20 +255,20 @@ void EmulatorWindow::CpuTimeScalarSetDouble() {
 }
 
 void EmulatorWindow::CpuBreakIntoDebugger() {
-  auto debugger = emulator()->debugger();
-  if (!debugger) {
+  if (!FLAGS_debug) {
     xe::ui::ImGuiDialog::ShowMessageBox(window_.get(), "Xenia Debugger",
                                         "Xenia must be launched with the "
                                         "--debug flag in order to enable "
                                         "debugging.");
     return;
   }
-  if (debugger->execution_state() == debug::ExecutionState::kRunning) {
+  auto processor = emulator()->processor();
+  if (processor->execution_state() == cpu::ExecutionState::kRunning) {
     // Currently running, so interrupt (and show the debugger).
-    debugger->Pause();
+    processor->Pause();
   } else {
     // Not running, so just bring the debugger into focus.
-    debugger->Show();
+    processor->ShowDebugger();
   }
 }
 

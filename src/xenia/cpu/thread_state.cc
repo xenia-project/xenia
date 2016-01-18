@@ -16,7 +16,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/debug/debugger.h"
 
 #include "xenia/xbox.h"
 
@@ -73,7 +72,9 @@ void ThreadState::Bind(ThreadState* thread_state) {
 
 ThreadState* ThreadState::Get() { return thread_state_; }
 
-uint32_t ThreadState::GetThreadID() { return thread_state_->thread_id_; }
+uint32_t ThreadState::GetThreadID() {
+  return thread_state_ ? thread_state_->thread_id_ : 0xFFFFFFFF;
+}
 
 }  // namespace cpu
 }  // namespace xe

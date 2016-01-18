@@ -27,12 +27,11 @@
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/cpu_flags.h"
-#include "xenia/cpu/debug_info.h"
 #include "xenia/cpu/function.h"
+#include "xenia/cpu/function_debug_info.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/debug/debugger.h"
 
 DEFINE_bool(enable_debugprint_log, false,
             "Log debugprint traps to the active debugger");
@@ -89,7 +88,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 X64Emitter::~X64Emitter() = default;
 
 bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
-                      uint32_t debug_info_flags, DebugInfo* debug_info,
+                      uint32_t debug_info_flags, FunctionDebugInfo* debug_info,
                       void** out_code_address, size_t* out_code_size,
                       std::vector<SourceMapEntry>* out_source_map) {
   SCOPE_profile_cpu_f("cpu");
@@ -187,7 +186,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
     inc(qword[low_address(&trace_header->function_call_count)]);
 
     // Get call history slot.
-    static_assert(debug::FunctionTraceData::kFunctionCallerHistoryCount == 4,
+    static_assert(FunctionTraceData::kFunctionCallerHistoryCount == 4,
                   "bitmask depends on count");
     mov(rax, qword[low_address(&trace_header->function_call_count)]);
     and_(rax, 0b00000011);

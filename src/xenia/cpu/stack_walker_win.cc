@@ -241,8 +241,10 @@ class Win32StackWalker : public StackWalker {
           // displacement in x64 from the JIT'ed code start to the PC.
           if (function->is_guest()) {
             auto guest_function = static_cast<GuestFunction*>(function);
+            // Adjust the host PC by -1 so that we will go back into whatever
+            // instruction was executing before the capture (like a call).
             frame.guest_pc =
-                guest_function->MapMachineCodeToGuestAddress(frame.host_pc);
+                guest_function->MapMachineCodeToGuestAddress(frame.host_pc - 1);
           }
         } else {
           frame.guest_symbol.function = nullptr;

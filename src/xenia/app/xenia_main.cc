@@ -137,9 +137,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
   // Set a debug handler.
   // This will respond to debugging requests so we can open the debug UI.
   std::unique_ptr<xe::debug::ui::DebugWindow> debug_window;
-  if (emulator->debugger()) {
-    emulator->debugger()->set_debug_listener_request_handler([&](
-        xe::debug::Debugger* debugger) {
+  if (FLAGS_debug) {
+    emulator->processor()->set_debug_listener_request_handler([&](
+        xe::cpu::Processor* processor) {
       if (debug_window) {
         return debug_window.get();
       }
@@ -147,7 +147,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
         debug_window = xe::debug::ui::DebugWindow::Create(
             emulator.get(), emulator_window->loop());
         debug_window->window()->on_closed.AddListener([&](xe::ui::UIEvent* e) {
-          emulator->debugger()->set_debug_listener(nullptr);
+          emulator->processor()->set_debug_listener(nullptr);
           emulator_window->loop()->Post([&]() { debug_window.reset(); });
         });
       });

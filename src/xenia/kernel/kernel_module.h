@@ -10,6 +10,8 @@
 #ifndef XENIA_KERNEL_KERNEL_MODULE_H_
 #define XENIA_KERNEL_KERNEL_MODULE_H_
 
+#include <map>
+
 #include "xenia/emulator.h"
 #include "xenia/kernel/xmodule.h"
 

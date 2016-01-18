@@ -189,7 +189,7 @@ class TestRunner {
     memory->Reset();
 
     // Setup a fresh processor.
-    processor.reset(new Processor(nullptr, memory.get(), nullptr, nullptr));
+    processor.reset(new Processor(memory.get(), nullptr));
     processor->Setup();
     processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
 

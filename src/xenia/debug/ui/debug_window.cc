@@ -26,6 +26,7 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/string_util.h"
 #include "xenia/base/threading.h"
+#include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/gpu/graphics_system.h"
@@ -40,6 +41,7 @@ namespace xe {
 namespace debug {
 namespace ui {
 
+using xe::cpu::Breakpoint;
 using xe::kernel::XModule;
 using xe::kernel::XObject;
 using xe::kernel::XThread;
@@ -52,7 +54,7 @@ const std::wstring kBaseTitle = L"Xenia Debugger";
 
 DebugWindow::DebugWindow(Emulator* emulator, xe::ui::Loop* loop)
     : emulator_(emulator),
-      debugger_(emulator->debugger()),
+      processor_(emulator->processor()),
       loop_(loop),
       window_(xe::ui::Window::Create(loop_, kBaseTitle)) {
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_) != CS_ERR_OK) {
@@ -258,7 +260,7 @@ void DebugWindow::DrawToolbar() {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                           ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
     if (ImGui::Button("Pause", ImVec2(80, 0))) {
-      debugger_->Pause();
+      processor_->Pause();
     }
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip("Interrupt the program and break into the debugger.");
@@ -266,7 +268,7 @@ void DebugWindow::DrawToolbar() {
     ImGui::PopStyleColor(3);
   } else {
     if (ImGui::Button("Continue", ImVec2(80, 0))) {
-      debugger_->Continue();
+      processor_->Continue();
     }
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip("Resume the program from the current location.");
@@ -281,20 +283,23 @@ void DebugWindow::DrawToolbar() {
   int current_thread_index = 0;
   StringBuffer thread_combo;
   int i = 0;
-  for (auto thread_info : cache_.thread_execution_infos) {
+  for (auto thread_info : cache_.thread_debug_infos) {
     if (thread_info == state_.thread_info) {
       current_thread_index = i;
     }
-    thread_combo.Append(thread_info->thread ? thread_info->thread->name()
-                                            : "(zombie)");
-    thread_combo.Append(static_cast<char>(0));
+    if (thread_info->state != cpu::ThreadDebugInfo::State::kZombie) {
+      thread_combo.Append(thread_info->thread->name());
+    } else {
+      thread_combo.Append("(zombie)");
+    }
+    thread_combo.Append('\0');
     ++i;
   }
   if (ImGui::Combo("##thread_combo", &current_thread_index,
                    thread_combo.GetString(), 10)) {
     // Thread changed.
-    SelectThreadStackFrame(cache_.thread_execution_infos[current_thread_index],
-                           0, true);
+    SelectThreadStackFrame(cache_.thread_debug_infos[current_thread_index], 0,
+                           true);
   }
 }
 
@@ -351,8 +356,8 @@ void DebugWindow::DrawSourcePane() {
   if (ImGui::ButtonEx("Step PPC", ImVec2(0, 0),
                       can_step ? 0 : ImGuiButtonFlags_Disabled)) {
     // By enabling the button when stepping we allow repeat behavior.
-    if (debugger_->execution_state() != ExecutionState::kStepping) {
-      debugger_->StepGuestInstruction(state_.thread_info->thread_id);
+    if (processor_->execution_state() != cpu::ExecutionState::kStepping) {
+      processor_->StepGuestInstruction(state_.thread_info->thread_id);
     }
   }
   ImGui::PopButtonRepeat();
@@ -369,8 +374,8 @@ void DebugWindow::DrawSourcePane() {
     if (ImGui::ButtonEx("Step x64", ImVec2(0, 0),
                         can_step ? 0 : ImGuiButtonFlags_Disabled)) {
       // By enabling the button when stepping we allow repeat behavior.
-      if (debugger_->execution_state() != ExecutionState::kStepping) {
-        debugger_->StepHostInstruction(state_.thread_info->thread_id);
+      if (processor_->execution_state() != cpu::ExecutionState::kStepping) {
+        processor_->StepHostInstruction(state_.thread_info->thread_id);
       }
     }
     ImGui::PopButtonRepeat();
@@ -494,10 +499,10 @@ void DebugWindow::DrawGuestFunctionSource() {
     }
 
     bool has_guest_bp =
-        LookupBreakpointAtAddress(CodeBreakpoint::AddressType::kGuest,
-                                  address) != nullptr;
-    DrawBreakpointGutterButton(has_guest_bp,
-                               CodeBreakpoint::AddressType::kGuest, address);
+        LookupBreakpointAtAddress(Breakpoint::AddressType::kGuest, address) !=
+        nullptr;
+    DrawBreakpointGutterButton(has_guest_bp, Breakpoint::AddressType::kGuest,
+                               address);
     ImGui::SameLine();
 
     ImGui::Text(" %c ", is_current_instr ? '>' : ' ');
@@ -563,10 +568,9 @@ void DebugWindow::DrawMachineCodeSource(const uint8_t* machine_code_ptr,
       ScrollToSourceIfPcChanged();
     }
 
-    bool has_host_bp =
-        LookupBreakpointAtAddress(CodeBreakpoint::AddressType::kHost,
-                                  insn.address) != nullptr;
-    DrawBreakpointGutterButton(has_host_bp, CodeBreakpoint::AddressType::kHost,
+    bool has_host_bp = LookupBreakpointAtAddress(Breakpoint::AddressType::kHost,
+                                                 insn.address) != nullptr;
+    DrawBreakpointGutterButton(has_host_bp, Breakpoint::AddressType::kHost,
                                insn.address);
     ImGui::SameLine();
 
@@ -585,7 +589,7 @@ void DebugWindow::DrawMachineCodeSource(const uint8_t* machine_code_ptr,
 }
 
 void DebugWindow::DrawBreakpointGutterButton(
-    bool has_breakpoint, CodeBreakpoint::AddressType address_type,
+    bool has_breakpoint, Breakpoint::AddressType address_type,
     uint64_t address) {
   ImGui::PushStyleColor(ImGuiCol_Button,
                         has_breakpoint
@@ -991,10 +995,11 @@ void DebugWindow::DrawThreadsPane() {
   //   expand all toggle
   ImGui::EndGroup();
   ImGui::BeginChild("##threads_listing");
-  for (size_t i = 0; i < cache_.thread_execution_infos.size(); ++i) {
-    auto thread_info = cache_.thread_execution_infos[i];
+  for (size_t i = 0; i < cache_.thread_debug_infos.size(); ++i) {
+    auto thread_info = cache_.thread_debug_infos[i];
     bool is_current_thread = thread_info == state_.thread_info;
-    auto thread = thread_info->thread;
+    auto thread =
+        emulator_->kernel_state()->GetThreadByID(thread_info->thread_id);
     if (!thread) {
       // TODO(benvanik): better display of zombie thread states.
       continue;
@@ -1146,7 +1151,7 @@ void DebugWindow::DrawBreakpointsPane() {
     if (ImGui::InputText("##guest_address", ppc_buffer, 9, input_flags)) {
       uint32_t address = string_util::from_string<uint32_t>(ppc_buffer, true);
       ppc_buffer[0] = 0;
-      CreateCodeBreakpoint(CodeBreakpoint::AddressType::kGuest, address);
+      CreateCodeBreakpoint(Breakpoint::AddressType::kGuest, address);
       ImGui::CloseCurrentPopup();
     }
     ImGui::PopItemWidth();
@@ -1162,7 +1167,7 @@ void DebugWindow::DrawBreakpointsPane() {
     if (ImGui::InputText("##host_address", x64_buffer, 17, input_flags)) {
       uint64_t address = string_util::from_string<uint64_t>(x64_buffer, true);
       x64_buffer[0] = 0;
-      CreateCodeBreakpoint(CodeBreakpoint::AddressType::kHost, address);
+      CreateCodeBreakpoint(Breakpoint::AddressType::kHost, address);
       ImGui::CloseCurrentPopup();
     }
     ImGui::PopItemWidth();
@@ -1299,7 +1304,7 @@ void DebugWindow::DrawBreakpointsPane() {
   if (ImGui::Button("Clear")) {
     // Unregister and delete all breakpoints.
     while (!state.all_breakpoints.empty()) {
-      DeleteBreakpoint(state.all_breakpoints.front().get());
+      DeleteCodeBreakpoint(state.all_breakpoints.front().get());
     }
   }
   if (ImGui::IsItemHovered()) {
@@ -1325,30 +1330,17 @@ void DebugWindow::DrawBreakpointsPane() {
       bool is_selected = false;  // in function/stopped on line?
       if (ImGui::Selectable(breakpoint_str.c_str(), &is_selected,
                             ImGuiSelectableFlags_SpanAllColumns)) {
-        switch (breakpoint->type()) {
-          case Breakpoint::Type::kCode: {
-            auto code_breakpoint =
-                static_cast<CodeBreakpoint*>(breakpoint.get());
-            auto function = code_breakpoint->guest_function();
-            assert_not_null(function);
-            if (code_breakpoint->address_type() ==
-                CodeBreakpoint::AddressType::kGuest) {
-              NavigateToFunction(code_breakpoint->guest_function(),
-                                 code_breakpoint->guest_address(),
-                                 function->MapGuestAddressToMachineCode(
-                                     code_breakpoint->guest_address()));
-            } else {
-              NavigateToFunction(function,
-                                 function->MapMachineCodeToGuestAddress(
-                                     code_breakpoint->host_address()),
-                                 code_breakpoint->host_address());
-            }
-            break;
-          }
-          default: {
-            // Ignored.
-            break;
-          }
+        auto function = breakpoint->guest_function();
+        assert_not_null(function);
+        if (breakpoint->address_type() == Breakpoint::AddressType::kGuest) {
+          NavigateToFunction(breakpoint->guest_function(),
+                             breakpoint->guest_address(),
+                             function->MapGuestAddressToMachineCode(
+                                 breakpoint->guest_address()));
+        } else {
+          NavigateToFunction(function, function->MapMachineCodeToGuestAddress(
+                                           breakpoint->host_address()),
+                             breakpoint->host_address());
         }
       }
       if (ImGui::BeginPopupContextItem("##breakpoint_context_menu")) {
@@ -1362,7 +1354,7 @@ void DebugWindow::DrawBreakpointsPane() {
     ImGui::ListBoxFooter();
     if (!to_delete.empty()) {
       for (auto breakpoint : to_delete) {
-        DeleteBreakpoint(breakpoint);
+        DeleteCodeBreakpoint(breakpoint);
       }
     }
   }
@@ -1386,7 +1378,7 @@ void DebugWindow::DrawLogPane() {
   //   if big, click to open dialog with contents
 }
 
-void DebugWindow::SelectThreadStackFrame(ThreadExecutionInfo* thread_info,
+void DebugWindow::SelectThreadStackFrame(cpu::ThreadDebugInfo* thread_info,
                                          size_t stack_frame_index,
                                          bool always_navigate) {
   state_.has_changed_thread = false;
@@ -1431,24 +1423,25 @@ void DebugWindow::UpdateCache() {
 
   loop_->Post([this]() {
     std::wstring title = kBaseTitle;
-    switch (debugger_->execution_state()) {
-      case ExecutionState::kEnded:
+    switch (processor_->execution_state()) {
+      case cpu::ExecutionState::kEnded:
         title += L" (ended)";
         break;
-      case ExecutionState::kPaused:
+      case cpu::ExecutionState::kPaused:
         title += L" (paused)";
         break;
-      case ExecutionState::kRunning:
+      case cpu::ExecutionState::kRunning:
         title += L" (running)";
         break;
-      case ExecutionState::kStepping:
+      case cpu::ExecutionState::kStepping:
         title += L" (stepping)";
         break;
     }
     window_->set_title(title);
   });
 
-  cache_.is_running = debugger_->execution_state() == ExecutionState::kRunning;
+  cache_.is_running =
+      processor_->execution_state() == cpu::ExecutionState::kRunning;
   if (cache_.is_running) {
     // Early exit - the rest of the data is kept stale on purpose.
     return;
@@ -1459,18 +1452,22 @@ void DebugWindow::UpdateCache() {
   cache_.modules =
       object_table->GetObjectsByType<XModule>(XObject::Type::kTypeModule);
 
-  cache_.thread_execution_infos = debugger_->QueryThreadExecutionInfos();
+  cache_.thread_debug_infos = processor_->QueryThreadDebugInfos();
 
   SelectThreadStackFrame(state_.thread_info, state_.thread_stack_frame_index,
                          false);
 }
 
-void DebugWindow::CreateCodeBreakpoint(CodeBreakpoint::AddressType address_type,
+void DebugWindow::CreateCodeBreakpoint(Breakpoint::AddressType address_type,
                                        uint64_t address) {
   auto& state = state_.breakpoints;
-  auto breakpoint =
-      std::make_unique<CodeBreakpoint>(debugger_, address_type, address);
-  if (breakpoint->address_type() == CodeBreakpoint::AddressType::kGuest) {
+  auto breakpoint = std::make_unique<Breakpoint>(
+      processor_, address_type, address,
+      [this](Breakpoint* breakpoint, cpu::ThreadDebugInfo* thread_info,
+             uint64_t host_address) {
+        OnBreakpointHit(breakpoint, thread_info);
+      });
+  if (breakpoint->address_type() == Breakpoint::AddressType::kGuest) {
     auto& map = state.code_breakpoints_by_guest_address;
     auto it = map.find(breakpoint->guest_address());
     if (it != map.end()) {
@@ -1487,18 +1484,18 @@ void DebugWindow::CreateCodeBreakpoint(CodeBreakpoint::AddressType address_type,
     }
     map.emplace(breakpoint->host_address(), breakpoint.get());
   }
-  debugger_->AddBreakpoint(breakpoint.get());
+  processor_->AddBreakpoint(breakpoint.get());
   state.all_breakpoints.emplace_back(std::move(breakpoint));
 }
 
-void DebugWindow::DeleteCodeBreakpoint(CodeBreakpoint* breakpoint) {
+void DebugWindow::DeleteCodeBreakpoint(Breakpoint* breakpoint) {
   auto& state = state_.breakpoints;
   for (size_t i = 0; i < state.all_breakpoints.size(); ++i) {
     if (state.all_breakpoints[i].get() != breakpoint) {
       continue;
     }
-    debugger_->RemoveBreakpoint(breakpoint);
-    if (breakpoint->address_type() == CodeBreakpoint::AddressType::kGuest) {
+    processor_->RemoveBreakpoint(breakpoint);
+    if (breakpoint->address_type() == Breakpoint::AddressType::kGuest) {
       auto& map = state.code_breakpoints_by_guest_address;
       auto it = map.find(breakpoint->guest_address());
       if (it != map.end()) {
@@ -1516,25 +1513,10 @@ void DebugWindow::DeleteCodeBreakpoint(CodeBreakpoint* breakpoint) {
   }
 }
 
-void DebugWindow::DeleteBreakpoint(Breakpoint* breakpoint) {
+Breakpoint* DebugWindow::LookupBreakpointAtAddress(
+    Breakpoint::AddressType address_type, uint64_t address) {
   auto& state = state_.breakpoints;
-  if (breakpoint->type() == Breakpoint::Type::kCode) {
-    DeleteCodeBreakpoint(static_cast<CodeBreakpoint*>(breakpoint));
-  } else {
-    for (size_t i = 0; i < state.all_breakpoints.size(); ++i) {
-      if (state.all_breakpoints[i].get() == breakpoint) {
-        debugger_->RemoveBreakpoint(breakpoint);
-        state.all_breakpoints.erase(state.all_breakpoints.begin() + i);
-        break;
-      }
-    }
-  }
-}
-
-CodeBreakpoint* DebugWindow::LookupBreakpointAtAddress(
-    CodeBreakpoint::AddressType address_type, uint64_t address) {
-  auto& state = state_.breakpoints;
-  if (address_type == CodeBreakpoint::AddressType::kGuest) {
+  if (address_type == Breakpoint::AddressType::kGuest) {
     auto& map = state.code_breakpoints_by_guest_address;
     auto it = map.find(static_cast<uint32_t>(address));
     return it == map.end() ? nullptr : it->second;
@@ -1554,7 +1536,7 @@ void DebugWindow::OnDetached() {
 
   // Remove all breakpoints.
   while (!state_.breakpoints.all_breakpoints.empty()) {
-    DeleteBreakpoint(state_.breakpoints.all_breakpoints.front().get());
+    DeleteCodeBreakpoint(state_.breakpoints.all_breakpoints.front().get());
   }
 }
 
@@ -1573,17 +1555,15 @@ void DebugWindow::OnExecutionEnded() {
   loop_->Post([this]() { window_->set_focus(true); });
 }
 
-void DebugWindow::OnStepCompleted(xe::kernel::XThread* thread) {
+void DebugWindow::OnStepCompleted(cpu::ThreadDebugInfo* thread_info) {
   UpdateCache();
-  auto thread_info = debugger_->QueryThreadExecutionInfo(thread->thread_id());
   SelectThreadStackFrame(thread_info, 0, true);
   loop_->Post([this]() { window_->set_focus(true); });
 }
 
 void DebugWindow::OnBreakpointHit(Breakpoint* breakpoint,
-                                  xe::kernel::XThread* thread) {
+                                  cpu::ThreadDebugInfo* thread_info) {
   UpdateCache();
-  auto thread_info = debugger_->QueryThreadExecutionInfo(thread->thread_id());
   SelectThreadStackFrame(thread_info, 0, true);
   loop_->Post([this]() { window_->set_focus(true); });
 }

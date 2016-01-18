@@ -23,7 +23,6 @@
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/ppc/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/debug/debugger.h"
 
 namespace xe {
 namespace cpu {
@@ -118,9 +117,9 @@ bool PPCTranslator::Translate(GuestFunction* function,
   if (FLAGS_trace_function_data) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionData;
   }
-  std::unique_ptr<DebugInfo> debug_info;
+  std::unique_ptr<FunctionDebugInfo> debug_info;
   if (debug_info_flags) {
-    debug_info.reset(new DebugInfo());
+    debug_info.reset(new FunctionDebugInfo());
   }
 
   // Scan the function to find its extents and gather debug data.
@@ -128,25 +127,24 @@ bool PPCTranslator::Translate(GuestFunction* function,
     return false;
   }
 
-  auto debugger = frontend_->processor()->debugger();
-  if (!debugger) {
-    debug_info_flags &= ~DebugInfoFlags::kDebugInfoAllTracing;
-  }
-
   // Setup trace data, if needed.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctions) {
     // Base trace data.
-    size_t trace_data_size = debug::FunctionTraceData::SizeOfHeader();
+    size_t trace_data_size = FunctionTraceData::SizeOfHeader();
     if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
       // Additional space for instruction coverage counts.
-      trace_data_size += debug::FunctionTraceData::SizeOfInstructionCounts(
+      trace_data_size += FunctionTraceData::SizeOfInstructionCounts(
           function->address(), function->end_address());
     }
-    uint8_t* trace_data = debugger->AllocateFunctionTraceData(trace_data_size);
+    uint8_t* trace_data =
+        frontend_->processor()->AllocateFunctionTraceData(trace_data_size);
     if (trace_data) {
       function->trace_data().Reset(trace_data, trace_data_size,
                                    function->address(),
                                    function->end_address());
+    } else {
+      debug_info_flags &= ~(DebugInfoFlags::kDebugInfoTraceFunctions |
+                            DebugInfoFlags::kDebugInfoTraceFunctionCoverage);
     }
   }
 
