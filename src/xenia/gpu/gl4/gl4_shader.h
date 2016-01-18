@@ -26,16 +26,24 @@ class GL4Shader : public Shader {
   ~GL4Shader() override;
 
   GLuint program() const { return program_; }
+  GLuint shader() const { return shader_; }
   GLuint vao() const { return vao_; }
 
-  bool Prepare() override;
+  bool Prepare();
 
  protected:
   bool PrepareVertexArrayObject();
-  bool CompileProgram();
+  bool CompileShader();
+  bool LinkProgram();
 
-  GLuint program_;
-  GLuint vao_;
+  std::string GetShaderInfoLog();
+  std::string GetProgramInfoLog();
+  std::vector<uint8_t> GetBinary();
+  static std::string GetHostDisasmNV(const std::vector<uint8_t>& binary);
+
+  GLuint program_ = 0;
+  GLuint shader_ = 0;
+  GLuint vao_ = 0;
 };
 
 }  // namespace gl4
