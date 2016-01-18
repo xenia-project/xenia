@@ -25,7 +25,7 @@ constexpr int kMaxTemporaryRegisters = 64;
   source_.Append(depth_prefix_); \
   source_.AppendFormat(__VA_ARGS__)
 
-const char* GetVertexFormatTypeName(VertexFormat format) {
+const char* GetVertexFormatTypeName(VertexFormat format, bool is_signed) {
   switch (format) {
     case VertexFormat::k_32:
     case VertexFormat::k_32_FLOAT:
@@ -36,11 +36,13 @@ const char* GetVertexFormatTypeName(VertexFormat format) {
     case VertexFormat::k_32_32_FLOAT:
       return "vec2";
     case VertexFormat::k_10_11_11:
+      return is_signed ? "int" : "uint";
+    case VertexFormat::k_2_10_10_10:
+      return is_signed ? "int" : "uint";
     case VertexFormat::k_11_11_10:
     case VertexFormat::k_32_32_32_FLOAT:
       return "vec3";
     case VertexFormat::k_8_8_8_8:
-    case VertexFormat::k_2_10_10_10:
     case VertexFormat::k_16_16_16_16:
     case VertexFormat::k_32_32_32_32:
     case VertexFormat::k_16_16_16_16_FLOAT:
@@ -189,6 +191,39 @@ out gl_PerVertex {
 };
 layout(location = 0) flat out uint draw_id;
 layout(location = 1) out VertexData vtx;
+
+vec3 get_10_11_11_u(const uint data_in) {
+  vec3 vec;
+  vec.x = bitfieldExtract(data_in, 0, 10);
+  vec.y = bitfieldExtract(data_in, 10, 11);
+  vec.z = bitfieldExtract(data_in, 21, 11);
+  return vec;
+}
+vec3 get_10_11_11_s(const int data_in) {
+  vec3 vec;
+  vec.x = bitfieldExtract(data_in, 0, 10);
+  vec.y = bitfieldExtract(data_in, 10, 11);
+  vec.z = bitfieldExtract(data_in, 21, 11);
+  return vec;
+}
+
+vec4 get_2_10_10_10_u(const uint data_in) {
+  vec4 vec;
+  vec.x = bitfieldExtract(data_in,  0, 10);
+  vec.y = bitfieldExtract(data_in, 10, 10);
+  vec.z = bitfieldExtract(data_in, 20, 10);
+  vec.w = bitfieldExtract(data_in, 30, 2 );
+  return vec;
+}
+vec4 get_2_10_10_10_s(const int data_in) {
+  vec4 vec;
+  vec.x = bitfieldExtract(data_in,  0, 10);
+  vec.y = bitfieldExtract(data_in, 10, 10);
+  vec.z = bitfieldExtract(data_in, 20, 10);
+  vec.w = bitfieldExtract(data_in, 30, 2 );
+  return vec;
+}
+
 vec4 applyTransform(const in StateData state, vec4 pos) {
   if (state.vtx_fmt.w == 0.0) {
     // w is 1/W0, so fix it.
@@ -262,7 +297,8 @@ void main() {
         }
         defined_locations.insert(key);
         const char* type_name =
-            GetVertexFormatTypeName(attrib.fetch_instr.attributes.data_format);
+            GetVertexFormatTypeName(attrib.fetch_instr.attributes.data_format,
+                                    attrib.fetch_instr.attributes.is_signed);
         EmitSource("layout(location = %d) in %s vf%u_%d;\n",
                    attrib.attrib_index, type_name, binding.fetch_constant,
                    attrib.fetch_instr.attributes.offset);
@@ -557,16 +593,29 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
     }
 
     switch (instr.opcode) {
-      case FetchOpcode::kVertexFetch:
+      case FetchOpcode::kVertexFetch: {
         EmitSourceDepth("pv.");
         for (int i = 0;
              i < GetVertexFormatComponentCount(instr.attributes.data_format);
              ++i) {
           EmitSource("%c", GetCharForComponentIndex(i));
         }
-        EmitSource(" = vf%u_%d;\n", instr.operands[1].storage_index,
-                   instr.attributes.offset);
-        break;
+
+        auto format = instr.attributes.data_format;
+        if (format == VertexFormat::k_10_11_11) {
+          // GL doesn't support this format as a fetch type, so convert it.
+          EmitSource(" = get_10_11_11_%c(vf%u_%d);\n",
+                     instr.attributes.is_signed ? 's' : 'u',
+                     instr.operands[1].storage_index, instr.attributes.offset);
+        } else if (format == VertexFormat::k_2_10_10_10) {
+          EmitSource(" = get_2_10_10_10_%c(vf%u_%d);\n",
+                     instr.attributes.is_signed ? 's' : 'u',
+                     instr.operands[1].storage_index, instr.attributes.offset);
+        } else {
+          EmitSource(" = vf%u_%d;\n", instr.operands[1].storage_index,
+                     instr.attributes.offset);
+        }
+      } break;
       default:
         assert_always();
         break;
@@ -834,7 +883,7 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
       EmitSourceDepth("gl_FragDepth");
       break;
     case InstructionStorageTarget::kNone:
-      break;
+      return;
   }
   if (uses_storage_index) {
     switch (result.storage_addressing_mode) {
