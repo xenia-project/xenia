@@ -680,7 +680,7 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
                                     const Shader::VertexBinding& vertex_binding,
                                     const xe_gpu_vertex_fetch_t* fetch) {
   const uint8_t* addr = memory_->TranslatePhysical(fetch->address << 2);
-  uint32_t vertex_count = (fetch->size * 4) / vertex_binding.stride_words;
+  uint32_t vertex_count = fetch->size / vertex_binding.stride_words;
   int column_count = 0;
   for (const auto& attrib : vertex_binding.attributes) {
     switch (attrib.fetch_instr.attributes.data_format) {
@@ -715,9 +715,9 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
     }
   }
   ImGui::BeginChild("#indices", ImVec2(0, 300));
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 0));
   int display_start, display_end;
-  ImGui::CalcListClipping(1 + vertex_count, ImGui::GetTextLineHeight(),
+  ImGui::CalcListClipping(vertex_count, ImGui::GetTextLineHeight(),
                           &display_start, &display_end);
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
                        (display_start)*ImGui::GetTextLineHeight());
@@ -1274,6 +1274,8 @@ void TraceViewer::DrawStateUI() {
             static_cast<ColorRenderTargetFormat>((color_info[i] >> 16) & 0xF);
         ImVec2 button_size(256, 256);
         if (write_mask) {
+          // FIXME: Valid color targets with alpha=0 don't show up.
+
           auto color_target = GetColorRenderTarget(surface_pitch, surface_msaa,
                                                    color_base, color_format);
           if (ImGui::ImageButton(ImTextureID(color_target), button_size,
@@ -1372,6 +1374,55 @@ void TraceViewer::DrawStateUI() {
       ImGui::TextColored(kColorError, "ERROR: no vertex shader set");
     }
     ImGui::EndChild();
+  }
+  if (ImGui::CollapsingHeader("Vertex Shader Output")) {
+    auto size = QueryVSOutputSize();
+    auto el_size = QueryVSOutputElementSize();
+    if (size > 0) {
+      std::vector<float> vertices;
+      vertices.resize(size / 4);
+      QueryVSOutput(vertices.data(), size);
+
+      ImGui::Text("%d output vertices", vertices.size());
+      ImGui::SameLine();
+      static bool normalize = false;
+      ImGui::Checkbox("Normalize", &normalize);
+
+      ImGui::BeginChild("#vsvertices", ImVec2(0, 300));
+
+      int display_start, display_end;
+      ImGui::CalcListClipping(int(vertices.size() / 4),
+                              ImGui::GetTextLineHeight(), &display_start,
+                              &display_end);
+      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                           (display_start)*ImGui::GetTextLineHeight());
+
+      ImGui::Columns(int(el_size), "#vsvertices", true);
+      for (size_t i = display_start; i < display_end; i++) {
+        size_t start_vtx = i * el_size;
+        float verts[4] = {vertices[start_vtx], vertices[start_vtx + 1],
+                          vertices[start_vtx + 2], vertices[start_vtx + 3]};
+        assert_true(el_size <= xe::countof(verts));
+        if (normalize) {
+          for (int j = 0; j < el_size; j++) {
+            verts[j] /= verts[3];
+          }
+        }
+
+        for (int j = 0; j < el_size; j++) {
+          ImGui::Text("%.3f", verts[j]);
+          ImGui::NextColumn();
+        }
+      }
+      ImGui::Columns(1);
+
+      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                           ((vertices.size() / 4) - display_end) *
+                               ImGui::GetTextLineHeight());
+      ImGui::EndChild();
+    } else {
+      ImGui::Text("No vertex shader output");
+    }
   }
   if (ImGui::CollapsingHeader("Pixel Shader")) {
     ShaderDisplayType shader_display_type = DrawShaderTypeUI();
@@ -1507,7 +1558,7 @@ void TraceViewer::DrawStateUI() {
       ImGui::TextColored(kColorError, "ERROR: no vertex shader set");
     }
   }
-  if (ImGui::CollapsingHeader("Textures")) {
+  if (ImGui::CollapsingHeader("Pixel Textures")) {
     auto shader = command_processor->active_pixel_shader();
     if (shader) {
       const auto& texture_bindings = shader->texture_bindings();
