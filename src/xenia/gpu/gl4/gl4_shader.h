@@ -29,7 +29,7 @@ class GL4Shader : public Shader {
   GLuint shader() const { return shader_; }
   GLuint vao() const { return vao_; }
 
-  bool Prepare();
+  bool Prepare() override;
 
  protected:
   bool PrepareVertexArrayObject();
