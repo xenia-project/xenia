@@ -25,8 +25,10 @@
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xthread.h"
 
-// For FileTimeToSystemTime and SystemTimeToFileTime:
+#if XE_PLATFORM_WIN32
 #include "xenia/base/platform_win.h"
+#define timegm _mkgmtime
+#endif
 
 namespace xe {
 namespace kernel {
@@ -439,44 +441,41 @@ struct X_TIME_FIELDS {
 };
 static_assert(sizeof(X_TIME_FIELDS) == 16, "Must be LARGEINTEGER");
 
+// https://support.microsoft.com/en-us/kb/167296
 void RtlTimeToTimeFields(lpqword_t time_ptr,
                          pointer_t<X_TIME_FIELDS> time_fields_ptr) {
-  // TODO(benvanik): replace with our own version.
-  FILETIME ft;
-  ft.dwHighDateTime = static_cast<uint32_t>(time_ptr.value() >> 32);
-  ft.dwLowDateTime = static_cast<uint32_t>(time_ptr.value());
-  SYSTEMTIME st;
-  FileTimeToSystemTime(&ft, &st);
+  int64_t time_ms = time_ptr.value() / 10000 - 11644473600000LL;
+  time_t timet = time_ms / 1000;
+  struct tm* tm = gmtime(&timet);
 
-  time_fields_ptr->year = st.wYear;
-  time_fields_ptr->month = st.wMonth;
-  time_fields_ptr->day = st.wDay;
-  time_fields_ptr->hour = st.wHour;
-  time_fields_ptr->minute = st.wMinute;
-  time_fields_ptr->second = st.wSecond;
-  time_fields_ptr->milliseconds = st.wMilliseconds;
-  time_fields_ptr->weekday = st.wDayOfWeek;
+  time_fields_ptr->year = tm->tm_year + 1900;
+  time_fields_ptr->month = tm->tm_mon + 1;
+  time_fields_ptr->day = tm->tm_mday;
+  time_fields_ptr->hour = tm->tm_hour;
+  time_fields_ptr->minute = tm->tm_min;
+  time_fields_ptr->second = tm->tm_sec;
+  time_fields_ptr->milliseconds = time_ms % 1000;
+  time_fields_ptr->weekday = tm->tm_wday;
 }
 DECLARE_XBOXKRNL_EXPORT(RtlTimeToTimeFields, ExportTag::kImplemented);
 
 dword_result_t RtlTimeFieldsToTime(pointer_t<X_TIME_FIELDS> time_fields_ptr,
                                    lpqword_t time_ptr) {
-  // TODO(benvanik): replace with our own version.
-  SYSTEMTIME st;
-  st.wYear = time_fields_ptr->year;
-  st.wMonth = time_fields_ptr->month;
-  st.wDay = time_fields_ptr->day;
-  st.wHour = time_fields_ptr->hour;
-  st.wMinute = time_fields_ptr->minute;
-  st.wSecond = time_fields_ptr->second;
-  st.wMilliseconds = time_fields_ptr->milliseconds;
-  st.wDayOfWeek = time_fields_ptr->weekday;
-  FILETIME ft;
-  if (!SystemTimeToFileTime(&st, &ft)) {
+  struct tm tm;
+  tm.tm_year = time_fields_ptr->year - 1900;
+  tm.tm_mon = time_fields_ptr->month - 1;
+  tm.tm_mday = time_fields_ptr->day;
+  tm.tm_hour = time_fields_ptr->hour;
+  tm.tm_min = time_fields_ptr->minute;
+  tm.tm_sec = time_fields_ptr->second;
+  tm.tm_isdst = 0;
+  time_t timet = timegm(&tm);
+  if (timet == -1) {
     // set last error = ERROR_INVALID_PARAMETER
     return 0;
   }
-  uint64_t time = (uint64_t(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+  uint64_t time =
+      ((timet + 11644473600LL) * 1000 + time_fields_ptr->milliseconds) * 10000;
   *time_ptr = time;
   return 1;
 }
