@@ -36,6 +36,10 @@ DEFINE_bool(ignore_thread_affinities, true,
 namespace xe {
 namespace kernel {
 
+const uint32_t XAPC::kSize;
+const uint32_t XAPC::kDummyKernelRoutine;
+const uint32_t XAPC::kDummyRundownRoutine;
+
 using xe::cpu::ppc::PPCOpcode;
 
 uint32_t next_xthread_id_ = 0;
