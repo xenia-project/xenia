@@ -10,6 +10,7 @@
 #include "xenia/cpu/testing/util.h"
 
 #include <cfloat>
+#include <climits>
 
 using namespace xe;
 using namespace xe::cpu;
