@@ -16,16 +16,6 @@
 namespace xe {
 namespace threading {
 
-uint32_t logical_processor_count() {
-  static uint32_t value = 0;
-  if (!value) {
-    SYSTEM_INFO system_info;
-    GetSystemInfo(&system_info);
-    value = system_info.dwNumberOfProcessors;
-  }
-  return value;
-}
-
 void EnableAffinityConfiguration() {
   HANDLE process_handle = GetCurrentProcess();
   DWORD_PTR process_affinity_mask;
