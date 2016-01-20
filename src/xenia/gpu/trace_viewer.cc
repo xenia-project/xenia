@@ -13,6 +13,7 @@
 
 #include <cinttypes>
 
+#include "third_party/half/include/half.hpp"
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -789,16 +790,25 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::NextColumn();
           break;
         case VertexFormat::k_32_FLOAT:
-          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::Text("%.3f", LOADEL(float, 0));
           ImGui::NextColumn();
           break;
-        case VertexFormat::k_16_16:
-        case VertexFormat::k_16_16_FLOAT:
-          ImGui::Text("??");
+        case VertexFormat::k_16_16: {
+          auto e0 = LOADEL(uint32_t, 0);
+          ImGui::Text("%.4X", (e0 >> 16) & 0xFFFF);
           ImGui::NextColumn();
-          ImGui::Text("??");
+          ImGui::Text("%.4X", (e0 >> 0) & 0xFFFF);
           ImGui::NextColumn();
-          break;
+        } break;
+        case VertexFormat::k_16_16_FLOAT: {
+          auto e0 = LOADEL(uint32_t, 0);
+          ImGui::Text("%.2f",
+                      half_float::detail::half2float((e0 >> 16) & 0xFFFF));
+          ImGui::NextColumn();
+          ImGui::Text("%.2f",
+                      half_float::detail::half2float((e0 >> 0) & 0xFFFF));
+          ImGui::NextColumn();
+        } break;
         case VertexFormat::k_32_32:
           ImGui::Text("%.8X", LOADEL(uint32_t, 0));
           ImGui::NextColumn();
@@ -806,9 +816,9 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::NextColumn();
           break;
         case VertexFormat::k_32_32_FLOAT:
-          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::Text("%.3f", LOADEL(float, 0));
           ImGui::NextColumn();
-          ImGui::Text("%.2f", LOADEL(float, 1));
+          ImGui::Text("%.3f", LOADEL(float, 1));
           ImGui::NextColumn();
           break;
         case VertexFormat::k_10_11_11:
@@ -821,19 +831,19 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::NextColumn();
           break;
         case VertexFormat::k_32_32_32_FLOAT:
-          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::Text("%.3f", LOADEL(float, 0));
           ImGui::NextColumn();
-          ImGui::Text("%.2f", LOADEL(float, 1));
+          ImGui::Text("%.3f", LOADEL(float, 1));
           ImGui::NextColumn();
-          ImGui::Text("%.2f", LOADEL(float, 2));
+          ImGui::Text("%.3f", LOADEL(float, 2));
           ImGui::NextColumn();
           break;
         case VertexFormat::k_8_8_8_8:
           ImGui::Text("%.8X", LOADEL(uint32_t, 0));
           ImGui::NextColumn();
           break;
-        case VertexFormat::k_2_10_10_10:
-        case VertexFormat::k_16_16_16_16:
+        case VertexFormat::k_2_10_10_10: {
+          auto e0 = LOADEL(uint32_t, 0);
           ImGui::Text("??");
           ImGui::NextColumn();
           ImGui::Text("??");
@@ -842,7 +852,19 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::NextColumn();
           ImGui::Text("??");
           ImGui::NextColumn();
-          break;
+        } break;
+        case VertexFormat::k_16_16_16_16: {
+          auto e0 = LOADEL(uint32_t, 0);
+          auto e1 = LOADEL(uint32_t, 1);
+          ImGui::Text("%.4X", (e0 >> 16) & 0xFFFF);
+          ImGui::NextColumn();
+          ImGui::Text("%.4X", (e0 >> 0) & 0xFFFF);
+          ImGui::NextColumn();
+          ImGui::Text("%.4X", (e1 >> 16) & 0xFFFF);
+          ImGui::NextColumn();
+          ImGui::Text("%.4X", (e1 >> 0) & 0xFFFF);
+          ImGui::NextColumn();
+        } break;
         case VertexFormat::k_32_32_32_32:
           ImGui::Text("%.8X", LOADEL(uint32_t, 0));
           ImGui::NextColumn();
@@ -853,24 +875,30 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::Text("%.8X", LOADEL(uint32_t, 3));
           ImGui::NextColumn();
           break;
-        case VertexFormat::k_16_16_16_16_FLOAT:
-          ImGui::Text("??");
+        case VertexFormat::k_16_16_16_16_FLOAT: {
+          auto e0 = LOADEL(uint32_t, 0);
+          auto e1 = LOADEL(uint32_t, 1);
+          ImGui::Text("%.2f",
+                      half_float::detail::half2float((e0 >> 16) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("??");
+          ImGui::Text("%.2f",
+                      half_float::detail::half2float((e0 >> 0) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("??");
+          ImGui::Text("%.2f",
+                      half_float::detail::half2float((e1 >> 16) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("??");
+          ImGui::Text("%.2f",
+                      half_float::detail::half2float((e1 >> 0) & 0xFFFF));
           ImGui::NextColumn();
-          break;
+        } break;
         case VertexFormat::k_32_32_32_32_FLOAT:
-          ImGui::Text("%.2f", LOADEL(float, 0));
+          ImGui::Text("%.3f", LOADEL(float, 0));
           ImGui::NextColumn();
-          ImGui::Text("%.2f", LOADEL(float, 1));
+          ImGui::Text("%.3f", LOADEL(float, 1));
           ImGui::NextColumn();
-          ImGui::Text("%.2f", LOADEL(float, 2));
+          ImGui::Text("%.3f", LOADEL(float, 2));
           ImGui::NextColumn();
-          ImGui::Text("%.2f", LOADEL(float, 3));
+          ImGui::Text("%.3f", LOADEL(float, 3));
           ImGui::NextColumn();
           break;
         case VertexFormat::kUndefined:
