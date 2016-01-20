@@ -59,25 +59,23 @@ bool DrawBatcher::Initialize(CircularBuffer* array_data_buffer) {
 // Initializes a transform feedback object
 // We use this to capture vertex data straight from the vertex/geometry shader.
 bool DrawBatcher::InitializeTFB() {
-  glGenBuffers(1, &tfvbo_);
+  glCreateBuffers(1, &tfvbo_);
   if (!tfvbo_) {
     return false;
   }
 
-  glGenTransformFeedbacks(1, &tfbo_);
+  glCreateTransformFeedbacks(1, &tfbo_);
   if (!tfbo_) {
     return false;
   }
 
-  glGenQueries(1, &tfqo_);
+  glCreateQueries(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, 1, &tfqo_);
   if (!tfqo_) {
     return false;
   }
 
   // TODO(DrChat): Calculate this based on the number of primitives drawn.
-  glBindBuffer(GL_ARRAY_BUFFER, tfvbo_);
-  glBufferData(GL_ARRAY_BUFFER, 16384 * 4, nullptr, GL_STATIC_READ);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glNamedBufferData(tfvbo_, 16384 * 4, nullptr, GL_STATIC_READ);
 
   return true;
 }
@@ -119,13 +117,9 @@ bool DrawBatcher::ReadbackTFB(void* buffer, size_t size) {
     return false;
   }
 
-  glBindBuffer(GL_ARRAY_BUFFER, tfvbo_);
-  void* data = glMapBufferRange(GL_ARRAY_BUFFER, 0, size, GL_MAP_READ_BIT);
-
+  void* data = glMapNamedBufferRange(tfvbo_, 0, size, GL_MAP_READ_BIT);
   std::memcpy(buffer, data, size);
-
-  glUnmapBuffer(GL_ARRAY_BUFFER);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glUnmapNamedBuffer(tfvbo_);
 
   return true;
 }
