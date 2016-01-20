@@ -251,6 +251,9 @@ void Value::Round(RoundMode round_mode) {
         case ROUND_TO_NEAREST:
           constant.f32 = std::round(constant.f32);
           return;
+        default:
+          assert_unhandled_case(round_mode);
+          return;
       }
       return;
     case FLOAT64_TYPE:
@@ -261,11 +264,15 @@ void Value::Round(RoundMode round_mode) {
           case ROUND_TO_NEAREST:
             constant.v128.f32[i] = std::round(constant.v128.f32[i]);
             return;
+          default:
+            assert_unhandled_case(round_mode);
+            return;
         }
       }
       return;
     default:
       assert_unhandled_case(type);
+      return;
   }
 }
 
@@ -791,6 +798,9 @@ void Value::Extract(Value* vec, Value* index) {
     case INT64_TYPE:
       constant.u64 = vec->constant.v128.u64[index->constant.u64];
       break;
+    default:
+      assert_unhandled_case(type);
+      break;
   }
 }
 
@@ -1013,6 +1023,9 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
           }
         }
       }
+    default:
+      assert_unhandled_case(type);
+      break;
   }
 }
 
