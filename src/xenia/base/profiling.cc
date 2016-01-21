@@ -272,8 +272,6 @@ void Profiler::Present() {}
 
 }  // namespace xe
 
-#if XE_OPTION_PROFILING
-
 uint32_t MicroProfileGpuInsertTimeStamp() { return 0; }
 
 uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey) { return 0; }
@@ -282,6 +280,7 @@ uint64_t MicroProfileTicksPerSecondGpu() { return 0; }
 
 const char* MicroProfileGetThreadName() { return "TODO: get thread name!"; }
 
+#if XE_OPTION_PROFILING
 #if XE_OPTION_PROFILING_UI
 
 void MicroProfileDrawBox(int nX, int nY, int nX1, int nY1, uint32_t nColor,

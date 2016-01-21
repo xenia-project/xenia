@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include <climits>
 #include <cstring>
 
 #include "xenia/base/assert.h"

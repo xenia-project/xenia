@@ -12,6 +12,14 @@
 namespace xe {
 namespace threading {
 
+uint32_t logical_processor_count() {
+  static uint32_t value = 0;
+  if (!value) {
+    value = std::thread::hardware_concurrency();
+  }
+  return value;
+}
+
 thread_local uint32_t current_thread_id_ = UINT_MAX;
 
 uint32_t current_thread_id() {
