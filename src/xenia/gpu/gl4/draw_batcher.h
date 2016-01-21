@@ -99,7 +99,21 @@ class DrawBatcher {
   bool CommitDraw();
   bool Flush(FlushMode mode);
 
+  // TFB - Filled with vertex shader output from the last flush.
+  size_t QueryTFBSize();
+  bool ReadbackTFB(void* buffer, size_t size);
+
+  GLuint tfvbo() { return tfvbo_; }
+  bool is_tfb_enabled() const { return tfb_enabled_; }
+  void set_tfb_enabled(bool enabled) { tfb_enabled_ = enabled; }
+
  private:
+  bool InitializeTFB();
+  void ShutdownTFB();
+
+  void TFBBegin(PrimitiveType prim_type);
+  void TFBEnd();
+
   bool BeginDraw();
   void CopyConstants();
 
@@ -107,6 +121,14 @@ class DrawBatcher {
   CircularBuffer command_buffer_;
   CircularBuffer state_buffer_;
   CircularBuffer* array_data_buffer_;
+
+  GLuint tfbo_ = 0;
+  GLuint tfvbo_ = 0;
+  GLuint tfqo_ = 0;
+  PrimitiveType tfb_prim_type_ = PrimitiveType::kNone;
+  GLenum tfb_prim_type_gl_ = 0;
+  GLint tfb_prim_count_ = 0;
+  bool tfb_enabled_ = false;
 
   struct BatchState {
     bool needs_reconfigure;

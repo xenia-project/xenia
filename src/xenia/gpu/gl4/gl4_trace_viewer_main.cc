@@ -56,6 +56,43 @@ class GL4TraceViewer : public TraceViewer {
     auto texture = entry_view->texture;
     return static_cast<uintptr_t>(texture->handle);
   }
+
+  size_t QueryVSOutputSize() override {
+    auto command_processor = static_cast<GL4CommandProcessor*>(
+        graphics_system_->command_processor());
+    auto draw_batcher = command_processor->draw_batcher();
+
+    return draw_batcher->QueryTFBSize();
+  }
+
+  size_t QueryVSOutputElementSize() override {
+    // vec4 always has 4 elements.
+    return 4;
+  }
+
+  bool QueryVSOutput(void* buffer, size_t size) override {
+    auto command_processor = static_cast<GL4CommandProcessor*>(
+        graphics_system_->command_processor());
+    auto draw_batcher = command_processor->draw_batcher();
+
+    return draw_batcher->ReadbackTFB(buffer, size);
+  }
+
+  bool Setup() override {
+    if (!TraceViewer::Setup()) {
+      return false;
+    }
+
+    // Enable TFB
+    auto command_processor = static_cast<GL4CommandProcessor*>(
+        graphics_system_->command_processor());
+    auto draw_batcher = command_processor->draw_batcher();
+    draw_batcher->set_tfb_enabled(true);
+
+    return true;
+  }
+
+ private:
 };
 
 int trace_viewer_main(const std::vector<std::wstring>& args) {

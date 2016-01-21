@@ -54,6 +54,12 @@ class TraceViewer {
   virtual uintptr_t GetTextureEntry(const TextureInfo& texture_info,
                                     const SamplerInfo& sampler_info) = 0;
 
+  virtual size_t QueryVSOutputSize() = 0;
+  virtual size_t QueryVSOutputElementSize() = 0;
+  virtual bool QueryVSOutput(void* buffer, size_t size) = 0;
+
+  virtual bool Setup();
+
   std::unique_ptr<xe::ui::Loop> loop_;
   std::unique_ptr<xe::ui::Window> window_;
   std::unique_ptr<Emulator> emulator_;
@@ -68,7 +74,6 @@ class TraceViewer {
     kHostDisasm,
   };
 
-  bool Setup();
   bool Load(std::wstring trace_file_path);
   void Run();
 

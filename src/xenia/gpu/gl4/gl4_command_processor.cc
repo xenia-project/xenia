@@ -578,7 +578,7 @@ bool GL4CommandProcessor::IssueDraw(PrimitiveType prim_type,
     return true;
   }
 
-  status = UpdateState();
+  status = UpdateState(draw_batcher_.prim_type());
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render state");
   status = PopulateSamplers();
   CHECK_ISSUE_UPDATE_STATUS(status, mismatch,
@@ -665,6 +665,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateShaders(
 
   // Normal vertex shaders only, for now.
   // TODO(benvanik): transform feedback/memexport.
+  // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
   // 0 = normal
   // 2 = point size
   assert_true(program_cntl.vs_export_mode == 0 ||
@@ -871,7 +872,8 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRenderTargets() {
   return UpdateStatus::kMismatch;
 }
 
-GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateState() {
+GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateState(
+    PrimitiveType prim_type) {
   bool mismatch = false;
 
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
@@ -887,7 +889,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateState() {
   UpdateStatus status;
   status = UpdateViewportState();
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update viewport state");
-  status = UpdateRasterizerState();
+  status = UpdateRasterizerState(prim_type);
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterizer state");
   status = UpdateBlendState();
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update blend state");
@@ -1055,7 +1057,8 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateViewportState() {
   return UpdateStatus::kMismatch;
 }
 
-GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState() {
+GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState(
+    PrimitiveType prim_type) {
   auto& regs = update_rasterizer_state_regs_;
 
   bool dirty = false;
@@ -1067,9 +1070,12 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState() {
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  dirty |= regs.prim_type != prim_type;
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
+
+  regs.prim_type = prim_type;
 
   SCOPE_profile_cpu_f("gpu");
 
@@ -1111,6 +1117,11 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState() {
     glFrontFace(GL_CW);
   } else {
     glFrontFace(GL_CCW);
+  }
+
+  if (prim_type == PrimitiveType::kRectangleList) {
+    // Rectangle lists aren't culled. There may be other things they skip too.
+    glDisable(GL_CULL_FACE);
   }
 
   static const GLenum kFillModes[3] = {

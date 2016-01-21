@@ -49,6 +49,7 @@ class GL4CommandProcessor : public CommandProcessor {
 
   // HACK: for debugging; would be good to have this in a base type.
   TextureCache* texture_cache() { return &texture_cache_; }
+  DrawBatcher* draw_batcher() { return &draw_batcher_; }
 
   GLuint GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
                               uint32_t base, ColorRenderTargetFormat format);
@@ -115,9 +116,9 @@ class GL4CommandProcessor : public CommandProcessor {
                  IndexBufferInfo* index_buffer_info) override;
   UpdateStatus UpdateShaders(PrimitiveType prim_type);
   UpdateStatus UpdateRenderTargets();
-  UpdateStatus UpdateState();
+  UpdateStatus UpdateState(PrimitiveType prim_type);
   UpdateStatus UpdateViewportState();
-  UpdateStatus UpdateRasterizerState();
+  UpdateStatus UpdateRasterizerState(PrimitiveType prim_type);
   UpdateStatus UpdateBlendState();
   UpdateStatus UpdateDepthStencilState();
   UpdateStatus PopulateIndexBuffer(IndexBufferInfo* index_buffer_info);
@@ -191,6 +192,7 @@ class GL4CommandProcessor : public CommandProcessor {
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t multi_prim_ib_reset_index;
+    PrimitiveType prim_type;
 
     UpdateRasterizerStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
