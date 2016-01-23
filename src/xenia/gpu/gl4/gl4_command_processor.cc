@@ -1625,16 +1625,22 @@ bool GL4CommandProcessor::IssueCopy() {
     color_targets[copy_src_select] = GetColorRenderTarget(
         surface_pitch, surface_msaa, color_base, color_format);
     src_format = ColorRenderTargetToTextureFormat(color_format);
-  } else {
-    // Source from depth/stencil.
+  }
+
+  // Grab the depth/stencil if we're sourcing from it or clear is enabled.
+  if (copy_src_select > 3 || depth_clear_enabled) {
     uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
     uint32_t depth_base = depth_info & 0xFFF;
     auto depth_format =
         static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
     depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa, depth_base,
                                         depth_format);
-    src_format = DepthRenderTargetToTextureFormat(depth_format);
+
+    if (copy_src_select > 3) {
+      src_format = DepthRenderTargetToTextureFormat(depth_format);
+    }
   }
+
   auto source_framebuffer = GetFramebuffer(color_targets, depth_target);
   if (!source_framebuffer) {
     // If we get here we are likely missing some state checks.
@@ -1910,10 +1916,7 @@ bool GL4CommandProcessor::IssueCopy() {
                  old_color_mask[2], old_color_mask[3]);
   }
 
-  // TODO(benvanik): figure out real condition here (maybe when color cleared?)
-  // HACK: things seem to need their depth buffer cleared a lot more
-  // than as indicated by the depth_clear_enabled flag.
-  if (depth_target != kAnyTarget) {
+  if (depth_clear_enabled && depth_target != kAnyTarget) {
     // Clear the current depth buffer.
     // TODO(benvanik): verify format.
     GLfloat depth = {(copy_depth_clear & 0xFFFFFF00) /
@@ -1928,6 +1931,7 @@ bool GL4CommandProcessor::IssueCopy() {
     glDepthMask(GL_TRUE);
     glStencilMask(0xFF);
     // HACK: this should work, but throws INVALID_ENUM on nvidia drivers.
+    // GLEW signature differs from OpenGL docs?
     // glClearNamedFramebufferfi(source_framebuffer->framebuffer,
     //                           GL_DEPTH_STENCIL, depth, stencil);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, source_framebuffer->framebuffer);
