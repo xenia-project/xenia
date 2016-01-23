@@ -209,18 +209,18 @@ vec3 get_10_11_11_s(const int data_in) {
 
 vec4 get_2_10_10_10_u(const uint data_in) {
   vec4 vec;
-  vec.x = bitfieldExtract(data_in,  0, 10);
-  vec.y = bitfieldExtract(data_in, 10, 10);
-  vec.z = bitfieldExtract(data_in, 20, 10);
-  vec.w = bitfieldExtract(data_in, 30, 2 );
+  vec.w = bitfieldExtract(data_in,  0, 2 );
+  vec.x = bitfieldExtract(data_in,  2, 10);
+  vec.y = bitfieldExtract(data_in, 12, 10);
+  vec.z = bitfieldExtract(data_in, 22, 10);
   return vec;
 }
 vec4 get_2_10_10_10_s(const int data_in) {
   vec4 vec;
-  vec.x = bitfieldExtract(data_in,  0, 10);
-  vec.y = bitfieldExtract(data_in, 10, 10);
-  vec.z = bitfieldExtract(data_in, 20, 10);
-  vec.w = bitfieldExtract(data_in, 30, 2 );
+  vec.w = bitfieldExtract(data_in,  0, 2 );
+  vec.x = bitfieldExtract(data_in,  2, 10);
+  vec.y = bitfieldExtract(data_in, 12, 10);
+  vec.z = bitfieldExtract(data_in, 22, 10);
   return vec;
 }
 
@@ -326,6 +326,7 @@ void main() {
   // Temporary registers.
   if (is_vertex_shader()) {
     EmitSource("  vec4 r[64];\n");
+    EmitSource("  r[0].x = gl_VertexID;\n");
   } else {
     // Bring interpolators from vertex shader into temporary registers.
     EmitSource("  vec4 r[64];\n");
@@ -571,14 +572,6 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
   EmitSource("// ");
   instr.Disassemble(&source_);
 
-  if (instr.operands[0].storage_index != 0) {
-    // Unimplemented for now.
-    EmitUnimplementedTranslationError();
-    EmitSourceDepth("pv.xyzw = vec4(0.0, 0.0, 0.0, 0.0);\n");
-    EmitStoreVectorResult(instr.result);
-    return;
-  }
-
   if (instr.is_predicated) {
     EmitSourceDepth("if (%cp0) {\n", instr.predicate_condition ? ' ' : '!');
     Indent();
@@ -594,6 +587,9 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
 
     switch (instr.opcode) {
       case FetchOpcode::kVertexFetch: {
+        EmitSourceDepth("if (src0.x == gl_VertexID) {\n");
+        Indent();
+
         EmitSourceDepth("pv.");
         for (int i = 0;
              i < GetVertexFormatComponentCount(instr.attributes.data_format);
@@ -615,6 +611,16 @@ void GlslShaderTranslator::ProcessVertexFetchInstruction(
           EmitSource(" = vf%u_%d;\n", instr.operands[1].storage_index,
                      instr.attributes.offset);
         }
+
+        Unindent();
+        EmitSourceDepth("} else {\n");
+        Indent();
+
+        EmitSourceDepth("// UNIMPLEMENTED: Indexed fetch.\n");
+        EmitSourceDepth("pv = vec4(0.0, 0.0, 0.0, 1.0);\n");
+
+        Unindent();
+        EmitSourceDepth("}\n");
       } break;
       default:
         assert_always();
@@ -918,7 +924,10 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
     EmitSource("clamp(");
   }
   if (has_const_writes) {
-    EmitSource("vec%d(", component_write_count);
+    if (component_write_count > 1) {
+      EmitSource("vec%d(", component_write_count);
+    }
+
     bool has_written = false;
     for (int j = 0; j < 4; ++j) {
       if (result.write_mask[j]) {
@@ -939,7 +948,10 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
         }
       }
     }
-    EmitSource(")");
+
+    if (component_write_count > 1) {
+      EmitSource(")");
+    }
   } else {
     EmitSource(temp);
     if (!result.is_standard_swizzle()) {
