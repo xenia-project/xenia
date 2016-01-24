@@ -226,6 +226,7 @@ object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   }
+
   auto global_lock = global_critical_region_.Acquire();
 
   if (!user_only) {
@@ -236,8 +237,16 @@ object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
     }
   }
 
+  std::string path(name);
+
+  // Resolve the path to an absolute path.
+  auto entry = file_system_->ResolvePath(name);
+  if (entry) {
+    path = entry->absolute_path();
+  }
+
   for (auto user_module : user_modules_) {
-    if (user_module->Matches(name)) {
+    if (user_module->Matches(path)) {
       return retain_object(user_module.get());
     }
   }
