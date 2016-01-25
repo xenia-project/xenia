@@ -17,6 +17,26 @@ namespace xe {
 RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity)
     : buffer_(buffer), capacity_(capacity) {}
 
+void RingBuffer::AdvanceRead(size_t count) {
+  if (read_offset_ + count < capacity_) {
+    read_offset_ += count;
+  } else {
+    size_t left_half = capacity_ - read_offset_;
+    size_t right_half = count - left_half;
+    read_offset_ = right_half;
+  }
+}
+
+void RingBuffer::AdvanceWrite(size_t count) {
+  if (write_offset_ + count < capacity_) {
+    write_offset_ += count;
+  } else {
+    size_t left_half = capacity_ - write_offset_;
+    size_t right_half = count - left_half;
+    write_offset_ = right_half;
+  }
+}
+
 RingBuffer::ReadRange RingBuffer::BeginRead(size_t count) {
   count = std::min(count, capacity_);
   if (!count) {
@@ -45,6 +65,14 @@ size_t RingBuffer::Read(uint8_t* buffer, size_t count) {
     return 0;
   }
 
+  // Sanity check: Make sure we don't read over the write offset.
+  if (read_offset_ < write_offset_) {
+    assert_true(read_offset_ + count <= write_offset_);
+  } else if (read_offset_ + count >= capacity_) {
+    size_t left_half = capacity_ - read_offset_;
+    assert_true(count - left_half <= write_offset_);
+  }
+
   if (read_offset_ + count < capacity_) {
     std::memcpy(buffer, buffer_ + read_offset_, count);
     read_offset_ += count;
@@ -63,6 +91,14 @@ size_t RingBuffer::Write(const uint8_t* buffer, size_t count) {
   count = std::min(count, capacity_);
   if (!count) {
     return 0;
+  }
+
+  // Sanity check: Make sure we don't write over the read offset.
+  if (write_offset_ < read_offset_) {
+    assert_true(write_offset_ + count <= read_offset_);
+  } else if (write_offset_ + count >= capacity_) {
+    size_t left_half = capacity_ - write_offset_;
+    assert_true(count - left_half <= read_offset_);
   }
 
   if (write_offset_ + count < capacity_) {

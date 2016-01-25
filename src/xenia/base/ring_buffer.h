@@ -14,6 +14,9 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
+
 namespace xe {
 
 class RingBuffer {
@@ -25,6 +28,7 @@ class RingBuffer {
   bool empty() const { return read_offset_ == write_offset_; }
 
   size_t read_offset() const { return read_offset_; }
+  uintptr_t read_ptr() const { return uintptr_t(buffer_) + read_offset_; }
   void set_read_offset(size_t offset) { read_offset_ = offset % capacity_; }
   size_t read_count() const {
     if (read_offset_ == write_offset_) {
@@ -37,6 +41,7 @@ class RingBuffer {
   }
 
   size_t write_offset() const { return write_offset_; }
+  uintptr_t write_ptr() const { return uintptr_t(buffer_) + write_offset_; }
   void set_write_offset(size_t offset) { write_offset_ = offset % capacity_; }
   size_t write_count() const {
     if (read_offset_ == write_offset_) {
@@ -47,6 +52,9 @@ class RingBuffer {
       return (capacity_ - write_offset_) + read_offset_;
     }
   }
+
+  void AdvanceRead(size_t count);
+  void AdvanceWrite(size_t count);
 
   struct ReadRange {
     const uint8_t* first;
@@ -63,10 +71,29 @@ class RingBuffer {
     return Read(reinterpret_cast<uint8_t*>(buffer), count);
   }
 
+  template <typename T>
+  T Read(bool swap = false) {
+    static_assert(sizeof(T) <= 8, "Immediate read only supports basic types!");
+
+    T imm;
+    size_t read = Read(reinterpret_cast<uint8_t*>(&imm), sizeof(T));
+    assert_true(read == sizeof(T));
+    if (swap) {
+      imm = xe::byte_swap(imm);
+    }
+
+    return imm;
+  }
+
   size_t Write(const uint8_t* buffer, size_t count);
   template <typename T>
   size_t Write(const T* buffer, size_t count) {
     return Write(reinterpret_cast<const uint8_t*>(buffer), count);
+  }
+
+  template <typename T>
+  size_t Write(T& data) {
+    return Write(reinterpret_cast<const uint8_t*>(&data), sizeof(T));
   }
 
  private:
