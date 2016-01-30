@@ -139,7 +139,7 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
 
   // context.work_buffer = context_init->work_buffer;  // ?
   context.subframe_decode_count = context_init->subframe_decode_count;
-  context.is_stereo = context_init->channel_count == 2;
+  context.is_stereo = context_init->channel_count >= 1;
   context.sample_rate = context_init->sample_rate;
 
   context.loop_start = context_init->loop_data.loop_start;
