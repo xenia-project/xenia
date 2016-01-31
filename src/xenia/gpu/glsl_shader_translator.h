@@ -73,6 +73,8 @@ class GlslShaderTranslator : public ShaderTranslator {
   int depth_ = 0;
   char depth_prefix_[16] = {0};
   bool cf_wrote_pc_ = false;
+  bool cf_exec_pred_ = false;
+  bool cf_exec_pred_cond_ = false;
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
