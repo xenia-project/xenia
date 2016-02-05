@@ -14,9 +14,9 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
-#include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/gl4/gl4_gpu_flags.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
+#include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/gpu_flags.h"
 
 #include "third_party/xxhash/xxhash.h"
