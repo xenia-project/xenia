@@ -12,3 +12,6 @@
 DEFINE_bool(disable_framebuffer_readback, false,
             "Disable framebuffer readback.");
 DEFINE_bool(disable_textures, false, "Disable textures and use colors only.");
+DEFINE_string(shader_cache_dir, "",
+              "GL4 Shader cache directory (relative to Xenia). Specify an "
+              "empty string to disable the cache.");
