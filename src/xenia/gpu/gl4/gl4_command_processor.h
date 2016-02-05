@@ -23,6 +23,7 @@
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/gl4/draw_batcher.h"
+#include "xenia/gpu/gl4/gl4_shader_cache.h"
 #include "xenia/gpu/gl4/gl4_shader.h"
 #include "xenia/gpu/gl4/texture_cache.h"
 #include "xenia/gpu/glsl_shader_translator.h"
@@ -131,8 +132,7 @@ class GL4CommandProcessor : public CommandProcessor {
                                     GLuint depth_target);
 
   GlslShaderTranslator shader_translator_;
-  std::vector<std::unique_ptr<GL4Shader>> all_shaders_;
-  std::unordered_map<uint64_t, GL4Shader*> shader_cache_;
+  GL4ShaderCache shader_cache_;
   CachedFramebuffer* active_framebuffer_ = nullptr;
   GLuint last_framebuffer_texture_ = 0;
 
