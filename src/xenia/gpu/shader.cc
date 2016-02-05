@@ -16,9 +16,11 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/string.h"
+#include "xenia/gpu/ucode.h"
 
 namespace xe {
 namespace gpu {
+using namespace ucode;
 
 Shader::Shader(ShaderType shader_type, uint64_t ucode_data_hash,
                const uint32_t* ucode_dwords, size_t ucode_dword_count)
@@ -38,7 +40,8 @@ std::string Shader::GetTranslatedBinaryString() const {
   return result;
 }
 
-void Shader::Dump(const std::string& base_path, const char* path_prefix) {
+std::pair<std::string, std::string> Shader::Dump(const std::string& base_path,
+                                                 const char* path_prefix) {
   // Ensure target path exists.
   auto target_path = xe::to_wstring(base_path);
   if (!target_path.empty()) {
@@ -79,6 +82,8 @@ void Shader::Dump(const std::string& base_path, const char* path_prefix) {
     fwrite(ucode_data_.data(), 4, ucode_data_.size(), f);
     fclose(f);
   }
+
+  return {std::string(txt_file_name), std::string(bin_file_name)};
 }
 
 }  //  namespace gpu
