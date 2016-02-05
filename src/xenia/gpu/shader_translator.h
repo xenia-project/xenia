@@ -26,6 +26,9 @@ class ShaderTranslator {
  public:
   virtual ~ShaderTranslator();
 
+  // Gathers all vertex/texture bindings. Implicitly called in Translate.
+  // TODO: Move this functionality to Shader.
+  bool GatherAllBindingInformation(Shader* shader);
   bool Translate(Shader* shader);
 
  protected:
