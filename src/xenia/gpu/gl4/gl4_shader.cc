@@ -51,6 +51,37 @@ bool GL4Shader::Prepare() {
   return success;
 }
 
+bool GL4Shader::LoadFromBinary(const uint8_t* blob, GLenum binary_format,
+                               size_t length) {
+  program_ = glCreateProgram();
+  glProgramBinary(program_, binary_format, blob, GLsizei(length));
+
+  GLint link_status = 0;
+  glGetProgramiv(program_, GL_LINK_STATUS, &link_status);
+  if (!link_status) {
+    // Failed to link. Not fatal - just clean up so we can get generated later.
+    XELOGD("GL4Shader::LoadFromBinary failed. Log:\n%s",
+           GetProgramInfoLog().c_str());
+    glDeleteProgram(program_);
+    program_ = 0;
+
+    return false;
+  }
+
+  // Build static vertex array descriptor.
+  if (!PrepareVertexArrayObject()) {
+    XELOGE("Unable to prepare vertex shader array object");
+    return false;
+  }
+
+  // Success!
+  host_binary_ = GetBinary();
+  host_disassembly_ = GetHostDisasmNV(host_binary_);
+
+  is_valid_ = true;
+  return true;
+}
+
 bool GL4Shader::PrepareVertexArrayObject() {
   glCreateVertexArrays(1, &vao_);
 
@@ -211,7 +242,7 @@ std::string GL4Shader::GetProgramInfoLog() {
   return log;
 }
 
-std::vector<uint8_t> GL4Shader::GetBinary() {
+std::vector<uint8_t> GL4Shader::GetBinary(GLenum* binary_format) {
   std::vector<uint8_t> binary;
 
   // Get program binary, if it's available.
@@ -219,9 +250,13 @@ std::vector<uint8_t> GL4Shader::GetBinary() {
   glGetProgramiv(program_, GL_PROGRAM_BINARY_LENGTH, &binary_length);
   if (binary_length) {
     binary.resize(binary_length);
-    GLenum binary_format;
-    glGetProgramBinary(program_, binary_length, &binary_length, &binary_format,
-                       binary.data());
+    GLenum binary_format_tmp = 0;
+    glGetProgramBinary(program_, binary_length, &binary_length,
+                       &binary_format_tmp, binary.data());
+
+    if (binary_format) {
+      *binary_format = binary_format_tmp;
+    }
   }
 
   return binary;

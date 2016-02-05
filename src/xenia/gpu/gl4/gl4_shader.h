@@ -29,7 +29,9 @@ class GL4Shader : public Shader {
   GLuint shader() const { return shader_; }
   GLuint vao() const { return vao_; }
 
-  bool Prepare() override;
+  bool Prepare();
+  bool LoadFromBinary(const uint8_t* blob, GLenum binary_format, size_t length);
+  std::vector<uint8_t> GetBinary(GLenum* binary_format = nullptr);
 
  protected:
   bool PrepareVertexArrayObject();
@@ -38,7 +40,6 @@ class GL4Shader : public Shader {
 
   std::string GetShaderInfoLog();
   std::string GetProgramInfoLog();
-  std::vector<uint8_t> GetBinary();
   static std::string GetHostDisasmNV(const std::vector<uint8_t>& binary);
 
   GLuint program_ = 0;
