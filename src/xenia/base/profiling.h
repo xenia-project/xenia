@@ -168,6 +168,8 @@ class Profiler {
   static ui::MicroprofileDrawer* drawer() { return drawer_.get(); }
   // Presents the profiler to the bound display, if any.
   static void Present();
+  // Starts a new frame on the profiler
+  static void Flip();
 
  private:
   static ui::Window* window_;

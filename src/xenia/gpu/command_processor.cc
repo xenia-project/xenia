@@ -693,6 +693,8 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
 
   XELOGI("XE_SWAP");
 
+  Profiler::Flip();
+
   // Xenia-specific VdSwap hook.
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
