@@ -502,6 +502,7 @@ class Shader {
 
   // Microcode dwords in host endianness.
   const std::vector<uint32_t>& ucode_data() const { return ucode_data_; }
+  uint64_t ucode_data_hash() const { return ucode_data_hash_; }
   const uint32_t* ucode_dwords() const { return ucode_data_.data(); }
   size_t ucode_dword_count() const { return ucode_data_.size(); }
 
@@ -547,13 +548,12 @@ class Shader {
   // May be empty if the host does not support saving binaries.
   const std::vector<uint8_t>& host_binary() const { return host_binary_; }
 
-  // Prepares the shader for use in the host graphics API.
-  virtual bool Prepare() { return is_valid_; }
-
   // Dumps the shader to a file in the given path based on ucode hash.
   // Both the ucode binary and disassembled and translated shader will be
   // written.
-  void Dump(const std::string& base_path, const char* path_prefix);
+  // Returns the filename of the shader and the binary.
+  std::pair<std::string, std::string> Dump(const std::string& base_path,
+                                           const char* path_prefix);
 
  protected:
   friend class ShaderTranslator;

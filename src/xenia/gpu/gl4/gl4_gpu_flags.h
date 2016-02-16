@@ -14,6 +14,7 @@
 
 DECLARE_bool(disable_framebuffer_readback);
 DECLARE_bool(disable_textures);
+DECLARE_string(shader_cache_dir);
 
 #define FINE_GRAINED_DRAW_SCOPES 0
 

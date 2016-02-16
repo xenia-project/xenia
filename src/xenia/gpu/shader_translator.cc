@@ -1,3 +1,4 @@
+#include "shader_translator.h"
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -57,6 +58,41 @@ void ShaderTranslator::Reset() {
   }
 }
 
+bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
+  // FIXME: This is kind of silly.
+  Reset();
+
+  shader_type_ = shader->type();
+  ucode_dwords_ = shader->ucode_dwords();
+  ucode_dword_count_ = shader->ucode_dword_count();
+
+  uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
+  for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
+    ControlFlowInstruction cf_a;
+    ControlFlowInstruction cf_b;
+    UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
+    if (IsControlFlowOpcodeExec(cf_a.opcode())) {
+      max_cf_dword_index =
+          std::min(max_cf_dword_index, cf_a.exec.address() * 3);
+    }
+    if (IsControlFlowOpcodeExec(cf_b.opcode())) {
+      max_cf_dword_index =
+          std::min(max_cf_dword_index, cf_b.exec.address() * 3);
+    }
+
+    GatherBindingInformation(cf_a);
+    GatherBindingInformation(cf_b);
+  }
+
+  shader->vertex_bindings_ = std::move(vertex_bindings_);
+  shader->texture_bindings_ = std::move(texture_bindings_);
+  for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
+    shader->writes_color_targets_[i] = writes_color_targets_[i];
+  }
+
+  return true;
+}
+
 bool ShaderTranslator::Translate(Shader* shader) {
   Reset();
 
@@ -79,6 +115,7 @@ bool ShaderTranslator::Translate(Shader* shader) {
       max_cf_dword_index =
           std::min(max_cf_dword_index, cf_b.exec.address() * 3);
     }
+
     GatherBindingInformation(cf_a);
     GatherBindingInformation(cf_b);
   }

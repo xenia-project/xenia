@@ -56,7 +56,8 @@ GL4CommandProcessor::GL4CommandProcessor(GL4GraphicsSystem* graphics_system,
     : CommandProcessor(graphics_system, kernel_state),
       shader_translator_(GlslShaderTranslator::Dialect::kGL45),
       draw_batcher_(graphics_system_->register_file()),
-      scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment) {}
+      scratch_buffer_(kScratchBufferCapacity, kScratchBufferAlignment),
+      shader_cache_(&shader_translator_) {}
 
 GL4CommandProcessor::~GL4CommandProcessor() = default;
 
@@ -324,8 +325,7 @@ void GL4CommandProcessor::ShutdownContext() {
   scratch_buffer_.Shutdown();
 
   all_pipelines_.clear();
-  all_shaders_.clear();
-  shader_cache_.clear();
+  shader_cache_.Reset();
 
   CommandProcessor::ShutdownContext();
 }
@@ -484,41 +484,8 @@ Shader* GL4CommandProcessor::LoadShader(ShaderType shader_type,
                                         uint32_t guest_address,
                                         const uint32_t* host_address,
                                         uint32_t dword_count) {
-  // Hash the input memory and lookup the shader.
-  GL4Shader* shader_ptr = nullptr;
-  uint64_t hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
-  auto it = shader_cache_.find(hash);
-  if (it != shader_cache_.end()) {
-    // Found in the cache.
-    // TODO(benvanik): compare bytes? Likelyhood of collision is low.
-    shader_ptr = it->second;
-  } else {
-    // Not found in cache.
-    auto shader = std::make_unique<GL4Shader>(shader_type, hash, host_address,
-                                              dword_count);
-    shader_ptr = shader.get();
-    shader_cache_.insert({hash, shader_ptr});
-    all_shaders_.emplace_back(std::move(shader));
-
-    // Perform translation.
-    // If this fails the shader will be marked as invalid and ignored later.
-    if (shader_translator_.Translate(shader_ptr)) {
-      shader_ptr->Prepare();
-
-      // Dump shader files if desired.
-      if (!FLAGS_dump_shaders.empty()) {
-        shader_ptr->Dump(FLAGS_dump_shaders, "gl4");
-      }
-    } else {
-      XELOGE("Shader failed translation");
-    }
-
-    XELOGGPU("Set %s shader at %0.8X (%db):\n%s",
-             shader_type == ShaderType::kVertex ? "vertex" : "pixel",
-             guest_address, dword_count * 4,
-             shader_ptr->ucode_disassembly().c_str());
-  }
-  return shader_ptr;
+  return shader_cache_.LookupOrInsertShader(shader_type, host_address,
+                                            dword_count);
 }
 
 bool GL4CommandProcessor::IssueDraw(PrimitiveType prim_type,
