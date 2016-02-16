@@ -37,6 +37,8 @@ class GLImmediateDrawer : public ImmediateDrawer {
   void EndDrawBatch() override;
   void End() override;
 
+  void EnableAlphaTest(bool enable);
+
  private:
   void InitializeShaders();
 

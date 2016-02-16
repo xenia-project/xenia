@@ -113,6 +113,8 @@ class ImmediateDrawer {
   // Ends drawing in immediate mode and flushes contents.
   virtual void End() = 0;
 
+  virtual void EnableAlphaTest(bool enable) = 0;
+
  protected:
   ImmediateDrawer(GraphicsContext* graphics_context)
       : graphics_context_(graphics_context) {}

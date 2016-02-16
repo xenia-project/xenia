@@ -270,6 +270,16 @@ void GLImmediateDrawer::End() {
   }
 }
 
+void GLImmediateDrawer::EnableAlphaTest(bool enable) {
+  if (enable) {
+    glEnablei(GL_BLEND, 0);
+    glBlendEquationi(0, GL_FUNC_ADD);
+    glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  } else {
+    glDisablei(GL_BLEND, 0);
+  }
+}
+
 }  // namespace gl
 }  // namespace ui
 }  // namespace xe
