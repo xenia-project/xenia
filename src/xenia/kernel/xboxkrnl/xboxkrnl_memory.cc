@@ -568,7 +568,7 @@ dword_result_t MmCreateKernelStack(dword_t stack_size, dword_t r4) {
   uint32_t stack_address;
   kernel_memory()
       ->LookupHeap(0x70000000)
-      ->AllocRange(0x70000000, 0x7FFFFFFF, stack_size_aligned, stack_alignment,
+      ->AllocRange(0x70000000, 0x7F000000, stack_size_aligned, stack_alignment,
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
                    kMemoryProtectRead | kMemoryProtectWrite, false,
                    &stack_address);
