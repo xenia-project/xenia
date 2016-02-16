@@ -639,8 +639,8 @@ void TraceViewer::DrawTextureInfo(
 
   ImGui::Columns(2);
   ImVec2 button_size(256, 256);
-  if (ImGui::ImageButton(ImTextureID(texture), button_size, ImVec2(0, 0),
-                         ImVec2(1, 1))) {
+  if (ImGui::ImageButton(ImTextureID(texture | ui::ImGuiDrawer::kIgnoreAlpha),
+                         button_size, ImVec2(0, 0), ImVec2(1, 1))) {
     // show viewer
   }
   ImGui::NextColumn();
@@ -1316,9 +1316,9 @@ void TraceViewer::DrawStateUI() {
         ImVec2 button_size(256, 256);
         ImTextureID tex = 0;
         if (write_mask) {
-          auto color_target = GetColorRenderTarget(
-              i, surface_pitch, surface_msaa, color_base, color_format);
-          tex = ImTextureID(color_target);
+          auto color_target = GetColorRenderTarget(surface_pitch, surface_msaa,
+                                                   color_base, color_format);
+          tex = ImTextureID(color_target | ui::ImGuiDrawer::kIgnoreAlpha);
           if (ImGui::ImageButton(tex, button_size, ImVec2(0, 0),
                                  ImVec2(1, 1))) {
             // show viewer
@@ -1407,8 +1407,9 @@ void TraceViewer::DrawStateUI() {
 
       auto button_pos = ImGui::GetCursorScreenPos();
       ImVec2 button_size(256, 256);
-      ImGui::ImageButton(ImTextureID(depth_target), button_size, ImVec2(0, 0),
-                         ImVec2(1, 1));
+      ImGui::ImageButton(
+          ImTextureID(depth_target | ui::ImGuiDrawer::kIgnoreAlpha),
+          button_size, ImVec2(0, 0), ImVec2(1, 1));
       if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
 
