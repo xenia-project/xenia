@@ -236,7 +236,6 @@ void Profiler::set_window(ui::Window* window) {
 
 void Profiler::Present() {
   SCOPE_profile_cpu_f("internal");
-  MicroProfileFlip();
 #if XE_OPTION_PROFILING_UI
   if (!window_ || !drawer_) {
     return;
@@ -246,6 +245,8 @@ void Profiler::Present() {
   drawer_->End();
 #endif  // XE_OPTION_PROFILING_UI
 }
+
+void Profiler::Flip() { MicroProfileFlip(); }
 
 #else
 
