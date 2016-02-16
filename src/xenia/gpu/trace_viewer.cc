@@ -953,6 +953,18 @@ void ProgressBar(float frac, float width, float height = 0,
   ImGui::Dummy(ImVec2(width, height));
 }
 
+void ZoomedImage(ImTextureID tex, ImVec2 rel_pos, ImVec2 tex_size,
+                 float focus_size, ImVec2 image_size = ImVec2(128, 128)) {
+  ImVec2 focus;
+  focus.x = rel_pos.x - (focus_size * 0.5f);
+  focus.y = rel_pos.y - (focus_size * 0.5f);
+
+  ImVec2 uv0 = ImVec2(focus.x / tex_size.x, focus.y / tex_size.y);
+  ImVec2 uv1 = ImVec2((focus.x + focus_size) / tex_size.x,
+                      (focus.y + focus_size) / tex_size.y);
+  ImGui::Image(tex, image_size, uv0, uv1);
+}
+
 void TraceViewer::DrawStateUI() {
   auto command_processor = graphics_system_->command_processor();
   auto& regs = *graphics_system_->register_file();
@@ -1205,7 +1217,7 @@ void TraceViewer::DrawStateUI() {
       // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
       // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
       uint32_t color_control = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-      if ((color_control & 0x4) != 0) {
+      if ((color_control & 0x8) != 0) {
         ImGui::BulletText("Alpha Test: %s %.2f",
                           kCompareFuncNames[color_control & 0x7],
                           regs[XE_GPU_REG_RB_ALPHA_REF].f32);
@@ -1300,14 +1312,15 @@ void TraceViewer::DrawStateUI() {
         uint32_t color_base = color_info[i] & 0xFFF;
         auto color_format =
             static_cast<ColorRenderTargetFormat>((color_info[i] >> 16) & 0xF);
+        ImVec2 button_pos = ImGui::GetCursorScreenPos();
         ImVec2 button_size(256, 256);
+        ImTextureID tex = 0;
         if (write_mask) {
-          // FIXME: Valid color targets with alpha=0 don't show up.
-
-          auto color_target = GetColorRenderTarget(surface_pitch, surface_msaa,
-                                                   color_base, color_format);
-          if (ImGui::ImageButton(ImTextureID(color_target), button_size,
-                                 ImVec2(0, 0), ImVec2(1, 1))) {
+          auto color_target = GetColorRenderTarget(
+              i, surface_pitch, surface_msaa, color_base, color_format);
+          tex = ImTextureID(color_target);
+          if (ImGui::ImageButton(tex, button_size, ImVec2(0, 0),
+                                 ImVec2(1, 1))) {
             // show viewer
           }
         } else {
@@ -1316,9 +1329,20 @@ void TraceViewer::DrawStateUI() {
                              ImVec4(0, 0, 0, 0));
         }
         if (ImGui::IsItemHovered()) {
-          ImGui::SetTooltip("Color Target %d (%s), base %.4X, pitch %d", i,
-                            write_mask ? "enabled" : "disabled", color_base,
-                            surface_pitch);
+          ImGui::BeginTooltip();
+          ImGui::Text(
+              "Color Target %d (%s), base %.4X, pitch %d, msaa %d, format %d",
+              i, write_mask ? "enabled" : "disabled", color_base, surface_pitch,
+              surface_msaa, color_format);
+
+          if (tex) {
+            ImVec2 rel_pos;
+            rel_pos.x = ImGui::GetMousePos().x - button_pos.x;
+            rel_pos.y = ImGui::GetMousePos().y - button_pos.y;
+            ZoomedImage(tex, rel_pos, button_size, 32.f, ImVec2(256, 256));
+          }
+
+          ImGui::EndTooltip();
         }
         ImGui::NextColumn();
       }
@@ -1380,10 +1404,21 @@ void TraceViewer::DrawStateUI() {
           static_cast<DepthRenderTargetFormat>((rb_depth_info >> 16) & 0x1);
       auto depth_target = GetDepthRenderTarget(surface_pitch, surface_msaa,
                                                depth_base, depth_format);
+
+      auto button_pos = ImGui::GetCursorScreenPos();
       ImVec2 button_size(256, 256);
-      if (ImGui::ImageButton(ImTextureID(depth_target), button_size,
-                             ImVec2(0, 0), ImVec2(1, 1))) {
-        // show viewer
+      ImGui::ImageButton(ImTextureID(depth_target), button_size, ImVec2(0, 0),
+                         ImVec2(1, 1));
+      if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+
+        ImVec2 rel_pos;
+        rel_pos.x = ImGui::GetMousePos().x - button_pos.x;
+        rel_pos.y = ImGui::GetMousePos().y - button_pos.y;
+        ZoomedImage(ImTextureID(depth_target | ui::ImGuiDrawer::kIgnoreAlpha),
+                    rel_pos, button_size, 32.f, ImVec2(256, 256));
+
+        ImGui::EndTooltip();
       }
     } else {
       ImGui::Text("No depth target");
@@ -1411,7 +1446,7 @@ void TraceViewer::DrawStateUI() {
       vertices.resize(size / 4);
       QueryVSOutput(vertices.data(), size);
 
-      ImGui::Text("%d output vertices", vertices.size());
+      ImGui::Text("%d output vertices", vertices.size() / 4);
       ImGui::SameLine();
       static bool normalize = false;
       ImGui::Checkbox("Normalize", &normalize);
