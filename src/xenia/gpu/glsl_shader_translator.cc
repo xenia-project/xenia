@@ -179,7 +179,7 @@ vec4 cube(vec4 src0, vec4 src1) {
   float s = (sc / ma + 1.0) / 2.0;
   float t = (tc / ma + 1.0) / 2.0;
   return vec4(t, s, 2.0 * ma, float(face_id));
-};
+}
 )");
 
   if (is_vertex_shader()) {
@@ -234,7 +234,7 @@ vec4 applyTransform(const in StateData state, vec4 pos) {
   pos.xyz = mix(pos.xyz, pos.xyz / pos.w, notEqual(state.vtx_fmt.xyz, vec3(0.0)));
   pos.xy *= state.window_scale.xy;
   return pos;
-};
+}
 void processVertex(const in StateData state);
 void main() {
   gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
