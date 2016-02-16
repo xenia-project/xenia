@@ -59,7 +59,6 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
     // It's shared with the display context so that we can resolve framebuffers
     // from it.
     processor_context = provider()->CreateOffscreenContext();
-    processor_context->ClearCurrent();
   });
   if (!processor_context) {
     xe::FatalError(
