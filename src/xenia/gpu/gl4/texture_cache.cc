@@ -575,10 +575,13 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
     }
 
     // HACK: remove texture from write watch list so readback won't kill us.
+    //*
     if (texture_entry->write_watch_handle) {
       memory_->CancelWriteWatch(texture_entry->write_watch_handle);
       texture_entry->write_watch_handle = 0;
     }
+    //*/
+
     return texture_entry->handle;
   }
 
