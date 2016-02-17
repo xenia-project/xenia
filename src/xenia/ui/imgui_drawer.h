@@ -35,6 +35,8 @@ class ImGuiDrawer : public WindowListener {
 
   ImGuiIO& GetIO();
 
+  static const uint64_t kIgnoreAlpha = (1ull << 32);
+
  protected:
   void Initialize();
   void SetupFont();

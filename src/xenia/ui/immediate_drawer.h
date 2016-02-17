@@ -87,6 +87,9 @@ struct ImmediateDraw {
   bool scissor = false;
   // Scissoring region in framebuffer pixels as (x, y, w, h).
   int scissor_rect[4] = {0};
+
+  // Blends this draw with the background depending on its alpha (if true).
+  bool alpha_blend = true;
 };
 
 class ImmediateDrawer {

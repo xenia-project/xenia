@@ -207,7 +207,11 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
       draw.primitive_type = ImmediatePrimitiveType::kTriangles;
       draw.count = cmd.ElemCount;
       draw.index_offset = index_offset;
-      draw.texture_handle = reinterpret_cast<uintptr_t>(cmd.TextureId);
+      draw.texture_handle =
+          reinterpret_cast<uintptr_t>(cmd.TextureId) & 0xFFFFFFFF;
+      draw.alpha_blend =
+          reinterpret_cast<uintptr_t>(cmd.TextureId) & kIgnoreAlpha ? false
+                                                                    : true;
       draw.scissor = true;
       draw.scissor_rect[0] = static_cast<int>(cmd.ClipRect.x);
       draw.scissor_rect[1] = static_cast<int>(height - cmd.ClipRect.w);

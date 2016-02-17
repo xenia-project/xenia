@@ -228,6 +228,14 @@ void GLImmediateDrawer::Draw(const ImmediateDraw& draw) {
     glDisable(GL_SCISSOR_TEST);
   }
 
+  if (draw.alpha_blend) {
+    glEnablei(GL_BLEND, 0);
+    glBlendEquationi(0, GL_FUNC_ADD);
+    glBlendFunci(0, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  } else {
+    glDisablei(GL_BLEND, 0);
+  }
+
   if (draw.texture_handle) {
     glBindTextureUnit(0, static_cast<GLuint>(draw.texture_handle));
   } else {
