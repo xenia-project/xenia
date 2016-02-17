@@ -157,6 +157,8 @@ class CommandProcessor {
                                           uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader, uint32_t packet,
                                           uint32_t count);
+  bool ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader, uint32_t packet,
+                                          uint32_t count);
   bool ExecutePacketType3_DRAW_INDX(RingBuffer* reader, uint32_t packet,
                                     uint32_t count);
   bool ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader, uint32_t packet,
@@ -176,6 +178,8 @@ class CommandProcessor {
                                             uint32_t packet, uint32_t count);
   bool ExecutePacketType3_INVALIDATE_STATE(RingBuffer* reader, uint32_t packet,
                                            uint32_t count);
+  bool ExecutePacketType3_VIZ_QUERY(RingBuffer* reader, uint32_t packet,
+                                    uint32_t count);
 
   virtual Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                              const uint32_t* host_address,
