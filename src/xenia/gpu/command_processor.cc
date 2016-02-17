@@ -576,8 +576,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       result = ExecutePacketType3_EVENT_WRITE_EXT(reader, packet, count);
       break;
     case PM4_EVENT_WRITE_ZPD:
-      reader->AdvanceRead(count * sizeof(uint32_t));
-      result = true;  // TODO
+      result = ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
       break;
     case PM4_DRAW_INDX:
       result = ExecutePacketType3_DRAW_INDX(reader, packet, count);
@@ -607,8 +606,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       result = ExecutePacketType3_INVALIDATE_STATE(reader, packet, count);
       break;
     case PM4_VIZ_QUERY:
-      reader->AdvanceRead(count * sizeof(uint32_t));
-      result = true;  // TODO
+      result = ExecutePacketType3_VIZ_QUERY(reader, packet, count);
       break;
 
     case PM4_SET_BIN_MASK_LO: {
@@ -633,13 +631,20 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
           (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
     } break;
-
-    // Ignored packets - useful if breaking on the default handler below.
-    case 0x50:  // 0xC0015000 usually 2 words, 0xFFFFFFFF / 0x00000000
-    case 0x51:  // 0xC0015100 usually 2 words, 0xFFFFFFFF / 0xFFFFFFFF
-      reader->AdvanceRead(count * sizeof(uint32_t));
+    case PM4_SET_BIN_MASK: {
+      assert_true(count == 2);
+      uint64_t val_hi = reader->Read<uint32_t>(true);
+      uint64_t val_lo = reader->Read<uint32_t>(true);
+      bin_mask_ = (val_hi << 32) | val_lo;
       result = true;
-      break;
+    } break;
+    case PM4_SET_BIN_SELECT: {
+      assert_true(count == 2);
+      uint64_t val_hi = reader->Read<uint32_t>(true);
+      uint64_t val_lo = reader->Read<uint32_t>(true);
+      bin_select_ = (val_hi << 32) | val_lo;
+      result = true;
+    } break;
 
     default:
       XELOGGPU("Unimplemented GPU OPCODE: 0x%.2X\t\tCOUNT: %d\n", opcode,
@@ -826,19 +831,19 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(RingBuffer* reader,
   uint32_t and_mask = reader->Read<uint32_t>(true);
   uint32_t or_mask = reader->Read<uint32_t>(true);
   uint32_t value = register_file_->values[rmw_info & 0x1FFF].u32;
-  if ((rmw_info >> 30) & 0x1) {
-    // | reg
-    value |= register_file_->values[or_mask & 0x1FFF].u32;
-  } else {
-    // | imm
-    value |= or_mask;
-  }
   if ((rmw_info >> 31) & 0x1) {
     // & reg
     value &= register_file_->values[and_mask & 0x1FFF].u32;
   } else {
     // & imm
     value &= and_mask;
+  }
+  if ((rmw_info >> 30) & 0x1) {
+    // | reg
+    value |= register_file_->values[or_mask & 0x1FFF].u32;
+  } else {
+    // | imm
+    value |= or_mask;
   }
   WriteRegister(rmw_info & 0x1FFF, value);
   return true;
@@ -1021,12 +1026,28 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
   return true;
 }
 
+bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
+                                                          uint32_t packet,
+                                                          uint32_t count) {
+  assert_true(count == 1);
+  uint32_t initiator = reader->Read<uint32_t>(true);
+  // Writeback initiator.
+  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
+
+  // TODO: Flag the backend CP to write out zpass counters to
+  // REG_RB_SAMPLE_COUNT_ADDR (probably # pixels passed depth test).
+  // This applies to the last draw, I believe.
+
+  return true;
+}
+
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
                                                     uint32_t packet,
                                                     uint32_t count) {
   // initiate fetch of index buffer and draw
-  // dword0 = viz query info
-  /*uint32_t dword0 =*/reader->Read<uint32_t>(true);
+  // if dword0 != 0, this is a conditional draw based on viz query.
+  // This ID matches the one issued in PM4_VIZ_QUERY
+  uint32_t dword0 = reader->Read<uint32_t>(true);  // viz query info
   uint32_t dword1 = reader->Read<uint32_t>(true);
   uint32_t index_count = dword1 >> 16;
   auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
@@ -1054,6 +1075,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
     // Unknown source select.
     assert_always();
   }
+
   return IssueDraw(prim_type, index_count,
                    is_indexed ? &index_buffer_info : nullptr);
 }
@@ -1072,6 +1094,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
   // uint32_t indices_size = index_count * (index_32bit ? 4 : 2);
   // uint32_t index_ptr = reader->ptr();
   reader->AdvanceRead((count - 1) * sizeof(uint32_t));
+
   return IssueDraw(prim_type, index_count, nullptr);
 }
 
@@ -1245,6 +1268,21 @@ bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(RingBuffer* reader,
   // selective invalidation of state pointers
   /*uint32_t mask =*/reader->Read<uint32_t>(true);
   // driver_->InvalidateState(mask);
+  return true;
+}
+
+bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
+                                                    uint32_t packet,
+                                                    uint32_t count) {
+  // begin/end initiator for viz query extent processing
+  // http://www.google.com/patents/US20050195186
+  assert_true(count == 1);
+
+  // Some sort of ID?
+  // This appears to reset a viz query context.
+  // This ID matches the ID in conditional draw commands.
+  uint32_t dword0 = reader->Read<uint32_t>(true);
+
   return true;
 }
 
