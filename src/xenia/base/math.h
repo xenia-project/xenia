@@ -64,6 +64,22 @@ constexpr uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
   return (value & make_bitmask(a, b)) >> a;
 }
 
+inline uint32_t bit_count(uint32_t v) {
+  v = v - ((v >> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
+}
+
+inline uint32_t bit_count(uint64_t v) {
+  v = (v & 0x5555555555555555LU) + (v >> 1 & 0x5555555555555555LU);
+  v = (v & 0x3333333333333333LU) + (v >> 2 & 0x3333333333333333LU);
+  v = v + (v >> 4) & 0x0F0F0F0F0F0F0F0FLU;
+  v = v + (v >> 8);
+  v = v + (v >> 16);
+  v = v + (v >> 32) & 0x0000007F;
+  return static_cast<uint32_t>(v);
+}
+
 // lzcnt instruction, typed for integers of all sizes.
 // The number of leading zero bits in the value parameter. If value is zero, the
 // return value is the size of the input operand (8, 16, 32, or 64). If the most

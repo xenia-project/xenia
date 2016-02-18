@@ -504,8 +504,11 @@ class Shader {
     // Each bit corresponds to a storage index [0-31].
     uint32_t int_bitmap;
     // Bitmap of all kConstantBool registers read by the shader.
-    // Each bit corresponds to a storage index [0-31].
-    uint32_t bool_bitmap;
+    // Each bit corresponds to a storage index [0-255].
+    uint32_t bool_bitmap[256 / 32];
+
+    // Computed byte count of all registers required when packed.
+    uint32_t packed_byte_length;
   };
 
   Shader(ShaderType shader_type, uint64_t ucode_data_hash,
