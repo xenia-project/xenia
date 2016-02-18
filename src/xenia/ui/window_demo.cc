@@ -87,11 +87,10 @@ int window_demo_main(const std::vector<std::wstring>& args) {
   });
 
   window->on_closed.AddListener(
-      [&loop, &graphics_provider](xe::ui::UIEvent* e) {
+      [&loop, &window, &graphics_provider](xe::ui::UIEvent* e) {
         loop->Quit();
+        Profiler::Shutdown();
         XELOGI("User-initiated death!");
-        graphics_provider.reset();
-        exit(1);
       });
   loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
@@ -116,11 +115,9 @@ int window_demo_main(const std::vector<std::wstring>& args) {
   // Wait until we are exited.
   loop->AwaitQuit();
 
-  loop->PostSynchronous([&graphics_provider]() { graphics_provider.reset(); });
   window.reset();
   loop.reset();
-  Profiler::Dump();
-  Profiler::Shutdown();
+  graphics_provider.reset();
   return 0;
 }
 

@@ -9,7 +9,7 @@
 
 #include "xenia/ui/spirv/spirv_assembler.h"
 
-#include "third_party/spirv-tools/include/libspirv/libspirv.h"
+#include "third_party/spirv-tools/include/spirv-tools/libspirv.h"
 #include "xenia/base/logging.h"
 
 namespace xe {

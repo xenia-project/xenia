@@ -169,6 +169,7 @@ solution("xenia")
   include("third_party/libav.lua")
   include("third_party/snappy.lua")
   include("third_party/spirv-tools.lua")
+  include("third_party/vulkan/loader")
   include("third_party/xxhash.lua")
   include("third_party/yaml-cpp.lua")
 
@@ -188,6 +189,7 @@ solution("xenia")
   include("src/xenia/ui")
   include("src/xenia/ui/gl")
   include("src/xenia/ui/spirv")
+  include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")
 
   if os.is("windows") then
