@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_GL4_COMMAND_PROCESSOR_H_
-#define XENIA_GPU_GL4_COMMAND_PROCESSOR_H_
+#ifndef XENIA_GPU_GL4_GL4_COMMAND_PROCESSOR_H_
+#define XENIA_GPU_GL4_GL4_COMMAND_PROCESSOR_H_
 
 #include <atomic>
 #include <cstring>
@@ -232,4 +232,4 @@ class GL4CommandProcessor : public CommandProcessor {
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_GL4_COMMAND_PROCESSOR_H_
+#endif  // XENIA_GPU_GL4_GL4_COMMAND_PROCESSOR_H_
