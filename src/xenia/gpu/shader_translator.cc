@@ -53,13 +53,14 @@ void ShaderTranslator::Reset() {
   total_attrib_count_ = 0;
   vertex_bindings_.clear();
   texture_bindings_.clear();
+  std::memset(&constant_register_map_, 0, sizeof(constant_register_map_));
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     writes_color_targets_[i] = false;
   }
 }
 
 bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
-  // FIXME: This is kind of silly.
+  // DEPRECATED: remove this codepath when GL4 goes away.
   Reset();
 
   shader_type_ = shader->type();
@@ -129,6 +130,7 @@ bool ShaderTranslator::Translate(Shader* shader) {
   shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
   shader->vertex_bindings_ = std::move(vertex_bindings_);
   shader->texture_bindings_ = std::move(texture_bindings_);
+  shader->constant_register_map_ = std::move(constant_register_map_);
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     shader->writes_color_targets_[i] = writes_color_targets_[i];
   }
@@ -488,6 +490,7 @@ void ShaderTranslator::TranslateControlFlowCondExec(
   i.instruction_count = cf.count();
   i.type = ParsedExecInstruction::Type::kConditional;
   i.bool_constant_index = cf.bool_address();
+  constant_register_map_.bool_bitmap |= 1 << i.bool_constant_index;
   i.condition = cf.condition();
   switch (cf.opcode()) {
     case ControlFlowOpcode::kCondExec:
@@ -527,6 +530,7 @@ void ShaderTranslator::TranslateControlFlowLoopStart(
   ParsedLoopStartInstruction i;
   i.dword_index = cf_index_;
   i.loop_constant_index = cf.loop_id();
+  constant_register_map_.int_bitmap |= 1 << i.loop_constant_index;
   i.is_repeat = cf.is_repeat();
   i.loop_skip_address = cf.address();
 
@@ -542,6 +546,7 @@ void ShaderTranslator::TranslateControlFlowLoopEnd(
   i.is_predicated_break = cf.is_predicated_break();
   i.predicate_condition = cf.condition();
   i.loop_constant_index = cf.loop_id();
+  constant_register_map_.int_bitmap |= 1 << i.loop_constant_index;
   i.loop_body_address = cf.address();
 
   i.Disassemble(&ucode_disasm_buffer_);
@@ -562,6 +567,7 @@ void ShaderTranslator::TranslateControlFlowCondCall(
   } else {
     i.type = ParsedCallInstruction::Type::kConditional;
     i.bool_constant_index = cf.bool_address();
+    constant_register_map_.bool_bitmap |= 1 << i.bool_constant_index;
     i.condition = cf.condition();
   }
 
@@ -593,6 +599,7 @@ void ShaderTranslator::TranslateControlFlowCondJmp(
   } else {
     i.type = ParsedJumpInstruction::Type::kConditional;
     i.bool_constant_index = cf.bool_address();
+    constant_register_map_.bool_bitmap |= 1 << i.bool_constant_index;
     i.condition = cf.condition();
   }
 
@@ -1150,6 +1157,14 @@ void ShaderTranslator::ParseAluVectorInstruction(
   for (int j = 0; j < i.operand_count; ++j) {
     ParseAluInstructionOperand(
         op, j + 1, opcode_info.src_swizzle_component_count, &i.operands[j]);
+
+    // Track constant float register loads.
+    if (i.operands[j].storage_source ==
+        InstructionStorageSource::kConstantFloat) {
+      auto register_index = i.operands[j].storage_index;
+      constant_register_map_.float_bitmap[register_index / 64] |=
+          1ull << (register_index % 64);
+    }
   }
 
   i.Disassemble(&ucode_disasm_buffer_);
@@ -1243,9 +1258,16 @@ void ShaderTranslator::ParseAluScalarInstruction(
     uint32_t reg2 = (static_cast<int>(op.scalar_opcode()) & 1) |
                     (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1);
     int const_slot = (op.src_is_temp(1) || op.src_is_temp(2)) ? 1 : 0;
+
     ParseAluInstructionOperandSpecial(
         op, InstructionStorageSource::kConstantFloat, op.src_reg(3),
         op.src_negate(3), 0, swiz_a, &i.operands[0]);
+
+    // Track constant float register loads.
+    auto register_index = i.operands[0].storage_index;
+    constant_register_map_.float_bitmap[register_index / 64] |=
+        1ull << (register_index % 64);
+
     ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
                                       reg2, op.src_negate(3), const_slot,
                                       swiz_b, &i.operands[1]);

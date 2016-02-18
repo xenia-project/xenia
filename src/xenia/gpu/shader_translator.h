@@ -27,8 +27,9 @@ class ShaderTranslator {
   virtual ~ShaderTranslator();
 
   // Gathers all vertex/texture bindings. Implicitly called in Translate.
-  // TODO: Move this functionality to Shader.
+  // DEPRECATED(benvanik): remove this when shader cache is removed.
   bool GatherAllBindingInformation(Shader* shader);
+
   bool Translate(Shader* shader);
 
  protected:
@@ -191,6 +192,7 @@ class ShaderTranslator {
   int total_attrib_count_ = 0;
   std::vector<Shader::VertexBinding> vertex_bindings_;
   std::vector<Shader::TextureBinding> texture_bindings_;
+  Shader::ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];
