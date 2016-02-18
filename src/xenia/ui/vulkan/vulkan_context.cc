@@ -115,6 +115,17 @@ void VulkanContext::BeginSwap() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
 
+  // If we have a window see if it's been resized since we last swapped.
+  // If it has been, we'll need to reinitialize the swap chain before we
+  // start touching it.
+  if (target_window_) {
+    if (target_window_->width() != swap_chain_->surface_width() ||
+        target_window_->height() != swap_chain_->surface_height()) {
+      // Resized!
+      swap_chain_->Reinitialize();
+    }
+  }
+
   // Acquire the next image and set it up for use.
   swap_chain_->Begin();
 

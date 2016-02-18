@@ -32,31 +32,7 @@ namespace vulkan {
 VulkanSwapChain::VulkanSwapChain(VulkanInstance* instance, VulkanDevice* device)
     : instance_(instance), device_(device) {}
 
-VulkanSwapChain::~VulkanSwapChain() {
-  for (auto& buffer : buffers_) {
-    DestroyBuffer(&buffer);
-  }
-  if (image_available_semaphore_) {
-    vkDestroySemaphore(*device_, image_available_semaphore_, nullptr);
-  }
-  if (render_pass_) {
-    vkDestroyRenderPass(*device_, render_pass_, nullptr);
-  }
-  if (render_cmd_buffer_) {
-    vkFreeCommandBuffers(*device_, cmd_pool_, 1, &render_cmd_buffer_);
-  }
-  if (cmd_pool_) {
-    vkDestroyCommandPool(*device_, cmd_pool_, nullptr);
-  }
-  // images_ doesn't need to be cleaned up as the swapchain does it implicitly.
-  if (handle) {
-    vkDestroySwapchainKHR(*device_, handle, nullptr);
-    handle = nullptr;
-  }
-  if (surface_) {
-    vkDestroySurfaceKHR(*instance_, surface_, nullptr);
-  }
-}
+VulkanSwapChain::~VulkanSwapChain() { Shutdown(); }
 
 bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   surface_ = surface;
@@ -336,6 +312,47 @@ void VulkanSwapChain::DestroyBuffer(Buffer* buffer) {
   }
   // Image is taken care of by the presentation engine.
   buffer->image = nullptr;
+}
+
+bool VulkanSwapChain::Reinitialize() {
+  // Hacky, but stash the surface so we can reuse it.
+  auto surface = surface_;
+  surface_ = nullptr;
+  Shutdown();
+  return Initialize(surface);
+}
+
+void VulkanSwapChain::Shutdown() {
+  // TODO(benvanik): properly wait for a clean state.
+  for (auto& buffer : buffers_) {
+    DestroyBuffer(&buffer);
+  }
+  buffers_.clear();
+  if (image_available_semaphore_) {
+    vkDestroySemaphore(*device_, image_available_semaphore_, nullptr);
+    image_available_semaphore_ = nullptr;
+  }
+  if (render_pass_) {
+    vkDestroyRenderPass(*device_, render_pass_, nullptr);
+    render_pass_ = nullptr;
+  }
+  if (render_cmd_buffer_) {
+    vkFreeCommandBuffers(*device_, cmd_pool_, 1, &render_cmd_buffer_);
+    render_cmd_buffer_ = nullptr;
+  }
+  if (cmd_pool_) {
+    vkDestroyCommandPool(*device_, cmd_pool_, nullptr);
+    cmd_pool_ = nullptr;
+  }
+  // images_ doesn't need to be cleaned up as the swapchain does it implicitly.
+  if (handle) {
+    vkDestroySwapchainKHR(*device_, handle, nullptr);
+    handle = nullptr;
+  }
+  if (surface_) {
+    vkDestroySurfaceKHR(*instance_, surface_, nullptr);
+    surface_ = nullptr;
+  }
 }
 
 bool VulkanSwapChain::Begin() {
