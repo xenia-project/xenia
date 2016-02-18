@@ -192,6 +192,7 @@ class GL4CommandProcessor : public CommandProcessor {
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t multi_prim_ib_reset_index;
+    uint32_t pa_sc_viz_query;
     PrimitiveType prim_type;
 
     UpdateRasterizerStateRegisters() { Reset(); }

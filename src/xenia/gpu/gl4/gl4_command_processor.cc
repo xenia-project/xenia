@@ -1037,6 +1037,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState(
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  dirty |= SetShadowRegister(&regs.pa_sc_viz_query, XE_GPU_REG_PA_SC_VIZ_QUERY);
   dirty |= regs.prim_type != prim_type;
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -1047,6 +1048,12 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState(
   SCOPE_profile_cpu_f("gpu");
 
   draw_batcher_.Flush(DrawBatcher::FlushMode::kStateChange);
+
+  // viz query enabled
+  // assert_zero(regs.pa_sc_viz_query & 0x01);
+
+  // Kill pix post early-z test
+  // assert_zero(regs.pa_sc_viz_query & 0x80);
 
   // Scissoring.
   // TODO(benvanik): is this used? we are using scissoring for window scissor.
@@ -1129,7 +1136,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateBlendState() {
   // Deprecated in GL, implemented in shader.
   // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
   uint32_t color_control = reg_file[XE_GPU_REG_RB_COLORCONTROL].u32;
-  draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  // ALPAHTESTENABLE
+  draw_batcher_.set_alpha_test((color_control & 0x8) != 0,  // ALPAHTESTENABLE
                                color_control & 0x7,         // ALPHAFUNC
                                reg_file[XE_GPU_REG_RB_ALPHA_REF].f32);
 
@@ -1196,10 +1203,11 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateBlendState() {
     auto blend_op_alpha = blend_op_map[(blend_control & 0x00E00000) >> 21];
     // A2XX_RB_COLORCONTROL_BLEND_DISABLE ?? Can't find this!
     // Just guess based on actions.
-    bool blend_enable =
-        !((src_blend == GL_ONE) && (dest_blend == GL_ZERO) &&
-          (blend_op == GL_FUNC_ADD) && (src_blend_alpha == GL_ONE) &&
-          (dest_blend_alpha == GL_ZERO) && (blend_op_alpha == GL_FUNC_ADD));
+    // bool blend_enable =
+    //     !((src_blend == GL_ONE) && (dest_blend == GL_ZERO) &&
+    //       (blend_op == GL_FUNC_ADD) && (src_blend_alpha == GL_ONE) &&
+    //       (dest_blend_alpha == GL_ZERO) && (blend_op_alpha == GL_FUNC_ADD));
+    bool blend_enable = !(color_control & 0x20);
     if (blend_enable) {
       glEnablei(GL_BLEND, i);
       glBlendEquationSeparatei(i, blend_op, blend_op_alpha);
@@ -1579,7 +1587,7 @@ bool GL4CommandProcessor::IssueCopy() {
   TextureFormat src_format = TextureFormat::kUnknown;
   GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   GLuint depth_target = kAnyTarget;
-  if (copy_src_select <= 3) {
+  if (copy_src_select <= 3 || color_clear_enabled) {
     // Source from a color target.
     uint32_t color_info[4] = {
         regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
@@ -1591,7 +1599,10 @@ bool GL4CommandProcessor::IssueCopy() {
         (color_info[copy_src_select] >> 16) & 0xF);
     color_targets[copy_src_select] = GetColorRenderTarget(
         surface_pitch, surface_msaa, color_base, color_format);
-    src_format = ColorRenderTargetToTextureFormat(color_format);
+
+    if (copy_src_select <= 3) {
+      src_format = ColorRenderTargetToTextureFormat(color_format);
+    }
   }
 
   // Grab the depth/stencil if we're sourcing from it or clear is enabled.
@@ -1616,77 +1627,97 @@ bool GL4CommandProcessor::IssueCopy() {
     return false;
   }
 
+  active_framebuffer_ = source_framebuffer;
+
   GLenum read_format;
   GLenum read_type;
+  size_t read_size = 0;
   switch (copy_dest_format) {
     case ColorFormat::k_1_5_5_5:
       read_format = GL_RGB5_A1;
       read_type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+      read_size = 16;
       break;
     case ColorFormat::k_2_10_10_10:
       read_format = GL_RGB10_A2;
       read_type = GL_UNSIGNED_INT_10_10_10_2;
+      read_size = 32;
       break;
     case ColorFormat::k_4_4_4_4:
       read_format = GL_RGBA4;
       read_type = GL_UNSIGNED_SHORT_4_4_4_4;
+      read_size = 16;
       break;
     case ColorFormat::k_5_6_5:
       read_format = GL_RGB565;
       read_type = GL_UNSIGNED_SHORT_5_6_5;
+      read_size = 16;
       break;
     case ColorFormat::k_8:
       read_format = GL_R8;
       read_type = GL_UNSIGNED_BYTE;
+      read_size = 8;
       break;
     case ColorFormat::k_8_8:
       read_format = GL_RG8;
       read_type = GL_UNSIGNED_BYTE;
+      read_size = 16;
       break;
     case ColorFormat::k_8_8_8_8:
       read_format = copy_dest_swap ? GL_BGRA : GL_RGBA;
       read_type = GL_UNSIGNED_BYTE;
+      read_size = 32;
       break;
     case ColorFormat::k_16:
       read_format = GL_R16;
       read_type = GL_UNSIGNED_SHORT;
+      read_size = 16;
       break;
     case ColorFormat::k_16_FLOAT:
       read_format = GL_R16F;
       read_type = GL_HALF_FLOAT;
+      read_size = 16;
       break;
     case ColorFormat::k_16_16:
       read_format = GL_RG16;
       read_type = GL_UNSIGNED_SHORT;
+      read_size = 32;
       break;
     case ColorFormat::k_16_16_FLOAT:
       read_format = GL_RG16F;
       read_type = GL_HALF_FLOAT;
+      read_size = 32;
       break;
     case ColorFormat::k_16_16_16_16:
       read_format = GL_RGBA16;
       read_type = GL_UNSIGNED_SHORT;
+      read_size = 32;
       break;
     case ColorFormat::k_16_16_16_16_FLOAT:
       read_format = GL_RGBA16F;
       read_type = GL_HALF_FLOAT;
+      read_size = 32;
       break;
     case ColorFormat::k_32_FLOAT:
       read_format = GL_R32F;
       read_type = GL_FLOAT;
+      read_size = 32;
       break;
     case ColorFormat::k_32_32_FLOAT:
       read_format = GL_RG32F;
       read_type = GL_FLOAT;
+      read_size = 64;
       break;
     case ColorFormat::k_32_32_32_32_FLOAT:
       read_format = GL_RGBA32F;
       read_type = GL_FLOAT;
+      read_size = 128;
       break;
     case ColorFormat::k_10_11_11:
     case ColorFormat::k_11_11_10:
       read_format = GL_R11F_G11F_B10F;
       read_type = GL_UNSIGNED_INT_10F_11F_11F_REV;
+      read_size = 32;
       break;
     default:
       assert_unhandled_case(copy_dest_format);
@@ -1792,7 +1823,8 @@ bool GL4CommandProcessor::IssueCopy() {
   // Destination pointer in guest memory.
   // We have GL throw bytes directly into it.
   // TODO(benvanik): copy to staging texture then PBO back?
-  // void* ptr = memory_->TranslatePhysical(copy_dest_base);
+  void* ptr = memory_->TranslatePhysical(copy_dest_base);
+  size_t size = copy_dest_pitch * copy_dest_height * (read_size / 8);
 
   auto blitter = static_cast<xe::ui::gl::GLContext*>(context_.get())->blitter();
 
@@ -1811,7 +1843,10 @@ bool GL4CommandProcessor::IssueCopy() {
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
-          // glReadPixels(x, y, w, h, read_format, read_type, ptr);
+          // std::memset(ptr, 0xDE,
+          //             copy_dest_pitch * copy_dest_height * (read_size / 8));
+          // glReadPixels(0, 0, copy_dest_pitch, copy_dest_height, read_format,
+          //              read_type, ptr);
         }
       } else {
         // Source from the bound depth/stencil target.
@@ -1821,7 +1856,10 @@ bool GL4CommandProcessor::IssueCopy() {
             dest_block_width, dest_block_height, src_format,
             copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
-          // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+          // std::memset(ptr, 0xDE,
+          //             copy_dest_pitch * copy_dest_height * (read_size / 8));
+          // glReadPixels(0, 0, copy_dest_pitch, copy_dest_height,
+          //              GL_DEPTH_STENCIL, read_type, ptr);
         }
       }
       break;
@@ -1838,7 +1876,10 @@ bool GL4CommandProcessor::IssueCopy() {
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
-          // glReadPixels(x, y, w, h, read_format, read_type, ptr);
+          // std::memset(ptr, 0xDE,
+          //             copy_dest_pitch * copy_dest_height * (read_size / 8));
+          // glReadPixels(0, 0, copy_dest_pitch, copy_dest_height, read_format,
+          //              read_type, ptr);
         }
       } else {
         // Source from the bound depth/stencil target.
@@ -1847,7 +1888,10 @@ bool GL4CommandProcessor::IssueCopy() {
             dest_block_width, dest_block_height, src_format,
             copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
-          // glReadPixels(x, y, w, h, GL_DEPTH_STENCIL, read_type, ptr);
+          // std::memset(ptr, 0xDE,
+          //             copy_dest_pitch * copy_dest_height * (read_size / 8));
+          // glReadPixels(0, 0, copy_dest_pitch, copy_dest_height,
+          //              GL_DEPTH_STENCIL, read_type, ptr);
         }
       }
       break;
