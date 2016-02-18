@@ -125,6 +125,24 @@ bool ShaderTranslator::Translate(Shader* shader) {
 
   TranslateBlocks();
 
+  // Compute total bytes used by the register map.
+  // This saves us work later when we need to pack them.
+  constant_register_map_.packed_byte_length = 0;
+  for (int i = 0; i < 4; ++i) {
+    // Each bit indicates a vec4 (4 floats).
+    constant_register_map_.packed_byte_length +=
+        4 * 4 * xe::bit_count(constant_register_map_.float_bitmap[i]);
+  }
+  // Each bit indicates a single word.
+  constant_register_map_.packed_byte_length +=
+      4 * xe::bit_count(constant_register_map_.int_bitmap);
+  // Direct map between words and words we upload.
+  for (int i = 0; i < 4; ++i) {
+    if (constant_register_map_.bool_bitmap[i]) {
+      constant_register_map_.packed_byte_length += 4;
+    }
+  }
+
   shader->errors_ = std::move(errors_);
   shader->translated_binary_ = CompleteTranslation();
   shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
@@ -490,7 +508,8 @@ void ShaderTranslator::TranslateControlFlowCondExec(
   i.instruction_count = cf.count();
   i.type = ParsedExecInstruction::Type::kConditional;
   i.bool_constant_index = cf.bool_address();
-  constant_register_map_.bool_bitmap |= 1 << i.bool_constant_index;
+  constant_register_map_.bool_bitmap[i.bool_constant_index / 32] |=
+      1 << (i.bool_constant_index % 32);
   i.condition = cf.condition();
   switch (cf.opcode()) {
     case ControlFlowOpcode::kCondExec:
@@ -567,7 +586,8 @@ void ShaderTranslator::TranslateControlFlowCondCall(
   } else {
     i.type = ParsedCallInstruction::Type::kConditional;
     i.bool_constant_index = cf.bool_address();
-    constant_register_map_.bool_bitmap |= 1 << i.bool_constant_index;
+    constant_register_map_.bool_bitmap[i.bool_constant_index / 32] |=
+        1 << (i.bool_constant_index % 32);
     i.condition = cf.condition();
   }
 
@@ -599,7 +619,8 @@ void ShaderTranslator::TranslateControlFlowCondJmp(
   } else {
     i.type = ParsedJumpInstruction::Type::kConditional;
     i.bool_constant_index = cf.bool_address();
-    constant_register_map_.bool_bitmap |= 1 << i.bool_constant_index;
+    constant_register_map_.bool_bitmap[i.bool_constant_index / 32] |=
+        1 << (i.bool_constant_index % 32);
     i.condition = cf.condition();
   }
 
