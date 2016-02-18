@@ -614,6 +614,8 @@ void VulkanImmediateDrawer::Begin(int render_target_width,
   auto swap_chain = context_->swap_chain();
   assert_null(current_cmd_buffer_);
   current_cmd_buffer_ = swap_chain->render_cmd_buffer();
+  current_render_target_width_ = render_target_width;
+  current_render_target_height_ = render_target_height;
 
   // Viewport changes only once per batch.
   VkViewport viewport;
@@ -704,15 +706,15 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   VkRect2D scissor;
   if (draw.scissor) {
     scissor.offset.x = draw.scissor_rect[0];
-    scissor.offset.y = swap_chain->surface_height() -
+    scissor.offset.y = current_render_target_height_ -
                        (draw.scissor_rect[1] + draw.scissor_rect[3]);
     scissor.extent.width = draw.scissor_rect[2];
     scissor.extent.height = draw.scissor_rect[3];
   } else {
     scissor.offset.x = 0;
     scissor.offset.y = 0;
-    scissor.extent.width = swap_chain->surface_width();
-    scissor.extent.height = swap_chain->surface_height();
+    scissor.extent.width = current_render_target_width_;
+    scissor.extent.height = current_render_target_height_;
   }
   vkCmdSetScissor(current_cmd_buffer_, 0, 1, &scissor);
 
