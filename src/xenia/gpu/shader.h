@@ -493,6 +493,21 @@ class Shader {
     ParsedTextureFetchInstruction fetch_instr;
   };
 
+  struct ConstantRegisterMap {
+    // Bitmap of all kConstantFloat registers read by the shader.
+    // Any shader can only read up to 256 of the 512, and the base is dependent
+    // on the shader type. Each bit corresponds to a storage index from the type
+    // base, so bit 0 in a vertex shader is register 0, and bit 0 in a fragment
+    // shader is register 256.
+    uint64_t float_bitmap[256 / 64];
+    // Bitmap of all kConstantInt registers read by the shader.
+    // Each bit corresponds to a storage index [0-31].
+    uint32_t int_bitmap;
+    // Bitmap of all kConstantBool registers read by the shader.
+    // Each bit corresponds to a storage index [0-31].
+    uint32_t bool_bitmap;
+  };
+
   Shader(ShaderType shader_type, uint64_t ucode_data_hash,
          const uint32_t* ucode_dwords, size_t ucode_dword_count);
   virtual ~Shader();
@@ -516,6 +531,11 @@ class Shader {
   // Valid for both vertex and pixel shaders.
   const std::vector<TextureBinding>& texture_bindings() const {
     return texture_bindings_;
+  }
+
+  // Bitmaps of all constant registers accessed by the shader.
+  const ConstantRegisterMap& constant_register_map() const {
+    return constant_register_map_;
   }
 
   // Returns true if the given color target index [0-3].
@@ -564,6 +584,7 @@ class Shader {
 
   std::vector<VertexBinding> vertex_bindings_;
   std::vector<TextureBinding> texture_bindings_;
+  ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
 
   bool is_valid_ = false;
