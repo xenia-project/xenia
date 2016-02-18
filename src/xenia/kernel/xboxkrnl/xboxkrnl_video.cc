@@ -162,8 +162,8 @@ dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
                                    unknown_t unk1, lpunknown_t unk2_ptr,
                                    lpunknown_t unk3_ptr) {
   // r3 = 0x4F810000
-  // r4 = function ptr (cleanup callback?)
-  // r5 = 0
+  // r4 = function ptr (cleanup callback)
+  // r5 = function argument
   // r6/r7 = some binary data in .data
   return 1;
 }
@@ -367,11 +367,12 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   auto dwords = buffer_ptr.as_array<uint32_t>();
   dwords[0] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 63>();
   dwords[1] = 'SWAP';
-  dwords[2] = *frontbuffer_ptr;
+  dwords[2] = *frontbuffer_ptr & 0x1FFFFFFF;
 
   // Set by VdCallGraphicsNotificationRoutines.
   dwords[3] = last_frontbuffer_width_;
   dwords[4] = last_frontbuffer_height_;
+  dwords[5] = uint32_t(color_format);
 }
 DECLARE_XBOXKRNL_EXPORT(VdSwap, ExportTag::kVideo | ExportTag::kImportant);
 

@@ -312,7 +312,8 @@ void CommandProcessor::ReturnFromWait() {}
 
 void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
                                  uint32_t frontbuffer_width,
-                                 uint32_t frontbuffer_height) {
+                                 uint32_t frontbuffer_height,
+                                 uint32_t color_format) {
   SCOPE_profile_cpu_f("gpu");
   if (!swap_request_handler_) {
     return;
@@ -342,7 +343,8 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     }
   }
 
-  PerformSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
+  PerformSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height,
+              color_format);
 
   {
     // Set pending so that the display will swap the next time it can.
@@ -706,10 +708,12 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
   uint32_t frontbuffer_ptr = reader->Read<uint32_t>(true);
   uint32_t frontbuffer_width = reader->Read<uint32_t>(true);
   uint32_t frontbuffer_height = reader->Read<uint32_t>(true);
-  reader->AdvanceRead((count - 4) * sizeof(uint32_t));
+  uint32_t color_format = reader->Read<uint32_t>(true);
+  reader->AdvanceRead((count - 5) * sizeof(uint32_t));
 
   if (swap_mode_ == SwapMode::kNormal) {
-    IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
+    IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height,
+              color_format);
   }
 
   if (trace_writer_.is_open()) {

@@ -81,7 +81,8 @@ void VulkanCommandProcessor::ReturnFromWait() {
 
 void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_width,
-                                         uint32_t frontbuffer_height) {
+                                         uint32_t frontbuffer_height,
+                                         uint32_t color_format) {
   // Ensure we issue any pending draws.
   // draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
 

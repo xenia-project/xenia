@@ -59,7 +59,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   void ReturnFromWait() override;
 
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                   uint32_t frontbuffer_height) override;
+                   uint32_t frontbuffer_height, uint32_t color_format) override;
 
   Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address,

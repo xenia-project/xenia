@@ -78,7 +78,7 @@ class CommandProcessor {
   SwapState& swap_state() { return swap_state_; }
   void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                 uint32_t frontbuffer_height);
+                 uint32_t frontbuffer_height, uint32_t color_format);
 
   void set_swap_request_handler(std::function<void()> fn) {
     swap_request_handler_ = fn;
@@ -122,7 +122,8 @@ class CommandProcessor {
   virtual void ReturnFromWait();
 
   virtual void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                           uint32_t frontbuffer_height) = 0;
+                           uint32_t frontbuffer_height,
+                           uint32_t color_format) = 0;
 
   uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
