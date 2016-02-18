@@ -41,7 +41,12 @@ class VulkanSwapChain {
   // Render command buffer, active inside the render pass from Begin to End.
   VkCommandBuffer render_cmd_buffer() const { return render_cmd_buffer_; }
 
+  // Initializes the swap chain with the given WSI surface.
   bool Initialize(VkSurfaceKHR surface);
+  // Reinitializes the swap chain with the initial surface.
+  // The surface will be retained but all other swap chain resources will be
+  // torn down and recreated with the new surface properties (size/etc).
+  bool Reinitialize();
 
   // Begins the swap operation, preparing state for rendering.
   bool Begin();
@@ -57,6 +62,9 @@ class VulkanSwapChain {
 
   bool InitializeBuffer(Buffer* buffer, VkImage target_image);
   void DestroyBuffer(Buffer* buffer);
+
+  // Safely releases all swap chain resources.
+  void Shutdown();
 
   VulkanInstance* instance_ = nullptr;
   VulkanDevice* device_ = nullptr;
