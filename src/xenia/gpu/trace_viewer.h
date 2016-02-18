@@ -54,9 +54,9 @@ class TraceViewer {
   virtual uintptr_t GetTextureEntry(const TextureInfo& texture_info,
                                     const SamplerInfo& sampler_info) = 0;
 
-  virtual size_t QueryVSOutputSize() = 0;
-  virtual size_t QueryVSOutputElementSize() = 0;
-  virtual bool QueryVSOutput(void* buffer, size_t size) = 0;
+  virtual size_t QueryVSOutputSize() { return 0; }
+  virtual size_t QueryVSOutputElementSize() { return 0; }
+  virtual bool QueryVSOutput(void* buffer, size_t size) { return false; }
 
   virtual bool Setup();
 

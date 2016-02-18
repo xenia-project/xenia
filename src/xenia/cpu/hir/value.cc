@@ -1023,6 +1023,14 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
           }
         }
       }
+      break;
+    case FLOAT32_TYPE:
+      assert_false(is_unsigned);
+      assert_false(saturate);
+      for (int i = 0; i < 4; i++) {
+        constant.v128.f32[i] -= other->constant.v128.f32[i];
+      }
+      break;
     default:
       assert_unhandled_case(type);
       break;

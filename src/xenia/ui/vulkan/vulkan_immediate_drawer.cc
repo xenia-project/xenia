@@ -686,13 +686,13 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   }
 
   // Setup texture binding.
-  VkDescriptorSet texture_set = nullptr;
   auto texture = reinterpret_cast<VulkanImmediateTexture*>(draw.texture_handle);
   if (texture) {
-    texture_set = texture->descriptor_set();
+    auto texture_set = texture->descriptor_set();
+    vkCmdBindDescriptorSets(current_cmd_buffer_,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_,
+                            0, 1, &texture_set, 0, nullptr);
   }
-  vkCmdBindDescriptorSets(current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_layout_, 0, 1, &texture_set, 0, nullptr);
 
   // Use push constants for our per-draw changes.
   // Here, the restrict_texture_samples uniform.

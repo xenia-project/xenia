@@ -1403,7 +1403,8 @@ void TraceViewer::DrawStateUI() {
     }
     ImGui::EndChild();
   }
-  if (ImGui::CollapsingHeader("Vertex Shader Output")) {
+  if (ImGui::CollapsingHeader("Vertex Shader Output") &&
+      QueryVSOutputElementSize()) {
     auto size = QueryVSOutputSize();
     auto el_size = QueryVSOutputElementSize();
     if (size > 0) {
