@@ -1,5 +1,5 @@
 /*
-** Copyright (c) 2014-2015 The Khronos Group Inc.
+** Copyright (c) 2014-2016 The Khronos Group Inc.
 **
 ** Permission is hereby granted, free of charge, to any person obtaining a copy
 ** of this software and/or associated documentation files (the "Materials"),
@@ -13,7 +13,7 @@
 **
 ** MODIFICATIONS TO THIS FILE MAY MEAN IT NO LONGER ACCURATELY REFLECTS KHRONOS
 ** STANDARDS. THE UNMODIFIED, NORMATIVE VERSIONS OF KHRONOS SPECIFICATIONS AND
-** HEADER INFORMATION ARE LOCATED AT https://www.khronos.org/registry/
+** HEADER INFORMATION ARE LOCATED AT https://www.khronos.org/registry/ 
 **
 ** THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
 ** OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -27,105 +27,105 @@
 #ifndef GLSLstd450_H
 #define GLSLstd450_H
 
-namespace spv {
+static const int GLSLstd450Version = 100;
+static const int GLSLstd450Revision = 1;
 
-const int GLSLstd450Version = 99;
-const int GLSLstd450Revision = 3;
+enum GLSLstd450 {
+    GLSLstd450Bad = 0,              // Don't use
 
-enum class GLSLstd450 : unsigned {
-    Bad = 0,              // Don't use
+    GLSLstd450Round = 1,
+    GLSLstd450RoundEven = 2,
+    GLSLstd450Trunc = 3,
+    GLSLstd450FAbs = 4,
+    GLSLstd450SAbs = 5,
+    GLSLstd450FSign = 6,
+    GLSLstd450SSign = 7,
+    GLSLstd450Floor = 8,
+    GLSLstd450Ceil = 9,
+    GLSLstd450Fract = 10,
 
-    Round = 1,
-    RoundEven = 2,
-    Trunc = 3,
-    FAbs = 4,
-    SAbs = 5,
-    FSign = 6,
-    SSign = 7,
-    Floor = 8,
-    Ceil = 9,
-    Fract = 10,
+    GLSLstd450Radians = 11,
+    GLSLstd450Degrees = 12,
+    GLSLstd450Sin = 13,
+    GLSLstd450Cos = 14,
+    GLSLstd450Tan = 15,
+    GLSLstd450Asin = 16,
+    GLSLstd450Acos = 17,
+    GLSLstd450Atan = 18,
+    GLSLstd450Sinh = 19,
+    GLSLstd450Cosh = 20,
+    GLSLstd450Tanh = 21,
+    GLSLstd450Asinh = 22,
+    GLSLstd450Acosh = 23,
+    GLSLstd450Atanh = 24,
+    GLSLstd450Atan2 = 25,
 
-    Radians = 11,
-    Degrees = 12,
-    Sin = 13,
-    Cos = 14,
-    Tan = 15,
-    Asin = 16,
-    Acos = 17,
-    Atan = 18,
-    Sinh = 19,
-    Cosh = 20,
-    Tanh = 21,
-    Asinh = 22,
-    Acosh = 23,
-    Atanh = 24,
-    Atan2 = 25,
+    GLSLstd450Pow = 26,
+    GLSLstd450Exp = 27,
+    GLSLstd450Log = 28,
+    GLSLstd450Exp2 = 29,
+    GLSLstd450Log2 = 30,
+    GLSLstd450Sqrt = 31,
+    GLSLstd450InverseSqrt = 32,
 
-    Pow = 26,
-    Exp = 27,
-    Log = 28,
-    Exp2 = 29,
-    Log2 = 30,
-    Sqrt = 31,
-    InverseSqrt = 32,
+    GLSLstd450Determinant = 33,
+    GLSLstd450MatrixInverse = 34,
 
-    Determinant = 33,
-    MatrixInverse = 34,
+    GLSLstd450Modf = 35,            // second operand needs an OpVariable to write to
+    GLSLstd450ModfStruct = 36,      // no OpVariable operand
+    GLSLstd450FMin = 37,
+    GLSLstd450UMin = 38,
+    GLSLstd450SMin = 39,
+    GLSLstd450FMax = 40,
+    GLSLstd450UMax = 41,
+    GLSLstd450SMax = 42,
+    GLSLstd450FClamp = 43,
+    GLSLstd450UClamp = 44,
+    GLSLstd450SClamp = 45,
+    GLSLstd450FMix = 46,
+    GLSLstd450IMix = 47,            // Reserved
+    GLSLstd450Step = 48,
+    GLSLstd450SmoothStep = 49,
 
-    Modf = 35,            // second operand needs an OpVariable to write to
-    ModfStruct = 36,      // no OpVariable operand
-    FMin = 37,
-    UMin = 38,
-    SMin = 39,
-    FMax = 40,
-    UMax = 41,
-    SMax = 42,
-    FClamp = 43,
-    UClamp = 44,
-    SClamp = 45,
-    FMix = 46,
-    IMix = 47,
-    Step = 48,
-    SmoothStep = 49,
+    GLSLstd450Fma = 50,
+    GLSLstd450Frexp = 51,            // second operand needs an OpVariable to write to
+    GLSLstd450FrexpStruct = 52,      // no OpVariable operand
+    GLSLstd450Ldexp = 53,
 
-    Fma = 50,
-    Frexp = 51,            // second operand needs an OpVariable to write to
-    FrexpStruct = 52,      // no OpVariable operand
-    Ldexp = 53,
+    GLSLstd450PackSnorm4x8 = 54,
+    GLSLstd450PackUnorm4x8 = 55,
+    GLSLstd450PackSnorm2x16 = 56,
+    GLSLstd450PackUnorm2x16 = 57,
+    GLSLstd450PackHalf2x16 = 58,
+    GLSLstd450PackDouble2x32 = 59,
+    GLSLstd450UnpackSnorm2x16 = 60,
+    GLSLstd450UnpackUnorm2x16 = 61,
+    GLSLstd450UnpackHalf2x16 = 62,
+    GLSLstd450UnpackSnorm4x8 = 63,
+    GLSLstd450UnpackUnorm4x8 = 64,
+    GLSLstd450UnpackDouble2x32 = 65,
 
-    PackSnorm4x8 = 54,
-    PackUnorm4x8 = 55,
-    PackSnorm2x16 = 56,
-    PackUnorm2x16 = 57,
-    PackHalf2x16 = 58,
-    PackDouble2x32 = 59,
-    UnpackSnorm2x16 = 60,
-    UnpackUnorm2x16 = 61,
-    UnpackHalf2x16 = 62,
-    UnpackSnorm4x8 = 63,
-    UnpackUnorm4x8 = 64,
-    UnpackDouble2x32 = 65,
+    GLSLstd450Length = 66,
+    GLSLstd450Distance = 67,
+    GLSLstd450Cross = 68,
+    GLSLstd450Normalize = 69,
+    GLSLstd450FaceForward = 70,
+    GLSLstd450Reflect = 71,
+    GLSLstd450Refract = 72,
 
-    Length = 66,
-    Distance = 67,
-    Cross = 68,
-    Normalize = 69,
-    FaceForward = 70,
-    Reflect = 71,
-    Refract = 72,
+    GLSLstd450FindILsb = 73,
+    GLSLstd450FindSMsb = 74,
+    GLSLstd450FindUMsb = 75,
 
-    FindILsb = 73,
-    FindSMsb = 74,
-    FindUMsb = 75,
+    GLSLstd450InterpolateAtCentroid = 76,
+    GLSLstd450InterpolateAtSample = 77,
+    GLSLstd450InterpolateAtOffset = 78,
 
-    InterpolateAtCentroid = 76,
-    InterpolateAtSample = 77,
-    InterpolateAtOffset = 78,
+    GLSLstd450NMin = 79,
+    GLSLstd450NMax = 80,
+    GLSLstd450NClamp = 81,
 
-    Count
+    GLSLstd450Count
 };
-
-}  // end namespace spv
 
 #endif  // #ifndef GLSLstd450_H

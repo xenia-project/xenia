@@ -24,7 +24,7 @@ void SpirvShaderTranslator::StartTranslation() {
   auto fn = e.MakeMainEntry();
   auto float_1_0 = e.MakeFloatConstant(1.0f);
   auto acos = e.CreateGlslStd450InstructionCall(
-      spv::Decoration::Invariant, e.MakeFloatType(32), spv::GLSLstd450::Acos,
+      spv::Decoration::Invariant, e.MakeFloatType(32), spv::GLSLstd450::kAcos,
       {float_1_0});
   e.MakeReturn(true);
 }
@@ -188,7 +188,7 @@ spv::Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
   if (op.is_absolute_value) {
     current_value_id = e.CreateGlslStd450InstructionCall(
         spv::Decoration::RelaxedPrecision, current_type_id,
-        spv::GLSLstd450::FAbs, {current_value_id});
+        spv::GLSLstd450::kFAbs, {current_value_id});
   }
   if (op.is_negated) {
     current_value_id =
