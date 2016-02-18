@@ -60,6 +60,8 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
   bool batch_has_index_buffer_ = false;
   VkCommandBuffer current_cmd_buffer_ = nullptr;
+  int current_render_target_width_ = 0;
+  int current_render_target_height_ = 0;
 };
 
 }  // namespace vulkan
