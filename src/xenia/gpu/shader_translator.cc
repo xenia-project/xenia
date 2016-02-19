@@ -137,7 +137,7 @@ bool ShaderTranslator::Translate(Shader* shader) {
   constant_register_map_.packed_byte_length +=
       4 * xe::bit_count(constant_register_map_.int_bitmap);
   // Direct map between words and words we upload.
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 8; ++i) {
     if (constant_register_map_.bool_bitmap[i]) {
       constant_register_map_.packed_byte_length += 4;
     }
@@ -160,6 +160,8 @@ bool ShaderTranslator::Translate(Shader* shader) {
       break;
     }
   }
+
+  PostTranslation(shader);
 
   return shader->is_valid_;
 }

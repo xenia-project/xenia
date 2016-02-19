@@ -24,6 +24,13 @@ class VulkanShader : public Shader {
   VulkanShader(ShaderType shader_type, uint64_t data_hash,
                const uint32_t* dword_ptr, uint32_t dword_count);
   ~VulkanShader() override;
+
+  VkShaderModule shader_module() const { return shader_module_; }
+
+  bool Prepare();
+
+ private:
+  VkShaderModule shader_module_ = nullptr;
 };
 
 }  // namespace vulkan

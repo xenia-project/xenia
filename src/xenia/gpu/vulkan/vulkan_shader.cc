@@ -22,6 +22,8 @@ VulkanShader::VulkanShader(ShaderType shader_type, uint64_t data_hash,
 
 VulkanShader::~VulkanShader() = default;
 
+bool VulkanShader::Prepare() { return true; }
+
 }  // namespace vulkan
 }  // namespace gpu
 }  // namespace xe

@@ -14,8 +14,10 @@
 #include <string>
 #include <vector>
 
+#include "third_party/glslang-spirv/SpvBuilder.h"
+#include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
-#include "xenia/ui/spirv/spirv_emitter.h"
+#include "xenia/ui/spirv/spirv_disassembler.h"
 
 namespace xe {
 namespace gpu {
@@ -28,6 +30,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
  protected:
   void StartTranslation() override;
   std::vector<uint8_t> CompleteTranslation() override;
+  void PostTranslation(Shader* shader) override;
 
   void ProcessLabel(uint32_t cf_index) override;
   void ProcessControlFlowNopInstruction() override;
@@ -48,8 +51,15 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  void SetupPushConstants();
+
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
+
+  // Creates a call to the given GLSL intrinsic.
+  spv::Id SpirvShaderTranslator::CreateGlslStd450InstructionCall(
+      spv::Decoration precision, spv::Id result_type,
+      spv::GLSLstd450 instruction_ordinal, std::vector<spv::Id> args);
 
   // Loads an operand into a value.
   // The value returned will be in the form described in the operand (number of
@@ -60,7 +70,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // the proper components will be selected.
   void StoreToResult(spv::Id source_value_id, const InstructionResult& result);
 
-  xe::ui::spirv::SpirvEmitter emitter_;
+  xe::ui::spirv::SpirvDisassembler disassembler_;
+
+  // TODO(benvanik): replace with something better, make reusable, etc.
+  std::unique_ptr<spv::Builder> builder_;
+  spv::Id glsl_std_450_instruction_set_ = 0;
 };
 
 }  // namespace gpu

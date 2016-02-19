@@ -7,6 +7,7 @@ project("xenia-gpu")
   kind("StaticLib")
   language("C++")
   links({
+    "glslang-spirv",
     "snappy",
     "spirv-tools",
     "xenia-base",
@@ -29,6 +30,7 @@ project("xenia-gpu-shader-compiler")
   language("C++")
   links({
     "gflags",
+    "glslang-spirv",
     "spirv-tools",
     "xenia-base",
     "xenia-gpu",
