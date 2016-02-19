@@ -23,12 +23,17 @@
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/register_file.h"
-#include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/gpu/vulkan/buffer_cache.h"
+#include "xenia/gpu/vulkan/pipeline_cache.h"
+#include "xenia/gpu/vulkan/render_cache.h"
+#include "xenia/gpu/vulkan/texture_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
+#include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 
 namespace xe {
 namespace gpu {
@@ -45,12 +50,6 @@ class VulkanCommandProcessor : public CommandProcessor {
   void ClearCaches() override;
 
  private:
-  enum class UpdateStatus {
-    kCompatible,
-    kMismatch,
-    kError,
-  };
-
   bool SetupContext() override;
   void ShutdownContext() override;
 
@@ -65,97 +64,35 @@ class VulkanCommandProcessor : public CommandProcessor {
                      const uint32_t* host_address,
                      uint32_t dword_count) override;
 
-  bool IssueDraw(PrimitiveType prim_type, uint32_t index_count,
+  bool IssueDraw(PrimitiveType primitive_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info) override;
-  UpdateStatus UpdateShaders(PrimitiveType prim_type);
-  UpdateStatus UpdateRenderTargets();
-  UpdateStatus UpdateState(PrimitiveType prim_type);
-  UpdateStatus UpdateViewportState();
-  UpdateStatus UpdateRasterizerState(PrimitiveType prim_type);
-  UpdateStatus UpdateBlendState();
-  UpdateStatus UpdateDepthStencilState();
-  UpdateStatus PopulateIndexBuffer(IndexBufferInfo* index_buffer_info);
-  UpdateStatus PopulateVertexBuffers();
-  UpdateStatus PopulateSamplers();
-  UpdateStatus PopulateSampler(const Shader::TextureBinding& texture_binding);
+  bool PopulateIndexBuffer(VkCommandBuffer command_buffer,
+                           IndexBufferInfo* index_buffer_info);
+  bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
+                             VulkanShader* vertex_shader);
+  bool PopulateSamplers(VkCommandBuffer command_buffer,
+                        VulkanShader* vertex_shader,
+                        VulkanShader* pixel_shader);
+  bool PopulateSampler(VkCommandBuffer command_buffer,
+                       const Shader::TextureBinding& texture_binding);
   bool IssueCopy() override;
 
-  SpirvShaderTranslator shader_translator_;
+  xe::ui::vulkan::VulkanDevice* device_ = nullptr;
 
- private:
-  bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
-  bool SetShadowRegister(float* dest, uint32_t register_name);
-  struct UpdateRenderTargetsRegisters {
-    uint32_t rb_modecontrol;
-    uint32_t rb_surface_info;
-    uint32_t rb_color_info;
-    uint32_t rb_color1_info;
-    uint32_t rb_color2_info;
-    uint32_t rb_color3_info;
-    uint32_t rb_color_mask;
-    uint32_t rb_depthcontrol;
-    uint32_t rb_stencilrefmask;
-    uint32_t rb_depth_info;
+  // TODO(benvanik): abstract behind context?
+  // Queue used to submit work. This may be a dedicated queue for the command
+  // processor and no locking will be required for use. If a dedicated queue
+  // was not available this will be the device primary_queue and the
+  // queue_mutex must be used to synchronize access to it.
+  VkQueue queue_ = nullptr;
+  std::mutex* queue_mutex_ = nullptr;
 
-    UpdateRenderTargetsRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_render_targets_regs_;
-  struct UpdateViewportStateRegisters {
-    // uint32_t pa_cl_clip_cntl;
-    uint32_t rb_surface_info;
-    uint32_t pa_cl_vte_cntl;
-    uint32_t pa_su_sc_mode_cntl;
-    uint32_t pa_sc_window_offset;
-    uint32_t pa_sc_window_scissor_tl;
-    uint32_t pa_sc_window_scissor_br;
-    float pa_cl_vport_xoffset;
-    float pa_cl_vport_yoffset;
-    float pa_cl_vport_zoffset;
-    float pa_cl_vport_xscale;
-    float pa_cl_vport_yscale;
-    float pa_cl_vport_zscale;
+  std::unique_ptr<BufferCache> buffer_cache_;
+  std::unique_ptr<PipelineCache> pipeline_cache_;
+  std::unique_ptr<RenderCache> render_cache_;
+  std::unique_ptr<TextureCache> texture_cache_;
 
-    UpdateViewportStateRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_viewport_state_regs_;
-  struct UpdateRasterizerStateRegisters {
-    uint32_t pa_su_sc_mode_cntl;
-    uint32_t pa_sc_screen_scissor_tl;
-    uint32_t pa_sc_screen_scissor_br;
-    uint32_t multi_prim_ib_reset_index;
-    PrimitiveType prim_type;
-
-    UpdateRasterizerStateRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_rasterizer_state_regs_;
-  struct UpdateBlendStateRegisters {
-    uint32_t rb_blendcontrol[4];
-    float rb_blend_rgba[4];
-
-    UpdateBlendStateRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_blend_state_regs_;
-  struct UpdateDepthStencilStateRegisters {
-    uint32_t rb_depthcontrol;
-    uint32_t rb_stencilrefmask;
-
-    UpdateDepthStencilStateRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_depth_stencil_state_regs_;
-  struct UpdateShadersRegisters {
-    PrimitiveType prim_type;
-    uint32_t pa_su_sc_mode_cntl;
-    uint32_t sq_program_cntl;
-    uint32_t sq_context_misc;
-    VulkanShader* vertex_shader;
-    VulkanShader* pixel_shader;
-
-    UpdateShadersRegisters() { Reset(); }
-    void Reset() {
-      sq_program_cntl = 0;
-      vertex_shader = pixel_shader = nullptr;
-    }
-  } update_shaders_regs_;
+  std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;
 };
 
 }  // namespace vulkan

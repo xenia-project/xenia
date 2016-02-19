@@ -20,12 +20,16 @@
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
 using namespace xe::gpu::xenos;
+using xe::ui::vulkan::CheckResult;
+
+constexpr size_t kDefaultBufferCacheCapacity = 256 * 1024 * 1024;
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
@@ -33,7 +37,14 @@ VulkanCommandProcessor::VulkanCommandProcessor(
 
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
-void VulkanCommandProcessor::ClearCaches() { CommandProcessor::ClearCaches(); }
+void VulkanCommandProcessor::ClearCaches() {
+  CommandProcessor::ClearCaches();
+
+  buffer_cache_->ClearCache();
+  pipeline_cache_->ClearCache();
+  render_cache_->ClearCache();
+  texture_cache_->ClearCache();
+}
 
 bool VulkanCommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
@@ -41,10 +52,47 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  // Acquire our device and queue.
+  auto context = static_cast<xe::ui::vulkan::VulkanContext*>(context_.get());
+  device_ = context->device();
+  queue_ = device_->AcquireQueue();
+  if (!queue_) {
+    // Need to reuse primary queue (with locks).
+    queue_ = device_->primary_queue();
+    queue_mutex_ = &device_->primary_queue_mutex();
+  }
+
+  // Setup fenced pools used for all our per-frame/per-draw resources.
+  command_buffer_pool_ = std::make_unique<ui::vulkan::CommandBufferPool>(
+      *device_, device_->queue_family_index(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+  // Initialize the state machine caches.
+  buffer_cache_ = std::make_unique<BufferCache>(register_file_, device_,
+                                                kDefaultBufferCacheCapacity);
+  pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, device_);
+  render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
+  texture_cache_ = std::make_unique<TextureCache>(register_file_, device_);
+
   return true;
 }
 
 void VulkanCommandProcessor::ShutdownContext() {
+  // TODO(benvanik): wait until idle.
+
+  buffer_cache_.reset();
+  pipeline_cache_.reset();
+  render_cache_.reset();
+  texture_cache_.reset();
+
+  // Free all pools. This must come after all of our caches clean up.
+  command_buffer_pool_.reset();
+
+  // Release queue, if were using an acquired one.
+  if (!queue_mutex_) {
+    device_->ReleaseQueue(queue_);
+    queue_ = nullptr;
+  }
+
   CommandProcessor::ShutdownContext();
 }
 
@@ -55,7 +103,8 @@ void VulkanCommandProcessor::MakeCoherent() {
   CommandProcessor::MakeCoherent();
 
   if (status_host & 0x80000000ul) {
-    // scratch_buffer_.ClearCache();
+    // TODO(benvanik): less-fine-grained clearing.
+    buffer_cache_->InvalidateCache();
   }
 }
 
@@ -103,346 +152,167 @@ Shader* VulkanCommandProcessor::LoadShader(ShaderType shader_type,
                                            uint32_t guest_address,
                                            const uint32_t* host_address,
                                            uint32_t dword_count) {
-  // return shader_cache_.LookupOrInsertShader(shader_type, host_address,
-  //                                          dword_count);
-  return nullptr;
+  return pipeline_cache_->LoadShader(shader_type, guest_address, host_address,
+                                     dword_count);
 }
 
-bool VulkanCommandProcessor::IssueDraw(PrimitiveType prim_type,
+bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                        uint32_t index_count,
                                        IndexBufferInfo* index_buffer_info) {
+  auto& regs = *register_file_;
+
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
-
-  // Skip all drawing for now - what did you expect? :)
-  return true;
-
-  bool draw_valid = false;
-  // if (index_buffer_info) {
-  //  draw_valid = draw_batcher_.BeginDrawElements(prim_type, index_count,
-  //                                               index_buffer_info->format);
-  //} else {
-  //  draw_valid = draw_batcher_.BeginDrawArrays(prim_type, index_count);
-  //}
-  if (!draw_valid) {
-    return false;
-  }
-
-  auto& regs = *register_file_;
 
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
   if (enable_mode == ModeControl::kIgnore) {
     // Ignored.
-    // draw_batcher_.DiscardDraw();
     return true;
   } else if (enable_mode == ModeControl::kCopy) {
     // Special copy handling.
-    // draw_batcher_.DiscardDraw();
     return IssueCopy();
   }
 
-#define CHECK_ISSUE_UPDATE_STATUS(status, mismatch, error_message)  \
-  {                                                                 \
-    if (status == UpdateStatus::kError) {                           \
-      XELOGE(error_message);                                        \
-      /*draw_batcher_.DiscardDraw();                             */ \
-      return false;                                                 \
-    } else if (status == UpdateStatus::kMismatch) {                 \
-      mismatch = true;                                              \
-    }                                                               \
-  }
+  // TODO(benvanik): bigger batches.
+  command_buffer_pool_->BeginBatch();
+  VkCommandBuffer command_buffer = command_buffer_pool_->AcquireEntry();
+  VkCommandBufferBeginInfo command_buffer_begin_info;
+  command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  command_buffer_begin_info.pNext = nullptr;
+  command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  command_buffer_begin_info.pInheritanceInfo = nullptr;
+  auto err = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+  CheckResult(err, "vkBeginCommandBuffer");
 
-  UpdateStatus status;
-  bool mismatch = false;
-  status = UpdateShaders(prim_type);
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to prepare draw shaders");
-  status = UpdateRenderTargets();
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render targets");
-  // if (!active_framebuffer_) {
-  //  // No framebuffer, so nothing we do will actually have an effect.
-  //  // Treat it as a no-op.
-  //  // TODO(benvanik): if we have a vs export, still allow it to go.
-  //  draw_batcher_.DiscardDraw();
-  //  return true;
-  //}
-
-  status = UpdateState(prim_type);
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup render state");
-  status = PopulateSamplers();
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch,
-                            "Unable to prepare draw samplers");
-
-  status = PopulateIndexBuffer(index_buffer_info);
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup index buffer");
-  status = PopulateVertexBuffers();
-  CHECK_ISSUE_UPDATE_STATUS(status, mismatch, "Unable to setup vertex buffers");
-
-  // if (!draw_batcher_.CommitDraw()) {
-  //  return false;
-  //}
-
-  // draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
-  if (context_->WasLost()) {
-    // This draw lost us the context. This typically isn't hit.
-    assert_always();
+  // Begin the render pass.
+  // This will setup our framebuffer and begin the pass in the command buffer.
+  VkRenderPass render_pass = render_cache_->BeginRenderPass(command_buffer);
+  if (!render_pass) {
     return false;
   }
+
+  // Configure the pipeline for drawing.
+  // This encodes all render state (blend, depth, etc), our shader stages,
+  // and our vertex input layout.
+  if (!pipeline_cache_->ConfigurePipeline(command_buffer, render_pass,
+                                          primitive_type)) {
+    render_cache_->EndRenderPass();
+    return false;
+  }
+
+  // Upload the constants the shaders require.
+  auto vertex_shader = pipeline_cache_->current_vertex_shader();
+  auto pixel_shader = pipeline_cache_->current_pixel_shader();
+  auto vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
+      vertex_shader->constant_register_map());
+  auto pixel_constant_offset = buffer_cache_->UploadConstantRegisters(
+      pixel_shader->constant_register_map());
+  if (vertex_constant_offset == VK_WHOLE_SIZE ||
+      pixel_constant_offset == VK_WHOLE_SIZE) {
+    render_cache_->EndRenderPass();
+    return false;
+  }
+
+  // Configure constant uniform access to point at our offsets.
+  auto constant_descriptor_set = buffer_cache_->constant_descriptor_set();
+  auto pipeline_layout = pipeline_cache_->current_pipeline_layout();
+  uint32_t constant_offsets[2] = {static_cast<uint32_t>(vertex_constant_offset),
+                                  static_cast<uint32_t>(pixel_constant_offset)};
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_layout, 0, 1, &constant_descriptor_set,
+                          static_cast<uint32_t>(xe::countof(constant_offsets)),
+                          constant_offsets);
+
+  // Upload and bind index buffer data (if we have any).
+  if (!PopulateIndexBuffer(command_buffer, index_buffer_info)) {
+    render_cache_->EndRenderPass();
+    return false;
+  }
+
+  // Upload and bind all vertex buffer data.
+  if (!PopulateVertexBuffers(command_buffer, vertex_shader)) {
+    render_cache_->EndRenderPass();
+    return false;
+  }
+
+  // Upload and set descriptors for all textures.
+  if (!PopulateSamplers(command_buffer, vertex_shader, pixel_shader)) {
+    render_cache_->EndRenderPass();
+    return false;
+  }
+
+#if 0
+  // Actually issue the draw.
+  if (!index_buffer_info) {
+    // Auto-indexed draw.
+    uint32_t instance_count = 1;
+    uint32_t first_vertex = 0;
+    uint32_t first_instance = 0;
+    vkCmdDraw(command_buffer, index_count, instance_count, first_vertex,
+              first_instance);
+  } else {
+    // Index buffer draw.
+    uint32_t instance_count = 1;
+    uint32_t first_index =
+        register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
+    uint32_t vertex_offset = 0;
+    uint32_t first_instance = 0;
+    vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index,
+                     vertex_offset, first_instance);
+  }
+#endif
+
+  // End the rendering pass.
+  render_cache_->EndRenderPass();
+
+  // TODO(benvanik): bigger batches.
+  err = vkEndCommandBuffer(command_buffer);
+  CheckResult(err, "vkEndCommandBuffer");
+  VkFence fence;
+  VkFenceCreateInfo fence_info;
+  fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fence_info.pNext = nullptr;
+  fence_info.flags = 0;
+  vkCreateFence(*device_, &fence_info, nullptr, &fence);
+  command_buffer_pool_->EndBatch(fence);
+  VkSubmitInfo submit_info;
+  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submit_info.pNext = nullptr;
+  submit_info.waitSemaphoreCount = 0;
+  submit_info.pWaitSemaphores = nullptr;
+  submit_info.commandBufferCount = 1;
+  submit_info.pCommandBuffers = &command_buffer;
+  submit_info.signalSemaphoreCount = 0;
+  submit_info.pSignalSemaphores = nullptr;
+  if (queue_mutex_) {
+    queue_mutex_->lock();
+  }
+  err = vkQueueSubmit(queue_, 1, &submit_info, fence);
+  if (queue_mutex_) {
+    queue_mutex_->unlock();
+  }
+  CheckResult(err, "vkQueueSubmit");
+  if (queue_mutex_) {
+    queue_mutex_->lock();
+  }
+  vkQueueWaitIdle(queue_);
+  if (queue_mutex_) {
+    queue_mutex_->unlock();
+  }
+  command_buffer_pool_->Scavenge();
+  vkDestroyFence(*device_, fence, nullptr);
 
   return true;
 }
 
-bool VulkanCommandProcessor::SetShadowRegister(uint32_t* dest,
-                                               uint32_t register_name) {
-  uint32_t value = register_file_->values[register_name].u32;
-  if (*dest == value) {
-    return false;
-  }
-  *dest = value;
-  return true;
-}
-
-bool VulkanCommandProcessor::SetShadowRegister(float* dest,
-                                               uint32_t register_name) {
-  float value = register_file_->values[register_name].f32;
-  if (*dest == value) {
-    return false;
-  }
-  *dest = value;
-  return true;
-}
-
-VulkanCommandProcessor::UpdateStatus VulkanCommandProcessor::UpdateShaders(
-    PrimitiveType prim_type) {
-  auto& regs = update_shaders_regs_;
-
-  // These are the constant base addresses/ranges for shaders.
-  // We have these hardcoded right now cause nothing seems to differ.
-  assert_true(register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 ==
-                  0x000FF000 ||
-              register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
-  assert_true(register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 ==
-                  0x000FF100 ||
-              register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
-  dirty |= SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
-  dirty |= regs.vertex_shader != active_vertex_shader_;
-  dirty |= regs.pixel_shader != active_pixel_shader_;
-  dirty |= regs.prim_type != prim_type;
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-  regs.vertex_shader = static_cast<VulkanShader*>(active_vertex_shader_);
-  regs.pixel_shader = static_cast<VulkanShader*>(active_pixel_shader_);
-  regs.prim_type = prim_type;
-
-  SCOPE_profile_cpu_f("gpu");
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::UpdateRenderTargets() {
-  auto& regs = update_render_targets_regs_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
-  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
-  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  SCOPE_profile_cpu_f("gpu");
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanCommandProcessor::UpdateStatus VulkanCommandProcessor::UpdateState(
-    PrimitiveType prim_type) {
-  bool mismatch = false;
-
-#define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
-  {                                                          \
-    if (status == UpdateStatus::kError) {                    \
-      XELOGE(error_message);                                 \
-      return status;                                         \
-    } else if (status == UpdateStatus::kMismatch) {          \
-      mismatch = true;                                       \
-    }                                                        \
-  }
-
-  UpdateStatus status;
-  status = UpdateViewportState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update viewport state");
-  status = UpdateRasterizerState(prim_type);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterizer state");
-  status = UpdateBlendState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update blend state");
-  status = UpdateDepthStencilState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update depth/stencil state");
-
-  return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
-}
-
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::UpdateViewportState() {
-  auto& regs = update_viewport_state_regs_;
-
-  bool dirty = false;
-  // dirty |= SetShadowRegister(&state_regs.pa_cl_clip_cntl,
-  //     XE_GPU_REG_PA_CL_CLIP_CNTL);
-  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |= SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.pa_sc_window_offset,
-                             XE_GPU_REG_PA_SC_WINDOW_OFFSET);
-  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
-  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
-                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
-  dirty |= SetShadowRegister(&regs.pa_cl_vport_xoffset,
-                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
-  dirty |= SetShadowRegister(&regs.pa_cl_vport_yoffset,
-                             XE_GPU_REG_PA_CL_VPORT_YOFFSET);
-  dirty |= SetShadowRegister(&regs.pa_cl_vport_zoffset,
-                             XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
-  dirty |= SetShadowRegister(&regs.pa_cl_vport_xscale,
-                             XE_GPU_REG_PA_CL_VPORT_XSCALE);
-  dirty |= SetShadowRegister(&regs.pa_cl_vport_yscale,
-                             XE_GPU_REG_PA_CL_VPORT_YSCALE);
-  dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
-                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
-
-  // Much of this state machine is extracted from:
-  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  // VTX_XY_FMT = true: the incoming X, Y have already been multiplied by 1/W0.
-  //            = false: multiply the X, Y coordinates by 1/W0.
-  // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
-  //           = false: multiply the Z coordinate by 1/W0.
-  // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
-  //                    get 1/W0.
-  // draw_batcher_.set_vtx_fmt((regs.pa_cl_vte_cntl >> 8) & 0x1 ? 1.0f : 0.0f,
-  //                          (regs.pa_cl_vte_cntl >> 9) & 0x1 ? 1.0f : 0.0f,
-  //                          (regs.pa_cl_vte_cntl >> 10) & 0x1 ? 1.0f : 0.0f);
-
-  // Done in VS, no need to flush state.
-  // if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
-  //  draw_batcher_.set_window_scalar(1.0f, 1.0f);
-  //} else {
-  //  draw_batcher_.set_window_scalar(1.0f / 2560.0f, -1.0f / 2560.0f);
-  //}
-
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::UpdateRasterizerState(PrimitiveType prim_type) {
-  auto& regs = update_rasterizer_state_regs_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_tl,
-                             XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL);
-  dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_br,
-                             XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
-  dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
-                             XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
-  dirty |= regs.prim_type != prim_type;
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  regs.prim_type = prim_type;
-
-  SCOPE_profile_cpu_f("gpu");
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::UpdateBlendState() {
-  auto& reg_file = *register_file_;
-  auto& regs = update_blend_state_regs_;
-
-  // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-  // Deprecated in GL, implemented in shader.
-  // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
-  // uint32_t color_control = reg_file[XE_GPU_REG_RB_COLORCONTROL].u32;
-  // draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  //
-  // ALPAHTESTENABLE
-  //                             color_control & 0x7,         // ALPHAFUNC
-  //                             reg_file[XE_GPU_REG_RB_ALPHA_REF].f32);
-
-  bool dirty = false;
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL_0);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL_1);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
-  dirty |= SetShadowRegister(&regs.rb_blend_rgba[0], XE_GPU_REG_RB_BLEND_RED);
-  dirty |= SetShadowRegister(&regs.rb_blend_rgba[1], XE_GPU_REG_RB_BLEND_GREEN);
-  dirty |= SetShadowRegister(&regs.rb_blend_rgba[2], XE_GPU_REG_RB_BLEND_BLUE);
-  dirty |= SetShadowRegister(&regs.rb_blend_rgba[3], XE_GPU_REG_RB_BLEND_ALPHA);
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  SCOPE_profile_cpu_f("gpu");
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::UpdateDepthStencilState() {
-  auto& regs = update_depth_stencil_state_regs_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  SCOPE_profile_cpu_f("gpu");
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::PopulateIndexBuffer(
-    IndexBufferInfo* index_buffer_info) {
+bool VulkanCommandProcessor::PopulateIndexBuffer(
+    VkCommandBuffer command_buffer, IndexBufferInfo* index_buffer_info) {
   auto& regs = *register_file_;
   if (!index_buffer_info || !index_buffer_info->guest_base) {
     // No index buffer or auto draw.
-    return UpdateStatus::kCompatible;
+    return true;
   }
   auto& info = *index_buffer_info;
 
@@ -462,19 +332,44 @@ VulkanCommandProcessor::PopulateIndexBuffer(
 
   trace_writer_.WriteMemoryRead(info.guest_base, info.length);
 
-  return UpdateStatus::kCompatible;
+  // Upload (or get a cached copy of) the buffer.
+  const void* source_ptr =
+      memory_->TranslatePhysical<const void*>(info.guest_base);
+  size_t source_length =
+      info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
+                                                       : sizeof(uint16_t));
+  auto buffer_ref =
+      buffer_cache_->UploadIndexBuffer(source_ptr, source_length, info.format);
+  if (buffer_ref.second == VK_WHOLE_SIZE) {
+    // Failed to upload buffer.
+    return false;
+  }
+
+  // Bind the buffer.
+  VkIndexType index_type = info.format == IndexFormat::kInt32
+                               ? VK_INDEX_TYPE_UINT32
+                               : VK_INDEX_TYPE_UINT16;
+  vkCmdBindIndexBuffer(command_buffer, buffer_ref.first, buffer_ref.second,
+                       index_type);
+
+  return true;
 }
 
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::PopulateVertexBuffers() {
+bool VulkanCommandProcessor::PopulateVertexBuffers(
+    VkCommandBuffer command_buffer, VulkanShader* vertex_shader) {
+  auto& regs = *register_file_;
+
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  auto& regs = *register_file_;
-  assert_not_null(active_vertex_shader_);
+  auto& vertex_bindings = vertex_shader->vertex_bindings();
+  assert_true(vertex_bindings.size() <= 32);
+  VkBuffer all_buffers[32];
+  VkDeviceSize all_buffer_offsets[32];
+  uint32_t buffer_index = 0;
 
-  for (const auto& vertex_binding : active_vertex_shader_->vertex_bindings()) {
+  for (const auto& vertex_binding : vertex_bindings) {
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
             (vertex_binding.fetch_constant / 3) * 6;
     const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
@@ -492,58 +387,72 @@ VulkanCommandProcessor::PopulateVertexBuffers() {
     }
     assert_true(fetch->endian == 2);
 
+    // TODO(benvanik): compute based on indices or vertex count.
+    //     THIS CAN BE MASSIVELY INCORRECT (too large).
     size_t valid_range = size_t(fetch->size * 4);
 
     trace_writer_.WriteMemoryRead(fetch->address << 2, valid_range);
+
+    // Upload (or get a cached copy of) the buffer.
+    const void* source_ptr =
+        memory_->TranslatePhysical<const void*>(fetch->address << 2);
+    size_t source_length = valid_range;
+    auto buffer_ref =
+        buffer_cache_->UploadVertexBuffer(source_ptr, source_length);
+    if (buffer_ref.second == VK_WHOLE_SIZE) {
+      // Failed to upload buffer.
+      return false;
+    }
+
+    // Stash the buffer reference for our bulk bind at the end.
+    all_buffers[buffer_index] = buffer_ref.first;
+    all_buffer_offsets[buffer_index] = buffer_ref.second;
+    ++buffer_index;
   }
 
-  return UpdateStatus::kCompatible;
+  // Bind buffers.
+  vkCmdBindVertexBuffers(command_buffer, 0, buffer_index, all_buffers,
+                         all_buffer_offsets);
+
+  return true;
 }
 
-VulkanCommandProcessor::UpdateStatus
-VulkanCommandProcessor::PopulateSamplers() {
+bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
+                                              VulkanShader* vertex_shader,
+                                              VulkanShader* pixel_shader) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  bool mismatch = false;
+  bool any_failed = false;
 
   // VS and PS samplers are shared, but may be used exclusively.
   // We walk each and setup lazily.
   bool has_setup_sampler[32] = {false};
 
   // Vertex texture samplers.
-  for (auto& texture_binding : active_vertex_shader_->texture_bindings()) {
+  for (auto& texture_binding : vertex_shader->texture_bindings()) {
     if (has_setup_sampler[texture_binding.fetch_constant]) {
       continue;
     }
     has_setup_sampler[texture_binding.fetch_constant] = true;
-    auto status = PopulateSampler(texture_binding);
-    if (status == UpdateStatus::kError) {
-      return status;
-    } else if (status == UpdateStatus::kMismatch) {
-      mismatch = true;
-    }
+    any_failed = PopulateSampler(command_buffer, texture_binding) || any_failed;
   }
 
   // Pixel shader texture sampler.
-  for (auto& texture_binding : active_pixel_shader_->texture_bindings()) {
+  for (auto& texture_binding : pixel_shader->texture_bindings()) {
     if (has_setup_sampler[texture_binding.fetch_constant]) {
       continue;
     }
     has_setup_sampler[texture_binding.fetch_constant] = true;
-    auto status = PopulateSampler(texture_binding);
-    if (status == UpdateStatus::kError) {
-      return UpdateStatus::kError;
-    } else if (status == UpdateStatus::kMismatch) {
-      mismatch = true;
-    }
+    any_failed = PopulateSampler(command_buffer, texture_binding) || any_failed;
   }
 
-  return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
+  return !any_failed;
 }
 
-VulkanCommandProcessor::UpdateStatus VulkanCommandProcessor::PopulateSampler(
+bool VulkanCommandProcessor::PopulateSampler(
+    VkCommandBuffer command_buffer,
     const Shader::TextureBinding& texture_binding) {
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
@@ -553,30 +462,34 @@ VulkanCommandProcessor::UpdateStatus VulkanCommandProcessor::PopulateSampler(
 
   // ?
   if (!fetch.type) {
-    return UpdateStatus::kCompatible;
+    return true;
   }
   assert_true(fetch.type == 0x2);
 
   TextureInfo texture_info;
   if (!TextureInfo::Prepare(fetch, &texture_info)) {
     XELOGE("Unable to parse texture fetcher info");
-    return UpdateStatus::kCompatible;  // invalid texture used
+    return true;  // invalid texture used
   }
   SamplerInfo sampler_info;
   if (!SamplerInfo::Prepare(fetch, texture_binding.fetch_instr,
                             &sampler_info)) {
     XELOGE("Unable to parse sampler info");
-    return UpdateStatus::kCompatible;  // invalid texture used
+    return true;  // invalid texture used
   }
 
   trace_writer_.WriteMemoryRead(texture_info.guest_address,
                                 texture_info.input_length);
 
-  return UpdateStatus::kCompatible;
+  // TODO(benvanik): texture cache lookup.
+  // TODO(benvanik): bind or return so PopulateSamplers can batch.
+
+  return true;
 }
 
 bool VulkanCommandProcessor::IssueCopy() {
   SCOPE_profile_cpu_f("gpu");
+  // TODO(benvanik): resolve.
   return true;
 }
 

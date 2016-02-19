@@ -18,6 +18,10 @@ namespace xe {
 // http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/f2bc76cc65ffba51a141950f98e75364e49df874/entry/volk/kernels/volk/volk_32u_byteswap.h
 // http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/2c4c371885c31222362f70a1cd714415d1398021/entry/volk/kernels/volk/volk_64u_byteswap.h
 
+void copy_128_aligned(void* dest, const void* src, size_t count) {
+  std::memcpy(dest, src, count * 16);
+}
+
 void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
                               size_t count) {
   return copy_and_swap_16_unaligned(dest, src, count);
