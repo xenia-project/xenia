@@ -37,9 +37,15 @@ VulkanSwapChain::~VulkanSwapChain() { Shutdown(); }
 bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   surface_ = surface;
 
+  VkBool32 surface_supported = false;
+  auto err = vkGetPhysicalDeviceSurfaceSupportKHR(
+      *device_, device_->queue_family_index(), surface, &surface_supported);
+  assert_true(surface_supported);
+  CheckResult(err, "vkGetPhysicalDeviceSurfaceSupportKHR");
+
   // Query supported target formats.
   uint32_t count = 0;
-  auto err =
+  err =
       vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count, nullptr);
   CheckResult(err, "vkGetPhysicalDeviceSurfaceFormatsKHR");
   std::vector<VkSurfaceFormatKHR> surface_formats;
