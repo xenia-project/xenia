@@ -52,6 +52,9 @@ class RenderCache {
  private:
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
+
+  // Only valid during a BeginRenderPass/EndRenderPass block.
+  VkCommandBuffer current_command_buffer_ = nullptr;
 };
 
 }  // namespace vulkan
