@@ -28,12 +28,22 @@ RenderCache::RenderCache(RegisterFile* register_file,
 
 RenderCache::~RenderCache() = default;
 
-VkRenderPass RenderCache::BeginRenderPass(VkCommandBuffer command_buffer) {
-  return nullptr;
+VkRenderPass RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
+                                          VulkanShader* vertex_shader,
+                                          VulkanShader* pixel_shader) {
+  assert_null(current_command_buffer_);
+  current_command_buffer_ = command_buffer;
+
+  // Lookup or construct a render pass compatible with our current state.
+  VkRenderPass render_pass = nullptr;
+
+  return render_pass;
 }
 
 void RenderCache::EndRenderPass() {
-  //
+  assert_not_null(current_command_buffer_);
+  auto command_buffer = current_command_buffer_;
+  current_command_buffer_ = nullptr;
 }
 
 void RenderCache::ClearCache() {

@@ -50,8 +50,8 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
-  VulkanShader* shader =
-      new VulkanShader(shader_type, data_hash, host_address, dword_count);
+  VulkanShader* shader = new VulkanShader(device_, shader_type, data_hash,
+                                          host_address, dword_count);
   shader_map_.insert({data_hash, shader});
 
   // Perform translation.
@@ -85,6 +85,8 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
 
 bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
                                       VkRenderPass render_pass,
+                                      VulkanShader* vertex_shader,
+                                      VulkanShader* pixel_shader,
                                       PrimitiveType primitive_type) {
   return false;
 }

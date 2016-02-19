@@ -21,15 +21,17 @@ namespace vulkan {
 
 class VulkanShader : public Shader {
  public:
-  VulkanShader(ShaderType shader_type, uint64_t data_hash,
+  VulkanShader(VkDevice device, ShaderType shader_type, uint64_t data_hash,
                const uint32_t* dword_ptr, uint32_t dword_count);
   ~VulkanShader() override;
 
+  // Available only if the shader is_valid and has been prepared.
   VkShaderModule shader_module() const { return shader_module_; }
 
   bool Prepare();
 
  private:
+   VkDevice device_ = nullptr;
   VkShaderModule shader_module_ = nullptr;
 };
 

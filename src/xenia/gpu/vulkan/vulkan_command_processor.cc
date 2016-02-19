@@ -175,6 +175,16 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return IssueCopy();
   }
 
+  // Shaders will have already been defined by previous loads.
+  // We need the to do just about anything so validate here.
+  auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
+  auto pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
+  if (!vertex_shader || !vertex_shader->is_valid() || !pixel_shader ||
+      !pixel_shader->is_valid()) {
+    // Skipped because we can't understand the shader.
+    return true;
+  }
+
   // TODO(benvanik): bigger batches.
   command_buffer_pool_->BeginBatch();
   VkCommandBuffer command_buffer = command_buffer_pool_->AcquireEntry();
@@ -188,7 +198,8 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Begin the render pass.
   // This will setup our framebuffer and begin the pass in the command buffer.
-  VkRenderPass render_pass = render_cache_->BeginRenderPass(command_buffer);
+  VkRenderPass render_pass = render_cache_->BeginRenderPass(
+      command_buffer, vertex_shader, pixel_shader);
   if (!render_pass) {
     return false;
   }
@@ -197,14 +208,13 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
   if (!pipeline_cache_->ConfigurePipeline(command_buffer, render_pass,
+                                          vertex_shader, pixel_shader,
                                           primitive_type)) {
     render_cache_->EndRenderPass();
     return false;
   }
 
   // Upload the constants the shaders require.
-  auto vertex_shader = pipeline_cache_->current_vertex_shader();
-  auto pixel_shader = pipeline_cache_->current_pixel_shader();
   auto vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
       vertex_shader->constant_register_map());
   auto pixel_constant_offset = buffer_cache_->UploadConstantRegisters(

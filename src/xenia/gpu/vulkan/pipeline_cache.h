@@ -42,15 +42,12 @@ class PipelineCache {
   // in the command buffer is issued at this time.
   // Returns whether the pipeline could be successfully created.
   bool ConfigurePipeline(VkCommandBuffer command_buffer,
-                         VkRenderPass render_pass,
+                         VkRenderPass render_pass, VulkanShader* vertex_shader,
+                         VulkanShader* pixel_shader,
                          PrimitiveType primitive_type);
 
   // Currently configured pipeline layout, if any.
   VkPipelineLayout current_pipeline_layout() const { return nullptr; }
-  // Currently configured vertex shader, if any.
-  VulkanShader* current_vertex_shader() const { return nullptr; }
-  // Currently configured pixel shader, if any.
-  VulkanShader* current_pixel_shader() const { return nullptr; }
 
   // Clears all cached content.
   void ClearCache();

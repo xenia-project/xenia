@@ -20,9 +20,7 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-// Configures and caches pipelines based on render state.
-// This is responsible for properly setting all state required for a draw
-// including shaders, various blend/etc options, and input configuration.
+//
 class TextureCache {
  public:
   TextureCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);

@@ -12,4 +12,6 @@
 
 #include <gflags/gflags.h>
 
+#define FINE_GRAINED_DRAW_SCOPES 1
+
 #endif  // XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_
