@@ -373,12 +373,15 @@ bool VulkanSwapChain::Begin() {
   wait_submit_info.pCommandBuffers = nullptr;
   wait_submit_info.signalSemaphoreCount = 0;
   wait_submit_info.pSignalSemaphores = nullptr;
-  err = vkQueueSubmit(device_->primary_queue(), 1, &wait_submit_info, nullptr);
+  {
+    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
+    err =
+        vkQueueSubmit(device_->primary_queue(), 1, &wait_submit_info, nullptr);
+  }
   CheckResult(err, "vkQueueSubmit");
 
   // Reset all command buffers.
-  vkResetCommandBuffer(render_cmd_buffer_,
-                       VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+  vkResetCommandBuffer(render_cmd_buffer_, 0);
   auto& current_buffer = buffers_[current_buffer_index_];
 
   // Build the command buffer that will execute all queued rendering buffers.
@@ -484,8 +487,11 @@ bool VulkanSwapChain::End() {
   render_submit_info.pCommandBuffers = &render_cmd_buffer_;
   render_submit_info.signalSemaphoreCount = 0;
   render_submit_info.pSignalSemaphores = nullptr;
-  err =
-      vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info, nullptr);
+  {
+    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
+    err = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,
+                        nullptr);
+  }
   CheckResult(err, "vkQueueSubmit");
 
   // Queue the present of our current image.
@@ -500,7 +506,10 @@ bool VulkanSwapChain::End() {
   present_info.pSwapchains = swap_chains;
   present_info.pImageIndices = swap_chain_image_indices;
   present_info.pResults = nullptr;
-  err = vkQueuePresentKHR(device_->primary_queue(), &present_info);
+  {
+    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
+    err = vkQueuePresentKHR(device_->primary_queue(), &present_info);
+  }
   switch (err) {
     case VK_SUCCESS:
       break;

@@ -11,6 +11,7 @@
 #define XENIA_UI_VULKAN_VULKAN_DEVICE_H_
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -57,8 +58,22 @@ class VulkanDevice {
   bool Initialize(DeviceInfo device_info);
 
   uint32_t queue_family_index() const { return queue_family_index_; }
+  std::mutex& primary_queue_mutex() { return queue_mutex_; }
+  // Access to the primary queue must be synchronized with primary_queue_mutex.
   VkQueue primary_queue() const { return primary_queue_; }
   const DeviceInfo& device_info() const { return device_info_; }
+
+  // Acquires a queue for exclusive use by the caller.
+  // The queue will not be touched by any other code until it's returned with
+  // ReleaseQueue.
+  // Not all devices support queues or only support a limited number. If this
+  // returns null the primary_queue should be used with the
+  // primary_queue_mutex.
+  // This method is thread safe.
+  VkQueue AcquireQueue();
+  // Releases a queue back to the device pool.
+  // This method is thread safe.
+  void ReleaseQueue(VkQueue queue);
 
   // Allocates memory of the given size matching the required properties.
   VkDeviceMemory AllocateMemory(
@@ -73,7 +88,9 @@ class VulkanDevice {
 
   DeviceInfo device_info_;
   uint32_t queue_family_index_ = 0;
+  std::mutex queue_mutex_;
   VkQueue primary_queue_ = nullptr;
+  std::vector<VkQueue> free_queues_;
 };
 
 }  // namespace vulkan

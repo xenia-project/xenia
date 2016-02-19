@@ -35,27 +35,17 @@ VulkanContext::VulkanContext(VulkanProvider* provider, Window* target_window)
 VulkanContext::~VulkanContext() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
-  vkQueueWaitIdle(device->primary_queue());
+  {
+    std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
+    vkQueueWaitIdle(device->primary_queue());
+  }
   immediate_drawer_.reset();
   swap_chain_.reset();
-  if (cmd_pool_) {
-    vkDestroyCommandPool(*device, cmd_pool_, nullptr);
-  }
 }
 
 bool VulkanContext::Initialize() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
-
-  // All context-specific commands will be allocated from this.
-  // We may want to have additional pools for different rendering subsystems.
-  VkCommandPoolCreateInfo cmd_pool_info;
-  cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  cmd_pool_info.pNext = nullptr;
-  cmd_pool_info.queueFamilyIndex = device->queue_family_index();
-  cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-  auto err = vkCreateCommandPool(*device, &cmd_pool_info, nullptr, &cmd_pool_);
-  CheckResult(err, "vkCreateCommandPool");
 
   if (target_window_) {
     // Create swap chain used to present to the window.
@@ -68,8 +58,8 @@ bool VulkanContext::Initialize() {
     create_info.hinstance =
         static_cast<HINSTANCE>(target_window_->native_platform_handle());
     create_info.hwnd = static_cast<HWND>(target_window_->native_handle());
-    err = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info, nullptr,
-                                  &surface);
+    auto err = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
+                                       nullptr, &surface);
     CheckResult(err, "vkCreateWin32SurfaceKHR");
 #else
 #error Platform not yet implemented.
@@ -130,6 +120,7 @@ void VulkanContext::BeginSwap() {
   swap_chain_->Begin();
 
   // TODO(benvanik): use a fence instead? May not be possible with target image.
+  std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
   auto err = vkQueueWaitIdle(device->primary_queue());
   CheckResult(err, "vkQueueWaitIdle");
 }
@@ -145,6 +136,7 @@ void VulkanContext::EndSwap() {
 
   // Wait until the queue is idle.
   // TODO(benvanik): is this required?
+  std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
   auto err = vkQueueWaitIdle(device->primary_queue());
   CheckResult(err, "vkQueueWaitIdle");
 }

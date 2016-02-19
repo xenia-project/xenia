@@ -53,7 +53,6 @@ class VulkanContext : public GraphicsContext {
 
   std::unique_ptr<VulkanSwapChain> swap_chain_;
   std::unique_ptr<VulkanImmediateDrawer> immediate_drawer_;
-  VkCommandPool cmd_pool_ = nullptr;
 };
 
 }  // namespace vulkan

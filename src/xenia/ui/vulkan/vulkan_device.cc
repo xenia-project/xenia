@@ -118,8 +118,8 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     if (queue_flags & VK_QUEUE_GRAPHICS_BIT) {
       // Can do graphics and present - good!
       ideal_queue_family_index = static_cast<uint32_t>(i);
-      // TODO(benvanik): pick a higher queue count?
-      queue_count = 1;
+      // Grab all the queues we can.
+      queue_count = device_info.queue_family_properties[i].queueCount;
       break;
     }
   }
@@ -136,6 +136,8 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   queue_info.queueFamilyIndex = ideal_queue_family_index;
   queue_info.queueCount = queue_count;
   std::vector<float> queue_priorities(queue_count);
+  // Prioritize the primary queue.
+  queue_priorities[0] = 1.0f;
   queue_info.pQueuePriorities = queue_priorities.data();
 
   VkDeviceCreateInfo create_info;
@@ -179,8 +181,30 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   // Get the primary queue used for most submissions/etc.
   vkGetDeviceQueue(handle, queue_family_index_, 0, &primary_queue_);
 
+  // Get all additional queues, if we got any.
+  for (uint32_t i = 0; i < queue_count - 1; ++i) {
+    VkQueue queue;
+    vkGetDeviceQueue(handle, queue_family_index_, i, &queue);
+    free_queues_.push_back(queue);
+  }
+
   XELOGVK("Device initialized successfully!");
   return true;
+}
+
+VkQueue VulkanDevice::AcquireQueue() {
+  std::lock_guard<std::mutex> lock(queue_mutex_);
+  if (free_queues_.empty()) {
+    return nullptr;
+  }
+  auto queue = free_queues_.back();
+  free_queues_.pop_back();
+  return queue;
+}
+
+void VulkanDevice::ReleaseQueue(VkQueue queue) {
+  std::lock_guard<std::mutex> lock(queue_mutex_);
+  free_queues_.push_back(queue);
 }
 
 VkDeviceMemory VulkanDevice::AllocateMemory(
