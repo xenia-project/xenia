@@ -208,7 +208,7 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
       draw.count = cmd.ElemCount;
       draw.index_offset = index_offset;
       draw.texture_handle =
-          reinterpret_cast<uintptr_t>(cmd.TextureId) & 0xFFFFFFFF;
+          reinterpret_cast<uintptr_t>(cmd.TextureId) & ~kIgnoreAlpha;
       draw.alpha_blend =
           reinterpret_cast<uintptr_t>(cmd.TextureId) & kIgnoreAlpha ? false
                                                                     : true;
