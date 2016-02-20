@@ -78,8 +78,14 @@ class BufferCache {
 
  private:
   // Allocates a block of memory in the transient buffer.
+  // When memory is not available fences are checked and space is reclaimed.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
-  VkDeviceSize AllocateTransientData(size_t alignment, size_t length);
+  VkDeviceSize AllocateTransientData(VkDeviceSize alignment,
+                                     VkDeviceSize length);
+  // Tries to allocate a block of memory in the transient buffer.
+  // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
+  VkDeviceSize TryAllocateTransientData(VkDeviceSize alignment,
+                                        VkDeviceSize length);
 
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
@@ -92,8 +98,10 @@ class BufferCache {
   VkBuffer transient_vertex_buffer_ = nullptr;
   VkDeviceMemory transient_buffer_memory_ = nullptr;
   void* transient_buffer_data_ = nullptr;
+  VkDeviceSize transient_head_offset_ = 0;
+  VkDeviceSize transient_tail_offset_ = 0;
 
-  // Required alignemnts for our various types.
+  // Required alignments for our various types.
   // All allocations must start at the appropriate alignment.
   VkDeviceSize uniform_buffer_alignment_ = 0;
   VkDeviceSize index_buffer_alignment_ = 0;

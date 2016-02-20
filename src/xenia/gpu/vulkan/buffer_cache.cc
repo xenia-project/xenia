@@ -22,6 +22,9 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
+// Space kept between tail and head when wrapping.
+constexpr VkDeviceSize kDeadZone = 4 * 1024;
+
 BufferCache::BufferCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device, size_t capacity)
     : register_file_(register_file),
@@ -187,6 +190,42 @@ BufferCache::~BufferCache() {
 
 VkDeviceSize BufferCache::UploadConstantRegisters(
     const Shader::ConstantRegisterMap& constant_register_map) {
+  // Fat struct, including all registers:
+  // struct {
+  //   vec4 float[512];
+  //   uint bool[8];
+  //   uint loop[32];
+  // };
+  size_t total_size = xe::round_up(
+      static_cast<VkDeviceSize>((512 * 4 * 4) + (32 * 4) + (8 * 4)),
+      uniform_buffer_alignment_);
+  auto offset = AllocateTransientData(uniform_buffer_alignment_, total_size);
+  if (offset == VK_WHOLE_SIZE) {
+    // OOM.
+    return VK_WHOLE_SIZE;
+  }
+
+  // Copy over all the registers.
+  const auto& values = register_file_->values;
+  uint8_t* dest_ptr =
+      reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset;
+  std::memcpy(dest_ptr, &values[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
+              (512 * 4 * 4));
+  dest_ptr += 512 * 4 * 4;
+  std::memcpy(dest_ptr, &values[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
+              8 * 4);
+  dest_ptr += 8 * 4;
+  std::memcpy(dest_ptr, &values[XE_GPU_REG_SHADER_CONSTANT_LOOP_00].u32,
+              32 * 4);
+  dest_ptr += 32 * 4;
+
+  return offset;
+
+// Packed upload code.
+// This is not currently supported by the shaders, but would be awesome.
+// We should be able to use this for any shader that does not do dynamic
+// constant indexing.
+#if 0
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(uniform_buffer_alignment_,
                                       constant_register_map.packed_byte_length);
@@ -230,6 +269,7 @@ VkDeviceSize BufferCache::UploadConstantRegisters(
   }
 
   return offset;
+#endif  // 0
 }
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
@@ -282,17 +322,53 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   return {transient_vertex_buffer_, offset};
 }
 
-VkDeviceSize BufferCache::AllocateTransientData(size_t alignment,
-                                                size_t length) {
-  // Try to add to end, wrapping if required.
-
-  // Check to ensure there is space.
-  if (false) {
-    // Consume all fences.
+VkDeviceSize BufferCache::AllocateTransientData(VkDeviceSize alignment,
+                                                VkDeviceSize length) {
+  // Try fast path (if we have space).
+  VkDeviceSize offset = TryAllocateTransientData(alignment, length);
+  if (offset != VK_WHOLE_SIZE) {
+    return offset;
   }
 
-  // Slice off our bit.
+  // Ran out of easy allocations.
+  // Try consuming fences before we panic.
+  assert_always("Reclamation not yet implemented");
 
+  // Try again. It may still fail if we didn't get enough space back.
+  return TryAllocateTransientData(alignment, length);
+}
+
+VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize alignment,
+                                                   VkDeviceSize length) {
+  if (transient_tail_offset_ >= transient_head_offset_) {
+    // Tail follows head, so things are easy:
+    // |    H----T   |
+    if (transient_tail_offset_ + length <= transient_capacity_) {
+      // Allocation fits from tail to end of buffer, so grow.
+      // |    H----**T |
+      VkDeviceSize offset = transient_tail_offset_;
+      transient_tail_offset_ += length;
+      return offset;
+    } else if (length + kDeadZone <= transient_head_offset_) {
+      // Can't fit at the end, but can fit if we wrap around.
+      // |**T H----....|
+      VkDeviceSize offset = 0;
+      transient_tail_offset_ = length;
+      return offset;
+    }
+  } else {
+    // Head follows tail, so we're reversed:
+    // |----T    H---|
+    if (transient_tail_offset_ + length + kDeadZone <= transient_head_offset_) {
+      // Fits from tail to head.
+      // |----***T H---|
+      VkDeviceSize offset = transient_tail_offset_;
+      transient_tail_offset_ += length;
+      return offset;
+    }
+  }
+
+  // No more space.
   return VK_WHOLE_SIZE;
 }
 
