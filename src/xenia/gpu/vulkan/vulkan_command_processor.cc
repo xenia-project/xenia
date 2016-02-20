@@ -321,12 +321,11 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
                                                VulkanShader* pixel_shader) {
   // Upload the constants the shaders require.
   // These are optional, and if none are defined 0 will be returned.
-  VkDeviceSize vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
-      vertex_shader->constant_register_map());
-  VkDeviceSize pixel_constant_offset = buffer_cache_->UploadConstantRegisters(
+  auto constant_offsets = buffer_cache_->UploadConstantRegisters(
+      vertex_shader->constant_register_map(),
       pixel_shader->constant_register_map());
-  if (vertex_constant_offset == VK_WHOLE_SIZE ||
-      pixel_constant_offset == VK_WHOLE_SIZE) {
+  if (constant_offsets.first == VK_WHOLE_SIZE ||
+      constant_offsets.second == VK_WHOLE_SIZE) {
     // Shader wants constants but we couldn't upload them.
     return false;
   }
@@ -334,12 +333,14 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
   // Configure constant uniform access to point at our offsets.
   auto constant_descriptor_set = buffer_cache_->constant_descriptor_set();
   auto pipeline_layout = pipeline_cache_->pipeline_layout();
-  uint32_t constant_offsets[2] = {static_cast<uint32_t>(vertex_constant_offset),
-                                  static_cast<uint32_t>(pixel_constant_offset)};
-  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_layout, 0, 1, &constant_descriptor_set,
-                          static_cast<uint32_t>(xe::countof(constant_offsets)),
-                          constant_offsets);
+  uint32_t set_constant_offsets[2] = {
+      static_cast<uint32_t>(constant_offsets.first),
+      static_cast<uint32_t>(constant_offsets.second)};
+  vkCmdBindDescriptorSets(
+      command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1,
+      &constant_descriptor_set,
+      static_cast<uint32_t>(xe::countof(set_constant_offsets)),
+      set_constant_offsets);
 
   return true;
 }

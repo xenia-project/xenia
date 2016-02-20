@@ -57,9 +57,18 @@ class PipelineCache {
   void ClearCache();
 
  private:
+  // Creates or retrieves an existing pipeline for the currently configured
+  // state.
+  VkPipeline GetPipeline(const RenderState* render_state);
+
   // Gets a geometry shader used to emulate the given primitive type.
   // Returns nullptr if the primitive doesn't need to be emulated.
   VkShaderModule GetGeometryShader(PrimitiveType primitive_type);
+
+  // Sets required dynamic state on the command buffer.
+  // Only state that has changed since the last call will be set unless
+  // full_update is true.
+  bool SetDynamicState(VkCommandBuffer command_buffer, bool full_update);
 
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
@@ -80,6 +89,11 @@ class PipelineCache {
 
   // TODO(benvanik): geometry shader cache.
 
+  // Previously used pipeline. This matches our current state settings
+  // and allows us to quickly(ish) reuse the pipeline if no registers have
+  // changed.
+  VkPipeline current_pipeline_ = nullptr;
+
  private:
   enum class UpdateStatus {
     kCompatible,
@@ -87,13 +101,21 @@ class PipelineCache {
     kError,
   };
 
-  UpdateStatus UpdateShaders(PrimitiveType prim_type);
   UpdateStatus UpdateRenderTargets();
-  UpdateStatus UpdateState(PrimitiveType prim_type);
+  UpdateStatus UpdateState(VulkanShader* vertex_shader,
+                           VulkanShader* pixel_shader,
+                           PrimitiveType primitive_type);
+
+  UpdateStatus UpdateShaderStages(VulkanShader* vertex_shader,
+                                  VulkanShader* pixel_shader,
+                                  PrimitiveType primitive_type);
+  UpdateStatus UpdateVertexInputState(VulkanShader* vertex_shader);
+  UpdateStatus UpdateInputAssemblyState(PrimitiveType primitive_type);
   UpdateStatus UpdateViewportState();
-  UpdateStatus UpdateRasterizerState(PrimitiveType prim_type);
-  UpdateStatus UpdateBlendState();
+  UpdateStatus UpdateRasterizationState(PrimitiveType primitive_type);
+  UpdateStatus UpdateMultisampleState();
   UpdateStatus UpdateDepthStencilState();
+  UpdateStatus UpdateColorBlendState();
 
   bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
   bool SetShadowRegister(float* dest, uint32_t register_name);
@@ -113,6 +135,45 @@ class PipelineCache {
     UpdateRenderTargetsRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_render_targets_regs_;
+
+  struct UpdateShaderStagesRegisters {
+    PrimitiveType prim_type;
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t sq_program_cntl;
+    uint32_t sq_context_misc;
+    VulkanShader* vertex_shader;
+    VulkanShader* pixel_shader;
+
+    UpdateShaderStagesRegisters() { Reset(); }
+    void Reset() {
+      sq_program_cntl = 0;
+      vertex_shader = pixel_shader = nullptr;
+    }
+  } update_shader_stages_regs_;
+  VkPipelineShaderStageCreateInfo update_shader_stages_info_[3];
+  uint32_t update_shader_stages_stage_count_ = 0;
+
+  struct UpdateVertexInputStateRegisters {
+    VulkanShader* vertex_shader;
+
+    UpdateVertexInputStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_vertex_input_state_regs_;
+  VkPipelineVertexInputStateCreateInfo update_vertex_input_state_info_;
+  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[64];
+  VkVertexInputAttributeDescription
+      update_vertex_input_state_attrib_descrs_[64];
+
+  struct UpdateInputAssemblyStateRegisters {
+    PrimitiveType primitive_type;
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t multi_prim_ib_reset_index;
+
+    UpdateInputAssemblyStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_input_assembly_state_regs_;
+  VkPipelineInputAssemblyStateCreateInfo update_input_assembly_state_info_;
+
   struct UpdateViewportStateRegisters {
     // uint32_t pa_cl_clip_cntl;
     uint32_t rb_surface_info;
@@ -131,23 +192,26 @@ class PipelineCache {
     UpdateViewportStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_viewport_state_regs_;
-  struct UpdateRasterizerStateRegisters {
+  VkPipelineViewportStateCreateInfo update_viewport_state_info_;
+
+  struct UpdateRasterizationStateRegisters {
     uint32_t pa_su_sc_mode_cntl;
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t multi_prim_ib_reset_index;
     PrimitiveType prim_type;
 
-    UpdateRasterizerStateRegisters() { Reset(); }
+    UpdateRasterizationStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_rasterizer_state_regs_;
-  struct UpdateBlendStateRegisters {
-    uint32_t rb_blendcontrol[4];
-    float rb_blend_rgba[4];
+  } update_rasterization_state_regs_;
+  VkPipelineRasterizationStateCreateInfo update_rasterization_state_info_;
 
-    UpdateBlendStateRegisters() { Reset(); }
+  struct UpdateMultisampleStateeRegisters {
+    UpdateMultisampleStateeRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_blend_state_regs_;
+  } update_multisample_state_regs_;
+  VkPipelineMultisampleStateCreateInfo update_multisample_state_info_;
+
   struct UpdateDepthStencilStateRegisters {
     uint32_t rb_depthcontrol;
     uint32_t rb_stencilrefmask;
@@ -155,20 +219,40 @@ class PipelineCache {
     UpdateDepthStencilStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_depth_stencil_state_regs_;
-  struct UpdateShadersRegisters {
-    PrimitiveType prim_type;
-    uint32_t pa_su_sc_mode_cntl;
-    uint32_t sq_program_cntl;
-    uint32_t sq_context_misc;
-    VulkanShader* vertex_shader;
-    VulkanShader* pixel_shader;
+  VkPipelineDepthStencilStateCreateInfo update_depth_stencil_state_info_;
 
-    UpdateShadersRegisters() { Reset(); }
-    void Reset() {
-      sq_program_cntl = 0;
-      vertex_shader = pixel_shader = nullptr;
-    }
-  } update_shaders_regs_;
+  struct UpdateColorBlendStateRegisters {
+    uint32_t rb_colorcontrol;
+    uint32_t rb_color_mask;
+    uint32_t rb_blendcontrol[4];
+
+    UpdateColorBlendStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } update_color_blend_state_regs_;
+  VkPipelineColorBlendStateCreateInfo update_color_blend_state_info_;
+  VkPipelineColorBlendAttachmentState update_color_blend_attachment_states_[4];
+
+  struct SetDynamicStateRegisters {
+    uint32_t pa_sc_window_offset;
+
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t pa_sc_window_scissor_tl;
+    uint32_t pa_sc_window_scissor_br;
+
+    uint32_t rb_surface_info;
+    uint32_t pa_cl_vte_cntl;
+    float pa_cl_vport_xoffset;
+    float pa_cl_vport_yoffset;
+    float pa_cl_vport_zoffset;
+    float pa_cl_vport_xscale;
+    float pa_cl_vport_yscale;
+    float pa_cl_vport_zscale;
+
+    float rb_blend_rgba[4];
+
+    SetDynamicStateRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } set_dynamic_state_registers_;
 };
 
 }  // namespace vulkan

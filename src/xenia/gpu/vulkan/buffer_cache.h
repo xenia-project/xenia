@@ -47,8 +47,10 @@ class BufferCache {
   // The registers are tightly packed in order as [floats, ints, bools].
   // Returns an offset that can be used with the transient_descriptor_set or
   // VK_WHOLE_SIZE if the constants could not be uploaded (OOM).
-  VkDeviceSize UploadConstantRegisters(
-      const Shader::ConstantRegisterMap& constant_register_map);
+  // The returned offsets may alias.
+  std::pair<VkDeviceSize, VkDeviceSize> UploadConstantRegisters(
+      const Shader::ConstantRegisterMap& vertex_constant_register_map,
+      const Shader::ConstantRegisterMap& pixel_constant_register_map);
 
   // Uploads index buffer data from guest memory, possibly eliding with
   // recently uploaded data or cached copies.

@@ -188,8 +188,9 @@ BufferCache::~BufferCache() {
   vkDestroyBuffer(device_, transient_vertex_buffer_, nullptr);
 }
 
-VkDeviceSize BufferCache::UploadConstantRegisters(
-    const Shader::ConstantRegisterMap& constant_register_map) {
+std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
+    const Shader::ConstantRegisterMap& vertex_constant_register_map,
+    const Shader::ConstantRegisterMap& pixel_constant_register_map) {
   // Fat struct, including all registers:
   // struct {
   //   vec4 float[512];
@@ -202,7 +203,7 @@ VkDeviceSize BufferCache::UploadConstantRegisters(
   auto offset = AllocateTransientData(uniform_buffer_alignment_, total_size);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
-    return VK_WHOLE_SIZE;
+    return {VK_WHOLE_SIZE, VK_WHOLE_SIZE};
   }
 
   // Copy over all the registers.
@@ -219,7 +220,7 @@ VkDeviceSize BufferCache::UploadConstantRegisters(
               32 * 4);
   dest_ptr += 32 * 4;
 
-  return offset;
+  return {offset, offset};
 
 // Packed upload code.
 // This is not currently supported by the shaders, but would be awesome.
