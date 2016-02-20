@@ -84,7 +84,7 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
 }
 
 bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
-                                      VkRenderPass render_pass,
+                                      const RenderState* render_state,
                                       VulkanShader* vertex_shader,
                                       VulkanShader* pixel_shader,
                                       PrimitiveType primitive_type) {

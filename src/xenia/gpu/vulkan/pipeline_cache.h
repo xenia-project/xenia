@@ -14,6 +14,7 @@
 
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/gpu/vulkan/render_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
@@ -42,7 +43,8 @@ class PipelineCache {
   // in the command buffer is issued at this time.
   // Returns whether the pipeline could be successfully created.
   bool ConfigurePipeline(VkCommandBuffer command_buffer,
-                         VkRenderPass render_pass, VulkanShader* vertex_shader,
+                         const RenderState* render_state,
+                         VulkanShader* vertex_shader,
                          VulkanShader* pixel_shader,
                          PrimitiveType primitive_type);
 

@@ -47,6 +47,9 @@ class BaseFencedPool {
     }
   }
 
+  // True if one or more batches are still pending on the GPU.
+  bool has_pending() const { return pending_batch_list_head_ != nullptr; }
+
   // Checks all pending batches for completion and scavenges their entries.
   // This should be called as frequently as reasonable.
   void Scavenge() {

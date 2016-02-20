@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/vulkan/render_cache.h"
 
+#include <algorithm>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -20,55 +22,711 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
+using namespace xe::gpu::xenos;
 using xe::ui::vulkan::CheckResult;
+
+constexpr uint32_t kEdramBufferCapacity = 10 * 1024 * 1024;
+
+VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return VK_FORMAT_R8G8B8A8_UNORM;
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+      return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+      // WARNING: this is wrong, most likely - no float form in vulkan?
+      XELOGW("Unsupported EDRAM format k_2_10_10_10_FLOAT used");
+      return VK_FORMAT_A2R10G10B10_SSCALED_PACK32;
+    case ColorRenderTargetFormat::k_16_16:
+      return VK_FORMAT_R16G16_UNORM;
+    case ColorRenderTargetFormat::k_16_16_16_16:
+      return VK_FORMAT_R16G16B16A16_UNORM;
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+      return VK_FORMAT_R16G16_SFLOAT;
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      return VK_FORMAT_R16G16B16A16_SFLOAT;
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return VK_FORMAT_R32_SFLOAT;
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return VK_FORMAT_R32G32_SFLOAT;
+    default:
+      assert_unhandled_case(key.edram_format);
+      return VK_FORMAT_UNDEFINED;
+  }
+}
+
+VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
+  switch (format) {
+    case DepthRenderTargetFormat::kD24S8:
+      return VK_FORMAT_D24_UNORM_S8_UINT;
+    case DepthRenderTargetFormat::kD24FS8:
+      // TODO(benvanik): some way to emulate? resolve-time flag?
+      XELOGW("Unsupported EDRAM format kD24FS8 used");
+      return VK_FORMAT_D24_UNORM_S8_UINT;
+    default:
+      return VK_FORMAT_UNDEFINED;
+  }
+}
+
+// Cached view into the EDRAM memory.
+// The image is aliased to a region of the edram_memory_ based on the tile
+// parameters.
+// TODO(benvanik): reuse VkImage's with multiple VkViews for compatible
+//     formats?
+class CachedTileView {
+ public:
+  // Key identifying the view in the cache.
+  TileViewKey key;
+  // Image mapped into EDRAM.
+  VkImage image = nullptr;
+  // Simple view on the image matching the format.
+  VkImageView image_view = nullptr;
+
+  CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
+                 TileViewKey view_key);
+  ~CachedTileView();
+
+  bool IsEqual(const TileViewKey& other_key) const {
+    auto a = reinterpret_cast<const uint64_t*>(&key);
+    auto b = reinterpret_cast<const uint64_t*>(&other_key);
+    return *a == *b;
+  }
+
+ private:
+  VkDevice device_ = nullptr;
+};
+
+// Cached framebuffer referencing tile attachments.
+// Each framebuffer is specific to a render pass. Ugh.
+class CachedFramebuffer {
+ public:
+  // TODO(benvanik): optimized key? tile base + format for each?
+
+  // Framebuffer with the attachments ready for use in the parent render pass.
+  VkFramebuffer handle = nullptr;
+  // Width of the framebuffer in pixels.
+  uint32_t width = 0;
+  // Height of the framebuffer in pixels.
+  uint32_t height = 0;
+  // References to color attachments, if used.
+  CachedTileView* color_attachments[4] = {nullptr};
+  // Reference to depth/stencil attachment, if used.
+  CachedTileView* depth_stencil_attachment = nullptr;
+
+  CachedFramebuffer(VkDevice device, VkRenderPass render_pass,
+                    uint32_t surface_width, uint32_t surface_height,
+                    CachedTileView* target_color_attachments[4],
+                    CachedTileView* target_depth_stencil_attachment);
+  ~CachedFramebuffer();
+
+  bool IsCompatible(const RenderConfiguration& desired_config) const;
+
+ private:
+  VkDevice device_ = nullptr;
+};
+
+// Cached render passes based on register states.
+// Each render pass is dependent on the format, dimensions, and use of
+// all attachments. The same render pass can be reused for multiple
+// framebuffers pointing at various tile views, though those cached
+// framebuffers are specific to the render pass.
+class CachedRenderPass {
+ public:
+  // Configuration this pass was created with.
+  RenderConfiguration config;
+  // Initialized render pass for the register state.
+  VkRenderPass handle = nullptr;
+  // Cache of framebuffers for the various tile attachments.
+  std::vector<CachedFramebuffer*> cached_framebuffers;
+
+  CachedRenderPass(VkDevice device, const RenderConfiguration& desired_config);
+  ~CachedRenderPass();
+
+  bool IsCompatible(const RenderConfiguration& desired_config) const;
+
+ private:
+  VkDevice device_ = nullptr;
+};
+
+CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
+                               TileViewKey view_key)
+    : device_(device), key(std::move(view_key)) {
+  // Map format to Vulkan.
+  VkFormat vulkan_format = VK_FORMAT_UNDEFINED;
+  uint32_t bpp = 4;
+  if (key.color_or_depth) {
+    auto edram_format = static_cast<ColorRenderTargetFormat>(key.edram_format);
+    vulkan_format = ColorRenderTargetFormatToVkFormat(edram_format);
+    switch (edram_format) {
+      case ColorRenderTargetFormat::k_16_16_16_16:
+      case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      case ColorRenderTargetFormat::k_32_32_FLOAT:
+        bpp = 8;
+        break;
+      default:
+        bpp = 4;
+        break;
+    }
+  } else {
+    auto edram_format = static_cast<DepthRenderTargetFormat>(key.edram_format);
+    vulkan_format = DepthRenderTargetFormatToVkFormat(edram_format);
+  }
+  assert_true(vulkan_format != VK_FORMAT_UNDEFINED);
+  assert_true(bpp == 4);
+
+  // Create the image with the desired properties.
+  VkImageCreateInfo image_info;
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.pNext = nullptr;
+  // TODO(benvanik): exploit VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT so we can have
+  //     multiple views.
+  image_info.flags = 0;
+  image_info.imageType = VK_IMAGE_TYPE_2D;
+  image_info.format = vulkan_format;
+  image_info.extent.width = key.tile_width * 80;
+  image_info.extent.height = key.tile_height * 16;
+  image_info.extent.depth = 1;
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  // TODO(benvanik): native MSAA support?
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT;
+  image_info.usage |= key.color_or_depth
+                          ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                          : VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_info.queueFamilyIndexCount = 0;
+  image_info.pQueueFamilyIndices = nullptr;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+  auto err = vkCreateImage(device_, &image_info, nullptr, &image);
+  CheckResult(err, "vkCreateImage");
+
+  // Verify our assumptions about memory layout are correct.
+  VkDeviceSize edram_offset = key.tile_offset * 5120;
+  VkMemoryRequirements memory_requirements;
+  vkGetImageMemoryRequirements(device, image, &memory_requirements);
+  assert_true(edram_offset + memory_requirements.size <= kEdramBufferCapacity);
+  assert_true(edram_offset % memory_requirements.alignment == 0);
+
+  // Bind to the region of EDRAM we occupy.
+  err = vkBindImageMemory(device_, image, edram_memory, edram_offset);
+  CheckResult(err, "vkBindImageMemory");
+
+  // Create the image view we'll use to attach it to a framebuffer.
+  VkImageViewCreateInfo image_view_info;
+  image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  image_view_info.pNext = nullptr;
+  image_view_info.flags = 0;
+  image_view_info.image = image;
+  image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  image_view_info.format = image_info.format;
+  // TODO(benvanik): manipulate? may not be able to when attached.
+  image_view_info.components = {
+      VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
+      VK_COMPONENT_SWIZZLE_A,
+  };
+  image_view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  if (key.color_or_depth) {
+    image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  } else {
+    image_view_info.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  }
+  err = vkCreateImageView(device_, &image_view_info, nullptr, &image_view);
+  CheckResult(err, "vkCreateImageView");
+
+  // TODO(benvanik): transition to general layout?
+}
+
+CachedTileView::~CachedTileView() {
+  vkDestroyImageView(device_, image_view, nullptr);
+  vkDestroyImage(device_, image, nullptr);
+}
+
+CachedFramebuffer::CachedFramebuffer(
+    VkDevice device, VkRenderPass render_pass, uint32_t surface_width,
+    uint32_t surface_height, CachedTileView* target_color_attachments[4],
+    CachedTileView* target_depth_stencil_attachment)
+    : device_(device),
+      width(surface_width),
+      height(surface_height),
+      depth_stencil_attachment(target_depth_stencil_attachment) {
+  for (int i = 0; i < 4; ++i) {
+    color_attachments[i] = target_color_attachments[i];
+  }
+
+  // Create framebuffer.
+  VkImageView image_views[5] = {nullptr};
+  int image_view_count = 0;
+  for (int i = 0; i < 4; ++i) {
+    if (color_attachments[i]) {
+      image_views[image_view_count++] = color_attachments[i]->image_view;
+    }
+  }
+  if (depth_stencil_attachment) {
+    image_views[image_view_count++] = depth_stencil_attachment->image_view;
+  }
+  VkFramebufferCreateInfo framebuffer_info;
+  framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+  framebuffer_info.pNext = nullptr;
+  framebuffer_info.renderPass = render_pass;
+  framebuffer_info.attachmentCount = image_view_count;
+  framebuffer_info.pAttachments = image_views;
+  framebuffer_info.width = width;
+  framebuffer_info.height = height;
+  framebuffer_info.layers = 1;
+  auto err = vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &handle);
+  CheckResult(err, "vkCreateFramebuffer");
+}
+
+CachedFramebuffer::~CachedFramebuffer() {
+  vkDestroyFramebuffer(device_, handle, nullptr);
+}
+
+bool CachedFramebuffer::IsCompatible(
+    const RenderConfiguration& desired_config) const {
+  // We already know all render pass things line up, so let's verify dimensions,
+  // edram offsets, etc. We need an exact match.
+  // TODO(benvanik): separate image views from images in tiles and store in fb?
+  for (int i = 0; i < 4; ++i) {
+    // Ensure the the attachment points to the same tile.
+    if (!color_attachments[i]) {
+      continue;
+    }
+    auto& color_info = color_attachments[i]->key;
+    auto& desired_color_info = desired_config.color[i];
+    if (color_info.tile_offset != desired_color_info.edram_base ||
+        color_info.edram_format !=
+            static_cast<uint16_t>(desired_color_info.format)) {
+      return false;
+    }
+  }
+  // Ensure depth attachment is correct.
+  if (depth_stencil_attachment &&
+      (depth_stencil_attachment->key.tile_offset !=
+           desired_config.depth_stencil.edram_base ||
+       depth_stencil_attachment->key.edram_format !=
+           static_cast<uint16_t>(desired_config.depth_stencil.format))) {
+    return false;
+  }
+  return true;
+}
+
+CachedRenderPass::CachedRenderPass(VkDevice device,
+                                   const RenderConfiguration& desired_config)
+    : device_(device) {
+  std::memcpy(&config, &desired_config, sizeof(config));
+
+  // Initialize all attachments to default unused.
+  // As we set layout(location=RT) in shaders we must always provide 4.
+  VkAttachmentDescription attachments[5];
+  for (int i = 0; i < 4; ++i) {
+    attachments[i].flags = 0;
+    attachments[i].format = VK_FORMAT_UNDEFINED;
+    attachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    attachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[i].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+    attachments[i].finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+  }
+  auto& depth_stencil_attachment = attachments[4];
+  depth_stencil_attachment.flags = 0;
+  depth_stencil_attachment.format = VK_FORMAT_UNDEFINED;
+  depth_stencil_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  depth_stencil_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+  depth_stencil_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+  depth_stencil_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+  depth_stencil_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+  depth_stencil_attachment.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+  depth_stencil_attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+  VkAttachmentReference depth_stencil_attachment_ref;
+  depth_stencil_attachment_ref.attachment = VK_ATTACHMENT_UNUSED;
+  depth_stencil_attachment_ref.layout = VK_IMAGE_LAYOUT_GENERAL;
+
+  // Configure attachments based on what's enabled.
+  VkAttachmentReference color_attachment_refs[4];
+  for (int i = 0; i < 4; ++i) {
+    auto& color_config = config.color[i];
+    // TODO(benvanik): see how loose we can be with these.
+    attachments[i].format =
+        ColorRenderTargetFormatToVkFormat(color_config.format);
+    auto& color_attachment_ref = color_attachment_refs[i];
+    color_attachment_ref.attachment = i;
+    color_attachment_ref.layout = VK_IMAGE_LAYOUT_GENERAL;
+  }
+  auto& depth_config = config.depth_stencil;
+  depth_stencil_attachment_ref.attachment = 4;
+  depth_stencil_attachment.format =
+      DepthRenderTargetFormatToVkFormat(depth_config.format);
+
+  // Single subpass that writes to our attachments.
+  VkSubpassDescription subpass_info;
+  subpass_info.flags = 0;
+  subpass_info.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  subpass_info.inputAttachmentCount = 0;
+  subpass_info.pInputAttachments = nullptr;
+  subpass_info.colorAttachmentCount = 4;
+  subpass_info.pColorAttachments = color_attachment_refs;
+  subpass_info.pResolveAttachments = nullptr;
+  subpass_info.pDepthStencilAttachment = &depth_stencil_attachment_ref;
+  subpass_info.preserveAttachmentCount = 0;
+  subpass_info.pPreserveAttachments = nullptr;
+
+  // Create the render pass.
+  VkRenderPassCreateInfo render_pass_info;
+  render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  render_pass_info.pNext = nullptr;
+  render_pass_info.attachmentCount = 5;
+  render_pass_info.pAttachments = attachments;
+  render_pass_info.subpassCount = 1;
+  render_pass_info.pSubpasses = &subpass_info;
+  render_pass_info.dependencyCount = 0;
+  render_pass_info.pDependencies = nullptr;
+  auto err = vkCreateRenderPass(device_, &render_pass_info, nullptr, &handle);
+  CheckResult(err, "vkCreateRenderPass");
+}
+
+CachedRenderPass::~CachedRenderPass() {
+  for (auto framebuffer : cached_framebuffers) {
+    delete framebuffer;
+  }
+  cached_framebuffers.clear();
+
+  vkDestroyRenderPass(device_, handle, nullptr);
+}
+
+bool CachedRenderPass::IsCompatible(
+    const RenderConfiguration& desired_config) const {
+  for (int i = 0; i < 4; ++i) {
+    // TODO(benvanik): allow compatible vulkan formats.
+    if (config.color[i].format != desired_config.color[i].format) {
+      return false;
+    }
+  }
+  if (config.depth_stencil.format != desired_config.depth_stencil.format) {
+    return false;
+  }
+  return true;
+}
 
 RenderCache::RenderCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(*device) {}
+    : register_file_(register_file), device_(*device) {
+  // Create the buffer we'll bind to our memory.
+  // We do this first so we can get the right memory type.
+  VkBufferCreateInfo buffer_info;
+  buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  buffer_info.pNext = nullptr;
+  buffer_info.flags = 0;
+  buffer_info.size = kEdramBufferCapacity;
+  buffer_info.usage =
+      VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+  buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  buffer_info.queueFamilyIndexCount = 0;
+  buffer_info.pQueueFamilyIndices = nullptr;
+  auto err = vkCreateBuffer(*device, &buffer_info, nullptr, &edram_buffer_);
+  CheckResult(err, "vkCreateBuffer");
 
-RenderCache::~RenderCache() = default;
+  // Query requirements for the buffer.
+  // It should be 1:1.
+  VkMemoryRequirements buffer_requirements;
+  vkGetBufferMemoryRequirements(device_, edram_buffer_, &buffer_requirements);
+  assert_true(buffer_requirements.size == kEdramBufferCapacity);
 
-VkRenderPass RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
-                                          VulkanShader* vertex_shader,
-                                          VulkanShader* pixel_shader) {
+  // Create a dummy image so we can see what memory bits it requires.
+  // They should overlap with the buffer requirements but are likely more
+  // strict.
+  VkImageCreateInfo test_image_info;
+  test_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  test_image_info.pNext = nullptr;
+  test_image_info.flags = 0;
+  test_image_info.imageType = VK_IMAGE_TYPE_2D;
+  test_image_info.format = VK_FORMAT_R8G8B8A8_UINT;
+  test_image_info.extent.width = 128;
+  test_image_info.extent.height = 128;
+  test_image_info.extent.depth = 1;
+  test_image_info.mipLevels = 1;
+  test_image_info.arrayLayers = 1;
+  test_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  test_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  test_image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  test_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  test_image_info.queueFamilyIndexCount = 0;
+  test_image_info.pQueueFamilyIndices = nullptr;
+  test_image_info.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+  VkImage test_image = nullptr;
+  err = vkCreateImage(device_, &test_image_info, nullptr, &test_image);
+  CheckResult(err, "vkCreateImage");
+  VkMemoryRequirements image_requirements;
+  vkGetImageMemoryRequirements(device_, test_image, &image_requirements);
+  vkDestroyImage(device_, test_image, nullptr);
+  assert_true((image_requirements.memoryTypeBits &
+               buffer_requirements.memoryTypeBits) != 0);
+
+  // Allocate EDRAM memory.
+  VkMemoryRequirements memory_requirements;
+  memory_requirements.size = buffer_requirements.size;
+  memory_requirements.alignment = buffer_requirements.alignment;
+  memory_requirements.memoryTypeBits = image_requirements.memoryTypeBits;
+  // TODO(benvanik): do we need it host visible?
+  edram_memory_ = device->AllocateMemory(memory_requirements, 0);
+
+  // Bind buffer to map our entire memory.
+  vkBindBufferMemory(device_, edram_buffer_, edram_memory_, 0);
+}
+
+RenderCache::~RenderCache() {
+  // TODO(benvanik): wait for idle.
+
+  // Dispose all render passes (and their framebuffers).
+  for (auto render_pass : cached_render_passes_) {
+    delete render_pass;
+  }
+  cached_render_passes_.clear();
+
+  // Dispose all of our cached tile views.
+  for (auto tile_view : cached_tile_views_) {
+    delete tile_view;
+  }
+  cached_tile_views_.clear();
+
+  // Release underlying EDRAM memory.
+  vkDestroyBuffer(device_, edram_buffer_, nullptr);
+  vkFreeMemory(device_, edram_memory_, nullptr);
+}
+
+const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
+                                                VulkanShader* vertex_shader,
+                                                VulkanShader* pixel_shader) {
   assert_null(current_command_buffer_);
   current_command_buffer_ = command_buffer;
 
   // Lookup or construct a render pass compatible with our current state.
-  VkRenderPass render_pass = nullptr;
+  auto config = &current_state_.config;
+  CachedRenderPass* render_pass = nullptr;
+  CachedFramebuffer* framebuffer = nullptr;
+  auto& regs = shadow_registers_;
+  bool dirty = false;
+  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
+  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
+  dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
+  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
+  dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
+                             XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  if (!dirty && current_state_.render_pass) {
+    // No registers have changed so we can reuse the previous render pass -
+    // just begin with what we had.
+    render_pass = current_state_.render_pass;
+    framebuffer = current_state_.framebuffer;
+  } else {
+    // Re-parse configuration.
+    if (!ParseConfiguration(config)) {
+      return nullptr;
+    }
 
-  // Begin render pass.
+    // Lookup or generate a new render pass and framebuffer for the new state.
+    if (!ConfigureRenderPass(config, &render_pass, &framebuffer)) {
+      return nullptr;
+    }
+    current_state_.render_pass = render_pass;
+    current_state_.framebuffer = framebuffer;
+  }
+  if (!render_pass) {
+    return nullptr;
+  }
+
+  // Setup render pass in command buffer.
+  // This is meant to preserve previous contents as we may be called
+  // repeatedly.
   VkRenderPassBeginInfo render_pass_begin_info;
   render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   render_pass_begin_info.pNext = nullptr;
-  render_pass_begin_info.renderPass = render_pass;
-
-  // Target framebuffer.
-  // render_pass_begin_info.framebuffer = current_buffer.framebuffer;
+  render_pass_begin_info.renderPass = render_pass->handle;
+  render_pass_begin_info.framebuffer = framebuffer->handle;
 
   // Render into the entire buffer (or at least tell the API we are doing
   // this). In theory it'd be better to clip this to the scissor region, but
   // the docs warn anything but the full framebuffer may be slow.
   render_pass_begin_info.renderArea.offset.x = 0;
   render_pass_begin_info.renderArea.offset.y = 0;
-  // render_pass_begin_info.renderArea.extent.width = surface_width_;
-  // render_pass_begin_info.renderArea.extent.height = surface_height_;
+  render_pass_begin_info.renderArea.extent.width = config->surface_pitch_px;
+  render_pass_begin_info.renderArea.extent.height = config->surface_height_px;
 
   // Configure clear color, if clearing.
-  VkClearValue color_clear_value;
-  color_clear_value.color.float32[0] = 238 / 255.0f;
-  color_clear_value.color.float32[1] = 238 / 255.0f;
-  color_clear_value.color.float32[2] = 238 / 255.0f;
-  color_clear_value.color.float32[3] = 1.0f;
-  VkClearValue clear_values[] = {color_clear_value};
-  render_pass_begin_info.clearValueCount =
-      static_cast<uint32_t>(xe::countof(clear_values));
-  render_pass_begin_info.pClearValues = clear_values;
+  // TODO(benvanik): enable clearing here during resolve?
+  render_pass_begin_info.clearValueCount = 0;
+  render_pass_begin_info.pClearValues = nullptr;
 
+  // Begin the render pass.
   vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
                        VK_SUBPASS_CONTENTS_INLINE);
 
-  return render_pass;
+  return &current_state_;
+}
+
+bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
+  auto& regs = shadow_registers_;
+
+  // RB_MODECONTROL
+  // Rough mode control (color, color+depth, etc).
+  config->mode_control = static_cast<ModeControl>(regs.rb_modecontrol & 0x7);
+
+  // RB_SURFACE_INFO
+  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  config->surface_pitch_px = regs.rb_surface_info & 0x3FFF;
+  config->surface_msaa =
+      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+
+  // TODO(benvanik): verify min/max so we don't go out of bounds.
+  // TODO(benvanik): has to be a good way to get height.
+  // Guess the height from the scissor height.
+  // It's wildly inaccurate, but I've never seen it be bigger than the
+  // EDRAM tiling.
+  uint32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
+  uint32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
+  config->surface_height_px = std::min(2560u, xe::round_up(ws_h, 16));
+
+  // Color attachment configuration.
+  if (config->mode_control == ModeControl::kColorDepth) {
+    uint32_t color_info[4] = {
+        regs.rb_color_info, regs.rb_color1_info, regs.rb_color2_info,
+        regs.rb_color3_info,
+    };
+    for (int i = 0; i < 4; ++i) {
+      config->color[i].edram_base = color_info[i] & 0xFFF;
+      config->color[i].format =
+          static_cast<ColorRenderTargetFormat>((color_info[i] >> 16) & 0xF);
+      // We don't support GAMMA formats, so switch them to what we do support.
+      switch (config->color[i].format) {
+        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+          config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
+          break;
+      }
+    }
+  } else {
+    for (int i = 0; i < 4; ++i) {
+      config->color[i].edram_base = 0;
+      config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
+    }
+  }
+
+  // Depth/stencil attachment configuration.
+  if (config->mode_control == ModeControl::kColorDepth ||
+      config->mode_control == ModeControl::kDepth) {
+    config->depth_stencil.edram_base = regs.rb_depth_info & 0xFFF;
+    config->depth_stencil.format =
+        static_cast<DepthRenderTargetFormat>((regs.rb_depth_info >> 16) & 0x1);
+  } else {
+    config->depth_stencil.edram_base = 0;
+    config->depth_stencil.format = DepthRenderTargetFormat::kD24S8;
+  }
+
+  return true;
+}
+
+bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
+                                      CachedRenderPass** out_render_pass,
+                                      CachedFramebuffer** out_framebuffer) {
+  *out_render_pass = nullptr;
+  *out_framebuffer = nullptr;
+
+  // TODO(benvanik): better lookup.
+  // Attempt to find the render pass in our cache.
+  CachedRenderPass* render_pass = nullptr;
+  for (auto cached_render_pass : cached_render_passes_) {
+    if (cached_render_pass->IsCompatible(*config)) {
+      // Found a match.
+      render_pass = cached_render_pass;
+      break;
+    }
+  }
+
+  // If no render pass was found in the cache create a new one.
+  if (!render_pass) {
+    render_pass = new CachedRenderPass(device_, *config);
+    cached_render_passes_.push_back(render_pass);
+  }
+
+  // TODO(benvanik): better lookup.
+  // Attempt to find the framebuffer in the render pass cache.
+  CachedFramebuffer* framebuffer = nullptr;
+  for (auto cached_framebuffer : render_pass->cached_framebuffers) {
+    if (cached_framebuffer->IsCompatible(*config)) {
+      // Found a match.
+      framebuffer = cached_framebuffer;
+      break;
+    }
+  }
+
+  // If no framebuffer was found in the cache create a new one.
+  if (!framebuffer) {
+    CachedTileView* target_color_attachments[4] = {nullptr, nullptr, nullptr,
+                                                   nullptr};
+    for (int i = 0; i < 4; ++i) {
+      TileViewKey color_key;
+      color_key.tile_offset = config->color[i].edram_base;
+      color_key.tile_width = config->surface_pitch_px / 80;
+      color_key.tile_height = config->surface_height_px / 16;
+      color_key.color_or_depth = 1;
+      color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
+      target_color_attachments[i] = GetTileView(color_key);
+      if (!target_color_attachments) {
+        XELOGE("Failed to get tile view for color attachment");
+        return false;
+      }
+    }
+
+    TileViewKey depth_stencil_key;
+    depth_stencil_key.tile_offset = config->depth_stencil.edram_base;
+    depth_stencil_key.tile_width = config->surface_pitch_px / 80;
+    depth_stencil_key.tile_height = config->surface_height_px / 16;
+    depth_stencil_key.color_or_depth = 0;
+    depth_stencil_key.edram_format =
+        static_cast<uint16_t>(config->depth_stencil.format);
+    auto target_depth_stencil_attachment = GetTileView(depth_stencil_key);
+    if (!target_depth_stencil_attachment) {
+      XELOGE("Failed to get tile view for depth/stencil attachment");
+      return false;
+    }
+
+    framebuffer = new CachedFramebuffer(
+        device_, render_pass->handle, config->surface_pitch_px,
+        config->surface_height_px, target_color_attachments,
+        target_depth_stencil_attachment);
+    render_pass->cached_framebuffers.push_back(framebuffer);
+  }
+
+  *out_render_pass = render_pass;
+  *out_framebuffer = framebuffer;
+  return true;
+}
+
+CachedTileView* RenderCache::GetTileView(const TileViewKey& view_key) {
+  // Check the cache.
+  // TODO(benvanik): better lookup.
+  for (auto tile_view : cached_tile_views_) {
+    if (tile_view->IsEqual(view_key)) {
+      return tile_view;
+    }
+  }
+
+  // Create a new tile and add to the cache.
+  auto tile_view = new CachedTileView(device_, edram_memory_, view_key);
+  cached_tile_views_.push_back(tile_view);
+  return tile_view;
 }
 
 void RenderCache::EndRenderPass() {
@@ -82,6 +740,15 @@ void RenderCache::EndRenderPass() {
 
 void RenderCache::ClearCache() {
   // TODO(benvanik): caching.
+}
+
+bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
+  uint32_t value = register_file_->values[register_name].u32;
+  if (*dest == value) {
+    return false;
+  }
+  *dest = value;
+  return true;
 }
 
 }  // namespace vulkan

@@ -129,6 +129,11 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     return false;
   }
 
+  // Some tools *cough* renderdoc *cough* can't handle multiple queues.
+  if (FLAGS_vulkan_primary_queue_only) {
+    queue_count = 1;
+  }
+
   VkDeviceQueueCreateInfo queue_info;
   queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
   queue_info.pNext = nullptr;

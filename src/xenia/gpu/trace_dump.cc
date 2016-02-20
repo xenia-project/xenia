@@ -13,6 +13,7 @@
 
 #include "third_party/stb/stb_image_write.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/profiling.h"
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
@@ -189,10 +190,16 @@ void TraceDump::Run() {
   });
 
   xe::threading::Fence capture_fence;
+  bool did_capture = false;
   loop_->PostDelayed(
       [&]() {
         // Capture.
         auto raw_image = window_->context()->Capture();
+        if (!raw_image) {
+          // Failed to capture anything.
+          capture_fence.Signal();
+          return;
+        }
 
         // Save framebuffer png.
         std::string png_path = xe::to_string(base_output_path_ + L".png");
@@ -201,6 +208,7 @@ void TraceDump::Run() {
                        raw_image->data.data(),
                        static_cast<int>(raw_image->stride));
 
+        did_capture = true;
         capture_fence.Signal();
       },
       50);
@@ -211,10 +219,13 @@ void TraceDump::Run() {
   loop_->Quit();
   loop_->AwaitQuit();
 
-  player_.reset();
-  emulator_.reset();
+  Profiler::Shutdown();
   window_.reset();
   loop_.reset();
+  player_.reset();
+  emulator_.reset();
+
+  // TODO(benvanik): die if failed to capture?
 }
 
 }  //  namespace gpu

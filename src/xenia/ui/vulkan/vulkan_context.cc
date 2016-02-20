@@ -142,7 +142,7 @@ void VulkanContext::EndSwap() {
 }
 
 std::unique_ptr<RawImage> VulkanContext::Capture() {
-  assert_always();
+  // TODO(benvanik): read back swap chain front buffer.
   return nullptr;
 }
 

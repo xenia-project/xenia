@@ -21,6 +21,58 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
+// TODO(benvanik): make public API?
+class CachedTileView;
+class CachedFramebuffer;
+class CachedRenderPass;
+
+// Uniquely identifies EDRAM tiles.
+struct TileViewKey {
+  // Offset into EDRAM in 5120b tiles.
+  uint16_t tile_offset;
+  // Tile width of the view in base 80x16 tiles.
+  uint16_t tile_width;
+  // Tile height of the view in base 80x16 tiles.
+  uint16_t tile_height;
+  // 1 if format is ColorRenderTargetFormat, else DepthRenderTargetFormat.
+  uint16_t color_or_depth : 1;
+  // Either ColorRenderTargetFormat or DepthRenderTargetFormat.
+  uint16_t edram_format : 15;
+};
+static_assert(sizeof(TileViewKey) == 8, "Key must be tightly packed");
+
+// Parsed render configuration from the current render state.
+struct RenderConfiguration {
+  // Render mode (color+depth, depth-only, etc).
+  xenos::ModeControl mode_control;
+  // Target surface pitch, in pixels.
+  uint32_t surface_pitch_px;
+  // ESTIMATED target surface height, in pixels.
+  uint32_t surface_height_px;
+  // Surface MSAA setting.
+  MsaaSamples surface_msaa;
+  // Color attachments for the 4 render targets.
+  struct {
+    uint32_t edram_base;
+    ColorRenderTargetFormat format;
+  } color[4];
+  // Depth/stencil attachment.
+  struct {
+    uint32_t edram_base;
+    DepthRenderTargetFormat format;
+  } depth_stencil;
+};
+
+// Current render state based on the register-specified configuration.
+struct RenderState {
+  // Parsed configuration.
+  RenderConfiguration config;
+  // Render pass (to be used with pipelines/etc).
+  CachedRenderPass* render_pass = nullptr;
+  // Target framebuffer bound to the render pass.
+  CachedFramebuffer* framebuffer = nullptr;
+};
+
 // Manages the virtualized EDRAM and the render target cache.
 //
 // On the 360 the render target is an opaque block of memory in EDRAM that's
@@ -165,9 +217,9 @@ class RenderCache {
 
   // Begins a render pass targeting the state-specified framebuffer formats.
   // The command buffer will be transitioned into the render pass phase.
-  VkRenderPass BeginRenderPass(VkCommandBuffer command_buffer,
-                               VulkanShader* vertex_shader,
-                               VulkanShader* pixel_shader);
+  const RenderState* BeginRenderPass(VkCommandBuffer command_buffer,
+                                     VulkanShader* vertex_shader,
+                                     VulkanShader* pixel_shader);
 
   // Ends the current render pass.
   // The command buffer will be transitioned out of the render pass phase.
@@ -177,8 +229,56 @@ class RenderCache {
   void ClearCache();
 
  private:
+  // Parses the current state into a configuration object.
+  bool ParseConfiguration(RenderConfiguration* config);
+
+  // Gets or creates a render pass and frame buffer for the given configuration.
+  // This attempts to reuse as much as possible across render passes and
+  // framebuffers.
+  bool ConfigureRenderPass(RenderConfiguration* config,
+                           CachedRenderPass** out_render_pass,
+                           CachedFramebuffer** out_framebuffer);
+
+  // Gets or creates a tile view with the given parameters.
+  CachedTileView* GetTileView(const TileViewKey& view_key);
+
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
+
+  // Entire 10MiB of EDRAM, aliased to hell by various VkImages.
+  VkDeviceMemory edram_memory_ = nullptr;
+  // Buffer overlayed 1:1 with edram_memory_ to allow raw access.
+  VkBuffer edram_buffer_ = nullptr;
+
+  // Cache of VkImage and VkImageView's for all of our EDRAM tilings.
+  // TODO(benvanik): non-linear lookup? Should only be a small number of these.
+  std::vector<CachedTileView*> cached_tile_views_;
+
+  // Cache of render passes based on formats.
+  std::vector<CachedRenderPass*> cached_render_passes_;
+
+  // Shadows of the registers that impact the render pass we choose.
+  // If the registers don't change between passes we can quickly reuse the
+  // previous one.
+  struct ShadowRegisters {
+    uint32_t rb_modecontrol;
+    uint32_t rb_surface_info;
+    uint32_t rb_color_info;
+    uint32_t rb_color1_info;
+    uint32_t rb_color2_info;
+    uint32_t rb_color3_info;
+    uint32_t rb_depth_info;
+    uint32_t pa_sc_window_scissor_tl;
+    uint32_t pa_sc_window_scissor_br;
+
+    ShadowRegisters() { Reset(); }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
+  } shadow_registers_;
+  bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
+
+  // Configuration used for the current/previous Begin/End, representing the
+  // current shadow register state.
+  RenderState current_state_;
 
   // Only valid during a BeginRenderPass/EndRenderPass block.
   VkCommandBuffer current_command_buffer_ = nullptr;

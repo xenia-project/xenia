@@ -31,7 +31,7 @@ class VulkanShader : public Shader {
   bool Prepare();
 
  private:
-   VkDevice device_ = nullptr;
+  VkDevice device_ = nullptr;
   VkShaderModule shader_module_ = nullptr;
 };
 

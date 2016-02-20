@@ -30,5 +30,6 @@
 #define XELOGVK XELOGI
 
 DECLARE_bool(vulkan_validation);
+DECLARE_bool(vulkan_primary_queue_only);
 
 #endif  // XENIA_UI_VULKAN_VULKAN_H_

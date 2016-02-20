@@ -179,9 +179,17 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // We need the to do just about anything so validate here.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   auto pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
-  if (!vertex_shader || !vertex_shader->is_valid() || !pixel_shader ||
-      !pixel_shader->is_valid()) {
-    // Skipped because we can't understand the shader.
+  if (!vertex_shader || !vertex_shader->is_valid()) {
+    // Always need a vertex shader.
+    return true;
+  }
+  // Depth-only mode doesn't need a pixel shader (we'll use a fake one).
+  if (enable_mode == ModeControl::kDepth) {
+    // Use a dummy pixel shader when required.
+    // TODO(benvanik): dummy pixel shader.
+    assert_not_null(pixel_shader);
+  } else if (!pixel_shader || !pixel_shader->is_valid()) {
+    // Need a pixel shader in normal color mode.
     return true;
   }
 
@@ -198,16 +206,16 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Begin the render pass.
   // This will setup our framebuffer and begin the pass in the command buffer.
-  VkRenderPass render_pass = render_cache_->BeginRenderPass(
+  auto render_state = render_cache_->BeginRenderPass(
       command_buffer, vertex_shader, pixel_shader);
-  if (!render_pass) {
+  if (!render_state) {
     return false;
   }
 
   // Configure the pipeline for drawing.
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
-  if (!pipeline_cache_->ConfigurePipeline(command_buffer, render_pass,
+  if (!pipeline_cache_->ConfigurePipeline(command_buffer, render_state,
                                           vertex_shader, pixel_shader,
                                           primitive_type)) {
     render_cache_->EndRenderPass();
@@ -215,12 +223,14 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Upload the constants the shaders require.
-  auto vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
+  // These are optional, and if none are defined 0 will be returned.
+  VkDeviceSize vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
       vertex_shader->constant_register_map());
-  auto pixel_constant_offset = buffer_cache_->UploadConstantRegisters(
+  VkDeviceSize pixel_constant_offset = buffer_cache_->UploadConstantRegisters(
       pixel_shader->constant_register_map());
   if (vertex_constant_offset == VK_WHOLE_SIZE ||
       pixel_constant_offset == VK_WHOLE_SIZE) {
+    // Shader wants constants but we couldn't upload them.
     render_cache_->EndRenderPass();
     return false;
   }
@@ -307,11 +317,17 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   if (queue_mutex_) {
     queue_mutex_->lock();
   }
-  vkQueueWaitIdle(queue_);
+  err = vkQueueWaitIdle(queue_);
+  CheckResult(err, "vkQueueWaitIdle");
+  err = vkDeviceWaitIdle(*device_);
+  CheckResult(err, "vkDeviceWaitIdle");
   if (queue_mutex_) {
     queue_mutex_->unlock();
   }
-  command_buffer_pool_->Scavenge();
+  while (command_buffer_pool_->has_pending()) {
+    command_buffer_pool_->Scavenge();
+    xe::threading::MaybeYield();
+  }
   vkDestroyFence(*device_, fence, nullptr);
 
   return true;
