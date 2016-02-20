@@ -12,6 +12,8 @@
 
 #include <unordered_map>
 
+#include "third_party/xxhash/xxhash.h"
+
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/render_cache.h"
@@ -59,11 +61,12 @@ class PipelineCache {
  private:
   // Creates or retrieves an existing pipeline for the currently configured
   // state.
-  VkPipeline GetPipeline(const RenderState* render_state);
+  VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
   // Gets a geometry shader used to emulate the given primitive type.
   // Returns nullptr if the primitive doesn't need to be emulated.
-  VkShaderModule GetGeometryShader(PrimitiveType primitive_type);
+  VkShaderModule GetGeometryShader(PrimitiveType primitive_type,
+                                   bool is_line_mode);
 
   // Sets required dynamic state on the command buffer.
   // Only state that has changed since the last call will be set unless
@@ -89,6 +92,13 @@ class PipelineCache {
 
   // TODO(benvanik): geometry shader cache.
 
+  // Hash state used to incrementally produce pipeline hashes during update.
+  // By the time the full update pass has run the hash will represent the
+  // current state in a way that can uniquely identify the produced VkPipeline.
+  XXH64_state_t hash_state_;
+  // All previously generated pipelines mapped by hash.
+  std::unordered_map<uint64_t, VkPipeline> cached_pipelines_;
+
   // Previously used pipeline. This matches our current state settings
   // and allows us to quickly(ish) reuse the pipeline if no registers have
   // changed.
@@ -101,7 +111,6 @@ class PipelineCache {
     kError,
   };
 
-  UpdateStatus UpdateRenderTargets();
   UpdateStatus UpdateState(VulkanShader* vertex_shader,
                            VulkanShader* pixel_shader,
                            PrimitiveType primitive_type);
@@ -137,18 +146,13 @@ class PipelineCache {
   } update_render_targets_regs_;
 
   struct UpdateShaderStagesRegisters {
-    PrimitiveType prim_type;
+    PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
-    uint32_t sq_program_cntl;
-    uint32_t sq_context_misc;
     VulkanShader* vertex_shader;
     VulkanShader* pixel_shader;
 
     UpdateShaderStagesRegisters() { Reset(); }
-    void Reset() {
-      sq_program_cntl = 0;
-      vertex_shader = pixel_shader = nullptr;
-    }
+    void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_shader_stages_regs_;
   VkPipelineShaderStageCreateInfo update_shader_stages_info_[3];
   uint32_t update_shader_stages_stage_count_ = 0;
@@ -249,6 +253,9 @@ class PipelineCache {
     float pa_cl_vport_zscale;
 
     float rb_blend_rgba[4];
+
+    uint32_t sq_program_cntl;
+    uint32_t sq_context_misc;
 
     SetDynamicStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

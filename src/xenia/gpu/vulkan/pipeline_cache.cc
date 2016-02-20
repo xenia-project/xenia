@@ -78,6 +78,12 @@ PipelineCache::PipelineCache(
 }
 
 PipelineCache::~PipelineCache() {
+  // Destroy all pipelines.
+  for (auto it : cached_pipelines_) {
+    vkDestroyPipeline(device_, it.second, nullptr);
+  }
+  cached_pipelines_.clear();
+
   vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
   vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
 
@@ -164,7 +170,9 @@ bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
       return false;
   }
   if (!pipeline) {
-    pipeline = GetPipeline(render_state);
+    // Should have a hash key produced by the UpdateState pass.
+    uint64_t hash_key = XXH64_digest(&hash_state_);
+    pipeline = GetPipeline(render_state, hash_key);
     current_pipeline_ = pipeline;
     if (!pipeline) {
       // Unable to create pipeline.
@@ -192,7 +200,15 @@ void PipelineCache::ClearCache() {
   // TODO(benvanik): caching.
 }
 
-VkPipeline PipelineCache::GetPipeline(const RenderState* render_state) {
+VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
+                                      uint64_t hash_key) {
+  // Lookup the pipeline in the cache.
+  auto it = cached_pipelines_.find(hash_key);
+  if (it != cached_pipelines_.end()) {
+    // Found existing pipeline.
+    return it->second;
+  }
+
   VkPipelineDynamicStateCreateInfo dynamic_state_info;
   dynamic_state_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -233,18 +249,19 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state) {
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = 0;
-
   VkPipeline pipeline = nullptr;
   auto err = vkCreateGraphicsPipelines(device_, nullptr, 1, &pipeline_info,
                                        nullptr, &pipeline);
   CheckResult(err, "vkCreateGraphicsPipelines");
 
-  // TODO(benvanik): don't leak.
+  // Add to cache with the hash key for reuse.
+  cached_pipelines_.insert({hash_key, pipeline});
 
   return pipeline;
 }
 
-VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type) {
+VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
+                                                bool is_line_mode) {
   switch (primitive_type) {
     case PrimitiveType::kLineList:
     case PrimitiveType::kLineStrip:
@@ -267,6 +284,11 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type) {
       return nullptr;
     case PrimitiveType::kQuadList:
       // TODO(benvanik): quad list geometry shader.
+      if (is_line_mode) {
+        //
+      } else {
+        //
+      }
       return nullptr;
     case PrimitiveType::kQuadStrip:
       // TODO(benvanik): quad strip geometry shader.
@@ -455,6 +477,27 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
 
   // TODO(benvanik): push constants.
 
+  bool push_constants_dirty = full_update;
+  push_constants_dirty |=
+      SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
+
+  xenos::xe_gpu_program_cntl_t program_cntl;
+  program_cntl.dword_0 = regs.sq_program_cntl;
+
+  // Populate a register in the pixel shader with frag coord.
+  int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
+  // draw_batcher_.set_ps_param_gen(program_cntl.param_gen ? ps_param_gen : -1);
+
+  // Normal vertex shaders only, for now.
+  // TODO(benvanik): transform feedback/memexport.
+  // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
+  // 0 = normal
+  // 2 = point size
+  assert_true(program_cntl.vs_export_mode == 0 ||
+              program_cntl.vs_export_mode == 2);
+
   return true;
 }
 
@@ -476,34 +519,13 @@ bool PipelineCache::SetShadowRegister(float* dest, uint32_t register_name) {
   return true;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargets() {
-  auto& regs = update_render_targets_regs_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
-  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
-  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  SCOPE_profile_cpu_f("gpu");
-
-  return UpdateStatus::kMismatch;
-}
-
 PipelineCache::UpdateStatus PipelineCache::UpdateState(
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     PrimitiveType primitive_type) {
   bool mismatch = false;
+
+  // Reset hash so we can build it up.
+  XXH64_reset(&hash_state_, 0);
 
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                          \
@@ -554,17 +576,16 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
-  dirty |= SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
-  // dirty |= regs.vertex_shader != active_vertex_shader_;
-  // dirty |= regs.pixel_shader != active_pixel_shader_;
-  dirty |= regs.prim_type != primitive_type;
+  dirty |= regs.vertex_shader != vertex_shader;
+  dirty |= regs.pixel_shader != pixel_shader;
+  dirty |= regs.primitive_type != primitive_type;
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  // regs.vertex_shader = static_cast<VulkanShader*>(active_vertex_shader_);
-  // regs.pixel_shader = static_cast<VulkanShader*>(active_pixel_shader_);
-  regs.prim_type = primitive_type;
+  regs.vertex_shader = vertex_shader;
+  regs.pixel_shader = pixel_shader;
+  regs.primitive_type = primitive_type;
 
   update_shader_stages_stage_count_ = 0;
 
@@ -579,7 +600,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   vertex_pipeline_stage.pName = "main";
   vertex_pipeline_stage.pSpecializationInfo = nullptr;
 
-  auto geometry_shader = GetGeometryShader(primitive_type);
+  bool is_line_mode = false;
+  if (((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0) {
+    uint32_t front_poly_mode = (regs.pa_su_sc_mode_cntl >> 5) & 0x7;
+    if (front_poly_mode == 1) {
+      is_line_mode = true;
+    }
+  }
+  auto geometry_shader = GetGeometryShader(primitive_type, is_line_mode);
   if (geometry_shader) {
     auto& geometry_pipeline_stage =
         update_shader_stages_info_[update_shader_stages_stage_count_++];
@@ -614,6 +642,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
 
   bool dirty = false;
   dirty |= vertex_shader != regs.vertex_shader;
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -733,6 +762,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -831,6 +861,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -917,6 +948,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |=
       SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -976,6 +1008,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
       SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
   dirty |=
       SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
