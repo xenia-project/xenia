@@ -69,9 +69,11 @@ bool VulkanCommandProcessor::SetupContext() {
   // Initialize the state machine caches.
   buffer_cache_ = std::make_unique<BufferCache>(register_file_, device_,
                                                 kDefaultBufferCacheCapacity);
-  pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, device_);
-  render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
   texture_cache_ = std::make_unique<TextureCache>(register_file_, device_);
+  pipeline_cache_ = std::make_unique<PipelineCache>(
+      register_file_, device_, buffer_cache_->constant_descriptor_set_layout(),
+      texture_cache_->texture_descriptor_set_layout());
+  render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
 
   return true;
 }
@@ -222,28 +224,11 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
-  // Upload the constants the shaders require.
-  // These are optional, and if none are defined 0 will be returned.
-  VkDeviceSize vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
-      vertex_shader->constant_register_map());
-  VkDeviceSize pixel_constant_offset = buffer_cache_->UploadConstantRegisters(
-      pixel_shader->constant_register_map());
-  if (vertex_constant_offset == VK_WHOLE_SIZE ||
-      pixel_constant_offset == VK_WHOLE_SIZE) {
-    // Shader wants constants but we couldn't upload them.
+  // Pass registers to the shaders.
+  if (!PopulateConstants(command_buffer, vertex_shader, pixel_shader)) {
     render_cache_->EndRenderPass();
     return false;
   }
-
-  // Configure constant uniform access to point at our offsets.
-  auto constant_descriptor_set = buffer_cache_->constant_descriptor_set();
-  auto pipeline_layout = pipeline_cache_->current_pipeline_layout();
-  uint32_t constant_offsets[2] = {static_cast<uint32_t>(vertex_constant_offset),
-                                  static_cast<uint32_t>(pixel_constant_offset)};
-  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_layout, 0, 1, &constant_descriptor_set,
-                          static_cast<uint32_t>(xe::countof(constant_offsets)),
-                          constant_offsets);
 
   // Upload and bind index buffer data (if we have any).
   if (!PopulateIndexBuffer(command_buffer, index_buffer_info)) {
@@ -263,7 +248,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
-#if 0
   // Actually issue the draw.
   if (!index_buffer_info) {
     // Auto-indexed draw.
@@ -282,7 +266,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index,
                      vertex_offset, first_instance);
   }
-#endif
 
   // End the rendering pass.
   render_cache_->EndRenderPass();
@@ -329,6 +312,34 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     xe::threading::MaybeYield();
   }
   vkDestroyFence(*device_, fence, nullptr);
+
+  return true;
+}
+
+bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
+                                               VulkanShader* vertex_shader,
+                                               VulkanShader* pixel_shader) {
+  // Upload the constants the shaders require.
+  // These are optional, and if none are defined 0 will be returned.
+  VkDeviceSize vertex_constant_offset = buffer_cache_->UploadConstantRegisters(
+      vertex_shader->constant_register_map());
+  VkDeviceSize pixel_constant_offset = buffer_cache_->UploadConstantRegisters(
+      pixel_shader->constant_register_map());
+  if (vertex_constant_offset == VK_WHOLE_SIZE ||
+      pixel_constant_offset == VK_WHOLE_SIZE) {
+    // Shader wants constants but we couldn't upload them.
+    return false;
+  }
+
+  // Configure constant uniform access to point at our offsets.
+  auto constant_descriptor_set = buffer_cache_->constant_descriptor_set();
+  auto pipeline_layout = pipeline_cache_->pipeline_layout();
+  uint32_t constant_offsets[2] = {static_cast<uint32_t>(vertex_constant_offset),
+                                  static_cast<uint32_t>(pixel_constant_offset)};
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_layout, 0, 1, &constant_descriptor_set,
+                          static_cast<uint32_t>(xe::countof(constant_offsets)),
+                          constant_offsets);
 
   return true;
 }

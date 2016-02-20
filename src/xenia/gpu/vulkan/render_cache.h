@@ -69,8 +69,10 @@ struct RenderState {
   RenderConfiguration config;
   // Render pass (to be used with pipelines/etc).
   CachedRenderPass* render_pass = nullptr;
+  VkRenderPass render_pass_handle = nullptr;
   // Target framebuffer bound to the render pass.
   CachedFramebuffer* framebuffer = nullptr;
+  VkFramebuffer framebuffer_handle = nullptr;
 };
 
 // Manages the virtualized EDRAM and the render target cache.

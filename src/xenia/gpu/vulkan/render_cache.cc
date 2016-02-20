@@ -542,7 +542,9 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       return nullptr;
     }
     current_state_.render_pass = render_pass;
+    current_state_.render_pass_handle = render_pass->handle;
     current_state_.framebuffer = framebuffer;
+    current_state_.framebuffer_handle = framebuffer->handle;
   }
   if (!render_pass) {
     return nullptr;

@@ -26,6 +26,12 @@ class TextureCache {
   TextureCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~TextureCache();
 
+  // Descriptor set layout containing all possible texture bindings.
+  // The set contains one descriptor for each texture sampler [0-31].
+  VkDescriptorSetLayout texture_descriptor_set_layout() const {
+    return texture_descriptor_set_layout_;
+  }
+
   // TODO(benvanik): UploadTexture.
   // TODO(benvanik): Resolve.
   // TODO(benvanik): ReadTexture.
@@ -36,6 +42,9 @@ class TextureCache {
  private:
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
+
+  VkDescriptorPool descriptor_pool_ = nullptr;
+  VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
 };
 
 }  // namespace vulkan

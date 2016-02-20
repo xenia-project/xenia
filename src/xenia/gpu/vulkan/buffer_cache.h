@@ -38,6 +38,9 @@ class BufferCache {
   VkDescriptorSet constant_descriptor_set() const {
     return transient_descriptor_set_;
   }
+  VkDescriptorSetLayout constant_descriptor_set_layout() const {
+    return descriptor_set_layout_;
+  }
 
   // Uploads the constants specified in the register maps to the transient
   // uniform storage buffer.

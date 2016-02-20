@@ -30,7 +30,9 @@ namespace vulkan {
 // including shaders, various blend/etc options, and input configuration.
 class PipelineCache {
  public:
-  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
+  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
+                VkDescriptorSetLayout uniform_descriptor_set_layout,
+                VkDescriptorSetLayout texture_descriptor_set_layout);
   ~PipelineCache();
 
   // Loads a shader from the cache, possibly translating it.
@@ -48,25 +50,35 @@ class PipelineCache {
                          VulkanShader* pixel_shader,
                          PrimitiveType primitive_type);
 
-  // Currently configured pipeline layout, if any.
-  VkPipelineLayout current_pipeline_layout() const { return nullptr; }
+  // Pipeline layout shared by all pipelines.
+  VkPipelineLayout pipeline_layout() const { return pipeline_layout_; }
 
   // Clears all cached content.
   void ClearCache();
 
  private:
-  // TODO(benvanik): geometry shader cache.
-  // TODO(benvanik): translated shader cache.
-  // TODO(benvanik): pipeline layouts.
-  // TODO(benvanik): pipeline cache.
+  // Gets a geometry shader used to emulate the given primitive type.
+  // Returns nullptr if the primitive doesn't need to be emulated.
+  VkShaderModule GetGeometryShader(PrimitiveType primitive_type);
 
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
 
+  // Reusable shader translator.
   SpirvShaderTranslator shader_translator_;
+  // Disassembler used to get the SPIRV disasm. Only used in debug.
   xe::ui::spirv::SpirvDisassembler disassembler_;
   // All loaded shaders mapped by their guest hash key.
   std::unordered_map<uint64_t, VulkanShader*> shader_map_;
+
+  // Vulkan pipeline cache, which in theory helps us out.
+  // This can be serialized to disk and reused, if we want.
+  VkPipelineCache pipeline_cache_ = nullptr;
+  // Layout used for all pipelines describing our uniforms, textures, and push
+  // constants.
+  VkPipelineLayout pipeline_layout_ = nullptr;
+
+  // TODO(benvanik): geometry shader cache.
 
  private:
   enum class UpdateStatus {

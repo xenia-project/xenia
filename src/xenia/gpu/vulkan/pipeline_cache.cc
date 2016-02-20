@@ -23,11 +23,64 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
-PipelineCache::PipelineCache(RegisterFile* register_file,
-                             ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(*device) {}
+PipelineCache::PipelineCache(
+    RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
+    VkDescriptorSetLayout uniform_descriptor_set_layout,
+    VkDescriptorSetLayout texture_descriptor_set_layout)
+    : register_file_(register_file), device_(*device) {
+  // Initialize the shared driver pipeline cache.
+  // We'll likely want to serialize this and reuse it, if that proves to be
+  // useful. If the shaders are expensive and this helps we could do it per
+  // game, otherwise a single shared cache for render state/etc.
+  VkPipelineCacheCreateInfo pipeline_cache_info;
+  pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+  pipeline_cache_info.pNext = nullptr;
+  pipeline_cache_info.flags = 0;
+  pipeline_cache_info.initialDataSize = 0;
+  pipeline_cache_info.pInitialData = nullptr;
+  auto err = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+                                   &pipeline_cache_);
+  CheckResult(err, "vkCreatePipelineCache");
+
+  // Descriptors used by the pipelines.
+  // These are the only ones we can ever bind.
+  VkDescriptorSetLayout set_layouts[] = {
+      // Per-draw constant register uniforms.
+      uniform_descriptor_set_layout,
+      // All texture bindings.
+      texture_descriptor_set_layout,
+  };
+
+  // Push constants used for draw parameters.
+  // We need to keep these under 128b across all stages.
+  VkPushConstantRange push_constant_ranges[2];
+  push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  push_constant_ranges[0].offset = 0;
+  push_constant_ranges[0].size = sizeof(float) * 16;
+  push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  push_constant_ranges[1].offset = sizeof(float) * 16;
+  push_constant_ranges[1].size = sizeof(int);
+
+  // Shared pipeline layout.
+  VkPipelineLayoutCreateInfo pipeline_layout_info;
+  pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipeline_layout_info.pNext = nullptr;
+  pipeline_layout_info.flags = 0;
+  pipeline_layout_info.setLayoutCount =
+      static_cast<uint32_t>(xe::countof(set_layouts));
+  pipeline_layout_info.pSetLayouts = set_layouts;
+  pipeline_layout_info.pushConstantRangeCount =
+      static_cast<uint32_t>(xe::countof(push_constant_ranges));
+  pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
+  err = vkCreatePipelineLayout(*device, &pipeline_layout_info, nullptr,
+                               &pipeline_layout_);
+  CheckResult(err, "vkCreatePipelineLayout");
+}
 
 PipelineCache::~PipelineCache() {
+  vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+  vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
+
   // Destroy all shaders.
   for (auto it : shader_map_) {
     delete it.second;
@@ -88,11 +141,329 @@ bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
                                       VulkanShader* vertex_shader,
                                       VulkanShader* pixel_shader,
                                       PrimitiveType primitive_type) {
-  return false;
+  // Uh, yeah. This happened.
+
+  VkPipelineShaderStageCreateInfo pipeline_stages[3];
+  uint32_t pipeline_stage_count = 0;
+  auto& vertex_pipeline_stage = pipeline_stages[pipeline_stage_count++];
+  vertex_pipeline_stage.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertex_pipeline_stage.pNext = nullptr;
+  vertex_pipeline_stage.flags = 0;
+  vertex_pipeline_stage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertex_pipeline_stage.module = vertex_shader->shader_module();
+  vertex_pipeline_stage.pName = "main";
+  vertex_pipeline_stage.pSpecializationInfo = nullptr;
+  auto geometry_shader = GetGeometryShader(primitive_type);
+  if (geometry_shader) {
+    auto& geometry_pipeline_stage = pipeline_stages[pipeline_stage_count++];
+    geometry_pipeline_stage.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    geometry_pipeline_stage.pNext = nullptr;
+    geometry_pipeline_stage.flags = 0;
+    geometry_pipeline_stage.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+    geometry_pipeline_stage.module = geometry_shader;
+    geometry_pipeline_stage.pName = "main";
+    geometry_pipeline_stage.pSpecializationInfo = nullptr;
+  }
+  auto& pixel_pipeline_stage = pipeline_stages[pipeline_stage_count++];
+  pixel_pipeline_stage.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  pixel_pipeline_stage.pNext = nullptr;
+  pixel_pipeline_stage.flags = 0;
+  pixel_pipeline_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  pixel_pipeline_stage.module = pixel_shader->shader_module();
+  pixel_pipeline_stage.pName = "main";
+  pixel_pipeline_stage.pSpecializationInfo = nullptr;
+
+  VkPipelineVertexInputStateCreateInfo vertex_state_info;
+  vertex_state_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertex_state_info.pNext = nullptr;
+  VkVertexInputBindingDescription vertex_binding_descrs[64];
+  uint32_t vertex_binding_count = 0;
+  VkVertexInputAttributeDescription vertex_attrib_descrs[64];
+  uint32_t vertex_attrib_count = 0;
+  for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
+    assert_true(vertex_binding_count < xe::countof(vertex_binding_descrs));
+    auto& vertex_binding_descr = vertex_binding_descrs[vertex_binding_count++];
+    vertex_binding_descr.binding = vertex_binding.binding_index;
+    vertex_binding_descr.stride = vertex_binding.stride_words * 4;
+    vertex_binding_descr.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    for (const auto& attrib : vertex_binding.attributes) {
+      assert_true(vertex_attrib_count < xe::countof(vertex_attrib_descrs));
+      auto& vertex_attrib_descr = vertex_attrib_descrs[vertex_attrib_count++];
+      vertex_attrib_descr.location = attrib.attrib_index;
+      vertex_attrib_descr.binding = vertex_binding.binding_index;
+      vertex_attrib_descr.format = VK_FORMAT_UNDEFINED;
+      vertex_attrib_descr.offset = attrib.fetch_instr.attributes.offset * 4;
+
+      bool is_signed = attrib.fetch_instr.attributes.is_signed;
+      bool is_integer = attrib.fetch_instr.attributes.is_integer;
+      switch (attrib.fetch_instr.attributes.data_format) {
+        case VertexFormat::k_8_8_8_8:
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_UNORM;
+          break;
+        case VertexFormat::k_2_10_10_10:
+          vertex_attrib_descr.format = is_signed
+                                           ? VK_FORMAT_A2R10G10B10_SNORM_PACK32
+                                           : VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+          break;
+        case VertexFormat::k_10_11_11:
+          assert_always("unsupported?");
+          vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+          break;
+        case VertexFormat::k_11_11_10:
+          assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+          break;
+        case VertexFormat::k_16_16:
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_UNORM;
+          break;
+        case VertexFormat::k_16_16_FLOAT:
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R16G16_SSCALED : VK_FORMAT_R16G16_USCALED;
+          break;
+        case VertexFormat::k_16_16_16_16:
+          vertex_attrib_descr.format = is_signed ? VK_FORMAT_R16G16B16A16_SNORM
+                                                 : VK_FORMAT_R16G16B16A16_UNORM;
+          break;
+        case VertexFormat::k_16_16_16_16_FLOAT:
+          vertex_attrib_descr.format = is_signed
+                                           ? VK_FORMAT_R16G16B16A16_SSCALED
+                                           : VK_FORMAT_R16G16B16A16_USCALED;
+          break;
+        case VertexFormat::k_32:
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
+          break;
+        case VertexFormat::k_32_32:
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32G32_SINT : VK_FORMAT_R32G32_UINT;
+          break;
+        case VertexFormat::k_32_32_32_32:
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
+          break;
+        case VertexFormat::k_32_FLOAT:
+          assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R32_SFLOAT;
+          break;
+        case VertexFormat::k_32_32_FLOAT:
+          assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R32G32_SFLOAT;
+          break;
+        case VertexFormat::k_32_32_32_FLOAT:
+          assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R32G32B32_SFLOAT;
+          break;
+        case VertexFormat::k_32_32_32_32_FLOAT:
+          assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+          break;
+        default:
+          assert_unhandled_case(attrib.fetch_instr.attributes.data_format);
+          break;
+      }
+    }
+  }
+  vertex_state_info.vertexBindingDescriptionCount = vertex_binding_count;
+  vertex_state_info.pVertexBindingDescriptions = vertex_binding_descrs;
+  vertex_state_info.vertexAttributeDescriptionCount = vertex_attrib_count;
+  vertex_state_info.pVertexAttributeDescriptions = vertex_attrib_descrs;
+
+  VkPipelineInputAssemblyStateCreateInfo input_info;
+  input_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  input_info.pNext = nullptr;
+  input_info.flags = 0;
+  input_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  input_info.primitiveRestartEnable = VK_FALSE;
+
+  VkPipelineViewportStateCreateInfo viewport_state_info;
+  viewport_state_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  viewport_state_info.pNext = nullptr;
+  viewport_state_info.flags = 0;
+  VkViewport viewport;
+  viewport.x = 0;
+  viewport.y = 0;
+  viewport.width = 100;
+  viewport.height = 100;
+  viewport.minDepth = 0;
+  viewport.maxDepth = 1;
+  viewport_state_info.viewportCount = 1;
+  viewport_state_info.pViewports = &viewport;
+  VkRect2D scissor;
+  scissor.offset.x = 0;
+  scissor.offset.y = 0;
+  scissor.extent.width = 100;
+  scissor.extent.height = 100;
+  viewport_state_info.scissorCount = 1;
+  viewport_state_info.pScissors = &scissor;
+
+  VkPipelineRasterizationStateCreateInfo rasterization_info;
+  rasterization_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterization_info.pNext = nullptr;
+  rasterization_info.flags = 0;
+  rasterization_info.depthClampEnable = VK_FALSE;
+  rasterization_info.rasterizerDiscardEnable = VK_FALSE;
+  rasterization_info.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterization_info.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterization_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterization_info.depthBiasEnable = VK_FALSE;
+  rasterization_info.depthBiasConstantFactor = 0;
+  rasterization_info.depthBiasClamp = 0;
+  rasterization_info.depthBiasSlopeFactor = 0;
+  rasterization_info.lineWidth = 1.0f;
+
+  VkPipelineMultisampleStateCreateInfo multisample_info;
+  multisample_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisample_info.pNext = nullptr;
+  multisample_info.flags = 0;
+  multisample_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  multisample_info.sampleShadingEnable = VK_FALSE;
+  multisample_info.minSampleShading = 0;
+  multisample_info.pSampleMask = nullptr;
+  multisample_info.alphaToCoverageEnable = VK_FALSE;
+  multisample_info.alphaToOneEnable = VK_FALSE;
+
+  VkPipelineDepthStencilStateCreateInfo depth_stencil_info;
+  depth_stencil_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depth_stencil_info.pNext = nullptr;
+  depth_stencil_info.flags = 0;
+  depth_stencil_info.depthTestEnable = VK_FALSE;
+  depth_stencil_info.depthWriteEnable = VK_FALSE;
+  depth_stencil_info.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+  depth_stencil_info.depthBoundsTestEnable = VK_FALSE;
+  depth_stencil_info.stencilTestEnable = VK_FALSE;
+  depth_stencil_info.front.failOp = VK_STENCIL_OP_KEEP;
+  depth_stencil_info.front.passOp = VK_STENCIL_OP_KEEP;
+  depth_stencil_info.front.depthFailOp = VK_STENCIL_OP_KEEP;
+  depth_stencil_info.front.compareOp = VK_COMPARE_OP_ALWAYS;
+  depth_stencil_info.front.compareMask = 0;
+  depth_stencil_info.front.writeMask = 0;
+  depth_stencil_info.front.reference = 0;
+  depth_stencil_info.back.failOp = VK_STENCIL_OP_KEEP;
+  depth_stencil_info.back.passOp = VK_STENCIL_OP_KEEP;
+  depth_stencil_info.back.depthFailOp = VK_STENCIL_OP_KEEP;
+  depth_stencil_info.back.compareOp = VK_COMPARE_OP_ALWAYS;
+  depth_stencil_info.back.compareMask = 0;
+  depth_stencil_info.back.writeMask = 0;
+  depth_stencil_info.back.reference = 0;
+  depth_stencil_info.minDepthBounds = 0;
+  depth_stencil_info.maxDepthBounds = 0;
+
+  VkPipelineColorBlendStateCreateInfo blend_info;
+  blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  blend_info.pNext = nullptr;
+  blend_info.flags = 0;
+  blend_info.logicOpEnable = VK_FALSE;
+  blend_info.logicOp = VK_LOGIC_OP_NO_OP;
+
+  VkPipelineColorBlendAttachmentState blend_attachments[1];
+  blend_attachments[0].blendEnable = VK_TRUE;
+  blend_attachments[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  blend_attachments[0].dstColorBlendFactor =
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  blend_attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
+  blend_attachments[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  blend_attachments[0].dstAlphaBlendFactor =
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  blend_attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
+  blend_attachments[0].colorWriteMask = 0xF;
+  blend_info.attachmentCount =
+      static_cast<uint32_t>(xe::countof(blend_attachments));
+  blend_info.pAttachments = blend_attachments;
+  std::memset(blend_info.blendConstants, 0, sizeof(blend_info.blendConstants));
+
+  VkPipelineDynamicStateCreateInfo dynamic_state_info;
+  dynamic_state_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  dynamic_state_info.pNext = nullptr;
+  dynamic_state_info.flags = 0;
+  // VkDynamicState dynamic_states[] = {
+  //    VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+  //};
+  // dynamic_state_info.dynamicStateCount =
+  //    static_cast<uint32_t>(xe::countof(dynamic_states));
+  // dynamic_state_info.pDynamicStates = dynamic_states;
+  dynamic_state_info.dynamicStateCount = 0;
+  dynamic_state_info.pDynamicStates = nullptr;
+
+  VkGraphicsPipelineCreateInfo pipeline_info;
+  pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipeline_info.pNext = nullptr;
+  pipeline_info.flags = VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
+  pipeline_info.stageCount = pipeline_stage_count;
+  pipeline_info.pStages = pipeline_stages;
+  pipeline_info.pVertexInputState = &vertex_state_info;
+  pipeline_info.pInputAssemblyState = &input_info;
+  pipeline_info.pTessellationState = nullptr;
+  pipeline_info.pViewportState = &viewport_state_info;
+  pipeline_info.pRasterizationState = &rasterization_info;
+  pipeline_info.pMultisampleState = &multisample_info;
+  pipeline_info.pDepthStencilState = &depth_stencil_info;
+  pipeline_info.pColorBlendState = &blend_info;
+  pipeline_info.pDynamicState = &dynamic_state_info;
+  pipeline_info.layout = pipeline_layout_;
+  pipeline_info.renderPass = render_state->render_pass_handle;
+  pipeline_info.subpass = 0;
+  pipeline_info.basePipelineHandle = nullptr;
+  pipeline_info.basePipelineIndex = 0;
+
+  VkPipeline pipeline = nullptr;
+  auto err = vkCreateGraphicsPipelines(device_, nullptr, 1, &pipeline_info,
+                                       nullptr, &pipeline);
+  CheckResult(err, "vkCreateGraphicsPipelines");
+
+  // TODO(benvanik): don't leak pipelines >_>
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+  return true;
 }
 
 void PipelineCache::ClearCache() {
   // TODO(benvanik): caching.
+}
+
+VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type) {
+  switch (primitive_type) {
+    case PrimitiveType::kLineList:
+    case PrimitiveType::kLineStrip:
+    case PrimitiveType::kTriangleList:
+    case PrimitiveType::kTriangleFan:
+    case PrimitiveType::kTriangleStrip:
+      // Supported directly - no need to emulate.
+      return nullptr;
+    case PrimitiveType::kPointList:
+      // TODO(benvanik): point list geometry shader.
+      return nullptr;
+    case PrimitiveType::kUnknown0x07:
+      assert_always("Unknown geometry type");
+      return nullptr;
+    case PrimitiveType::kRectangleList:
+      // TODO(benvanik): rectangle list geometry shader.
+      return nullptr;
+    case PrimitiveType::kLineLoop:
+      // TODO(benvanik): line loop geometry shader.
+      return nullptr;
+    case PrimitiveType::kQuadList:
+      // TODO(benvanik): quad list geometry shader.
+      return nullptr;
+    case PrimitiveType::kQuadStrip:
+      // TODO(benvanik): quad strip geometry shader.
+      return nullptr;
+    default:
+      assert_unhandled_case(primitive_type);
+      return nullptr;
+  }
 }
 
 bool PipelineCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {

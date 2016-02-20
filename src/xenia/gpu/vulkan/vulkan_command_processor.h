@@ -66,6 +66,9 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   bool IssueDraw(PrimitiveType primitive_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info) override;
+  bool PopulateConstants(VkCommandBuffer command_buffer,
+                         VulkanShader* vertex_shader,
+                         VulkanShader* pixel_shader);
   bool PopulateIndexBuffer(VkCommandBuffer command_buffer,
                            IndexBufferInfo* index_buffer_info);
   bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
