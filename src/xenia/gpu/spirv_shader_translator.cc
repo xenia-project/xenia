@@ -137,6 +137,8 @@ void SpirvShaderTranslator::StartTranslation() {
   Id push_constants_type = b.makeStructType(
       {vec4_float_type_, vec4_float_type_, vec4_float_type_, uint_type},
       "push_consts_type");
+  b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
+
   // float4 window_scale;
   b.addMemberDecoration(
       push_constants_type, 0, spv::Decoration::DecorationOffset,
@@ -297,11 +299,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
     // Apply window scaling
     // pos.xy *= window_scale.xy
-    auto p_scaled = b.createUnaryOp(spv::Op::OpCopyObject, vec4_float_type_, p);
-    p_scaled = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p_scaled,
-                             window_scale);
-
-    std::vector<uint32_t> operands({p, p_scaled});
+    auto p_scaled =
+        b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p, window_scale);
     p = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
                    {p, p_scaled, 4, 5, 2, 3});
 
@@ -591,8 +590,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
   auto& b = *builder_;
 
-  // TODO: instr.is_predicated
-
   Id sources[3] = {0};
   Id dest = 0;
   for (size_t i = 0; i < instr.operand_count; i++) {
@@ -731,8 +728,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 void SpirvShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
   auto& b = *builder_;
-
-  // TODO: instr.is_predicated
 
   Id sources[3] = {0};
   Id dest = 0;
