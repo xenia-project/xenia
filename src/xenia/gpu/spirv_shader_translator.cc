@@ -596,6 +596,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     sources[i] = LoadFromOperand(instr.operands[i]);
   }
 
+  Id pred_cond =
+      b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                    b.makeBoolConstant(instr.predicate_condition));
+
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd: {
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
@@ -630,6 +634,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       // TODO:
     } break;
 
+    case AluVectorOpcode::kDst: {
+      // TODO
+    } break;
+
     case AluVectorOpcode::kFloor: {
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
@@ -640,6 +648,70 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
           spv::GLSLstd450::kFract, {sources[0]});
+    } break;
+
+    case AluVectorOpcode::kKillEq: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_,
+                                sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
+    case AluVectorOpcode::kKillGe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual,
+                                vec4_bool_type_, sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
+    case AluVectorOpcode::kKillGt: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
+                                sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
+    case AluVectorOpcode::kKillNe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
+                                sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
     } break;
 
     case AluVectorOpcode::kMad: {
@@ -709,13 +781,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
   if (dest) {
     // If predicated, discard the result from the instruction.
-    Id pred_cond = 0;
     Id pv_dest = dest;
     if (instr.is_predicated) {
-      pred_cond =
-          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                        b.makeBoolConstant(instr.predicate_condition));
-
       pv_dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, pred_cond,
                               dest, b.createLoad(pv_));
     }
