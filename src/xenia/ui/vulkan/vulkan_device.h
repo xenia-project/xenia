@@ -75,6 +75,15 @@ class VulkanDevice {
   // This method is thread safe.
   void ReleaseQueue(VkQueue queue);
 
+  // True if RenderDoc is attached and available for use.
+  bool is_renderdoc_attached() const;
+  // Begins capturing the current frame in RenderDoc, if it is attached.
+  // Must be paired with EndRenderDocCapture. Multiple frames cannot be
+  // captured at the same time.
+  void BeginRenderDocFrameCapture();
+  // Ends a capture.
+  void EndRenderDocFrameCapture();
+
   // Allocates memory of the given size matching the required properties.
   VkDeviceMemory AllocateMemory(
       const VkMemoryRequirements& requirements,

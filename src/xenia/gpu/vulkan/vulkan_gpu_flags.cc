@@ -8,3 +8,6 @@
  */
 
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
+
+DEFINE_bool(vulkan_renderdoc_capture_all, false,
+            "Capture everything with RenderDoc.");

@@ -15,6 +15,8 @@
 #include <mutex>
 #include <string>
 
+#include "third_party/renderdoc/renderdoc_app.h"
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -58,6 +60,9 @@ bool VulkanInstance::Initialize(Window* any_target_window) {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
 
+  // Hook into renderdoc, if it's available.
+  EnableRenderDoc();
+
   // Get all of the global layers and extensions provided by the system.
   if (!QueryGlobals()) {
     XELOGE("Failed to query instance globals");
@@ -78,6 +83,45 @@ bool VulkanInstance::Initialize(Window* any_target_window) {
   }
 
   XELOGVK("Instance initialized successfully!");
+  return true;
+}
+
+bool VulkanInstance::EnableRenderDoc() {
+  // RenderDoc injects itself into our process, so we should be able to get it.
+  pRENDERDOC_GetAPI get_api = nullptr;
+#if XE_PLATFORM_WIN32
+  auto module_handle = GetModuleHandle(L"renderdoc.dll");
+  if (!module_handle) {
+    XELOGI("RenderDoc support requested but it is not attached");
+    return false;
+  }
+  get_api = reinterpret_cast<pRENDERDOC_GetAPI>(
+      GetProcAddress(module_handle, "RENDERDOC_GetAPI"));
+#else
+// TODO(benvanik): dlsym/etc - abstracted in base/.
+#endif  // XE_PLATFORM_32
+  if (!get_api) {
+    XELOGI("RenderDoc support requested but it is not attached");
+    return false;
+  }
+
+  // Request all API function pointers.
+  if (!get_api(eRENDERDOC_API_Version_1_0_1,
+               reinterpret_cast<void**>(&renderdoc_api_))) {
+    XELOGE("RenderDoc found but was unable to get API - version mismatch?");
+    return false;
+  }
+  auto api = reinterpret_cast<RENDERDOC_API_1_0_1*>(renderdoc_api_);
+
+  // Query version.
+  int major;
+  int minor;
+  int patch;
+  api->GetAPIVersion(&major, &minor, &patch);
+  XELOGI("RenderDoc attached; %d.%d.%d", major, minor, patch);
+
+  is_renderdoc_attached_ = true;
+
   return true;
 }
 

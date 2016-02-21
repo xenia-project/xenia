@@ -58,7 +58,15 @@ class VulkanInstance {
     return available_devices_;
   }
 
+  // True if RenderDoc is attached and available for use.
+  bool is_renderdoc_attached() const { return is_renderdoc_attached_; }
+  // RenderDoc API handle, if attached.
+  void* renderdoc_api() const { return renderdoc_api_; }
+
  private:
+  // Attempts to enable RenderDoc via the API, if it is attached.
+  bool EnableRenderDoc();
+
   // Queries the system to find global extensions and layers.
   bool QueryGlobals();
 
@@ -86,6 +94,9 @@ class VulkanInstance {
   std::vector<DeviceInfo> available_devices_;
 
   VkDebugReportCallbackEXT dbg_report_callback_ = nullptr;
+
+  void* renderdoc_api_ = nullptr;
+  bool is_renderdoc_attached_ = false;
 };
 
 }  // namespace vulkan

@@ -15,12 +15,15 @@
 #include <mutex>
 #include <string>
 
+#include "third_party/renderdoc/renderdoc_app.h"
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
+#include "xenia/ui/vulkan/vulkan_instance.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
 
@@ -210,6 +213,30 @@ VkQueue VulkanDevice::AcquireQueue() {
 void VulkanDevice::ReleaseQueue(VkQueue queue) {
   std::lock_guard<std::mutex> lock(queue_mutex_);
   free_queues_.push_back(queue);
+}
+
+bool VulkanDevice::is_renderdoc_attached() const {
+  return instance_->is_renderdoc_attached();
+}
+
+void VulkanDevice::BeginRenderDocFrameCapture() {
+  auto api = reinterpret_cast<RENDERDOC_API_1_0_1*>(instance_->renderdoc_api());
+  if (!api) {
+    return;
+  }
+  assert_true(api->IsFrameCapturing() == 0);
+
+  api->StartFrameCapture(nullptr, nullptr);
+}
+
+void VulkanDevice::EndRenderDocFrameCapture() {
+  auto api = reinterpret_cast<RENDERDOC_API_1_0_1*>(instance_->renderdoc_api());
+  if (!api) {
+    return;
+  }
+  assert_true(api->IsFrameCapturing() == 1);
+
+  api->EndFrameCapture(nullptr, nullptr);
 }
 
 VkDeviceMemory VulkanDevice::AllocateMemory(

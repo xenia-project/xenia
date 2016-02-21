@@ -163,6 +163,11 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                        IndexBufferInfo* index_buffer_info) {
   auto& regs = *register_file_;
 
+  // TODO(benvanik): move to CP or to host (trace dump, etc).
+  if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
+    device_->BeginRenderDocFrameCapture();
+  }
+
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -312,6 +317,11 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     xe::threading::MaybeYield();
   }
   vkDestroyFence(*device_, fence, nullptr);
+
+  // TODO(benvanik): move to CP or to host (trace dump, etc).
+  if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
+    device_->EndRenderDocFrameCapture();
+  }
 
   return true;
 }
