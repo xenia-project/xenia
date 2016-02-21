@@ -831,6 +831,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     }
   }
 
+  Id pred_cond =
+      b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                    b.makeBoolConstant(instr.predicate_condition));
+
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
     case AluScalarOpcode::kAddsc0:
@@ -850,6 +854,81 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kCos,
           {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kKillsEq: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsGe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsGt: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsNe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsOne: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(1.f));
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
     } break;
 
     case AluScalarOpcode::kMaxs: {
@@ -1026,13 +1105,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
   if (dest) {
     // If predicated, discard the result from the instruction.
-    Id pred_cond = 0;
     Id ps_dest = dest;
     if (instr.is_predicated) {
-      pred_cond =
-          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                        b.makeBoolConstant(instr.predicate_condition));
-
       ps_dest = b.createTriOp(spv::Op::OpSelect, float_type_, pred_cond, dest,
                               b.createLoad(ps_));
     }
