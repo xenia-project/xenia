@@ -526,6 +526,30 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
                            sources[1]);
     } break;
 
+    case AluVectorOpcode::kCndEq: {
+      // dest = src0 == 0.0 ? src1 : src2;
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                             b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
+                           sources[2]);
+    } break;
+
+    case AluVectorOpcode::kCndGe: {
+      // dest = src0 == 0.0 ? src1 : src2;
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
+                             sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
+                           sources[2]);
+    } break;
+
+    case AluVectorOpcode::kCndGt: {
+      // dest = src0 == 0.0 ? src1 : src2;
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
+                             sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
+                           sources[2]);
+    } break;
+
     case AluVectorOpcode::kCube: {
       // TODO:
     } break;
@@ -1130,7 +1154,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   }
 
   // swizzle
-  // TODO: 0.0 and 1.0 swizzles
   if (!result.is_standard_swizzle()) {
     std::vector<uint32_t> operands;
     operands.push_back(source_value_id);
