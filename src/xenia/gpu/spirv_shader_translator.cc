@@ -83,19 +83,19 @@ void SpirvShaderTranslator::StartTranslation() {
 
   registers_type_ =
       b.makeArrayType(vec4_float_type_, b.makeUintConstant(64), 0);
-  registers_ptr_ = b.createVariable(spv::StorageClass::StorageClassPrivate,
+  registers_ptr_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                                     registers_type_, "r");
 
-  aL_ = b.createVariable(spv::StorageClass::StorageClassPrivate,
+  aL_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                          vec4_uint_type_, "aL");
 
-  p0_ = b.createVariable(spv::StorageClass::StorageClassPrivate, bool_type_,
+  p0_ = b.createVariable(spv::StorageClass::StorageClassFunction, bool_type_,
                          "p0");
-  ps_ = b.createVariable(spv::StorageClass::StorageClassPrivate, float_type_,
+  ps_ = b.createVariable(spv::StorageClass::StorageClassFunction, float_type_,
                          "ps");
-  pv_ = b.createVariable(spv::StorageClass::StorageClassPrivate,
+  pv_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                          vec4_float_type_, "pv");
-  a0_ = b.createVariable(spv::StorageClass::StorageClassPrivate,
+  a0_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                          b.makeUintType(32), "a0");
 
   // Uniform constants.
@@ -110,7 +110,7 @@ void SpirvShaderTranslator::StartTranslation() {
       {float_consts_type, loop_consts_type, bool_consts_type}, "consts_type");
   b.addDecoration(consts_struct_type, spv::Decoration::DecorationBlock);
 
-  // Constants member decorations
+  // Constants member decorations.
   b.addMemberDecoration(consts_struct_type, 0,
                         spv::Decoration::DecorationOffset, 0);
   b.addMemberDecoration(consts_struct_type, 0,
@@ -144,11 +144,11 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addDecoration(consts_, spv::Decoration::DecorationBinding, 1);
   }
 
-  // Interpolators
+  // Interpolators.
   Id interpolators_type =
       b.makeArrayType(vec4_float_type_, b.makeUintConstant(16), 0);
   if (is_vertex_shader()) {
-    // Vertex inputs/outputs
+    // Vertex inputs/outputs.
     for (const auto& binding : vertex_bindings()) {
       for (const auto& attrib : binding.attributes) {
         Id attrib_type = 0;
@@ -204,13 +204,22 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addDecoration(pos_, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInPosition);
   } else {
-    // Pixel inputs/outputs
+    // Pixel inputs from vertex shader.
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassInput,
                                       interpolators_type, "interpolators");
     b.addDecoration(interpolators_, spv::Decoration::DecorationNoPerspective);
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
 
-    // Copy interpolators to r[0..16]
+    // Pixel fragment outputs (one per render target).
+    Id frag_outputs_type =
+        b.makeArrayType(vec4_float_type_, b.makeUintConstant(4), 0);
+    frag_outputs_ = b.createVariable(spv::StorageClass::StorageClassOutput,
+                                     frag_outputs_type, "o");
+    b.addDecoration(frag_outputs_, spv::Decoration::DecorationLocation, 0);
+
+    // TODO(benvanik): frag depth, etc.
+
+    // Copy interpolators to r[0..16].
     b.createNoResultOp(spv::Op::OpCopyMemorySized,
                        {registers_ptr_, interpolators_,
                         b.makeUintConstant(16 * 4 * sizeof(float))});
@@ -916,7 +925,7 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
   switch (op.storage_source) {
     case InstructionStorageSource::kRegister:
       storage_pointer = registers_ptr_;
-      storage_class = spv::StorageClass::StorageClassPrivate;
+      storage_class = spv::StorageClass::StorageClassFunction;
       storage_type = vec4_float_type_;
       storage_offsets.push_back(storage_index);
       break;
@@ -1040,7 +1049,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   switch (result.storage_target) {
     case InstructionStorageTarget::kRegister:
       storage_pointer = registers_ptr_;
-      storage_class = spv::StorageClass::StorageClassPrivate;
+      storage_class = spv::StorageClass::StorageClassFunction;
       storage_type = vec4_float_type_;
       storage_offsets.push_back(storage_index);
       storage_array = true;
@@ -1068,7 +1077,12 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       break;
     case InstructionStorageTarget::kColorTarget:
       assert_true(is_pixel_shader());
-      // TODO(benvanik): result.storage_index
+      assert_not_zero(frag_outputs_);
+      storage_pointer = frag_outputs_;
+      storage_class = spv::StorageClass::StorageClassOutput;
+      storage_type = vec4_float_type_;
+      storage_offsets.push_back(storage_index);
+      storage_array = true;
       break;
     case InstructionStorageTarget::kDepth:
       assert_true(is_pixel_shader());

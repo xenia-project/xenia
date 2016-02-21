@@ -42,10 +42,10 @@
                OpMemberDecorate %16 1 BuiltIn PointSize
                OpMemberDecorate %16 2 BuiltIn ClipDistance
                OpDecorate %16 Block
-               OpMemberDecorate %34 0 Location 1
+               OpMemberDecorate %34 0 Location 0
                OpDecorate %34 Stream 0
                OpDecorate %36 Stream 0
-               OpMemberDecorate %37 0 Location 1
+               OpMemberDecorate %37 0 Location 0
           %2 = OpTypeVoid
           %3 = OpTypeFunction %2
           %6 = OpTypeFloat 32

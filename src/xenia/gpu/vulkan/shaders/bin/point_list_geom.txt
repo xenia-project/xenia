@@ -46,10 +46,10 @@
                OpDecorate %39 Block
                OpDecorate %39 Stream 0
                OpDecorate %41 Stream 0
-               OpMemberDecorate %74 0 Location 1
+               OpMemberDecorate %74 0 Location 0
                OpDecorate %74 Stream 0
                OpDecorate %76 Stream 0
-               OpMemberDecorate %77 0 Location 1
+               OpMemberDecorate %77 0 Location 0
           %2 = OpTypeVoid
           %3 = OpTypeFunction %2
           %6 = OpTypeFloat 32
