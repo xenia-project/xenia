@@ -262,6 +262,8 @@ class PipelineCache {
 
     uint32_t sq_program_cntl;
     uint32_t sq_context_misc;
+    uint32_t rb_colorcontrol;
+    float rb_alpha_ref;
 
     SetDynamicStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

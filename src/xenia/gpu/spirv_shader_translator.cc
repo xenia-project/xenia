@@ -133,24 +133,30 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addDecoration(consts_, spv::Decoration::DecorationBinding, 1);
   }
 
-  // Push constants.
-  Id push_constants_type =
-      b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_},
-                       "push_consts_type");
-
-  b.addMemberDecoration(push_constants_type, 0,
-                        spv::Decoration::DecorationOffset, 0);
+  // Push constants, represented by SpirvPushConstants.
+  Id push_constants_type = b.makeStructType(
+      {vec4_float_type_, vec4_float_type_, vec4_float_type_, uint_type},
+      "push_consts_type");
+  // float4 window_scale;
+  b.addMemberDecoration(
+      push_constants_type, 0, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, window_scale)));
   b.addMemberName(push_constants_type, 0, "window_scale");
-
-  b.addMemberDecoration(push_constants_type, 1,
-                        spv::Decoration::DecorationOffset, 4 * sizeof(float));
+  // float4 vtx_fmt;
+  b.addMemberDecoration(
+      push_constants_type, 1, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, vtx_fmt)));
   b.addMemberName(push_constants_type, 1, "vtx_fmt");
-
-  b.addMemberDecoration(push_constants_type, 2,
-                        spv::Decoration::DecorationOffset,
-                        2 * 4 * sizeof(float));
+  // float4 alpha_test;
+  b.addMemberDecoration(
+      push_constants_type, 2, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
   b.addMemberName(push_constants_type, 2, "alpha_test");
-
+  // uint ps_param_gen;
+  b.addMemberDecoration(
+      push_constants_type, 3, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, ps_param_gen)));
+  b.addMemberName(push_constants_type, 3, "ps_param_gen");
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 

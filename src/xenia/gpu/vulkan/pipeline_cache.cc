@@ -59,13 +59,12 @@ PipelineCache::PipelineCache(
 
   // Push constants used for draw parameters.
   // We need to keep these under 128b across all stages.
-  VkPushConstantRange push_constant_ranges[2];
-  push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  // TODO(benvanik): split between the stages?
+  VkPushConstantRange push_constant_ranges[1];
+  push_constant_ranges[0].stageFlags =
+      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
   push_constant_ranges[0].offset = 0;
-  push_constant_ranges[0].size = sizeof(float) * 16;
-  push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  push_constant_ranges[1].offset = sizeof(float) * 16;
-  push_constant_ranges[1].size = sizeof(int);
+  push_constant_ranges[0].size = kSpirvPushConstantsSize;
 
   // Shared pipeline layout.
   VkPipelineLayoutCreateInfo pipeline_layout_info;
@@ -511,26 +510,74 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
 
   // TODO(benvanik): push constants.
 
-  bool push_constants_dirty = full_update;
+  bool push_constants_dirty = full_update || viewport_state_dirty;
   push_constants_dirty |=
       SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
   push_constants_dirty |=
       SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_alpha_ref, XE_GPU_REG_RB_ALPHA_REF);
+  if (push_constants_dirty) {
+    xenos::xe_gpu_program_cntl_t program_cntl;
+    program_cntl.dword_0 = regs.sq_program_cntl;
 
-  xenos::xe_gpu_program_cntl_t program_cntl;
-  program_cntl.dword_0 = regs.sq_program_cntl;
+    // Normal vertex shaders only, for now.
+    // TODO(benvanik): transform feedback/memexport.
+    // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
+    // 0 = normal
+    // 2 = point size
+    assert_true(program_cntl.vs_export_mode == 0 ||
+                program_cntl.vs_export_mode == 2);
 
-  // Populate a register in the pixel shader with frag coord.
-  int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
-  // draw_batcher_.set_ps_param_gen(program_cntl.param_gen ? ps_param_gen : -1);
+    SpirvPushConstants push_constants;
 
-  // Normal vertex shaders only, for now.
-  // TODO(benvanik): transform feedback/memexport.
-  // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
-  // 0 = normal
-  // 2 = point size
-  assert_true(program_cntl.vs_export_mode == 0 ||
-              program_cntl.vs_export_mode == 2);
+    // Done in VS, no need to flush state.
+    if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
+      push_constants.window_scale[0] = 1.0f;
+      push_constants.window_scale[1] = 1.0f;
+    } else {
+      push_constants.window_scale[0] = 1.0f / 2560.0f;
+      push_constants.window_scale[1] = -1.0f / 2560.0f;
+    }
+
+    // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+    // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
+    //            = false: multiply the X, Y coordinates by 1/W0.
+    // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
+    //           = false: multiply the Z coordinate by 1/W0.
+    // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
+    //                    get 1/W0.
+    float vtx_xy_fmt = (regs.pa_cl_vte_cntl >> 8) & 0x1 ? 1.0f : 0.0f;
+    float vtx_z_fmt = (regs.pa_cl_vte_cntl >> 9) & 0x1 ? 1.0f : 0.0f;
+    float vtx_w0_fmt = (regs.pa_cl_vte_cntl >> 10) & 0x1 ? 1.0f : 0.0f;
+    push_constants.vtx_fmt[0] = vtx_xy_fmt;
+    push_constants.vtx_fmt[1] = vtx_xy_fmt;
+    push_constants.vtx_fmt[2] = vtx_z_fmt;
+    push_constants.vtx_fmt[3] = vtx_w0_fmt;
+
+    // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
+    // Deprecated in Vulkan, implemented in shader.
+    // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
+    // ALPHATESTENABLE
+    push_constants.alpha_test[0] =
+        (regs.rb_colorcontrol & 0x8) != 0 ? 1.0f : 0.0f;
+    // ALPHAFUNC
+    push_constants.alpha_test[1] =
+        static_cast<float>(regs.rb_colorcontrol & 0x7);
+    // ALPHAREF
+    push_constants.alpha_test[2] = regs.rb_alpha_ref;
+
+    // Whether to populate a register in the pixel shader with frag coord.
+    int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
+    push_constants.ps_param_gen = program_cntl.param_gen ? ps_param_gen : -1;
+
+    vkCmdPushConstants(
+        command_buffer, pipeline_layout_,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+        kSpirvPushConstantsSize, &push_constants);
+  }
 
   return true;
 }

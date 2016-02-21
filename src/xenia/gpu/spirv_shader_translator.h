@@ -22,6 +22,28 @@
 namespace xe {
 namespace gpu {
 
+// Push constants embedded within the command buffer.
+// The total size of this struct must be <= 128b (as that's the commonly
+// supported size).
+struct SpirvPushConstants {
+  // Accessible to vertex shader only:
+  float window_scale[4];  // sx,sy, ?, ?
+  float vtx_fmt[4];
+
+  // Accessible to fragment shader only:
+  float alpha_test[4];  // alpha test enable, func, ref, ?
+  uint32_t ps_param_gen;
+};
+static_assert(sizeof(SpirvPushConstants) <= 128,
+              "Push constants must fit <= 128b");
+constexpr uint32_t kSpirvPushConstantVertexRangeOffset = 0;
+constexpr uint32_t kSpirvPushConstantVertexRangeSize = (sizeof(float) * 4) * 2;
+constexpr uint32_t kSpirvPushConstantFragmentRangeOffset =
+    kSpirvPushConstantVertexRangeSize;
+constexpr uint32_t kSpirvPushConstantFragmentRangeSize =
+    (sizeof(float) * 4) + sizeof(uint32_t);
+constexpr uint32_t kSpirvPushConstantsSize = sizeof(SpirvPushConstants);
+
 class SpirvShaderTranslator : public ShaderTranslator {
  public:
   SpirvShaderTranslator();
