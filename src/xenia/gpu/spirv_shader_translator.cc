@@ -116,6 +116,7 @@ void SpirvShaderTranslator::StartTranslation() {
   b.addMemberDecoration(consts_struct_type, 0,
                         spv::Decoration::DecorationArrayStride,
                         4 * sizeof(float));
+  b.addMemberName(consts_struct_type, 0, "float_consts");
 
   b.addMemberDecoration(consts_struct_type, 1,
                         spv::Decoration::DecorationOffset,
@@ -123,6 +124,7 @@ void SpirvShaderTranslator::StartTranslation() {
   b.addMemberDecoration(consts_struct_type, 1,
                         spv::Decoration::DecorationArrayStride,
                         sizeof(uint32_t));
+  b.addMemberName(consts_struct_type, 1, "loop_consts");
 
   b.addMemberDecoration(consts_struct_type, 2,
                         spv::Decoration::DecorationOffset,
@@ -130,6 +132,7 @@ void SpirvShaderTranslator::StartTranslation() {
   b.addMemberDecoration(consts_struct_type, 2,
                         spv::Decoration::DecorationArrayStride,
                         sizeof(uint32_t));
+  b.addMemberName(consts_struct_type, 2, "bool_consts");
 
   consts_ = b.createVariable(spv::StorageClass::StorageClassUniform,
                              consts_struct_type, "consts");
@@ -705,7 +708,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                              b.makeFloatConstant(0.f));
       auto d = b.createBinOp(spv::Op::OpFDiv, float_type_,
                              b.makeFloatConstant(1.f), sources[0]);
-      dest = b.createBinOp(spv::Op::OpSelect, c, b.makeFloatConstant(0.f), d);
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
+                           b.makeFloatConstant(0.f), d);
     } break;
 
     case AluScalarOpcode::kRsq: {
@@ -715,7 +719,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto d = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
           spv::GLSLstd450::kInverseSqrt, {sources[0]});
-      dest = b.createBinOp(spv::Op::OpSelect, c, b.makeFloatConstant(0.f), d);
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
+                           b.makeFloatConstant(0.f), d);
     } break;
 
     case AluScalarOpcode::kSeqs: {
