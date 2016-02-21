@@ -20,8 +20,9 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-#include "xenia/ui/vulkan/shaders/immediate.frag.h"
-#include "xenia/ui/vulkan/shaders/immediate.vert.h"
+// Generated with `xenia-build genspirv`.
+#include "xenia/ui/vulkan/shaders/bin/immediate_frag.h"
+#include "xenia/ui/vulkan/shaders/bin/immediate_vert.h"
 
 constexpr uint32_t kCircularBufferCapacity = 2 * 1024 * 1024;
 
@@ -380,9 +381,8 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   vertex_shader_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   vertex_shader_info.pNext = nullptr;
   vertex_shader_info.flags = 0;
-  vertex_shader_info.codeSize = sizeof(immediate_vert_spv);
-  vertex_shader_info.pCode =
-      reinterpret_cast<const uint32_t*>(immediate_vert_spv);
+  vertex_shader_info.codeSize = sizeof(immediate_vert);
+  vertex_shader_info.pCode = reinterpret_cast<const uint32_t*>(immediate_vert);
   VkShaderModule vertex_shader;
   err = vkCreateShaderModule(*device, &vertex_shader_info, nullptr,
                              &vertex_shader);
@@ -391,9 +391,9 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   fragment_shader_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   fragment_shader_info.pNext = nullptr;
   fragment_shader_info.flags = 0;
-  fragment_shader_info.codeSize = sizeof(immediate_frag_spv);
+  fragment_shader_info.codeSize = sizeof(immediate_frag);
   fragment_shader_info.pCode =
-      reinterpret_cast<const uint32_t*>(immediate_frag_spv);
+      reinterpret_cast<const uint32_t*>(immediate_frag);
   VkShaderModule fragment_shader;
   err = vkCreateShaderModule(*device, &fragment_shader_info, nullptr,
                              &fragment_shader);

@@ -1,3 +1,6 @@
+// NOTE: This file is compiled and embedded into the exe.
+//       Use `xenia-build genspirv` and check in any changes under bin/.
+
 #version 450 core
 precision highp float;
 

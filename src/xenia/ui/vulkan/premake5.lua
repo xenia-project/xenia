@@ -18,6 +18,9 @@ project("xenia-ui-vulkan")
     project_root.."/third_party/vulkan/",
   })
   local_platform_files()
+  files({
+    "shaders/bin/*.h",
+  })
   removefiles({"*_demo.cc"})
 
 group("demos")
