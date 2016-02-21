@@ -279,14 +279,14 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
     auto p = b.createLoad(pos_);
     auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_, vtx_fmt,
-                           b.makeFloatConstant(0.f));
+                           vec4_float_zero_);
 
-    // pos.w = vtx_fmt.w != 0.0 ? 1.0 / pos.w : pos.w
+    // pos.w = vtx_fmt.w == 0.0 ? 1.0 / pos.w : pos.w
     auto c_w = b.createCompositeExtract(c, bool_type_, 3);
     auto p_w = b.createCompositeExtract(p, float_type_, 3);
     auto p_w_inv = b.createBinOp(spv::Op::OpFDiv, float_type_,
                                  b.makeFloatConstant(1.f), p_w);
-    p_w = b.createTriOp(spv::Op::OpSelect, float_type_, c_w, p_w_inv, p_w);
+    p_w = b.createTriOp(spv::Op::OpSelect, float_type_, c_w, p_w, p_w_inv);
 
     // pos.xyz = vtx_fmt.xyz != 0.0 ? pos.xyz / pos.w : pos.xyz
     auto p_all_w = b.smearScalar(spv::Decoration::DecorationInvariant, p_w,
