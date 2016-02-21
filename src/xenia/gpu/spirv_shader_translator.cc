@@ -1289,6 +1289,10 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     return;
   }
 
+  if (!result.has_any_writes()) {
+    return;
+  }
+
   Id storage_pointer = 0;
   Id storage_type = vec4_float_type_;
   spv::StorageClass storage_class;
