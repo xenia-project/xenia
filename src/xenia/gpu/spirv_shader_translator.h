@@ -78,6 +78,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::unique_ptr<spv::Builder> builder_;
   spv::Id glsl_std_450_instruction_set_ = 0;
 
+  // Generated function
+  spv::Function* translated_main_ = 0;
+
   // Types.
   spv::Id float_type_ = 0, bool_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
@@ -93,6 +96,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id consts_ = 0, a0_ = 0, aL_ = 0, p0_ = 0;
   spv::Id ps_ = 0, pv_ = 0;  // IDs of previous results
   spv::Id pos_ = 0;
+  spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
   spv::Id frag_outputs_ = 0;
 
