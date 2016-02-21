@@ -106,7 +106,7 @@ bool InitializeStackWalker() {
   options |= SYMOPT_FAIL_CRITICAL_ERRORS;
   sym_set_options_(options);
   if (!sym_initialize_(GetCurrentProcess(), nullptr, TRUE)) {
-    XELOGE("Unable to initialize symbol services");
+    XELOGE("Unable to initialize symbol services - already in use?");
     return false;
   }
 
@@ -311,7 +311,7 @@ std::unique_ptr<StackWalker> StackWalker::Create(
     backend::CodeCache* code_cache) {
   auto stack_walker = std::make_unique<Win32StackWalker>(code_cache);
   if (!stack_walker->Initialize()) {
-    XELOGE("Unable to initialize stack walker");
+    XELOGE("Unable to initialize stack walker: debug/save states disabled");
     return nullptr;
   }
   return std::unique_ptr<StackWalker>(stack_walker.release());

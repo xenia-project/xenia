@@ -140,10 +140,15 @@ bool Processor::Setup() {
   frontend_ = std::move(frontend);
 
   // Stack walker is used when profiling, debugging, and dumping.
+  // Note that creation may fail, in which case we'll have to disable those
+  // features.
   stack_walker_ = StackWalker::Create(backend_->code_cache());
   if (!stack_walker_) {
-    XELOGE("Unable to create stack walker");
-    return false;
+    // TODO(benvanik): disable features.
+    if (FLAGS_debug) {
+      XELOGW("Disabling --debug due to lack of stack walker");
+      FLAGS_debug = false;
+    }
   }
 
   // Open the trace data path, if requested.
