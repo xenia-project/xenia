@@ -163,11 +163,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                        IndexBufferInfo* index_buffer_info) {
   auto& regs = *register_file_;
 
-  // TODO(benvanik): move to CP or to host (trace dump, etc).
-  if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
-    device_->BeginRenderDocFrameCapture();
-  }
-
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -180,6 +175,11 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   } else if (enable_mode == ModeControl::kCopy) {
     // Special copy handling.
     return IssueCopy();
+  }
+
+  // TODO(benvanik): move to CP or to host (trace dump, etc).
+  if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
+    device_->BeginRenderDocFrameCapture();
   }
 
   // Shaders will have already been defined by previous loads.

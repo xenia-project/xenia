@@ -344,11 +344,12 @@ VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize alignment,
   if (transient_tail_offset_ >= transient_head_offset_) {
     // Tail follows head, so things are easy:
     // |    H----T   |
-    if (transient_tail_offset_ + length <= transient_capacity_) {
+    if (xe::round_up(transient_tail_offset_, alignment) + length <=
+        transient_capacity_) {
       // Allocation fits from tail to end of buffer, so grow.
       // |    H----**T |
-      VkDeviceSize offset = transient_tail_offset_;
-      transient_tail_offset_ += length;
+      VkDeviceSize offset = xe::round_up(transient_tail_offset_, alignment);
+      transient_tail_offset_ = offset + length;
       return offset;
     } else if (length + kDeadZone <= transient_head_offset_) {
       // Can't fit at the end, but can fit if we wrap around.
@@ -360,11 +361,12 @@ VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize alignment,
   } else {
     // Head follows tail, so we're reversed:
     // |----T    H---|
-    if (transient_tail_offset_ + length + kDeadZone <= transient_head_offset_) {
+    if (xe::round_up(transient_tail_offset_, alignment) + length + kDeadZone <=
+        transient_head_offset_) {
       // Fits from tail to head.
       // |----***T H---|
-      VkDeviceSize offset = transient_tail_offset_;
-      transient_tail_offset_ += length;
+      VkDeviceSize offset = xe::round_up(transient_tail_offset_, alignment);
+      transient_tail_offset_ = offset + length;
       return offset;
     }
   }

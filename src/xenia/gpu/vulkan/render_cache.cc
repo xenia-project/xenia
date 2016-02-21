@@ -293,6 +293,10 @@ bool CachedFramebuffer::IsCompatible(
     const RenderConfiguration& desired_config) const {
   // We already know all render pass things line up, so let's verify dimensions,
   // edram offsets, etc. We need an exact match.
+  if (desired_config.surface_pitch_px != width ||
+      desired_config.surface_height_px != height) {
+    return false;
+  }
   // TODO(benvanik): separate image views from images in tiles and store in fb?
   for (int i = 0; i < 4; ++i) {
     // Ensure the the attachment points to the same tile.
