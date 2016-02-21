@@ -596,9 +596,12 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     sources[i] = LoadFromOperand(instr.operands[i]);
   }
 
-  Id pred_cond =
-      b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                    b.makeBoolConstant(instr.predicate_condition));
+  Id pred_cond = 0;
+  if (instr.is_predicated) {
+    pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+  }
 
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd: {
@@ -656,7 +659,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_,
                                 sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -672,7 +678,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual,
                                 vec4_bool_type_, sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -688,7 +697,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
                                 sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -704,7 +716,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
                                 sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -831,9 +846,12 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     }
   }
 
-  Id pred_cond =
-      b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                    b.makeBoolConstant(instr.predicate_condition));
+  Id pred_cond = 0;
+  if (instr.is_predicated) {
+    pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+  }
 
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
@@ -876,7 +894,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
                                 sources[0], b.makeFloatConstant(0.f));
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -891,7 +912,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
                                 sources[0], b.makeFloatConstant(0.f));
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -906,7 +930,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(0.f));
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -921,7 +948,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(1.f));
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1345,7 +1375,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   // Only load from storage if we need it later.
   Id storage_value = 0;
   if (!result.has_all_writes() || predicate_cond) {
-    b.createLoad(storage_pointer);
+    storage_value = b.createLoad(storage_pointer);
   }
 
   // Convert to the appropriate type, if needed.
