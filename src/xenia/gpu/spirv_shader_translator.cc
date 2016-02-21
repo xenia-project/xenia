@@ -54,6 +54,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
   bool_type_ = b.makeBoolType();
   float_type_ = b.makeFloatType(32);
+  int_type_ = b.makeIntType(32);
   Id uint_type = b.makeUintType(32);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
@@ -961,6 +962,24 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       dest = b.makeFloatConstant(0.f);
     } break;
 
+    case AluScalarOpcode::kMaxAs: {
+      // a0 = clamp(floor(src0 + 0.5), -256, 255)
+      auto addr = b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0],
+                                b.makeFloatConstant(0.5f));
+      addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
+      addr = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, int_type_,
+          spv::GLSLstd450::kSClamp,
+          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
+      b.createStore(addr, a0_);
+
+      // dest = src0 >= src1 ? src0 : src1
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                sources[0], sources[1]);
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond, sources[0],
+                           sources[1]);
+    } break;
+
     case AluScalarOpcode::kMaxs: {
       // dest = max(src0, src1)
       dest = CreateGlslStd450InstructionCall(
@@ -1048,6 +1067,11 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                                 b.makeFloatConstant(0.f));
       dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
                            b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
+    } break;
+
+    case AluScalarOpcode::kSetpClr: {
+      b.createStore(b.makeBoolConstant(false), p0_);
+      dest = b.makeFloatConstant(FLT_MAX);
     } break;
 
     case AluScalarOpcode::kSetpEq: {
