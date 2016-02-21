@@ -47,21 +47,10 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addCapability(spv::Capability::CapabilityDerivativeControl);
   }
 
-  // main() entry point.
-  auto mainFn = b.makeMain();
-  if (is_vertex_shader()) {
-    b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex, mainFn, "main");
-  } else {
-    b.addEntryPoint(spv::ExecutionModel::ExecutionModelFragment, mainFn,
-                    "main");
-    b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
-  }
-
-  // TODO(benvanik): transform feedback.
-  if (false) {
-    b.addCapability(spv::Capability::CapabilityTransformFeedback);
-    b.addExecutionMode(mainFn, spv::ExecutionMode::ExecutionModeXfb);
-  }
+  spv::Block* function_block = nullptr;
+  translated_main_ = b.makeFunctionEntry(spv::Decoration::DecorationInvariant,
+                                         b.makeVoidType(), "translated_main",
+                                         {}, {}, &function_block);
 
   bool_type_ = b.makeBoolType();
   float_type_ = b.makeFloatType(32);
@@ -143,6 +132,27 @@ void SpirvShaderTranslator::StartTranslation() {
   } else if (is_pixel_shader()) {
     b.addDecoration(consts_, spv::Decoration::DecorationBinding, 1);
   }
+
+  // Push constants.
+  Id push_constants_type =
+      b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_},
+                       "push_consts_type");
+
+  b.addMemberDecoration(push_constants_type, 0,
+                        spv::Decoration::DecorationOffset, 0);
+  b.addMemberName(push_constants_type, 0, "window_scale");
+
+  b.addMemberDecoration(push_constants_type, 1,
+                        spv::Decoration::DecorationOffset, 4 * sizeof(float));
+  b.addMemberName(push_constants_type, 1, "vtx_fmt");
+
+  b.addMemberDecoration(push_constants_type, 2,
+                        spv::Decoration::DecorationOffset,
+                        2 * 4 * sizeof(float));
+  b.addMemberName(push_constants_type, 2, "alpha_test");
+
+  push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
+                                  push_constants_type, "push_consts");
 
   // Interpolators.
   Id interpolators_type =
@@ -228,6 +238,55 @@ void SpirvShaderTranslator::StartTranslation() {
 
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   auto& b = *builder_;
+
+  b.makeReturn(false);
+
+  // main() entry point.
+  auto mainFn = b.makeMain();
+  if (is_vertex_shader()) {
+    b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex, mainFn, "main");
+  } else {
+    b.addEntryPoint(spv::ExecutionModel::ExecutionModelFragment, mainFn,
+                    "main");
+    b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
+  }
+
+  // TODO(benvanik): transform feedback.
+  if (false) {
+    b.addCapability(spv::Capability::CapabilityTransformFeedback);
+    b.addExecutionMode(mainFn, spv::ExecutionMode::ExecutionModeXfb);
+  }
+
+  b.createFunctionCall(translated_main_, std::vector<Id>({}));
+  if (is_vertex_shader()) {
+    // gl_Position transform
+    auto vtx_fmt_ptr = b.createAccessChain(
+        spv::StorageClass::StorageClassPushConstant, push_consts_,
+        std::vector<Id>({b.makeUintConstant(1)}));
+    auto vtx_fmt = b.createLoad(vtx_fmt_ptr);
+
+    auto p = b.createLoad(pos_);
+    auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_, vtx_fmt,
+                           b.makeFloatConstant(0.f));
+
+    // pos.w = vtx_fmt.w != 0.0 ? 1.0 / pos.w : pos.w
+    auto c_w = b.createCompositeExtract(c, bool_type_, 3);
+    auto p_w = b.createCompositeExtract(p, float_type_, 3);
+    auto p_w_inv = b.createBinOp(spv::Op::OpFDiv, float_type_,
+                                 b.makeFloatConstant(1.f), p_w);
+    p_w = b.createTriOp(spv::Op::OpSelect, float_type_, c_w, p_w_inv, p_w);
+
+    // pos.xyz = vtx_fmt.xyz != 0.0 ? pos.xyz / pos.w : pos.xyz
+    auto p_all_w = b.smearScalar(spv::Decoration::DecorationInvariant, p_w,
+                                 vec4_float_type_);
+    auto p_inv = b.createBinOp(spv::Op::OpFDiv, vec4_float_type_, p, p_all_w);
+    p = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, p_inv, p);
+
+    // Reinsert w
+    p = b.createCompositeInsert(p_w, p, vec4_float_type_, 3);
+
+    b.createStore(p, pos_);
+  }
 
   b.makeReturn(false);
 
@@ -524,6 +583,30 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kAdd: {
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
                            sources[1]);
+    } break;
+
+    case AluVectorOpcode::kCndEq: {
+      // dest = src0 == 0.0 ? src1 : src2;
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                             b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
+                           sources[2]);
+    } break;
+
+    case AluVectorOpcode::kCndGe: {
+      // dest = src0 == 0.0 ? src1 : src2;
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
+                             sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
+                           sources[2]);
+    } break;
+
+    case AluVectorOpcode::kCndGt: {
+      // dest = src0 == 0.0 ? src1 : src2;
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
+                             sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
+                           sources[2]);
     } break;
 
     case AluVectorOpcode::kCube: {
@@ -1130,7 +1213,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   }
 
   // swizzle
-  // TODO: 0.0 and 1.0 swizzles
   if (!result.is_standard_swizzle()) {
     std::vector<uint32_t> operands;
     operands.push_back(source_value_id);
