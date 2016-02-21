@@ -900,6 +900,12 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
           {sources[0]});
     } break;
 
+    case AluScalarOpcode::kExp: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kExp2,
+          {sources[0]});
+    } break;
+
     case AluScalarOpcode::kKillsEq: {
       auto continue_block = &b.makeNewBlock();
       auto kill_block = &b.makeNewBlock();
