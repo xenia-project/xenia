@@ -269,7 +269,11 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     auto vtx_fmt_ptr = b.createAccessChain(
         spv::StorageClass::StorageClassPushConstant, push_consts_,
         std::vector<Id>({b.makeUintConstant(1)}));
+    auto window_scale_ptr = b.createAccessChain(
+        spv::StorageClass::StorageClassPushConstant, push_consts_,
+        std::vector<Id>({b.makeUintConstant(0)}));
     auto vtx_fmt = b.createLoad(vtx_fmt_ptr);
+    auto window_scale = b.createLoad(window_scale_ptr);
 
     auto p = b.createLoad(pos_);
     auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_, vtx_fmt,
@@ -290,6 +294,16 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
     // Reinsert w
     p = b.createCompositeInsert(p_w, p, vec4_float_type_, 3);
+
+    // Apply window scaling
+    // pos.xy *= window_scale.xy
+    auto p_scaled = b.createUnaryOp(spv::Op::OpCopyObject, vec4_float_type_, p);
+    p_scaled = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p_scaled,
+                             window_scale);
+
+    std::vector<uint32_t> operands({p, p_scaled});
+    p = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                   {p, p_scaled, 4, 5, 2, 3});
 
     b.createStore(p, pos_);
   }
