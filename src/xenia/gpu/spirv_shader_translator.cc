@@ -740,6 +740,24 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, dest, sources[2]);
     } break;
 
+    case AluVectorOpcode::kMaxA: {
+      // a0 = clamp(floor(src0.w + 0.5), -256, 255)
+      auto addr = b.createCompositeExtract(sources[0], float_type_, 3);
+      addr = b.createBinOp(spv::Op::OpFAdd, float_type_, addr,
+                           b.makeFloatConstant(0.5f));
+      addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
+      addr = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, int_type_,
+          spv::GLSLstd450::kSClamp,
+          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
+      b.createStore(addr, a0_);
+
+      // dest = src0 >= src1 ? src0 : src1
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, vec4_float_type_,
+          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
+    } break;
+
     case AluVectorOpcode::kMax: {
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
