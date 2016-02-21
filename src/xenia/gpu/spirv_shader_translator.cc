@@ -566,7 +566,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
     case AluVectorOpcode::kSge: {
       // foreach(el) src0 >= src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_float_type_,
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
                              sources[0], sources[1]);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            vec4_float_one_, vec4_float_zero_);
@@ -574,7 +574,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
     case AluVectorOpcode::kSgt: {
       // foreach(el) src0 > src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_float_type_,
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
                              sources[0], sources[1]);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            vec4_float_one_, vec4_float_zero_);
@@ -582,7 +582,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
     case AluVectorOpcode::kSne: {
       // foreach(el) src0 != src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_float_type_,
+      auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
                              sources[0], sources[1]);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            vec4_float_one_, vec4_float_zero_);
@@ -726,7 +726,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kRsq: {
       // dest = src0 != 0.0 ? inversesqrt(src0) : 0.0;
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, float_type_, sources[0],
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                              b.makeFloatConstant(0.f));
       auto d = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
