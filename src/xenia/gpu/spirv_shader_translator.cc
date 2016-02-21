@@ -724,19 +724,35 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kSeqs: {
-      // TODO: dest = src0 == 0.0 ? 1.0 : 0.0;
+      // dest = src0 == 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSges: {
-      // TODO: dest = src0 >= 0.0 ? 1.0 : 0.0;
+      // dest = src0 >= 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSgts: {
-      // TODO: dest = src0 > 0.0 ? 1.0 : 0.0;
+      // dest = src0 > 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSnes: {
-      // TODO: dest = src0 != 0.0 ? 1.0 : 0.0;
+      // dest = src0 != 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSetpEq: {
@@ -932,29 +948,26 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
         swiz = op.components[op.component_count - 1];
       }
 
-      uint32_t swiz_id = 0;
       switch (swiz) {
         case SwizzleSource::kX:
-          swiz_id = 0;
+          operands.push_back(0);
           break;
         case SwizzleSource::kY:
-          swiz_id = 1;
+          operands.push_back(1);
           break;
         case SwizzleSource::kZ:
-          swiz_id = 2;
+          operands.push_back(2);
           break;
         case SwizzleSource::kW:
-          swiz_id = 3;
+          operands.push_back(3);
           break;
         case SwizzleSource::k0:
-          swiz_id = 4;
+          operands.push_back(4);
           break;
         case SwizzleSource::k1:
-          swiz_id = 5;
+          operands.push_back(5);
           break;
       }
-
-      operands.push_back(swiz_id);
     }
 
     storage_value =
@@ -1096,7 +1109,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
         continue;
       }
 
-      uint32_t swiz_id = 0;
       switch (swiz) {
         case SwizzleSource::kX:
           operands.push_back(0);
