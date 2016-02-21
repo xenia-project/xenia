@@ -14,6 +14,7 @@
 #include <set>
 #include <string>
 
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
 namespace xe {
@@ -353,7 +354,7 @@ bool ShaderTranslator::TranslateBlocks() {
   // This is what freedreno does.
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
   std::set<uint32_t> label_addresses;
-  for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
+  for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {
     ControlFlowInstruction cf_a;
     ControlFlowInstruction cf_b;
     UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
@@ -367,6 +368,11 @@ bool ShaderTranslator::TranslateBlocks() {
     }
     AddControlFlowTargetLabel(cf_a, &label_addresses);
     AddControlFlowTargetLabel(cf_b, &label_addresses);
+
+    PreProcessControlFlowInstruction(cf_index);
+    ++cf_index;
+    PreProcessControlFlowInstruction(cf_index);
+    ++cf_index;
   }
 
   // Translate all instructions.
@@ -666,11 +672,11 @@ void ShaderTranslator::TranslateExecInstructions(
           static_cast<FetchOpcode>(ucode_dwords_[instr_offset * 3] & 0x1F);
       if (fetch_opcode == FetchOpcode::kVertexFetch) {
         auto& op = *reinterpret_cast<const VertexFetchInstruction*>(
-            ucode_dwords_ + instr_offset * 3);
+                       ucode_dwords_ + instr_offset * 3);
         TranslateVertexFetchInstruction(op);
       } else {
         auto& op = *reinterpret_cast<const TextureFetchInstruction*>(
-            ucode_dwords_ + instr_offset * 3);
+                       ucode_dwords_ + instr_offset * 3);
         TranslateTextureFetchInstruction(op);
       }
     } else {
@@ -1114,9 +1120,15 @@ void ShaderTranslator::ParseAluVectorInstruction(
         i.result.storage_target = InstructionStorageTarget::kPointSize;
         break;
       default:
-        assert_true(dest_num < 16);
-        i.result.storage_target = InstructionStorageTarget::kInterpolant;
-        i.result.storage_index = dest_num;
+        if (dest_num < 16) {
+          i.result.storage_target = InstructionStorageTarget::kInterpolant;
+          i.result.storage_index = dest_num;
+        } else {
+          // Unimplemented.
+          // assert_always();
+          i.result.storage_target = InstructionStorageTarget::kNone;
+          i.result.storage_index = 0;
+        }
         break;
     }
   } else if (is_pixel_shader()) {
@@ -1236,9 +1248,19 @@ void ShaderTranslator::ParseAluScalarInstruction(
         i.result.storage_target = InstructionStorageTarget::kPointSize;
         break;
       default:
-        assert_true(dest_num < 16);
-        i.result.storage_target = InstructionStorageTarget::kInterpolant;
-        i.result.storage_index = dest_num;
+        if (dest_num < 16) {
+          i.result.storage_target = InstructionStorageTarget::kInterpolant;
+          i.result.storage_index = dest_num;
+        } else {
+          // Unimplemented.
+          // assert_always();
+          XELOGE(
+              "ShaderTranslator::ParseAluScalarInstruction: Unsupported write "
+              "to export %d",
+              dest_num);
+          i.result.storage_target = InstructionStorageTarget::kNone;
+          i.result.storage_index = 0;
+        }
         break;
     }
   } else if (is_pixel_shader()) {
