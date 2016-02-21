@@ -566,7 +566,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
     case AluVectorOpcode::kSge: {
       // foreach(el) src0 >= src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_float_type_,
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
                              sources[0], sources[1]);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            vec4_float_one_, vec4_float_zero_);
@@ -574,7 +574,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
     case AluVectorOpcode::kSgt: {
       // foreach(el) src0 > src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_float_type_,
+      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
                              sources[0], sources[1]);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            vec4_float_one_, vec4_float_zero_);
@@ -582,7 +582,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
     case AluVectorOpcode::kSne: {
       // foreach(el) src0 != src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_float_type_,
+      auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
                              sources[0], sources[1]);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            vec4_float_one_, vec4_float_zero_);
@@ -599,8 +599,20 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
   }
 
   if (dest) {
+    // If predicated, discard the result from the instruction.
+    Id pred_cond = 0;
+    Id pv_dest = dest;
+    if (instr.is_predicated) {
+      pred_cond =
+          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                        b.makeBoolConstant(instr.predicate_condition));
+
+      pv_dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, pred_cond,
+                              dest, b.createLoad(pv_));
+    }
+
     b.createStore(dest, pv_);
-    StoreToResult(dest, instr.result);
+    StoreToResult(dest, instr.result, pred_cond);
   }
 }
 
@@ -714,7 +726,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kRsq: {
       // dest = src0 != 0.0 ? inversesqrt(src0) : 0.0;
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, float_type_, sources[0],
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                              b.makeFloatConstant(0.f));
       auto d = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
@@ -724,19 +736,35 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kSeqs: {
-      // TODO: dest = src0 == 0.0 ? 1.0 : 0.0;
+      // dest = src0 == 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSges: {
-      // TODO: dest = src0 >= 0.0 ? 1.0 : 0.0;
+      // dest = src0 >= 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSgts: {
-      // TODO: dest = src0 > 0.0 ? 1.0 : 0.0;
+      // dest = src0 > 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSnes: {
-      // TODO: dest = src0 != 0.0 ? 1.0 : 0.0;
+      // dest = src0 != 0.0 ? 1.0 : 0.0;
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
+                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
     case AluScalarOpcode::kSetpEq: {
@@ -823,8 +851,20 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
   }
 
   if (dest) {
+    // If predicated, discard the result from the instruction.
+    Id pred_cond = 0;
+    Id ps_dest = dest;
+    if (instr.is_predicated) {
+      pred_cond =
+          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                        b.makeBoolConstant(instr.predicate_condition));
+
+      ps_dest = b.createTriOp(spv::Op::OpSelect, float_type_, pred_cond, dest,
+                              b.createLoad(ps_));
+    }
+
     b.createStore(dest, ps_);
-    StoreToResult(dest, instr.result);
+    StoreToResult(dest, instr.result, pred_cond);
   }
 }
 
@@ -932,29 +972,26 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
         swiz = op.components[op.component_count - 1];
       }
 
-      uint32_t swiz_id = 0;
       switch (swiz) {
         case SwizzleSource::kX:
-          swiz_id = 0;
+          operands.push_back(0);
           break;
         case SwizzleSource::kY:
-          swiz_id = 1;
+          operands.push_back(1);
           break;
         case SwizzleSource::kZ:
-          swiz_id = 2;
+          operands.push_back(2);
           break;
         case SwizzleSource::kW:
-          swiz_id = 3;
+          operands.push_back(3);
           break;
         case SwizzleSource::k0:
-          swiz_id = 4;
+          operands.push_back(4);
           break;
         case SwizzleSource::k1:
-          swiz_id = 5;
+          operands.push_back(5);
           break;
       }
-
-      operands.push_back(swiz_id);
     }
 
     storage_value =
@@ -965,7 +1002,8 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
 }
 
 void SpirvShaderTranslator::StoreToResult(Id source_value_id,
-                                          const InstructionResult& result) {
+                                          const InstructionResult& result,
+                                          Id predicate_cond) {
   auto& b = *builder_;
 
   if (result.storage_target == InstructionStorageTarget::kNone) {
@@ -1096,7 +1134,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
         continue;
       }
 
-      uint32_t swiz_id = 0;
       switch (swiz) {
         case SwizzleSource::kX:
           operands.push_back(0);
@@ -1141,6 +1178,14 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   // Perform store into the pointer.
   assert_true(b.getNumComponents(source_value_id) ==
               b.getNumTypeComponents(storage_type));
+
+  // Discard if predicate condition is false.
+  if (predicate_cond) {
+    source_value_id =
+        b.createTriOp(spv::Op::OpSelect, storage_type, predicate_cond,
+                      source_value_id, storage_value);
+  }
+
   b.createStore(source_value_id, storage_pointer);
 }
 
