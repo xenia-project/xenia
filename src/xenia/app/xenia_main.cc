@@ -25,6 +25,7 @@
 
 // Available graphics systems:
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
+#include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
@@ -69,6 +70,9 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
   if (FLAGS_gpu.compare("gl4") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::gl4::GL4GraphicsSystem());
+  } else if (FLAGS_gpu.compare("vulkan") == 0) {
+    return std::unique_ptr<gpu::GraphicsSystem>(
+        new xe::gpu::vulkan::VulkanGraphicsSystem());
   } else {
     // Create best available.
     std::unique_ptr<gpu::GraphicsSystem> best;
