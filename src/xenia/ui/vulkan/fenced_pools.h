@@ -33,18 +33,9 @@ class BaseFencedPool {
     // TODO(benvanik): wait on fence until done.
     assert_null(pending_batch_list_head_);
 
-    // Run down free lists.
-    while (free_batch_list_head_) {
-      auto batch = free_batch_list_head_;
-      free_batch_list_head_ = batch->next;
-      delete batch;
-    }
-    while (free_entry_list_head_) {
-      auto entry = free_entry_list_head_;
-      free_entry_list_head_ = entry->next;
-      static_cast<T*>(this)->FreeEntry(entry->handle);
-      delete entry;
-    }
+    // Subclasses must call FreeAllEntries() to properly clean up things.
+    assert_null(free_batch_list_head_);
+    assert_null(free_entry_list_head_);
   }
 
   // True if one or more batches are still pending on the GPU.
@@ -157,6 +148,21 @@ class BaseFencedPool {
     entry->next = free_entry_list_head_;
     entry->handle = handle;
     free_entry_list_head_ = entry;
+  }
+
+  void FreeAllEntries() {
+    // Run down free lists.
+    while (free_batch_list_head_) {
+      auto batch = free_batch_list_head_;
+      free_batch_list_head_ = batch->next;
+      delete batch;
+    }
+    while (free_entry_list_head_) {
+      auto entry = free_entry_list_head_;
+      free_entry_list_head_ = entry->next;
+      static_cast<T*>(this)->FreeEntry(entry->handle);
+      delete entry;
+    }
   }
 
   VkDevice device_ = nullptr;

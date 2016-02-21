@@ -53,6 +53,7 @@ CommandBufferPool::CommandBufferPool(VkDevice device,
 }
 
 CommandBufferPool::~CommandBufferPool() {
+  FreeAllEntries();
   vkDestroyCommandPool(device_, command_pool_, nullptr);
   command_pool_ = nullptr;
 }
