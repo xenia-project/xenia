@@ -90,7 +90,13 @@ class PipelineCache {
   // constants.
   VkPipelineLayout pipeline_layout_ = nullptr;
 
-  // TODO(benvanik): geometry shader cache.
+  // Shared geometry shaders.
+  struct {
+    VkShaderModule line_quad_list;
+    VkShaderModule point_list;
+    VkShaderModule quad_list;
+    VkShaderModule rect_list;
+  } geometry_shaders_;
 
   // Hash state used to incrementally produce pipeline hashes during update.
   // By the time the full update pass has run the hash will represent the

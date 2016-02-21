@@ -1,0 +1,136 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 1
+; Bound: 70
+; Schema: 0
+               OpCapability Geometry
+               OpCapability GeometryPointSize
+               OpCapability ClipDistance
+               OpCapability GeometryStreams
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Geometry %4 "main" %38 %42 %59 %63
+               OpExecutionMode %4 InputLinesAdjacency
+               OpExecutionMode %4 Invocations 1
+               OpExecutionMode %4 OutputTriangleStrip
+               OpExecutionMode %4 OutputVertices 4
+               OpSource GLSL 450
+               OpName %4 "main"
+               OpName %8 "i"
+               OpName %19 "input_index"
+               OpName %29 "indexable"
+               OpName %36 "gl_PerVertex"
+               OpMemberName %36 0 "gl_Position"
+               OpMemberName %36 1 "gl_PointSize"
+               OpMemberName %36 2 "gl_ClipDistance"
+               OpName %38 ""
+               OpName %39 "gl_PerVertex"
+               OpMemberName %39 0 "gl_Position"
+               OpMemberName %39 1 "gl_PointSize"
+               OpMemberName %39 2 "gl_ClipDistance"
+               OpName %42 "gl_in"
+               OpName %57 "VertexData"
+               OpMemberName %57 0 "o"
+               OpName %59 "out_vtx"
+               OpName %60 "VertexData"
+               OpMemberName %60 0 "o"
+               OpName %63 "in_vtx"
+               OpMemberDecorate %36 0 BuiltIn Position
+               OpMemberDecorate %36 1 BuiltIn PointSize
+               OpMemberDecorate %36 2 BuiltIn ClipDistance
+               OpDecorate %36 Block
+               OpDecorate %36 Stream 0
+               OpDecorate %38 Stream 0
+               OpMemberDecorate %39 0 BuiltIn Position
+               OpMemberDecorate %39 1 BuiltIn PointSize
+               OpMemberDecorate %39 2 BuiltIn ClipDistance
+               OpDecorate %39 Block
+               OpMemberDecorate %57 0 Location 1
+               OpDecorate %57 Stream 0
+               OpDecorate %59 Stream 0
+               OpMemberDecorate %60 0 Location 1
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %6 = OpTypeInt 32 1
+          %7 = OpTypePointer Function %6
+          %9 = OpConstant %6 0
+         %16 = OpConstant %6 4
+         %17 = OpTypeBool
+         %20 = OpTypeInt 32 0
+         %21 = OpConstant %20 4
+         %22 = OpTypeArray %6 %21
+         %23 = OpConstant %6 1
+         %24 = OpConstant %6 3
+         %25 = OpConstant %6 2
+         %26 = OpConstantComposite %22 %9 %23 %24 %25
+         %28 = OpTypePointer Function %22
+         %32 = OpTypeFloat 32
+         %33 = OpTypeVector %32 4
+         %34 = OpConstant %20 1
+         %35 = OpTypeArray %32 %34
+         %36 = OpTypeStruct %33 %32 %35
+         %37 = OpTypePointer Output %36
+         %38 = OpVariable %37 Output
+         %39 = OpTypeStruct %33 %32 %35
+         %40 = OpTypeArray %39 %21
+         %41 = OpTypePointer Input %40
+         %42 = OpVariable %41 Input
+         %44 = OpTypePointer Input %33
+         %47 = OpTypePointer Output %33
+         %50 = OpTypePointer Input %32
+         %53 = OpTypePointer Output %32
+         %55 = OpConstant %20 16
+         %56 = OpTypeArray %33 %55
+         %57 = OpTypeStruct %56
+         %58 = OpTypePointer Output %57
+         %59 = OpVariable %58 Output
+         %60 = OpTypeStruct %56
+         %61 = OpTypeArray %60 %21
+         %62 = OpTypePointer Input %61
+         %63 = OpVariable %62 Input
+         %65 = OpTypePointer Input %60
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+          %8 = OpVariable %7 Function
+         %19 = OpVariable %7 Function
+         %29 = OpVariable %28 Function
+               OpStore %8 %9
+               OpBranch %10
+         %10 = OpLabel
+               OpLoopMerge %12 %13 None
+               OpBranch %14
+         %14 = OpLabel
+         %15 = OpLoad %6 %8
+         %18 = OpSLessThan %17 %15 %16
+               OpBranchConditional %18 %11 %12
+         %11 = OpLabel
+         %27 = OpLoad %6 %8
+               OpStore %29 %26
+         %30 = OpAccessChain %7 %29 %27
+         %31 = OpLoad %6 %30
+               OpStore %19 %31
+         %43 = OpLoad %6 %19
+         %45 = OpAccessChain %44 %42 %43 %9
+         %46 = OpLoad %33 %45
+         %48 = OpAccessChain %47 %38 %9
+               OpStore %48 %46
+         %49 = OpLoad %6 %19
+         %51 = OpAccessChain %50 %42 %49 %23
+         %52 = OpLoad %32 %51
+         %54 = OpAccessChain %53 %38 %23
+               OpStore %54 %52
+         %64 = OpLoad %6 %19
+         %66 = OpAccessChain %65 %63 %64
+         %67 = OpLoad %60 %66
+               OpStore %59 %67
+               OpEmitVertex
+               OpBranch %13
+         %13 = OpLabel
+         %68 = OpLoad %6 %8
+         %69 = OpIAdd %6 %68 %23
+               OpStore %8 %69
+               OpBranch %10
+         %12 = OpLabel
+               OpEndPrimitive
+               OpReturn
+               OpFunctionEnd

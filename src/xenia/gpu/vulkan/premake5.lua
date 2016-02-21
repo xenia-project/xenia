@@ -21,6 +21,9 @@ project("xenia-gpu-vulkan")
     project_root.."/third_party/gflags/src",
   })
   local_platform_files()
+  files({
+    "shaders/bin/*.h",
+  })
 
 -- TODO(benvanik): kill this and move to the debugger UI.
 group("src")

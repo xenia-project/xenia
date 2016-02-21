@@ -23,6 +23,12 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
+// Generated with `xenia-build genspirv`.
+#include "xenia/gpu/vulkan/shaders/bin/line_quad_list_geom.h"
+#include "xenia/gpu/vulkan/shaders/bin/point_list_geom.h"
+#include "xenia/gpu/vulkan/shaders/bin/quad_list_geom.h"
+#include "xenia/gpu/vulkan/shaders/bin/rect_list_geom.h"
+
 PipelineCache::PipelineCache(
     RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
     VkDescriptorSetLayout uniform_descriptor_set_layout,
@@ -75,6 +81,36 @@ PipelineCache::PipelineCache(
   err = vkCreatePipelineLayout(*device, &pipeline_layout_info, nullptr,
                                &pipeline_layout_);
   CheckResult(err, "vkCreatePipelineLayout");
+
+  // Initialize our shared geometry shaders.
+  // These will be used as needed to emulate primitive types Vulkan doesn't
+  // support.
+  VkShaderModuleCreateInfo shader_module_info;
+  shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  shader_module_info.pNext = nullptr;
+  shader_module_info.flags = 0;
+  shader_module_info.codeSize =
+      static_cast<uint32_t>(sizeof(line_quad_list_geom));
+  shader_module_info.pCode =
+      reinterpret_cast<const uint32_t*>(line_quad_list_geom);
+  err = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+                             &geometry_shaders_.line_quad_list);
+  CheckResult(err, "vkCreateShaderModule");
+  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(point_list_geom));
+  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(point_list_geom);
+  err = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+                             &geometry_shaders_.point_list);
+  CheckResult(err, "vkCreateShaderModule");
+  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(quad_list_geom));
+  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(quad_list_geom);
+  err = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+                             &geometry_shaders_.quad_list);
+  CheckResult(err, "vkCreateShaderModule");
+  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(rect_list_geom));
+  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(rect_list_geom);
+  err = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+                             &geometry_shaders_.rect_list);
+  CheckResult(err, "vkCreateShaderModule");
 }
 
 PipelineCache::~PipelineCache() {
@@ -83,6 +119,12 @@ PipelineCache::~PipelineCache() {
     vkDestroyPipeline(device_, it.second, nullptr);
   }
   cached_pipelines_.clear();
+
+  // Destroy geometry shaders.
+  vkDestroyShaderModule(device_, geometry_shaders_.line_quad_list, nullptr);
+  vkDestroyShaderModule(device_, geometry_shaders_.point_list, nullptr);
+  vkDestroyShaderModule(device_, geometry_shaders_.quad_list, nullptr);
+  vkDestroyShaderModule(device_, geometry_shaders_.rect_list, nullptr);
 
   vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
   vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
@@ -264,6 +306,7 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
                                                 bool is_line_mode) {
   switch (primitive_type) {
     case PrimitiveType::kLineList:
+    case PrimitiveType::kLineLoop:
     case PrimitiveType::kLineStrip:
     case PrimitiveType::kTriangleList:
     case PrimitiveType::kTriangleFan:
@@ -271,27 +314,18 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
       // Supported directly - no need to emulate.
       return nullptr;
     case PrimitiveType::kPointList:
-      // TODO(benvanik): point list geometry shader.
-      return nullptr;
+      return geometry_shaders_.point_list;
     case PrimitiveType::kUnknown0x07:
       assert_always("Unknown geometry type");
       return nullptr;
     case PrimitiveType::kRectangleList:
-      // TODO(benvanik): rectangle list geometry shader.
-      return nullptr;
-    case PrimitiveType::kLineLoop:
-      // TODO(benvanik): line loop geometry shader.
-      return nullptr;
+      return geometry_shaders_.rect_list;
     case PrimitiveType::kQuadList:
-      // TODO(benvanik): quad list geometry shader.
-      if (is_line_mode) {
-        //
-      } else {
-        //
-      }
-      return nullptr;
+      return is_line_mode ? geometry_shaders_.line_quad_list
+                          : geometry_shaders_.quad_list;
     case PrimitiveType::kQuadStrip:
       // TODO(benvanik): quad strip geometry shader.
+      assert_always("Quad strips not implemented");
       return nullptr;
     default:
       assert_unhandled_case(primitive_type);
