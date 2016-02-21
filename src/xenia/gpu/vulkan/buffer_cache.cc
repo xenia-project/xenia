@@ -290,13 +290,13 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
   if (format == IndexFormat::kInt16) {
     // Endian::k8in16, swap half-words.
     xe::copy_and_swap_16_aligned(
-        reinterpret_cast<uint16_t*>(transient_buffer_data_) + offset,
-        reinterpret_cast<const uint16_t*>(source_ptr), source_length / 2);
+        reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset, source_ptr,
+        source_length / 2);
   } else if (format == IndexFormat::kInt32) {
     // Endian::k8in32, swap words.
     xe::copy_and_swap_32_aligned(
-        reinterpret_cast<uint32_t*>(transient_buffer_data_) + offset,
-        reinterpret_cast<const uint32_t*>(source_ptr), source_length / 4);
+        reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset, source_ptr,
+        source_length / 4);
   }
 
   return {transient_index_buffer_, offset};
@@ -317,8 +317,8 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   // TODO(benvanik): memcpy then use compute shaders to swap?
   // Endian::k8in32, swap words.
   xe::copy_and_swap_32_aligned(
-      reinterpret_cast<uint32_t*>(transient_buffer_data_) + offset,
-      reinterpret_cast<const uint32_t*>(source_ptr), source_length / 4);
+      reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset, source_ptr,
+      source_length / 4);
 
   return {transient_vertex_buffer_, offset};
 }

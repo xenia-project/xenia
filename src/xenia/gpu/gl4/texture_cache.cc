@@ -662,19 +662,13 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
                  size_t length) {
   switch (endianness) {
     case Endian::k8in16:
-      xe::copy_and_swap_16_aligned(reinterpret_cast<uint16_t*>(dest),
-                                   reinterpret_cast<const uint16_t*>(src),
-                                   length / 2);
+      xe::copy_and_swap_16_aligned(dest, src, length / 2);
       break;
     case Endian::k8in32:
-      xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(dest),
-                                   reinterpret_cast<const uint32_t*>(src),
-                                   length / 4);
+      xe::copy_and_swap_32_aligned(dest, src, length / 4);
       break;
     case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
-      xe::copy_and_swap_16_in_32_aligned(reinterpret_cast<uint32_t*>(dest),
-                                         reinterpret_cast<const uint32_t*>(src),
-                                         length);
+      xe::copy_and_swap_16_in_32_aligned(dest, src, length);
       break;
     default:
     case Endian::kUnspecified:

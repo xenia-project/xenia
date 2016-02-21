@@ -1410,7 +1410,7 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::PopulateVertexBuffers() {
       // as we copy and only if it differs from the previous value committing
       // it (and if it matches just discard and reuse).
       xe::copy_and_swap_32_aligned(
-          reinterpret_cast<uint32_t*>(allocation.host_ptr),
+          allocation.host_ptr,
           memory_->TranslatePhysical<const uint32_t*>(fetch->address << 2),
           valid_range / 4);
 

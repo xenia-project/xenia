@@ -343,8 +343,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
             lpunknown_t unk8, unknown_t unk9) {
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
-      reinterpret_cast<uint32_t*>(&fetch),
-      reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
+      &fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
   auto color_format = gpu::ColorFormat(color_format_ptr.value());
   auto color_space = *color_space_ptr;
