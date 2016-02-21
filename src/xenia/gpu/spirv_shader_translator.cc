@@ -642,6 +642,10 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       // TODO
     } break;
 
+    case AluVectorOpcode::kDp4: {
+      dest = b.createBinOp(spv::Op::OpDot, float_type_, sources[0], sources[1]);
+    } break;
+
     case AluVectorOpcode::kFloor: {
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, vec4_float_type_,
