@@ -100,7 +100,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
   // Uniform constants.
   Id float_consts_type =
-      b.makeArrayType(vec4_float_type_, b.makeUintConstant(256), 1);
+      b.makeArrayType(vec4_float_type_, b.makeUintConstant(512), 1);
   Id loop_consts_type =
       b.makeArrayType(b.makeUintType(32), b.makeUintConstant(32), 1);
   Id bool_consts_type =
@@ -119,14 +119,14 @@ void SpirvShaderTranslator::StartTranslation() {
 
   b.addMemberDecoration(consts_struct_type, 1,
                         spv::Decoration::DecorationOffset,
-                        256 * 4 * sizeof(float));
+                        512 * 4 * sizeof(float));
   b.addMemberDecoration(consts_struct_type, 1,
                         spv::Decoration::DecorationArrayStride,
                         sizeof(uint32_t));
 
   b.addMemberDecoration(consts_struct_type, 2,
                         spv::Decoration::DecorationOffset,
-                        256 * 4 * sizeof(float) + 32 * sizeof(uint32_t));
+                        512 * 4 * sizeof(float) + 32 * sizeof(uint32_t));
   b.addMemberDecoration(consts_struct_type, 2,
                         spv::Decoration::DecorationArrayStride,
                         sizeof(uint32_t));
@@ -840,22 +840,28 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
   Id storage_index = 0;             // Storage index at lowest level
   std::vector<Id> storage_offsets;  // Offsets in nested arrays -> storage
 
+  // Out of the 512 constant registers pixel shaders get the last 256.
+  uint32_t storage_base = 0;
+  if (op.storage_source == InstructionStorageSource::kConstantFloat) {
+    storage_base = is_pixel_shader() ? 256 : 0;
+  }
+
   switch (op.storage_addressing_mode) {
     case InstructionStorageAddressingMode::kStatic: {
-      storage_index = b.makeUintConstant(op.storage_index);
+      storage_index = b.makeUintConstant(storage_base + op.storage_index);
     } break;
     case InstructionStorageAddressingMode::kAddressAbsolute: {
       // storage_index + a0
       storage_index =
           b.createBinOp(spv::Op::OpIAdd, b.makeUintType(32), b.createLoad(a0_),
-                        b.makeUintConstant(op.storage_index));
+                        b.makeUintConstant(storage_base + op.storage_index));
     } break;
     case InstructionStorageAddressingMode::kAddressRelative: {
       // TODO: Based on loop index
       // storage_index + aL.x
-      storage_index = b.createBinOp(spv::Op::OpIAdd, b.makeUintType(32),
-                                    b.makeUintConstant(0),
-                                    b.makeUintConstant(op.storage_index));
+      storage_index = b.createBinOp(
+          spv::Op::OpIAdd, b.makeUintType(32), b.makeUintConstant(0),
+          b.makeUintConstant(storage_base + op.storage_index));
     } break;
     default:
       assert_always();
@@ -1063,7 +1069,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     source_value_id = CreateGlslStd450InstructionCall(
         spv::Decoration::DecorationInvariant, b.getTypeId(source_value_id),
         spv::GLSLstd450::kFClamp,
-        {b.makeFloatConstant(0.0), b.makeFloatConstant(1.0)});
+        {source_value_id, b.makeFloatConstant(0.0), b.makeFloatConstant(1.0)});
   }
 
   // swizzle
