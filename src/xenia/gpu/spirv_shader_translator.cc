@@ -720,7 +720,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
                               dest, b.createLoad(pv_));
     }
 
-    b.createStore(dest, pv_);
+    b.createStore(pv_dest, pv_);
     StoreToResult(dest, instr.result, pred_cond);
   }
 }
@@ -970,7 +970,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                               b.createLoad(ps_));
     }
 
-    b.createStore(dest, ps_);
+    b.createStore(ps_dest, ps_);
     StoreToResult(dest, instr.result, pred_cond);
   }
 }
@@ -1200,7 +1200,12 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     storage_pointer =
         b.createAccessChain(storage_class, storage_pointer, storage_offsets);
   }
-  auto storage_value = b.createLoad(storage_pointer);
+
+  // Only load from storage if we need it later.
+  Id storage_value = 0;
+  if (!result.has_all_writes() || predicate_cond) {
+    b.createLoad(storage_pointer);
+  }
 
   // Convert to the appropriate type, if needed.
   if (b.getTypeId(source_value_id) != storage_type) {
