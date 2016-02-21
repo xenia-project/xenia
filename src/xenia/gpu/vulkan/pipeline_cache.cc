@@ -536,7 +536,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     // Done in VS, no need to flush state.
     if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
       push_constants.window_scale[0] = 1.0f;
-      push_constants.window_scale[1] = 1.0f;
+      push_constants.window_scale[1] = -1.0f;
     } else {
       push_constants.window_scale[0] = 1.0f / 2560.0f;
       push_constants.window_scale[1] = -1.0f / 2560.0f;
