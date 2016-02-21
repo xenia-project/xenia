@@ -71,7 +71,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Stores a value based on the specified result information.
   // The value will be transformed into the appropriate form for the result and
   // the proper components will be selected.
-  void StoreToResult(spv::Id source_value_id, const InstructionResult& result);
+  void StoreToResult(spv::Id source_value_id, const InstructionResult& result,
+                     spv::Id predicate_cond = 0);
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
 

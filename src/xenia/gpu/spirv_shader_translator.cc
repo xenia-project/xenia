@@ -599,8 +599,20 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
   }
 
   if (dest) {
+    // If predicated, discard the result from the instruction.
+    Id pred_cond = 0;
+    Id pv_dest = dest;
+    if (instr.is_predicated) {
+      pred_cond =
+          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                        b.makeBoolConstant(instr.predicate_condition));
+
+      pv_dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, pred_cond,
+                              dest, b.createLoad(pv_));
+    }
+
     b.createStore(dest, pv_);
-    StoreToResult(dest, instr.result);
+    StoreToResult(dest, instr.result, pred_cond);
   }
 }
 
@@ -839,8 +851,20 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
   }
 
   if (dest) {
+    // If predicated, discard the result from the instruction.
+    Id pred_cond = 0;
+    Id ps_dest = dest;
+    if (instr.is_predicated) {
+      pred_cond =
+          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                        b.makeBoolConstant(instr.predicate_condition));
+
+      ps_dest = b.createTriOp(spv::Op::OpSelect, float_type_, pred_cond, dest,
+                              b.createLoad(ps_));
+    }
+
     b.createStore(dest, ps_);
-    StoreToResult(dest, instr.result);
+    StoreToResult(dest, instr.result, pred_cond);
   }
 }
 
@@ -978,7 +1002,8 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
 }
 
 void SpirvShaderTranslator::StoreToResult(Id source_value_id,
-                                          const InstructionResult& result) {
+                                          const InstructionResult& result,
+                                          Id predicate_cond) {
   auto& b = *builder_;
 
   if (result.storage_target == InstructionStorageTarget::kNone) {
@@ -1153,6 +1178,14 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   // Perform store into the pointer.
   assert_true(b.getNumComponents(source_value_id) ==
               b.getNumTypeComponents(storage_type));
+
+  // Discard if predicate condition is false.
+  if (predicate_cond) {
+    source_value_id =
+        b.createTriOp(spv::Op::OpSelect, storage_type, predicate_cond,
+                      source_value_id, storage_value);
+  }
+
   b.createStore(source_value_id, storage_pointer);
 }
 
