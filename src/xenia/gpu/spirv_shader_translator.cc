@@ -740,6 +740,9 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, dest, sources[2]);
     } break;
 
+    case AluVectorOpcode::kMax4: {
+    } break;
+
     case AluVectorOpcode::kMaxA: {
       // a0 = clamp(floor(src0.w + 0.5), -256, 255)
       auto addr = b.createCompositeExtract(sources[0], float_type_, 3);
@@ -982,6 +985,15 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
       b.setBuildPoint(continue_block);
       dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kLogc: {
+    } break;
+
+    case AluScalarOpcode::kLog: {
+      auto log = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_,
+          spv::GLSLstd450::kLog2, {sources[0]});
     } break;
 
     case AluScalarOpcode::kMaxAsf: {
