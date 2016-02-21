@@ -25,6 +25,9 @@ using xe::ui::vulkan::CheckResult;
 // Space kept between tail and head when wrapping.
 constexpr VkDeviceSize kDeadZone = 4 * 1024;
 
+constexpr VkDeviceSize kConstantRegisterUniformRange =
+    512 * 4 * 4 + 8 * 4 + 32 * 4;
+
 BufferCache::BufferCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device, size_t capacity)
     : register_file_(register_file),
@@ -174,6 +177,34 @@ BufferCache::BufferCache(RegisterFile* register_file,
   err = vkAllocateDescriptorSets(device_, &set_alloc_info,
                                  &transient_descriptor_set_);
   CheckResult(err, "vkAllocateDescriptorSets");
+
+  // Initialize descriptor set with our buffers.
+  VkDescriptorBufferInfo buffer_info;
+  buffer_info.buffer = transient_uniform_buffer_;
+  buffer_info.offset = 0;
+  buffer_info.range = kConstantRegisterUniformRange;
+  VkWriteDescriptorSet descriptor_writes[2];
+  auto& vertex_uniform_binding_write = descriptor_writes[0];
+  vertex_uniform_binding_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  vertex_uniform_binding_write.pNext = nullptr;
+  vertex_uniform_binding_write.dstSet = transient_descriptor_set_;
+  vertex_uniform_binding_write.dstBinding = 0;
+  vertex_uniform_binding_write.dstArrayElement = 0;
+  vertex_uniform_binding_write.descriptorCount = 1;
+  vertex_uniform_binding_write.descriptorType =
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  vertex_uniform_binding_write.pBufferInfo = &buffer_info;
+  auto& fragment_uniform_binding_write = descriptor_writes[1];
+  fragment_uniform_binding_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  fragment_uniform_binding_write.pNext = nullptr;
+  fragment_uniform_binding_write.dstSet = transient_descriptor_set_;
+  fragment_uniform_binding_write.dstBinding = 1;
+  fragment_uniform_binding_write.dstArrayElement = 0;
+  fragment_uniform_binding_write.descriptorCount = 1;
+  fragment_uniform_binding_write.descriptorType =
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  fragment_uniform_binding_write.pBufferInfo = &buffer_info;
+  vkUpdateDescriptorSets(device_, 2, descriptor_writes, 0, nullptr);
 }
 
 BufferCache::~BufferCache() {
@@ -197,9 +228,8 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
   //   uint bool[8];
   //   uint loop[32];
   // };
-  size_t total_size = xe::round_up(
-      static_cast<VkDeviceSize>((512 * 4 * 4) + (32 * 4) + (8 * 4)),
-      uniform_buffer_alignment_);
+  size_t total_size =
+      xe::round_up(kConstantRegisterUniformRange, uniform_buffer_alignment_);
   auto offset = AllocateTransientData(uniform_buffer_alignment_, total_size);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
