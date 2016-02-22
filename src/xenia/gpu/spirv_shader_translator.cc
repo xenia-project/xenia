@@ -54,6 +54,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
   bool_type_ = b.makeBoolType();
   float_type_ = b.makeFloatType(32);
+  int_type_ = b.makeIntType(32);
   Id uint_type = b.makeUintType(32);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
@@ -161,6 +162,46 @@ void SpirvShaderTranslator::StartTranslation() {
   b.addMemberName(push_constants_type, 3, "ps_param_gen");
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
+
+  // Texture bindings
+  Id img_t[] = {
+      b.makeImageType(float_type_, spv::Dim::Dim1D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown),
+      b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown),
+      b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown),
+      b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown)};
+  Id samplers_t = b.makeSamplerType();
+
+  Id img_a_t[] = {b.makeArrayType(img_t[0], b.makeUintConstant(32), 0),
+                  b.makeArrayType(img_t[1], b.makeUintConstant(32), 0),
+                  b.makeArrayType(img_t[2], b.makeUintConstant(32), 0),
+                  b.makeArrayType(img_t[3], b.makeUintConstant(32), 0)};
+  Id samplers_a = b.makeArrayType(samplers_t, b.makeUintConstant(32), 0);
+
+  Id img_s[] = {
+      b.makeStructType({img_a_t[0]}, "img1D_type"),
+      b.makeStructType({img_a_t[1]}, "img2D_type"),
+      b.makeStructType({img_a_t[2]}, "img3D_type"),
+      b.makeStructType({img_a_t[3]}, "imgCube_type"),
+  };
+  Id samplers_s = b.makeStructType({samplers_a}, "samplers_type");
+
+  for (int i = 0; i < 4; i++) {
+    img_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               img_s[i],
+                               xe::format_string("images%dD", i + 1).c_str());
+    b.addDecoration(img_[i], spv::Decoration::DecorationBlock);
+    b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 2);
+    b.addDecoration(img_[i], spv::Decoration::DecorationBinding, i + 1);
+  }
+  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               samplers_s, "samplers");
+  b.addDecoration(samplers_, spv::Decoration::DecorationBlock);
+  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 2);
+  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
 
   // Interpolators.
   Id interpolators_type =
@@ -551,6 +592,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   auto& b = *builder_;
 
+  // TODO: instr.is_predicated
+
   // Operand 0 is the index
   // Operand 1 is the binding
   // TODO: Indexed fetch
@@ -567,7 +610,57 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   auto& b = *builder_;
 
-  EmitUnimplementedTranslationError();
+  // TODO: instr.is_predicated
+  // Operand 0 is the offset
+  // Operand 1 is the sampler index
+  Id dest = 0;
+  Id src = LoadFromOperand(instr.operands[0]);
+  assert_not_zero(src);
+
+  uint32_t dim_idx = 0;
+  switch (instr.dimension) {
+    case TextureDimension::k1D:
+      dim_idx = 0;
+      break;
+    case TextureDimension::k2D:
+      dim_idx = 1;
+      break;
+    case TextureDimension::k3D:
+      dim_idx = 2;
+      break;
+    case TextureDimension::kCube:
+      dim_idx = 3;
+      break;
+    default:
+      assert_unhandled_case(instr.dimension);
+  }
+
+  switch (instr.opcode) {
+    case FetchOpcode::kTextureFetch: {
+      auto image_index = b.makeUintConstant(instr.operands[1].storage_index);
+      auto image_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              img_[dim_idx], std::vector<Id>({image_index}));
+      auto sampler_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              samplers_, std::vector<Id>({image_index}));
+      auto image = b.createLoad(image_ptr);
+      auto sampler = b.createLoad(sampler_ptr);
+
+      auto tex = b.createBinOp(spv::Op::OpSampledImage, b.getImageType(image),
+                               image, sampler);
+      dest = b.createBinOp(spv::Op::OpImageSampleImplicitLod, vec4_float_type_,
+                           tex, src);
+    } break;
+    default:
+      // TODO: the rest of these
+      break;
+  }
+
+  if (dest) {
+    b.createStore(dest, pv_);
+    StoreToResult(dest, instr.result);
+  }
 }
 
 void SpirvShaderTranslator::ProcessAluInstruction(
@@ -596,6 +689,13 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     sources[i] = LoadFromOperand(instr.operands[i]);
   }
 
+  Id pred_cond = 0;
+  if (instr.is_predicated) {
+    pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+  }
+
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd: {
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
@@ -605,7 +705,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kCndEq: {
       // dest = src0 == 0.0 ? src1 : src2;
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
-                             b.makeFloatConstant(0.f));
+                             vec4_float_zero_);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
                            sources[2]);
     } break;
@@ -613,7 +713,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kCndGe: {
       // dest = src0 == 0.0 ? src1 : src2;
       auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
-                             sources[0], b.makeFloatConstant(0.f));
+                             sources[0], vec4_float_zero_);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
                            sources[2]);
     } break;
@@ -621,13 +721,21 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kCndGt: {
       // dest = src0 == 0.0 ? src1 : src2;
       auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
-                             sources[0], b.makeFloatConstant(0.f));
+                             sources[0], vec4_float_zero_);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
                            sources[2]);
     } break;
 
     case AluVectorOpcode::kCube: {
       // TODO:
+    } break;
+
+    case AluVectorOpcode::kDst: {
+      // TODO
+    } break;
+
+    case AluVectorOpcode::kDp4: {
+      dest = b.createBinOp(spv::Op::OpDot, float_type_, sources[0], sources[1]);
     } break;
 
     case AluVectorOpcode::kFloor: {
@@ -642,10 +750,107 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
           spv::GLSLstd450::kFract, {sources[0]});
     } break;
 
+    case AluVectorOpcode::kKillEq: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_,
+                                sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
+    case AluVectorOpcode::kKillGe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual,
+                                vec4_bool_type_, sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
+    case AluVectorOpcode::kKillGt: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
+                                sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
+    case AluVectorOpcode::kKillNe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
+                                sources[0], sources[1]);
+      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = vec4_float_zero_;
+    } break;
+
     case AluVectorOpcode::kMad: {
       dest = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, sources[0],
                            sources[1]);
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, dest, sources[2]);
+    } break;
+
+    case AluVectorOpcode::kMax4: {
+    } break;
+
+    case AluVectorOpcode::kMaxA: {
+      // a0 = clamp(floor(src0.w + 0.5), -256, 255)
+      auto addr = b.createCompositeExtract(sources[0], float_type_, 3);
+      addr = b.createBinOp(spv::Op::OpFAdd, float_type_, addr,
+                           b.makeFloatConstant(0.5f));
+      addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
+      addr = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, int_type_,
+          spv::GLSLstd450::kSClamp,
+          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
+      b.createStore(addr, a0_);
+
+      // dest = src0 >= src1 ? src0 : src1
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, vec4_float_type_,
+          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
     } break;
 
     case AluVectorOpcode::kMax: {
@@ -663,6 +868,102 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kMul: {
       dest = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, sources[0],
                            sources[1]);
+    } break;
+
+    case AluVectorOpcode::kSetpEqPush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                              vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[1],
+                              vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
+    case AluVectorOpcode::kSetpGePush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                              vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
+                              sources[1], vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
+    case AluVectorOpcode::kSetpGtPush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                              vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
+                              sources[1], vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
+    case AluVectorOpcode::kSetpNePush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
+                              sources[0], vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[1],
+                              vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
     } break;
 
     case AluVectorOpcode::kSeq: {
@@ -709,18 +1010,13 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
   if (dest) {
     // If predicated, discard the result from the instruction.
-    Id pred_cond = 0;
     Id pv_dest = dest;
     if (instr.is_predicated) {
-      pred_cond =
-          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                        b.makeBoolConstant(instr.predicate_condition));
-
       pv_dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, pred_cond,
                               dest, b.createLoad(pv_));
     }
 
-    b.createStore(dest, pv_);
+    b.createStore(pv_dest, pv_);
     StoreToResult(dest, instr.result, pred_cond);
   }
 }
@@ -764,6 +1060,13 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     }
   }
 
+  Id pred_cond = 0;
+  if (instr.is_predicated) {
+    pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+  }
+
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
     case AluScalarOpcode::kAddsc0:
@@ -783,6 +1086,152 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kCos,
           {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kExp: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kExp2,
+          {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kFloors: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFloor,
+          {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kFrcs: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFract,
+          {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kKillsEq: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsGe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsGt: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                sources[0], b.makeFloatConstant(0.f));
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsNe: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(0.f));
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kKillsOne: {
+      auto continue_block = &b.makeNewBlock();
+      auto kill_block = &b.makeNewBlock();
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                                b.makeFloatConstant(1.f));
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
+      b.createConditionalBranch(cond, kill_block, continue_block);
+
+      b.setBuildPoint(kill_block);
+      b.createNoResultOp(spv::Op::OpKill);
+
+      b.setBuildPoint(continue_block);
+      dest = b.makeFloatConstant(0.f);
+    } break;
+
+    case AluScalarOpcode::kLogc: {
+    } break;
+
+    case AluScalarOpcode::kLog: {
+      auto log = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_,
+          spv::GLSLstd450::kLog2, {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kMaxAsf: {
+      auto addr =
+          b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, sources[0]);
+      addr = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, int_type_,
+          spv::GLSLstd450::kSClamp,
+          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
+      b.createStore(addr, a0_);
+
+      // dest = src0 >= src1 ? src0 : src1
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_,
+          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
+    } break;
+
+    case AluScalarOpcode::kMaxAs: {
+      // a0 = clamp(floor(src0 + 0.5), -256, 255)
+      auto addr = b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0],
+                                b.makeFloatConstant(0.5f));
+      addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
+      addr = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, int_type_,
+          spv::GLSLstd450::kSClamp,
+          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
+      b.createStore(addr, a0_);
+
+      // dest = src0 >= src1 ? src0 : src1
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_,
+          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
     } break;
 
     case AluScalarOpcode::kMaxs: {
@@ -874,6 +1323,11 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                            b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
     } break;
 
+    case AluScalarOpcode::kSetpClr: {
+      b.createStore(b.makeBoolConstant(false), p0_);
+      dest = b.makeFloatConstant(FLT_MAX);
+    } break;
+
     case AluScalarOpcode::kSetpEq: {
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(0.f));
@@ -936,6 +1390,25 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                            b.makeFloatConstant(0.f), b.makeFloatConstant(1.f));
     } break;
 
+    case AluScalarOpcode::kSetpPop: {
+      auto src = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0],
+                               b.makeFloatConstant(1.f));
+      auto c = b.createBinOp(spv::Op::OpFOrdLessThanEqual, bool_type_, src,
+                             b.makeFloatConstant(0.f));
+      b.createStore(c, p0_);
+
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFMax,
+          {sources[0], b.makeFloatConstant(0.f)});
+    } break;
+
+    case AluScalarOpcode::kSetpRstr: {
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                             b.makeFloatConstant(0.f));
+      b.createStore(c, p0_);
+      dest = sources[0];
+    } break;
+
     case AluScalarOpcode::kSin: {
       dest = CreateGlslStd450InstructionCall(
           spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kSin,
@@ -953,24 +1426,25 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       dest = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0], ps_);
     } break;
 
+    case AluScalarOpcode::kTruncs: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kTrunc,
+          {sources[0]});
+    } break;
+
     default:
       break;
   }
 
   if (dest) {
     // If predicated, discard the result from the instruction.
-    Id pred_cond = 0;
     Id ps_dest = dest;
     if (instr.is_predicated) {
-      pred_cond =
-          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                        b.makeBoolConstant(instr.predicate_condition));
-
       ps_dest = b.createTriOp(spv::Op::OpSelect, float_type_, pred_cond, dest,
                               b.createLoad(ps_));
     }
 
-    b.createStore(dest, ps_);
+    b.createStore(ps_dest, ps_);
     StoreToResult(dest, instr.result, pred_cond);
   }
 }
@@ -1118,6 +1592,10 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     return;
   }
 
+  if (!result.has_any_writes()) {
+    return;
+  }
+
   Id storage_pointer = 0;
   Id storage_type = vec4_float_type_;
   spv::StorageClass storage_class;
@@ -1200,7 +1678,12 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     storage_pointer =
         b.createAccessChain(storage_class, storage_pointer, storage_offsets);
   }
-  auto storage_value = b.createLoad(storage_pointer);
+
+  // Only load from storage if we need it later.
+  Id storage_value = 0;
+  if (!result.has_all_writes() || predicate_cond) {
+    storage_value = b.createLoad(storage_pointer);
+  }
 
   // Convert to the appropriate type, if needed.
   if (b.getTypeId(source_value_id) != storage_type) {
