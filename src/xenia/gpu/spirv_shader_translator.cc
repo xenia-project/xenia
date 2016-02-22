@@ -639,12 +639,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       dim_idx = 2;
     } break;
     case TextureDimension::kCube: {
-      auto s0 = b.createCompositeExtract(src, float_type_, 0);
-      auto s1 = b.createCompositeExtract(src, float_type_, 1);
-      auto s2 = b.createCompositeExtract(src, float_type_, 2);
-      auto s3 = b.createCompositeExtract(src, float_type_, 3);
-      src = b.createCompositeConstruct(vec4_float_type_,
-                                       std::vector<Id>({s0, s1, s2, s3}));
       dim_idx = 3;
     } break;
     default:
