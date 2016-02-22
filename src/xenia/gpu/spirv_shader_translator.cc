@@ -163,6 +163,46 @@ void SpirvShaderTranslator::StartTranslation() {
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
+  // Texture bindings
+  Id img_t[] = {
+      b.makeImageType(float_type_, spv::Dim::Dim1D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown),
+      b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown),
+      b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown),
+      b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown)};
+  Id samplers_t = b.makeSamplerType();
+
+  Id img_a_t[] = {b.makeArrayType(img_t[0], b.makeUintConstant(32), 0),
+                  b.makeArrayType(img_t[1], b.makeUintConstant(32), 0),
+                  b.makeArrayType(img_t[2], b.makeUintConstant(32), 0),
+                  b.makeArrayType(img_t[3], b.makeUintConstant(32), 0)};
+  Id samplers_a = b.makeArrayType(samplers_t, b.makeUintConstant(32), 0);
+
+  Id img_s[] = {
+      b.makeStructType({img_a_t[0]}, "img1D_type"),
+      b.makeStructType({img_a_t[1]}, "img2D_type"),
+      b.makeStructType({img_a_t[2]}, "img3D_type"),
+      b.makeStructType({img_a_t[3]}, "imgCube_type"),
+  };
+  Id samplers_s = b.makeStructType({samplers_a}, "samplers_type");
+
+  for (int i = 0; i < 4; i++) {
+    img_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               img_s[i],
+                               xe::format_string("images%dD", i + 1).c_str());
+    b.addDecoration(img_[i], spv::Decoration::DecorationBlock);
+    b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 2);
+    b.addDecoration(img_[i], spv::Decoration::DecorationBinding, i + 1);
+  }
+  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               samplers_s, "samplers");
+  b.addDecoration(samplers_, spv::Decoration::DecorationBlock);
+  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 2);
+  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
+
   // Interpolators.
   Id interpolators_type =
       b.makeArrayType(vec4_float_type_, b.makeUintConstant(16), 0);
@@ -552,6 +592,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   auto& b = *builder_;
 
+  // TODO: instr.is_predicated
+
   // Operand 0 is the index
   // Operand 1 is the binding
   // TODO: Indexed fetch
@@ -568,7 +610,57 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   auto& b = *builder_;
 
-  EmitUnimplementedTranslationError();
+  // TODO: instr.is_predicated
+  // Operand 0 is the offset
+  // Operand 1 is the sampler index
+  Id dest = 0;
+  Id src = LoadFromOperand(instr.operands[0]);
+  assert_not_zero(src);
+
+  uint32_t dim_idx = 0;
+  switch (instr.dimension) {
+    case TextureDimension::k1D:
+      dim_idx = 0;
+      break;
+    case TextureDimension::k2D:
+      dim_idx = 1;
+      break;
+    case TextureDimension::k3D:
+      dim_idx = 2;
+      break;
+    case TextureDimension::kCube:
+      dim_idx = 3;
+      break;
+    default:
+      assert_unhandled_case(instr.dimension);
+  }
+
+  switch (instr.opcode) {
+    case FetchOpcode::kTextureFetch: {
+      auto image_index = b.makeUintConstant(instr.operands[1].storage_index);
+      auto image_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              img_[dim_idx], std::vector<Id>({image_index}));
+      auto sampler_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              samplers_, std::vector<Id>({image_index}));
+      auto image = b.createLoad(image_ptr);
+      auto sampler = b.createLoad(sampler_ptr);
+
+      auto tex = b.createBinOp(spv::Op::OpSampledImage, b.getImageType(image),
+                               image, sampler);
+      dest = b.createBinOp(spv::Op::OpImageSampleImplicitLod, vec4_float_type_,
+                           tex, src);
+    } break;
+    default:
+      // TODO: the rest of these
+      break;
+  }
+
+  if (dest) {
+    b.createStore(dest, pv_);
+    StoreToResult(dest, instr.result);
+  }
 }
 
 void SpirvShaderTranslator::ProcessAluInstruction(

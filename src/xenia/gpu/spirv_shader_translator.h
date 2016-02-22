@@ -108,6 +108,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_uint_type_ = 0;
   spv::Id vec4_bool_type_ = 0;
+  spv::Id sampled_image_type_ = 0;
 
   // Constants.
   spv::Id vec4_float_zero_ = 0, vec4_float_one_ = 0;
@@ -121,6 +122,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
   spv::Id frag_outputs_ = 0;
+  spv::Id samplers_ = 0;
+  spv::Id img_[4] = {0};  // Images {1D, 2D, 3D, Cube}
 
   // Map of {binding -> {offset -> spv input}}
   std::map<uint32_t, std::map<uint32_t, spv::Id>> vertex_binding_map_;
