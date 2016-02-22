@@ -278,7 +278,8 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   sampler_info.mipLodBias = 0.0f;
   sampler_info.anisotropyEnable = VK_FALSE;
-  sampler_info.maxAnisotropy = 1;
+  sampler_info.maxAnisotropy = 1.0f;
+  sampler_info.compareEnable = VK_FALSE;
   sampler_info.compareOp = VK_COMPARE_OP_NEVER;
   sampler_info.minLod = 0.0f;
   sampler_info.maxLod = 0.0f;

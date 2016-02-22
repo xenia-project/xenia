@@ -76,8 +76,6 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool PopulateSamplers(VkCommandBuffer command_buffer,
                         VulkanShader* vertex_shader,
                         VulkanShader* pixel_shader);
-  bool PopulateSampler(VkCommandBuffer command_buffer,
-                       const Shader::TextureBinding& texture_binding);
   bool IssueCopy() override;
 
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;

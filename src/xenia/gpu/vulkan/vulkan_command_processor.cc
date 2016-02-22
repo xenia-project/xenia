@@ -69,7 +69,8 @@ bool VulkanCommandProcessor::SetupContext() {
   // Initialize the state machine caches.
   buffer_cache_ = std::make_unique<BufferCache>(register_file_, device_,
                                                 kDefaultBufferCacheCapacity);
-  texture_cache_ = std::make_unique<TextureCache>(register_file_, device_);
+  texture_cache_ =
+      std::make_unique<TextureCache>(register_file_, &trace_writer_, device_);
   pipeline_cache_ = std::make_unique<PipelineCache>(
       register_file_, device_, buffer_cache_->constant_descriptor_set_layout(),
       texture_cache_->texture_descriptor_set_layout());
@@ -472,68 +473,18 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  bool any_failed = false;
-
-  // VS and PS samplers are shared, but may be used exclusively.
-  // We walk each and setup lazily.
-  bool has_setup_sampler[32] = {false};
-
-  // Vertex texture samplers.
-  for (auto& texture_binding : vertex_shader->texture_bindings()) {
-    if (has_setup_sampler[texture_binding.fetch_constant]) {
-      continue;
-    }
-    has_setup_sampler[texture_binding.fetch_constant] = true;
-    any_failed =
-        !PopulateSampler(command_buffer, texture_binding) || any_failed;
+  auto descriptor_set = texture_cache_->PrepareTextureSet(
+      command_buffer, vertex_shader->texture_bindings(),
+      pixel_shader->texture_bindings());
+  if (!descriptor_set) {
+    // Unable to bind set.
+    return false;
   }
 
-  // Pixel shader texture sampler.
-  for (auto& texture_binding : pixel_shader->texture_bindings()) {
-    if (has_setup_sampler[texture_binding.fetch_constant]) {
-      continue;
-    }
-    has_setup_sampler[texture_binding.fetch_constant] = true;
-    any_failed =
-        !PopulateSampler(command_buffer, texture_binding) || any_failed;
-  }
-
-  return !any_failed;
-}
-
-bool VulkanCommandProcessor::PopulateSampler(
-    VkCommandBuffer command_buffer,
-    const Shader::TextureBinding& texture_binding) {
-  auto& regs = *register_file_;
-  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
-          texture_binding.fetch_constant * 6;
-  auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
-  auto& fetch = group->texture_fetch;
-
-  // Disabled?
-  // TODO(benvanik): reset sampler.
-  if (!fetch.type) {
-    return true;
-  }
-  assert_true(fetch.type == 0x2);
-
-  TextureInfo texture_info;
-  if (!TextureInfo::Prepare(fetch, &texture_info)) {
-    XELOGE("Unable to parse texture fetcher info");
-    return true;  // invalid texture used
-  }
-  SamplerInfo sampler_info;
-  if (!SamplerInfo::Prepare(fetch, texture_binding.fetch_instr,
-                            &sampler_info)) {
-    XELOGE("Unable to parse sampler info");
-    return true;  // invalid texture used
-  }
-
-  trace_writer_.WriteMemoryRead(texture_info.guest_address,
-                                texture_info.input_length);
-
-  // TODO(benvanik): texture cache lookup.
-  // TODO(benvanik): bind or return so PopulateSamplers can batch.
+  // Bind samplers/textures.
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_cache_->pipeline_layout(), 1, 1,
+                          &descriptor_set, 0, nullptr);
 
   return true;
 }
