@@ -906,6 +906,18 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
           {sources[0]});
     } break;
 
+    case AluScalarOpcode::kFloors: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFloor,
+          {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kFrcs: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFract,
+          {sources[0]});
+    } break;
+
     case AluScalarOpcode::kKillsEq: {
       auto continue_block = &b.makeNewBlock();
       auto kill_block = &b.makeNewBlock();
@@ -1211,6 +1223,12 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kSubsPrev: {
       dest = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0], ps_);
+    } break;
+
+    case AluScalarOpcode::kTruncs: {
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kTrunc,
+          {sources[0]});
     } break;
 
     default:
