@@ -778,6 +778,102 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
                            sources[1]);
     } break;
 
+    case AluVectorOpcode::kSetpEqPush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                              vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[1],
+                              vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
+    case AluVectorOpcode::kSetpGePush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                              vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
+                              sources[1], vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
+    case AluVectorOpcode::kSetpGtPush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
+                              vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
+                              sources[1], vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
+    case AluVectorOpcode::kSetpNePush: {
+      auto c0 = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
+                              sources[0], vec4_float_zero_);
+      auto c1 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[1],
+                              vec4_float_zero_);
+      auto c_and =
+          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
+      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
+
+      // p0
+      b.createStore(c_and_w, p0_);
+
+      // dest
+      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
+                           b.makeFloatConstant(1.f));
+      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
+                              vec4_float_type_);
+
+      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
+                           vec4_float_zero_, s0);
+    } break;
+
     case AluVectorOpcode::kSeq: {
       // foreach(el) src0 == src1 ? 1.0 : 0.0
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
