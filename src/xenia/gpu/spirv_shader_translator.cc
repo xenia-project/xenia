@@ -194,13 +194,13 @@ void SpirvShaderTranslator::StartTranslation() {
                                img_s[i],
                                xe::format_string("images%dD", i + 1).c_str());
     b.addDecoration(img_[i], spv::Decoration::DecorationBlock);
-    b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 2);
+    b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 1);
     b.addDecoration(img_[i], spv::Decoration::DecorationBinding, i + 1);
   }
   samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
                                samplers_s, "samplers");
   b.addDecoration(samplers_, spv::Decoration::DecorationBlock);
-  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 2);
+  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
   b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
 
   // Interpolators.
