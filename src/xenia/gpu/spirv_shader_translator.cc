@@ -1203,9 +1203,22 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kSetpPop: {
+      auto src = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0],
+                               b.makeFloatConstant(1.f));
+      auto c = b.createBinOp(spv::Op::OpFOrdLessThanEqual, bool_type_, src,
+                             b.makeFloatConstant(0.f));
+      b.createStore(c, p0_);
+
+      dest = CreateGlslStd450InstructionCall(
+          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFMax,
+          {sources[0], b.makeFloatConstant(0.f)});
     } break;
 
     case AluScalarOpcode::kSetpRstr: {
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
+                             b.makeFloatConstant(0.f));
+      b.createStore(c, p0_);
+      dest = sources[0];
     } break;
 
     case AluScalarOpcode::kSin: {
