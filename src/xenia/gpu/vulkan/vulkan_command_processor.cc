@@ -484,7 +484,8 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
       continue;
     }
     has_setup_sampler[texture_binding.fetch_constant] = true;
-    any_failed = PopulateSampler(command_buffer, texture_binding) || any_failed;
+    any_failed =
+        !PopulateSampler(command_buffer, texture_binding) || any_failed;
   }
 
   // Pixel shader texture sampler.
@@ -493,7 +494,8 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
       continue;
     }
     has_setup_sampler[texture_binding.fetch_constant] = true;
-    any_failed = PopulateSampler(command_buffer, texture_binding) || any_failed;
+    any_failed =
+        !PopulateSampler(command_buffer, texture_binding) || any_failed;
   }
 
   return !any_failed;
@@ -508,7 +510,8 @@ bool VulkanCommandProcessor::PopulateSampler(
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
 
-  // ?
+  // Disabled?
+  // TODO(benvanik): reset sampler.
   if (!fetch.type) {
     return true;
   }
