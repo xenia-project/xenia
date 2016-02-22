@@ -620,17 +620,33 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   uint32_t dim_idx = 0;
   switch (instr.dimension) {
     case TextureDimension::k1D:
+      src = b.createCompositeExtract(src, float_type_, 0);
       dim_idx = 0;
       break;
-    case TextureDimension::k2D:
+    case TextureDimension::k2D: {
+      auto s0 = b.createCompositeExtract(src, float_type_, 0);
+      auto s1 = b.createCompositeExtract(src, float_type_, 1);
+      src = b.createCompositeConstruct(vec2_float_type_,
+                                       std::vector<Id>({s0, s1}));
       dim_idx = 1;
-      break;
-    case TextureDimension::k3D:
+    } break;
+    case TextureDimension::k3D: {
+      auto s0 = b.createCompositeExtract(src, float_type_, 0);
+      auto s1 = b.createCompositeExtract(src, float_type_, 1);
+      auto s2 = b.createCompositeExtract(src, float_type_, 2);
+      src = b.createCompositeConstruct(vec3_float_type_,
+                                       std::vector<Id>({s0, s1, s2}));
       dim_idx = 2;
-      break;
-    case TextureDimension::kCube:
+    } break;
+    case TextureDimension::kCube: {
+      auto s0 = b.createCompositeExtract(src, float_type_, 0);
+      auto s1 = b.createCompositeExtract(src, float_type_, 1);
+      auto s2 = b.createCompositeExtract(src, float_type_, 2);
+      auto s3 = b.createCompositeExtract(src, float_type_, 3);
+      src = b.createCompositeConstruct(vec4_float_type_,
+                                       std::vector<Id>({s0, s1, s2, s3}));
       dim_idx = 3;
-      break;
+    } break;
     default:
       assert_unhandled_case(instr.dimension);
   }
@@ -638,19 +654,24 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   switch (instr.opcode) {
     case FetchOpcode::kTextureFetch: {
       auto image_index = b.makeUintConstant(instr.operands[1].storage_index);
-      auto image_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              img_[dim_idx], std::vector<Id>({image_index}));
-      auto sampler_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              samplers_, std::vector<Id>({image_index}));
+      auto image_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniformConstant, img_[dim_idx],
+          std::vector<Id>({b.makeUintConstant(0), image_index}));
+      auto sampler_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniformConstant, samplers_,
+          std::vector<Id>({b.makeUintConstant(0), image_index}));
       auto image = b.createLoad(image_ptr);
       auto sampler = b.createLoad(sampler_ptr);
 
       auto tex = b.createBinOp(spv::Op::OpSampledImage, b.getImageType(image),
                                image, sampler);
-      dest = b.createBinOp(spv::Op::OpImageSampleImplicitLod, vec4_float_type_,
-                           tex, src);
+
+      spv::Builder::TextureParameters params = {0};
+      params.coords = src;
+      params.sampler = sampler;
+      dest = b.createTextureCall(spv::Decoration::DecorationInvariant,
+                                 vec4_float_type_, false, false, false, false,
+                                 false, params);
     } break;
     default:
       // TODO: the rest of these
