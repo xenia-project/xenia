@@ -164,6 +164,7 @@ void SpirvShaderTranslator::StartTranslation() {
                                   push_constants_type, "push_consts");
 
   // Texture bindings
+  Id samplers_t = b.makeSamplerType();
   Id img_t[] = {
       b.makeImageType(float_type_, spv::Dim::Dim1D, false, false, false, 1,
                       spv::ImageFormat::ImageFormatUnknown),
@@ -173,35 +174,24 @@ void SpirvShaderTranslator::StartTranslation() {
                       spv::ImageFormat::ImageFormatUnknown),
       b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
                       spv::ImageFormat::ImageFormatUnknown)};
-  Id samplers_t = b.makeSamplerType();
 
+  Id samplers_a = b.makeArrayType(samplers_t, b.makeUintConstant(32), 0);
   Id img_a_t[] = {b.makeArrayType(img_t[0], b.makeUintConstant(32), 0),
                   b.makeArrayType(img_t[1], b.makeUintConstant(32), 0),
                   b.makeArrayType(img_t[2], b.makeUintConstant(32), 0),
                   b.makeArrayType(img_t[3], b.makeUintConstant(32), 0)};
-  Id samplers_a = b.makeArrayType(samplers_t, b.makeUintConstant(32), 0);
 
-  Id img_s[] = {
-      b.makeStructType({img_a_t[0]}, "img1D_type"),
-      b.makeStructType({img_a_t[1]}, "img2D_type"),
-      b.makeStructType({img_a_t[2]}, "img3D_type"),
-      b.makeStructType({img_a_t[3]}, "imgCube_type"),
-  };
-  Id samplers_s = b.makeStructType({samplers_a}, "samplers_type");
-
+  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniform,
+                               samplers_a, "samplers");
+  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
+  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
   for (int i = 0; i < 4; i++) {
-    img_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                               img_s[i],
-                               xe::format_string("images%dD", i + 1).c_str());
-    b.addDecoration(img_[i], spv::Decoration::DecorationBlock);
+    img_[i] =
+        b.createVariable(spv::StorageClass::StorageClassUniform, img_a_t[i],
+                         xe::format_string("images%dD", i + 1).c_str());
     b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 1);
     b.addDecoration(img_[i], spv::Decoration::DecorationBinding, i + 1);
   }
-  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                               samplers_s, "samplers");
-  b.addDecoration(samplers_, spv::Decoration::DecorationBlock);
-  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
-  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
 
   // Interpolators.
   Id interpolators_type =
@@ -255,7 +245,6 @@ void SpirvShaderTranslator::StartTranslation() {
 
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                                       interpolators_type, "interpolators");
-    b.addDecoration(interpolators_, spv::Decoration::DecorationNoPerspective);
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
 
     pos_ = b.createVariable(spv::StorageClass::StorageClassOutput,
@@ -266,22 +255,68 @@ void SpirvShaderTranslator::StartTranslation() {
     // Pixel inputs from vertex shader.
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassInput,
                                       interpolators_type, "interpolators");
-    b.addDecoration(interpolators_, spv::Decoration::DecorationNoPerspective);
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
 
     // Pixel fragment outputs (one per render target).
     Id frag_outputs_type =
         b.makeArrayType(vec4_float_type_, b.makeUintConstant(4), 0);
     frag_outputs_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                     frag_outputs_type, "o");
+                                     frag_outputs_type, "oC");
     b.addDecoration(frag_outputs_, spv::Decoration::DecorationLocation, 0);
 
     // TODO(benvanik): frag depth, etc.
 
     // Copy interpolators to r[0..16].
-    b.createNoResultOp(spv::Op::OpCopyMemorySized,
-                       {registers_ptr_, interpolators_,
-                        b.makeUintConstant(16 * 4 * sizeof(float))});
+    // TODO: Need physical addressing in order to do this.
+    // b.createNoResultOp(spv::Op::OpCopyMemorySized,
+    //                   {registers_ptr_, interpolators_,
+    //                    b.makeUintConstant(16 * 4 * sizeof(float))});
+    for (int i = 0; i < 16; i++) {
+      // For now, copy interpolators register-by-register :/
+      auto idx = b.makeUintConstant(i);
+      auto i_a = b.createAccessChain(spv::StorageClass::StorageClassInput,
+                                     interpolators_, std::vector<Id>({idx}));
+      auto r_a = b.createAccessChain(spv::StorageClass::StorageClassFunction,
+                                     registers_ptr_, std::vector<Id>({idx}));
+      b.createNoResultOp(spv::Op::OpCopyMemory, std::vector<Id>({r_a, i_a}));
+    }
+
+    // Setup ps_param_gen
+    auto ps_param_gen_idx_ptr = b.createAccessChain(
+        spv::StorageClass::StorageClassPushConstant, push_consts_,
+        std::vector<Id>({b.makeUintConstant(3)}));
+    auto ps_param_gen_idx = b.createLoad(ps_param_gen_idx_ptr);
+
+    auto frag_coord = b.createVariable(spv::StorageClass::StorageClassInput,
+                                       vec4_float_type_, "gl_FragCoord");
+    b.addDecoration(frag_coord, spv::Decoration::DecorationBuiltIn,
+                    spv::BuiltIn::BuiltInFragCoord);
+
+    auto point_coord = b.createVariable(spv::StorageClass::StorageClassInput,
+                                        vec2_float_type_, "gl_PointCoord");
+    b.addDecoration(point_coord, spv::Decoration::DecorationBuiltIn,
+                    spv::BuiltIn::BuiltInPointCoord);
+    auto param = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                            {frag_coord, point_coord, 0, 1, 4, 5});
+    /*
+    // TODO: gl_FrontFacing
+    auto param_x = b.createCompositeExtract(param, float_type_, 0);
+    auto param_x_inv = b.createBinOp(spv::Op::OpFMul, float_type_, param_x,
+                                     b.makeFloatConstant(-1.f));
+    param_x = b.createCompositeInsert(param_x_inv, param, vec4_float_type_, 0);
+    */
+
+    auto cond = b.createBinOp(spv::Op::OpINotEqual, bool_type_,
+                              ps_param_gen_idx, b.makeUintConstant(-1));
+    spv::Builder::If ifb(cond, b);
+
+    // Index is specified
+    auto reg_ptr = b.createAccessChain(spv::StorageClass::StorageClassFunction,
+                                       registers_ptr_,
+                                       std::vector<Id>({ps_param_gen_idx}));
+    b.createStore(param, reg_ptr);
+
+    ifb.makeEndIf();
   }
 }
 
@@ -620,22 +655,12 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   uint32_t dim_idx = 0;
   switch (instr.dimension) {
     case TextureDimension::k1D:
-      src = b.createCompositeExtract(src, float_type_, 0);
       dim_idx = 0;
       break;
     case TextureDimension::k2D: {
-      auto s0 = b.createCompositeExtract(src, float_type_, 0);
-      auto s1 = b.createCompositeExtract(src, float_type_, 1);
-      src = b.createCompositeConstruct(vec2_float_type_,
-                                       std::vector<Id>({s0, s1}));
       dim_idx = 1;
     } break;
     case TextureDimension::k3D: {
-      auto s0 = b.createCompositeExtract(src, float_type_, 0);
-      auto s1 = b.createCompositeExtract(src, float_type_, 1);
-      auto s2 = b.createCompositeExtract(src, float_type_, 2);
-      src = b.createCompositeConstruct(vec3_float_type_,
-                                       std::vector<Id>({s0, s1, s2}));
       dim_idx = 2;
     } break;
     case TextureDimension::kCube: {
@@ -648,21 +673,22 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   switch (instr.opcode) {
     case FetchOpcode::kTextureFetch: {
       auto image_index = b.makeUintConstant(instr.operands[1].storage_index);
-      auto image_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniformConstant, img_[dim_idx],
-          std::vector<Id>({b.makeUintConstant(0), image_index}));
-      auto sampler_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniformConstant, samplers_,
-          std::vector<Id>({b.makeUintConstant(0), image_index}));
+      auto image_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniform,
+                              img_[dim_idx], std::vector<Id>({image_index}));
+      auto sampler_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniform, samplers_,
+                              std::vector<Id>({image_index}));
       auto image = b.createLoad(image_ptr);
       auto sampler = b.createLoad(sampler_ptr);
 
-      auto tex = b.createBinOp(spv::Op::OpSampledImage, b.getImageType(image),
+      auto sampled_image_type = b.makeSampledImageType(b.getImageType(image));
+      auto tex = b.createBinOp(spv::Op::OpSampledImage, sampled_image_type,
                                image, sampler);
 
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
-      params.sampler = sampler;
+      params.sampler = tex;
       dest = b.createTextureCall(spv::Decoration::DecorationInvariant,
                                  vec4_float_type_, false, false, false, false,
                                  false, params);
