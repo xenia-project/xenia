@@ -178,6 +178,11 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return IssueCopy();
   }
 
+  if ((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 & 0x3FFF) == 0) {
+    // Doesn't actually draw.
+    return true;
+  }
+
   // TODO(benvanik): move to CP or to host (trace dump, etc).
   if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
     device_->BeginRenderDocFrameCapture();
