@@ -48,9 +48,9 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   spv::Block* function_block = nullptr;
-  translated_main_ = b.makeFunctionEntry(spv::Decoration::DecorationInvariant,
-                                         b.makeVoidType(), "translated_main",
-                                         {}, {}, &function_block);
+  translated_main_ =
+      b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "translated_main",
+                          {}, {}, &function_block);
 
   bool_type_ = b.makeBoolType();
   float_type_ = b.makeFloatType(32);
@@ -181,14 +181,14 @@ void SpirvShaderTranslator::StartTranslation() {
                   b.makeArrayType(img_t[2], b.makeUintConstant(32), 0),
                   b.makeArrayType(img_t[3], b.makeUintConstant(32), 0)};
 
-  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniform,
+  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
                                samplers_a, "samplers");
   b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
   b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
   for (int i = 0; i < 4; i++) {
-    img_[i] =
-        b.createVariable(spv::StorageClass::StorageClassUniform, img_a_t[i],
-                         xe::format_string("images%dD", i + 1).c_str());
+    img_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               img_a_t[i],
+                               xe::format_string("images%dD", i + 1).c_str());
     b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 1);
     b.addDecoration(img_[i], spv::Decoration::DecorationBinding, i + 1);
   }
@@ -263,6 +263,11 @@ void SpirvShaderTranslator::StartTranslation() {
     frag_outputs_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                                      frag_outputs_type, "oC");
     b.addDecoration(frag_outputs_, spv::Decoration::DecorationLocation, 0);
+
+    Id frag_depth = b.createVariable(spv::StorageClass::StorageClassOutput,
+                                     vec4_float_type_, "gl_FragDepth");
+    b.addDecoration(frag_depth, spv::Decoration::DecorationBuiltIn,
+                    spv::BuiltIn::BuiltInFragDepth);
 
     // TODO(benvanik): frag depth, etc.
 
@@ -365,8 +370,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     p_w = b.createTriOp(spv::Op::OpSelect, float_type_, c_w, p_w, p_w_inv);
 
     // pos.xyz = vtx_fmt.xyz != 0.0 ? pos.xyz / pos.w : pos.xyz
-    auto p_all_w = b.smearScalar(spv::Decoration::DecorationInvariant, p_w,
-                                 vec4_float_type_);
+    auto p_all_w = b.smearScalar(spv::NoPrecision, p_w, vec4_float_type_);
     auto p_inv = b.createBinOp(spv::Op::OpFDiv, vec4_float_type_, p, p_all_w);
     p = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, p_inv, p);
 
@@ -654,9 +658,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
   uint32_t dim_idx = 0;
   switch (instr.dimension) {
-    case TextureDimension::k1D:
+    case TextureDimension::k1D: {
       dim_idx = 0;
-      break;
+    } break;
     case TextureDimension::k2D: {
       dim_idx = 1;
     } break;
@@ -674,13 +678,15 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     case FetchOpcode::kTextureFetch: {
       auto image_index = b.makeUintConstant(instr.operands[1].storage_index);
       auto image_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniform,
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               img_[dim_idx], std::vector<Id>({image_index}));
       auto sampler_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniform, samplers_,
-                              std::vector<Id>({image_index}));
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              samplers_, std::vector<Id>({image_index}));
       auto image = b.createLoad(image_ptr);
       auto sampler = b.createLoad(sampler_ptr);
+      assert(b.isImageType(b.getTypeId(image)));
+      assert(b.isSamplerType(b.getTypeId(sampler)));
 
       auto sampled_image_type = b.makeSampledImageType(b.getImageType(image));
       auto tex = b.createBinOp(spv::Op::OpSampledImage, sampled_image_type,
@@ -689,9 +695,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
       params.sampler = tex;
-      dest = b.createTextureCall(spv::Decoration::DecorationInvariant,
-                                 vec4_float_type_, false, false, false, false,
-                                 false, params);
+      dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
+                                 false, false, false, false, params);
     } break;
     default:
       // TODO: the rest of these
@@ -780,15 +785,15 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kFloor: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          spv::GLSLstd450::kFloor, {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
+                                             spv::GLSLstd450::kFloor,
+                                             {sources[0]});
     } break;
 
     case AluVectorOpcode::kFrc: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          spv::GLSLstd450::kFract, {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
+                                             spv::GLSLstd450::kFract,
+                                             {sources[0]});
     } break;
 
     case AluVectorOpcode::kKillEq: {
@@ -883,27 +888,26 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
                            b.makeFloatConstant(0.5f));
       addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
       addr = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, int_type_,
-          spv::GLSLstd450::kSClamp,
+          spv::NoPrecision, int_type_, spv::GLSLstd450::kSClamp,
           {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
       b.createStore(addr, a0_);
 
       // dest = src0 >= src1 ? src0 : src1
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
+                                             spv::GLSLstd450::kFMax,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluVectorOpcode::kMax: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
+                                             spv::GLSLstd450::kFMax,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluVectorOpcode::kMin: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          spv::GLSLstd450::kFMin, {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
+                                             spv::GLSLstd450::kFMin,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluVectorOpcode::kMul: {
@@ -928,8 +932,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
       s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
                            b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
-                              vec4_float_type_);
+      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
 
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
                            vec4_float_zero_, s0);
@@ -952,8 +955,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
       s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
                            b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
-                              vec4_float_type_);
+      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
 
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
                            vec4_float_zero_, s0);
@@ -976,8 +978,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
       s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
                            b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
-                              vec4_float_type_);
+      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
 
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
                            vec4_float_zero_, s0);
@@ -1000,8 +1001,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
       s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
                            b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::Decoration::DecorationInvariant, s0_x,
-                              vec4_float_type_);
+      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
 
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
                            vec4_float_zero_, s0);
@@ -1040,9 +1040,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kTrunc: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          GLSLstd450::kTrunc, {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
+                                             GLSLstd450::kTrunc, {sources[0]});
     } break;
 
     default:
@@ -1124,27 +1123,23 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kCos: {
       // dest = cos(src0)
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kCos,
-          {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kCos, {sources[0]});
     } break;
 
     case AluScalarOpcode::kExp: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kExp2,
-          {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kExp2, {sources[0]});
     } break;
 
     case AluScalarOpcode::kFloors: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFloor,
-          {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kFloor, {sources[0]});
     } break;
 
     case AluScalarOpcode::kFrcs: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFract,
-          {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kFract, {sources[0]});
     } break;
 
     case AluScalarOpcode::kKillsEq: {
@@ -1239,23 +1234,21 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kLog: {
       auto log = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_,
-          spv::GLSLstd450::kLog2, {sources[0]});
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kLog2, {sources[0]});
     } break;
 
     case AluScalarOpcode::kMaxAsf: {
       auto addr =
           b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, sources[0]);
       addr = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, int_type_,
-          spv::GLSLstd450::kSClamp,
+          spv::NoPrecision, int_type_, spv::GLSLstd450::kSClamp,
           {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
       b.createStore(addr, a0_);
 
       // dest = src0 >= src1 ? src0 : src1
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_,
-          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             spv::GLSLstd450::kFMax,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluScalarOpcode::kMaxAs: {
@@ -1264,29 +1257,28 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                                 b.makeFloatConstant(0.5f));
       addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
       addr = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, int_type_,
-          spv::GLSLstd450::kSClamp,
+          spv::NoPrecision, int_type_, spv::GLSLstd450::kSClamp,
           {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
       b.createStore(addr, a0_);
 
       // dest = src0 >= src1 ? src0 : src1
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_,
-          spv::GLSLstd450::kFMax, {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             spv::GLSLstd450::kFMax,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluScalarOpcode::kMaxs: {
       // dest = max(src0, src1)
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFMax,
-          {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kFMax,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluScalarOpcode::kMins: {
       // dest = min(src0, src1)
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFMin,
-          {sources[0], sources[1]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kFMin,
+                                             {sources[0], sources[1]});
     } break;
 
     case AluScalarOpcode::kMuls:
@@ -1326,8 +1318,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                              b.makeFloatConstant(0.f));
       auto d = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, vec4_float_type_,
-          spv::GLSLstd450::kInverseSqrt, {sources[0]});
+          spv::NoPrecision, vec4_float_type_, spv::GLSLstd450::kInverseSqrt,
+          {sources[0]});
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
                            b.makeFloatConstant(0.f), d);
     } break;
@@ -1439,7 +1431,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       b.createStore(c, p0_);
 
       dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kFMax,
+          spv::NoPrecision, float_type_, GLSLstd450::kFMax,
           {sources[0], b.makeFloatConstant(0.f)});
     } break;
 
@@ -1451,9 +1443,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kSin: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kSin,
-          {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kSin, {sources[0]});
     } break;
 
     case AluScalarOpcode::kSubs:
@@ -1468,9 +1459,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kTruncs: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::Decoration::DecorationInvariant, float_type_, GLSLstd450::kTrunc,
-          {sources[0]});
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kTrunc, {sources[0]});
     } break;
 
     default:
@@ -1570,8 +1560,7 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
 
   if (op.is_absolute_value) {
     storage_value = CreateGlslStd450InstructionCall(
-        spv::Decoration::DecorationInvariant, storage_type, GLSLstd450::kFAbs,
-        {storage_value});
+        spv::NoPrecision, storage_type, GLSLstd450::kFAbs, {storage_value});
   }
   if (op.is_negated) {
     storage_value =
@@ -1739,14 +1728,14 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       constituents.push_back(b.makeFloatConstant(0.f));
     }
 
-    source_value_id = b.createConstructor(spv::Decoration::DecorationInvariant,
-                                          constituents, storage_type);
+    source_value_id =
+        b.createConstructor(spv::NoPrecision, constituents, storage_type);
   }
 
   // Clamp the input value.
   if (result.is_clamped) {
     source_value_id = CreateGlslStd450InstructionCall(
-        spv::Decoration::DecorationInvariant, b.getTypeId(source_value_id),
+        spv::NoPrecision, b.getTypeId(source_value_id),
         spv::GLSLstd450::kFClamp,
         {source_value_id, b.makeFloatConstant(0.0), b.makeFloatConstant(1.0)});
   }
