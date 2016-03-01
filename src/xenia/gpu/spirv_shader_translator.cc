@@ -729,6 +729,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
   auto& b = *builder_;
 
+  // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = 0;
   for (size_t i = 0; i < instr.operand_count; i++) {
@@ -899,12 +900,24 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kMax: {
+      if (sources[0] == sources[1]) {
+        // mov dst, src
+        dest = sources[0];
+        break;
+      }
+
       dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
                                              spv::GLSLstd450::kFMax,
                                              {sources[0], sources[1]});
     } break;
 
     case AluVectorOpcode::kMin: {
+      if (sources[0] == sources[1]) {
+        // mov dst, src
+        dest = sources[0];
+        break;
+      }
+
       dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
                                              spv::GLSLstd450::kFMin,
                                              {sources[0], sources[1]});
@@ -1065,6 +1078,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
   auto& b = *builder_;
 
+  // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = 0;
   for (size_t i = 0, x = 0; i < instr.operand_count; i++) {
@@ -1230,10 +1244,17 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kLogc: {
+      auto t = CreateGlslStd450InstructionCall(
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kLog2, {sources[0]});
+
+      // FIXME: We don't check to see if t == -INF, we just check for INF
+      auto c = b.createUnaryOp(spv::Op::OpIsInf, bool_type_, t);
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
+                           b.makeFloatConstant(-FLT_MAX), t);
     } break;
 
     case AluScalarOpcode::kLog: {
-      auto log = CreateGlslStd450InstructionCall(
+      dest = CreateGlslStd450InstructionCall(
           spv::NoPrecision, float_type_, spv::GLSLstd450::kLog2, {sources[0]});
     } break;
 
