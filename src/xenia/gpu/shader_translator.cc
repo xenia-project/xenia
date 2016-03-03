@@ -672,11 +672,11 @@ void ShaderTranslator::TranslateExecInstructions(
           static_cast<FetchOpcode>(ucode_dwords_[instr_offset * 3] & 0x1F);
       if (fetch_opcode == FetchOpcode::kVertexFetch) {
         auto& op = *reinterpret_cast<const VertexFetchInstruction*>(
-                       ucode_dwords_ + instr_offset * 3);
+            ucode_dwords_ + instr_offset * 3);
         TranslateVertexFetchInstruction(op);
       } else {
         auto& op = *reinterpret_cast<const TextureFetchInstruction*>(
-                       ucode_dwords_ + instr_offset * 3);
+            ucode_dwords_ + instr_offset * 3);
         TranslateTextureFetchInstruction(op);
       }
     } else {

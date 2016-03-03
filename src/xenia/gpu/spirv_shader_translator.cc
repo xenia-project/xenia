@@ -237,9 +237,8 @@ void SpirvShaderTranslator::StartTranslation() {
         b.addDecoration(attrib_var, spv::Decoration::DecorationLocation,
                         attrib.attrib_index);
 
-        vertex_binding_map_[binding.fetch_constant][attrib.fetch_instr
-                                                        .attributes.offset] =
-            attrib_var;
+        vertex_binding_map_[binding.fetch_constant]
+                           [attrib.fetch_instr.attributes.offset] = attrib_var;
       }
     }
 
@@ -636,9 +635,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   // Operand 0 is the index
   // Operand 1 is the binding
   // TODO: Indexed fetch
-  auto vertex_ptr =
-      vertex_binding_map_[instr.operands[1].storage_index][instr.attributes
-                                                               .offset];
+  auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
+                                       [instr.attributes.offset];
   assert_not_zero(vertex_ptr);
 
   auto vertex = b.createLoad(vertex_ptr);
