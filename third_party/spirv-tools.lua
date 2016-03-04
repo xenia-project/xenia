@@ -13,9 +13,9 @@ project("spirv-tools")
     "spirv-tools/include",
   })
   files({
-    "spirv-tools/external/include/headers/GLSL.std.450.h",
-    "spirv-tools/external/include/headers/OpenCL.std.h",
-    "spirv-tools/external/include/headers/spirv.h",
+    "spirv-tools/include/spirv/GLSL.std.450.h",
+    "spirv-tools/include/spirv/OpenCL.std.h",
+    "spirv-tools/include/spirv/spirv.h",
     "spirv-tools/include/spirv-tools/libspirv.h",
     "spirv-tools/source/assembly_grammar.cpp",
     "spirv-tools/source/assembly_grammar.h",
