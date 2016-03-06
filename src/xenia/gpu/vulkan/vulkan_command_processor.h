@@ -49,6 +49,8 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void ClearCaches() override;
 
+  RenderCache* render_cache() { return render_cache_.get(); }
+
  private:
   bool SetupContext() override;
   void ShutdownContext() override;
@@ -73,9 +75,9 @@ class VulkanCommandProcessor : public CommandProcessor {
                            IndexBufferInfo* index_buffer_info);
   bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
                              VulkanShader* vertex_shader);
-  bool PopulateSamplers(VkCommandBuffer command_buffer,
-                        VulkanShader* vertex_shader,
-                        VulkanShader* pixel_shader);
+  VkDescriptorSet PopulateSamplers(VkCommandBuffer command_buffer,
+                                   VulkanShader* vertex_shader,
+                                   VulkanShader* pixel_shader);
   bool IssueCopy() override;
 
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;

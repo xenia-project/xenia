@@ -81,83 +81,304 @@ TextureCache::TextureCache(RegisterFile* register_file,
                                     nullptr, &texture_descriptor_set_layout_);
   CheckResult(err, "vkCreateDescriptorSetLayout");
 
-  SetupGridImages();
+  // Allocate memory for a staging buffer.
+  VkBufferCreateInfo staging_buffer_info;
+  staging_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  staging_buffer_info.pNext = nullptr;
+  staging_buffer_info.flags = 0;
+  staging_buffer_info.size = 2048 * 2048 * 4;  // 16MB buffer
+  staging_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+  staging_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  staging_buffer_info.queueFamilyIndexCount = 0;
+  staging_buffer_info.pQueueFamilyIndices = nullptr;
+  err =
+      vkCreateBuffer(*device_, &staging_buffer_info, nullptr, &staging_buffer_);
+  CheckResult(err, "vkCreateBuffer");
+
+  if (err == VK_SUCCESS) {
+    VkMemoryRequirements staging_buffer_reqs;
+    vkGetBufferMemoryRequirements(*device_, staging_buffer_,
+                                  &staging_buffer_reqs);
+    staging_buffer_mem_ = device_->AllocateMemory(staging_buffer_reqs);
+    assert_not_null(staging_buffer_mem_);
+
+    err = vkBindBufferMemory(*device_, staging_buffer_, staging_buffer_mem_, 0);
+    CheckResult(err, "vkBindBufferMemory");
+
+    // Upload a grid into the staging buffer.
+    uint32_t* gpu_data = nullptr;
+    err =
+        vkMapMemory(*device_, staging_buffer_mem_, 0, staging_buffer_info.size,
+                    0, reinterpret_cast<void**>(&gpu_data));
+    CheckResult(err, "vkMapMemory");
+
+    int width = 2048;
+    int height = 2048;
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        gpu_data[y * width + x] =
+            ((y % 32 < 16) ^ (x % 32 >= 16)) ? 0xFF0000FF : 0xFFFFFFFF;
+      }
+    }
+
+    vkUnmapMemory(*device_, staging_buffer_mem_);
+  }
 }
 
 TextureCache::~TextureCache() {
-  vkDestroyImageView(*device_, grid_image_2d_view_, nullptr);
-  vkDestroyImage(*device_, grid_image_2d_, nullptr);
-  vkFreeMemory(*device_, grid_image_2d_memory_, nullptr);
-
   vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
                                nullptr);
   vkDestroyDescriptorPool(*device_, descriptor_pool_, nullptr);
 }
 
-void TextureCache::SetupGridImages() {
-  VkImageCreateInfo image_info;
+TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
+                                            VkCommandBuffer command_buffer) {
+  // Run a tight loop to scan for an existing texture.
+  auto texture_hash = texture_info.hash();
+  for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
+    if (it->second->texture_info == texture_info) {
+      return it->second.get();
+    }
+  }
+
+  // Though we didn't find an exact match, that doesn't mean we're out of the
+  // woods yet. This texture could either be a portion of another texture or
+  // vice versa. Check for overlap before uploading.
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+  }
+
+  if (!command_buffer) {
+    // Texture not found and no command buffer was passed allowing us to upload
+    // a new one.
+    return nullptr;
+  }
+
+  // Create a new texture and cache it.
+  auto texture = AllocateTexture(texture_info);
+  if (!texture) {
+    // Failed to allocate texture (out of memory?)
+    assert_always();
+    return nullptr;
+  }
+
+  if (!UploadTexture2D(command_buffer, texture, texture_info)) {
+    // TODO: Destroy the texture.
+    assert_always();
+    return nullptr;
+  }
+
+  textures_[texture_hash] = std::unique_ptr<Texture>(texture);
+
+  return texture;
+}
+
+TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
+  auto sampler_hash = sampler_info.hash();
+  for (auto it = samplers_.find(sampler_hash); it != samplers_.end(); ++it) {
+    if (it->second->sampler_info == sampler_info) {
+      // Found a compatible sampler.
+      return it->second.get();
+    }
+  }
+
+  VkResult status = VK_SUCCESS;
+
+  // Create a new sampler and cache it.
+  // TODO: Actually set the properties
+  VkSamplerCreateInfo sampler_create_info;
+  sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  sampler_create_info.pNext = nullptr;
+  sampler_create_info.flags = 0;
+  sampler_create_info.magFilter = VK_FILTER_NEAREST;
+  sampler_create_info.minFilter = VK_FILTER_NEAREST;
+  sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  sampler_create_info.mipLodBias = 0.0f;
+  sampler_create_info.anisotropyEnable = VK_FALSE;
+  sampler_create_info.maxAnisotropy = 1.0f;
+  sampler_create_info.compareEnable = VK_FALSE;
+  sampler_create_info.compareOp = VK_COMPARE_OP_ALWAYS;
+  sampler_create_info.minLod = 0.0f;
+  sampler_create_info.maxLod = 0.0f;
+  sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+  sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+  VkSampler vk_sampler;
+  status =
+      vkCreateSampler(*device_, &sampler_create_info, nullptr, &vk_sampler);
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return nullptr;
+  }
+
+  auto sampler = new Sampler();
+  sampler->sampler = vk_sampler;
+  sampler->sampler_info = sampler_info;
+  samplers_[sampler_hash] = std::unique_ptr<Sampler>(sampler);
+
+  return sampler;
+}
+
+TextureCache::Texture* TextureCache::AllocateTexture(TextureInfo texture_info) {
+  // Create an image first.
+  VkImageCreateInfo image_info = {};
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  image_info.pNext = nullptr;
-  image_info.flags = 0;
-  image_info.imageType = VK_IMAGE_TYPE_2D;
+  switch (texture_info.dimension) {
+    case Dimension::k1D:
+      image_info.imageType = VK_IMAGE_TYPE_1D;
+      break;
+    case Dimension::k2D:
+      image_info.imageType = VK_IMAGE_TYPE_2D;
+      break;
+    case Dimension::k3D:
+      image_info.imageType = VK_IMAGE_TYPE_3D;
+      break;
+    case Dimension::kCube:
+      image_info.imageType = VK_IMAGE_TYPE_2D;
+      image_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+      break;
+    default:
+      assert_unhandled_case(texture_info.dimension);
+      return nullptr;
+  }
+
+  // TODO: Format
   image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-  image_info.extent = {8, 8, 1};
+  image_info.extent = {texture_info.width + 1, texture_info.height + 1,
+                       texture_info.depth + 1};
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  image_info.tiling = VK_IMAGE_TILING_LINEAR;
-  image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage =
+      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  auto err = vkCreateImage(*device_, &image_info, nullptr, &grid_image_2d_);
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage image;
+  auto err = vkCreateImage(*device_, &image_info, nullptr, &image);
   CheckResult(err, "vkCreateImage");
 
-  VkMemoryRequirements memory_requirements;
-  vkGetImageMemoryRequirements(*device_, grid_image_2d_, &memory_requirements);
-  grid_image_2d_memory_ = device_->AllocateMemory(
-      memory_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-  err = vkBindImageMemory(*device_, grid_image_2d_, grid_image_2d_memory_, 0);
+  VkMemoryRequirements mem_requirements;
+  vkGetImageMemoryRequirements(*device_, image, &mem_requirements);
+
+  // TODO: Use a circular buffer or something else to allocate this memory.
+  // The device has a limited amount (around 64) of memory allocations that we
+  // can make.
+  // Now that we have the size, back the image with GPU memory.
+  auto memory = device_->AllocateMemory(mem_requirements, 0);
+  err = vkBindImageMemory(*device_, image, memory, 0);
   CheckResult(err, "vkBindImageMemory");
 
+  auto texture = new Texture();
+  texture->format = image_info.format;
+  texture->image = image;
+  texture->memory_offset = 0;
+  texture->memory_size = mem_requirements.size;
+  texture->texture_info = texture_info;
+  texture->texture_memory = memory;
+
+  // Create a default view, just for kicks.
   VkImageViewCreateInfo view_info;
   view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
   view_info.pNext = nullptr;
   view_info.flags = 0;
-  view_info.image = grid_image_2d_;
+  view_info.image = image;
   view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  view_info.format = image_info.format;
   view_info.components = {
       VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
       VK_COMPONENT_SWIZZLE_A,
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  err = vkCreateImageView(*device_, &view_info, nullptr, &grid_image_2d_view_);
+  VkImageView view;
+  err = vkCreateImageView(*device_, &view_info, nullptr, &view);
   CheckResult(err, "vkCreateImageView");
-
-  VkImageSubresource subresource;
-  subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  subresource.mipLevel = 0;
-  subresource.arrayLayer = 0;
-  VkSubresourceLayout layout;
-  vkGetImageSubresourceLayout(*device_, grid_image_2d_, &subresource, &layout);
-
-  void* gpu_data = nullptr;
-  err = vkMapMemory(*device_, grid_image_2d_memory_, 0, layout.size, 0,
-                    &gpu_data);
-  CheckResult(err, "vkMapMemory");
-
-  uint32_t grid_pixels[8 * 8];
-  for (int y = 0; y < 8; ++y) {
-    for (int x = 0; x < 8; ++x) {
-      grid_pixels[y * 8 + x] =
-          ((y % 2 == 0) ^ (x % 2 != 0)) ? 0xFFFFFFFF : 0xFF0000FF;
-    }
+  if (err == VK_SUCCESS) {
+    auto texture_view = std::make_unique<TextureView>();
+    texture_view->texture = texture;
+    texture_view->view = view;
+    texture->views.push_back(std::move(texture_view));
   }
-  std::memcpy(gpu_data, grid_pixels, sizeof(grid_pixels));
 
-  vkUnmapMemory(*device_, grid_image_2d_memory_);
+  return texture;
+}
+
+bool TextureCache::FreeTexture(Texture* texture) {
+  // TODO(DrChat)
+  return false;
+}
+
+bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
+                                   Texture* dest, TextureInfo src) {
+  // TODO: We need to allocate memory to use as a staging buffer. We can then
+  // raw copy the texture from system memory into the staging buffer and use a
+  // shader to convert the texture into a format consumable by the host GPU.
+
+  // Need to have unique memory for every upload for at least one frame. If we
+  // run out of memory, we need to flush all queued upload commands to the GPU.
+
+  // TODO: Upload memory here.
+
+  // Insert a memory barrier into the command buffer to ensure the upload has
+  // finished before we copy it into the destination texture.
+  VkBufferMemoryBarrier upload_barrier = {
+      VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+      NULL,
+      VK_ACCESS_HOST_WRITE_BIT,
+      VK_ACCESS_TRANSFER_READ_BIT,
+      VK_QUEUE_FAMILY_IGNORED,
+      VK_QUEUE_FAMILY_IGNORED,
+      staging_buffer_,
+      0,
+      2048 * 2048 * 4,
+  };
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                       &upload_barrier, 0, nullptr);
+
+  // Transition the texture into a transfer destination layout.
+  VkImageMemoryBarrier barrier;
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.pNext = nullptr;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask =
+      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = dest->image;
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  // For now, just transfer the grid we uploaded earlier into the texture.
+  VkBufferImageCopy copy_region;
+  copy_region.bufferOffset = 0;
+  copy_region.bufferRowLength = 0;
+  copy_region.bufferImageHeight = 0;
+  copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  copy_region.imageOffset = {0, 0, 0};
+  copy_region.imageExtent = {dest->texture_info.width + 1,
+                             dest->texture_info.height + 1,
+                             dest->texture_info.depth + 1};
+  vkCmdCopyBufferToImage(command_buffer, staging_buffer_, dest->image,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+
+  // Now transition the texture into a shader readonly source.
+  barrier.srcAccessMask = barrier.dstAccessMask;
+  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  barrier.oldLayout = barrier.newLayout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  return true;
 }
 
 VkDescriptorSet TextureCache::PrepareTextureSet(
@@ -179,9 +400,11 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
   // shaders.
   bool any_failed = false;
   any_failed =
-      !SetupTextureBindings(update_set_info, vertex_bindings) || any_failed;
+      !SetupTextureBindings(update_set_info, vertex_bindings, command_buffer) ||
+      any_failed;
   any_failed =
-      !SetupTextureBindings(update_set_info, pixel_bindings) || any_failed;
+      !SetupTextureBindings(update_set_info, pixel_bindings, command_buffer) ||
+      any_failed;
   if (any_failed) {
     XELOGW("Failed to setup one or more texture bindings");
     // TODO(benvanik): actually bail out here?
@@ -269,13 +492,16 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
 
 bool TextureCache::SetupTextureBindings(
     UpdateSetInfo* update_set_info,
-    const std::vector<Shader::TextureBinding>& bindings) {
+    const std::vector<Shader::TextureBinding>& bindings,
+    VkCommandBuffer command_buffer) {
   bool any_failed = false;
   for (auto& binding : bindings) {
     uint32_t fetch_bit = 1 << binding.fetch_constant;
     if ((update_set_info->has_setup_fetch_mask & fetch_bit) == 0) {
       // Needs setup.
-      any_failed = !SetupTextureBinding(update_set_info, binding) || any_failed;
+      any_failed =
+          !SetupTextureBinding(update_set_info, binding, command_buffer) ||
+          any_failed;
       update_set_info->has_setup_fetch_mask |= fetch_bit;
     }
   }
@@ -283,7 +509,8 @@ bool TextureCache::SetupTextureBindings(
 }
 
 bool TextureCache::SetupTextureBinding(UpdateSetInfo* update_set_info,
-                                       const Shader::TextureBinding& binding) {
+                                       const Shader::TextureBinding& binding,
+                                       VkCommandBuffer command_buffer) {
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6;
   auto group =
@@ -308,41 +535,21 @@ bool TextureCache::SetupTextureBinding(UpdateSetInfo* update_set_info,
     return false;  // invalid texture used
   }
 
+  auto texture = Demand(texture_info, command_buffer);
+  auto sampler = Demand(sampler_info);
+  assert_true(texture != nullptr && sampler != nullptr);
+
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
-  // TODO(benvanik): reuse.
-  VkSamplerCreateInfo sampler_create_info;
-  sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  sampler_create_info.pNext = nullptr;
-  sampler_create_info.flags = 0;
-  sampler_create_info.magFilter = VK_FILTER_NEAREST;
-  sampler_create_info.minFilter = VK_FILTER_NEAREST;
-  sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  sampler_create_info.mipLodBias = 0.0f;
-  sampler_create_info.anisotropyEnable = VK_FALSE;
-  sampler_create_info.maxAnisotropy = 1.0f;
-  sampler_create_info.compareEnable = VK_FALSE;
-  sampler_create_info.compareOp = VK_COMPARE_OP_ALWAYS;
-  sampler_create_info.minLod = 0.0f;
-  sampler_create_info.maxLod = 0.0f;
-  sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-  sampler_create_info.unnormalizedCoordinates = VK_FALSE;
-  VkSampler sampler;
-  auto err = vkCreateSampler(*device_, &sampler_create_info, nullptr, &sampler);
-  CheckResult(err, "vkCreateSampler");
-
   auto& sampler_write =
       update_set_info->sampler_infos[update_set_info->sampler_write_count++];
-  sampler_write.sampler = sampler;
+  sampler_write.sampler = sampler->sampler;
 
   auto& image_write =
       update_set_info->image_2d_infos[update_set_info->image_2d_write_count++];
-  image_write.imageView = grid_image_2d_view_;
-  image_write.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_write.imageView = texture->views[0]->view;
+  image_write.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
   return true;
 }

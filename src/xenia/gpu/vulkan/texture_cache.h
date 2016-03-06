@@ -10,8 +10,12 @@
 #ifndef XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
 #define XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
 
+#include <unordered_map>
+
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan.h"
@@ -50,14 +54,51 @@ class TextureCache {
 
  private:
   struct UpdateSetInfo;
+  struct TextureView;
 
-  void SetupGridImages();
+  // This represents an uploaded Vulkan texture.
+  struct Texture {
+    TextureInfo texture_info;
+    VkDeviceMemory texture_memory;
+    VkDeviceSize memory_offset;
+    VkDeviceSize memory_size;
+    VkImage image;
+    VkFormat format;
+    std::vector<std::unique_ptr<TextureView>> views;
+  };
 
-  bool SetupTextureBindings(
-      UpdateSetInfo* update_set_info,
-      const std::vector<Shader::TextureBinding>& bindings);
+  struct TextureView {
+    Texture* texture;
+    VkImageView view;
+  };
+
+  // Cached Vulkan sampler.
+  struct Sampler {
+    SamplerInfo sampler_info;
+    VkSampler sampler;
+  };
+
+  // Demands a texture. If command_buffer is null and the texture hasn't been
+  // uploaded to graphics memory already, we will return null and bail.
+  Texture* Demand(const TextureInfo& texture_info,
+                  VkCommandBuffer command_buffer = nullptr);
+  Sampler* Demand(const SamplerInfo& sampler_info);
+
+  // Allocates a new texture and memory to back it on the GPU.
+  Texture* AllocateTexture(TextureInfo texture_info);
+  bool FreeTexture(Texture* texture);
+
+  // Queues commands to upload a texture from system memory, applying any
+  // conversions necessary.
+  bool UploadTexture2D(VkCommandBuffer command_buffer, Texture* dest,
+                       TextureInfo src);
+
+  bool SetupTextureBindings(UpdateSetInfo* update_set_info,
+                            const std::vector<Shader::TextureBinding>& bindings,
+                            VkCommandBuffer command_buffer = nullptr);
   bool SetupTextureBinding(UpdateSetInfo* update_set_info,
-                           const Shader::TextureBinding& binding);
+                           const Shader::TextureBinding& binding,
+                           VkCommandBuffer command_buffer = nullptr);
 
   RegisterFile* register_file_ = nullptr;
   TraceWriter* trace_writer_ = nullptr;
@@ -66,9 +107,11 @@ class TextureCache {
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
 
-  VkDeviceMemory grid_image_2d_memory_ = nullptr;
-  VkImage grid_image_2d_ = nullptr;
-  VkImageView grid_image_2d_view_ = nullptr;
+  // Temporary until we have circular buffers.
+  VkBuffer staging_buffer_ = nullptr;
+  VkDeviceMemory staging_buffer_mem_ = nullptr;
+  std::unordered_map<uint64_t, std::unique_ptr<Texture>> textures_;
+  std::unordered_map<uint64_t, std::unique_ptr<Sampler>> samplers_;
 
   struct UpdateSetInfo {
     // Bitmap of all 32 fetch constants and whether they have been setup yet.

@@ -217,6 +217,14 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   auto err = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
   CheckResult(err, "vkBeginCommandBuffer");
 
+  // Upload and set descriptors for all textures.
+  // We do this outside of the render pass so the texture cache can upload and
+  // convert textures.
+  auto samplers = PopulateSamplers(command_buffer, vertex_shader, pixel_shader);
+  if (!samplers) {
+    return false;
+  }
+
   // Begin the render pass.
   // This will setup our framebuffer and begin the pass in the command buffer.
   auto render_state = render_cache_->BeginRenderPass(
@@ -253,11 +261,10 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
-  // Upload and set descriptors for all textures.
-  if (!PopulateSamplers(command_buffer, vertex_shader, pixel_shader)) {
-    render_cache_->EndRenderPass();
-    return false;
-  }
+  // Bind samplers/textures.
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_cache_->pipeline_layout(), 1, 1, &samplers,
+                          0, nullptr);
 
   // Actually issue the draw.
   if (!index_buffer_info) {
@@ -471,9 +478,9 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   return true;
 }
 
-bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
-                                              VulkanShader* vertex_shader,
-                                              VulkanShader* pixel_shader) {
+VkDescriptorSet VulkanCommandProcessor::PopulateSamplers(
+    VkCommandBuffer command_buffer, VulkanShader* vertex_shader,
+    VulkanShader* pixel_shader) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -483,20 +490,63 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
       pixel_shader->texture_bindings());
   if (!descriptor_set) {
     // Unable to bind set.
-    return false;
+    return nullptr;
   }
 
-  // Bind samplers/textures.
-  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_cache_->pipeline_layout(), 1, 1,
-                          &descriptor_set, 0, nullptr);
-
-  return true;
+  return descriptor_set;
 }
 
 bool VulkanCommandProcessor::IssueCopy() {
   SCOPE_profile_cpu_f("gpu");
-  // TODO(benvanik): resolve.
+  auto& regs = *register_file_;
+
+  // This is used to resolve surfaces, taking them from EDRAM render targets
+  // to system memory. It can optionally clear color/depth surfaces, too.
+  // The command buffer has stuff for actually doing this by drawing, however
+  // we should be able to do it without that much easier.
+
+  uint32_t copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  // Render targets 0-3, 4 = depth
+  uint32_t copy_src_select = copy_control & 0x7;
+  bool color_clear_enabled = (copy_control >> 8) & 0x1;
+  bool depth_clear_enabled = (copy_control >> 9) & 0x1;
+  auto copy_command = static_cast<CopyCommand>((copy_control >> 20) & 0x3);
+
+  uint32_t copy_dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
+  auto copy_dest_endian = static_cast<Endian128>(copy_dest_info & 0x7);
+  uint32_t copy_dest_array = (copy_dest_info >> 3) & 0x1;
+  assert_true(copy_dest_array == 0);
+  uint32_t copy_dest_slice = (copy_dest_info >> 4) & 0x7;
+  assert_true(copy_dest_slice == 0);
+  auto copy_dest_format =
+    static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
+  uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
+  // assert_true(copy_dest_number == 0); // ?
+  uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
+  // assert_true(copy_dest_bias == 0);
+  uint32_t copy_dest_swap = (copy_dest_info >> 25) & 0x1;
+
+  uint32_t copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
+  uint32_t copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
+  uint32_t copy_dest_height = (copy_dest_pitch >> 16) & 0x3FFF;
+  copy_dest_pitch &= 0x3FFF;
+
+  // None of this is supported yet:
+  uint32_t copy_surface_slice = regs[XE_GPU_REG_RB_COPY_SURFACE_SLICE].u32;
+  assert_true(copy_surface_slice == 0);
+  uint32_t copy_func = regs[XE_GPU_REG_RB_COPY_FUNC].u32;
+  assert_true(copy_func == 0);
+  uint32_t copy_ref = regs[XE_GPU_REG_RB_COPY_REF].u32;
+  assert_true(copy_ref == 0);
+  uint32_t copy_mask = regs[XE_GPU_REG_RB_COPY_MASK].u32;
+  assert_true(copy_mask == 0);
+
+  // RB_SURFACE_INFO
+  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = surface_info & 0x3FFF;
+  auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
+
   return true;
 }
 
