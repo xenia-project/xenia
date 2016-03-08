@@ -42,7 +42,7 @@ TextureCache::TextureCache(RegisterFile* register_file,
   VkDescriptorPoolSize pool_sizes[2];
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLER;
   pool_sizes[0].descriptorCount = 32;
-  pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   pool_sizes[1].descriptorCount = 32;
   descriptor_pool_info.poolSizeCount = 2;
   descriptor_pool_info.pPoolSizes = pool_sizes;
@@ -63,7 +63,7 @@ TextureCache::TextureCache(RegisterFile* register_file,
   for (int i = 0; i < 4; ++i) {
     auto& texture_binding = bindings[1 + i];
     texture_binding.binding = 1 + i;
-    texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     texture_binding.descriptorCount = kMaxTextureSamplers;
     texture_binding.stageFlags =
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -94,35 +94,37 @@ TextureCache::TextureCache(RegisterFile* register_file,
   err =
       vkCreateBuffer(*device_, &staging_buffer_info, nullptr, &staging_buffer_);
   CheckResult(err, "vkCreateBuffer");
-
-  if (err == VK_SUCCESS) {
-    VkMemoryRequirements staging_buffer_reqs;
-    vkGetBufferMemoryRequirements(*device_, staging_buffer_,
-                                  &staging_buffer_reqs);
-    staging_buffer_mem_ = device_->AllocateMemory(staging_buffer_reqs);
-    assert_not_null(staging_buffer_mem_);
-
-    err = vkBindBufferMemory(*device_, staging_buffer_, staging_buffer_mem_, 0);
-    CheckResult(err, "vkBindBufferMemory");
-
-    // Upload a grid into the staging buffer.
-    uint32_t* gpu_data = nullptr;
-    err =
-        vkMapMemory(*device_, staging_buffer_mem_, 0, staging_buffer_info.size,
-                    0, reinterpret_cast<void**>(&gpu_data));
-    CheckResult(err, "vkMapMemory");
-
-    int width = 2048;
-    int height = 2048;
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        gpu_data[y * width + x] =
-            ((y % 32 < 16) ^ (x % 32 >= 16)) ? 0xFF0000FF : 0xFFFFFFFF;
-      }
-    }
-
-    vkUnmapMemory(*device_, staging_buffer_mem_);
+  if (err != VK_SUCCESS) {
+    // This isn't good.
+    assert_always();
+    return;
   }
+
+  VkMemoryRequirements staging_buffer_reqs;
+  vkGetBufferMemoryRequirements(*device_, staging_buffer_,
+                                &staging_buffer_reqs);
+  staging_buffer_mem_ = device_->AllocateMemory(staging_buffer_reqs);
+  assert_not_null(staging_buffer_mem_);
+
+  err = vkBindBufferMemory(*device_, staging_buffer_, staging_buffer_mem_, 0);
+  CheckResult(err, "vkBindBufferMemory");
+
+  // Upload a grid into the staging buffer.
+  uint32_t* gpu_data = nullptr;
+  err = vkMapMemory(*device_, staging_buffer_mem_, 0, staging_buffer_info.size,
+                    0, reinterpret_cast<void**>(&gpu_data));
+  CheckResult(err, "vkMapMemory");
+
+  int width = 2048;
+  int height = 2048;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      gpu_data[y * width + x] =
+          ((y % 32 < 16) ^ (x % 32 >= 16)) ? 0xFF0000FF : 0xFFFFFFFF;
+    }
+  }
+
+  vkUnmapMemory(*device_, staging_buffer_mem_);
 }
 
 TextureCache::~TextureCache() {
@@ -131,9 +133,141 @@ TextureCache::~TextureCache() {
   vkDestroyDescriptorPool(*device_, descriptor_pool_, nullptr);
 }
 
+TextureCache::Texture* TextureCache::AllocateTexture(
+    const TextureInfo& texture_info) {
+  // Create an image first.
+  VkImageCreateInfo image_info = {};
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  switch (texture_info.dimension) {
+    case Dimension::k1D:
+      image_info.imageType = VK_IMAGE_TYPE_1D;
+      break;
+    case Dimension::k2D:
+      image_info.imageType = VK_IMAGE_TYPE_2D;
+      break;
+    case Dimension::k3D:
+      image_info.imageType = VK_IMAGE_TYPE_3D;
+      break;
+    case Dimension::kCube:
+      image_info.imageType = VK_IMAGE_TYPE_2D;
+      image_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+      break;
+    default:
+      assert_unhandled_case(texture_info.dimension);
+      return nullptr;
+  }
+
+  // TODO: Format
+  image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  image_info.extent = {texture_info.width + 1, texture_info.height + 1,
+                       texture_info.depth + 1};
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_info.queueFamilyIndexCount = 0;
+  image_info.pQueueFamilyIndices = nullptr;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImage image;
+  auto err = vkCreateImage(*device_, &image_info, nullptr, &image);
+  CheckResult(err, "vkCreateImage");
+
+  VkMemoryRequirements mem_requirements;
+  vkGetImageMemoryRequirements(*device_, image, &mem_requirements);
+
+  // TODO: Use a circular buffer or something else to allocate this memory.
+  // The device has a limited amount (around 64) of memory allocations that we
+  // can make.
+  // Now that we have the size, back the image with GPU memory.
+  auto memory = device_->AllocateMemory(mem_requirements, 0);
+  if (!memory) {
+    // Crap.
+    assert_always();
+    vkDestroyImage(*device_, image, nullptr);
+    return nullptr;
+  }
+
+  err = vkBindImageMemory(*device_, image, memory, 0);
+  CheckResult(err, "vkBindImageMemory");
+
+  auto texture = new Texture();
+  texture->format = image_info.format;
+  texture->image = image;
+  texture->image_layout = image_info.initialLayout;
+  texture->image_memory = memory;
+  texture->memory_offset = 0;
+  texture->memory_size = mem_requirements.size;
+  texture->texture_info = texture_info;
+
+  // Create a default view, just for kicks.
+  VkImageViewCreateInfo view_info;
+  view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  view_info.pNext = nullptr;
+  view_info.flags = 0;
+  view_info.image = image;
+  view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  view_info.format = image_info.format;
+  view_info.components = {
+      VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
+      VK_COMPONENT_SWIZZLE_A,
+  };
+  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  VkImageView view;
+  err = vkCreateImageView(*device_, &view_info, nullptr, &view);
+  CheckResult(err, "vkCreateImageView");
+  if (err == VK_SUCCESS) {
+    auto texture_view = std::make_unique<TextureView>();
+    texture_view->texture = texture;
+    texture_view->view = view;
+    texture->views.push_back(std::move(texture_view));
+  }
+
+  return texture;
+}
+
+bool TextureCache::FreeTexture(Texture* texture) {
+  // TODO(DrChat)
+  return false;
+}
+
+TextureCache::Texture* TextureCache::DemandResolveTexture(
+    const TextureInfo& texture_info, TextureFormat format,
+    uint32_t* out_offset_x, uint32_t* out_offset_y) {
+  // Check to see if we've already used a texture at this location.
+  auto texture = LookupAddress(
+      texture_info.guest_address, texture_info.size_2d.block_width,
+      texture_info.size_2d.block_height, format, out_offset_x, out_offset_y);
+  if (texture) {
+    return texture;
+  }
+
+  // Check resolve textures.
+  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
+       ++it) {
+    texture = (*it).get();
+    if (texture_info.guest_address == texture->texture_info.guest_address &&
+        texture_info.size_2d.logical_width ==
+            texture->texture_info.size_2d.logical_width &&
+        texture_info.size_2d.logical_height ==
+            texture->texture_info.size_2d.logical_height) {
+      // Exact match.
+      return texture;
+    }
+  }
+
+  // No texture at this location. Make a new one.
+  texture = AllocateTexture(texture_info);
+  resolve_textures_.push_back(std::unique_ptr<Texture>(texture));
+  return texture;
+}
+
 TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
                                             VkCommandBuffer command_buffer) {
-  // Run a tight loop to scan for an existing texture.
+  // Run a tight loop to scan for an exact match existing texture.
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
     if (it->second->texture_info == texture_info) {
@@ -141,15 +275,25 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     }
   }
 
-  // Though we didn't find an exact match, that doesn't mean we're out of the
-  // woods yet. This texture could either be a portion of another texture or
-  // vice versa. Check for overlap before uploading.
-  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+  // Check resolve textures.
+  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
+       ++it) {
+    auto texture = (*it).get();
+    if (texture_info.guest_address == texture->texture_info.guest_address &&
+        texture_info.size_2d.logical_width ==
+            texture->texture_info.size_2d.logical_width &&
+        texture_info.size_2d.logical_height ==
+            texture->texture_info.size_2d.logical_height) {
+      // Exact match.
+      // TODO: Lazy match
+      texture->texture_info = texture_info;
+      textures_[texture_hash] = std::move(*it);
+    }
   }
 
   if (!command_buffer) {
-    // Texture not found and no command buffer was passed allowing us to upload
-    // a new one.
+    // Texture not found and no command buffer was passed, preventing us from
+    // uploading a new one.
     return nullptr;
   }
 
@@ -165,6 +309,12 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     // TODO: Destroy the texture.
     assert_always();
     return nullptr;
+  }
+
+  // Though we didn't find an exact match, that doesn't mean we're out of the
+  // woods yet. This texture could either be a portion of another texture or
+  // vice versa. Copy any overlapping textures into this texture.
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
   }
 
   textures_[texture_hash] = std::unique_ptr<Texture>(texture);
@@ -199,7 +349,7 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.anisotropyEnable = VK_FALSE;
   sampler_create_info.maxAnisotropy = 1.0f;
   sampler_create_info.compareEnable = VK_FALSE;
-  sampler_create_info.compareOp = VK_COMPARE_OP_ALWAYS;
+  sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
   sampler_create_info.minLod = 0.0f;
   sampler_create_info.maxLod = 0.0f;
   sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
@@ -220,95 +370,21 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   return sampler;
 }
 
-TextureCache::Texture* TextureCache::AllocateTexture(TextureInfo texture_info) {
-  // Create an image first.
-  VkImageCreateInfo image_info = {};
-  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  switch (texture_info.dimension) {
-    case Dimension::k1D:
-      image_info.imageType = VK_IMAGE_TYPE_1D;
-      break;
-    case Dimension::k2D:
-      image_info.imageType = VK_IMAGE_TYPE_2D;
-      break;
-    case Dimension::k3D:
-      image_info.imageType = VK_IMAGE_TYPE_3D;
-      break;
-    case Dimension::kCube:
-      image_info.imageType = VK_IMAGE_TYPE_2D;
-      image_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-      break;
-    default:
-      assert_unhandled_case(texture_info.dimension);
-      return nullptr;
+TextureCache::Texture* TextureCache::LookupAddress(
+    uint32_t guest_address, uint32_t width, uint32_t height,
+    TextureFormat format, uint32_t* offset_x, uint32_t* offset_y) {
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    const auto& texture_info = it->second->texture_info;
+    if (texture_info.guest_address == guest_address &&
+        texture_info.dimension == Dimension::k2D &&
+        texture_info.size_2d.input_width == width &&
+        texture_info.size_2d.input_height == height) {
+      return it->second.get();
+    }
   }
 
-  // TODO: Format
-  image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-  image_info.extent = {texture_info.width + 1, texture_info.height + 1,
-                       texture_info.depth + 1};
-  image_info.mipLevels = 1;
-  image_info.arrayLayers = 1;
-  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage =
-      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  image_info.queueFamilyIndexCount = 0;
-  image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkImage image;
-  auto err = vkCreateImage(*device_, &image_info, nullptr, &image);
-  CheckResult(err, "vkCreateImage");
-
-  VkMemoryRequirements mem_requirements;
-  vkGetImageMemoryRequirements(*device_, image, &mem_requirements);
-
-  // TODO: Use a circular buffer or something else to allocate this memory.
-  // The device has a limited amount (around 64) of memory allocations that we
-  // can make.
-  // Now that we have the size, back the image with GPU memory.
-  auto memory = device_->AllocateMemory(mem_requirements, 0);
-  err = vkBindImageMemory(*device_, image, memory, 0);
-  CheckResult(err, "vkBindImageMemory");
-
-  auto texture = new Texture();
-  texture->format = image_info.format;
-  texture->image = image;
-  texture->memory_offset = 0;
-  texture->memory_size = mem_requirements.size;
-  texture->texture_info = texture_info;
-  texture->texture_memory = memory;
-
-  // Create a default view, just for kicks.
-  VkImageViewCreateInfo view_info;
-  view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  view_info.pNext = nullptr;
-  view_info.flags = 0;
-  view_info.image = image;
-  view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  view_info.format = image_info.format;
-  view_info.components = {
-      VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
-      VK_COMPONENT_SWIZZLE_A,
-  };
-  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  VkImageView view;
-  err = vkCreateImageView(*device_, &view_info, nullptr, &view);
-  CheckResult(err, "vkCreateImageView");
-  if (err == VK_SUCCESS) {
-    auto texture_view = std::make_unique<TextureView>();
-    texture_view->texture = texture;
-    texture_view->view = view;
-    texture->views.push_back(std::move(texture_view));
-  }
-
-  return texture;
-}
-
-bool TextureCache::FreeTexture(Texture* texture) {
-  // TODO(DrChat)
-  return false;
+  // TODO: Try to match at an offset.
+  return nullptr;
 }
 
 bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
@@ -359,8 +435,8 @@ bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
   // For now, just transfer the grid we uploaded earlier into the texture.
   VkBufferImageCopy copy_region;
   copy_region.bufferOffset = 0;
-  copy_region.bufferRowLength = 0;
-  copy_region.bufferImageHeight = 0;
+  copy_region.bufferRowLength = 2048;
+  copy_region.bufferImageHeight = 2048;
   copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   copy_region.imageOffset = {0, 0, 0};
   copy_region.imageExtent = {dest->texture_info.width + 1,
@@ -378,6 +454,7 @@ bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
 
+  dest->image_layout = barrier.newLayout;
   return true;
 }
 
@@ -427,6 +504,8 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
   VkWriteDescriptorSet descriptor_writes[4];
   std::memset(descriptor_writes, 0, sizeof(descriptor_writes));
   uint32_t descriptor_write_count = 0;
+  /*
+  // TODO(DrChat): Do we really need to separate samplers and images here?
   if (update_set_info->sampler_write_count) {
     auto& sampler_write = descriptor_writes[descriptor_write_count++];
     sampler_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -438,6 +517,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     sampler_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     sampler_write.pImageInfo = update_set_info->sampler_infos;
   }
+  */
   if (update_set_info->image_1d_write_count) {
     auto& image_write = descriptor_writes[descriptor_write_count++];
     image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -446,7 +526,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.dstBinding = 1;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_1d_write_count;
-    image_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     image_write.pImageInfo = update_set_info->image_1d_infos;
   }
   if (update_set_info->image_2d_write_count) {
@@ -457,7 +537,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.dstBinding = 2;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_2d_write_count;
-    image_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     image_write.pImageInfo = update_set_info->image_2d_infos;
   }
   if (update_set_info->image_3d_write_count) {
@@ -468,7 +548,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.dstBinding = 3;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_3d_write_count;
-    image_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     image_write.pImageInfo = update_set_info->image_3d_infos;
   }
   if (update_set_info->image_cube_write_count) {
@@ -479,7 +559,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.dstBinding = 4;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_cube_write_count;
-    image_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     image_write.pImageInfo = update_set_info->image_cube_infos;
   }
   if (descriptor_write_count) {
@@ -542,14 +622,11 @@ bool TextureCache::SetupTextureBinding(UpdateSetInfo* update_set_info,
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
-  auto& sampler_write =
-      update_set_info->sampler_infos[update_set_info->sampler_write_count++];
-  sampler_write.sampler = sampler->sampler;
-
   auto& image_write =
       update_set_info->image_2d_infos[update_set_info->image_2d_write_count++];
   image_write.imageView = texture->views[0]->view;
   image_write.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  image_write.sampler = sampler->sampler;
 
   return true;
 }

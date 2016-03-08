@@ -164,33 +164,37 @@ void SpirvShaderTranslator::StartTranslation() {
                                   push_constants_type, "push_consts");
 
   // Texture bindings
-  Id samplers_t = b.makeSamplerType();
-  Id img_t[] = {
-      b.makeImageType(float_type_, spv::Dim::Dim1D, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown),
-      b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown),
-      b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown),
-      b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown)};
+  Id tex_t[] = {b.makeSampledImageType(b.makeImageType(
+                    float_type_, spv::Dim::Dim1D, false, false, false, 1,
+                    spv::ImageFormat::ImageFormatUnknown)),
+                b.makeSampledImageType(b.makeImageType(
+                    float_type_, spv::Dim::Dim2D, false, false, false, 1,
+                    spv::ImageFormat::ImageFormatUnknown)),
+                b.makeSampledImageType(b.makeImageType(
+                    float_type_, spv::Dim::Dim3D, false, false, false, 1,
+                    spv::ImageFormat::ImageFormatUnknown)),
+                b.makeSampledImageType(b.makeImageType(
+                    float_type_, spv::Dim::DimCube, false, false, false, 1,
+                    spv::ImageFormat::ImageFormatUnknown))};
 
-  Id samplers_a = b.makeArrayType(samplers_t, b.makeUintConstant(32), 0);
-  Id img_a_t[] = {b.makeArrayType(img_t[0], b.makeUintConstant(32), 0),
-                  b.makeArrayType(img_t[1], b.makeUintConstant(32), 0),
-                  b.makeArrayType(img_t[2], b.makeUintConstant(32), 0),
-                  b.makeArrayType(img_t[3], b.makeUintConstant(32), 0)};
+  // Id samplers_a = b.makeArrayType(sampler_t, b.makeUintConstant(32), 0);
+  Id tex_a_t[] = {b.makeArrayType(tex_t[0], b.makeUintConstant(32), 0),
+                  b.makeArrayType(tex_t[1], b.makeUintConstant(32), 0),
+                  b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0),
+                  b.makeArrayType(tex_t[3], b.makeUintConstant(32), 0)};
 
-  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                               samplers_a, "samplers");
-  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
-  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
+  // TODO(DrChat): See texture_cache.cc - do we need separate samplers here?
+  // samplers_ =
+  // b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+  //                              samplers_a, "samplers");
+  // b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
+  // b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
   for (int i = 0; i < 4; i++) {
-    img_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                               img_a_t[i],
-                               xe::format_string("images%dD", i + 1).c_str());
-    b.addDecoration(img_[i], spv::Decoration::DecorationDescriptorSet, 1);
-    b.addDecoration(img_[i], spv::Decoration::DecorationBinding, i + 1);
+    tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               tex_a_t[i],
+                               xe::format_string("textures%dD", i + 1).c_str());
+    b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
+    b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, i + 1);
   }
 
   // Interpolators.
@@ -674,25 +678,15 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
   switch (instr.opcode) {
     case FetchOpcode::kTextureFetch: {
-      auto image_index = b.makeUintConstant(instr.operands[1].storage_index);
-      auto image_ptr =
+      auto texture_index = b.makeUintConstant(instr.operands[1].storage_index);
+      auto texture_ptr =
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              img_[dim_idx], std::vector<Id>({image_index}));
-      auto sampler_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              samplers_, std::vector<Id>({image_index}));
-      auto image = b.createLoad(image_ptr);
-      auto sampler = b.createLoad(sampler_ptr);
-      assert(b.isImageType(b.getTypeId(image)));
-      assert(b.isSamplerType(b.getTypeId(sampler)));
-
-      auto sampled_image_type = b.makeSampledImageType(b.getImageType(image));
-      auto tex = b.createBinOp(spv::Op::OpSampledImage, sampled_image_type,
-                               image, sampler);
+                              tex_[dim_idx], std::vector<Id>({texture_index}));
+      auto texture = b.createLoad(texture_ptr);
 
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
-      params.sampler = tex;
+      params.sampler = texture;
       dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
                                  false, false, false, false, params);
     } break;
@@ -1741,10 +1735,18 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     auto n_dst = b.getNumTypeComponents(storage_type);
     assert_true(n_el < n_dst);
 
-    constituents.push_back(source_value_id);
-    for (int i = n_el; i < n_dst; i++) {
-      // Pad with zeroes.
-      constituents.push_back(b.makeFloatConstant(0.f));
+    if (n_el == 1) {
+      // Smear scalar.
+      for (int i = 0; i < n_dst; i++) {
+        constituents.push_back(source_value_id);
+      }
+    } else {
+      // FIXME: This may not work as intended.
+      constituents.push_back(source_value_id);
+      for (int i = n_el; i < n_dst; i++) {
+        // Pad with zeroes.
+        constituents.push_back(b.makeFloatConstant(0.f));
+      }
     }
 
     source_value_id =
