@@ -71,34 +71,6 @@ VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
   }
 }
 
-// Cached view into the EDRAM memory.
-// The image is aliased to a region of the edram_memory_ based on the tile
-// parameters.
-// TODO(benvanik): reuse VkImage's with multiple VkViews for compatible
-//     formats?
-class CachedTileView {
- public:
-  // Key identifying the view in the cache.
-  TileViewKey key;
-  // Image mapped into EDRAM.
-  VkImage image = nullptr;
-  // Simple view on the image matching the format.
-  VkImageView image_view = nullptr;
-
-  CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
-                 TileViewKey view_key);
-  ~CachedTileView();
-
-  bool IsEqual(const TileViewKey& other_key) const {
-    auto a = reinterpret_cast<const uint64_t*>(&key);
-    auto b = reinterpret_cast<const uint64_t*>(&other_key);
-    return *a == *b;
-  }
-
- private:
-  VkDevice device_ = nullptr;
-};
-
 // Cached framebuffer referencing tile attachments.
 // Each framebuffer is specific to a render pass. Ugh.
 class CachedFramebuffer {
@@ -151,9 +123,11 @@ class CachedRenderPass {
   VkDevice device_ = nullptr;
 };
 
-CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
+CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
+                               VkCommandBuffer command_buffer,
+                               VkDeviceMemory edram_memory,
                                TileViewKey view_key)
-    : device_(device), key(std::move(view_key)) {
+    : device_(*device), key(std::move(view_key)) {
   // Map format to Vulkan.
   VkFormat vulkan_format = VK_FORMAT_UNDEFINED;
   uint32_t bpp = 4;
@@ -191,8 +165,8 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
   image_info.extent.depth = 1;
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
-  // TODO(benvanik): native MSAA support?
-  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.samples =
+      static_cast<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_1_BIT);
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
   image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -203,19 +177,17 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   auto err = vkCreateImage(device_, &image_info, nullptr, &image);
   CheckResult(err, "vkCreateImage");
 
-  // Verify our assumptions about memory layout are correct.
-  VkDeviceSize edram_offset = key.tile_offset * 5120;
   VkMemoryRequirements memory_requirements;
-  vkGetImageMemoryRequirements(device, image, &memory_requirements);
-  assert_true(edram_offset + memory_requirements.size <= kEdramBufferCapacity);
-  assert_true(edram_offset % memory_requirements.alignment == 0);
+  vkGetImageMemoryRequirements(*device, image, &memory_requirements);
 
-  // Bind to the region of EDRAM we occupy.
-  err = vkBindImageMemory(device_, image, edram_memory, edram_offset);
+  // Bind to a newly allocated chunk.
+  // TODO: Alias from a really big buffer?
+  memory = device->AllocateMemory(memory_requirements, 0);
+  err = vkBindImageMemory(device_, image, memory, 0);
   CheckResult(err, "vkBindImageMemory");
 
   // Create the image view we'll use to attach it to a framebuffer.
@@ -242,11 +214,34 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
   CheckResult(err, "vkCreateImageView");
 
   // TODO(benvanik): transition to general layout?
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+  image_barrier.dstAccessMask =
+      key.color_or_depth ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                         : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  image_barrier.dstAccessMask |=
+      VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.image = image;
+  image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  image_barrier.subresourceRange.baseMipLevel = 0;
+  image_barrier.subresourceRange.levelCount = 1;
+  image_barrier.subresourceRange.baseArrayLayer = 0;
+  image_barrier.subresourceRange.layerCount = 1;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 }
 
 CachedTileView::~CachedTileView() {
   vkDestroyImageView(device_, image_view, nullptr);
   vkDestroyImage(device_, image, nullptr);
+  vkFreeMemory(device_, memory, nullptr);
 }
 
 CachedFramebuffer::CachedFramebuffer(
@@ -423,9 +418,10 @@ bool CachedRenderPass::IsCompatible(
 
 RenderCache::RenderCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(*device) {
+    : register_file_(register_file), device_(device) {
+  VkResult status = VK_SUCCESS;
+
   // Create the buffer we'll bind to our memory.
-  // We do this first so we can get the right memory type.
   VkBufferCreateInfo buffer_info;
   buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_info.pNext = nullptr;
@@ -436,55 +432,42 @@ RenderCache::RenderCache(RegisterFile* register_file,
   buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_info.queueFamilyIndexCount = 0;
   buffer_info.pQueueFamilyIndices = nullptr;
-  auto err = vkCreateBuffer(*device, &buffer_info, nullptr, &edram_buffer_);
-  CheckResult(err, "vkCreateBuffer");
+  status = vkCreateBuffer(*device, &buffer_info, nullptr, &edram_buffer_);
+  CheckResult(status, "vkCreateBuffer");
 
   // Query requirements for the buffer.
   // It should be 1:1.
   VkMemoryRequirements buffer_requirements;
-  vkGetBufferMemoryRequirements(device_, edram_buffer_, &buffer_requirements);
+  vkGetBufferMemoryRequirements(*device_, edram_buffer_, &buffer_requirements);
   assert_true(buffer_requirements.size == kEdramBufferCapacity);
 
-  // Create a dummy image so we can see what memory bits it requires.
-  // They should overlap with the buffer requirements but are likely more
-  // strict.
-  VkImageCreateInfo test_image_info;
-  test_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  test_image_info.pNext = nullptr;
-  test_image_info.flags = 0;
-  test_image_info.imageType = VK_IMAGE_TYPE_2D;
-  test_image_info.format = VK_FORMAT_R8G8B8A8_UINT;
-  test_image_info.extent.width = 128;
-  test_image_info.extent.height = 128;
-  test_image_info.extent.depth = 1;
-  test_image_info.mipLevels = 1;
-  test_image_info.arrayLayers = 1;
-  test_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  test_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  test_image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  test_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  test_image_info.queueFamilyIndexCount = 0;
-  test_image_info.pQueueFamilyIndices = nullptr;
-  test_image_info.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
-  VkImage test_image = nullptr;
-  err = vkCreateImage(device_, &test_image_info, nullptr, &test_image);
-  CheckResult(err, "vkCreateImage");
-  VkMemoryRequirements image_requirements;
-  vkGetImageMemoryRequirements(device_, test_image, &image_requirements);
-  vkDestroyImage(device_, test_image, nullptr);
-  assert_true((image_requirements.memoryTypeBits &
-               buffer_requirements.memoryTypeBits) != 0);
-
   // Allocate EDRAM memory.
-  VkMemoryRequirements memory_requirements;
-  memory_requirements.size = buffer_requirements.size;
-  memory_requirements.alignment = buffer_requirements.alignment;
-  memory_requirements.memoryTypeBits = image_requirements.memoryTypeBits;
   // TODO(benvanik): do we need it host visible?
-  edram_memory_ = device->AllocateMemory(memory_requirements, 0);
+  edram_memory_ = device->AllocateMemory(buffer_requirements);
+  assert_not_null(edram_memory_);
 
   // Bind buffer to map our entire memory.
-  vkBindBufferMemory(device_, edram_buffer_, edram_memory_, 0);
+  status = vkBindBufferMemory(*device_, edram_buffer_, edram_memory_, 0);
+  CheckResult(status, "vkBindBufferMemory");
+
+  if (status == VK_SUCCESS) {
+    status = vkBindBufferMemory(*device_, edram_buffer_, edram_memory_, 0);
+    CheckResult(status, "vkBindBufferMemory");
+
+    // Upload a grid into the EDRAM buffer.
+    uint32_t* gpu_data = nullptr;
+    status = vkMapMemory(*device_, edram_memory_, 0, buffer_requirements.size,
+                         0, reinterpret_cast<void**>(&gpu_data));
+    CheckResult(status, "vkMapMemory");
+
+    if (status == VK_SUCCESS) {
+      for (int i = 0; i < kEdramBufferCapacity / 4; i++) {
+        gpu_data[i] = (i % 8) >= 4 ? 0xFF0000FF : 0xFFFFFFFF;
+      }
+
+      vkUnmapMemory(*device_, edram_memory_);
+    }
+  }
 }
 
 RenderCache::~RenderCache() {
@@ -503,8 +486,8 @@ RenderCache::~RenderCache() {
   cached_tile_views_.clear();
 
   // Release underlying EDRAM memory.
-  vkDestroyBuffer(device_, edram_buffer_, nullptr);
-  vkFreeMemory(device_, edram_memory_, nullptr);
+  vkDestroyBuffer(*device_, edram_buffer_, nullptr);
+  vkFreeMemory(*device_, edram_memory_, nullptr);
 }
 
 const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
@@ -542,13 +525,74 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
     }
 
     // Lookup or generate a new render pass and framebuffer for the new state.
-    if (!ConfigureRenderPass(config, &render_pass, &framebuffer)) {
+    if (!ConfigureRenderPass(command_buffer, config, &render_pass,
+                             &framebuffer)) {
       return nullptr;
     }
     current_state_.render_pass = render_pass;
     current_state_.render_pass_handle = render_pass->handle;
     current_state_.framebuffer = framebuffer;
     current_state_.framebuffer_handle = framebuffer->handle;
+
+    VkBufferMemoryBarrier barrier;
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.pNext = nullptr;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.buffer = edram_buffer_;
+    barrier.offset = 0;
+    barrier.size = 0;
+
+    // Copy EDRAM buffer into render targets with tight packing.
+    VkBufferImageCopy region;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageOffset = {0, 0, 0};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    for (int i = 0; i < 4; i++) {
+      auto target = current_state_.framebuffer->color_attachments[i];
+      if (!target) {
+        continue;
+      }
+
+      region.bufferOffset = target->key.tile_offset * 5120;
+
+      // Wait for any potential copies to finish.
+      barrier.offset = region.bufferOffset;
+      barrier.size =
+          target->key.tile_width * 80 * target->key.tile_height * 16 * 4;
+      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                           &barrier, 0, nullptr);
+
+      region.imageExtent = {target->key.tile_width * 80u,
+                            target->key.tile_height * 16u, 1};
+      vkCmdCopyBufferToImage(command_buffer, edram_buffer_, target->image,
+                             VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+    }
+
+    // Depth
+    auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
+    if (depth_target) {
+      region.imageSubresource = {
+          VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
+      region.bufferOffset = depth_target->key.tile_offset * 5120;
+
+      // Wait for any potential copies to finish.
+      barrier.offset = region.bufferOffset;
+      barrier.size = depth_target->key.tile_width * 80 *
+                     depth_target->key.tile_height * 16 * 4;
+      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                           &barrier, 0, nullptr);
+
+      region.imageExtent = {depth_target->key.tile_width * 80u,
+                            depth_target->key.tile_height * 16u, 1};
+      vkCmdCopyBufferToImage(command_buffer, edram_buffer_, depth_target->image,
+                             VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+    }
   }
   if (!render_pass) {
     return nullptr;
@@ -593,6 +637,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   // RB_SURFACE_INFO
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   config->surface_pitch_px = regs.rb_surface_info & 0x3FFF;
+  // config->surface_height_px = (regs.rb_surface_info >> 18) & 0x3FFF;
   config->surface_msaa =
       static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
 
@@ -643,7 +688,8 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   return true;
 }
 
-bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
+bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
+                                      RenderConfiguration* config,
                                       CachedRenderPass** out_render_pass,
                                       CachedFramebuffer** out_framebuffer) {
   *out_render_pass = nullptr;
@@ -662,7 +708,7 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
 
   // If no render pass was found in the cache create a new one.
   if (!render_pass) {
-    render_pass = new CachedRenderPass(device_, *config);
+    render_pass = new CachedRenderPass(*device_, *config);
     cached_render_passes_.push_back(render_pass);
   }
 
@@ -688,7 +734,8 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
       color_key.tile_height = config->surface_height_px / 16;
       color_key.color_or_depth = 1;
       color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
-      target_color_attachments[i] = GetTileView(color_key);
+      target_color_attachments[i] =
+          FindOrCreateTileView(command_buffer, color_key);
       if (!target_color_attachments) {
         XELOGE("Failed to get tile view for color attachment");
         return false;
@@ -702,14 +749,15 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
     depth_stencil_key.color_or_depth = 0;
     depth_stencil_key.edram_format =
         static_cast<uint16_t>(config->depth_stencil.format);
-    auto target_depth_stencil_attachment = GetTileView(depth_stencil_key);
+    auto target_depth_stencil_attachment =
+        FindOrCreateTileView(command_buffer, depth_stencil_key);
     if (!target_depth_stencil_attachment) {
       XELOGE("Failed to get tile view for depth/stencil attachment");
       return false;
     }
 
     framebuffer = new CachedFramebuffer(
-        device_, render_pass->handle, config->surface_pitch_px,
+        *device_, render_pass->handle, config->surface_pitch_px,
         config->surface_height_px, target_color_attachments,
         target_depth_stencil_attachment);
     render_pass->cached_framebuffers.push_back(framebuffer);
@@ -720,7 +768,22 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
   return true;
 }
 
-CachedTileView* RenderCache::GetTileView(const TileViewKey& view_key) {
+CachedTileView* RenderCache::FindOrCreateTileView(
+    VkCommandBuffer command_buffer, const TileViewKey& view_key) {
+  auto tile_view = FindTileView(view_key);
+  if (tile_view) {
+    return tile_view;
+  }
+
+  // Create a new tile and add to the cache.
+  tile_view =
+      new CachedTileView(device_, command_buffer, edram_memory_, view_key);
+  cached_tile_views_.push_back(tile_view);
+
+  return tile_view;
+}
+
+CachedTileView* RenderCache::FindTileView(const TileViewKey& view_key) const {
   // Check the cache.
   // TODO(benvanik): better lookup.
   for (auto tile_view : cached_tile_views_) {
@@ -729,23 +792,113 @@ CachedTileView* RenderCache::GetTileView(const TileViewKey& view_key) {
     }
   }
 
-  // Create a new tile and add to the cache.
-  auto tile_view = new CachedTileView(device_, edram_memory_, view_key);
-  cached_tile_views_.push_back(tile_view);
-  return tile_view;
+  return nullptr;
 }
 
 void RenderCache::EndRenderPass() {
   assert_not_null(current_command_buffer_);
-  auto command_buffer = current_command_buffer_;
-  current_command_buffer_ = nullptr;
 
   // End the render pass.
-  vkCmdEndRenderPass(command_buffer);
+  vkCmdEndRenderPass(current_command_buffer_);
+
+  // Copy all render targets back into our EDRAM buffer.
+  // Don't bother waiting on this command to complete, as next render pass may
+  // reuse previous framebuffer attachments. If they need this, they will wait.
+  // TODO: Should we bother re-tiling the images on copy back?
+  VkBufferImageCopy region;
+  region.bufferRowLength = 0;
+  region.bufferImageHeight = 0;
+  region.imageOffset = {0, 0, 0};
+  region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  for (int i = 0; i < 4; i++) {
+    auto target = current_state_.framebuffer->color_attachments[i];
+    if (!target) {
+      continue;
+    }
+
+    region.bufferOffset = target->key.tile_offset * 5120;
+    region.imageExtent = {target->key.tile_width * 80u,
+                          target->key.tile_height * 16u, 1};
+    vkCmdCopyImageToBuffer(current_command_buffer_, target->image,
+                           VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
+  }
+
+  // Depth/stencil
+  auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
+  if (depth_target) {
+    region.imageSubresource = {
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
+    region.bufferOffset = depth_target->key.tile_offset * 5120;
+    region.imageExtent = {depth_target->key.tile_width * 80u,
+                          depth_target->key.tile_height * 16u, 1};
+    vkCmdCopyImageToBuffer(current_command_buffer_, depth_target->image,
+                           VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
+  }
+
+  current_command_buffer_ = nullptr;
 }
 
 void RenderCache::ClearCache() {
   // TODO(benvanik): caching.
+}
+
+void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
+                                 uint32_t edram_base, VkImage image,
+                                 VkImageLayout image_layout,
+                                 bool color_or_depth, int32_t offset_x,
+                                 int32_t offset_y, uint32_t width,
+                                 uint32_t height) {
+  // Transition the texture into a transfer destination layout.
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcAccessMask = 0;
+  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.oldLayout = image_layout;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.image = image;
+  image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+  image_barrier.subresourceRange.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+  VkBufferMemoryBarrier buffer_barrier;
+  buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  buffer_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  buffer_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+  buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  buffer_barrier.buffer = edram_buffer_;
+  buffer_barrier.offset = edram_base * 5120;
+  buffer_barrier.size = width * height * 4;  // TODO: Calculate this accurately.
+
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                       &buffer_barrier, 1, &image_barrier);
+
+  // Issue the copy command.
+  VkBufferImageCopy region;
+  region.bufferImageHeight = 0;
+  region.bufferOffset = edram_base * 5120;
+  region.bufferRowLength = 0;
+  region.imageExtent = {width, height, 1};
+  region.imageOffset = {offset_x, offset_y, 0};
+  region.imageSubresource = {0, 0, 0, 1};
+  region.imageSubresource.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  vkCmdCopyBufferToImage(command_buffer, edram_buffer_, image, image_layout, 1,
+                         &region);
+
+  // Transition the image back into its previous layout.
+  image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+  image_barrier.dstAccessMask = 0;
+  std::swap(image_barrier.oldLayout, image_barrier.newLayout);
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 }
 
 bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {

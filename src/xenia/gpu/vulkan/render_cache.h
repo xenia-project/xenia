@@ -41,6 +41,35 @@ struct TileViewKey {
 };
 static_assert(sizeof(TileViewKey) == 8, "Key must be tightly packed");
 
+// Cached view representing EDRAM memory.
+// TODO(benvanik): reuse VkImage's with multiple VkViews for compatible
+//     formats?
+class CachedTileView {
+ public:
+  // Key identifying the view in the cache.
+  TileViewKey key;
+  // Image
+  VkImage image = nullptr;
+  // Simple view on the image matching the format.
+  VkImageView image_view = nullptr;
+  // Memory buffer
+  VkDeviceMemory memory = nullptr;
+
+  CachedTileView(ui::vulkan::VulkanDevice* device,
+                 VkCommandBuffer command_buffer, VkDeviceMemory edram_memory,
+                 TileViewKey view_key);
+  ~CachedTileView();
+
+  bool IsEqual(const TileViewKey& other_key) const {
+    auto a = reinterpret_cast<const uint64_t*>(&key);
+    auto b = reinterpret_cast<const uint64_t*>(&other_key);
+    return *a == *b;
+  }
+
+ private:
+  VkDevice device_ = nullptr;
+};
+
 // Parsed render configuration from the current render state.
 struct RenderConfiguration {
   // Render mode (color+depth, depth-only, etc).
@@ -230,22 +259,33 @@ class RenderCache {
   // Clears all cached content.
   void ClearCache();
 
+  // Queues commands to copy EDRAM contents into an image.
+  void RawCopyToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
+                      VkImage image, VkImageLayout image_layout,
+                      bool color_or_depth, int32_t offset_x, int32_t offset_y,
+                      uint32_t width, uint32_t height);
+
  private:
   // Parses the current state into a configuration object.
   bool ParseConfiguration(RenderConfiguration* config);
 
+  // Finds a tile view. Returns nullptr if none found matching the key.
+  CachedTileView* FindTileView(const TileViewKey& view_key) const;
+
+  // Gets or creates a tile view with the given parameters.
+  CachedTileView* FindOrCreateTileView(VkCommandBuffer command_buffer,
+                                       const TileViewKey& view_key);
+
   // Gets or creates a render pass and frame buffer for the given configuration.
   // This attempts to reuse as much as possible across render passes and
   // framebuffers.
-  bool ConfigureRenderPass(RenderConfiguration* config,
+  bool ConfigureRenderPass(VkCommandBuffer command_buffer,
+                           RenderConfiguration* config,
                            CachedRenderPass** out_render_pass,
                            CachedFramebuffer** out_framebuffer);
 
-  // Gets or creates a tile view with the given parameters.
-  CachedTileView* GetTileView(const TileViewKey& view_key);
-
   RegisterFile* register_file_ = nullptr;
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // Entire 10MiB of EDRAM, aliased to hell by various VkImages.
   VkDeviceMemory edram_memory_ = nullptr;
