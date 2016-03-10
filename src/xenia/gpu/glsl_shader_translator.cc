@@ -360,7 +360,8 @@ void main() {
     // May need a usage map?
     for (int i = 0; i < kMaxInterpolators; i++) {
       EmitSource(
-          "    r[%d] = mix(r[%d], ps_param_gen, state.ps_param_gen == %d);\n",
+          "    r[%d] = mix(r[%d], ps_param_gen, bvec4(state.ps_param_gen == "
+          "%d));\n",
           i, i, i);
     }
 
