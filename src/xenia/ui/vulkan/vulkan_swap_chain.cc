@@ -187,6 +187,10 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
       vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &render_cmd_buffer_);
   CheckResult(err, "vkCreateCommandBuffer");
 
+  // Create another command buffer that handles image copies.
+  err = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &copy_cmd_buffer_);
+  CheckResult(err, "vkCreateCommandBuffer");
+
   // Create the render pass used to draw to the swap chain.
   // The actual framebuffer attached will depend on which image we are drawing
   // into.
@@ -194,7 +198,7 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   color_attachment.flags = 0;
   color_attachment.format = surface_format_;
   color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-  color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;  // CLEAR;
   color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -388,6 +392,7 @@ bool VulkanSwapChain::Begin() {
 
   // Reset all command buffers.
   vkResetCommandBuffer(render_cmd_buffer_, 0);
+  vkResetCommandBuffer(copy_cmd_buffer_, 0);
   auto& current_buffer = buffers_[current_buffer_index_];
 
   // Build the command buffer that will execute all queued rendering buffers.
@@ -399,14 +404,18 @@ bool VulkanSwapChain::Begin() {
   err = vkBeginCommandBuffer(render_cmd_buffer_, &begin_info);
   CheckResult(err, "vkBeginCommandBuffer");
 
-  // Transition the image to a format we can render to.
+  // Start recording the copy command buffer as well.
+  err = vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
+  CheckResult(err, "vkBeginCommandBuffer");
+
+  // Transition the image to a format we can copy to.
   VkImageMemoryBarrier pre_image_memory_barrier;
   pre_image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   pre_image_memory_barrier.pNext = nullptr;
   pre_image_memory_barrier.srcAccessMask = 0;
-  pre_image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  pre_image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-  pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   pre_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   pre_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   pre_image_memory_barrier.image = current_buffer.image;
@@ -416,23 +425,37 @@ bool VulkanSwapChain::Begin() {
   pre_image_memory_barrier.subresourceRange.levelCount = 1;
   pre_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   pre_image_memory_barrier.subresourceRange.layerCount = 1;
+  vkCmdPipelineBarrier(copy_cmd_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &pre_image_memory_barrier);
+
+  // First: Issue a command to clear the render target.
+  VkImageSubresourceRange clear_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  VkClearColorValue clear_color;
+  clear_color.float32[0] = 238 / 255.0f;
+  clear_color.float32[1] = 238 / 255.0f;
+  clear_color.float32[2] = 238 / 255.0f;
+  clear_color.float32[3] = 1.0f;
+  if (FLAGS_vulkan_random_clear_color) {
+    clear_color.float32[0] =
+        rand() / static_cast<float>(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
+    clear_color.float32[1] = 1.0f;
+    clear_color.float32[2] = 0.0f;
+  }
+  vkCmdClearColorImage(copy_cmd_buffer_, current_buffer.image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1,
+                       &clear_range);
+
+  // Transition the image to a color attachment target for drawing.
+  pre_image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  pre_image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   vkCmdPipelineBarrier(render_cmd_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
 
   // Begin render pass.
-  VkClearValue color_clear_value;
-  color_clear_value.color.float32[0] = 238 / 255.0f;
-  color_clear_value.color.float32[1] = 238 / 255.0f;
-  color_clear_value.color.float32[2] = 238 / 255.0f;
-  color_clear_value.color.float32[3] = 1.0f;
-  if (FLAGS_vulkan_random_clear_color) {
-    color_clear_value.color.float32[0] =
-        rand() / static_cast<float>(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
-    color_clear_value.color.float32[1] = 1.0f;
-    color_clear_value.color.float32[2] = 0.0f;
-  }
-  VkClearValue clear_values[] = {color_clear_value};
   VkRenderPassBeginInfo render_pass_begin_info;
   render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   render_pass_begin_info.pNext = nullptr;
@@ -442,9 +465,8 @@ bool VulkanSwapChain::Begin() {
   render_pass_begin_info.renderArea.offset.y = 0;
   render_pass_begin_info.renderArea.extent.width = surface_width_;
   render_pass_begin_info.renderArea.extent.height = surface_height_;
-  render_pass_begin_info.clearValueCount =
-      static_cast<uint32_t>(xe::countof(clear_values));
-  render_pass_begin_info.pClearValues = clear_values;
+  render_pass_begin_info.clearValueCount = 0;
+  render_pass_begin_info.pClearValues = nullptr;
   vkCmdBeginRenderPass(render_cmd_buffer_, &render_pass_begin_info,
                        VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
@@ -458,6 +480,7 @@ bool VulkanSwapChain::End() {
   vkCmdEndRenderPass(render_cmd_buffer_);
 
   // Transition the image to a format the presentation engine can source from.
+  // FIXME: Do we need more synchronization here between the copy buffer?
   VkImageMemoryBarrier post_image_memory_barrier;
   post_image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   post_image_memory_barrier.pNext = nullptr;
@@ -483,14 +506,20 @@ bool VulkanSwapChain::End() {
   auto err = vkEndCommandBuffer(render_cmd_buffer_);
   CheckResult(err, "vkEndCommandBuffer");
 
+  err = vkEndCommandBuffer(copy_cmd_buffer_);
+  CheckResult(err, "vkEndCommandBuffer");
+
+  VkCommandBuffer command_buffers[] = {copy_cmd_buffer_, render_cmd_buffer_};
+
   // Submit rendering.
   VkSubmitInfo render_submit_info;
   render_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   render_submit_info.pNext = nullptr;
   render_submit_info.waitSemaphoreCount = 0;
   render_submit_info.pWaitSemaphores = nullptr;
-  render_submit_info.commandBufferCount = 1;
-  render_submit_info.pCommandBuffers = &render_cmd_buffer_;
+  render_submit_info.commandBufferCount =
+      static_cast<uint32_t>(xe::countof(command_buffers));
+  render_submit_info.pCommandBuffers = command_buffers;
   render_submit_info.signalSemaphoreCount = 0;
   render_submit_info.pSignalSemaphores = nullptr;
   {
