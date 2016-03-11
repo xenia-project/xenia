@@ -82,11 +82,13 @@ struct RenderConfiguration {
   MsaaSamples surface_msaa;
   // Color attachments for the 4 render targets.
   struct {
+    bool used;
     uint32_t edram_base;
     ColorRenderTargetFormat format;
   } color[4];
   // Depth/stencil attachment.
   struct {
+    bool used;
     uint32_t edram_base;
     DepthRenderTargetFormat format;
   } depth_stencil;
@@ -262,8 +264,8 @@ class RenderCache {
   // Queues commands to copy EDRAM contents into an image.
   void RawCopyToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
                       VkImage image, VkImageLayout image_layout,
-                      bool color_or_depth, int32_t offset_x, int32_t offset_y,
-                      uint32_t width, uint32_t height);
+                      bool color_or_depth, VkOffset3D offset,
+                      VkExtent3D extents);
 
  private:
   // Parses the current state into a configuration object.
@@ -309,6 +311,7 @@ class RenderCache {
     uint32_t rb_color1_info;
     uint32_t rb_color2_info;
     uint32_t rb_color3_info;
+    uint32_t rb_depthcontrol;
     uint32_t rb_depth_info;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;

@@ -508,6 +508,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
   dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
   dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
+  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
@@ -529,6 +530,12 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
                              &framebuffer)) {
       return nullptr;
     }
+
+    for (int i = 0; i < 4; i++) {
+      config->color[i].used = pixel_shader->writes_color_target(i);
+    }
+    config->depth_stencil.used = !!(regs.rb_depthcontrol & (0x4 | 0x2));
+
     current_state_.render_pass = render_pass;
     current_state_.render_pass_handle = render_pass->handle;
     current_state_.framebuffer = framebuffer;
@@ -550,10 +557,33 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
     region.imageOffset = {0, 0, 0};
+
+    // Depth
+    auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
+    if (depth_target && current_state_.config.depth_stencil.used) {
+      region.imageSubresource = {
+          VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
+      region.bufferOffset = depth_target->key.tile_offset * 5120;
+
+      // Wait for any potential copies to finish.
+      barrier.offset = region.bufferOffset;
+      barrier.size = depth_target->key.tile_width * 80 *
+                     depth_target->key.tile_height * 16 * 4;
+      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                           &barrier, 0, nullptr);
+
+      region.imageExtent = {depth_target->key.tile_width * 80u,
+                            depth_target->key.tile_height * 16u, 1};
+      vkCmdCopyBufferToImage(command_buffer, edram_buffer_, depth_target->image,
+                             VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+    }
+
+    // Color
     region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     for (int i = 0; i < 4; i++) {
       auto target = current_state_.framebuffer->color_attachments[i];
-      if (!target) {
+      if (!target || !current_state_.config.color[i].used) {
         continue;
       }
 
@@ -570,27 +600,6 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       region.imageExtent = {target->key.tile_width * 80u,
                             target->key.tile_height * 16u, 1};
       vkCmdCopyBufferToImage(command_buffer, edram_buffer_, target->image,
-                             VK_IMAGE_LAYOUT_GENERAL, 1, &region);
-    }
-
-    // Depth
-    auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
-    if (depth_target) {
-      region.imageSubresource = {
-          VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
-      region.bufferOffset = depth_target->key.tile_offset * 5120;
-
-      // Wait for any potential copies to finish.
-      barrier.offset = region.bufferOffset;
-      barrier.size = depth_target->key.tile_width * 80 *
-                     depth_target->key.tile_height * 16 * 4;
-      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
-                           &barrier, 0, nullptr);
-
-      region.imageExtent = {depth_target->key.tile_width * 80u,
-                            depth_target->key.tile_height * 16u, 1};
-      vkCmdCopyBufferToImage(command_buffer, edram_buffer_, depth_target->image,
                              VK_IMAGE_LAYOUT_GENERAL, 1, &region);
     }
   }
@@ -809,10 +818,23 @@ void RenderCache::EndRenderPass() {
   region.bufferRowLength = 0;
   region.bufferImageHeight = 0;
   region.imageOffset = {0, 0, 0};
+  // Depth/stencil
+  auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
+  if (depth_target && current_state_.config.depth_stencil.used) {
+    region.imageSubresource = {
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
+    region.bufferOffset = depth_target->key.tile_offset * 5120;
+    region.imageExtent = {depth_target->key.tile_width * 80u,
+                          depth_target->key.tile_height * 16u, 1};
+    vkCmdCopyImageToBuffer(current_command_buffer_, depth_target->image,
+                           VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
+  }
+
+  // Color
   region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   for (int i = 0; i < 4; i++) {
     auto target = current_state_.framebuffer->color_attachments[i];
-    if (!target) {
+    if (!target || !current_state_.config.color[i].used) {
       continue;
     }
 
@@ -820,18 +842,6 @@ void RenderCache::EndRenderPass() {
     region.imageExtent = {target->key.tile_width * 80u,
                           target->key.tile_height * 16u, 1};
     vkCmdCopyImageToBuffer(current_command_buffer_, target->image,
-                           VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
-  }
-
-  // Depth/stencil
-  auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
-  if (depth_target) {
-    region.imageSubresource = {
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
-    region.bufferOffset = depth_target->key.tile_offset * 5120;
-    region.imageExtent = {depth_target->key.tile_width * 80u,
-                          depth_target->key.tile_height * 16u, 1};
-    vkCmdCopyImageToBuffer(current_command_buffer_, depth_target->image,
                            VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
   }
 
@@ -845,24 +855,27 @@ void RenderCache::ClearCache() {
 void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
                                  uint32_t edram_base, VkImage image,
                                  VkImageLayout image_layout,
-                                 bool color_or_depth, int32_t offset_x,
-                                 int32_t offset_y, uint32_t width,
-                                 uint32_t height) {
+                                 bool color_or_depth, VkOffset3D offset,
+                                 VkExtent3D extents) {
   // Transition the texture into a transfer destination layout.
   VkImageMemoryBarrier image_barrier;
   image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   image_barrier.pNext = nullptr;
-  image_barrier.srcAccessMask = 0;
-  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  image_barrier.oldLayout = image_layout;
-  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  image_barrier.image = image;
-  image_barrier.subresourceRange = {0, 0, 1, 0, 1};
-  image_barrier.subresourceRange.aspectMask =
-      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
-                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
+      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    image_barrier.srcAccessMask = 0;
+    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_barrier.oldLayout = image_layout;
+    image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    image_barrier.image = image;
+    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+    image_barrier.subresourceRange.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  }
 
   VkBufferMemoryBarrier buffer_barrier;
   buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -872,7 +885,8 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
   buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   buffer_barrier.buffer = edram_buffer_;
   buffer_barrier.offset = edram_base * 5120;
-  buffer_barrier.size = width * height * 4;  // TODO: Calculate this accurately.
+  // TODO: Calculate this accurately (need texel size)
+  buffer_barrier.size = extents.width * extents.height * 4;
 
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
@@ -880,11 +894,11 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
 
   // Issue the copy command.
   VkBufferImageCopy region;
-  region.bufferImageHeight = 0;
   region.bufferOffset = edram_base * 5120;
+  region.bufferImageHeight = 0;
   region.bufferRowLength = 0;
-  region.imageExtent = {width, height, 1};
-  region.imageOffset = {offset_x, offset_y, 0};
+  region.imageOffset = offset;
+  region.imageExtent = extents;
   region.imageSubresource = {0, 0, 0, 1};
   region.imageSubresource.aspectMask =
       color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
@@ -893,12 +907,15 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
                          &region);
 
   // Transition the image back into its previous layout.
-  image_barrier.srcAccessMask = image_barrier.dstAccessMask;
-  image_barrier.dstAccessMask = 0;
-  std::swap(image_barrier.oldLayout, image_barrier.newLayout);
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &image_barrier);
+  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
+      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+    image_barrier.dstAccessMask = 0;
+    std::swap(image_barrier.oldLayout, image_barrier.newLayout);
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
 }
 
 bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
