@@ -531,6 +531,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       return nullptr;
     }
 
+    // Speculatively see if targets are actually used so we can skip copies
     for (int i = 0; i < 4; i++) {
       config->color[i].used = pixel_shader->writes_color_target(i);
     }
@@ -646,7 +647,6 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   // RB_SURFACE_INFO
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   config->surface_pitch_px = regs.rb_surface_info & 0x3FFF;
-  // config->surface_height_px = (regs.rb_surface_info >> 18) & 0x3FFF;
   config->surface_msaa =
       static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
 
@@ -814,6 +814,11 @@ void RenderCache::EndRenderPass() {
   // Don't bother waiting on this command to complete, as next render pass may
   // reuse previous framebuffer attachments. If they need this, they will wait.
   // TODO: Should we bother re-tiling the images on copy back?
+  //
+  // FIXME: There's a case where we may have a really big render target (as we
+  // can't get the correct height atm) and we may end up overwriting the valid
+  // contents of another render target by mistake! Need to reorder copy commands
+  // to avoid this.
   VkBufferImageCopy region;
   region.bufferRowLength = 0;
   region.bufferImageHeight = 0;
@@ -916,6 +921,83 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &image_barrier);
   }
+}
+
+void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
+                                  uint32_t edram_base,
+                                  ColorRenderTargetFormat format,
+                                  uint32_t pitch, uint32_t height,
+                                  float* color) {
+  // Grab a tile view (as we need to clear an image first)
+  TileViewKey key;
+  key.color_or_depth = 1;
+  key.edram_format = static_cast<uint16_t>(format);
+  key.tile_offset = edram_base;
+  key.tile_width = pitch / 80;
+  key.tile_height = height / 16;
+  auto tile_view = FindOrCreateTileView(command_buffer, key);
+  assert_not_null(tile_view);
+
+  VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  VkClearColorValue clear_value;
+  std::memcpy(clear_value.float32, color, sizeof(float) * 4);
+
+  // Issue a clear command
+  vkCmdClearColorImage(command_buffer, tile_view->image,
+                       VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &range);
+
+  // Copy image back into EDRAM buffer
+  VkBufferImageCopy copy_range;
+  copy_range.bufferOffset = edram_base * 5120;
+  copy_range.bufferImageHeight = 0;
+  copy_range.bufferRowLength = 0;
+  copy_range.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  copy_range.imageExtent = {key.tile_width * 80u, key.tile_height * 16u, 1u};
+  copy_range.imageOffset = {0, 0, 0};
+  vkCmdCopyImageToBuffer(command_buffer, tile_view->image,
+                         VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1,
+                         &copy_range);
+}
+
+void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
+                                         uint32_t edram_base,
+                                         DepthRenderTargetFormat format,
+                                         uint32_t pitch, uint32_t height,
+                                         float depth, uint32_t stencil) {
+  // Grab a tile view (as we need to clear an image first)
+  TileViewKey key;
+  key.color_or_depth = 0;
+  key.edram_format = static_cast<uint16_t>(format);
+  key.tile_offset = edram_base;
+  key.tile_width = pitch / 80;
+  key.tile_height = height / 16;
+  auto tile_view = FindOrCreateTileView(command_buffer, key);
+  assert_not_null(tile_view);
+
+  VkImageSubresourceRange range = {
+      VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0, 1,
+  };
+  VkClearDepthStencilValue clear_value;
+  clear_value.depth = depth;
+  clear_value.stencil = stencil;
+
+  // Issue a clear command
+  vkCmdClearDepthStencilImage(command_buffer, tile_view->image,
+                              VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &range);
+
+  // Copy image back into EDRAM buffer
+  VkBufferImageCopy copy_range;
+  copy_range.bufferOffset = edram_base * 5120;
+  copy_range.bufferImageHeight = 0;
+  copy_range.bufferRowLength = 0;
+  copy_range.imageSubresource = {
+      VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1,
+  };
+  copy_range.imageExtent = {key.tile_width * 80u, key.tile_height * 16u, 1u};
+  copy_range.imageOffset = {0, 0, 0};
+  vkCmdCopyImageToBuffer(command_buffer, tile_view->image,
+                         VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1,
+                         &copy_range);
 }
 
 bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {

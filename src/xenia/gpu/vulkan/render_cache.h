@@ -12,6 +12,7 @@
 
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan.h"
@@ -266,6 +267,16 @@ class RenderCache {
                       VkImage image, VkImageLayout image_layout,
                       bool color_or_depth, VkOffset3D offset,
                       VkExtent3D extents);
+
+  // Queues commands to clear EDRAM contents with a solid color
+  void ClearEDRAMColor(VkCommandBuffer command_buffer, uint32_t edram_base,
+                       ColorRenderTargetFormat format, uint32_t pitch,
+                       uint32_t height, float* color);
+  // Queues commands to clear EDRAM contents with depth/stencil values.
+  void ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
+                              uint32_t edram_base,
+                              DepthRenderTargetFormat format, uint32_t pitch,
+                              uint32_t height, float depth, uint32_t stencil);
 
  private:
   // Parses the current state into a configuration object.
