@@ -268,6 +268,13 @@ class RenderCache {
                       bool color_or_depth, VkOffset3D offset,
                       VkExtent3D extents);
 
+  // Queues commands to blit EDRAM contents into an image.
+  void BlitToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
+                   uint32_t pitch, uint32_t height, VkImage image,
+                   VkImageLayout image_layout, bool color_or_depth,
+                   uint32_t format, VkFilter filter, VkOffset3D offset,
+                   VkExtent3D extents);
+
   // Queues commands to clear EDRAM contents with a solid color
   void ClearEDRAMColor(VkCommandBuffer command_buffer, uint32_t edram_base,
                        ColorRenderTargetFormat format, uint32_t pitch,

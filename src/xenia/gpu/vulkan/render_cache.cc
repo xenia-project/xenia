@@ -508,12 +508,12 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
   dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
   dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
-  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
+  regs.rb_depthcontrol = register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   if (!dirty && current_state_.render_pass) {
     // No registers have changed so we can reuse the previous render pass -
     // just begin with what we had.
@@ -880,6 +880,10 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
         color_or_depth
             ? VK_IMAGE_ASPECT_COLOR_BIT
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
   }
 
   VkBufferMemoryBarrier buffer_barrier;
@@ -895,7 +899,7 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
 
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
-                       &buffer_barrier, 1, &image_barrier);
+                       &buffer_barrier, 0, nullptr);
 
   // Issue the copy command.
   VkBufferImageCopy region;
@@ -923,6 +927,114 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
   }
 }
 
+void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
+                              uint32_t edram_base, uint32_t pitch,
+                              uint32_t height, VkImage image,
+                              VkImageLayout image_layout, bool color_or_depth,
+                              uint32_t format, VkFilter filter,
+                              VkOffset3D offset, VkExtent3D extents) {
+  // Grab a tile view that represents the source image.
+  TileViewKey key;
+  key.color_or_depth = color_or_depth ? 1 : 0;
+  key.edram_format = format;
+  key.tile_offset = edram_base;
+  key.tile_width = xe::round_up(pitch, 80) / 80;
+  key.tile_height = xe::round_up(height, 16) / 16;
+  auto tile_view = FindOrCreateTileView(command_buffer, key);
+  assert_not_null(tile_view);
+
+  // Issue a memory barrier before we update this tile view.
+  VkBufferMemoryBarrier buffer_barrier;
+  buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  buffer_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  buffer_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+  buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  buffer_barrier.buffer = edram_buffer_;
+  buffer_barrier.offset = edram_base * 5120;
+  // TODO: Calculate this accurately (need texel size)
+  buffer_barrier.size = extents.width * extents.height * 4;
+
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                       &buffer_barrier, 0, nullptr);
+
+  // Update the tile view with current EDRAM contents.
+  VkBufferImageCopy buffer_copy;
+  buffer_copy.bufferOffset = edram_base * 5120;
+  buffer_copy.bufferImageHeight = 0;
+  buffer_copy.bufferRowLength = 0;
+  buffer_copy.imageSubresource = {0, 0, 0, 1};
+  buffer_copy.imageSubresource.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  buffer_copy.imageExtent = {key.tile_width * 80u, key.tile_height * 16u, 1u};
+  buffer_copy.imageOffset = {0, 0, 0};
+  vkCmdCopyBufferToImage(command_buffer, edram_buffer_, tile_view->image,
+                         VK_IMAGE_LAYOUT_GENERAL, 1, &buffer_copy);
+
+  // Transition the image into a transfer destination layout, if needed.
+  // TODO: Util function for this
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
+      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    image_barrier.srcAccessMask = 0;
+    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_barrier.oldLayout = image_layout;
+    image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    image_barrier.image = image;
+    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+    image_barrier.subresourceRange.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
+
+  // If we overflow we'll lose the device here.
+  assert_true(extents.width <= key.tile_width * 80u);
+  assert_true(extents.height <= key.tile_height * 16u);
+
+  // Now issue the blit to the destination.
+  VkImageBlit image_blit;
+  image_blit.srcSubresource = {0, 0, 0, 1};
+  image_blit.srcSubresource.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  image_blit.srcOffsets[0] = {0, 0, 0};
+  image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
+                              int32_t(extents.depth)};
+
+  image_blit.dstSubresource = {0, 0, 0, 1};
+  image_blit.dstSubresource.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  image_blit.dstOffsets[0] = offset;
+  image_blit.dstOffsets[1] = {offset.x + int32_t(extents.width),
+                              offset.y + int32_t(extents.height),
+                              offset.z + int32_t(extents.depth)};
+  vkCmdBlitImage(command_buffer, tile_view->image, VK_IMAGE_LAYOUT_GENERAL,
+                 image, image_layout, 1, &image_blit, filter);
+
+  // Transition the image back into its previous layout.
+  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
+      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+    image_barrier.dstAccessMask = 0;
+    std::swap(image_barrier.oldLayout, image_barrier.newLayout);
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
+}
+
 void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
                                   uint32_t edram_base,
                                   ColorRenderTargetFormat format,
@@ -933,8 +1045,8 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
   key.color_or_depth = 1;
   key.edram_format = static_cast<uint16_t>(format);
   key.tile_offset = edram_base;
-  key.tile_width = pitch / 80;
-  key.tile_height = height / 16;
+  key.tile_width = xe::round_up(pitch, 80) / 80;
+  key.tile_height = xe::round_up(height, 16) / 16;
   auto tile_view = FindOrCreateTileView(command_buffer, key);
   assert_not_null(tile_view);
 
@@ -969,8 +1081,8 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
   key.color_or_depth = 0;
   key.edram_format = static_cast<uint16_t>(format);
   key.tile_offset = edram_base;
-  key.tile_width = pitch / 80;
-  key.tile_height = height / 16;
+  key.tile_width = xe::round_up(pitch, 80) / 80;
+  key.tile_height = xe::round_up(height, 16) / 16;
   auto tile_view = FindOrCreateTileView(command_buffer, key);
   assert_not_null(tile_view);
 
