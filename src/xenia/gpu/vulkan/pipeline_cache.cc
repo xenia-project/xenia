@@ -291,8 +291,8 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = 0;
   VkPipeline pipeline = nullptr;
-  auto err = vkCreateGraphicsPipelines(device_, nullptr, 1, &pipeline_info,
-                                       nullptr, &pipeline);
+  auto err = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
+                                       &pipeline_info, nullptr, &pipeline);
   CheckResult(err, "vkCreateGraphicsPipelines");
 
   // Add to cache with the hash key for reuse.
@@ -338,6 +338,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
 
   bool window_offset_dirty = SetShadowRegister(&regs.pa_sc_window_offset,
                                                XE_GPU_REG_PA_SC_WINDOW_OFFSET);
+  window_offset_dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                                           XE_GPU_REG_PA_SU_SC_MODE_CNTL);
 
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
@@ -660,13 +662,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   dirty |= regs.vertex_shader != vertex_shader;
   dirty |= regs.pixel_shader != pixel_shader;
   dirty |= regs.primitive_type != primitive_type;
+  regs.vertex_shader = vertex_shader;
+  regs.pixel_shader = pixel_shader;
+  regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.vertex_shader = vertex_shader;
-  regs.pixel_shader = pixel_shader;
-  regs.primitive_type = primitive_type;
 
   update_shader_stages_stage_count_ = 0;
 
@@ -723,11 +725,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
 
   bool dirty = false;
   dirty |= vertex_shader != regs.vertex_shader;
+  regs.vertex_shader = vertex_shader;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.vertex_shader = vertex_shader;
 
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   state_info.pNext = nullptr;
@@ -843,11 +845,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.primitive_type = primitive_type;
 
   state_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1038,11 +1040,38 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
-  state_info.depthTestEnable = VK_FALSE;
-  state_info.depthWriteEnable = VK_FALSE;
-  state_info.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+  static const VkCompareOp compare_func_map[] = {
+      /*  0 */ VK_COMPARE_OP_NEVER,
+      /*  1 */ VK_COMPARE_OP_LESS,
+      /*  2 */ VK_COMPARE_OP_EQUAL,
+      /*  3 */ VK_COMPARE_OP_LESS_OR_EQUAL,
+      /*  4 */ VK_COMPARE_OP_GREATER,
+      /*  5 */ VK_COMPARE_OP_NOT_EQUAL,
+      /*  6 */ VK_COMPARE_OP_GREATER_OR_EQUAL,
+      /*  7 */ VK_COMPARE_OP_ALWAYS,
+  };
+  static const VkStencilOp stencil_op_map[] = {
+      /*  0 */ VK_STENCIL_OP_KEEP,
+      /*  1 */ VK_STENCIL_OP_ZERO,
+      /*  2 */ VK_STENCIL_OP_REPLACE,
+      /*  3 */ VK_STENCIL_OP_INCREMENT_AND_WRAP,
+      /*  4 */ VK_STENCIL_OP_DECREMENT_AND_WRAP,
+      /*  5 */ VK_STENCIL_OP_INVERT,
+      /*  6 */ VK_STENCIL_OP_INCREMENT_AND_CLAMP,
+      /*  7 */ VK_STENCIL_OP_DECREMENT_AND_CLAMP,
+  };
+
+  // Depth state
+  // TODO: EARLY_Z_ENABLE (needs to be enabled in shaders)
+  state_info.depthWriteEnable = !!(regs.rb_depthcontrol & 0x4);
+  state_info.depthTestEnable = !!(regs.rb_depthcontrol & 0x2);
+  state_info.stencilTestEnable = !!(regs.rb_depthcontrol & 0x1);
+
+  state_info.depthCompareOp =
+      compare_func_map[(regs.rb_depthcontrol & 0x70) >> 4];
   state_info.depthBoundsTestEnable = VK_FALSE;
-  state_info.stencilTestEnable = VK_FALSE;
+
+  // Stencil state
   state_info.front.failOp = VK_STENCIL_OP_KEEP;
   state_info.front.passOp = VK_STENCIL_OP_KEEP;
   state_info.front.depthFailOp = VK_STENCIL_OP_KEEP;
