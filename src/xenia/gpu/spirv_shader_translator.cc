@@ -773,6 +773,26 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       // TODO
     } break;
 
+    case AluVectorOpcode::kDp2Add: {
+      auto src0_xy = b.createOp(spv::Op::OpVectorShuffle, vec2_float_type_,
+                                {sources[0], sources[0], 0, 1});
+      auto src1_xy = b.createOp(spv::Op::OpVectorShuffle, vec2_float_type_,
+                                {sources[1], sources[1], 0, 1});
+      auto src2_x = b.createCompositeExtract(sources[2], float_type_, 0);
+      auto dot = b.createBinOp(spv::Op::OpDot, float_type_, src0_xy, src1_xy);
+      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, dot, src2_x);
+      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
+    } break;
+
+    case AluVectorOpcode::kDp3: {
+      auto src0_xyz = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
+                                 {sources[0], sources[0], 0, 1, 2});
+      auto src1_xyz = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
+                                 {sources[1], sources[1], 0, 1, 2});
+      auto dot = b.createBinOp(spv::Op::OpDot, float_type_, src0_xyz, src1_xyz);
+      dest = b.smearScalar(spv::NoPrecision, dot, vec4_float_type_);
+    } break;
+
     case AluVectorOpcode::kDp4: {
       dest = b.createBinOp(spv::Op::OpDot, float_type_, sources[0], sources[1]);
     } break;
@@ -1050,9 +1070,11 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     default:
+      assert_unhandled_case(instr.vector_opcode);
       break;
   }
 
+  assert_not_zero(dest);
   if (dest) {
     // If predicated, discard the result from the instruction.
     Id pv_dest = dest;
@@ -1477,9 +1499,11 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     default:
+      assert_unhandled_case(instr.scalar_opcode);
       break;
   }
 
+  assert_not_zero(dest);
   if (dest) {
     // If predicated, discard the result from the instruction.
     Id ps_dest = dest;
