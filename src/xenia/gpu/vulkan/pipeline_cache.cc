@@ -1068,18 +1068,32 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   state_info.stencilTestEnable = !!(regs.rb_depthcontrol & 0x1);
 
   state_info.depthCompareOp =
-      compare_func_map[(regs.rb_depthcontrol & 0x70) >> 4];
+      compare_func_map[(regs.rb_depthcontrol >> 4) & 0x7];
   state_info.depthBoundsTestEnable = VK_FALSE;
 
+  uint32_t stencil_ref = (regs.rb_stencilrefmask & 0x000000FF);
+  uint32_t stencil_read_mask = (regs.rb_stencilrefmask & 0x0000FF00) >> 8;
+
   // Stencil state
-  state_info.front.failOp = VK_STENCIL_OP_KEEP;
-  state_info.front.passOp = VK_STENCIL_OP_KEEP;
-  state_info.front.depthFailOp = VK_STENCIL_OP_KEEP;
-  state_info.front.compareOp = VK_COMPARE_OP_ALWAYS;
-  state_info.back.failOp = VK_STENCIL_OP_KEEP;
-  state_info.back.passOp = VK_STENCIL_OP_KEEP;
-  state_info.back.depthFailOp = VK_STENCIL_OP_KEEP;
-  state_info.back.compareOp = VK_COMPARE_OP_ALWAYS;
+  state_info.front.compareOp =
+      compare_func_map[(regs.rb_depthcontrol >> 8) & 0x7];
+  state_info.front.failOp = stencil_op_map[(regs.rb_depthcontrol >> 11) & 0x7];
+  state_info.front.passOp = stencil_op_map[(regs.rb_depthcontrol >> 14) & 0x7];
+  state_info.front.depthFailOp =
+      stencil_op_map[(regs.rb_depthcontrol >> 17) & 0x7];
+
+  // BACKFACE_ENABLE
+  if (!!(regs.rb_depthcontrol & 0x80)) {
+    state_info.back.compareOp =
+        compare_func_map[(regs.rb_depthcontrol >> 20) & 0x7];
+    state_info.back.failOp = stencil_op_map[(regs.rb_depthcontrol >> 23) & 0x7];
+    state_info.back.passOp = stencil_op_map[(regs.rb_depthcontrol >> 26) & 0x7];
+    state_info.back.depthFailOp =
+        stencil_op_map[(regs.rb_depthcontrol >> 29) & 0x7];
+  } else {
+    // Back state is identical to front state.
+    std::memcpy(&state_info.back, &state_info.front, sizeof(VkStencilOpState));
+  }
 
   // Ignored; set dynamically.
   state_info.minDepthBounds = 0;
