@@ -164,6 +164,7 @@ void SpirvShaderTranslator::StartTranslation() {
                                   push_constants_type, "push_consts");
 
   // Texture bindings
+  Id sampler_t = b.makeSamplerType();
   Id tex_t[] = {b.makeSampledImageType(b.makeImageType(
                     float_type_, spv::Dim::Dim1D, false, false, false, 1,
                     spv::ImageFormat::ImageFormatUnknown)),
@@ -177,18 +178,17 @@ void SpirvShaderTranslator::StartTranslation() {
                     float_type_, spv::Dim::DimCube, false, false, false, 1,
                     spv::ImageFormat::ImageFormatUnknown))};
 
-  // Id samplers_a = b.makeArrayType(sampler_t, b.makeUintConstant(32), 0);
+  Id samplers_a = b.makeArrayType(sampler_t, b.makeUintConstant(32), 0);
   Id tex_a_t[] = {b.makeArrayType(tex_t[0], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[1], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[3], b.makeUintConstant(32), 0)};
 
   // TODO(DrChat): See texture_cache.cc - do we need separate samplers here?
-  // samplers_ =
-  // b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-  //                              samplers_a, "samplers");
-  // b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
-  // b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
+  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                               samplers_a, "samplers");
+  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
+  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
   for (int i = 0; i < 4; i++) {
     tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
                                tex_a_t[i],
@@ -481,16 +481,17 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       // Conditional branch
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, v,
-                                b.makeBoolConstant(instr.condition));
+      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
+                                b.makeUintConstant(uint32_t(instr.condition)));
       b.createConditionalBranch(cond, body, cf_blocks_[instr.dword_index + 1]);
     } break;
     case ParsedExecInstruction::Type::kPredicated: {
       // Branch based on p0.
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, p0_,
-                                b.makeBoolConstant(instr.condition));
+      auto cond =
+          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                        b.makeBoolConstant(instr.condition));
       b.createConditionalBranch(cond, body, cf_blocks_[instr.dword_index + 1]);
     } break;
   }
@@ -545,6 +546,8 @@ void SpirvShaderTranslator::ProcessCallInstruction(
   auto head = cf_blocks_[instr.dword_index];
   b.setBuildPoint(head);
 
+  // Unused instruction(?)
+  assert_always();
   EmitUnimplementedTranslationError();
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
@@ -558,6 +561,8 @@ void SpirvShaderTranslator::ProcessReturnInstruction(
   auto head = cf_blocks_[instr.dword_index];
   b.setBuildPoint(head);
 
+  // Unused instruction(?)
+  assert_always();
   EmitUnimplementedTranslationError();
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
@@ -576,6 +581,8 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       b.createBranch(cf_blocks_[instr.target_address]);
     } break;
     case ParsedJumpInstruction::Type::kConditional: {
+      assert_true(cf_blocks_.size() > instr.dword_index + 1);
+
       // Based off of bool_consts
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
@@ -590,17 +597,19 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
                         b.makeUintConstant(1));
 
       // Conditional branch
-      auto cond = b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, v,
-                                b.makeBoolConstant(instr.condition));
+      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
+                                b.makeUintConstant(uint32_t(instr.condition)));
       b.createConditionalBranch(cond, cf_blocks_[instr.target_address],
-                                cf_blocks_[instr.dword_index]);
+                                cf_blocks_[instr.dword_index + 1]);
     } break;
     case ParsedJumpInstruction::Type::kPredicated: {
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
-      auto cond = b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, p0_,
-                                b.makeBoolConstant(instr.condition));
+
+      auto cond =
+          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                        b.makeBoolConstant(instr.condition));
       b.createConditionalBranch(cond, cf_blocks_[instr.target_address],
-                                cf_blocks_[instr.dword_index]);
+                                cf_blocks_[instr.dword_index + 1]);
     } break;
   }
 }
@@ -770,7 +779,15 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kDst: {
-      // TODO
+      auto src0_y = b.createCompositeExtract(sources[0], float_type_, 1);
+      auto src1_y = b.createCompositeExtract(sources[1], float_type_, 1);
+      auto dst_y = b.createBinOp(spv::Op::OpFMul, float_type_, src0_y, src1_y);
+
+      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 3);
+      auto src1_w = b.createCompositeExtract(sources[0], float_type_, 4);
+      dest = b.createCompositeConstruct(
+          vec4_float_type_,
+          std::vector<Id>({b.makeFloatConstant(1.f), dst_y, src0_z, src1_w}));
     } break;
 
     case AluVectorOpcode::kDp2Add: {
@@ -1175,7 +1192,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(0.f));
-      cond = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      if (pred_cond) {
+        cond =
+            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
+      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1348,6 +1368,12 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                            b.makeFloatConstant(0.f), d);
     } break;
 
+    case AluScalarOpcode::kRsqc: {
+    } break;
+
+    case AluScalarOpcode::kRsqf: {
+    } break;
+
     case AluScalarOpcode::kRsq: {
       // dest = src0 != 0.0 ? inversesqrt(src0) : 0.0;
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
@@ -1430,12 +1456,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kSetpInv: {
+      // p0 = src0 == 1.0
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(1.f));
-      auto pred =
-          b.createTriOp(spv::Op::OpSelect, bool_type_, cond,
-                        b.makeBoolConstant(true), b.makeBoolConstant(false));
-      b.createStore(pred, p0_);
+      b.createStore(cond, p0_);
 
       // if (!cond) dest = src0 == 0.0 ? 1.0 : src0;
       auto dst_cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
@@ -1480,6 +1504,11 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     case AluScalarOpcode::kSin: {
       dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
                                              GLSLstd450::kSin, {sources[0]});
+    } break;
+
+    case AluScalarOpcode::kSqrt: {
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             GLSLstd450::kSqrt, {sources[0]});
     } break;
 
     case AluScalarOpcode::kSubs:
