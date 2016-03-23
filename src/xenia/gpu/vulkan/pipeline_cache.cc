@@ -936,6 +936,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   auto& state_info = update_rasterization_state_info_;
 
   bool dirty = false;
+  dirty |= regs.primitive_type != primitive_type;
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_tl,
@@ -944,6 +945,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -983,6 +985,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     case 2:
       state_info.cullMode = VK_CULL_MODE_BACK_BIT;
       break;
+    case 3:
+      // Cull both sides?
+      assert_always();
+      break;
   }
   if (regs.pa_su_sc_mode_cntl & 0x4) {
     state_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
@@ -1013,6 +1019,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
+  // PA_SC_AA_CONFIG MSAA_NUM_SAMPLES
+  // PA_SU_SC_MODE_CNTL MSAA_ENABLE
   state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   state_info.sampleShadingEnable = VK_FALSE;
   state_info.minSampleShading = 0;

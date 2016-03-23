@@ -205,11 +205,11 @@ class PipelineCache {
   VkPipelineViewportStateCreateInfo update_viewport_state_info_;
 
   struct UpdateRasterizationStateRegisters {
+    PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t multi_prim_ib_reset_index;
-    PrimitiveType prim_type;
 
     UpdateRasterizationStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
