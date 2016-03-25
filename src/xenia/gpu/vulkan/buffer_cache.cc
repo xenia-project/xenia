@@ -432,6 +432,8 @@ void BufferCache::InvalidateCache() {
 
 void BufferCache::ClearCache() {
   // TODO(benvanik): caching.
+  // Temporary clear.
+  transient_tail_offset_ = transient_head_offset_;
 }
 
 }  // namespace vulkan
