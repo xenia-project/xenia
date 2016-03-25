@@ -39,9 +39,7 @@ class Fence {
     fence_ = nullptr;
   }
 
-  VkResult status() const {
-    return vkGetFenceStatus(device_, fence_);
-  }
+  VkResult status() const { return vkGetFenceStatus(device_, fence_); }
 
   VkFence fence() const { return fence_; }
   operator VkFence() const { return fence_; }
