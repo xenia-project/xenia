@@ -17,7 +17,9 @@
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/trace_writer.h"
+#include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/vulkan/circular_buffer.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
@@ -38,22 +40,38 @@ class TextureCache {
     // True if we know all info about this texture, false otherwise.
     // (e.g. we resolve to system memory and may not know the full details about
     // this texture)
-    bool full_texture;
+    bool is_full_texture;
     VkFormat format;
     VkImage image;
     VkImageLayout image_layout;
     VkDeviceMemory image_memory;
     VkDeviceSize memory_offset;
     VkDeviceSize memory_size;
+
+    uintptr_t access_watch_handle;
+    bool pending_invalidation;
   };
 
   struct TextureView {
     Texture* texture;
     VkImageView view;
+
+    union {
+      struct {
+        // FIXME: This only applies on little-endian platforms!
+        uint16_t swiz_x : 3;
+        uint16_t swiz_y : 3;
+        uint16_t swiz_z : 3;
+        uint16_t swiz_w : 3;
+        uint16_t : 4;
+      };
+
+      uint16_t swizzle;
+    };
   };
 
-  TextureCache(RegisterFile* register_file, TraceWriter* trace_writer,
-               ui::vulkan::VulkanDevice* device);
+  TextureCache(Memory* memory, RegisterFile* register_file,
+               TraceWriter* trace_writer, ui::vulkan::VulkanDevice* device);
   ~TextureCache();
 
   // Descriptor set layout containing all possible texture bindings.
@@ -64,14 +82,27 @@ class TextureCache {
 
   // Prepares a descriptor set containing the samplers and images for all
   // bindings. The textures will be uploaded/converted/etc as needed.
+  // Requires a fence to be provided that will be signaled when finished
+  // using the returned descriptor set.
   VkDescriptorSet PrepareTextureSet(
-      VkCommandBuffer command_buffer,
+      VkCommandBuffer setup_command_buffer,
+      std::shared_ptr<ui::vulkan::Fence> completion_fence,
       const std::vector<Shader::TextureBinding>& vertex_bindings,
       const std::vector<Shader::TextureBinding>& pixel_bindings);
 
   // TODO(benvanik): UploadTexture.
   // TODO(benvanik): Resolve.
   // TODO(benvanik): ReadTexture.
+
+  // Looks for a texture either containing or matching these parameters.
+  // Caller is responsible for checking if the texture returned is an exact
+  // match or just contains the texture given by the parameters.
+  // If offset_x and offset_y are not null, this may return a texture that
+  // contains this address at an offset.
+  Texture* LookupAddress(uint32_t guest_address, uint32_t width,
+                         uint32_t height, TextureFormat format,
+                         uint32_t* offset_x = nullptr,
+                         uint32_t* offset_y = nullptr);
 
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture. texture_info
@@ -89,6 +120,9 @@ class TextureCache {
   // Clears all cached content.
   void ClearCache();
 
+  // Frees any unused resources
+  void Scavenge();
+
  private:
   struct UpdateSetInfo;
 
@@ -104,31 +138,30 @@ class TextureCache {
 
   // Demands a texture. If command_buffer is null and the texture hasn't been
   // uploaded to graphics memory already, we will return null and bail.
-  Texture* Demand(const TextureInfo& texture_info,
-                  VkCommandBuffer command_buffer = nullptr);
+  Texture* Demand(
+      const TextureInfo& texture_info, VkCommandBuffer command_buffer = nullptr,
+      std::shared_ptr<ui::vulkan::Fence> completion_fence = nullptr);
+  TextureView* DemandView(Texture* texture, uint16_t swizzle);
   Sampler* Demand(const SamplerInfo& sampler_info);
-
-  // Looks for a texture either containing or matching these parameters.
-  // Caller is responsible for checking if the texture returned is an exact
-  // match or just contains the texture given by the parameters.
-  // If offset_x and offset_y are not null, this may return a texture that
-  // contains this image at an offset.
-  Texture* LookupAddress(uint32_t guest_address, uint32_t width,
-                         uint32_t height, TextureFormat format,
-                         uint32_t* offset_x, uint32_t* offset_y);
 
   // Queues commands to upload a texture from system memory, applying any
   // conversions necessary. This may flush the command buffer to the GPU if we
   // run out of staging memory.
-  bool UploadTexture2D(VkCommandBuffer command_buffer, Texture* dest,
-                       TextureInfo src);
+  bool UploadTexture2D(VkCommandBuffer command_buffer,
+                       std::shared_ptr<ui::vulkan::Fence> completion_fence,
+                       Texture* dest, TextureInfo src);
 
-  bool SetupTextureBindings(UpdateSetInfo* update_set_info,
-                            const std::vector<Shader::TextureBinding>& bindings,
-                            VkCommandBuffer command_buffer = nullptr);
-  bool SetupTextureBinding(UpdateSetInfo* update_set_info,
-                           const Shader::TextureBinding& binding,
-                           VkCommandBuffer command_buffer = nullptr);
+  bool SetupTextureBindings(
+      VkCommandBuffer command_buffer,
+      std::shared_ptr<ui::vulkan::Fence> completion_fence,
+      UpdateSetInfo* update_set_info,
+      const std::vector<Shader::TextureBinding>& bindings);
+  bool SetupTextureBinding(VkCommandBuffer command_buffer,
+                           std::shared_ptr<ui::vulkan::Fence> completion_fence,
+                           UpdateSetInfo* update_set_info,
+                           const Shader::TextureBinding& binding);
+
+  Memory* memory_ = nullptr;
 
   RegisterFile* register_file_ = nullptr;
   TraceWriter* trace_writer_ = nullptr;
@@ -136,10 +169,11 @@ class TextureCache {
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
+  std::vector<std::pair<VkDescriptorSet, std::shared_ptr<ui::vulkan::Fence>>>
+      in_flight_sets_;
 
   // Temporary until we have circular buffers.
-  VkBuffer staging_buffer_ = nullptr;
-  VkDeviceMemory staging_buffer_mem_ = nullptr;
+  ui::vulkan::CircularBuffer staging_buffer_;
   std::unordered_map<uint64_t, std::unique_ptr<Texture>> textures_;
   std::unordered_map<uint64_t, std::unique_ptr<Sampler>> samplers_;
   std::vector<std::unique_ptr<Texture>> resolve_textures_;
