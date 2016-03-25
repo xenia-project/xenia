@@ -183,11 +183,12 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
   return shader;
 }
 
-bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
-                                      const RenderState* render_state,
-                                      VulkanShader* vertex_shader,
-                                      VulkanShader* pixel_shader,
-                                      PrimitiveType primitive_type) {
+PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
+    VkCommandBuffer command_buffer, const RenderState* render_state,
+    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
+    PrimitiveType primitive_type, VkPipeline* pipeline_out) {
+  assert_not_null(pipeline_out);
+
   // Perform a pass over all registers and state updating our cached structures.
   // This will tell us if anything has changed that requires us to either build
   // a new pipeline or use an existing one.
@@ -208,7 +209,7 @@ bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
       // Error updating state - bail out.
       // We are in an indeterminate state, so reset things for the next attempt.
       current_pipeline_ = nullptr;
-      return false;
+      return update_status;
   }
   if (!pipeline) {
     // Should have a hash key produced by the UpdateState pass.
@@ -217,24 +218,12 @@ bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
     current_pipeline_ = pipeline;
     if (!pipeline) {
       // Unable to create pipeline.
-      return false;
+      return UpdateStatus::kError;
     }
   }
 
-  // Bind the pipeline.
-  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-  // Issue all changed dynamic state information commands.
-  // TODO(benvanik): dynamic state is kept in the command buffer, so if we
-  // have issued it before (regardless of pipeline) we don't need to do it now.
-  // TODO(benvanik): track whether we have issued on the given command buffer.
-  bool full_dynamic_state = true;
-  if (!SetDynamicState(command_buffer, full_dynamic_state)) {
-    // Failed to update state.
-    return false;
-  }
-
-  return true;
+  *pipeline_out = pipeline;
+  return update_status;
 }
 
 void PipelineCache::ClearCache() {

@@ -32,6 +32,12 @@ namespace vulkan {
 // including shaders, various blend/etc options, and input configuration.
 class PipelineCache {
  public:
+  enum class UpdateStatus {
+    kCompatible,
+    kMismatch,
+    kError,
+  };
+
   PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
                 VkDescriptorSetLayout uniform_descriptor_set_layout,
                 VkDescriptorSetLayout texture_descriptor_set_layout);
@@ -46,11 +52,17 @@ class PipelineCache {
   // otherwise a new one may be created. Any state that can be set dynamically
   // in the command buffer is issued at this time.
   // Returns whether the pipeline could be successfully created.
-  bool ConfigurePipeline(VkCommandBuffer command_buffer,
-                         const RenderState* render_state,
-                         VulkanShader* vertex_shader,
-                         VulkanShader* pixel_shader,
-                         PrimitiveType primitive_type);
+  UpdateStatus ConfigurePipeline(VkCommandBuffer command_buffer,
+                                 const RenderState* render_state,
+                                 VulkanShader* vertex_shader,
+                                 VulkanShader* pixel_shader,
+                                 PrimitiveType primitive_type,
+                                 VkPipeline* pipeline_out);
+
+  // Sets required dynamic state on the command buffer.
+  // Only state that has changed since the last call will be set unless
+  // full_update is true.
+  bool SetDynamicState(VkCommandBuffer command_buffer, bool full_update);
 
   // Pipeline layout shared by all pipelines.
   VkPipelineLayout pipeline_layout() const { return pipeline_layout_; }
@@ -67,11 +79,6 @@ class PipelineCache {
   // Returns nullptr if the primitive doesn't need to be emulated.
   VkShaderModule GetGeometryShader(PrimitiveType primitive_type,
                                    bool is_line_mode);
-
-  // Sets required dynamic state on the command buffer.
-  // Only state that has changed since the last call will be set unless
-  // full_update is true.
-  bool SetDynamicState(VkCommandBuffer command_buffer, bool full_update);
 
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
@@ -111,12 +118,6 @@ class PipelineCache {
   VkPipeline current_pipeline_ = nullptr;
 
  private:
-  enum class UpdateStatus {
-    kCompatible,
-    kMismatch,
-    kError,
-  };
-
   UpdateStatus UpdateState(VulkanShader* vertex_shader,
                            VulkanShader* pixel_shader,
                            PrimitiveType primitive_type);
