@@ -34,12 +34,14 @@
 #include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
 class VulkanGraphicsSystem;
+class TextureCache;
 
 class VulkanCommandProcessor : public CommandProcessor {
  public:
@@ -90,12 +92,20 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkQueue queue_ = nullptr;
   std::mutex* queue_mutex_ = nullptr;
 
+  // Last copy base address, for debugging only.
+  uint32_t last_copy_base_ = 0;
+
   std::unique_ptr<BufferCache> buffer_cache_;
   std::unique_ptr<PipelineCache> pipeline_cache_;
   std::unique_ptr<RenderCache> render_cache_;
   std::unique_ptr<TextureCache> texture_cache_;
 
   std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;
+
+  const RenderState* current_render_state_ = nullptr;
+  VkCommandBuffer current_command_buffer_ = nullptr;
+  VkCommandBuffer current_setup_buffer_ = nullptr;
+  std::shared_ptr<ui::vulkan::Fence> current_batch_fence_;
 };
 
 }  // namespace vulkan

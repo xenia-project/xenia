@@ -69,8 +69,8 @@ bool VulkanCommandProcessor::SetupContext() {
   // Initialize the state machine caches.
   buffer_cache_ = std::make_unique<BufferCache>(register_file_, device_,
                                                 kDefaultBufferCacheCapacity);
-  texture_cache_ =
-      std::make_unique<TextureCache>(register_file_, &trace_writer_, device_);
+  texture_cache_ = std::make_unique<TextureCache>(memory_, register_file_,
+                                                  &trace_writer_, device_);
   pipeline_cache_ = std::make_unique<PipelineCache>(
       register_file_, device_, buffer_cache_->constant_descriptor_set_layout(),
       texture_cache_->texture_descriptor_set_layout());
@@ -134,21 +134,127 @@ void VulkanCommandProcessor::ReturnFromWait() {
 void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_width,
                                          uint32_t frontbuffer_height) {
-  // Ensure we issue any pending draws.
-  // draw_batcher_.Flush(DrawBatcher::FlushMode::kMakeCoherent);
+  SCOPE_profile_cpu_f("gpu");
 
-  // Need to finish to be sure the other context sees the right data.
-  // TODO(benvanik): prevent this? fences?
-  // glFinish();
+  // Queue up current command buffers.
+  // TODO(benvanik): bigger batches.
+  if (current_command_buffer_) {
+    if (current_render_state_) {
+      render_cache_->EndRenderPass();
+      current_render_state_ = nullptr;
+    }
 
-  if (context_->WasLost()) {
-    // We've lost the context due to a TDR.
-    // TODO: Dump the current commands to a tracefile.
-    assert_always();
+    auto status = vkEndCommandBuffer(current_command_buffer_);
+    CheckResult(status, "vkEndCommandBuffer");
+    status = vkEndCommandBuffer(current_setup_buffer_);
+    CheckResult(status, "vkEndCommandBuffer");
+    command_buffer_pool_->EndBatch(*current_batch_fence_);
+
+    // TODO(benvanik): move to CP or to host (trace dump, etc).
+    // This only needs to surround a vkQueueSubmit.
+    static uint32_t frame = 0;
+    if (device_->is_renderdoc_attached() &&
+        (FLAGS_vulkan_renderdoc_capture_all ||
+         trace_state_ == TraceState::kSingleFrame)) {
+      if (queue_mutex_) {
+        queue_mutex_->lock();
+      }
+
+      device_->BeginRenderDocFrameCapture();
+
+      if (queue_mutex_) {
+        queue_mutex_->unlock();
+      }
+    }
+
+    // TODO(DrChat): If setup buffer is empty, don't bother queueing it up.
+    VkCommandBuffer command_buffers[] = {
+        current_setup_buffer_, current_command_buffer_,
+    };
+
+    VkSubmitInfo submit_info;
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.pNext = nullptr;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.commandBufferCount = 2;
+    submit_info.pCommandBuffers = command_buffers;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    if (queue_mutex_) {
+      queue_mutex_->lock();
+    }
+    status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
+    if (queue_mutex_) {
+      queue_mutex_->unlock();
+    }
+    CheckResult(status, "vkQueueSubmit");
+
+    VkFence fences[] = {*current_batch_fence_};
+    status = vkWaitForFences(*device_, 1, fences, true, -1);
+    CheckResult(status, "vkWaitForFences");
+
+    if (device_->is_renderdoc_attached() &&
+        (FLAGS_vulkan_renderdoc_capture_all ||
+         trace_state_ == TraceState::kSingleFrame)) {
+      if (queue_mutex_) {
+        queue_mutex_->lock();
+      }
+
+      device_->EndRenderDocFrameCapture();
+
+      // HACK(DrChat): Used b/c I disabled trace saving code in the CP.
+      // Remove later.
+      if (!trace_writer_.is_open()) {
+        trace_state_ = TraceState::kDisabled;
+      }
+
+      if (queue_mutex_) {
+        queue_mutex_->unlock();
+      }
+    }
+
+    // Scavenging.
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+    while (command_buffer_pool_->has_pending()) {
+      command_buffer_pool_->Scavenge();
+      xe::threading::MaybeYield();
+    }
+
+    texture_cache_->Scavenge();
+    current_batch_fence_ = nullptr;
+
+    // TODO: Remove this when we stop waiting on the queue.
+    buffer_cache_->ClearCache();
+  }
+
+  if (!frontbuffer_ptr) {
+    if (!last_copy_base_) {
+      // Nothing to draw.
+      return;
+    }
+
+    // Trace viewer does this.
+    frontbuffer_ptr = last_copy_base_;
+  }
+
+  auto texture = texture_cache_->LookupAddress(
+      frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
+      xe::round_up(frontbuffer_height, 32), TextureFormat::k_8_8_8_8);
+  // There shouldn't be a case where the texture is null.
+  assert_not_null(texture);
+
+  if (texture) {
+    std::lock_guard<std::mutex> lock(swap_state_.mutex);
+    swap_state_.width = frontbuffer_width;
+    swap_state_.height = frontbuffer_height;
+    swap_state_.back_buffer_texture =
+        reinterpret_cast<uintptr_t>(texture->image);
   }
 
   // Remove any dead textures, etc.
-  // texture_cache_.Scavenge();
+  texture_cache_->Scavenge();
 }
 
 Shader* VulkanCommandProcessor::LoadShader(ShaderType shader_type,
@@ -183,13 +289,8 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
-  // TODO(benvanik): move to CP or to host (trace dump, etc).
-  if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
-    device_->BeginRenderDocFrameCapture();
-  }
-
   // Shaders will have already been defined by previous loads.
-  // We need the to do just about anything so validate here.
+  // We need them to do just about anything so validate here.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   auto pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
   if (!vertex_shader || !vertex_shader->is_valid()) {
@@ -206,42 +307,73 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
-  // TODO(benvanik): bigger batches.
-  command_buffer_pool_->BeginBatch();
-  VkCommandBuffer command_buffer = command_buffer_pool_->AcquireEntry();
-  VkCommandBufferBeginInfo command_buffer_begin_info;
-  command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  command_buffer_begin_info.pNext = nullptr;
-  command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  command_buffer_begin_info.pInheritanceInfo = nullptr;
-  auto err = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
-  CheckResult(err, "vkBeginCommandBuffer");
+  bool started_command_buffer = false;
+  if (!current_command_buffer_) {
+    // TODO(benvanik): bigger batches.
+    // TODO(DrChat): Decouple setup buffer from current batch.
+    command_buffer_pool_->BeginBatch();
+    current_command_buffer_ = command_buffer_pool_->AcquireEntry();
+    current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
+    current_batch_fence_.reset(new ui::vulkan::Fence(*device_));
+
+    VkCommandBufferBeginInfo command_buffer_begin_info;
+    command_buffer_begin_info.sType =
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.pNext = nullptr;
+    command_buffer_begin_info.flags =
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    command_buffer_begin_info.pInheritanceInfo = nullptr;
+    auto status = vkBeginCommandBuffer(current_command_buffer_,
+                                       &command_buffer_begin_info);
+    CheckResult(status, "vkBeginCommandBuffer");
+
+    status =
+        vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
+    CheckResult(status, "vkBeginCommandBuffer");
+
+    started_command_buffer = true;
+  }
+  auto command_buffer = current_command_buffer_;
 
   // Upload and set descriptors for all textures.
   // We do this outside of the render pass so the texture cache can upload and
   // convert textures.
-  auto samplers = PopulateSamplers(command_buffer, vertex_shader, pixel_shader);
+  // Setup buffer may be flushed to GPU if the texture cache needs it.
+  auto samplers =
+      PopulateSamplers(current_setup_buffer_, vertex_shader, pixel_shader);
   if (!samplers) {
     return false;
   }
 
   // Begin the render pass.
   // This will setup our framebuffer and begin the pass in the command buffer.
-  auto render_state = render_cache_->BeginRenderPass(
-      command_buffer, vertex_shader, pixel_shader);
-  if (!render_state) {
-    return false;
+  // This reuses a previous render pass if one is already open.
+  if (render_cache_->dirty() || !current_render_state_) {
+    if (current_render_state_) {
+      render_cache_->EndRenderPass();
+      current_render_state_ = nullptr;
+    }
+
+    current_render_state_ = render_cache_->BeginRenderPass(
+        command_buffer, vertex_shader, pixel_shader);
+    if (!current_render_state_) {
+      return false;
+    }
   }
 
   // Configure the pipeline for drawing.
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
-  if (!pipeline_cache_->ConfigurePipeline(command_buffer, render_state,
-                                          vertex_shader, pixel_shader,
-                                          primitive_type)) {
-    render_cache_->EndRenderPass();
-    return false;
+  VkPipeline pipeline = nullptr;
+  auto pipeline_status = pipeline_cache_->ConfigurePipeline(
+      command_buffer, current_render_state_, vertex_shader, pixel_shader,
+      primitive_type, &pipeline);
+  if (pipeline_status == PipelineCache::UpdateStatus::kMismatch ||
+      started_command_buffer) {
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipeline);
   }
+  pipeline_cache_->SetDynamicState(command_buffer, started_command_buffer);
 
   // Pass registers to the shaders.
   if (!PopulateConstants(command_buffer, vertex_shader, pixel_shader)) {
@@ -283,57 +415,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     uint32_t first_instance = 0;
     vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index,
                      vertex_offset, first_instance);
-  }
-
-  // End the rendering pass.
-  render_cache_->EndRenderPass();
-
-  // TODO(benvanik): bigger batches.
-  err = vkEndCommandBuffer(command_buffer);
-  CheckResult(err, "vkEndCommandBuffer");
-  VkFence fence;
-  VkFenceCreateInfo fence_info;
-  fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  fence_info.pNext = nullptr;
-  fence_info.flags = 0;
-  vkCreateFence(*device_, &fence_info, nullptr, &fence);
-  command_buffer_pool_->EndBatch(fence);
-  VkSubmitInfo submit_info;
-  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submit_info.pNext = nullptr;
-  submit_info.waitSemaphoreCount = 0;
-  submit_info.pWaitSemaphores = nullptr;
-  submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = &command_buffer;
-  submit_info.signalSemaphoreCount = 0;
-  submit_info.pSignalSemaphores = nullptr;
-  if (queue_mutex_) {
-    queue_mutex_->lock();
-  }
-  err = vkQueueSubmit(queue_, 1, &submit_info, fence);
-  if (queue_mutex_) {
-    queue_mutex_->unlock();
-  }
-  CheckResult(err, "vkQueueSubmit");
-  if (queue_mutex_) {
-    queue_mutex_->lock();
-  }
-  err = vkQueueWaitIdle(queue_);
-  CheckResult(err, "vkQueueWaitIdle");
-  err = vkDeviceWaitIdle(*device_);
-  CheckResult(err, "vkDeviceWaitIdle");
-  if (queue_mutex_) {
-    queue_mutex_->unlock();
-  }
-  while (command_buffer_pool_->has_pending()) {
-    command_buffer_pool_->Scavenge();
-    xe::threading::MaybeYield();
-  }
-  vkDestroyFence(*device_, fence, nullptr);
-
-  // TODO(benvanik): move to CP or to host (trace dump, etc).
-  if (FLAGS_vulkan_renderdoc_capture_all && device_->is_renderdoc_attached()) {
-    device_->EndRenderDocFrameCapture();
   }
 
   return true;
@@ -486,7 +567,7 @@ VkDescriptorSet VulkanCommandProcessor::PopulateSamplers(
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
   auto descriptor_set = texture_cache_->PrepareTextureSet(
-      command_buffer, vertex_shader->texture_bindings(),
+      command_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
       pixel_shader->texture_bindings());
   if (!descriptor_set) {
     // Unable to bind set.
@@ -519,7 +600,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t copy_dest_slice = (copy_dest_info >> 4) & 0x7;
   assert_true(copy_dest_slice == 0);
   auto copy_dest_format =
-    static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
+      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
   uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
   // assert_true(copy_dest_number == 0); // ?
   uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
@@ -541,11 +622,236 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t copy_mask = regs[XE_GPU_REG_RB_COPY_MASK].u32;
   assert_true(copy_mask == 0);
 
+  // Supported in GL4, not supported here yet.
+  assert_zero(copy_dest_swap);
+
   // RB_SURFACE_INFO
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t surface_pitch = surface_info & 0x3FFF;
   auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
+
+  // TODO(benvanik): any way to scissor this? a200 has:
+  // REG_A2XX_RB_COPY_DEST_OFFSET = A2XX_RB_COPY_DEST_OFFSET_X(tile->xoff) |
+  //                                A2XX_RB_COPY_DEST_OFFSET_Y(tile->yoff);
+  // but I can't seem to find something similar.
+  uint32_t dest_logical_width = copy_dest_pitch;
+  uint32_t dest_logical_height = copy_dest_height;
+  uint32_t dest_block_width = xe::round_up(dest_logical_width, 32);
+  uint32_t dest_block_height = xe::round_up(dest_logical_height, 32);
+
+  uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+  int16_t window_offset_x = window_offset & 0x7FFF;
+  int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
+  // Sign-extension
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
+  }
+
+  // Adjust the copy base offset to point to the beginning of the texture, so
+  // we don't run into hiccups down the road (e.g. resolving the last part going
+  // backwards).
+  int32_t dest_offset = window_offset_y * copy_dest_pitch * 4;
+  dest_offset += window_offset_x * 32 * 4;
+  copy_dest_base += dest_offset;
+
+  // HACK: vertices to use are always in vf0.
+  int copy_vertex_fetch_slot = 0;
+  int r =
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (copy_vertex_fetch_slot / 3) * 6;
+  const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+  const xe_gpu_vertex_fetch_t* fetch = nullptr;
+  switch (copy_vertex_fetch_slot % 3) {
+    case 0:
+      fetch = &group->vertex_fetch_0;
+      break;
+    case 1:
+      fetch = &group->vertex_fetch_1;
+      break;
+    case 2:
+      fetch = &group->vertex_fetch_2;
+      break;
+  }
+  assert_true(fetch->type == 3);
+  assert_true(fetch->endian == 2);
+  assert_true(fetch->size == 6);
+  const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);
+  trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
+  int32_t dest_min_x = int32_t((std::min(
+      std::min(
+          GpuSwap(xe::load<float>(vertex_addr + 0), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 8), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
+  int32_t dest_max_x = int32_t((std::max(
+      std::max(
+          GpuSwap(xe::load<float>(vertex_addr + 0), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 8), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
+  int32_t dest_min_y = int32_t((std::min(
+      std::min(
+          GpuSwap(xe::load<float>(vertex_addr + 4), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 12), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+  int32_t dest_max_y = int32_t((std::max(
+      std::max(
+          GpuSwap(xe::load<float>(vertex_addr + 4), Endian(fetch->endian)),
+          GpuSwap(xe::load<float>(vertex_addr + 12), Endian(fetch->endian))),
+      GpuSwap(xe::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+
+  uint32_t color_edram_base = 0;
+  uint32_t depth_edram_base = 0;
+  ColorRenderTargetFormat color_format;
+  DepthRenderTargetFormat depth_format;
+  if (copy_src_select <= 3) {
+    // Source from a color target.
+    uint32_t color_info[4] = {
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
+    };
+    color_edram_base = color_info[copy_src_select] & 0xFFF;
+
+    color_format = static_cast<ColorRenderTargetFormat>(
+        (color_info[copy_src_select] >> 16) & 0xF);
+  }
+
+  if (copy_src_select > 3 || depth_clear_enabled) {
+    // Source from a depth target.
+    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+    depth_edram_base = depth_info & 0xFFF;
+
+    depth_format =
+        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+  }
+
+  // Demand a resolve texture from the texture cache.
+  TextureInfo tex_info = {};
+  tex_info.guest_address = copy_dest_base;
+  tex_info.width = dest_logical_width - 1;
+  tex_info.height = dest_logical_height - 1;
+  tex_info.dimension = gpu::Dimension::k2D;
+  tex_info.input_length = copy_dest_pitch * copy_dest_height * 4;
+  tex_info.size_2d.logical_width = dest_logical_width;
+  tex_info.size_2d.logical_height = dest_logical_height;
+  tex_info.size_2d.block_width = dest_block_width;
+  tex_info.size_2d.block_height = dest_block_height;
+  tex_info.size_2d.input_width = dest_block_width;
+  tex_info.size_2d.input_height = dest_block_height;
+  tex_info.size_2d.input_pitch = copy_dest_pitch * 4;
+  auto texture = texture_cache_->DemandResolveTexture(
+      tex_info, ColorFormatToTextureFormat(copy_dest_format), nullptr, nullptr);
+  if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+    // Transition the image to a general layout.
+    VkImageMemoryBarrier image_barrier;
+    image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    image_barrier.pNext = nullptr;
+    image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.srcAccessMask = 0;
+    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    image_barrier.image = texture->image;
+    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+    image_barrier.subresourceRange.aspectMask =
+        copy_src_select <= 3
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
+  }
+
+  // For debugging purposes only (trace viewer)
+  last_copy_base_ = texture->texture_info.guest_address;
+
+  if (!current_command_buffer_) {
+    command_buffer_pool_->BeginBatch();
+    current_command_buffer_ = command_buffer_pool_->AcquireEntry();
+    current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
+    current_batch_fence_.reset(new ui::vulkan::Fence(*device_));
+
+    VkCommandBufferBeginInfo command_buffer_begin_info;
+    command_buffer_begin_info.sType =
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.pNext = nullptr;
+    command_buffer_begin_info.flags =
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    command_buffer_begin_info.pInheritanceInfo = nullptr;
+    auto status = vkBeginCommandBuffer(current_command_buffer_,
+                                       &command_buffer_begin_info);
+    CheckResult(status, "vkBeginCommandBuffer");
+
+    status =
+        vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
+    CheckResult(status, "vkBeginCommandBuffer");
+  } else if (current_render_state_) {
+    render_cache_->EndRenderPass();
+    current_render_state_ = nullptr;
+  }
+  auto command_buffer = current_command_buffer_;
+
+  VkOffset3D resolve_offset = {dest_min_x, dest_min_y, 0};
+  VkExtent3D resolve_extent = {uint32_t(dest_max_x - dest_min_x),
+                               uint32_t(dest_max_y - dest_min_y), 1};
+
+  // Ask the render cache to copy to the resolve texture.
+  auto edram_base = copy_src_select <= 3 ? color_edram_base : depth_edram_base;
+  uint32_t src_format = copy_src_select <= 3
+                            ? static_cast<uint32_t>(color_format)
+                            : static_cast<uint32_t>(depth_format);
+  switch (copy_command) {
+    case CopyCommand::kRaw:
+      render_cache_->RawCopyToImage(command_buffer, edram_base, texture->image,
+                                    texture->image_layout, copy_src_select <= 3,
+                                    resolve_offset, resolve_extent);
+      break;
+    case CopyCommand::kConvert:
+      render_cache_->BlitToImage(
+          command_buffer, edram_base, surface_pitch, resolve_extent.height,
+          texture->image, texture->image_layout, copy_src_select <= 3,
+          src_format, VK_FILTER_LINEAR, resolve_offset, resolve_extent);
+      break;
+
+    case CopyCommand::kConstantOne:
+    case CopyCommand::kNull:
+      assert_always();
+      break;
+  }
+
+  // Perform any requested clears.
+  uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
+  uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
+  uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
+  assert_true(copy_color_clear == copy_color_clear_low);
+
+  if (color_clear_enabled) {
+    // If color clear is enabled, we can only clear a selected color target!
+    assert_true(copy_src_select <= 3);
+
+    // TODO(benvanik): verify color order.
+    float color[] = {((copy_color_clear >> 0) & 0xFF) / 255.0f,
+                     ((copy_color_clear >> 8) & 0xFF) / 255.0f,
+                     ((copy_color_clear >> 16) & 0xFF) / 255.0f,
+                     ((copy_color_clear >> 24) & 0xFF) / 255.0f};
+
+    // TODO(DrChat): Do we know the surface height at this point?
+    render_cache_->ClearEDRAMColor(command_buffer, color_edram_base,
+                                   color_format, surface_pitch,
+                                   resolve_extent.height, color);
+  }
+
+  if (depth_clear_enabled) {
+    float depth =
+        (copy_depth_clear & 0xFFFFFF00) / static_cast<float>(0xFFFFFF00);
+    uint8_t stencil = copy_depth_clear & 0xFF;
+
+    // TODO(DrChat): Do we know the surface height at this point?
+    render_cache_->ClearEDRAMDepthStencil(
+        command_buffer, depth_edram_base, depth_format, surface_pitch,
+        resolve_extent.height, depth, stencil);
+  }
 
   return true;
 }
