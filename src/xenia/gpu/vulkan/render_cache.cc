@@ -39,7 +39,7 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
       // WARNING: this is wrong, most likely - no float form in vulkan?
       XELOGW("Unsupported EDRAM format k_2_10_10_10_FLOAT used");
-      return VK_FORMAT_A2R10G10B10_SSCALED_PACK32;
+      return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
     case ColorRenderTargetFormat::k_16_16:
       return VK_FORMAT_R16G16_UNORM;
     case ColorRenderTargetFormat::k_16_16_16_16:
@@ -451,10 +451,7 @@ RenderCache::RenderCache(RegisterFile* register_file,
   CheckResult(status, "vkBindBufferMemory");
 
   if (status == VK_SUCCESS) {
-    status = vkBindBufferMemory(*device_, edram_buffer_, edram_memory_, 0);
-    CheckResult(status, "vkBindBufferMemory");
-
-    // Upload a grid into the EDRAM buffer.
+    // For debugging, upload a grid into the EDRAM buffer.
     uint32_t* gpu_data = nullptr;
     status = vkMapMemory(*device_, edram_memory_, 0, buffer_requirements.size,
                          0, reinterpret_cast<void**>(&gpu_data));
@@ -488,6 +485,25 @@ RenderCache::~RenderCache() {
   // Release underlying EDRAM memory.
   vkDestroyBuffer(*device_, edram_buffer_, nullptr);
   vkFreeMemory(*device_, edram_memory_, nullptr);
+}
+
+bool RenderCache::dirty() const {
+  auto& regs = *register_file_;
+  auto& cur_regs = shadow_registers_;
+
+  bool dirty = false;
+  dirty |= cur_regs.rb_modecontrol != regs[XE_GPU_REG_RB_MODECONTROL].u32;
+  dirty |= cur_regs.rb_surface_info != regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  dirty |= cur_regs.rb_color_info != regs[XE_GPU_REG_RB_COLOR_INFO].u32;
+  dirty |= cur_regs.rb_color1_info != regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
+  dirty |= cur_regs.rb_color2_info != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
+  dirty |= cur_regs.rb_color3_info != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+  dirty |= cur_regs.rb_depth_info != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  dirty |= cur_regs.pa_sc_window_scissor_tl !=
+           regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  dirty |= cur_regs.pa_sc_window_scissor_br !=
+           regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  return dirty;
 }
 
 const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
@@ -739,8 +755,8 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
     for (int i = 0; i < 4; ++i) {
       TileViewKey color_key;
       color_key.tile_offset = config->color[i].edram_base;
-      color_key.tile_width = config->surface_pitch_px / 80;
-      color_key.tile_height = config->surface_height_px / 16;
+      color_key.tile_width = xe::round_up(config->surface_pitch_px, 80) / 80;
+      color_key.tile_height = xe::round_up(config->surface_height_px, 16) / 16;
       color_key.color_or_depth = 1;
       color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
       target_color_attachments[i] =
@@ -753,8 +769,10 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
 
     TileViewKey depth_stencil_key;
     depth_stencil_key.tile_offset = config->depth_stencil.edram_base;
-    depth_stencil_key.tile_width = config->surface_pitch_px / 80;
-    depth_stencil_key.tile_height = config->surface_height_px / 16;
+    depth_stencil_key.tile_width =
+        xe::round_up(config->surface_pitch_px, 80) / 80;
+    depth_stencil_key.tile_height =
+        xe::round_up(config->surface_height_px, 16) / 16;
     depth_stencil_key.color_or_depth = 0;
     depth_stencil_key.edram_format =
         static_cast<uint16_t>(config->depth_stencil.format);
@@ -960,6 +978,7 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                        &buffer_barrier, 0, nullptr);
 
   // Update the tile view with current EDRAM contents.
+  // TODO: Heuristics to determine if this copy is avoidable.
   VkBufferImageCopy buffer_copy;
   buffer_copy.bufferOffset = edram_base * 5120;
   buffer_copy.bufferImageHeight = 0;
@@ -980,29 +999,26 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
   image_barrier.pNext = nullptr;
   image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
-      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-    image_barrier.srcAccessMask = 0;
-    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    image_barrier.oldLayout = image_layout;
-    image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    image_barrier.image = image;
-    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
-    image_barrier.subresourceRange.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  image_barrier.srcAccessMask = 0;
+  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.oldLayout = image_layout;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  image_barrier.image = image;
+  image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+  image_barrier.subresourceRange.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &image_barrier);
-  }
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 
   // If we overflow we'll lose the device here.
   assert_true(extents.width <= key.tile_width * 80u);
   assert_true(extents.height <= key.tile_height * 16u);
 
   // Now issue the blit to the destination.
+  // TODO: Resolve to destination if necessary.
   VkImageBlit image_blit;
   image_blit.srcSubresource = {0, 0, 0, 1};
   image_blit.srcSubresource.aspectMask =
@@ -1024,15 +1040,12 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                  image, image_layout, 1, &image_blit, filter);
 
   // Transition the image back into its previous layout.
-  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
-      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-    image_barrier.srcAccessMask = image_barrier.dstAccessMask;
-    image_barrier.dstAccessMask = 0;
-    std::swap(image_barrier.oldLayout, image_barrier.newLayout);
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &image_barrier);
-  }
+  image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+  image_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  std::swap(image_barrier.oldLayout, image_barrier.newLayout);
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 }
 
 void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
@@ -1040,6 +1053,9 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
                                   ColorRenderTargetFormat format,
                                   uint32_t pitch, uint32_t height,
                                   float* color) {
+  // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
+  // need to detect this and calculate a value.
+
   // Grab a tile view (as we need to clear an image first)
   TileViewKey key;
   key.color_or_depth = 1;
@@ -1076,6 +1092,9 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                                          DepthRenderTargetFormat format,
                                          uint32_t pitch, uint32_t height,
                                          float depth, uint32_t stencil) {
+  // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
+  // need to detect this and calculate a value.
+
   // Grab a tile view (as we need to clear an image first)
   TileViewKey key;
   key.color_or_depth = 0;

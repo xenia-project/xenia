@@ -37,8 +37,10 @@ struct TileViewKey {
   uint16_t tile_height;
   // 1 if format is ColorRenderTargetFormat, else DepthRenderTargetFormat.
   uint16_t color_or_depth : 1;
+  // Surface MSAA samples
+  // uint16_t msaa_samples : 2;
   // Either ColorRenderTargetFormat or DepthRenderTargetFormat.
-  uint16_t edram_format : 15;
+  uint16_t edram_format : 15;  // 13;
 };
 static_assert(sizeof(TileViewKey) == 8, "Key must be tightly packed");
 
@@ -249,6 +251,10 @@ class RenderCache {
   RenderCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~RenderCache();
 
+  // Call this to determine if you should start a new render pass or continue
+  // with an already open pass.
+  bool dirty() const;
+
   // Begins a render pass targeting the state-specified framebuffer formats.
   // The command buffer will be transitioned into the render pass phase.
   const RenderState* BeginRenderPass(VkCommandBuffer command_buffer,
@@ -263,23 +269,27 @@ class RenderCache {
   void ClearCache();
 
   // Queues commands to copy EDRAM contents into an image.
+  // The command buffer must not be inside of a render pass when calling this.
   void RawCopyToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
                       VkImage image, VkImageLayout image_layout,
                       bool color_or_depth, VkOffset3D offset,
                       VkExtent3D extents);
 
   // Queues commands to blit EDRAM contents into an image.
+  // The command buffer must not be inside of a render pass when calling this.
   void BlitToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
                    uint32_t pitch, uint32_t height, VkImage image,
                    VkImageLayout image_layout, bool color_or_depth,
                    uint32_t format, VkFilter filter, VkOffset3D offset,
                    VkExtent3D extents);
 
-  // Queues commands to clear EDRAM contents with a solid color
+  // Queues commands to clear EDRAM contents with a solid color.
+  // The command buffer must not be inside of a render pass when calling this.
   void ClearEDRAMColor(VkCommandBuffer command_buffer, uint32_t edram_base,
                        ColorRenderTargetFormat format, uint32_t pitch,
                        uint32_t height, float* color);
   // Queues commands to clear EDRAM contents with depth/stencil values.
+  // The command buffer must not be inside of a render pass when calling this.
   void ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                               uint32_t edram_base,
                               DepthRenderTargetFormat format, uint32_t pitch,
@@ -307,7 +317,7 @@ class RenderCache {
   RegisterFile* register_file_ = nullptr;
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
-  // Entire 10MiB of EDRAM, aliased to hell by various VkImages.
+  // Entire 10MiB of EDRAM.
   VkDeviceMemory edram_memory_ = nullptr;
   // Buffer overlayed 1:1 with edram_memory_ to allow raw access.
   VkBuffer edram_buffer_ = nullptr;
