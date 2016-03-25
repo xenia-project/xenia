@@ -701,6 +701,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     } break;
     default:
       // TODO: the rest of these
+      assert_always();
       break;
   }
 
@@ -909,6 +910,23 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kMax4: {
+      auto src0_x = b.createCompositeExtract(sources[0], float_type_, 0);
+      auto src0_y = b.createCompositeExtract(sources[0], float_type_, 1);
+      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 2);
+      auto src0_w = b.createCompositeExtract(sources[0], float_type_, 3);
+
+      auto max_xy = CreateGlslStd450InstructionCall(
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kFMax,
+          {src0_x, src0_y});
+      auto max_zw = CreateGlslStd450InstructionCall(
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kFMax,
+          {src0_z, src0_w});
+      auto max_xyzw = CreateGlslStd450InstructionCall(
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kFMax,
+          {max_xy, max_zw});
+
+      // FIXME: Docs say this only updates pv.x?
+      dest = b.smearScalar(spv::NoPrecision, max_xyzw, vec4_float_type_);
     } break;
 
     case AluVectorOpcode::kMaxA: {
