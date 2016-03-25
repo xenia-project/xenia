@@ -588,12 +588,12 @@ bool TextureCache::UploadTexture2D(
   // For now, just transfer the grid we uploaded earlier into the texture.
   VkBufferImageCopy copy_region;
   copy_region.bufferOffset = alloc->offset;
-  copy_region.bufferRowLength = src.size_2d.input_width;
-  copy_region.bufferImageHeight = src.size_2d.input_height;
+  copy_region.bufferRowLength = src.width + 1;
+  copy_region.bufferImageHeight = src.height + 1;
   copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   copy_region.imageOffset = {0, 0, 0};
-  copy_region.imageExtent = {dest->texture_info.size_2d.output_width + 1,
-                             dest->texture_info.size_2d.output_height + 1,
+  copy_region.imageExtent = {dest->texture_info.width + 1,
+                             dest->texture_info.height + 1,
                              dest->texture_info.depth + 1};
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
