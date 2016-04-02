@@ -52,8 +52,10 @@ class CircularBuffer {
   uint8_t* host_base() const { return host_base_; }
 
   bool CanAcquire(VkDeviceSize length);
+
+  // Acquires space to hold memory. This allocation is only freed when the fence
+  // reaches the signaled state.
   Allocation* Acquire(VkDeviceSize length, std::shared_ptr<Fence> fence);
-  void Discard(Allocation* allocation);
   void Flush(Allocation* allocation);
 
   // Clears all allocations, regardless of whether they've been consumed or not.

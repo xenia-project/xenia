@@ -139,7 +139,6 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
     assert(read_head_ == write_head_);
     assert(capacity_ > aligned_length);
 
-    read_head_ = 0;
     write_head_ = length;
 
     auto alloc = new Allocation();
@@ -200,19 +199,6 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
   return nullptr;
 }
 
-void CircularBuffer::Discard(Allocation* allocation) {
-  // TODO: Revert write_head_ (only if this is the last alloc though)
-  // Or maybe just disallow discards.
-  for (auto it = allocations_.begin(); it != allocations_.end(); ++it) {
-    if (*it == allocation) {
-      allocations_.erase(it);
-      break;
-    }
-  }
-
-  delete allocation;
-}
-
 void CircularBuffer::Flush(Allocation* allocation) {
   VkMappedMemoryRange range;
   range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
@@ -239,7 +225,13 @@ void CircularBuffer::Scavenge() {
       break;
     }
 
-    read_head_ = (read_head_ + (*it)->aligned_length) % capacity_;
+    if (capacity_ - read_head_ < (*it)->aligned_length) {
+      // This allocation is stored at the beginning of the buffer.
+      read_head_ = (*it)->aligned_length;
+    } else {
+      read_head_ += (*it)->aligned_length;
+    }
+
     delete *it;
     it = allocations_.erase(it);
   }
@@ -247,9 +239,6 @@ void CircularBuffer::Scavenge() {
   if (allocations_.empty()) {
     // Reset R/W heads.
     read_head_ = write_head_ = 0;
-  } else {
-    // FIXME: Haven't verified this works correctly when actually rotating :P
-    assert_always();
   }
 }
 
