@@ -339,18 +339,18 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
 
   VkSampleCountFlagBits sample_count;
   switch (desired_config.surface_msaa) {
-  case MsaaSamples::k1X:
-    sample_count = VK_SAMPLE_COUNT_1_BIT;
-    break;
-  case MsaaSamples::k2X:
-    sample_count = VK_SAMPLE_COUNT_2_BIT;
-    break;
-  case MsaaSamples::k4X:
-    sample_count = VK_SAMPLE_COUNT_4_BIT;
-    break;
-  default:
-    assert_unhandled_case(desired_config.surface_msaa);
-    break;
+    case MsaaSamples::k1X:
+      sample_count = VK_SAMPLE_COUNT_1_BIT;
+      break;
+    case MsaaSamples::k2X:
+      sample_count = VK_SAMPLE_COUNT_2_BIT;
+      break;
+    case MsaaSamples::k4X:
+      sample_count = VK_SAMPLE_COUNT_4_BIT;
+      break;
+    default:
+      assert_unhandled_case(desired_config.surface_msaa);
+      break;
   }
 
   // Initialize all attachments to default unused.
@@ -840,15 +840,15 @@ void RenderCache::UpdateTileView(VkCommandBuffer command_buffer,
                          &barrier, 0, nullptr);
   }
 
+  // TODO(DrChat): Stencil copies.
   VkBufferImageCopy region;
   region.bufferOffset = view->key.tile_offset * 5120;
   region.bufferRowLength = 0;
   region.bufferImageHeight = 0;
   region.imageSubresource = {0, 0, 0, 1};
-  region.imageSubresource.aspectMask =
-      view->key.color_or_depth
-          ? VK_IMAGE_ASPECT_COLOR_BIT
-          : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  region.imageSubresource.aspectMask = view->key.color_or_depth
+                                           ? VK_IMAGE_ASPECT_COLOR_BIT
+                                           : VK_IMAGE_ASPECT_DEPTH_BIT;
   region.imageOffset = {0, 0, 0};
   region.imageExtent = {view->key.tile_width * 80u, view->key.tile_height * 16u,
                         1};
