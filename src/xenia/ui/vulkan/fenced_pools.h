@@ -88,6 +88,24 @@ class BaseFencedPool {
     open_batch_ = batch;
   }
 
+  // Cancels an open batch, and releases all entries acquired within.
+  void CancelBatch() {
+    assert_not_null(open_batch_);
+
+    auto batch = open_batch_;
+    open_batch_ = nullptr;
+
+    // Relink the batch back into the free batch list.
+    batch->next = free_batch_list_head_;
+    free_batch_list_head_ = batch;
+
+    // Relink entries back into free entries list.
+    batch->entry_list_tail->next = free_entry_list_head_;
+    free_entry_list_head_ = batch->entry_list_head;
+    batch->entry_list_head = nullptr;
+    batch->entry_list_tail = nullptr;
+  }
+
   // Attempts to acquire an entry from the pool in the current batch.
   // If none are available a new one will be allocated.
   HANDLE AcquireEntry() {
