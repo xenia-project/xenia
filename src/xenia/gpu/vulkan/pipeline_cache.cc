@@ -187,6 +187,10 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
     VkCommandBuffer command_buffer, const RenderState* render_state,
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     PrimitiveType primitive_type, VkPipeline* pipeline_out) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   assert_not_null(pipeline_out);
 
   // Perform a pass over all registers and state updating our cached structures.
@@ -323,6 +327,10 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
 
 bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                                     bool full_update) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto& regs = set_dynamic_state_registers_;
 
   bool window_offset_dirty = SetShadowRegister(&regs.pa_sc_window_offset,
@@ -393,19 +401,24 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     auto surface_msaa =
         static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
     // TODO(benvanik): ??
+    // FIXME: Some games depend on these for proper clears (e.g. only clearing
+    // half the size they actually want with 4x MSAA), but others don't.
+    // Figure out how these games are expecting clears to be done.
     float window_width_scalar = 1;
     float window_height_scalar = 1;
     switch (surface_msaa) {
       case MsaaSamples::k1X:
         break;
       case MsaaSamples::k2X:
-        window_width_scalar = 2;
+        // ??
+        window_width_scalar = window_height_scalar = 1.41421356f;
         break;
       case MsaaSamples::k4X:
-        window_width_scalar = 2;
-        window_height_scalar = 2;
+        window_width_scalar = window_height_scalar = 2;
         break;
     }
+
+    // window_width_scalar = window_height_scalar = 1;
 
     // Whether each of the viewport settings are enabled.
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -434,6 +447,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
       float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
       float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
+
       window_width_scalar = window_height_scalar = 1;
       float vpw = 2 * window_width_scalar * vsx;
       float vph = -2 * window_height_scalar * vsy;
@@ -481,25 +495,25 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     vkCmdSetBlendConstants(command_buffer, regs.rb_blend_rgba);
   }
 
-  // VK_DYNAMIC_STATE_LINE_WIDTH
-  vkCmdSetLineWidth(command_buffer, 1.0f);
+  if (full_update) {
+    // VK_DYNAMIC_STATE_LINE_WIDTH
+    vkCmdSetLineWidth(command_buffer, 1.0f);
 
-  // VK_DYNAMIC_STATE_DEPTH_BIAS
-  vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
+    // VK_DYNAMIC_STATE_DEPTH_BIAS
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
 
-  // VK_DYNAMIC_STATE_DEPTH_BOUNDS
-  vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
+    // VK_DYNAMIC_STATE_DEPTH_BOUNDS
+    vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
 
-  // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
-  vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+    // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
+    vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
 
-  // VK_DYNAMIC_STATE_STENCIL_REFERENCE
-  vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+    // VK_DYNAMIC_STATE_STENCIL_REFERENCE
+    vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
 
-  // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
-  vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
-
-  // TODO(benvanik): push constants.
+    // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
+    vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+  }
 
   bool push_constants_dirty = full_update || viewport_state_dirty;
   push_constants_dirty |=
@@ -530,7 +544,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[1] = -1.0f;
     } else {
       push_constants.window_scale[0] = 1.0f / 2560.0f;
-      push_constants.window_scale[1] = -1.0f / 2560.0f;
+      push_constants.window_scale[1] = 1.0f / 2560.0f;
     }
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -756,7 +770,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
                                            : VK_FORMAT_A2R10G10B10_UNORM_PACK32;
           break;
         case VertexFormat::k_10_11_11:
-          assert_always("unsupported?");
+          // assert_always("unsupported?");
           vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
           break;
         case VertexFormat::k_11_11_10:
@@ -934,6 +948,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
@@ -947,7 +962,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   // TODO(benvanik): right setting?
   state_info.depthClampEnable = VK_FALSE;
 
-  // TODO(benvanik): use in depth-only mode?
+  // Discard rasterizer output in depth-only mode.
+  // TODO(DrChat): Figure out how to make this work properly.
+  /*
+  auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
+  state_info.rasterizerDiscardEnable =
+      enable_mode == xenos::ModeControl::kColorDepth ? VK_FALSE : VK_TRUE;
+  //*/
   state_info.rasterizerDiscardEnable = VK_FALSE;
 
   bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
@@ -1004,20 +1025,49 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   auto& regs = update_multisample_state_regs_;
   auto& state_info = update_multisample_state_info_;
 
+  bool dirty = false;
+  dirty |= SetShadowRegister(&regs.pa_sc_aa_config, XE_GPU_REG_PA_SC_AA_CONFIG);
+  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  if (!dirty) {
+    return UpdateStatus::kCompatible;
+  }
+
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
   // PA_SC_AA_CONFIG MSAA_NUM_SAMPLES
   // PA_SU_SC_MODE_CNTL MSAA_ENABLE
-  state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  // state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  //*
+  auto msaa_num_samples =
+      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+  switch (msaa_num_samples) {
+    case MsaaSamples::k1X:
+      state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+      break;
+    case MsaaSamples::k2X:
+      state_info.rasterizationSamples = VK_SAMPLE_COUNT_2_BIT;
+      break;
+    case MsaaSamples::k4X:
+      state_info.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
+      break;
+    default:
+      assert_unhandled_case(msaa_num_samples);
+      break;
+  }
+  //*/
+
   state_info.sampleShadingEnable = VK_FALSE;
   state_info.minSampleShading = 0;
   state_info.pSampleMask = nullptr;
   state_info.alphaToCoverageEnable = VK_FALSE;
   state_info.alphaToOneEnable = VK_FALSE;
 
-  return UpdateStatus::kCompatible;
+  return UpdateStatus::kMismatch;
 }
 
 PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {

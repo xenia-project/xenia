@@ -38,9 +38,9 @@ struct TileViewKey {
   // 1 if format is ColorRenderTargetFormat, else DepthRenderTargetFormat.
   uint16_t color_or_depth : 1;
   // Surface MSAA samples
-  // uint16_t msaa_samples : 2;
+  uint16_t msaa_samples : 2;
   // Either ColorRenderTargetFormat or DepthRenderTargetFormat.
-  uint16_t edram_format : 15;  // 13;
+  uint16_t edram_format : 13;
 };
 static_assert(sizeof(TileViewKey) == 8, "Key must be tightly packed");
 
@@ -67,6 +67,10 @@ class CachedTileView {
     auto a = reinterpret_cast<const uint64_t*>(&key);
     auto b = reinterpret_cast<const uint64_t*>(&other_key);
     return *a == *b;
+  }
+
+  bool operator<(const CachedTileView& other) const {
+    return key.tile_offset < other.key.tile_offset;
   }
 
  private:
@@ -278,22 +282,26 @@ class RenderCache {
   // Queues commands to blit EDRAM contents into an image.
   // The command buffer must not be inside of a render pass when calling this.
   void BlitToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
-                   uint32_t pitch, uint32_t height, VkImage image,
-                   VkImageLayout image_layout, bool color_or_depth,
-                   uint32_t format, VkFilter filter, VkOffset3D offset,
-                   VkExtent3D extents);
+                   uint32_t pitch, uint32_t height, MsaaSamples num_samples,
+                   VkImage image, VkImageLayout image_layout,
+                   bool color_or_depth, uint32_t format, VkFilter filter,
+                   VkOffset3D offset, VkExtent3D extents);
 
   // Queues commands to clear EDRAM contents with a solid color.
   // The command buffer must not be inside of a render pass when calling this.
   void ClearEDRAMColor(VkCommandBuffer command_buffer, uint32_t edram_base,
                        ColorRenderTargetFormat format, uint32_t pitch,
-                       uint32_t height, float* color);
+                       uint32_t height, MsaaSamples num_samples, float* color);
   // Queues commands to clear EDRAM contents with depth/stencil values.
   // The command buffer must not be inside of a render pass when calling this.
   void ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                               uint32_t edram_base,
                               DepthRenderTargetFormat format, uint32_t pitch,
-                              uint32_t height, float depth, uint32_t stencil);
+                              uint32_t height, MsaaSamples num_samples,
+                              float depth, uint32_t stencil);
+  // Queues commands to fill EDRAM contents with a constant value.
+  // The command buffer must not be inside of a render pass when calling this.
+  void FillEDRAM(VkCommandBuffer command_buffer, uint32_t value);
 
  private:
   // Parses the current state into a configuration object.
@@ -305,6 +313,9 @@ class RenderCache {
   // Gets or creates a tile view with the given parameters.
   CachedTileView* FindOrCreateTileView(VkCommandBuffer command_buffer,
                                        const TileViewKey& view_key);
+
+  void UpdateTileView(VkCommandBuffer command_buffer, CachedTileView* view,
+                      bool load, bool insert_barrier = true);
 
   // Gets or creates a render pass and frame buffer for the given configuration.
   // This attempts to reuse as much as possible across render passes and
@@ -335,6 +346,7 @@ class RenderCache {
   struct ShadowRegisters {
     uint32_t rb_modecontrol;
     uint32_t rb_surface_info;
+    uint32_t rb_color_mask;
     uint32_t rb_color_info;
     uint32_t rb_color1_info;
     uint32_t rb_color2_info;

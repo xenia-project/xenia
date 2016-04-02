@@ -211,6 +211,7 @@ class PipelineCache {
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t multi_prim_ib_reset_index;
+    uint32_t rb_modecontrol;
 
     UpdateRasterizationStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
@@ -218,6 +219,10 @@ class PipelineCache {
   VkPipelineRasterizationStateCreateInfo update_rasterization_state_info_;
 
   struct UpdateMultisampleStateeRegisters {
+    uint32_t pa_sc_aa_config;
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t rb_surface_info;
+
     UpdateMultisampleStateeRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_multisample_state_regs_;

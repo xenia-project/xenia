@@ -165,8 +165,23 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
   image_info.extent.depth = 1;
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
-  image_info.samples =
-      static_cast<VkSampleCountFlagBits>(VK_SAMPLE_COUNT_1_BIT);
+  // image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  //*
+  auto msaa_samples = static_cast<MsaaSamples>(key.msaa_samples);
+  switch (msaa_samples) {
+    case MsaaSamples::k1X:
+      image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+      break;
+    case MsaaSamples::k2X:
+      image_info.samples = VK_SAMPLE_COUNT_2_BIT;
+      break;
+    case MsaaSamples::k4X:
+      image_info.samples = VK_SAMPLE_COUNT_4_BIT;
+      break;
+    default:
+      assert_unhandled_case(msaa_samples);
+  }
+  //*/
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
   image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -322,13 +337,29 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
     : device_(device) {
   std::memcpy(&config, &desired_config, sizeof(config));
 
+  VkSampleCountFlagBits sample_count;
+  switch (desired_config.surface_msaa) {
+  case MsaaSamples::k1X:
+    sample_count = VK_SAMPLE_COUNT_1_BIT;
+    break;
+  case MsaaSamples::k2X:
+    sample_count = VK_SAMPLE_COUNT_2_BIT;
+    break;
+  case MsaaSamples::k4X:
+    sample_count = VK_SAMPLE_COUNT_4_BIT;
+    break;
+  default:
+    assert_unhandled_case(desired_config.surface_msaa);
+    break;
+  }
+
   // Initialize all attachments to default unused.
   // As we set layout(location=RT) in shaders we must always provide 4.
   VkAttachmentDescription attachments[5];
   for (int i = 0; i < 4; ++i) {
     attachments[i].flags = 0;
     attachments[i].format = VK_FORMAT_UNDEFINED;
-    attachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[i].samples = sample_count;
     attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -339,7 +370,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   auto& depth_stencil_attachment = attachments[4];
   depth_stencil_attachment.flags = 0;
   depth_stencil_attachment.format = VK_FORMAT_UNDEFINED;
-  depth_stencil_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  depth_stencil_attachment.samples = sample_count;
   depth_stencil_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
   depth_stencil_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   depth_stencil_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -404,6 +435,10 @@ CachedRenderPass::~CachedRenderPass() {
 
 bool CachedRenderPass::IsCompatible(
     const RenderConfiguration& desired_config) const {
+  if (config.surface_msaa != desired_config.surface_msaa) {
+    return false;
+  }
+
   for (int i = 0; i < 4; ++i) {
     // TODO(benvanik): allow compatible vulkan formats.
     if (config.color[i].format != desired_config.color[i].format) {
@@ -503,12 +538,18 @@ bool RenderCache::dirty() const {
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   dirty |= cur_regs.pa_sc_window_scissor_br !=
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  dirty |= (cur_regs.rb_depthcontrol & (0x4 | 0x2)) !=
+           (regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x4 | 0x2));
   return dirty;
 }
 
 const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
                                                 VulkanShader* vertex_shader,
                                                 VulkanShader* pixel_shader) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   assert_null(current_command_buffer_);
   current_command_buffer_ = command_buffer;
 
@@ -520,6 +561,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |= SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
   dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
   dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
@@ -529,7 +571,11 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
-  regs.rb_depthcontrol = register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  dirty |=
+      (regs.rb_depthcontrol & (0x4 | 0x2)) !=
+      (register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x4 | 0x2));
+  regs.rb_depthcontrol =
+      register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x4 | 0x2);
   if (!dirty && current_state_.render_pass) {
     // No registers have changed so we can reuse the previous render pass -
     // just begin with what we had.
@@ -549,7 +595,10 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
 
     // Speculatively see if targets are actually used so we can skip copies
     for (int i = 0; i < 4; i++) {
-      config->color[i].used = pixel_shader->writes_color_target(i);
+      uint32_t color_mask = (regs.rb_color_mask >> (i * 4)) & 0xF;
+      config->color[i].used =
+          config->mode_control == xenos::ModeControl::kColorDepth &&
+          color_mask != 0;
     }
     config->depth_stencil.used = !!(regs.rb_depthcontrol & (0x4 | 0x2));
 
@@ -558,66 +607,20 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
     current_state_.framebuffer = framebuffer;
     current_state_.framebuffer_handle = framebuffer->handle;
 
-    VkBufferMemoryBarrier barrier;
-    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    barrier.pNext = nullptr;
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.buffer = edram_buffer_;
-    barrier.offset = 0;
-    barrier.size = 0;
-
-    // Copy EDRAM buffer into render targets with tight packing.
-    VkBufferImageCopy region;
-    region.bufferRowLength = 0;
-    region.bufferImageHeight = 0;
-    region.imageOffset = {0, 0, 0};
-
     // Depth
     auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
     if (depth_target && current_state_.config.depth_stencil.used) {
-      region.imageSubresource = {
-          VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
-      region.bufferOffset = depth_target->key.tile_offset * 5120;
-
-      // Wait for any potential copies to finish.
-      barrier.offset = region.bufferOffset;
-      barrier.size = depth_target->key.tile_width * 80 *
-                     depth_target->key.tile_height * 16 * 4;
-      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
-                           &barrier, 0, nullptr);
-
-      region.imageExtent = {depth_target->key.tile_width * 80u,
-                            depth_target->key.tile_height * 16u, 1};
-      vkCmdCopyBufferToImage(command_buffer, edram_buffer_, depth_target->image,
-                             VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+      UpdateTileView(command_buffer, depth_target, true);
     }
 
     // Color
-    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     for (int i = 0; i < 4; i++) {
       auto target = current_state_.framebuffer->color_attachments[i];
       if (!target || !current_state_.config.color[i].used) {
         continue;
       }
 
-      region.bufferOffset = target->key.tile_offset * 5120;
-
-      // Wait for any potential copies to finish.
-      barrier.offset = region.bufferOffset;
-      barrier.size =
-          target->key.tile_width * 80 * target->key.tile_height * 16 * 4;
-      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
-                           &barrier, 0, nullptr);
-
-      region.imageExtent = {target->key.tile_width * 80u,
-                            target->key.tile_height * 16u, 1};
-      vkCmdCopyBufferToImage(command_buffer, edram_buffer_, target->image,
-                             VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+      UpdateTileView(command_buffer, target, true);
     }
   }
   if (!render_pass) {
@@ -758,6 +761,7 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
       color_key.tile_width = xe::round_up(config->surface_pitch_px, 80) / 80;
       color_key.tile_height = xe::round_up(config->surface_height_px, 16) / 16;
       color_key.color_or_depth = 1;
+      color_key.msaa_samples = static_cast<uint16_t>(config->surface_msaa);
       color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
       target_color_attachments[i] =
           FindOrCreateTileView(command_buffer, color_key);
@@ -774,6 +778,8 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
     depth_stencil_key.tile_height =
         xe::round_up(config->surface_height_px, 16) / 16;
     depth_stencil_key.color_or_depth = 0;
+    depth_stencil_key.msaa_samples =
+        static_cast<uint16_t>(config->surface_msaa);
     depth_stencil_key.edram_format =
         static_cast<uint16_t>(config->depth_stencil.format);
     auto target_depth_stencil_attachment =
@@ -810,6 +816,51 @@ CachedTileView* RenderCache::FindOrCreateTileView(
   return tile_view;
 }
 
+void RenderCache::UpdateTileView(VkCommandBuffer command_buffer,
+                                 CachedTileView* view, bool load,
+                                 bool insert_barrier) {
+  if (insert_barrier) {
+    VkBufferMemoryBarrier barrier;
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.pNext = nullptr;
+    if (load) {
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    } else {
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    }
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.buffer = edram_buffer_;
+    barrier.offset = view->key.tile_offset * 5120;
+    barrier.size = view->key.tile_width * 80 * view->key.tile_height * 16 * 4;
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                         &barrier, 0, nullptr);
+  }
+
+  VkBufferImageCopy region;
+  region.bufferOffset = view->key.tile_offset * 5120;
+  region.bufferRowLength = 0;
+  region.bufferImageHeight = 0;
+  region.imageSubresource = {0, 0, 0, 1};
+  region.imageSubresource.aspectMask =
+      view->key.color_or_depth
+          ? VK_IMAGE_ASPECT_COLOR_BIT
+          : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  region.imageOffset = {0, 0, 0};
+  region.imageExtent = {view->key.tile_width * 80u, view->key.tile_height * 16u,
+                        1};
+  if (load) {
+    vkCmdCopyBufferToImage(command_buffer, edram_buffer_, view->image,
+                           VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+  } else {
+    vkCmdCopyImageToBuffer(command_buffer, view->image, VK_IMAGE_LAYOUT_GENERAL,
+                           edram_buffer_, 1, &region);
+  }
+}
+
 CachedTileView* RenderCache::FindTileView(const TileViewKey& view_key) const {
   // Check the cache.
   // TODO(benvanik): better lookup.
@@ -837,35 +888,31 @@ void RenderCache::EndRenderPass() {
   // can't get the correct height atm) and we may end up overwriting the valid
   // contents of another render target by mistake! Need to reorder copy commands
   // to avoid this.
-  VkBufferImageCopy region;
-  region.bufferRowLength = 0;
-  region.bufferImageHeight = 0;
-  region.imageOffset = {0, 0, 0};
-  // Depth/stencil
+
+  std::vector<CachedTileView*> cached_views;
+
+  // Depth
   auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
   if (depth_target && current_state_.config.depth_stencil.used) {
-    region.imageSubresource = {
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1};
-    region.bufferOffset = depth_target->key.tile_offset * 5120;
-    region.imageExtent = {depth_target->key.tile_width * 80u,
-                          depth_target->key.tile_height * 16u, 1};
-    vkCmdCopyImageToBuffer(current_command_buffer_, depth_target->image,
-                           VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
+    cached_views.push_back(depth_target);
   }
 
   // Color
-  region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   for (int i = 0; i < 4; i++) {
     auto target = current_state_.framebuffer->color_attachments[i];
     if (!target || !current_state_.config.color[i].used) {
       continue;
     }
 
-    region.bufferOffset = target->key.tile_offset * 5120;
-    region.imageExtent = {target->key.tile_width * 80u,
-                          target->key.tile_height * 16u, 1};
-    vkCmdCopyImageToBuffer(current_command_buffer_, target->image,
-                           VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1, &region);
+    cached_views.push_back(target);
+  }
+
+  std::sort(
+      cached_views.begin(), cached_views.end(),
+      [](CachedTileView const* a, CachedTileView const* b) { return *a < *b; });
+
+  for (auto view : cached_views) {
+    UpdateTileView(current_command_buffer_, view, false, false);
   }
 
   current_command_buffer_ = nullptr;
@@ -920,6 +967,7 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
                        &buffer_barrier, 0, nullptr);
 
   // Issue the copy command.
+  // TODO(DrChat): Stencil copies.
   VkBufferImageCopy region;
   region.bufferOffset = edram_base * 5120;
   region.bufferImageHeight = 0;
@@ -928,8 +976,7 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
   region.imageExtent = extents;
   region.imageSubresource = {0, 0, 0, 1};
   region.imageSubresource.aspectMask =
-      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
-                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
   vkCmdCopyBufferToImage(command_buffer, edram_buffer_, image, image_layout, 1,
                          &region);
 
@@ -947,13 +994,15 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
 
 void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                               uint32_t edram_base, uint32_t pitch,
-                              uint32_t height, VkImage image,
-                              VkImageLayout image_layout, bool color_or_depth,
-                              uint32_t format, VkFilter filter,
-                              VkOffset3D offset, VkExtent3D extents) {
+                              uint32_t height, MsaaSamples num_samples,
+                              VkImage image, VkImageLayout image_layout,
+                              bool color_or_depth, uint32_t format,
+                              VkFilter filter, VkOffset3D offset,
+                              VkExtent3D extents) {
   // Grab a tile view that represents the source image.
   TileViewKey key;
   key.color_or_depth = color_or_depth ? 1 : 0;
+  key.msaa_samples = static_cast<uint16_t>(num_samples);
   key.edram_format = format;
   key.tile_offset = edram_base;
   key.tile_width = xe::round_up(pitch, 80) / 80;
@@ -979,14 +1028,14 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
 
   // Update the tile view with current EDRAM contents.
   // TODO: Heuristics to determine if this copy is avoidable.
+  // TODO(DrChat): Stencil copies.
   VkBufferImageCopy buffer_copy;
   buffer_copy.bufferOffset = edram_base * 5120;
   buffer_copy.bufferImageHeight = 0;
   buffer_copy.bufferRowLength = 0;
   buffer_copy.imageSubresource = {0, 0, 0, 1};
   buffer_copy.imageSubresource.aspectMask =
-      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
-                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
   buffer_copy.imageExtent = {key.tile_width * 80u, key.tile_height * 16u, 1u};
   buffer_copy.imageOffset = {0, 0, 0};
   vkCmdCopyBufferToImage(command_buffer, edram_buffer_, tile_view->image,
@@ -1018,26 +1067,48 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
   assert_true(extents.height <= key.tile_height * 16u);
 
   // Now issue the blit to the destination.
-  // TODO: Resolve to destination if necessary.
-  VkImageBlit image_blit;
-  image_blit.srcSubresource = {0, 0, 0, 1};
-  image_blit.srcSubresource.aspectMask =
-      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
-                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-  image_blit.srcOffsets[0] = {0, 0, 0};
-  image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
-                              int32_t(extents.depth)};
+  if (num_samples == MsaaSamples::k1X) {
+    VkImageBlit image_blit;
+    image_blit.srcSubresource = {0, 0, 0, 1};
+    image_blit.srcSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_blit.srcOffsets[0] = {0, 0, 0};
+    image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
+                                int32_t(extents.depth)};
 
-  image_blit.dstSubresource = {0, 0, 0, 1};
-  image_blit.dstSubresource.aspectMask =
-      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
-                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-  image_blit.dstOffsets[0] = offset;
-  image_blit.dstOffsets[1] = {offset.x + int32_t(extents.width),
-                              offset.y + int32_t(extents.height),
-                              offset.z + int32_t(extents.depth)};
-  vkCmdBlitImage(command_buffer, tile_view->image, VK_IMAGE_LAYOUT_GENERAL,
-                 image, image_layout, 1, &image_blit, filter);
+    image_blit.dstSubresource = {0, 0, 0, 1};
+    image_blit.dstSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_blit.dstOffsets[0] = offset;
+    image_blit.dstOffsets[1] = {offset.x + int32_t(extents.width),
+                                offset.y + int32_t(extents.height),
+                                offset.z + int32_t(extents.depth)};
+    vkCmdBlitImage(command_buffer, tile_view->image, VK_IMAGE_LAYOUT_GENERAL,
+                   image, image_layout, 1, &image_blit, filter);
+  } else {
+    VkImageResolve image_resolve;
+    image_resolve.srcSubresource = {0, 0, 0, 1};
+    image_resolve.srcSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_resolve.srcOffset = {0, 0, 0};
+
+    image_resolve.dstSubresource = {0, 0, 0, 1};
+    image_resolve.dstSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_resolve.dstOffset = offset;
+
+    image_resolve.extent = extents;
+    vkCmdResolveImage(command_buffer, tile_view->image, VK_IMAGE_LAYOUT_GENERAL,
+                      image, image_layout, 1, &image_resolve);
+  }
 
   // Transition the image back into its previous layout.
   image_barrier.srcAccessMask = image_barrier.dstAccessMask;
@@ -1052,13 +1123,14 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
                                   uint32_t edram_base,
                                   ColorRenderTargetFormat format,
                                   uint32_t pitch, uint32_t height,
-                                  float* color) {
+                                  MsaaSamples num_samples, float* color) {
   // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
   // need to detect this and calculate a value.
 
   // Grab a tile view (as we need to clear an image first)
   TileViewKey key;
   key.color_or_depth = 1;
+  key.msaa_samples = static_cast<uint16_t>(num_samples);
   key.edram_format = static_cast<uint16_t>(format);
   key.tile_offset = edram_base;
   key.tile_width = xe::round_up(pitch, 80) / 80;
@@ -1091,13 +1163,15 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                                          uint32_t edram_base,
                                          DepthRenderTargetFormat format,
                                          uint32_t pitch, uint32_t height,
-                                         float depth, uint32_t stencil) {
+                                         MsaaSamples num_samples, float depth,
+                                         uint32_t stencil) {
   // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
   // need to detect this and calculate a value.
 
   // Grab a tile view (as we need to clear an image first)
   TileViewKey key;
   key.color_or_depth = 0;
+  key.msaa_samples = static_cast<uint16_t>(num_samples);
   key.edram_format = static_cast<uint16_t>(format);
   key.tile_offset = edram_base;
   key.tile_width = xe::round_up(pitch, 80) / 80;
@@ -1117,18 +1191,24 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                               VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &range);
 
   // Copy image back into EDRAM buffer
+  // TODO(DrChat): Stencil copies.
   VkBufferImageCopy copy_range;
   copy_range.bufferOffset = edram_base * 5120;
   copy_range.bufferImageHeight = 0;
   copy_range.bufferRowLength = 0;
   copy_range.imageSubresource = {
-      VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 0, 1,
+      VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1,
   };
   copy_range.imageExtent = {key.tile_width * 80u, key.tile_height * 16u, 1u};
   copy_range.imageOffset = {0, 0, 0};
   vkCmdCopyImageToBuffer(command_buffer, tile_view->image,
                          VK_IMAGE_LAYOUT_GENERAL, edram_buffer_, 1,
                          &copy_range);
+}
+
+void RenderCache::FillEDRAM(VkCommandBuffer command_buffer, uint32_t value) {
+  vkCmdFillBuffer(command_buffer, edram_buffer_, 0, kEdramBufferCapacity,
+                  value);
 }
 
 bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {

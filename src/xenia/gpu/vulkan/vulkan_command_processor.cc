@@ -152,19 +152,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
     // TODO(benvanik): move to CP or to host (trace dump, etc).
     // This only needs to surround a vkQueueSubmit.
-    static uint32_t frame = 0;
-    if (device_->is_renderdoc_attached() &&
-        (FLAGS_vulkan_renderdoc_capture_all ||
-         trace_state_ == TraceState::kSingleFrame)) {
-      if (queue_mutex_) {
-        queue_mutex_->lock();
-      }
-
-      device_->BeginRenderDocFrameCapture();
-
-      if (queue_mutex_) {
-        queue_mutex_->unlock();
-      }
+    if (queue_mutex_) {
+      queue_mutex_->lock();
     }
 
     // TODO(DrChat): If setup buffer is empty, don't bother queueing it up.
@@ -182,45 +171,37 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = nullptr;
     if (queue_mutex_) {
-      queue_mutex_->lock();
+      // queue_mutex_->lock();
     }
     status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
     if (queue_mutex_) {
-      queue_mutex_->unlock();
+      // queue_mutex_->unlock();
     }
     CheckResult(status, "vkQueueSubmit");
 
+    // TODO(DrChat): Disable this completely.
     VkFence fences[] = {*current_batch_fence_};
     status = vkWaitForFences(*device_, 1, fences, true, -1);
     CheckResult(status, "vkWaitForFences");
 
-    if (device_->is_renderdoc_attached() &&
-        (FLAGS_vulkan_renderdoc_capture_all ||
-         trace_state_ == TraceState::kSingleFrame)) {
-      if (queue_mutex_) {
-        queue_mutex_->lock();
-      }
-
+    if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
+      capturing_ = false;
 
       // HACK(DrChat): Used b/c I disabled trace saving code in the CP.
       // Remove later.
       if (!trace_writer_.is_open()) {
         trace_state_ = TraceState::kDisabled;
       }
-
-      if (queue_mutex_) {
-        queue_mutex_->unlock();
-      }
+    }
+    if (queue_mutex_) {
+      queue_mutex_->unlock();
     }
 
     // Scavenging.
     current_command_buffer_ = nullptr;
     current_setup_buffer_ = nullptr;
-    while (command_buffer_pool_->has_pending()) {
-      command_buffer_pool_->Scavenge();
-      xe::threading::MaybeYield();
-    }
+    command_buffer_pool_->Scavenge();
 
     texture_cache_->Scavenge();
     current_batch_fence_ = nullptr;
@@ -331,6 +312,22 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
         vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
     CheckResult(status, "vkBeginCommandBuffer");
 
+    static uint32_t frame = 0;
+    if (device_->is_renderdoc_attached() && !capturing_ &&
+        (FLAGS_vulkan_renderdoc_capture_all ||
+         trace_state_ == TraceState::kSingleFrame)) {
+      if (queue_mutex_) {
+        queue_mutex_->lock();
+      }
+
+      capturing_ = true;
+      device_->BeginRenderDocFrameCapture();
+
+      if (queue_mutex_) {
+        queue_mutex_->unlock();
+      }
+    }
+
     started_command_buffer = true;
   }
   auto command_buffer = current_command_buffer_;
@@ -357,6 +354,10 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_render_state_ = render_cache_->BeginRenderPass(
         command_buffer, vertex_shader, pixel_shader);
     if (!current_render_state_) {
+      command_buffer_pool_->CancelBatch();
+      current_command_buffer_ = nullptr;
+      current_setup_buffer_ = nullptr;
+      current_batch_fence_ = nullptr;
       return false;
     }
   }
@@ -378,18 +379,30 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Pass registers to the shaders.
   if (!PopulateConstants(command_buffer, vertex_shader, pixel_shader)) {
     render_cache_->EndRenderPass();
+    command_buffer_pool_->CancelBatch();
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+    current_batch_fence_ = nullptr;
     return false;
   }
 
   // Upload and bind index buffer data (if we have any).
   if (!PopulateIndexBuffer(command_buffer, index_buffer_info)) {
     render_cache_->EndRenderPass();
+    command_buffer_pool_->CancelBatch();
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+    current_batch_fence_ = nullptr;
     return false;
   }
 
   // Upload and bind all vertex buffer data.
   if (!PopulateVertexBuffers(command_buffer, vertex_shader)) {
     render_cache_->EndRenderPass();
+    command_buffer_pool_->CancelBatch();
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+    current_batch_fence_ = nullptr;
     return false;
   }
 
@@ -423,6 +436,10 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
                                                VulkanShader* vertex_shader,
                                                VulkanShader* pixel_shader) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   // Upload the constants the shaders require.
   // These are optional, and if none are defined 0 will be returned.
   auto constant_offsets = buffer_cache_->UploadConstantRegisters(
@@ -742,7 +759,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.size_2d.input_height = dest_block_height;
   tex_info.size_2d.input_pitch = copy_dest_pitch * 4;
   auto texture = texture_cache_->DemandResolveTexture(
-      tex_info, ColorFormatToTextureFormat(copy_dest_format), nullptr, nullptr);
+      tex_info, ColorFormatToTextureFormat(copy_dest_format), nullptr);
   if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
     // Transition the image to a general layout.
     VkImageMemoryBarrier image_barrier;
@@ -810,8 +827,9 @@ bool VulkanCommandProcessor::IssueCopy() {
     case CopyCommand::kConvert:
       render_cache_->BlitToImage(
           command_buffer, edram_base, surface_pitch, resolve_extent.height,
-          texture->image, texture->image_layout, copy_src_select <= 3,
-          src_format, VK_FILTER_LINEAR, resolve_offset, resolve_extent);
+          surface_msaa, texture->image, texture->image_layout,
+          copy_src_select <= 3, src_format, VK_FILTER_LINEAR, resolve_offset,
+          resolve_extent);
       break;
 
     case CopyCommand::kConstantOne:
@@ -839,7 +857,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     // TODO(DrChat): Do we know the surface height at this point?
     render_cache_->ClearEDRAMColor(command_buffer, color_edram_base,
                                    color_format, surface_pitch,
-                                   resolve_extent.height, color);
+                                   resolve_extent.height, surface_msaa, color);
   }
 
   if (depth_clear_enabled) {
@@ -850,7 +868,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     // TODO(DrChat): Do we know the surface height at this point?
     render_cache_->ClearEDRAMDepthStencil(
         command_buffer, depth_edram_base, depth_format, surface_pitch,
-        resolve_extent.height, depth, stencil);
+        resolve_extent.height, surface_msaa, depth, stencil);
   }
 
   return true;

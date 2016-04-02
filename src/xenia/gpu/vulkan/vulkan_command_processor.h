@@ -94,6 +94,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   // Last copy base address, for debugging only.
   uint32_t last_copy_base_ = 0;
+  bool capturing_ = false;
 
   std::unique_ptr<BufferCache> buffer_cache_;
   std::unique_ptr<PipelineCache> pipeline_cache_;
