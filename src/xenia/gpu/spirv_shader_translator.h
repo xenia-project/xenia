@@ -104,7 +104,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Function* translated_main_ = 0;
 
   // Types.
-  spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0;
+  spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_uint_type_ = 0;
   spv::Id vec4_bool_type_ = 0;
@@ -120,7 +120,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
-  spv::Id frag_outputs_ = 0;
+  spv::Id vertex_id_ = 0;
+  spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
   spv::Id tex_[4] = {0};  // Images {1D, 2D, 3D, Cube}
 

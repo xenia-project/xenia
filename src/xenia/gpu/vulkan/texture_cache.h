@@ -101,12 +101,12 @@ class TextureCache {
   // contains this address at an offset.
   Texture* LookupAddress(uint32_t guest_address, uint32_t width,
                          uint32_t height, TextureFormat format,
-                         uint32_t* offset_x = nullptr,
-                         uint32_t* offset_y = nullptr);
+                         VkOffset2D* out_offset = nullptr);
 
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture. texture_info
-  // is not required to be completely filled out, just guest_address and size.
+  // is not required to be completely filled out, just guest_address and all
+  // sizes.
   //
   // It's possible that this may return an image that is larger than the
   // requested size (e.g. resolving into a bigger texture) or an image that
@@ -114,8 +114,7 @@ class TextureCache {
   // At the very least, it's guaranteed that the image will be large enough to
   // hold the requested size.
   Texture* DemandResolveTexture(const TextureInfo& texture_info,
-                                TextureFormat format, uint32_t* out_offset_x,
-                                uint32_t* out_offset_y);
+                                TextureFormat format, VkOffset2D* out_offset);
 
   // Clears all cached content.
   void ClearCache();
@@ -172,11 +171,14 @@ class TextureCache {
   std::vector<std::pair<VkDescriptorSet, std::shared_ptr<ui::vulkan::Fence>>>
       in_flight_sets_;
 
-  // Temporary until we have circular buffers.
   ui::vulkan::CircularBuffer staging_buffer_;
-  std::unordered_map<uint64_t, std::unique_ptr<Texture>> textures_;
-  std::unordered_map<uint64_t, std::unique_ptr<Sampler>> samplers_;
-  std::vector<std::unique_ptr<Texture>> resolve_textures_;
+  std::unordered_map<uint64_t, Texture*> textures_;
+  std::unordered_map<uint64_t, Sampler*> samplers_;
+  std::vector<Texture*> resolve_textures_;
+
+  std::mutex invalidated_textures_mutex_;
+  std::vector<Texture*>* invalidated_textures_;
+  std::vector<Texture*> invalidated_textures_sets_[2];
 
   struct UpdateSetInfo {
     // Bitmap of all 32 fetch constants and whether they have been setup yet.

@@ -55,11 +55,11 @@ void SpirvShaderTranslator::StartTranslation() {
   bool_type_ = b.makeBoolType();
   float_type_ = b.makeFloatType(32);
   int_type_ = b.makeIntType(32);
-  Id uint_type = b.makeUintType(32);
+  uint_type_ = b.makeUintType(32);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
   vec4_float_type_ = b.makeVectorType(float_type_, 4);
-  vec4_uint_type_ = b.makeVectorType(uint_type, 4);
+  vec4_uint_type_ = b.makeVectorType(uint_type_, 4);
   vec4_bool_type_ = b.makeVectorType(bool_type_, 4);
 
   vec4_float_one_ = b.makeCompositeConstant(
@@ -136,7 +136,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
   // Push constants, represented by SpirvPushConstants.
   Id push_constants_type = b.makeStructType(
-      {vec4_float_type_, vec4_float_type_, vec4_float_type_, uint_type},
+      {vec4_float_type_, vec4_float_type_, vec4_float_type_, uint_type_},
       "push_consts_type");
   b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
 
@@ -164,7 +164,6 @@ void SpirvShaderTranslator::StartTranslation() {
                                   push_constants_type, "push_consts");
 
   // Texture bindings
-  Id sampler_t = b.makeSamplerType();
   Id tex_t[] = {b.makeSampledImageType(b.makeImageType(
                     float_type_, spv::Dim::Dim1D, false, false, false, 1,
                     spv::ImageFormat::ImageFormatUnknown)),
@@ -178,23 +177,17 @@ void SpirvShaderTranslator::StartTranslation() {
                     float_type_, spv::Dim::DimCube, false, false, false, 1,
                     spv::ImageFormat::ImageFormatUnknown))};
 
-  Id samplers_a = b.makeArrayType(sampler_t, b.makeUintConstant(32), 0);
   Id tex_a_t[] = {b.makeArrayType(tex_t[0], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[1], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[3], b.makeUintConstant(32), 0)};
 
-  // TODO(DrChat): See texture_cache.cc - do we need separate samplers here?
-  samplers_ = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                               samplers_a, "samplers");
-  b.addDecoration(samplers_, spv::Decoration::DecorationDescriptorSet, 1);
-  b.addDecoration(samplers_, spv::Decoration::DecorationBinding, 0);
   for (int i = 0; i < 4; i++) {
     tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
                                tex_a_t[i],
                                xe::format_string("textures%dD", i + 1).c_str());
     b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
-    b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, i + 1);
+    b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, i);
   }
 
   // Interpolators.
@@ -254,6 +247,20 @@ void SpirvShaderTranslator::StartTranslation() {
                             vec4_float_type_, "gl_Position");
     b.addDecoration(pos_, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInPosition);
+
+    vertex_id_ = b.createVariable(spv::StorageClass::StorageClassInput,
+                                  int_type_, "gl_VertexId");
+    b.addDecoration(vertex_id_, spv::Decoration::DecorationBuiltIn,
+                    spv::BuiltIn::BuiltInVertexId);
+
+    auto vertex_id = b.createLoad(vertex_id_);
+    auto r0_ptr = b.createAccessChain(spv::StorageClass::StorageClassFunction,
+                                      registers_ptr_,
+                                      std::vector<Id>({b.makeUintConstant(0)}));
+    auto r0 = b.createLoad(r0_ptr);
+    r0 = b.createCompositeInsert(vertex_id, r0, vec4_float_type_,
+                                 std::vector<uint32_t>({0}));
+    b.createStore(r0, r0_ptr);
   } else {
     // Pixel inputs from vertex shader.
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassInput,
@@ -267,9 +274,9 @@ void SpirvShaderTranslator::StartTranslation() {
                                      frag_outputs_type, "oC");
     b.addDecoration(frag_outputs_, spv::Decoration::DecorationLocation, 0);
 
-    Id frag_depth = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                     vec4_float_type_, "gl_FragDepth");
-    b.addDecoration(frag_depth, spv::Decoration::DecorationBuiltIn,
+    frag_depth_ = b.createVariable(spv::StorageClass::StorageClassOutput,
+                                   float_type_, "gl_FragDepth");
+    b.addDecoration(frag_depth_, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInFragDepth);
 
     // TODO(benvanik): frag depth, etc.
@@ -388,6 +395,25 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                    {p, p_scaled, 4, 5, 2, 3});
 
     b.createStore(p, pos_);
+  } else {
+    // Alpha test
+    auto alpha_test_x = b.createCompositeExtract(
+        push_consts_, float_type_, std::vector<uint32_t>{2, 0});
+    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, alpha_test_x, b.makeFloatConstant(1.f));
+
+    spv::Builder::If alpha_if(cond, b);
+
+    // TODO(DrChat): Apply alpha test.
+    // if (alpha_func == 0) passes = false;
+    // if (alpha_func == 1 && oC[0].a <  alpha_ref) passes = true;
+    // if (alpha_func == 2 && oC[0].a == alpha_ref) passes = true;
+    // if (alpha_func == 3 && oC[0].a <= alpha_ref) passes = true;
+    // if (alpha_func == 4 && oC[0].a >  alpha_ref) passes = true;
+    // if (alpha_func == 5 && oC[0].a != alpha_ref) passes = true;
+    // if (alpha_func == 6 && oC[0].a >= alpha_ref) passes = true;
+    // if (alpha_func == 7) passes = true;
+
+    alpha_if.makeEndIf();
   }
 
   b.makeReturn(false);
@@ -592,9 +618,9 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       v = b.createLoad(v);
 
       // Bitfield extract the bool constant.
-      v = b.createTriOp(spv::Op::OpBitFieldUExtract, b.makeUintType(32), v,
-                        b.makeUintConstant(instr.bool_constant_index % 32),
-                        b.makeUintConstant(1));
+      v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
+                        b.makeIntConstant(instr.bool_constant_index % 32),
+                        b.makeIntConstant(1));
 
       // Conditional branch
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
@@ -642,17 +668,57 @@ void SpirvShaderTranslator::ProcessAllocInstruction(
 void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   auto& b = *builder_;
+  assert_true(is_vertex_shader());
+  assert_not_zero(vertex_id_);
 
   // TODO: instr.is_predicated
 
   // Operand 0 is the index
   // Operand 1 is the binding
   // TODO: Indexed fetch
+  auto vertex_id = LoadFromOperand(instr.operands[0]);
+  vertex_id = b.createCompositeExtract(vertex_id, float_type_, 0);
+  vertex_id = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, vertex_id);
+  auto shader_vertex_id = b.createLoad(vertex_id_);
+  auto cond =
+      b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_id, shader_vertex_id);
+
+  // Skip loading if it's an indexed fetch.
   auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
                                        [instr.attributes.offset];
   assert_not_zero(vertex_ptr);
-
   auto vertex = b.createLoad(vertex_ptr);
+
+  auto vertex_components = b.getNumComponents(vertex);
+  Id alt_vertex = 0;
+  switch (vertex_components) {
+    case 1:
+      alt_vertex = b.makeFloatConstant(0.f);
+      break;
+    case 2:
+      alt_vertex = b.makeCompositeConstant(
+          vec2_float_type_, std::vector<Id>({b.makeFloatConstant(0.f),
+                                             b.makeFloatConstant(1.f)}));
+      break;
+    case 3:
+      alt_vertex = b.makeCompositeConstant(
+          vec3_float_type_,
+          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
+                           b.makeFloatConstant(1.f)}));
+      break;
+    case 4:
+      alt_vertex = b.makeCompositeConstant(
+          vec4_float_type_,
+          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
+                           b.makeFloatConstant(0.f),
+                           b.makeFloatConstant(1.f)}));
+      break;
+    default:
+      assert_unhandled_case(vertex_components);
+  }
+
+  vertex = b.createTriOp(spv::Op::OpSelect, b.getTypeId(vertex), cond, vertex,
+                         alt_vertex);
   StoreToResult(vertex, instr.result);
 }
 
@@ -1594,15 +1660,15 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
     case InstructionStorageAddressingMode::kAddressAbsolute: {
       // storage_index + a0
       storage_index =
-          b.createBinOp(spv::Op::OpIAdd, b.makeUintType(32), b.createLoad(a0_),
+          b.createBinOp(spv::Op::OpIAdd, uint_type_, b.createLoad(a0_),
                         b.makeUintConstant(storage_base + op.storage_index));
     } break;
     case InstructionStorageAddressingMode::kAddressRelative: {
       // TODO: Based on loop index
       // storage_index + aL.x
-      storage_index = b.createBinOp(
-          spv::Op::OpIAdd, b.makeUintType(32), b.makeUintConstant(0),
-          b.makeUintConstant(storage_base + op.storage_index));
+      storage_index =
+          b.createBinOp(spv::Op::OpIAdd, uint_type_, b.makeUintConstant(0),
+                        b.makeUintConstant(storage_base + op.storage_index));
     } break;
     default:
       assert_always();
@@ -1723,7 +1789,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     case InstructionStorageAddressingMode::kAddressAbsolute: {
       // storage_index + a0
       storage_index =
-          b.createBinOp(spv::Op::OpIAdd, b.makeUintType(32), b.createLoad(a0_),
+          b.createBinOp(spv::Op::OpIAdd, uint_type_, b.createLoad(a0_),
                         b.makeUintConstant(result.storage_index));
     } break;
     case InstructionStorageAddressingMode::kAddressRelative: {
@@ -1776,7 +1842,11 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       break;
     case InstructionStorageTarget::kDepth:
       assert_true(is_pixel_shader());
-      // TODO(benvanik): result.storage_index
+      storage_pointer = frag_depth_;
+      storage_class = spv::StorageClass::StorageClassOutput;
+      storage_type = float_type_;
+      storage_offsets.push_back(0);
+      storage_array = false;
       break;
     case InstructionStorageTarget::kNone:
       assert_unhandled_case(result.storage_target);

@@ -31,6 +31,81 @@ struct TextureConfig {
   VkFormat host_format;
 };
 
+static const TextureConfig texture_configs[64] = {
+    {TextureFormat::k_1_REVERSE, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_1, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_8, VK_FORMAT_R8_UNORM},
+    {TextureFormat::k_1_5_5_5, VK_FORMAT_R5G5B5A1_UNORM_PACK16},
+    {TextureFormat::k_5_6_5, VK_FORMAT_R5G6B5_UNORM_PACK16},
+    {TextureFormat::k_6_5_5, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_8_8_8_8, VK_FORMAT_R8G8B8A8_UNORM},
+    {TextureFormat::k_2_10_10_10, VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+    {TextureFormat::k_8_A, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_8_B, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_8_8, VK_FORMAT_R8G8_UNORM},
+    {TextureFormat::k_Cr_Y1_Cb_Y0, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_Y1_Cr_Y0_Cb, VK_FORMAT_UNDEFINED},
+    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_8_8_8_8_A, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_4_4_4_4, VK_FORMAT_R4G4B4A4_UNORM_PACK16},
+    {TextureFormat::k_10_11_11, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    {TextureFormat::k_11_11_10, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    {TextureFormat::k_DXT1, VK_FORMAT_BC1_RGBA_SRGB_BLOCK},          // ?
+    {TextureFormat::k_DXT2_3, VK_FORMAT_BC3_SRGB_BLOCK},             // ?
+    {TextureFormat::k_DXT4_5, VK_FORMAT_BC5_UNORM_BLOCK},            // ?
+    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},
+    {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ?
+    {TextureFormat::k_16, VK_FORMAT_R16_UNORM},
+    {TextureFormat::k_16_16, VK_FORMAT_R16G16_UNORM},
+    {TextureFormat::k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM},
+    {TextureFormat::k_16_EXPAND, VK_FORMAT_R16_UNORM},                    // ?
+    {TextureFormat::k_16_16_EXPAND, VK_FORMAT_R16G16_UNORM},              // ?
+    {TextureFormat::k_16_16_16_16_EXPAND, VK_FORMAT_R16G16B16A16_UNORM},  // ?
+    {TextureFormat::k_16_FLOAT, VK_FORMAT_R16_SFLOAT},
+    {TextureFormat::k_16_16_FLOAT, VK_FORMAT_R16G16_SFLOAT},
+    {TextureFormat::k_16_16_16_16_FLOAT, VK_FORMAT_R16G16B16A16_SFLOAT},
+    {TextureFormat::k_32, VK_FORMAT_R32_SINT},
+    {TextureFormat::k_32_32, VK_FORMAT_R32G32_SINT},
+    {TextureFormat::k_32_32_32_32, VK_FORMAT_R32G32B32A32_SINT},
+    {TextureFormat::k_32_FLOAT, VK_FORMAT_R32_SFLOAT},
+    {TextureFormat::k_32_32_FLOAT, VK_FORMAT_R32G32_SFLOAT},
+    {TextureFormat::k_32_32_32_32_FLOAT, VK_FORMAT_R32G32B32A32_SFLOAT},
+    {TextureFormat::k_32_AS_8, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_32_AS_8_8, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_16_MPEG, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_16_16_MPEG, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_8_INTERLACED, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_32_AS_8_INTERLACED, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_32_AS_8_8_INTERLACED, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_16_INTERLACED, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_16_MPEG_INTERLACED, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_16_16_MPEG_INTERLACED, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_DXN, VK_FORMAT_UNDEFINED /* GL_COMPRESSED_RG_RGTC2 */},
+    {TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM},
+    {TextureFormat::k_DXT1_AS_16_16_16_16,
+     VK_FORMAT_UNDEFINED /* GL_COMPRESSED_RGB_S3TC_DXT1_EXT */},
+    {TextureFormat::k_DXT2_3_AS_16_16_16_16,
+     VK_FORMAT_UNDEFINED /* GL_COMPRESSED_RGBA_S3TC_DXT3_EXT */},
+    {TextureFormat::k_DXT4_5_AS_16_16_16_16,
+     VK_FORMAT_UNDEFINED /* GL_COMPRESSED_RGBA_S3TC_DXT5_EXT */},
+    {TextureFormat::k_2_10_10_10_AS_16_16_16_16,
+     VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+    {TextureFormat::k_10_11_11_AS_16_16_16_16,
+     VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    {TextureFormat::k_11_11_10_AS_16_16_16_16,
+     VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    {TextureFormat::k_32_32_32_FLOAT, VK_FORMAT_R32G32B32_SFLOAT},
+    {TextureFormat::k_DXT3A,
+     VK_FORMAT_UNDEFINED /* GL_COMPRESSED_RGBA_S3TC_DXT3_EXT */},
+    {TextureFormat::k_DXT5A,
+     VK_FORMAT_UNDEFINED /* GL_COMPRESSED_RGBA_S3TC_DXT5_EXT */},
+    {TextureFormat::k_CTX1, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_DXT3A_AS_1_1_1_1, VK_FORMAT_UNDEFINED},
+    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
+    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
+};
+
 TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                            TraceWriter* trace_writer,
                            ui::vulkan::VulkanDevice* device)
@@ -46,12 +121,10 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   descriptor_pool_info.flags =
       VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
   descriptor_pool_info.maxSets = 4096;
-  VkDescriptorPoolSize pool_sizes[2];
-  pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-  pool_sizes[0].descriptorCount = 32;
-  pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  pool_sizes[1].descriptorCount = 32;
-  descriptor_pool_info.poolSizeCount = 2;
+  VkDescriptorPoolSize pool_sizes[1];
+  pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  pool_sizes[0].descriptorCount = 4096;
+  descriptor_pool_info.poolSizeCount = 1;
   descriptor_pool_info.pPoolSizes = pool_sizes;
   auto err = vkCreateDescriptorPool(*device_, &descriptor_pool_info, nullptr,
                                     &descriptor_pool_);
@@ -59,17 +132,10 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
 
   // Create the descriptor set layout used for rendering.
   // We always have the same number of samplers but only some are used.
-  VkDescriptorSetLayoutBinding bindings[5];
-  auto& sampler_binding = bindings[0];
-  sampler_binding.binding = 0;
-  sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-  sampler_binding.descriptorCount = kMaxTextureSamplers;
-  sampler_binding.stageFlags =
-      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-  sampler_binding.pImmutableSamplers = nullptr;
+  VkDescriptorSetLayoutBinding bindings[4];
   for (int i = 0; i < 4; ++i) {
-    auto& texture_binding = bindings[1 + i];
-    texture_binding.binding = 1 + i;
+    auto& texture_binding = bindings[i];
+    texture_binding.binding = i;
     texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     texture_binding.descriptorCount = kMaxTextureSamplers;
     texture_binding.stageFlags =
@@ -103,6 +169,10 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
           ((y % 32 < 16) ^ (x % 32 >= 16)) ? 0xFF0000FF : 0xFFFFFFFF;
     }
   }
+
+  invalidated_textures_sets_[0].reserve(64);
+  invalidated_textures_sets_[1].reserve(64);
+  invalidated_textures_ = &invalidated_textures_sets_[0];
 }
 
 TextureCache::~TextureCache() {
@@ -135,8 +205,27 @@ TextureCache::Texture* TextureCache::AllocateTexture(
       return nullptr;
   }
 
-  // TODO: Format
-  image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  VkFormat format = VK_FORMAT_UNDEFINED;
+  if (texture_info.format_info) {
+    auto& config = texture_configs[int(texture_info.format_info->format)];
+    format = config.host_format != VK_FORMAT_UNDEFINED
+                 ? config.host_format
+                 : VK_FORMAT_R8G8B8A8_UNORM;
+  } else {
+    format = VK_FORMAT_R8G8B8A8_UNORM;
+  }
+
+  VkFormatProperties props;
+  uint32_t required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                            VK_FORMAT_FEATURE_BLIT_DST_BIT |
+                            VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+  vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
+  if ((props.optimalTilingFeatures & required_flags) != required_flags) {
+    // Texture needs conversion on upload to a native format.
+    // assert_always();
+  }
+
+  image_info.format = format;
   image_info.extent = {texture_info.width + 1, texture_info.height + 1,
                        texture_info.depth + 1};
   image_info.mipLevels = 1;
@@ -212,17 +301,24 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 }
 
 bool TextureCache::FreeTexture(Texture* texture) {
-  // TODO(DrChat)
-  return false;
+  for (auto it = texture->views.begin(); it != texture->views.end();) {
+    vkDestroyImageView(*device_, (*it)->view, nullptr);
+    it = texture->views.erase(it);
+  }
+
+  vkDestroyImage(*device_, texture->image, nullptr);
+  vkFreeMemory(*device_, texture->image_memory, nullptr);
+  delete texture;
+  return true;
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
     const TextureInfo& texture_info, TextureFormat format,
-    uint32_t* out_offset_x, uint32_t* out_offset_y) {
+    VkOffset2D* out_offset) {
   // Check to see if we've already used a texture at this location.
   auto texture = LookupAddress(
       texture_info.guest_address, texture_info.size_2d.block_width,
-      texture_info.size_2d.block_height, format, out_offset_x, out_offset_y);
+      texture_info.size_2d.block_height, format, out_offset);
   if (texture) {
     return texture;
   }
@@ -230,7 +326,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   // No texture at this location. Make a new one.
   texture = AllocateTexture(texture_info);
   texture->is_full_texture = false;
-  resolve_textures_.push_back(std::unique_ptr<Texture>(texture));
+  resolve_textures_.push_back(texture);
   return texture;
 }
 
@@ -241,14 +337,14 @@ TextureCache::Texture* TextureCache::Demand(
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
     if (it->second->texture_info == texture_info) {
-      return it->second.get();
+      return it->second;
     }
   }
 
   // Check resolve textures.
   for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
        ++it) {
-    auto texture = (*it).get();
+    auto texture = (*it);
     if (texture_info.guest_address == texture->texture_info.guest_address &&
         texture_info.size_2d.logical_width ==
             texture->texture_info.size_2d.logical_width &&
@@ -259,9 +355,9 @@ TextureCache::Texture* TextureCache::Demand(
       // Upgrade this texture to a full texture.
       texture->is_full_texture = true;
       texture->texture_info = texture_info;
-      textures_[texture_hash] = std::move(*it);
+      textures_[texture_hash] = *it;
       it = resolve_textures_.erase(it);
-      return textures_[texture_hash].get();
+      return textures_[texture_hash];
     }
   }
 
@@ -290,14 +386,33 @@ TextureCache::Texture* TextureCache::Demand(
       break;
   }
 
-  // Okay. Now that the texture is uploaded from system memory, put a writewatch
-  // on it to tell us if it's been modified from the guest.
-
   if (!uploaded) {
     // TODO: Destroy the texture.
     assert_always();
     return nullptr;
   }
+
+  // Copy in overlapping resolve textures.
+  /*
+  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
+       ++it) {
+    auto texture = (*it);
+    if (texture_info.guest_address == texture->texture_info.guest_address &&
+        texture_info.size_2d.logical_width ==
+            texture->texture_info.size_2d.logical_width &&
+        texture_info.size_2d.logical_height ==
+            texture->texture_info.size_2d.logical_height) {
+      // Exact match.
+      // TODO: Lazy match (at an offset)
+      // Upgrade this texture to a full texture.
+      texture->is_full_texture = true;
+      texture->texture_info = texture_info;
+      textures_[texture_hash] = *it;
+      it = resolve_textures_.erase(it);
+      return textures_[texture_hash];
+    }
+  }
+  */
 
   // Though we didn't find an exact match, that doesn't mean we're out of the
   // woods yet. This texture could either be a portion of another texture or
@@ -306,8 +421,26 @@ TextureCache::Texture* TextureCache::Demand(
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
   }
 
-  textures_[texture_hash] = std::unique_ptr<Texture>(texture);
+  // Okay. Now that the texture is uploaded from system memory, put a writewatch
+  // on it to tell us if it's been modified from the guest.
+  texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
+      texture_info.guest_address, texture_info.input_length,
+      cpu::MMIOHandler::kWatchWrite,
+      [](void* context_ptr, void* data_ptr, uint32_t address) {
+        auto self = reinterpret_cast<TextureCache*>(context_ptr);
+        auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
+        // Clear watch handle first so we don't redundantly
+        // remove.
+        touched_texture->access_watch_handle = 0;
+        touched_texture->pending_invalidation = true;
+        // Add to pending list so Scavenge will clean it up.
+        self->invalidated_textures_mutex_.lock();
+        self->invalidated_textures_->push_back(touched_texture);
+        self->invalidated_textures_mutex_.unlock();
+      },
+      this, texture);
 
+  textures_[texture_hash] = texture;
   return texture;
 }
 
@@ -346,7 +479,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   VkComponentSwizzle swiz_component_map[] = {
       VK_COMPONENT_SWIZZLE_R,        VK_COMPONENT_SWIZZLE_G,
       VK_COMPONENT_SWIZZLE_B,        VK_COMPONENT_SWIZZLE_A,
-      VK_COMPONENT_SWIZZLE_ONE,      VK_COMPONENT_SWIZZLE_ZERO,
+      VK_COMPONENT_SWIZZLE_ZERO,     VK_COMPONENT_SWIZZLE_ONE,
       VK_COMPONENT_SWIZZLE_IDENTITY,
   };
 
@@ -373,11 +506,15 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
 }
 
 TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto sampler_hash = sampler_info.hash();
   for (auto it = samplers_.find(sampler_hash); it != samplers_.end(); ++it) {
     if (it->second->sampler_info == sampler_info) {
       // Found a compatible sampler.
-      return it->second.get();
+      return it->second;
     }
   }
 
@@ -389,9 +526,54 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   sampler_create_info.pNext = nullptr;
   sampler_create_info.flags = 0;
-  sampler_create_info.minFilter = VK_FILTER_NEAREST;
-  sampler_create_info.magFilter = VK_FILTER_NEAREST;
   sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+
+  // Texture level filtering.
+  VkSamplerMipmapMode mip_filter;
+  switch (sampler_info.mip_filter) {
+    case TextureFilter::kBaseMap:
+      // TODO(DrChat): ?
+      mip_filter = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+      break;
+    case TextureFilter::kPoint:
+      mip_filter = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+      break;
+    case TextureFilter::kLinear:
+      mip_filter = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+      break;
+    default:
+      assert_unhandled_case(sampler_info.mip_filter);
+      return nullptr;
+  }
+
+  VkFilter min_filter;
+  switch (sampler_info.min_filter) {
+    case TextureFilter::kPoint:
+      min_filter = VK_FILTER_NEAREST;
+      break;
+    case TextureFilter::kLinear:
+      min_filter = VK_FILTER_LINEAR;
+      break;
+    default:
+      assert_unhandled_case(sampler_info.min_filter);
+      return nullptr;
+  }
+  VkFilter mag_filter;
+  switch (sampler_info.mag_filter) {
+    case TextureFilter::kPoint:
+      mag_filter = VK_FILTER_NEAREST;
+      break;
+    case TextureFilter::kLinear:
+      mag_filter = VK_FILTER_LINEAR;
+      break;
+    default:
+      assert_unhandled_case(mag_filter);
+      return nullptr;
+  }
+
+  sampler_create_info.minFilter = min_filter;
+  sampler_create_info.magFilter = mag_filter;
+  sampler_create_info.mipmapMode = mip_filter;
 
   // FIXME: Both halfway / mirror clamp to border aren't mapped properly.
   VkSamplerAddressMode address_mode_map[] = {
@@ -431,37 +613,46 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   auto sampler = new Sampler();
   sampler->sampler = vk_sampler;
   sampler->sampler_info = sampler_info;
-  samplers_[sampler_hash] = std::unique_ptr<Sampler>(sampler);
+  samplers_[sampler_hash] = sampler;
 
   return sampler;
 }
 
-TextureCache::Texture* TextureCache::LookupAddress(
-    uint32_t guest_address, uint32_t width, uint32_t height,
-    TextureFormat format, uint32_t* offset_x, uint32_t* offset_y) {
+TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
+                                                   uint32_t width,
+                                                   uint32_t height,
+                                                   TextureFormat format,
+                                                   VkOffset2D* out_offset) {
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
     const auto& texture_info = it->second->texture_info;
     if (guest_address >= texture_info.guest_address &&
         guest_address <
             texture_info.guest_address + texture_info.input_length &&
-        offset_x && offset_y) {
+        texture_info.size_2d.input_width >= width &&
+        texture_info.size_2d.input_height >= height && out_offset) {
       auto offset_bytes = guest_address - texture_info.guest_address;
 
       if (texture_info.dimension == Dimension::k2D) {
-        *offset_y = offset_bytes / texture_info.size_2d.input_pitch;
+        out_offset->x = 0;
+        out_offset->y = offset_bytes / texture_info.size_2d.input_pitch;
         if (offset_bytes % texture_info.size_2d.input_pitch != 0) {
           // TODO: offset_x
         }
       }
 
-      return it->second.get();
+      return it->second;
     }
 
     if (texture_info.guest_address == guest_address &&
         texture_info.dimension == Dimension::k2D &&
         texture_info.size_2d.input_width == width &&
         texture_info.size_2d.input_height == height) {
-      return it->second.get();
+      if (out_offset) {
+        out_offset->x = 0;
+        out_offset->y = 0;
+      }
+
+      return it->second;
     }
   }
 
@@ -469,27 +660,16 @@ TextureCache::Texture* TextureCache::LookupAddress(
   for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
        ++it) {
     const auto& texture_info = (*it)->texture_info;
-    if (guest_address >= texture_info.guest_address &&
-        guest_address <
-            texture_info.guest_address + texture_info.input_length &&
-        offset_x && offset_y) {
-      auto offset_bytes = guest_address - texture_info.guest_address;
-
-      if (texture_info.dimension == Dimension::k2D) {
-        *offset_y = offset_bytes / texture_info.size_2d.input_pitch;
-        if (offset_bytes % texture_info.size_2d.input_pitch != 0) {
-          // TODO: offset_x
-        }
-      }
-
-      return (*it).get();
-    }
-
     if (texture_info.guest_address == guest_address &&
         texture_info.dimension == Dimension::k2D &&
         texture_info.size_2d.input_width == width &&
         texture_info.size_2d.input_height == height) {
-      return (*it).get();
+      if (out_offset) {
+        out_offset->x = 0;
+        out_offset->y = 0;
+      }
+
+      return (*it);
     }
   }
 
@@ -531,19 +711,74 @@ bool TextureCache::UploadTexture2D(
   }
 
   // Grab some temporary memory for staging.
-  auto alloc = staging_buffer_.Acquire(src.input_length, completion_fence);
+  size_t unpack_length = src.output_length;
+  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
   assert_not_null(alloc);
 
-  // TODO: Support these cases.
-  // assert_false(src.is_tiled);
+  // TODO: Support compression.
   // assert_false(src.is_compressed());
 
   // Upload texture into GPU memory.
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
   // on the CPU.
-  auto guest_ptr = memory_->TranslatePhysical(src.guest_address);
-  TextureSwap(src.endianness, alloc->host_ptr, guest_ptr, src.input_length);
+  void* host_address = memory_->TranslatePhysical(src.guest_address);
+  if (!src.is_tiled) {
+    if (src.size_2d.input_pitch == src.size_2d.output_pitch) {
+      // Fast path copy entire image.
+      TextureSwap(src.endianness, alloc->host_ptr, host_address, unpack_length);
+    } else {
+      // Slow path copy row-by-row because strides differ.
+      // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
+      // this exact thing under the covers, so we just always do it here.
+      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+      uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr);
+      uint32_t pitch =
+          std::min(src.size_2d.input_pitch, src.size_2d.output_pitch);
+      for (uint32_t y = 0;
+           y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
+           y++) {
+        TextureSwap(src.endianness, dest, src_mem, pitch);
+        src_mem += src.size_2d.input_pitch;
+        dest += src.size_2d.output_pitch;
+      }
+    }
+  } else {
+    // Untile image.
+    // We could do this in a shader to speed things up, as this is pretty slow.
+
+    // TODO(benvanik): optimize this inner loop (or work by tiles).
+    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+    uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr);
+    uint32_t bytes_per_block = src.format_info->block_width *
+                               src.format_info->block_height *
+                               src.format_info->bits_per_pixel / 8;
+
+    // Tiled textures can be packed; get the offset into the packed texture.
+    uint32_t offset_x;
+    uint32_t offset_y;
+    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+
+    auto bpp = (bytes_per_block >> 2) +
+               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+    for (uint32_t y = 0, output_base_offset = 0;
+         y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
+         y++, output_base_offset += src.size_2d.output_pitch) {
+      auto input_base_offset = TextureInfo::TiledOffset2DOuter(
+          offset_y + y,
+          (src.size_2d.input_width / src.format_info->block_width), bpp);
+      for (uint32_t x = 0, output_offset = output_base_offset;
+           x < src.size_2d.block_width; x++, output_offset += bytes_per_block) {
+        auto input_offset =
+            TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
+                                            input_base_offset) >>
+            bpp;
+        TextureSwap(src.endianness, dest + output_offset,
+                    src_mem + input_offset * bytes_per_block, bytes_per_block);
+      }
+    }
+  }
+
   staging_buffer_.Flush(alloc);
 
   // Insert a memory barrier into the command buffer to ensure the upload has
@@ -580,21 +815,15 @@ bool TextureCache::UploadTexture2D(
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
 
-  assert_true(src.size_2d.input_width >=
-              dest->texture_info.size_2d.output_width);
-  assert_true(src.size_2d.input_height >=
-              dest->texture_info.size_2d.output_height);
-
-  // For now, just transfer the grid we uploaded earlier into the texture.
+  // Now move the converted texture into the destination.
   VkBufferImageCopy copy_region;
   copy_region.bufferOffset = alloc->offset;
-  copy_region.bufferRowLength = src.width + 1;
-  copy_region.bufferImageHeight = src.height + 1;
+  copy_region.bufferRowLength = src.size_2d.output_width;
+  copy_region.bufferImageHeight = src.size_2d.output_height;
   copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   copy_region.imageOffset = {0, 0, 0};
-  copy_region.imageExtent = {dest->texture_info.width + 1,
-                             dest->texture_info.height + 1,
-                             dest->texture_info.depth + 1};
+  copy_region.imageExtent = {src.size_2d.output_width,
+                             src.size_2d.output_height, 1};
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                          &copy_region);
@@ -659,27 +888,13 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
   VkWriteDescriptorSet descriptor_writes[4];
   std::memset(descriptor_writes, 0, sizeof(descriptor_writes));
   uint32_t descriptor_write_count = 0;
-  /*
-  // TODO(DrChat): Do we really need to separate samplers and images here?
-  if (update_set_info->sampler_write_count) {
-    auto& sampler_write = descriptor_writes[descriptor_write_count++];
-    sampler_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    sampler_write.pNext = nullptr;
-    sampler_write.dstSet = descriptor_set;
-    sampler_write.dstBinding = 0;
-    sampler_write.dstArrayElement = 0;
-    sampler_write.descriptorCount = update_set_info->sampler_write_count;
-    sampler_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-    sampler_write.pImageInfo = update_set_info->sampler_infos;
-  }
-  */
   // FIXME: These are not be lined up properly with tf binding points!!!!!
   if (update_set_info->image_1d_write_count) {
     auto& image_write = descriptor_writes[descriptor_write_count++];
     image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     image_write.pNext = nullptr;
     image_write.dstSet = descriptor_set;
-    image_write.dstBinding = 1;
+    image_write.dstBinding = 0;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_1d_write_count;
     image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -690,7 +905,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     image_write.pNext = nullptr;
     image_write.dstSet = descriptor_set;
-    image_write.dstBinding = 2;
+    image_write.dstBinding = 1;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_2d_write_count;
     image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -701,7 +916,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     image_write.pNext = nullptr;
     image_write.dstSet = descriptor_set;
-    image_write.dstBinding = 3;
+    image_write.dstBinding = 2;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_3d_write_count;
     image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -712,7 +927,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     image_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     image_write.pNext = nullptr;
     image_write.dstSet = descriptor_set;
-    image_write.dstBinding = 4;
+    image_write.dstBinding = 3;
     image_write.dstArrayElement = 0;
     image_write.descriptorCount = update_set_info->image_cube_write_count;
     image_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -814,7 +1029,7 @@ bool TextureCache::SetupTextureBinding(
       return false;
   }
   image_write->imageView = view->view;
-  image_write->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  image_write->imageLayout = texture->image_layout;
   image_write->sampler = sampler->sampler;
 
   return true;
@@ -838,6 +1053,25 @@ void TextureCache::Scavenge() {
   }
 
   staging_buffer_.Scavenge();
+
+  // Clean up any invalidated textures.
+  invalidated_textures_mutex_.lock();
+  std::vector<Texture*>& invalidated_textures = *invalidated_textures_;
+  if (invalidated_textures_ == &invalidated_textures_sets_[0]) {
+    invalidated_textures_ = &invalidated_textures_sets_[1];
+  } else {
+    invalidated_textures_ = &invalidated_textures_sets_[0];
+  }
+  invalidated_textures_mutex_.unlock();
+  if (invalidated_textures.empty()) {
+    return;
+  }
+
+  for (auto& texture : invalidated_textures) {
+    textures_.erase(texture->texture_info.hash());
+    FreeTexture(texture);
+  }
+  invalidated_textures.clear();
 }
 
 }  // namespace vulkan
