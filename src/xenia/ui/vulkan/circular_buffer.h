@@ -10,7 +10,7 @@
 #ifndef XENIA_UI_VULKAN_CIRCULAR_BUFFER_H_
 #define XENIA_UI_VULKAN_CIRCULAR_BUFFER_H_
 
-#include <unordered_map>
+#include <list>
 
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
@@ -77,8 +77,7 @@ class CircularBuffer {
   VkDeviceSize gpu_base_ = 0;
   uint8_t* host_base_ = nullptr;
 
-  std::unordered_map<uint64_t, uintptr_t> allocation_cache_;
-  std::vector<Allocation*> allocations_;
+  std::list<Allocation*> allocations_;
 };
 
 }  // namespace vulkan

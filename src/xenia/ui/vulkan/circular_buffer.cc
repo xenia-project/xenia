@@ -211,10 +211,10 @@ void CircularBuffer::Flush(Allocation* allocation) {
 }
 
 void CircularBuffer::Clear() {
-  for (auto it = allocations_.begin(); it != allocations_.end();) {
-    delete *it;
-    it = allocations_.erase(it);
+  for (auto alloc : allocations_) {
+    delete alloc;
   }
+  allocations_.clear();
 
   write_head_ = read_head_ = 0;
 }
