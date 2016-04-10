@@ -46,6 +46,7 @@ class CircularBuffer {
                   VkDeviceSize alignment = 256);
   void Shutdown();
 
+  VkDeviceSize alignment() const { return alignment_; }
   VkDeviceSize capacity() const { return capacity_; }
   VkBuffer gpu_buffer() const { return gpu_buffer_; }
   VkDeviceMemory gpu_memory() const { return gpu_memory_; }

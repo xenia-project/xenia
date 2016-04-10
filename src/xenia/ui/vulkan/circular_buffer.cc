@@ -134,12 +134,13 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
   }
 
   VkDeviceSize aligned_length = xe::round_up(length, alignment_);
+  assert_true(write_head_ % alignment_ == 0);
   if (allocations_.empty()) {
     // Entire buffer available.
     assert(read_head_ == write_head_);
     assert(capacity_ > aligned_length);
 
-    write_head_ = length;
+    write_head_ = aligned_length;
 
     auto alloc = new Allocation();
     alloc->host_ptr = host_base_ + 0;
