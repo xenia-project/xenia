@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2016 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -85,16 +85,14 @@ void SpirvShaderTranslator::StartTranslation() {
                          "ps");
   pv_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                          vec4_float_type_, "pv");
-  a0_ = b.createVariable(spv::StorageClass::StorageClassFunction,
-                         b.makeUintType(32), "a0");
+  a0_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
+                         "a0");
 
   // Uniform constants.
   Id float_consts_type =
       b.makeArrayType(vec4_float_type_, b.makeUintConstant(512), 1);
-  Id loop_consts_type =
-      b.makeArrayType(b.makeUintType(32), b.makeUintConstant(32), 1);
-  Id bool_consts_type =
-      b.makeArrayType(b.makeUintType(32), b.makeUintConstant(8), 1);
+  Id loop_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(32), 1);
+  Id bool_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(8), 1);
 
   Id consts_struct_type = b.makeStructType(
       {float_consts_type, loop_consts_type, bool_consts_type}, "consts_type");
@@ -242,6 +240,13 @@ void SpirvShaderTranslator::StartTranslation() {
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                                       interpolators_type, "interpolators");
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
+    for (uint32_t i = 0; i < 16; i++) {
+      // Zero interpolators.
+      auto ptr = b.createAccessChain(spv::StorageClass::StorageClassOutput,
+                                     interpolators_,
+                                     std::vector<Id>({b.makeUintConstant(i)}));
+      b.createStore(vec4_float_zero_, ptr);
+    }
 
     pos_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                             vec4_float_type_, "gl_Position");
@@ -338,6 +343,9 @@ void SpirvShaderTranslator::StartTranslation() {
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   auto& b = *builder_;
 
+  assert_false(open_predicated_block_);
+  auto block = &b.makeNewBlock();
+  b.createBranch(block);
   b.makeReturn(false);
 
   // main() entry point.
@@ -397,9 +405,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     b.createStore(p, pos_);
   } else {
     // Alpha test
-    auto alpha_test_x = b.createCompositeExtract(
-        push_consts_, float_type_, std::vector<uint32_t>{2, 0});
-    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, alpha_test_x, b.makeFloatConstant(1.f));
+    auto alpha_test_x = b.createCompositeExtract(push_consts_, float_type_,
+                                                 std::vector<uint32_t>{2, 0});
+    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, alpha_test_x,
+                              b.makeFloatConstant(1.f));
 
     spv::Builder::If alpha_if(cond, b);
 
@@ -433,15 +442,25 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 }
 
 void SpirvShaderTranslator::PostTranslation(Shader* shader) {
+  // Validation.
+  // TODO(DrChat): Only do this if a flag is set (this is pretty slow).
+  auto validation = validator_.Validate(
+      reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
+      shader->translated_binary().size() / 4);
+  if (validation->has_error()) {
+    XELOGE("SPIR-V Shader Validation failed! Error: %s",
+           validation->error_string());
+  }
+
   // TODO(benvanik): only if needed? could be slowish.
   auto disasm = disassembler_.Disassemble(
       reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
       shader->translated_binary().size() / 4);
   if (disasm->has_error()) {
     XELOGE("Failed to disassemble SPIRV - invalid?");
-    return;
+  } else {
+    set_host_disassembly(shader, disasm->to_string());
   }
-  set_host_disassembly(shader, disasm->to_string());
 }
 
 void SpirvShaderTranslator::PreProcessControlFlowInstruction(
@@ -475,12 +494,17 @@ void SpirvShaderTranslator::ProcessControlFlowInstructionEnd(
 void SpirvShaderTranslator::ProcessControlFlowNopInstruction() {
   auto& b = *builder_;
 
-  b.createNoResultOp(spv::Op::OpNop);
+  // b.createNoResultOp(spv::Op::OpNop);
 }
 
 void SpirvShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
   auto& b = *builder_;
+
+  assert_false(open_predicated_block_);
+  open_predicated_block_ = false;
+  predicated_block_cond_ = false;
+  predicated_block_end_ = nullptr;
 
   // Head has the logic to check if the body should execute.
   auto head = cf_blocks_[instr.dword_index];
@@ -500,7 +524,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       v = b.createLoad(v);
 
       // Bitfield extract the bool constant.
-      v = b.createTriOp(spv::Op::OpBitFieldUExtract, b.makeUintType(32), v,
+      v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
                         b.makeUintConstant(instr.bool_constant_index % 32),
                         b.makeUintConstant(1));
 
@@ -519,6 +543,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
           b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
                         b.makeBoolConstant(instr.condition));
       b.createConditionalBranch(cond, body, cf_blocks_[instr.dword_index + 1]);
+
     } break;
   }
   b.setBuildPoint(body);
@@ -527,6 +552,14 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
 void SpirvShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
   auto& b = *builder_;
+
+  if (open_predicated_block_) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
+  }
 
   if (instr.is_end) {
     b.makeReturn(false);
@@ -671,7 +704,30 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   assert_true(is_vertex_shader());
   assert_not_zero(vertex_id_);
 
-  // TODO: instr.is_predicated
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
+  }
+
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
 
   // Operand 0 is the index
   // Operand 1 is the binding
@@ -726,7 +782,31 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   auto& b = *builder_;
 
-  // TODO: instr.is_predicated
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
+  }
+
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
+
   // Operand 0 is the offset
   // Operand 1 is the sampler index
   Id dest = 0;
@@ -804,13 +884,32 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     sources[i] = LoadFromOperand(instr.operands[i]);
   }
 
-  Id pred_cond = 0;
-  if (instr.is_predicated) {
-    pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
+
+  bool close_predicated_block = false;
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd: {
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
@@ -863,8 +962,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto src1_xy = b.createOp(spv::Op::OpVectorShuffle, vec2_float_type_,
                                 {sources[1], sources[1], 0, 1});
       auto src2_x = b.createCompositeExtract(sources[2], float_type_, 0);
-      auto dot = b.createBinOp(spv::Op::OpDot, float_type_, src0_xy, src1_xy);
-      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, dot, src2_x);
+      dest = b.createBinOp(spv::Op::OpDot, float_type_, src0_xy, src1_xy);
+      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, dest, src2_x);
       dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
     } break;
 
@@ -873,12 +972,13 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
                                  {sources[0], sources[0], 0, 1, 2});
       auto src1_xyz = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
                                  {sources[1], sources[1], 0, 1, 2});
-      auto dot = b.createBinOp(spv::Op::OpDot, float_type_, src0_xyz, src1_xyz);
-      dest = b.smearScalar(spv::NoPrecision, dot, vec4_float_type_);
+      dest = b.createBinOp(spv::Op::OpDot, float_type_, src0_xyz, src1_xyz);
+      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
     } break;
 
     case AluVectorOpcode::kDp4: {
       dest = b.createBinOp(spv::Op::OpDot, float_type_, sources[0], sources[1]);
+      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
     } break;
 
     case AluVectorOpcode::kFloor: {
@@ -899,10 +999,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_,
                                 sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -918,10 +1014,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual,
                                 vec4_bool_type_, sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -937,10 +1029,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
                                 sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -956,10 +1044,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
                                 sources[0], sources[1]);
       cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1053,6 +1137,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
       // p0
       b.createStore(c_and_w, p0_);
+      close_predicated_block = true;
 
       // dest
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
@@ -1076,6 +1161,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
       // p0
       b.createStore(c_and_w, p0_);
+      close_predicated_block = true;
 
       // dest
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
@@ -1099,6 +1185,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
       // p0
       b.createStore(c_and_w, p0_);
+      close_predicated_block = true;
 
       // dest
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
@@ -1122,6 +1209,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
       // p0
       b.createStore(c_and_w, p0_);
+      close_predicated_block = true;
 
       // dest
       auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
@@ -1177,15 +1265,16 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
   assert_not_zero(dest);
   if (dest) {
-    // If predicated, discard the result from the instruction.
-    Id pv_dest = dest;
-    if (instr.is_predicated) {
-      pv_dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, pred_cond,
-                              dest, b.createLoad(pv_));
-    }
+    b.createStore(dest, pv_);
+    StoreToResult(dest, instr.result);
+  }
 
-    b.createStore(pv_dest, pv_);
-    StoreToResult(dest, instr.result, pred_cond);
+  if (close_predicated_block && open_predicated_block_) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 }
 
@@ -1229,13 +1318,32 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     }
   }
 
-  Id pred_cond = 0;
-  if (instr.is_predicated) {
-    pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
+
+  bool close_predicated_block = false;
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
     case AluScalarOpcode::kAddsc0:
@@ -1276,10 +1384,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(0.f));
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1294,10 +1398,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
                                 sources[0], b.makeFloatConstant(0.f));
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1312,10 +1412,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
                                 sources[0], b.makeFloatConstant(0.f));
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1330,10 +1426,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(0.f));
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1348,10 +1440,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto kill_block = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(1.f));
-      if (pred_cond) {
-        cond =
-            b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, cond, pred_cond);
-      }
       b.createConditionalBranch(cond, kill_block, continue_block);
 
       b.setBuildPoint(kill_block);
@@ -1448,7 +1536,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                              b.makeFloatConstant(0.f));
       auto d = b.createBinOp(spv::Op::OpFDiv, float_type_,
                              b.makeFloatConstant(1.f), sources[0]);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
                            b.makeFloatConstant(0.f), d);
     } break;
 
@@ -1462,10 +1550,10 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       // dest = src0 != 0.0 ? inversesqrt(src0) : 0.0;
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                              b.makeFloatConstant(0.f));
-      auto d = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, vec4_float_type_, spv::GLSLstd450::kInverseSqrt,
-          {sources[0]});
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
+      auto d = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                               spv::GLSLstd450::kInverseSqrt,
+                                               {sources[0]});
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
                            b.makeFloatConstant(0.f), d);
     } break;
 
@@ -1503,6 +1591,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kSetpClr: {
       b.createStore(b.makeBoolConstant(false), p0_);
+      close_predicated_block = true;
       dest = b.makeFloatConstant(FLT_MAX);
     } break;
 
@@ -1511,6 +1600,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                                 b.makeFloatConstant(0.f));
       // p0 = cond
       b.createStore(cond, p0_);
+      close_predicated_block = true;
 
       // dest = cond ? 0.f : 1.f;
       dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
@@ -1522,6 +1612,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                                 sources[0], b.makeFloatConstant(0.f));
       // p0 = cond
       b.createStore(cond, p0_);
+      close_predicated_block = true;
 
       // dest = cond ? 0.f : 1.f;
       dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
@@ -1533,6 +1624,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                                 sources[0], b.makeFloatConstant(0.f));
       // p0 = cond
       b.createStore(cond, p0_);
+      close_predicated_block = true;
 
       // dest = cond ? 0.f : 1.f;
       dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
@@ -1544,6 +1636,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                                 b.makeFloatConstant(1.f));
       b.createStore(cond, p0_);
+      close_predicated_block = true;
 
       // if (!cond) dest = src0 == 0.0 ? 1.0 : src0;
       auto dst_cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
@@ -1560,6 +1653,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
       // p0 = cond
       b.createStore(cond, p0_);
+      close_predicated_block = true;
 
       // dest = cond ? 0.f : 1.f;
       dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
@@ -1572,6 +1666,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto c = b.createBinOp(spv::Op::OpFOrdLessThanEqual, bool_type_, src,
                              b.makeFloatConstant(0.f));
       b.createStore(c, p0_);
+      close_predicated_block = true;
 
       dest = CreateGlslStd450InstructionCall(
           spv::NoPrecision, float_type_, GLSLstd450::kFMax,
@@ -1582,6 +1677,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                              b.makeFloatConstant(0.f));
       b.createStore(c, p0_);
+      close_predicated_block = true;
       dest = sources[0];
     } break;
 
@@ -1618,15 +1714,16 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
   assert_not_zero(dest);
   if (dest) {
-    // If predicated, discard the result from the instruction.
-    Id ps_dest = dest;
-    if (instr.is_predicated) {
-      ps_dest = b.createTriOp(spv::Op::OpSelect, float_type_, pred_cond, dest,
-                              b.createLoad(ps_));
-    }
+    b.createStore(dest, ps_);
+    StoreToResult(dest, instr.result);
+  }
 
-    b.createStore(ps_dest, ps_);
-    StoreToResult(dest, instr.result, pred_cond);
+  if (close_predicated_block && open_predicated_block_) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 }
 
@@ -1763,8 +1860,7 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
 }
 
 void SpirvShaderTranslator::StoreToResult(Id source_value_id,
-                                          const InstructionResult& result,
-                                          Id predicate_cond) {
+                                          const InstructionResult& result) {
   auto& b = *builder_;
 
   if (result.storage_target == InstructionStorageTarget::kNone) {
@@ -1865,7 +1961,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
 
   // Only load from storage if we need it later.
   Id storage_value = 0;
-  if (!result.has_all_writes() || predicate_cond) {
+  if (!result.has_all_writes()) {
     storage_value = b.createLoad(storage_pointer);
   }
 
@@ -1965,13 +2061,8 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   assert_true(b.getNumComponents(source_value_id) ==
               b.getNumTypeComponents(storage_type));
 
-  // Discard if predicate condition is false.
-  if (predicate_cond) {
-    source_value_id =
-        b.createTriOp(spv::Op::OpSelect, storage_type, predicate_cond,
-                      source_value_id, storage_value);
-  }
-
+  assert_true(b.getTypeId(source_value_id) ==
+              b.getDerefTypeId(storage_pointer));
   b.createStore(source_value_id, storage_pointer);
 }
 

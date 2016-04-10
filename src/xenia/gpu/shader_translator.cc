@@ -986,16 +986,19 @@ void ShaderTranslator::TranslateAluInstruction(const AluInstruction& op) {
     return;
   }
 
+  ParsedAluInstruction instr;
   if (op.has_vector_op()) {
     const auto& opcode_info =
         alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
-    ParseAluVectorInstruction(op, opcode_info);
+    ParseAluVectorInstruction(op, opcode_info, instr);
+    ProcessAluInstruction(instr);
   }
 
   if (op.has_scalar_op()) {
     const auto& opcode_info =
         alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-    ParseAluScalarInstruction(op, opcode_info);
+    ParseAluScalarInstruction(op, opcode_info, instr);
+    ProcessAluInstruction(instr);
   }
 }
 
@@ -1088,8 +1091,8 @@ void ParseAluInstructionOperandSpecial(const AluInstruction& op,
 }
 
 void ShaderTranslator::ParseAluVectorInstruction(
-    const AluInstruction& op, const AluOpcodeInfo& opcode_info) {
-  ParsedAluInstruction i;
+    const AluInstruction& op, const AluOpcodeInfo& opcode_info,
+    ParsedAluInstruction& i) {
   i.dword_index = 0;
   i.type = ParsedAluInstruction::Type::kVector;
   i.vector_opcode = op.vector_opcode();
@@ -1203,13 +1206,11 @@ void ShaderTranslator::ParseAluVectorInstruction(
   }
 
   i.Disassemble(&ucode_disasm_buffer_);
-
-  ProcessAluInstruction(i);
 }
 
 void ShaderTranslator::ParseAluScalarInstruction(
-    const AluInstruction& op, const AluOpcodeInfo& opcode_info) {
-  ParsedAluInstruction i;
+    const AluInstruction& op, const AluOpcodeInfo& opcode_info,
+    ParsedAluInstruction& i) {
   i.dword_index = 0;
   i.type = ParsedAluInstruction::Type::kScalar;
   i.scalar_opcode = op.scalar_opcode();
@@ -1319,8 +1320,6 @@ void ShaderTranslator::ParseAluScalarInstruction(
   }
 
   i.Disassemble(&ucode_disasm_buffer_);
-
-  ProcessAluInstruction(i);
 }
 
 }  // namespace gpu

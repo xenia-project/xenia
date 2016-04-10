@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2016 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,6 +18,7 @@
 #include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
+#include "xenia/ui/spirv/spirv_validator.h"
 
 namespace xe {
 namespace gpu {
@@ -91,10 +92,15 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Stores a value based on the specified result information.
   // The value will be transformed into the appropriate form for the result and
   // the proper components will be selected.
-  void StoreToResult(spv::Id source_value_id, const InstructionResult& result,
-                     spv::Id predicate_cond = 0);
+  void StoreToResult(spv::Id source_value_id, const InstructionResult& result);
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
+  xe::ui::spirv::SpirvValidator validator_;
+
+  // True if there's an open predicated block
+  bool open_predicated_block_ = false;
+  bool predicated_block_cond_ = false;
+  spv::Block* predicated_block_end_ = nullptr;
 
   // TODO(benvanik): replace with something better, make reusable, etc.
   std::unique_ptr<spv::Builder> builder_;
