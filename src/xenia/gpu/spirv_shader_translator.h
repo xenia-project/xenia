@@ -55,7 +55,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
   void PostTranslation(Shader* shader) override;
 
-  void PreProcessControlFlowInstruction(uint32_t cf_index) override;
+  void PreProcessControlFlowInstruction(
+      uint32_t cf_index, const ucode::ControlFlowInstruction& instr) override;
   void ProcessLabel(uint32_t cf_index) override;
   void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
   void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
@@ -133,7 +134,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Map of {binding -> {offset -> spv input}}
   std::map<uint32_t, std::map<uint32_t, spv::Id>> vertex_binding_map_;
-  std::map<uint32_t, spv::Block*> cf_blocks_;
+
+  struct CFBlock {
+    spv::Block* block = nullptr;
+    bool prev_dominates = true;
+  };
+  std::map<uint32_t, CFBlock> cf_blocks_;
 };
 
 }  // namespace gpu

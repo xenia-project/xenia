@@ -259,6 +259,7 @@ void SpirvShaderTranslator::StartTranslation() {
                     spv::BuiltIn::BuiltInVertexId);
 
     auto vertex_id = b.createLoad(vertex_id_);
+    vertex_id = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, vertex_id);
     auto r0_ptr = b.createAccessChain(spv::StorageClass::StorageClassFunction,
                                       registers_ptr_,
                                       std::vector<Id>({b.makeUintConstant(0)}));
@@ -464,16 +465,33 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
 }
 
 void SpirvShaderTranslator::PreProcessControlFlowInstruction(
-    uint32_t cf_index) {
+    uint32_t cf_index, const ControlFlowInstruction& instr) {
   auto& b = *builder_;
 
-  cf_blocks_[cf_index] = &b.makeNewBlock();
+  if (cf_blocks_.find(cf_index) == cf_blocks_.end()) {
+    CFBlock block;
+    block.block = &b.makeNewBlock();
+    cf_blocks_[cf_index] = block;
+  } else {
+    cf_blocks_[cf_index].block = &b.makeNewBlock();
+  }
+
+  if (instr.opcode() == ControlFlowOpcode::kCondJmp) {
+    auto cf_block = cf_blocks_.find(instr.cond_jmp.address());
+    if (cf_block == cf_blocks_.end()) {
+      CFBlock block;
+      block.prev_dominates = false;
+      cf_blocks_[instr.cond_jmp.address()] = block;
+    } else {
+      cf_block->second.prev_dominates = false;
+    }
+  } else if (instr.opcode() == ControlFlowOpcode::kLoopStart) {
+    // TODO
+  }
 }
 
 void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
   auto& b = *builder_;
-
-  EmitUnimplementedTranslationError();
 }
 
 void SpirvShaderTranslator::ProcessControlFlowInstructionBegin(
@@ -482,7 +500,7 @@ void SpirvShaderTranslator::ProcessControlFlowInstructionBegin(
 
   if (cf_index == 0) {
     // Kind of cheaty, but emit a branch to the first block.
-    b.createBranch(cf_blocks_[cf_index]);
+    b.createBranch(cf_blocks_[cf_index].block);
   }
 }
 
@@ -507,7 +525,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
   predicated_block_end_ = nullptr;
 
   // Head has the logic to check if the body should execute.
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
   auto body = head;
   switch (instr.type) {
@@ -516,6 +534,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
     } break;
     case ParsedExecInstruction::Type::kConditional: {
       // Based off of bool_consts
+      // FIXME: Nvidia compiler is complaining about this.
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
       offsets.push_back(b.makeUintConstant(instr.bool_constant_index / 32));
@@ -532,8 +551,14 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
-                                b.makeUintConstant(uint32_t(instr.condition)));
-      b.createConditionalBranch(cond, body, cf_blocks_[instr.dword_index + 1]);
+                                b.makeUintConstant(instr.condition ? 1 : 0));
+
+      auto next_block = cf_blocks_[instr.dword_index + 1];
+      if (next_block.prev_dominates) {
+        b.createNoResultOp(spv::Op::OpSelectionMerge,
+                           {next_block.block->getId(), 0});
+      }
+      b.createConditionalBranch(cond, body, next_block.block);
     } break;
     case ParsedExecInstruction::Type::kPredicated: {
       // Branch based on p0.
@@ -542,7 +567,13 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       auto cond =
           b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
                         b.makeBoolConstant(instr.condition));
-      b.createConditionalBranch(cond, body, cf_blocks_[instr.dword_index + 1]);
+
+      auto next_block = cf_blocks_[instr.dword_index + 1];
+      if (next_block.prev_dominates) {
+        b.createNoResultOp(spv::Op::OpSelectionMerge,
+                           {next_block.block->getId(), 0});
+      }
+      b.createConditionalBranch(cond, body, next_block.block);
 
     } break;
   }
@@ -565,7 +596,7 @@ void SpirvShaderTranslator::ProcessExecInstructionEnd(
     b.makeReturn(false);
   } else {
     assert_true(cf_blocks_.size() > instr.dword_index + 1);
-    b.createBranch(cf_blocks_[instr.dword_index + 1]);
+    b.createBranch(cf_blocks_[instr.dword_index + 1].block);
   }
 }
 
@@ -573,7 +604,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
     const ParsedLoopStartInstruction& instr) {
   auto& b = *builder_;
 
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
 
   // TODO: Emit a spv LoopMerge
@@ -582,27 +613,27 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   EmitUnimplementedTranslationError();
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1]);
+  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
 }
 
 void SpirvShaderTranslator::ProcessLoopEndInstruction(
     const ParsedLoopEndInstruction& instr) {
   auto& b = *builder_;
 
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
 
   EmitUnimplementedTranslationError();
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1]);
+  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
 }
 
 void SpirvShaderTranslator::ProcessCallInstruction(
     const ParsedCallInstruction& instr) {
   auto& b = *builder_;
 
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
 
   // Unused instruction(?)
@@ -610,14 +641,14 @@ void SpirvShaderTranslator::ProcessCallInstruction(
   EmitUnimplementedTranslationError();
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1]);
+  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
 }
 
 void SpirvShaderTranslator::ProcessReturnInstruction(
     const ParsedReturnInstruction& instr) {
   auto& b = *builder_;
 
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
 
   // Unused instruction(?)
@@ -625,7 +656,7 @@ void SpirvShaderTranslator::ProcessReturnInstruction(
   EmitUnimplementedTranslationError();
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1]);
+  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
 }
 
 // CF jump
@@ -633,11 +664,11 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
   auto& b = *builder_;
 
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
   switch (instr.type) {
     case ParsedJumpInstruction::Type::kUnconditional: {
-      b.createBranch(cf_blocks_[instr.target_address]);
+      b.createBranch(cf_blocks_[instr.target_address].block);
     } break;
     case ParsedJumpInstruction::Type::kConditional: {
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
@@ -652,14 +683,14 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
 
       // Bitfield extract the bool constant.
       v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
-                        b.makeIntConstant(instr.bool_constant_index % 32),
-                        b.makeIntConstant(1));
+                        b.makeUintConstant(instr.bool_constant_index % 32),
+                        b.makeUintConstant(1));
 
       // Conditional branch
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
-                                b.makeUintConstant(uint32_t(instr.condition)));
-      b.createConditionalBranch(cond, cf_blocks_[instr.target_address],
-                                cf_blocks_[instr.dword_index + 1]);
+                                b.makeUintConstant(instr.condition ? 1 : 0));
+      b.createConditionalBranch(cond, cf_blocks_[instr.target_address].block,
+                                cf_blocks_[instr.dword_index + 1].block);
     } break;
     case ParsedJumpInstruction::Type::kPredicated: {
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
@@ -667,8 +698,8 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       auto cond =
           b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
                         b.makeBoolConstant(instr.condition));
-      b.createConditionalBranch(cond, cf_blocks_[instr.target_address],
-                                cf_blocks_[instr.dword_index + 1]);
+      b.createConditionalBranch(cond, cf_blocks_[instr.target_address].block,
+                                cf_blocks_[instr.dword_index + 1].block);
     } break;
   }
 }
@@ -677,7 +708,7 @@ void SpirvShaderTranslator::ProcessAllocInstruction(
     const ParsedAllocInstruction& instr) {
   auto& b = *builder_;
 
-  auto head = cf_blocks_[instr.dword_index];
+  auto head = cf_blocks_[instr.dword_index].block;
   b.setBuildPoint(head);
 
   switch (instr.type) {
@@ -695,7 +726,7 @@ void SpirvShaderTranslator::ProcessAllocInstruction(
   }
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1]);
+  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
 }
 
 void SpirvShaderTranslator::ProcessVertexFetchInstruction(
@@ -725,6 +756,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
+    b.createNoResultOp(spv::Op::OpSelectionMerge,
+                       {predicated_block_end_->getId(), 0});
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -803,6 +836,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
+    b.createNoResultOp(spv::Op::OpSelectionMerge,
+                       {predicated_block_end_->getId(), 0});
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -905,6 +940,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
+    b.createNoResultOp(spv::Op::OpSelectionMerge,
+                       {predicated_block_end_->getId(), 0});
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -1339,6 +1376,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
+    b.createNoResultOp(spv::Op::OpSelectionMerge,
+                       {predicated_block_end_->getId(), 0});
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -1965,6 +2004,14 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     storage_value = b.createLoad(storage_pointer);
   }
 
+  // Clamp the input value.
+  if (result.is_clamped) {
+    source_value_id = CreateGlslStd450InstructionCall(
+        spv::NoPrecision, b.getTypeId(source_value_id),
+        spv::GLSLstd450::kFClamp,
+        {source_value_id, b.makeFloatConstant(0.0), b.makeFloatConstant(1.0)});
+  }
+
   // Convert to the appropriate type, if needed.
   if (b.getTypeId(source_value_id) != storage_type) {
     std::vector<Id> constituents;
@@ -1988,14 +2035,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
 
     source_value_id =
         b.createConstructor(spv::NoPrecision, constituents, storage_type);
-  }
-
-  // Clamp the input value.
-  if (result.is_clamped) {
-    source_value_id = CreateGlslStd450InstructionCall(
-        spv::NoPrecision, b.getTypeId(source_value_id),
-        spv::GLSLstd450::kFClamp,
-        {source_value_id, b.makeFloatConstant(0.0), b.makeFloatConstant(1.0)});
   }
 
   // swizzle

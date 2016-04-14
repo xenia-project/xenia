@@ -369,9 +369,9 @@ bool ShaderTranslator::TranslateBlocks() {
     AddControlFlowTargetLabel(cf_a, &label_addresses);
     AddControlFlowTargetLabel(cf_b, &label_addresses);
 
-    PreProcessControlFlowInstruction(cf_index);
+    PreProcessControlFlowInstruction(cf_index, cf_a);
     ++cf_index;
-    PreProcessControlFlowInstruction(cf_index);
+    PreProcessControlFlowInstruction(cf_index, cf_b);
     ++cf_index;
   }
 

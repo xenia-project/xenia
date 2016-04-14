@@ -79,7 +79,8 @@ class ShaderTranslator {
   }
 
   // Pre-process a control-flow instruction before anything else.
-  virtual void PreProcessControlFlowInstruction(uint32_t cf_index) {}
+  virtual void PreProcessControlFlowInstruction(
+      uint32_t cf_index, const ucode::ControlFlowInstruction& instr) {}
 
   // Handles translation for control flow label addresses.
   // This is triggered once for each label required (due to control flow
