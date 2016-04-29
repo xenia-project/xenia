@@ -538,7 +538,7 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pipeline_info.renderPass = context_->swap_chain()->render_pass();
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
-  pipeline_info.basePipelineIndex = 0;
+  pipeline_info.basePipelineIndex = -1;
   err = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info, nullptr,
                                   &triangle_pipeline_);
   CheckResult(err, "vkCreateGraphicsPipelines");
@@ -547,7 +547,7 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pipeline_info.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
   input_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   pipeline_info.basePipelineHandle = triangle_pipeline_;
-  pipeline_info.basePipelineIndex = 0;
+  pipeline_info.basePipelineIndex = -1;
   err = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info, nullptr,
                                   &line_pipeline_);
   CheckResult(err, "vkCreateGraphicsPipelines");
@@ -672,9 +672,6 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   auto swap_chain = context_->swap_chain();
 
-  if (draw.primitive_type != ImmediatePrimitiveType::kTriangles) {
-    return;
-  }
   switch (draw.primitive_type) {
     case ImmediatePrimitiveType::kLines:
       vkCmdBindPipeline(current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
