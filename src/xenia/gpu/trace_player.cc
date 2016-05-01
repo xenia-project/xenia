@@ -51,7 +51,7 @@ void TracePlayer::SeekFrame(int target_frame) {
 
   assert_true(frame->start_ptr <= frame->end_ptr);
   PlayTrace(frame->start_ptr, frame->end_ptr - frame->start_ptr,
-            TracePlaybackMode::kBreakOnSwap);
+            TracePlaybackMode::kBreakOnSwap, false);
 }
 
 void TracePlayer::SeekCommand(int target_command) {
@@ -71,11 +71,11 @@ void TracePlayer::SeekCommand(int target_command) {
     const auto& previous_command = frame->commands[previous_command_index];
     PlayTrace(previous_command.end_ptr,
               command.end_ptr - previous_command.end_ptr,
-              TracePlaybackMode::kBreakOnSwap);
+              TracePlaybackMode::kBreakOnSwap, false);
   } else {
     // Full playback from frame start.
     PlayTrace(frame->start_ptr, command.end_ptr - frame->start_ptr,
-              TracePlaybackMode::kBreakOnSwap);
+              TracePlaybackMode::kBreakOnSwap, true);
   }
 }
 
@@ -84,18 +84,24 @@ void TracePlayer::WaitOnPlayback() {
 }
 
 void TracePlayer::PlayTrace(const uint8_t* trace_data, size_t trace_size,
-                            TracePlaybackMode playback_mode) {
-  graphics_system_->command_processor()->CallInThread(
-      [this, trace_data, trace_size, playback_mode]() {
-        PlayTraceOnThread(trace_data, trace_size, playback_mode);
-      });
+                            TracePlaybackMode playback_mode,
+                            bool clear_caches) {
+  playing_trace_ = true;
+  graphics_system_->command_processor()->CallInThread([=]() {
+    PlayTraceOnThread(trace_data, trace_size, playback_mode, clear_caches);
+  });
 }
 
 void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
                                     size_t trace_size,
-                                    TracePlaybackMode playback_mode) {
+                                    TracePlaybackMode playback_mode,
+                                    bool clear_caches) {
   auto memory = graphics_system_->memory();
   auto command_processor = graphics_system_->command_processor();
+
+  if (clear_caches) {
+    command_processor->ClearCaches();
+  }
 
   command_processor->set_swap_mode(SwapMode::kIgnored);
   playback_percent_ = 0;

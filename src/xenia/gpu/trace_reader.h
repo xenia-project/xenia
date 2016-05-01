@@ -11,6 +11,7 @@
 #define XENIA_GPU_TRACE_READER_H_
 
 #include <string>
+#include <vector>
 
 #include "xenia/base/mapped_memory.h"
 #include "xenia/gpu/trace_protocol.h"
@@ -51,6 +52,42 @@ namespace gpu {
 
 class TraceReader {
  public:
+  struct CommandBuffer {
+    struct Command {
+      enum class Type {
+        kCommand,
+        kBuffer,
+      };
+
+      Command() {}
+      Command(Command&& other) {
+        type = other.type;
+        command_id = other.command_id;
+        command_subtree = std::move(other.command_subtree);
+      }
+      Command(CommandBuffer* buf) {
+        type = Type::kBuffer;
+        command_subtree = std::unique_ptr<CommandBuffer>(buf);
+      }
+      Command(uint32_t id) {
+        type = Type::kCommand;
+        command_id = id;
+      }
+      ~Command() = default;
+
+      Type type;
+      uint32_t command_id = -1;
+      std::unique_ptr<CommandBuffer> command_subtree = nullptr;
+    };
+
+    CommandBuffer() {}
+    ~CommandBuffer() {}
+
+    // Parent command buffer, if one exists.
+    CommandBuffer* parent = nullptr;
+    std::vector<Command> commands;
+  };
+
   struct Frame {
     struct Command {
       enum class Type {
@@ -74,7 +111,12 @@ class TraceReader {
     const uint8_t* start_ptr = nullptr;
     const uint8_t* end_ptr = nullptr;
     int command_count = 0;
+
+    // Flat list of all commands in this frame.
     std::vector<Command> commands;
+
+    // Tree of all command buffers
+    std::unique_ptr<CommandBuffer> command_tree;
   };
 
   TraceReader() = default;

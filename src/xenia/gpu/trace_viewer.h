@@ -80,6 +80,8 @@ class TraceViewer {
   void DrawUI();
   void DrawControllerUI();
   void DrawPacketDisassemblerUI();
+  int RecursiveDrawCommandBufferUI(const TraceReader::Frame* frame,
+                                   TraceReader::CommandBuffer* buffer);
   void DrawCommandListUI();
   void DrawStateUI();
 

@@ -390,6 +390,66 @@ void TraceViewer::DrawPacketDisassemblerUI() {
   ImGui::End();
 }
 
+int TraceViewer::RecursiveDrawCommandBufferUI(
+    const TraceReader::Frame* frame, TraceReader::CommandBuffer* buffer) {
+  int selected_id = -1;
+  int column_width = int(ImGui::GetContentRegionMax().x);
+
+  for (size_t i = 0; i < buffer->commands.size(); i++) {
+    switch (buffer->commands[i].type) {
+      case TraceReader::CommandBuffer::Command::Type::kBuffer: {
+        auto subtree = buffer->commands[i].command_subtree.get();
+        if (!subtree->commands.size()) {
+          continue;
+        }
+
+        ImGui::PushID(int(i));
+        if (ImGui::TreeNode((void*)0, "Indirect Buffer %d", i)) {
+          ImGui::Indent();
+          auto id = RecursiveDrawCommandBufferUI(
+              frame, buffer->commands[i].command_subtree.get());
+          ImGui::Unindent();
+          ImGui::TreePop();
+
+          if (id != -1) {
+            selected_id = id;
+          }
+        }
+        ImGui::PopID();
+      } break;
+
+      case TraceReader::CommandBuffer::Command::Type::kCommand: {
+        uint32_t command_id = buffer->commands[i].command_id;
+
+        const auto& command = frame->commands[command_id];
+        bool is_selected = command_id == player_->current_command_index();
+        const char* label;
+        switch (command.type) {
+          case TraceReader::Frame::Command::Type::kDraw:
+            label = "Draw";
+            break;
+          case TraceReader::Frame::Command::Type::kSwap:
+            label = "Swap";
+            break;
+        }
+
+        ImGui::PushID(command_id);
+        if (ImGui::Selectable(label, &is_selected)) {
+          selected_id = command_id;
+        }
+        ImGui::SameLine(column_width - 60.0f);
+        ImGui::Text("%d", command_id);
+        ImGui::PopID();
+        // if (did_seek && target_command == i) {
+        //   ImGui::SetScrollPosHere();
+        // }
+      } break;
+    }
+  }
+
+  return selected_id;
+}
+
 void TraceViewer::DrawCommandListUI() {
   ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCond_FirstUseEver);
   if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
@@ -473,31 +533,12 @@ void TraceViewer::DrawCommandListUI() {
     ImGui::SetScrollPosHere();
   }
 
-  for (int i = 0; i < int(frame->commands.size()); ++i) {
-    ImGui::PushID(i);
-    is_selected = i == player_->current_command_index();
-    const auto& command = frame->commands[i];
-    const char* label;
-    switch (command.type) {
-      case TraceReader::Frame::Command::Type::kDraw:
-        label = "Draw";
-        break;
-      case TraceReader::Frame::Command::Type::kSwap:
-        label = "Swap";
-        break;
-    }
-    if (ImGui::Selectable(label, &is_selected)) {
-      if (!player_->is_playing_trace()) {
-        player_->SeekCommand(i);
-      }
-    }
-    ImGui::SameLine(column_width - 60.0f);
-    ImGui::Text("%d", i);
-    ImGui::PopID();
-    if (did_seek && target_command == i) {
-      ImGui::SetScrollPosHere();
-    }
+  auto id = RecursiveDrawCommandBufferUI(frame, frame->command_tree.get());
+  if (id != -1 && id != player_->current_command_index() &&
+      !player_->is_playing_trace()) {
+    player_->SeekCommand(id);
   }
+
   ImGui::EndChild();
   ImGui::End();
 }
@@ -639,8 +680,8 @@ void TraceViewer::DrawTextureInfo(
 
   ImGui::Columns(2);
   ImVec2 button_size(256, 256);
-  if (ImGui::ImageButton(ImTextureID(texture | ui::ImGuiDrawer::kIgnoreAlpha),
-                         button_size, ImVec2(0, 0), ImVec2(1, 1))) {
+  if (ImGui::ImageButton(ImTextureID(texture), button_size, ImVec2(0, 0),
+                         ImVec2(1, 1))) {
     // show viewer
   }
   ImGui::NextColumn();
@@ -1108,11 +1149,14 @@ void TraceViewer::DrawStateUI() {
         ((window_scissor_br >> 16) & 0x7FFF) -
             ((window_scissor_tl >> 16) & 0x7FFF));
     uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+    uint32_t surface_actual = (surface_info >> 18) & 0x3FFF;
     uint32_t surface_pitch = surface_info & 0x3FFF;
     auto surface_msaa = (surface_info >> 16) & 0x3;
     static const char* kMsaaNames[] = {
         "1X", "2X", "4X",
     };
+    ImGui::BulletText("Surface Pitch - Actual: %d - %d", surface_pitch,
+                      surface_actual);
     ImGui::BulletText("Surface MSAA: %s", kMsaaNames[surface_msaa]);
     uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
     bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
@@ -1124,6 +1168,9 @@ void TraceViewer::DrawStateUI() {
     assert_true(vport_xscale_enable == vport_yscale_enable ==
                 vport_zscale_enable == vport_xoffset_enable ==
                 vport_yoffset_enable == vport_zoffset_enable);
+    if (!vport_xscale_enable) {
+      ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
+    }
     ImGui::BulletText(
         "Viewport Offset: %f, %f, %f",
         vport_xoffset_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32 : 0,
@@ -1134,6 +1181,10 @@ void TraceViewer::DrawStateUI() {
         vport_xscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32 : 1,
         vport_yscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32 : 1,
         vport_zscale_enable ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 : 1);
+    if (!vport_xscale_enable) {
+      ImGui::PopStyleColor();
+    }
+
     ImGui::BulletText("Vertex Format: %s, %s, %s, %s",
                       ((vte_control >> 8) & 0x1) ? "x/w0" : "x",
                       ((vte_control >> 8) & 0x1) ? "y/w0" : "y",
@@ -1318,7 +1369,7 @@ void TraceViewer::DrawStateUI() {
         if (write_mask) {
           auto color_target = GetColorRenderTarget(surface_pitch, surface_msaa,
                                                    color_base, color_format);
-          tex = ImTextureID(color_target | ui::ImGuiDrawer::kIgnoreAlpha);
+          tex = ImTextureID(color_target);
           if (ImGui::ImageButton(tex, button_size, ImVec2(0, 0),
                                  ImVec2(1, 1))) {
             // show viewer
@@ -1330,10 +1381,9 @@ void TraceViewer::DrawStateUI() {
         }
         if (ImGui::IsItemHovered()) {
           ImGui::BeginTooltip();
-          ImGui::Text(
-              "Color Target %d (%s), base %.4X, pitch %d, msaa %d, format %d",
-              i, write_mask ? "enabled" : "disabled", color_base, surface_pitch,
-              surface_msaa, color_format);
+          ImGui::Text("Color Target %d (%s), base %.4X, pitch %d, format %d", i,
+                      write_mask ? "enabled" : "disabled", color_base,
+                      surface_pitch, color_format);
 
           if (tex) {
             ImVec2 rel_pos;
@@ -1407,17 +1457,19 @@ void TraceViewer::DrawStateUI() {
 
       auto button_pos = ImGui::GetCursorScreenPos();
       ImVec2 button_size(256, 256);
-      ImGui::ImageButton(
-          ImTextureID(depth_target | ui::ImGuiDrawer::kIgnoreAlpha),
-          button_size, ImVec2(0, 0), ImVec2(1, 1));
+      ImGui::ImageButton(ImTextureID(depth_target), button_size, ImVec2(0, 0),
+                         ImVec2(1, 1));
       if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
+
+        ImGui::Text("Depth Target: base %.4X, pitch %d, format %d", depth_base,
+                    surface_pitch, depth_format);
 
         ImVec2 rel_pos;
         rel_pos.x = ImGui::GetMousePos().x - button_pos.x;
         rel_pos.y = ImGui::GetMousePos().y - button_pos.y;
-        ZoomedImage(ImTextureID(depth_target | ui::ImGuiDrawer::kIgnoreAlpha),
-                    rel_pos, button_size, 32.f, ImVec2(256, 256));
+        ZoomedImage(ImTextureID(depth_target), rel_pos, button_size, 32.f,
+                    ImVec2(256, 256));
 
         ImGui::EndTooltip();
       }
