@@ -1968,20 +1968,6 @@ GLuint GL4CommandProcessor::GetColorRenderTarget(
     format = ColorRenderTargetFormat::k_8_8_8_8;
   }
 
-  for (auto it = cached_color_render_targets_.begin();
-       it != cached_color_render_targets_.end(); ++it) {
-    if (it->base == base && it->width == width && it->height == height &&
-        it->format == format) {
-      return it->texture;
-    }
-  }
-  cached_color_render_targets_.push_back(CachedColorRenderTarget());
-  auto cached = &cached_color_render_targets_.back();
-  cached->base = base;
-  cached->width = width;
-  cached->height = height;
-  cached->format = format;
-
   GLenum internal_format;
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
@@ -2019,6 +2005,21 @@ GLuint GL4CommandProcessor::GetColorRenderTarget(
       return 0;
   }
 
+  for (auto it = cached_color_render_targets_.begin();
+       it != cached_color_render_targets_.end(); ++it) {
+    if (it->base == base && it->width == width && it->height == height &&
+        it->internal_format == internal_format) {
+      return it->texture;
+    }
+  }
+  cached_color_render_targets_.push_back(CachedColorRenderTarget());
+  auto cached = &cached_color_render_targets_.back();
+  cached->base = base;
+  cached->width = width;
+  cached->height = height;
+  cached->format = format;
+  cached->internal_format = internal_format;
+
   glCreateTextures(GL_TEXTURE_2D, 1, &cached->texture);
   glTextureStorage2D(cached->texture, 1, internal_format, width, height);
 
@@ -2030,20 +2031,6 @@ GLuint GL4CommandProcessor::GetDepthRenderTarget(
     DepthRenderTargetFormat format) {
   uint32_t width = 2560;
   uint32_t height = 2560;
-
-  for (auto it = cached_depth_render_targets_.begin();
-       it != cached_depth_render_targets_.end(); ++it) {
-    if (it->base == base && it->width == width && it->height == height &&
-        it->format == format) {
-      return it->texture;
-    }
-  }
-  cached_depth_render_targets_.push_back(CachedDepthRenderTarget());
-  auto cached = &cached_depth_render_targets_.back();
-  cached->base = base;
-  cached->width = width;
-  cached->height = height;
-  cached->format = format;
 
   GLenum internal_format;
   switch (format) {
@@ -2058,6 +2045,21 @@ GLuint GL4CommandProcessor::GetDepthRenderTarget(
       assert_unhandled_case(format);
       return 0;
   }
+
+  for (auto it = cached_depth_render_targets_.begin();
+       it != cached_depth_render_targets_.end(); ++it) {
+    if (it->base == base && it->width == width && it->height == height &&
+        it->format == format) {
+      return it->texture;
+    }
+  }
+  cached_depth_render_targets_.push_back(CachedDepthRenderTarget());
+  auto cached = &cached_depth_render_targets_.back();
+  cached->base = base;
+  cached->width = width;
+  cached->height = height;
+  cached->format = format;
+  cached->internal_format = internal_format;
 
   glCreateTextures(GL_TEXTURE_2D, 1, &cached->texture);
   glTextureStorage2D(cached->texture, 1, internal_format, width, height);
