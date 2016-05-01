@@ -111,6 +111,11 @@ void TraceReader::ParseTrace() {
         auto cmd = reinterpret_cast<const IndirectBufferEndCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
 
+        // IB packet is wrapped in a kPacketStart/kPacketEnd. Skip the end.
+        auto end_cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
+        assert_true(end_cmd->type == TraceCommandType::kPacketEnd);
+        trace_ptr += sizeof(*cmd);
+
         // Go back up a level. If parent is null, this frame started in an
         // indirect buffer.
         if (current_command_buffer->parent) {
