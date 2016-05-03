@@ -15,5 +15,7 @@
 #define FINE_GRAINED_DRAW_SCOPES 1
 
 DECLARE_bool(vulkan_renderdoc_capture_all);
+DECLARE_bool(vulkan_native_msaa);
+DECLARE_bool(vulkan_dump_disasm);
 
 #endif  // XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_

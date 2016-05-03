@@ -57,6 +57,8 @@ class CachedTileView {
   VkImageView image_view = nullptr;
   // Memory buffer
   VkDeviceMemory memory = nullptr;
+  // Image sample count
+  VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT;
 
   CachedTileView(ui::vulkan::VulkanDevice* device,
                  VkCommandBuffer command_buffer, VkDeviceMemory edram_memory,
@@ -81,9 +83,9 @@ class CachedTileView {
 struct RenderConfiguration {
   // Render mode (color+depth, depth-only, etc).
   xenos::ModeControl mode_control;
-  // Target surface pitch, in pixels.
+  // Target surface pitch multiplied by MSAA, in pixels.
   uint32_t surface_pitch_px;
-  // ESTIMATED target surface height, in pixels.
+  // ESTIMATED target surface height multiplied by MSAA, in pixels.
   uint32_t surface_height_px;
   // Surface MSAA setting.
   MsaaSamples surface_msaa;
@@ -111,6 +113,9 @@ struct RenderState {
   // Target framebuffer bound to the render pass.
   CachedFramebuffer* framebuffer = nullptr;
   VkFramebuffer framebuffer_handle = nullptr;
+
+  bool color_attachment_written[4] = {false};
+  bool depth_attachment_written = false;
 };
 
 // Manages the virtualized EDRAM and the render target cache.
@@ -135,9 +140,13 @@ struct RenderState {
 // 320px by rounding up to the next tile.
 //
 // MSAA and other settings will modify the exact pixel sizes, like 4X makes
-// each tile effectively 40x8px, but they are still all 5120b. As we try to
-// emulate this we adjust our viewport when rendering to stretch pixels as
-// needed.
+// each tile effectively 40x8px / 2X makes each tile 80x8px, but they are still
+// all 5120b. As we try to emulate this we adjust our viewport when rendering to
+// stretch pixels as needed.
+//
+// It appears that games also take advantage of MSAA stretching tiles when doing
+// clears. Games will clear a view with 1/2X pitch/height and 4X MSAA and then
+// later draw to that view with 1X pitch/height and 1X MSAA.
 //
 // The good news is that games cannot read EDRAM directly but must use a copy
 // operation to get the data out. That gives us a chance to do whatever we
@@ -269,6 +278,9 @@ class RenderCache {
   // The command buffer will be transitioned out of the render pass phase.
   void EndRenderPass();
 
+  // Updates current render state. Call this every draw with an open render pass
+  void UpdateState();
+
   // Clears all cached content.
   void ClearCache();
 
@@ -346,13 +358,12 @@ class RenderCache {
   struct ShadowRegisters {
     uint32_t rb_modecontrol;
     uint32_t rb_surface_info;
-    uint32_t rb_color_mask;
     uint32_t rb_color_info;
     uint32_t rb_color1_info;
     uint32_t rb_color2_info;
     uint32_t rb_color3_info;
-    uint32_t rb_depthcontrol;
     uint32_t rb_depth_info;
+    uint32_t rb_depthcontrol;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
 
