@@ -50,6 +50,9 @@ class TextureCache {
 
     uintptr_t access_watch_handle;
     bool pending_invalidation;
+
+    // Pointer to the latest usage fence.
+    std::shared_ptr<ui::vulkan::Fence> in_flight_fence;
   };
 
   struct TextureView {
@@ -168,30 +171,32 @@ class TextureCache {
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
-  std::vector<std::pair<VkDescriptorSet, std::shared_ptr<ui::vulkan::Fence>>>
+  std::unordered_map<VkDescriptorSet, std::shared_ptr<ui::vulkan::Fence>>
       in_flight_sets_;
 
   ui::vulkan::CircularBuffer staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
   std::unordered_map<uint64_t, Sampler*> samplers_;
   std::vector<Texture*> resolve_textures_;
+  std::vector<Texture*> pending_delete_textures_;
 
   std::mutex invalidated_textures_mutex_;
   std::vector<Texture*>* invalidated_textures_;
   std::vector<Texture*> invalidated_textures_sets_[2];
 
+  std::mutex invalidated_resolve_textures_mutex_;
+  std::vector<Texture*> invalidated_resolve_textures_;
+
   struct UpdateSetInfo {
     // Bitmap of all 32 fetch constants and whether they have been setup yet.
     // This prevents duplication across the vertex and pixel shader.
     uint32_t has_setup_fetch_mask;
-    uint32_t image_1d_write_count = 0;
-    VkDescriptorImageInfo image_1d_infos[32];
-    uint32_t image_2d_write_count = 0;
-    VkDescriptorImageInfo image_2d_infos[32];
-    uint32_t image_3d_write_count = 0;
-    VkDescriptorImageInfo image_3d_infos[32];
-    uint32_t image_cube_write_count = 0;
-    VkDescriptorImageInfo image_cube_infos[32];
+    uint32_t image_write_count = 0;
+    struct ImageSetInfo {
+      Dimension dimension;
+      uint32_t tf_binding;
+      VkDescriptorImageInfo info;
+    } image_infos[32];
   } update_set_info_;
 };
 
