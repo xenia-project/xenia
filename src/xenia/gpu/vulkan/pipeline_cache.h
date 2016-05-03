@@ -75,6 +75,8 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
+  void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
+
   // Gets a geometry shader used to emulate the given primitive type.
   // Returns nullptr if the primitive doesn't need to be emulated.
   VkShaderModule GetGeometryShader(PrimitiveType primitive_type,
@@ -210,6 +212,7 @@ class PipelineCache {
     uint32_t pa_su_sc_mode_cntl;
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
+    uint32_t pa_sc_viz_query;
     uint32_t multi_prim_ib_reset_index;
     uint32_t rb_modecontrol;
 

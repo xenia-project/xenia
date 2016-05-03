@@ -17,6 +17,9 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
+#include <cinttypes>
+#include <string>
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -169,9 +172,9 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
   }
 
   if (shader->is_valid()) {
-    XELOGGPU("Generated %s shader at 0x%.8X (%db):\n%s",
+    XELOGGPU("Generated %s shader at 0x%.8X (%db) - hash %.16" PRIX64 ":\n%s\n",
              shader_type == ShaderType::kVertex ? "vertex" : "pixel",
-             guest_address, dword_count * 4,
+             guest_address, dword_count * 4, shader->ucode_data_hash(),
              shader->ucode_disassembly().c_str());
   }
 
@@ -288,10 +291,103 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
                                        &pipeline_info, nullptr, &pipeline);
   CheckResult(err, "vkCreateGraphicsPipelines");
 
+  // Dump shader disassembly.
+  if (FLAGS_vulkan_dump_disasm) {
+    DumpShaderDisasmNV(pipeline_info);
+  }
+
   // Add to cache with the hash key for reuse.
   cached_pipelines_.insert({hash_key, pipeline});
 
   return pipeline;
+}
+
+void PipelineCache::DumpShaderDisasmNV(
+    const VkGraphicsPipelineCreateInfo& pipeline_info) {
+  // !! HACK !!: This only works on NVidia drivers. Dumps shader disasm.
+  // This code is super ugly. Update this when NVidia includes an official
+  // way to dump shader disassembly.
+
+  VkPipelineCacheCreateInfo pipeline_cache_info;
+  VkPipelineCache dummy_pipeline_cache;
+  pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+  pipeline_cache_info.pNext = nullptr;
+  pipeline_cache_info.flags = 0;
+  pipeline_cache_info.initialDataSize = 0;
+  pipeline_cache_info.pInitialData = nullptr;
+  auto err = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+                                   &dummy_pipeline_cache);
+  CheckResult(err, "vkCreatePipelineCache");
+
+  // Create a pipeline on the dummy cache and dump it.
+  VkPipeline dummy_pipeline;
+  err = vkCreateGraphicsPipelines(device_, dummy_pipeline_cache, 1,
+                                  &pipeline_info, nullptr, &dummy_pipeline);
+
+  std::vector<uint8_t> pipeline_data;
+  size_t data_size = 0;
+  err = vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+                               nullptr);
+  if (err == VK_SUCCESS) {
+    pipeline_data.resize(data_size);
+    vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+                           pipeline_data.data());
+
+    // Scan the data for the disassembly.
+    std::string disasm_vp, disasm_fp;
+
+    const char* disasm_start_vp = nullptr;
+    const char* disasm_start_fp = nullptr;
+    size_t search_offset = 0;
+    const char* search_start =
+        reinterpret_cast<const char*>(pipeline_data.data());
+    while (true) {
+      auto p = reinterpret_cast<const char*>(
+          memchr(pipeline_data.data() + search_offset, '!',
+                 pipeline_data.size() - search_offset));
+      if (!p) {
+        break;
+      }
+      if (!strncmp(p, "!!NV", 4)) {
+        if (!strncmp(p + 4, "vp", 2)) {
+          disasm_start_vp = p;
+        } else if (!strncmp(p + 4, "fp", 2)) {
+          disasm_start_fp = p;
+        }
+
+        if (disasm_start_fp && disasm_start_vp) {
+          // Found all we needed.
+          break;
+        }
+      }
+      search_offset = p - search_start;
+      ++search_offset;
+    }
+    if (disasm_start_vp) {
+      disasm_vp = std::string(disasm_start_vp);
+
+      // For some reason there's question marks all over the code.
+      disasm_vp.erase(std::remove(disasm_vp.begin(), disasm_vp.end(), '?'),
+                      disasm_vp.end());
+    } else {
+      disasm_vp = std::string("Shader disassembly not available.");
+    }
+
+    if (disasm_start_fp) {
+      disasm_fp = std::string(disasm_start_fp);
+
+      // For some reason there's question marks all over the code.
+      disasm_fp.erase(std::remove(disasm_fp.begin(), disasm_fp.end(), '?'),
+                      disasm_fp.end());
+    } else {
+      disasm_fp = std::string("Shader disassembly not available.");
+    }
+
+    XELOGI("%s\n=====================================\n%s", disasm_vp.c_str(),
+           disasm_fp.c_str());
+  }
+
+  vkDestroyPipelineCache(device_, dummy_pipeline_cache, nullptr);
 }
 
 VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
@@ -396,22 +492,18 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
                                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
   if (viewport_state_dirty) {
-    // HACK: no clue where to get these values.
     // RB_SURFACE_INFO
     auto surface_msaa =
         static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-    // TODO(benvanik): ??
-    // FIXME: Some games depend on these for proper clears (e.g. only clearing
-    // half the size they actually want with 4x MSAA), but others don't.
-    // Figure out how these games are expecting clears to be done.
+
+    // Apply a multiplier to emulate MSAA.
     float window_width_scalar = 1;
     float window_height_scalar = 1;
     switch (surface_msaa) {
       case MsaaSamples::k1X:
         break;
       case MsaaSamples::k2X:
-        // ??
-        window_width_scalar = window_height_scalar = 1.41421356f;
+        window_height_scalar = 2;
         break;
       case MsaaSamples::k4X:
         window_width_scalar = window_height_scalar = 2;
@@ -770,11 +862,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
                                            : VK_FORMAT_A2R10G10B10_UNORM_PACK32;
           break;
         case VertexFormat::k_10_11_11:
-          // assert_always("unsupported?");
+          assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
           break;
         case VertexFormat::k_11_11_10:
-          assert_true(is_signed);
+          // Converted in-shader.
+          // TODO(DrChat)
+          // vertex_attrib_descr.format = VK_FORMAT_R32_UINT;
           vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
           break;
         case VertexFormat::k_16_16:
@@ -946,6 +1040,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_br,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
+  dirty |= SetShadowRegister(&regs.pa_sc_viz_query, XE_GPU_REG_PA_SC_VIZ_QUERY);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
   dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
@@ -964,12 +1059,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
 
   // Discard rasterizer output in depth-only mode.
   // TODO(DrChat): Figure out how to make this work properly.
-  /*
   auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
   state_info.rasterizerDiscardEnable =
       enable_mode == xenos::ModeControl::kColorDepth ? VK_FALSE : VK_TRUE;
-  //*/
-  state_info.rasterizerDiscardEnable = VK_FALSE;
+
+  // KILL_PIX_POST_EARLY_Z
+  if (regs.pa_sc_viz_query & 0x80) {
+    state_info.rasterizerDiscardEnable = VK_TRUE;
+  }
 
   bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
   if (poly_mode) {
@@ -1039,27 +1136,31 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
-  // PA_SC_AA_CONFIG MSAA_NUM_SAMPLES
-  // PA_SU_SC_MODE_CNTL MSAA_ENABLE
-  // state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-  //*
-  auto msaa_num_samples =
-      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-  switch (msaa_num_samples) {
-    case MsaaSamples::k1X:
-      state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-      break;
-    case MsaaSamples::k2X:
-      state_info.rasterizationSamples = VK_SAMPLE_COUNT_2_BIT;
-      break;
-    case MsaaSamples::k4X:
-      state_info.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
-      break;
-    default:
-      assert_unhandled_case(msaa_num_samples);
-      break;
+  // PA_SC_AA_CONFIG MSAA_NUM_SAMPLES (0x7)
+  // PA_SC_AA_MASK (0xFFFF)
+  // PA_SU_SC_MODE_CNTL MSAA_ENABLE (0x10000)
+  // If set, all samples will be sampled at set locations. Otherwise, they're
+  // all sampled from the pixel center.
+  if (FLAGS_vulkan_native_msaa) {
+    auto msaa_num_samples =
+        static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+    switch (msaa_num_samples) {
+      case MsaaSamples::k1X:
+        state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        break;
+      case MsaaSamples::k2X:
+        state_info.rasterizationSamples = VK_SAMPLE_COUNT_2_BIT;
+        break;
+      case MsaaSamples::k4X:
+        state_info.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
+        break;
+      default:
+        assert_unhandled_case(msaa_num_samples);
+        break;
+    }
+  } else {
+    state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   }
-  //*/
 
   state_info.sampleShadingEnable = VK_FALSE;
   state_info.minSampleShading = 0;
