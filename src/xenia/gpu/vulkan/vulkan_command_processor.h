@@ -61,6 +61,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   void PrepareForWait() override;
   void ReturnFromWait() override;
 
+  void CreateSwapImages(VkCommandBuffer setup_buffer, VkExtent2D extents);
+  void DestroySwapImages();
+
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                    uint32_t frontbuffer_height) override;
 
@@ -77,12 +80,17 @@ class VulkanCommandProcessor : public CommandProcessor {
                            IndexBufferInfo* index_buffer_info);
   bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
                              VulkanShader* vertex_shader);
-  VkDescriptorSet PopulateSamplers(VkCommandBuffer command_buffer,
-                                   VulkanShader* vertex_shader,
-                                   VulkanShader* pixel_shader);
+  bool PopulateSamplers(VkCommandBuffer command_buffer,
+                        VkCommandBuffer setup_buffer,
+                        VulkanShader* vertex_shader,
+                        VulkanShader* pixel_shader);
   bool IssueCopy() override;
 
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
+
+  // front buffer / back buffer memory
+  VkDeviceMemory fb_memory = nullptr;
+  VkDeviceMemory bb_memory = nullptr;
 
   // TODO(benvanik): abstract behind context?
   // Queue used to submit work. This may be a dedicated queue for the command

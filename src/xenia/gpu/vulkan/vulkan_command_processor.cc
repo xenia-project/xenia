@@ -29,7 +29,7 @@ namespace vulkan {
 using namespace xe::gpu::xenos;
 using xe::ui::vulkan::CheckResult;
 
-constexpr size_t kDefaultBufferCacheCapacity = 256 * 1024 * 1024;
+constexpr size_t kDefaultBufferCacheCapacity = 128 * 1024 * 1024;
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
@@ -82,6 +82,11 @@ bool VulkanCommandProcessor::SetupContext() {
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
 
+  if (swap_state_.front_buffer_texture) {
+    // Free swap chain images.
+    DestroySwapImages();
+  }
+
   buffer_cache_.reset();
   pipeline_cache_.reset();
   render_cache_.reset();
@@ -131,58 +136,213 @@ void VulkanCommandProcessor::ReturnFromWait() {
   CommandProcessor::ReturnFromWait();
 }
 
+void VulkanCommandProcessor::CreateSwapImages(VkCommandBuffer setup_buffer,
+                                              VkExtent2D extents) {
+  VkImageCreateInfo image_info;
+  std::memset(&image_info, 0, sizeof(VkImageCreateInfo));
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.imageType = VK_IMAGE_TYPE_2D;
+  image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  image_info.extent = {extents.width, extents.height, 1};
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage =
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_info.queueFamilyIndexCount = 0;
+  image_info.pQueueFamilyIndices = nullptr;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  VkImage image_fb, image_bb;
+  auto status = vkCreateImage(*device_, &image_info, nullptr, &image_fb);
+  CheckResult(status, "vkCreateImage");
+
+  status = vkCreateImage(*device_, &image_info, nullptr, &image_bb);
+  CheckResult(status, "vkCreateImage");
+
+  // Bind memory to images.
+  VkMemoryRequirements mem_requirements;
+  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
+  fb_memory = device_->AllocateMemory(mem_requirements, 0);
+  assert_not_null(fb_memory);
+
+  status = vkBindImageMemory(*device_, image_fb, fb_memory, 0);
+  CheckResult(status, "vkBindImageMemory");
+
+  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
+  bb_memory = device_->AllocateMemory(mem_requirements, 0);
+  assert_not_null(bb_memory);
+
+  status = vkBindImageMemory(*device_, image_bb, bb_memory, 0);
+  CheckResult(status, "vkBindImageMemory");
+
+  std::lock_guard<std::mutex> lock(swap_state_.mutex);
+  swap_state_.front_buffer_texture = reinterpret_cast<uintptr_t>(image_fb);
+  swap_state_.back_buffer_texture = reinterpret_cast<uintptr_t>(image_bb);
+
+  // Transition both images to general layout.
+  VkImageMemoryBarrier barrier;
+  std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask = 0;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = image_fb;
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  barrier.image = image_bb;
+
+  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+}
+
+void VulkanCommandProcessor::DestroySwapImages() {
+  std::lock_guard<std::mutex> lock(swap_state_.mutex);
+  vkDestroyImage(*device_,
+                 reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
+                 nullptr);
+  vkDestroyImage(*device_,
+                 reinterpret_cast<VkImage>(swap_state_.back_buffer_texture),
+                 nullptr);
+  vkFreeMemory(*device_, fb_memory, nullptr);
+  vkFreeMemory(*device_, bb_memory, nullptr);
+
+  swap_state_.front_buffer_texture = 0;
+  swap_state_.back_buffer_texture = 0;
+  fb_memory = nullptr;
+  bb_memory = nullptr;
+}
+
 void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_width,
                                          uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
 
+  // Build a final command buffer that copies the game's frontbuffer texture
+  // into our backbuffer texture.
+  VkCommandBuffer copy_commands = nullptr;
+  bool opened_batch;
+  if (command_buffer_pool_->has_open_batch()) {
+    copy_commands = command_buffer_pool_->AcquireEntry();
+    opened_batch = false;
+  } else {
+    command_buffer_pool_->BeginBatch();
+    copy_commands = command_buffer_pool_->AcquireEntry();
+    current_batch_fence_.reset(new ui::vulkan::Fence(*device_));
+    opened_batch = true;
+  }
+
+  VkCommandBufferBeginInfo begin_info;
+  std::memset(&begin_info, 0, sizeof(begin_info));
+  begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  auto status = vkBeginCommandBuffer(copy_commands, &begin_info);
+  CheckResult(status, "vkBeginCommandBuffer");
+
+  if (!frontbuffer_ptr) {
+    // Trace viewer does this.
+    frontbuffer_ptr = last_copy_base_;
+  }
+
+  if (!swap_state_.back_buffer_texture) {
+    CreateSwapImages(copy_commands, {frontbuffer_width, frontbuffer_height});
+  }
+  auto swap_bb = reinterpret_cast<VkImage>(swap_state_.back_buffer_texture);
+
+  // Issue the commands to copy the game's frontbuffer to our backbuffer.
+  auto texture = texture_cache_->LookupAddress(
+      frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
+      xe::round_up(frontbuffer_height, 32), TextureFormat::k_8_8_8_8);
+  if (texture) {
+    texture->in_flight_fence = current_batch_fence_;
+
+    // Insert a barrier so the GPU finishes writing to the image.
+    VkImageMemoryBarrier barrier;
+    std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+    barrier.srcAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barrier.oldLayout = texture->image_layout;
+    barrier.newLayout = texture->image_layout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = texture->image;
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &barrier);
+
+    // Now issue a blit command.
+    VkImageBlit blit;
+    std::memset(&blit, 0, sizeof(VkImageBlit));
+    blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    blit.srcOffsets[0] = {0, 0, 0};
+    blit.srcOffsets[1] = {int32_t(frontbuffer_width),
+                          int32_t(frontbuffer_height), 1};
+    blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    blit.dstOffsets[0] = {0, 0, 0};
+    blit.dstOffsets[1] = {int32_t(frontbuffer_width),
+                          int32_t(frontbuffer_height), 1};
+
+    vkCmdBlitImage(copy_commands, texture->image, texture->image_layout,
+                   swap_bb, VK_IMAGE_LAYOUT_GENERAL, 1, &blit,
+                   VK_FILTER_LINEAR);
+
+    std::lock_guard<std::mutex> lock(swap_state_.mutex);
+    swap_state_.width = frontbuffer_width;
+    swap_state_.height = frontbuffer_height;
+  }
+
+  status = vkEndCommandBuffer(copy_commands);
+  CheckResult(status, "vkEndCommandBuffer");
+
   // Queue up current command buffers.
   // TODO(benvanik): bigger batches.
+  std::vector<VkCommandBuffer> submit_buffers;
   if (current_command_buffer_) {
     if (current_render_state_) {
       render_cache_->EndRenderPass();
       current_render_state_ = nullptr;
     }
 
-    auto status = vkEndCommandBuffer(current_command_buffer_);
+    status = vkEndCommandBuffer(current_command_buffer_);
     CheckResult(status, "vkEndCommandBuffer");
     status = vkEndCommandBuffer(current_setup_buffer_);
     CheckResult(status, "vkEndCommandBuffer");
-    command_buffer_pool_->EndBatch(*current_batch_fence_);
 
+    // TODO(DrChat): If the setup buffer is empty, don't bother queueing it up.
+    submit_buffers.push_back(current_setup_buffer_);
+    submit_buffers.push_back(current_command_buffer_);
+
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+  }
+
+  submit_buffers.push_back(copy_commands);
+  if (!submit_buffers.empty()) {
     // TODO(benvanik): move to CP or to host (trace dump, etc).
     // This only needs to surround a vkQueueSubmit.
     if (queue_mutex_) {
       queue_mutex_->lock();
     }
 
-    // TODO(DrChat): If setup buffer is empty, don't bother queueing it up.
-    VkCommandBuffer command_buffers[] = {
-        current_setup_buffer_, current_command_buffer_,
-    };
-
     VkSubmitInfo submit_info;
+    std::memset(&submit_info, 0, sizeof(VkSubmitInfo));
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.pNext = nullptr;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.commandBufferCount = 2;
-    submit_info.pCommandBuffers = command_buffers;
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
-    if (queue_mutex_) {
-      // queue_mutex_->lock();
-    }
+    submit_info.commandBufferCount = uint32_t(submit_buffers.size());
+    submit_info.pCommandBuffers = submit_buffers.data();
     status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
-    if (queue_mutex_) {
-      // queue_mutex_->unlock();
-    }
     CheckResult(status, "vkQueueSubmit");
-
-    // TODO(DrChat): Disable this completely.
-    VkFence fences[] = {*current_batch_fence_};
-    status = vkWaitForFences(*device_, 1, fences, true, -1);
-    CheckResult(status, "vkWaitForFences");
 
     if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
@@ -197,45 +357,28 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     if (queue_mutex_) {
       queue_mutex_->unlock();
     }
+  }
 
-    // Scavenging.
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
+  command_buffer_pool_->EndBatch(current_batch_fence_);
+
+  // TODO(DrChat): Remove this.
+  VkFence fences[] = { *current_batch_fence_ };
+  vkWaitForFences(*device_, 1, fences, true, -1);
+
+  // Scavenging.
+  {
+#if FINE_GRAINED_DRAW_SCOPES
+    SCOPE_profile_cpu_i(
+        "gpu",
+        "xe::gpu::vulkan::VulkanCommandProcessor::PerformSwap Scavenging");
+#endif  // FINE_GRAINED_DRAW_SCOPES
     command_buffer_pool_->Scavenge();
 
     texture_cache_->Scavenge();
-    current_batch_fence_ = nullptr;
-
-    // TODO: Remove this when we stop waiting on the queue.
-    buffer_cache_->ClearCache();
+    buffer_cache_->Scavenge();
   }
 
-  if (!frontbuffer_ptr) {
-    if (!last_copy_base_) {
-      // Nothing to draw.
-      return;
-    }
-
-    // Trace viewer does this.
-    frontbuffer_ptr = last_copy_base_;
-  }
-
-  auto texture = texture_cache_->LookupAddress(
-      frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
-      xe::round_up(frontbuffer_height, 32), TextureFormat::k_8_8_8_8);
-  // There shouldn't be a case where the texture is null.
-  assert_not_null(texture);
-
-  if (texture) {
-    std::lock_guard<std::mutex> lock(swap_state_.mutex);
-    swap_state_.width = frontbuffer_width;
-    swap_state_.height = frontbuffer_height;
-    swap_state_.back_buffer_texture =
-        reinterpret_cast<uintptr_t>(texture->image);
-  }
-
-  // Remove any dead textures, etc.
-  texture_cache_->Scavenge();
+  current_batch_fence_ = nullptr;
 }
 
 Shader* VulkanCommandProcessor::LoadShader(ShaderType shader_type,
@@ -331,16 +474,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     started_command_buffer = true;
   }
   auto command_buffer = current_command_buffer_;
-
-  // Upload and set descriptors for all textures.
-  // We do this outside of the render pass so the texture cache can upload and
-  // convert textures.
-  // Setup buffer may be flushed to GPU if the texture cache needs it.
-  auto samplers =
-      PopulateSamplers(current_setup_buffer_, vertex_shader, pixel_shader);
-  if (!samplers) {
-    return false;
-  }
+  auto setup_buffer = current_setup_buffer_;
 
   // Begin the render pass.
   // This will setup our framebuffer and begin the pass in the command buffer.
@@ -362,6 +496,9 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
   }
 
+  // Update the render cache's tracking state.
+  render_cache_->UpdateState();
+
   // Configure the pipeline for drawing.
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
@@ -373,6 +510,13 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
       started_command_buffer) {
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipeline);
+  } else if (pipeline_status == PipelineCache::UpdateStatus::kError) {
+    render_cache_->EndRenderPass();
+    command_buffer_pool_->CancelBatch();
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+    current_batch_fence_ = nullptr;
+    return false;
   }
   pipeline_cache_->SetDynamicState(command_buffer, started_command_buffer);
 
@@ -407,9 +551,17 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Bind samplers/textures.
-  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_cache_->pipeline_layout(), 1, 1, &samplers,
-                          0, nullptr);
+  // Uploads all textures that need it.
+  // Setup buffer may be flushed to GPU if the texture cache needs it.
+  if (!PopulateSamplers(command_buffer, setup_buffer, vertex_shader,
+                        pixel_shader)) {
+    render_cache_->EndRenderPass();
+    command_buffer_pool_->CancelBatch();
+    current_command_buffer_ = nullptr;
+    current_setup_buffer_ = nullptr;
+    current_batch_fence_ = nullptr;
+    return false;
+  }
 
   // Actually issue the draw.
   if (!index_buffer_info) {
@@ -444,7 +596,7 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
   // These are optional, and if none are defined 0 will be returned.
   auto constant_offsets = buffer_cache_->UploadConstantRegisters(
       vertex_shader->constant_register_map(),
-      pixel_shader->constant_register_map());
+      pixel_shader->constant_register_map(), current_batch_fence_);
   if (constant_offsets.first == VK_WHOLE_SIZE ||
       constant_offsets.second == VK_WHOLE_SIZE) {
     // Shader wants constants but we couldn't upload them.
@@ -497,8 +649,8 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
   size_t source_length =
       info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
                                                        : sizeof(uint16_t));
-  auto buffer_ref =
-      buffer_cache_->UploadIndexBuffer(source_ptr, source_length, info.format);
+  auto buffer_ref = buffer_cache_->UploadIndexBuffer(
+      source_ptr, source_length, info.format, current_batch_fence_);
   if (buffer_ref.second == VK_WHOLE_SIZE) {
     // Failed to upload buffer.
     return false;
@@ -523,6 +675,11 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
   auto& vertex_bindings = vertex_shader->vertex_bindings();
+  if (vertex_bindings.empty()) {
+    // No bindings.
+    return true;
+  }
+
   assert_true(vertex_bindings.size() <= 32);
   VkBuffer all_buffers[32];
   VkDeviceSize all_buffer_offsets[32];
@@ -556,8 +713,8 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     const void* source_ptr =
         memory_->TranslatePhysical<const void*>(fetch->address << 2);
     size_t source_length = valid_range;
-    auto buffer_ref =
-        buffer_cache_->UploadVertexBuffer(source_ptr, source_length);
+    auto buffer_ref = buffer_cache_->UploadVertexBuffer(
+        source_ptr, source_length, current_batch_fence_);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
       return false;
@@ -576,9 +733,9 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   return true;
 }
 
-VkDescriptorSet VulkanCommandProcessor::PopulateSamplers(
-    VkCommandBuffer command_buffer, VulkanShader* vertex_shader,
-    VulkanShader* pixel_shader) {
+bool VulkanCommandProcessor::PopulateSamplers(
+    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+    VulkanShader* vertex_shader, VulkanShader* pixel_shader) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -588,10 +745,14 @@ VkDescriptorSet VulkanCommandProcessor::PopulateSamplers(
       pixel_shader->texture_bindings());
   if (!descriptor_set) {
     // Unable to bind set.
-    return nullptr;
+    return false;
   }
 
-  return descriptor_set;
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_cache_->pipeline_layout(), 1, 1,
+                          &descriptor_set, 0, nullptr);
+
+  return true;
 }
 
 bool VulkanCommandProcessor::IssueCopy() {
@@ -760,6 +921,9 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.size_2d.input_pitch = copy_dest_pitch * 4;
   auto texture = texture_cache_->DemandResolveTexture(
       tex_info, ColorFormatToTextureFormat(copy_dest_format), nullptr);
+  assert_not_null(texture);
+  texture->in_flight_fence = current_batch_fence_;
+
   if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
     // Transition the image to a general layout.
     VkImageMemoryBarrier image_barrier;
@@ -820,10 +984,12 @@ bool VulkanCommandProcessor::IssueCopy() {
                             : static_cast<uint32_t>(depth_format);
   switch (copy_command) {
     case CopyCommand::kRaw:
+    /*
       render_cache_->RawCopyToImage(command_buffer, edram_base, texture->image,
                                     texture->image_layout, copy_src_select <= 3,
                                     resolve_offset, resolve_extent);
       break;
+    */
     case CopyCommand::kConvert:
       render_cache_->BlitToImage(
           command_buffer, edram_base, surface_pitch, resolve_extent.height,
