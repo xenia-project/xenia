@@ -362,7 +362,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   command_buffer_pool_->EndBatch(current_batch_fence_);
 
   // TODO(DrChat): Remove this.
-  VkFence fences[] = { *current_batch_fence_ };
+  VkFence fences[] = {*current_batch_fence_};
   vkWaitForFences(*device_, 1, fences, true, -1);
 
   // Scavenging.
@@ -733,9 +733,10 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   return true;
 }
 
-bool VulkanCommandProcessor::PopulateSamplers(
-    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
-    VulkanShader* vertex_shader, VulkanShader* pixel_shader) {
+bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
+                                              VkCommandBuffer setup_buffer,
+                                              VulkanShader* vertex_shader,
+                                              VulkanShader* pixel_shader) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -829,11 +830,13 @@ bool VulkanCommandProcessor::IssueCopy() {
     window_offset_y |= 0x8000;
   }
 
+  size_t read_size = GetTexelSize(ColorFormatToTextureFormat(copy_dest_format));
+
   // Adjust the copy base offset to point to the beginning of the texture, so
   // we don't run into hiccups down the road (e.g. resolving the last part going
   // backwards).
-  int32_t dest_offset = window_offset_y * copy_dest_pitch * 4;
-  dest_offset += window_offset_x * 32 * 4;
+  int32_t dest_offset = window_offset_y * copy_dest_pitch * int(read_size);
+  dest_offset += window_offset_x * 32 * int(read_size);
   copy_dest_base += dest_offset;
 
   // HACK: vertices to use are always in vf0.
