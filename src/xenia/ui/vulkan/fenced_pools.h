@@ -14,6 +14,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/ui/vulkan/vulkan.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace ui {
@@ -40,13 +41,15 @@ class BaseFencedPool {
 
   // True if one or more batches are still pending on the GPU.
   bool has_pending() const { return pending_batch_list_head_ != nullptr; }
+  // True if a batch is open.
+  bool has_open_batch() const { return open_batch_ != nullptr; }
 
   // Checks all pending batches for completion and scavenges their entries.
   // This should be called as frequently as reasonable.
   void Scavenge() {
     while (pending_batch_list_head_) {
       auto batch = pending_batch_list_head_;
-      if (vkGetFenceStatus(device_, batch->fence) == VK_SUCCESS) {
+      if (vkGetFenceStatus(device_, *batch->fence) == VK_SUCCESS) {
         // Batch has completed. Reclaim.
         pending_batch_list_head_ = batch->next;
         if (batch == pending_batch_list_tail_) {
@@ -132,7 +135,7 @@ class BaseFencedPool {
 
   // Ends the current batch using the given fence to indicate when the batch
   // has completed execution on the GPU.
-  void EndBatch(VkFence fence) {
+  void EndBatch(std::shared_ptr<Fence> fence) {
     assert_not_null(open_batch_);
 
     // Close and see if we have anything.
@@ -194,7 +197,7 @@ class BaseFencedPool {
     Batch* next;
     Entry* entry_list_head;
     Entry* entry_list_tail;
-    VkFence fence;
+    std::shared_ptr<Fence> fence;
   };
 
   Batch* free_batch_list_head_ = nullptr;
