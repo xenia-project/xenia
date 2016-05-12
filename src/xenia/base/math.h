@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
-
+#include <cmath>
 #include "xenia/base/platform.h"
 
 #if XE_ARCH_AMD64
