@@ -52,6 +52,14 @@ sudo -E apt-get -yq update &>> ~/apt-get-update.log
 sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-3.8 clang-format-3.8
 ```
 
+You will also need some development libraries. To get them on an ubuntu system:
+```
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libglew-dev libx11-dev
+```
+
+In addition, you will need the latest OpenGL libraries and drivers for your hardware. Intel and the open source
+drivers are not supported as they do not yet support OpenGL 4.5.
+
 ## Running
 
 To make life easier you can use `--flagfile=myflags.txt` to specify all
