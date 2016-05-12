@@ -37,6 +37,7 @@ class GLXContext : public GLContext {
 
 
   bool is_current() override;
+
   bool MakeCurrent() override;
   void ClearCurrent() override;
 

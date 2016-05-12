@@ -29,15 +29,12 @@ namespace ui {
 namespace gl {
 
 
-DEFINE_bool(disable_gl_context_reset, false,
-            "Do not aggressively reset the GL context (helps with capture "
-            "programs such as OBS or FRAPS).");
-DEFINE_bool(gl_debug, false, "Enable OpenGL debug validation layer.");
 
 thread_local GLEWContext* tls_glew_context_ = nullptr;
 thread_local GLXEWContext* tls_glxew_context_ = nullptr;
 extern "C" GLEWContext* glewGetContext() { return tls_glew_context_; }
 extern "C" GLXEWContext* glxewGetContext() { return tls_glxew_context_; }
+
 
 
 std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
@@ -52,11 +49,10 @@ std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
   return context;
 }
 
-
 std::unique_ptr<GLContext> GLContext::CreateOffscreen(
         GraphicsProvider* provider, GLContext* parent_context) {
   return GLXContext::CreateOffscreen(provider,
-		  dynamic_cast<GLXContext*>(parent_context));
+		  static_cast<GLXContext*>(parent_context));
 }
 
 GLXContext::GLXContext(GraphicsProvider* provider, Window* target_window)
@@ -152,7 +148,7 @@ bool GLXContext::Initialize(GLContext* share_context) {
       GLX_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB,
       robust_access_supported_ ? GLX_LOSE_CONTEXT_ON_RESET_ARB : 0,
       0};
-  GLXContext* share_context_glx = dynamic_cast<GLXContext*>(share_context);
+  GLXContext* share_context_glx = static_cast<GLXContext*>(share_context);
   glx_context_ = glXCreateContextAttribsARB(
       display, nullptr,
 	     share_context ? share_context_glx->glx_context_ : nullptr, True,
@@ -277,7 +273,7 @@ std::unique_ptr<GLXContext> GLXContext::CreateOffscreen(
 
 
 
-bool GLContext::is_current() {
+bool GLXContext::is_current() {
   return tls_glew_context_ == glew_context_.get();
 }
 
@@ -328,7 +324,7 @@ void GLXContext::BeginSwap() {
 
 void GLXContext::EndSwap() {
   SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLXContext::EndSwap");
-  glXSwapBuffers(disp_, _xid);
+  glXSwapBuffers(disp_, xid_);
 }
 
 }  // namespace gl

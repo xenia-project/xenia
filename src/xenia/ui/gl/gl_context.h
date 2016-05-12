@@ -43,13 +43,13 @@ class GLContext : public GraphicsContext {
 
   ImmediateDrawer* immediate_drawer() override;
 
-  bool is_current() = 0;
-  bool MakeCurrent() = 0;
-  void ClearCurrent() = 0;
+  virtual bool is_current() override = 0;
+  virtual bool MakeCurrent() override = 0;
+  virtual void ClearCurrent() override = 0;
   bool WasLost() override;
 
-  void BeginSwap() = 0;
-  void EndSwap() = 0;
+  virtual void BeginSwap() override = 0;
+  virtual void EndSwap() override = 0;
   std::unique_ptr<RawImage> Capture() override;
 
   Blitter* blitter() { return &blitter_; }
