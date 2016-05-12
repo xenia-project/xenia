@@ -40,9 +40,10 @@ project("xenia-app")
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
   })
-  files({
-    "main_resources.rc",
-  })
+  filter("platforms:Windows")
+    files({
+      "main_resources.rc",
+    })
   resincludedirs({
     project_root,
   })
