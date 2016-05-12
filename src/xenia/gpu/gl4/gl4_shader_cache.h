@@ -11,6 +11,8 @@
 #define XENIA_GPU_GL4_SHADER_CACHE_H_
 
 #include <cstdint>
+#include <vector>
+#include <cstring>
 #include <memory>
 #include <unordered_map>
 

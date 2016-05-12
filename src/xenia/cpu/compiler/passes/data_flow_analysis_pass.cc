@@ -23,6 +23,7 @@
 #include <llvm/ADT/BitVector.h>
 #pragma warning(pop)
 #else
+#include <cmath>
 #include <llvm/ADT/BitVector.h>
 #endif  // XE_COMPILER_MSVC
 
