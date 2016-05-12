@@ -56,6 +56,7 @@ void GLContext::FatalGLError(std::string error) {
 GLContext::GLContext(GraphicsProvider* provider, Window* target_window)
     : GraphicsContext(provider, target_window) {  }
 
+GLContext::~GLContext() {}
 
 void GLContext::AssertExtensionsPresent() {
   if (!MakeCurrent()) {

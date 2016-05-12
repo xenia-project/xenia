@@ -21,9 +21,14 @@
 
 DECLARE_bool(thread_safe_gl);
 
-// TODO(benvanik): hide Win32 stuff.
-typedef struct HDC__* HDC;
-typedef struct HGLRC__* HGLRC;
+DECLARE_bool(disable_gl_context_reset);
+
+DECLARE_bool(random_clear_color);
+
+DECLARE_bool(gl_debug);
+DECLARE_bool(gl_debug_output);
+DECLARE_bool(gl_debug_output_synchronous);
+
 
 namespace xe {
 namespace ui {
@@ -38,13 +43,13 @@ class GLContext : public GraphicsContext {
 
   ImmediateDrawer* immediate_drawer() override;
 
-  bool is_current() override;
-  bool MakeCurrent() override;
-  void ClearCurrent() override;
+  bool is_current() = 0;
+  bool MakeCurrent() = 0;
+  void ClearCurrent() = 0;
   bool WasLost() override;
 
-  void BeginSwap() override;
-  void EndSwap() override;
+  void BeginSwap() = 0;
+  void EndSwap() = 0;
   std::unique_ptr<RawImage> Capture() override;
 
   Blitter* blitter() { return &blitter_; }
