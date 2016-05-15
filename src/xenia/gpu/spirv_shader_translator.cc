@@ -12,16 +12,24 @@
 #include <cstring>
 
 #include "xenia/base/logging.h"
+#include "xenia/gpu/spirv/passes/control_flow_analysis_pass.h"
+#include "xenia/gpu/spirv/passes/control_flow_simplification_pass.h"
 
 namespace xe {
 namespace gpu {
 using namespace ucode;
 
+constexpr int kMaxInterpolators = 16;
+constexpr int kMaxTemporaryRegisters = 64;
+
 using spv::GLSLstd450;
 using spv::Id;
 using spv::Op;
 
-SpirvShaderTranslator::SpirvShaderTranslator() = default;
+SpirvShaderTranslator::SpirvShaderTranslator() {
+  compiler_.AddPass(std::make_unique<spirv::ControlFlowSimplificationPass>());
+  compiler_.AddPass(std::make_unique<spirv::ControlFlowAnalysisPass>());
+}
 
 SpirvShaderTranslator::~SpirvShaderTranslator() = default;
 
@@ -331,11 +339,19 @@ void SpirvShaderTranslator::StartTranslation() {
                               ps_param_gen_idx, b.makeUintConstant(-1));
     spv::Builder::If ifb(cond, b);
 
-    // Index is specified
-    auto reg_ptr = b.createAccessChain(spv::StorageClass::StorageClassFunction,
-                                       registers_ptr_,
-                                       std::vector<Id>({ps_param_gen_idx}));
-    b.createStore(param, reg_ptr);
+    // FYI: We do this instead of r[ps_param_gen_idx] because that causes
+    // nvidia to move all registers into local memory (slow!)
+    for (uint32_t i = 0; i < kMaxInterpolators; i++) {
+      auto reg_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassFunction, registers_ptr_,
+          std::vector<Id>({b.makeUintConstant(i)}));
+
+      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, ps_param_gen_idx,
+                                b.makeUintConstant(i));
+      auto reg = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, cond, param,
+                               b.createLoad(reg_ptr));
+      b.createStore(reg, reg_ptr);
+    }
 
     ifb.makeEndIf();
   }
@@ -406,27 +422,63 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     b.createStore(p, pos_);
   } else {
     // Alpha test
-    auto alpha_test_x = b.createCompositeExtract(push_consts_, float_type_,
-                                                 std::vector<uint32_t>{2, 0});
-    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, alpha_test_x,
-                              b.makeFloatConstant(1.f));
+    auto alpha_test_enabled = b.createCompositeExtract(
+        push_consts_, float_type_, std::vector<uint32_t>{2, 0});
+    auto alpha_test_func = b.createCompositeExtract(
+        push_consts_, float_type_, std::vector<uint32_t>{2, 1});
+    auto alpha_test_ref = b.createCompositeExtract(push_consts_, float_type_,
+                                                   std::vector<uint32_t>{2, 2});
+    alpha_test_func =
+        b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
+    auto oC0_alpha = b.createCompositeExtract(frag_outputs_, float_type_,
+                                              std::vector<uint32_t>({0, 3}));
 
+    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
+                              alpha_test_enabled, b.makeFloatConstant(1.f));
     spv::Builder::If alpha_if(cond, b);
 
-    // TODO(DrChat): Apply alpha test.
+    std::vector<spv::Block*> switch_segments;
+    b.makeSwitch(alpha_test_func, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
+                 std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7,
+                 switch_segments);
+
+    const static spv::Op alpha_op_map[] = {
+        spv::Op::OpNop,
+        spv::Op::OpFOrdGreaterThanEqual,
+        spv::Op::OpFOrdNotEqual,
+        spv::Op::OpFOrdGreaterThan,
+        spv::Op::OpFOrdLessThanEqual,
+        spv::Op::OpFOrdEqual,
+        spv::Op::OpFOrdLessThan,
+        spv::Op::OpNop,
+    };
+
     // if (alpha_func == 0) passes = false;
-    // if (alpha_func == 1 && oC[0].a <  alpha_ref) passes = true;
-    // if (alpha_func == 2 && oC[0].a == alpha_ref) passes = true;
-    // if (alpha_func == 3 && oC[0].a <= alpha_ref) passes = true;
-    // if (alpha_func == 4 && oC[0].a >  alpha_ref) passes = true;
-    // if (alpha_func == 5 && oC[0].a != alpha_ref) passes = true;
-    // if (alpha_func == 6 && oC[0].a >= alpha_ref) passes = true;
+    b.nextSwitchSegment(switch_segments, 0);
+    b.makeDiscard();
+    b.addSwitchBreak();
+
+    for (int i = 1; i < 7; i++) {
+      b.nextSwitchSegment(switch_segments, i);
+      auto cond =
+          b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha, alpha_test_ref);
+      spv::Builder::If discard_if(cond, b);
+      b.makeDiscard();
+      discard_if.makeEndIf();
+      b.addSwitchBreak();
+    }
+
     // if (alpha_func == 7) passes = true;
+    b.nextSwitchSegment(switch_segments, 7);
+    b.endSwitch(switch_segments);
 
     alpha_if.makeEndIf();
   }
 
   b.makeReturn(false);
+
+  // Compile the spv IR
+  compiler_.Compile(b.getModule());
 
   std::vector<uint32_t> spirv_words;
   b.dump(spirv_words);
@@ -555,8 +607,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
 
       auto next_block = cf_blocks_[instr.dword_index + 1];
       if (next_block.prev_dominates) {
-        b.createNoResultOp(spv::Op::OpSelectionMerge,
-                           {next_block.block->getId(), 0});
+        b.createSelectionMerge(next_block.block, spv::SelectionControlMaskNone);
       }
       b.createConditionalBranch(cond, body, next_block.block);
     } break;
@@ -570,8 +621,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
 
       auto next_block = cf_blocks_[instr.dword_index + 1];
       if (next_block.prev_dominates) {
-        b.createNoResultOp(spv::Op::OpSelectionMerge,
-                           {next_block.block->getId(), 0});
+        b.createSelectionMerge(next_block.block, spv::SelectionControlMaskNone);
       }
       b.createConditionalBranch(cond, body, next_block.block);
 
@@ -756,8 +806,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
-    b.createNoResultOp(spv::Op::OpSelectionMerge,
-                       {predicated_block_end_->getId(), 0});
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -771,12 +821,37 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   auto shader_vertex_id = b.createLoad(vertex_id_);
   auto cond =
       b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_id, shader_vertex_id);
+  cond = b.smearScalar(spv::NoPrecision, cond, vec4_bool_type_);
 
   // Skip loading if it's an indexed fetch.
   auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
                                        [instr.attributes.offset];
   assert_not_zero(vertex_ptr);
   auto vertex = b.createLoad(vertex_ptr);
+
+  switch (instr.attributes.data_format) {
+    case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_16_16:
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_FLOAT:
+    case VertexFormat::k_32_32_FLOAT:
+    case VertexFormat::k_32_32_32_FLOAT:
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      // These are handled, for now.
+      break;
+
+    case VertexFormat::k_10_11_11: {
+      // No conversion needed. Natively supported.
+    } break;
+
+    case VertexFormat::k_11_11_10: {
+      // This needs to be converted.
+    } break;
+  }
 
   auto vertex_components = b.getNumComponents(vertex);
   Id alt_vertex = 0;
@@ -836,8 +911,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
-    b.createNoResultOp(spv::Op::OpSelectionMerge,
-                       {predicated_block_end_->getId(), 0});
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -940,8 +1015,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
-    b.createNoResultOp(spv::Op::OpSelectionMerge,
-                       {predicated_block_end_->getId(), 0});
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }
@@ -1170,6 +1245,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto c_and =
           b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
       auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
       auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
 
       // p0
@@ -1194,6 +1270,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto c_and =
           b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
       auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
       auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
 
       // p0
@@ -1218,6 +1295,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto c_and =
           b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
       auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
       auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
 
       // p0
@@ -1242,6 +1320,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto c_and =
           b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
       auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
+      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
       auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
 
       // p0
@@ -1376,8 +1455,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     predicated_block_cond_ = instr.predicate_condition;
     predicated_block_end_ = &b.makeNewBlock();
 
-    b.createNoResultOp(spv::Op::OpSelectionMerge,
-                       {predicated_block_end_->getId(), 0});
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
   }

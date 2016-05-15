@@ -17,6 +17,7 @@
 #include "third_party/glslang-spirv/SpvBuilder.h"
 #include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
+#include "xenia/gpu/spirv/compiler.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
 #include "xenia/ui/spirv/spirv_validator.h"
 
@@ -97,6 +98,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
   xe::ui::spirv::SpirvValidator validator_;
+  xe::gpu::spirv::Compiler compiler_;
 
   // True if there's an open predicated block
   bool open_predicated_block_ = false;

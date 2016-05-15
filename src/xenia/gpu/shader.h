@@ -99,6 +99,17 @@ struct InstructionResult {
   bool has_all_writes() const {
     return write_mask[0] && write_mask[1] && write_mask[2] && write_mask[3];
   }
+  // Returns number of components written
+  uint32_t num_writes() const {
+    uint32_t total = 0;
+    for (int i = 0; i < 4; i++) {
+      if (write_mask[i]) {
+        total++;
+      }
+    }
+
+    return total;
+  }
   // Returns true if any non-constant components are written.
   bool stores_non_constants() const {
     for (int i = 0; i < 4; ++i) {
