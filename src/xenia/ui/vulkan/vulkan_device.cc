@@ -95,6 +95,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   ENABLE_AND_EXPECT(depthClamp);
   ENABLE_AND_EXPECT(alphaToOne);
   ENABLE_AND_EXPECT(multiViewport);
+  ENABLE_AND_EXPECT(independentBlend);
   // TODO(benvanik): add other features.
   if (any_features_missing) {
     XELOGE(
