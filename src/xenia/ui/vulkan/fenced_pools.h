@@ -158,6 +158,7 @@ class BaseFencedPool {
     }
     if (pending_batch_list_tail_) {
       pending_batch_list_tail_->next = batch;
+      pending_batch_list_tail_ = batch;
     } else {
       pending_batch_list_tail_ = batch;
     }
