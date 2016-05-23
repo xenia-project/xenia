@@ -19,8 +19,8 @@ namespace xe {
 namespace gpu {
 using namespace ucode;
 
-constexpr int kMaxInterpolators = 16;
-constexpr int kMaxTemporaryRegisters = 64;
+constexpr uint32_t kMaxInterpolators = 16;
+constexpr uint32_t kMaxTemporaryRegisters = 64;
 
 using spv::GLSLstd450;
 using spv::Id;
@@ -47,6 +47,7 @@ void SpirvShaderTranslator::StartTranslation() {
                    spv::MemoryModel::MemoryModelGLSL450);
   b.addCapability(spv::Capability::CapabilityShader);
   b.addCapability(spv::Capability::CapabilityGenericPointer);
+
   if (is_vertex_shader()) {
     b.addCapability(spv::Capability::CapabilityClipDistance);
     b.addCapability(spv::Capability::CapabilityCullDistance);
@@ -79,8 +80,8 @@ void SpirvShaderTranslator::StartTranslation() {
       std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
                        b.makeFloatConstant(0.f), b.makeFloatConstant(0.f)}));
 
-  registers_type_ =
-      b.makeArrayType(vec4_float_type_, b.makeUintConstant(64), 0);
+  registers_type_ = b.makeArrayType(vec4_float_type_,
+                                    b.makeUintConstant(register_count()), 0);
   registers_ptr_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                                     registers_type_, "r");
 
@@ -197,8 +198,8 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Interpolators.
-  Id interpolators_type =
-      b.makeArrayType(vec4_float_type_, b.makeUintConstant(16), 0);
+  Id interpolators_type = b.makeArrayType(
+      vec4_float_type_, b.makeUintConstant(kMaxInterpolators), 0);
   if (is_vertex_shader()) {
     // Vertex inputs/outputs.
     for (const auto& binding : vertex_bindings()) {
@@ -248,7 +249,8 @@ void SpirvShaderTranslator::StartTranslation() {
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                                       interpolators_type, "interpolators");
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
-    for (uint32_t i = 0; i < 16; i++) {
+    for (uint32_t i = 0; i < std::min(register_count(), kMaxInterpolators);
+         i++) {
       // Zero interpolators.
       auto ptr = b.createAccessChain(spv::StorageClass::StorageClassOutput,
                                      interpolators_,
@@ -300,7 +302,8 @@ void SpirvShaderTranslator::StartTranslation() {
     // b.createNoResultOp(spv::Op::OpCopyMemorySized,
     //                   {registers_ptr_, interpolators_,
     //                    b.makeUintConstant(16 * 4 * sizeof(float))});
-    for (int i = 0; i < 16; i++) {
+    for (uint32_t i = 0; i < std::min(register_count(), kMaxInterpolators);
+         i++) {
       // For now, copy interpolators register-by-register :/
       auto idx = b.makeUintConstant(i);
       auto i_a = b.createAccessChain(spv::StorageClass::StorageClassInput,
@@ -341,7 +344,8 @@ void SpirvShaderTranslator::StartTranslation() {
 
     // FYI: We do this instead of r[ps_param_gen_idx] because that causes
     // nvidia to move all registers into local memory (slow!)
-    for (uint32_t i = 0; i < kMaxInterpolators; i++) {
+    for (uint32_t i = 0; i < std::min(register_count(), kMaxInterpolators);
+         i++) {
       auto reg_ptr = b.createAccessChain(
           spv::StorageClass::StorageClassFunction, registers_ptr_,
           std::vector<Id>({b.makeUintConstant(i)}));
@@ -586,7 +590,6 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
     } break;
     case ParsedExecInstruction::Type::kConditional: {
       // Based off of bool_consts
-      // FIXME: Nvidia compiler is complaining about this.
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
       offsets.push_back(b.makeUintConstant(instr.bool_constant_index / 32));
@@ -595,15 +598,25 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       v = b.createLoad(v);
 
       // Bitfield extract the bool constant.
+      // FIXME: NVidia's compiler seems to be broken on this instruction?
+      /*
       v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
                         b.makeUintConstant(instr.bool_constant_index % 32),
                         b.makeUintConstant(1));
 
+      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
+                                b.makeUintConstant(instr.condition ? 1 : 0));
+      */
+      v = b.createBinOp(
+          spv::Op::OpBitwiseAnd, uint_type_, v,
+          b.makeUintConstant(1 << (instr.bool_constant_index % 32)));
+      auto cond = b.createBinOp(
+          instr.condition ? spv::Op::OpINotEqual : spv::Op::OpIEqual,
+          bool_type_, v, b.makeUintConstant(0));
+
       // Conditional branch
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
-                                b.makeUintConstant(instr.condition ? 1 : 0));
 
       auto next_block = cf_blocks_[instr.dword_index + 1];
       if (next_block.prev_dominates) {
@@ -731,6 +744,8 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
                                    consts_, offsets);
       v = b.createLoad(v);
 
+      // FIXME: NVidia's compiler seems to be broken on this instruction?
+      /*
       // Bitfield extract the bool constant.
       v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
                         b.makeUintConstant(instr.bool_constant_index % 32),
@@ -739,6 +754,14 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       // Conditional branch
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
                                 b.makeUintConstant(instr.condition ? 1 : 0));
+      */
+      v = b.createBinOp(
+          spv::Op::OpBitwiseAnd, uint_type_, v,
+          b.makeUintConstant(1 << (instr.bool_constant_index % 32)));
+      auto cond = b.createBinOp(
+          instr.condition ? spv::Op::OpINotEqual : spv::Op::OpIEqual,
+          bool_type_, v, b.makeUintConstant(0));
+
       b.createConditionalBranch(cond, cf_blocks_[instr.target_address].block,
                                 cf_blocks_[instr.dword_index + 1].block);
     } break;
@@ -1473,7 +1496,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kAddsPrev: {
       // dest = src0 + ps
-      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0], ps_);
+      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0],
+                           b.createLoad(ps_));
     } break;
 
     case AluScalarOpcode::kCos: {
@@ -1636,7 +1660,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kMulsPrev: {
       // dest = src0 * ps
-      dest = b.createBinOp(spv::Op::OpFMul, float_type_, sources[0], ps_);
+      dest = b.createBinOp(spv::Op::OpFMul, float_type_, sources[0],
+                           b.createLoad(ps_));
     } break;
 
     case AluScalarOpcode::kMulsPrev2: {
@@ -1644,11 +1669,22 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kRcpc: {
-      // TODO: dest = src0 != 0.0 ? 1.0 / src0 : FLT_MAX;
+      dest = b.createBinOp(spv::Op::OpFDiv, float_type_,
+                           b.makeFloatConstant(1.f), sources[0]);
+      dest = CreateGlslStd450InstructionCall(
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kFClamp,
+          {dest, b.makeFloatConstant(-FLT_MAX), b.makeFloatConstant(FLT_MAX)});
     } break;
 
-    case AluScalarOpcode::kRcp:
     case AluScalarOpcode::kRcpf: {
+      dest = b.createBinOp(spv::Op::OpFDiv, float_type_,
+                           b.makeFloatConstant(1.f), sources[0]);
+      auto c = b.createUnaryOp(spv::Op::OpIsInf, bool_type_, dest);
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
+                           b.makeFloatConstant(0.f), dest);
+    } break;
+
+    case AluScalarOpcode::kRcp: {
       // dest = src0 != 0.0 ? 1.0 / src0 : 0.0;
       auto c = b.createBinOp(spv::Op::OpFOrdEqual, float_type_, sources[0],
                              b.makeFloatConstant(0.f));
@@ -1659,9 +1695,21 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kRsqc: {
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             spv::GLSLstd450::kInverseSqrt,
+                                             {sources[0]});
+      dest = CreateGlslStd450InstructionCall(
+          spv::NoPrecision, float_type_, spv::GLSLstd450::kFClamp,
+          {dest, b.makeFloatConstant(-FLT_MAX), b.makeFloatConstant(FLT_MAX)});
     } break;
 
     case AluScalarOpcode::kRsqf: {
+      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                             spv::GLSLstd450::kInverseSqrt,
+                                             {sources[0]});
+      auto c = b.createUnaryOp(spv::Op::OpIsInf, bool_type_, dest);
+      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
+                           b.makeFloatConstant(0.f), dest);
     } break;
 
     case AluScalarOpcode::kRsq: {
@@ -1817,7 +1865,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kSubsPrev: {
-      dest = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0], ps_);
+      dest = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0],
+                           b.createLoad(ps_));
     } break;
 
     case AluScalarOpcode::kTruncs: {
