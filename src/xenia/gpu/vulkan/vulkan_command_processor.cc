@@ -95,7 +95,7 @@ void VulkanCommandProcessor::ShutdownContext() {
   // Free all pools. This must come after all of our caches clean up.
   command_buffer_pool_.reset();
 
-  // Release queue, if were using an acquired one.
+  // Release queue, if we were using an acquired one.
   if (!queue_mutex_) {
     device_->ReleaseQueue(queue_);
     queue_ = nullptr;
@@ -185,6 +185,7 @@ void VulkanCommandProcessor::CreateSwapImages(VkCommandBuffer setup_buffer,
   // Transition both images to general layout.
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.srcAccessMask = 0;
   barrier.dstAccessMask = 0;
   barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -268,6 +269,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     // Insert a barrier so the GPU finishes writing to the image.
     VkImageMemoryBarrier barrier;
     std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.srcAccessMask =
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -315,9 +317,9 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       current_render_state_ = nullptr;
     }
 
-    status = vkEndCommandBuffer(current_command_buffer_);
-    CheckResult(status, "vkEndCommandBuffer");
     status = vkEndCommandBuffer(current_setup_buffer_);
+    CheckResult(status, "vkEndCommandBuffer");
+    status = vkEndCommandBuffer(current_command_buffer_);
     CheckResult(status, "vkEndCommandBuffer");
 
     // TODO(DrChat): If the setup buffer is empty, don't bother queueing it up.
@@ -417,7 +419,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // We need them to do just about anything so validate here.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   auto pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
-  if (!vertex_shader || !vertex_shader->is_valid()) {
+  if (!vertex_shader) {
     // Always need a vertex shader.
     return true;
   }
@@ -426,7 +428,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Use a dummy pixel shader when required.
     // TODO(benvanik): dummy pixel shader.
     assert_not_null(pixel_shader);
-  } else if (!pixel_shader || !pixel_shader->is_valid()) {
+  } else if (!pixel_shader) {
     // Need a pixel shader in normal color mode.
     return true;
   }
@@ -742,7 +744,7 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
   auto descriptor_set = texture_cache_->PrepareTextureSet(
-      command_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
+      setup_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
       pixel_shader->texture_bindings());
   if (!descriptor_set) {
     // Unable to bind set.
