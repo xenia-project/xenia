@@ -30,6 +30,7 @@ class ShaderTranslator {
   // DEPRECATED(benvanik): remove this when shader cache is removed.
   bool GatherAllBindingInformation(Shader* shader);
 
+  bool Translate(Shader* shader, xenos::xe_gpu_program_cntl_t cntl);
   bool Translate(Shader* shader);
 
  protected:
@@ -38,6 +39,8 @@ class ShaderTranslator {
   // Resets translator state before beginning translation.
   virtual void Reset();
 
+  // Register count.
+  uint32_t register_count() const { return register_count_; }
   // True if the current shader is a vertex shader.
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
   // True if the current shader is a pixel shader.
@@ -132,6 +135,8 @@ class ShaderTranslator {
     int src_swizzle_component_count;
   };
 
+  bool TranslateInternal(Shader* shader);
+
   void MarkUcodeInstruction(uint32_t dword_offset);
   void AppendUcodeDisasm(char c);
   void AppendUcodeDisasm(const char* value);
@@ -184,6 +189,8 @@ class ShaderTranslator {
   ShaderType shader_type_;
   const uint32_t* ucode_dwords_;
   size_t ucode_dword_count_;
+  xenos::xe_gpu_program_cntl_t program_cntl_;
+  uint32_t register_count_;
 
   // Accumulated translation errors.
   std::vector<Shader::Error> errors_;

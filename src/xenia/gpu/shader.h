@@ -558,6 +558,9 @@ class Shader {
   // True if the shader was translated and prepared without error.
   bool is_valid() const { return is_valid_; }
 
+  // True if the shader has already been translated.
+  bool is_translated() const { return is_translated_; }
+
   // Errors that occurred during translation.
   const std::vector<Error>& errors() const { return errors_; }
 
@@ -602,6 +605,7 @@ class Shader {
   bool writes_color_targets_[4] = {false, false, false, false};
 
   bool is_valid_ = false;
+  bool is_translated_ = false;
   std::vector<Error> errors_;
 
   std::string ucode_disassembly_;

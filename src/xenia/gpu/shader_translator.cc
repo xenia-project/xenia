@@ -51,6 +51,7 @@ void ShaderTranslator::Reset() {
   ucode_disasm_buffer_.Reset();
   ucode_disasm_line_number_ = 0;
   previous_ucode_disasm_scan_offset_ = 0;
+  register_count_ = 64;
   total_attrib_count_ = 0;
   vertex_bindings_.clear();
   texture_bindings_.clear();
@@ -95,9 +96,21 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
   return true;
 }
 
+bool ShaderTranslator::Translate(Shader* shader,
+                                 xenos::xe_gpu_program_cntl_t cntl) {
+  Reset();
+  register_count_ = shader->type() == ShaderType::kVertex ? cntl.vs_regs + 1
+                                                          : cntl.ps_regs + 1;
+
+  return TranslateInternal(shader);
+}
+
 bool ShaderTranslator::Translate(Shader* shader) {
   Reset();
+  return TranslateInternal(shader);
+}
 
+bool ShaderTranslator::TranslateInternal(Shader* shader) {
   shader_type_ = shader->type();
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
@@ -155,6 +168,7 @@ bool ShaderTranslator::Translate(Shader* shader) {
   }
 
   shader->is_valid_ = true;
+  shader->is_translated_ = true;
   for (const auto& error : shader->errors_) {
     if (error.is_fatal) {
       shader->is_valid_ = false;
