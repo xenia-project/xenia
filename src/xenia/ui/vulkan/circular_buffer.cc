@@ -103,23 +103,22 @@ bool CircularBuffer::CanAcquire(VkDeviceSize length) {
   length = xe::round_up(length, alignment_);
   if (allocations_.empty()) {
     // Read head has caught up to write head (entire buffer available for write)
-    assert(read_head_ == write_head_);
-    return capacity_ > length;
+    return capacity_ >= length;
   } else if (write_head_ < read_head_) {
     // Write head wrapped around and is behind read head.
     // |  write  |---- read ----|
-    return (read_head_ - write_head_) > length;
-  } else {
+    return (read_head_ - write_head_) >= length;
+  } else if (write_head_ > read_head_) {
     // Read head behind write head.
     // 1. Check if there's enough room from write -> capacity
     // |  |---- read ----|    write     |
-    if ((capacity_ - write_head_) > length) {
+    if ((capacity_ - write_head_) >= length) {
       return true;
     }
 
     // 2. Check if there's enough room from 0 -> read
     // |    write     |---- read ----|  |
-    if ((read_head_) > length) {
+    if ((read_head_ - 0) >= length) {
       return true;
     }
   }
@@ -129,29 +128,13 @@ bool CircularBuffer::CanAcquire(VkDeviceSize length) {
 
 CircularBuffer::Allocation* CircularBuffer::Acquire(
     VkDeviceSize length, std::shared_ptr<Fence> fence) {
-  if (!CanAcquire(length)) {
+  VkDeviceSize aligned_length = xe::round_up(length, alignment_);
+  if (!CanAcquire(aligned_length)) {
     return nullptr;
   }
 
-  VkDeviceSize aligned_length = xe::round_up(length, alignment_);
   assert_true(write_head_ % alignment_ == 0);
-  if (allocations_.empty()) {
-    // Entire buffer available.
-    assert(read_head_ == write_head_);
-    assert(capacity_ > aligned_length);
-
-    write_head_ = aligned_length;
-
-    auto alloc = new Allocation();
-    alloc->host_ptr = host_base_ + 0;
-    alloc->gpu_memory = gpu_memory_;
-    alloc->offset = gpu_base_ + 0;
-    alloc->length = length;
-    alloc->aligned_length = aligned_length;
-    alloc->fence = fence;
-    allocations_.push_back(alloc);
-    return alloc;
-  } else if (write_head_ < read_head_) {
+  if (write_head_ < read_head_) {
     // Write head behind read head.
     assert_true(read_head_ - write_head_ >= aligned_length);
 
@@ -167,7 +150,7 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
 
     return alloc;
   } else {
-    // Write head after read head
+    // Write head equal to/after read head
     if (capacity_ - write_head_ >= aligned_length) {
       // Free space from write -> capacity
       auto alloc = new Allocation();
@@ -181,7 +164,7 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
       allocations_.push_back(alloc);
 
       return alloc;
-    } else if ((read_head_ - 0) > aligned_length) {
+    } else if ((read_head_ - 0) >= aligned_length) {
       // Free space from begin -> read
       auto alloc = new Allocation();
       alloc->host_ptr = host_base_ + write_head_;
@@ -235,11 +218,6 @@ void CircularBuffer::Scavenge() {
 
     delete *it;
     it = allocations_.erase(it);
-  }
-
-  if (allocations_.empty()) {
-    // Reset R/W heads.
-    read_head_ = write_head_ = 0;
   }
 }
 
