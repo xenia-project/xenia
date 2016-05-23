@@ -75,6 +75,7 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
+  bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
 
   // Gets a geometry shader used to emulate the given primitive type.
@@ -157,6 +158,7 @@ class PipelineCache {
   struct UpdateShaderStagesRegisters {
     PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
+    uint32_t sq_program_cntl;
     VulkanShader* vertex_shader;
     VulkanShader* pixel_shader;
 

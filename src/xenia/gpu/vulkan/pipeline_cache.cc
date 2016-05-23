@@ -157,32 +157,6 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
                                           host_address, dword_count);
   shader_map_.insert({data_hash, shader});
 
-  // Perform translation.
-  // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_.Translate(shader)) {
-    XELOGE("Shader translation failed; marking shader as ignored");
-    return shader;
-  }
-
-  // Prepare the shader for use (creates our VkShaderModule).
-  // It could still fail at this point.
-  if (!shader->Prepare()) {
-    XELOGE("Shader preparation failed; marking shader as ignored");
-    return shader;
-  }
-
-  if (shader->is_valid()) {
-    XELOGGPU("Generated %s shader at 0x%.8X (%db) - hash %.16" PRIX64 ":\n%s\n",
-             shader_type == ShaderType::kVertex ? "vertex" : "pixel",
-             guest_address, dword_count * 4, shader->ucode_data_hash(),
-             shader->ucode_disassembly().c_str());
-  }
-
-  // Dump shader files if desired.
-  if (!FLAGS_dump_shaders.empty()) {
-    shader->Dump(FLAGS_dump_shaders, "vk");
-  }
-
   return shader;
 }
 
@@ -300,6 +274,37 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   cached_pipelines_.insert({hash_key, pipeline});
 
   return pipeline;
+}
+
+bool PipelineCache::TranslateShader(VulkanShader* shader,
+                                    xenos::xe_gpu_program_cntl_t cntl) {
+  // Perform translation.
+  // If this fails the shader will be marked as invalid and ignored later.
+  if (!shader_translator_.Translate(shader, cntl)) {
+    XELOGE("Shader translation failed; marking shader as ignored");
+    return false;
+  }
+
+  // Prepare the shader for use (creates our VkShaderModule).
+  // It could still fail at this point.
+  if (!shader->Prepare()) {
+    XELOGE("Shader preparation failed; marking shader as ignored");
+    return false;
+  }
+
+  if (shader->is_valid()) {
+    XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
+             shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
+             shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
+             shader->ucode_disassembly().c_str());
+  }
+
+  // Dump shader files if desired.
+  if (!FLAGS_dump_shaders.empty()) {
+    shader->Dump(FLAGS_dump_shaders, "vk");
+  }
+
+  return shader->is_valid();
 }
 
 void PipelineCache::DumpShaderDisasmNV(
@@ -510,8 +515,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
         break;
     }
 
-    // window_width_scalar = window_height_scalar = 1;
-
     // Whether each of the viewport settings are enabled.
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
@@ -525,10 +528,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                 vport_yoffset_enable == vport_zoffset_enable);
 
     VkViewport viewport_rect;
-    viewport_rect.x = 0;
-    viewport_rect.y = 0;
-    viewport_rect.width = 100;
-    viewport_rect.height = 100;
+    std::memset(&viewport_rect, 0, sizeof(VkViewport));
     viewport_rect.minDepth = 0;
     viewport_rect.maxDepth = 1;
 
@@ -655,7 +655,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     push_constants.vtx_fmt[3] = vtx_w0_fmt;
 
     // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-    // Deprecated in Vulkan, implemented in shader.
+    // Emulated in shader.
     // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
     // ALPHATESTENABLE
     push_constants.alpha_test[0] =
@@ -754,6 +754,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
   dirty |= regs.vertex_shader != vertex_shader;
   dirty |= regs.pixel_shader != pixel_shader;
   dirty |= regs.primitive_type != primitive_type;
@@ -763,6 +764,21 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
+  }
+
+  xenos::xe_gpu_program_cntl_t sq_program_cntl;
+  sq_program_cntl.dword_0 = regs.sq_program_cntl;
+
+  if (!vertex_shader->is_translated() &&
+      !TranslateShader(vertex_shader, sq_program_cntl)) {
+    XELOGE("Failed to translate the vertex shader!");
+    return UpdateStatus::kError;
+  }
+
+  if (!pixel_shader->is_translated() &&
+      !TranslateShader(pixel_shader, sq_program_cntl)) {
+    XELOGE("Failed to translate the pixel shader!");
+    return UpdateStatus::kError;
   }
 
   update_shader_stages_stage_count_ = 0;
@@ -868,6 +884,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
         case VertexFormat::k_11_11_10:
           // Converted in-shader.
           // TODO(DrChat)
+          assert_always();
           // vertex_attrib_descr.format = VK_FORMAT_R32_UINT;
           vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
           break;
@@ -901,19 +918,19 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
               is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32_SFLOAT;
           break;
         case VertexFormat::k_32_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32G32_SFLOAT;
           break;
         case VertexFormat::k_32_32_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32G32B32_SFLOAT;
           break;
         case VertexFormat::k_32_32_32_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
           break;
         default:
@@ -1060,8 +1077,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   // Discard rasterizer output in depth-only mode.
   // TODO(DrChat): Figure out how to make this work properly.
   auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
-  state_info.rasterizerDiscardEnable =
-      enable_mode == xenos::ModeControl::kColorDepth ? VK_FALSE : VK_TRUE;
+  state_info.rasterizerDiscardEnable = VK_FALSE;
+  // state_info.rasterizerDiscardEnable =
+  //    enable_mode == xenos::ModeControl::kColorDepth ? VK_FALSE : VK_TRUE;
 
   // KILL_PIX_POST_EARLY_Z
   if (regs.pa_sc_viz_query & 0x80) {
