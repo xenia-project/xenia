@@ -49,6 +49,7 @@ class VulkanCommandProcessor : public CommandProcessor {
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor() override;
 
+  virtual void RequestFrameTrace(const std::wstring& root_path) override;
   void ClearCaches() override;
 
   RenderCache* render_cache() { return render_cache_.get(); }
@@ -103,6 +104,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Last copy base address, for debugging only.
   uint32_t last_copy_base_ = 0;
   bool capturing_ = false;
+  bool trace_requested_ = false;
 
   std::unique_ptr<BufferCache> buffer_cache_;
   std::unique_ptr<PipelineCache> pipeline_cache_;

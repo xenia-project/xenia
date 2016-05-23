@@ -84,9 +84,9 @@ class CommandProcessor {
     swap_request_handler_ = fn;
   }
 
-  void RequestFrameTrace(const std::wstring& root_path);
-  void BeginTracing(const std::wstring& root_path);
-  void EndTracing();
+  virtual void RequestFrameTrace(const std::wstring& root_path);
+  virtual void BeginTracing(const std::wstring& root_path);
+  virtual void EndTracing();
 
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);

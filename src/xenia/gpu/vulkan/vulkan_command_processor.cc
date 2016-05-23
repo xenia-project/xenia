@@ -37,8 +37,21 @@ VulkanCommandProcessor::VulkanCommandProcessor(
 
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
+void VulkanCommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
+  // Override traces if renderdoc is attached.
+  if (device_->is_renderdoc_attached()) {
+    trace_requested_ = true;
+    return;
+  }
+
+  return CommandProcessor::RequestFrameTrace(root_path);
+}
+
 void VulkanCommandProcessor::ClearCaches() {
   CommandProcessor::ClearCaches();
+
+  auto status = vkQueueWaitIdle(queue_);
+  CheckResult(status, "vkQueueWaitIdle");
 
   buffer_cache_->ClearCache();
   pipeline_cache_->ClearCache();
@@ -349,12 +362,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
       capturing_ = false;
-
-      // HACK(DrChat): Used b/c I disabled trace saving code in the CP.
-      // Remove later.
-      if (!trace_writer_.is_open()) {
-        trace_state_ = TraceState::kDisabled;
-      }
     }
     if (queue_mutex_) {
       queue_mutex_->unlock();
@@ -459,13 +466,13 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
     static uint32_t frame = 0;
     if (device_->is_renderdoc_attached() && !capturing_ &&
-        (FLAGS_vulkan_renderdoc_capture_all ||
-         trace_state_ == TraceState::kSingleFrame)) {
+        (FLAGS_vulkan_renderdoc_capture_all || trace_requested_)) {
       if (queue_mutex_) {
         queue_mutex_->lock();
       }
 
       capturing_ = true;
+      trace_requested_ = false;
       device_->BeginRenderDocFrameCapture();
 
       if (queue_mutex_) {
