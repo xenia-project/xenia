@@ -1047,9 +1047,8 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
     uint32_t a = swizzle & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
   } else if (swizzle_component_count == 2) {
-    swizzle >>= 4;
-    uint32_t a = ((swizzle >> 2) + 3) & 0x3;
-    uint32_t b = (swizzle + 2) & 0x3;
+    uint32_t a = ((swizzle >> 6) + 3) & 0x3;
+    uint32_t b = ((swizzle >> 0) + 0) & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
     out_op->components[1] = GetSwizzleFromComponentIndex(b);
   } else {
@@ -1129,6 +1128,10 @@ void ShaderTranslator::ParseAluVectorInstruction(
         } else {
           // Unimplemented.
           // assert_always();
+          XELOGE(
+              "ShaderTranslator::ParseAluVectorInstruction: Unsupported write "
+              "to export %d",
+              dest_num);
           i.result.storage_target = InstructionStorageTarget::kNone;
           i.result.storage_index = 0;
         }
