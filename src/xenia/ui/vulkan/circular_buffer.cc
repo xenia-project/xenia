@@ -103,6 +103,7 @@ bool CircularBuffer::CanAcquire(VkDeviceSize length) {
   length = xe::round_up(length, alignment_);
   if (allocations_.empty()) {
     // Read head has caught up to write head (entire buffer available for write)
+    assert_true(read_head_ == write_head_);
     return capacity_ >= length;
   } else if (write_head_ < read_head_) {
     // Write head wrapped around and is behind read head.
@@ -167,7 +168,7 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
     } else if ((read_head_ - 0) >= aligned_length) {
       // Free space from begin -> read
       auto alloc = new Allocation();
-      alloc->host_ptr = host_base_ + write_head_;
+      alloc->host_ptr = host_base_ + 0;
       alloc->gpu_memory = gpu_memory_;
       alloc->offset = gpu_base_ + 0;
       alloc->length = length;
