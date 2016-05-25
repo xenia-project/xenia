@@ -370,10 +370,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
   command_buffer_pool_->EndBatch(current_batch_fence_);
 
-  // TODO(DrChat): Remove this.
-  VkFence fences[] = {*current_batch_fence_};
-  vkWaitForFences(*device_, 1, fences, true, -1);
-
   // Scavenging.
   {
 #if FINE_GRAINED_DRAW_SCOPES
@@ -525,6 +521,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_command_buffer_ = nullptr;
     current_setup_buffer_ = nullptr;
     current_batch_fence_ = nullptr;
+    current_render_state_ = nullptr;
     return false;
   }
   pipeline_cache_->SetDynamicState(command_buffer, started_command_buffer);
@@ -536,6 +533,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_command_buffer_ = nullptr;
     current_setup_buffer_ = nullptr;
     current_batch_fence_ = nullptr;
+    current_render_state_ = nullptr;
     return false;
   }
 
@@ -546,6 +544,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_command_buffer_ = nullptr;
     current_setup_buffer_ = nullptr;
     current_batch_fence_ = nullptr;
+    current_render_state_ = nullptr;
     return false;
   }
 
@@ -556,6 +555,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_command_buffer_ = nullptr;
     current_setup_buffer_ = nullptr;
     current_batch_fence_ = nullptr;
+    current_render_state_ = nullptr;
     return false;
   }
 
@@ -569,6 +569,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_command_buffer_ = nullptr;
     current_setup_buffer_ = nullptr;
     current_batch_fence_ = nullptr;
+    current_render_state_ = nullptr;
     return false;
   }
 
@@ -924,6 +925,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.height = dest_logical_height - 1;
   tex_info.dimension = gpu::Dimension::k2D;
   tex_info.input_length = copy_dest_pitch * copy_dest_height * 4;
+  tex_info.format_info =
+      FormatInfo::Get(uint32_t(ColorFormatToTextureFormat(copy_dest_format)));
   tex_info.size_2d.logical_width = dest_logical_width;
   tex_info.size_2d.logical_height = dest_logical_height;
   tex_info.size_2d.block_width = dest_block_width;
