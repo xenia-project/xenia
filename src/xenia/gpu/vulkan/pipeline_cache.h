@@ -216,7 +216,6 @@ class PipelineCache {
     uint32_t pa_sc_screen_scissor_br;
     uint32_t pa_sc_viz_query;
     uint32_t multi_prim_ib_reset_index;
-    uint32_t rb_modecontrol;
 
     UpdateRasterizationStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
@@ -246,6 +245,7 @@ class PipelineCache {
     uint32_t rb_colorcontrol;
     uint32_t rb_color_mask;
     uint32_t rb_blendcontrol[4];
+    uint32_t rb_modecontrol;
 
     UpdateColorBlendStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

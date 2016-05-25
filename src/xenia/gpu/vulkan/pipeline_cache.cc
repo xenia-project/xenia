@@ -388,7 +388,7 @@ void PipelineCache::DumpShaderDisasmNV(
       disasm_fp = std::string("Shader disassembly not available.");
     }
 
-    XELOGI("%s\n=====================================\n%s", disasm_vp.c_str(),
+    XELOGI("%s\n=====================================\n%s\n", disasm_vp.c_str(),
            disasm_fp.c_str());
   }
 
@@ -1060,7 +1060,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   dirty |= SetShadowRegister(&regs.pa_sc_viz_query, XE_GPU_REG_PA_SC_VIZ_QUERY);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
-  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
@@ -1073,13 +1072,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
 
   // TODO(benvanik): right setting?
   state_info.depthClampEnable = VK_FALSE;
-
-  // Discard rasterizer output in depth-only mode.
-  // TODO(DrChat): Figure out how to make this work properly.
-  auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
-  state_info.rasterizerDiscardEnable = VK_FALSE;
-  // state_info.rasterizerDiscardEnable =
-  //    enable_mode == xenos::ModeControl::kColorDepth ? VK_FALSE : VK_TRUE;
 
   // KILL_PIX_POST_EARLY_Z
   if (regs.pa_sc_viz_query & 0x80) {
@@ -1298,6 +1290,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
       SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
   dirty |=
       SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
+  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -1309,6 +1302,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
 
   state_info.logicOpEnable = VK_FALSE;
   state_info.logicOp = VK_LOGIC_OP_NO_OP;
+
+  auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
 
   static const VkBlendFactor kBlendFactorMap[] = {
       /*  0 */ VK_BLEND_FACTOR_ZERO,
@@ -1362,7 +1357,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
     // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
     // Lines up with VkColorComponentFlagBits, where R=bit 1, G=bit 2, etc..
     uint32_t write_mask = (regs.rb_color_mask >> (i * 4)) & 0xF;
-    attachment_state.colorWriteMask = write_mask;
+    attachment_state.colorWriteMask =
+        enable_mode == xenos::ModeControl::kColorDepth ? write_mask : 0;
   }
 
   state_info.attachmentCount = 4;
