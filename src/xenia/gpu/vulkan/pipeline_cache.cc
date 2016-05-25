@@ -1072,6 +1072,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
 
   // TODO(benvanik): right setting?
   state_info.depthClampEnable = VK_FALSE;
+  state_info.rasterizerDiscardEnable = VK_FALSE;
 
   // KILL_PIX_POST_EARLY_Z
   if (regs.pa_sc_viz_query & 0x80) {
