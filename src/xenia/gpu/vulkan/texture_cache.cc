@@ -25,6 +25,7 @@ namespace vulkan {
 using xe::ui::vulkan::CheckResult;
 
 constexpr uint32_t kMaxTextureSamplers = 32;
+constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
 struct TextureConfig {
   TextureFormat guest_format;
@@ -85,9 +86,9 @@ static const TextureConfig texture_configs[64] = {
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     {TextureFormat::k_DXN, VK_FORMAT_BC5_UNORM_BLOCK},  // ?
     {TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM},
-    {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGB_SRGB_BLOCK},
-    {TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_SRGB_BLOCK},
-    {TextureFormat::k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_SRGB_BLOCK},
+    {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGB_UNORM_BLOCK},
+    {TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK},
+    {TextureFormat::k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_UNORM_BLOCK},
     {TextureFormat::k_2_10_10_10_AS_16_16_16_16,
      VK_FORMAT_A2R10G10B10_UNORM_PACK32},
     {TextureFormat::k_10_11_11_AS_16_16_16_16,
@@ -151,20 +152,9 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                                     nullptr, &texture_descriptor_set_layout_);
   CheckResult(err, "vkCreateDescriptorSetLayout");
 
-  int width = 4096;
-  int height = 4096;
-  if (!staging_buffer_.Initialize(width * height * 4,
+  if (!staging_buffer_.Initialize(kStagingBufferSize,
                                   VK_BUFFER_USAGE_TRANSFER_SRC_BIT)) {
     assert_always();
-  }
-
-  // Upload a grid into the staging buffer.
-  auto gpu_data = reinterpret_cast<uint32_t*>(staging_buffer_.host_base());
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      gpu_data[y * width + x] =
-          ((y % 32 < 16) ^ (x % 32 >= 16)) ? 0xFF0000FF : 0xFFFFFFFF;
-    }
   }
 
   invalidated_textures_sets_[0].reserve(64);
@@ -173,6 +163,12 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
 }
 
 TextureCache::~TextureCache() {
+  for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
+    vkDestroySampler(*device_, it->second->sampler, nullptr);
+    delete it->second;
+  }
+  samplers_.clear();
+
   vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
                                nullptr);
   vkDestroyDescriptorPool(*device_, descriptor_pool_, nullptr);
@@ -202,15 +198,11 @@ TextureCache::Texture* TextureCache::AllocateTexture(
       return nullptr;
   }
 
-  VkFormat format = VK_FORMAT_UNDEFINED;
-  if (texture_info.format_info) {
-    auto& config = texture_configs[int(texture_info.format_info->format)];
-    format = config.host_format != VK_FORMAT_UNDEFINED
-                 ? config.host_format
-                 : VK_FORMAT_R8G8B8A8_UNORM;
-  } else {
-    format = VK_FORMAT_R8G8B8A8_UNORM;
-  }
+  assert_not_null(texture_info.format_info);
+  auto& config = texture_configs[int(texture_info.format_info->format)];
+  VkFormat format = config.host_format != VK_FORMAT_UNDEFINED
+                        ? config.host_format
+                        : VK_FORMAT_R8G8B8A8_UNORM;
 
   VkFormatProperties props;
   uint32_t required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
@@ -298,7 +290,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 }
 
 bool TextureCache::FreeTexture(Texture* texture) {
-  if (texture->in_flight_fence->status() != VK_SUCCESS) {
+  if (texture->in_flight_fence &&
+      texture->in_flight_fence->status() != VK_SUCCESS) {
     // Texture still in flight.
     return false;
   }
@@ -388,7 +381,10 @@ TextureCache::Texture* TextureCache::Demand(
       texture->is_full_texture = true;
       texture->texture_info = texture_info;
 
-      memory_->CancelAccessWatch(texture->access_watch_handle);
+      if (texture->access_watch_handle) {
+        memory_->CancelAccessWatch(texture->access_watch_handle);
+      }
+
       texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
           texture_info.guest_address, texture_info.input_length,
           cpu::MMIOHandler::kWatchWrite,
@@ -443,7 +439,6 @@ TextureCache::Texture* TextureCache::Demand(
   }
 
   if (!uploaded) {
-    // TODO: Destroy the texture.
     FreeTexture(texture);
     return nullptr;
   }
@@ -777,7 +772,10 @@ bool TextureCache::UploadTexture2D(
     VkCommandBuffer command_buffer,
     std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
     TextureInfo src) {
+#if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   assert_true(src.dimension == Dimension::k2D);
 
   if (!staging_buffer_.CanAcquire(src.input_length)) {
@@ -959,6 +957,10 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
       vkAllocateDescriptorSets(*device_, &set_alloc_info, &descriptor_set);
   CheckResult(err, "vkAllocateDescriptorSets");
 
+  if (err != VK_SUCCESS) {
+    return nullptr;
+  }
+
   // Write all updated descriptors.
   // TODO(benvanik): optimize? split into multiple sets? set per type?
   // First: Reorganize and pool image update infos.
@@ -1029,7 +1031,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
                            descriptor_writes.data(), 0, nullptr);
   }
 
-  in_flight_sets_[descriptor_set] = completion_fence;
+  in_flight_sets_.push_back({descriptor_set, completion_fence});
   return descriptor_set;
 }
 
@@ -1056,6 +1058,10 @@ bool TextureCache::SetupTextureBinding(
     VkCommandBuffer command_buffer,
     std::shared_ptr<ui::vulkan::Fence> completion_fence,
     UpdateSetInfo* update_set_info, const Shader::TextureBinding& binding) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6;
   auto group =
@@ -1106,7 +1112,7 @@ bool TextureCache::SetupTextureBinding(
 }
 
 void TextureCache::ClearCache() {
-  // TODO(benvanik): caching.
+  // TODO(DrChat): Nuke everything.
 }
 
 void TextureCache::Scavenge() {
@@ -1119,7 +1125,9 @@ void TextureCache::Scavenge() {
       continue;
     }
 
-    ++it;
+    // We've encountered an item that hasn't been used yet, so any items
+    // afterwards are guaranteed to be unused.
+    break;
   }
 
   staging_buffer_.Scavenge();
@@ -1148,25 +1156,21 @@ void TextureCache::Scavenge() {
   if (!invalidated_textures.empty()) {
     for (auto it = invalidated_textures.begin();
          it != invalidated_textures.end(); ++it) {
-      if (!FreeTexture(*it)) {
-        // Texture wasn't deleted because it's still in use.
-        pending_delete_textures_.push_back(*it);
-      }
-
+      pending_delete_textures_.push_back(*it);
       textures_.erase((*it)->texture_info.hash());
     }
 
     invalidated_textures.clear();
   }
 
+  // Invalidated resolve textures.
   invalidated_resolve_textures_mutex_.lock();
   if (!invalidated_resolve_textures_.empty()) {
     for (auto it = invalidated_resolve_textures_.begin();
          it != invalidated_resolve_textures_.end(); ++it) {
-      if (!FreeTexture(*it)) {
-        // Texture wasn't deleted because it's still in use.
-        pending_delete_textures_.push_back(*it);
-      }
+      pending_delete_textures_.push_back(*it);
+      resolve_textures_.erase(
+          std::find(resolve_textures_.begin(), resolve_textures_.end(), *it));
     }
 
     invalidated_resolve_textures_.clear();

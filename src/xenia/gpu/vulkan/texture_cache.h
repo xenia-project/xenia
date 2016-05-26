@@ -171,14 +171,14 @@ class TextureCache {
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
-  std::unordered_map<VkDescriptorSet, std::shared_ptr<ui::vulkan::Fence>>
+  std::list<std::pair<VkDescriptorSet, std::shared_ptr<ui::vulkan::Fence>>>
       in_flight_sets_;
 
   ui::vulkan::CircularBuffer staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
   std::unordered_map<uint64_t, Sampler*> samplers_;
   std::vector<Texture*> resolve_textures_;
-  std::vector<Texture*> pending_delete_textures_;
+  std::list<Texture*> pending_delete_textures_;
 
   std::mutex invalidated_textures_mutex_;
   std::vector<Texture*>* invalidated_textures_;
