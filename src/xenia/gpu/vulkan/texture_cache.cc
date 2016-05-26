@@ -791,9 +791,6 @@ bool TextureCache::UploadTexture2D(
   auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
   assert_not_null(alloc);
 
-  // TODO: Support compression.
-  // assert_false(src.is_compressed());
-
   // Upload texture into GPU memory.
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
@@ -855,25 +852,6 @@ bool TextureCache::UploadTexture2D(
   }
 
   staging_buffer_.Flush(alloc);
-
-  // Insert a memory barrier into the command buffer to ensure the upload has
-  // finished before we copy it into the destination texture.
-  /*
-  VkBufferMemoryBarrier upload_barrier = {
-      VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-      NULL,
-      VK_ACCESS_HOST_WRITE_BIT,
-      VK_ACCESS_TRANSFER_READ_BIT,
-      VK_QUEUE_FAMILY_IGNORED,
-      VK_QUEUE_FAMILY_IGNORED,
-      staging_buffer_.gpu_buffer(),
-      alloc->offset,
-      alloc->aligned_length,
-  };
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
-                       &upload_barrier, 0, nullptr);
-  //*/
 
   // Transition the texture into a transfer destination layout.
   VkImageMemoryBarrier barrier;
@@ -1169,8 +1147,12 @@ void TextureCache::Scavenge() {
     for (auto it = invalidated_resolve_textures_.begin();
          it != invalidated_resolve_textures_.end(); ++it) {
       pending_delete_textures_.push_back(*it);
-      resolve_textures_.erase(
-          std::find(resolve_textures_.begin(), resolve_textures_.end(), *it));
+
+      auto tex =
+          std::find(resolve_textures_.begin(), resolve_textures_.end(), *it);
+      if (tex != resolve_textures_.end()) {
+        resolve_textures_.erase(tex);
+      }
     }
 
     invalidated_resolve_textures_.clear();
