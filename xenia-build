@@ -642,8 +642,7 @@ class GenSpirvCommand(Command):
     print('Generating SPIR-V binaries...')
     print('')
 
-    # TODO(benvanik): actually find vulkan SDK. Env var? etc?
-    vulkan_sdk_path = 'C:\\VulkanSDK\\1.0.3.1'
+    vulkan_sdk_path = os.environ['VULKAN_SDK']
     vulkan_bin_path = os.path.join(vulkan_sdk_path, 'bin')
     glslang = os.path.join(vulkan_bin_path, 'glslangValidator')
     spirv_dis = os.path.join(vulkan_bin_path, 'spirv-dis')
