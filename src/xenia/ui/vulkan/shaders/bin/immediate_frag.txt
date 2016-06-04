@@ -7,7 +7,7 @@
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
                OpEntryPoint Fragment %4 "main" %9 %11 %30
-               OpExecutionMode %4 OriginLowerLeft
+               OpExecutionMode %4 OriginUpperLeft
                OpSource GLSL 450
                OpName %4 "main"
                OpName %9 "out_color"
@@ -26,7 +26,6 @@
                OpMemberDecorate %16 0 MatrixStride 16
                OpMemberDecorate %16 1 Offset 64
                OpDecorate %16 Block
-               OpDecorate %18 DescriptorSet 0
                OpDecorate %30 Location 0
                OpDecorate %46 DescriptorSet 0
                OpDecorate %46 Binding 0

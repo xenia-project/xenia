@@ -6,7 +6,6 @@
                OpCapability Geometry
                OpCapability GeometryPointSize
                OpCapability ClipDistance
-               OpCapability GeometryStreams
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
                OpEntryPoint Geometry %4 "main" %16 %41 %76 %80
@@ -44,11 +43,7 @@
                OpMemberDecorate %39 1 BuiltIn PointSize
                OpMemberDecorate %39 2 BuiltIn ClipDistance
                OpDecorate %39 Block
-               OpDecorate %39 Stream 0
-               OpDecorate %41 Stream 0
                OpMemberDecorate %74 0 Location 0
-               OpDecorate %74 Stream 0
-               OpDecorate %76 Stream 0
                OpMemberDecorate %77 0 Location 0
           %2 = OpTypeVoid
           %3 = OpTypeFunction %2

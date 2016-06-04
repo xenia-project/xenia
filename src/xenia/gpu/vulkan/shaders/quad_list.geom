@@ -16,11 +16,8 @@ out gl_PerVertex {
   float gl_ClipDistance[];
 };
 
-struct VertexData {
-  vec4 o[16];
-};
-layout(location = 0) in VertexData in_vtx[];
-layout(location = 0) out VertexData out_vtx;
+layout(location = 0) in vec4 in_interpolators[][16];
+layout(location = 0) out vec4 out_interpolators[16];
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 4) out;
@@ -30,7 +27,7 @@ void main() {
     int input_index = order[i];
     gl_Position = gl_in[input_index].gl_Position;
     gl_PointSize = gl_in[input_index].gl_PointSize;
-    out_vtx = in_vtx[input_index];
+    out_interpolators = in_interpolators[input_index];
     EmitVertex();
   }
   EndPrimitive();

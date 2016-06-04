@@ -1,15 +1,14 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 78
+; Bound: 76
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
                OpCapability ClipDistance
-               OpCapability GeometryStreams
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Geometry %4 "main" %13 %20 %36 %40
+               OpEntryPoint Geometry %4 "main" %13 %20 %35 %38
                OpExecutionMode %4 InputLinesAdjacency
                OpExecutionMode %4 Invocations 1
                OpExecutionMode %4 OutputLineStrip
@@ -26,26 +25,18 @@
                OpMemberName %16 1 "gl_PointSize"
                OpMemberName %16 2 "gl_ClipDistance"
                OpName %20 "gl_in"
-               OpName %34 "VertexData"
-               OpMemberName %34 0 "o"
-               OpName %36 "out_vtx"
-               OpName %37 "VertexData"
-               OpMemberName %37 0 "o"
-               OpName %40 "in_vtx"
+               OpName %35 "out_interpolators"
+               OpName %38 "in_interpolators"
                OpMemberDecorate %11 0 BuiltIn Position
                OpMemberDecorate %11 1 BuiltIn PointSize
                OpMemberDecorate %11 2 BuiltIn ClipDistance
                OpDecorate %11 Block
-               OpDecorate %11 Stream 0
-               OpDecorate %13 Stream 0
                OpMemberDecorate %16 0 BuiltIn Position
                OpMemberDecorate %16 1 BuiltIn PointSize
                OpMemberDecorate %16 2 BuiltIn ClipDistance
                OpDecorate %16 Block
-               OpMemberDecorate %34 0 Location 0
-               OpDecorate %34 Stream 0
-               OpDecorate %36 Stream 0
-               OpMemberDecorate %37 0 Location 0
+               OpDecorate %35 Location 0
+               OpDecorate %38 Location 0
           %2 = OpTypeVoid
           %3 = OpTypeFunction %2
           %6 = OpTypeFloat 32
@@ -70,16 +61,14 @@
          %30 = OpTypePointer Output %6
          %32 = OpConstant %8 16
          %33 = OpTypeArray %7 %32
-         %34 = OpTypeStruct %33
-         %35 = OpTypePointer Output %34
-         %36 = OpVariable %35 Output
-         %37 = OpTypeStruct %33
-         %38 = OpTypeArray %37 %17
-         %39 = OpTypePointer Input %38
-         %40 = OpVariable %39 Input
-         %41 = OpTypePointer Input %37
-         %52 = OpConstant %14 2
-         %61 = OpConstant %14 3
+         %34 = OpTypePointer Output %33
+         %35 = OpVariable %34 Output
+         %36 = OpTypeArray %33 %17
+         %37 = OpTypePointer Input %36
+         %38 = OpVariable %37 Input
+         %39 = OpTypePointer Input %33
+         %50 = OpConstant %14 2
+         %59 = OpConstant %14 3
           %4 = OpFunction %2 None %3
           %5 = OpLabel
          %22 = OpAccessChain %21 %20 %15 %15
@@ -90,57 +79,57 @@
          %29 = OpLoad %6 %28
          %31 = OpAccessChain %30 %13 %26
                OpStore %31 %29
-         %42 = OpAccessChain %41 %40 %15
-         %43 = OpLoad %37 %42
-               OpStore %36 %43
+         %40 = OpAccessChain %39 %38 %15
+         %41 = OpLoad %33 %40
+               OpStore %35 %41
                OpEmitVertex
-         %44 = OpAccessChain %21 %20 %26 %15
-         %45 = OpLoad %7 %44
-         %46 = OpAccessChain %24 %13 %15
-               OpStore %46 %45
-         %47 = OpAccessChain %27 %20 %26 %26
-         %48 = OpLoad %6 %47
-         %49 = OpAccessChain %30 %13 %26
-               OpStore %49 %48
-         %50 = OpAccessChain %41 %40 %26
-         %51 = OpLoad %37 %50
-               OpStore %36 %51
+         %42 = OpAccessChain %21 %20 %26 %15
+         %43 = OpLoad %7 %42
+         %44 = OpAccessChain %24 %13 %15
+               OpStore %44 %43
+         %45 = OpAccessChain %27 %20 %26 %26
+         %46 = OpLoad %6 %45
+         %47 = OpAccessChain %30 %13 %26
+               OpStore %47 %46
+         %48 = OpAccessChain %39 %38 %26
+         %49 = OpLoad %33 %48
+               OpStore %35 %49
                OpEmitVertex
-         %53 = OpAccessChain %21 %20 %52 %15
-         %54 = OpLoad %7 %53
-         %55 = OpAccessChain %24 %13 %15
-               OpStore %55 %54
-         %56 = OpAccessChain %27 %20 %52 %26
-         %57 = OpLoad %6 %56
-         %58 = OpAccessChain %30 %13 %26
-               OpStore %58 %57
-         %59 = OpAccessChain %41 %40 %52
-         %60 = OpLoad %37 %59
-               OpStore %36 %60
+         %51 = OpAccessChain %21 %20 %50 %15
+         %52 = OpLoad %7 %51
+         %53 = OpAccessChain %24 %13 %15
+               OpStore %53 %52
+         %54 = OpAccessChain %27 %20 %50 %26
+         %55 = OpLoad %6 %54
+         %56 = OpAccessChain %30 %13 %26
+               OpStore %56 %55
+         %57 = OpAccessChain %39 %38 %50
+         %58 = OpLoad %33 %57
+               OpStore %35 %58
                OpEmitVertex
-         %62 = OpAccessChain %21 %20 %61 %15
-         %63 = OpLoad %7 %62
-         %64 = OpAccessChain %24 %13 %15
-               OpStore %64 %63
-         %65 = OpAccessChain %27 %20 %61 %26
-         %66 = OpLoad %6 %65
-         %67 = OpAccessChain %30 %13 %26
-               OpStore %67 %66
-         %68 = OpAccessChain %41 %40 %61
-         %69 = OpLoad %37 %68
-               OpStore %36 %69
+         %60 = OpAccessChain %21 %20 %59 %15
+         %61 = OpLoad %7 %60
+         %62 = OpAccessChain %24 %13 %15
+               OpStore %62 %61
+         %63 = OpAccessChain %27 %20 %59 %26
+         %64 = OpLoad %6 %63
+         %65 = OpAccessChain %30 %13 %26
+               OpStore %65 %64
+         %66 = OpAccessChain %39 %38 %59
+         %67 = OpLoad %33 %66
+               OpStore %35 %67
                OpEmitVertex
-         %70 = OpAccessChain %21 %20 %15 %15
-         %71 = OpLoad %7 %70
-         %72 = OpAccessChain %24 %13 %15
-               OpStore %72 %71
-         %73 = OpAccessChain %27 %20 %15 %26
-         %74 = OpLoad %6 %73
-         %75 = OpAccessChain %30 %13 %26
-               OpStore %75 %74
-         %76 = OpAccessChain %41 %40 %15
-         %77 = OpLoad %37 %76
-               OpStore %36 %77
+         %68 = OpAccessChain %21 %20 %15 %15
+         %69 = OpLoad %7 %68
+         %70 = OpAccessChain %24 %13 %15
+               OpStore %70 %69
+         %71 = OpAccessChain %27 %20 %15 %26
+         %72 = OpLoad %6 %71
+         %73 = OpAccessChain %30 %13 %26
+               OpStore %73 %72
+         %74 = OpAccessChain %39 %38 %15
+         %75 = OpLoad %33 %74
+               OpStore %35 %75
                OpEmitVertex
                OpEndPrimitive
                OpReturn

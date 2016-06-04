@@ -36,7 +36,6 @@
                OpMemberDecorate %17 0 MatrixStride 16
                OpMemberDecorate %17 1 Offset 64
                OpDecorate %17 Block
-               OpDecorate %19 DescriptorSet 0
                OpDecorate %25 Location 0
                OpDecorate %41 Location 0
                OpDecorate %42 Location 1
