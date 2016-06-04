@@ -3,7 +3,7 @@
 #---------------------------------#
 
 # version format
-version: 1.0.{build}                 # You can use {branch} too, for example
+version: 1.0.{build}-{branch}
 
 # you can use {branch} name in version format too
 # version: 1.0.{build}-{branch}
@@ -13,6 +13,7 @@ branches:
   # whitelist
   only:
     - master
+    - vulkan
 
   # blacklist
   except:
