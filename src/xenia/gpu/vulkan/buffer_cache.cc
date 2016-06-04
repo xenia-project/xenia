@@ -22,9 +22,6 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
-// Space kept between tail and head when wrapping.
-constexpr VkDeviceSize kDeadZone = 4 * 1024;
-
 constexpr VkDeviceSize kConstantRegisterUniformRange =
     512 * 4 * 4 + 8 * 4 + 32 * 4;
 
@@ -250,7 +247,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
 }
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
-    const void* source_ptr, size_t source_length,
+    const void* source_ptr, size_t source_length, Endian endian,
     std::shared_ptr<ui::vulkan::Fence> fence) {
   // TODO(benvanik): check cache.
 
@@ -263,9 +260,12 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
 
   // Copy data into the buffer.
   // TODO(benvanik): memcpy then use compute shaders to swap?
-  // Endian::k8in32, swap words.
-  xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
-                               source_ptr, source_length / 4);
+  assert_true(endian == Endian::k8in32);
+  if (endian == Endian::k8in32) {
+    // Endian::k8in32, swap words.
+    xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
+                                 source_ptr, source_length / 4);
+  }
 
   return {transient_buffer_->gpu_buffer(), offset};
 }

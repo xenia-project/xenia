@@ -29,7 +29,7 @@ namespace vulkan {
 using namespace xe::gpu::xenos;
 using xe::ui::vulkan::CheckResult;
 
-constexpr size_t kDefaultBufferCacheCapacity = 128 * 1024 * 1024;
+constexpr size_t kDefaultBufferCacheCapacity = 256 * 1024 * 1024;
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
@@ -501,9 +501,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
   }
 
-  // Update the render cache's tracking state.
-  render_cache_->UpdateState();
-
   // Configure the pipeline for drawing.
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
@@ -711,7 +708,6 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
         fetch = &group->vertex_fetch_2;
         break;
     }
-    assert_true(fetch->endian == 2);
 
     // TODO(benvanik): compute based on indices or vertex count.
     //     THIS CAN BE MASSIVELY INCORRECT (too large).
@@ -724,7 +720,8 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
         memory_->TranslatePhysical<const void*>(fetch->address << 2);
     size_t source_length = valid_range;
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        source_ptr, source_length, current_batch_fence_);
+        source_ptr, source_length, static_cast<Endian>(fetch->endian),
+        current_batch_fence_);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
       return false;
@@ -939,26 +936,6 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 
-  if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
-    // Transition the image to a general layout.
-    VkImageMemoryBarrier image_barrier;
-    image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_barrier.pNext = nullptr;
-    image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_barrier.srcAccessMask = 0;
-    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    image_barrier.image = texture->image;
-    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
-    image_barrier.subresourceRange.aspectMask =
-        copy_src_select <= 3
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
-  }
-
   // For debugging purposes only (trace viewer)
   last_copy_base_ = texture->texture_info.guest_address;
 
@@ -987,6 +964,30 @@ bool VulkanCommandProcessor::IssueCopy() {
     current_render_state_ = nullptr;
   }
   auto command_buffer = current_command_buffer_;
+
+  if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+    // Transition the image to a general layout.
+    VkImageMemoryBarrier image_barrier;
+    image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    image_barrier.pNext = nullptr;
+    image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.srcAccessMask = 0;
+    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    image_barrier.image = texture->image;
+    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+    image_barrier.subresourceRange.aspectMask =
+        copy_src_select <= 3
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
+
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
 
   VkOffset3D resolve_offset = {dest_min_x, dest_min_y, 0};
   VkExtent3D resolve_extent = {uint32_t(dest_max_x - dest_min_x),

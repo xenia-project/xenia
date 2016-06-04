@@ -67,7 +67,7 @@ class BufferCache {
   // Returns a buffer and offset that can be used with vkCmdBindVertexBuffers.
   // Size will be VK_WHOLE_SIZE if the data could not be uploaded (OOM).
   std::pair<VkBuffer, VkDeviceSize> UploadVertexBuffer(
-      const void* source_ptr, size_t source_length,
+      const void* source_ptr, size_t source_length, Endian endian,
       std::shared_ptr<ui::vulkan::Fence> fence);
 
   // Flushes all pending data to the GPU.
