@@ -278,9 +278,6 @@ class RenderCache {
   // The command buffer will be transitioned out of the render pass phase.
   void EndRenderPass();
 
-  // Updates current render state. Call this every draw with an open render pass
-  void UpdateState();
-
   // Clears all cached content.
   void ClearCache();
 
@@ -363,7 +360,6 @@ class RenderCache {
     uint32_t rb_color2_info;
     uint32_t rb_color3_info;
     uint32_t rb_depth_info;
-    uint32_t rb_depthcontrol;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
 

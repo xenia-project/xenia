@@ -309,8 +309,15 @@ bool CachedFramebuffer::IsCompatible(
     const RenderConfiguration& desired_config) const {
   // We already know all render pass things line up, so let's verify dimensions,
   // edram offsets, etc. We need an exact match.
-  if (desired_config.surface_pitch_px != width ||
-      desired_config.surface_height_px != height) {
+  uint32_t surface_pitch_px = desired_config.surface_msaa != MsaaSamples::k4X
+                                  ? desired_config.surface_pitch_px
+                                  : desired_config.surface_pitch_px * 2;
+  uint32_t surface_height_px = desired_config.surface_msaa == MsaaSamples::k1X
+                                   ? desired_config.surface_height_px
+                                   : desired_config.surface_height_px * 2;
+  surface_pitch_px = std::min(surface_pitch_px, 2560u);
+  surface_height_px = std::min(surface_height_px, 2560u);
+  if (surface_pitch_px != width || surface_height_px != height) {
     return false;
   }
   // TODO(benvanik): separate image views from images in tiles and store in fb?
@@ -445,7 +452,8 @@ CachedRenderPass::~CachedRenderPass() {
 
 bool CachedRenderPass::IsCompatible(
     const RenderConfiguration& desired_config) const {
-  if (config.surface_msaa != desired_config.surface_msaa) {
+  if (config.surface_msaa != desired_config.surface_msaa &&
+      FLAGS_vulkan_native_msaa) {
     return false;
   }
 
@@ -548,8 +556,6 @@ bool RenderCache::dirty() const {
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   dirty |= cur_regs.pa_sc_window_scissor_br !=
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  dirty |= (cur_regs.rb_depthcontrol & (0x4 | 0x2)) <
-           (regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x4 | 0x2));
   return dirty;
 }
 
@@ -580,11 +586,6 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
-  dirty |=
-      (regs.rb_depthcontrol & (0x4 | 0x2)) <
-      (register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x4 | 0x2));
-  regs.rb_depthcontrol =
-      register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x4 | 0x2);
   if (!dirty && current_state_.render_pass) {
     // No registers have changed so we can reuse the previous render pass -
     // just begin with what we had.
@@ -602,18 +603,17 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       return nullptr;
     }
 
-    // Initial state update.
-    UpdateState();
-
     current_state_.render_pass = render_pass;
     current_state_.render_pass_handle = render_pass->handle;
     current_state_.framebuffer = framebuffer;
     current_state_.framebuffer_handle = framebuffer->handle;
 
+    // TODO(DrChat): Determine if we actually need an EDRAM buffer.
+    /*
     // Depth
     auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
     if (depth_target && current_state_.config.depth_stencil.used) {
-      // UpdateTileView(command_buffer, depth_target, true);
+      UpdateTileView(command_buffer, depth_target, true);
     }
 
     // Color
@@ -623,8 +623,9 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
         continue;
       }
 
-      // UpdateTileView(command_buffer, target, true);
+      UpdateTileView(command_buffer, target, true);
     }
+    */
   }
   if (!render_pass) {
     return nullptr;
@@ -646,6 +647,15 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   render_pass_begin_info.renderArea.offset.y = 0;
   render_pass_begin_info.renderArea.extent.width = config->surface_pitch_px;
   render_pass_begin_info.renderArea.extent.height = config->surface_height_px;
+
+  if (config->surface_msaa == MsaaSamples::k2X) {
+    render_pass_begin_info.renderArea.extent.height =
+        std::min(config->surface_height_px * 2, 2560u);
+  } else if (config->surface_msaa == MsaaSamples::k4X) {
+    render_pass_begin_info.renderArea.extent.width *= 2;
+    render_pass_begin_info.renderArea.extent.height =
+        std::min(config->surface_height_px * 2, 2560u);
+  }
 
   // Configure clear color, if clearing.
   // TODO(benvanik): enable clearing here during resolve?
@@ -677,9 +687,15 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   // Guess the height from the scissor height.
   // It's wildly inaccurate, but I've never seen it be bigger than the
   // EDRAM tiling.
+  /*
   uint32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
   uint32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
   config->surface_height_px = std::min(2560u, xe::round_up(ws_h, 16));
+  */
+
+  // TODO(DrChat): Find an accurate way to get the surface height. Until we do,
+  // we're going to hardcode it to 2560, as that's the absolute maximum.
+  config->surface_height_px = 2560;
 
   // Color attachment configuration.
   if (config->mode_control == ModeControl::kColorDepth) {
@@ -781,9 +797,9 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
       color_key.tile_offset = config->color[i].edram_base;
       color_key.tile_width =
           xe::round_up(config->surface_pitch_px, tile_width) / tile_width;
-      color_key.tile_height = std::min(
-          2560 / tile_height, 160u);  // xe::round_up(config->surface_height_px,
-                                      // tile_height) / tile_height;
+      // color_key.tile_height =
+      //     xe::round_up(config->surface_height_px, tile_height) / tile_height;
+      color_key.tile_height = 160;
       color_key.color_or_depth = 1;
       color_key.msaa_samples =
           0;  // static_cast<uint16_t>(config->surface_msaa);
@@ -800,9 +816,9 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
     depth_stencil_key.tile_offset = config->depth_stencil.edram_base;
     depth_stencil_key.tile_width =
         xe::round_up(config->surface_pitch_px, tile_width) / tile_width;
-    depth_stencil_key.tile_height = std::min(
-        2560 / tile_height, 160u);  // xe::round_up(config->surface_height_px,
-                                    // tile_height) / tile_height;
+    // depth_stencil_key.tile_height =
+    //     xe::round_up(config->surface_height_px, tile_height) / tile_height;
+    depth_stencil_key.tile_height = 160;
     depth_stencil_key.color_or_depth = 0;
     depth_stencil_key.msaa_samples =
         0;  // static_cast<uint16_t>(config->surface_msaa);
@@ -815,10 +831,17 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
       return false;
     }
 
+    uint32_t surface_pitch_px = config->surface_msaa != MsaaSamples::k4X
+                                    ? config->surface_pitch_px
+                                    : config->surface_pitch_px * 2;
+    uint32_t surface_height_px = config->surface_msaa == MsaaSamples::k1X
+                                     ? config->surface_height_px
+                                     : config->surface_height_px * 2;
+    surface_pitch_px = std::min(surface_pitch_px, 2560u);
+    surface_height_px = std::min(surface_height_px, 2560u);
     framebuffer = new CachedFramebuffer(
-        *device_, render_pass->handle, config->surface_pitch_px,
-        config->surface_height_px, target_color_attachments,
-        target_depth_stencil_attachment);
+        *device_, render_pass->handle, surface_pitch_px, surface_height_px,
+        target_color_attachments, target_depth_stencil_attachment);
     render_pass->cached_framebuffers.push_back(framebuffer);
   }
 
@@ -923,6 +946,8 @@ void RenderCache::EndRenderPass() {
   // contents of another render target by mistake! Need to reorder copy commands
   // to avoid this.
 
+  // TODO(DrChat): Determine if we actually need an EDRAM buffer.
+  /*
   std::vector<CachedTileView*> cached_views;
 
   // Depth
@@ -946,25 +971,11 @@ void RenderCache::EndRenderPass() {
       [](CachedTileView const* a, CachedTileView const* b) { return *a < *b; });
 
   for (auto view : cached_views) {
-    // UpdateTileView(current_command_buffer_, view, false, false);
+    UpdateTileView(current_command_buffer_, view, false, false);
   }
+  */
 
   current_command_buffer_ = nullptr;
-}
-
-void RenderCache::UpdateState() {
-  // Keep track of whether color attachments were used or not in this pass.
-  uint32_t rb_color_mask = register_file_->values[XE_GPU_REG_RB_COLOR_MASK].u32;
-  uint32_t rb_depthcontrol =
-      register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  for (int i = 0; i < 4; i++) {
-    uint32_t color_mask = (rb_color_mask >> (i * 4)) & 0xF;
-    current_state_.config.color[i].used |=
-        current_state_.config.mode_control == xenos::ModeControl::kColorDepth &&
-        color_mask != 0;
-  }
-
-  current_state_.config.depth_stencil.used |= !!(rb_depthcontrol & (0x4 | 0x2));
 }
 
 void RenderCache::ClearCache() {
@@ -1073,9 +1084,8 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
   key.edram_format = format;
   key.tile_offset = edram_base;
   key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
-  key.tile_height =
-      std::min(2560 / tile_height,
-               160u);  // xe::round_up(height, tile_height) / tile_height;
+  // key.tile_height = xe::round_up(height, tile_height) / tile_height;
+  key.tile_height = 160;
   auto tile_view = FindOrCreateTileView(command_buffer, key);
   assert_not_null(tile_view);
 
@@ -1115,7 +1125,7 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
         color_or_depth
             ? VK_IMAGE_ASPECT_COLOR_BIT
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    image_blit.srcOffsets[0] = {0, 0, 0};
+    image_blit.srcOffsets[0] = {0, 0, offset.z};
     image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
                                 int32_t(extents.depth)};
 
@@ -1191,9 +1201,8 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
   key.edram_format = static_cast<uint16_t>(format);
   key.tile_offset = edram_base;
   key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
-  key.tile_height =
-      std::min(2560 / tile_height,
-               160u);  // xe::round_up(height, tile_height) / tile_height;
+  // key.tile_height = xe::round_up(height, tile_height) / tile_height;
+  key.tile_height = 160;
   auto tile_view = FindOrCreateTileView(command_buffer, key);
   assert_not_null(tile_view);
 
@@ -1228,9 +1237,8 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
   key.edram_format = static_cast<uint16_t>(format);
   key.tile_offset = edram_base;
   key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
-  key.tile_height =
-      std::min(2560 / tile_height,
-               160u);  // xe::round_up(height, tile_height) / tile_height;
+  // key.tile_height = xe::round_up(height, tile_height) / tile_height;
+  key.tile_height = 160;
   auto tile_view = FindOrCreateTileView(command_buffer, key);
   assert_not_null(tile_view);
 
