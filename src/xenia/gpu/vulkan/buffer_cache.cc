@@ -22,98 +22,19 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
-// Space kept between tail and head when wrapping.
-constexpr VkDeviceSize kDeadZone = 4 * 1024;
-
 constexpr VkDeviceSize kConstantRegisterUniformRange =
     512 * 4 * 4 + 8 * 4 + 32 * 4;
 
 BufferCache::BufferCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device, size_t capacity)
-    : register_file_(register_file),
-      device_(*device),
-      transient_capacity_(capacity) {
-  // Uniform buffer.
-  VkBufferCreateInfo uniform_buffer_info;
-  uniform_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  uniform_buffer_info.pNext = nullptr;
-  uniform_buffer_info.flags = 0;
-  uniform_buffer_info.size = transient_capacity_;
-  uniform_buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-  uniform_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  uniform_buffer_info.queueFamilyIndexCount = 0;
-  uniform_buffer_info.pQueueFamilyIndices = nullptr;
-  auto err = vkCreateBuffer(device_, &uniform_buffer_info, nullptr,
-                            &transient_uniform_buffer_);
-  CheckResult(err, "vkCreateBuffer");
-
-  // Index buffer.
-  VkBufferCreateInfo index_buffer_info;
-  index_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  index_buffer_info.pNext = nullptr;
-  index_buffer_info.flags = 0;
-  index_buffer_info.size = transient_capacity_;
-  index_buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-  index_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  index_buffer_info.queueFamilyIndexCount = 0;
-  index_buffer_info.pQueueFamilyIndices = nullptr;
-  err = vkCreateBuffer(device_, &index_buffer_info, nullptr,
-                       &transient_index_buffer_);
-  CheckResult(err, "vkCreateBuffer");
-
-  // Vertex buffer.
-  VkBufferCreateInfo vertex_buffer_info;
-  vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  vertex_buffer_info.pNext = nullptr;
-  vertex_buffer_info.flags = 0;
-  vertex_buffer_info.size = transient_capacity_;
-  vertex_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-  vertex_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  vertex_buffer_info.queueFamilyIndexCount = 0;
-  vertex_buffer_info.pQueueFamilyIndices = nullptr;
-  err = vkCreateBuffer(*device, &vertex_buffer_info, nullptr,
-                       &transient_vertex_buffer_);
-  CheckResult(err, "vkCreateBuffer");
-
-  // Allocate the underlying buffer we use for all storage.
-  // We query all types and take the max alignment.
-  VkMemoryRequirements uniform_buffer_requirements;
-  VkMemoryRequirements index_buffer_requirements;
-  VkMemoryRequirements vertex_buffer_requirements;
-  vkGetBufferMemoryRequirements(device_, transient_uniform_buffer_,
-                                &uniform_buffer_requirements);
-  vkGetBufferMemoryRequirements(device_, transient_index_buffer_,
-                                &index_buffer_requirements);
-  vkGetBufferMemoryRequirements(device_, transient_vertex_buffer_,
-                                &vertex_buffer_requirements);
-  uniform_buffer_alignment_ = uniform_buffer_requirements.alignment;
-  index_buffer_alignment_ = index_buffer_requirements.alignment;
-  vertex_buffer_alignment_ = vertex_buffer_requirements.alignment;
-  VkMemoryRequirements buffer_requirements;
-  buffer_requirements.size = transient_capacity_;
-  buffer_requirements.alignment =
-      std::max(uniform_buffer_requirements.alignment,
-               std::max(index_buffer_requirements.alignment,
-                        vertex_buffer_requirements.alignment));
-  buffer_requirements.memoryTypeBits =
-      uniform_buffer_requirements.memoryTypeBits |
-      index_buffer_requirements.memoryTypeBits |
-      vertex_buffer_requirements.memoryTypeBits;
-  transient_buffer_memory_ = device->AllocateMemory(
-      buffer_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-  // Alias all buffers to our memory.
-  vkBindBufferMemory(device_, transient_uniform_buffer_,
-                     transient_buffer_memory_, 0);
-  vkBindBufferMemory(device_, transient_index_buffer_, transient_buffer_memory_,
-                     0);
-  vkBindBufferMemory(device_, transient_vertex_buffer_,
-                     transient_buffer_memory_, 0);
-
-  // Map memory and keep it mapped while we use it.
-  err = vkMapMemory(device_, transient_buffer_memory_, 0, VK_WHOLE_SIZE, 0,
-                    &transient_buffer_data_);
-  CheckResult(err, "vkMapMemory");
+    : register_file_(register_file), device_(*device) {
+  transient_buffer_ = std::make_unique<ui::vulkan::CircularBuffer>(device);
+  if (!transient_buffer_->Initialize(capacity,
+                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                         VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)) {
+    assert_always();
+  }
 
   // Descriptor pool used for all of our cached descriptors.
   // In the steady state we don't allocate anything, so these are all manually
@@ -129,8 +50,8 @@ BufferCache::BufferCache(RegisterFile* register_file,
   pool_sizes[0].descriptorCount = 2;
   descriptor_pool_info.poolSizeCount = 1;
   descriptor_pool_info.pPoolSizes = pool_sizes;
-  err = vkCreateDescriptorPool(device_, &descriptor_pool_info, nullptr,
-                               &descriptor_pool_);
+  auto err = vkCreateDescriptorPool(device_, &descriptor_pool_info, nullptr,
+                                    &descriptor_pool_);
   CheckResult(err, "vkCreateDescriptorPool");
 
   // Create the descriptor set layout used for our uniform buffer.
@@ -180,7 +101,7 @@ BufferCache::BufferCache(RegisterFile* register_file,
 
   // Initialize descriptor set with our buffers.
   VkDescriptorBufferInfo buffer_info;
-  buffer_info.buffer = transient_uniform_buffer_;
+  buffer_info.buffer = transient_buffer_->gpu_buffer();
   buffer_info.offset = 0;
   buffer_info.range = kConstantRegisterUniformRange;
   VkWriteDescriptorSet descriptor_writes[2];
@@ -212,25 +133,20 @@ BufferCache::~BufferCache() {
                        &transient_descriptor_set_);
   vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
   vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
-  vkUnmapMemory(device_, transient_buffer_memory_);
-  vkFreeMemory(device_, transient_buffer_memory_, nullptr);
-  vkDestroyBuffer(device_, transient_uniform_buffer_, nullptr);
-  vkDestroyBuffer(device_, transient_index_buffer_, nullptr);
-  vkDestroyBuffer(device_, transient_vertex_buffer_, nullptr);
+  transient_buffer_->Shutdown();
 }
 
 std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
     const Shader::ConstantRegisterMap& vertex_constant_register_map,
-    const Shader::ConstantRegisterMap& pixel_constant_register_map) {
+    const Shader::ConstantRegisterMap& pixel_constant_register_map,
+    std::shared_ptr<ui::vulkan::Fence> fence) {
   // Fat struct, including all registers:
   // struct {
   //   vec4 float[512];
   //   uint bool[8];
   //   uint loop[32];
   // };
-  size_t total_size =
-      xe::round_up(kConstantRegisterUniformRange, uniform_buffer_alignment_);
-  auto offset = AllocateTransientData(uniform_buffer_alignment_, total_size);
+  auto offset = AllocateTransientData(kConstantRegisterUniformRange, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {VK_WHOLE_SIZE, VK_WHOLE_SIZE};
@@ -238,8 +154,7 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 
   // Copy over all the registers.
   const auto& values = register_file_->values;
-  uint8_t* dest_ptr =
-      reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset;
+  uint8_t* dest_ptr = transient_buffer_->host_base() + offset;
   std::memcpy(dest_ptr, &values[XE_GPU_REG_SHADER_CONSTANT_000_X].f32,
               (512 * 4 * 4));
   dest_ptr += 512 * 4 * 4;
@@ -258,8 +173,8 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 // constant indexing.
 #if 0
   // Allocate space in the buffer for our data.
-  auto offset = AllocateTransientData(uniform_buffer_alignment_,
-                                      constant_register_map.packed_byte_length);
+  auto offset =
+      AllocateTransientData(constant_register_map.packed_byte_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return VK_WHOLE_SIZE;
@@ -304,11 +219,12 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 }
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
-    const void* source_ptr, size_t source_length, IndexFormat format) {
+    const void* source_ptr, size_t source_length, IndexFormat format,
+    std::shared_ptr<ui::vulkan::Fence> fence) {
   // TODO(benvanik): check cache.
 
   // Allocate space in the buffer for our data.
-  auto offset = AllocateTransientData(index_buffer_alignment_, source_length);
+  auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
@@ -319,25 +235,24 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
   // TODO(benvanik): memcpy then use compute shaders to swap?
   if (format == IndexFormat::kInt16) {
     // Endian::k8in16, swap half-words.
-    xe::copy_and_swap_16_aligned(
-        reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset, source_ptr,
-        source_length / 2);
+    xe::copy_and_swap_16_aligned(transient_buffer_->host_base() + offset,
+                                 source_ptr, source_length / 2);
   } else if (format == IndexFormat::kInt32) {
     // Endian::k8in32, swap words.
-    xe::copy_and_swap_32_aligned(
-        reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset, source_ptr,
-        source_length / 4);
+    xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
+                                 source_ptr, source_length / 4);
   }
 
-  return {transient_index_buffer_, offset};
+  return {transient_buffer_->gpu_buffer(), offset};
 }
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
-    const void* source_ptr, size_t source_length) {
+    const void* source_ptr, size_t source_length, Endian endian,
+    std::shared_ptr<ui::vulkan::Fence> fence) {
   // TODO(benvanik): check cache.
 
   // Allocate space in the buffer for our data.
-  auto offset = AllocateTransientData(vertex_buffer_alignment_, source_length);
+  auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
@@ -345,60 +260,38 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
 
   // Copy data into the buffer.
   // TODO(benvanik): memcpy then use compute shaders to swap?
-  // Endian::k8in32, swap words.
-  xe::copy_and_swap_32_aligned(
-      reinterpret_cast<uint8_t*>(transient_buffer_data_) + offset, source_ptr,
-      source_length / 4);
+  assert_true(endian == Endian::k8in32);
+  if (endian == Endian::k8in32) {
+    // Endian::k8in32, swap words.
+    xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
+                                 source_ptr, source_length / 4);
+  }
 
-  return {transient_vertex_buffer_, offset};
+  return {transient_buffer_->gpu_buffer(), offset};
 }
 
-VkDeviceSize BufferCache::AllocateTransientData(VkDeviceSize alignment,
-                                                VkDeviceSize length) {
+VkDeviceSize BufferCache::AllocateTransientData(
+    VkDeviceSize length, std::shared_ptr<ui::vulkan::Fence> fence) {
   // Try fast path (if we have space).
-  VkDeviceSize offset = TryAllocateTransientData(alignment, length);
+  VkDeviceSize offset = TryAllocateTransientData(length, fence);
   if (offset != VK_WHOLE_SIZE) {
     return offset;
   }
 
   // Ran out of easy allocations.
   // Try consuming fences before we panic.
-  assert_always("Reclamation not yet implemented");
+  transient_buffer_->Scavenge();
 
   // Try again. It may still fail if we didn't get enough space back.
-  return TryAllocateTransientData(alignment, length);
+  offset = TryAllocateTransientData(length, fence);
+  return offset;
 }
 
-VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize alignment,
-                                                   VkDeviceSize length) {
-  if (transient_tail_offset_ >= transient_head_offset_) {
-    // Tail follows head, so things are easy:
-    // |    H----T   |
-    if (xe::round_up(transient_tail_offset_, alignment) + length <=
-        transient_capacity_) {
-      // Allocation fits from tail to end of buffer, so grow.
-      // |    H----**T |
-      VkDeviceSize offset = xe::round_up(transient_tail_offset_, alignment);
-      transient_tail_offset_ = offset + length;
-      return offset;
-    } else if (length + kDeadZone <= transient_head_offset_) {
-      // Can't fit at the end, but can fit if we wrap around.
-      // |**T H----....|
-      VkDeviceSize offset = 0;
-      transient_tail_offset_ = length;
-      return offset;
-    }
-  } else {
-    // Head follows tail, so we're reversed:
-    // |----T    H---|
-    if (xe::round_up(transient_tail_offset_, alignment) + length + kDeadZone <=
-        transient_head_offset_) {
-      // Fits from tail to head.
-      // |----***T H---|
-      VkDeviceSize offset = xe::round_up(transient_tail_offset_, alignment);
-      transient_tail_offset_ = offset + length;
-      return offset;
-    }
+VkDeviceSize BufferCache::TryAllocateTransientData(
+    VkDeviceSize length, std::shared_ptr<ui::vulkan::Fence> fence) {
+  auto alloc = transient_buffer_->Acquire(length, fence);
+  if (alloc) {
+    return alloc->offset;
   }
 
   // No more space.
@@ -420,9 +313,9 @@ void BufferCache::Flush(VkCommandBuffer command_buffer) {
   VkMappedMemoryRange dirty_range;
   dirty_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
   dirty_range.pNext = nullptr;
-  dirty_range.memory = transient_buffer_memory_;
+  dirty_range.memory = transient_buffer_->gpu_memory();
   dirty_range.offset = 0;
-  dirty_range.size = transient_capacity_;
+  dirty_range.size = transient_buffer_->capacity();
   vkFlushMappedMemoryRanges(device_, 1, &dirty_range);
 }
 
@@ -433,6 +326,8 @@ void BufferCache::InvalidateCache() {
 void BufferCache::ClearCache() {
   // TODO(benvanik): caching.
 }
+
+void BufferCache::Scavenge() { transient_buffer_->Scavenge(); }
 
 }  // namespace vulkan
 }  // namespace gpu

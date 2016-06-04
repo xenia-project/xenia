@@ -138,6 +138,46 @@ class VulkanImmediateTexture : public ImmediateTexture {
  public:
   VulkanImmediateTexture(VulkanDevice* device, VkDescriptorPool descriptor_pool,
                          VkDescriptorSetLayout descriptor_set_layout,
+                         VkImageView image_view, VkSampler sampler,
+                         uint32_t width, uint32_t height)
+      : ImmediateTexture(width, height),
+        device_(*device),
+        descriptor_pool_(descriptor_pool),
+        image_view_(image_view),
+        sampler_(sampler) {
+    handle = reinterpret_cast<uintptr_t>(this);
+
+    // Create descriptor set used just for this texture.
+    // It never changes, so we can reuse it and not worry with updates.
+    VkDescriptorSetAllocateInfo set_alloc_info;
+    set_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    set_alloc_info.pNext = nullptr;
+    set_alloc_info.descriptorPool = descriptor_pool_;
+    set_alloc_info.descriptorSetCount = 1;
+    set_alloc_info.pSetLayouts = &descriptor_set_layout;
+    auto err =
+        vkAllocateDescriptorSets(device_, &set_alloc_info, &descriptor_set_);
+    CheckResult(err, "vkAllocateDescriptorSets");
+
+    // Initialize descriptor with our texture.
+    VkDescriptorImageInfo texture_info;
+    texture_info.sampler = sampler_;
+    texture_info.imageView = image_view_;
+    texture_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    VkWriteDescriptorSet descriptor_write;
+    descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_write.pNext = nullptr;
+    descriptor_write.dstSet = descriptor_set_;
+    descriptor_write.dstBinding = 0;
+    descriptor_write.dstArrayElement = 0;
+    descriptor_write.descriptorCount = 1;
+    descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptor_write.pImageInfo = &texture_info;
+    vkUpdateDescriptorSets(device_, 1, &descriptor_write, 0, nullptr);
+  }
+
+  VulkanImmediateTexture(VulkanDevice* device, VkDescriptorPool descriptor_pool,
+                         VkDescriptorSetLayout descriptor_set_layout,
                          VkSampler sampler, uint32_t width, uint32_t height)
       : ImmediateTexture(width, height),
         device_(*device),
@@ -161,7 +201,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.queueFamilyIndexCount = 0;
     image_info.pQueueFamilyIndices = nullptr;
-    image_info.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
     auto err = vkCreateImage(device_, &image_info, nullptr, &image_);
     CheckResult(err, "vkCreateImage");
 
@@ -221,9 +261,12 @@ class VulkanImmediateTexture : public ImmediateTexture {
 
   ~VulkanImmediateTexture() override {
     vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set_);
-    vkDestroyImageView(device_, image_view_, nullptr);
-    vkDestroyImage(device_, image_, nullptr);
-    vkFreeMemory(device_, device_memory_, nullptr);
+
+    if (device_memory_) {
+      vkDestroyImageView(device_, image_view_, nullptr);
+      vkDestroyImage(device_, image_, nullptr);
+      vkFreeMemory(device_, device_memory_, nullptr);
+    }
   }
 
   void Upload(const uint8_t* src_data) {
@@ -238,25 +281,49 @@ class VulkanImmediateTexture : public ImmediateTexture {
     vkGetImageSubresourceLayout(device_, image_, &subresource, &layout);
 
     // Map memory for upload.
-    void* gpu_data = nullptr;
-    auto err =
-        vkMapMemory(device_, device_memory_, 0, layout.size, 0, &gpu_data);
+    uint8_t* gpu_data = nullptr;
+    auto err = vkMapMemory(device_, device_memory_, 0, layout.size, 0,
+                           reinterpret_cast<void**>(&gpu_data));
     CheckResult(err, "vkMapMemory");
 
     // Copy the entire texture, hoping its layout matches what we expect.
-    std::memcpy(gpu_data, src_data, layout.size);
+    std::memcpy(gpu_data + layout.offset, src_data, layout.size);
 
     vkUnmapMemory(device_, device_memory_);
   }
 
+  // Queues a command to transition this texture to a new layout. This assumes
+  // the command buffer WILL be queued and executed by the device.
+  void TransitionLayout(VkCommandBuffer command_buffer,
+                        VkImageLayout new_layout) {
+    VkImageMemoryBarrier image_barrier;
+    image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    image_barrier.pNext = nullptr;
+    image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.srcAccessMask = 0;
+    image_barrier.dstAccessMask = 0;
+    image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_barrier.newLayout = new_layout;
+    image_barrier.image = image_;
+    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+    image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_layout_ = new_layout;
+
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
+
   VkDescriptorSet descriptor_set() const { return descriptor_set_; }
+  VkImageLayout layout() const { return image_layout_; }
 
  private:
   VkDevice device_ = nullptr;
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkSampler sampler_ = nullptr;  // Not owned.
   VkImage image_ = nullptr;
-  VkImageLayout image_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImageLayout image_layout_ = VK_IMAGE_LAYOUT_PREINITIALIZED;
   VkDeviceMemory device_memory_ = nullptr;
   VkImageView image_view_ = nullptr;
   VkDescriptorSet descriptor_set_ = nullptr;
@@ -538,7 +605,7 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pipeline_info.renderPass = context_->swap_chain()->render_pass();
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
-  pipeline_info.basePipelineIndex = 0;
+  pipeline_info.basePipelineIndex = -1;
   err = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info, nullptr,
                                   &triangle_pipeline_);
   CheckResult(err, "vkCreateGraphicsPipelines");
@@ -547,7 +614,7 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pipeline_info.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
   input_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   pipeline_info.basePipelineHandle = triangle_pipeline_;
-  pipeline_info.basePipelineIndex = 0;
+  pipeline_info.basePipelineIndex = -1;
   err = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info, nullptr,
                                   &line_pipeline_);
   CheckResult(err, "vkCreateGraphicsPipelines");
@@ -602,6 +669,14 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     UpdateTexture(texture.get(), data);
   }
   return std::unique_ptr<ImmediateTexture>(texture.release());
+}
+
+std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::WrapTexture(
+    VkImageView image_view, VkSampler sampler, uint32_t width,
+    uint32_t height) {
+  return std::make_unique<VulkanImmediateTexture>(
+      context_->device(), descriptor_pool_, texture_set_layout_, image_view,
+      sampler, width, height);
 }
 
 void VulkanImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
@@ -672,9 +747,6 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   auto swap_chain = context_->swap_chain();
 
-  if (draw.primitive_type != ImmediatePrimitiveType::kTriangles) {
-    return;
-  }
   switch (draw.primitive_type) {
     case ImmediatePrimitiveType::kLines:
       vkCmdBindPipeline(current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -689,6 +761,10 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   // Setup texture binding.
   auto texture = reinterpret_cast<VulkanImmediateTexture*>(draw.texture_handle);
   if (texture) {
+    if (texture->layout() != VK_IMAGE_LAYOUT_GENERAL) {
+      texture->TransitionLayout(current_cmd_buffer_, VK_IMAGE_LAYOUT_GENERAL);
+    }
+
     auto texture_set = texture->descriptor_set();
     vkCmdBindDescriptorSets(current_cmd_buffer_,
                             VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_,

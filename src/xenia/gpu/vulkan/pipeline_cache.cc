@@ -17,6 +17,9 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
+#include <cinttypes>
+#include <string>
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -154,40 +157,19 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
                                           host_address, dword_count);
   shader_map_.insert({data_hash, shader});
 
-  // Perform translation.
-  // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_.Translate(shader)) {
-    XELOGE("Shader translation failed; marking shader as ignored");
-    return shader;
-  }
-
-  // Prepare the shader for use (creates our VkShaderModule).
-  // It could still fail at this point.
-  if (!shader->Prepare()) {
-    XELOGE("Shader preparation failed; marking shader as ignored");
-    return shader;
-  }
-
-  if (shader->is_valid()) {
-    XELOGGPU("Generated %s shader at 0x%.8X (%db):\n%s",
-             shader_type == ShaderType::kVertex ? "vertex" : "pixel",
-             guest_address, dword_count * 4,
-             shader->ucode_disassembly().c_str());
-  }
-
-  // Dump shader files if desired.
-  if (!FLAGS_dump_shaders.empty()) {
-    shader->Dump(FLAGS_dump_shaders, "vk");
-  }
-
   return shader;
 }
 
-bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
-                                      const RenderState* render_state,
-                                      VulkanShader* vertex_shader,
-                                      VulkanShader* pixel_shader,
-                                      PrimitiveType primitive_type) {
+PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
+    VkCommandBuffer command_buffer, const RenderState* render_state,
+    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
+    PrimitiveType primitive_type, VkPipeline* pipeline_out) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
+  assert_not_null(pipeline_out);
+
   // Perform a pass over all registers and state updating our cached structures.
   // This will tell us if anything has changed that requires us to either build
   // a new pipeline or use an existing one.
@@ -208,7 +190,7 @@ bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
       // Error updating state - bail out.
       // We are in an indeterminate state, so reset things for the next attempt.
       current_pipeline_ = nullptr;
-      return false;
+      return update_status;
   }
   if (!pipeline) {
     // Should have a hash key produced by the UpdateState pass.
@@ -217,24 +199,12 @@ bool PipelineCache::ConfigurePipeline(VkCommandBuffer command_buffer,
     current_pipeline_ = pipeline;
     if (!pipeline) {
       // Unable to create pipeline.
-      return false;
+      return UpdateStatus::kError;
     }
   }
 
-  // Bind the pipeline.
-  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-  // Issue all changed dynamic state information commands.
-  // TODO(benvanik): dynamic state is kept in the command buffer, so if we
-  // have issued it before (regardless of pipeline) we don't need to do it now.
-  // TODO(benvanik): track whether we have issued on the given command buffer.
-  bool full_dynamic_state = true;
-  if (!SetDynamicState(command_buffer, full_dynamic_state)) {
-    // Failed to update state.
-    return false;
-  }
-
-  return true;
+  *pipeline_out = pipeline;
+  return update_status;
 }
 
 void PipelineCache::ClearCache() {
@@ -291,14 +261,138 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = 0;
   VkPipeline pipeline = nullptr;
-  auto err = vkCreateGraphicsPipelines(device_, nullptr, 1, &pipeline_info,
-                                       nullptr, &pipeline);
+  auto err = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
+                                       &pipeline_info, nullptr, &pipeline);
   CheckResult(err, "vkCreateGraphicsPipelines");
+
+  // Dump shader disassembly.
+  if (FLAGS_vulkan_dump_disasm) {
+    DumpShaderDisasmNV(pipeline_info);
+  }
 
   // Add to cache with the hash key for reuse.
   cached_pipelines_.insert({hash_key, pipeline});
 
   return pipeline;
+}
+
+bool PipelineCache::TranslateShader(VulkanShader* shader,
+                                    xenos::xe_gpu_program_cntl_t cntl) {
+  // Perform translation.
+  // If this fails the shader will be marked as invalid and ignored later.
+  if (!shader_translator_.Translate(shader, cntl)) {
+    XELOGE("Shader translation failed; marking shader as ignored");
+    return false;
+  }
+
+  // Prepare the shader for use (creates our VkShaderModule).
+  // It could still fail at this point.
+  if (!shader->Prepare()) {
+    XELOGE("Shader preparation failed; marking shader as ignored");
+    return false;
+  }
+
+  if (shader->is_valid()) {
+    XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
+             shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
+             shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
+             shader->ucode_disassembly().c_str());
+  }
+
+  // Dump shader files if desired.
+  if (!FLAGS_dump_shaders.empty()) {
+    shader->Dump(FLAGS_dump_shaders, "vk");
+  }
+
+  return shader->is_valid();
+}
+
+void PipelineCache::DumpShaderDisasmNV(
+    const VkGraphicsPipelineCreateInfo& pipeline_info) {
+  // !! HACK !!: This only works on NVidia drivers. Dumps shader disasm.
+  // This code is super ugly. Update this when NVidia includes an official
+  // way to dump shader disassembly.
+
+  VkPipelineCacheCreateInfo pipeline_cache_info;
+  VkPipelineCache dummy_pipeline_cache;
+  pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+  pipeline_cache_info.pNext = nullptr;
+  pipeline_cache_info.flags = 0;
+  pipeline_cache_info.initialDataSize = 0;
+  pipeline_cache_info.pInitialData = nullptr;
+  auto err = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+                                   &dummy_pipeline_cache);
+  CheckResult(err, "vkCreatePipelineCache");
+
+  // Create a pipeline on the dummy cache and dump it.
+  VkPipeline dummy_pipeline;
+  err = vkCreateGraphicsPipelines(device_, dummy_pipeline_cache, 1,
+                                  &pipeline_info, nullptr, &dummy_pipeline);
+
+  std::vector<uint8_t> pipeline_data;
+  size_t data_size = 0;
+  err = vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+                               nullptr);
+  if (err == VK_SUCCESS) {
+    pipeline_data.resize(data_size);
+    vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+                           pipeline_data.data());
+
+    // Scan the data for the disassembly.
+    std::string disasm_vp, disasm_fp;
+
+    const char* disasm_start_vp = nullptr;
+    const char* disasm_start_fp = nullptr;
+    size_t search_offset = 0;
+    const char* search_start =
+        reinterpret_cast<const char*>(pipeline_data.data());
+    while (true) {
+      auto p = reinterpret_cast<const char*>(
+          memchr(pipeline_data.data() + search_offset, '!',
+                 pipeline_data.size() - search_offset));
+      if (!p) {
+        break;
+      }
+      if (!strncmp(p, "!!NV", 4)) {
+        if (!strncmp(p + 4, "vp", 2)) {
+          disasm_start_vp = p;
+        } else if (!strncmp(p + 4, "fp", 2)) {
+          disasm_start_fp = p;
+        }
+
+        if (disasm_start_fp && disasm_start_vp) {
+          // Found all we needed.
+          break;
+        }
+      }
+      search_offset = p - search_start;
+      ++search_offset;
+    }
+    if (disasm_start_vp) {
+      disasm_vp = std::string(disasm_start_vp);
+
+      // For some reason there's question marks all over the code.
+      disasm_vp.erase(std::remove(disasm_vp.begin(), disasm_vp.end(), '?'),
+                      disasm_vp.end());
+    } else {
+      disasm_vp = std::string("Shader disassembly not available.");
+    }
+
+    if (disasm_start_fp) {
+      disasm_fp = std::string(disasm_start_fp);
+
+      // For some reason there's question marks all over the code.
+      disasm_fp.erase(std::remove(disasm_fp.begin(), disasm_fp.end(), '?'),
+                      disasm_fp.end());
+    } else {
+      disasm_fp = std::string("Shader disassembly not available.");
+    }
+
+    XELOGI("%s\n=====================================\n%s\n", disasm_vp.c_str(),
+           disasm_fp.c_str());
+  }
+
+  vkDestroyPipelineCache(device_, dummy_pipeline_cache, nullptr);
 }
 
 VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
@@ -334,10 +428,16 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
 
 bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                                     bool full_update) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto& regs = set_dynamic_state_registers_;
 
   bool window_offset_dirty = SetShadowRegister(&regs.pa_sc_window_offset,
                                                XE_GPU_REG_PA_SC_WINDOW_OFFSET);
+  window_offset_dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                                           XE_GPU_REG_PA_SU_SC_MODE_CNTL);
 
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
@@ -397,22 +497,21 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
                                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
   if (viewport_state_dirty) {
-    // HACK: no clue where to get these values.
     // RB_SURFACE_INFO
     auto surface_msaa =
         static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-    // TODO(benvanik): ??
+
+    // Apply a multiplier to emulate MSAA.
     float window_width_scalar = 1;
     float window_height_scalar = 1;
     switch (surface_msaa) {
       case MsaaSamples::k1X:
         break;
       case MsaaSamples::k2X:
-        window_width_scalar = 2;
+        window_height_scalar = 2;
         break;
       case MsaaSamples::k4X:
-        window_width_scalar = 2;
-        window_height_scalar = 2;
+        window_width_scalar = window_height_scalar = 2;
         break;
     }
 
@@ -429,10 +528,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                 vport_yoffset_enable == vport_zoffset_enable);
 
     VkViewport viewport_rect;
-    viewport_rect.x = 0;
-    viewport_rect.y = 0;
-    viewport_rect.width = 100;
-    viewport_rect.height = 100;
+    std::memset(&viewport_rect, 0, sizeof(VkViewport));
     viewport_rect.minDepth = 0;
     viewport_rect.maxDepth = 1;
 
@@ -443,6 +539,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
       float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
       float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
+
       window_width_scalar = window_height_scalar = 1;
       float vpw = 2 * window_width_scalar * vsx;
       float vph = -2 * window_height_scalar * vsy;
@@ -490,25 +587,25 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     vkCmdSetBlendConstants(command_buffer, regs.rb_blend_rgba);
   }
 
-  // VK_DYNAMIC_STATE_LINE_WIDTH
-  vkCmdSetLineWidth(command_buffer, 1.0f);
+  if (full_update) {
+    // VK_DYNAMIC_STATE_LINE_WIDTH
+    vkCmdSetLineWidth(command_buffer, 1.0f);
 
-  // VK_DYNAMIC_STATE_DEPTH_BIAS
-  vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
+    // VK_DYNAMIC_STATE_DEPTH_BIAS
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
 
-  // VK_DYNAMIC_STATE_DEPTH_BOUNDS
-  vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
+    // VK_DYNAMIC_STATE_DEPTH_BOUNDS
+    vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
 
-  // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
-  vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+    // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
+    vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
 
-  // VK_DYNAMIC_STATE_STENCIL_REFERENCE
-  vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+    // VK_DYNAMIC_STATE_STENCIL_REFERENCE
+    vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
 
-  // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
-  vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
-
-  // TODO(benvanik): push constants.
+    // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
+    vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+  }
 
   bool push_constants_dirty = full_update || viewport_state_dirty;
   push_constants_dirty |=
@@ -539,7 +636,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[1] = -1.0f;
     } else {
       push_constants.window_scale[0] = 1.0f / 2560.0f;
-      push_constants.window_scale[1] = -1.0f / 2560.0f;
+      push_constants.window_scale[1] = 1.0f / 2560.0f;
     }
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -558,7 +655,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     push_constants.vtx_fmt[3] = vtx_w0_fmt;
 
     // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-    // Deprecated in Vulkan, implemented in shader.
+    // Emulated in shader.
     // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
     // ALPHATESTENABLE
     push_constants.alpha_test[0] =
@@ -657,16 +754,32 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
   dirty |= regs.vertex_shader != vertex_shader;
   dirty |= regs.pixel_shader != pixel_shader;
   dirty |= regs.primitive_type != primitive_type;
+  regs.vertex_shader = vertex_shader;
+  regs.pixel_shader = pixel_shader;
+  regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.vertex_shader = vertex_shader;
-  regs.pixel_shader = pixel_shader;
-  regs.primitive_type = primitive_type;
+
+  xenos::xe_gpu_program_cntl_t sq_program_cntl;
+  sq_program_cntl.dword_0 = regs.sq_program_cntl;
+
+  if (!vertex_shader->is_translated() &&
+      !TranslateShader(vertex_shader, sq_program_cntl)) {
+    XELOGE("Failed to translate the vertex shader!");
+    return UpdateStatus::kError;
+  }
+
+  if (!pixel_shader->is_translated() &&
+      !TranslateShader(pixel_shader, sq_program_cntl)) {
+    XELOGE("Failed to translate the pixel shader!");
+    return UpdateStatus::kError;
+  }
 
   update_shader_stages_stage_count_ = 0;
 
@@ -723,11 +836,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
 
   bool dirty = false;
   dirty |= vertex_shader != regs.vertex_shader;
+  regs.vertex_shader = vertex_shader;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.vertex_shader = vertex_shader;
 
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   state_info.pNext = nullptr;
@@ -765,11 +878,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
                                            : VK_FORMAT_A2R10G10B10_UNORM_PACK32;
           break;
         case VertexFormat::k_10_11_11:
-          assert_always("unsupported?");
+          assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
           break;
         case VertexFormat::k_11_11_10:
-          assert_true(is_signed);
+          // Converted in-shader.
+          // TODO(DrChat)
+          assert_always();
+          // vertex_attrib_descr.format = VK_FORMAT_R32_UINT;
           vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
           break;
         case VertexFormat::k_16_16:
@@ -802,19 +918,19 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
               is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32_SFLOAT;
           break;
         case VertexFormat::k_32_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32G32_SFLOAT;
           break;
         case VertexFormat::k_32_32_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32G32B32_SFLOAT;
           break;
         case VertexFormat::k_32_32_32_32_FLOAT:
-          assert_true(is_signed);
+          // assert_true(is_signed);
           vertex_attrib_descr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
           break;
         default:
@@ -843,11 +959,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
-  regs.primitive_type = primitive_type;
 
   state_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -934,14 +1050,17 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   auto& state_info = update_rasterization_state_info_;
 
   bool dirty = false;
+  dirty |= regs.primitive_type != primitive_type;
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_tl,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_br,
                              XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
+  dirty |= SetShadowRegister(&regs.pa_sc_viz_query, XE_GPU_REG_PA_SC_VIZ_QUERY);
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
+  regs.primitive_type = primitive_type;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -953,9 +1072,12 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
 
   // TODO(benvanik): right setting?
   state_info.depthClampEnable = VK_FALSE;
-
-  // TODO(benvanik): use in depth-only mode?
   state_info.rasterizerDiscardEnable = VK_FALSE;
+
+  // KILL_PIX_POST_EARLY_Z
+  if (regs.pa_sc_viz_query & 0x80) {
+    state_info.rasterizerDiscardEnable = VK_TRUE;
+  }
 
   bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
   if (poly_mode) {
@@ -980,6 +1102,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
       break;
     case 2:
       state_info.cullMode = VK_CULL_MODE_BACK_BIT;
+      break;
+    case 3:
+      // Cull both sides?
+      assert_always();
       break;
   }
   if (regs.pa_su_sc_mode_cntl & 0x4) {
@@ -1007,18 +1133,53 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   auto& regs = update_multisample_state_regs_;
   auto& state_info = update_multisample_state_info_;
 
+  bool dirty = false;
+  dirty |= SetShadowRegister(&regs.pa_sc_aa_config, XE_GPU_REG_PA_SC_AA_CONFIG);
+  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
+                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
+  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  if (!dirty) {
+    return UpdateStatus::kCompatible;
+  }
+
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
-  state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  // PA_SC_AA_CONFIG MSAA_NUM_SAMPLES (0x7)
+  // PA_SC_AA_MASK (0xFFFF)
+  // PA_SU_SC_MODE_CNTL MSAA_ENABLE (0x10000)
+  // If set, all samples will be sampled at set locations. Otherwise, they're
+  // all sampled from the pixel center.
+  if (FLAGS_vulkan_native_msaa) {
+    auto msaa_num_samples =
+        static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+    switch (msaa_num_samples) {
+      case MsaaSamples::k1X:
+        state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        break;
+      case MsaaSamples::k2X:
+        state_info.rasterizationSamples = VK_SAMPLE_COUNT_2_BIT;
+        break;
+      case MsaaSamples::k4X:
+        state_info.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
+        break;
+      default:
+        assert_unhandled_case(msaa_num_samples);
+        break;
+    }
+  } else {
+    state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  }
+
   state_info.sampleShadingEnable = VK_FALSE;
   state_info.minSampleShading = 0;
   state_info.pSampleMask = nullptr;
   state_info.alphaToCoverageEnable = VK_FALSE;
   state_info.alphaToOneEnable = VK_FALSE;
 
-  return UpdateStatus::kCompatible;
+  return UpdateStatus::kMismatch;
 }
 
 PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
@@ -1038,19 +1199,60 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
-  state_info.depthTestEnable = VK_FALSE;
-  state_info.depthWriteEnable = VK_FALSE;
-  state_info.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+  static const VkCompareOp compare_func_map[] = {
+      /*  0 */ VK_COMPARE_OP_NEVER,
+      /*  1 */ VK_COMPARE_OP_LESS,
+      /*  2 */ VK_COMPARE_OP_EQUAL,
+      /*  3 */ VK_COMPARE_OP_LESS_OR_EQUAL,
+      /*  4 */ VK_COMPARE_OP_GREATER,
+      /*  5 */ VK_COMPARE_OP_NOT_EQUAL,
+      /*  6 */ VK_COMPARE_OP_GREATER_OR_EQUAL,
+      /*  7 */ VK_COMPARE_OP_ALWAYS,
+  };
+  static const VkStencilOp stencil_op_map[] = {
+      /*  0 */ VK_STENCIL_OP_KEEP,
+      /*  1 */ VK_STENCIL_OP_ZERO,
+      /*  2 */ VK_STENCIL_OP_REPLACE,
+      /*  3 */ VK_STENCIL_OP_INCREMENT_AND_WRAP,
+      /*  4 */ VK_STENCIL_OP_DECREMENT_AND_WRAP,
+      /*  5 */ VK_STENCIL_OP_INVERT,
+      /*  6 */ VK_STENCIL_OP_INCREMENT_AND_CLAMP,
+      /*  7 */ VK_STENCIL_OP_DECREMENT_AND_CLAMP,
+  };
+
+  // Depth state
+  // TODO: EARLY_Z_ENABLE (needs to be enabled in shaders)
+  state_info.depthWriteEnable = !!(regs.rb_depthcontrol & 0x4);
+  state_info.depthTestEnable = !!(regs.rb_depthcontrol & 0x2);
+  state_info.stencilTestEnable = !!(regs.rb_depthcontrol & 0x1);
+
+  state_info.depthCompareOp =
+      compare_func_map[(regs.rb_depthcontrol >> 4) & 0x7];
   state_info.depthBoundsTestEnable = VK_FALSE;
-  state_info.stencilTestEnable = VK_FALSE;
-  state_info.front.failOp = VK_STENCIL_OP_KEEP;
-  state_info.front.passOp = VK_STENCIL_OP_KEEP;
-  state_info.front.depthFailOp = VK_STENCIL_OP_KEEP;
-  state_info.front.compareOp = VK_COMPARE_OP_ALWAYS;
-  state_info.back.failOp = VK_STENCIL_OP_KEEP;
-  state_info.back.passOp = VK_STENCIL_OP_KEEP;
-  state_info.back.depthFailOp = VK_STENCIL_OP_KEEP;
-  state_info.back.compareOp = VK_COMPARE_OP_ALWAYS;
+
+  uint32_t stencil_ref = (regs.rb_stencilrefmask & 0x000000FF);
+  uint32_t stencil_read_mask = (regs.rb_stencilrefmask & 0x0000FF00) >> 8;
+
+  // Stencil state
+  state_info.front.compareOp =
+      compare_func_map[(regs.rb_depthcontrol >> 8) & 0x7];
+  state_info.front.failOp = stencil_op_map[(regs.rb_depthcontrol >> 11) & 0x7];
+  state_info.front.passOp = stencil_op_map[(regs.rb_depthcontrol >> 14) & 0x7];
+  state_info.front.depthFailOp =
+      stencil_op_map[(regs.rb_depthcontrol >> 17) & 0x7];
+
+  // BACKFACE_ENABLE
+  if (!!(regs.rb_depthcontrol & 0x80)) {
+    state_info.back.compareOp =
+        compare_func_map[(regs.rb_depthcontrol >> 20) & 0x7];
+    state_info.back.failOp = stencil_op_map[(regs.rb_depthcontrol >> 23) & 0x7];
+    state_info.back.passOp = stencil_op_map[(regs.rb_depthcontrol >> 26) & 0x7];
+    state_info.back.depthFailOp =
+        stencil_op_map[(regs.rb_depthcontrol >> 29) & 0x7];
+  } else {
+    // Back state is identical to front state.
+    std::memcpy(&state_info.back, &state_info.front, sizeof(VkStencilOpState));
+  }
 
   // Ignored; set dynamically.
   state_info.minDepthBounds = 0;
@@ -1089,6 +1291,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
       SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
   dirty |=
       SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
+  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -1100,6 +1303,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
 
   state_info.logicOpEnable = VK_FALSE;
   state_info.logicOp = VK_LOGIC_OP_NO_OP;
+
+  auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
 
   static const VkBlendFactor kBlendFactorMap[] = {
       /*  0 */ VK_BLEND_FACTOR_ZERO,
@@ -1153,7 +1358,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
     // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
     // Lines up with VkColorComponentFlagBits, where R=bit 1, G=bit 2, etc..
     uint32_t write_mask = (regs.rb_color_mask >> (i * 4)) & 0xF;
-    attachment_state.colorWriteMask = write_mask;
+    attachment_state.colorWriteMask =
+        enable_mode == xenos::ModeControl::kColorDepth ? write_mask : 0;
   }
 
   state_info.attachmentCount = 4;

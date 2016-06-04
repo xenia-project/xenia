@@ -366,7 +366,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   auto dwords = buffer_ptr.as_array<uint32_t>();
   dwords[0] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 63>();
   dwords[1] = 'SWAP';
-  dwords[2] = *frontbuffer_ptr;
+  dwords[2] = (*frontbuffer_ptr) & 0x1FFFFFFF;
 
   // Set by VdCallGraphicsNotificationRoutines.
   dwords[3] = last_frontbuffer_width_;

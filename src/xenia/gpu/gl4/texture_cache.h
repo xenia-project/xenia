@@ -44,7 +44,7 @@ class TextureCache {
   };
   struct TextureEntry {
     TextureInfo texture_info;
-    uintptr_t write_watch_handle;
+    uintptr_t access_watch_handle;
     GLuint handle;
     bool pending_invalidation;
     std::vector<std::unique_ptr<TextureEntryView>> views;
@@ -74,8 +74,12 @@ class TextureCache {
                         TextureFormat format, bool swap_channels,
                         GLuint src_texture, Rect2D src_rect, Rect2D dest_rect);
 
+  TextureEntry* LookupAddress(uint32_t guest_address, uint32_t width,
+                              uint32_t height, TextureFormat format);
+
  private:
   struct ReadBufferTexture {
+    uintptr_t access_watch_handle;
     uint32_t guest_address;
     uint32_t logical_width;
     uint32_t logical_height;
@@ -90,8 +94,6 @@ class TextureCache {
   void EvictSampler(SamplerEntry* entry);
   TextureEntry* LookupOrInsertTexture(const TextureInfo& texture_info,
                                       uint64_t opt_hash = 0);
-  TextureEntry* LookupAddress(uint32_t guest_address, uint32_t width,
-                              uint32_t height, TextureFormat format);
   void EvictTexture(TextureEntry* entry);
 
   bool UploadTexture2D(GLuint texture, const TextureInfo& texture_info);

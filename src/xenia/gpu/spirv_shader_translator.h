@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2016 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,7 +17,9 @@
 #include "third_party/glslang-spirv/SpvBuilder.h"
 #include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
+#include "xenia/gpu/spirv/compiler.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
+#include "xenia/ui/spirv/spirv_validator.h"
 
 namespace xe {
 namespace gpu {
@@ -54,7 +56,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
   void PostTranslation(Shader* shader) override;
 
-  void PreProcessControlFlowInstruction(uint32_t cf_index) override;
+  void PreProcessControlFlowInstruction(
+      uint32_t cf_index, const ucode::ControlFlowInstruction& instr) override;
   void ProcessLabel(uint32_t cf_index) override;
   void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
   void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
@@ -91,10 +94,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Stores a value based on the specified result information.
   // The value will be transformed into the appropriate form for the result and
   // the proper components will be selected.
-  void StoreToResult(spv::Id source_value_id, const InstructionResult& result,
-                     spv::Id predicate_cond = 0);
+  void StoreToResult(spv::Id source_value_id, const InstructionResult& result);
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
+  xe::ui::spirv::SpirvValidator validator_;
+  xe::gpu::spirv::Compiler compiler_;
+
+  // True if there's an open predicated block
+  bool open_predicated_block_ = false;
+  bool predicated_block_cond_ = false;
+  spv::Block* predicated_block_end_ = nullptr;
 
   // TODO(benvanik): replace with something better, make reusable, etc.
   std::unique_ptr<spv::Builder> builder_;
@@ -104,11 +113,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Function* translated_main_ = 0;
 
   // Types.
-  spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0;
+  spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_uint_type_ = 0;
   spv::Id vec4_bool_type_ = 0;
-  spv::Id sampled_image_type_ = 0;
 
   // Constants.
   spv::Id vec4_float_zero_ = 0, vec4_float_one_ = 0;
@@ -121,13 +129,19 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
-  spv::Id frag_outputs_ = 0;
+  spv::Id vertex_id_ = 0;
+  spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
-  spv::Id img_[4] = {0};  // Images {1D, 2D, 3D, Cube}
+  spv::Id tex_[4] = {0};  // Images {1D, 2D, 3D, Cube}
 
   // Map of {binding -> {offset -> spv input}}
   std::map<uint32_t, std::map<uint32_t, spv::Id>> vertex_binding_map_;
-  std::map<uint32_t, spv::Block*> cf_blocks_;
+
+  struct CFBlock {
+    spv::Block* block = nullptr;
+    bool prev_dominates = true;
+  };
+  std::map<uint32_t, CFBlock> cf_blocks_;
 };
 
 }  // namespace gpu

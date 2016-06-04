@@ -19,14 +19,14 @@
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_swap_chain.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
-VulkanGraphicsSystem::VulkanGraphicsSystem() = default;
-
+VulkanGraphicsSystem::VulkanGraphicsSystem() {}
 VulkanGraphicsSystem::~VulkanGraphicsSystem() = default;
 
 X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
@@ -74,12 +74,41 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     return;
   }
 
-  // Blit the frontbuffer.
-  // display_context_->blitter()->BlitTexture2D(
-  //    static_cast<GLuint>(swap_state.front_buffer_texture),
-  //    Rect2D(0, 0, swap_state.width, swap_state.height),
-  //    Rect2D(0, 0, target_window_->width(), target_window_->height()),
-  //    GL_LINEAR, false);
+  auto swap_chain = display_context_->swap_chain();
+  auto copy_cmd_buffer = swap_chain->copy_cmd_buffer();
+  auto front_buffer =
+      reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
+
+  VkImageMemoryBarrier barrier;
+  std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+  barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = front_buffer;
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  vkCmdPipelineBarrier(copy_cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  VkImageBlit region;
+  region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  region.srcOffsets[0] = {0, 0, 0};
+  region.srcOffsets[1] = {static_cast<int32_t>(swap_state.width),
+                          static_cast<int32_t>(swap_state.height), 1};
+
+  region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  region.dstOffsets[0] = {0, 0, 0};
+  region.dstOffsets[1] = {static_cast<int32_t>(swap_chain->surface_width()),
+                          static_cast<int32_t>(swap_chain->surface_height()),
+                          1};
+  vkCmdBlitImage(copy_cmd_buffer, front_buffer, VK_IMAGE_LAYOUT_GENERAL,
+                 swap_chain->surface_image(),
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                 VK_FILTER_LINEAR);
 }
 
 }  // namespace vulkan

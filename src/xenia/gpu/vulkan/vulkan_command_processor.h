@@ -34,12 +34,14 @@
 #include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
 class VulkanGraphicsSystem;
+class TextureCache;
 
 class VulkanCommandProcessor : public CommandProcessor {
  public:
@@ -47,7 +49,10 @@ class VulkanCommandProcessor : public CommandProcessor {
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor() override;
 
+  virtual void RequestFrameTrace(const std::wstring& root_path) override;
   void ClearCaches() override;
+
+  RenderCache* render_cache() { return render_cache_.get(); }
 
  private:
   bool SetupContext() override;
@@ -56,6 +61,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   void MakeCoherent() override;
   void PrepareForWait() override;
   void ReturnFromWait() override;
+
+  void CreateSwapImages(VkCommandBuffer setup_buffer, VkExtent2D extents);
+  void DestroySwapImages();
 
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                    uint32_t frontbuffer_height) override;
@@ -74,11 +82,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
                              VulkanShader* vertex_shader);
   bool PopulateSamplers(VkCommandBuffer command_buffer,
+                        VkCommandBuffer setup_buffer,
                         VulkanShader* vertex_shader,
                         VulkanShader* pixel_shader);
   bool IssueCopy() override;
 
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
+
+  // front buffer / back buffer memory
+  VkDeviceMemory fb_memory = nullptr;
+  VkDeviceMemory bb_memory = nullptr;
 
   // TODO(benvanik): abstract behind context?
   // Queue used to submit work. This may be a dedicated queue for the command
@@ -88,12 +101,22 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkQueue queue_ = nullptr;
   std::mutex* queue_mutex_ = nullptr;
 
+  // Last copy base address, for debugging only.
+  uint32_t last_copy_base_ = 0;
+  bool capturing_ = false;
+  bool trace_requested_ = false;
+
   std::unique_ptr<BufferCache> buffer_cache_;
   std::unique_ptr<PipelineCache> pipeline_cache_;
   std::unique_ptr<RenderCache> render_cache_;
   std::unique_ptr<TextureCache> texture_cache_;
 
   std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;
+
+  const RenderState* current_render_state_ = nullptr;
+  VkCommandBuffer current_command_buffer_ = nullptr;
+  VkCommandBuffer current_setup_buffer_ = nullptr;
+  std::shared_ptr<ui::vulkan::Fence> current_batch_fence_;
 };
 
 }  // namespace vulkan

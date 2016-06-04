@@ -51,6 +51,7 @@ void ShaderTranslator::Reset() {
   ucode_disasm_buffer_.Reset();
   ucode_disasm_line_number_ = 0;
   previous_ucode_disasm_scan_offset_ = 0;
+  register_count_ = 64;
   total_attrib_count_ = 0;
   vertex_bindings_.clear();
   texture_bindings_.clear();
@@ -95,9 +96,21 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
   return true;
 }
 
+bool ShaderTranslator::Translate(Shader* shader,
+                                 xenos::xe_gpu_program_cntl_t cntl) {
+  Reset();
+  register_count_ = shader->type() == ShaderType::kVertex ? cntl.vs_regs + 1
+                                                          : cntl.ps_regs + 1;
+
+  return TranslateInternal(shader);
+}
+
 bool ShaderTranslator::Translate(Shader* shader) {
   Reset();
+  return TranslateInternal(shader);
+}
 
+bool ShaderTranslator::TranslateInternal(Shader* shader) {
   shader_type_ = shader->type();
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
@@ -155,6 +168,7 @@ bool ShaderTranslator::Translate(Shader* shader) {
   }
 
   shader->is_valid_ = true;
+  shader->is_translated_ = true;
   for (const auto& error : shader->errors_) {
     if (error.is_fatal) {
       shader->is_valid_ = false;
@@ -369,9 +383,9 @@ bool ShaderTranslator::TranslateBlocks() {
     AddControlFlowTargetLabel(cf_a, &label_addresses);
     AddControlFlowTargetLabel(cf_b, &label_addresses);
 
-    PreProcessControlFlowInstruction(cf_index);
+    PreProcessControlFlowInstruction(cf_index, cf_a);
     ++cf_index;
-    PreProcessControlFlowInstruction(cf_index);
+    PreProcessControlFlowInstruction(cf_index, cf_b);
     ++cf_index;
   }
 
@@ -672,11 +686,11 @@ void ShaderTranslator::TranslateExecInstructions(
           static_cast<FetchOpcode>(ucode_dwords_[instr_offset * 3] & 0x1F);
       if (fetch_opcode == FetchOpcode::kVertexFetch) {
         auto& op = *reinterpret_cast<const VertexFetchInstruction*>(
-                       ucode_dwords_ + instr_offset * 3);
+            ucode_dwords_ + instr_offset * 3);
         TranslateVertexFetchInstruction(op);
       } else {
         auto& op = *reinterpret_cast<const TextureFetchInstruction*>(
-                       ucode_dwords_ + instr_offset * 3);
+            ucode_dwords_ + instr_offset * 3);
         TranslateTextureFetchInstruction(op);
       }
     } else {
@@ -986,16 +1000,19 @@ void ShaderTranslator::TranslateAluInstruction(const AluInstruction& op) {
     return;
   }
 
+  ParsedAluInstruction instr;
   if (op.has_vector_op()) {
     const auto& opcode_info =
         alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
-    ParseAluVectorInstruction(op, opcode_info);
+    ParseAluVectorInstruction(op, opcode_info, instr);
+    ProcessAluInstruction(instr);
   }
 
   if (op.has_scalar_op()) {
     const auto& opcode_info =
         alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-    ParseAluScalarInstruction(op, opcode_info);
+    ParseAluScalarInstruction(op, opcode_info, instr);
+    ProcessAluInstruction(instr);
   }
 }
 
@@ -1044,9 +1061,8 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
     uint32_t a = swizzle & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
   } else if (swizzle_component_count == 2) {
-    swizzle >>= 4;
-    uint32_t a = ((swizzle >> 2) + 3) & 0x3;
-    uint32_t b = (swizzle + 2) & 0x3;
+    uint32_t a = ((swizzle >> 6) + 3) & 0x3;
+    uint32_t b = ((swizzle >> 0) + 0) & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
     out_op->components[1] = GetSwizzleFromComponentIndex(b);
   } else {
@@ -1088,8 +1104,8 @@ void ParseAluInstructionOperandSpecial(const AluInstruction& op,
 }
 
 void ShaderTranslator::ParseAluVectorInstruction(
-    const AluInstruction& op, const AluOpcodeInfo& opcode_info) {
-  ParsedAluInstruction i;
+    const AluInstruction& op, const AluOpcodeInfo& opcode_info,
+    ParsedAluInstruction& i) {
   i.dword_index = 0;
   i.type = ParsedAluInstruction::Type::kVector;
   i.vector_opcode = op.vector_opcode();
@@ -1126,6 +1142,10 @@ void ShaderTranslator::ParseAluVectorInstruction(
         } else {
           // Unimplemented.
           // assert_always();
+          XELOGE(
+              "ShaderTranslator::ParseAluVectorInstruction: Unsupported write "
+              "to export %d",
+              dest_num);
           i.result.storage_target = InstructionStorageTarget::kNone;
           i.result.storage_index = 0;
         }
@@ -1203,13 +1223,11 @@ void ShaderTranslator::ParseAluVectorInstruction(
   }
 
   i.Disassemble(&ucode_disasm_buffer_);
-
-  ProcessAluInstruction(i);
 }
 
 void ShaderTranslator::ParseAluScalarInstruction(
-    const AluInstruction& op, const AluOpcodeInfo& opcode_info) {
-  ParsedAluInstruction i;
+    const AluInstruction& op, const AluOpcodeInfo& opcode_info,
+    ParsedAluInstruction& i) {
   i.dword_index = 0;
   i.type = ParsedAluInstruction::Type::kScalar;
   i.scalar_opcode = op.scalar_opcode();
@@ -1319,8 +1337,6 @@ void ShaderTranslator::ParseAluScalarInstruction(
   }
 
   i.Disassemble(&ucode_disasm_buffer_);
-
-  ProcessAluInstruction(i);
 }
 
 }  // namespace gpu

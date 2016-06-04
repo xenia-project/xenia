@@ -180,6 +180,11 @@ public:
     void addInstruction(std::unique_ptr<Instruction> inst);
     void addPredecessor(Block* pred) { predecessors.push_back(pred); pred->successors.push_back(this);}
     void addLocalVariable(std::unique_ptr<Instruction> inst) { localVariables.push_back(std::move(inst)); }
+    void insertInstruction(size_t pos, std::unique_ptr<Instruction> inst);
+
+    size_t getInstructionCount() { return instructions.size(); }
+    Instruction* getInstruction(size_t i) { return instructions[i].get(); }
+    void removeInstruction(size_t i) { instructions.erase(instructions.begin() + i); }
     const std::vector<Block*>& getPredecessors() const { return predecessors; }
     const std::vector<Block*>& getSuccessors() const { return successors; }
     void setUnreachable() { unreachable = true; }
@@ -200,6 +205,10 @@ public:
 
     bool isTerminated() const
     {
+        if (instructions.size() == 0) {
+          return false;
+        }
+
         switch (instructions.back()->getOpCode()) {
         case OpBranch:
         case OpBranchConditional:
@@ -215,6 +224,7 @@ public:
 
     void dump(std::vector<unsigned int>& out) const
     {
+        // OpLabel
         instructions[0]->dump(out);
         for (int i = 0; i < (int)localVariables.size(); ++i)
             localVariables[i]->dump(out);
@@ -222,7 +232,51 @@ public:
             instructions[i]->dump(out);
     }
 
-protected:
+    // Moves all instructions from a target block into this block, and removes
+    // the target block from our list of successors.
+    // This function assumes this block unconditionally branches to the target
+    // block directly.
+    void merge(Block* target_block) {
+      if (isTerminated()) {
+        instructions.erase(instructions.end() - 1);
+      }
+
+      // Find the target block in our successors first.
+      for (auto it = successors.begin(); it != successors.end(); ++it) {
+        if (*it == target_block) {
+          it = successors.erase(it);
+          break;
+        }
+      }
+
+      // Add target block's successors to our successors.
+      successors.insert(successors.end(), target_block->successors.begin(),
+                        target_block->successors.end());
+
+      // For each successor, replace the target block in their predecessors with
+      // us.
+      for (auto block : successors) {
+        std::replace(block->predecessors.begin(), block->predecessors.end(),
+                     target_block, this);
+      }
+
+      // Move instructions from target block into this block.
+      for (auto it = target_block->instructions.begin();
+           it != target_block->instructions.end();) {
+        if ((*it)->getOpCode() == spv::Op::OpLabel) {
+          ++it;
+          continue;
+        }
+
+        instructions.push_back(std::move(*it));
+        it = target_block->instructions.erase(it);
+      }
+
+      target_block->predecessors.clear();
+      target_block->successors.clear();
+    }
+
+   protected:
     Block(const Block&);
     Block& operator=(Block&);
 
@@ -275,6 +329,17 @@ public:
     Module& getParent() const { return parent; }
     Block* getEntryBlock() const { return blocks.front(); }
     Block* getLastBlock() const { return blocks.back(); }
+    Block* findBlockById(Id id)
+    {
+      for (auto block : blocks) {
+        if (block->getId() == id) {
+          return block;
+        }
+      }
+
+      return nullptr;
+    }
+    std::vector<Block*>& getBlocks() { return blocks; }
     void addLocalVariable(std::unique_ptr<Instruction> inst);
     Id getReturnType() const { return functionInstruction.getTypeId(); }
     void dump(std::vector<unsigned int>& out) const
@@ -315,6 +380,8 @@ public:
     }
 
     void addFunction(Function *fun) { functions.push_back(fun); }
+    const std::vector<Function*>& getFunctions() const { return functions; }
+    std::vector<Function*>& getFunctions() { return functions; }
 
     void mapInstruction(Instruction *instruction)
     {
@@ -393,6 +460,14 @@ __inline void Block::addInstruction(std::unique_ptr<Instruction> inst)
 {
     Instruction* raw_instruction = inst.get();
     instructions.push_back(std::move(inst));
+    raw_instruction->setBlock(this);
+    if (raw_instruction->getResultId())
+        parent.getParent().mapInstruction(raw_instruction);
+}
+
+__inline void Block::insertInstruction(size_t pos, std::unique_ptr<Instruction> inst) {
+    Instruction* raw_instruction = inst.get();
+    instructions.insert(instructions.begin() + pos, std::move(inst));
     raw_instruction->setBlock(this);
     if (raw_instruction->getResultId())
         parent.getParent().mapInstruction(raw_instruction);

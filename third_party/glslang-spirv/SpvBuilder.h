@@ -93,6 +93,8 @@ public:
         return id;
     }
 
+    Module* getModule() { return &module; }
+
     // For creating new types (will return old type if the requested one was already made).
     Id makeVoidType();
     Id makeBoolType();
@@ -517,6 +519,7 @@ public:
     void createBranch(Block* block);
     void createConditionalBranch(Id condition, Block* thenBlock, Block* elseBlock);
     void createLoopMerge(Block* mergeBlock, Block* continueBlock, unsigned int control);
+    void createSelectionMerge(Block* mergeBlock, unsigned int control);
 
  protected:
     Id makeIntConstant(Id typeId, unsigned value, bool specConstant);
@@ -527,7 +530,6 @@ public:
     void transferAccessChainSwizzle(bool dynamic);
     void simplifyAccessChainSwizzle();
     void createAndSetNoPredecessorBlock(const char*);
-    void createSelectionMerge(Block* mergeBlock, unsigned int control);
     void dumpInstructions(std::vector<unsigned int>&, const std::vector<std::unique_ptr<Instruction> >&) const;
 
     SourceLanguage source;

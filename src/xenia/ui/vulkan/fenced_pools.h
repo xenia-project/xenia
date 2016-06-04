@@ -14,6 +14,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/ui/vulkan/vulkan.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace ui {
@@ -40,13 +41,15 @@ class BaseFencedPool {
 
   // True if one or more batches are still pending on the GPU.
   bool has_pending() const { return pending_batch_list_head_ != nullptr; }
+  // True if a batch is open.
+  bool has_open_batch() const { return open_batch_ != nullptr; }
 
   // Checks all pending batches for completion and scavenges their entries.
   // This should be called as frequently as reasonable.
   void Scavenge() {
     while (pending_batch_list_head_) {
       auto batch = pending_batch_list_head_;
-      if (vkGetFenceStatus(device_, batch->fence) == VK_SUCCESS) {
+      if (vkGetFenceStatus(device_, *batch->fence) == VK_SUCCESS) {
         // Batch has completed. Reclaim.
         pending_batch_list_head_ = batch->next;
         if (batch == pending_batch_list_tail_) {
@@ -88,6 +91,24 @@ class BaseFencedPool {
     open_batch_ = batch;
   }
 
+  // Cancels an open batch, and releases all entries acquired within.
+  void CancelBatch() {
+    assert_not_null(open_batch_);
+
+    auto batch = open_batch_;
+    open_batch_ = nullptr;
+
+    // Relink the batch back into the free batch list.
+    batch->next = free_batch_list_head_;
+    free_batch_list_head_ = batch;
+
+    // Relink entries back into free entries list.
+    batch->entry_list_tail->next = free_entry_list_head_;
+    free_entry_list_head_ = batch->entry_list_head;
+    batch->entry_list_head = nullptr;
+    batch->entry_list_tail = nullptr;
+  }
+
   // Attempts to acquire an entry from the pool in the current batch.
   // If none are available a new one will be allocated.
   HANDLE AcquireEntry() {
@@ -114,7 +135,7 @@ class BaseFencedPool {
 
   // Ends the current batch using the given fence to indicate when the batch
   // has completed execution on the GPU.
-  void EndBatch(VkFence fence) {
+  void EndBatch(std::shared_ptr<Fence> fence) {
     assert_not_null(open_batch_);
 
     // Close and see if we have anything.
@@ -137,6 +158,7 @@ class BaseFencedPool {
     }
     if (pending_batch_list_tail_) {
       pending_batch_list_tail_->next = batch;
+      pending_batch_list_tail_ = batch;
     } else {
       pending_batch_list_tail_ = batch;
     }
@@ -176,7 +198,7 @@ class BaseFencedPool {
     Batch* next;
     Entry* entry_list_head;
     Entry* entry_list_tail;
-    VkFence fence;
+    std::shared_ptr<Fence> fence;
   };
 
   Batch* free_batch_list_head_ = nullptr;

@@ -35,11 +35,16 @@ class VulkanSwapChain {
 
   uint32_t surface_width() const { return surface_width_; }
   uint32_t surface_height() const { return surface_height_; }
+  VkImage surface_image() const {
+    return buffers_[current_buffer_index_].image;
+  }
 
   // Render pass used for compositing.
   VkRenderPass render_pass() const { return render_pass_; }
   // Render command buffer, active inside the render pass from Begin to End.
   VkCommandBuffer render_cmd_buffer() const { return render_cmd_buffer_; }
+  // Copy commands, ran before the render command buffer.
+  VkCommandBuffer copy_cmd_buffer() const { return copy_cmd_buffer_; }
 
   // Initializes the swap chain with the given WSI surface.
   bool Initialize(VkSurfaceKHR surface);
@@ -74,6 +79,7 @@ class VulkanSwapChain {
   uint32_t surface_height_ = 0;
   VkFormat surface_format_ = VK_FORMAT_UNDEFINED;
   VkCommandPool cmd_pool_ = nullptr;
+  VkCommandBuffer copy_cmd_buffer_ = nullptr;
   VkCommandBuffer render_cmd_buffer_ = nullptr;
   VkRenderPass render_pass_ = nullptr;
   VkSemaphore image_available_semaphore_ = nullptr;

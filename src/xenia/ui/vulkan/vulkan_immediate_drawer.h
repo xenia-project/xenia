@@ -32,6 +32,10 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
                                                   ImmediateTextureFilter filter,
                                                   bool repeat,
                                                   const uint8_t* data) override;
+  std::unique_ptr<ImmediateTexture> WrapTexture(VkImageView image_view,
+                                                VkSampler sampler,
+                                                uint32_t width,
+                                                uint32_t height);
   void UpdateTexture(ImmediateTexture* texture, const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;

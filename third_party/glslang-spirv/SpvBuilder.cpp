@@ -1166,6 +1166,7 @@ void Builder::createMemoryBarrier(unsigned executionScope, unsigned memorySemant
 // An opcode that has one operands, a result id, and a type
 Id Builder::createUnaryOp(Op opCode, Id typeId, Id operand)
 {
+    assert(operand != 0);
     Instruction* op = new Instruction(getUniqueId(), typeId, opCode);
     op->addIdOperand(operand);
     buildPoint->addInstruction(std::unique_ptr<Instruction>(op));
@@ -1175,6 +1176,8 @@ Id Builder::createUnaryOp(Op opCode, Id typeId, Id operand)
 
 Id Builder::createBinOp(Op opCode, Id typeId, Id left, Id right)
 {
+    assert(left != 0);
+    assert(right != 0);
     Instruction* op = new Instruction(getUniqueId(), typeId, opCode);
     op->addIdOperand(left);
     op->addIdOperand(right);
@@ -1185,6 +1188,9 @@ Id Builder::createBinOp(Op opCode, Id typeId, Id left, Id right)
 
 Id Builder::createTriOp(Op opCode, Id typeId, Id op1, Id op2, Id op3)
 {
+    assert(op1 != 0);
+    assert(op2 != 0);
+    assert(op3 != 0);
     Instruction* op = new Instruction(getUniqueId(), typeId, opCode);
     op->addIdOperand(op1);
     op->addIdOperand(op2);

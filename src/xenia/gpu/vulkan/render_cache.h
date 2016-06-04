@@ -12,6 +12,7 @@
 
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan.h"
@@ -36,28 +37,67 @@ struct TileViewKey {
   uint16_t tile_height;
   // 1 if format is ColorRenderTargetFormat, else DepthRenderTargetFormat.
   uint16_t color_or_depth : 1;
+  // Surface MSAA samples
+  uint16_t msaa_samples : 2;
   // Either ColorRenderTargetFormat or DepthRenderTargetFormat.
-  uint16_t edram_format : 15;
+  uint16_t edram_format : 13;
 };
 static_assert(sizeof(TileViewKey) == 8, "Key must be tightly packed");
+
+// Cached view representing EDRAM memory.
+// TODO(benvanik): reuse VkImage's with multiple VkViews for compatible
+//     formats?
+class CachedTileView {
+ public:
+  // Key identifying the view in the cache.
+  TileViewKey key;
+  // Image
+  VkImage image = nullptr;
+  // Simple view on the image matching the format.
+  VkImageView image_view = nullptr;
+  // Memory buffer
+  VkDeviceMemory memory = nullptr;
+  // Image sample count
+  VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT;
+
+  CachedTileView(ui::vulkan::VulkanDevice* device,
+                 VkCommandBuffer command_buffer, VkDeviceMemory edram_memory,
+                 TileViewKey view_key);
+  ~CachedTileView();
+
+  bool IsEqual(const TileViewKey& other_key) const {
+    auto a = reinterpret_cast<const uint64_t*>(&key);
+    auto b = reinterpret_cast<const uint64_t*>(&other_key);
+    return *a == *b;
+  }
+
+  bool operator<(const CachedTileView& other) const {
+    return key.tile_offset < other.key.tile_offset;
+  }
+
+ private:
+  VkDevice device_ = nullptr;
+};
 
 // Parsed render configuration from the current render state.
 struct RenderConfiguration {
   // Render mode (color+depth, depth-only, etc).
   xenos::ModeControl mode_control;
-  // Target surface pitch, in pixels.
+  // Target surface pitch multiplied by MSAA, in pixels.
   uint32_t surface_pitch_px;
-  // ESTIMATED target surface height, in pixels.
+  // ESTIMATED target surface height multiplied by MSAA, in pixels.
   uint32_t surface_height_px;
   // Surface MSAA setting.
   MsaaSamples surface_msaa;
   // Color attachments for the 4 render targets.
   struct {
+    bool used;
     uint32_t edram_base;
     ColorRenderTargetFormat format;
   } color[4];
   // Depth/stencil attachment.
   struct {
+    bool used;
     uint32_t edram_base;
     DepthRenderTargetFormat format;
   } depth_stencil;
@@ -73,6 +113,9 @@ struct RenderState {
   // Target framebuffer bound to the render pass.
   CachedFramebuffer* framebuffer = nullptr;
   VkFramebuffer framebuffer_handle = nullptr;
+
+  bool color_attachment_written[4] = {false};
+  bool depth_attachment_written = false;
 };
 
 // Manages the virtualized EDRAM and the render target cache.
@@ -97,9 +140,13 @@ struct RenderState {
 // 320px by rounding up to the next tile.
 //
 // MSAA and other settings will modify the exact pixel sizes, like 4X makes
-// each tile effectively 40x8px, but they are still all 5120b. As we try to
-// emulate this we adjust our viewport when rendering to stretch pixels as
-// needed.
+// each tile effectively 40x8px / 2X makes each tile 80x8px, but they are still
+// all 5120b. As we try to emulate this we adjust our viewport when rendering to
+// stretch pixels as needed.
+//
+// It appears that games also take advantage of MSAA stretching tiles when doing
+// clears. Games will clear a view with 1/2X pitch/height and 4X MSAA and then
+// later draw to that view with 1X pitch/height and 1X MSAA.
 //
 // The good news is that games cannot read EDRAM directly but must use a copy
 // operation to get the data out. That gives us a chance to do whatever we
@@ -217,6 +264,10 @@ class RenderCache {
   RenderCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~RenderCache();
 
+  // Call this to determine if you should start a new render pass or continue
+  // with an already open pass.
+  bool dirty() const;
+
   // Begins a render pass targeting the state-specified framebuffer formats.
   // The command buffer will be transitioned into the render pass phase.
   const RenderState* BeginRenderPass(VkCommandBuffer command_buffer,
@@ -230,24 +281,63 @@ class RenderCache {
   // Clears all cached content.
   void ClearCache();
 
+  // Queues commands to copy EDRAM contents into an image.
+  // The command buffer must not be inside of a render pass when calling this.
+  void RawCopyToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
+                      VkImage image, VkImageLayout image_layout,
+                      bool color_or_depth, VkOffset3D offset,
+                      VkExtent3D extents);
+
+  // Queues commands to blit EDRAM contents into an image.
+  // The command buffer must not be inside of a render pass when calling this.
+  void BlitToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
+                   uint32_t pitch, uint32_t height, MsaaSamples num_samples,
+                   VkImage image, VkImageLayout image_layout,
+                   bool color_or_depth, uint32_t format, VkFilter filter,
+                   VkOffset3D offset, VkExtent3D extents);
+
+  // Queues commands to clear EDRAM contents with a solid color.
+  // The command buffer must not be inside of a render pass when calling this.
+  void ClearEDRAMColor(VkCommandBuffer command_buffer, uint32_t edram_base,
+                       ColorRenderTargetFormat format, uint32_t pitch,
+                       uint32_t height, MsaaSamples num_samples, float* color);
+  // Queues commands to clear EDRAM contents with depth/stencil values.
+  // The command buffer must not be inside of a render pass when calling this.
+  void ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
+                              uint32_t edram_base,
+                              DepthRenderTargetFormat format, uint32_t pitch,
+                              uint32_t height, MsaaSamples num_samples,
+                              float depth, uint32_t stencil);
+  // Queues commands to fill EDRAM contents with a constant value.
+  // The command buffer must not be inside of a render pass when calling this.
+  void FillEDRAM(VkCommandBuffer command_buffer, uint32_t value);
+
  private:
   // Parses the current state into a configuration object.
   bool ParseConfiguration(RenderConfiguration* config);
 
+  // Finds a tile view. Returns nullptr if none found matching the key.
+  CachedTileView* FindTileView(const TileViewKey& view_key) const;
+
+  // Gets or creates a tile view with the given parameters.
+  CachedTileView* FindOrCreateTileView(VkCommandBuffer command_buffer,
+                                       const TileViewKey& view_key);
+
+  void UpdateTileView(VkCommandBuffer command_buffer, CachedTileView* view,
+                      bool load, bool insert_barrier = true);
+
   // Gets or creates a render pass and frame buffer for the given configuration.
   // This attempts to reuse as much as possible across render passes and
   // framebuffers.
-  bool ConfigureRenderPass(RenderConfiguration* config,
+  bool ConfigureRenderPass(VkCommandBuffer command_buffer,
+                           RenderConfiguration* config,
                            CachedRenderPass** out_render_pass,
                            CachedFramebuffer** out_framebuffer);
 
-  // Gets or creates a tile view with the given parameters.
-  CachedTileView* GetTileView(const TileViewKey& view_key);
-
   RegisterFile* register_file_ = nullptr;
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
-  // Entire 10MiB of EDRAM, aliased to hell by various VkImages.
+  // Entire 10MiB of EDRAM.
   VkDeviceMemory edram_memory_ = nullptr;
   // Buffer overlayed 1:1 with edram_memory_ to allow raw access.
   VkBuffer edram_buffer_ = nullptr;

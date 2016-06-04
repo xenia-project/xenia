@@ -39,7 +39,7 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
       // WARNING: this is wrong, most likely - no float form in vulkan?
       XELOGW("Unsupported EDRAM format k_2_10_10_10_FLOAT used");
-      return VK_FORMAT_A2R10G10B10_SSCALED_PACK32;
+      return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
     case ColorRenderTargetFormat::k_16_16:
       return VK_FORMAT_R16G16_UNORM;
     case ColorRenderTargetFormat::k_16_16_16_16:
@@ -70,34 +70,6 @@ VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
       return VK_FORMAT_UNDEFINED;
   }
 }
-
-// Cached view into the EDRAM memory.
-// The image is aliased to a region of the edram_memory_ based on the tile
-// parameters.
-// TODO(benvanik): reuse VkImage's with multiple VkViews for compatible
-//     formats?
-class CachedTileView {
- public:
-  // Key identifying the view in the cache.
-  TileViewKey key;
-  // Image mapped into EDRAM.
-  VkImage image = nullptr;
-  // Simple view on the image matching the format.
-  VkImageView image_view = nullptr;
-
-  CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
-                 TileViewKey view_key);
-  ~CachedTileView();
-
-  bool IsEqual(const TileViewKey& other_key) const {
-    auto a = reinterpret_cast<const uint64_t*>(&key);
-    auto b = reinterpret_cast<const uint64_t*>(&other_key);
-    return *a == *b;
-  }
-
- private:
-  VkDevice device_ = nullptr;
-};
 
 // Cached framebuffer referencing tile attachments.
 // Each framebuffer is specific to a render pass. Ugh.
@@ -151,9 +123,11 @@ class CachedRenderPass {
   VkDevice device_ = nullptr;
 };
 
-CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
+CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
+                               VkCommandBuffer command_buffer,
+                               VkDeviceMemory edram_memory,
                                TileViewKey view_key)
-    : device_(device), key(std::move(view_key)) {
+    : device_(*device), key(std::move(view_key)) {
   // Map format to Vulkan.
   VkFormat vulkan_format = VK_FORMAT_UNDEFINED;
   uint32_t bpp = 4;
@@ -175,7 +149,8 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
     vulkan_format = DepthRenderTargetFormatToVkFormat(edram_format);
   }
   assert_true(vulkan_format != VK_FORMAT_UNDEFINED);
-  assert_true(bpp == 4);
+  // FIXME(DrChat): Was this check necessary?
+  // assert_true(bpp == 4);
 
   // Create the image with the desired properties.
   VkImageCreateInfo image_info;
@@ -191,8 +166,25 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
   image_info.extent.depth = 1;
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
-  // TODO(benvanik): native MSAA support?
-  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  if (FLAGS_vulkan_native_msaa) {
+    auto msaa_samples = static_cast<MsaaSamples>(key.msaa_samples);
+    switch (msaa_samples) {
+      case MsaaSamples::k1X:
+        image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+        break;
+      case MsaaSamples::k2X:
+        image_info.samples = VK_SAMPLE_COUNT_2_BIT;
+        break;
+      case MsaaSamples::k4X:
+        image_info.samples = VK_SAMPLE_COUNT_4_BIT;
+        break;
+      default:
+        assert_unhandled_case(msaa_samples);
+    }
+  } else {
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  }
+  sample_count = image_info.samples;
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
   image_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -203,19 +195,17 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   auto err = vkCreateImage(device_, &image_info, nullptr, &image);
   CheckResult(err, "vkCreateImage");
 
-  // Verify our assumptions about memory layout are correct.
-  VkDeviceSize edram_offset = key.tile_offset * 5120;
   VkMemoryRequirements memory_requirements;
-  vkGetImageMemoryRequirements(device, image, &memory_requirements);
-  assert_true(edram_offset + memory_requirements.size <= kEdramBufferCapacity);
-  assert_true(edram_offset % memory_requirements.alignment == 0);
+  vkGetImageMemoryRequirements(*device, image, &memory_requirements);
 
-  // Bind to the region of EDRAM we occupy.
-  err = vkBindImageMemory(device_, image, edram_memory, edram_offset);
+  // Bind to a newly allocated chunk.
+  // TODO: Alias from a really big buffer?
+  memory = device->AllocateMemory(memory_requirements, 0);
+  err = vkBindImageMemory(device_, image, memory, 0);
   CheckResult(err, "vkBindImageMemory");
 
   // Create the image view we'll use to attach it to a framebuffer.
@@ -242,11 +232,37 @@ CachedTileView::CachedTileView(VkDevice device, VkDeviceMemory edram_memory,
   CheckResult(err, "vkCreateImageView");
 
   // TODO(benvanik): transition to general layout?
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+  image_barrier.dstAccessMask =
+      key.color_or_depth ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                         : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  image_barrier.dstAccessMask |=
+      VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.image = image;
+  image_barrier.subresourceRange.aspectMask =
+      key.color_or_depth
+          ? VK_IMAGE_ASPECT_COLOR_BIT
+          : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  image_barrier.subresourceRange.baseMipLevel = 0;
+  image_barrier.subresourceRange.levelCount = 1;
+  image_barrier.subresourceRange.baseArrayLayer = 0;
+  image_barrier.subresourceRange.layerCount = 1;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 }
 
 CachedTileView::~CachedTileView() {
   vkDestroyImageView(device_, image_view, nullptr);
   vkDestroyImage(device_, image, nullptr);
+  vkFreeMemory(device_, memory, nullptr);
 }
 
 CachedFramebuffer::CachedFramebuffer(
@@ -293,8 +309,15 @@ bool CachedFramebuffer::IsCompatible(
     const RenderConfiguration& desired_config) const {
   // We already know all render pass things line up, so let's verify dimensions,
   // edram offsets, etc. We need an exact match.
-  if (desired_config.surface_pitch_px != width ||
-      desired_config.surface_height_px != height) {
+  uint32_t surface_pitch_px = desired_config.surface_msaa != MsaaSamples::k4X
+                                  ? desired_config.surface_pitch_px
+                                  : desired_config.surface_pitch_px * 2;
+  uint32_t surface_height_px = desired_config.surface_msaa == MsaaSamples::k1X
+                                   ? desired_config.surface_height_px
+                                   : desired_config.surface_height_px * 2;
+  surface_pitch_px = std::min(surface_pitch_px, 2560u);
+  surface_height_px = std::min(surface_height_px, 2560u);
+  if (surface_pitch_px != width || surface_height_px != height) {
     return false;
   }
   // TODO(benvanik): separate image views from images in tiles and store in fb?
@@ -327,13 +350,33 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
     : device_(device) {
   std::memcpy(&config, &desired_config, sizeof(config));
 
+  VkSampleCountFlagBits sample_count;
+  if (FLAGS_vulkan_native_msaa) {
+    switch (desired_config.surface_msaa) {
+      case MsaaSamples::k1X:
+        sample_count = VK_SAMPLE_COUNT_1_BIT;
+        break;
+      case MsaaSamples::k2X:
+        sample_count = VK_SAMPLE_COUNT_2_BIT;
+        break;
+      case MsaaSamples::k4X:
+        sample_count = VK_SAMPLE_COUNT_4_BIT;
+        break;
+      default:
+        assert_unhandled_case(desired_config.surface_msaa);
+        break;
+    }
+  } else {
+    sample_count = VK_SAMPLE_COUNT_1_BIT;
+  }
+
   // Initialize all attachments to default unused.
   // As we set layout(location=RT) in shaders we must always provide 4.
   VkAttachmentDescription attachments[5];
   for (int i = 0; i < 4; ++i) {
     attachments[i].flags = 0;
     attachments[i].format = VK_FORMAT_UNDEFINED;
-    attachments[i].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[i].samples = sample_count;
     attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -344,7 +387,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   auto& depth_stencil_attachment = attachments[4];
   depth_stencil_attachment.flags = 0;
   depth_stencil_attachment.format = VK_FORMAT_UNDEFINED;
-  depth_stencil_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  depth_stencil_attachment.samples = sample_count;
   depth_stencil_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
   depth_stencil_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   depth_stencil_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -409,6 +452,11 @@ CachedRenderPass::~CachedRenderPass() {
 
 bool CachedRenderPass::IsCompatible(
     const RenderConfiguration& desired_config) const {
+  if (config.surface_msaa != desired_config.surface_msaa &&
+      FLAGS_vulkan_native_msaa) {
+    return false;
+  }
+
   for (int i = 0; i < 4; ++i) {
     // TODO(benvanik): allow compatible vulkan formats.
     if (config.color[i].format != desired_config.color[i].format) {
@@ -423,9 +471,10 @@ bool CachedRenderPass::IsCompatible(
 
 RenderCache::RenderCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(*device) {
+    : register_file_(register_file), device_(device) {
+  VkResult status = VK_SUCCESS;
+
   // Create the buffer we'll bind to our memory.
-  // We do this first so we can get the right memory type.
   VkBufferCreateInfo buffer_info;
   buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_info.pNext = nullptr;
@@ -436,55 +485,39 @@ RenderCache::RenderCache(RegisterFile* register_file,
   buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_info.queueFamilyIndexCount = 0;
   buffer_info.pQueueFamilyIndices = nullptr;
-  auto err = vkCreateBuffer(*device, &buffer_info, nullptr, &edram_buffer_);
-  CheckResult(err, "vkCreateBuffer");
+  status = vkCreateBuffer(*device, &buffer_info, nullptr, &edram_buffer_);
+  CheckResult(status, "vkCreateBuffer");
 
   // Query requirements for the buffer.
   // It should be 1:1.
   VkMemoryRequirements buffer_requirements;
-  vkGetBufferMemoryRequirements(device_, edram_buffer_, &buffer_requirements);
+  vkGetBufferMemoryRequirements(*device_, edram_buffer_, &buffer_requirements);
   assert_true(buffer_requirements.size == kEdramBufferCapacity);
 
-  // Create a dummy image so we can see what memory bits it requires.
-  // They should overlap with the buffer requirements but are likely more
-  // strict.
-  VkImageCreateInfo test_image_info;
-  test_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  test_image_info.pNext = nullptr;
-  test_image_info.flags = 0;
-  test_image_info.imageType = VK_IMAGE_TYPE_2D;
-  test_image_info.format = VK_FORMAT_R8G8B8A8_UINT;
-  test_image_info.extent.width = 128;
-  test_image_info.extent.height = 128;
-  test_image_info.extent.depth = 1;
-  test_image_info.mipLevels = 1;
-  test_image_info.arrayLayers = 1;
-  test_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  test_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  test_image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  test_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  test_image_info.queueFamilyIndexCount = 0;
-  test_image_info.pQueueFamilyIndices = nullptr;
-  test_image_info.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
-  VkImage test_image = nullptr;
-  err = vkCreateImage(device_, &test_image_info, nullptr, &test_image);
-  CheckResult(err, "vkCreateImage");
-  VkMemoryRequirements image_requirements;
-  vkGetImageMemoryRequirements(device_, test_image, &image_requirements);
-  vkDestroyImage(device_, test_image, nullptr);
-  assert_true((image_requirements.memoryTypeBits &
-               buffer_requirements.memoryTypeBits) != 0);
-
   // Allocate EDRAM memory.
-  VkMemoryRequirements memory_requirements;
-  memory_requirements.size = buffer_requirements.size;
-  memory_requirements.alignment = buffer_requirements.alignment;
-  memory_requirements.memoryTypeBits = image_requirements.memoryTypeBits;
   // TODO(benvanik): do we need it host visible?
-  edram_memory_ = device->AllocateMemory(memory_requirements, 0);
+  edram_memory_ = device->AllocateMemory(buffer_requirements);
+  assert_not_null(edram_memory_);
 
   // Bind buffer to map our entire memory.
-  vkBindBufferMemory(device_, edram_buffer_, edram_memory_, 0);
+  status = vkBindBufferMemory(*device_, edram_buffer_, edram_memory_, 0);
+  CheckResult(status, "vkBindBufferMemory");
+
+  if (status == VK_SUCCESS) {
+    // For debugging, upload a grid into the EDRAM buffer.
+    uint32_t* gpu_data = nullptr;
+    status = vkMapMemory(*device_, edram_memory_, 0, buffer_requirements.size,
+                         0, reinterpret_cast<void**>(&gpu_data));
+    CheckResult(status, "vkMapMemory");
+
+    if (status == VK_SUCCESS) {
+      for (int i = 0; i < kEdramBufferCapacity / 4; i++) {
+        gpu_data[i] = (i % 8) >= 4 ? 0xFF0000FF : 0xFFFFFFFF;
+      }
+
+      vkUnmapMemory(*device_, edram_memory_);
+    }
+  }
 }
 
 RenderCache::~RenderCache() {
@@ -503,13 +536,36 @@ RenderCache::~RenderCache() {
   cached_tile_views_.clear();
 
   // Release underlying EDRAM memory.
-  vkDestroyBuffer(device_, edram_buffer_, nullptr);
-  vkFreeMemory(device_, edram_memory_, nullptr);
+  vkDestroyBuffer(*device_, edram_buffer_, nullptr);
+  vkFreeMemory(*device_, edram_memory_, nullptr);
+}
+
+bool RenderCache::dirty() const {
+  auto& regs = *register_file_;
+  auto& cur_regs = shadow_registers_;
+
+  bool dirty = false;
+  dirty |= cur_regs.rb_modecontrol != regs[XE_GPU_REG_RB_MODECONTROL].u32;
+  dirty |= cur_regs.rb_surface_info != regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  dirty |= cur_regs.rb_color_info != regs[XE_GPU_REG_RB_COLOR_INFO].u32;
+  dirty |= cur_regs.rb_color1_info != regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
+  dirty |= cur_regs.rb_color2_info != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
+  dirty |= cur_regs.rb_color3_info != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+  dirty |= cur_regs.rb_depth_info != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  dirty |= cur_regs.pa_sc_window_scissor_tl !=
+           regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  dirty |= cur_regs.pa_sc_window_scissor_br !=
+           regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  return dirty;
 }
 
 const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
                                                 VulkanShader* vertex_shader,
                                                 VulkanShader* pixel_shader) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   assert_null(current_command_buffer_);
   current_command_buffer_ = command_buffer;
 
@@ -542,13 +598,34 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
     }
 
     // Lookup or generate a new render pass and framebuffer for the new state.
-    if (!ConfigureRenderPass(config, &render_pass, &framebuffer)) {
+    if (!ConfigureRenderPass(command_buffer, config, &render_pass,
+                             &framebuffer)) {
       return nullptr;
     }
+
     current_state_.render_pass = render_pass;
     current_state_.render_pass_handle = render_pass->handle;
     current_state_.framebuffer = framebuffer;
     current_state_.framebuffer_handle = framebuffer->handle;
+
+    // TODO(DrChat): Determine if we actually need an EDRAM buffer.
+    /*
+    // Depth
+    auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
+    if (depth_target && current_state_.config.depth_stencil.used) {
+      UpdateTileView(command_buffer, depth_target, true);
+    }
+
+    // Color
+    for (int i = 0; i < 4; i++) {
+      auto target = current_state_.framebuffer->color_attachments[i];
+      if (!target || !current_state_.config.color[i].used) {
+        continue;
+      }
+
+      UpdateTileView(command_buffer, target, true);
+    }
+    */
   }
   if (!render_pass) {
     return nullptr;
@@ -570,6 +647,15 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   render_pass_begin_info.renderArea.offset.y = 0;
   render_pass_begin_info.renderArea.extent.width = config->surface_pitch_px;
   render_pass_begin_info.renderArea.extent.height = config->surface_height_px;
+
+  if (config->surface_msaa == MsaaSamples::k2X) {
+    render_pass_begin_info.renderArea.extent.height =
+        std::min(config->surface_height_px * 2, 2560u);
+  } else if (config->surface_msaa == MsaaSamples::k4X) {
+    render_pass_begin_info.renderArea.extent.width *= 2;
+    render_pass_begin_info.renderArea.extent.height =
+        std::min(config->surface_height_px * 2, 2560u);
+  }
 
   // Configure clear color, if clearing.
   // TODO(benvanik): enable clearing here during resolve?
@@ -601,9 +687,15 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   // Guess the height from the scissor height.
   // It's wildly inaccurate, but I've never seen it be bigger than the
   // EDRAM tiling.
+  /*
   uint32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
   uint32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
   config->surface_height_px = std::min(2560u, xe::round_up(ws_h, 16));
+  */
+
+  // TODO(DrChat): Find an accurate way to get the surface height. Until we do,
+  // we're going to hardcode it to 2560, as that's the absolute maximum.
+  config->surface_height_px = 2560;
 
   // Color attachment configuration.
   if (config->mode_control == ModeControl::kColorDepth) {
@@ -620,12 +712,23 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
         case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
           config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
           break;
+        case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+          config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10;
+          break;
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+          config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+          break;
       }
+
+      // Make sure all unknown bits are unset.
+      // RDR sets bit 0x00400000
+      // assert_zero(color_info[i] & ~0x000F0FFF);
     }
   } else {
     for (int i = 0; i < 4; ++i) {
       config->color[i].edram_base = 0;
       config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
+      config->color[i].used = false;
     }
   }
 
@@ -635,15 +738,20 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     config->depth_stencil.edram_base = regs.rb_depth_info & 0xFFF;
     config->depth_stencil.format =
         static_cast<DepthRenderTargetFormat>((regs.rb_depth_info >> 16) & 0x1);
+
+    // Make sure all unknown bits are unset.
+    // assert_zero(regs.rb_depth_info & ~0x00010FFF);
   } else {
     config->depth_stencil.edram_base = 0;
     config->depth_stencil.format = DepthRenderTargetFormat::kD24S8;
+    config->depth_stencil.used = false;
   }
 
   return true;
 }
 
-bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
+bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
+                                      RenderConfiguration* config,
                                       CachedRenderPass** out_render_pass,
                                       CachedFramebuffer** out_framebuffer) {
   *out_render_pass = nullptr;
@@ -662,7 +770,7 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
 
   // If no render pass was found in the cache create a new one.
   if (!render_pass) {
-    render_pass = new CachedRenderPass(device_, *config);
+    render_pass = new CachedRenderPass(*device_, *config);
     cached_render_passes_.push_back(render_pass);
   }
 
@@ -679,16 +787,25 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
 
   // If no framebuffer was found in the cache create a new one.
   if (!framebuffer) {
+    uint32_t tile_width = config->surface_msaa == MsaaSamples::k4X ? 40 : 80;
+    uint32_t tile_height = config->surface_msaa != MsaaSamples::k1X ? 8 : 16;
+
     CachedTileView* target_color_attachments[4] = {nullptr, nullptr, nullptr,
                                                    nullptr};
     for (int i = 0; i < 4; ++i) {
       TileViewKey color_key;
       color_key.tile_offset = config->color[i].edram_base;
-      color_key.tile_width = config->surface_pitch_px / 80;
-      color_key.tile_height = config->surface_height_px / 16;
+      color_key.tile_width =
+          xe::round_up(config->surface_pitch_px, tile_width) / tile_width;
+      // color_key.tile_height =
+      //     xe::round_up(config->surface_height_px, tile_height) / tile_height;
+      color_key.tile_height = 160;
       color_key.color_or_depth = 1;
+      color_key.msaa_samples =
+          0;  // static_cast<uint16_t>(config->surface_msaa);
       color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
-      target_color_attachments[i] = GetTileView(color_key);
+      target_color_attachments[i] =
+          FindOrCreateTileView(command_buffer, color_key);
       if (!target_color_attachments) {
         XELOGE("Failed to get tile view for color attachment");
         return false;
@@ -697,21 +814,34 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
 
     TileViewKey depth_stencil_key;
     depth_stencil_key.tile_offset = config->depth_stencil.edram_base;
-    depth_stencil_key.tile_width = config->surface_pitch_px / 80;
-    depth_stencil_key.tile_height = config->surface_height_px / 16;
+    depth_stencil_key.tile_width =
+        xe::round_up(config->surface_pitch_px, tile_width) / tile_width;
+    // depth_stencil_key.tile_height =
+    //     xe::round_up(config->surface_height_px, tile_height) / tile_height;
+    depth_stencil_key.tile_height = 160;
     depth_stencil_key.color_or_depth = 0;
+    depth_stencil_key.msaa_samples =
+        0;  // static_cast<uint16_t>(config->surface_msaa);
     depth_stencil_key.edram_format =
         static_cast<uint16_t>(config->depth_stencil.format);
-    auto target_depth_stencil_attachment = GetTileView(depth_stencil_key);
+    auto target_depth_stencil_attachment =
+        FindOrCreateTileView(command_buffer, depth_stencil_key);
     if (!target_depth_stencil_attachment) {
       XELOGE("Failed to get tile view for depth/stencil attachment");
       return false;
     }
 
+    uint32_t surface_pitch_px = config->surface_msaa != MsaaSamples::k4X
+                                    ? config->surface_pitch_px
+                                    : config->surface_pitch_px * 2;
+    uint32_t surface_height_px = config->surface_msaa == MsaaSamples::k1X
+                                     ? config->surface_height_px
+                                     : config->surface_height_px * 2;
+    surface_pitch_px = std::min(surface_pitch_px, 2560u);
+    surface_height_px = std::min(surface_height_px, 2560u);
     framebuffer = new CachedFramebuffer(
-        device_, render_pass->handle, config->surface_pitch_px,
-        config->surface_height_px, target_color_attachments,
-        target_depth_stencil_attachment);
+        *device_, render_pass->handle, surface_pitch_px, surface_height_px,
+        target_color_attachments, target_depth_stencil_attachment);
     render_pass->cached_framebuffers.push_back(framebuffer);
   }
 
@@ -720,7 +850,75 @@ bool RenderCache::ConfigureRenderPass(RenderConfiguration* config,
   return true;
 }
 
-CachedTileView* RenderCache::GetTileView(const TileViewKey& view_key) {
+CachedTileView* RenderCache::FindOrCreateTileView(
+    VkCommandBuffer command_buffer, const TileViewKey& view_key) {
+  auto tile_view = FindTileView(view_key);
+  if (tile_view) {
+    return tile_view;
+  }
+
+  // Create a new tile and add to the cache.
+  tile_view =
+      new CachedTileView(device_, command_buffer, edram_memory_, view_key);
+  cached_tile_views_.push_back(tile_view);
+
+  return tile_view;
+}
+
+void RenderCache::UpdateTileView(VkCommandBuffer command_buffer,
+                                 CachedTileView* view, bool load,
+                                 bool insert_barrier) {
+  uint32_t tile_width =
+      view->key.msaa_samples == uint16_t(MsaaSamples::k4X) ? 40 : 80;
+  uint32_t tile_height =
+      view->key.msaa_samples != uint16_t(MsaaSamples::k1X) ? 8 : 16;
+
+  if (insert_barrier) {
+    VkBufferMemoryBarrier barrier;
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.pNext = nullptr;
+    if (load) {
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    } else {
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    }
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.buffer = edram_buffer_;
+    barrier.offset = view->key.tile_offset * 5120;
+    barrier.size = view->key.tile_width * tile_width * view->key.tile_height *
+                           tile_height * view->key.color_or_depth
+                       ? 4
+                       : 1;
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                         &barrier, 0, nullptr);
+  }
+
+  // TODO(DrChat): Stencil copies.
+  VkBufferImageCopy region;
+  region.bufferOffset = view->key.tile_offset * 5120;
+  region.bufferRowLength = 0;
+  region.bufferImageHeight = 0;
+  region.imageSubresource = {0, 0, 0, 1};
+  region.imageSubresource.aspectMask = view->key.color_or_depth
+                                           ? VK_IMAGE_ASPECT_COLOR_BIT
+                                           : VK_IMAGE_ASPECT_DEPTH_BIT;
+  region.imageOffset = {0, 0, 0};
+  region.imageExtent = {view->key.tile_width * tile_width,
+                        view->key.tile_height * tile_height, 1};
+  if (load) {
+    vkCmdCopyBufferToImage(command_buffer, edram_buffer_, view->image,
+                           VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+  } else {
+    vkCmdCopyImageToBuffer(command_buffer, view->image, VK_IMAGE_LAYOUT_GENERAL,
+                           edram_buffer_, 1, &region);
+  }
+}
+
+CachedTileView* RenderCache::FindTileView(const TileViewKey& view_key) const {
   // Check the cache.
   // TODO(benvanik): better lookup.
   for (auto tile_view : cached_tile_views_) {
@@ -729,23 +927,339 @@ CachedTileView* RenderCache::GetTileView(const TileViewKey& view_key) {
     }
   }
 
-  // Create a new tile and add to the cache.
-  auto tile_view = new CachedTileView(device_, edram_memory_, view_key);
-  cached_tile_views_.push_back(tile_view);
-  return tile_view;
+  return nullptr;
 }
 
 void RenderCache::EndRenderPass() {
   assert_not_null(current_command_buffer_);
-  auto command_buffer = current_command_buffer_;
-  current_command_buffer_ = nullptr;
 
   // End the render pass.
-  vkCmdEndRenderPass(command_buffer);
+  vkCmdEndRenderPass(current_command_buffer_);
+
+  // Copy all render targets back into our EDRAM buffer.
+  // Don't bother waiting on this command to complete, as next render pass may
+  // reuse previous framebuffer attachments. If they need this, they will wait.
+  // TODO: Should we bother re-tiling the images on copy back?
+  //
+  // FIXME: There's a case where we may have a really big render target (as we
+  // can't get the correct height atm) and we may end up overwriting the valid
+  // contents of another render target by mistake! Need to reorder copy commands
+  // to avoid this.
+
+  // TODO(DrChat): Determine if we actually need an EDRAM buffer.
+  /*
+  std::vector<CachedTileView*> cached_views;
+
+  // Depth
+  auto depth_target = current_state_.framebuffer->depth_stencil_attachment;
+  if (depth_target && current_state_.config.depth_stencil.used) {
+    cached_views.push_back(depth_target);
+  }
+
+  // Color
+  for (int i = 0; i < 4; i++) {
+    auto target = current_state_.framebuffer->color_attachments[i];
+    if (!target || !current_state_.config.color[i].used) {
+      continue;
+    }
+
+    cached_views.push_back(target);
+  }
+
+  std::sort(
+      cached_views.begin(), cached_views.end(),
+      [](CachedTileView const* a, CachedTileView const* b) { return *a < *b; });
+
+  for (auto view : cached_views) {
+    UpdateTileView(current_command_buffer_, view, false, false);
+  }
+  */
+
+  current_command_buffer_ = nullptr;
 }
 
 void RenderCache::ClearCache() {
   // TODO(benvanik): caching.
+}
+
+void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
+                                 uint32_t edram_base, VkImage image,
+                                 VkImageLayout image_layout,
+                                 bool color_or_depth, VkOffset3D offset,
+                                 VkExtent3D extents) {
+  // Transition the texture into a transfer destination layout.
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
+      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    image_barrier.srcAccessMask = 0;
+    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_barrier.oldLayout = image_layout;
+    image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    image_barrier.image = image;
+    image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+    image_barrier.subresourceRange.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
+
+  VkBufferMemoryBarrier buffer_barrier;
+  buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  buffer_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  buffer_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+  buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  buffer_barrier.buffer = edram_buffer_;
+  buffer_barrier.offset = edram_base * 5120;
+  // TODO: Calculate this accurately (need texel size)
+  buffer_barrier.size = extents.width * extents.height * 4;
+
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                       &buffer_barrier, 0, nullptr);
+
+  // Issue the copy command.
+  // TODO(DrChat): Stencil copies.
+  VkBufferImageCopy region;
+  region.bufferOffset = edram_base * 5120;
+  region.bufferImageHeight = 0;
+  region.bufferRowLength = 0;
+  region.imageOffset = offset;
+  region.imageExtent = extents;
+  region.imageSubresource = {0, 0, 0, 1};
+  region.imageSubresource.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
+  vkCmdCopyBufferToImage(command_buffer, edram_buffer_, image, image_layout, 1,
+                         &region);
+
+  // Transition the image back into its previous layout.
+  if (image_layout != VK_IMAGE_LAYOUT_GENERAL &&
+      image_layout != VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+    image_barrier.dstAccessMask = 0;
+    std::swap(image_barrier.oldLayout, image_barrier.newLayout);
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &image_barrier);
+  }
+}
+
+void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
+                              uint32_t edram_base, uint32_t pitch,
+                              uint32_t height, MsaaSamples num_samples,
+                              VkImage image, VkImageLayout image_layout,
+                              bool color_or_depth, uint32_t format,
+                              VkFilter filter, VkOffset3D offset,
+                              VkExtent3D extents) {
+  if (color_or_depth) {
+    // Adjust similar formats for easier matching.
+    switch (static_cast<ColorRenderTargetFormat>(format)) {
+      case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
+        break;
+      case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
+        break;
+      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
+        break;
+    }
+  }
+
+  uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
+
+  // Grab a tile view that represents the source image.
+  TileViewKey key;
+  key.color_or_depth = color_or_depth ? 1 : 0;
+  key.msaa_samples = 0;  // static_cast<uint16_t>(num_samples);
+  key.edram_format = format;
+  key.tile_offset = edram_base;
+  key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
+  // key.tile_height = xe::round_up(height, tile_height) / tile_height;
+  key.tile_height = 160;
+  auto tile_view = FindOrCreateTileView(command_buffer, key);
+  assert_not_null(tile_view);
+
+  // Update the view with the latest contents.
+  // UpdateTileView(command_buffer, tile_view, true, true);
+
+  // Transition the image into a transfer destination layout, if needed.
+  // TODO: Util function for this
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.srcAccessMask = 0;
+  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.oldLayout = image_layout;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  image_barrier.image = image;
+  image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+  image_barrier.subresourceRange.aspectMask =
+      color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
+                     : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
+
+  // If we overflow we'll lose the device here.
+  assert_true(extents.width <= key.tile_width * tile_width);
+  assert_true(extents.height <= key.tile_height * tile_height);
+
+  // Now issue the blit to the destination.
+  if (tile_view->sample_count == VK_SAMPLE_COUNT_1_BIT) {
+    VkImageBlit image_blit;
+    image_blit.srcSubresource = {0, 0, 0, 1};
+    image_blit.srcSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_blit.srcOffsets[0] = {0, 0, offset.z};
+    image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
+                                int32_t(extents.depth)};
+
+    image_blit.dstSubresource = {0, 0, 0, 1};
+    image_blit.dstSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_blit.dstOffsets[0] = offset;
+    image_blit.dstOffsets[1] = {offset.x + int32_t(extents.width),
+                                offset.y + int32_t(extents.height),
+                                offset.z + int32_t(extents.depth)};
+    vkCmdBlitImage(command_buffer, tile_view->image, VK_IMAGE_LAYOUT_GENERAL,
+                   image, image_layout, 1, &image_blit, filter);
+  } else {
+    VkImageResolve image_resolve;
+    image_resolve.srcSubresource = {0, 0, 0, 1};
+    image_resolve.srcSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_resolve.srcOffset = {0, 0, 0};
+
+    image_resolve.dstSubresource = {0, 0, 0, 1};
+    image_resolve.dstSubresource.aspectMask =
+        color_or_depth
+            ? VK_IMAGE_ASPECT_COLOR_BIT
+            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    image_resolve.dstOffset = offset;
+
+    image_resolve.extent = extents;
+    vkCmdResolveImage(command_buffer, tile_view->image, VK_IMAGE_LAYOUT_GENERAL,
+                      image, image_layout, 1, &image_resolve);
+  }
+
+  // Transition the image back into its previous layout.
+  image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+  image_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  std::swap(image_barrier.oldLayout, image_barrier.newLayout);
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
+}
+
+void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
+                                  uint32_t edram_base,
+                                  ColorRenderTargetFormat format,
+                                  uint32_t pitch, uint32_t height,
+                                  MsaaSamples num_samples, float* color) {
+  // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
+  // need to detect this and calculate a value.
+
+  // Adjust similar formats for easier matching.
+  switch (format) {
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      format = ColorRenderTargetFormat::k_8_8_8_8;
+      break;
+    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+      format = ColorRenderTargetFormat::k_2_10_10_10;
+      break;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+      format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+      break;
+  }
+
+  uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
+
+  // Grab a tile view (as we need to clear an image first)
+  TileViewKey key;
+  key.color_or_depth = 1;
+  key.msaa_samples = 0;  // static_cast<uint16_t>(num_samples);
+  key.edram_format = static_cast<uint16_t>(format);
+  key.tile_offset = edram_base;
+  key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
+  // key.tile_height = xe::round_up(height, tile_height) / tile_height;
+  key.tile_height = 160;
+  auto tile_view = FindOrCreateTileView(command_buffer, key);
+  assert_not_null(tile_view);
+
+  VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  VkClearColorValue clear_value;
+  std::memcpy(clear_value.float32, color, sizeof(float) * 4);
+
+  // Issue a clear command
+  vkCmdClearColorImage(command_buffer, tile_view->image,
+                       VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &range);
+
+  // Copy image back into EDRAM buffer
+  // UpdateTileView(command_buffer, tile_view, false, false);
+}
+
+void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
+                                         uint32_t edram_base,
+                                         DepthRenderTargetFormat format,
+                                         uint32_t pitch, uint32_t height,
+                                         MsaaSamples num_samples, float depth,
+                                         uint32_t stencil) {
+  // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
+  // need to detect this and calculate a value.
+
+  uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
+
+  // Grab a tile view (as we need to clear an image first)
+  TileViewKey key;
+  key.color_or_depth = 0;
+  key.msaa_samples = 0;  // static_cast<uint16_t>(num_samples);
+  key.edram_format = static_cast<uint16_t>(format);
+  key.tile_offset = edram_base;
+  key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
+  // key.tile_height = xe::round_up(height, tile_height) / tile_height;
+  key.tile_height = 160;
+  auto tile_view = FindOrCreateTileView(command_buffer, key);
+  assert_not_null(tile_view);
+
+  VkImageSubresourceRange range = {
+      VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0, 1,
+  };
+  VkClearDepthStencilValue clear_value;
+  clear_value.depth = depth;
+  clear_value.stencil = stencil;
+
+  // Issue a clear command
+  vkCmdClearDepthStencilImage(command_buffer, tile_view->image,
+                              VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &range);
+
+  // Copy image back into EDRAM buffer
+  // UpdateTileView(command_buffer, tile_view, false, false);
+}
+
+void RenderCache::FillEDRAM(VkCommandBuffer command_buffer, uint32_t value) {
+  vkCmdFillBuffer(command_buffer, edram_buffer_, 0, kEdramBufferCapacity,
+                  value);
 }
 
 bool RenderCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {

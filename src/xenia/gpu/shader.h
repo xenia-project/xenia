@@ -99,6 +99,17 @@ struct InstructionResult {
   bool has_all_writes() const {
     return write_mask[0] && write_mask[1] && write_mask[2] && write_mask[3];
   }
+  // Returns number of components written
+  uint32_t num_writes() const {
+    uint32_t total = 0;
+    for (int i = 0; i < 4; i++) {
+      if (write_mask[i]) {
+        total++;
+      }
+    }
+
+    return total;
+  }
   // Returns true if any non-constant components are written.
   bool stores_non_constants() const {
     for (int i = 0; i < 4; ++i) {
@@ -547,6 +558,9 @@ class Shader {
   // True if the shader was translated and prepared without error.
   bool is_valid() const { return is_valid_; }
 
+  // True if the shader has already been translated.
+  bool is_translated() const { return is_translated_; }
+
   // Errors that occurred during translation.
   const std::vector<Error>& errors() const { return errors_; }
 
@@ -591,6 +605,7 @@ class Shader {
   bool writes_color_targets_[4] = {false, false, false, false};
 
   bool is_valid_ = false;
+  bool is_translated_ = false;
   std::vector<Error> errors_;
 
   std::string ucode_disassembly_;

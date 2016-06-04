@@ -32,6 +32,12 @@ namespace vulkan {
 // including shaders, various blend/etc options, and input configuration.
 class PipelineCache {
  public:
+  enum class UpdateStatus {
+    kCompatible,
+    kMismatch,
+    kError,
+  };
+
   PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
                 VkDescriptorSetLayout uniform_descriptor_set_layout,
                 VkDescriptorSetLayout texture_descriptor_set_layout);
@@ -46,11 +52,17 @@ class PipelineCache {
   // otherwise a new one may be created. Any state that can be set dynamically
   // in the command buffer is issued at this time.
   // Returns whether the pipeline could be successfully created.
-  bool ConfigurePipeline(VkCommandBuffer command_buffer,
-                         const RenderState* render_state,
-                         VulkanShader* vertex_shader,
-                         VulkanShader* pixel_shader,
-                         PrimitiveType primitive_type);
+  UpdateStatus ConfigurePipeline(VkCommandBuffer command_buffer,
+                                 const RenderState* render_state,
+                                 VulkanShader* vertex_shader,
+                                 VulkanShader* pixel_shader,
+                                 PrimitiveType primitive_type,
+                                 VkPipeline* pipeline_out);
+
+  // Sets required dynamic state on the command buffer.
+  // Only state that has changed since the last call will be set unless
+  // full_update is true.
+  bool SetDynamicState(VkCommandBuffer command_buffer, bool full_update);
 
   // Pipeline layout shared by all pipelines.
   VkPipelineLayout pipeline_layout() const { return pipeline_layout_; }
@@ -63,15 +75,13 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
+  bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
+  void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
+
   // Gets a geometry shader used to emulate the given primitive type.
   // Returns nullptr if the primitive doesn't need to be emulated.
   VkShaderModule GetGeometryShader(PrimitiveType primitive_type,
                                    bool is_line_mode);
-
-  // Sets required dynamic state on the command buffer.
-  // Only state that has changed since the last call will be set unless
-  // full_update is true.
-  bool SetDynamicState(VkCommandBuffer command_buffer, bool full_update);
 
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
@@ -111,12 +121,6 @@ class PipelineCache {
   VkPipeline current_pipeline_ = nullptr;
 
  private:
-  enum class UpdateStatus {
-    kCompatible,
-    kMismatch,
-    kError,
-  };
-
   UpdateStatus UpdateState(VulkanShader* vertex_shader,
                            VulkanShader* pixel_shader,
                            PrimitiveType primitive_type);
@@ -154,6 +158,7 @@ class PipelineCache {
   struct UpdateShaderStagesRegisters {
     PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
+    uint32_t sq_program_cntl;
     VulkanShader* vertex_shader;
     VulkanShader* pixel_shader;
 
@@ -205,11 +210,12 @@ class PipelineCache {
   VkPipelineViewportStateCreateInfo update_viewport_state_info_;
 
   struct UpdateRasterizationStateRegisters {
+    PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
+    uint32_t pa_sc_viz_query;
     uint32_t multi_prim_ib_reset_index;
-    PrimitiveType prim_type;
 
     UpdateRasterizationStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
@@ -217,6 +223,10 @@ class PipelineCache {
   VkPipelineRasterizationStateCreateInfo update_rasterization_state_info_;
 
   struct UpdateMultisampleStateeRegisters {
+    uint32_t pa_sc_aa_config;
+    uint32_t pa_su_sc_mode_cntl;
+    uint32_t rb_surface_info;
+
     UpdateMultisampleStateeRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_multisample_state_regs_;
@@ -235,6 +245,7 @@ class PipelineCache {
     uint32_t rb_colorcontrol;
     uint32_t rb_color_mask;
     uint32_t rb_blendcontrol[4];
+    uint32_t rb_modecontrol;
 
     UpdateColorBlendStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

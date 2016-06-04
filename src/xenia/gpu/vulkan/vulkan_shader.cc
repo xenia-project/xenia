@@ -44,11 +44,11 @@ bool VulkanShader::Prepare() {
   shader_info.codeSize = translated_binary_.size();
   shader_info.pCode =
       reinterpret_cast<const uint32_t*>(translated_binary_.data());
-  auto err =
+  auto status =
       vkCreateShaderModule(device_, &shader_info, nullptr, &shader_module_);
-  CheckResult(err, "vkCreateShaderModule");
+  CheckResult(status, "vkCreateShaderModule");
 
-  return true;
+  return status == VK_SUCCESS;
 }
 
 }  // namespace vulkan
