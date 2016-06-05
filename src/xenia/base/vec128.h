@@ -91,6 +91,7 @@ typedef struct alignas(16) vec128_s {
       uint32_t uw;
     };
     float f32[4];
+    double f64[2];
     int8_t i8[16];
     uint8_t u8[16];
     int16_t i16[8];
