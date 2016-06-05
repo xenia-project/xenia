@@ -259,7 +259,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.renderPass = render_state->render_pass_handle;
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
-  pipeline_info.basePipelineIndex = 0;
+  pipeline_info.basePipelineIndex = -1;
   VkPipeline pipeline = nullptr;
   auto err = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
                                        &pipeline_info, nullptr, &pipeline);
