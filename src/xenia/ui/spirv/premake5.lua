@@ -7,6 +7,7 @@ project("xenia-ui-spirv")
   kind("StaticLib")
   language("C++")
   links({
+    "glslang-spirv",
     "spirv-tools",
     "xenia-base",
   })

@@ -1019,9 +1019,8 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
       1,          // max z
   };
   assert_true(endianness == Endian::k8in16);
-  xe::copy_and_swap_16_aligned(
-      reinterpret_cast<uint16_t*>(memory_->TranslatePhysical(address)), extents,
-      xe::countof(extents));
+  xe::copy_and_swap_16_aligned(memory_->TranslatePhysical(address), extents,
+                               xe::countof(extents));
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
   return true;
 }

@@ -121,20 +121,15 @@ inline void* low_address(void* address) {
   return reinterpret_cast<void*>(uint64_t(address) & 0xFFFFFFFF);
 }
 
-void copy_and_swap_16_aligned(uint16_t* dest, const uint16_t* src,
-                              size_t count);
-void copy_and_swap_16_unaligned(uint16_t* dest, const uint16_t* src,
-                                size_t count);
-void copy_and_swap_32_aligned(uint32_t* dest, const uint32_t* src,
-                              size_t count);
-void copy_and_swap_32_unaligned(uint32_t* dest, const uint32_t* src,
-                                size_t count);
-void copy_and_swap_64_aligned(uint64_t* dest, const uint64_t* src,
-                              size_t count);
-void copy_and_swap_64_unaligned(uint64_t* dest, const uint64_t* src,
-                                size_t count);
-void copy_and_swap_16_in_32_aligned(uint32_t* dest, const uint32_t* src,
-                                    size_t count);
+void copy_128_aligned(void* dest, const void* src, size_t count);
+
+void copy_and_swap_16_aligned(void* dest, const void* src, size_t count);
+void copy_and_swap_16_unaligned(void* dest, const void* src, size_t count);
+void copy_and_swap_32_aligned(void* dest, const void* src, size_t count);
+void copy_and_swap_32_unaligned(void* dest, const void* src, size_t count);
+void copy_and_swap_64_aligned(void* dest, const void* src, size_t count);
+void copy_and_swap_64_unaligned(void* dest, const void* src, size_t count);
+void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count);
 
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {

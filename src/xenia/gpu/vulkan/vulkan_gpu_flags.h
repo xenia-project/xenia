@@ -2,21 +2,20 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2016 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/ui/spirv/spirv_optimizer.h"
+#ifndef XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_
+#define XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_
 
-namespace xe {
-namespace ui {
-namespace spirv {
+#include <gflags/gflags.h>
 
-SpirvOptimizer::SpirvOptimizer() = default;
+#define FINE_GRAINED_DRAW_SCOPES 1
 
-SpirvOptimizer::~SpirvOptimizer() = default;
+DECLARE_bool(vulkan_renderdoc_capture_all);
+DECLARE_bool(vulkan_native_msaa);
+DECLARE_bool(vulkan_dump_disasm);
 
-}  // namespace spirv
-}  // namespace ui
-}  // namespace xe
+#endif  // XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_

@@ -28,9 +28,8 @@ typedef uint32_t (*MMIOReadCallback)(void* ppc_context, void* callback_context,
                                      uint32_t addr);
 typedef void (*MMIOWriteCallback)(void* ppc_context, void* callback_context,
                                   uint32_t addr, uint32_t value);
-
-typedef void (*WriteWatchCallback)(void* context_ptr, void* data_ptr,
-                                   uint32_t address);
+typedef void (*AccessWatchCallback)(void* context_ptr, void* data_ptr,
+                                    uint32_t address);
 
 struct MMIORange {
   uint32_t address;
@@ -46,6 +45,12 @@ class MMIOHandler {
  public:
   virtual ~MMIOHandler();
 
+  enum WatchType {
+    kWatchInvalid = 0,
+    kWatchWrite = 1,
+    kWatchReadWrite = 2,
+  };
+
   static std::unique_ptr<MMIOHandler> Install(uint8_t* virtual_membase,
                                               uint8_t* physical_membase,
                                               uint8_t* membase_end);
@@ -59,17 +64,24 @@ class MMIOHandler {
   bool CheckLoad(uint32_t virtual_address, uint32_t* out_value);
   bool CheckStore(uint32_t virtual_address, uint32_t value);
 
-  uintptr_t AddPhysicalWriteWatch(uint32_t guest_address, size_t length,
-                                  WriteWatchCallback callback,
-                                  void* callback_context, void* callback_data);
-  void CancelWriteWatch(uintptr_t watch_handle);
+  // Memory watches: These are one-shot alarms that fire a callback (in the
+  // context of the thread that caused the callback) when a memory range is
+  // either written to or read from, depending on the watch type. These fire as
+  // soon as a read/write happens, and only fire once.
+  // These watches may be spuriously fired if memory is accessed nearby.
+  uintptr_t AddPhysicalAccessWatch(uint32_t guest_address, size_t length,
+                                   WatchType type, AccessWatchCallback callback,
+                                   void* callback_context, void* callback_data);
+  void CancelAccessWatch(uintptr_t watch_handle);
   void InvalidateRange(uint32_t physical_address, size_t length);
+  bool IsRangeWatched(uint32_t physical_address, size_t length);
 
  protected:
-  struct WriteWatchEntry {
+  struct AccessWatchEntry {
     uint32_t address;
     uint32_t length;
-    WriteWatchCallback callback;
+    WatchType type;
+    AccessWatchCallback callback;
     void* callback_context;
     void* callback_data;
   };
@@ -83,8 +95,8 @@ class MMIOHandler {
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 
-  void ClearWriteWatch(WriteWatchEntry* entry);
-  bool CheckWriteWatch(uint64_t fault_address);
+  void ClearAccessWatch(AccessWatchEntry* entry);
+  bool CheckAccessWatch(uint32_t guest_address);
 
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;
@@ -94,7 +106,7 @@ class MMIOHandler {
 
   xe::global_critical_region global_critical_region_;
   // TODO(benvanik): data structure magic.
-  std::list<WriteWatchEntry*> write_watches_;
+  std::list<AccessWatchEntry*> access_watches_;
 
   static MMIOHandler* global_handler_;
 };

@@ -87,13 +87,12 @@ bool MMIOHandler::CheckStore(uint32_t virtual_address, uint32_t value) {
   return false;
 }
 
-uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
-                                             size_t length,
-                                             WriteWatchCallback callback,
-                                             void* callback_context,
-                                             void* callback_data) {
-  uint32_t base_address = guest_address;
-  assert_true(base_address < 0x1FFFFFFF);
+uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
+                                              size_t length, WatchType type,
+                                              AccessWatchCallback callback,
+                                              void* callback_context,
+                                              void* callback_data) {
+  uint32_t base_address = guest_address & 0x1FFFFFFF;
 
   // Can only protect sizes matching system page size.
   // This means we need to round up, which will cause spurious access
@@ -103,32 +102,45 @@ uintptr_t MMIOHandler::AddPhysicalWriteWatch(uint32_t guest_address,
                         xe::memory::page_size());
   base_address = base_address - (base_address % xe::memory::page_size());
 
+  auto lock = global_critical_region_.Acquire();
+
   // Add to table. The slot reservation may evict a previous watch, which
   // could include our target, so we do it first.
-  auto entry = new WriteWatchEntry();
+  auto entry = new AccessWatchEntry();
   entry->address = base_address;
   entry->length = uint32_t(length);
   entry->callback = callback;
   entry->callback_context = callback_context;
   entry->callback_data = callback_data;
-  global_critical_region_.mutex().lock();
-  write_watches_.push_back(entry);
-  global_critical_region_.mutex().unlock();
+  access_watches_.push_back(entry);
 
-  // Make the desired range read only under all address spaces.
+  auto page_access = memory::PageAccess::kNoAccess;
+  switch (type) {
+    case kWatchWrite:
+      page_access = memory::PageAccess::kReadOnly;
+      break;
+    case kWatchReadWrite:
+      page_access = memory::PageAccess::kNoAccess;
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+
+  // Protect the range under all address spaces
   memory::Protect(physical_membase_ + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadOnly, nullptr);
+                  page_access, nullptr);
   memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadOnly, nullptr);
+                  page_access, nullptr);
   memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadOnly, nullptr);
+                  page_access, nullptr);
   memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadOnly, nullptr);
+                  page_access, nullptr);
 
   return reinterpret_cast<uintptr_t>(entry);
 }
 
-void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
+void MMIOHandler::ClearAccessWatch(AccessWatchEntry* entry) {
   memory::Protect(physical_membase_ + entry->address, entry->length,
                   xe::memory::PageAccess::kReadWrite, nullptr);
   memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
@@ -139,19 +151,20 @@ void MMIOHandler::ClearWriteWatch(WriteWatchEntry* entry) {
                   xe::memory::PageAccess::kReadWrite, nullptr);
 }
 
-void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
-  auto entry = reinterpret_cast<WriteWatchEntry*>(watch_handle);
+void MMIOHandler::CancelAccessWatch(uintptr_t watch_handle) {
+  auto entry = reinterpret_cast<AccessWatchEntry*>(watch_handle);
+  auto lock = global_critical_region_.Acquire();
 
   // Allow access to the range again.
-  ClearWriteWatch(entry);
+  ClearAccessWatch(entry);
 
   // Remove from table.
-  global_critical_region_.mutex().lock();
-  auto it = std::find(write_watches_.begin(), write_watches_.end(), entry);
-  if (it != write_watches_.end()) {
-    write_watches_.erase(it);
+  auto it = std::find(access_watches_.begin(), access_watches_.end(), entry);
+  assert_false(it == access_watches_.end());
+
+  if (it != access_watches_.end()) {
+    access_watches_.erase(it);
   }
-  global_critical_region_.mutex().unlock();
 
   delete entry;
 }
@@ -159,18 +172,19 @@ void MMIOHandler::CancelWriteWatch(uintptr_t watch_handle) {
 void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
   auto lock = global_critical_region_.Acquire();
 
-  for (auto it = write_watches_.begin(); it != write_watches_.end();) {
+  for (auto it = access_watches_.begin(); it != access_watches_.end();) {
     auto entry = *it;
     if ((entry->address <= physical_address &&
          entry->address + entry->length > physical_address) ||
         (entry->address >= physical_address &&
          entry->address < physical_address + length)) {
       // This watch lies within the range. End it.
-      ClearWriteWatch(entry);
+      ClearAccessWatch(entry);
       entry->callback(entry->callback_context, entry->callback_data,
                       entry->address);
 
-      it = write_watches_.erase(it);
+      it = access_watches_.erase(it);
+      delete entry;
       continue;
     }
 
@@ -178,50 +192,49 @@ void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
   }
 }
 
-bool MMIOHandler::CheckWriteWatch(uint64_t fault_address) {
-  uint32_t physical_address = uint32_t(fault_address);
-  if (physical_address > 0x1FFFFFFF) {
-    physical_address &= 0x1FFFFFFF;
-  }
-  std::list<WriteWatchEntry*> pending_invalidates;
-  global_critical_region_.mutex().lock();
-  // Now that we hold the lock, recheck and see if the pages are still
-  // protected.
-  memory::PageAccess cur_access;
-  size_t page_length = memory::page_size();
-  memory::QueryProtect((void*)fault_address, page_length, cur_access);
-  if (cur_access != memory::PageAccess::kReadOnly &&
-      cur_access != memory::PageAccess::kNoAccess) {
-    // Another thread has cleared this write watch. Abort.
-    global_critical_region_.mutex().unlock();
-    return true;
+bool MMIOHandler::IsRangeWatched(uint32_t physical_address, size_t length) {
+  auto lock = global_critical_region_.Acquire();
+
+  for (auto it = access_watches_.begin(); it != access_watches_.end(); ++it) {
+    auto entry = *it;
+    if ((entry->address <= physical_address &&
+         entry->address + entry->length > physical_address) ||
+        (entry->address >= physical_address &&
+         entry->address < physical_address + length)) {
+      // This watch lies within the range.
+      return true;
+    }
   }
 
-  for (auto it = write_watches_.begin(); it != write_watches_.end();) {
+  return false;
+}
+
+bool MMIOHandler::CheckAccessWatch(uint32_t physical_address) {
+  auto lock = global_critical_region_.Acquire();
+
+  bool hit = false;
+  for (auto it = access_watches_.begin(); it != access_watches_.end();) {
     auto entry = *it;
     if (entry->address <= physical_address &&
         entry->address + entry->length > physical_address) {
-      // Hit! Remove the writewatch.
-      pending_invalidates.push_back(entry);
+      // Hit! Remove the watch.
+      hit = true;
+      ClearAccessWatch(entry);
+      entry->callback(entry->callback_context, entry->callback_data,
+                      physical_address);
 
-      ClearWriteWatch(entry);
-      it = write_watches_.erase(it);
+      it = access_watches_.erase(it);
+      delete entry;
       continue;
     }
     ++it;
   }
-  global_critical_region_.mutex().unlock();
-  if (pending_invalidates.empty()) {
+
+  if (!hit) {
     // Rethrow access violation - range was not being watched.
     return false;
   }
-  while (!pending_invalidates.empty()) {
-    auto entry = pending_invalidates.back();
-    pending_invalidates.pop_back();
-    entry->callback(entry->callback_context, entry->callback_data,
-                    physical_address);
-    delete entry;
-  }
+
   // Range was watched, so lets eat this access violation.
   return true;
 }
@@ -414,9 +427,33 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     }
   }
   if (!range) {
+    auto fault_address = reinterpret_cast<uint8_t*>(ex->fault_address());
+    uint32_t guest_address = 0;
+    if (fault_address >= virtual_membase_ &&
+        fault_address < physical_membase_) {
+      // Faulting on a virtual address.
+      guest_address = static_cast<uint32_t>(ex->fault_address()) & 0x1FFFFFFF;
+    } else {
+      // Faulting on a physical address.
+      guest_address = static_cast<uint32_t>(ex->fault_address());
+    }
+
+    // HACK: Recheck if the pages are still protected (race condition - another
+    // thread clears the writewatch we just hit)
+    // Do this under the lock so we don't introduce another race condition.
+    auto lock = global_critical_region_.Acquire();
+    memory::PageAccess cur_access;
+    size_t page_length = memory::page_size();
+    memory::QueryProtect((void*)fault_address, page_length, cur_access);
+    if (cur_access != memory::PageAccess::kReadOnly &&
+        cur_access != memory::PageAccess::kNoAccess) {
+      // Another thread has cleared this write watch. Abort.
+      return true;
+    }
+
     // Access is not found within any range, so fail and let the caller handle
     // it (likely by aborting).
-    return CheckWriteWatch(ex->fault_address());
+    return CheckAccessWatch(guest_address);
   }
 
   auto rip = ex->pc();

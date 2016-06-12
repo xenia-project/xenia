@@ -75,6 +75,10 @@ void TraceReader::ParseTrace() {
   const uint8_t* packet_start_ptr = nullptr;
   const uint8_t* last_ptr = trace_ptr;
   bool pending_break = false;
+  auto current_command_buffer = new CommandBuffer();
+  current_frame.command_tree =
+      std::unique_ptr<CommandBuffer>(current_command_buffer);
+
   while (trace_ptr < trace_data_ + trace_size_) {
     ++current_frame.command_count;
     auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
@@ -94,11 +98,29 @@ void TraceReader::ParseTrace() {
         auto cmd =
             reinterpret_cast<const IndirectBufferStartCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd) + cmd->count * 4;
+
+        // Traverse down a level.
+        auto sub_command_buffer = new CommandBuffer();
+        sub_command_buffer->parent = current_command_buffer;
+        current_command_buffer->commands.push_back(
+            CommandBuffer::Command(sub_command_buffer));
+        current_command_buffer = sub_command_buffer;
         break;
       }
       case TraceCommandType::kIndirectBufferEnd: {
         auto cmd = reinterpret_cast<const IndirectBufferEndCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
+
+        // IB packet is wrapped in a kPacketStart/kPacketEnd. Skip the end.
+        auto end_cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
+        assert_true(end_cmd->type == TraceCommandType::kPacketEnd);
+        trace_ptr += sizeof(*cmd);
+
+        // Go back up a level. If parent is null, this frame started in an
+        // indirect buffer.
+        if (current_command_buffer->parent) {
+          current_command_buffer = current_command_buffer->parent;
+        }
         break;
       }
       case TraceCommandType::kPacketStart: {
@@ -125,6 +147,8 @@ void TraceReader::ParseTrace() {
             command.end_ptr = trace_ptr;
             current_frame.commands.push_back(std::move(command));
             last_ptr = trace_ptr;
+            current_command_buffer->commands.push_back(CommandBuffer::Command(
+                uint32_t(current_frame.commands.size() - 1)));
             break;
           }
           case PacketCategory::kSwap:
@@ -136,6 +160,9 @@ void TraceReader::ParseTrace() {
         if (pending_break) {
           current_frame.end_ptr = trace_ptr;
           frames_.push_back(std::move(current_frame));
+          current_command_buffer = new CommandBuffer();
+          current_frame.command_tree =
+              std::unique_ptr<CommandBuffer>(current_command_buffer);
           current_frame.start_ptr = trace_ptr;
           current_frame.end_ptr = nullptr;
           current_frame.command_count = 0;

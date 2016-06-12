@@ -25,6 +25,7 @@
 
 // Available graphics systems:
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
+#include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
@@ -34,7 +35,7 @@
 #endif  // XE_PLATFORM_WIN32
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4]");
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4, vulkan]");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
@@ -69,6 +70,9 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
   if (FLAGS_gpu.compare("gl4") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::gl4::GL4GraphicsSystem());
+  } else if (FLAGS_gpu.compare("vulkan") == 0) {
+    return std::unique_ptr<gpu::GraphicsSystem>(
+        new xe::gpu::vulkan::VulkanGraphicsSystem());
   } else {
     // Create best available.
     std::unique_ptr<gpu::GraphicsSystem> best;

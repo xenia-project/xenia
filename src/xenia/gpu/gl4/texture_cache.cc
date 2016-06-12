@@ -427,7 +427,7 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   // Not found, create.
   auto entry = std::make_unique<TextureEntry>();
   entry->texture_info = texture_info;
-  entry->write_watch_handle = 0;
+  entry->access_watch_handle = 0;
   entry->pending_invalidation = false;
   entry->handle = 0;
 
@@ -442,6 +442,7 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
       // Found! Acquire the handle and remove the readbuffer entry.
       read_buffer_textures_.erase(it);
       entry->handle = read_buffer_entry->handle;
+      entry->access_watch_handle = read_buffer_entry->access_watch_handle;
       delete read_buffer_entry;
       // TODO(benvanik): set more texture properties? swizzle/etc?
       auto entry_ptr = entry.get();
@@ -495,14 +496,15 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   // Add a write watch. If any data in the given range is touched we'll get a
   // callback and evict the texture. We could reuse the storage, though the
   // driver is likely in a better position to pool that kind of stuff.
-  entry->write_watch_handle = memory_->AddPhysicalWriteWatch(
+  entry->access_watch_handle = memory_->AddPhysicalAccessWatch(
       texture_info.guest_address, texture_info.input_length,
+      cpu::MMIOHandler::kWatchWrite,
       [](void* context_ptr, void* data_ptr, uint32_t address) {
         auto self = reinterpret_cast<TextureCache*>(context_ptr);
         auto touched_entry = reinterpret_cast<TextureEntry*>(data_ptr);
         // Clear watch handle first so we don't redundantly
         // remove.
-        touched_entry->write_watch_handle = 0;
+        touched_entry->access_watch_handle = 0;
         touched_entry->pending_invalidation = true;
         // Add to pending list so Scavenge will clean it up.
         self->invalidated_textures_mutex_.lock();
@@ -574,14 +576,27 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
                                   dest_rect, GL_LINEAR, swap_channels);
     }
 
-    // HACK: remove texture from write watch list so readback won't kill us.
-    // Not needed now, as readback is disabled.
-    /*
-    if (texture_entry->write_watch_handle) {
-      memory_->CancelWriteWatch(texture_entry->write_watch_handle);
-      texture_entry->write_watch_handle = 0;
+    // Setup a read/write access watch. If the game tries to touch the memory
+    // we were supposed to populate with this texture, then we'll actually
+    // populate it.
+    if (texture_entry->access_watch_handle) {
+      memory_->CancelAccessWatch(texture_entry->access_watch_handle);
+      texture_entry->access_watch_handle = 0;
     }
-    //*/
+
+    texture_entry->access_watch_handle = memory_->AddPhysicalAccessWatch(
+        guest_address, texture_entry->texture_info.input_length,
+        cpu::MMIOHandler::kWatchReadWrite,
+        [](void* context, void* data, uint32_t address) {
+          auto touched_entry = reinterpret_cast<TextureEntry*>(data);
+          touched_entry->access_watch_handle = 0;
+
+          // This happens. RDR resolves to a texture then upsizes it, BF1943
+          // writes to a resolved texture.
+          // TODO (for Vulkan): Copy this texture back into system memory.
+          // assert_always();
+        },
+        nullptr, texture_entry);
 
     return texture_entry->handle;
   }
@@ -618,6 +633,20 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
   entry->block_height = block_height;
   entry->format = format;
 
+  entry->access_watch_handle = memory_->AddPhysicalAccessWatch(
+      guest_address, block_height * block_width * 4,
+      cpu::MMIOHandler::kWatchReadWrite,
+      [](void* context, void* data, uint32_t address) {
+        auto entry = reinterpret_cast<ReadBufferTexture*>(data);
+        entry->access_watch_handle = 0;
+
+        // This happens. RDR resolves to a texture then upsizes it, BF1943
+        // writes to a resolved texture.
+        // TODO (for Vulkan): Copy this texture back into system memory.
+        // assert_always();
+      },
+      nullptr, entry.get());
+
   glCreateTextures(GL_TEXTURE_2D, 1, &entry->handle);
   glTextureParameteri(entry->handle, GL_TEXTURE_BASE_LEVEL, 0);
   glTextureParameteri(entry->handle, GL_TEXTURE_MAX_LEVEL, 1);
@@ -636,9 +665,9 @@ GLuint TextureCache::ConvertTexture(Blitter* blitter, uint32_t guest_address,
 }
 
 void TextureCache::EvictTexture(TextureEntry* entry) {
-  if (entry->write_watch_handle) {
-    memory_->CancelWriteWatch(entry->write_watch_handle);
-    entry->write_watch_handle = 0;
+  if (entry->access_watch_handle) {
+    memory_->CancelAccessWatch(entry->access_watch_handle);
+    entry->access_watch_handle = 0;
   }
 
   for (auto& view : entry->views) {
@@ -662,19 +691,13 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
                  size_t length) {
   switch (endianness) {
     case Endian::k8in16:
-      xe::copy_and_swap_16_aligned(reinterpret_cast<uint16_t*>(dest),
-                                   reinterpret_cast<const uint16_t*>(src),
-                                   length / 2);
+      xe::copy_and_swap_16_aligned(dest, src, length / 2);
       break;
     case Endian::k8in32:
-      xe::copy_and_swap_32_aligned(reinterpret_cast<uint32_t*>(dest),
-                                   reinterpret_cast<const uint32_t*>(src),
-                                   length / 4);
+      xe::copy_and_swap_32_aligned(dest, src, length / 4);
       break;
     case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
-      xe::copy_and_swap_16_in_32_aligned(reinterpret_cast<uint32_t*>(dest),
-                                         reinterpret_cast<const uint32_t*>(src),
-                                         length);
+      xe::copy_and_swap_16_in_32_aligned(dest, src, length);
       break;
     default:
     case Endian::kUnspecified:

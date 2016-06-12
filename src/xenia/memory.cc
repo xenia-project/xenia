@@ -376,17 +376,19 @@ cpu::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
   return mmio_handler_->LookupRange(virtual_address);
 }
 
-uintptr_t Memory::AddPhysicalWriteWatch(uint32_t physical_address,
-                                        uint32_t length,
-                                        cpu::WriteWatchCallback callback,
-                                        void* callback_context,
-                                        void* callback_data) {
-  return mmio_handler_->AddPhysicalWriteWatch(
-      physical_address, length, callback, callback_context, callback_data);
+uintptr_t Memory::AddPhysicalAccessWatch(uint32_t physical_address,
+                                         uint32_t length,
+                                         cpu::MMIOHandler::WatchType type,
+                                         cpu::AccessWatchCallback callback,
+                                         void* callback_context,
+                                         void* callback_data) {
+  return mmio_handler_->AddPhysicalAccessWatch(physical_address, length, type,
+                                               callback, callback_context,
+                                               callback_data);
 }
 
-void Memory::CancelWriteWatch(uintptr_t watch_handle) {
-  mmio_handler_->CancelWriteWatch(watch_handle);
+void Memory::CancelAccessWatch(uintptr_t watch_handle) {
+  mmio_handler_->CancelAccessWatch(watch_handle);
 }
 
 uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
@@ -453,6 +455,7 @@ bool Memory::Save(ByteStream* stream) {
 }
 
 bool Memory::Restore(ByteStream* stream) {
+  XELOGD("Restoring memory...");
   heaps_.v00000000.Restore(stream);
   heaps_.v40000000.Restore(stream);
   heaps_.v80000000.Restore(stream);
@@ -577,6 +580,8 @@ bool BaseHeap::Save(ByteStream* stream) {
 }
 
 bool BaseHeap::Restore(ByteStream* stream) {
+  XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
+
   for (size_t i = 0; i < page_table_.size(); i++) {
     auto& page = page_table_[i];
     page.qword = stream->Read<uint64_t>();
@@ -897,7 +902,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto base_page_entry = page_table_[base_page_number];
   if (base_page_entry.base_address != base_page_number) {
     XELOGE("BaseHeap::Release failed because address is not a region start");
-    // return false;
+    return false;
   }
 
   if (out_region_size) {

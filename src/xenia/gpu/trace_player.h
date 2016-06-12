@@ -50,9 +50,9 @@ class TracePlayer : public TraceReader {
 
  private:
   void PlayTrace(const uint8_t* trace_data, size_t trace_size,
-                 TracePlaybackMode playback_mode);
+                 TracePlaybackMode playback_mode, bool clear_caches);
   void PlayTraceOnThread(const uint8_t* trace_data, size_t trace_size,
-                         TracePlaybackMode playback_mode);
+                         TracePlaybackMode playback_mode, bool clear_caches);
 
   xe::ui::Loop* loop_;
   GraphicsSystem* graphics_system_;

@@ -343,8 +343,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
             lpunknown_t unk8, unknown_t unk9) {
   gpu::xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
-      reinterpret_cast<uint32_t*>(&fetch),
-      reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
+      &fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
   auto color_format = gpu::ColorFormat(color_format_ptr.value());
   auto color_space = *color_space_ptr;
@@ -367,7 +366,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   auto dwords = buffer_ptr.as_array<uint32_t>();
   dwords[0] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 63>();
   dwords[1] = 'SWAP';
-  dwords[2] = *frontbuffer_ptr;
+  dwords[2] = (*frontbuffer_ptr) & 0x1FFFFFFF;
 
   // Set by VdCallGraphicsNotificationRoutines.
   dwords[3] = last_frontbuffer_width_;

@@ -49,6 +49,7 @@ enum class PrimitiveType : uint32_t {
   kLineLoop = 0x0C,
   kQuadList = 0x0D,
   kQuadStrip = 0x0E,
+  kUnknown0x11 = 0x11,
 };
 
 enum class Dimension : uint32_t {
@@ -382,7 +383,7 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
     uint32_t type : 2;
     uint32_t address : 30;
     uint32_t endian : 2;
-    uint32_t size : 24;
+    uint32_t size : 24;  // size in words
     uint32_t unk1 : 6;
   });
   XEPACKEDSTRUCTANONYMOUS({
@@ -486,6 +487,46 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
   });
 });
 
+enum Event {
+  SAMPLE_STREAMOUTSTATS1 = (1 << 0),
+  SAMPLE_STREAMOUTSTATS2 = (2 << 0),
+  SAMPLE_STREAMOUTSTATS3 = (3 << 0),
+  CACHE_FLUSH_TS = (4 << 0),
+  CACHE_FLUSH = (6 << 0),
+  CS_PARTIAL_FLUSH = (7 << 0),
+  VGT_STREAMOUT_RESET = (10 << 0),
+  END_OF_PIPE_INCR_DE = (11 << 0),
+  END_OF_PIPE_IB_END = (12 << 0),
+  RST_PIX_CNT = (13 << 0),
+  VS_PARTIAL_FLUSH = (15 << 0),
+  PS_PARTIAL_FLUSH = (16 << 0),
+  CACHE_FLUSH_AND_INV_TS_EVENT = (20 << 0),
+  ZPASS_DONE = (21 << 0),
+  CACHE_FLUSH_AND_INV_EVENT = (22 << 0),
+  PERFCOUNTER_START = (23 << 0),
+  PERFCOUNTER_STOP = (24 << 0),
+  PIPELINESTAT_START = (25 << 0),
+  PIPELINESTAT_STOP = (26 << 0),
+  PERFCOUNTER_SAMPLE = (27 << 0),
+  SAMPLE_PIPELINESTAT = (30 << 0),
+  SAMPLE_STREAMOUTSTATS = (32 << 0),
+  RESET_VTX_CNT = (33 << 0),
+  VGT_FLUSH = (36 << 0),
+  BOTTOM_OF_PIPE_TS = (40 << 0),
+  DB_CACHE_FLUSH_AND_INV = (42 << 0),
+  FLUSH_AND_INV_DB_DATA_TS = (43 << 0),
+  FLUSH_AND_INV_DB_META = (44 << 0),
+  FLUSH_AND_INV_CB_DATA_TS = (45 << 0),
+  FLUSH_AND_INV_CB_META = (46 << 0),
+  CS_DONE = (47 << 0),
+  PS_DONE = (48 << 0),
+  FLUSH_AND_INV_CB_PIXEL_DATA = (49 << 0),
+  THREAD_TRACE_START = (51 << 0),
+  THREAD_TRACE_STOP = (52 << 0),
+  THREAD_TRACE_FLUSH = (54 << 0),
+  THREAD_TRACE_FINISH = (55 << 0),
+};
+
 // Opcodes (IT_OPCODE) for Type-3 commands in the ringbuffer.
 // https://github.com/freedreno/amd-gpu/blob/master/include/api/gsl_pm4types.h
 // Not sure if all of these are used.
@@ -501,7 +542,7 @@ enum Type3Opcode {
   PM4_WAIT_FOR_IDLE         = 0x26,   // wait for the IDLE state of the engine
   PM4_WAIT_REG_MEM          = 0x3c,   // wait until a register or memory location is a specific value
   PM4_WAIT_REG_EQ           = 0x52,   // wait until a register location is equal to a specific value
-  PM4_WAT_REG_GTE           = 0x53,   // wait until a register location is >= a specific value
+  PM4_WAIT_REG_GTE          = 0x53,   // wait until a register location is >= a specific value
   PM4_WAIT_UNTIL_READ       = 0x5c,   // wait until a read completes
   PM4_WAIT_IB_PFD_COMPLETE  = 0x5d,   // wait until all base/size writes from an IB_PFD packet have completed
 

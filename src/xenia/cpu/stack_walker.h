@@ -58,6 +58,7 @@ struct StackFrame {
 class StackWalker {
  public:
   // Creates a stack walker. Only one should exist within a process.
+  // May fail if another process has mucked with ours (like RenderDoc).
   static std::unique_ptr<StackWalker> Create(backend::CodeCache* code_cache);
 
   // Dumps all thread stacks to the log.

@@ -303,12 +303,13 @@ class Memory {
   //
   // This has a significant performance penalty for writes in in the range or
   // nearby (sharing 64KiB pages).
-  uintptr_t AddPhysicalWriteWatch(uint32_t physical_address, uint32_t length,
-                                  cpu::WriteWatchCallback callback,
-                                  void* callback_context, void* callback_data);
+  uintptr_t AddPhysicalAccessWatch(uint32_t physical_address, uint32_t length,
+                                   cpu::MMIOHandler::WatchType type,
+                                   cpu::AccessWatchCallback callback,
+                                   void* callback_context, void* callback_data);
 
-  // Cancels a write watch requested with AddPhysicalWriteWatch.
-  void CancelWriteWatch(uintptr_t watch_handle);
+  // Cancels a write watch requested with AddPhysicalAccessWatch.
+  void CancelAccessWatch(uintptr_t watch_handle);
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible

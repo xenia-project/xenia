@@ -2,30 +2,36 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2016 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_SPIRV_SPIRV_OPTIMIZER_H_
-#define XENIA_UI_SPIRV_SPIRV_OPTIMIZER_H_
+#ifndef XENIA_GPU_SPIRV_COMPILER_PASS_H_
+#define XENIA_GPU_SPIRV_COMPILER_PASS_H_
 
-#include "xenia/ui/spirv/spirv_util.h"
+#include "xenia/base/arena.h"
+
+#include "third_party/glslang-spirv/SpvBuilder.h"
+#include "third_party/spirv/GLSL.std.450.hpp11"
 
 namespace xe {
-namespace ui {
+namespace gpu {
 namespace spirv {
 
-class SpirvOptimizer {
+class CompilerPass {
  public:
-  SpirvOptimizer();
-  ~SpirvOptimizer();
+  CompilerPass() = default;
+  virtual ~CompilerPass() {}
+
+  virtual bool Run(spv::Module* module) = 0;
 
  private:
+  xe::Arena ir_arena_;
 };
 
 }  // namespace spirv
-}  // namespace ui
+}  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_UI_SPIRV_SPIRV_OPTIMIZER_H_
+#endif
