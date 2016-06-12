@@ -13,7 +13,6 @@ branches:
   # whitelist
   only:
     - master
-    - vulkan
 
   # blacklist
   except:
