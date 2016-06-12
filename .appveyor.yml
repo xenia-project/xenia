@@ -99,7 +99,7 @@ after_test:
 
 # to run your custom scripts instead of automatic tests
 test_script:
-  - cmd: xb.bat test
+  - cmd: xb.bat test --config=release --no_build
 
 # to disable automatic tests
 #test: off
