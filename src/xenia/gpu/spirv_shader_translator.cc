@@ -9,11 +9,15 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
+#include <gflags/gflags.h>
+
 #include <cstring>
 
 #include "xenia/base/logging.h"
 #include "xenia/gpu/spirv/passes/control_flow_analysis_pass.h"
 #include "xenia/gpu/spirv/passes/control_flow_simplification_pass.h"
+
+DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation");
 
 namespace xe {
 namespace gpu {
@@ -56,11 +60,6 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addCapability(spv::Capability::CapabilityDerivativeControl);
   }
 
-  spv::Block* function_block = nullptr;
-  translated_main_ =
-      b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "translated_main",
-                          {}, {}, &function_block);
-
   bool_type_ = b.makeBoolType();
   float_type_ = b.makeFloatType(32);
   int_type_ = b.makeIntType(32);
@@ -79,6 +78,11 @@ void SpirvShaderTranslator::StartTranslation() {
       vec4_float_type_,
       std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
                        b.makeFloatConstant(0.f), b.makeFloatConstant(0.f)}));
+
+  spv::Block* function_block = nullptr;
+  translated_main_ =
+      b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "translated_main",
+                          {}, {}, &function_block);
 
   registers_type_ = b.makeArrayType(vec4_float_type_,
                                     b.makeUintConstant(register_count()), 0);
@@ -241,6 +245,7 @@ void SpirvShaderTranslator::StartTranslation() {
         b.addDecoration(attrib_var, spv::Decoration::DecorationLocation,
                         attrib.attrib_index);
 
+        interface_ids_.push_back(attrib_var);
         vertex_binding_map_[binding.fetch_constant]
                            [attrib.fetch_instr.attributes.offset] = attrib_var;
       }
@@ -267,6 +272,10 @@ void SpirvShaderTranslator::StartTranslation() {
                                   int_type_, "gl_VertexId");
     b.addDecoration(vertex_id_, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInVertexId);
+
+    interface_ids_.push_back(interpolators_);
+    interface_ids_.push_back(pos_);
+    interface_ids_.push_back(vertex_id_);
 
     auto vertex_id = b.createLoad(vertex_id_);
     vertex_id = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, vertex_id);
@@ -295,6 +304,9 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addDecoration(frag_depth_, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInFragDepth);
 
+    interface_ids_.push_back(interpolators_);
+    interface_ids_.push_back(frag_outputs_);
+    interface_ids_.push_back(frag_depth_);
     // TODO(benvanik): frag depth, etc.
 
     // Copy interpolators to r[0..16].
@@ -328,6 +340,9 @@ void SpirvShaderTranslator::StartTranslation() {
                                         vec2_float_type_, "gl_PointCoord");
     b.addDecoration(point_coord, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInPointCoord);
+    interface_ids_.push_back(frag_coord);
+    interface_ids_.push_back(point_coord);
+
     auto param = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
                             {frag_coord, point_coord, 0, 1, 4, 5});
     /*
@@ -372,11 +387,20 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   // main() entry point.
   auto mainFn = b.makeMain();
   if (is_vertex_shader()) {
-    b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex, mainFn, "main");
+    auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex,
+                                 mainFn, "main");
+
+    for (auto id : interface_ids_) {
+      entry->addIdOperand(id);
+    }
   } else {
-    b.addEntryPoint(spv::ExecutionModel::ExecutionModelFragment, mainFn,
-                    "main");
+    auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelFragment,
+                                 mainFn, "main");
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
+
+    for (auto id : interface_ids_) {
+      entry->addIdOperand(id);
+    }
   }
 
   // TODO(benvanik): transform feedback.
@@ -500,13 +524,14 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
 void SpirvShaderTranslator::PostTranslation(Shader* shader) {
   // Validation.
-  // TODO(DrChat): Only do this if a flag is set (this is pretty slow).
-  auto validation = validator_.Validate(
-      reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
-      shader->translated_binary().size() / 4);
-  if (validation->has_error()) {
-    XELOGE("SPIR-V Shader Validation failed! Error: %s",
-           validation->error_string());
+  if (FLAGS_spv_validate) {
+    auto validation = validator_.Validate(
+        reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
+        shader->translated_binary().size() / 4);
+    if (validation->has_error()) {
+      XELOGE("SPIR-V Shader Validation failed! Error: %s",
+             validation->error_string());
+    }
   }
 
   // TODO(benvanik): only if needed? could be slowish.
