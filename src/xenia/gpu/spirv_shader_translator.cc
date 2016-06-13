@@ -514,6 +514,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   // Cleanup builder.
   builder_.reset();
 
+  interface_ids_.clear();
+
   // Copy bytes out.
   // TODO(benvanik): avoid copy?
   std::vector<uint8_t> spirv_bytes;
