@@ -293,6 +293,7 @@ def get_clang_format_binary():
     A path to the clang-format executable.
   """
   attempts = [
+      'C:\\Program Files\\LLVM\\bin\\clang-format.exe',
       'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe',
       'clang-format-3.8',
       'clang-format',
@@ -574,17 +575,24 @@ class BaseBuildCommand(Command):
       print('')
 
     print('- building (%s):%s...' % (
-        'all' if not len(args['target']) else ' '.join(args['target']),
+        'all' if not len(args['target']) else ', '.join(args['target']),
         args['config']))
     if sys.platform == 'win32':
-      result = shell_call([
-          'devenv',
-          '/nologo',
+      targets = None
+      if len(args['target']):
+        targets = '/t:' + ';'.join(target + (':Rebuild' if args['force'] else '')
+                                  for target in args['target'])
+      else:
+        targets = '/t:Rebuild' if args['force'] else None
+    
+      result = subprocess.call([
+          'msbuild',
           'build/xenia.sln',
-          '/rebuild' if args['force'] else '/build',
-          args['config'],
-          ] + [('/project ', target) for target in args['target']] +
-          pass_args, throw_on_error=False)
+          '/nologo',
+          '/m',
+          '/v:m',
+          '/p:Configuration=' + args['config'],
+          ] + ([targets] if targets is not None else []) + pass_args, shell=False)
     elif sys.platform == 'darwin':
       # TODO(benvanik): other platforms.
       print('ERROR: don\'t know how to build on this platform.')
@@ -592,11 +600,11 @@ class BaseBuildCommand(Command):
       # TODO(benvanik): allow gcc?
       os.environ['CXX'] = 'clang++-3.8'
       os.environ['CC'] = 'clang-3.8'
-      result = shell_call([
+      result = subprocess.call([
           'make',
           '-Cbuild/',
           'config=%s_linux' % (args['config']),
-          ] + pass_args + args['target'], throw_on_error=False)
+          ] + pass_args + args['target'], shell=False)
     print('')
     if result != 0:
       print('ERROR: build failed with one or more errors.')
