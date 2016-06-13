@@ -598,8 +598,11 @@ class BaseBuildCommand(Command):
       print('ERROR: don\'t know how to build on this platform.')
     else:
       # TODO(benvanik): allow gcc?
-      os.environ['CXX'] = 'clang++-3.8'
-      os.environ['CC'] = 'clang-3.8'
+      if 'CXX' not in os.environ:
+        os.environ['CXX'] = 'clang++-3.8'
+      if 'CC' not in os.environ:
+        os.environ['CC'] = 'clang-3.8'
+      
       result = subprocess.call([
           'make',
           '-Cbuild/',
