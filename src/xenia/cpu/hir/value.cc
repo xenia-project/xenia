@@ -1003,6 +1003,86 @@ void Value::VectorRol(Value* other, TypeName type) {
   }
 }
 
+void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
+                      bool saturate) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case FLOAT32_TYPE:
+      if (saturate) {
+        assert_always();
+      } else {
+        constant.v128.x += other->constant.v128.x;
+        constant.v128.y += other->constant.v128.y;
+        constant.v128.z += other->constant.v128.z;
+        constant.v128.w += other->constant.v128.w;
+      }
+      break;
+    case FLOAT64_TYPE:
+      if (saturate) {
+        assert_always();
+      } else {
+        constant.v128.f64[0] += other->constant.v128.f64[0];
+        constant.v128.f64[1] += other->constant.v128.f64[1];
+      }
+      break;
+    case INT8_TYPE:
+      if (saturate) {
+        assert_always();
+      } else {
+        for (int i = 0; i < 16; i++) {
+          if (is_unsigned) {
+            constant.v128.u8[i] += other->constant.v128.u8[i];
+          } else {
+            constant.v128.i8[i] += other->constant.v128.i8[i];
+          }
+        }
+      }
+      break;
+    case INT16_TYPE:
+      if (saturate) {
+        assert_always();
+      } else {
+        for (int i = 0; i < 8; i++) {
+          if (is_unsigned) {
+            constant.v128.u16[i] += other->constant.v128.u16[i];
+          } else {
+            constant.v128.i16[i] += other->constant.v128.i16[i];
+          }
+        }
+      }
+      break;
+    case INT32_TYPE:
+      if (saturate) {
+        assert_always();
+      } else {
+        for (int i = 0; i < 4; i++) {
+          if (is_unsigned) {
+            constant.v128.u32[i] += other->constant.v128.u32[i];
+          } else {
+            constant.v128.i32[i] += other->constant.v128.i32[i];
+          }
+        }
+      }
+      break;
+    case INT64_TYPE:
+      if (saturate) {
+        assert_always();
+      } else {
+        if (is_unsigned) {
+          constant.v128.u64[0] += other->constant.v128.u64[0];
+          constant.v128.u64[1] += other->constant.v128.u64[1];
+        } else {
+          constant.v128.i64[0] += other->constant.v128.i64[0];
+          constant.v128.i64[1] += other->constant.v128.i64[1];
+        }
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
 void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
                       bool saturate) {
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
