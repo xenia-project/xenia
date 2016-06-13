@@ -1085,7 +1085,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kCndGe: {
-      // dest = src0 == 0.0 ? src1 : src2;
+      // dest = src0 >= 0.0 ? src1 : src2;
       auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
                              sources[0], vec4_float_zero_);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
@@ -1093,7 +1093,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kCndGt: {
-      // dest = src0 == 0.0 ? src1 : src2;
+      // dest = src0 > 0.0 ? src1 : src2;
       auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
                              sources[0], vec4_float_zero_);
       dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
@@ -1110,7 +1110,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto dst_y = b.createBinOp(spv::Op::OpFMul, float_type_, src0_y, src1_y);
 
       auto src0_z = b.createCompositeExtract(sources[0], float_type_, 3);
-      auto src1_w = b.createCompositeExtract(sources[0], float_type_, 4);
+      auto src1_w = b.createCompositeExtract(sources[1], float_type_, 4);
       dest = b.createCompositeConstruct(
           vec4_float_type_,
           std::vector<Id>({b.makeFloatConstant(1.f), dst_y, src0_z, src1_w}));
