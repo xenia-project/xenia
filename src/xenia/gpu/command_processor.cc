@@ -129,7 +129,7 @@ void CommandProcessor::WorkerThreadMain() {
 
     uint32_t write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
-      SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::CommandProcessor::Stall");
+      SCOPE_profile_cpu_i("gpu", "xe::gpu::CommandProcessor::Stall");
       // We've run out of commands to execute.
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
@@ -223,12 +223,9 @@ bool CommandProcessor::SetupContext() { return true; }
 
 void CommandProcessor::ShutdownContext() { context_.reset(); }
 
-void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
+void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
   primary_buffer_ptr_ = ptr;
-  // Not sure this is correct, but it's a way to take the page_count back to
-  // the number of bytes allocated by the physical alloc.
-  uint32_t original_size = 1 << (0x1C - page_count - 1);
-  primary_buffer_size_ = original_size;
+  primary_buffer_size_ = uint32_t(std::pow(2u, log2_size));
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
@@ -1280,6 +1277,8 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   // Some sort of ID?
   // This appears to reset a viz query context.
   // This ID matches the ID in conditional draw commands.
+  // Patent says the driver sets the viz_query register with info about the
+  // context ID.
   uint32_t dword0 = reader->Read<uint32_t>(true);
 
   return true;

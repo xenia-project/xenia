@@ -181,8 +181,8 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
   register_file_.values[r].u32 = value;
 }
 
-void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
-  command_processor_->InitializeRingBuffer(ptr, page_count);
+void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
+  command_processor_->InitializeRingBuffer(ptr, (log2_size | 0x2) + 1);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
