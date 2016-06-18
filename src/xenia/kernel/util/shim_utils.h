@@ -319,6 +319,10 @@ using pointer_t = const shim::TypedPointerParam<T>&;
 using dword_result_t = shim::Result<uint32_t>;
 using pointer_result_t = shim::Result<uint32_t>;
 
+// Exported from kernel_state.cc.
+KernelState* kernel_state();
+inline Memory* kernel_memory() { return kernel_state()->memory(); }
+
 namespace shim {
 
 inline void AppendParam(StringBuffer* string_buffer, int_t param) {
@@ -366,8 +370,8 @@ inline void AppendParam(StringBuffer* string_buffer, lpdouble_t param) {
     string_buffer->AppendFormat("(%G)", param.value());
   }
 }
-void AppendParam(StringBuffer* string_buffer,
-                 pointer_t<X_OBJECT_ATTRIBUTES> record) {
+inline void AppendParam(StringBuffer* string_buffer,
+                        pointer_t<X_OBJECT_ATTRIBUTES> record) {
   string_buffer->AppendFormat("%.8X", record.guest_address());
   if (record) {
     auto name_string =
@@ -381,14 +385,14 @@ void AppendParam(StringBuffer* string_buffer,
                                 uint32_t(record->attributes));
   }
 }
-void AppendParam(StringBuffer* string_buffer,
-                 pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg) {
+inline void AppendParam(StringBuffer* string_buffer,
+                        pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg) {
   string_buffer->AppendFormat("%.8X(%.8X, %.8X)", reg.guest_address(),
                               static_cast<uint32_t>(reg->notification_routine),
                               static_cast<uint32_t>(reg->priority));
 }
-void AppendParam(StringBuffer* string_buffer,
-                 pointer_t<X_EXCEPTION_RECORD> record) {
+inline void AppendParam(StringBuffer* string_buffer,
+                        pointer_t<X_EXCEPTION_RECORD> record) {
   string_buffer->AppendFormat("%.8X(%.8X)", record.guest_address(),
                               uint32_t(record->exception_code));
 }
@@ -514,10 +518,6 @@ using xe::cpu::ExportTag;
 
 #define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)
 #define DECLARE_XBOXKRNL_EXPORT(name, tags) DECLARE_EXPORT(xboxkrnl, name, tags)
-
-// Exported from kernel_state.cc.
-KernelState* kernel_state();
-inline Memory* kernel_memory() { return kernel_state()->memory(); }
 
 }  // namespace kernel
 }  // namespace xe
