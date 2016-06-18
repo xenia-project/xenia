@@ -73,7 +73,7 @@ struct X_DISPLAY_INFO {
   xe::be<uint16_t> front_buffer_height;              // 0x2
   xe::be<uint8_t> front_buffer_color_format;         // 0x4
   xe::be<uint8_t> front_buffer_pixel_format;         // 0x5
-  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x6
+  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x8
   xe::be<uint16_t> display_window_overscan_left;     // 0x40
   xe::be<uint16_t> display_window_overscan_top;      // 0x42
   xe::be<uint16_t> display_window_overscan_right;    // 0x44
