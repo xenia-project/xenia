@@ -252,18 +252,18 @@ dword_result_t VdInitializeScalerCommandBuffer(
     dword_t horizontal_filter_type,                              // 7?
     pointer_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
     lpvoid_t unk9,                                               //
-    lpvoid_t dest_ptr  // Points to the first 80000000h where the memcpy
-                       // sources from.
+    lpvoid_t dest_ptr,  // Points to the first 80000000h where the memcpy
+                        // sources from.
+    dword_t dest_count  // Count in words.
     ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
   // For now, we just fill it with NOPs.
-  uint32_t total_words = 200;
   auto dest = dest_ptr.as_array<uint32_t>();
-  for (size_t i = 0; i < total_words; ++i) {
+  for (size_t i = 0; i < dest_count; ++i) {
     dest[i] = 0x80000000;
   }
-  return total_words;
+  return (uint32_t)dest_count;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeScalerCommandBuffer,
                         ExportTag::kVideo | ExportTag::kSketchy);
