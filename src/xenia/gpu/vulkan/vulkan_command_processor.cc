@@ -574,7 +574,8 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   if (!index_buffer_info) {
     // Auto-indexed draw.
     uint32_t instance_count = 1;
-    uint32_t first_vertex = 0;
+    uint32_t first_vertex =
+        register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
     uint32_t first_instance = 0;
     vkCmdDraw(command_buffer, index_count, instance_count, first_vertex,
               first_instance);
@@ -708,6 +709,8 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
         fetch = &group->vertex_fetch_2;
         break;
     }
+
+    assert_true(fetch->type == 0x3);
 
     // TODO(benvanik): compute based on indices or vertex count.
     //     THIS CAN BE MASSIVELY INCORRECT (too large).
