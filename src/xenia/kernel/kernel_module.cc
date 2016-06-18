@@ -56,6 +56,36 @@ KernelModule::KernelModule(KernelState* kernel_state, const char* path)
 
 KernelModule::~KernelModule() {}
 
+uint32_t KernelModule::GenerateTrampoline(
+    std::string name, cpu::GuestFunction::ExternHandler handler,
+    cpu::Export* export_data) {
+  // Generate the function.
+  assert_true(guest_trampoline_next_ * 8 < guest_trampoline_size_);
+  if (guest_trampoline_next_ * 8 >= guest_trampoline_size_) {
+    assert_always();  // If you hit this, increase kTrampolineSize
+    XELOGE("KernelModule::GenerateTrampoline trampoline exhausted");
+    return 0;
+  }
+
+  uint32_t guest_addr = guest_trampoline_ + (guest_trampoline_next_++ * 8);
+
+  auto mem = memory()->TranslateVirtual(guest_addr);
+  xe::store_and_swap<uint32_t>(mem + 0x0, 0x44000002);  // sc
+  xe::store_and_swap<uint32_t>(mem + 0x4, 0x4E800020);  // blr
+
+  // Declare/define the extern function.
+  cpu::Function* function;
+  guest_trampoline_module_->DeclareFunction(guest_addr, &function);
+  function->set_end_address(guest_addr + 8);
+  function->set_name(std::string("__T_") + name);
+
+  static_cast<cpu::GuestFunction*>(function)->SetupExtern(handler, export_data);
+
+  function->set_status(cpu::Symbol::Status::kDeclared);
+
+  return guest_addr;
+}
+
 uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   auto export_entry =
       export_resolver_->GetExportByOrdinal(name().c_str(), ordinal);
@@ -84,26 +114,6 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
         return entry->second;
       }
 
-      // Generate the function.
-      assert_true(guest_trampoline_next_ * 8 < guest_trampoline_size_);
-      if (guest_trampoline_next_ * 8 >= guest_trampoline_size_) {
-        assert_always();  // If you hit this, increase kTrampolineSize
-        XELOGE("KernelModule::GetProcAddressByOrdinal trampoline exhausted");
-        return 0;
-      }
-
-      uint32_t guest_addr = guest_trampoline_ + (guest_trampoline_next_++ * 8);
-
-      auto mem = memory()->TranslateVirtual(guest_addr);
-      xe::store_and_swap<uint32_t>(mem + 0x0, 0x44000002);  // sc
-      xe::store_and_swap<uint32_t>(mem + 0x4, 0x4E800020);  // blr
-
-      // Declare/define the extern function.
-      cpu::Function* function;
-      guest_trampoline_module_->DeclareFunction(guest_addr, &function);
-      function->set_end_address(guest_addr + 8);
-      function->set_name(std::string("__T_") + export_entry->name);
-
       cpu::GuestFunction::ExternHandler handler = nullptr;
       if (export_entry->function_data.trampoline) {
         handler = (cpu::GuestFunction::ExternHandler)
@@ -112,10 +122,9 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
         handler =
             (cpu::GuestFunction::ExternHandler)export_entry->function_data.shim;
       }
-      static_cast<cpu::GuestFunction*>(function)->SetupExtern(handler,
-                                                              export_entry);
 
-      function->set_status(cpu::Symbol::Status::kDeclared);
+      uint32_t guest_addr =
+          GenerateTrampoline(export_entry->name, handler, export_entry);
 
       // Register the function in our map.
       guest_trampoline_map_[ordinal] = guest_addr;

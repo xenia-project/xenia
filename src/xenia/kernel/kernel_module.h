@@ -46,6 +46,10 @@ class KernelModule : public XModule {
   std::map<uint16_t, uint32_t> guest_trampoline_map_;
 
   xe::global_critical_region global_critical_region_;
+
+  uint32_t GenerateTrampoline(std::string name,
+                              cpu::GuestFunction::ExternHandler handler,
+                              cpu::Export* export_data = nullptr);
 };
 
 }  // namespace kernel
