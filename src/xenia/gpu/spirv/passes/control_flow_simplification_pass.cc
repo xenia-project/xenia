@@ -20,7 +20,7 @@ bool ControlFlowSimplificationPass::Run(spv::Module* module) {
     // Walk through the blocks in the function and merge any blocks which are
     // unconditionally dominated.
     for (auto it = function->getBlocks().end() - 1;
-         it != function->getBlocks().begin() - 1;) {
+         it != function->getBlocks().begin();) {
       auto block = *it;
       if (!block->isUnreachable() && block->getPredecessors().size() == 1) {
         auto prev_block = block->getPredecessors()[0];
