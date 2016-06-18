@@ -194,6 +194,14 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous()) {
+      // some games NtReadFile() directly into texture memory
+      // TODO(rick): better checking of physical address
+      if (buffer.guest_address() >= 0xA0000000) {
+        auto heap = kernel_memory()->LookupHeap(buffer.guest_address());
+        cpu::MMIOHandler::global_handler()->InvalidateRange(
+            heap->GetPhysicalAddress(buffer.guest_address()), buffer_length);
+      }
+
       // Synchronous.
       size_t bytes_read = 0;
       result = file->Read(
