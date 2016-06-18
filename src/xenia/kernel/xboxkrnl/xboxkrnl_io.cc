@@ -449,7 +449,8 @@ dword_result_t NtSetInformationFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtSetInformationFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT(NtSetInformationFile,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 struct X_IO_STATUS_BLOCK {
   union {
