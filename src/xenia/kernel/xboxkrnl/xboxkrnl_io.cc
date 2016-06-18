@@ -255,7 +255,8 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtReadFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT(NtReadFile,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
                            function_t apc_routine, lpvoid_t apc_context,
