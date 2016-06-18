@@ -242,28 +242,28 @@ DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
 // no op?
 
 dword_result_t VdInitializeScalerCommandBuffer(
-    unknown_t unk0,    // 0?
-    unknown_t unk1,    // 0x050002d0 size of ?
-    unknown_t unk2,    // 0?
-    unknown_t unk3,    // 0x050002d0 size of ?
-    unknown_t unk4,    // 0x050002d0 size of ?
-    unknown_t unk5,    // 7?
-    lpunknown_t unk6,  // 0x2004909c <-- points to zeros?
-    unknown_t unk7,    // 7?
+    dword_t scaler_source_xy,      // ((uint16_t)y << 16) | (uint16_t)x
+    dword_t scaler_source_wh,      // ((uint16_t)h << 16) | (uint16_t)w
+    dword_t scaled_output_xy,      // ((uint16_t)y << 16) | (uint16_t)x
+    dword_t scaled_output_wh,      // ((uint16_t)h << 16) | (uint16_t)w
+    dword_t front_buffer_wh,       // ((uint16_t)h << 16) | (uint16_t)w
+    dword_t vertical_filter_type,  // 7?
+    pointer_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,    //
+    dword_t horizontal_filter_type,                              // 7?
+    pointer_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
+    lpvoid_t unk9,                                               //
     lpvoid_t dest_ptr  // Points to the first 80000000h where the memcpy
                        // sources from.
     ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
   // For now, we just fill it with NOPs.
-  uint32_t total_words = 0x1CC / 4;
+  uint32_t total_words = 200;
   auto dest = dest_ptr.as_array<uint32_t>();
   for (size_t i = 0; i < total_words; ++i) {
     dest[i] = 0x80000000;
   }
-
-  // returns memcpy size >> 2 for memcpy(...,...,ret << 2)
-  return total_words >> 2;
+  return total_words;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeScalerCommandBuffer,
                         ExportTag::kVideo | ExportTag::kSketchy);
