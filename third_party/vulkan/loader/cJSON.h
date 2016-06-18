@@ -57,9 +57,8 @@ typedef struct cJSON {
     int valueint;       /* The item's number, if type==cJSON_Number */
     double valuedouble; /* The item's number, if type==cJSON_Number */
 
-    char *
-        string; /* The item's name string, if this item is the child of, or is
-                   in the list of subitems of an object. */
+    char *string; /* The item's name string, if this item is the child of, or is
+                     in the list of subitems of an object. */
 } cJSON;
 
 typedef struct cJSON_Hooks {

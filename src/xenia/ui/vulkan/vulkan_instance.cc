@@ -26,6 +26,8 @@
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
 
+#define VK_API_VERSION VK_API_VERSION_1_0
+
 namespace xe {
 namespace ui {
 namespace vulkan {
