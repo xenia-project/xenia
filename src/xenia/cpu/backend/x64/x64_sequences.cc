@@ -567,29 +567,32 @@ struct Sequence {
   template <typename FN>
   static void EmitCommutativeBinaryXmmOp(X64Emitter& e, const EmitArgType& i,
                                          const FN& fn) {
-    Xmm src1 = i.src1.is_constant ? e.xmm0 : i.src1;
     if (i.src1.is_constant) {
+      assert_true(!i.src2.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      fn(e, i.dest, e.xmm0, i.src2);
+    } else if (i.src2.is_constant) {
+      assert_true(!i.src1.is_constant);
+      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      fn(e, i.dest, i.src1, e.xmm0);
+    } else {
+      fn(e, i.dest, i.src1, i.src2);
     }
-    Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
-    if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm1, i.src2.constant());
-    }
-    fn(e, i.dest, src1, src2);
   }
 
   template <typename FN>
   static void EmitAssociativeBinaryXmmOp(X64Emitter& e, const EmitArgType& i,
                                          const FN& fn) {
-    Xmm src1 = i.src1.is_constant ? e.xmm0 : i.src1;
     if (i.src1.is_constant) {
+      assert_true(!i.src2.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      fn(e, i.dest, e.xmm0, i.src2);
+    } else if (i.src2.is_constant) {
+      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      fn(e, i.dest, i.src1, e.xmm0);
+    } else {
+      fn(e, i.dest, i.src1, i.src2);
     }
-    Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
-    if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm1, i.src2.constant());
-    }
-    fn(e, i.dest, src1, src2);
   }
 
   template <typename REG_REG_FN, typename REG_CONST_FN>
