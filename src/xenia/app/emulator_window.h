@@ -42,6 +42,7 @@ class EmulatorWindow {
 
   bool Initialize();
 
+  void FileOpen();
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();
   void CpuTimeScalarSetDouble();

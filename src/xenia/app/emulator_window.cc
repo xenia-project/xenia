@@ -20,6 +20,8 @@
 #include "xenia/base/threading.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
+
+#include "xenia/ui/file_picker.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
 
@@ -114,7 +116,6 @@ bool EmulatorWindow::Initialize() {
         // TODO: Spawn a new thread to do this.
         emulator()->RestoreFromFile(L"test.sav");
       } break;
-
       case 0x7A: {  // VK_F11
         ToggleFullscreen();
       } break;
@@ -145,6 +146,9 @@ bool EmulatorWindow::Initialize() {
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
   {
+    file_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, L"&Open", L"Ctrl+O",
+                         std::bind(&EmulatorWindow::FileOpen, this)));
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, L"E&xit",
                                          L"Alt+F4",
                                          [this]() { window_->Close(); }));
@@ -237,6 +241,40 @@ bool EmulatorWindow::Initialize() {
   window_->Resize(1280, 720);
 
   return true;
+}
+
+void EmulatorWindow::FileOpen() {
+  std::wstring path;
+
+  auto file_picker = xe::ui::FilePicker::Create();
+  file_picker->set_mode(ui::FilePicker::Mode::kOpen);
+  file_picker->set_type(ui::FilePicker::Type::kFile);
+  file_picker->set_multi_selection(false);
+  file_picker->set_title(L"Select Content Package");
+  file_picker->set_extensions({
+      {L"Supported Files", L"*.iso;*.xex;*.xcp;*.*"},
+      {L"Disc Image (*.iso)", L"*.iso"},
+      {L"Xbox Executable (*.xex)", L"*.xex"},
+      //{ L"Content Package (*.xcp)", L"*.xcp" },
+      {L"All Files (*.*)", L"*.*"},
+  });
+  if (file_picker->Show(window_->native_handle())) {
+    auto selected_files = file_picker->selected_files();
+    if (!selected_files.empty()) {
+      path = selected_files[0];
+    }
+  }
+
+  if (!path.empty()) {
+    // Normalize the path and make absolute.
+    std::wstring abs_path = xe::to_absolute_path(path);
+
+    auto result = emulator_->LaunchPath(abs_path);
+    if (XFAILED(result)) {
+      // TODO: Display a message box.
+      XELOGE("Failed to launch target: %.8X", result);
+    }
+  }
 }
 
 void EmulatorWindow::CpuTimeScalarReset() {

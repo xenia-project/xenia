@@ -10,9 +10,11 @@
 #include <gflags/gflags.h>
 
 #include "xenia/app/emulator_window.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/threading.h"
 #include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
@@ -159,6 +161,18 @@ int xenia_main(const std::vector<std::wstring>& args) {
     });
   }
 
+  auto evt = xe::threading::Event::CreateAutoResetEvent(false);
+  emulator->on_launch.AddListener([&]() {
+    emulator_window->UpdateTitle();
+    evt->Set();
+  });
+
+  bool exiting = false;
+  emulator_window->loop()->on_quit.AddListener([&](ui::UIEvent* e) {
+    exiting = true;
+    evt->Set();
+  });
+
   // Grab path from the flag or unnamed argument.
   std::wstring path;
   if (!FLAGS_target.empty() || args.size() >= 2) {
@@ -173,43 +187,23 @@ int xenia_main(const std::vector<std::wstring>& args) {
     }
   }
 
-  // If no path passed, ask the user.
-  if (path.empty()) {
-    auto file_picker = xe::ui::FilePicker::Create();
-    file_picker->set_mode(ui::FilePicker::Mode::kOpen);
-    file_picker->set_type(ui::FilePicker::Type::kFile);
-    file_picker->set_multi_selection(false);
-    file_picker->set_title(L"Select Content Package");
-    file_picker->set_extensions({
-        {L"Supported Files", L"*.iso;*.xex;*.xcp;*.*"},
-        {L"Disc Image (*.iso)", L"*.iso"},
-        {L"Xbox Executable (*.xex)", L"*.xex"},
-        //{ L"Content Package (*.xcp)", L"*.xcp" },
-        {L"All Files (*.*)", L"*.*"},
-    });
-    if (file_picker->Show(emulator->display_window()->native_handle())) {
-      auto selected_files = file_picker->selected_files();
-      if (!selected_files.empty()) {
-        path = selected_files[0];
-      }
-    }
-  }
-
   if (!path.empty()) {
     // Normalize the path and make absolute.
     std::wstring abs_path = xe::to_absolute_path(path);
-
-    result = emulator->LaunchPath(abs_path,
-                                  [&]() { emulator_window->UpdateTitle(); });
+    result = emulator->LaunchPath(abs_path);
     if (XFAILED(result)) {
       XELOGE("Failed to launch target: %.8X", result);
       emulator.reset();
       emulator_window.reset();
       return 1;
     }
+  }
 
-    // Wait until we are exited.
-    emulator->display_window()->loop()->AwaitQuit();
+  // Now, we're going to use the main thread to drive events related to
+  // emulation.
+  while (!exiting) {
+    xe::threading::Wait(evt.get(), false);
+    emulator->WaitUntilExit();
   }
 
   debug_window.reset();
