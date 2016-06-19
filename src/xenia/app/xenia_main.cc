@@ -203,7 +203,15 @@ int xenia_main(const std::vector<std::wstring>& args) {
   // emulation.
   while (!exiting) {
     xe::threading::Wait(evt.get(), false);
-    emulator->WaitUntilExit();
+
+    while (true) {
+      emulator->WaitUntilExit();
+      if (emulator->TitleRequested()) {
+        emulator->LaunchNextTitle();
+      } else {
+        break;
+      }
+    }
   }
 
   debug_window.reset();
