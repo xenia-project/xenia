@@ -125,6 +125,10 @@ class Emulator {
   bool SaveToFile(const std::wstring& path);
   bool RestoreFromFile(const std::wstring& path);
 
+  // The game can request another title to be loaded.
+  bool TitleRequested();
+  void LaunchNextTitle();
+
   void WaitUntilExit();
 
  public:

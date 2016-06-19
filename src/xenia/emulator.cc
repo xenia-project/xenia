@@ -415,6 +415,18 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
   return true;
 }
 
+bool Emulator::TitleRequested() {
+  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
+  return xam->loader_data().launch_data_present;
+}
+
+void Emulator::LaunchNextTitle() {
+  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
+  auto next_title = xam->loader_data().launch_path;
+
+  CompleteLaunch(L"", next_title);
+}
+
 bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
   return reinterpret_cast<Emulator*>(data)->ExceptionCallback(ex);
 }
