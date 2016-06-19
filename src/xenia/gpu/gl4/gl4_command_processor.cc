@@ -1691,12 +1691,12 @@ bool GL4CommandProcessor::IssueCopy() {
     case ColorFormat::k_16_16_16_16:
       read_format = GL_RGBA16;
       read_type = GL_UNSIGNED_SHORT;
-      read_size = 32;
+      read_size = 64;
       break;
     case ColorFormat::k_16_16_16_16_FLOAT:
       read_format = GL_RGBA16F;
       read_type = GL_HALF_FLOAT;
-      read_size = 32;
+      read_size = 64;
       break;
     case ColorFormat::k_32_FLOAT:
       read_format = GL_R32F;
@@ -1816,8 +1816,8 @@ bool GL4CommandProcessor::IssueCopy() {
   // offset, so to ensure texture lookup works we need to offset it.
   // TODO(benvanik): allow texture cache to lookup partial textures.
   // TODO(benvanik): change based on format.
-  int32_t dest_offset = window_offset_y * copy_dest_pitch * 4;
-  dest_offset += window_offset_x * 32 * 4;
+  int32_t dest_offset = window_offset_y * copy_dest_pitch * int(read_size / 8);
+  dest_offset += window_offset_x * 32 * int(read_size / 8);
   copy_dest_base += dest_offset;
 
   // Destination pointer in guest memory.
