@@ -462,9 +462,14 @@ X_STATUS XThread::Terminate(int exit_code) {
   emulator()->processor()->OnThreadExit(thread_id_);
 
   running_ = false;
-  Release();
+  if (XThread::IsInThread(this)) {
+    Release();
+    xe::threading::Thread::Exit(exit_code);
+  } else {
+    thread_->Terminate(exit_code);
+    Release();
+  }
 
-  thread_->Terminate(exit_code);
   return X_STATUS_SUCCESS;
 }
 
