@@ -751,7 +751,8 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   uint32_t page_scan_stride = alignment / page_size_;
   high_page_number = high_page_number - (high_page_number % page_scan_stride);
   if (top_down) {
-    for (int64_t base_page_number = high_page_number - page_count;
+    for (int64_t base_page_number =
+             high_page_number - xe::round_up(page_count, page_scan_stride);
          base_page_number >= low_page_number;
          base_page_number -= page_scan_stride) {
       if (page_table_[base_page_number].state != 0) {
