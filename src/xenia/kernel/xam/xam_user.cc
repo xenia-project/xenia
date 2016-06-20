@@ -181,8 +181,10 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     uint32_t setting_id = setting_ids[n];
     auto setting = user_profile->GetSetting(setting_id);
     if (setting) {
-      auto extra_size = static_cast<uint32_t>(setting->extra_size());
-      size_needed += extra_size;
+      if (setting->is_set) {
+        auto extra_size = static_cast<uint32_t>(setting->extra_size());
+        size_needed += extra_size;
+      }
     } else {
       any_missing = true;
       XELOGE("XamUserReadProfileSettings requested unimplemented setting %.8X",
@@ -228,11 +230,12 @@ SHIM_CALL XamUserReadProfileSettings_shim(PPCContext* ppc_context,
     auto setting = user_profile->GetSetting(setting_id);
 
     std::memset(out_setting, 0, sizeof(X_USER_READ_PROFILE_SETTING));
-    out_setting->from = !setting ? 0 : setting->is_title_specific() ? 2 : 1;
+    out_setting->from =
+        !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
     out_setting->user_index = user_index;
     out_setting->setting_id = setting_id;
 
-    if (setting) {
+    if (setting && setting->is_set) {
       buffer_offset =
           setting->Append(&out_setting->setting_data[0],
                           SHIM_MEM_ADDR(buffer_ptr), buffer_ptr, buffer_offset);
