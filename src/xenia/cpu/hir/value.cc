@@ -618,6 +618,11 @@ void Value::RSqrt() {
     case FLOAT64_TYPE:
       constant.f64 = 1.0f / std::sqrt(constant.f64);
       break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; ++i) {
+        constant.v128.f32[i] = 1.0f / std::sqrt(constant.v128.f32[i]);
+      }
+      break;
     default:
       assert_unhandled_case(type);
       break;
