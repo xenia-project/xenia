@@ -75,14 +75,12 @@ UserProfile::UserProfile() {
   AddSetting(
       std::make_unique<UnicodeSetting>(0x4064000F, L"gamercard_picture_key"));
 
-  std::vector<uint8_t> zeros;
-  zeros.resize(1000);
   // XPROFILE_TITLE_SPECIFIC1
-  AddSetting(std::make_unique<BinarySetting>(0x63E83FFF, zeros));
+  AddSetting(std::make_unique<BinarySetting>(0x63E83FFF));
   // XPROFILE_TITLE_SPECIFIC2
-  AddSetting(std::make_unique<BinarySetting>(0x63E83FFE, zeros));
+  AddSetting(std::make_unique<BinarySetting>(0x63E83FFE));
   // XPROFILE_TITLE_SPECIFIC3
-  AddSetting(std::make_unique<BinarySetting>(0x63E83FFD, zeros));
+  AddSetting(std::make_unique<BinarySetting>(0x63E83FFD));
 }
 
 void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
