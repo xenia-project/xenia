@@ -82,6 +82,7 @@ class PPCHIRBuilder : public hir::HIRBuilder {
   Value* LoadReserved();
 
  private:
+  void MaybeBreakOnInstruction(uint32_t address);
   void AnnotateLabel(uint32_t address, Label* label);
 
   PPCFrontend* frontend_;

@@ -40,6 +40,7 @@ DEFINE_uint64(break_on_instruction, 0,
               "int3 before the given guest address is executed.");
 DEFINE_int32(break_condition_gpr, -1, "GPR compared to");
 DEFINE_uint64(break_condition_value, 0, "value compared against");
+DEFINE_string(break_condition_op, "eq", "comparison operator");
 DEFINE_bool(break_condition_truncate, true, "truncate value to 32-bits");
 
 DEFINE_bool(break_on_debugbreak, true, "int3 on JITed __debugbreak requests.");
