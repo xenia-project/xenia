@@ -160,6 +160,11 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
+
+  std::memset(update_set_info_.image_writes, 0,
+              sizeof(update_set_info_.image_writes));
+  std::memset(update_set_info_.image_infos, 0,
+              sizeof(update_set_info_.image_infos));
 }
 
 TextureCache::~TextureCache() {
@@ -408,14 +413,9 @@ TextureCache::Texture* TextureCache::Demand(
     }
   }
 
-  if (!command_buffer) {
+  if (!command_buffer || texture_info.dimension != Dimension::k2D) {
     // Texture not found and no command buffer was passed, preventing us from
     // uploading a new one.
-    return nullptr;
-  }
-
-  if (texture_info.dimension != Dimension::k2D) {
-    // Abort.
     return nullptr;
   }
 
@@ -433,6 +433,10 @@ TextureCache::Texture* TextureCache::Demand(
       uploaded = UploadTexture2D(command_buffer, completion_fence, texture,
                                  texture_info);
     } break;
+
+    case Dimension::kCube: {
+    } break;
+
     default:
       assert_unhandled_case(texture_info.dimension);
       break;
@@ -463,8 +467,11 @@ TextureCache::Texture* TextureCache::Demand(
   // woods yet. This texture could either be a portion of another texture or
   // vice versa. Copy any overlapping textures into this texture.
   // TODO: Byte count -> pixel count (on x and y axes)
+  /*
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    // TODO(DrChat)
   }
+  */
 
   // Okay. Now that the texture is uploaded from system memory, put a writewatch
   // on it to tell us if it's been modified from the guest.
@@ -778,7 +785,8 @@ bool TextureCache::UploadTexture2D(
 
   assert_true(src.dimension == Dimension::k2D);
 
-  if (!staging_buffer_.CanAcquire(src.input_length)) {
+  size_t unpack_length = src.output_length;
+  if (!staging_buffer_.CanAcquire(unpack_length)) {
     // Need to have unique memory for every upload for at least one frame. If we
     // run out of memory, we need to flush all queued upload commands to the
     // GPU.
@@ -787,7 +795,6 @@ bool TextureCache::UploadTexture2D(
   }
 
   // Grab some temporary memory for staging.
-  size_t unpack_length = src.output_length;
   auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
   assert_not_null(alloc);
 
@@ -896,6 +903,13 @@ bool TextureCache::UploadTexture2D(
   return true;
 }
 
+bool TextureCache::UploadTextureCube(
+    VkCommandBuffer command_buffer,
+    std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
+    TextureInfo src) {
+  return false;
+}
+
 VkDescriptorSet TextureCache::PrepareTextureSet(
     VkCommandBuffer command_buffer,
     std::shared_ptr<ui::vulkan::Fence> completion_fence,
@@ -939,74 +953,14 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     return nullptr;
   }
 
-  // Write all updated descriptors.
-  // TODO(benvanik): optimize? split into multiple sets? set per type?
-  // First: Reorganize and pool image update infos.
-  struct DescriptorInfo {
-    Dimension dimension;
-    uint32_t tf_binding_base;
-    std::vector<VkDescriptorImageInfo> infos;
-  };
-
-  std::vector<DescriptorInfo> descriptor_update_infos;
   for (uint32_t i = 0; i < update_set_info->image_write_count; i++) {
-    auto& image_info = update_set_info->image_infos[i];
-    if (descriptor_update_infos.size() > 0) {
-      // Check last write to see if we can pool more into it.
-      DescriptorInfo& last_write =
-          descriptor_update_infos[descriptor_update_infos.size() - 1];
-      if (last_write.dimension == image_info.dimension &&
-          last_write.tf_binding_base + last_write.infos.size() ==
-              image_info.tf_binding) {
-        // Compatible! Pool into it.
-        last_write.infos.push_back(image_info.info);
-        continue;
-      }
-    }
-
-    // Push a new descriptor write entry.
-    DescriptorInfo desc_info;
-    desc_info.dimension = image_info.dimension;
-    desc_info.tf_binding_base = image_info.tf_binding;
-    desc_info.infos.push_back(image_info.info);
-    descriptor_update_infos.push_back(desc_info);
+    update_set_info->image_writes[i].dstSet = descriptor_set;
   }
 
-  // Finalize the writes so they're consumable by Vulkan.
-  std::vector<VkWriteDescriptorSet> descriptor_writes;
-  descriptor_writes.resize(descriptor_update_infos.size());
-  for (size_t i = 0; i < descriptor_update_infos.size(); i++) {
-    auto& update_info = descriptor_update_infos[i];
-    auto& write_info = descriptor_writes[i];
-    std::memset(&write_info, 0, sizeof(VkWriteDescriptorSet));
-
-    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_info.dstSet = descriptor_set;
-
-    switch (update_info.dimension) {
-      case Dimension::k1D:
-        write_info.dstBinding = 0;
-        break;
-      case Dimension::k2D:
-        write_info.dstBinding = 1;
-        break;
-      case Dimension::k3D:
-        write_info.dstBinding = 2;
-        break;
-      case Dimension::kCube:
-        write_info.dstBinding = 3;
-        break;
-    }
-
-    write_info.dstArrayElement = update_info.tf_binding_base;
-    write_info.descriptorCount = uint32_t(update_info.infos.size());
-    write_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write_info.pImageInfo = update_info.infos.data();
-  }
-
-  if (descriptor_writes.size() > 0) {
-    vkUpdateDescriptorSets(*device_, uint32_t(descriptor_writes.size()),
-                           descriptor_writes.data(), 0, nullptr);
+  // Update the descriptor set.
+  if (update_set_info->image_write_count > 0) {
+    vkUpdateDescriptorSets(*device_, update_set_info->image_write_count,
+                           update_set_info->image_writes, 0, nullptr);
   }
 
   in_flight_sets_.push_back({descriptor_set, completion_fence});
@@ -1077,13 +1031,38 @@ bool TextureCache::SetupTextureBinding(
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
+  auto image_info =
+      &update_set_info->image_infos[update_set_info->image_write_count];
   auto image_write =
-      &update_set_info->image_infos[update_set_info->image_write_count++];
-  image_write->dimension = texture_info.dimension;
-  image_write->tf_binding = binding.fetch_constant;
-  image_write->info.imageView = view->view;
-  image_write->info.imageLayout = texture->image_layout;
-  image_write->info.sampler = sampler->sampler;
+      &update_set_info->image_writes[update_set_info->image_write_count];
+  update_set_info->image_write_count++;
+
+  std::memset(image_write, 0, sizeof(VkWriteDescriptorSet));
+  image_write->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+  switch (texture_info.dimension) {
+    case Dimension::k1D:
+      image_write->dstBinding = 0;
+      break;
+    case Dimension::k2D:
+      image_write->dstBinding = 1;
+      break;
+    case Dimension::k3D:
+      image_write->dstBinding = 2;
+      break;
+    case Dimension::kCube:
+      image_write->dstBinding = 3;
+      break;
+  }
+
+  image_write->dstArrayElement = binding.fetch_constant;
+  image_write->descriptorCount = 1;
+  image_write->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  image_write->pImageInfo = image_info;
+
+  image_info->imageView = view->view;
+  image_info->imageLayout = texture->image_layout;
+  image_info->sampler = sampler->sampler;
   texture->in_flight_fence = completion_fence;
 
   return true;

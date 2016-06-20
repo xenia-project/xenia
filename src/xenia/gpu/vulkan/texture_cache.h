@@ -153,6 +153,10 @@ class TextureCache {
                        std::shared_ptr<ui::vulkan::Fence> completion_fence,
                        Texture* dest, TextureInfo src);
 
+  bool UploadTextureCube(VkCommandBuffer command_buffer,
+                         std::shared_ptr<ui::vulkan::Fence> completion_fence,
+                         Texture* dest, TextureInfo src);
+
   bool SetupTextureBindings(
       VkCommandBuffer command_buffer,
       std::shared_ptr<ui::vulkan::Fence> completion_fence,
@@ -192,11 +196,8 @@ class TextureCache {
     // This prevents duplication across the vertex and pixel shader.
     uint32_t has_setup_fetch_mask;
     uint32_t image_write_count = 0;
-    struct ImageSetInfo {
-      Dimension dimension;
-      uint32_t tf_binding;
-      VkDescriptorImageInfo info;
-    } image_infos[32];
+    VkWriteDescriptorSet image_writes[32];
+    VkDescriptorImageInfo image_infos[32];
   } update_set_info_;
 };
 
