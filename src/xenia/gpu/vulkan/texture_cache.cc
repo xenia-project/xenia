@@ -160,11 +160,6 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
-
-  std::memset(update_set_info_.image_writes, 0,
-              sizeof(update_set_info_.image_writes));
-  std::memset(update_set_info_.image_infos, 0,
-              sizeof(update_set_info_.image_infos));
 }
 
 TextureCache::~TextureCache() {
@@ -1037,7 +1032,6 @@ bool TextureCache::SetupTextureBinding(
       &update_set_info->image_writes[update_set_info->image_write_count];
   update_set_info->image_write_count++;
 
-  std::memset(image_write, 0, sizeof(VkWriteDescriptorSet));
   image_write->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
   switch (texture_info.dimension) {
