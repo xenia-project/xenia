@@ -704,6 +704,7 @@ uint32_t XThread::active_cpu() const {
 }
 
 void XThread::SetActiveCpu(uint32_t cpu_index) {
+  assert_true(cpu_index < 6);
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   xe::store_and_swap<uint8_t>(pcr + 0x10C, cpu_index);
 }
