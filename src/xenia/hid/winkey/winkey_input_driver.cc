@@ -162,6 +162,16 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
       buttons |= 0x8000;  // XINPUT_GAMEPAD_Y
     }
 
+    if (IS_KEY_DOWN(0x51) || IS_KEY_DOWN(0x49)) {
+      // Q / I
+      left_trigger = 0xFF;
+    }
+
+    if (IS_KEY_DOWN(0x45) || IS_KEY_DOWN(0x4F)) {
+      // E / O
+      right_trigger = 0xFF;
+    }
+
     if (IS_KEY_DOWN(0x5A)) {
       // Z
       buttons |= 0x0020;  // XINPUT_GAMEPAD_BACK
