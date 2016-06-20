@@ -642,6 +642,15 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
+
+        case OPCODE_DOT_PRODUCT_3:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->DotProduct3(i->src2.value);
+            i->Remove();
+          }
+          break;
+
         default:
           // Ignored.
           break;

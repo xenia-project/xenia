@@ -506,6 +506,7 @@ class Value {
   void VectorRol(Value* other, TypeName type);
   void VectorAdd(Value* other, TypeName type, bool is_unsigned, bool saturate);
   void VectorSub(Value* other, TypeName type, bool is_unsigned, bool saturate);
+  void DotProduct3(Value* other);
   void ByteSwap();
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
