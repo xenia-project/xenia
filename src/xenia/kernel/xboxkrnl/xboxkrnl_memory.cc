@@ -31,10 +31,10 @@ uint32_t ToXdkProtectFlags(uint32_t protect) {
     result = X_PAGE_READWRITE;
   }
   if (protect & kMemoryProtectNoCache) {
-    result = X_PAGE_NOCACHE;
+    result |= X_PAGE_NOCACHE;
   }
   if (protect & kMemoryProtectWriteCombine) {
-    result = X_PAGE_WRITECOMBINE;
+    result |= X_PAGE_WRITECOMBINE;
   }
   return result;
 }
@@ -42,10 +42,10 @@ uint32_t ToXdkProtectFlags(uint32_t protect) {
 uint32_t FromXdkProtectFlags(uint32_t protect) {
   uint32_t result = 0;
   if ((protect & X_PAGE_READONLY) | (protect & X_PAGE_EXECUTE_READ)) {
-    result |= kMemoryProtectRead;
+    result = kMemoryProtectRead;
   } else if ((protect & X_PAGE_READWRITE) |
              (protect & X_PAGE_EXECUTE_READWRITE)) {
-    result |= kMemoryProtectRead | kMemoryProtectWrite;
+    result = kMemoryProtectRead | kMemoryProtectWrite;
   }
   if (protect & X_PAGE_NOCACHE) {
     result |= kMemoryProtectNoCache;
