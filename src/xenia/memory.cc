@@ -551,6 +551,8 @@ void BaseHeap::DumpMap() {
   }
 }
 
+uint32_t BaseHeap::GetTotalPageCount() { return uint32_t(page_table_.size()); }
+
 uint32_t BaseHeap::GetUnreservedPageCount() {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t count = 0;
