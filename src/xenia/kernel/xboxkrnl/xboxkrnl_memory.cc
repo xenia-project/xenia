@@ -444,13 +444,30 @@ SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_context,
   // this won't work :/
   stats->size = size;
 
-  stats->total_physical_pages = 0x00020000;
+  stats->total_physical_pages = 0x00020000;  // 512mb / 4kb pages
   stats->kernel_pages = 0x00000300;
 
-  stats->title.available_pages = 0x00013300;
-  stats->title.total_virtual_memory_bytes = 0x2FFF0000;
-  stats->title.reserved_virtual_memory_bytes = 0x00160000;
-  stats->title.physical_pages = 0x00001000;
+  // TODO(gibbed): maybe use LookupHeapByType instead?
+  auto physA = kernel_memory()->LookupHeap(0xA0000000);
+  auto physC = kernel_memory()->LookupHeap(0xC0000000);
+  auto physE = kernel_memory()->LookupHeap(0xE0000000);
+  assert_not_null(physA);
+  assert_not_null(physC);
+  assert_not_null(physE);
+
+  uint32_t available_pages = 0;
+  available_pages +=
+      (physA->GetUnreservedPageCount() * physA->page_size()) / 4096;
+  available_pages +=
+      (physC->GetUnreservedPageCount() * physC->page_size()) / 4096;
+  available_pages +=
+      (physE->GetUnreservedPageCount() * physE->page_size()) / 4096;
+
+  stats->title.available_pages = available_pages;
+  stats->title.total_virtual_memory_bytes = 0x2FFF0000;  // TODO(gibbed): FIXME
+  stats->title.reserved_virtual_memory_bytes =
+      0x00160000;                            // TODO(gibbed): FIXME
+  stats->title.physical_pages = 0x00001000;  // TODO(gibbed): FIXME
   stats->title.pool_pages = 0x00000010;
   stats->title.stack_pages = 0x00000100;
   stats->title.image_pages = 0x00000100;

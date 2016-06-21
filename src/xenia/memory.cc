@@ -551,6 +551,32 @@ void BaseHeap::DumpMap() {
   }
 }
 
+uint32_t BaseHeap::GetUnreservedPageCount() {
+  auto global_lock = global_critical_region_.Acquire();
+  uint32_t count = 0;
+  bool is_empty_span = false;
+  uint32_t empty_span_start = 0;
+  uint32_t size = uint32_t(page_table_.size());
+  for (uint32_t i = 0; i < size; ++i) {
+    auto& page = page_table_[i];
+    if (!page.state) {
+      if (!is_empty_span) {
+        is_empty_span = true;
+        empty_span_start = i;
+      }
+      continue;
+    }
+    if (is_empty_span) {
+      count += i - empty_span_start;
+    }
+    i += page.region_page_count - 1;
+  }
+  if (is_empty_span) {
+    count += size - empty_span_start;
+  }
+  return count;
+}
+
 bool BaseHeap::Save(ByteStream* stream) {
   XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
 
