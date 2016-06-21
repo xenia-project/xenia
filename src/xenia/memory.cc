@@ -567,6 +567,7 @@ uint32_t BaseHeap::GetUnreservedPageCount() {
       continue;
     }
     if (is_empty_span) {
+      is_empty_span = false;
       count += i - empty_span_start;
     }
     i += page.region_page_count - 1;
