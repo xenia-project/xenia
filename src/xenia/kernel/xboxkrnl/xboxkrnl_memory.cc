@@ -448,22 +448,27 @@ SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_context,
   stats->kernel_pages = 0x00000300;
 
   // TODO(gibbed): maybe use LookupHeapByType instead?
-  auto physA = kernel_memory()->LookupHeap(0xA0000000);
-  auto physC = kernel_memory()->LookupHeap(0xC0000000);
-  auto physE = kernel_memory()->LookupHeap(0xE0000000);
-  assert_not_null(physA);
-  assert_not_null(physC);
-  assert_not_null(physE);
+  auto heap_a = kernel_memory()->LookupHeap(0xA0000000);
+  auto heap_c = kernel_memory()->LookupHeap(0xC0000000);
+  auto heap_e = kernel_memory()->LookupHeap(0xE0000000);
 
-  uint32_t available_pages = 0;
-  available_pages +=
-      (physA->GetUnreservedPageCount() * physA->page_size()) / 4096;
-  available_pages +=
-      (physC->GetUnreservedPageCount() * physC->page_size()) / 4096;
-  available_pages +=
-      (physE->GetUnreservedPageCount() * physE->page_size()) / 4096;
+  assert_not_null(heap_a);
+  assert_not_null(heap_c);
+  assert_not_null(heap_e);
 
-  stats->title.available_pages = available_pages;
+#define GET_USED_PAGE_COUNT(x) \
+  (x->GetTotalPageCount() - x->GetUnreservedPageCount())
+#define GET_USED_PAGE_SIZE(x) ((GET_USED_PAGE_COUNT(x) * x->page_size()) / 4096)
+  uint32_t used_pages = 0;
+  used_pages += GET_USED_PAGE_SIZE(heap_a);
+  used_pages += GET_USED_PAGE_SIZE(heap_c);
+  used_pages += GET_USED_PAGE_SIZE(heap_e);
+#undef GET_USED_PAGE_SIZE
+#undef GET_USED_PAGE_COUNT
+
+  assert_true(used_pages < stats->total_physical_pages);
+
+  stats->title.available_pages = stats->total_physical_pages - used_pages;
   stats->title.total_virtual_memory_bytes = 0x2FFF0000;  // TODO(gibbed): FIXME
   stats->title.reserved_virtual_memory_bytes =
       0x00160000;                            // TODO(gibbed): FIXME
