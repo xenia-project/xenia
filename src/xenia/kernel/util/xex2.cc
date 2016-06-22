@@ -630,12 +630,11 @@ int xe_xex2_read_image_basic_compressed(const xe_xex2_header_t* header,
 
     switch (header->file_format_info.encryption_type) {
       case XEX_ENCRYPTION_NONE:
-        if (exe_length - (p - source_buffer) >
-            uncompressed_size - (d - buffer)) {
+        if (data_size > uncompressed_size - (d - buffer)) {
           // Overflow.
           return 1;
         }
-        memcpy(d, p, exe_length - (p - source_buffer));
+        memcpy(d, p, data_size);
         break;
       case XEX_ENCRYPTION_NORMAL: {
         const uint8_t* ct = p;
