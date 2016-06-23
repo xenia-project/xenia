@@ -79,6 +79,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  spv::Function* CreateCubeFunction();
+
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
 
@@ -110,13 +112,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id glsl_std_450_instruction_set_ = 0;
 
   // Generated function
-  spv::Function* translated_main_ = 0;
+  spv::Function* translated_main_ = nullptr;
+  spv::Function* cube_function_ = nullptr;
 
   // Types.
   spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_uint_type_ = 0;
   spv::Id vec4_bool_type_ = 0;
+  spv::Id image_1d_type_ = 0, image_2d_type_ = 0, image_3d_type_ = 0,
+          image_cube_type_ = 0;
 
   // Constants.
   spv::Id vec4_float_zero_ = 0, vec4_float_one_ = 0;

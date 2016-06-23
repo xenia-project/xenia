@@ -51,6 +51,7 @@ void SpirvShaderTranslator::StartTranslation() {
                    spv::MemoryModel::MemoryModelGLSL450);
   b.addCapability(spv::Capability::CapabilityShader);
   b.addCapability(spv::Capability::CapabilityGenericPointer);
+  b.addCapability(spv::Capability::CapabilityImageQuery);
 
   if (is_vertex_shader()) {
     b.addCapability(spv::Capability::CapabilityClipDistance);
@@ -78,6 +79,8 @@ void SpirvShaderTranslator::StartTranslation() {
       vec4_float_type_,
       std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
                        b.makeFloatConstant(0.f), b.makeFloatConstant(0.f)}));
+
+  cube_function_ = CreateCubeFunction();
 
   spv::Block* function_block = nullptr;
   translated_main_ =
@@ -174,19 +177,24 @@ void SpirvShaderTranslator::StartTranslation() {
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
+  image_1d_type_ =
+      b.makeImageType(float_type_, spv::Dim::Dim1D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown);
+  image_2d_type_ =
+      b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown);
+  image_3d_type_ =
+      b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown);
+  image_cube_type_ =
+      b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
+                      spv::ImageFormat::ImageFormatUnknown);
+
   // Texture bindings
-  Id tex_t[] = {b.makeSampledImageType(b.makeImageType(
-                    float_type_, spv::Dim::Dim1D, false, false, false, 1,
-                    spv::ImageFormat::ImageFormatUnknown)),
-                b.makeSampledImageType(b.makeImageType(
-                    float_type_, spv::Dim::Dim2D, false, false, false, 1,
-                    spv::ImageFormat::ImageFormatUnknown)),
-                b.makeSampledImageType(b.makeImageType(
-                    float_type_, spv::Dim::Dim3D, false, false, false, 1,
-                    spv::ImageFormat::ImageFormatUnknown)),
-                b.makeSampledImageType(b.makeImageType(
-                    float_type_, spv::Dim::DimCube, false, false, false, 1,
-                    spv::ImageFormat::ImageFormatUnknown))};
+  Id tex_t[] = {b.makeSampledImageType(image_1d_type_),
+                b.makeSampledImageType(image_2d_type_),
+                b.makeSampledImageType(image_3d_type_),
+                b.makeSampledImageType(image_cube_type_)};
 
   Id tex_a_t[] = {b.makeArrayType(tex_t[0], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[1], b.makeUintConstant(32), 0),
@@ -974,18 +982,23 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   assert_not_zero(src);
 
   uint32_t dim_idx = 0;
+  spv::Id image_type = 0;
   switch (instr.dimension) {
     case TextureDimension::k1D: {
       dim_idx = 0;
+      image_type = image_1d_type_;
     } break;
     case TextureDimension::k2D: {
       dim_idx = 1;
+      image_type = image_2d_type_;
     } break;
     case TextureDimension::k3D: {
       dim_idx = 2;
+      image_type = image_3d_type_;
     } break;
     case TextureDimension::kCube: {
       dim_idx = 3;
+      image_type = image_cube_type_;
     } break;
     default:
       assert_unhandled_case(instr.dimension);
@@ -1005,6 +1018,53 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
                                  false, false, false, false, params);
     } break;
+    case FetchOpcode::kGetTextureWeights: {
+      // fract(src0 * textureSize);
+      auto texture_index = b.makeUintConstant(instr.operands[1].storage_index);
+      auto texture_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              tex_[dim_idx], std::vector<Id>({texture_index}));
+      auto texture = b.createLoad(texture_ptr);
+      auto image = b.createUnaryOp(spv::Op::OpImage, image_type, texture);
+
+      switch (instr.dimension) {
+        case TextureDimension::k1D: {
+          auto size =
+              b.createUnaryOp(spv::Op::OpImageQuerySize, float_type_, image);
+          auto tex_coord = b.createCompositeExtract(src, float_type_, 0);
+
+          auto weight =
+              b.createBinOp(spv::Op::OpFMul, float_type_, size, tex_coord);
+          weight = CreateGlslStd450InstructionCall(
+              spv::NoPrecision, float_type_, spv::GLSLstd450::kFract, {weight});
+
+          dest = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                            {weight, vec4_float_zero_, 0, 1, 1, 1});
+        } break;
+
+        case TextureDimension::k2D: {
+          auto size = b.createUnaryOp(spv::Op::OpImageQuerySize,
+                                      vec2_float_type_, image);
+          auto tex_coord = b.createOp(spv::Op::OpVectorShuffle,
+                                      vec2_float_type_, {src, src, 0, 1});
+
+          auto weight =
+              b.createBinOp(spv::Op::OpFMul, vec2_float_type_, size, tex_coord);
+          weight = CreateGlslStd450InstructionCall(
+              spv::NoPrecision, vec2_float_type_, spv::GLSLstd450::kFract,
+              {weight});
+
+          dest = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                            {weight, vec4_float_zero_, 0, 1, 2, 2});
+        } break;
+
+        default:
+          // TODO(DrChat): The rest of these.
+          assert_always();
+          break;
+      }
+    } break;
+
     default:
       // TODO: the rest of these
       assert_always();
@@ -1031,6 +1091,194 @@ void SpirvShaderTranslator::ProcessAluInstruction(
       ProcessScalarAluInstruction(instr);
       break;
   }
+}
+
+spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
+  auto& b = *builder_;
+  spv::Block* function_block = nullptr;
+  auto function = b.makeFunctionEntry(spv::NoPrecision, vec4_float_type_,
+                                      "cube", {vec4_float_type_},
+                                      {spv::NoPrecision}, &function_block);
+  auto src = function->getParamId(0);
+  auto face_id = b.createVariable(spv::StorageClass::StorageClassFunction,
+                                  float_type_, "face_id");
+  auto sc = b.createVariable(spv::StorageClass::StorageClassFunction,
+                             float_type_, "sc");
+  auto tc = b.createVariable(spv::StorageClass::StorageClassFunction,
+                             float_type_, "tc");
+  auto ma = b.createVariable(spv::StorageClass::StorageClassFunction,
+                             float_type_, "ma");
+
+  // Pseudocode:
+  /*
+  vec4 cube(vec4 src1) {
+  vec3 src = vec3(src1.y, src1.x, src1.z);
+  vec3 abs_src = abs(src);
+  int face_id;
+  float sc;
+  float tc;
+  float ma;
+  if (abs_src.x > abs_src.y && abs_src.x > abs_src.z) {
+    if (src.x > 0.0) {
+      face_id = 0; sc = -abs_src.z; tc = -abs_src.y; ma = abs_src.x;
+    } else {
+      face_id = 1; sc =  abs_src.z; tc = -abs_src.y; ma = abs_src.x;
+    }
+  } else if (abs_src.y > abs_src.x && abs_src.y > abs_src.z) {
+    if (src.y > 0.0) {
+      face_id = 2; sc =  abs_src.x; tc =  abs_src.z; ma = abs_src.y;
+    } else {
+      face_id = 3; sc =  abs_src.x; tc = -abs_src.z; ma = abs_src.y;
+    }
+  } else {
+    if (src.z > 0.0) {
+      face_id = 4; sc =  abs_src.x; tc = -abs_src.y; ma = abs_src.z;
+    } else {
+      face_id = 5; sc = -abs_src.x; tc = -abs_src.y; ma = abs_src.z;
+    }
+  }
+  float s = (sc / ma + 1.0) / 2.0;
+  float t = (tc / ma + 1.0) / 2.0;
+  return vec4(t, s, 2.0 * ma, float(face_id));
+  }
+  */
+
+  auto abs_src = CreateGlslStd450InstructionCall(
+      spv::NoPrecision, vec4_float_type_, spv::GLSLstd450::kFAbs, {src});
+  auto abs_src_x = b.createCompositeExtract(abs_src, float_type_, 0);
+  auto abs_src_y = b.createCompositeExtract(abs_src, float_type_, 1);
+  auto abs_src_z = b.createCompositeExtract(abs_src, float_type_, 2);
+  auto neg_src_x = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_x);
+  auto neg_src_y = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_y);
+  auto neg_src_z = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_z);
+
+  //  Case 1: abs(src).x > abs(src).yz
+  {
+    auto x_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                abs_src_x, abs_src_y);
+    auto x_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                abs_src_x, abs_src_z);
+    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, x_gt_y, x_gt_z);
+    spv::Builder::If if1(c1, b);
+
+    //  sc =  abs(src).y
+    b.createStore(abs_src_y, sc);
+    //  ma =  abs(src).x
+    b.createStore(abs_src_x, ma);
+
+    auto src_x = b.createCompositeExtract(src, float_type_, 0);
+    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_x,
+                            b.makeFloatConstant(0));
+    //  src.x > 0:
+    //    face_id = 2
+    //    tc = -abs(src).z
+    //  src.x <= 0:
+    //    face_id = 3
+    //    tc =  abs(src).z
+    auto tmp_face_id =
+        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
+                      b.makeFloatConstant(2), b.makeFloatConstant(3));
+    auto tmp_tc =
+        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_z, abs_src_z);
+
+    b.createStore(tmp_face_id, face_id);
+    b.createStore(tmp_tc, tc);
+
+    if1.makeEndIf();
+  }
+
+  //  Case 2: abs(src).y > abs(src).xz
+  {
+    auto y_gt_x = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                abs_src_y, abs_src_x);
+    auto y_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                abs_src_y, abs_src_z);
+    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, y_gt_x, y_gt_z);
+    spv::Builder::If if1(c1, b);
+
+    //  tc = -abs(src).x
+    b.createStore(neg_src_x, tc);
+    //  ma =  abs(src).y
+    b.createStore(abs_src_y, ma);
+
+    auto src_y = b.createCompositeExtract(src, float_type_, 1);
+    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_y,
+                            b.makeFloatConstant(0));
+    //  src.y > 0:
+    //    face_id = 0
+    //    sc = -abs(src).z
+    //  src.y <= 0:
+    //    face_id = 1
+    //    sc =  abs(src).z
+    auto tmp_face_id =
+        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
+                      b.makeFloatConstant(0), b.makeFloatConstant(1));
+    auto tmp_sc =
+        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_z, abs_src_z);
+
+    b.createStore(tmp_face_id, face_id);
+    b.createStore(tmp_sc, sc);
+
+    if1.makeEndIf();
+  }
+
+  //  Case 3: abs(src).z > abs(src).yx
+  {
+    auto z_gt_x = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                abs_src_z, abs_src_x);
+    auto z_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+                                abs_src_z, abs_src_y);
+    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, z_gt_x, z_gt_y);
+    spv::Builder::If if1(c1, b);
+
+    //  tc = -abs(src).x
+    b.createStore(neg_src_x, tc);
+    //  ma =  abs(src).z
+    b.createStore(abs_src_z, ma);
+
+    auto src_z = b.createCompositeExtract(src, float_type_, 2);
+    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_z,
+                            b.makeFloatConstant(0));
+    //  src.z > 0:
+    //    face_id = 4
+    //    sc = -abs(src).y
+    //  src.z <= 0:
+    //    face_id = 5
+    //    sc =  abs(src).y
+    auto tmp_face_id =
+        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
+                      b.makeFloatConstant(4), b.makeFloatConstant(5));
+    auto tmp_sc =
+        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_y, abs_src_y);
+
+    b.createStore(tmp_face_id, face_id);
+    b.createStore(tmp_sc, sc);
+
+    if1.makeEndIf();
+  }
+
+  //  s = (sc / ma + 1.0) / 2.0
+  auto s = b.createBinOp(spv::Op::OpFDiv, float_type_, b.createLoad(sc),
+                         b.createLoad(ma));
+  s = b.createBinOp(spv::Op::OpFAdd, float_type_, s, b.makeFloatConstant(1.0));
+  s = b.createBinOp(spv::Op::OpFDiv, float_type_, s, b.makeFloatConstant(2.0));
+
+  //  t = (tc / ma + 1.0) / 2.0
+  auto t = b.createBinOp(spv::Op::OpFDiv, float_type_, b.createLoad(tc),
+                         b.createLoad(ma));
+  t = b.createBinOp(spv::Op::OpFAdd, float_type_, t, b.makeFloatConstant(1.0));
+  t = b.createBinOp(spv::Op::OpFDiv, float_type_, t, b.makeFloatConstant(2.0));
+
+  auto ma_times_two = b.createBinOp(spv::Op::OpFMul, float_type_,
+                                    b.createLoad(ma), b.makeFloatConstant(2.0));
+
+  //  dest = vec4(t, s, 2.0 * ma, face_id)
+  auto ret = b.createCompositeConstruct(
+      vec4_float_type_,
+      std::vector<Id>({t, s, ma_times_two, b.createLoad(face_id)}));
+  b.makeReturn(false, ret);
+
+  return function;
 }
 
 void SpirvShaderTranslator::ProcessVectorAluInstruction(
@@ -1103,7 +1351,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kCube: {
-      // TODO:
+      dest =
+          b.createFunctionCall(cube_function_, std::vector<Id>({sources[1]}));
     } break;
 
     case AluVectorOpcode::kDst: {
@@ -1664,6 +1913,11 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kMaxs: {
+      if (sources[0] == sources[1]) {
+        // mov dst, src
+        dest = sources[0];
+      }
+
       // dest = max(src0, src1)
       dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
                                              GLSLstd450::kFMax,
@@ -1671,6 +1925,11 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     } break;
 
     case AluScalarOpcode::kMins: {
+      if (sources[0] == sources[1]) {
+        // mov dst, src
+        dest = sources[0];
+      }
+
       // dest = min(src0, src1)
       dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
                                              GLSLstd450::kFMin,
@@ -1972,6 +2231,7 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
       storage_class = spv::StorageClass::StorageClassFunction;
       storage_type = vec4_float_type_;
       storage_offsets.push_back(storage_index);
+      assert_true(uint32_t(op.storage_index) < register_count());
       break;
     case InstructionStorageSource::kConstantFloat:
       storage_pointer = consts_;
@@ -2099,6 +2359,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_type = vec4_float_type_;
       storage_offsets.push_back(storage_index);
       storage_array = true;
+      assert_true(uint32_t(result.storage_index) < register_count());
       break;
     case InstructionStorageTarget::kInterpolant:
       assert_true(is_vertex_shader());
