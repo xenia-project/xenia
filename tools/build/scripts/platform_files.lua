@@ -7,6 +7,7 @@ local function match_platform_files(base_path, base_match)
     base_path.."/"..base_match..".c",
     base_path.."/"..base_match..".cc",
     base_path.."/"..base_match..".cpp",
+    base_path.."/"..base_match..".inc",
   })
   removefiles({base_path.."/".."**_main.cc"})
   removefiles({base_path.."/".."**_test.cc"})
