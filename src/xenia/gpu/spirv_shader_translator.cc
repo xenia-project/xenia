@@ -50,7 +50,6 @@ void SpirvShaderTranslator::StartTranslation() {
   b.setMemoryModel(spv::AddressingModel::AddressingModelLogical,
                    spv::MemoryModel::MemoryModelGLSL450);
   b.addCapability(spv::Capability::CapabilityShader);
-  b.addCapability(spv::Capability::CapabilityGenericPointer);
   b.addCapability(spv::Capability::CapabilityImageQuery);
 
   if (is_vertex_shader()) {
