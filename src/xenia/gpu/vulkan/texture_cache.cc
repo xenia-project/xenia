@@ -258,34 +258,6 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   texture->memory_offset = 0;
   texture->memory_size = mem_requirements.size;
   texture->texture_info = texture_info;
-
-  // Create a default view, just for kicks.
-  VkImageViewCreateInfo view_info;
-  view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  view_info.pNext = nullptr;
-  view_info.flags = 0;
-  view_info.image = image;
-  view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  view_info.format = image_info.format;
-  view_info.components = {
-      VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
-      VK_COMPONENT_SWIZZLE_A,
-  };
-  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  VkImageView view;
-  err = vkCreateImageView(*device_, &view_info, nullptr, &view);
-  CheckResult(err, "vkCreateImageView");
-  if (err == VK_SUCCESS) {
-    auto texture_view = std::make_unique<TextureView>();
-    texture_view->texture = texture;
-    texture_view->view = view;
-    texture_view->swiz_x = 0;
-    texture_view->swiz_y = 1;
-    texture_view->swiz_z = 2;
-    texture_view->swiz_w = 3;
-    texture->views.push_back(std::move(texture_view));
-  }
-
   return texture;
 }
 
@@ -537,6 +509,12 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT) {
+    // This applies to any depth/stencil format, but we only use D24S8.
+    view_info.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  }
+
   VkImageView view;
   auto status = vkCreateImageView(*device_, &view_info, nullptr, &view);
   CheckResult(status, "vkCreateImageView");

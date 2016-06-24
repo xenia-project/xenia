@@ -582,9 +582,9 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   } else {
     // Index buffer draw.
     uint32_t instance_count = 1;
-    uint32_t first_index =
+    uint32_t first_index = 0;
+    uint32_t vertex_offset =
         register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
-    uint32_t vertex_offset = 0;
     uint32_t first_instance = 0;
     vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index,
                      vertex_offset, first_instance);
@@ -788,8 +788,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(copy_dest_array == 0);
   uint32_t copy_dest_slice = (copy_dest_info >> 4) & 0x7;
   assert_true(copy_dest_slice == 0);
-  auto copy_dest_format =
-      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
+  auto copy_dest_format = ColorFormatToTextureFormat(
+      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F));
   uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
   // assert_true(copy_dest_number == 0); // ?
   uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
@@ -840,7 +840,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     window_offset_y |= 0x8000;
   }
 
-  size_t read_size = GetTexelSize(ColorFormatToTextureFormat(copy_dest_format));
+  size_t read_size = GetTexelSize(copy_dest_format);
 
   // Adjust the copy base offset to point to the beginning of the texture, so
   // we don't run into hiccups down the road (e.g. resolving the last part going
@@ -916,6 +916,9 @@ bool VulkanCommandProcessor::IssueCopy() {
 
     depth_format =
         static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    if (!depth_clear_enabled) {
+      copy_dest_format = TextureFormat::k_24_8;
+    }
   }
 
   // Demand a resolve texture from the texture cache.
@@ -925,8 +928,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.height = dest_logical_height - 1;
   tex_info.dimension = gpu::Dimension::k2D;
   tex_info.input_length = copy_dest_pitch * copy_dest_height * 4;
-  tex_info.format_info =
-      FormatInfo::Get(uint32_t(ColorFormatToTextureFormat(copy_dest_format)));
+  tex_info.format_info = FormatInfo::Get(uint32_t(copy_dest_format));
   tex_info.size_2d.logical_width = dest_logical_width;
   tex_info.size_2d.logical_height = dest_logical_height;
   tex_info.size_2d.block_width = dest_block_width;
@@ -934,8 +936,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.size_2d.input_width = dest_block_width;
   tex_info.size_2d.input_height = dest_block_height;
   tex_info.size_2d.input_pitch = copy_dest_pitch * 4;
-  auto texture = texture_cache_->DemandResolveTexture(
-      tex_info, ColorFormatToTextureFormat(copy_dest_format), nullptr);
+  auto texture =
+      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format, nullptr);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 
@@ -1001,6 +1003,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t src_format = copy_src_select <= 3
                             ? static_cast<uint32_t>(color_format)
                             : static_cast<uint32_t>(depth_format);
+  VkFilter filter = copy_src_select <= 3 ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
   switch (copy_command) {
     case CopyCommand::kRaw:
     /*
@@ -1010,11 +1013,11 @@ bool VulkanCommandProcessor::IssueCopy() {
       break;
     */
     case CopyCommand::kConvert:
-      render_cache_->BlitToImage(
-          command_buffer, edram_base, surface_pitch, resolve_extent.height,
-          surface_msaa, texture->image, texture->image_layout,
-          copy_src_select <= 3, src_format, VK_FILTER_LINEAR, resolve_offset,
-          resolve_extent);
+      render_cache_->BlitToImage(command_buffer, edram_base, surface_pitch,
+                                 resolve_extent.height, surface_msaa,
+                                 texture->image, texture->image_layout,
+                                 copy_src_select <= 3, src_format, filter,
+                                 resolve_offset, resolve_extent);
       break;
 
     case CopyCommand::kConstantOne:
