@@ -253,6 +253,9 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   }
 
   regs->values[index].u32 = value;
+  if (!regs->GetRegisterInfo(index)) {
+    XELOGW("GPU: Write to unknown register (%.4X = %.8X)", index, value);
+  }
 
   // If this is a COHER register, set the dirty flag.
   // This will block the command processor the next time it WAIT_MEM_REGs and
@@ -1051,6 +1054,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
   IndexBufferInfo index_buffer_info;
   uint32_t src_sel = (dword1 >> 6) & 0x3;
   if (src_sel == 0x0) {
+    // DI_SRC_SEL_DMA
     // Indexed draw.
     is_indexed = true;
     index_buffer_info.guest_base = reader->Read<uint32_t>(true);
@@ -1063,12 +1067,16 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
     index_size *= index_32bit ? 4 : 2;
     index_buffer_info.length = index_size;
     index_buffer_info.count = index_count;
+  } else if (src_sel == 0x1) {
+    // DI_SRC_SEL_IMMEDIATE
+    assert_always();
   } else if (src_sel == 0x2) {
+    // DI_SRC_SEL_AUTO_INDEX
     // Auto draw.
     index_buffer_info.guest_base = 0;
     index_buffer_info.length = 0;
   } else {
-    // Unknown source select.
+    // Invalid source select.
     assert_always();
   }
 
