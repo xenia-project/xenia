@@ -629,6 +629,25 @@ void Value::RSqrt() {
   }
 }
 
+void Value::Recip() {
+  switch (type) {
+    case FLOAT32_TYPE:
+      constant.f32 = 1.0f / constant.f32;
+      break;
+    case FLOAT64_TYPE:
+      constant.f64 = 1.0f / constant.f64;
+      break;
+    case VEC128_TYPE:
+      for (int i = 0; i < 4; i++) {
+        constant.v128.f32[i] = 1.0f / constant.v128.f32[i];
+      }
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
 void Value::And(Value* other) {
   assert_true(type == other->type);
   switch (type) {

@@ -196,6 +196,7 @@ class HIRBuilder {
   Value* Abs(Value* value);
   Value* Sqrt(Value* value);
   Value* RSqrt(Value* value);
+  Value* Recip(Value* value);
   Value* Pow2(Value* value);
   Value* Log2(Value* value);
   Value* DotProduct3(Value* value1, Value* value2);

@@ -1659,6 +1659,15 @@ Value* HIRBuilder::RSqrt(Value* value) {
   return i->dest;
 }
 
+Value* HIRBuilder::Recip(Value* value) {
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
+
+  Instr* i = AppendInstr(OPCODE_RECIP_info, 0, AllocValue(value->type));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::Pow2(Value* value) {
   ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 

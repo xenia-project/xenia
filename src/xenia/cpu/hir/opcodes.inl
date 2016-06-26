@@ -471,6 +471,12 @@ DEFINE_OPCODE(
     0)
 
 DEFINE_OPCODE(
+    OPCODE_RECIP,
+    "recip",
+    OPCODE_SIG_V_V,
+    0)
+
+DEFINE_OPCODE(
     OPCODE_POW2,
     "pow2",
     OPCODE_SIG_V_V,

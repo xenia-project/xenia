@@ -487,7 +487,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
-
+        case OPCODE_RECIP:
+          if (i->src1.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->Recip();
+            i->Remove();
+          }
+          break;
         case OPCODE_AND:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);

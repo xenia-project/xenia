@@ -487,6 +487,7 @@ class Value {
   void Abs();
   void Sqrt();
   void RSqrt();
+  void Recip();
   void And(Value* other);
   void Or(Value* other);
   void Xor(Value* other);

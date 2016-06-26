@@ -4864,6 +4864,28 @@ struct RSQRT_V128 : Sequence<RSQRT_V128, I<OPCODE_RSQRT, V128Op, V128Op>> {
 EMITTER_OPCODE_TABLE(OPCODE_RSQRT, RSQRT_F32, RSQRT_F64, RSQRT_V128);
 
 // ============================================================================
+// OPCODE_RECIP
+// ============================================================================
+struct RECIP_F32 : Sequence<RECIP_F32, I<OPCODE_RECIP, F32Op, F32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.vrcpss(i.dest, i.src1);
+  }
+};
+struct RECIP_F64 : Sequence<RECIP_F64, I<OPCODE_RECIP, F64Op, F64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.vcvtsd2ss(i.dest, i.src1);
+    e.vrcpss(i.dest, i.dest);
+    e.vcvtss2sd(i.dest, i.dest);
+  }
+};
+struct RECIP_V128 : Sequence<RECIP_V128, I<OPCODE_RECIP, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.vrcpps(i.dest, i.src1);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
+
+// ============================================================================
 // OPCODE_POW2
 // ============================================================================
 // TODO(benvanik): use approx here:
@@ -7582,6 +7604,7 @@ void RegisterSequences() {
   Register_OPCODE_ABS();
   Register_OPCODE_SQRT();
   Register_OPCODE_RSQRT();
+  Register_OPCODE_RECIP();
   Register_OPCODE_POW2();
   Register_OPCODE_LOG2();
   Register_OPCODE_DOT_PRODUCT_3();
