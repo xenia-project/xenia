@@ -64,10 +64,13 @@ void SpirvShaderTranslator::StartTranslation() {
   float_type_ = b.makeFloatType(32);
   int_type_ = b.makeIntType(32);
   uint_type_ = b.makeUintType(32);
+  vec2_uint_type_ = b.makeVectorType(uint_type_, 2);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
   vec4_float_type_ = b.makeVectorType(float_type_, 4);
   vec4_uint_type_ = b.makeVectorType(uint_type_, 4);
+  vec2_bool_type_ = b.makeVectorType(bool_type_, 2);
+  vec3_bool_type_ = b.makeVectorType(bool_type_, 3);
   vec4_bool_type_ = b.makeVectorType(bool_type_, 4);
 
   vec4_float_one_ = b.makeCompositeConstant(
@@ -374,6 +377,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, ps_param_gen_idx,
                                 b.makeUintConstant(i));
+      cond = b.smearScalar(spv::NoPrecision, cond, vec4_bool_type_);
       auto reg = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, cond, param,
                                b.createLoad(reg_ptr));
       b.createStore(reg, reg_ptr);
@@ -876,15 +880,45 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   vertex_id = b.createCompositeExtract(vertex_id, float_type_, 0);
   vertex_id = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, vertex_id);
   auto shader_vertex_id = b.createLoad(vertex_id_);
-  auto cond =
-      b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_id, shader_vertex_id);
-  cond = b.smearScalar(spv::NoPrecision, cond, vec4_bool_type_);
 
   // Skip loading if it's an indexed fetch.
   auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
                                        [instr.attributes.offset];
   assert_not_zero(vertex_ptr);
   auto vertex = b.createLoad(vertex_ptr);
+
+  auto cond =
+      b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_id, shader_vertex_id);
+  auto vertex_components = b.getNumComponents(vertex);
+  Id alt_vertex = 0;
+  switch (vertex_components) {
+    case 1:
+      alt_vertex = b.makeFloatConstant(0.f);
+      break;
+    case 2:
+      alt_vertex = b.makeCompositeConstant(
+          vec2_float_type_, std::vector<Id>({b.makeFloatConstant(0.f),
+                                             b.makeFloatConstant(1.f)}));
+      cond = b.smearScalar(spv::NoPrecision, cond, vec2_bool_type_);
+      break;
+    case 3:
+      alt_vertex = b.makeCompositeConstant(
+          vec3_float_type_,
+          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
+                           b.makeFloatConstant(1.f)}));
+      cond = b.smearScalar(spv::NoPrecision, cond, vec3_bool_type_);
+      break;
+    case 4:
+      alt_vertex = b.makeCompositeConstant(
+          vec4_float_type_,
+          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
+                           b.makeFloatConstant(0.f),
+                           b.makeFloatConstant(1.f)}));
+      cond = b.smearScalar(spv::NoPrecision, cond, vec4_bool_type_);
+      break;
+    default:
+      assert_unhandled_case(vertex_components);
+  }
 
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8:
@@ -908,34 +942,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case VertexFormat::k_11_11_10: {
       // This needs to be converted.
     } break;
-  }
-
-  auto vertex_components = b.getNumComponents(vertex);
-  Id alt_vertex = 0;
-  switch (vertex_components) {
-    case 1:
-      alt_vertex = b.makeFloatConstant(0.f);
-      break;
-    case 2:
-      alt_vertex = b.makeCompositeConstant(
-          vec2_float_type_, std::vector<Id>({b.makeFloatConstant(0.f),
-                                             b.makeFloatConstant(1.f)}));
-      break;
-    case 3:
-      alt_vertex = b.makeCompositeConstant(
-          vec3_float_type_,
-          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
-                           b.makeFloatConstant(1.f)}));
-      break;
-    case 4:
-      alt_vertex = b.makeCompositeConstant(
-          vec4_float_type_,
-          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
-                           b.makeFloatConstant(0.f),
-                           b.makeFloatConstant(1.f)}));
-      break;
-    default:
-      assert_unhandled_case(vertex_components);
   }
 
   vertex = b.createTriOp(spv::Op::OpSelect, b.getTypeId(vertex), cond, vertex,
@@ -976,7 +982,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
   // Operand 0 is the offset
   // Operand 1 is the sampler index
-  Id dest = 0;
+  Id dest = vec4_float_zero_;
   Id src = LoadFromOperand(instr.operands[0]);
   assert_not_zero(src);
 
@@ -1023,13 +1029,15 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       auto texture_ptr =
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));
-      auto texture = b.createLoad(texture_ptr);
-      auto image = b.createUnaryOp(spv::Op::OpImage, image_type, texture);
+      auto image = b.createUnaryOp(spv::Op::OpImage, image_type,
+                                   b.createLoad(texture_ptr));
 
+      /*
       switch (instr.dimension) {
         case TextureDimension::k1D: {
           auto size =
-              b.createUnaryOp(spv::Op::OpImageQuerySize, float_type_, image);
+              b.createUnaryOp(spv::Op::OpImageQuerySize, uint_type_, image);
+          size = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_, size);
           auto tex_coord = b.createCompositeExtract(src, float_type_, 0);
 
           auto weight =
@@ -1043,7 +1051,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
         case TextureDimension::k2D: {
           auto size = b.createUnaryOp(spv::Op::OpImageQuerySize,
-                                      vec2_float_type_, image);
+                                      vec2_uint_type_, image);
+          size =
+              b.createUnaryOp(spv::Op::OpConvertUToF, vec2_float_type_, size);
           auto tex_coord = b.createOp(spv::Op::OpVectorShuffle,
                                       vec2_float_type_, {src, src, 0, 1});
 
@@ -1062,6 +1072,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           assert_always();
           break;
       }
+      */
     } break;
 
     default:
@@ -1286,7 +1297,7 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
 
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
-  Id dest = 0;
+  Id dest = vec4_float_zero_;
   for (size_t i = 0; i < instr.operand_count; i++) {
     sources[i] = LoadFromOperand(instr.operands[i]);
   }
@@ -1698,7 +1709,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
-  Id dest = 0;
+  Id dest = b.makeFloatConstant(0);
   for (size_t i = 0, x = 0; i < instr.operand_count; i++) {
     auto src = LoadFromOperand(instr.operands[i]);
 
