@@ -53,7 +53,8 @@ void SpirvValidator::Result::AppendText(StringBuffer* target_buffer) const {
   }
 }
 
-SpirvValidator::SpirvValidator() : spv_context_(spvContextCreate()) {}
+SpirvValidator::SpirvValidator()
+    : spv_context_(spvContextCreate(SPV_ENV_UNIVERSAL_1_1)) {}
 SpirvValidator::~SpirvValidator() { spvContextDestroy(spv_context_); }
 
 std::unique_ptr<SpirvValidator::Result> SpirvValidator::Validate(
@@ -61,8 +62,7 @@ std::unique_ptr<SpirvValidator::Result> SpirvValidator::Validate(
   spv_text text = nullptr;
   spv_diagnostic diagnostic = nullptr;
   spv_const_binary_t binary = {words, word_count};
-  auto result_code =
-      spvValidate(spv_context_, &binary, SPV_VALIDATE_ALL, &diagnostic);
+  auto result_code = spvValidate(spv_context_, &binary, &diagnostic);
   std::unique_ptr<Result> result(new Result(text, diagnostic));
   if (result_code) {
     XELOGE("Failed to validate spv: %d", result_code);
