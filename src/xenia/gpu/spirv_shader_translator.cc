@@ -467,12 +467,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         std::vector<Id>({b.makeUintConstant(2)}));
     auto alpha_test = b.createLoad(alpha_test_ptr);
 
-    auto alpha_test_enabled = b.createCompositeExtract(
-        alpha_test, float_type_, std::vector<uint32_t>{0});
-    auto alpha_test_func = b.createCompositeExtract(alpha_test, float_type_,
-                                                    std::vector<uint32_t>{1});
-    auto alpha_test_ref = b.createCompositeExtract(alpha_test, float_type_,
-                                                   std::vector<uint32_t>{2});
+    auto alpha_test_enabled =
+        b.createCompositeExtract(alpha_test, float_type_, 0);
+    auto alpha_test_func = b.createCompositeExtract(alpha_test, float_type_, 1);
+    auto alpha_test_ref = b.createCompositeExtract(alpha_test, float_type_, 2);
 
     alpha_test_func =
         b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
@@ -2455,13 +2453,18 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     auto n_el = b.getNumComponents(source_value_id);
     auto n_dst = b.getNumTypeComponents(storage_type);
 
-    std::vector<uint32_t> channels;
-    for (int i = 0; i < n_dst; i++) {
-      channels.push_back(i % n_el);
-    }
+    if (n_el != 1) {
+      std::vector<uint32_t> channels;
+      for (int i = 0; i < n_dst; i++) {
+        channels.push_back(i % n_el);
+      }
 
-    source_value_id = b.createRvalueSwizzle(spv::NoPrecision, storage_type,
-                                            source_value_id, channels);
+      source_value_id = b.createRvalueSwizzle(spv::NoPrecision, storage_type,
+                                              source_value_id, channels);
+    } else {
+      source_value_id =
+          b.smearScalar(spv::NoPrecision, source_value_id, storage_type);
+    }
   }
 
   // swizzle
