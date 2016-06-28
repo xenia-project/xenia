@@ -353,8 +353,9 @@ void SpirvShaderTranslator::StartTranslation() {
     interface_ids_.push_back(frag_coord);
     interface_ids_.push_back(point_coord);
 
-    auto param = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                            {frag_coord, point_coord, 0, 1, 4, 5});
+    auto param = b.createOp(
+        spv::Op::OpVectorShuffle, vec4_float_type_,
+        {b.createLoad(frag_coord), b.createLoad(point_coord), 0, 1, 4, 5});
     /*
     // TODO: gl_FrontFacing
     auto param_x = b.createCompositeExtract(param, float_type_, 0);
@@ -461,16 +462,26 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     b.createStore(p, pos_);
   } else {
     // Alpha test
+    auto alpha_test_ptr = b.createAccessChain(
+        spv::StorageClass::StorageClassPushConstant, push_consts_,
+        std::vector<Id>({b.makeUintConstant(2)}));
+    auto alpha_test = b.createLoad(alpha_test_ptr);
+
     auto alpha_test_enabled = b.createCompositeExtract(
-        push_consts_, float_type_, std::vector<uint32_t>{2, 0});
-    auto alpha_test_func = b.createCompositeExtract(
-        push_consts_, float_type_, std::vector<uint32_t>{2, 1});
-    auto alpha_test_ref = b.createCompositeExtract(push_consts_, float_type_,
-                                                   std::vector<uint32_t>{2, 2});
+        alpha_test, float_type_, std::vector<uint32_t>{0});
+    auto alpha_test_func = b.createCompositeExtract(alpha_test, float_type_,
+                                                    std::vector<uint32_t>{1});
+    auto alpha_test_ref = b.createCompositeExtract(alpha_test, float_type_,
+                                                   std::vector<uint32_t>{2});
+
     alpha_test_func =
         b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
-    auto oC0_alpha = b.createCompositeExtract(frag_outputs_, float_type_,
-                                              std::vector<uint32_t>({0, 3}));
+
+    auto oC0_ptr = b.createAccessChain(
+        spv::StorageClass::StorageClassOutput, frag_outputs_,
+        std::vector<Id>({b.makeUintConstant(0)}));
+    auto oC0_alpha =
+        b.createCompositeExtract(b.createLoad(oC0_ptr), float_type_, 3);
 
     auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
                               alpha_test_enabled, b.makeFloatConstant(1.f));
@@ -540,7 +551,7 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
   if (FLAGS_spv_validate) {
     auto validation = validator_.Validate(
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
-        shader->translated_binary().size() / 4);
+        shader->translated_binary().size() / sizeof(uint32_t));
     if (validation->has_error()) {
       XELOGE("SPIR-V Shader Validation failed! Error: %s",
              validation->error_string());
@@ -2443,24 +2454,14 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     std::vector<Id> constituents;
     auto n_el = b.getNumComponents(source_value_id);
     auto n_dst = b.getNumTypeComponents(storage_type);
-    assert_true(n_el < n_dst);
 
-    if (n_el == 1) {
-      // Smear scalar.
-      for (int i = 0; i < n_dst; i++) {
-        constituents.push_back(source_value_id);
-      }
-    } else {
-      // FIXME: This may not work as intended.
-      constituents.push_back(source_value_id);
-      for (int i = n_el; i < n_dst; i++) {
-        // Pad with zeroes.
-        constituents.push_back(b.makeFloatConstant(0.f));
-      }
+    std::vector<uint32_t> channels;
+    for (int i = 0; i < n_dst; i++) {
+      channels.push_back(i % n_el);
     }
 
-    source_value_id =
-        b.createConstructor(spv::NoPrecision, constituents, storage_type);
+    source_value_id = b.createRvalueSwizzle(spv::NoPrecision, storage_type,
+                                            source_value_id, channels);
   }
 
   // swizzle
@@ -2474,13 +2475,13 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     // Components start from left and are duplicated rightwards
     // e.g. count = 1, xxxx / count = 2, xyyy ...
     for (int i = 0; i < b.getNumTypeComponents(storage_type); i++) {
-      auto swiz = result.components[i];
       if (!result.write_mask[i]) {
         // Undefined / don't care.
         operands.push_back(0);
         continue;
       }
 
+      auto swiz = result.components[i];
       switch (swiz) {
         case SwizzleSource::kX:
           operands.push_back(0);
