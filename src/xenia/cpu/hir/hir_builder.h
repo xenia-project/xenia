@@ -162,6 +162,7 @@ class HIRBuilder {
   Value* Select(Value* cond, Value* value1, Value* value2);
   Value* IsTrue(Value* value);
   Value* IsFalse(Value* value);
+  Value* IsNan(Value* value);
   Value* CompareEQ(Value* value1, Value* value2);
   Value* CompareNE(Value* value1, Value* value2);
   Value* CompareSLT(Value* value1, Value* value2);

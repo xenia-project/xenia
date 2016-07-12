@@ -2910,6 +2910,24 @@ EMITTER_OPCODE_TABLE(OPCODE_IS_FALSE, IS_FALSE_I8, IS_FALSE_I16, IS_FALSE_I32,
                      IS_FALSE_I64, IS_FALSE_F32, IS_FALSE_F64, IS_FALSE_V128);
 
 // ============================================================================
+// OPCODE_IS_NAN
+// ============================================================================
+struct IS_NAN_F32 : Sequence<IS_NAN_F32, I<OPCODE_IS_NAN, I8Op, F32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.vucomiss(i.src1, i.src1);
+    e.setp(i.dest);
+  }
+};
+
+struct IS_NAN_F64 : Sequence<IS_NAN_F64, I<OPCODE_IS_NAN, I8Op, F64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.vucomisd(i.src1, i.src1);
+    e.setp(i.dest);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_IS_NAN, IS_NAN_F32, IS_NAN_F64);
+
+// ============================================================================
 // OPCODE_COMPARE_EQ
 // ============================================================================
 struct COMPARE_EQ_I8
@@ -7566,6 +7584,7 @@ void RegisterSequences() {
   Register_OPCODE_SELECT();
   Register_OPCODE_IS_TRUE();
   Register_OPCODE_IS_FALSE();
+  Register_OPCODE_IS_NAN();
   Register_OPCODE_COMPARE_EQ();
   Register_OPCODE_COMPARE_NE();
   Register_OPCODE_COMPARE_SLT();
