@@ -90,7 +90,9 @@ void X64CodeCache::set_indirection_default(uint32_t default_value) {
 
 void X64CodeCache::AddIndirection(uint32_t guest_address,
                                   uint32_t host_address) {
-  assert_not_null(indirection_table_base_);
+  if (!indirection_table_base_) {
+    return;
+  }
 
   uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
       indirection_table_base_ + (guest_address - kIndirectionTableBase));
@@ -158,27 +160,31 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
         (uint64_t(code_address - generated_code_base_) << 32) |
             generated_code_offset_,
         function_info);
+
+    // TODO(DrChat): The following code doesn't really need to be under the
+    // global lock except for PlaceCode (but it depends on the previous code
+    // already being ran)
+
+    // If we are going above the high water mark of committed memory, commit
+    // some more. It's ok if multiple threads do this, as redundant commits
+    // aren't harmful.
+    size_t old_commit_mark = generated_code_commit_mark_;
+    if (high_mark > old_commit_mark) {
+      size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
+      xe::memory::AllocFixed(generated_code_base_, new_commit_mark,
+                             xe::memory::AllocationType::kCommit,
+                             xe::memory::PageAccess::kExecuteReadWrite);
+      generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
+                                                          new_commit_mark);
+    }
+
+    // Copy code.
+    std::memcpy(code_address, machine_code, code_size);
+
+    // Notify subclasses of placed code.
+    PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
+              unwind_reservation);
   }
-
-  // If we are going above the high water mark of committed memory, commit some
-  // more. It's ok if multiple threads do this, as redundant commits aren't
-  // harmful.
-  size_t old_commit_mark = generated_code_commit_mark_;
-  if (high_mark > old_commit_mark) {
-    size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
-    xe::memory::AllocFixed(generated_code_base_, new_commit_mark,
-                           xe::memory::AllocationType::kCommit,
-                           xe::memory::PageAccess::kExecuteReadWrite);
-    generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
-                                                        new_commit_mark);
-  }
-
-  // Copy code.
-  std::memcpy(code_address, machine_code, code_size);
-
-  // Notify subclasses of placed code.
-  PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
-            unwind_reservation);
 
   // Now that everything is ready, fix up the indirection table.
   // Note that we do support code that doesn't have an indirection fixup, so
