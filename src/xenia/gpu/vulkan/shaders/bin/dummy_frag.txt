@@ -1,0 +1,105 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 1
+; Bound: 52
+; Schema: 0
+               OpCapability Shader
+               OpCapability Sampled1D
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %4 "main" %47 %51
+               OpExecutionMode %4 OriginUpperLeft
+               OpSource GLSL 450
+               OpName %4 "main"
+               OpName %16 "consts_type"
+               OpMemberName %16 0 "float_consts"
+               OpMemberName %16 1 "loop_consts"
+               OpMemberName %16 2 "bool_consts"
+               OpName %18 "consts"
+               OpName %19 "push_consts_type"
+               OpMemberName %19 0 "window_scale"
+               OpMemberName %19 1 "vtx_fmt"
+               OpMemberName %19 2 "alpha_test"
+               OpMemberName %19 3 "ps_param_gen"
+               OpName %21 "push_constants"
+               OpName %26 "textures1D"
+               OpName %31 "textures2D"
+               OpName %36 "textures3D"
+               OpName %41 "textures4D"
+               OpName %47 "in_interpolators"
+               OpName %51 "oC"
+               OpDecorate %11 ArrayStride 16
+               OpDecorate %13 ArrayStride 16
+               OpDecorate %15 ArrayStride 16
+               OpMemberDecorate %16 0 Offset 0
+               OpMemberDecorate %16 1 Offset 8192
+               OpMemberDecorate %16 2 Offset 8704
+               OpDecorate %16 Block
+               OpDecorate %18 DescriptorSet 0
+               OpDecorate %18 Binding 1
+               OpMemberDecorate %19 0 Offset 0
+               OpMemberDecorate %19 1 Offset 16
+               OpMemberDecorate %19 2 Offset 32
+               OpMemberDecorate %19 3 Offset 48
+               OpDecorate %19 Block
+               OpDecorate %26 DescriptorSet 1
+               OpDecorate %26 Binding 0
+               OpDecorate %31 DescriptorSet 1
+               OpDecorate %31 Binding 1
+               OpDecorate %36 DescriptorSet 1
+               OpDecorate %36 Binding 2
+               OpDecorate %41 DescriptorSet 1
+               OpDecorate %41 Binding 3
+               OpDecorate %47 Location 0
+               OpDecorate %51 Location 0
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %7 = OpTypeFloat 32
+          %8 = OpTypeVector %7 4
+          %9 = OpTypeInt 32 0
+         %10 = OpConstant %9 512
+         %11 = OpTypeArray %8 %10
+         %12 = OpConstant %9 32
+         %13 = OpTypeArray %9 %12
+         %14 = OpConstant %9 8
+         %15 = OpTypeArray %9 %14
+         %16 = OpTypeStruct %11 %13 %15
+         %17 = OpTypePointer Uniform %16
+         %18 = OpVariable %17 Uniform
+         %19 = OpTypeStruct %8 %8 %8 %9
+         %20 = OpTypePointer PushConstant %19
+         %21 = OpVariable %20 PushConstant
+         %22 = OpTypeImage %7 1D 0 0 0 1 Unknown
+         %23 = OpTypeSampledImage %22
+         %24 = OpTypeArray %23 %12
+         %25 = OpTypePointer UniformConstant %24
+         %26 = OpVariable %25 UniformConstant
+         %27 = OpTypeImage %7 2D 0 0 0 1 Unknown
+         %28 = OpTypeSampledImage %27
+         %29 = OpTypeArray %28 %12
+         %30 = OpTypePointer UniformConstant %29
+         %31 = OpVariable %30 UniformConstant
+         %32 = OpTypeImage %7 3D 0 0 0 1 Unknown
+         %33 = OpTypeSampledImage %32
+         %34 = OpTypeArray %33 %12
+         %35 = OpTypePointer UniformConstant %34
+         %36 = OpVariable %35 UniformConstant
+         %37 = OpTypeImage %7 Cube 0 0 0 1 Unknown
+         %38 = OpTypeSampledImage %37
+         %39 = OpTypeArray %38 %12
+         %40 = OpTypePointer UniformConstant %39
+         %41 = OpVariable %40 UniformConstant
+         %42 = OpConstant %9 16
+         %43 = OpTypeArray %8 %42
+         %44 = OpConstant %9 1
+         %45 = OpTypeArray %43 %44
+         %46 = OpTypePointer Input %45
+         %47 = OpVariable %46 Input
+         %48 = OpConstant %9 4
+         %49 = OpTypeArray %8 %48
+         %50 = OpTypePointer Output %49
+         %51 = OpVariable %50 Output
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+               OpReturn
+               OpFunctionEnd
