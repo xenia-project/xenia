@@ -588,6 +588,7 @@ struct Sequence {
       e.LoadConstantXmm(e.xmm0, i.src1.constant());
       fn(e, i.dest, e.xmm0, i.src2);
     } else if (i.src2.is_constant) {
+      assert_true(!i.src1.is_constant);
       e.LoadConstantXmm(e.xmm0, i.src2.constant());
       fn(e, i.dest, i.src1, e.xmm0);
     } else {
@@ -7070,6 +7071,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       }
     }
   }
+  // Pack 2 32-bit vectors into a 16-bit vector.
   static void Emit16_IN_32(X64Emitter& e, const EmitArgType& i,
                            uint32_t flags) {
     // TODO(benvanik): handle src2 (or src1) being constant zero
@@ -7077,26 +7079,34 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       if (IsPackOutUnsigned(flags)) {
         if (IsPackOutSaturate(flags)) {
           // unsigned -> unsigned + saturate
-          // Construct a saturation mask
-          e.mov(e.eax, ~0xFFFFu);
+          // Construct a saturation max value
+          e.mov(e.eax, 0xFFFFu);
           e.vmovd(e.xmm0, e.eax);
           e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
 
-          e.vandps(e.xmm1, e.xmm0, i.src1);  // src1 & 0xFFFF0000
-          e.vpcmpeqd(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMZero));
-          e.vpxor(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMFFFF));
-          e.vpor(e.xmm1, e.xmm1, i.src1);  // Saturate src1
-          e.vpshuflw(e.xmm1, e.xmm1, 0b00100010);
-          e.vpshufhw(e.xmm1, e.xmm1, 0b00100010);
-          e.vpshufd(e.xmm1, e.xmm1, 0b00001000);
+          if (!i.src1.is_constant) {
+            e.vpminud(e.xmm1, i.src1, e.xmm0);  // Saturate src1
+            e.vpshuflw(e.xmm1, e.xmm1, 0b00100010);
+            e.vpshufhw(e.xmm1, e.xmm1, 0b00100010);
+            e.vpshufd(e.xmm1, e.xmm1, 0b00001000);
+          } else {
+            // TODO(DrChat): Non-zero constants
+            assert_true(i.src1.constant().u64[0] == 0 &&
+                        i.src1.constant().u64[1] == 0);
+            e.vpxor(e.xmm1, e.xmm1);
+          }
 
-          e.vandps(e.xmm0, e.xmm0, i.src2);  // src2 & 0xFFFF0000
-          e.vpcmpeqd(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMZero));
-          e.vpxor(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMFFFF));
-          e.vpor(i.dest, e.xmm0, i.src2);  // Saturate src2
-          e.vpshuflw(i.dest, i.dest, 0b00100010);
-          e.vpshufhw(i.dest, i.dest, 0b00100010);
-          e.vpshufd(i.dest, i.dest, 0b10000000);
+          if (!i.src2.is_constant) {
+            e.vpminud(i.dest, i.src2, e.xmm0);  // Saturate src2
+            e.vpshuflw(i.dest, i.dest, 0b00100010);
+            e.vpshufhw(i.dest, i.dest, 0b00100010);
+            e.vpshufd(i.dest, i.dest, 0b10000000);
+          } else {
+            // TODO(DrChat): Non-zero constants
+            assert_true(i.src2.constant().u64[0] == 0 &&
+                        i.src2.constant().u64[1] == 0);
+            e.vpxor(i.dest, i.dest);
+          }
 
           e.vpblendw(i.dest, i.dest, e.xmm1, 0b00001111);
         } else {
