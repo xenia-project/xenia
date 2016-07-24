@@ -840,6 +840,10 @@ void SpirvShaderTranslator::ProcessAllocInstruction(
     } break;
     // Also PS Colors
     case AllocType::kVsInterpolators: {
+      // Already included, nothing to do here.
+    } break;
+    case AllocType::kMemory: {
+      assert_always();
     } break;
     default:
       break;
@@ -1025,6 +1029,20 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
+
+      if (instr.dimension == TextureDimension::k1D &&
+          (instr.attributes.offset_x)) {
+        auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
+        src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
+      } else if (instr.dimension == TextureDimension::k2D &&
+                 (instr.attributes.offset_x || instr.attributes.offset_y)) {
+        auto offset = b.makeCompositeConstant(
+            vec2_float_type_,
+            std::vector<Id>(
+                {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
+                 b.makeFloatConstant(instr.attributes.offset_y + 0.5f)}));
+        src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
+      }
 
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
@@ -1723,32 +1741,8 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     auto src = LoadFromOperand(instr.operands[i]);
 
     // Pull components out of the vector operands and use them as sources.
-    for (size_t j = 0; j < instr.operands[i].component_count; j++) {
-      uint32_t component = 0;
-      switch (instr.operands[i].components[j]) {
-        case SwizzleSource::kX:
-          component = 0;
-          break;
-        case SwizzleSource::kY:
-          component = 1;
-          break;
-        case SwizzleSource::kZ:
-          component = 2;
-          break;
-        case SwizzleSource::kW:
-          component = 3;
-          break;
-        case SwizzleSource::k0:
-        case SwizzleSource::k1:
-          // Don't believe this can happen.
-          assert_always();
-          break;
-        default:
-          assert_always();
-          break;
-      }
-
-      sources[x++] = b.createCompositeExtract(src, float_type_, component);
+    for (int j = 0; j < instr.operands[i].component_count; j++) {
+      sources[x++] = b.createCompositeExtract(src, float_type_, j);
     }
   }
 
@@ -2424,7 +2418,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   }
 
   if (!storage_pointer) {
-    // assert_always();
+    assert_always();
     return;
   }
 
