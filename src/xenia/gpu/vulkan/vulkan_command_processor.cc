@@ -429,8 +429,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Depth-only mode doesn't need a pixel shader (we'll use a fake one).
   if (enable_mode == ModeControl::kDepth) {
     // Use a dummy pixel shader when required.
-    // TODO(benvanik): dummy pixel shader.
-    assert_not_null(pixel_shader);
+    pixel_shader = nullptr;
   } else if (!pixel_shader) {
     // Need a pixel shader in normal color mode.
     return true;
@@ -600,11 +599,15 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
+  xe::gpu::Shader::ConstantRegisterMap dummy_map;
+  std::memset(&dummy_map, 0, sizeof(dummy_map));
+
   // Upload the constants the shaders require.
   // These are optional, and if none are defined 0 will be returned.
   auto constant_offsets = buffer_cache_->UploadConstantRegisters(
       vertex_shader->constant_register_map(),
-      pixel_shader->constant_register_map(), current_batch_fence_);
+      pixel_shader ? pixel_shader->constant_register_map() : dummy_map,
+      current_batch_fence_);
   if (constant_offsets.first == VK_WHOLE_SIZE ||
       constant_offsets.second == VK_WHOLE_SIZE) {
     // Shader wants constants but we couldn't upload them.
@@ -751,9 +754,10 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
+  std::vector<xe::gpu::Shader::TextureBinding> dummy_bindings;
   auto descriptor_set = texture_cache_->PrepareTextureSet(
       setup_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
-      pixel_shader->texture_bindings());
+      pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
     return false;
