@@ -634,6 +634,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
     // 0 = normal
     // 2 = point size
+    // 7 = memexport
     assert_true(program_cntl.vs_export_mode == 0 ||
                 program_cntl.vs_export_mode == 2);
 
@@ -914,17 +915,16 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
               is_signed ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_UNORM;
           break;
         case VertexFormat::k_16_16_FLOAT:
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R16G16_SSCALED : VK_FORMAT_R16G16_USCALED;
+          // assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R16G16_SFLOAT;
           break;
         case VertexFormat::k_16_16_16_16:
           vertex_attrib_descr.format = is_signed ? VK_FORMAT_R16G16B16A16_SNORM
                                                  : VK_FORMAT_R16G16B16A16_UNORM;
           break;
         case VertexFormat::k_16_16_16_16_FLOAT:
-          vertex_attrib_descr.format = is_signed
-                                           ? VK_FORMAT_R16G16B16A16_SSCALED
-                                           : VK_FORMAT_R16G16B16A16_USCALED;
+          // assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R16G16B16A16_SFLOAT;
           break;
         case VertexFormat::k_32:
           vertex_attrib_descr.format =
@@ -1289,15 +1289,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
 PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
   auto& regs = update_color_blend_state_regs_;
   auto& state_info = update_color_blend_state_info_;
-
-  // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-  // Deprecated in GL, implemented in shader.
-  // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
-  // uint32_t color_control = reg_file[XE_GPU_REG_RB_COLORCONTROL].u32;
-  // draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  //
-  // ALPAHTESTENABLE
-  //                             color_control & 0x7,         // ALPHAFUNC
-  //                             reg_file[XE_GPU_REG_RB_ALPHA_REF].f32);
 
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
