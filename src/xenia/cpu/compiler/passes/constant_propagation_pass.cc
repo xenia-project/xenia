@@ -607,6 +607,27 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             i->Remove();
           }
           break;
+        case OPCODE_VECTOR_COMPARE_SGE:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorCompareSGE(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_COMPARE_UGT:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorCompareUGT(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
+        case OPCODE_VECTOR_COMPARE_UGE:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->VectorCompareUGE(i->src2.value, hir::TypeName(i->flags));
+            i->Remove();
+          }
+          break;
         case OPCODE_VECTOR_CONVERT_F2I:
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);

@@ -500,6 +500,9 @@ class Value {
   void Splat(Value* other);
   void VectorCompareEQ(Value* other, TypeName type);
   void VectorCompareSGT(Value* other, TypeName type);
+  void VectorCompareSGE(Value* other, TypeName type);
+  void VectorCompareUGT(Value* other, TypeName type);
+  void VectorCompareUGE(Value* other, TypeName type);
   void VectorConvertI2F(Value* other);
   void VectorConvertF2I(Value* other);
   void VectorShl(Value* other, TypeName type);
