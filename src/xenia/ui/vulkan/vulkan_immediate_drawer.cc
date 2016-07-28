@@ -495,6 +495,7 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   vertex_state_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   vertex_state_info.pNext = nullptr;
+  vertex_state_info.flags = 0;
   VkVertexInputBindingDescription vertex_binding_descrs[1];
   vertex_binding_descrs[0].binding = 0;
   vertex_binding_descrs[0].stride = sizeof(ImmediateVertex);

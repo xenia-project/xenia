@@ -134,7 +134,8 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   create_info.imageExtent.width = extent.width;
   create_info.imageExtent.height = extent.height;
   create_info.imageArrayLayers = 1;
-  create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  create_info.imageUsage =
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
   create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
   create_info.queueFamilyIndexCount = 0;
   create_info.pQueueFamilyIndices = nullptr;
@@ -297,6 +298,7 @@ bool VulkanSwapChain::InitializeBuffer(Buffer* buffer, VkImage target_image) {
   VkFramebufferCreateInfo framebuffer_info;
   framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
   framebuffer_info.pNext = nullptr;
+  framebuffer_info.flags = 0;
   framebuffer_info.renderPass = render_pass_;
   framebuffer_info.attachmentCount =
       static_cast<uint32_t>(xe::countof(attachments));
@@ -377,8 +379,12 @@ bool VulkanSwapChain::Begin() {
   VkSubmitInfo wait_submit_info;
   wait_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   wait_submit_info.pNext = nullptr;
+
+  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   wait_submit_info.waitSemaphoreCount = 1;
   wait_submit_info.pWaitSemaphores = &image_available_semaphore_;
+  wait_submit_info.pWaitDstStageMask = &wait_dst_stage;
+
   wait_submit_info.commandBufferCount = 0;
   wait_submit_info.pCommandBuffers = nullptr;
   wait_submit_info.signalSemaphoreCount = 0;
@@ -425,8 +431,8 @@ bool VulkanSwapChain::Begin() {
   pre_image_memory_barrier.subresourceRange.levelCount = 1;
   pre_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   pre_image_memory_barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(copy_cmd_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(copy_cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
 
   // First: Issue a command to clear the render target.
@@ -451,8 +457,8 @@ bool VulkanSwapChain::Begin() {
   pre_image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  vkCmdPipelineBarrier(render_cmd_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(render_cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
 
   // Begin render pass.

@@ -374,7 +374,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   // As we set layout(location=RT) in shaders we must always provide 4.
   VkAttachmentDescription attachments[5];
   for (int i = 0; i < 4; ++i) {
-    attachments[i].flags = 0;
+    attachments[i].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
     attachments[i].format = VK_FORMAT_UNDEFINED;
     attachments[i].samples = sample_count;
     attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -1114,26 +1114,22 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                        nullptr, 1, &image_barrier);
 
   // If we overflow we'll lose the device here.
-  assert_true(extents.width <= key.tile_width * tile_width);
-  assert_true(extents.height <= key.tile_height * tile_height);
+  // assert_true(extents.width <= key.tile_width * tile_width);
+  // assert_true(extents.height <= key.tile_height * tile_height);
 
   // Now issue the blit to the destination.
   if (tile_view->sample_count == VK_SAMPLE_COUNT_1_BIT) {
     VkImageBlit image_blit;
     image_blit.srcSubresource = {0, 0, 0, 1};
     image_blit.srcSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_blit.srcOffsets[0] = {0, 0, offset.z};
     image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
                                 int32_t(extents.depth)};
 
     image_blit.dstSubresource = {0, 0, 0, 1};
     image_blit.dstSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_blit.dstOffsets[0] = offset;
     image_blit.dstOffsets[1] = {offset.x + int32_t(extents.width),
                                 offset.y + int32_t(extents.height),
@@ -1144,16 +1140,12 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
     VkImageResolve image_resolve;
     image_resolve.srcSubresource = {0, 0, 0, 1};
     image_resolve.srcSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_resolve.srcOffset = {0, 0, 0};
 
     image_resolve.dstSubresource = {0, 0, 0, 1};
     image_resolve.dstSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_resolve.dstOffset = offset;
 
     image_resolve.extent = extents;
