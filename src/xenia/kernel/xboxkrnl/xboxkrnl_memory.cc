@@ -64,21 +64,21 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
   uint32_t region_size_value = SHIM_MEM_32(region_size_ptr);
   uint32_t alloc_type = SHIM_GET_ARG_32(2);    // X_MEM_* bitmask
   uint32_t protect_bits = SHIM_GET_ARG_32(3);  // X_PAGE_* bitmask
-  uint32_t unknown = SHIM_GET_ARG_32(4);
+  uint32_t debug_memory = SHIM_GET_ARG_32(4);
 
   XELOGD("NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)",
          base_addr_ptr, base_addr_value, region_size_ptr, region_size_value,
-         alloc_type, protect_bits, unknown);
+         alloc_type, protect_bits, debug_memory);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
   // _Inout_  PSIZE_T RegionSize,
   // _In_     ULONG AllocationType,
   // _In_     ULONG Protect
-  // ? handle?
+  // _In_     BOOLEAN DebugMemory
 
-  // I've only seen zero.
-  assert_true(unknown == 0);
+  // Set to TRUE when allocation is from devkit memory area.
+  assert_true(debug_memory == 0);
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
@@ -180,20 +180,20 @@ SHIM_CALL NtFreeVirtualMemory_shim(PPCContext* ppc_context,
   uint32_t region_size_value = SHIM_MEM_32(region_size_ptr);
   // X_MEM_DECOMMIT | X_MEM_RELEASE
   uint32_t free_type = SHIM_GET_ARG_32(2);
-  uint32_t unknown = SHIM_GET_ARG_32(3);
+  uint32_t debug_memory = SHIM_GET_ARG_32(3);
 
   XELOGD("NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)",
          base_addr_ptr, base_addr_value, region_size_ptr, region_size_value,
-         free_type, unknown);
+         free_type, debug_memory);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
   // _Inout_  PSIZE_T RegionSize,
   // _In_     ULONG FreeType
-  // ? handle?
+  // _In_     BOOLEAN DebugMemory
 
-  // I've only seen zero.
-  assert_true(unknown == 0);
+  // Set to TRUE when freeing external devkit memory.
+  assert_true(debug_memory == 0);
 
   if (!base_addr_value) {
     SHIM_SET_RETURN_32(X_STATUS_MEMORY_NOT_ALLOCATED);
