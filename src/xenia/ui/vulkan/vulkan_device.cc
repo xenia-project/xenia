@@ -33,24 +33,27 @@ namespace vulkan {
 
 VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
   if (FLAGS_vulkan_validation) {
-    /*DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects",
-                         Version::Make(0, 0, 0), true);*/
-    DeclareRequiredLayer("VK_LAYER_LUNARG_threading", Version::Make(0, 0, 0),
-                         true);
-    /*DeclareRequiredLayer("VK_LAYER_LUNARG_mem_tracker", Version::Make(0, 0,
-       0),
-                         true);*/
+    DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
+                         Version::Make(0, 0, 0), true);
+    // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,
+    // 0, 0), true);
+    /*
+    DeclareRequiredLayer("VK_LAYER_GOOGLE_threading", Version::Make(0, 0, 0),
+    true);
+    DeclareRequiredLayer("VK_LAYER_LUNARG_core_validation",
+    Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_object_tracker",
-                         Version::Make(0, 0, 0), true);
+    Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_draw_state", Version::Make(0, 0, 0),
-                         true);
-    DeclareRequiredLayer("VK_LAYER_LUNARG_param_checker",
-                         Version::Make(0, 0, 0), true);
+    true);
+    DeclareRequiredLayer("VK_LAYER_LUNARG_parameter_validation",
+    Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_swapchain", Version::Make(0, 0, 0),
-                         true);
+    true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_device_limits",
-                         Version::Make(0, 0, 0), true);
+    Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_image", Version::Make(0, 0, 0), true);
+    */
   }
 }
 
@@ -91,6 +94,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   } else {                                                       \
     enabled_features.name = VK_TRUE;                             \
   }
+  ENABLE_AND_EXPECT(shaderClipDistance);
+  ENABLE_AND_EXPECT(shaderCullDistance);
+  ENABLE_AND_EXPECT(shaderTessellationAndGeometryPointSize);
   ENABLE_AND_EXPECT(geometryShader);
   ENABLE_AND_EXPECT(depthClamp);
   ENABLE_AND_EXPECT(multiViewport);

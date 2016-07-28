@@ -34,23 +34,27 @@ namespace vulkan {
 
 VulkanInstance::VulkanInstance() {
   if (FLAGS_vulkan_validation) {
+    DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
+                         Version::Make(0, 0, 0), true);
     // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,
     // 0, 0), true);
-    DeclareRequiredLayer("VK_LAYER_LUNARG_threading", Version::Make(0, 0, 0),
+    /*
+    DeclareRequiredLayer("VK_LAYER_GOOGLE_threading", Version::Make(0, 0, 0),
                          true);
-    // DeclareRequiredLayer("VK_LAYER_LUNARG_mem_tracker", Version::Make(0, 0,
-    // 0), true);
+    DeclareRequiredLayer("VK_LAYER_LUNARG_core_validation",
+                         Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_object_tracker",
                          Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_draw_state", Version::Make(0, 0, 0),
                          true);
-    DeclareRequiredLayer("VK_LAYER_LUNARG_param_checker",
+    DeclareRequiredLayer("VK_LAYER_LUNARG_parameter_validation",
                          Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_swapchain", Version::Make(0, 0, 0),
                          true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_device_limits",
                          Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_image", Version::Make(0, 0, 0), true);
+    */
     DeclareRequiredExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
                              Version::Make(0, 0, 0), true);
   }
