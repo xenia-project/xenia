@@ -7,20 +7,17 @@
 in gl_PerVertex {
   vec4 gl_Position;
   float gl_PointSize;
-  float gl_ClipDistance[];
+  // float gl_ClipDistance[];
 } gl_in[];
 
 out gl_PerVertex {
   vec4 gl_Position;
   float gl_PointSize;
-  float gl_ClipDistance[];
+  // float gl_ClipDistance[];
 };
 
-struct VertexData {
-  vec4 o[16];
-};
-layout(location = 0) in VertexData in_vtx[];
-layout(location = 0) out VertexData out_vtx;
+layout(location = 0) in vec4 in_interpolators[][16];
+layout(location = 0) out vec4 out_interpolators[16];
 
 // TODO(benvanik): fetch default point size from register and use that if
 //     the VS doesn't write oPointSize.
@@ -41,7 +38,7 @@ void main() {
   float psize = gl_in[0].gl_PointSize;
   for (int i = 0; i < 4; ++i) {
     gl_Position = vec4(pos.xy + offsets[i] * psize, pos.zw);
-    out_vtx = in_vtx[0];
+    out_interpolators = in_interpolators[0];
     EmitVertex();
   }
   EndPrimitive();
