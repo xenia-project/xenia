@@ -135,7 +135,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
-  spv::Id vertex_id_ = 0;
+  spv::Id vertex_idx_ = 0;
   spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
   spv::Id tex_[4] = {0};  // Images {1D, 2D, 3D, Cube}
