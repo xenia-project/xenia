@@ -80,7 +80,7 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
     std::unique_ptr<gpu::GraphicsSystem> best;
 
     best = std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::gl4::GL4GraphicsSystem());
+        new xe::gpu::vulkan::VulkanGraphicsSystem());
     if (best) {
       return best;
     }
