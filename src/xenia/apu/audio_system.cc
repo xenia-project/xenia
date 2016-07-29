@@ -301,6 +301,8 @@ void AudioSystem::Pause() {
   // Kind of a hack, but it works.
   shutdown_event_->Set();
   pause_fence_.Wait();
+
+  xma_decoder_->Pause();
 }
 
 void AudioSystem::Resume() {
@@ -310,6 +312,8 @@ void AudioSystem::Resume() {
   paused_ = false;
 
   resume_event_->Set();
+
+  xma_decoder_->Resume();
 }
 
 }  // namespace apu

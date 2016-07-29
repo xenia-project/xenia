@@ -115,6 +115,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
     }
   }
   registers_.next_context = 1;
+  context_bitmap_.Resize(kContextCount);
 
   worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
@@ -141,6 +142,12 @@ void XmaDecoder::WorkerThreadMain() {
       // registers_.current_context = n;
       // registers_.next_context = (n + 1) % kContextCount;
     }
+
+    if (paused_) {
+      pause_fence_.Signal();
+      resume_fence_.Wait();
+    }
+
     xe::threading::MaybeYield();
   }
 }
@@ -149,6 +156,10 @@ void XmaDecoder::Shutdown() {
   worker_running_ = false;
   worker_fence_.Signal();
   worker_thread_.reset();
+
+  if (paused_) {
+    Resume();
+  }
 
   memory()->SystemHeapFree(registers_.context_array_ptr);
 }
@@ -164,32 +175,29 @@ int XmaDecoder::GetContextId(uint32_t guest_ptr) {
 }
 
 uint32_t XmaDecoder::AllocateContext() {
-  std::lock_guard<std::mutex> lock(lock_);
-
-  for (uint32_t n = 0; n < kContextCount; n++) {
-    XmaContext& context = contexts_[n];
-    if (!context.is_allocated()) {
-      context.set_is_allocated(true);
-      return context.guest_ptr();
-    }
+  size_t index = context_bitmap_.Acquire();
+  if (index == -1) {
+    // Out of contexts.
+    return 0;
   }
 
-  return 0;
+  XmaContext& context = contexts_[index];
+  assert_false(context.is_allocated());
+  context.set_is_allocated(true);
+  return context.guest_ptr();
 }
 
 void XmaDecoder::ReleaseContext(uint32_t guest_ptr) {
-  std::lock_guard<std::mutex> lock(lock_);
-
   auto context_id = GetContextId(guest_ptr);
   assert_true(context_id >= 0);
 
   XmaContext& context = contexts_[context_id];
+  assert_true(context.is_allocated());
   context.Release();
+  context_bitmap_.Release(context_id);
 }
 
 bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
-  std::lock_guard<std::mutex> lock(lock_);
-
   auto context_id = GetContextId(guest_ptr);
   assert_true(context_id >= 0);
 
@@ -281,6 +289,24 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
       }
     }
   }
+}
+
+void XmaDecoder::Pause() {
+  if (paused_) {
+    return;
+  }
+  paused_ = true;
+
+  pause_fence_.Wait();
+}
+
+void XmaDecoder::Resume() {
+  if (!paused_) {
+    return;
+  }
+  paused_ = false;
+
+  resume_fence_.Signal();
 }
 
 }  // namespace apu
