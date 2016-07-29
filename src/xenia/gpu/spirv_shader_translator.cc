@@ -900,8 +900,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   assert_not_zero(vertex_ptr);
   auto vertex = b.createLoad(vertex_ptr);
 
-  auto cond =
-      b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_id, shader_vertex_id);
+  auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_idx,
+                            shader_vertex_idx);
   auto vertex_components = b.getNumComponents(vertex);
   Id alt_vertex = 0;
   switch (vertex_components) {
