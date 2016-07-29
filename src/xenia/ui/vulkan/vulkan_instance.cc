@@ -66,9 +66,6 @@ bool VulkanInstance::Initialize(Window* any_target_window) {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
 
-  // Hook into renderdoc, if it's available.
-  EnableRenderDoc();
-
   // Get all of the global layers and extensions provided by the system.
   if (!QueryGlobals()) {
     XELOGE("Failed to query instance globals");
@@ -87,6 +84,9 @@ bool VulkanInstance::Initialize(Window* any_target_window) {
     XELOGE("Failed to query devices");
     return false;
   }
+
+  // Hook into renderdoc, if it's available.
+  EnableRenderDoc();
 
   XELOGVK("Instance initialized successfully!");
   return true;
