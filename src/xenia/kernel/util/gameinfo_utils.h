@@ -20,12 +20,12 @@ namespace kernel {
 namespace util {
 
 class GameInfoWrapper {
-public:
-  GameInfoWrapper(const uint8_t *data, size_t data_size);
+ public:
+  GameInfoWrapper(const uint8_t* data, size_t data_size);
 
   bool is_valid() const { return data_ != nullptr; }
 
-protected:
+ protected:
   struct GameInfoBlockHeader {
     xe::be<uint32_t> magic;
     xe::be<uint32_t> block_size;
@@ -33,9 +33,9 @@ protected:
   static_assert_size(GameInfoBlockHeader, 8);
 
   struct GameInfoBlockExec {
-    const char *virtual_titleid;
-    const char *module_name;
-    const char *build_description;
+    const char* virtual_titleid;
+    const char* module_name;
+    const char* build_description;
 
     const uint32_t VirtualTitleIdLength = 32;
     const uint32_t ModuleNameLength = 42;
@@ -50,23 +50,23 @@ protected:
   struct GameInfoBlockTitl {
     xe::be<wchar_t> title[128];
     xe::be<wchar_t> description[256];
-    xe::be<wchar_t> publisher[256]; // assumed field name from wxPirs
+    xe::be<wchar_t> publisher[256];  // assumed field name from wxPirs
   };
 
-private:
-  const uint8_t *data_ = nullptr;
+ private:
+  const uint8_t* data_ = nullptr;
   size_t data_size_ = 0;
 
-protected:
+ protected:
   GameInfoBlockExec exec_;
-  const GameInfoBlockComm *comm_ = nullptr;
-  const GameInfoBlockTitl *titl_ = nullptr;
+  const GameInfoBlockComm* comm_ = nullptr;
+  const GameInfoBlockTitl* titl_ = nullptr;
 };
 
 class GameInfo : public GameInfoWrapper {
-public:
-  GameInfo(const std::vector<uint8_t> &data)
-      : GameInfoWrapper(reinterpret_cast<const uint8_t *>(data.data()),
+ public:
+  GameInfo(const std::vector<uint8_t>& data)
+      : GameInfoWrapper(reinterpret_cast<const uint8_t*>(data.data()),
                         data.size()) {}
 
   uint32_t title_id() const;
@@ -74,8 +74,8 @@ public:
   std::string module_name() const;
 };
 
-} // namespace util
-} // namespace kernel
-} // namespace xe
+}  // namespace util
+}  // namespace kernel
+}  // namespace xe
 
-#endif // XENIA_KERNEL_UTIL_GAMEINFO_UTILS_H_
+#endif  // XENIA_KERNEL_UTIL_GAMEINFO_UTILS_H_

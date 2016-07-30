@@ -17,44 +17,44 @@ constexpr uint32_t kGameInfoExecMagic = 'EXEC';
 constexpr uint32_t kGameInfoCommMagic = 'COMM';
 constexpr uint32_t kGameInfoTitlMagic = 'TITL';
 
-GameInfoWrapper::GameInfoWrapper(const uint8_t *data, size_t data_size)
+GameInfoWrapper::GameInfoWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
   if (!data) {
     return;
   }
 
-  const GameInfoBlockHeader *block_header(nullptr);
+  const GameInfoBlockHeader* block_header(nullptr);
   size_t data_offset(0);
   while (data_offset < data_size_) {
     block_header =
-        reinterpret_cast<const GameInfoBlockHeader *>(data_ + data_offset);
+        reinterpret_cast<const GameInfoBlockHeader*>(data_ + data_offset);
     data_offset += sizeof(GameInfoBlockHeader);
 
     switch (block_header->magic) {
-    case kGameInfoExecMagic:
-      exec_.virtual_titleid =
-          reinterpret_cast<const char *>(data_ + data_offset);
-      data_offset += exec_.VirtualTitleIdLength + 1;
-      exec_.module_name = reinterpret_cast<const char *>(data_ + data_offset);
-      data_offset += exec_.ModuleNameLength + 1;
-      exec_.build_description =
-          reinterpret_cast<const char *>(data_ + data_offset);
-      data_offset += exec_.BuildDescriptionLength + 1;
-      break;
-    case kGameInfoCommMagic:
-      assert_true(block_header->block_size == sizeof(GameInfoBlockComm));
-      comm_ = reinterpret_cast<const GameInfoBlockComm *>(data_ + data_offset);
-      data_offset += block_header->block_size;
-      break;
-    case kGameInfoTitlMagic:
-      assert_true(block_header->block_size == sizeof(GameInfoBlockTitl));
-      titl_ = reinterpret_cast<const GameInfoBlockTitl *>(data_ + data_offset);
-      data_offset += block_header->block_size;
-      break;
-    default:
-      // Unsupported headers
-      data_ = nullptr;
-      return;
+      case kGameInfoExecMagic:
+        exec_.virtual_titleid =
+            reinterpret_cast<const char*>(data_ + data_offset);
+        data_offset += exec_.VirtualTitleIdLength + 1;
+        exec_.module_name = reinterpret_cast<const char*>(data_ + data_offset);
+        data_offset += exec_.ModuleNameLength + 1;
+        exec_.build_description =
+            reinterpret_cast<const char*>(data_ + data_offset);
+        data_offset += exec_.BuildDescriptionLength + 1;
+        break;
+      case kGameInfoCommMagic:
+        assert_true(block_header->block_size == sizeof(GameInfoBlockComm));
+        comm_ = reinterpret_cast<const GameInfoBlockComm*>(data_ + data_offset);
+        data_offset += block_header->block_size;
+        break;
+      case kGameInfoTitlMagic:
+        assert_true(block_header->block_size == sizeof(GameInfoBlockTitl));
+        titl_ = reinterpret_cast<const GameInfoBlockTitl*>(data_ + data_offset);
+        data_offset += block_header->block_size;
+        break;
+      default:
+        // Unsupported headers
+        data_ = nullptr;
+        return;
     }
   }
 
@@ -77,6 +77,6 @@ std::string GameInfo::module_name() const {
   return std::string(exec_.module_name, exec_.module_name + module_name_length);
 }
 
-} // namespace util
-} // namespace kernel
-} // namespace xe
+}  // namespace util
+}  // namespace kernel
+}  // namespace xe

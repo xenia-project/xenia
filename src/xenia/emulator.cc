@@ -510,7 +510,7 @@ std::string Emulator::FindLaunchModule() {
 
   auto gameinfo_entry(file_system_->ResolvePath(path + "GameInfo.bin"));
   if (gameinfo_entry) {
-    vfs::File *file = nullptr;
+    vfs::File* file = nullptr;
     X_STATUS result =
         gameinfo_entry->Open(vfs::FileAccess::kGenericRead, &file);
     if (XSUCCEEDED(result)) {
