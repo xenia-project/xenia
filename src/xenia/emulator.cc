@@ -27,6 +27,7 @@
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#include "xenia/kernel/util/gameinfo_utils.h"
 #include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
@@ -252,7 +253,8 @@ X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
-  return CompleteLaunch(path, "game:\\default.xex");
+  auto module_path(FindLaunchModule());
+  return CompleteLaunch(path, module_path);
 }
 
 X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
@@ -274,7 +276,8 @@ X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
-  return CompleteLaunch(path, "game:\\default.xex");
+  auto module_path(FindLaunchModule());
+  return CompleteLaunch(path, module_path);
 }
 
 void Emulator::Pause() {
@@ -499,6 +502,39 @@ void Emulator::WaitUntilExit() {
   }
 
   on_exit();
+}
+
+std::string Emulator::FindLaunchModule() {
+  std::string path("game:\\");
+  std::string default_module("default.xex");
+
+  auto gameinfo_entry(file_system_->ResolvePath(path + "GameInfo.bin"));
+  if (gameinfo_entry) {
+    vfs::File* file = nullptr;
+    X_STATUS result =
+        gameinfo_entry->Open(vfs::FileAccess::kGenericRead, &file);
+    if (XSUCCEEDED(result)) {
+      std::vector<uint8_t> buffer(gameinfo_entry->size());
+      size_t bytes_read = 0;
+      result = file->ReadSync(buffer.data(), buffer.size(), 0, &bytes_read);
+      if (XSUCCEEDED(result)) {
+        kernel::util::GameInfo info(buffer);
+        if (info.is_valid()) {
+          XELOGI("Found virtual title %s", info.virtual_title_id().c_str());
+
+          const std::string xna_id("584E07D1");
+          auto xna_id_entry(file_system_->ResolvePath(path + xna_id));
+          if (xna_id_entry) {
+            default_module = xna_id + "\\" + info.module_name();
+          } else {
+            XELOGE("Could not find fixed XNA path %s", xna_id.c_str());
+          }
+        }
+      }
+    }
+  }
+
+  return path + default_module;
 }
 
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,

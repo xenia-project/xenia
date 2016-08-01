@@ -139,6 +139,8 @@ class Emulator {
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 
+  std::string FindLaunchModule();
+
   X_STATUS CompleteLaunch(const std::wstring& path,
                           const std::string& module_path);
 
