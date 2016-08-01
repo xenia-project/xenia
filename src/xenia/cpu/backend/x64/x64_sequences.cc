@@ -6264,11 +6264,8 @@ struct CNTLZ_I8 : Sequence<CNTLZ_I8, I<OPCODE_CNTLZ, I8Op, I8Op>> {
       e.bsr(i.dest, i.src1);
       e.jz(jz);  // Jump if zero
 
-      // sub: $1 = $1 - $2
       // Invert the result (7 - i.dest)
-      e.mov(e.eax, 7);
-      e.sub(e.eax, i.dest);
-      e.mov(i.dest, e.eax);
+      e.xor_(i.dest, 0x7);
       e.jmp(jend);  // Jmp to end
 
       // src1 was zero, so write 8 to the dest reg
@@ -6295,11 +6292,8 @@ struct CNTLZ_I16 : Sequence<CNTLZ_I16, I<OPCODE_CNTLZ, I8Op, I16Op>> {
       e.bsr(i.dest, i.src1);
       e.jz(jz);  // Jump if zero
 
-      // sub: $1 = $1 - $2
       // Invert the result (15 - i.dest)
-      e.mov(e.eax, 15);
-      e.sub(e.eax, i.dest);
-      e.mov(i.dest, e.eax);
+      e.xor_(i.dest, 0xF);
       e.jmp(jend);  // Jmp to end
 
       // src1 was zero, so write 16 to the dest reg
@@ -6325,11 +6319,8 @@ struct CNTLZ_I32 : Sequence<CNTLZ_I32, I<OPCODE_CNTLZ, I8Op, I32Op>> {
       e.bsr(i.dest, i.src1);
       e.jz(jz);  // Jump if zero
 
-      // sub: $1 = $1 - $2
       // Invert the result (31 - i.dest)
-      e.mov(e.eax, 31);
-      e.sub(e.eax, i.dest);
-      e.mov(i.dest, e.eax);
+      e.xor_(i.dest, 0x1F);
       e.jmp(jend);  // Jmp to end
 
       // src1 was zero, so write 32 to the dest reg
@@ -6355,11 +6346,8 @@ struct CNTLZ_I64 : Sequence<CNTLZ_I64, I<OPCODE_CNTLZ, I8Op, I64Op>> {
       e.bsr(i.dest, i.src1);
       e.jz(jz);  // Jump if zero
 
-      // sub: $1 = $1 - $2
       // Invert the result (63 - i.dest)
-      e.mov(e.rax, 63);
-      e.sub(e.rax, i.dest);
-      e.mov(i.dest, e.rax);
+      e.xor_(i.dest, 0x3F);
       e.jmp(jend);  // Jmp to end
 
       // src1 was zero, so write 64 to the dest reg
