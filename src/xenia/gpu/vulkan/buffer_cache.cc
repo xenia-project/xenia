@@ -329,9 +329,7 @@ void BufferCache::InvalidateCache() {
   // TODO(benvanik): caching.
 }
 
-void BufferCache::ClearCache() {
-  transient_cache_.clear();
-}
+void BufferCache::ClearCache() { transient_cache_.clear(); }
 
 void BufferCache::Scavenge() { transient_buffer_->Scavenge(); }
 
