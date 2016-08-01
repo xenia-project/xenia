@@ -27,7 +27,8 @@ namespace vulkan {
 // ends of the buffer), where trailing older allocations are freed after use.
 class CircularBuffer {
  public:
-  CircularBuffer(VulkanDevice* device);
+  CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
+                 VkDeviceSize capacity, VkDeviceSize alignment = 256);
   ~CircularBuffer();
 
   struct Allocation {
@@ -42,9 +43,11 @@ class CircularBuffer {
     std::shared_ptr<Fence> fence;
   };
 
-  bool Initialize(VkDeviceSize capacity, VkBufferUsageFlags usage,
-                  VkDeviceSize alignment = 256);
+  bool Initialize(VkDeviceMemory memory, VkDeviceSize offset);
+  bool Initialize();
   void Shutdown();
+
+  void GetBufferMemoryRequirements(VkMemoryRequirements* reqs);
 
   VkDeviceSize alignment() const { return alignment_; }
   VkDeviceSize capacity() const { return capacity_; }
@@ -66,12 +69,14 @@ class CircularBuffer {
   void Scavenge();
 
  private:
+  // All of these variables are relative to gpu_base
   VkDeviceSize capacity_ = 0;
   VkDeviceSize alignment_ = 0;
   VkDeviceSize write_head_ = 0;
   VkDeviceSize read_head_ = 0;
 
   VulkanDevice* device_;
+  bool owns_gpu_memory_ = false;
   VkBuffer gpu_buffer_ = nullptr;
   VkDeviceMemory gpu_memory_ = nullptr;
   VkDeviceSize gpu_base_ = 0;

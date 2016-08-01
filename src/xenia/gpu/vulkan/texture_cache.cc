@@ -111,7 +111,8 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       register_file_(register_file),
       trace_writer_(trace_writer),
       device_(device),
-      staging_buffer_(device) {
+      staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      kStagingBufferSize) {
   // Descriptor pool used for all of our cached descriptors.
   VkDescriptorPoolCreateInfo descriptor_pool_info;
   descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -152,8 +153,7 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                                     nullptr, &texture_descriptor_set_layout_);
   CheckResult(err, "vkCreateDescriptorSetLayout");
 
-  if (!staging_buffer_.Initialize(kStagingBufferSize,
-                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT)) {
+  if (!staging_buffer_.Initialize()) {
     assert_always();
   }
 
