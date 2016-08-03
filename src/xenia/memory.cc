@@ -24,8 +24,7 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-DEFINE_bool(protect_zero, false,
-            "Protect the zero page from reads and writes.");
+DEFINE_bool(protect_zero, true, "Protect the zero page from reads and writes.");
 DEFINE_bool(protect_on_release, false,
             "Protect released memory to prevent accesses.");
 
@@ -172,7 +171,7 @@ bool Memory::Initialize() {
   heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
                               &heaps_.physical);
 
-  // Take the first page at 0 so we can check for writes.
+  // Protect the first 64kb of memory.
   heaps_.v00000000.AllocFixed(
       0x00000000, 64 * 1024, 64 * 1024,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
