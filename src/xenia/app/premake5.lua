@@ -19,6 +19,7 @@ project("xenia-app")
     "xenia-debug-ui",
     "xenia-gpu",
     "xenia-gpu-gl4",
+    "xenia-gpu-null",
     "xenia-gpu-vulkan",
     "xenia-hid-nop",
     "xenia-kernel",
