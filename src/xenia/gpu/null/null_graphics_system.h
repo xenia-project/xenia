@@ -12,8 +12,8 @@
 
 #include <memory>
 
-#include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/command_processor.h"
+#include "xenia/gpu/graphics_system.h"
 
 namespace xe {
 namespace gpu {
