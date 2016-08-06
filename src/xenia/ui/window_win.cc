@@ -57,7 +57,7 @@ bool Win32Window::OnCreate() {
     wcex.hInstance = hInstance;
     wcex.hIcon = LoadIcon(hInstance, L"MAINICON");
     wcex.hIconSm = LoadIcon(hInstance, L"MAINICON");
-    wcex.hCursor = nullptr;
+    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = nullptr;
     wcex.lpszClassName = L"XeniaWindowClass";
