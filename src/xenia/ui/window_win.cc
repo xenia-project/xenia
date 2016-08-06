@@ -57,7 +57,7 @@ bool Win32Window::OnCreate() {
     wcex.hInstance = hInstance;
     wcex.hIcon = LoadIcon(hInstance, L"MAINICON");
     wcex.hIconSm = LoadIcon(hInstance, L"MAINICON");
-    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hCursor = nullptr;
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = nullptr;
     wcex.lpszClassName = L"XeniaWindowClass";
@@ -104,6 +104,8 @@ bool Win32Window::OnCreate() {
 
   ShowWindow(hwnd_, SW_SHOWNORMAL);
   UpdateWindow(hwnd_);
+
+  arrow_cursor_ = LoadCursor(nullptr, IDC_ARROW);
 
   // Initial state.
   if (!is_cursor_visible_) {
@@ -254,9 +256,10 @@ void Win32Window::set_cursor_visible(bool value) {
   if (is_cursor_visible_ == value) {
     return;
   }
+  is_cursor_visible_ = value;
+
   if (value) {
     ShowCursor(TRUE);
-    SetCursor(nullptr);
   } else {
     ShowCursor(FALSE);
   }
@@ -483,8 +486,8 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
   }
 
   MouseEvent::Button button = MouseEvent::Button::kNone;
-  int32_t dx = 0;
-  int32_t dy = 0;
+  int32_t dx = x - last_mouse_pos_.x;
+  int32_t dy = y - last_mouse_pos_.y;
   switch (message) {
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP:
@@ -523,6 +526,8 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
       // Double click/etc?
       return true;
   }
+
+  last_mouse_pos_ = {x, y};
 
   auto e = MouseEvent(this, button, x, y, dx, dy);
   switch (message) {

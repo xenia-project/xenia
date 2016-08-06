@@ -141,6 +141,20 @@ bool EmulatorWindow::Initialize() {
     e->set_handled(handled);
   });
 
+  window_->on_mouse_move.AddListener([this](MouseEvent* e) {
+    if (window_->is_fullscreen() && (e->dx() > 2 || e->dy() > 2)) {
+      if (!window_->is_cursor_visible()) {
+        window_->set_cursor_visible(true);
+      }
+
+      cursor_hide_time_ = Clock::QueryHostSystemTime() + 30000000;
+    }
+
+    e->set_handled(false);
+  });
+
+  window_->on_paint.AddListener([this](UIEvent* e) { CheckHideCursor(); });
+
   // Main menu.
   // FIXME: This code is really messy.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
@@ -277,6 +291,17 @@ void EmulatorWindow::FileOpen() {
   }
 }
 
+void EmulatorWindow::CheckHideCursor() {
+  if (!window_->is_fullscreen()) {
+    // Only hide when fullscreen.
+    return;
+  }
+
+  if (Clock::QueryHostSystemTime() > cursor_hide_time_) {
+    window_->set_cursor_visible(false);
+  }
+}
+
 void EmulatorWindow::CpuTimeScalarReset() {
   Clock::set_guest_time_scalar(1.0);
   UpdateTitle();
@@ -320,6 +345,12 @@ void EmulatorWindow::GpuClearCaches() {
 
 void EmulatorWindow::ToggleFullscreen() {
   window_->ToggleFullscreen(!window_->is_fullscreen());
+
+  // Hide the cursor after a second if we're going fullscreen
+  cursor_hide_time_ = Clock::QueryHostSystemTime() + 30000000;
+  if (!window_->is_fullscreen()) {
+    window_->set_cursor_visible(true);
+  }
 }
 
 void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser("http://xenia.jp"); }

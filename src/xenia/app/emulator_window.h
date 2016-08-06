@@ -43,6 +43,7 @@ class EmulatorWindow {
   bool Initialize();
 
   void FileOpen();
+  void CheckHideCursor();
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();
   void CpuTimeScalarSetDouble();
@@ -56,6 +57,7 @@ class EmulatorWindow {
   std::unique_ptr<ui::Loop> loop_;
   std::unique_ptr<ui::Window> window_;
   std::wstring base_title_;
+  uint64_t cursor_hide_time_ = 0;
 };
 
 }  // namespace app

@@ -73,8 +73,10 @@ class Win32Window : public Window {
   HICON icon_ = nullptr;
   bool closing_ = false;
   bool fullscreen_ = false;
+  HCURSOR arrow_cursor_ = nullptr;
 
   WINDOWPLACEMENT windowed_pos_ = {0};
+  POINT last_mouse_pos_ = {0};
 };
 
 class Win32MenuItem : public MenuItem {
