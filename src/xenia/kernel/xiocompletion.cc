@@ -26,20 +26,17 @@ void XIOCompletion::QueueNotification(IONotification& notification) {
   notification_semaphore_->Release(1, nullptr);
 }
 
-XIOCompletion::IONotification XIOCompletion::DequeueNotification() {
-  std::unique_lock<std::mutex> lock(notification_lock_);
-  assert_false(notifications_.empty());
-
-  auto notification = notifications_.front();
-  notifications_.pop();
-
-  return notification;
-}
-
-bool XIOCompletion::WaitForNotification(uint64_t wait_ticks) {
+bool XIOCompletion::WaitForNotification(uint64_t wait_ticks,
+                                        IONotification* notify) {
   auto ms = std::chrono::milliseconds(TimeoutTicksToMs(wait_ticks));
   auto res = threading::Wait(notification_semaphore_.get(), false, ms);
   if (res == threading::WaitResult::kSuccess) {
+    std::unique_lock<std::mutex> lock(notification_lock_);
+    assert_false(notifications_.empty());
+
+    std::memcpy(notify, &notifications_.front(), sizeof(IONotification));
+    notifications_.pop();
+
     return true;
   }
 

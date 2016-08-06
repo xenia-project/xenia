@@ -34,11 +34,9 @@ class XIOCompletion : public XObject {
   };
 
   void QueueNotification(IONotification& notification);
-  IONotification DequeueNotification();
 
-  // If you call this and it returns true, you MUST dequeue a notification!
-  // Returns true if the wait was cancelled because a notification was queued.
-  bool WaitForNotification(uint64_t wait_ticks);
+  // Returns true if the wait ended because a notification was received.
+  bool WaitForNotification(uint64_t wait_ticks, IONotification* notify);
 
  private:
   static const uint32_t kMaxNotifications = 1024;

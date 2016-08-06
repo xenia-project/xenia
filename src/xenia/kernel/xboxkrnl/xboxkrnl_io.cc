@@ -368,8 +368,8 @@ dword_result_t NtRemoveIoCompletion(
   }
 
   uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout) : 0u;
-  if (port->WaitForNotification(timeout_ticks)) {
-    auto notification = port->DequeueNotification();
+  XIOCompletion::IONotification notification;
+  if (port->WaitForNotification(timeout_ticks, &notification)) {
     if (key_context) {
       *key_context = notification.key_context;
     }
