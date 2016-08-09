@@ -54,7 +54,7 @@ void Win32Loop::ThreadMain() {
   MSG msg;
   while (!should_exit_) {
     DWORD result =
-        MsgWaitForMultipleObjectsEx(0, nullptr, INFINITE, QS_ALLEVENTS, 0);
+        MsgWaitForMultipleObjectsEx(0, nullptr, INFINITE, QS_ALLINPUT, 0);
 
     if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
