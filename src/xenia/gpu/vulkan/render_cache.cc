@@ -65,7 +65,7 @@ VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
     case DepthRenderTargetFormat::kD24FS8:
       // TODO(benvanik): some way to emulate? resolve-time flag?
       XELOGW("Unsupported EDRAM format kD24FS8 used");
-      return VK_FORMAT_D24_UNORM_S8_UINT;
+      return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
       return VK_FORMAT_UNDEFINED;
   }
@@ -435,8 +435,20 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   render_pass_info.pAttachments = attachments;
   render_pass_info.subpassCount = 1;
   render_pass_info.pSubpasses = &subpass_info;
-  render_pass_info.dependencyCount = 0;
-  render_pass_info.pDependencies = nullptr;
+
+  // Render passes need subpass dependencies between subpasses acting on aliased
+  // attachments.
+  VkSubpassDependency dependencies[1];
+  dependencies[0].srcSubpass = dependencies[0].dstSubpass = 0;
+  dependencies[0].srcStageMask = dependencies[0].dstStageMask =
+      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+  dependencies[0].srcAccessMask = dependencies[0].dstAccessMask =
+      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  dependencies[0].dependencyFlags = 0;
+
+  render_pass_info.dependencyCount = 1;
+  render_pass_info.pDependencies = dependencies;
   auto err = vkCreateRenderPass(device_, &render_pass_info, nullptr, &handle);
   CheckResult(err, "vkCreateRenderPass");
 }
