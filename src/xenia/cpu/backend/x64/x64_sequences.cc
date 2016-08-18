@@ -610,6 +610,7 @@ struct Sequence {
         reg_reg_fn(e, i.src2, temp);
       }
     } else if (i.src2.is_constant) {
+      assert_true(!i.src1.is_constant);
       if (i.src2.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.src1, static_cast<int32_t>(i.src2.constant()));
       } else {
@@ -636,6 +637,7 @@ struct Sequence {
         reg_reg_fn(e, i.dest, i.src2, temp, true);
       }
     } else if (i.src2.is_constant) {
+      assert_true(!i.src1.is_constant);
       if (i.src2.ConstantFitsIn32Reg()) {
         reg_const_fn(e, i.dest, i.src1, static_cast<int32_t>(i.src2.constant()),
                      false);

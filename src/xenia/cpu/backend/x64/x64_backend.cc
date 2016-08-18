@@ -41,7 +41,7 @@ class X64ThunkEmitter : public X64Emitter {
 };
 
 X64Backend::X64Backend(Processor* processor)
-    : Backend(processor), code_cache_(nullptr), emitter_data_(0) {
+    : Backend(processor), code_cache_(nullptr) {
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_) != CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
   }
@@ -51,14 +51,11 @@ X64Backend::X64Backend(Processor* processor)
 }
 
 X64Backend::~X64Backend() {
-  if (emitter_data_) {
-    processor()->memory()->SystemHeapFree(emitter_data_);
-    emitter_data_ = 0;
-  }
   if (capstone_handle_) {
     cs_close(&capstone_handle_);
   }
 
+  X64Emitter::FreeConstData(emitter_data_);
   ExceptionHandler::Uninstall(&ExceptionCallbackThunk, this);
 }
 
@@ -114,7 +111,7 @@ bool X64Backend::Initialize() {
   code_cache_->CommitExecutableRange(0x9FFF0000, 0x9FFFFFFF);
 
   // Allocate emitter constant data.
-  emitter_data_ = X64Emitter::PlaceData(processor()->memory());
+  emitter_data_ = X64Emitter::PlaceConstData();
 
   // Setup exception callback
   ExceptionHandler::Install(&ExceptionCallbackThunk, this);

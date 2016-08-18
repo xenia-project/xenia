@@ -114,12 +114,13 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Processor* processor() const { return processor_; }
   X64Backend* backend() const { return backend_; }
 
+  static uintptr_t PlaceConstData();
+  static void FreeConstData(uintptr_t data);
+
   bool Emit(GuestFunction* function, hir::HIRBuilder* builder,
             uint32_t debug_info_flags, FunctionDebugInfo* debug_info,
             void** out_code_address, size_t* out_code_size,
             std::vector<SourceMapEntry>* out_source_map);
-
-  static uint32_t PlaceData(Memory* memory);
 
  public:
   // Reserved:  rsp

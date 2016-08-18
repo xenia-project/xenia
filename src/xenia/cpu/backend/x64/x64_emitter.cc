@@ -296,7 +296,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   XELOGD("(DebugPrint) %s", str);
 
   if (FLAGS_enable_debugprint_log) {
-    debugging::DebugPrint("(DebugPrint) %s\n", str);
+    debugging::DebugPrint("(DebugPrint) %s", str);
   }
 
   return 0;
@@ -556,6 +556,7 @@ void X64Emitter::ReloadEDX() {
 
 // Len Assembly                                   Byte Sequence
 // ============================================================================
+// 1b  NOP                                        90H
 // 2b  66 NOP                                     66 90H
 // 3b  NOP DWORD ptr [EAX]                        0F 1F 00H
 // 4b  NOP DWORD ptr [EAX + 00H]                  0F 1F 40 00H
@@ -602,90 +603,124 @@ void X64Emitter::MovMem64(const Xbyak::RegExp& addr, uint64_t v) {
   }
 }
 
-uint32_t X64Emitter::PlaceData(Memory* memory) {
-  static const vec128_t xmm_consts[] = {
-      /* XMMZero                */ vec128f(0.0f),
-      /* XMMOne                 */ vec128f(1.0f),
-      /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
-      /* XMMFFFF                */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
-                                           0xFFFFFFFFu, 0xFFFFFFFFu),
-      /* XMMMaskX16Y16          */ vec128i(0x0000FFFFu, 0xFFFF0000u,
-                                           0x00000000u, 0x00000000u),
-      /* XMMFlipX16Y16          */ vec128i(0x00008000u, 0x00000000u,
-                                           0x00000000u, 0x00000000u),
-      /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
-      /* XMMNormalizeX16Y16     */ vec128f(
-          1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
-      /* XMM0001                */ vec128f(0.0f, 0.0f, 0.0f, 1.0f),
-      /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
-      /* XMM3333                */ vec128f(3.0f, 3.0f, 3.0f, 3.0f),
-      /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u,
-                                           0x80000000u, 0x80000000u),
-      /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u,
-                                           0x00000000u, 0x80000000u),
-      /* XMMAbsMaskPS           */ vec128i(0x7FFFFFFFu, 0x7FFFFFFFu,
-                                           0x7FFFFFFFu, 0x7FFFFFFFu),
-      /* XMMAbsMaskPD           */ vec128i(0xFFFFFFFFu, 0x7FFFFFFFu,
-                                           0xFFFFFFFFu, 0x7FFFFFFFu),
-      /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u,
-                                           0x08090A0Bu, 0x0C0D0E0Fu),
-      /* XMMByteOrderMask       */ vec128i(0x01000302u, 0x05040706u,
-                                           0x09080B0Au, 0x0D0C0F0Eu),
-      /* XMMPermuteControl15    */ vec128b(15),
-      /* XMMPermuteByteMask     */ vec128b(0x1F),
-      /* XMMPackD3DCOLORSat     */ vec128i(0x404000FFu),
-      /* XMMPackD3DCOLOR        */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
-                                           0xFFFFFFFFu, 0x0C000408u),
-      /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF0Eu, 0xFFFFFF0Du,
-                                           0xFFFFFF0Cu, 0xFFFFFF0Fu),
-      /* XMMPackFLOAT16_2       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
-                                           0xFFFFFFFFu, 0x01000302u),
-      /* XMMUnpackFLOAT16_2     */ vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu,
-                                           0xFFFFFFFFu, 0xFFFFFFFFu),
-      /* XMMPackFLOAT16_4       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
-                                           0x05040706u, 0x01000302u),
-      /* XMMUnpackFLOAT16_4     */ vec128i(0x09080B0Au, 0x0D0C0F0Eu,
-                                           0xFFFFFFFFu, 0xFFFFFFFFu),
-      /* XMMPackSHORT_2Min      */ vec128i(0x403F8001u),
-      /* XMMPackSHORT_2Max      */ vec128i(0x40407FFFu),
-      /* XMMPackSHORT_2         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu,
-                                           0xFFFFFFFFu, 0x01000504u),
-      /* XMMUnpackSHORT_2       */ vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu,
-                                           0xFFFFFFFFu, 0xFFFFFFFFu),
-      /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
-      /* XMMMaskEvenPI16        */ vec128i(0x0000FFFFu, 0x0000FFFFu,
-                                           0x0000FFFFu, 0x0000FFFFu),
-      /* XMMShiftMaskEvenPI16   */ vec128i(0x0000000Fu, 0x0000000Fu,
-                                           0x0000000Fu, 0x0000000Fu),
-      /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu,
-                                           0x0000001Fu, 0x0000001Fu),
-      /* XMMShiftByteMask       */ vec128i(0x000000FFu, 0x000000FFu,
-                                           0x000000FFu, 0x000000FFu),
-      /* XMMSwapWordMask        */ vec128i(0x03030303u, 0x03030303u,
-                                           0x03030303u, 0x03030303u),
-      /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u,
-                                           0xFFFFFFFFu, 0x00000000u),
-      /* XMM255                 */ vec128f(255.0f),
-      /* XMMPI32                */ vec128i(32),
-      /* XMMSignMaskI8          */ vec128i(0x80808080u, 0x80808080u,
-                                           0x80808080u, 0x80808080u),
-      /* XMMSignMaskI16         */ vec128i(0x80008000u, 0x80008000u,
-                                           0x80008000u, 0x80008000u),
-      /* XMMSignMaskI32         */ vec128i(0x80000000u, 0x80000000u,
-                                           0x80000000u, 0x80000000u),
-      /* XMMSignMaskF32         */ vec128i(0x80000000u, 0x80000000u,
-                                           0x80000000u, 0x80000000u),
-      /* XMMShortMinPS          */ vec128f(SHRT_MIN),
-      /* XMMShortMaxPS          */ vec128f(SHRT_MAX),
-  };
-  uint32_t ptr = memory->SystemHeapAlloc(sizeof(xmm_consts));
-  std::memcpy(memory->TranslateVirtual(ptr), xmm_consts, sizeof(xmm_consts));
-  return ptr;
+static const vec128_t xmm_consts[] = {
+    /* XMMZero                */ vec128f(0.0f),
+    /* XMMOne                 */ vec128f(1.0f),
+    /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
+    /* XMMFFFF                */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+                                         0xFFFFFFFFu),
+    /* XMMMaskX16Y16          */ vec128i(0x0000FFFFu, 0xFFFF0000u, 0x00000000u,
+                                         0x00000000u),
+    /* XMMFlipX16Y16          */ vec128i(0x00008000u, 0x00000000u, 0x00000000u,
+                                         0x00000000u),
+    /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
+    /* XMMNormalizeX16Y16     */ vec128f(
+        1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
+    /* XMM0001                */ vec128f(0.0f, 0.0f, 0.0f, 1.0f),
+    /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
+    /* XMM3333                */ vec128f(3.0f, 3.0f, 3.0f, 3.0f),
+    /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u,
+                                         0x80000000u),
+    /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u,
+                                         0x80000000u),
+    /* XMMAbsMaskPS           */ vec128i(0x7FFFFFFFu, 0x7FFFFFFFu, 0x7FFFFFFFu,
+                                         0x7FFFFFFFu),
+    /* XMMAbsMaskPD           */ vec128i(0xFFFFFFFFu, 0x7FFFFFFFu, 0xFFFFFFFFu,
+                                         0x7FFFFFFFu),
+    /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu,
+                                         0x0C0D0E0Fu),
+    /* XMMByteOrderMask       */ vec128i(0x01000302u, 0x05040706u, 0x09080B0Au,
+                                         0x0D0C0F0Eu),
+    /* XMMPermuteControl15    */ vec128b(15),
+    /* XMMPermuteByteMask     */ vec128b(0x1F),
+    /* XMMPackD3DCOLORSat     */ vec128i(0x404000FFu),
+    /* XMMPackD3DCOLOR        */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+                                         0x0C000408u),
+    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF0Eu, 0xFFFFFF0Du, 0xFFFFFF0Cu,
+                                         0xFFFFFF0Fu),
+    /* XMMPackFLOAT16_2       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+                                         0x01000302u),
+    /* XMMUnpackFLOAT16_2     */ vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+                                         0xFFFFFFFFu),
+    /* XMMPackFLOAT16_4       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x05040706u,
+                                         0x01000302u),
+    /* XMMUnpackFLOAT16_4     */ vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu,
+                                         0xFFFFFFFFu),
+    /* XMMPackSHORT_2Min      */ vec128i(0x403F8001u),
+    /* XMMPackSHORT_2Max      */ vec128i(0x40407FFFu),
+    /* XMMPackSHORT_2         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+                                         0x01000504u),
+    /* XMMUnpackSHORT_2       */ vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu,
+                                         0xFFFFFFFFu),
+    /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
+    /* XMMMaskEvenPI16        */ vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu,
+                                         0x0000FFFFu),
+    /* XMMShiftMaskEvenPI16   */ vec128i(0x0000000Fu, 0x0000000Fu, 0x0000000Fu,
+                                         0x0000000Fu),
+    /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu,
+                                         0x0000001Fu),
+    /* XMMShiftByteMask       */ vec128i(0x000000FFu, 0x000000FFu, 0x000000FFu,
+                                         0x000000FFu),
+    /* XMMSwapWordMask        */ vec128i(0x03030303u, 0x03030303u, 0x03030303u,
+                                         0x03030303u),
+    /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u, 0xFFFFFFFFu,
+                                         0x00000000u),
+    /* XMM255                 */ vec128f(255.0f),
+    /* XMMPI32                */ vec128i(32),
+    /* XMMSignMaskI8          */ vec128i(0x80808080u, 0x80808080u, 0x80808080u,
+                                         0x80808080u),
+    /* XMMSignMaskI16         */ vec128i(0x80008000u, 0x80008000u, 0x80008000u,
+                                         0x80008000u),
+    /* XMMSignMaskI32         */ vec128i(0x80000000u, 0x80000000u, 0x80000000u,
+                                         0x80000000u),
+    /* XMMSignMaskF32         */ vec128i(0x80000000u, 0x80000000u, 0x80000000u,
+                                         0x80000000u),
+    /* XMMShortMinPS          */ vec128f(SHRT_MIN),
+    /* XMMShortMaxPS          */ vec128f(SHRT_MAX),
+};
+
+// First location to try and place constants.
+static const uintptr_t kConstDataLocation = 0x20000000;
+static const uintptr_t kConstDataSize = sizeof(xmm_consts);
+
+// Increment the location by this amount for every allocation failure.
+static const uintptr_t kConstDataIncrement = 0x00010000;
+
+// This function places constant data that is used by the emitter later on.
+// Only called once and used by multiple instances of the emitter.
+//
+// TODO(DrChat): This should be placed in the code cache with the code, but
+// doing so requires RIP-relative addressing, which is difficult to support
+// given the current setup.
+uintptr_t X64Emitter::PlaceConstData() {
+  uint8_t* ptr = reinterpret_cast<uint8_t*>(kConstDataLocation);
+  void* mem = nullptr;
+  while (!mem) {
+    mem = memory::AllocFixed(
+        ptr, xe::round_up(kConstDataSize, memory::page_size()),
+        memory::AllocationType::kReserveCommit, memory::PageAccess::kReadWrite);
+
+    ptr += kConstDataIncrement;
+  }
+
+  // The pointer must not be greater than 31 bits.
+  assert_zero(reinterpret_cast<uintptr_t>(mem) & ~0x7FFFFFFF);
+  std::memcpy(mem, xmm_consts, sizeof(xmm_consts));
+  memory::Protect(mem, kConstDataSize, memory::PageAccess::kReadOnly, nullptr);
+
+  return reinterpret_cast<uintptr_t>(mem);
+}
+
+void X64Emitter::FreeConstData(uintptr_t data) {
+  memory::DeallocFixed(reinterpret_cast<void*>(data), 0,
+                       memory::DeallocationType::kDecommitRelease);
 }
 
 Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
-  // Load through fixed constant table setup by PlaceData.
-  return ptr[rdx + backend_->emitter_data() + sizeof(vec128_t) * id];
+  // Load through fixed constant table setup by PlaceConstData.
+  // It's important that the pointer is not signed, as it will be sign-extended.
+  return ptr[reinterpret_cast<void*>(backend_->emitter_data() +
+                                     sizeof(vec128_t) * id)];
 }
 
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
