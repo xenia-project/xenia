@@ -160,10 +160,6 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   // Must be 16b aligned.
   // Windows is very strict about the form of this and the epilog:
   // http://msdn.microsoft.com/en-us/library/tawsa7cb.aspx
-  // TODO(benvanik): save off non-volatile registers so we can use them:
-  //     RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15
-  //     Only want to do this if we actually use them, though, otherwise
-  //     it just adds overhead.
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
@@ -172,7 +168,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   *out_stack_size = stack_size;
   stack_size_ = stack_size;
   sub(rsp, (uint32_t)stack_size);
-  mov(qword[rsp + StackLayout::GUEST_RCX_HOME], rcx);
+  mov(qword[rsp + StackLayout::GUEST_CTX_HOME], rcx);
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
 
@@ -205,7 +201,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   }
 
   // Load membase.
-  mov(rdx, qword[rcx + 8]);
+  mov(rdx, qword[rcx + offsetof(ppc::PPCContext, virtual_membase)]);
 
   // Body.
   auto block = builder->first_block();
@@ -237,7 +233,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   L(epilog_label);
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
-  mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
+  mov(rcx, qword[rsp + StackLayout::GUEST_CTX_HOME]);
   add(rsp, (uint32_t)stack_size);
   ret();
 
@@ -546,8 +542,11 @@ void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
 }
 
+Xbyak::Reg64 X64Emitter::GetContextReg() { return rcx; }
+Xbyak::Reg64 X64Emitter::GetMembaseReg() { return rdx; }
+
 void X64Emitter::ReloadECX() {
-  mov(rcx, qword[rsp + StackLayout::GUEST_RCX_HOME]);
+  mov(rcx, qword[rsp + StackLayout::GUEST_CTX_HOME]);
 }
 
 void X64Emitter::ReloadEDX() {

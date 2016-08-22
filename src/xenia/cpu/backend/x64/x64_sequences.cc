@@ -1793,7 +1793,7 @@ EMITTER_OPCODE_TABLE(OPCODE_STORE_LOCAL, STORE_LOCAL_I8, STORE_LOCAL_I16,
 // ============================================================================
 // Note: all types are always aligned in the context.
 RegExp ComputeContextAddress(X64Emitter& e, const OffsetOp& offset) {
-  return e.rcx + offset.value;
+  return e.GetContextReg() + offset.value;
 }
 struct LOAD_CONTEXT_I8
     : Sequence<LOAD_CONTEXT_I8, I<OPCODE_LOAD_CONTEXT, I8Op, OffsetOp>> {
@@ -2088,12 +2088,12 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     // Since the constant is often 0x8... if we tried to use that as a
     // displacement it would be sign extended and mess things up.
     e.mov(e.eax, static_cast<uint32_t>(guest.constant()));
-    return e.rdx + e.rax;
+    return e.GetMembaseReg() + e.rax;
   } else {
     // Clear the top 32 bits, as they are likely garbage.
     // TODO(benvanik): find a way to avoid doing this.
     e.mov(e.eax, guest.reg().cvt32());
-    return e.rdx + e.rax;
+    return e.GetMembaseReg() + e.rax;
   }
 }
 struct LOAD_I8 : Sequence<LOAD_I8, I<OPCODE_LOAD, I8Op, I64Op>> {
@@ -3959,7 +3959,6 @@ struct MUL_HI_I8 : Sequence<MUL_HI_I8, I<OPCODE_MUL_HI, I8Op, I8Op, I8Op>> {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // mulx: $1:$2 = EDX * $3
 
-      // TODO(justin): Find a way to shorten this has call
       if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.movzx(e.edx, i.src1);
@@ -4004,7 +4003,6 @@ struct MUL_HI_I16
     : Sequence<MUL_HI_I16, I<OPCODE_MUL_HI, I16Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(justin): Find a way to shorten this has call
       if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.movzx(e.edx, i.src1);
@@ -4049,7 +4047,6 @@ struct MUL_HI_I32
     : Sequence<MUL_HI_I32, I<OPCODE_MUL_HI, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(justin): Find a way to shorten this has call
       if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.mov(e.edx, i.src1);
@@ -4099,7 +4096,6 @@ struct MUL_HI_I64
     : Sequence<MUL_HI_I64, I<OPCODE_MUL_HI, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // TODO(justin): Find a way to shorten this has call
       if (e.IsFeatureEnabled(kX64EmitBMI2)) {
         // TODO(benvanik): place src1 in eax? still need to sign extend
         e.mov(e.rdx, i.src1);

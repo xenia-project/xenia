@@ -125,7 +125,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
  public:
   // Reserved:  rsp
   // Scratch:   rax/rcx/rdx
-  //            xmm0-2 (could be only xmm0 with some trickery)
+  //            xmm0-2
   // Available: rbx, r12-r15 (save to get r8-r11, rbp, rsi, rdi?)
   //            xmm6-xmm15 (save to get xmm3-xmm5)
   static const int GPR_COUNT = 5;
@@ -170,6 +170,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
                   uint64_t arg0);
   void CallNativeSafe(void* fn);
   void SetReturnAddress(uint64_t value);
+
+  Xbyak::Reg64 GetContextReg();
+  Xbyak::Reg64 GetMembaseReg();
   void ReloadECX();
   void ReloadEDX();
 

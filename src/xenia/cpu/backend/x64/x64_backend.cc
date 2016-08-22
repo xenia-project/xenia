@@ -398,52 +398,53 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
 
-  mov(qword[rsp + 48], rbx);
-  mov(qword[rsp + 56], rcx);
-  mov(qword[rsp + 64], rbp);
-  mov(qword[rsp + 72], rsi);
-  mov(qword[rsp + 80], rdi);
-  mov(qword[rsp + 88], r12);
-  mov(qword[rsp + 96], r13);
-  mov(qword[rsp + 104], r14);
-  mov(qword[rsp + 112], r15);
+  // Preserve nonvolatile registers.
+  mov(qword[rsp + 40], rbx);
+  mov(qword[rsp + 48], rcx);
+  mov(qword[rsp + 56], rbp);
+  mov(qword[rsp + 64], rsi);
+  mov(qword[rsp + 72], rdi);
+  mov(qword[rsp + 80], r12);
+  mov(qword[rsp + 88], r13);
+  mov(qword[rsp + 96], r14);
+  mov(qword[rsp + 104], r15);
 
-  /*movaps(ptr[rsp + 128], xmm6);
-  movaps(ptr[rsp + 144], xmm7);
-  movaps(ptr[rsp + 160], xmm8);
-  movaps(ptr[rsp + 176], xmm9);
-  movaps(ptr[rsp + 192], xmm10);
-  movaps(ptr[rsp + 208], xmm11);
-  movaps(ptr[rsp + 224], xmm12);
-  movaps(ptr[rsp + 240], xmm13);
-  movaps(ptr[rsp + 256], xmm14);
-  movaps(ptr[rsp + 272], xmm15);*/
+  movaps(ptr[rsp + 112], xmm6);
+  movaps(ptr[rsp + 128], xmm7);
+  movaps(ptr[rsp + 144], xmm8);
+  movaps(ptr[rsp + 160], xmm9);
+  movaps(ptr[rsp + 176], xmm10);
+  movaps(ptr[rsp + 192], xmm11);
+  movaps(ptr[rsp + 208], xmm12);
+  movaps(ptr[rsp + 224], xmm13);
+  movaps(ptr[rsp + 240], xmm14);
+  movaps(ptr[rsp + 256], xmm15);
 
   mov(rax, rcx);
   mov(rcx, rdx);
   mov(rdx, r8);
   call(rax);
 
-  /*movaps(xmm6, ptr[rsp + 128]);
-  movaps(xmm7, ptr[rsp + 144]);
-  movaps(xmm8, ptr[rsp + 160]);
-  movaps(xmm9, ptr[rsp + 176]);
-  movaps(xmm10, ptr[rsp + 192]);
-  movaps(xmm11, ptr[rsp + 208]);
-  movaps(xmm12, ptr[rsp + 224]);
-  movaps(xmm13, ptr[rsp + 240]);
-  movaps(xmm14, ptr[rsp + 256]);
-  movaps(xmm15, ptr[rsp + 272]);*/
+  movaps(xmm6, ptr[rsp + 112]);
+  movaps(xmm7, ptr[rsp + 128]);
+  movaps(xmm8, ptr[rsp + 144]);
+  movaps(xmm9, ptr[rsp + 160]);
+  movaps(xmm10, ptr[rsp + 176]);
+  movaps(xmm11, ptr[rsp + 192]);
+  movaps(xmm12, ptr[rsp + 208]);
+  movaps(xmm13, ptr[rsp + 224]);
+  movaps(xmm14, ptr[rsp + 240]);
+  movaps(xmm15, ptr[rsp + 256]);
 
-  mov(rbx, qword[rsp + 48]);
-  mov(rcx, qword[rsp + 56]);
-  mov(rbp, qword[rsp + 64]);
-  mov(rsi, qword[rsp + 72]);
-  mov(rdi, qword[rsp + 80]);
-  mov(r12, qword[rsp + 88]);
-  mov(r13, qword[rsp + 96]);
-  mov(r14, qword[rsp + 104]);
-  mov(r15, qword[rsp + 112]);
+  mov(rbx, qword[rsp + 40]);
+  mov(rcx, qword[rsp + 48]);
+  mov(rbp, qword[rsp + 56]);
+  mov(rsi, qword[rsp + 64]);
+  mov(rdi, qword[rsp + 72]);
+  mov(r12, qword[rsp + 80]);
+  mov(r13, qword[rsp + 88]);
+  mov(r14, qword[rsp + 96]);
+  mov(r15, qword[rsp + 104]);
 
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
@@ -468,17 +469,18 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
 
-  mov(qword[rsp + 48], rbx);
-  mov(qword[rsp + 56], rcx);
-  mov(qword[rsp + 64], rbp);
-  mov(qword[rsp + 72], rsi);
-  mov(qword[rsp + 80], rdi);
-  mov(qword[rsp + 88], r12);
-  mov(qword[rsp + 96], r13);
-  mov(qword[rsp + 104], r14);
-  mov(qword[rsp + 112], r15);
+  mov(qword[rsp + 40], rbx);
+  mov(qword[rsp + 48], rcx);
+  mov(qword[rsp + 56], rbp);
+  mov(qword[rsp + 64], rsi);
+  mov(qword[rsp + 72], rdi);
+  mov(qword[rsp + 80], r12);
+  mov(qword[rsp + 88], r13);
+  mov(qword[rsp + 96], r14);
+  mov(qword[rsp + 104], r15);
 
   // TODO(benvanik): save things? XMM0-5?
+  // HACK: Some emulated vector instructions require that we don't touch xmm0.
 
   mov(rax, rdx);
   mov(rdx, r8);
@@ -486,15 +488,15 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(r9, r10);
   call(rax);
 
-  mov(rbx, qword[rsp + 48]);
-  mov(rcx, qword[rsp + 56]);
-  mov(rbp, qword[rsp + 64]);
-  mov(rsi, qword[rsp + 72]);
-  mov(rdi, qword[rsp + 80]);
-  mov(r12, qword[rsp + 88]);
-  mov(r13, qword[rsp + 96]);
-  mov(r14, qword[rsp + 104]);
-  mov(r15, qword[rsp + 112]);
+  mov(rbx, qword[rsp + 40]);
+  mov(rcx, qword[rsp + 48]);
+  mov(rbp, qword[rsp + 56]);
+  mov(rsi, qword[rsp + 64]);
+  mov(rdi, qword[rsp + 72]);
+  mov(r12, qword[rsp + 80]);
+  mov(r13, qword[rsp + 88]);
+  mov(r14, qword[rsp + 96]);
+  mov(r15, qword[rsp + 104]);
 
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
@@ -502,7 +504,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   ret();
 
   void* fn = Emplace(stack_size);
-  return (HostToGuestThunk)fn;
+  return (GuestToHostThunk)fn;
 }
 
 // X64Emitter handles actually resolving functions.
@@ -518,29 +520,29 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
 
-  mov(qword[rsp + 48], rbx);
-  mov(qword[rsp + 56], rcx);
-  mov(qword[rsp + 64], rbp);
-  mov(qword[rsp + 72], rsi);
-  mov(qword[rsp + 80], rdi);
-  mov(qword[rsp + 88], r12);
-  mov(qword[rsp + 96], r13);
-  mov(qword[rsp + 104], r14);
-  mov(qword[rsp + 112], r15);
+  mov(qword[rsp + 40], rbx);
+  mov(qword[rsp + 48], rcx);
+  mov(qword[rsp + 56], rbp);
+  mov(qword[rsp + 64], rsi);
+  mov(qword[rsp + 72], rdi);
+  mov(qword[rsp + 80], r12);
+  mov(qword[rsp + 88], r13);
+  mov(qword[rsp + 96], r14);
+  mov(qword[rsp + 104], r15);
 
   mov(rdx, rbx);
   mov(rax, uint64_t(&ResolveFunction));
   call(rax);
 
-  mov(rbx, qword[rsp + 48]);
-  mov(rcx, qword[rsp + 56]);
-  mov(rbp, qword[rsp + 64]);
-  mov(rsi, qword[rsp + 72]);
-  mov(rdi, qword[rsp + 80]);
-  mov(r12, qword[rsp + 88]);
-  mov(r13, qword[rsp + 96]);
-  mov(r14, qword[rsp + 104]);
-  mov(r15, qword[rsp + 112]);
+  mov(rbx, qword[rsp + 40]);
+  mov(rcx, qword[rsp + 48]);
+  mov(rbp, qword[rsp + 56]);
+  mov(rsi, qword[rsp + 64]);
+  mov(rdi, qword[rsp + 72]);
+  mov(r12, qword[rsp + 80]);
+  mov(r13, qword[rsp + 88]);
+  mov(r14, qword[rsp + 96]);
+  mov(r15, qword[rsp + 104]);
 
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
