@@ -422,7 +422,7 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
 
   mov(rax, rcx);
   mov(rsi, rdx);  // context
-  mov(rdx, r8);
+  mov(rcx, r8);   // return address
   call(rax);
 
   movaps(xmm6, qword[rsp + offsetof(StackLayout::Thunk, xmm[0])]);

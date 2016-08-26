@@ -169,7 +169,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   stack_size_ = stack_size;
   sub(rsp, (uint32_t)stack_size);
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
-  mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
+  mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
 
   // Safe now to do some tracing.
@@ -384,13 +384,13 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
-    mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+    mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
     add(rsp, static_cast<uint32_t>(stack_size()));
     jmp(rax);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
-    mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+    mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
     call(rax);
   }
@@ -427,13 +427,13 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
-    mov(rdx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+    mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
     add(rsp, static_cast<uint32_t>(stack_size()));
     jmp(rax);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
-    mov(rdx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+    mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
     call(rax);
   }
