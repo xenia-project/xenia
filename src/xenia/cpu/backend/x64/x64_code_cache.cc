@@ -181,6 +181,10 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     // Copy code.
     std::memcpy(code_address, machine_code, code_size);
 
+    // Fill unused slots with 0xCC
+    std::memset(code_address + code_size, 0xCC,
+                xe::round_up(code_size, 16) - code_size);
+
     // Notify subclasses of placed code.
     PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
               unwind_reservation);

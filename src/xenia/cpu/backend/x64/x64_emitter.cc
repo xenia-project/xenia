@@ -168,7 +168,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   *out_stack_size = stack_size;
   stack_size_ = stack_size;
   sub(rsp, (uint32_t)stack_size);
-  mov(qword[rsp + StackLayout::GUEST_CTX_HOME], rcx);
+  mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rdx);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
 
@@ -201,7 +201,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   }
 
   // Load membase.
-  mov(rdx, qword[rcx + offsetof(ppc::PPCContext, virtual_membase)]);
+  mov(GetMembaseReg(),
+      qword[GetContextReg() + offsetof(ppc::PPCContext, virtual_membase)]);
 
   // Body.
   auto block = builder->first_block();
@@ -233,7 +234,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   L(epilog_label);
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
-  mov(rcx, qword[rsp + StackLayout::GUEST_CTX_HOME]);
+  mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
   add(rsp, (uint32_t)stack_size);
   ret();
 
@@ -272,8 +273,8 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
 }
 
 void X64Emitter::EmitGetCurrentThreadId() {
-  // rcx must point to context. We could fetch from the stack if needed.
-  mov(ax, word[rcx + offsetof(ppc::PPCContext, thread_id)]);
+  // rsi must point to context. We could fetch from the stack if needed.
+  mov(ax, word[GetContextReg() + offsetof(ppc::PPCContext, thread_id)]);
 }
 
 void X64Emitter::EmitTraceUserCallReturn() {}
@@ -372,10 +373,9 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // Not too important because indirection table is almost always available.
     // TODO: Overwrite the call-site with a straight call.
     mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
+    mov(rcx, GetContextReg());
     mov(rdx, function->address());
     call(rax);
-    ReloadECX();
-    ReloadEDX();
   }
 
   // Actually jump/call to rax.
@@ -417,9 +417,8 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
     // Not too important because indirection table is almost always available.
     mov(edx, reg.cvt32());
     mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
+    mov(rcx, GetContextReg());
     call(rax);
-    ReloadECX();
-    ReloadEDX();
   }
 
   // Actually jump/call to rax.
@@ -461,14 +460,13 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // rdx = target host function
       // r8  = arg0
       // r9  = arg1
+      mov(rcx, GetContextReg());
       mov(rdx, reinterpret_cast<uint64_t>(builtin_function->handler()));
       mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg0()));
       mov(r9, reinterpret_cast<uint64_t>(builtin_function->arg1()));
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
       call(rax);
-      ReloadECX();
-      ReloadEDX();
       // rax = host return
     }
   } else if (function->behavior() == Function::Behavior::kExtern) {
@@ -477,13 +475,12 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       undefined = false;
       // rcx = context
       // rdx = target host function
+      mov(rcx, GetContextReg());
       mov(rdx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      mov(r8, qword[rcx + offsetof(ppc::PPCContext, kernel_state)]);
+      mov(r8, qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
       call(rax);
-      ReloadECX();
-      ReloadEDX();
       // rax = host return
     }
   }
@@ -494,32 +491,28 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
 
 void X64Emitter::CallNative(void* fn) {
   mov(rax, reinterpret_cast<uint64_t>(fn));
+  mov(rcx, GetContextReg());
   call(rax);
-  ReloadECX();
-  ReloadEDX();
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context)) {
   mov(rax, reinterpret_cast<uint64_t>(fn));
+  mov(rcx, GetContextReg());
   call(rax);
-  ReloadECX();
-  ReloadEDX();
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0)) {
   mov(rax, reinterpret_cast<uint64_t>(fn));
+  mov(rcx, GetContextReg());
   call(rax);
-  ReloadECX();
-  ReloadEDX();
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
                             uint64_t arg0) {
-  mov(rdx, arg0);
   mov(rax, reinterpret_cast<uint64_t>(fn));
+  mov(rcx, GetContextReg());
+  mov(rdx, arg0);
   call(rax);
-  ReloadECX();
-  ReloadEDX();
 }
 
 void X64Emitter::CallNativeSafe(void* fn) {
@@ -528,12 +521,11 @@ void X64Emitter::CallNativeSafe(void* fn) {
   // r8  = arg0
   // r9  = arg1
   // r10 = arg2
-  mov(rdx, reinterpret_cast<uint64_t>(fn));
   auto thunk = backend()->guest_to_host_thunk();
   mov(rax, reinterpret_cast<uint64_t>(thunk));
+  mov(rcx, GetContextReg());
+  mov(rdx, reinterpret_cast<uint64_t>(fn));
   call(rax);
-  ReloadECX();
-  ReloadEDX();
   // rax = host return
 }
 
@@ -542,15 +534,16 @@ void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
 }
 
-Xbyak::Reg64 X64Emitter::GetContextReg() { return rcx; }
-Xbyak::Reg64 X64Emitter::GetMembaseReg() { return rdx; }
+// Important: If you change these, you must update the thunks in x64_backend.cc!
+Xbyak::Reg64 X64Emitter::GetContextReg() { return rsi; }
+Xbyak::Reg64 X64Emitter::GetMembaseReg() { return rdi; }
 
-void X64Emitter::ReloadECX() {
-  mov(rcx, qword[rsp + StackLayout::GUEST_CTX_HOME]);
+void X64Emitter::ReloadContext() {
+  mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
 }
 
-void X64Emitter::ReloadEDX() {
-  mov(rdx, qword[rcx + 8]);  // membase
+void X64Emitter::ReloadMembase() {
+  mov(GetMembaseReg(), qword[GetContextReg() + 8]);  // membase
 }
 
 // Len Assembly                                   Byte Sequence

@@ -173,8 +173,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Xbyak::Reg64 GetContextReg();
   Xbyak::Reg64 GetMembaseReg();
-  void ReloadECX();
-  void ReloadEDX();
+  void ReloadContext();
+  void ReloadMembase();
 
   void nop(size_t length = 1);
 
