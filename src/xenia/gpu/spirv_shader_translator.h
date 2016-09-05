@@ -56,12 +56,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
   void PostTranslation(Shader* shader) override;
 
-  void PreProcessControlFlowInstruction(
-      uint32_t cf_index, const ucode::ControlFlowInstruction& instr) override;
+  void PreProcessControlFlowInstructions(
+      std::vector<ucode::ControlFlowInstruction> instrs) override;
   void ProcessLabel(uint32_t cf_index) override;
   void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
   void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
-  void ProcessControlFlowNopInstruction() override;
+  void ProcessControlFlowNopInstruction(uint32_t cf_index) override;
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
   void ProcessLoopStartInstruction(
@@ -83,6 +83,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
+
+  spv::Id BitfieldExtract(spv::Id result_type, spv::Id base, bool is_signed,
+                          uint32_t offset, uint32_t count);
+  spv::Id ConvertNormVar(spv::Id var, spv::Id result_type, uint32_t bits,
+                         bool is_signed);
 
   // Creates a call to the given GLSL intrinsic.
   spv::Id SpirvShaderTranslator::CreateGlslStd450InstructionCall(
@@ -106,6 +111,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   bool open_predicated_block_ = false;
   bool predicated_block_cond_ = false;
   spv::Block* predicated_block_end_ = nullptr;
+
+  // Exec block conditional?
+  bool exec_cond_ = false;
+  spv::Block* exec_skip_block_ = nullptr;
 
   // TODO(benvanik): replace with something better, make reusable, etc.
   std::unique_ptr<spv::Builder> builder_;
@@ -132,6 +141,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id registers_ptr_ = 0, registers_type_ = 0;
   spv::Id consts_ = 0, a0_ = 0, aL_ = 0, p0_ = 0;
   spv::Id ps_ = 0, pv_ = 0;  // IDs of previous results
+  spv::Id pc_ = 0;           // Program counter
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
@@ -148,9 +158,14 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   struct CFBlock {
     spv::Block* block = nullptr;
-    bool prev_dominates = true;
+    bool labelled = false;
   };
-  std::map<uint32_t, CFBlock> cf_blocks_;
+  std::vector<CFBlock> cf_blocks_;
+  spv::Block* switch_break_block_ = nullptr;
+  spv::Block* loop_head_block_ = nullptr;
+  spv::Block* loop_body_block_ = nullptr;
+  spv::Block* loop_cont_block_ = nullptr;
+  spv::Block* loop_exit_block_ = nullptr;
 };
 
 }  // namespace gpu

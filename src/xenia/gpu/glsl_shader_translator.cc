@@ -396,7 +396,7 @@ void GlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
   }
 }
 
-void GlslShaderTranslator::ProcessControlFlowNopInstruction() {
+void GlslShaderTranslator::ProcessControlFlowNopInstruction(uint32_t cf_index) {
   EmitSource("//        cnop\n");
 }
 

@@ -103,6 +103,8 @@ void SpirvShaderTranslator::StartTranslation() {
                          "ps");
   pv_ = b.createVariable(spv::StorageClass::StorageClassFunction,
                          vec4_float_type_, "pv");
+  pc_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
+                         "pc");
   a0_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
                          "a0");
 
@@ -219,6 +221,7 @@ void SpirvShaderTranslator::StartTranslation() {
     for (const auto& binding : vertex_bindings()) {
       for (const auto& attrib : binding.attributes) {
         Id attrib_type = 0;
+        bool is_signed = attrib.fetch_instr.attributes.is_signed;
         switch (attrib.fetch_instr.attributes.data_format) {
           case VertexFormat::k_32:
           case VertexFormat::k_32_FLOAT:
@@ -230,8 +233,6 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_32_32_FLOAT:
             attrib_type = vec2_float_type_;
             break;
-          case VertexFormat::k_10_11_11:
-          case VertexFormat::k_11_11_10:
           case VertexFormat::k_32_32_32_FLOAT:
             attrib_type = vec3_float_type_;
             break;
@@ -242,6 +243,11 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_16_16_16_16_FLOAT:
           case VertexFormat::k_32_32_32_32_FLOAT:
             attrib_type = vec4_float_type_;
+            break;
+          case VertexFormat::k_10_11_11:
+          case VertexFormat::k_11_11_10:
+            // Manually converted.
+            attrib_type = is_signed ? int_type_ : uint_type_;
             break;
           default:
             assert_always();
@@ -387,15 +393,44 @@ void SpirvShaderTranslator::StartTranslation() {
 
     ifb.makeEndIf();
   }
+
+  b.createStore(b.makeIntConstant(0x0), pc_);
+
+  loop_head_block_ = &b.makeNewBlock();
+  auto block = &b.makeNewBlock();
+  loop_body_block_ = &b.makeNewBlock();
+  loop_cont_block_ = &b.makeNewBlock();
+  loop_exit_block_ = &b.makeNewBlock();
+  b.createBranch(loop_head_block_);
+
+  // Setup continue block
+  b.setBuildPoint(loop_cont_block_);
+  b.createBranch(loop_head_block_);
+
+  // While loop header block
+  b.setBuildPoint(loop_head_block_);
+  b.createLoopMerge(loop_exit_block_, loop_cont_block_,
+                    spv::LoopControlMask::LoopControlDontUnrollMask);
+  b.createBranch(block);
+
+  // Condition block
+  b.setBuildPoint(block);
+
+  // while (pc != 0xFFFF)
+  auto c = b.createBinOp(spv::Op::OpINotEqual, bool_type_, b.createLoad(pc_),
+                         b.makeIntConstant(0xFFFF));
+  b.createConditionalBranch(c, loop_body_block_, loop_exit_block_);
+  b.setBuildPoint(loop_body_block_);
 }
 
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   auto& b = *builder_;
 
   assert_false(open_predicated_block_);
-  auto block = &b.makeNewBlock();
-  b.createBranch(block);
+  b.setBuildPoint(loop_exit_block_);
   b.makeReturn(false);
+  exec_cond_ = false;
+  exec_skip_block_ = nullptr;
 
   // main() entry point.
   auto mainFn = b.makeMain();
@@ -410,6 +445,9 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelFragment,
                                  mainFn, "main");
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
+
+    // FIXME(DrChat): We need to declare the DepthReplacing execution mode if
+    // we write depth, and we must unconditionally write depth if declared!
 
     for (auto id : interface_ids_) {
       entry->addIdOperand(id);
@@ -527,12 +565,17 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   b.makeReturn(false);
 
   // Compile the spv IR
-  compiler_.Compile(b.getModule());
+  // compiler_.Compile(b.getModule());
 
   std::vector<uint32_t> spirv_words;
   b.dump(spirv_words);
 
   // Cleanup builder.
+  cf_blocks_.clear();
+  loop_head_block_ = nullptr;
+  loop_body_block_ = nullptr;
+  loop_cont_block_ = nullptr;
+  loop_exit_block_ = nullptr;
   builder_.reset();
 
   interface_ids_.clear();
@@ -568,30 +611,68 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
   }
 }
 
-void SpirvShaderTranslator::PreProcessControlFlowInstruction(
-    uint32_t cf_index, const ControlFlowInstruction& instr) {
+void SpirvShaderTranslator::PreProcessControlFlowInstructions(
+    std::vector<ucode::ControlFlowInstruction> instrs) {
   auto& b = *builder_;
 
-  if (cf_blocks_.find(cf_index) == cf_blocks_.end()) {
-    CFBlock block;
-    block.block = &b.makeNewBlock();
-    cf_blocks_[cf_index] = block;
-  } else {
-    cf_blocks_[cf_index].block = &b.makeNewBlock();
+  auto default_block = &b.makeNewBlock();
+  switch_break_block_ = &b.makeNewBlock();
+
+  b.setBuildPoint(default_block);
+  b.createStore(b.makeIntConstant(0xFFFF), pc_);
+  b.createBranch(switch_break_block_);
+
+  b.setBuildPoint(switch_break_block_);
+  b.createBranch(loop_cont_block_);
+
+  // Now setup the switch.
+  default_block->addPredecessor(loop_body_block_);
+  b.setBuildPoint(loop_body_block_);
+
+  cf_blocks_.resize(instrs.size());
+  for (size_t i = 0; i < cf_blocks_.size(); i++) {
+    cf_blocks_[i].block = &b.makeNewBlock();
+    cf_blocks_[i].labelled = false;
   }
 
-  if (instr.opcode() == ControlFlowOpcode::kCondJmp) {
-    auto cf_block = cf_blocks_.find(instr.cond_jmp.address());
-    if (cf_block == cf_blocks_.end()) {
-      CFBlock block;
-      block.prev_dominates = false;
-      cf_blocks_[instr.cond_jmp.address()] = block;
-    } else {
-      cf_block->second.prev_dominates = false;
+  std::vector<uint32_t> operands;
+  operands.push_back(b.createLoad(pc_));       // Selector
+  operands.push_back(default_block->getId());  // Default
+
+  // Always have a case for block 0.
+  operands.push_back(0);
+  operands.push_back(cf_blocks_[0].block->getId());
+  cf_blocks_[0].block->addPredecessor(loop_body_block_);
+  cf_blocks_[0].labelled = true;
+
+  for (size_t i = 0; i < instrs.size(); i++) {
+    auto& instr = instrs[i];
+    if (instr.opcode() == ucode::ControlFlowOpcode::kCondJmp) {
+      uint32_t address = instr.cond_jmp.address();
+      cf_blocks_[address].labelled = true;
+
+      operands.push_back(address);
+      operands.push_back(cf_blocks_[address].block->getId());
+      cf_blocks_[address].block->addPredecessor(loop_body_block_);
+    } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopStart) {
+      uint32_t address = instr.loop_start.address();
+      cf_blocks_[address].labelled = true;
+
+      operands.push_back(address);
+      operands.push_back(cf_blocks_[address].block->getId());
+      cf_blocks_[address].block->addPredecessor(loop_body_block_);
+    } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopEnd) {
+      uint32_t address = instr.loop_end.address();
+      cf_blocks_[address].labelled = true;
+
+      operands.push_back(address);
+      operands.push_back(cf_blocks_[address].block->getId());
+      cf_blocks_[address].block->addPredecessor(loop_body_block_);
     }
-  } else if (instr.opcode() == ControlFlowOpcode::kLoopStart) {
-    // TODO
   }
+
+  b.createSelectionMerge(switch_break_block_, 0);
+  b.createNoResultOp(spv::Op::OpSwitch, operands);
 }
 
 void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
@@ -601,11 +682,6 @@ void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
 void SpirvShaderTranslator::ProcessControlFlowInstructionBegin(
     uint32_t cf_index) {
   auto& b = *builder_;
-
-  if (cf_index == 0) {
-    // Kind of cheaty, but emit a branch to the first block.
-    b.createBranch(cf_blocks_[cf_index].block);
-  }
 }
 
 void SpirvShaderTranslator::ProcessControlFlowInstructionEnd(
@@ -613,10 +689,18 @@ void SpirvShaderTranslator::ProcessControlFlowInstructionEnd(
   auto& b = *builder_;
 }
 
-void SpirvShaderTranslator::ProcessControlFlowNopInstruction() {
+void SpirvShaderTranslator::ProcessControlFlowNopInstruction(
+    uint32_t cf_index) {
   auto& b = *builder_;
 
-  // b.createNoResultOp(spv::Op::OpNop);
+  auto head = cf_blocks_[cf_index].block;
+  b.setBuildPoint(head);
+  b.createNoResultOp(spv::Op::OpNop);
+  if (cf_blocks_.size() > cf_index + 1) {
+    b.createBranch(cf_blocks_[cf_index + 1].block);
+  } else {
+    b.makeReturn(false);
+  }
 }
 
 void SpirvShaderTranslator::ProcessExecInstructionBegin(
@@ -635,6 +719,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
   switch (instr.type) {
     case ParsedExecInstruction::Type::kUnconditional: {
       // No need to do anything.
+      exec_cond_ = false;
     } break;
     case ParsedExecInstruction::Type::kConditional: {
       // Based off of bool_consts
@@ -665,27 +750,34 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       // Conditional branch
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
+      exec_cond_ = true;
+      exec_skip_block_ = &b.makeNewBlock();
 
-      auto next_block = cf_blocks_[instr.dword_index + 1];
-      if (next_block.prev_dominates) {
-        b.createSelectionMerge(next_block.block, spv::SelectionControlMaskNone);
-      }
-      b.createConditionalBranch(cond, body, next_block.block);
+      b.createSelectionMerge(
+          exec_skip_block_,
+          spv::SelectionControlMask::SelectionControlMaskNone);
+      b.createConditionalBranch(cond, body, exec_skip_block_);
+
+      b.setBuildPoint(exec_skip_block_);
+      b.createBranch(cf_blocks_[instr.dword_index + 1].block);
     } break;
     case ParsedExecInstruction::Type::kPredicated: {
       // Branch based on p0.
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
+      exec_cond_ = true;
+      exec_skip_block_ = &b.makeNewBlock();
+
       auto cond =
           b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
                         b.makeBoolConstant(instr.condition));
+      b.createSelectionMerge(
+          exec_skip_block_,
+          spv::SelectionControlMask::SelectionControlMaskNone);
+      b.createConditionalBranch(cond, body, exec_skip_block_);
 
-      auto next_block = cf_blocks_[instr.dword_index + 1];
-      if (next_block.prev_dominates) {
-        b.createSelectionMerge(next_block.block, spv::SelectionControlMaskNone);
-      }
-      b.createConditionalBranch(cond, body, next_block.block);
-
+      b.setBuildPoint(exec_skip_block_);
+      b.createBranch(cf_blocks_[instr.dword_index + 1].block);
     } break;
   }
   b.setBuildPoint(body);
@@ -705,6 +797,8 @@ void SpirvShaderTranslator::ProcessExecInstructionEnd(
 
   if (instr.is_end) {
     b.makeReturn(false);
+  } else if (exec_cond_) {
+    b.createBranch(exec_skip_block_);
   } else {
     assert_true(cf_blocks_.size() > instr.dword_index + 1);
     b.createBranch(cf_blocks_[instr.dword_index + 1].block);
@@ -779,7 +873,8 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
   b.setBuildPoint(head);
   switch (instr.type) {
     case ParsedJumpInstruction::Type::kUnconditional: {
-      b.createBranch(cf_blocks_[instr.target_address].block);
+      b.createStore(b.makeIntConstant(instr.target_address), pc_);
+      b.createBranch(switch_break_block_);
     } break;
     case ParsedJumpInstruction::Type::kConditional: {
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
@@ -810,8 +905,11 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
           instr.condition ? spv::Op::OpINotEqual : spv::Op::OpIEqual,
           bool_type_, v, b.makeUintConstant(0));
 
-      b.createConditionalBranch(cond, cf_blocks_[instr.target_address].block,
-                                cf_blocks_[instr.dword_index + 1].block);
+      auto next_pc = b.createTriOp(spv::Op::OpSelect, int_type_, cond,
+                                   b.makeIntConstant(instr.target_address),
+                                   b.makeIntConstant(instr.dword_index + 1));
+      b.createStore(next_pc, pc_);
+      b.createBranch(switch_break_block_);
     } break;
     case ParsedJumpInstruction::Type::kPredicated: {
       assert_true(cf_blocks_.size() > instr.dword_index + 1);
@@ -819,8 +917,12 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       auto cond =
           b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
                         b.makeBoolConstant(instr.condition));
-      b.createConditionalBranch(cond, cf_blocks_[instr.target_address].block,
-                                cf_blocks_[instr.dword_index + 1].block);
+
+      auto next_pc = b.createTriOp(spv::Op::OpSelect, int_type_, cond,
+                                   b.makeIntConstant(instr.target_address),
+                                   b.makeIntConstant(instr.dword_index + 1));
+      b.createStore(next_pc, pc_);
+      b.createBranch(switch_break_block_);
     } break;
   }
 }
@@ -852,6 +954,43 @@ void SpirvShaderTranslator::ProcessAllocInstruction(
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
   b.createBranch(cf_blocks_[instr.dword_index + 1].block);
+}
+
+spv::Id SpirvShaderTranslator::BitfieldExtract(spv::Id result_type,
+                                               spv::Id base, bool is_signed,
+                                               uint32_t offset,
+                                               uint32_t count) {
+  auto& b = *builder_;
+
+  spv::Id base_type = b.getTypeId(base);
+
+  // <-- 32 - (offset + count) ------ [bits] -?-
+  base = b.createBinOp(spv::Op::OpShiftLeftLogical, base_type, base,
+                       b.makeUintConstant(32 - (offset + count)));
+  // [bits] -?-?-?---------------------------
+  auto op = is_signed ? spv::Op::OpShiftRightArithmetic
+                      : spv::Op::OpShiftRightLogical;
+  base = b.createBinOp(op, base_type, base, b.makeUintConstant(32 - count));
+
+  return base;
+}
+
+spv::Id SpirvShaderTranslator::ConvertNormVar(spv::Id var, spv::Id result_type,
+                                              uint32_t bits, bool is_signed) {
+  auto& b = *builder_;
+  if (is_signed) {
+    auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, var,
+                           b.makeFloatConstant(-float(1 << (bits - 1))));
+    auto v = b.createBinOp(spv::Op::OpFDiv, result_type, var,
+                           b.makeFloatConstant(float((1 << (bits - 1)) - 1)));
+    var = b.createTriOp(spv::Op::OpSelect, result_type, c,
+                        b.makeFloatConstant(-1.f), v);
+  } else {
+    var = b.createBinOp(spv::Op::OpFDiv, result_type, var,
+                        b.makeFloatConstant(float((1 << bits) - 1)));
+  }
+
+  return var;
 }
 
 void SpirvShaderTranslator::ProcessVertexFetchInstruction(
@@ -894,6 +1033,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   vertex_idx = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, vertex_idx);
   auto shader_vertex_idx = b.createLoad(vertex_idx_);
 
+  auto vertex_components =
+      GetVertexFormatComponentCount(instr.attributes.data_format);
+
   // Skip loading if it's an indexed fetch.
   auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
                                        [instr.attributes.offset];
@@ -902,7 +1044,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_idx,
                             shader_vertex_idx);
-  auto vertex_components = b.getNumComponents(vertex);
   Id alt_vertex = 0;
   switch (vertex_components) {
     case 1:
@@ -949,11 +1090,79 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       break;
 
     case VertexFormat::k_10_11_11: {
-      // No conversion needed. Natively supported.
+      // This needs to be converted.
+      bool is_signed = instr.attributes.is_signed;
+      auto op =
+          is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
+      auto comp_type = is_signed ? int_type_ : uint_type_;
+
+      assert_true(comp_type == b.getTypeId(vertex));
+
+      spv::Id components[3] = {0};
+      /*
+      components[2] = b.createTriOp(
+          op, comp_type, vertex, b.makeUintConstant(0), b.makeUintConstant(10));
+      components[1] =
+          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(10),
+                        b.makeUintConstant(11));
+      components[0] =
+          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(21),
+                        b.makeUintConstant(11));
+      */
+      // Workaround until NVIDIA fixes their compiler :|
+      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 10);
+      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 10, 11);
+      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 21, 11);
+
+      op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
+      for (int i = 0; i < 3; i++) {
+        components[i] = b.createUnaryOp(op, float_type_, components[i]);
+      }
+
+      components[0] = ConvertNormVar(components[0], float_type_, 11, is_signed);
+      components[1] = ConvertNormVar(components[1], float_type_, 11, is_signed);
+      components[2] = ConvertNormVar(components[2], float_type_, 10, is_signed);
+
+      vertex = b.createCompositeConstruct(
+          vec3_float_type_,
+          std::vector<Id>({components[0], components[1], components[2]}));
     } break;
 
     case VertexFormat::k_11_11_10: {
       // This needs to be converted.
+      bool is_signed = instr.attributes.is_signed;
+      auto op =
+          is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
+      auto comp_type = is_signed ? int_type_ : uint_type_;
+
+      spv::Id components[3] = {0};
+      /*
+      components[2] = b.createTriOp(
+          op, comp_type, vertex, b.makeUintConstant(0), b.makeUintConstant(11));
+      components[1] =
+          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(11),
+                        b.makeUintConstant(11));
+      components[0] =
+          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(22),
+                        b.makeUintConstant(10));
+      */
+      // Workaround until NVIDIA fixes their compiler :|
+      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 11);
+      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 11, 11);
+      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 22, 10);
+
+      op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
+      for (int i = 0; i < 3; i++) {
+        components[i] = b.createUnaryOp(op, float_type_, components[i]);
+      }
+
+      components[0] = ConvertNormVar(components[0], float_type_, 11, is_signed);
+      components[1] = ConvertNormVar(components[1], float_type_, 11, is_signed);
+      components[2] = ConvertNormVar(components[2], float_type_, 10, is_signed);
+
+      vertex = b.createCompositeConstruct(
+          vec3_float_type_,
+          std::vector<Id>({components[0], components[1], components[2]}));
     } break;
   }
 

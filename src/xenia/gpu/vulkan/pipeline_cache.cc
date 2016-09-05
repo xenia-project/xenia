@@ -896,19 +896,18 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
           break;
         case VertexFormat::k_2_10_10_10:
           vertex_attrib_descr.format = is_signed
-                                           ? VK_FORMAT_A2R10G10B10_SNORM_PACK32
-                                           : VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+                                           ? VK_FORMAT_A2B10G10R10_SNORM_PACK32
+                                           : VK_FORMAT_A2B10G10R10_UNORM_PACK32;
           break;
         case VertexFormat::k_10_11_11:
-          assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+          // Converted in-shader.
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_11_11_10:
           // Converted in-shader.
-          // TODO(DrChat)
-          assert_always();
-          // vertex_attrib_descr.format = VK_FORMAT_R32_UINT;
-          vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_16_16:
           vertex_attrib_descr.format =
@@ -927,14 +926,20 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
           vertex_attrib_descr.format = VK_FORMAT_R16G16B16A16_SFLOAT;
           break;
         case VertexFormat::k_32:
+          // FIXME: Is this a NORM format?
+          assert_always();
           vertex_attrib_descr.format =
               is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_32_32:
+          // FIXME: Is this a NORM format?
+          assert_always();
           vertex_attrib_descr.format =
               is_signed ? VK_FORMAT_R32G32_SINT : VK_FORMAT_R32G32_UINT;
           break;
         case VertexFormat::k_32_32_32_32:
+          // FIXME: Is this a NORM format?
+          assert_always();
           vertex_attrib_descr.format =
               is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
           break;
