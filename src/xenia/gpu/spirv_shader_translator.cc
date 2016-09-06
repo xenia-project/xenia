@@ -654,6 +654,11 @@ void SpirvShaderTranslator::PreProcessControlFlowInstructions(
       operands.push_back(address);
       operands.push_back(cf_blocks_[address].block->getId());
       cf_blocks_[address].block->addPredecessor(loop_body_block_);
+
+      cf_blocks_[i + 1].labelled = true;
+      operands.push_back(uint32_t(i + 1));
+      operands.push_back(cf_blocks_[i + 1].block->getId());
+      cf_blocks_[i + 1].block->addPredecessor(loop_body_block_);
     } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopStart) {
       uint32_t address = instr.loop_start.address();
       cf_blocks_[address].labelled = true;
