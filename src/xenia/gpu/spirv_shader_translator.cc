@@ -64,10 +64,12 @@ void SpirvShaderTranslator::StartTranslation() {
   float_type_ = b.makeFloatType(32);
   int_type_ = b.makeIntType(32);
   uint_type_ = b.makeUintType(32);
+  vec2_int_type_ = b.makeVectorType(int_type_, 2);
   vec2_uint_type_ = b.makeVectorType(uint_type_, 2);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
   vec4_float_type_ = b.makeVectorType(float_type_, 4);
+  vec4_int_type_ = b.makeVectorType(int_type_, 4);
   vec4_uint_type_ = b.makeVectorType(uint_type_, 4);
   vec2_bool_type_ = b.makeVectorType(bool_type_, 2);
   vec3_bool_type_ = b.makeVectorType(bool_type_, 3);
@@ -222,6 +224,7 @@ void SpirvShaderTranslator::StartTranslation() {
       for (const auto& attrib : binding.attributes) {
         Id attrib_type = 0;
         bool is_signed = attrib.fetch_instr.attributes.is_signed;
+        bool is_integer = attrib.fetch_instr.attributes.is_integer;
         switch (attrib.fetch_instr.attributes.data_format) {
           case VertexFormat::k_32:
           case VertexFormat::k_32_FLOAT:
@@ -229,6 +232,10 @@ void SpirvShaderTranslator::StartTranslation() {
             break;
           case VertexFormat::k_16_16:
           case VertexFormat::k_32_32:
+            if (is_integer) {
+              attrib_type = is_signed ? vec2_int_type_ : vec2_uint_type_;
+              break;
+            }
           case VertexFormat::k_16_16_FLOAT:
           case VertexFormat::k_32_32_FLOAT:
             attrib_type = vec2_float_type_;
@@ -236,10 +243,16 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_32_32_32_FLOAT:
             attrib_type = vec3_float_type_;
             break;
-          case VertexFormat::k_8_8_8_8:
           case VertexFormat::k_2_10_10_10:
+            attrib_type = vec4_float_type_;
+            break;
+          case VertexFormat::k_8_8_8_8:
           case VertexFormat::k_16_16_16_16:
           case VertexFormat::k_32_32_32_32:
+            if (is_integer) {
+              attrib_type = is_signed ? vec4_int_type_ : vec4_uint_type_;
+              break;
+            }
           case VertexFormat::k_16_16_16_16_FLOAT:
           case VertexFormat::k_32_32_32_32_FLOAT:
             attrib_type = vec4_float_type_;
@@ -970,8 +983,10 @@ spv::Id SpirvShaderTranslator::BitfieldExtract(spv::Id result_type,
   spv::Id base_type = b.getTypeId(base);
 
   // <-- 32 - (offset + count) ------ [bits] -?-
-  base = b.createBinOp(spv::Op::OpShiftLeftLogical, base_type, base,
-                       b.makeUintConstant(32 - (offset + count)));
+  if (32 - (offset + count) > 0) {
+    base = b.createBinOp(spv::Op::OpShiftLeftLogical, base_type, base,
+                         b.makeUintConstant(32 - (offset + count)));
+  }
   // [bits] -?-?-?---------------------------
   auto op = is_signed ? spv::Op::OpShiftRightArithmetic
                       : spv::Op::OpShiftRightLogical;
@@ -1115,9 +1130,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                         b.makeUintConstant(11));
       */
       // Workaround until NVIDIA fixes their compiler :|
-      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 10);
-      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 10, 11);
-      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 21, 11);
+      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 11);
+      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 11, 11);
+      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 22, 10);
 
       op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
       for (int i = 0; i < 3; i++) {
@@ -1152,9 +1167,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                         b.makeUintConstant(10));
       */
       // Workaround until NVIDIA fixes their compiler :|
-      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 11);
-      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 11, 11);
-      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 22, 10);
+      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 10);
+      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 10, 11);
+      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 21, 11);
 
       op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
       for (int i = 0; i < 3; i++) {
@@ -1169,6 +1184,30 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           vec3_float_type_,
           std::vector<Id>({components[0], components[1], components[2]}));
     } break;
+  }
+
+  // Convert any integers to floats.
+  auto scalar_type = b.getScalarTypeId(b.getTypeId(vertex));
+  if (scalar_type == int_type_ || scalar_type == uint_type_) {
+    auto op = scalar_type == int_type_ ? spv::Op::OpConvertSToF
+                                       : spv::Op::OpConvertUToF;
+    spv::Id vtx_type;
+    switch (vertex_components) {
+      case 1:
+        vtx_type = float_type_;
+        break;
+      case 2:
+        vtx_type = vec2_float_type_;
+        break;
+      case 3:
+        vtx_type = vec3_float_type_;
+        break;
+      case 4:
+        vtx_type = vec4_float_type_;
+        break;
+    }
+
+    vertex = b.createUnaryOp(op, vtx_type, vertex);
   }
 
   vertex = b.createTriOp(spv::Op::OpSelect, b.getTypeId(vertex), cond, vertex,
