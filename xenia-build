@@ -315,7 +315,7 @@ def run_premake(target_os, action):
     target_os: target --os to pass to premake.
     action: action to preform.
   """
-  shell_call([
+  ret = subprocess.call([
       'python',
       os.path.join('tools', 'build', 'premake'),
       '--file=premake5.lua',
@@ -324,8 +324,10 @@ def run_premake(target_os, action):
       '--test-suite-mode=combined',
       '--verbose',
       action,
-      ])
-  generate_version_h()
+      ], shell=False)
+      
+  if ret == 0:
+    generate_version_h()
 
 
 def run_premake_clean():
