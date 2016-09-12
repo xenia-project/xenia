@@ -52,14 +52,9 @@ Win32Loop::~Win32Loop() {
 
 void Win32Loop::ThreadMain() {
   MSG msg;
-  while (!should_exit_) {
-    DWORD result =
-        MsgWaitForMultipleObjectsEx(0, nullptr, INFINITE, QS_ALLINPUT, 0);
-
-    if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-      TranslateMessage(&msg);
-      DispatchMessage(&msg);
-    }
+  while (!should_exit_ && GetMessage(&msg, NULL, 0, 0)) {
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
 
     // Process queued functions.
     std::lock_guard<std::mutex> lock(posted_functions_mutex_);
