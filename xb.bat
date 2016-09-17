@@ -11,7 +11,7 @@ CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
   ECHO Python 2.7 must be installed and on PATH:
-  ECHO https://www.python.org/ftp/python/2.7.9/python-2.7.9.msi
+  ECHO https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi
   GOTO :exit_error
 )
 
