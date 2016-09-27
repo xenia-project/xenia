@@ -43,6 +43,10 @@ IF %FOUND_PYTHON_EXE% EQU "" (
   )
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
+  ECHO Found from fs
+  IF EXIST c:\python27\python.exe SET FOUND_PYTHON_EXE=C:\python27\python.exe
+)
+IF %FOUND_PYTHON_EXE% EQU "" (
   ECHO ERROR: no Python executable found on PATH.
   ECHO Make sure you can run 'python' or 'python2' in a Command Prompt.
   ENDLOCAL & SET _RESULT=1
