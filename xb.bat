@@ -37,14 +37,13 @@ IF NOT ERRORLEVEL 1 (
   SET FOUND_PYTHON_EXE=python2
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
+  IF EXIST c:\\python27\\python.exe SET FOUND_PYTHON_EXE=C:\\python27\\python.exe
+)
+IF %FOUND_PYTHON_EXE% EQU "" (
   1>NUL 2>NUL CMD /c where python
   IF NOT ERRORLEVEL 1 (
     SET FOUND_PYTHON_EXE=python
   )
-)
-IF %FOUND_PYTHON_EXE% EQU "" (
-  ECHO Found from fs
-  IF EXIST c:\python27\python.exe SET FOUND_PYTHON_EXE=C:\python27\python.exe
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
   ECHO ERROR: no Python executable found on PATH.
