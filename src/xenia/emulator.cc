@@ -338,7 +338,7 @@ bool Emulator::SaveToFile(const std::wstring& path) {
 
   filesystem::CreateFile(path);
   auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite, 0,
-                                1024ull * 1024ull * 1024ull * 4ull);
+                                1024ull * 1024ull * 1024ull * 2ull);
   if (!map) {
     return false;
   }
@@ -346,6 +346,7 @@ bool Emulator::SaveToFile(const std::wstring& path) {
   // Save the emulator state to a file
   ByteStream stream(map->data(), map->size());
   stream.Write('XSAV');
+  stream.Write(title_id_);
 
   // It's important we don't hold the global lock here! XThreads need to step
   // forward (possibly through guarded regions) without worry!
@@ -376,6 +377,13 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
   auto lock = global_critical_region::AcquireDirect();
   ByteStream stream(map->data(), map->size());
   if (stream.Read<uint32_t>() != 'XSAV') {
+    return false;
+  }
+
+  auto title_id = stream.Read<uint32_t>();
+  if (title_id != title_id_) {
+    // Swapping between titles is unsupported at the moment.
+    assert_always();
     return false;
   }
 
