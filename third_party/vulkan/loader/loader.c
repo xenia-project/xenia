@@ -5,24 +5,18 @@
  * Copyright (c) 2014-2016 LunarG, Inc.
  * Copyright (C) 2015 Google Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and/or associated documentation files (the "Materials"), to
- * deal in the Materials without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Materials, and to permit persons to whom the Materials are
- * furnished to do so, subject to the following conditions:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * The above copyright notice(s) and this permission notice shall be included in
- * all copies or substantial portions of the Materials.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- *
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE
- * USE OR OTHER DEALINGS IN THE MATERIALS.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+
  *
  * Author: Jon Ashburn <jon@lunarg.com>
  * Author: Courtney Goeltzenleuchter <courtney@LunarG.com>
@@ -52,26 +46,22 @@
 #include "cJSON.h"
 #include "murmurhash.h"
 
-static loader_platform_dl_handle
-loader_add_layer_lib(const struct loader_instance *inst, const char *chain_type,
-                     struct loader_layer_properties *layer_prop);
-
-static void loader_remove_layer_lib(struct loader_instance *inst,
-                                    struct loader_layer_properties *layer_prop);
+#if defined(__GNUC__)
+#if (__GLIBC__ < 2) || ((__GLIBC__ == 2) && (__GLIBC_MINOR__ < 17))
+#define secure_getenv __secure_getenv
+#endif
+#endif
 
 struct loader_struct loader = {0};
 // TLS for instance for alloc/free callbacks
 THREAD_LOCAL_DECL struct loader_instance *tls_instance;
-
-static bool loader_init_generic_list(const struct loader_instance *inst,
-                                     struct loader_generic_list *list_info,
-                                     size_t element_size);
 
 static size_t loader_platform_combine_path(char *dest, size_t len, ...);
 
 struct loader_phys_dev_per_icd {
     uint32_t count;
     VkPhysicalDevice *phys_devs;
+    struct loader_icd *this_icd;
 };
 
 enum loader_debug {
@@ -98,63 +88,73 @@ const char *std_validation_str = "VK_LAYER_LUNARG_standard_validation";
 // pointers to "terminator functions".
 const VkLayerInstanceDispatchTable instance_disp = {
     .GetInstanceProcAddr = vkGetInstanceProcAddr,
-    .DestroyInstance = loader_DestroyInstance,
-    .EnumeratePhysicalDevices = loader_EnumeratePhysicalDevices,
-    .GetPhysicalDeviceFeatures = loader_GetPhysicalDeviceFeatures,
+    .DestroyInstance = terminator_DestroyInstance,
+    .EnumeratePhysicalDevices = terminator_EnumeratePhysicalDevices,
+    .GetPhysicalDeviceFeatures = terminator_GetPhysicalDeviceFeatures,
     .GetPhysicalDeviceFormatProperties =
-        loader_GetPhysicalDeviceFormatProperties,
+        terminator_GetPhysicalDeviceFormatProperties,
     .GetPhysicalDeviceImageFormatProperties =
-        loader_GetPhysicalDeviceImageFormatProperties,
-    .GetPhysicalDeviceProperties = loader_GetPhysicalDeviceProperties,
+        terminator_GetPhysicalDeviceImageFormatProperties,
+    .GetPhysicalDeviceProperties = terminator_GetPhysicalDeviceProperties,
     .GetPhysicalDeviceQueueFamilyProperties =
-        loader_GetPhysicalDeviceQueueFamilyProperties,
+        terminator_GetPhysicalDeviceQueueFamilyProperties,
     .GetPhysicalDeviceMemoryProperties =
-        loader_GetPhysicalDeviceMemoryProperties,
+        terminator_GetPhysicalDeviceMemoryProperties,
     .EnumerateDeviceExtensionProperties =
-        loader_EnumerateDeviceExtensionProperties,
-    .EnumerateDeviceLayerProperties = loader_EnumerateDeviceLayerProperties,
+        terminator_EnumerateDeviceExtensionProperties,
+    .EnumerateDeviceLayerProperties = terminator_EnumerateDeviceLayerProperties,
     .GetPhysicalDeviceSparseImageFormatProperties =
-        loader_GetPhysicalDeviceSparseImageFormatProperties,
-    .DestroySurfaceKHR = loader_DestroySurfaceKHR,
+        terminator_GetPhysicalDeviceSparseImageFormatProperties,
+    .DestroySurfaceKHR = terminator_DestroySurfaceKHR,
     .GetPhysicalDeviceSurfaceSupportKHR =
-        loader_GetPhysicalDeviceSurfaceSupportKHR,
+        terminator_GetPhysicalDeviceSurfaceSupportKHR,
     .GetPhysicalDeviceSurfaceCapabilitiesKHR =
-        loader_GetPhysicalDeviceSurfaceCapabilitiesKHR,
+        terminator_GetPhysicalDeviceSurfaceCapabilitiesKHR,
     .GetPhysicalDeviceSurfaceFormatsKHR =
-        loader_GetPhysicalDeviceSurfaceFormatsKHR,
+        terminator_GetPhysicalDeviceSurfaceFormatsKHR,
     .GetPhysicalDeviceSurfacePresentModesKHR =
-        loader_GetPhysicalDeviceSurfacePresentModesKHR,
-    .CreateDebugReportCallbackEXT = loader_CreateDebugReportCallback,
-    .DestroyDebugReportCallbackEXT = loader_DestroyDebugReportCallback,
-    .DebugReportMessageEXT = loader_DebugReportMessage,
+        terminator_GetPhysicalDeviceSurfacePresentModesKHR,
+    .CreateDebugReportCallbackEXT = terminator_CreateDebugReportCallback,
+    .DestroyDebugReportCallbackEXT = terminator_DestroyDebugReportCallback,
+    .DebugReportMessageEXT = terminator_DebugReportMessage,
 #ifdef VK_USE_PLATFORM_MIR_KHR
-    .CreateMirSurfaceKHR = loader_CreateMirSurfaceKHR,
+    .CreateMirSurfaceKHR = terminator_CreateMirSurfaceKHR,
     .GetPhysicalDeviceMirPresentationSupportKHR =
-        loader_GetPhysicalDeviceMirPresentationSupportKHR,
+        terminator_GetPhysicalDeviceMirPresentationSupportKHR,
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-    .CreateWaylandSurfaceKHR = loader_CreateWaylandSurfaceKHR,
+    .CreateWaylandSurfaceKHR = terminator_CreateWaylandSurfaceKHR,
     .GetPhysicalDeviceWaylandPresentationSupportKHR =
-        loader_GetPhysicalDeviceWaylandPresentationSupportKHR,
+        terminator_GetPhysicalDeviceWaylandPresentationSupportKHR,
 #endif
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    .CreateWin32SurfaceKHR = loader_CreateWin32SurfaceKHR,
+    .CreateWin32SurfaceKHR = terminator_CreateWin32SurfaceKHR,
     .GetPhysicalDeviceWin32PresentationSupportKHR =
-        loader_GetPhysicalDeviceWin32PresentationSupportKHR,
+        terminator_GetPhysicalDeviceWin32PresentationSupportKHR,
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
-    .CreateXcbSurfaceKHR = loader_CreateXcbSurfaceKHR,
+    .CreateXcbSurfaceKHR = terminator_CreateXcbSurfaceKHR,
     .GetPhysicalDeviceXcbPresentationSupportKHR =
-        loader_GetPhysicalDeviceXcbPresentationSupportKHR,
+        terminator_GetPhysicalDeviceXcbPresentationSupportKHR,
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-    .CreateXlibSurfaceKHR = loader_CreateXlibSurfaceKHR,
+    .CreateXlibSurfaceKHR = terminator_CreateXlibSurfaceKHR,
     .GetPhysicalDeviceXlibPresentationSupportKHR =
-        loader_GetPhysicalDeviceXlibPresentationSupportKHR,
+        terminator_GetPhysicalDeviceXlibPresentationSupportKHR,
 #endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    .CreateAndroidSurfaceKHR = loader_CreateAndroidSurfaceKHR,
+    .CreateAndroidSurfaceKHR = terminator_CreateAndroidSurfaceKHR,
 #endif
+    .GetPhysicalDeviceDisplayPropertiesKHR =
+        terminator_GetPhysicalDeviceDisplayPropertiesKHR,
+    .GetPhysicalDeviceDisplayPlanePropertiesKHR =
+        terminator_GetPhysicalDeviceDisplayPlanePropertiesKHR,
+    .GetDisplayPlaneSupportedDisplaysKHR =
+        terminator_GetDisplayPlaneSupportedDisplaysKHR,
+    .GetDisplayModePropertiesKHR = terminator_GetDisplayModePropertiesKHR,
+    .CreateDisplayModeKHR = terminator_CreateDisplayModeKHR,
+    .GetDisplayPlaneCapabilitiesKHR = terminator_GetDisplayPlaneCapabilitiesKHR,
+    .CreateDisplayPlaneSurfaceKHR = terminator_CreateDisplayPlaneSurfaceKHR,
 };
 
 LOADER_PLATFORM_THREAD_ONCE_DECLARATION(once_init);
@@ -220,7 +220,7 @@ void loader_tls_heap_free(void *pMemory) {
 }
 
 void loader_log(const struct loader_instance *inst, VkFlags msg_type,
-                       int32_t msg_code, const char *format, ...) {
+                int32_t msg_code, const char *format, ...) {
     char msg[512];
     va_list ap;
     int ret;
@@ -248,6 +248,29 @@ void loader_log(const struct loader_instance *inst, VkFlags msg_type,
 #endif
     fputs(msg, stderr);
     fputc('\n', stderr);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+vkSetInstanceDispatch(VkInstance instance, void *object) {
+
+    struct loader_instance *inst = loader_get_instance(instance);
+    if (!inst) {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    loader_set_dispatch(object, inst->disp);
+    return VK_SUCCESS;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+vkSetDeviceDispatch(VkDevice device, void *object) {
+    struct loader_device *dev;
+    struct loader_icd *icd = loader_get_icd_and_device(device, &dev);
+
+    if (!icd) {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    loader_set_dispatch(object, &dev->loader_dispatch);
+    return VK_SUCCESS;
 }
 
 #if defined(WIN32)
@@ -444,10 +467,16 @@ bool has_vk_extension_property(const VkExtensionProperties *vk_ext_prop,
     return false;
 }
 
-static inline bool loader_is_layer_type_device(const enum layer_type type) {
-    if ((type & VK_LAYER_TYPE_DEVICE_EXPLICIT) ||
-        (type & VK_LAYER_TYPE_DEVICE_IMPLICIT))
-        return true;
+/**
+ * Search the given ext_list for a device extension matching the given ext_prop
+ */
+bool has_vk_dev_ext_property(
+    const VkExtensionProperties *ext_prop,
+    const struct loader_device_extension_list *ext_list) {
+    for (uint32_t i = 0; i < ext_list->count; i++) {
+        if (compare_vk_extension_properties(&ext_list->list[i].props, ext_prop))
+            return true;
+    }
     return false;
 }
 
@@ -572,14 +601,18 @@ static void loader_add_instance_extensions(
     for (i = 0; i < count; i++) {
         char spec_version[64];
 
-        snprintf(spec_version, sizeof(spec_version), "%d.%d.%d",
-                 VK_MAJOR(ext_props[i].specVersion),
-                 VK_MINOR(ext_props[i].specVersion),
-                 VK_PATCH(ext_props[i].specVersion));
-        loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
-                   "Instance Extension: %s (%s) version %s",
-                   ext_props[i].extensionName, lib_name, spec_version);
-        loader_add_to_ext_list(inst, ext_list, 1, &ext_props[i]);
+        bool ext_unsupported =
+            wsi_unsupported_instance_extension(&ext_props[i]);
+        if (!ext_unsupported) {
+            snprintf(spec_version, sizeof(spec_version), "%d.%d.%d",
+                     VK_MAJOR(ext_props[i].specVersion),
+                     VK_MINOR(ext_props[i].specVersion),
+                     VK_PATCH(ext_props[i].specVersion));
+            loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
+                       "Instance Extension: %s (%s) version %s",
+                       ext_props[i].extensionName, lib_name, spec_version);
+            loader_add_to_ext_list(inst, ext_list, 1, &ext_props[i]);
+        }
     }
 
     return;
@@ -621,22 +654,24 @@ loader_init_device_extensions(const struct loader_instance *inst,
     return VK_SUCCESS;
 }
 
-static VkResult loader_add_device_extensions(
-    const struct loader_instance *inst, struct loader_icd *icd,
-    VkPhysicalDevice physical_device, const char *lib_name,
-    struct loader_extension_list *ext_list) {
+VkResult loader_add_device_extensions(const struct loader_instance *inst,
+                                      PFN_vkEnumerateDeviceExtensionProperties
+                                          fpEnumerateDeviceExtensionProperties,
+                                      VkPhysicalDevice physical_device,
+                                      const char *lib_name,
+                                      struct loader_extension_list *ext_list) {
     uint32_t i, count;
     VkResult res;
     VkExtensionProperties *ext_props;
 
-    res = icd->EnumerateDeviceExtensionProperties(physical_device, NULL, &count,
-                                                  NULL);
+    res = fpEnumerateDeviceExtensionProperties(physical_device, NULL, &count,
+                                               NULL);
     if (res == VK_SUCCESS && count > 0) {
         ext_props = loader_stack_alloc(count * sizeof(VkExtensionProperties));
         if (!ext_props)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
-        res = icd->EnumerateDeviceExtensionProperties(physical_device, NULL,
-                                                      &count, ext_props);
+        res = fpEnumerateDeviceExtensionProperties(physical_device, NULL,
+                                                   &count, ext_props);
         if (res != VK_SUCCESS)
             return res;
         for (i = 0; i < count; i++) {
@@ -664,9 +699,9 @@ static VkResult loader_add_device_extensions(
     return VK_SUCCESS;
 }
 
-static bool loader_init_generic_list(const struct loader_instance *inst,
-                                     struct loader_generic_list *list_info,
-                                     size_t element_size) {
+bool loader_init_generic_list(const struct loader_instance *inst,
+                              struct loader_generic_list *list_info,
+                              size_t element_size) {
     list_info->capacity = 32 * element_size;
     list_info->list = loader_heap_alloc(inst, list_info->capacity,
                                         VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
@@ -739,7 +774,7 @@ VkResult loader_add_to_ext_list(const struct loader_instance *inst,
 
 /*
  * Append one extension property defined in props with entrypoints
- * defined in entrys to the given ext_list.
+ * defined in entrys to the given ext_list. Do not append if a duplicate
  * Return
  *  Vk_SUCCESS on success
  */
@@ -756,6 +791,11 @@ loader_add_to_dev_ext_list(const struct loader_instance *inst,
 
     if (ext_list->list == NULL)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    // look for duplicates
+    if (has_vk_dev_ext_property(props, ext_list)) {
+        return VK_SUCCESS;
+    }
 
     idx = ext_list->count;
     // add to list at end
@@ -846,73 +886,6 @@ void loader_destroy_layer_list(const struct loader_instance *inst,
 }
 
 /*
- * Manage list of layer libraries (loader_lib_info)
- */
-static bool
-loader_init_layer_library_list(const struct loader_instance *inst,
-                               struct loader_layer_library_list *list) {
-    list->capacity = 32 * sizeof(struct loader_lib_info);
-    list->list = loader_heap_alloc(inst, list->capacity,
-                                   VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
-    if (list->list == NULL) {
-        return false;
-    }
-    memset(list->list, 0, list->capacity);
-    list->count = 0;
-    return true;
-}
-
-void loader_destroy_layer_library_list(const struct loader_instance *inst,
-                                       struct loader_layer_library_list *list) {
-    for (uint32_t i = 0; i < list->count; i++) {
-        loader_heap_free(inst, list->list[i].lib_name);
-    }
-    loader_heap_free(inst, list->list);
-    list->count = 0;
-    list->capacity = 0;
-}
-
-void loader_add_to_layer_library_list(const struct loader_instance *inst,
-                                      struct loader_layer_library_list *list,
-                                      uint32_t item_count,
-                                      const struct loader_lib_info *new_items) {
-    uint32_t i;
-    struct loader_lib_info *item;
-
-    if (list->list == NULL || list->capacity == 0) {
-        loader_init_layer_library_list(inst, list);
-    }
-
-    if (list->list == NULL)
-        return;
-
-    for (i = 0; i < item_count; i++) {
-        item = (struct loader_lib_info *)&new_items[i];
-
-        // look for duplicates
-        for (uint32_t j = 0; j < list->count; j++) {
-            if (strcmp(list->list[i].lib_name, new_items->lib_name) == 0) {
-                continue;
-            }
-        }
-
-        // add to list at end
-        // check for enough capacity
-        if (list->count * sizeof(struct loader_lib_info) >= list->capacity) {
-
-            list->list = loader_heap_realloc(
-                inst, list->list, list->capacity, list->capacity * 2,
-                VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
-            // double capacity
-            list->capacity *= 2;
-        }
-
-        memcpy(&list->list[list->count], item, sizeof(struct loader_lib_info));
-        list->count++;
-    }
-}
-
-/*
  * Search the given layer list for a list
  * matching the given VkLayerProperties
  */
@@ -988,11 +961,10 @@ void loader_add_to_layer_list(const struct loader_instance *inst,
  * Do not add if found loader_layer_properties is already
  * on the found_list.
  */
-static void
-loader_find_layer_name_add_list(const struct loader_instance *inst,
-                                const char *name, const enum layer_type type,
-                                const struct loader_layer_list *search_list,
-                                struct loader_layer_list *found_list) {
+void loader_find_layer_name_add_list(
+    const struct loader_instance *inst, const char *name,
+    const enum layer_type type, const struct loader_layer_list *search_list,
+    struct loader_layer_list *found_list) {
     bool found = false;
     for (uint32_t i = 0; i < search_list->count; i++) {
         struct loader_layer_properties *layer_prop = &search_list->list[i];
@@ -1029,24 +1001,6 @@ get_dev_extension_property(const char *name,
     return NULL;
 }
 
-/*
- * This function will return the pNext pointer of any
- * CreateInfo extensions that are not loader extensions.
- * This is used to skip past the loader extensions prepended
- * to the list during CreateInstance and CreateDevice.
- */
-void *loader_strip_create_extensions(const void *pNext) {
-    VkLayerInstanceCreateInfo *create_info = (VkLayerInstanceCreateInfo *)pNext;
-
-    while (
-        create_info &&
-        (create_info->sType == VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
-         create_info->sType == VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO)) {
-        create_info = (VkLayerInstanceCreateInfo *)create_info->pNext;
-    }
-
-    return create_info;
-}
 
 /*
  * For Instance extensions implemented within the loader (i.e. DEBUG_REPORT
@@ -1087,25 +1041,7 @@ void loader_get_icd_loader_instance_extensions(
     };
 
     // Traverse loader's extensions, adding non-duplicate extensions to the list
-    wsi_add_instance_extensions(inst, inst_exts);
     debug_report_add_instance_extensions(inst, inst_exts);
-}
-
-struct loader_physical_device *
-loader_get_physical_device(const VkPhysicalDevice physdev) {
-    uint32_t i;
-    for (struct loader_instance *inst = loader.instances; inst;
-         inst = inst->next) {
-        for (i = 0; i < inst->total_gpu_count; i++) {
-            // TODO this aliases physDevices within instances, need for this
-            // function to go away
-            if (inst->phys_devs[i].disp ==
-                loader_get_instance_dispatch(physdev)) {
-                return &inst->phys_devs[i];
-            }
-        }
-    }
-    return NULL;
 }
 
 struct loader_icd *loader_get_icd_and_device(const VkDevice device,
@@ -1131,13 +1067,12 @@ struct loader_icd *loader_get_icd_and_device(const VkDevice device,
 static void loader_destroy_logical_device(const struct loader_instance *inst,
                                           struct loader_device *dev) {
     loader_heap_free(inst, dev->app_extension_props);
-    loader_destroy_layer_list(inst, &dev->activated_layer_list);
+    loader_deactivate_layers(inst, &dev->activated_layer_list);
     loader_heap_free(inst, dev);
 }
 
-static struct loader_device *
-loader_add_logical_device(const struct loader_instance *inst,
-                          struct loader_device **device_list) {
+struct loader_device *
+loader_create_logical_device(const struct loader_instance *inst) {
     struct loader_device *new_dev;
 
     new_dev = loader_heap_alloc(inst, sizeof(struct loader_device),
@@ -1150,9 +1085,14 @@ loader_add_logical_device(const struct loader_instance *inst,
 
     memset(new_dev, 0, sizeof(struct loader_device));
 
-    new_dev->next = *device_list;
-    *device_list = new_dev;
     return new_dev;
+}
+
+void loader_add_logical_device(const struct loader_instance *inst,
+                               struct loader_icd *icd,
+                               struct loader_device *dev) {
+    dev->next = icd->logical_device_list;
+    icd->logical_device_list = dev;
 }
 
 void loader_remove_logical_device(const struct loader_instance *inst,
@@ -1222,6 +1162,48 @@ loader_icd_add(struct loader_instance *ptr_inst,
 
     return icd;
 }
+/**
+ * Determine the ICD interface version to use.
+ * @param icd
+ * @param pVersion Output parameter indicating which version to use or 0 if
+ * the negotiation API is not supported by the ICD
+ * @return  bool indicating true if the selected interface version is supported
+ *          by the loader, false indicates the version is not supported
+ * version 0   doesn't support vk_icdGetInstanceProcAddr nor
+ *             vk_icdNegotiateLoaderICDInterfaceVersion
+ * version 1   supports vk_icdGetInstanceProcAddr
+ * version 2   supports vk_icdNegotiateLoaderICDInterfaceVersion
+ */
+bool loader_get_icd_interface_version(
+        PFN_vkNegotiateLoaderICDInterfaceVersion fp_negotiate_icd_version,
+        uint32_t *pVersion) {
+
+    if (fp_negotiate_icd_version == NULL) {
+        // ICD does not support the negotiation API, it supports version 0 or 1
+        // calling code must determine if it is version 0 or 1
+        *pVersion = 0;
+    } else {
+        // ICD supports the negotiation API, so call it with the loader's
+        // latest version supported
+        *pVersion = CURRENT_LOADER_ICD_INTERFACE_VERSION;
+        VkResult result = fp_negotiate_icd_version(pVersion);
+
+        if (result == VK_ERROR_INCOMPATIBLE_DRIVER) {
+            // ICD no longer supports the loader's latest interface version so
+            // fail loading the ICD
+            return false;
+        }
+    }
+
+#if MIN_SUPPORTED_LOADER_ICD_INTERFACE_VERSION > 0
+    if (*pVersion < MIN_SUPPORTED_LOADER_ICD_INTERFACE_VERSION) {
+        // Loader no longer supports the ICD's latest interface version so fail
+        // loading the ICD
+        return false;
+    }
+#endif
+    return true;
+}
 
 void loader_scanned_icd_clear(const struct loader_instance *inst,
                               struct loader_icd_libs *icd_libs) {
@@ -1252,11 +1234,12 @@ static void loader_scanned_icd_add(const struct loader_instance *inst,
     PFN_vkCreateInstance fp_create_inst;
     PFN_vkEnumerateInstanceExtensionProperties fp_get_inst_ext_props;
     PFN_vkGetInstanceProcAddr fp_get_proc_addr;
+    PFN_vkNegotiateLoaderICDInterfaceVersion fp_negotiate_icd_version;
     struct loader_scanned_icds *new_node;
+    uint32_t interface_vers;
 
-    /* TODO implement ref counting of libraries, for now this function leaves
-       libraries open and the scanned_icd_clear closes them */
-    // Used to call: dlopen(filename, RTLD_LAZY);
+    /* TODO implement smarter opening/closing of libraries. For now this
+     * function leaves libraries open and the scanned_icd_clear closes them */
     handle = loader_platform_open_library(filename);
     if (!handle) {
         loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
@@ -1264,10 +1247,23 @@ static void loader_scanned_icd_add(const struct loader_instance *inst,
         return;
     }
 
+    // Get and settle on an ICD interface version
+    fp_negotiate_icd_version =
+        loader_platform_get_proc_address(handle, "vk_icdNegotiateLoaderICDInterfaceVersion");
+
+    if (!loader_get_icd_interface_version(fp_negotiate_icd_version,
+            &interface_vers)) {
+                    loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                       "ICD (%s) doesn't support interface version compatible"
+                       "with loader, skip this ICD %s", filename);
+            return;
+    }
+
     fp_get_proc_addr =
         loader_platform_get_proc_address(handle, "vk_icdGetInstanceProcAddr");
     if (!fp_get_proc_addr) {
-        // Use deprecated interface
+        assert(interface_vers == 0);
+        // Use deprecated interface from version 0
         fp_get_proc_addr =
             loader_platform_get_proc_address(handle, "vkGetInstanceProcAddr");
         if (!fp_get_proc_addr) {
@@ -1279,14 +1275,15 @@ static void loader_scanned_icd_add(const struct loader_instance *inst,
             loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
                        "Using deprecated ICD interface of "
                        "vkGetInstanceProcAddr instead of "
-                       "vk_icdGetInstanceProcAddr");
+                       "vk_icdGetInstanceProcAddr for ICD %s", filename);
         }
         fp_create_inst =
             loader_platform_get_proc_address(handle, "vkCreateInstance");
         if (!fp_create_inst) {
             loader_log(
                 inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                "Couldn't get vkCreateInstance via dlsym/loadlibrary from ICD");
+                "Couldn't get vkCreateInstance via dlsym/loadlibrary for ICD %s",
+                    filename);
             return;
         }
         fp_get_inst_ext_props = loader_platform_get_proc_address(
@@ -1294,17 +1291,20 @@ static void loader_scanned_icd_add(const struct loader_instance *inst,
         if (!fp_get_inst_ext_props) {
             loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
                        "Couldn't get vkEnumerateInstanceExtensionProperties "
-                       "via dlsym/loadlibrary from ICD");
+                       "via dlsym/loadlibrary for ICD %s", filename);
             return;
         }
     } else {
-        // Use newer interface
+        // Use newer interface version 1 or later
+        if (interface_vers == 0)
+            interface_vers = 1;
+
         fp_create_inst =
             (PFN_vkCreateInstance)fp_get_proc_addr(NULL, "vkCreateInstance");
         if (!fp_create_inst) {
             loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
                        "Couldn't get vkCreateInstance via "
-                       "vk_icdGetInstanceProcAddr from ICD");
+                       "vk_icdGetInstanceProcAddr for ICD %s", filename);
             return;
         }
         fp_get_inst_ext_props =
@@ -1313,7 +1313,7 @@ static void loader_scanned_icd_add(const struct loader_instance *inst,
         if (!fp_get_inst_ext_props) {
             loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
                        "Couldn't get vkEnumerateInstanceExtensionProperties "
-                       "via vk_icdGetInstanceProcAddr from ICD");
+                       "via vk_icdGetInstanceProcAddr for ICD %s", filename);
             return;
         }
     }
@@ -1335,6 +1335,7 @@ static void loader_scanned_icd_add(const struct loader_instance *inst,
     new_node->GetInstanceProcAddr = fp_get_proc_addr;
     new_node->EnumerateInstanceExtensionProperties = fp_get_inst_ext_props;
     new_node->CreateInstance = fp_create_inst;
+    new_node->interface_version = interface_vers;
 
     new_node->lib_name = (char *)loader_heap_alloc(
         inst, strlen(filename) + 1, VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
@@ -1356,7 +1357,7 @@ static bool loader_icd_init_entrys(struct loader_icd *icd, VkInstance inst,
         icd->func = (PFN_vk##func)fp_gipa(inst, "vk" #func);                   \
         if (!icd->func && required) {                                          \
             loader_log((struct loader_instance *)inst,                         \
-                       VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,                        \
+                       VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,                     \
                        loader_platform_get_proc_address_error("vk" #func));    \
             return false;                                                      \
         }                                                                      \
@@ -1380,11 +1381,25 @@ static bool loader_icd_init_entrys(struct loader_icd *icd, VkInstance inst,
     LOOKUP_GIPA(GetPhysicalDeviceSurfaceCapabilitiesKHR, false);
     LOOKUP_GIPA(GetPhysicalDeviceSurfaceFormatsKHR, false);
     LOOKUP_GIPA(GetPhysicalDeviceSurfacePresentModesKHR, false);
+    LOOKUP_GIPA(GetPhysicalDeviceDisplayPropertiesKHR, false);
+    LOOKUP_GIPA(GetDisplayModePropertiesKHR, false);
+    LOOKUP_GIPA(CreateDisplayPlaneSurfaceKHR, false);
+    LOOKUP_GIPA(GetPhysicalDeviceDisplayPlanePropertiesKHR, false);
+    LOOKUP_GIPA(GetDisplayPlaneSupportedDisplaysKHR, false);
+    LOOKUP_GIPA(CreateDisplayModeKHR, false);
+    LOOKUP_GIPA(GetDisplayPlaneCapabilitiesKHR, false);
+    LOOKUP_GIPA(DestroySurfaceKHR, false);
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     LOOKUP_GIPA(GetPhysicalDeviceWin32PresentationSupportKHR, false);
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
     LOOKUP_GIPA(GetPhysicalDeviceXcbPresentationSupportKHR, false);
+#endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+    LOOKUP_GIPA(GetPhysicalDeviceXlibPresentationSupportKHR, false);
+#endif
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+    LOOKUP_GIPA(GetPhysicalDeviceWaylandPresentationSupportKHR, false);
 #endif
 
 #undef LOOKUP_GIPA
@@ -1423,7 +1438,8 @@ static void loader_debug_init(void) {
                 g_loader_log_msgs |= VK_DEBUG_REPORT_INFORMATION_BIT_EXT;
             } else if (strncmp(env, "perf", len) == 0) {
                 g_loader_debug |= LOADER_PERF_BIT;
-                g_loader_log_msgs |= VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+                g_loader_log_msgs |=
+                    VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
             } else if (strncmp(env, "error", len) == 0) {
                 g_loader_debug |= LOADER_ERROR_BIT;
                 g_loader_log_msgs |= VK_DEBUG_REPORT_ERROR_BIT_EXT;
@@ -1585,7 +1601,7 @@ static cJSON *loader_get_json(const struct loader_instance *inst,
 /**
  * Do a deep copy of the loader_layer_properties structure.
  */
-static void loader_copy_layer_properties(const struct loader_instance *inst,
+void loader_copy_layer_properties(const struct loader_instance *inst,
                                          struct loader_layer_properties *dst,
                                          struct loader_layer_properties *src) {
     uint32_t cnt, i;
@@ -1644,7 +1660,7 @@ static bool loader_find_layer_name(const char *name, uint32_t layer_count,
     return false;
 }
 
-static bool loader_find_layer_name_array(
+bool loader_find_layer_name_array(
     const char *name, uint32_t layer_count,
     const char layer_list[][VK_MAX_EXTENSION_NAME_SIZE]) {
     if (!layer_list)
@@ -1660,111 +1676,85 @@ static bool loader_find_layer_name_array(
  * layer key_name.
  * If not found then simply returns updating nothing.
  * Otherwise, it uses expand_count, expand_names adding them to layer names.
- * Any duplicate (pre-existing) exapand_names in layer names are removed.
- * Expand names are added to the back/end of the list of layer names.
+ * Any duplicate (pre-existing) expand_names in layer names are removed.
+ * Order is otherwise preserved, with the layer key_name being replaced by the
+ * expand_names.
  * @param inst
  * @param layer_count
  * @param ppp_layer_names
  */
 void loader_expand_layer_names(
-    const struct loader_instance *inst, const char *key_name,
+    struct loader_instance *inst, const char *key_name,
     uint32_t expand_count,
     const char expand_names[][VK_MAX_EXTENSION_NAME_SIZE],
-    uint32_t *layer_count, char ***ppp_layer_names) {
-    char **pp_layer_names, **pp_src_layers = *ppp_layer_names;
+    uint32_t *layer_count, char const *const **ppp_layer_names) {
+
+    char const *const *pp_src_layers = *ppp_layer_names;
 
     if (!loader_find_layer_name(key_name, *layer_count,
-                                (const char **)pp_src_layers))
-        return; // didn't find the key_name in the list
-
-    // since the total number of layers may expand, allocate new memory for the
-    // array of pointers
-    pp_layer_names =
-        loader_heap_alloc(inst, (expand_count + *layer_count) * sizeof(char *),
-                          VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+                                (char const **)pp_src_layers)) {
+        inst->activated_layers_are_std_val = false;
+        return; // didn't find the key_name in the list.
+    }
 
     loader_log(inst, VK_DEBUG_REPORT_INFORMATION_BIT_EXT, 0,
                "Found meta layer %s, replacing with actual layer group",
                key_name);
-    // In place removal of any expand_names found in layer_name (remove
-    // duplicates)
-    // Also remove the key_name
-    uint32_t src_idx, dst_idx, cnt = *layer_count;
-    for (src_idx = 0; src_idx < *layer_count; src_idx++) {
-        if (loader_find_layer_name_array(pp_src_layers[src_idx], expand_count,
+
+    inst->activated_layers_are_std_val = true;
+    char const **pp_dst_layers = loader_heap_alloc(
+        inst, (expand_count + *layer_count - 1) * sizeof(char const *),
+        VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+
+    // copy layers from src to dst, stripping key_name and anything in
+    // expand_names.
+    uint32_t src_index, dst_index = 0;
+    for (src_index = 0; src_index < *layer_count; src_index++) {
+        if (loader_find_layer_name_array(pp_src_layers[src_index], expand_count,
                                          expand_names)) {
-            pp_src_layers[src_idx] = NULL;
-            cnt--;
-        } else if (!strcmp(pp_src_layers[src_idx], key_name)) {
-            pp_src_layers[src_idx] = NULL;
-            cnt--;
+            continue;
         }
-        pp_layer_names[src_idx] = pp_src_layers[src_idx];
-    }
-    for (dst_idx = 0; dst_idx < cnt; dst_idx++) {
-        if (pp_layer_names[dst_idx] == NULL) {
-            src_idx = dst_idx + 1;
-            while (src_idx < *layer_count && pp_src_layers[src_idx] == NULL)
-                src_idx++;
-            if (src_idx < *layer_count && pp_src_layers[src_idx] != NULL)
-                pp_layer_names[dst_idx] = pp_src_layers[src_idx];
+
+        if (!strcmp(pp_src_layers[src_index], key_name)) {
+            // insert all expand_names in place of key_name
+            uint32_t expand_index;
+            for (expand_index = 0; expand_index < expand_count;
+                 expand_index++) {
+                pp_dst_layers[dst_index++] = expand_names[expand_index];
+            }
+            continue;
         }
+
+        pp_dst_layers[dst_index++] = pp_src_layers[src_index];
     }
 
-    // Add the expand_names to layer_names
-    src_idx = 0;
-    for (dst_idx = cnt; dst_idx < cnt + expand_count; dst_idx++) {
-        pp_layer_names[dst_idx] = (char *)&expand_names[src_idx++][0];
+    *ppp_layer_names = pp_dst_layers;
+    *layer_count = dst_index;
+}
+
+void loader_delete_shadow_inst_layer_names(const struct loader_instance *inst,
+                                           const VkInstanceCreateInfo *orig,
+                                           VkInstanceCreateInfo *ours) {
+    /* Free the layer names array iff we had to reallocate it */
+    if (orig->ppEnabledLayerNames != ours->ppEnabledLayerNames) {
+        loader_heap_free(inst, (void *)ours->ppEnabledLayerNames);
     }
-    *layer_count = expand_count + cnt;
-    *ppp_layer_names = pp_layer_names;
-    return;
+}
+
+void loader_init_std_validation_props(struct loader_layer_properties *props) {
+    memset(props, 0, sizeof(struct loader_layer_properties));
+    props->type = VK_LAYER_TYPE_META_EXPLICT;
+    strncpy(props->info.description, "LunarG Standard Validation Layer",
+                sizeof (props->info.description));
+    props->info.implementationVersion = 1;
+    strncpy(props->info.layerName, std_validation_str,
+                sizeof (props->info.layerName));
+    // TODO what about specVersion? for now insert loader's built version
+    props->info.specVersion = VK_MAKE_VERSION(1, 0, VK_HEADER_VERSION);
 }
 
 /**
- * Restores the layer name list and count into the pCreatInfo structure.
- * If is_device == tru then pCreateInfo is a device structure else an instance
- * structure.
- * @param layer_count
- * @param layer_names
- * @param pCreateInfo
- */
-void loader_unexpand_dev_layer_names(const struct loader_instance *inst,
-                                     uint32_t layer_count, char **layer_names,
-                                     char **layer_ptr,
-                                     const VkDeviceCreateInfo *pCreateInfo) {
-    uint32_t *p_cnt = (uint32_t *)&pCreateInfo->enabledLayerCount;
-    *p_cnt = layer_count;
-
-    char ***p_ptr = (char ***)&pCreateInfo->ppEnabledLayerNames;
-    if ((char **)pCreateInfo->ppEnabledLayerNames != layer_ptr)
-        loader_heap_free(inst, (void *)pCreateInfo->ppEnabledLayerNames);
-    *p_ptr = layer_ptr;
-    for (uint32_t i = 0; i < layer_count; i++) {
-        char **pp_str = (char **)&pCreateInfo->ppEnabledLayerNames[i];
-        *pp_str = layer_names[i];
-    }
-}
-
-void loader_unexpand_inst_layer_names(const struct loader_instance *inst,
-                                      uint32_t layer_count, char **layer_names,
-                                      char **layer_ptr,
-                                      const VkInstanceCreateInfo *pCreateInfo) {
-    uint32_t *p_cnt = (uint32_t *)&pCreateInfo->enabledLayerCount;
-    *p_cnt = layer_count;
-
-    char ***p_ptr = (char ***)&pCreateInfo->ppEnabledLayerNames;
-    if ((char **)pCreateInfo->ppEnabledLayerNames != layer_ptr)
-        loader_heap_free(inst, (void *)pCreateInfo->ppEnabledLayerNames);
-    *p_ptr = layer_ptr;
-    for (uint32_t i = 0; i < layer_count; i++) {
-        char **pp_str = (char **)&pCreateInfo->ppEnabledLayerNames[i];
-        *pp_str = layer_names[i];
-    }
-}
-
-/**
- * Searches through the existing instance and device layer lists looking for
+ * Searches through the existing instance layer lists looking for
  * the set of required layer names. If found then it adds a meta property to the
  * layer list.
  * Assumes the required layers are the same for both instance and device lists.
@@ -1772,72 +1762,54 @@ void loader_unexpand_inst_layer_names(const struct loader_instance *inst,
  * @param layer_count  number of layers in layer_names
  * @param layer_names  array of required layer names
  * @param layer_instance_list
- * @param layer_device_list
  */
 static void loader_add_layer_property_meta(
     const struct loader_instance *inst, uint32_t layer_count,
     const char layer_names[][VK_MAX_EXTENSION_NAME_SIZE],
-    struct loader_layer_list *layer_instance_list,
-    struct loader_layer_list *layer_device_list) {
-    uint32_t i, j;
+    struct loader_layer_list *layer_instance_list) {
+    uint32_t i;
     bool found;
     struct loader_layer_list *layer_list;
 
-    if (0 == layer_count ||
-        NULL == layer_instance_list ||
-        NULL == layer_device_list ||
-        (layer_count > layer_instance_list->count &&
-                         layer_count > layer_device_list->count))
+    if (0 == layer_count || (!layer_instance_list))
+        return;
+    if (layer_instance_list && (layer_count > layer_instance_list->count))
         return;
 
-    for (j = 0; j < 2; j++) {
-        if (j == 0)
-            layer_list = layer_instance_list;
-        else
-            layer_list = layer_device_list;
-        found = true;
-        for (i = 0; i < layer_count; i++) {
-            if (loader_find_layer_name_list(layer_names[i], layer_list))
-                continue;
-            found = false;
-            break;
-        }
 
-        struct loader_layer_properties *props;
-        if (found) {
-            props = loader_get_next_layer_property(inst, layer_list);
-            props->type = VK_LAYER_TYPE_META_EXPLICT;
-            strncpy(props->info.description, "LunarG Standard Validation Layer",
-                    sizeof(props->info.description));
-            props->info.implementationVersion = 1;
-            strncpy(props->info.layerName, std_validation_str,
-                    sizeof(props->info.layerName));
-            // TODO what about specVersion? for now insert loader's built
-            // version
-            props->info.specVersion = VK_API_VERSION;
-        }
+    layer_list = layer_instance_list;
+
+    found = true;
+    if (layer_list == NULL)
+        return;
+    for (i = 0; i < layer_count; i++) {
+        if (loader_find_layer_name_list(layer_names[i], layer_list))
+            continue;
+        found = false;
+        break;
     }
+
+    struct loader_layer_properties *props;
+    if (found) {
+        props = loader_get_next_layer_property(inst, layer_list);
+        loader_init_std_validation_props(props);
+
+    }
+
 }
 
-/**
- * Given a cJSON struct (json) of the top level JSON object from layer manifest
- * file, add entry to the layer_list.
- * Fill out the layer_properties in this list entry from the input cJSON object.
- *
- * \returns
- * void
- * layer_list has a new entry and initialized accordingly.
- * If the json input object does not have all the required fields no entry
- * is added to the list.
- */
-static void
-loader_add_layer_properties(const struct loader_instance *inst,
-                            struct loader_layer_list *layer_instance_list,
-                            struct loader_layer_list *layer_device_list,
-                            cJSON *json, bool is_implicit, char *filename) {
-    /* Fields in layer manifest file that are required:
-     * (required) “file_format_version”
-     * following are required in the "layer" object:
+static void loader_read_json_layer(
+    const struct loader_instance *inst,
+    struct loader_layer_list *layer_instance_list, cJSON *layer_node,
+    cJSON *item, cJSON *disable_environment, bool is_implicit, char *filename) {
+    char *temp;
+    char *name, *type, *library_path, *api_version;
+    char *implementation_version, *description;
+    cJSON *ext_item;
+    VkExtensionProperties ext_prop;
+
+    /*
+     * The following are required in the "layer" object:
      * (required) "name"
      * (required) "type"
      * (required) “library_path”
@@ -1845,50 +1817,18 @@ loader_add_layer_properties(const struct loader_instance *inst,
      * (required) “implementation_version”
      * (required) “description”
      * (required for implicit layers) “disable_environment”
-     *
-     * First get all required items and if any missing abort
      */
 
-    cJSON *item, *layer_node, *ext_item;
-    char *temp;
-    char *name, *type, *library_path, *api_version;
-    char *implementation_version, *description;
-    cJSON *disable_environment;
-    int i, j;
-    VkExtensionProperties ext_prop;
-    item = cJSON_GetObjectItem(json, "file_format_version");
-    if (item == NULL) {
-        return;
-    }
-    char *file_vers = cJSON_PrintUnformatted(item);
-    loader_log(inst, VK_DEBUG_REPORT_INFORMATION_BIT_EXT, 0,
-               "Found manifest file %s, version %s", filename, file_vers);
-    if (strcmp(file_vers, "\"1.0.0\"") != 0)
-        loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
-                   "Unexpected manifest file version (expected 1.0.0), may "
-                   "cause errors");
-    loader_tls_heap_free(file_vers);
-
-    layer_node = cJSON_GetObjectItem(json, "layer");
-    if (layer_node == NULL) {
-        loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
-                   "Can't find \"layer\" object in manifest JSON file, "
-                   "skipping this file");
-        return;
-    }
-
-    // loop through all "layer" objects in the file
-    do {
 #define GET_JSON_OBJECT(node, var)                                             \
     {                                                                          \
         var = cJSON_GetObjectItem(node, #var);                                 \
         if (var == NULL) {                                                     \
             layer_node = layer_node->next;                                     \
-            loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,                  \
+            loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,               \
                        "Didn't find required layer object %s in manifest "     \
                        "JSON file, skipping this layer",                       \
                        #var);                                                  \
-            continue;                                                          \
+            return;                                                            \
         }                                                                      \
     }
 #define GET_JSON_ITEM(node, var)                                               \
@@ -1896,11 +1836,11 @@ loader_add_layer_properties(const struct loader_instance *inst,
         item = cJSON_GetObjectItem(node, #var);                                \
         if (item == NULL) {                                                    \
             layer_node = layer_node->next;                                     \
-            loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,                  \
+            loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,               \
                        "Didn't find required layer value %s in manifest JSON " \
                        "file, skipping this layer",                            \
                        #var);                                                  \
-            continue;                                                          \
+            return;                                                            \
         }                                                                      \
         temp = cJSON_Print(item);                                              \
         temp[strlen(temp) - 1] = '\0';                                         \
@@ -1908,99 +1848,91 @@ loader_add_layer_properties(const struct loader_instance *inst,
         strcpy(var, &temp[1]);                                                 \
         loader_tls_heap_free(temp);                                            \
     }
-        GET_JSON_ITEM(layer_node, name)
-        GET_JSON_ITEM(layer_node, type)
-        GET_JSON_ITEM(layer_node, library_path)
-        GET_JSON_ITEM(layer_node, api_version)
-        GET_JSON_ITEM(layer_node, implementation_version)
-        GET_JSON_ITEM(layer_node, description)
-        if (is_implicit) {
-            GET_JSON_OBJECT(layer_node, disable_environment)
-        }
+    GET_JSON_ITEM(layer_node, name)
+    GET_JSON_ITEM(layer_node, type)
+    GET_JSON_ITEM(layer_node, library_path)
+    GET_JSON_ITEM(layer_node, api_version)
+    GET_JSON_ITEM(layer_node, implementation_version)
+    GET_JSON_ITEM(layer_node, description)
+    if (is_implicit) {
+        GET_JSON_OBJECT(layer_node, disable_environment)
+    }
 #undef GET_JSON_ITEM
 #undef GET_JSON_OBJECT
 
-        // add list entry
-        struct loader_layer_properties *props = NULL;
-        if (!strcmp(type, "DEVICE")) {
-            if (layer_device_list == NULL) {
-                layer_node = layer_node->next;
-                continue;
-            }
-            props = loader_get_next_layer_property(inst, layer_device_list);
-            props->type = (is_implicit) ? VK_LAYER_TYPE_DEVICE_IMPLICIT
-                                        : VK_LAYER_TYPE_DEVICE_EXPLICIT;
-        }
-        if (!strcmp(type, "INSTANCE")) {
-            if (layer_instance_list == NULL) {
-                layer_node = layer_node->next;
-                continue;
-            }
-            props = loader_get_next_layer_property(inst, layer_instance_list);
-            props->type = (is_implicit) ? VK_LAYER_TYPE_INSTANCE_IMPLICIT
-                                        : VK_LAYER_TYPE_INSTANCE_EXPLICIT;
-        }
-        if (!strcmp(type, "GLOBAL")) {
-            if (layer_instance_list != NULL)
-                props =
-                    loader_get_next_layer_property(inst, layer_instance_list);
-            else if (layer_device_list != NULL)
-                props = loader_get_next_layer_property(inst, layer_device_list);
-            else {
-                layer_node = layer_node->next;
-                continue;
-            }
-            props->type = (is_implicit) ? VK_LAYER_TYPE_GLOBAL_IMPLICIT
-                                        : VK_LAYER_TYPE_GLOBAL_EXPLICIT;
-        }
-
-        if (props == NULL) {
+    // add list entry
+    struct loader_layer_properties *props = NULL;
+    if (!strcmp(type, "DEVICE")) {
+        loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                   "Device layers are deprecated skipping this layer");
+        layer_node = layer_node->next;
+        return;
+    }
+    // Allow either GLOBAL or INSTANCE type interchangeably to handle
+    // layers that must work with older loaders
+    if (!strcmp(type, "INSTANCE") || !strcmp(type, "GLOBAL")) {
+        if (layer_instance_list == NULL) {
             layer_node = layer_node->next;
-            continue;
+            return;
         }
+        props = loader_get_next_layer_property(inst, layer_instance_list);
+        props->type = (is_implicit) ? VK_LAYER_TYPE_INSTANCE_IMPLICIT
+                                    : VK_LAYER_TYPE_INSTANCE_EXPLICIT;
+    }
 
-        strncpy(props->info.layerName, name, sizeof(props->info.layerName));
-        props->info.layerName[sizeof(props->info.layerName) - 1] = '\0';
+    if (props == NULL) {
+        layer_node = layer_node->next;
+        return;
+    }
 
-        char *fullpath = props->lib_name;
-        char *rel_base;
-        if (loader_platform_is_path(library_path)) {
-            // a relative or absolute path
-            char *name_copy = loader_stack_alloc(strlen(filename) + 1);
-            strcpy(name_copy, filename);
-            rel_base = loader_platform_dirname(name_copy);
-            loader_expand_path(library_path, rel_base, MAX_STRING_SIZE,
-                               fullpath);
-        } else {
-            // a filename which is assumed in a system directory
-            loader_get_fullpath(library_path, DEFAULT_VK_LAYERS_PATH,
-                                MAX_STRING_SIZE, fullpath);
+    strncpy(props->info.layerName, name, sizeof(props->info.layerName));
+    props->info.layerName[sizeof(props->info.layerName) - 1] = '\0';
+
+    char *fullpath = props->lib_name;
+    char *rel_base;
+    if (loader_platform_is_path(library_path)) {
+        // a relative or absolute path
+        char *name_copy = loader_stack_alloc(strlen(filename) + 1);
+        strcpy(name_copy, filename);
+        rel_base = loader_platform_dirname(name_copy);
+        loader_expand_path(library_path, rel_base, MAX_STRING_SIZE, fullpath);
+    } else {
+        // a filename which is assumed in a system directory
+        loader_get_fullpath(library_path, DEFAULT_VK_LAYERS_PATH,
+                            MAX_STRING_SIZE, fullpath);
+    }
+    props->info.specVersion = loader_make_version(api_version);
+    props->info.implementationVersion = atoi(implementation_version);
+    strncpy((char *)props->info.description, description,
+            sizeof(props->info.description));
+    props->info.description[sizeof(props->info.description) - 1] = '\0';
+    if (is_implicit) {
+        if (!disable_environment || !disable_environment->child) {
+            loader_log(
+                inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                "Didn't find required layer child value disable_environment"
+                "in manifest JSON file, skipping this layer");
+            layer_node = layer_node->next;
+            return;
         }
-        props->info.specVersion = loader_make_version(api_version);
-        props->info.implementationVersion = atoi(implementation_version);
-        strncpy((char *)props->info.description, description,
-                sizeof(props->info.description));
-        props->info.description[sizeof(props->info.description) - 1] = '\0';
-        if (is_implicit) {
-            strncpy(props->disable_env_var.name,
-                    disable_environment->child->string,
-                    sizeof(props->disable_env_var.name));
-            props->disable_env_var
-                .name[sizeof(props->disable_env_var.name) - 1] = '\0';
-            strncpy(props->disable_env_var.value,
-                    disable_environment->child->valuestring,
-                    sizeof(props->disable_env_var.value));
-            props->disable_env_var
-                .value[sizeof(props->disable_env_var.value) - 1] = '\0';
-        }
+        strncpy(props->disable_env_var.name, disable_environment->child->string,
+                sizeof(props->disable_env_var.name));
+        props->disable_env_var.name[sizeof(props->disable_env_var.name) - 1] =
+            '\0';
+        strncpy(props->disable_env_var.value,
+                disable_environment->child->valuestring,
+                sizeof(props->disable_env_var.value));
+        props->disable_env_var.value[sizeof(props->disable_env_var.value) - 1] =
+            '\0';
+    }
 
 /**
- * Now get all optional items and objects and put in list:
- * functions
- * instance_extensions
- * device_extensions
- * enable_environment (implicit layers only)
- */
+* Now get all optional items and objects and put in list:
+* functions
+* instance_extensions
+* device_extensions
+* enable_environment (implicit layers only)
+*/
 #define GET_JSON_OBJECT(node, var)                                             \
     { var = cJSON_GetObjectItem(node, #var); }
 #define GET_JSON_ITEM(node, var)                                               \
@@ -2015,152 +1947,265 @@ loader_add_layer_properties(const struct loader_instance *inst,
         }                                                                      \
     }
 
-        cJSON *instance_extensions, *device_extensions, *functions,
-            *enable_environment;
-        cJSON *entrypoints;
-        char *vkGetInstanceProcAddr, *vkGetDeviceProcAddr, *spec_version;
-        char **entry_array;
-        vkGetInstanceProcAddr = NULL;
-        vkGetDeviceProcAddr = NULL;
-        spec_version = NULL;
-        entrypoints = NULL;
-        entry_array = NULL;
-        /**
-         * functions
-         *     vkGetInstanceProcAddr
-         *     vkGetDeviceProcAddr
-         */
-        GET_JSON_OBJECT(layer_node, functions)
-        if (functions != NULL) {
-            GET_JSON_ITEM(functions, vkGetInstanceProcAddr)
-            GET_JSON_ITEM(functions, vkGetDeviceProcAddr)
-            if (vkGetInstanceProcAddr != NULL)
-                strncpy(props->functions.str_gipa, vkGetInstanceProcAddr,
-                        sizeof(props->functions.str_gipa));
-            props->functions.str_gipa[sizeof(props->functions.str_gipa) - 1] =
-                '\0';
-            if (vkGetDeviceProcAddr != NULL)
-                strncpy(props->functions.str_gdpa, vkGetDeviceProcAddr,
-                        sizeof(props->functions.str_gdpa));
-            props->functions.str_gdpa[sizeof(props->functions.str_gdpa) - 1] =
-                '\0';
-        }
-        /**
-         * instance_extensions
-         * array of
-         *     name
-         *     spec_version
-         */
-        GET_JSON_OBJECT(layer_node, instance_extensions)
-        if (instance_extensions != NULL) {
-            int count = cJSON_GetArraySize(instance_extensions);
-            for (i = 0; i < count; i++) {
-                ext_item = cJSON_GetArrayItem(instance_extensions, i);
-                GET_JSON_ITEM(ext_item, name)
-                GET_JSON_ITEM(ext_item, spec_version)
-                if (name != NULL) {
-                    strncpy(ext_prop.extensionName, name,
-                            sizeof(ext_prop.extensionName));
-                    ext_prop.extensionName[sizeof(ext_prop.extensionName) - 1] =
-                        '\0';
-                }
-                ext_prop.specVersion = atoi(spec_version);
+    cJSON *instance_extensions, *device_extensions, *functions,
+        *enable_environment;
+    cJSON *entrypoints;
+    char *vkGetInstanceProcAddr, *vkGetDeviceProcAddr, *spec_version;
+    char **entry_array;
+    vkGetInstanceProcAddr = NULL;
+    vkGetDeviceProcAddr = NULL;
+    spec_version = NULL;
+    entrypoints = NULL;
+    entry_array = NULL;
+    int i, j;
+
+    /**
+    * functions
+    *     vkGetInstanceProcAddr
+    *     vkGetDeviceProcAddr
+    */
+    GET_JSON_OBJECT(layer_node, functions)
+    if (functions != NULL) {
+        GET_JSON_ITEM(functions, vkGetInstanceProcAddr)
+        GET_JSON_ITEM(functions, vkGetDeviceProcAddr)
+        if (vkGetInstanceProcAddr != NULL)
+            strncpy(props->functions.str_gipa, vkGetInstanceProcAddr,
+                    sizeof(props->functions.str_gipa));
+        props->functions.str_gipa[sizeof(props->functions.str_gipa) - 1] = '\0';
+        if (vkGetDeviceProcAddr != NULL)
+            strncpy(props->functions.str_gdpa, vkGetDeviceProcAddr,
+                    sizeof(props->functions.str_gdpa));
+        props->functions.str_gdpa[sizeof(props->functions.str_gdpa) - 1] = '\0';
+    }
+    /**
+    * instance_extensions
+    * array of
+    *     name
+    *     spec_version
+    */
+    GET_JSON_OBJECT(layer_node, instance_extensions)
+    if (instance_extensions != NULL) {
+        int count = cJSON_GetArraySize(instance_extensions);
+        for (i = 0; i < count; i++) {
+            ext_item = cJSON_GetArrayItem(instance_extensions, i);
+            GET_JSON_ITEM(ext_item, name)
+            GET_JSON_ITEM(ext_item, spec_version)
+            if (name != NULL) {
+                strncpy(ext_prop.extensionName, name,
+                        sizeof(ext_prop.extensionName));
+                ext_prop.extensionName[sizeof(ext_prop.extensionName) - 1] =
+                    '\0';
+            }
+            ext_prop.specVersion = atoi(spec_version);
+            bool ext_unsupported =
+                wsi_unsupported_instance_extension(&ext_prop);
+            if (!ext_unsupported) {
                 loader_add_to_ext_list(inst, &props->instance_extension_list, 1,
                                        &ext_prop);
             }
         }
-        /**
-         * device_extensions
-         * array of
-         *     name
-         *     spec_version
-         *     entrypoints
-         */
-        GET_JSON_OBJECT(layer_node, device_extensions)
-        if (device_extensions != NULL) {
-            int count = cJSON_GetArraySize(device_extensions);
-            for (i = 0; i < count; i++) {
-                ext_item = cJSON_GetArrayItem(device_extensions, i);
-                GET_JSON_ITEM(ext_item, name)
-                GET_JSON_ITEM(ext_item, spec_version)
-                if (name != NULL) {
-                    strncpy(ext_prop.extensionName, name,
-                            sizeof(ext_prop.extensionName));
-                    ext_prop.extensionName[sizeof(ext_prop.extensionName) - 1] =
-                        '\0';
-                }
-                ext_prop.specVersion = atoi(spec_version);
-                // entrypoints = cJSON_GetObjectItem(ext_item, "entrypoints");
-                GET_JSON_OBJECT(ext_item, entrypoints)
-                int entry_count;
-                if (entrypoints == NULL) {
-                    loader_add_to_dev_ext_list(inst,
-                                               &props->device_extension_list,
-                                               &ext_prop, 0, NULL);
-                    continue;
-                }
-                entry_count = cJSON_GetArraySize(entrypoints);
-                if (entry_count)
-                    entry_array = (char **)loader_stack_alloc(sizeof(char *) *
-                                                              entry_count);
-                for (j = 0; j < entry_count; j++) {
-                    ext_item = cJSON_GetArrayItem(entrypoints, j);
-                    if (ext_item != NULL) {
-                        temp = cJSON_Print(ext_item);
-                        temp[strlen(temp) - 1] = '\0';
-                        entry_array[j] = loader_stack_alloc(strlen(temp) + 1);
-                        strcpy(entry_array[j], &temp[1]);
-                        loader_tls_heap_free(temp);
-                    }
-                }
+    }
+    /**
+    * device_extensions
+    * array of
+    *     name
+    *     spec_version
+    *     entrypoints
+    */
+    GET_JSON_OBJECT(layer_node, device_extensions)
+    if (device_extensions != NULL) {
+        int count = cJSON_GetArraySize(device_extensions);
+        for (i = 0; i < count; i++) {
+            ext_item = cJSON_GetArrayItem(device_extensions, i);
+            GET_JSON_ITEM(ext_item, name)
+            GET_JSON_ITEM(ext_item, spec_version)
+            if (name != NULL) {
+                strncpy(ext_prop.extensionName, name,
+                        sizeof(ext_prop.extensionName));
+                ext_prop.extensionName[sizeof(ext_prop.extensionName) - 1] =
+                    '\0';
+            }
+            ext_prop.specVersion = atoi(spec_version);
+            // entrypoints = cJSON_GetObjectItem(ext_item, "entrypoints");
+            GET_JSON_OBJECT(ext_item, entrypoints)
+            int entry_count;
+            if (entrypoints == NULL) {
                 loader_add_to_dev_ext_list(inst, &props->device_extension_list,
-                                           &ext_prop, entry_count, entry_array);
-            }
-        }
-        if (is_implicit) {
-            GET_JSON_OBJECT(layer_node, enable_environment)
-
-            // enable_environment is optional
-            if (enable_environment) {
-                strncpy(props->enable_env_var.name,
-                        enable_environment->child->string,
-                        sizeof(props->enable_env_var.name));
-                props->enable_env_var
-                    .name[sizeof(props->enable_env_var.name) - 1] = '\0';
-                strncpy(props->enable_env_var.value,
-                        enable_environment->child->valuestring,
-                        sizeof(props->enable_env_var.value));
-                props->enable_env_var
-                    .value[sizeof(props->enable_env_var.value) - 1] = '\0';
-            }
-        }
-#undef GET_JSON_ITEM
-#undef GET_JSON_OBJECT
-        // for global layers need to add them to both device and instance list
-        if (!strcmp(type, "GLOBAL")) {
-            struct loader_layer_properties *dev_props;
-            if (layer_instance_list == NULL || layer_device_list == NULL) {
-                layer_node = layer_node->next;
+                                           &ext_prop, 0, NULL);
                 continue;
             }
-            dev_props = loader_get_next_layer_property(inst, layer_device_list);
-            // copy into device layer list
-            loader_copy_layer_properties(inst, dev_props, props);
+            entry_count = cJSON_GetArraySize(entrypoints);
+            if (entry_count)
+                entry_array =
+                    (char **)loader_stack_alloc(sizeof(char *) * entry_count);
+            for (j = 0; j < entry_count; j++) {
+                ext_item = cJSON_GetArrayItem(entrypoints, j);
+                if (ext_item != NULL) {
+                    temp = cJSON_Print(ext_item);
+                    temp[strlen(temp) - 1] = '\0';
+                    entry_array[j] = loader_stack_alloc(strlen(temp) + 1);
+                    strcpy(entry_array[j], &temp[1]);
+                    loader_tls_heap_free(temp);
+                }
+            }
+            loader_add_to_dev_ext_list(inst, &props->device_extension_list,
+                                       &ext_prop, entry_count, entry_array);
         }
-        layer_node = layer_node->next;
-    } while (layer_node != NULL);
+    }
+    if (is_implicit) {
+        GET_JSON_OBJECT(layer_node, enable_environment)
+
+        // enable_environment is optional
+        if (enable_environment) {
+            strncpy(props->enable_env_var.name,
+                    enable_environment->child->string,
+                    sizeof(props->enable_env_var.name));
+            props->enable_env_var.name[sizeof(props->enable_env_var.name) - 1] =
+                '\0';
+            strncpy(props->enable_env_var.value,
+                    enable_environment->child->valuestring,
+                    sizeof(props->enable_env_var.value));
+            props->enable_env_var
+                .value[sizeof(props->enable_env_var.value) - 1] = '\0';
+        }
+    }
+#undef GET_JSON_ITEM
+#undef GET_JSON_OBJECT
+}
+
+/**
+ * Given a cJSON struct (json) of the top level JSON object from layer manifest
+ * file, add entry to the layer_list. Fill out the layer_properties in this list
+ * entry from the input cJSON object.
+ *
+ * \returns
+ * void
+ * layer_list has a new entry and initialized accordingly.
+ * If the json input object does not have all the required fields no entry
+ * is added to the list.
+ */
+static void
+loader_add_layer_properties(const struct loader_instance *inst,
+                            struct loader_layer_list *layer_instance_list,
+                            cJSON *json, bool is_implicit, char *filename) {
+    /* Fields in layer manifest file that are required:
+     * (required) “file_format_version”
+     *
+     * If more than one "layer" object are to be used, use the "layers" array instead.
+     *
+     * First get all required items and if any missing abort
+     */
+
+    cJSON *item, *layers_node, *layer_node;
+    uint16_t file_major_vers = 0;
+    uint16_t file_minor_vers = 0;
+    uint16_t file_patch_vers = 0;
+    char *vers_tok;
+    cJSON *disable_environment = NULL;
+    item = cJSON_GetObjectItem(json, "file_format_version");
+    if (item == NULL) {
+        return;
+    }
+    char *file_vers = cJSON_PrintUnformatted(item);
+    loader_log(inst, VK_DEBUG_REPORT_INFORMATION_BIT_EXT, 0,
+               "Found manifest file %s, version %s", filename, file_vers);
+    // Get the major/minor/and patch as integers for easier comparison
+    vers_tok = strtok(file_vers, ".\"\n\r");
+    if (NULL != vers_tok) {
+        file_major_vers = atoi(vers_tok);
+        vers_tok = strtok(NULL, ".\"\n\r");
+        if (NULL != vers_tok) {
+            file_minor_vers = atoi(vers_tok);
+            vers_tok = strtok(NULL, ".\"\n\r");
+            if (NULL != vers_tok) {
+                file_patch_vers = atoi(vers_tok);
+            }
+        }
+    }
+    if (file_major_vers != 1 || file_minor_vers != 0 || file_patch_vers > 1) {
+        loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                   "%s Unexpected manifest file version (expected 1.0.0 or "
+                   "1.0.1), may cause errors",
+                   filename);
+    }
+    loader_tls_heap_free(file_vers);
+    // If "layers" is present, read in the array of layer objects
+    layers_node = cJSON_GetObjectItem(json, "layers");
+    if (layers_node != NULL) {
+        int numItems = cJSON_GetArraySize(layers_node);
+        if (file_major_vers == 1 && file_minor_vers == 0 &&
+            file_patch_vers == 0) {
+            loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                       "\"layers\" tag not officially added until file version "
+                       "1.0.1, but %s is reporting version %s",
+                       filename, file_vers);
+        }
+        for (int curLayer = 0; curLayer < numItems; curLayer++) {
+            layer_node = cJSON_GetArrayItem(layers_node, curLayer);
+            if (layer_node == NULL) {
+                loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                           "Can't find \"layers\" array element %d object in "
+                           "manifest JSON file %s, skipping this file",
+                           curLayer, filename);
+                return;
+            }
+            loader_read_json_layer(inst, layer_instance_list, layer_node, item,
+                                   disable_environment, is_implicit, filename);
+        }
+    } else {
+        // Otherwise, try to read in individual layers
+        layer_node = cJSON_GetObjectItem(json, "layer");
+        if (layer_node == NULL) {
+            loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                       "Can't find \"layer\" object in manifest JSON file %s, "
+                       "skipping this file",
+                       filename);
+            return;
+        }
+        // Loop through all "layer" objects in the file to get a count of them
+        // first.
+        uint16_t layer_count = 0;
+        cJSON *tempNode = layer_node;
+        do {
+            tempNode = tempNode->next;
+            layer_count++;
+        } while (tempNode != NULL);
+        /*
+         * Throw a warning if we encounter multiple "layer" objects in file
+         * versions newer than 1.0.0.  Having multiple objects with the same
+         * name at the same level is actually a JSON standard violation.
+         */
+        if (layer_count > 1 &&
+            (file_major_vers > 1 ||
+             !(file_minor_vers == 0 && file_patch_vers == 0))) {
+            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                       "Multiple \"layer\" nodes are deprecated starting in "
+                       "file version \"1.0.1\".  Please use \"layers\" : [] "
+                       "array instead in %s.",
+                       filename);
+        } else {
+            do {
+                loader_read_json_layer(inst, layer_instance_list, layer_node,
+                                       item, disable_environment, is_implicit,
+                                       filename);
+                layer_node = layer_node->next;
+            } while (layer_node != NULL);
+        }
+    }
     return;
 }
 
 /**
  * Find the Vulkan library manifest files.
  *
- * This function scans the location or env_override directories/files
+ * This function scans the "location" or "env_override" directories/files
  * for a list of JSON manifest files.  If env_override is non-NULL
  * and has a valid value. Then the location is ignored.  Otherwise
  * location is used to look for manifest files. The location
  * is interpreted as  Registry path on Windows and a directory path(s)
- * on Linux.
+ * on Linux. "home_location" is an additional directory in the users home
+ * directory to look at. It is exapanded into the dir path $HOME/home_location.
+ * This "home_location" is only used on Linux.
  *
  * \returns
  * A string list of manifest files to be opened in out_files param.
@@ -2176,10 +2221,12 @@ loader_add_layer_properties(const struct loader_instance *inst,
  * Linux Layer| dirs     | dirs
  */
 static void loader_get_manifest_files(const struct loader_instance *inst,
-                                      const char *env_override, bool is_layer,
+                                      const char *env_override,
+                                      const char *source_override, bool is_layer,
                                       const char *location,
+                                      const char *home_location,
                                       struct loader_manifest_files *out_files) {
-    char *override = NULL;
+    const char *override = NULL;
     char *loc;
     char *file, *next_file, *name;
     size_t alloced_count = 64;
@@ -2191,9 +2238,11 @@ static void loader_get_manifest_files(const struct loader_instance *inst,
     out_files->count = 0;
     out_files->filename_list = NULL;
 
-    if (env_override != NULL && (override = loader_getenv(env_override))) {
+    if (source_override != NULL) {
+        override = source_override;
+    } else if (env_override != NULL && (override = loader_getenv(env_override))) {
 #if !defined(_WIN32)
-        if (geteuid() != getuid()) {
+        if (geteuid() != getuid() || getegid() != getgid()) {
             /* Don't allow setuid apps to use the env var: */
             loader_free_getenv(override);
             override = NULL;
@@ -2201,7 +2250,12 @@ static void loader_get_manifest_files(const struct loader_instance *inst,
 #endif
     }
 
+#if !defined(_WIN32)
+    if (location == NULL && home_location == NULL) {
+#else
+    home_location = NULL;
     if (location == NULL) {
+#endif
         loader_log(
             inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
             "Can't get manifest files with NULL location, env_override=%s",
@@ -2248,7 +2302,9 @@ static void loader_get_manifest_files(const struct loader_instance *inst,
             return;
         }
         strcpy(loc, override);
-        loader_free_getenv(override);
+        if (source_override == NULL) {
+            loader_free_getenv(override);
+        }
     }
 
     // Print out the paths being searched if debugging is enabled
@@ -2340,6 +2396,39 @@ static void loader_get_manifest_files(const struct loader_instance *inst,
         if (sysdir)
             closedir(sysdir);
         file = next_file;
+#if !defined(_WIN32)
+        if (home_location != NULL &&
+            (next_file == NULL || *next_file == '\0') && override == NULL) {
+            char *home = secure_getenv("HOME");
+            if (home != NULL) {
+                size_t len;
+                char *home_loc = loader_stack_alloc(strlen(home) + 2 +
+                                                    strlen(home_location));
+                if (home_loc == NULL) {
+                    loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                               "Out of memory can't get manifest files");
+                    return;
+                }
+                strcpy(home_loc, home);
+                // Add directory separator if needed
+                if (home_location[0] != DIRECTORY_SYMBOL) {
+                    len = strlen(home_loc);
+                    home_loc[len] = DIRECTORY_SYMBOL;
+                    home_loc[len + 1] = '\0';
+                }
+                strcat(home_loc, home_location);
+                file = home_loc;
+                next_file = loader_get_next_path(file);
+                home_location = NULL;
+
+                loader_log(
+                    inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
+                    "Searching the following paths for manifest files: %s\n",
+                    home_loc);
+                list_is_dirs = true;
+            }
+        }
+#endif
     }
     return;
 }
@@ -2361,12 +2450,17 @@ void loader_destroy_icd_lib_list() {}
 void loader_icd_scan(const struct loader_instance *inst,
                      struct loader_icd_libs *icds) {
     char *file_str;
+    uint16_t file_major_vers = 0;
+    uint16_t file_minor_vers = 0;
+    uint16_t file_patch_vers = 0;
+    char *vers_tok;
     struct loader_manifest_files manifest_files;
 
     loader_scanned_icd_init(inst, icds);
     // Get a list of manifest files for ICDs
-    loader_get_manifest_files(inst, "VK_ICD_FILENAMES", false,
-                              DEFAULT_VK_DRIVERS_INFO, &manifest_files);
+    loader_get_manifest_files(inst, "VK_ICD_FILENAMES", NULL, false,
+                              DEFAULT_VK_DRIVERS_INFO, HOME_VK_DRIVERS_INFO,
+                              &manifest_files);
     if (manifest_files.count == 0)
         return;
     loader_platform_thread_lock_mutex(&loader_json_lock);
@@ -2386,11 +2480,24 @@ void loader_icd_scan(const struct loader_instance *inst,
             return;
         }
         char *file_vers = cJSON_Print(item);
+        // Get the major/minor/and patch as integers for easier comparison
+        vers_tok = strtok(file_vers, ".\"\n\r");
+        if (NULL != vers_tok) {
+            file_major_vers = atoi(vers_tok);
+            vers_tok = strtok(NULL, ".\"\n\r");
+            if (NULL != vers_tok) {
+                file_minor_vers = atoi(vers_tok);
+                vers_tok = strtok(NULL, ".\"\n\r");
+                if (NULL != vers_tok) {
+                    file_patch_vers = atoi(vers_tok);
+                }
+            }
+        }
         loader_log(inst, VK_DEBUG_REPORT_INFORMATION_BIT_EXT, 0,
                    "Found manifest file %s, version %s", file_str, file_vers);
-        if (strcmp(file_vers, "\"1.0.0\"") != 0)
+        if (file_major_vers != 1 || file_minor_vers != 0 || file_patch_vers > 1)
             loader_log(inst, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
-                       "Unexpected manifest file version (expected 1.0.0), may "
+                       "Unexpected manifest file version (expected 1.0.0 or 1.0.1), may "
                        "cause errors");
         loader_tls_heap_free(file_vers);
         itemICD = cJSON_GetObjectItem(json, "ICD");
@@ -2469,8 +2576,7 @@ void loader_icd_scan(const struct loader_instance *inst,
 }
 
 void loader_layer_scan(const struct loader_instance *inst,
-                       struct loader_layer_list *instance_layers,
-                       struct loader_layer_list *device_layers) {
+                       struct loader_layer_list *instance_layers) {
     char *file_str;
     struct loader_manifest_files
         manifest_files[2]; // [0] = explicit, [1] = implicit
@@ -2479,32 +2585,18 @@ void loader_layer_scan(const struct loader_instance *inst,
     uint32_t implicit;
 
     // Get a list of manifest files for  explicit layers
-    loader_get_manifest_files(inst, LAYERS_PATH_ENV, true,
-                              DEFAULT_VK_ELAYERS_INFO, &manifest_files[0]);
+    loader_get_manifest_files(inst, LAYERS_PATH_ENV, LAYERS_SOURCE_PATH, true,
+                              DEFAULT_VK_ELAYERS_INFO, HOME_VK_ELAYERS_INFO,
+                              &manifest_files[0]);
     // Pass NULL for environment variable override - implicit layers are not
     // overridden by LAYERS_PATH_ENV
-    loader_get_manifest_files(inst, NULL, true, DEFAULT_VK_ILAYERS_INFO,
-                              &manifest_files[1]);
+    loader_get_manifest_files(inst, NULL, NULL, true, DEFAULT_VK_ILAYERS_INFO,
+                              HOME_VK_ILAYERS_INFO, &manifest_files[1]);
     if (manifest_files[0].count == 0 && manifest_files[1].count == 0)
         return;
 
-#if 0 // TODO
-    /**
-     * We need a list of the layer libraries, not just a list of
-     * the layer properties (a layer library could expose more than
-     * one layer property). This list of scanned layers would be
-     * used to check for global and physicaldevice layer properties.
-     */
-    if (!loader_init_layer_library_list(&loader.scanned_layer_libraries)) {
-        loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   "Alloc for layer list failed: %s line: %d", __FILE__, __LINE__);
-        return;
-    }
-#endif
-
     /* cleanup any previously scanned libraries */
     loader_delete_layer_properties(inst, instance_layers);
-    loader_delete_layer_properties(inst, device_layers);
 
     loader_platform_thread_lock_mutex(&loader_json_lock);
     for (implicit = 0; implicit < 2; implicit++) {
@@ -2519,10 +2611,8 @@ void loader_layer_scan(const struct loader_instance *inst,
                 continue;
             }
 
-            // TODO error if device layers expose instance_extensions
-            // TODO error if instance layers expose device extensions
-            loader_add_layer_properties(inst, instance_layers, device_layers,
-                                        json, (implicit == 1), file_str);
+            loader_add_layer_properties(inst, instance_layers, json,
+                                        (implicit == 1), file_str);
 
             loader_heap_free(inst, file_str);
             cJSON_Delete(json);
@@ -2537,7 +2627,58 @@ void loader_layer_scan(const struct loader_instance *inst,
     // add a meta layer for validation if the validation layers are all present
     loader_add_layer_property_meta(
         inst, sizeof(std_validation_names) / sizeof(std_validation_names[0]),
-        std_validation_names, instance_layers, device_layers);
+        std_validation_names, instance_layers);
+
+    loader_platform_thread_unlock_mutex(&loader_json_lock);
+}
+
+void loader_implicit_layer_scan(const struct loader_instance *inst,
+                                struct loader_layer_list *instance_layers) {
+    char *file_str;
+    struct loader_manifest_files manifest_files;
+    cJSON *json;
+    uint32_t i;
+
+    // Pass NULL for environment variable override - implicit layers are not
+    // overridden by LAYERS_PATH_ENV
+    loader_get_manifest_files(inst, NULL, NULL, true, DEFAULT_VK_ILAYERS_INFO,
+                              HOME_VK_ILAYERS_INFO, &manifest_files);
+    if (manifest_files.count == 0) {
+        return;
+    }
+
+    /* cleanup any previously scanned libraries */
+    loader_delete_layer_properties(inst, instance_layers);
+
+    loader_platform_thread_lock_mutex(&loader_json_lock);
+
+    for (i = 0; i < manifest_files.count; i++) {
+        file_str = manifest_files.filename_list[i];
+        if (file_str == NULL) {
+            continue;
+        }
+
+        // parse file into JSON struct
+        json = loader_get_json(inst, file_str);
+        if (!json) {
+            continue;
+        }
+
+        loader_add_layer_properties(inst, instance_layers, json,
+                                    true, file_str);
+
+        loader_heap_free(inst, file_str);
+        cJSON_Delete(json);
+    }
+
+    if (manifest_files.count != 0) {
+        loader_heap_free(inst, manifest_files.filename_list);
+    }
+
+    // add a meta layer for validation if the validation layers are all present
+    loader_add_layer_property_meta(
+        inst, sizeof(std_validation_names) / sizeof(std_validation_names[0]),
+        std_validation_names, instance_layers);
 
     loader_platform_thread_unlock_mutex(&loader_json_lock);
 }
@@ -2547,9 +2688,9 @@ loader_gpa_instance_internal(VkInstance inst, const char *pName) {
     if (!strcmp(pName, "vkGetInstanceProcAddr"))
         return (void *)loader_gpa_instance_internal;
     if (!strcmp(pName, "vkCreateInstance"))
-        return (void *)loader_CreateInstance;
+        return (void *)terminator_CreateInstance;
     if (!strcmp(pName, "vkCreateDevice"))
-        return (void *)loader_create_device_terminator;
+        return (void *)terminator_CreateDevice;
 
     // inst is not wrapped
     if (inst == VK_NULL_HANDLE) {
@@ -2562,15 +2703,24 @@ loader_gpa_instance_internal(VkInstance inst, const char *pName) {
     if (disp_table == NULL)
         return NULL;
 
-    addr = loader_lookup_instance_dispatch_table(disp_table, pName);
-    if (addr) {
+    bool found_name;
+    addr =
+        loader_lookup_instance_dispatch_table(disp_table, pName, &found_name);
+    if (found_name) {
         return addr;
     }
 
-    if (disp_table->GetInstanceProcAddr == NULL) {
-        return NULL;
-    }
-    return disp_table->GetInstanceProcAddr(inst, pName);
+    // Don't call down the chain, this would be an infinite loop
+    loader_log(NULL, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+               "loader_gpa_instance_internal() unrecognized name %s", pName);
+    return NULL;
+}
+
+static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+loader_gpa_device_internal(VkDevice device, const char *pName) {
+    struct loader_device *dev;
+    struct loader_icd *icd = loader_get_icd_and_device(device, &dev);
+    return icd->GetDeviceProcAddr(device, pName);
 }
 
 /**
@@ -2598,15 +2748,15 @@ static void loader_init_dispatch_dev_ext_entry(struct loader_instance *inst,
     } else {
         for (uint32_t i = 0; i < inst->total_icd_count; i++) {
             struct loader_icd *icd = &inst->icds[i];
-            struct loader_device *dev = icd->logical_device_list;
-            while (dev) {
+            struct loader_device *ldev = icd->logical_device_list;
+            while (ldev) {
                 gdpa_value =
-                    dev->loader_dispatch.core_dispatch.GetDeviceProcAddr(
-                        dev->device, funcName);
+                    ldev->loader_dispatch.core_dispatch.GetDeviceProcAddr(
+                        ldev->device, funcName);
                 if (gdpa_value != NULL)
-                    dev->loader_dispatch.ext_dispatch.DevExt[idx] =
+                    ldev->loader_dispatch.ext_dispatch.DevExt[idx] =
                         (PFN_vkDevExt)gdpa_value;
-                dev = dev->next;
+                ldev = ldev->next;
             }
         }
     }
@@ -2617,8 +2767,8 @@ static void loader_init_dispatch_dev_ext_entry(struct loader_instance *inst,
  * for dev  for each of those extension entrypoints found in hash table.
 
  */
-static void loader_init_dispatch_dev_ext(struct loader_instance *inst,
-                                         struct loader_device *dev) {
+void loader_init_dispatch_dev_ext(struct loader_instance *inst,
+                                  struct loader_device *dev) {
     for (uint32_t i = 0; i < MAX_NUM_DEV_EXTS; i++) {
         if (inst->disp_hash[i].func_name != NULL)
             loader_init_dispatch_dev_ext_entry(inst, dev, i,
@@ -2635,6 +2785,41 @@ static bool loader_check_icds_for_address(struct loader_instance *inst,
             // this icd supports funcName
             return true;
         icd = icd->next;
+    }
+
+    return false;
+}
+
+static bool loader_check_layer_list_for_address(
+    const struct loader_layer_list *const layers, const char *funcName) {
+    // Iterate over the layers.
+    for (uint32_t layer = 0; layer < layers->count; ++layer) {
+        // Iterate over the extensions.
+        const struct loader_device_extension_list *const extensions =
+            &(layers->list[layer].device_extension_list);
+        for (uint32_t extension = 0; extension < extensions->count;
+             ++extension) {
+            // Iterate over the entry points.
+            const struct loader_dev_ext_props *const property =
+                &(extensions->list[extension]);
+            for (uint32_t entry = 0; entry < property->entrypoint_count;
+                 ++entry) {
+                if (strcmp(property->entrypoints[entry], funcName) == 0) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool
+loader_check_layers_for_address(const struct loader_instance *const inst,
+                                const char *funcName) {
+    if (loader_check_layer_list_for_address(&inst->instance_layer_list,
+                                            funcName)) {
+        return true;
     }
 
     return false;
@@ -2771,8 +2956,8 @@ void *loader_dev_ext_gpa(struct loader_instance *inst, const char *funcName) {
         return loader_get_dev_ext_trampoline(idx);
 
     // Check if funcName is supported in either ICDs or a layer library
-    if (!loader_check_icds_for_address(inst, funcName)) {
-        // TODO Add check in layer libraries for support of address
+    if (!loader_check_icds_for_address(inst, funcName) &&
+        !loader_check_layers_for_address(inst, funcName)) {
         // if support found in layers continue on
         return NULL;
     }
@@ -2806,132 +2991,43 @@ struct loader_instance *loader_get_instance(const VkInstance instance) {
 }
 
 static loader_platform_dl_handle
-loader_add_layer_lib(const struct loader_instance *inst, const char *chain_type,
-                     struct loader_layer_properties *layer_prop) {
-    struct loader_lib_info *new_layer_lib_list, *my_lib;
-    size_t new_alloc_size;
-    /*
-     * TODO: We can now track this information in the
-     * scanned_layer_libraries list.
-     */
-    for (uint32_t i = 0; i < loader.loaded_layer_lib_count; i++) {
-        if (strcmp(loader.loaded_layer_lib_list[i].lib_name,
-                   layer_prop->lib_name) == 0) {
-            /* Have already loaded this library, just increment ref count */
-            loader.loaded_layer_lib_list[i].ref_count++;
-            loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
-                       "%s Chain: Increment layer reference count for layer "
-                       "library %s",
-                       chain_type, layer_prop->lib_name);
-            return loader.loaded_layer_lib_list[i].lib_handle;
-        }
-    }
+loader_open_layer_lib(const struct loader_instance *inst, const char *chain_type,
+                     struct loader_layer_properties *prop) {
 
-    /* Haven't seen this library so load it */
-    new_alloc_size = 0;
-    if (loader.loaded_layer_lib_capacity == 0)
-        new_alloc_size = 8 * sizeof(struct loader_lib_info);
-    else if (loader.loaded_layer_lib_capacity <=
-             loader.loaded_layer_lib_count * sizeof(struct loader_lib_info))
-        new_alloc_size = loader.loaded_layer_lib_capacity * 2;
-
-    if (new_alloc_size) {
-        new_layer_lib_list = loader_heap_realloc(
-            inst, loader.loaded_layer_lib_list,
-            loader.loaded_layer_lib_capacity, new_alloc_size,
-            VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
-        if (!new_layer_lib_list) {
-            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                       "loader: realloc failed in loader_add_layer_lib");
-            return NULL;
-        }
-        loader.loaded_layer_lib_capacity = new_alloc_size;
-        loader.loaded_layer_lib_list = new_layer_lib_list;
-    } else
-        new_layer_lib_list = loader.loaded_layer_lib_list;
-    my_lib = &new_layer_lib_list[loader.loaded_layer_lib_count];
-
-    strncpy(my_lib->lib_name, layer_prop->lib_name, sizeof(my_lib->lib_name));
-    my_lib->lib_name[sizeof(my_lib->lib_name) - 1] = '\0';
-    my_lib->ref_count = 0;
-    my_lib->lib_handle = NULL;
-
-    if ((my_lib->lib_handle = loader_platform_open_library(my_lib->lib_name)) ==
+    if ((prop->lib_handle = loader_platform_open_library(prop->lib_name)) ==
         NULL) {
         loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   loader_platform_open_library_error(my_lib->lib_name));
-        return NULL;
+                   loader_platform_open_library_error(prop->lib_name));
     } else {
         loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
                    "Chain: %s: Loading layer library %s", chain_type,
-                   layer_prop->lib_name);
+                   prop->lib_name);
     }
-    loader.loaded_layer_lib_count++;
-    my_lib->ref_count++;
 
-    return my_lib->lib_handle;
+    return prop->lib_handle;
 }
 
 static void
-loader_remove_layer_lib(struct loader_instance *inst,
-                        struct loader_layer_properties *layer_prop) {
-    uint32_t idx = loader.loaded_layer_lib_count;
-    struct loader_lib_info *new_layer_lib_list, *my_lib = NULL;
+loader_close_layer_lib(const struct loader_instance *inst,
+                        struct loader_layer_properties *prop) {
 
-    for (uint32_t i = 0; i < loader.loaded_layer_lib_count; i++) {
-        if (strcmp(loader.loaded_layer_lib_list[i].lib_name,
-                   layer_prop->lib_name) == 0) {
-            /* found matching library */
-            idx = i;
-            my_lib = &loader.loaded_layer_lib_list[i];
-            break;
-        }
+    if (prop->lib_handle) {
+        loader_platform_close_library(prop->lib_handle);
+        loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
+                   "Unloading layer library %s", prop->lib_name);
+        prop->lib_handle = NULL;
     }
+}
 
-    if (idx == loader.loaded_layer_lib_count) {
-        loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   "Unable to unref library %s", layer_prop->lib_name);
-        return;
-    }
+void loader_deactivate_layers(const struct loader_instance *instance,
+                              struct loader_layer_list *list) {
+    /* delete instance list of enabled layers and close any layer libraries */
+    for (uint32_t i = 0; i < list->count; i++) {
+        struct loader_layer_properties *layer_prop = &list->list[i];
 
-    if (my_lib) {
-        my_lib->ref_count--;
-        if (my_lib->ref_count > 0) {
-            loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
-                       "Decrement reference count for layer library %s",
-                       layer_prop->lib_name);
-            return;
-        }
+        loader_close_layer_lib(instance, layer_prop);
     }
-    loader_platform_close_library(my_lib->lib_handle);
-    loader_log(inst, VK_DEBUG_REPORT_DEBUG_BIT_EXT, 0,
-               "Unloading layer library %s", layer_prop->lib_name);
-
-    /* Need to remove unused library from list */
-    new_layer_lib_list =
-        loader_heap_alloc(inst, loader.loaded_layer_lib_capacity,
-                          VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
-    if (!new_layer_lib_list) {
-        loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   "loader: heap alloc failed loader_remove_layer_library");
-        return;
-    }
-
-    if (idx > 0) {
-        /* Copy records before idx */
-        memcpy(new_layer_lib_list, &loader.loaded_layer_lib_list[0],
-               sizeof(struct loader_lib_info) * idx);
-    }
-    if (idx < (loader.loaded_layer_lib_count - 1)) {
-        /* Copy records after idx */
-        memcpy(&new_layer_lib_list[idx], &loader.loaded_layer_lib_list[idx + 1],
-               sizeof(struct loader_lib_info) *
-                   (loader.loaded_layer_lib_count - idx - 1));
-    }
-
-    loader_heap_free(inst, loader.loaded_layer_lib_list);
-    loader.loaded_layer_lib_count--;
-    loader.loaded_layer_lib_list = new_layer_lib_list;
+    loader_destroy_layer_list(instance, list);
 }
 
 /**
@@ -2984,7 +3080,7 @@ loader_add_layer_implicit(const struct loader_instance *inst,
  * is found in search_list then add it to layer_list.  But only add it to
  * layer_list if type matches.
  */
-static void loader_add_layer_env(const struct loader_instance *inst,
+static void loader_add_layer_env(struct loader_instance *inst,
                                  const enum layer_type type,
                                  const char *env_name,
                                  struct loader_layer_list *layer_list,
@@ -3014,6 +3110,8 @@ static void loader_add_layer_env(const struct loader_instance *inst,
             loader_log(inst, VK_DEBUG_REPORT_INFORMATION_BIT_EXT, 0,
                        "Expanding meta layer %s found in environment variable",
                        std_validation_str);
+            if (type == VK_LAYER_TYPE_INSTANCE_EXPLICIT)
+                inst->activated_layers_are_std_val = true;
             for (uint32_t i = 0; i < sizeof(std_validation_names) /
                                          sizeof(std_validation_names[0]);
                  i++) {
@@ -3028,17 +3126,6 @@ static void loader_add_layer_env(const struct loader_instance *inst,
     }
 
     return;
-}
-
-void loader_deactivate_instance_layers(struct loader_instance *instance) {
-    /* Create instance chain of enabled layers */
-    for (uint32_t i = 0; i < instance->activated_layer_list.count; i++) {
-        struct loader_layer_properties *layer_prop =
-            &instance->activated_layer_list.list[i];
-
-        loader_remove_layer_lib(instance, layer_prop);
-    }
-    loader_destroy_layer_list(instance, &instance->activated_layer_list);
 }
 
 VkResult
@@ -3127,7 +3214,7 @@ VkResult loader_create_instance_chain(const VkInstanceCreateInfo *pCreateInfo,
                 &inst->activated_layer_list.list[i];
             loader_platform_dl_handle lib_handle;
 
-            lib_handle = loader_add_layer_lib(inst, "instance", layer_prop);
+            lib_handle = loader_open_layer_lib(inst, "instance", layer_prop);
             if (!lib_handle)
                 continue;
             if ((fpGIPA = layer_prop->functions.get_instance_proc_addr) ==
@@ -3170,19 +3257,15 @@ VkResult loader_create_instance_chain(const VkInstanceCreateInfo *pCreateInfo,
     PFN_vkCreateInstance fpCreateInstance =
         (PFN_vkCreateInstance)nextGIPA(*created_instance, "vkCreateInstance");
     if (fpCreateInstance) {
-        VkLayerInstanceCreateInfo instance_create_info;
+        VkLayerInstanceCreateInfo create_info_disp;
 
-        instance_create_info.sType =
-            VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO;
-        instance_create_info.function = VK_LAYER_INSTANCE_INFO;
+        create_info_disp.sType = VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO;
+        create_info_disp.function = VK_LOADER_DATA_CALLBACK;
 
-        instance_create_info.u.instanceInfo.instance_info = inst;
-        instance_create_info.u.instanceInfo.pfnNextGetInstanceProcAddr =
-            nextGIPA;
+        create_info_disp.u.pfnSetInstanceLoaderData = vkSetInstanceDispatch;
 
-        instance_create_info.pNext = loader_create_info.pNext;
-        loader_create_info.pNext = &instance_create_info;
-
+        create_info_disp.pNext = loader_create_info.pNext;
+        loader_create_info.pNext = &create_info_disp;
         res =
             fpCreateInstance(&loader_create_info, pAllocator, created_instance);
     } else {
@@ -3195,6 +3278,7 @@ VkResult loader_create_instance_chain(const VkInstanceCreateInfo *pCreateInfo,
     } else {
         loader_init_instance_core_dispatch_table(inst->disp, nextGIPA,
                                                  *created_instance);
+        inst->instance = *created_instance;
     }
 
     return res;
@@ -3207,152 +3291,22 @@ void loader_activate_instance_layer_extensions(struct loader_instance *inst,
         inst->disp, inst->disp->GetInstanceProcAddr, created_inst);
 }
 
-static VkResult
-loader_enable_device_layers(const struct loader_instance *inst,
-                            struct loader_icd *icd,
-                            struct loader_layer_list *activated_layer_list,
-                            const VkDeviceCreateInfo *pCreateInfo,
-                            const struct loader_layer_list *device_layers)
-
-{
-    VkResult err;
-
-    assert(activated_layer_list && "Cannot have null output layer list");
-
-    if (activated_layer_list->list == NULL ||
-        activated_layer_list->capacity == 0) {
-        loader_init_layer_list(inst, activated_layer_list);
-    }
-
-    if (activated_layer_list->list == NULL) {
-        loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   "Failed to alloc device activated layer list");
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    /* Add any implicit layers first */
-    loader_add_layer_implicit(inst, VK_LAYER_TYPE_DEVICE_IMPLICIT,
-                              activated_layer_list, device_layers);
-
-    /* Add any layers specified via environment variable next */
-    loader_add_layer_env(inst, VK_LAYER_TYPE_DEVICE_EXPLICIT,
-                         "VK_DEVICE_LAYERS", activated_layer_list,
-                         device_layers);
-
-    /* Add layers specified by the application */
-    err = loader_add_layer_names_to_list(
-        inst, activated_layer_list, pCreateInfo->enabledLayerCount,
-        pCreateInfo->ppEnabledLayerNames, device_layers);
-
-    return err;
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-loader_create_device_terminator(VkPhysicalDevice physicalDevice,
-                                const VkDeviceCreateInfo *pCreateInfo,
-                                const VkAllocationCallbacks *pAllocator,
-                                VkDevice *pDevice) {
-    struct loader_physical_device *phys_dev;
-    phys_dev = loader_get_physical_device(physicalDevice);
-
-    VkLayerDeviceCreateInfo *chain_info =
-        (VkLayerDeviceCreateInfo *)pCreateInfo->pNext;
-    while (chain_info &&
-           !(chain_info->sType == VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO &&
-             chain_info->function == VK_LAYER_DEVICE_INFO)) {
-        chain_info = (VkLayerDeviceCreateInfo *)chain_info->pNext;
-    }
-    assert(chain_info != NULL);
-
-    struct loader_device *dev =
-        (struct loader_device *)chain_info->u.deviceInfo.device_info;
-    PFN_vkGetInstanceProcAddr fpGetInstanceProcAddr =
-        chain_info->u.deviceInfo.pfnNextGetInstanceProcAddr;
-    PFN_vkCreateDevice fpCreateDevice =
-        (PFN_vkCreateDevice)fpGetInstanceProcAddr(phys_dev->this_icd->instance,
-                                                  "vkCreateDevice");
-    if (fpCreateDevice == NULL) {
-        return VK_ERROR_INITIALIZATION_FAILED;
-    }
-
-    VkDeviceCreateInfo localCreateInfo;
-    memcpy(&localCreateInfo, pCreateInfo, sizeof(localCreateInfo));
-    localCreateInfo.pNext = loader_strip_create_extensions(pCreateInfo->pNext);
-
-    /*
-     * NOTE: Need to filter the extensions to only those
-     * supported by the ICD.
-     * No ICD will advertise support for layers. An ICD
-     * library could support a layer, but it would be
-     * independent of the actual ICD, just in the same library.
-     */
-    char **filtered_extension_names = NULL;
-    filtered_extension_names =
-        loader_stack_alloc(pCreateInfo->enabledExtensionCount * sizeof(char *));
-    if (!filtered_extension_names) {
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    localCreateInfo.enabledLayerCount = 0;
-    localCreateInfo.ppEnabledLayerNames = NULL;
-
-    localCreateInfo.enabledExtensionCount = 0;
-    localCreateInfo.ppEnabledExtensionNames =
-        (const char *const *)filtered_extension_names;
-
-    for (uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
-        const char *extension_name = pCreateInfo->ppEnabledExtensionNames[i];
-        VkExtensionProperties *prop = get_extension_property(
-            extension_name, &phys_dev->device_extension_cache);
-        if (prop) {
-            filtered_extension_names[localCreateInfo.enabledExtensionCount] =
-                (char *)extension_name;
-            localCreateInfo.enabledExtensionCount++;
-        }
-    }
-
-    VkDevice localDevice;
-    // TODO: Why does fpCreateDevice behave differently than
-    // this_icd->CreateDevice?
-    //    VkResult res = fpCreateDevice(phys_dev->phys_dev, &localCreateInfo,
-    //    pAllocator, &localDevice);
-    VkResult res = phys_dev->this_icd->CreateDevice(
-        phys_dev->phys_dev, &localCreateInfo, pAllocator, &localDevice);
-
-    if (res != VK_SUCCESS) {
-        return res;
-    }
-
-    *pDevice = localDevice;
-
-    /* Init dispatch pointer in new device object */
-    loader_init_dispatch(*pDevice, &dev->loader_dispatch);
-
-    return res;
-}
-
-VkResult loader_create_device_chain(VkPhysicalDevice physicalDevice,
-                                    const VkDeviceCreateInfo *pCreateInfo,
-                                    const VkAllocationCallbacks *pAllocator,
-                                    struct loader_instance *inst,
-                                    struct loader_icd *icd,
-                                    struct loader_device *dev) {
+VkResult
+loader_create_device_chain(const struct loader_physical_device_tramp *pd,
+                           const VkDeviceCreateInfo *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator,
+                           const struct loader_instance *inst,
+                           struct loader_device *dev) {
     uint32_t activated_layers = 0;
     VkLayerDeviceLink *layer_device_link_info;
     VkLayerDeviceCreateInfo chain_info;
-    VkLayerDeviceCreateInfo device_info;
     VkDeviceCreateInfo loader_create_info;
     VkResult res;
 
-    PFN_vkGetDeviceProcAddr fpGDPA, nextGDPA = icd->GetDeviceProcAddr;
+    PFN_vkGetDeviceProcAddr fpGDPA, nextGDPA = loader_gpa_device_internal;
     PFN_vkGetInstanceProcAddr fpGIPA, nextGIPA = loader_gpa_instance_internal;
 
     memcpy(&loader_create_info, pCreateInfo, sizeof(VkDeviceCreateInfo));
-
-    chain_info.sType = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
-    chain_info.function = VK_LAYER_LINK_INFO;
-    chain_info.u.pLayerInfo = NULL;
-    chain_info.pNext = pCreateInfo->pNext;
 
     layer_device_link_info = loader_stack_alloc(
         sizeof(VkLayerDeviceLink) * dev->activated_layer_list.count);
@@ -3362,30 +3316,20 @@ VkResult loader_create_device_chain(VkPhysicalDevice physicalDevice,
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
-    /*
-     * This structure is used by loader_create_device_terminator
-     * so that it can intialize the device dispatch table pointer
-     * in the device object returned by the ICD. Without this
-     * structure the code wouldn't know where the loader's device_info
-     * structure is located.
-     */
-    device_info.sType = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
-    device_info.function = VK_LAYER_DEVICE_INFO;
-    device_info.pNext = &chain_info;
-    device_info.u.deviceInfo.device_info = dev;
-    device_info.u.deviceInfo.pfnNextGetInstanceProcAddr =
-        icd->this_icd_lib->GetInstanceProcAddr;
-
-    loader_create_info.pNext = &device_info;
-
     if (dev->activated_layer_list.count > 0) {
+        chain_info.sType = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
+        chain_info.function = VK_LAYER_LINK_INFO;
+        chain_info.u.pLayerInfo = NULL;
+        chain_info.pNext = pCreateInfo->pNext;
+        loader_create_info.pNext = &chain_info;
+
         /* Create instance chain of enabled layers */
         for (int32_t i = dev->activated_layer_list.count - 1; i >= 0; i--) {
             struct loader_layer_properties *layer_prop =
                 &dev->activated_layer_list.list[i];
             loader_platform_dl_handle lib_handle;
 
-            lib_handle = loader_add_layer_lib(inst, "device", layer_prop);
+            lib_handle = loader_open_layer_lib(inst, "device", layer_prop);
             if (!lib_handle)
                 continue;
             if ((fpGIPA = layer_prop->functions.get_instance_proc_addr) ==
@@ -3420,7 +3364,7 @@ VkResult loader_create_device_chain(VkPhysicalDevice physicalDevice,
                         loader_platform_get_proc_address(
                             lib_handle, layer_prop->functions.str_gdpa);
                 if (!fpGDPA) {
-                    loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                    loader_log(inst, VK_DEBUG_REPORT_INFORMATION_BIT_EXT, 0,
                                "Failed to find vkGetDeviceProcAddr in layer %s",
                                layer_prop->lib_name);
                     continue;
@@ -3445,11 +3389,25 @@ VkResult loader_create_device_chain(VkPhysicalDevice physicalDevice,
         }
     }
 
+    VkDevice created_device = (VkDevice)dev;
     PFN_vkCreateDevice fpCreateDevice =
-        (PFN_vkCreateDevice)nextGIPA((VkInstance)inst, "vkCreateDevice");
+        (PFN_vkCreateDevice)nextGIPA(inst->instance, "vkCreateDevice");
     if (fpCreateDevice) {
-        res = fpCreateDevice(physicalDevice, &loader_create_info, pAllocator,
-                             &dev->device);
+        VkLayerDeviceCreateInfo create_info_disp;
+
+        create_info_disp.sType = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
+        create_info_disp.function = VK_LOADER_DATA_CALLBACK;
+
+        create_info_disp.u.pfnSetDeviceLoaderData = vkSetDeviceDispatch;
+
+        create_info_disp.pNext = loader_create_info.pNext;
+        loader_create_info.pNext = &create_info_disp;
+        res = fpCreateDevice(pd->phys_dev, &loader_create_info, pAllocator,
+                             &created_device);
+        if (res != VK_SUCCESS) {
+            return res;
+        }
+        dev->device = created_device;
     } else {
         // Couldn't find CreateDevice function!
         return VK_ERROR_INITIALIZATION_FAILED;
@@ -3545,8 +3503,9 @@ VkResult loader_validate_instance_extensions(
 }
 
 VkResult loader_validate_device_extensions(
-    struct loader_physical_device *phys_dev,
+    struct loader_physical_device_tramp *phys_dev,
     const struct loader_layer_list *activated_device_layers,
+    const struct loader_extension_list *icd_exts,
     const VkDeviceCreateInfo *pCreateInfo) {
     VkExtensionProperties *extension_prop;
     struct loader_layer_properties *layer_prop;
@@ -3563,8 +3522,7 @@ VkResult loader_validate_device_extensions(
         }
 
         const char *extension_name = pCreateInfo->ppEnabledExtensionNames[i];
-        extension_prop = get_extension_property(
-            extension_name, &phys_dev->device_extension_cache);
+        extension_prop = get_extension_property(extension_name, icd_exts);
 
         if (extension_prop) {
             continue;
@@ -3592,10 +3550,14 @@ VkResult loader_validate_device_extensions(
     return VK_SUCCESS;
 }
 
+/**
+ * Terminator functions for the Instance chain
+ * All named terminator_<Vulakn API name>
+ */
 VKAPI_ATTR VkResult VKAPI_CALL
-loader_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
-                      const VkAllocationCallbacks *pAllocator,
-                      VkInstance *pInstance) {
+terminator_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
+                          const VkAllocationCallbacks *pAllocator,
+                          VkInstance *pInstance) {
     struct loader_icd *icd;
     VkExtensionProperties *prop;
     char **filtered_extension_names = NULL;
@@ -3603,25 +3565,11 @@ loader_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
     VkResult res = VK_SUCCESS;
     bool success = false;
 
-    VkLayerInstanceCreateInfo *chain_info =
-        (VkLayerInstanceCreateInfo *)pCreateInfo->pNext;
-    while (
-        chain_info &&
-        !(chain_info->sType == VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO &&
-          chain_info->function == VK_LAYER_INSTANCE_INFO)) {
-        chain_info = (VkLayerInstanceCreateInfo *)chain_info->pNext;
-    }
-    assert(chain_info != NULL);
-
-    struct loader_instance *ptr_instance =
-        (struct loader_instance *)chain_info->u.instanceInfo.instance_info;
+    struct loader_instance *ptr_instance = (struct loader_instance *)*pInstance;
     memcpy(&icd_create_info, pCreateInfo, sizeof(icd_create_info));
 
     icd_create_info.enabledLayerCount = 0;
     icd_create_info.ppEnabledLayerNames = NULL;
-
-    // strip off the VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO entries
-    icd_create_info.pNext = loader_strip_create_extensions(pCreateInfo->pNext);
 
     /*
      * NOTE: Need to filter the extensions to only those
@@ -3656,13 +3604,13 @@ loader_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                 icd->this_icd_lib->EnumerateInstanceExtensionProperties,
                 icd->this_icd_lib->lib_name, &icd_exts);
 
-            for (uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
+            for (uint32_t j = 0; j < pCreateInfo->enabledExtensionCount; j++) {
                 prop = get_extension_property(
-                    pCreateInfo->ppEnabledExtensionNames[i], &icd_exts);
+                    pCreateInfo->ppEnabledExtensionNames[j], &icd_exts);
                 if (prop) {
                     filtered_extension_names[icd_create_info
                                                  .enabledExtensionCount] =
-                        (char *)pCreateInfo->ppEnabledExtensionNames[i];
+                        (char *)pCreateInfo->ppEnabledExtensionNames[j];
                     icd_create_info.enabledExtensionCount++;
                 }
             }
@@ -3704,8 +3652,8 @@ loader_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-loader_DestroyInstance(VkInstance instance,
-                       const VkAllocationCallbacks *pAllocator) {
+terminator_DestroyInstance(VkInstance instance,
+                           const VkAllocationCallbacks *pAllocator) {
     struct loader_instance *ptr_instance = loader_instance(instance);
     struct loader_icd *icds = ptr_instance->icds;
     struct loader_icd *next_icd;
@@ -3736,132 +3684,199 @@ loader_DestroyInstance(VkInstance instance,
 
         icds = next_icd;
     }
-    loader_delete_layer_properties(ptr_instance,
-                                   &ptr_instance->device_layer_list);
+
     loader_delete_layer_properties(ptr_instance,
                                    &ptr_instance->instance_layer_list);
     loader_scanned_icd_clear(ptr_instance, &ptr_instance->icd_libs);
     loader_destroy_generic_list(
         ptr_instance, (struct loader_generic_list *)&ptr_instance->ext_list);
-    for (uint32_t i = 0; i < ptr_instance->total_gpu_count; i++)
-        loader_destroy_generic_list(
-            ptr_instance,
-            (struct loader_generic_list *)&ptr_instance->phys_devs[i]
-                .device_extension_cache);
-    loader_heap_free(ptr_instance, ptr_instance->phys_devs);
+    if (ptr_instance->phys_devs_term)
+        loader_heap_free(ptr_instance, ptr_instance->phys_devs_term);
     loader_free_dev_ext_table(ptr_instance);
 }
 
-VkResult
-loader_init_physical_device_info(struct loader_instance *ptr_instance) {
-    struct loader_icd *icd;
-    uint32_t i, j, idx, count = 0;
+VKAPI_ATTR VkResult VKAPI_CALL
+terminator_CreateDevice(VkPhysicalDevice physicalDevice,
+                        const VkDeviceCreateInfo *pCreateInfo,
+                        const VkAllocationCallbacks *pAllocator,
+                        VkDevice *pDevice) {
+    struct loader_physical_device *phys_dev;
+    phys_dev = (struct loader_physical_device *)physicalDevice;
+
+    struct loader_device *dev = (struct loader_device *)*pDevice;
+    PFN_vkCreateDevice fpCreateDevice = phys_dev->this_icd->CreateDevice;
+
+    if (fpCreateDevice == NULL) {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    VkDeviceCreateInfo localCreateInfo;
+    memcpy(&localCreateInfo, pCreateInfo, sizeof(localCreateInfo));
+
+    /*
+     * NOTE: Need to filter the extensions to only those
+     * supported by the ICD.
+     * No ICD will advertise support for layers. An ICD
+     * library could support a layer, but it would be
+     * independent of the actual ICD, just in the same library.
+     */
+    char **filtered_extension_names = NULL;
+    filtered_extension_names =
+        loader_stack_alloc(pCreateInfo->enabledExtensionCount * sizeof(char *));
+    if (!filtered_extension_names) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    localCreateInfo.enabledLayerCount = 0;
+    localCreateInfo.ppEnabledLayerNames = NULL;
+
+    localCreateInfo.enabledExtensionCount = 0;
+    localCreateInfo.ppEnabledExtensionNames =
+        (const char *const *)filtered_extension_names;
+
+    /* Get the physical device (ICD) extensions  */
+    struct loader_extension_list icd_exts;
     VkResult res;
+    if (!loader_init_generic_list(phys_dev->this_icd->this_instance,
+                                  (struct loader_generic_list *)&icd_exts,
+                                  sizeof(VkExtensionProperties))) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    res = loader_add_device_extensions(
+        phys_dev->this_icd->this_instance,
+        phys_dev->this_icd->EnumerateDeviceExtensionProperties,
+        phys_dev->phys_dev, phys_dev->this_icd->this_icd_lib->lib_name,
+        &icd_exts);
+    if (res != VK_SUCCESS) {
+        return res;
+    }
+
+    for (uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
+        const char *extension_name = pCreateInfo->ppEnabledExtensionNames[i];
+        VkExtensionProperties *prop =
+            get_extension_property(extension_name, &icd_exts);
+        if (prop) {
+            filtered_extension_names[localCreateInfo.enabledExtensionCount] =
+                (char *)extension_name;
+            localCreateInfo.enabledExtensionCount++;
+        }
+    }
+
+    // TODO: Why does fpCreateDevice behave differently than
+    // this_icd->CreateDevice?
+    //    VkResult res = fpCreateDevice(phys_dev->phys_dev, &localCreateInfo,
+    //    pAllocator, &localDevice);
+    res = phys_dev->this_icd->CreateDevice(phys_dev->phys_dev, &localCreateInfo,
+                                           pAllocator, &dev->device);
+
+    if (res != VK_SUCCESS) {
+        return res;
+    }
+
+    *pDevice = dev->device;
+    loader_add_logical_device(phys_dev->this_icd->this_instance,
+                              phys_dev->this_icd, dev);
+
+    /* Init dispatch pointer in new device object */
+    loader_init_dispatch(*pDevice, &dev->loader_dispatch);
+
+    return res;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+terminator_EnumeratePhysicalDevices(VkInstance instance,
+                                    uint32_t *pPhysicalDeviceCount,
+                                    VkPhysicalDevice *pPhysicalDevices) {
+    uint32_t i;
+    struct loader_instance *inst = (struct loader_instance *)instance;
+    VkResult res = VK_SUCCESS;
+
+    struct loader_icd *icd;
     struct loader_phys_dev_per_icd *phys_devs;
 
-    ptr_instance->total_gpu_count = 0;
+    inst->total_gpu_count = 0;
     phys_devs = (struct loader_phys_dev_per_icd *)loader_stack_alloc(
-        sizeof(struct loader_phys_dev_per_icd) * ptr_instance->total_icd_count);
+        sizeof(struct loader_phys_dev_per_icd) * inst->total_icd_count);
     if (!phys_devs)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    icd = ptr_instance->icds;
-    for (i = 0; i < ptr_instance->total_icd_count; i++) {
+    icd = inst->icds;
+    for (i = 0; i < inst->total_icd_count; i++) {
         assert(icd);
         res = icd->EnumeratePhysicalDevices(icd->instance, &phys_devs[i].count,
                                             NULL);
         if (res != VK_SUCCESS)
             return res;
-        count += phys_devs[i].count;
         icd = icd->next;
     }
 
-    ptr_instance->phys_devs =
-        (struct loader_physical_device *)loader_heap_alloc(
-            ptr_instance, count * sizeof(struct loader_physical_device),
-            VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
-    if (!ptr_instance->phys_devs)
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-
-    icd = ptr_instance->icds;
-
-    struct loader_physical_device *inst_phys_devs = ptr_instance->phys_devs;
-    idx = 0;
-    for (i = 0; i < ptr_instance->total_icd_count; i++) {
+    icd = inst->icds;
+    for (i = 0; i < inst->total_icd_count; i++) {
         assert(icd);
-
         phys_devs[i].phys_devs = (VkPhysicalDevice *)loader_stack_alloc(
             phys_devs[i].count * sizeof(VkPhysicalDevice));
         if (!phys_devs[i].phys_devs) {
-            loader_heap_free(ptr_instance, ptr_instance->phys_devs);
-            ptr_instance->phys_devs = NULL;
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
         res = icd->EnumeratePhysicalDevices(
             icd->instance, &(phys_devs[i].count), phys_devs[i].phys_devs);
         if ((res == VK_SUCCESS)) {
-            ptr_instance->total_gpu_count += phys_devs[i].count;
-            for (j = 0; j < phys_devs[i].count; j++) {
-
-                // initialize the loader's physicalDevice object
-                loader_set_dispatch((void *)&inst_phys_devs[idx],
-                                    ptr_instance->disp);
-                inst_phys_devs[idx].this_instance = ptr_instance;
-                inst_phys_devs[idx].this_icd = icd;
-                inst_phys_devs[idx].phys_dev = phys_devs[i].phys_devs[j];
-                memset(&inst_phys_devs[idx].device_extension_cache, 0,
-                       sizeof(struct loader_extension_list));
-
-                idx++;
-            }
+            inst->total_gpu_count += phys_devs[i].count;
         } else {
-            loader_heap_free(ptr_instance, ptr_instance->phys_devs);
-            ptr_instance->phys_devs = NULL;
             return res;
         }
-
+        phys_devs[i].this_icd = icd;
         icd = icd->next;
     }
 
-    return VK_SUCCESS;
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-loader_EnumeratePhysicalDevices(VkInstance instance,
-                                uint32_t *pPhysicalDeviceCount,
-                                VkPhysicalDevice *pPhysicalDevices) {
-    uint32_t i;
-    uint32_t copy_count = 0;
-    struct loader_instance *ptr_instance = (struct loader_instance *)instance;
-    VkResult res = VK_SUCCESS;
-
-    if (ptr_instance->total_gpu_count == 0) {
-        res = loader_init_physical_device_info(ptr_instance);
-    }
-
-    *pPhysicalDeviceCount = ptr_instance->total_gpu_count;
+    *pPhysicalDeviceCount = inst->total_gpu_count;
     if (!pPhysicalDevices) {
         return res;
     }
 
-    copy_count = (ptr_instance->total_gpu_count < *pPhysicalDeviceCount)
-                     ? ptr_instance->total_gpu_count
+    /* Initialize the output pPhysicalDevices  with wrapped loader terminator
+     * physicalDevice objects; save this list of wrapped objects in instance
+     * struct for later cleanup and use by trampoline code */
+    uint32_t j, idx = 0;
+    uint32_t copy_count = 0;
+
+    copy_count = (inst->total_gpu_count < *pPhysicalDeviceCount)
+                     ? inst->total_gpu_count
                      : *pPhysicalDeviceCount;
-    for (i = 0; i < copy_count; i++) {
-        pPhysicalDevices[i] = (VkPhysicalDevice)&ptr_instance->phys_devs[i];
+
+    if (inst->phys_devs_term)
+        loader_heap_free(inst, inst->phys_devs_term);
+    inst->phys_devs_term = loader_heap_alloc(
+        inst, sizeof(struct loader_physical_device) * copy_count,
+        VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+    if (!inst->phys_devs_term)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    for (i = 0; idx < copy_count && i < inst->total_icd_count; i++) {
+
+        for (j = 0; j < phys_devs[i].count && idx < copy_count; j++) {
+            loader_set_dispatch((void *)&inst->phys_devs_term[idx], inst->disp);
+            inst->phys_devs_term[idx].this_icd = phys_devs[i].this_icd;
+            inst->phys_devs_term[idx].phys_dev = phys_devs[i].phys_devs[j];
+            pPhysicalDevices[idx] =
+                (VkPhysicalDevice)&inst->phys_devs_term[idx];
+            idx++;
+        }
     }
     *pPhysicalDeviceCount = copy_count;
 
-    if (copy_count < ptr_instance->total_gpu_count) {
+    // TODO: Is phys_devs being leaked?
+
+    if (copy_count < inst->total_gpu_count) {
+        inst->total_gpu_count = copy_count;
         return VK_INCOMPLETE;
     }
-
     return res;
 }
 
-VKAPI_ATTR void VKAPI_CALL
-loader_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
-                                   VkPhysicalDeviceProperties *pProperties) {
+VKAPI_ATTR void VKAPI_CALL terminator_GetPhysicalDeviceProperties(
+    VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties *pProperties) {
     struct loader_physical_device *phys_dev =
         (struct loader_physical_device *)physicalDevice;
     struct loader_icd *icd = phys_dev->this_icd;
@@ -3870,7 +3885,7 @@ loader_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
         icd->GetPhysicalDeviceProperties(phys_dev->phys_dev, pProperties);
 }
 
-VKAPI_ATTR void VKAPI_CALL loader_GetPhysicalDeviceQueueFamilyProperties(
+VKAPI_ATTR void VKAPI_CALL terminator_GetPhysicalDeviceQueueFamilyProperties(
     VkPhysicalDevice physicalDevice, uint32_t *pQueueFamilyPropertyCount,
     VkQueueFamilyProperties *pProperties) {
     struct loader_physical_device *phys_dev =
@@ -3882,7 +3897,7 @@ VKAPI_ATTR void VKAPI_CALL loader_GetPhysicalDeviceQueueFamilyProperties(
             phys_dev->phys_dev, pQueueFamilyPropertyCount, pProperties);
 }
 
-VKAPI_ATTR void VKAPI_CALL loader_GetPhysicalDeviceMemoryProperties(
+VKAPI_ATTR void VKAPI_CALL terminator_GetPhysicalDeviceMemoryProperties(
     VkPhysicalDevice physicalDevice,
     VkPhysicalDeviceMemoryProperties *pProperties) {
     struct loader_physical_device *phys_dev =
@@ -3894,8 +3909,8 @@ VKAPI_ATTR void VKAPI_CALL loader_GetPhysicalDeviceMemoryProperties(
 }
 
 VKAPI_ATTR void VKAPI_CALL
-loader_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
-                                 VkPhysicalDeviceFeatures *pFeatures) {
+terminator_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
+                                     VkPhysicalDeviceFeatures *pFeatures) {
     struct loader_physical_device *phys_dev =
         (struct loader_physical_device *)physicalDevice;
     struct loader_icd *icd = phys_dev->this_icd;
@@ -3905,9 +3920,9 @@ loader_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-loader_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
-                                         VkFormat format,
-                                         VkFormatProperties *pFormatInfo) {
+terminator_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
+                                             VkFormat format,
+                                             VkFormatProperties *pFormatInfo) {
     struct loader_physical_device *phys_dev =
         (struct loader_physical_device *)physicalDevice;
     struct loader_icd *icd = phys_dev->this_icd;
@@ -3917,7 +3932,8 @@ loader_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
                                                pFormatInfo);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL loader_GetPhysicalDeviceImageFormatProperties(
+VKAPI_ATTR VkResult VKAPI_CALL
+terminator_GetPhysicalDeviceImageFormatProperties(
     VkPhysicalDevice physicalDevice, VkFormat format, VkImageType type,
     VkImageTiling tiling, VkImageUsageFlags usage, VkImageCreateFlags flags,
     VkImageFormatProperties *pImageFormatProperties) {
@@ -3933,7 +3949,8 @@ VKAPI_ATTR VkResult VKAPI_CALL loader_GetPhysicalDeviceImageFormatProperties(
         pImageFormatProperties);
 }
 
-VKAPI_ATTR void VKAPI_CALL loader_GetPhysicalDeviceSparseImageFormatProperties(
+VKAPI_ATTR void VKAPI_CALL
+terminator_GetPhysicalDeviceSparseImageFormatProperties(
     VkPhysicalDevice physicalDevice, VkFormat format, VkImageType type,
     VkSampleCountFlagBits samples, VkImageUsageFlags usage,
     VkImageTiling tiling, uint32_t *pNumProperties,
@@ -3948,530 +3965,119 @@ VKAPI_ATTR void VKAPI_CALL loader_GetPhysicalDeviceSparseImageFormatProperties(
             pNumProperties, pProperties);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-loader_CreateDevice(VkPhysicalDevice physicalDevice,
-                    const VkDeviceCreateInfo *pCreateInfo,
-                    const VkAllocationCallbacks *pAllocator,
-                    VkDevice *pDevice) {
+VKAPI_ATTR VkResult VKAPI_CALL terminator_EnumerateDeviceExtensionProperties(
+    VkPhysicalDevice physicalDevice, const char *pLayerName,
+    uint32_t *pPropertyCount, VkExtensionProperties *pProperties) {
     struct loader_physical_device *phys_dev;
-    struct loader_icd *icd;
-    struct loader_device *dev;
-    struct loader_instance *inst;
-    struct loader_layer_list activated_layer_list = {0};
-    VkResult res;
 
-    assert(pCreateInfo->queueCreateInfoCount >= 1);
-
-    // TODO this only works for one physical device per instance
-    // once CreateDevice layer bootstrapping is done via DeviceCreateInfo
-    // hopefully don't need this anymore in trampoline code
-    phys_dev = loader_get_physical_device(physicalDevice);
-    icd = phys_dev->this_icd;
-    if (!icd)
-        return VK_ERROR_INITIALIZATION_FAILED;
-
-    inst = phys_dev->this_instance;
-
-    if (!icd->CreateDevice) {
-        return VK_ERROR_INITIALIZATION_FAILED;
-    }
-
-    /* validate any app enabled layers are available */
-    if (pCreateInfo->enabledLayerCount > 0) {
-        res = loader_validate_layers(inst, pCreateInfo->enabledLayerCount,
-                                     pCreateInfo->ppEnabledLayerNames,
-                                     &inst->device_layer_list);
-        if (res != VK_SUCCESS) {
-            return res;
-        }
-    }
-
-    /* Get the physical device extensions if they haven't been retrieved yet */
-    if (phys_dev->device_extension_cache.capacity == 0) {
-        if (!loader_init_generic_list(
-                inst,
-                (struct loader_generic_list *)&phys_dev->device_extension_cache,
-                sizeof(VkExtensionProperties))) {
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
-        }
-
-        res = loader_add_device_extensions(
-            inst, icd, phys_dev->phys_dev,
-            phys_dev->this_icd->this_icd_lib->lib_name,
-            &phys_dev->device_extension_cache);
-        if (res != VK_SUCCESS) {
-            return res;
-        }
-    }
-
-    /* convert any meta layers to the actual layers makes a copy of layer name*/
-    uint32_t saved_layer_count = pCreateInfo->enabledLayerCount;
-    char **saved_layer_names;
-    char **saved_layer_ptr;
-    saved_layer_names =
-        loader_stack_alloc(sizeof(char *) * pCreateInfo->enabledLayerCount);
-    for (uint32_t i = 0; i < saved_layer_count; i++) {
-        saved_layer_names[i] = (char *)pCreateInfo->ppEnabledLayerNames[i];
-    }
-    saved_layer_ptr = (char **)pCreateInfo->ppEnabledLayerNames;
-
-    loader_expand_layer_names(
-        inst, std_validation_str,
-        sizeof(std_validation_names) / sizeof(std_validation_names[0]),
-        std_validation_names, (uint32_t *)&pCreateInfo->enabledLayerCount,
-        (char ***)&pCreateInfo->ppEnabledLayerNames);
-
-    /* fetch a list of all layers activated, explicit and implicit */
-    res = loader_enable_device_layers(inst, icd, &activated_layer_list,
-                                      pCreateInfo, &inst->device_layer_list);
-    if (res != VK_SUCCESS) {
-        loader_unexpand_dev_layer_names(inst, saved_layer_count,
-                                        saved_layer_names, saved_layer_ptr,
-                                        pCreateInfo);
-        return res;
-    }
-
-    /* make sure requested extensions to be enabled are supported */
-    res = loader_validate_device_extensions(phys_dev, &activated_layer_list,
-                                            pCreateInfo);
-    if (res != VK_SUCCESS) {
-        loader_unexpand_dev_layer_names(inst, saved_layer_count,
-                                        saved_layer_names, saved_layer_ptr,
-                                        pCreateInfo);
-        loader_destroy_generic_list(
-            inst, (struct loader_generic_list *)&activated_layer_list);
-        return res;
-    }
-
-    dev = loader_add_logical_device(inst, &icd->logical_device_list);
-    if (dev == NULL) {
-        loader_unexpand_dev_layer_names(inst, saved_layer_count,
-                                        saved_layer_names, saved_layer_ptr,
-                                        pCreateInfo);
-        loader_destroy_generic_list(
-            inst, (struct loader_generic_list *)&activated_layer_list);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
-    /* move the locally filled layer list into the device, and pass ownership of
-     * the memory */
-    dev->activated_layer_list.capacity = activated_layer_list.capacity;
-    dev->activated_layer_list.count = activated_layer_list.count;
-    dev->activated_layer_list.list = activated_layer_list.list;
-    memset(&activated_layer_list, 0, sizeof(activated_layer_list));
-
-    /* activate any layers on device chain which terminates with device*/
-    res = loader_enable_device_layers(inst, icd, &dev->activated_layer_list,
-                                      pCreateInfo, &inst->device_layer_list);
-    if (res != VK_SUCCESS) {
-        loader_unexpand_dev_layer_names(inst, saved_layer_count,
-                                        saved_layer_names, saved_layer_ptr,
-                                        pCreateInfo);
-        loader_remove_logical_device(inst, icd, dev);
-        return res;
-    }
-
-    res = loader_create_device_chain(physicalDevice, pCreateInfo, pAllocator,
-                                     inst, icd, dev);
-    if (res != VK_SUCCESS) {
-        loader_unexpand_dev_layer_names(inst, saved_layer_count,
-                                        saved_layer_names, saved_layer_ptr,
-                                        pCreateInfo);
-        loader_remove_logical_device(inst, icd, dev);
-        return res;
-    }
-
-    *pDevice = dev->device;
-
-    /* initialize any device extension dispatch entry's from the instance list*/
-    loader_init_dispatch_dev_ext(inst, dev);
-
-    /* initialize WSI device extensions as part of core dispatch since loader
-     * has
-     * dedicated trampoline code for these*/
-    loader_init_device_extension_dispatch_table(
-        &dev->loader_dispatch,
-        dev->loader_dispatch.core_dispatch.GetDeviceProcAddr, *pDevice);
-
-    loader_unexpand_dev_layer_names(inst, saved_layer_count, saved_layer_names,
-                                    saved_layer_ptr, pCreateInfo);
-    return res;
-}
-
-/**
- * Get an instance level or global level entry point address.
- * @param instance
- * @param pName
- * @return
- *    If instance == NULL returns a global level functions only
- *    If instance is valid returns a trampoline entry point for all dispatchable
- * Vulkan
- *    functions both core and extensions.
- */
-LOADER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vkGetInstanceProcAddr(VkInstance instance, const char *pName) {
-
-    void *addr;
-
-    addr = globalGetProcAddr(pName);
-    if (instance == VK_NULL_HANDLE) {
-        // get entrypoint addresses that are global (no dispatchable object)
-
-        return addr;
-    } else {
-        // if a global entrypoint return NULL
-        if (addr)
-            return NULL;
-    }
-
-    struct loader_instance *ptr_instance = loader_get_instance(instance);
-    if (ptr_instance == NULL)
-        return NULL;
-    // Return trampoline code for non-global entrypoints including any
-    // extensions.
-    // Device extensions are returned if a layer or ICD supports the extension.
-    // Instance extensions are returned if the extension is enabled and the
-    // loader
-    // or someone else supports the extension
-    return trampolineGetProcAddr(ptr_instance, pName);
-}
-
-/**
- * Get a device level or global level entry point address.
- * @param device
- * @param pName
- * @return
- *    If device is valid, returns a device relative entry point for device level
- *    entry points both core and extensions.
- *    Device relative means call down the device chain.
- */
-LOADER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vkGetDeviceProcAddr(VkDevice device, const char *pName) {
-    void *addr;
-
-    /* for entrypoints that loader must handle (ie non-dispatchable or create
-       object)
-       make sure the loader entrypoint is returned */
-    addr = loader_non_passthrough_gdpa(pName);
-    if (addr) {
-        return addr;
-    }
-
-    /* Although CreateDevice is on device chain it's dispatchable object isn't
-     * a VkDevice or child of VkDevice so return NULL.
-     */
-    if (!strcmp(pName, "CreateDevice"))
-        return NULL;
-
-    /* return the dispatch table entrypoint for the fastest case */
-    const VkLayerDispatchTable *disp_table = *(VkLayerDispatchTable **)device;
-    if (disp_table == NULL)
-        return NULL;
-
-    addr = loader_lookup_device_dispatch_table(disp_table, pName);
-    if (addr)
-        return addr;
-
-    if (disp_table->GetDeviceProcAddr == NULL)
-        return NULL;
-    return disp_table->GetDeviceProcAddr(device, pName);
-}
-
-LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL
-vkEnumerateInstanceExtensionProperties(const char *pLayerName,
-                                       uint32_t *pPropertyCount,
-                                       VkExtensionProperties *pProperties) {
-    struct loader_extension_list *global_ext_list = NULL;
-    struct loader_layer_list instance_layers;
-    struct loader_extension_list icd_extensions;
-    struct loader_icd_libs icd_libs;
-    uint32_t copy_size;
-
-    tls_instance = NULL;
-    memset(&icd_extensions, 0, sizeof(icd_extensions));
-    memset(&instance_layers, 0, sizeof(instance_layers));
-    loader_platform_thread_once(&once_init, loader_initialize);
-
-    /* get layer libraries if needed */
-    if (pLayerName && strlen(pLayerName) != 0) {
-        if (vk_string_validate(MaxLoaderStringLength, pLayerName) ==
-            VK_STRING_ERROR_NONE) {
-            loader_layer_scan(NULL, &instance_layers, NULL);
-            for (uint32_t i = 0; i < instance_layers.count; i++) {
-                struct loader_layer_properties *props =
-                    &instance_layers.list[i];
-                if (strcmp(props->info.layerName, pLayerName) == 0) {
-                    global_ext_list = &props->instance_extension_list;
-                }
-            }
-        } else {
-            assert(VK_FALSE && "vkEnumerateInstanceExtensionProperties:  "
-                               "pLayerName is too long or is badly formed");
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-    } else {
-        /* Scan/discover all ICD libraries */
-        memset(&icd_libs, 0, sizeof(struct loader_icd_libs));
-        loader_icd_scan(NULL, &icd_libs);
-        /* get extensions from all ICD's, merge so no duplicates */
-        loader_get_icd_loader_instance_extensions(NULL, &icd_libs,
-                                                  &icd_extensions);
-        loader_scanned_icd_clear(NULL, &icd_libs);
-        global_ext_list = &icd_extensions;
-    }
-
-    if (global_ext_list == NULL) {
-        loader_destroy_layer_list(NULL, &instance_layers);
-        return VK_ERROR_LAYER_NOT_PRESENT;
-    }
-
-    if (pProperties == NULL) {
-        *pPropertyCount = global_ext_list->count;
-        loader_destroy_layer_list(NULL, &instance_layers);
-        loader_destroy_generic_list(
-            NULL, (struct loader_generic_list *)&icd_extensions);
-        return VK_SUCCESS;
-    }
-
-    copy_size = *pPropertyCount < global_ext_list->count
-                    ? *pPropertyCount
-                    : global_ext_list->count;
-    for (uint32_t i = 0; i < copy_size; i++) {
-        memcpy(&pProperties[i], &global_ext_list->list[i],
-               sizeof(VkExtensionProperties));
-    }
-    *pPropertyCount = copy_size;
-    loader_destroy_generic_list(NULL,
-                                (struct loader_generic_list *)&icd_extensions);
-
-    if (copy_size < global_ext_list->count) {
-        loader_destroy_layer_list(NULL, &instance_layers);
-        return VK_INCOMPLETE;
-    }
-
-    loader_destroy_layer_list(NULL, &instance_layers);
-    return VK_SUCCESS;
-}
-
-LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL
-vkEnumerateInstanceLayerProperties(uint32_t *pPropertyCount,
-                                   VkLayerProperties *pProperties) {
-
-    struct loader_layer_list instance_layer_list;
-    tls_instance = NULL;
-
-    loader_platform_thread_once(&once_init, loader_initialize);
-
-    uint32_t copy_size;
-
-    /* get layer libraries */
-    memset(&instance_layer_list, 0, sizeof(instance_layer_list));
-    loader_layer_scan(NULL, &instance_layer_list, NULL);
-
-    if (pProperties == NULL) {
-        *pPropertyCount = instance_layer_list.count;
-        loader_destroy_layer_list(NULL, &instance_layer_list);
-        return VK_SUCCESS;
-    }
-
-    copy_size = (*pPropertyCount < instance_layer_list.count)
-                    ? *pPropertyCount
-                    : instance_layer_list.count;
-    for (uint32_t i = 0; i < copy_size; i++) {
-        memcpy(&pProperties[i], &instance_layer_list.list[i].info,
-               sizeof(VkLayerProperties));
-    }
-
-    *pPropertyCount = copy_size;
-    loader_destroy_layer_list(NULL, &instance_layer_list);
-
-    if (copy_size < instance_layer_list.count) {
-        return VK_INCOMPLETE;
-    }
-
-    return VK_SUCCESS;
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-loader_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
-                                          const char *pLayerName,
-                                          uint32_t *pPropertyCount,
-                                          VkExtensionProperties *pProperties) {
-    struct loader_physical_device *phys_dev;
-    uint32_t copy_size;
-
-    uint32_t count;
-    struct loader_device_extension_list *dev_ext_list = NULL;
     struct loader_layer_list implicit_layer_list;
 
-    // TODO fix this aliases physical devices
-    phys_dev = loader_get_physical_device(physicalDevice);
+    assert(pLayerName == NULL || strlen(pLayerName) == 0);
 
-    /* get layer libraries if needed */
-    if (pLayerName && strlen(pLayerName) != 0) {
-        if (vk_string_validate(MaxLoaderStringLength, pLayerName) ==
-            VK_STRING_ERROR_NONE) {
-            for (uint32_t i = 0;
-                 i < phys_dev->this_instance->device_layer_list.count; i++) {
-                struct loader_layer_properties *props =
-                    &phys_dev->this_instance->device_layer_list.list[i];
-                if (strcmp(props->info.layerName, pLayerName) == 0) {
-                    dev_ext_list = &props->device_extension_list;
-                }
-            }
-            count = (dev_ext_list == NULL) ? 0 : dev_ext_list->count;
-            if (pProperties == NULL) {
-                *pPropertyCount = count;
-                return VK_SUCCESS;
-            }
+    /* Any layer or trampoline wrapping should be removed at this point in time
+     * can just cast to the expected type for VkPhysicalDevice. */
+    phys_dev = (struct loader_physical_device *)physicalDevice;
 
-            copy_size = *pPropertyCount < count ? *pPropertyCount : count;
-            for (uint32_t i = 0; i < copy_size; i++) {
-                memcpy(&pProperties[i], &dev_ext_list->list[i].props,
-                       sizeof(VkExtensionProperties));
-            }
-            *pPropertyCount = copy_size;
+    /* this case is during the call down the instance chain with pLayerName
+     * == NULL*/
+    struct loader_icd *icd = phys_dev->this_icd;
+    uint32_t icd_ext_count = *pPropertyCount;
+    VkResult res;
 
-            if (copy_size < count) {
-                return VK_INCOMPLETE;
-            }
-        } else {
-            loader_log(phys_dev->this_instance, VK_DEBUG_REPORT_ERROR_BIT_EXT,
-                       0, "vkEnumerateDeviceExtensionProperties:  pLayerName "
-                          "is too long or is badly formed");
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-        return VK_SUCCESS;
-    } else {
-        /* this case is during the call down the instance chain with pLayerName
-         * == NULL*/
-        struct loader_icd *icd = phys_dev->this_icd;
-        uint32_t icd_ext_count = *pPropertyCount;
-        VkResult res;
+    /* get device extensions */
+    res = icd->EnumerateDeviceExtensionProperties(phys_dev->phys_dev, NULL,
+                                                  &icd_ext_count, pProperties);
+    if (res != VK_SUCCESS)
+        return res;
 
-        /* get device extensions */
-        res = icd->EnumerateDeviceExtensionProperties(
-            phys_dev->phys_dev, NULL, &icd_ext_count, pProperties);
+    loader_init_layer_list(icd->this_instance, &implicit_layer_list);
+
+    loader_add_layer_implicit(
+        icd->this_instance, VK_LAYER_TYPE_INSTANCE_IMPLICIT,
+        &implicit_layer_list, &icd->this_instance->instance_layer_list);
+    /* we need to determine which implicit layers are active,
+     * and then add their extensions. This can't be cached as
+     * it depends on results of environment variables (which can change).
+     */
+    if (pProperties != NULL) {
+        struct loader_extension_list icd_exts;
+        /* initialize dev_extension list within the physicalDevice object */
+        res = loader_init_device_extensions(icd->this_instance, phys_dev,
+                                            icd_ext_count, pProperties,
+                                            &icd_exts);
         if (res != VK_SUCCESS)
             return res;
 
-        loader_init_layer_list(phys_dev->this_instance, &implicit_layer_list);
-
-        loader_add_layer_implicit(
-            phys_dev->this_instance, VK_LAYER_TYPE_INSTANCE_IMPLICIT,
-            &implicit_layer_list,
-            &phys_dev->this_instance->instance_layer_list);
         /* we need to determine which implicit layers are active,
          * and then add their extensions. This can't be cached as
-         * it depends on results of environment variables (which can change).
+         * it depends on results of environment variables (which can
+         * change).
          */
-        if (pProperties != NULL) {
-            /* initialize dev_extension list within the physicalDevice object */
-            res = loader_init_device_extensions(
-                phys_dev->this_instance, phys_dev, icd_ext_count, pProperties,
-                &phys_dev->device_extension_cache);
-            if (res != VK_SUCCESS)
-                return res;
+        struct loader_extension_list all_exts = {0};
+        loader_add_to_ext_list(icd->this_instance, &all_exts, icd_exts.count,
+                               icd_exts.list);
 
-            /* we need to determine which implicit layers are active,
-             * and then add their extensions. This can't be cached as
-             * it depends on results of environment variables (which can
-             * change).
-             */
-            struct loader_extension_list all_exts = {0};
-            loader_add_to_ext_list(phys_dev->this_instance, &all_exts,
-                                   phys_dev->device_extension_cache.count,
-                                   phys_dev->device_extension_cache.list);
+        loader_init_layer_list(icd->this_instance, &implicit_layer_list);
 
-            loader_init_layer_list(phys_dev->this_instance,
-                                   &implicit_layer_list);
+        loader_add_layer_implicit(
+            icd->this_instance, VK_LAYER_TYPE_INSTANCE_IMPLICIT,
+            &implicit_layer_list, &icd->this_instance->instance_layer_list);
 
-            loader_add_layer_implicit(
-                phys_dev->this_instance, VK_LAYER_TYPE_INSTANCE_IMPLICIT,
-                &implicit_layer_list,
-                &phys_dev->this_instance->instance_layer_list);
-
-            for (uint32_t i = 0; i < implicit_layer_list.count; i++) {
-                for (
-                    uint32_t j = 0;
-                    j < implicit_layer_list.list[i].device_extension_list.count;
-                    j++) {
-                    loader_add_to_ext_list(phys_dev->this_instance, &all_exts,
-                                           1,
-                                           &implicit_layer_list.list[i]
-                                                .device_extension_list.list[j]
-                                                .props);
-                }
+        for (uint32_t i = 0; i < implicit_layer_list.count; i++) {
+            for (uint32_t j = 0;
+                 j < implicit_layer_list.list[i].device_extension_list.count;
+                 j++) {
+                loader_add_to_ext_list(icd->this_instance, &all_exts, 1,
+                                       &implicit_layer_list.list[i]
+                                            .device_extension_list.list[j]
+                                            .props);
             }
-            uint32_t capacity = *pPropertyCount;
-            VkExtensionProperties *props = pProperties;
-
-            for (uint32_t i = 0; i < all_exts.count && i < capacity; i++) {
-                props[i] = all_exts.list[i];
-            }
-            /* wasn't enough space for the extensions, we did partial copy now
-             * return VK_INCOMPLETE */
-            if (capacity < all_exts.count) {
-                res = VK_INCOMPLETE;
-            } else {
-                *pPropertyCount = all_exts.count;
-            }
-            loader_destroy_generic_list(
-                phys_dev->this_instance,
-                (struct loader_generic_list *)&all_exts);
-        } else {
-            /* just return the count; need to add in the count of implicit layer
-             * extensions
-             * don't worry about duplicates being added in the count */
-            *pPropertyCount = icd_ext_count;
-
-            for (uint32_t i = 0; i < implicit_layer_list.count; i++) {
-                *pPropertyCount +=
-                    implicit_layer_list.list[i].device_extension_list.count;
-            }
-            res = VK_SUCCESS;
         }
+        uint32_t capacity = *pPropertyCount;
+        VkExtensionProperties *props = pProperties;
 
-        loader_destroy_generic_list(
-            phys_dev->this_instance,
-            (struct loader_generic_list *)&implicit_layer_list);
-        return res;
+        for (uint32_t i = 0; i < all_exts.count && i < capacity; i++) {
+            props[i] = all_exts.list[i];
+        }
+        /* wasn't enough space for the extensions, we did partial copy now
+         * return VK_INCOMPLETE */
+        if (capacity < all_exts.count) {
+            res = VK_INCOMPLETE;
+        } else {
+            *pPropertyCount = all_exts.count;
+        }
+        loader_destroy_generic_list(icd->this_instance,
+                                    (struct loader_generic_list *)&all_exts);
+    } else {
+        /* just return the count; need to add in the count of implicit layer
+         * extensions
+         * don't worry about duplicates being added in the count */
+        *pPropertyCount = icd_ext_count;
+
+        for (uint32_t i = 0; i < implicit_layer_list.count; i++) {
+            *pPropertyCount +=
+                implicit_layer_list.list[i].device_extension_list.count;
+        }
+        res = VK_SUCCESS;
     }
+
+    loader_destroy_generic_list(
+        icd->this_instance, (struct loader_generic_list *)&implicit_layer_list);
+    return res;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-loader_EnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice,
-                                      uint32_t *pPropertyCount,
-                                      VkLayerProperties *pProperties) {
-    uint32_t copy_size;
-    struct loader_physical_device *phys_dev;
-    // TODO fix this, aliases physical devices
-    phys_dev = loader_get_physical_device(physicalDevice);
-    uint32_t count = phys_dev->this_instance->device_layer_list.count;
+terminator_EnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice,
+                                          uint32_t *pPropertyCount,
+                                          VkLayerProperties *pProperties) {
 
-    if (pProperties == NULL) {
-        *pPropertyCount = count;
-        return VK_SUCCESS;
-    }
-
-    copy_size = (*pPropertyCount < count) ? *pPropertyCount : count;
-    for (uint32_t i = 0; i < copy_size; i++) {
-        memcpy(&pProperties[i],
-               &(phys_dev->this_instance->device_layer_list.list[i].info),
-               sizeof(VkLayerProperties));
-    }
-    *pPropertyCount = copy_size;
-
-    if (copy_size < count) {
-        return VK_INCOMPLETE;
-    }
-
-    return VK_SUCCESS;
+    // should never get here this call isn't dispatched down the chain
+    return VK_ERROR_INITIALIZATION_FAILED;
 }
 
 VkStringErrorFlags vk_string_validate(const int max_length, const char *utf8) {
     VkStringErrorFlags result = VK_STRING_ERROR_NONE;
-    int num_char_bytes;
+    int num_char_bytes = 0;
     int i, j;
 
     for (i = 0; i < max_length; i++) {

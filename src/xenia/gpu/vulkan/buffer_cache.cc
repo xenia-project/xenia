@@ -28,11 +28,17 @@ constexpr VkDeviceSize kConstantRegisterUniformRange =
 BufferCache::BufferCache(RegisterFile* register_file,
                          ui::vulkan::VulkanDevice* device, size_t capacity)
     : register_file_(register_file), device_(*device) {
-  transient_buffer_ = std::make_unique<ui::vulkan::CircularBuffer>(device);
-  if (!transient_buffer_->Initialize(capacity,
-                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-                                         VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)) {
+  transient_buffer_ = std::make_unique<ui::vulkan::CircularBuffer>(
+      device,
+      VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+      capacity);
+
+  VkMemoryRequirements pool_reqs;
+  transient_buffer_->GetBufferMemoryRequirements(&pool_reqs);
+  gpu_memory_pool_ = device->AllocateMemory(pool_reqs);
+
+  if (!transient_buffer_->Initialize(gpu_memory_pool_, 0)) {
     assert_always();
   }
 
@@ -134,6 +140,10 @@ BufferCache::~BufferCache() {
   vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
   vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
   transient_buffer_->Shutdown();
+
+  if (gpu_memory_pool_) {
+    vkFreeMemory(device_, gpu_memory_pool_, nullptr);
+  }
 }
 
 std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
@@ -221,8 +231,6 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
     const void* source_ptr, size_t source_length, IndexFormat format,
     std::shared_ptr<ui::vulkan::Fence> fence) {
-  // TODO(benvanik): check cache.
-
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
@@ -249,8 +257,6 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
     const void* source_ptr, size_t source_length, Endian endian,
     std::shared_ptr<ui::vulkan::Fence> fence) {
-  // TODO(benvanik): check cache.
-
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
@@ -323,9 +329,7 @@ void BufferCache::InvalidateCache() {
   // TODO(benvanik): caching.
 }
 
-void BufferCache::ClearCache() {
-  // TODO(benvanik): caching.
-}
+void BufferCache::ClearCache() { transient_cache_.clear(); }
 
 void BufferCache::Scavenge() { transient_buffer_->Scavenge(); }
 

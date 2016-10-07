@@ -27,6 +27,7 @@ namespace vulkan {
 using xe::ui::vulkan::CheckResult;
 
 // Generated with `xenia-build genspirv`.
+#include "xenia/gpu/vulkan/shaders/bin/dummy_frag.h"
 #include "xenia/gpu/vulkan/shaders/bin/line_quad_list_geom.h"
 #include "xenia/gpu/vulkan/shaders/bin/point_list_geom.h"
 #include "xenia/gpu/vulkan/shaders/bin/quad_list_geom.h"
@@ -113,6 +114,13 @@ PipelineCache::PipelineCache(
   err = vkCreateShaderModule(device_, &shader_module_info, nullptr,
                              &geometry_shaders_.rect_list);
   CheckResult(err, "vkCreateShaderModule");
+  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(dummy_frag));
+  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(dummy_frag);
+  err = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+                             &dummy_pixel_shader_);
+
+  // We can also use the GLSL translator with a Vulkan dialect.
+  shader_translator_.reset(new SpirvShaderTranslator());
 }
 
 PipelineCache::~PipelineCache() {
@@ -127,6 +135,7 @@ PipelineCache::~PipelineCache() {
   vkDestroyShaderModule(device_, geometry_shaders_.point_list, nullptr);
   vkDestroyShaderModule(device_, geometry_shaders_.quad_list, nullptr);
   vkDestroyShaderModule(device_, geometry_shaders_.rect_list, nullptr);
+  vkDestroyShaderModule(device_, dummy_pixel_shader_, nullptr);
 
   vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
   vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
@@ -261,9 +270,12 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
   VkPipeline pipeline = nullptr;
-  auto err = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
-                                       &pipeline_info, nullptr, &pipeline);
-  CheckResult(err, "vkCreateGraphicsPipelines");
+  auto result = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
+                                          &pipeline_info, nullptr, &pipeline);
+  if (result != VK_SUCCESS) {
+    XELOGE("vkCreateGraphicsPipelines failed with code %d", result);
+    return nullptr;
+  }
 
   // Dump shader disassembly.
   if (FLAGS_vulkan_dump_disasm) {
@@ -280,7 +292,7 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
                                     xenos::xe_gpu_program_cntl_t cntl) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_.Translate(shader, cntl)) {
+  if (!shader_translator_->Translate(shader, cntl)) {
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }
@@ -392,6 +404,7 @@ void PipelineCache::DumpShaderDisasmNV(
            disasm_fp.c_str());
   }
 
+  vkDestroyPipeline(device_, dummy_pipeline, nullptr);
   vkDestroyPipelineCache(device_, dummy_pipeline_cache, nullptr);
 }
 
@@ -529,9 +542,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
 
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
-    viewport_rect.minDepth = 0;
-    viewport_rect.maxDepth = 1;
-
     if (vport_xscale_enable) {
       float texel_offset_x = 0.0f;
       float texel_offset_y = 0.0f;
@@ -549,10 +559,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       viewport_rect.y = vpy + texel_offset_y;
       viewport_rect.width = vpw;
       viewport_rect.height = vph;
-
-      // TODO(benvanik): depth range adjustment?
-      // float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
-      // float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
     } else {
       float texel_offset_x = 0.0f;
       float texel_offset_y = 0.0f;
@@ -569,6 +575,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
     viewport_rect.minDepth = voz;
     viewport_rect.maxDepth = voz + vsz;
+    assert_true(viewport_rect.minDepth >= 0 && viewport_rect.minDepth <= 1);
+    assert_true(viewport_rect.maxDepth >= -1 && viewport_rect.maxDepth <= 1);
 
     vkCmdSetViewport(command_buffer, 0, 1, &viewport_rect);
   }
@@ -587,24 +595,25 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     vkCmdSetBlendConstants(command_buffer, regs.rb_blend_rgba);
   }
 
-  if (full_update) {
-    // VK_DYNAMIC_STATE_LINE_WIDTH
-    vkCmdSetLineWidth(command_buffer, 1.0f);
-
-    // VK_DYNAMIC_STATE_DEPTH_BIAS
-    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
-
-    // VK_DYNAMIC_STATE_DEPTH_BOUNDS
-    vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
-
-    // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
-    vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+  bool stencil_state_dirty = full_update;
+  stencil_state_dirty |=
+      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
+  if (stencil_state_dirty) {
+    uint32_t stencil_ref = (regs.rb_stencilrefmask & 0xFF);
+    uint32_t stencil_read_mask = (regs.rb_stencilrefmask >> 8) & 0xFF;
+    uint32_t stencil_write_mask = (regs.rb_stencilrefmask >> 16) & 0xFF;
 
     // VK_DYNAMIC_STATE_STENCIL_REFERENCE
-    vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+    vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK,
+                             stencil_ref);
+
+    // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
+    vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK,
+                               stencil_read_mask);
 
     // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
-    vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK, 0);
+    vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK,
+                             stencil_write_mask);
   }
 
   bool push_constants_dirty = full_update || viewport_state_dirty;
@@ -625,6 +634,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
     // 0 = normal
     // 2 = point size
+    // 7 = memexport
     assert_true(program_cntl.vs_export_mode == 0 ||
                 program_cntl.vs_export_mode == 2);
 
@@ -674,6 +684,17 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
         command_buffer, pipeline_layout_,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
         kSpirvPushConstantsSize, &push_constants);
+  }
+
+  if (full_update) {
+    // VK_DYNAMIC_STATE_LINE_WIDTH
+    vkCmdSetLineWidth(command_buffer, 1.0f);
+
+    // VK_DYNAMIC_STATE_DEPTH_BIAS
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
+
+    // VK_DYNAMIC_STATE_DEPTH_BOUNDS
+    vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
   }
 
   return true;
@@ -775,7 +796,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     return UpdateStatus::kError;
   }
 
-  if (!pixel_shader->is_translated() &&
+  if (pixel_shader && !pixel_shader->is_translated() &&
       !TranslateShader(pixel_shader, sq_program_cntl)) {
     XELOGE("Failed to translate the pixel shader!");
     return UpdateStatus::kError;
@@ -822,7 +843,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   pixel_pipeline_stage.pNext = nullptr;
   pixel_pipeline_stage.flags = 0;
   pixel_pipeline_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  pixel_pipeline_stage.module = pixel_shader->shader_module();
+  pixel_pipeline_stage.module =
+      pixel_shader ? pixel_shader->shader_module() : dummy_pixel_shader_;
   pixel_pipeline_stage.pName = "main";
   pixel_pipeline_stage.pSpecializationInfo = nullptr;
 
@@ -869,51 +891,72 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
       bool is_integer = attrib.fetch_instr.attributes.is_integer;
       switch (attrib.fetch_instr.attributes.data_format) {
         case VertexFormat::k_8_8_8_8:
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_UNORM;
+          if (is_integer) {
+            vertex_attrib_descr.format =
+                is_signed ? VK_FORMAT_R8G8B8A8_SINT : VK_FORMAT_R8G8B8A8_UINT;
+          } else {
+            vertex_attrib_descr.format =
+                is_signed ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_UNORM;
+          }
           break;
         case VertexFormat::k_2_10_10_10:
           vertex_attrib_descr.format = is_signed
-                                           ? VK_FORMAT_A2R10G10B10_SNORM_PACK32
-                                           : VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+                                           ? VK_FORMAT_A2B10G10R10_SNORM_PACK32
+                                           : VK_FORMAT_A2B10G10R10_UNORM_PACK32;
           break;
         case VertexFormat::k_10_11_11:
-          assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+          // Converted in-shader.
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_11_11_10:
           // Converted in-shader.
-          // TODO(DrChat)
-          assert_always();
-          // vertex_attrib_descr.format = VK_FORMAT_R32_UINT;
-          vertex_attrib_descr.format = VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+          vertex_attrib_descr.format =
+              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_16_16:
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_UNORM;
+          if (is_integer) {
+            vertex_attrib_descr.format =
+                is_signed ? VK_FORMAT_R16G16_SINT : VK_FORMAT_R16G16_UINT;
+          } else {
+            vertex_attrib_descr.format =
+                is_signed ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_UNORM;
+          }
           break;
         case VertexFormat::k_16_16_FLOAT:
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R16G16_SSCALED : VK_FORMAT_R16G16_USCALED;
+          // assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R16G16_SFLOAT;
           break;
         case VertexFormat::k_16_16_16_16:
-          vertex_attrib_descr.format = is_signed ? VK_FORMAT_R16G16B16A16_SNORM
-                                                 : VK_FORMAT_R16G16B16A16_UNORM;
+          if (is_integer) {
+            vertex_attrib_descr.format = is_signed
+                                             ? VK_FORMAT_R16G16B16A16_SINT
+                                             : VK_FORMAT_R16G16B16A16_UINT;
+          } else {
+            vertex_attrib_descr.format = is_signed
+                                             ? VK_FORMAT_R16G16B16A16_SNORM
+                                             : VK_FORMAT_R16G16B16A16_UNORM;
+          }
           break;
         case VertexFormat::k_16_16_16_16_FLOAT:
-          vertex_attrib_descr.format = is_signed
-                                           ? VK_FORMAT_R16G16B16A16_SSCALED
-                                           : VK_FORMAT_R16G16B16A16_USCALED;
+          // assert_true(is_signed);
+          vertex_attrib_descr.format = VK_FORMAT_R16G16B16A16_SFLOAT;
           break;
         case VertexFormat::k_32:
+          // FIXME: Is this a NORM format?
+          assert_true(is_integer);
           vertex_attrib_descr.format =
               is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
           break;
         case VertexFormat::k_32_32:
+          // FIXME: Is this a NORM format?
+          assert_true(is_integer);
           vertex_attrib_descr.format =
               is_signed ? VK_FORMAT_R32G32_SINT : VK_FORMAT_R32G32_UINT;
           break;
         case VertexFormat::k_32_32_32_32:
+          // FIXME: Is this a NORM format?
+          assert_true(is_integer);
           vertex_attrib_descr.format =
               is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
           break;
@@ -1051,6 +1094,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
 
   bool dirty = false;
   dirty |= regs.primitive_type != primitive_type;
+  dirty |= SetShadowRegister(&regs.pa_cl_clip_cntl, XE_GPU_REG_PA_CL_CLIP_CNTL);
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_tl,
@@ -1070,14 +1114,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   state_info.pNext = nullptr;
   state_info.flags = 0;
 
-  // TODO(benvanik): right setting?
-  state_info.depthClampEnable = VK_FALSE;
-  state_info.rasterizerDiscardEnable = VK_FALSE;
+  // ZCLIP_NEAR_DISABLE
+  // state_info.depthClampEnable = !(regs.pa_cl_clip_cntl & (1 << 26));
+  // RASTERIZER_DISABLE
+  // state_info.rasterizerDiscardEnable = !!(regs.pa_cl_clip_cntl & (1 << 22));
 
-  // KILL_PIX_POST_EARLY_Z
-  if (regs.pa_sc_viz_query & 0x80) {
-    state_info.rasterizerDiscardEnable = VK_TRUE;
-  }
+  // CLIP_DISABLE
+  state_info.depthClampEnable = !!(regs.pa_cl_clip_cntl & (1 << 16));
+  state_info.rasterizerDiscardEnable = VK_FALSE;
 
   bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
   if (poly_mode) {
@@ -1213,11 +1257,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
       /*  0 */ VK_STENCIL_OP_KEEP,
       /*  1 */ VK_STENCIL_OP_ZERO,
       /*  2 */ VK_STENCIL_OP_REPLACE,
-      /*  3 */ VK_STENCIL_OP_INCREMENT_AND_WRAP,
-      /*  4 */ VK_STENCIL_OP_DECREMENT_AND_WRAP,
+      /*  3 */ VK_STENCIL_OP_INCREMENT_AND_CLAMP,
+      /*  4 */ VK_STENCIL_OP_DECREMENT_AND_CLAMP,
       /*  5 */ VK_STENCIL_OP_INVERT,
-      /*  6 */ VK_STENCIL_OP_INCREMENT_AND_CLAMP,
-      /*  7 */ VK_STENCIL_OP_DECREMENT_AND_CLAMP,
+      /*  6 */ VK_STENCIL_OP_INCREMENT_AND_WRAP,
+      /*  7 */ VK_STENCIL_OP_DECREMENT_AND_WRAP,
   };
 
   // Depth state
@@ -1229,9 +1273,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   state_info.depthCompareOp =
       compare_func_map[(regs.rb_depthcontrol >> 4) & 0x7];
   state_info.depthBoundsTestEnable = VK_FALSE;
-
-  uint32_t stencil_ref = (regs.rb_stencilrefmask & 0x000000FF);
-  uint32_t stencil_read_mask = (regs.rb_stencilrefmask & 0x0000FF00) >> 8;
 
   // Stencil state
   state_info.front.compareOp =
@@ -1270,15 +1311,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
 PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
   auto& regs = update_color_blend_state_regs_;
   auto& state_info = update_color_blend_state_info_;
-
-  // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-  // Deprecated in GL, implemented in shader.
-  // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
-  // uint32_t color_control = reg_file[XE_GPU_REG_RB_COLORCONTROL].u32;
-  // draw_batcher_.set_alpha_test((color_control & 0x4) != 0,  //
-  // ALPAHTESTENABLE
-  //                             color_control & 0x7,         // ALPHAFUNC
-  //                             reg_file[XE_GPU_REG_RB_ALPHA_REF].f32);
 
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);

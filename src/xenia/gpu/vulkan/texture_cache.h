@@ -146,12 +146,23 @@ class TextureCache {
   TextureView* DemandView(Texture* texture, uint16_t swizzle);
   Sampler* Demand(const SamplerInfo& sampler_info);
 
+  void FlushPendingCommands(
+      VkCommandBuffer command_buffer,
+      std::shared_ptr<ui::vulkan::Fence> completion_fence);
+
+  void ConvertTexture2D(uint8_t* dest, const TextureInfo& src);
+  void ConvertTextureCube(uint8_t* dest, const TextureInfo& src);
+
   // Queues commands to upload a texture from system memory, applying any
   // conversions necessary. This may flush the command buffer to the GPU if we
   // run out of staging memory.
   bool UploadTexture2D(VkCommandBuffer command_buffer,
                        std::shared_ptr<ui::vulkan::Fence> completion_fence,
-                       Texture* dest, TextureInfo src);
+                       Texture* dest, const TextureInfo& src);
+
+  bool UploadTextureCube(VkCommandBuffer command_buffer,
+                         std::shared_ptr<ui::vulkan::Fence> completion_fence,
+                         Texture* dest, const TextureInfo& src);
 
   bool SetupTextureBindings(
       VkCommandBuffer command_buffer,
@@ -168,6 +179,7 @@ class TextureCache {
   RegisterFile* register_file_ = nullptr;
   TraceWriter* trace_writer_ = nullptr;
   ui::vulkan::VulkanDevice* device_ = nullptr;
+  VkQueue device_queue_ = nullptr;
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
@@ -192,11 +204,8 @@ class TextureCache {
     // This prevents duplication across the vertex and pixel shader.
     uint32_t has_setup_fetch_mask;
     uint32_t image_write_count = 0;
-    struct ImageSetInfo {
-      Dimension dimension;
-      uint32_t tf_binding;
-      VkDescriptorImageInfo info;
-    } image_infos[32];
+    VkWriteDescriptorSet image_writes[32];
+    VkDescriptorImageInfo image_infos[32];
   } update_set_info_;
 };
 

@@ -11,7 +11,7 @@ CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
   ECHO Python 2.7 must be installed and on PATH:
-  ECHO https://www.python.org/ftp/python/2.7.9/python-2.7.9.msi
+  ECHO https://www.python.org/ftp/python/2.7.12/python-2.7.12.msi
   GOTO :exit_error
 )
 
@@ -35,6 +35,9 @@ SET FOUND_PYTHON_EXE=""
 IF NOT ERRORLEVEL 1 (
   ECHO FOUND PYTHON 2
   SET FOUND_PYTHON_EXE=python2
+)
+IF %FOUND_PYTHON_EXE% EQU "" (
+  IF EXIST c:\\python27\\python.exe SET FOUND_PYTHON_EXE=C:\\python27\\python.exe
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
   1>NUL 2>NUL CMD /c where python

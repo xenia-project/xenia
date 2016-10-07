@@ -17,6 +17,8 @@
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
+#include <unordered_map>
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -101,9 +103,12 @@ class BufferCache {
   RegisterFile* register_file_ = nullptr;
   VkDevice device_ = nullptr;
 
+  VkDeviceMemory gpu_memory_pool_ = nullptr;
+
   // Staging ringbuffer we cycle through fast. Used for data we don't
   // plan on keeping past the current frame.
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
+  std::unordered_map<uint64_t, VkDeviceSize> transient_cache_;
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_ = nullptr;

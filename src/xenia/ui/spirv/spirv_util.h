@@ -10,8 +10,8 @@
 #ifndef XENIA_UI_SPIRV_SPIRV_UTIL_H_
 #define XENIA_UI_SPIRV_SPIRV_UTIL_H_
 
+#include "third_party/spirv-headers/include/spirv/1.1/spirv.hpp11"
 #include "third_party/spirv/GLSL.std.450.hpp11"
-#include "third_party/spirv/spirv.hpp11"
 
 // Forward declarations from SPIRV-Tools so we don't pollute /so/ much.
 struct spv_binary_t;

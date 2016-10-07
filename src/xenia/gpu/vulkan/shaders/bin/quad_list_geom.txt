@@ -1,14 +1,13 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 68
+; Bound: 66
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
-               OpCapability ClipDistance
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Geometry %4 "main" %38 %42 %58 %61
+               OpEntryPoint Geometry %4 "main" %36 %40 %56 %59
                OpExecutionMode %4 InputLinesAdjacency
                OpExecutionMode %4 Invocations 1
                OpExecutionMode %4 OutputTriangleStrip
@@ -18,28 +17,24 @@
                OpName %8 "i"
                OpName %19 "input_index"
                OpName %29 "indexable"
-               OpName %36 "gl_PerVertex"
-               OpMemberName %36 0 "gl_Position"
-               OpMemberName %36 1 "gl_PointSize"
-               OpMemberName %36 2 "gl_ClipDistance"
-               OpName %38 ""
-               OpName %39 "gl_PerVertex"
-               OpMemberName %39 0 "gl_Position"
-               OpMemberName %39 1 "gl_PointSize"
-               OpMemberName %39 2 "gl_ClipDistance"
-               OpName %42 "gl_in"
-               OpName %58 "out_interpolators"
-               OpName %61 "in_interpolators"
-               OpMemberDecorate %36 0 BuiltIn Position
-               OpMemberDecorate %36 1 BuiltIn PointSize
-               OpMemberDecorate %36 2 BuiltIn ClipDistance
-               OpDecorate %36 Block
-               OpMemberDecorate %39 0 BuiltIn Position
-               OpMemberDecorate %39 1 BuiltIn PointSize
-               OpMemberDecorate %39 2 BuiltIn ClipDistance
-               OpDecorate %39 Block
-               OpDecorate %58 Location 0
-               OpDecorate %61 Location 0
+               OpName %34 "gl_PerVertex"
+               OpMemberName %34 0 "gl_Position"
+               OpMemberName %34 1 "gl_PointSize"
+               OpName %36 ""
+               OpName %37 "gl_PerVertex"
+               OpMemberName %37 0 "gl_Position"
+               OpMemberName %37 1 "gl_PointSize"
+               OpName %40 "gl_in"
+               OpName %56 "out_interpolators"
+               OpName %59 "in_interpolators"
+               OpMemberDecorate %34 0 BuiltIn Position
+               OpMemberDecorate %34 1 BuiltIn PointSize
+               OpDecorate %34 Block
+               OpMemberDecorate %37 0 BuiltIn Position
+               OpMemberDecorate %37 1 BuiltIn PointSize
+               OpDecorate %37 Block
+               OpDecorate %56 Location 0
+               OpDecorate %59 Location 0
           %2 = OpTypeVoid
           %3 = OpTypeFunction %2
           %6 = OpTypeInt 32 1
@@ -57,27 +52,25 @@
          %28 = OpTypePointer Function %22
          %32 = OpTypeFloat 32
          %33 = OpTypeVector %32 4
-         %34 = OpConstant %20 1
-         %35 = OpTypeArray %32 %34
-         %36 = OpTypeStruct %33 %32 %35
-         %37 = OpTypePointer Output %36
-         %38 = OpVariable %37 Output
-         %39 = OpTypeStruct %33 %32 %35
-         %40 = OpTypeArray %39 %21
-         %41 = OpTypePointer Input %40
-         %42 = OpVariable %41 Input
-         %44 = OpTypePointer Input %33
-         %47 = OpTypePointer Output %33
-         %50 = OpTypePointer Input %32
-         %53 = OpTypePointer Output %32
-         %55 = OpConstant %20 16
-         %56 = OpTypeArray %33 %55
-         %57 = OpTypePointer Output %56
-         %58 = OpVariable %57 Output
-         %59 = OpTypeArray %56 %21
-         %60 = OpTypePointer Input %59
-         %61 = OpVariable %60 Input
-         %63 = OpTypePointer Input %56
+         %34 = OpTypeStruct %33 %32
+         %35 = OpTypePointer Output %34
+         %36 = OpVariable %35 Output
+         %37 = OpTypeStruct %33 %32
+         %38 = OpTypeArray %37 %21
+         %39 = OpTypePointer Input %38
+         %40 = OpVariable %39 Input
+         %42 = OpTypePointer Input %33
+         %45 = OpTypePointer Output %33
+         %48 = OpTypePointer Input %32
+         %51 = OpTypePointer Output %32
+         %53 = OpConstant %20 16
+         %54 = OpTypeArray %33 %53
+         %55 = OpTypePointer Output %54
+         %56 = OpVariable %55 Output
+         %57 = OpTypeArray %54 %21
+         %58 = OpTypePointer Input %57
+         %59 = OpVariable %58 Input
+         %61 = OpTypePointer Input %54
           %4 = OpFunction %2 None %3
           %5 = OpLabel
           %8 = OpVariable %7 Function
@@ -98,26 +91,26 @@
          %30 = OpAccessChain %7 %29 %27
          %31 = OpLoad %6 %30
                OpStore %19 %31
-         %43 = OpLoad %6 %19
-         %45 = OpAccessChain %44 %42 %43 %9
-         %46 = OpLoad %33 %45
-         %48 = OpAccessChain %47 %38 %9
-               OpStore %48 %46
-         %49 = OpLoad %6 %19
-         %51 = OpAccessChain %50 %42 %49 %23
-         %52 = OpLoad %32 %51
-         %54 = OpAccessChain %53 %38 %23
-               OpStore %54 %52
-         %62 = OpLoad %6 %19
-         %64 = OpAccessChain %63 %61 %62
-         %65 = OpLoad %56 %64
-               OpStore %58 %65
+         %41 = OpLoad %6 %19
+         %43 = OpAccessChain %42 %40 %41 %9
+         %44 = OpLoad %33 %43
+         %46 = OpAccessChain %45 %36 %9
+               OpStore %46 %44
+         %47 = OpLoad %6 %19
+         %49 = OpAccessChain %48 %40 %47 %23
+         %50 = OpLoad %32 %49
+         %52 = OpAccessChain %51 %36 %23
+               OpStore %52 %50
+         %60 = OpLoad %6 %19
+         %62 = OpAccessChain %61 %59 %60
+         %63 = OpLoad %54 %62
+               OpStore %56 %63
                OpEmitVertex
                OpBranch %13
          %13 = OpLabel
-         %66 = OpLoad %6 %8
-         %67 = OpIAdd %6 %66 %23
-               OpStore %8 %67
+         %64 = OpLoad %6 %8
+         %65 = OpIAdd %6 %64 %23
+               OpStore %8 %65
                OpBranch %10
          %12 = OpLabel
                OpEndPrimitive

@@ -1,14 +1,13 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 86
+; Bound: 83
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
-               OpCapability ClipDistance
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Geometry %4 "main" %16 %41 %76 %80
+               OpEntryPoint Geometry %4 "main" %15 %40 %74 %77
                OpExecutionMode %4 InputPoints
                OpExecutionMode %4 Invocations 1
                OpExecutionMode %4 OutputTriangleStrip
@@ -16,133 +15,122 @@
                OpSource GLSL 450
                OpName %4 "main"
                OpName %9 "pos"
-               OpName %13 "gl_PerVertex"
-               OpMemberName %13 0 "gl_Position"
-               OpMemberName %13 1 "gl_PointSize"
-               OpMemberName %13 2 "gl_ClipDistance"
-               OpName %16 "gl_in"
-               OpName %23 "psize"
-               OpName %29 "i"
-               OpName %39 "gl_PerVertex"
-               OpMemberName %39 0 "gl_Position"
-               OpMemberName %39 1 "gl_PointSize"
-               OpMemberName %39 2 "gl_ClipDistance"
-               OpName %41 ""
-               OpName %56 "indexable"
-               OpName %74 "VertexData"
-               OpMemberName %74 0 "o"
-               OpName %76 "out_vtx"
-               OpName %77 "VertexData"
-               OpMemberName %77 0 "o"
-               OpName %80 "in_vtx"
-               OpMemberDecorate %13 0 BuiltIn Position
-               OpMemberDecorate %13 1 BuiltIn PointSize
-               OpMemberDecorate %13 2 BuiltIn ClipDistance
-               OpDecorate %13 Block
-               OpMemberDecorate %39 0 BuiltIn Position
-               OpMemberDecorate %39 1 BuiltIn PointSize
-               OpMemberDecorate %39 2 BuiltIn ClipDistance
-               OpDecorate %39 Block
-               OpMemberDecorate %74 0 Location 0
-               OpMemberDecorate %77 0 Location 0
+               OpName %10 "gl_PerVertex"
+               OpMemberName %10 0 "gl_Position"
+               OpMemberName %10 1 "gl_PointSize"
+               OpName %15 "gl_in"
+               OpName %22 "psize"
+               OpName %28 "i"
+               OpName %38 "gl_PerVertex"
+               OpMemberName %38 0 "gl_Position"
+               OpMemberName %38 1 "gl_PointSize"
+               OpName %40 ""
+               OpName %55 "indexable"
+               OpName %74 "out_interpolators"
+               OpName %77 "in_interpolators"
+               OpMemberDecorate %10 0 BuiltIn Position
+               OpMemberDecorate %10 1 BuiltIn PointSize
+               OpDecorate %10 Block
+               OpMemberDecorate %38 0 BuiltIn Position
+               OpMemberDecorate %38 1 BuiltIn PointSize
+               OpDecorate %38 Block
+               OpDecorate %74 Location 0
+               OpDecorate %77 Location 0
           %2 = OpTypeVoid
           %3 = OpTypeFunction %2
           %6 = OpTypeFloat 32
           %7 = OpTypeVector %6 4
           %8 = OpTypePointer Function %7
-         %10 = OpTypeInt 32 0
-         %11 = OpConstant %10 1
-         %12 = OpTypeArray %6 %11
-         %13 = OpTypeStruct %7 %6 %12
-         %14 = OpTypeArray %13 %11
-         %15 = OpTypePointer Input %14
-         %16 = OpVariable %15 Input
-         %17 = OpTypeInt 32 1
-         %18 = OpConstant %17 0
-         %19 = OpTypePointer Input %7
-         %22 = OpTypePointer Function %6
-         %24 = OpConstant %17 1
-         %25 = OpTypePointer Input %6
-         %28 = OpTypePointer Function %17
-         %36 = OpConstant %17 4
-         %37 = OpTypeBool
-         %39 = OpTypeStruct %7 %6 %12
-         %40 = OpTypePointer Output %39
-         %41 = OpVariable %40 Output
-         %42 = OpTypeVector %6 2
-         %45 = OpConstant %10 4
-         %46 = OpTypeArray %42 %45
-         %47 = OpConstant %6 -1
-         %48 = OpConstant %6 1
-         %49 = OpConstantComposite %42 %47 %48
-         %50 = OpConstantComposite %42 %48 %48
-         %51 = OpConstantComposite %42 %47 %47
-         %52 = OpConstantComposite %42 %48 %47
-         %53 = OpConstantComposite %46 %49 %50 %51 %52
-         %55 = OpTypePointer Function %46
-         %57 = OpTypePointer Function %42
-         %70 = OpTypePointer Output %7
-         %72 = OpConstant %10 16
-         %73 = OpTypeArray %7 %72
-         %74 = OpTypeStruct %73
-         %75 = OpTypePointer Output %74
-         %76 = OpVariable %75 Output
-         %77 = OpTypeStruct %73
-         %78 = OpTypeArray %77 %11
-         %79 = OpTypePointer Input %78
-         %80 = OpVariable %79 Input
-         %81 = OpTypePointer Input %77
+         %10 = OpTypeStruct %7 %6
+         %11 = OpTypeInt 32 0
+         %12 = OpConstant %11 1
+         %13 = OpTypeArray %10 %12
+         %14 = OpTypePointer Input %13
+         %15 = OpVariable %14 Input
+         %16 = OpTypeInt 32 1
+         %17 = OpConstant %16 0
+         %18 = OpTypePointer Input %7
+         %21 = OpTypePointer Function %6
+         %23 = OpConstant %16 1
+         %24 = OpTypePointer Input %6
+         %27 = OpTypePointer Function %16
+         %35 = OpConstant %16 4
+         %36 = OpTypeBool
+         %38 = OpTypeStruct %7 %6
+         %39 = OpTypePointer Output %38
+         %40 = OpVariable %39 Output
+         %41 = OpTypeVector %6 2
+         %44 = OpConstant %11 4
+         %45 = OpTypeArray %41 %44
+         %46 = OpConstant %6 -1
+         %47 = OpConstant %6 1
+         %48 = OpConstantComposite %41 %46 %47
+         %49 = OpConstantComposite %41 %47 %47
+         %50 = OpConstantComposite %41 %46 %46
+         %51 = OpConstantComposite %41 %47 %46
+         %52 = OpConstantComposite %45 %48 %49 %50 %51
+         %54 = OpTypePointer Function %45
+         %56 = OpTypePointer Function %41
+         %69 = OpTypePointer Output %7
+         %71 = OpConstant %11 16
+         %72 = OpTypeArray %7 %71
+         %73 = OpTypePointer Output %72
+         %74 = OpVariable %73 Output
+         %75 = OpTypeArray %72 %12
+         %76 = OpTypePointer Input %75
+         %77 = OpVariable %76 Input
+         %78 = OpTypePointer Input %72
           %4 = OpFunction %2 None %3
           %5 = OpLabel
           %9 = OpVariable %8 Function
-         %23 = OpVariable %22 Function
-         %29 = OpVariable %28 Function
-         %56 = OpVariable %55 Function
-         %20 = OpAccessChain %19 %16 %18 %18
-         %21 = OpLoad %7 %20
-               OpStore %9 %21
-         %26 = OpAccessChain %25 %16 %18 %24
-         %27 = OpLoad %6 %26
-               OpStore %23 %27
-               OpStore %29 %18
-               OpBranch %30
-         %30 = OpLabel
-               OpLoopMerge %32 %33 None
-               OpBranch %34
-         %34 = OpLabel
-         %35 = OpLoad %17 %29
-         %38 = OpSLessThan %37 %35 %36
-               OpBranchConditional %38 %31 %32
-         %31 = OpLabel
-         %43 = OpLoad %7 %9
-         %44 = OpVectorShuffle %42 %43 %43 0 1
-         %54 = OpLoad %17 %29
-               OpStore %56 %53
-         %58 = OpAccessChain %57 %56 %54
-         %59 = OpLoad %42 %58
-         %60 = OpLoad %6 %23
-         %61 = OpVectorTimesScalar %42 %59 %60
-         %62 = OpFAdd %42 %44 %61
-         %63 = OpLoad %7 %9
-         %64 = OpVectorShuffle %42 %63 %63 2 3
-         %65 = OpCompositeExtract %6 %62 0
-         %66 = OpCompositeExtract %6 %62 1
-         %67 = OpCompositeExtract %6 %64 0
-         %68 = OpCompositeExtract %6 %64 1
-         %69 = OpCompositeConstruct %7 %65 %66 %67 %68
-         %71 = OpAccessChain %70 %41 %18
-               OpStore %71 %69
-         %82 = OpAccessChain %81 %80 %18
-         %83 = OpLoad %77 %82
-               OpStore %76 %83
-               OpEmitVertex
+         %22 = OpVariable %21 Function
+         %28 = OpVariable %27 Function
+         %55 = OpVariable %54 Function
+         %19 = OpAccessChain %18 %15 %17 %17
+         %20 = OpLoad %7 %19
+               OpStore %9 %20
+         %25 = OpAccessChain %24 %15 %17 %23
+         %26 = OpLoad %6 %25
+               OpStore %22 %26
+               OpStore %28 %17
+               OpBranch %29
+         %29 = OpLabel
+               OpLoopMerge %31 %32 None
                OpBranch %33
          %33 = OpLabel
-         %84 = OpLoad %17 %29
-         %85 = OpIAdd %17 %84 %24
-               OpStore %29 %85
-               OpBranch %30
+         %34 = OpLoad %16 %28
+         %37 = OpSLessThan %36 %34 %35
+               OpBranchConditional %37 %30 %31
+         %30 = OpLabel
+         %42 = OpLoad %7 %9
+         %43 = OpVectorShuffle %41 %42 %42 0 1
+         %53 = OpLoad %16 %28
+               OpStore %55 %52
+         %57 = OpAccessChain %56 %55 %53
+         %58 = OpLoad %41 %57
+         %59 = OpLoad %6 %22
+         %60 = OpVectorTimesScalar %41 %58 %59
+         %61 = OpFAdd %41 %43 %60
+         %62 = OpLoad %7 %9
+         %63 = OpVectorShuffle %41 %62 %62 2 3
+         %64 = OpCompositeExtract %6 %61 0
+         %65 = OpCompositeExtract %6 %61 1
+         %66 = OpCompositeExtract %6 %63 0
+         %67 = OpCompositeExtract %6 %63 1
+         %68 = OpCompositeConstruct %7 %64 %65 %66 %67
+         %70 = OpAccessChain %69 %40 %17
+               OpStore %70 %68
+         %79 = OpAccessChain %78 %77 %17
+         %80 = OpLoad %72 %79
+               OpStore %74 %80
+               OpEmitVertex
+               OpBranch %32
          %32 = OpLabel
+         %81 = OpLoad %16 %28
+         %82 = OpIAdd %16 %81 %23
+               OpStore %28 %82
+               OpBranch %29
+         %31 = OpLabel
                OpEndPrimitive
                OpReturn
                OpFunctionEnd

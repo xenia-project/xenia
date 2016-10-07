@@ -14,6 +14,7 @@
 
 #include "third_party/xxhash/xxhash.h"
 
+#include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/render_cache.h"
@@ -87,7 +88,7 @@ class PipelineCache {
   VkDevice device_ = nullptr;
 
   // Reusable shader translator.
-  SpirvShaderTranslator shader_translator_;
+  std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
   // Disassembler used to get the SPIRV disasm. Only used in debug.
   xe::ui::spirv::SpirvDisassembler disassembler_;
   // All loaded shaders mapped by their guest hash key.
@@ -107,6 +108,9 @@ class PipelineCache {
     VkShaderModule quad_list;
     VkShaderModule rect_list;
   } geometry_shaders_;
+
+  // Shared dummy pixel shader.
+  VkShaderModule dummy_pixel_shader_;
 
   // Hash state used to incrementally produce pipeline hashes during update.
   // By the time the full update pass has run the hash will represent the
@@ -211,6 +215,7 @@ class PipelineCache {
 
   struct UpdateRasterizationStateRegisters {
     PrimitiveType primitive_type;
+    uint32_t pa_cl_clip_cntl;
     uint32_t pa_su_sc_mode_cntl;
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
@@ -270,6 +275,7 @@ class PipelineCache {
     float pa_cl_vport_zscale;
 
     float rb_blend_rgba[4];
+    uint32_t rb_stencilrefmask;
 
     uint32_t sq_program_cntl;
     uint32_t sq_context_misc;

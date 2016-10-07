@@ -73,7 +73,7 @@ struct X_DISPLAY_INFO {
   xe::be<uint16_t> front_buffer_height;              // 0x2
   xe::be<uint8_t> front_buffer_color_format;         // 0x4
   xe::be<uint8_t> front_buffer_pixel_format;         // 0x5
-  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x6
+  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x8
   xe::be<uint16_t> display_window_overscan_left;     // 0x40
   xe::be<uint16_t> display_window_overscan_top;      // 0x42
   xe::be<uint16_t> display_window_overscan_right;    // 0x44
@@ -200,15 +200,18 @@ void VdSetGraphicsInterruptCallback(function_t callback, lpvoid_t user_data) {
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetGraphicsInterruptCallback, ExportTag::kVideo);
 
-void VdInitializeRingBuffer(lpvoid_t ptr, int_t page_count) {
+void VdInitializeRingBuffer(lpvoid_t ptr, int_t log2_size) {
   // r3 = result of MmGetPhysicalAddress
-  // r4 = number of pages? page size?
-  //      0x8000 -> cntlzw=16 -> 0x1C - 16 = 12
+  // r4 = log2(size)
+  // r4 is or'd with 0x802 and then stuffed into CP_RB_CNTL
+  // according to AMD docs, this corresponds with RB_BUFSZ, which is log2
+  // actual size.
+  // 0x8 is RB_BLKSZ, or number of words gpu will read before updating the
+  // host read pointer.
+  // So being or'd with 0x2 makes the ring buffer size always a multiple of 4.
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
-  // Sizes could be zero? XBLA games seem to do this. Default sizes?
-  // D3D does size / region_count - must be > 1024
   auto graphics_system = kernel_state()->emulator()->graphics_system();
-  graphics_system->InitializeRingBuffer(ptr, page_count);
+  graphics_system->InitializeRingBuffer(ptr, log2_size);
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeRingBuffer, ExportTag::kVideo);
 
@@ -239,28 +242,28 @@ DECLARE_XBOXKRNL_EXPORT(VdSetSystemCommandBufferGpuIdentifierAddress,
 // no op?
 
 dword_result_t VdInitializeScalerCommandBuffer(
-    unknown_t unk0,    // 0?
-    unknown_t unk1,    // 0x050002d0 size of ?
-    unknown_t unk2,    // 0?
-    unknown_t unk3,    // 0x050002d0 size of ?
-    unknown_t unk4,    // 0x050002d0 size of ?
-    unknown_t unk5,    // 7?
-    lpunknown_t unk6,  // 0x2004909c <-- points to zeros?
-    unknown_t unk7,    // 7?
-    lpvoid_t dest_ptr  // Points to the first 80000000h where the memcpy
-                       // sources from.
+    dword_t scaler_source_xy,      // ((uint16_t)y << 16) | (uint16_t)x
+    dword_t scaler_source_wh,      // ((uint16_t)h << 16) | (uint16_t)w
+    dword_t scaled_output_xy,      // ((uint16_t)y << 16) | (uint16_t)x
+    dword_t scaled_output_wh,      // ((uint16_t)h << 16) | (uint16_t)w
+    dword_t front_buffer_wh,       // ((uint16_t)h << 16) | (uint16_t)w
+    dword_t vertical_filter_type,  // 7?
+    pointer_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,    //
+    dword_t horizontal_filter_type,                              // 7?
+    pointer_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
+    lpvoid_t unk9,                                               //
+    lpvoid_t dest_ptr,  // Points to the first 80000000h where the memcpy
+                        // sources from.
+    dword_t dest_count  // Count in words.
     ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
   // For now, we just fill it with NOPs.
-  uint32_t total_words = 0x1CC / 4;
   auto dest = dest_ptr.as_array<uint32_t>();
-  for (size_t i = 0; i < total_words; ++i) {
+  for (size_t i = 0; i < dest_count; ++i) {
     dest[i] = 0x80000000;
   }
-
-  // returns memcpy size >> 2 for memcpy(...,...,ret << 2)
-  return total_words >> 2;
+  return (uint32_t)dest_count;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeScalerCommandBuffer,
                         ExportTag::kVideo | ExportTag::kSketchy);

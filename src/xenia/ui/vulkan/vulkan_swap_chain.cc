@@ -134,7 +134,8 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   create_info.imageExtent.width = extent.width;
   create_info.imageExtent.height = extent.height;
   create_info.imageArrayLayers = 1;
-  create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  create_info.imageUsage =
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
   create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
   create_info.queueFamilyIndexCount = 0;
   create_info.pQueueFamilyIndices = nullptr;
@@ -176,20 +177,19 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   err = vkCreateCommandPool(*device_, &cmd_pool_info, nullptr, &cmd_pool_);
   CheckResult(err, "vkCreateCommandPool");
 
-  // Make a command buffer we'll do all our primary rendering from.
+  // Make two command buffers we'll do all our primary rendering from.
   VkCommandBufferAllocateInfo cmd_buffer_info;
   cmd_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   cmd_buffer_info.pNext = nullptr;
   cmd_buffer_info.commandPool = cmd_pool_;
   cmd_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  cmd_buffer_info.commandBufferCount = 1;
-  err =
-      vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &render_cmd_buffer_);
+  cmd_buffer_info.commandBufferCount = 2;
+  VkCommandBuffer command_buffers[2];
+  err = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, command_buffers);
   CheckResult(err, "vkCreateCommandBuffer");
 
-  // Create another command buffer that handles image copies.
-  err = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &copy_cmd_buffer_);
-  CheckResult(err, "vkCreateCommandBuffer");
+  render_cmd_buffer_ = command_buffers[0];
+  copy_cmd_buffer_ = command_buffers[1];
 
   // Create the render pass used to draw to the swap chain.
   // The actual framebuffer attached will depend on which image we are drawing
@@ -240,6 +240,11 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   semaphore_info.flags = 0;
   err = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
                           &image_available_semaphore_);
+  CheckResult(err, "vkCreateSemaphore");
+
+  // Create another semaphore used to synchronize writes to the swap image.
+  err = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
+                          &image_usage_semaphore_);
   CheckResult(err, "vkCreateSemaphore");
 
   // Get images we will be presenting to.
@@ -297,6 +302,7 @@ bool VulkanSwapChain::InitializeBuffer(Buffer* buffer, VkImage target_image) {
   VkFramebufferCreateInfo framebuffer_info;
   framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
   framebuffer_info.pNext = nullptr;
+  framebuffer_info.flags = 0;
   framebuffer_info.renderPass = render_pass_;
   framebuffer_info.attachmentCount =
       static_cast<uint32_t>(xe::countof(attachments));
@@ -377,12 +383,16 @@ bool VulkanSwapChain::Begin() {
   VkSubmitInfo wait_submit_info;
   wait_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   wait_submit_info.pNext = nullptr;
+
+  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   wait_submit_info.waitSemaphoreCount = 1;
   wait_submit_info.pWaitSemaphores = &image_available_semaphore_;
+  wait_submit_info.pWaitDstStageMask = &wait_dst_stage;
+
   wait_submit_info.commandBufferCount = 0;
   wait_submit_info.pCommandBuffers = nullptr;
-  wait_submit_info.signalSemaphoreCount = 0;
-  wait_submit_info.pSignalSemaphores = nullptr;
+  wait_submit_info.signalSemaphoreCount = 1;
+  wait_submit_info.pSignalSemaphores = &image_usage_semaphore_;
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
     err =
@@ -425,8 +435,8 @@ bool VulkanSwapChain::Begin() {
   pre_image_memory_barrier.subresourceRange.levelCount = 1;
   pre_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   pre_image_memory_barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(copy_cmd_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(copy_cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
 
   // First: Issue a command to clear the render target.
@@ -451,8 +461,8 @@ bool VulkanSwapChain::Begin() {
   pre_image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  vkCmdPipelineBarrier(render_cmd_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(render_cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
 
   // Begin render pass.
@@ -509,17 +519,28 @@ bool VulkanSwapChain::End() {
   err = vkEndCommandBuffer(copy_cmd_buffer_);
   CheckResult(err, "vkEndCommandBuffer");
 
-  VkCommandBuffer command_buffers[] = {copy_cmd_buffer_, render_cmd_buffer_};
+  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-  // Submit rendering.
+  // Submit copy commands.
   VkSubmitInfo render_submit_info;
   render_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   render_submit_info.pNext = nullptr;
-  render_submit_info.waitSemaphoreCount = 0;
-  render_submit_info.pWaitSemaphores = nullptr;
-  render_submit_info.commandBufferCount =
-      static_cast<uint32_t>(xe::countof(command_buffers));
-  render_submit_info.pCommandBuffers = command_buffers;
+  render_submit_info.waitSemaphoreCount = 1;
+  render_submit_info.pWaitSemaphores = &image_usage_semaphore_;
+  render_submit_info.pWaitDstStageMask = &wait_dst_stage;
+  render_submit_info.commandBufferCount = 1;
+  render_submit_info.pCommandBuffers = &copy_cmd_buffer_;
+  render_submit_info.signalSemaphoreCount = 1;
+  render_submit_info.pSignalSemaphores = &image_usage_semaphore_;
+  {
+    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
+    err = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,
+                        nullptr);
+  }
+
+  // Submit render commands.
+  render_submit_info.commandBufferCount = 1;
+  render_submit_info.pCommandBuffers = &render_cmd_buffer_;
   render_submit_info.signalSemaphoreCount = 0;
   render_submit_info.pSignalSemaphores = nullptr;
   {

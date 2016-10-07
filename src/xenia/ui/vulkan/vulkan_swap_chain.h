@@ -83,6 +83,7 @@ class VulkanSwapChain {
   VkCommandBuffer render_cmd_buffer_ = nullptr;
   VkRenderPass render_pass_ = nullptr;
   VkSemaphore image_available_semaphore_ = nullptr;
+  VkSemaphore image_usage_semaphore_ = nullptr;
   uint32_t current_buffer_index_ = 0;
   std::vector<Buffer> buffers_;
 };

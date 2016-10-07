@@ -30,6 +30,7 @@ DECLARE_bool(validate_hir);
 DECLARE_uint64(break_on_instruction);
 DECLARE_int32(break_condition_gpr);
 DECLARE_uint64(break_condition_value);
+DECLARE_string(break_condition_op);
 DECLARE_bool(break_condition_truncate);
 
 DECLARE_bool(break_on_debugbreak);

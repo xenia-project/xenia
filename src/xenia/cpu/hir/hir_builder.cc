@@ -1362,6 +1362,13 @@ Value* HIRBuilder::IsFalse(Value* value) {
   return i->dest;
 }
 
+Value* HIRBuilder::IsNan(Value* value) {
+  Instr* i = AppendInstr(OPCODE_IS_NAN_info, 0, AllocValue(INT8_TYPE));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
 Value* HIRBuilder::CompareXX(const OpcodeInfo& opcode, Value* value1,
                              Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
@@ -1654,6 +1661,15 @@ Value* HIRBuilder::RSqrt(Value* value) {
   ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
   Instr* i = AppendInstr(OPCODE_RSQRT_info, 0, AllocValue(value->type));
+  i->set_src1(value);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* HIRBuilder::Recip(Value* value) {
+  ASSERT_FLOAT_OR_VECTOR_TYPE(value);
+
+  Instr* i = AppendInstr(OPCODE_RECIP_info, 0, AllocValue(value->type));
   i->set_src1(value);
   i->src2.value = i->src3.value = NULL;
   return i->dest;

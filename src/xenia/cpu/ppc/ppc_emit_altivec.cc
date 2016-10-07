@@ -1210,8 +1210,7 @@ int InstrEmit_vpermwi128(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_vrefp_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb) {
   // (VD) <- 1/(VB)
-  vec128_t one = vec128f(1.0f);
-  Value* v = f.Div(f.LoadConstantVec128(one), f.LoadVR(vb));
+  Value* v = f.Recip(f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }

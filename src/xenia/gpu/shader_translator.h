@@ -82,8 +82,8 @@ class ShaderTranslator {
   }
 
   // Pre-process a control-flow instruction before anything else.
-  virtual void PreProcessControlFlowInstruction(
-      uint32_t cf_index, const ucode::ControlFlowInstruction& instr) {}
+  virtual void PreProcessControlFlowInstructions(
+      std::vector<ucode::ControlFlowInstruction> instrs) {}
 
   // Handles translation for control flow label addresses.
   // This is triggered once for each label required (due to control flow
@@ -91,7 +91,7 @@ class ShaderTranslator {
   virtual void ProcessLabel(uint32_t cf_index) {}
 
   // Handles translation for control flow nop instructions.
-  virtual void ProcessControlFlowNopInstruction() {}
+  virtual void ProcessControlFlowNopInstruction(uint32_t cf_index) {}
   // Handles the start of a control flow instruction at the given address.
   virtual void ProcessControlFlowInstructionBegin(uint32_t cf_index) {}
   // Handles the end of a control flow instruction that began at the given

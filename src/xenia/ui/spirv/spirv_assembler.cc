@@ -50,7 +50,8 @@ size_t SpirvAssembler::Result::word_count() const {
   return binary_ ? binary_->wordCount : 0;
 }
 
-SpirvAssembler::SpirvAssembler() : spv_context_(spvContextCreate()) {}
+SpirvAssembler::SpirvAssembler()
+    : spv_context_(spvContextCreate(SPV_ENV_VULKAN_1_0)) {}
 
 SpirvAssembler::~SpirvAssembler() { spvContextDestroy(spv_context_); }
 

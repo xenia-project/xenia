@@ -304,6 +304,12 @@ DEFINE_OPCODE(
     0)
 
 DEFINE_OPCODE(
+    OPCODE_IS_NAN,
+    "is_nan",
+    OPCODE_SIG_V_V,
+    0)
+
+DEFINE_OPCODE(
     OPCODE_COMPARE_EQ,
     "compare_eq",
     OPCODE_SIG_V_V_V,
@@ -467,6 +473,12 @@ DEFINE_OPCODE(
 DEFINE_OPCODE(
     OPCODE_RSQRT,
     "rsqrt",
+    OPCODE_SIG_V_V,
+    0)
+
+DEFINE_OPCODE(
+    OPCODE_RECIP,
+    "recip",
     OPCODE_SIG_V_V,
     0)
 

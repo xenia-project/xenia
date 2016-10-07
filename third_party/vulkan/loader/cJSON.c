@@ -343,7 +343,7 @@ static const char *parse_string(cJSON *item, const char *str) {
                     *--ptr2 = ((uc | 0x80) & 0xBF);
                     uc >>= 6;
                 case 1:
-                    *--ptr2 = (uc | firstByteMark[len]);
+                    *--ptr2 = ((unsigned char)uc | firstByteMark[len]);
                 }
                 ptr2 += len;
                 break;
@@ -423,7 +423,6 @@ static char *print_string_ptr(const char *str, printbuffer *p) {
         if ((unsigned char)*ptr > 31 && *ptr != '\"' && *ptr != '\\')
             *ptr2++ = *ptr++;
         else {
-            *ptr2++ = '\\';
             switch (token = *ptr++) {
             case '\\':
                 *ptr2++ = '\\';
@@ -432,19 +431,19 @@ static char *print_string_ptr(const char *str, printbuffer *p) {
                 *ptr2++ = '\"';
                 break;
             case '\b':
-                *ptr2++ = 'b';
+                *ptr2++ = '\b';
                 break;
             case '\f':
-                *ptr2++ = 'f';
+                *ptr2++ = '\f';
                 break;
             case '\n':
-                *ptr2++ = 'n';
+                *ptr2++ = '\n';
                 break;
             case '\r':
-                *ptr2++ = 'r';
+                *ptr2++ = '\r';
                 break;
             case '\t':
-                *ptr2++ = 't';
+                *ptr2++ = '\t';
                 break;
             default:
                 sprintf(ptr2, "u%04x", token);
@@ -521,7 +520,6 @@ char *cJSON_PrintBuffered(cJSON *item, int prebuffer, int fmt) {
     p.length = prebuffer;
     p.offset = 0;
     return print_value(item, 0, fmt, &p);
-    return p.buffer;
 }
 
 /* Parser core - when encountering text, process appropriately. */

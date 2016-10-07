@@ -12,21 +12,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
-
-#if XE_COMPILER_MSVC
-#define XEPACKEDSTRUCT(name, value)                                  \
-  __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
-  typedef struct name##_s name;
-#define XEPACKEDSTRUCTANONYMOUS(value) \
-  __pragma(pack(push, 1)) struct value __pragma(pack(pop));
-#define XEPACKEDUNION(name, value)                                  \
-  __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
-  typedef union name##_s name;
-#else
-#define XEPACKEDSTRUCT(name, value) struct __attribute__((packed)) name value;
-#define XEPACKEDSTRUCTANONYMOUS(value) struct __attribute__((packed)) value;
-#define XEPACKEDUNION(name, value) union __attribute__((packed)) name value;
-#endif  // XE_PLATFORM_WIN32
+#include "xenia/base/platform.h"
 
 namespace xe {
 namespace gpu {
@@ -367,7 +353,7 @@ typedef union {
     uint32_t vs_resource : 1;
     uint32_t ps_resource : 1;
     uint32_t param_gen : 1;
-    uint32_t unknown0 : 1;
+    uint32_t gen_index_pix : 1;
     uint32_t vs_export_count : 4;
     uint32_t vs_export_mode : 3;
     uint32_t ps_export_depth : 1;
@@ -487,6 +473,7 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
   });
 });
 
+// Enum of event values used for VGT_EVENT_INITIATOR
 enum Event {
   SAMPLE_STREAMOUTSTATS1 = (1 << 0),
   SAMPLE_STREAMOUTSTATS2 = (2 << 0),

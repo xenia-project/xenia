@@ -162,6 +162,7 @@ class HIRBuilder {
   Value* Select(Value* cond, Value* value1, Value* value2);
   Value* IsTrue(Value* value);
   Value* IsFalse(Value* value);
+  Value* IsNan(Value* value);
   Value* CompareEQ(Value* value1, Value* value2);
   Value* CompareNE(Value* value1, Value* value2);
   Value* CompareSLT(Value* value1, Value* value2);
@@ -196,6 +197,7 @@ class HIRBuilder {
   Value* Abs(Value* value);
   Value* Sqrt(Value* value);
   Value* RSqrt(Value* value);
+  Value* Recip(Value* value);
   Value* Pow2(Value* value);
   Value* Log2(Value* value);
   Value* DotProduct3(Value* value1, Value* value2);

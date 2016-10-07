@@ -129,7 +129,7 @@ void CommandProcessor::WorkerThreadMain() {
 
     uint32_t write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
-      SCOPE_profile_cpu_i("gpu", "xe::gpu::gl4::CommandProcessor::Stall");
+      SCOPE_profile_cpu_i("gpu", "xe::gpu::CommandProcessor::Stall");
       // We've run out of commands to execute.
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
@@ -223,12 +223,9 @@ bool CommandProcessor::SetupContext() { return true; }
 
 void CommandProcessor::ShutdownContext() { context_.reset(); }
 
-void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t page_count) {
+void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
   primary_buffer_ptr_ = ptr;
-  // Not sure this is correct, but it's a way to take the page_count back to
-  // the number of bytes allocated by the physical alloc.
-  uint32_t original_size = 1 << (0x1C - page_count - 1);
-  primary_buffer_size_ = original_size;
+  primary_buffer_size_ = uint32_t(std::pow(2u, log2_size));
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
@@ -256,6 +253,9 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   }
 
   regs->values[index].u32 = value;
+  if (!regs->GetRegisterInfo(index)) {
+    XELOGW("GPU: Write to unknown register (%.4X = %.8X)", index, value);
+  }
 
   // If this is a COHER register, set the dirty flag.
   // This will block the command processor the next time it WAIT_MEM_REGs and
@@ -1054,6 +1054,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
   IndexBufferInfo index_buffer_info;
   uint32_t src_sel = (dword1 >> 6) & 0x3;
   if (src_sel == 0x0) {
+    // DI_SRC_SEL_DMA
     // Indexed draw.
     is_indexed = true;
     index_buffer_info.guest_base = reader->Read<uint32_t>(true);
@@ -1066,12 +1067,16 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
     index_size *= index_32bit ? 4 : 2;
     index_buffer_info.length = index_size;
     index_buffer_info.count = index_count;
+  } else if (src_sel == 0x1) {
+    // DI_SRC_SEL_IMMEDIATE
+    assert_always();
   } else if (src_sel == 0x2) {
+    // DI_SRC_SEL_AUTO_INDEX
     // Auto draw.
     index_buffer_info.guest_base = 0;
     index_buffer_info.length = 0;
   } else {
-    // Unknown source select.
+    // Invalid source select.
     assert_always();
   }
 
@@ -1280,6 +1285,8 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   // Some sort of ID?
   // This appears to reset a viz query context.
   // This ID matches the ID in conditional draw commands.
+  // Patent says the driver sets the viz_query register with info about the
+  // context ID.
   uint32_t dword0 = reader->Read<uint32_t>(true);
 
   return true;

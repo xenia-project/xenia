@@ -65,7 +65,7 @@ VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
     case DepthRenderTargetFormat::kD24FS8:
       // TODO(benvanik): some way to emulate? resolve-time flag?
       XELOGW("Unsupported EDRAM format kD24FS8 used");
-      return VK_FORMAT_D24_UNORM_S8_UINT;
+      return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
       return VK_FORMAT_UNDEFINED;
   }
@@ -374,7 +374,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   // As we set layout(location=RT) in shaders we must always provide 4.
   VkAttachmentDescription attachments[5];
   for (int i = 0; i < 4; ++i) {
-    attachments[i].flags = 0;
+    attachments[i].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
     attachments[i].format = VK_FORMAT_UNDEFINED;
     attachments[i].samples = sample_count;
     attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -435,8 +435,20 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   render_pass_info.pAttachments = attachments;
   render_pass_info.subpassCount = 1;
   render_pass_info.pSubpasses = &subpass_info;
-  render_pass_info.dependencyCount = 0;
-  render_pass_info.pDependencies = nullptr;
+
+  // Render passes need subpass dependencies between subpasses acting on aliased
+  // attachments.
+  VkSubpassDependency dependencies[1];
+  dependencies[0].srcSubpass = dependencies[0].dstSubpass = 0;
+  dependencies[0].srcStageMask = dependencies[0].dstStageMask =
+      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+  dependencies[0].srcAccessMask = dependencies[0].dstAccessMask =
+      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  dependencies[0].dependencyFlags = 0;
+
+  render_pass_info.dependencyCount = 1;
+  render_pass_info.pDependencies = dependencies;
   auto err = vkCreateRenderPass(device_, &render_pass_info, nullptr, &handle);
   CheckResult(err, "vkCreateRenderPass");
 }
@@ -1114,26 +1126,22 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                        nullptr, 1, &image_barrier);
 
   // If we overflow we'll lose the device here.
-  assert_true(extents.width <= key.tile_width * tile_width);
-  assert_true(extents.height <= key.tile_height * tile_height);
+  // assert_true(extents.width <= key.tile_width * tile_width);
+  // assert_true(extents.height <= key.tile_height * tile_height);
 
   // Now issue the blit to the destination.
   if (tile_view->sample_count == VK_SAMPLE_COUNT_1_BIT) {
     VkImageBlit image_blit;
     image_blit.srcSubresource = {0, 0, 0, 1};
     image_blit.srcSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_blit.srcOffsets[0] = {0, 0, offset.z};
     image_blit.srcOffsets[1] = {int32_t(extents.width), int32_t(extents.height),
                                 int32_t(extents.depth)};
 
     image_blit.dstSubresource = {0, 0, 0, 1};
     image_blit.dstSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_blit.dstOffsets[0] = offset;
     image_blit.dstOffsets[1] = {offset.x + int32_t(extents.width),
                                 offset.y + int32_t(extents.height),
@@ -1144,16 +1152,12 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
     VkImageResolve image_resolve;
     image_resolve.srcSubresource = {0, 0, 0, 1};
     image_resolve.srcSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_resolve.srcOffset = {0, 0, 0};
 
     image_resolve.dstSubresource = {0, 0, 0, 1};
     image_resolve.dstSubresource.aspectMask =
-        color_or_depth
-            ? VK_IMAGE_ASPECT_COLOR_BIT
-            : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
     image_resolve.dstOffset = offset;
 
     image_resolve.extent = extents;

@@ -4,24 +4,17 @@
  * Copyright (c) 2015-2016 LunarG, Inc.
  * Copyright (C) 2015-2016 Google Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and/or associated documentation files (the "Materials"), to
- * deal in the Materials without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Materials, and to permit persons to whom the Materials are
- * furnished to do so, subject to the following conditions:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * The above copyright notice(s) and this permission notice shall be included in
- * all copies or substantial portions of the Materials.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- *
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE
- * USE OR OTHER DEALINGS IN THE MATERIALS.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * Author: Courtney Goeltzenleuchter <courtney@LunarG.com>
  * Author: Jon Ashburn <jon@lunarg.com>
@@ -116,21 +109,21 @@ void debug_report_create_instance(struct loader_instance *ptr_instance,
 bool debug_report_instance_gpa(struct loader_instance *ptr_instance,
                                const char *name, void **addr);
 
-VKAPI_ATTR VkResult VKAPI_CALL loader_CreateDebugReportCallback(
+VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateDebugReportCallback(
     VkInstance instance, const VkDebugReportCallbackCreateInfoEXT *pCreateInfo,
     const VkAllocationCallbacks *pAllocator,
     VkDebugReportCallbackEXT *pCallback);
 
 VKAPI_ATTR void VKAPI_CALL
-loader_DestroyDebugReportCallback(VkInstance instance,
-                                  VkDebugReportCallbackEXT callback,
-                                  const VkAllocationCallbacks *pAllocator);
+terminator_DestroyDebugReportCallback(VkInstance instance,
+                                      VkDebugReportCallbackEXT callback,
+                                      const VkAllocationCallbacks *pAllocator);
 
 VKAPI_ATTR void VKAPI_CALL
-loader_DebugReportMessage(VkInstance instance, VkDebugReportFlagsEXT flags,
-                          VkDebugReportObjectTypeEXT objType, uint64_t object,
-                          size_t location, int32_t msgCode,
-                          const char *pLayerPrefix, const char *pMsg);
+terminator_DebugReportMessage(VkInstance instance, VkDebugReportFlagsEXT flags,
+                              VkDebugReportObjectTypeEXT objType,
+                              uint64_t object, size_t location, int32_t msgCode,
+                              const char *pLayerPrefix, const char *pMsg);
 
 VkResult
 util_CreateDebugReportCallback(struct loader_instance *inst,
@@ -141,6 +134,23 @@ util_CreateDebugReportCallback(struct loader_instance *inst,
 void util_DestroyDebugReportCallback(struct loader_instance *inst,
                                      VkDebugReportCallbackEXT callback,
                                      const VkAllocationCallbacks *pAllocator);
+
+VkResult util_CopyDebugReportCreateInfos(
+    const void *pChain, const VkAllocationCallbacks *pAllocator,
+    uint32_t *num_callbacks, VkDebugReportCallbackCreateInfoEXT **infos,
+    VkDebugReportCallbackEXT **callbacks);
+void util_FreeDebugReportCreateInfos(const VkAllocationCallbacks *pAllocator,
+                                     VkDebugReportCallbackCreateInfoEXT *infos,
+                                     VkDebugReportCallbackEXT *callbacks);
+VkResult util_CreateDebugReportCallbacks(
+    struct loader_instance *inst, const VkAllocationCallbacks *pAllocator,
+    uint32_t num_callbacks, VkDebugReportCallbackCreateInfoEXT *infos,
+    VkDebugReportCallbackEXT *callbacks);
+
+void util_DestroyDebugReportCallbacks(struct loader_instance *inst,
+                                      const VkAllocationCallbacks *pAllocator,
+                                      uint32_t num_callbacks,
+                                      VkDebugReportCallbackEXT *callbacks);
 
 VkBool32 util_DebugReportMessage(const struct loader_instance *inst,
                                  VkFlags msgFlags,

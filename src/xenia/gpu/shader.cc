@@ -54,7 +54,7 @@ std::pair<std::string, std::string> Shader::Dump(const std::string& base_path,
                 "%s/shader_%s_%.16" PRIX64 ".%s", base_path.c_str(),
                 path_prefix, ucode_data_hash_,
                 shader_type_ == ShaderType::kVertex ? "vert" : "frag");
-  FILE* f = fopen(txt_file_name, "w");
+  FILE* f = fopen(txt_file_name, "wb");
   if (f) {
     fwrite(translated_binary_.data(), 1, translated_binary_.size(), f);
     fprintf(f, "\n\n");
@@ -77,7 +77,7 @@ std::pair<std::string, std::string> Shader::Dump(const std::string& base_path,
                 "%s/shader_%s_%.16" PRIX64 ".bin.%s", base_path.c_str(),
                 path_prefix, ucode_data_hash_,
                 shader_type_ == ShaderType::kVertex ? "vert" : "frag");
-  f = fopen(bin_file_name, "w");
+  f = fopen(bin_file_name, "wb");
   if (f) {
     fwrite(ucode_data_.data(), 4, ucode_data_.size(), f);
     fclose(f);

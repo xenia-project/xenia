@@ -65,6 +65,21 @@
 #include <libkern/OSByteOrder.h>
 #endif  // XE_PLATFORM_MAC
 
+#if XE_COMPILER_MSVC
+#define XEPACKEDSTRUCT(name, value)                                  \
+  __pragma(pack(push, 1)) struct name##_s value __pragma(pack(pop)); \
+  typedef struct name##_s name;
+#define XEPACKEDSTRUCTANONYMOUS(value) \
+  __pragma(pack(push, 1)) struct value __pragma(pack(pop));
+#define XEPACKEDUNION(name, value)                                  \
+  __pragma(pack(push, 1)) union name##_s value __pragma(pack(pop)); \
+  typedef union name##_s name;
+#else
+#define XEPACKEDSTRUCT(name, value) struct __attribute__((packed)) name value;
+#define XEPACKEDSTRUCTANONYMOUS(value) struct __attribute__((packed)) value;
+#define XEPACKEDUNION(name, value) union __attribute__((packed)) name value;
+#endif  // XE_PLATFORM_WIN32
+
 namespace xe {
 
 #if XE_PLATFORM_WIN32

@@ -385,6 +385,17 @@ struct X_OBJECT_ATTRIBUTES {
   xe::be<uint32_t> attributes;      // 0xC
 };
 
+// https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082.aspx
+typedef struct {
+  xe::be<uint32_t> exception_code;
+  xe::be<uint32_t> exception_flags;
+  xe::be<uint32_t> exception_record;
+  xe::be<uint32_t> exception_address;
+  xe::be<uint32_t> number_parameters;
+  xe::be<uint32_t> exception_information[15];
+} X_EXCEPTION_RECORD;
+static_assert_size(X_EXCEPTION_RECORD, 0x50);
+
 #pragma pack(pop)
 
 }  // namespace xe

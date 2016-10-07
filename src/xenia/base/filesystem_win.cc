@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/filesystem.h"
+#include "xenia/base/logging.h"
 
 #include <string>
 
@@ -89,6 +90,12 @@ class Win32FileHandle : public FileHandle {
       *out_bytes_read = bytes_read;
       return true;
     } else {
+      if (GetLastError() == ERROR_NOACCESS) {
+        XELOGW(
+            "Win32FileHandle::Read(..., %.8llX, %.8llX, ...) returned "
+            "ERROR_NOACCESS. Read-only memory?",
+            buffer, buffer_length);
+      }
       return false;
     }
   }

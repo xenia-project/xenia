@@ -74,6 +74,7 @@ class GL4CommandProcessor : public CommandProcessor {
     uint32_t width;
     uint32_t height;
     ColorRenderTargetFormat format;
+    GLenum internal_format;
     GLuint texture;
   };
   struct CachedDepthRenderTarget {
@@ -81,6 +82,7 @@ class GL4CommandProcessor : public CommandProcessor {
     uint32_t width;
     uint32_t height;
     DepthRenderTargetFormat format;
+    GLenum internal_format;
     GLuint texture;
   };
   struct CachedPipeline {

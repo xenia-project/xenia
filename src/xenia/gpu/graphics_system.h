@@ -49,7 +49,7 @@ class GraphicsSystem {
     return command_processor_.get();
   }
 
-  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
+  void InitializeRingBuffer(uint32_t ptr, uint32_t log2_size);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
   void SetInterruptCallback(uint32_t callback, uint32_t user_data);

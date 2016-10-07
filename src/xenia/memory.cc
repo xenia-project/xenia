@@ -24,8 +24,7 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-DEFINE_bool(protect_zero, false,
-            "Protect the zero page from reads and writes.");
+DEFINE_bool(protect_zero, true, "Protect the zero page from reads and writes.");
 DEFINE_bool(protect_on_release, false,
             "Protect released memory to prevent accesses.");
 
@@ -172,7 +171,7 @@ bool Memory::Initialize() {
   heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
                               &heaps_.physical);
 
-  // Take the first page at 0 so we can check for writes.
+  // Protect the first 64kb of memory.
   heaps_.v00000000.AllocFixed(
       0x00000000, 64 * 1024, 64 * 1024,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
@@ -551,6 +550,35 @@ void BaseHeap::DumpMap() {
   }
 }
 
+uint32_t BaseHeap::GetTotalPageCount() { return uint32_t(page_table_.size()); }
+
+uint32_t BaseHeap::GetUnreservedPageCount() {
+  auto global_lock = global_critical_region_.Acquire();
+  uint32_t count = 0;
+  bool is_empty_span = false;
+  uint32_t empty_span_start = 0;
+  uint32_t size = uint32_t(page_table_.size());
+  for (uint32_t i = 0; i < size; ++i) {
+    auto& page = page_table_[i];
+    if (!page.state) {
+      if (!is_empty_span) {
+        is_empty_span = true;
+        empty_span_start = i;
+      }
+      continue;
+    }
+    if (is_empty_span) {
+      is_empty_span = false;
+      count += i - empty_span_start;
+    }
+    i += page.region_page_count - 1;
+  }
+  if (is_empty_span) {
+    count += size - empty_span_start;
+  }
+  return count;
+}
+
 bool BaseHeap::Save(ByteStream* stream) {
   XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
 
@@ -751,7 +779,8 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   uint32_t page_scan_stride = alignment / page_size_;
   high_page_number = high_page_number - (high_page_number % page_scan_stride);
   if (top_down) {
-    for (int64_t base_page_number = high_page_number - page_count;
+    for (int64_t base_page_number =
+             high_page_number - xe::round_up(page_count, page_scan_stride);
          base_page_number >= low_page_number;
          base_page_number -= page_scan_stride) {
       if (page_table_[base_page_number].state != 0) {

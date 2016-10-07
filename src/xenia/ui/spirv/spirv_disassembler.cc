@@ -53,7 +53,8 @@ void SpirvDisassembler::Result::AppendText(StringBuffer* target_buffer) const {
   }
 }
 
-SpirvDisassembler::SpirvDisassembler() : spv_context_(spvContextCreate()) {}
+SpirvDisassembler::SpirvDisassembler()
+    : spv_context_(spvContextCreate(SPV_ENV_VULKAN_1_0)) {}
 
 SpirvDisassembler::~SpirvDisassembler() { spvContextDestroy(spv_context_); }
 

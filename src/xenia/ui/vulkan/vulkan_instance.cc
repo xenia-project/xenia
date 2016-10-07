@@ -26,29 +26,35 @@
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
 
+#define VK_API_VERSION VK_API_VERSION_1_0
+
 namespace xe {
 namespace ui {
 namespace vulkan {
 
 VulkanInstance::VulkanInstance() {
   if (FLAGS_vulkan_validation) {
+    DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
+                         Version::Make(0, 0, 0), true);
     // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,
     // 0, 0), true);
-    DeclareRequiredLayer("VK_LAYER_LUNARG_threading", Version::Make(0, 0, 0),
+    /*
+    DeclareRequiredLayer("VK_LAYER_GOOGLE_threading", Version::Make(0, 0, 0),
                          true);
-    // DeclareRequiredLayer("VK_LAYER_LUNARG_mem_tracker", Version::Make(0, 0,
-    // 0), true);
+    DeclareRequiredLayer("VK_LAYER_LUNARG_core_validation",
+                         Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_object_tracker",
                          Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_draw_state", Version::Make(0, 0, 0),
                          true);
-    DeclareRequiredLayer("VK_LAYER_LUNARG_param_checker",
+    DeclareRequiredLayer("VK_LAYER_LUNARG_parameter_validation",
                          Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_swapchain", Version::Make(0, 0, 0),
                          true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_device_limits",
                          Version::Make(0, 0, 0), true);
     DeclareRequiredLayer("VK_LAYER_LUNARG_image", Version::Make(0, 0, 0), true);
+    */
     DeclareRequiredExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
                              Version::Make(0, 0, 0), true);
   }
@@ -59,9 +65,6 @@ VulkanInstance::~VulkanInstance() { DestroyInstance(); }
 bool VulkanInstance::Initialize(Window* any_target_window) {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
-
-  // Hook into renderdoc, if it's available.
-  EnableRenderDoc();
 
   // Get all of the global layers and extensions provided by the system.
   if (!QueryGlobals()) {
@@ -81,6 +84,9 @@ bool VulkanInstance::Initialize(Window* any_target_window) {
     XELOGE("Failed to query devices");
     return false;
   }
+
+  // Hook into renderdoc, if it's available.
+  EnableRenderDoc();
 
   XELOGVK("Instance initialized successfully!");
   return true;

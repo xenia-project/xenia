@@ -154,17 +154,14 @@ void XThread::set_name(const std::string& name) {
 uint8_t next_cpu = 0;
 uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   if (!proc_mask) {
-    next_cpu++;
-    if (next_cpu > 6) {
-      next_cpu = 0;
-    }
-
+    next_cpu = (next_cpu + 1) % 6;
     return next_cpu;  // is this reasonable?
   }
   assert_false(proc_mask & 0xC0);
 
   uint8_t cpu_number = 7 - xe::lzcnt(proc_mask);
   assert_true(1 << cpu_number == proc_mask);
+  assert_true(cpu_number < 6);
   return cpu_number;
 }
 
@@ -462,9 +459,14 @@ X_STATUS XThread::Terminate(int exit_code) {
   emulator()->processor()->OnThreadExit(thread_id_);
 
   running_ = false;
-  Release();
+  if (XThread::IsInThread(this)) {
+    Release();
+    xe::threading::Thread::Exit(exit_code);
+  } else {
+    thread_->Terminate(exit_code);
+    Release();
+  }
 
-  thread_->Terminate(exit_code);
   return X_STATUS_SUCCESS;
 }
 
@@ -702,6 +704,7 @@ uint32_t XThread::active_cpu() const {
 }
 
 void XThread::SetActiveCpu(uint32_t cpu_index) {
+  assert_true(cpu_index < 6);
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   xe::store_and_swap<uint8_t>(pcr + 0x10C, cpu_index);
 }

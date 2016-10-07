@@ -487,6 +487,7 @@ class Value {
   void Abs();
   void Sqrt();
   void RSqrt();
+  void Recip();
   void And(Value* other);
   void Or(Value* other);
   void Xor(Value* other);
@@ -499,12 +500,18 @@ class Value {
   void Splat(Value* other);
   void VectorCompareEQ(Value* other, TypeName type);
   void VectorCompareSGT(Value* other, TypeName type);
+  void VectorCompareSGE(Value* other, TypeName type);
+  void VectorCompareUGT(Value* other, TypeName type);
+  void VectorCompareUGE(Value* other, TypeName type);
   void VectorConvertI2F(Value* other);
   void VectorConvertF2I(Value* other);
   void VectorShl(Value* other, TypeName type);
   void VectorShr(Value* other, TypeName type);
   void VectorRol(Value* other, TypeName type);
+  void VectorAdd(Value* other, TypeName type, bool is_unsigned, bool saturate);
   void VectorSub(Value* other, TypeName type, bool is_unsigned, bool saturate);
+  void DotProduct3(Value* other);
+  void DotProduct4(Value* other);
   void ByteSwap();
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);

@@ -13,6 +13,7 @@
 #include <functional>
 #include <string>
 
+#include "xenia/base/delegate.h"
 #include "xenia/base/exception_handler.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
@@ -105,18 +106,17 @@ class Emulator {
   // Launches a game from the given file path.
   // This will attempt to infer the type of the given file (such as an iso, etc)
   // using heuristics.
-  X_STATUS LaunchPath(std::wstring path, std::function<void()> on_launch);
+  X_STATUS LaunchPath(std::wstring path);
 
   // Launches a game from a .xex file by mounting the containing folder as if it
   // was an extracted STFS container.
-  X_STATUS LaunchXexFile(std::wstring path, std::function<void()> on_launch);
+  X_STATUS LaunchXexFile(std::wstring path);
 
   // Launches a game from a disc image file (.iso, etc).
-  X_STATUS LaunchDiscImage(std::wstring path, std::function<void()> on_launch);
+  X_STATUS LaunchDiscImage(std::wstring path);
 
   // Launches a game from an STFS container file.
-  X_STATUS LaunchStfsContainer(std::wstring path,
-                               std::function<void()> on_launch);
+  X_STATUS LaunchStfsContainer(std::wstring path);
 
   void Pause();
   void Resume();
@@ -125,15 +125,24 @@ class Emulator {
   bool SaveToFile(const std::wstring& path);
   bool RestoreFromFile(const std::wstring& path);
 
+  // The game can request another title to be loaded.
+  bool TitleRequested();
+  void LaunchNextTitle();
+
   void WaitUntilExit();
+
+ public:
+  xe::Delegate<> on_launch;
+  xe::Delegate<> on_exit;
 
  private:
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 
+  std::string FindLaunchModule();
+
   X_STATUS CompleteLaunch(const std::wstring& path,
-                          const std::string& module_path,
-                          std::function<void()> on_launch);
+                          const std::string& module_path);
 
   std::wstring command_line_;
   std::wstring game_title_;
@@ -152,6 +161,7 @@ class Emulator {
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
   threading::Thread* main_thread_ = nullptr;
+  uint32_t title_id_ = 0;  // Currently running title ID
 
   bool paused_ = false;
   bool restoring_ = false;

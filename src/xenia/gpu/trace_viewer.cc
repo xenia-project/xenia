@@ -959,11 +959,42 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
 static const char* kCompareFuncNames[] = {
     "<false>", "<", "==", "<=", ">", "!=", ">=", "<true>",
 };
+static const char* kStencilFuncNames[] = {
+    "Keep",
+    "Zero",
+    "Replace",
+    "Increment and Wrap",
+    "Decrement and Wrap",
+    "Invert",
+    "Increment and Clamp",
+    "Decrement and Clamp",
+};
 static const char* kIndexFormatNames[] = {
     "uint16", "uint32",
 };
 static const char* kEndiannessNames[] = {
     "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
+};
+static const char* kColorFormatNames[] = {
+    /* 0  */ "k_8_8_8_8",
+    /* 1  */ "k_8_8_8_8_GAMMA",
+    /* 2  */ "k_2_10_10_10",
+    /* 3  */ "k_2_10_10_10_FLOAT",
+    /* 4  */ "k_16_16",
+    /* 5  */ "k_16_16_16_16",
+    /* 6  */ "k_16_16_FLOAT",
+    /* 7  */ "k_16_16_16_16_FLOAT",
+    /* 8  */ "unknown(8)",
+    /* 9  */ "unknown(9)",
+    /* 10 */ "k_2_10_10_10_unknown",
+    /* 11 */ "unknown(11)",
+    /* 12 */ "k_2_10_10_10_FLOAT_unknown",
+    /* 13 */ "unknown(13)",
+    /* 14 */ "k_32_FLOAT",
+    /* 15 */ "k_32_32_FLOAT",
+};
+static const char* kDepthFormatNames[] = {
+    "kD24S8", "kD24FS8",
 };
 
 void ProgressBar(float frac, float width, float height = 0,
@@ -1149,14 +1180,14 @@ void TraceViewer::DrawStateUI() {
         ((window_scissor_br >> 16) & 0x7FFF) -
             ((window_scissor_tl >> 16) & 0x7FFF));
     uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-    uint32_t surface_actual = (surface_info >> 18) & 0x3FFF;
+    uint32_t surface_hiz = (surface_info >> 18) & 0x3FFF;
     uint32_t surface_pitch = surface_info & 0x3FFF;
     auto surface_msaa = (surface_info >> 16) & 0x3;
     static const char* kMsaaNames[] = {
         "1X", "2X", "4X",
     };
-    ImGui::BulletText("Surface Pitch - Actual: %d - %d", surface_pitch,
-                      surface_actual);
+    ImGui::BulletText("Surface Pitch: %d", surface_pitch);
+    ImGui::BulletText("Surface HI-Z Pitch: %d", surface_hiz);
     ImGui::BulletText("Surface MSAA: %s", kMsaaNames[surface_msaa]);
     uint32_t vte_control = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
     bool vport_xscale_enable = (vte_control & (1 << 0)) > 0;
@@ -1381,9 +1412,9 @@ void TraceViewer::DrawStateUI() {
         }
         if (ImGui::IsItemHovered()) {
           ImGui::BeginTooltip();
-          ImGui::Text("Color Target %d (%s), base %.4X, pitch %d, format %d", i,
+          ImGui::Text("Color Target %d (%s), base %.4X, pitch %d, format %s", i,
                       write_mask ? "enabled" : "disabled", color_base,
-                      surface_pitch, color_format);
+                      surface_pitch, kColorFormatNames[uint32_t(color_format)]);
 
           if (tex) {
             ImVec2 rel_pos;
@@ -1410,7 +1441,9 @@ void TraceViewer::DrawStateUI() {
     auto rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
     bool uses_depth =
         (rb_depthcontrol & 0x00000002) || (rb_depthcontrol & 0x00000004);
-    uint32_t stencil_write_mask = (rb_stencilrefmask & 0x00FF0000) >> 16;
+    uint32_t stencil_ref = (rb_stencilrefmask & 0xFF);
+    uint32_t stencil_read_mask = (rb_stencilrefmask >> 8) & 0xFF;
+    uint32_t stencil_write_mask = (rb_stencilrefmask >> 16) & 0xFF;
     bool uses_stencil =
         (rb_depthcontrol & 0x00000001) || (stencil_write_mask != 0);
 
@@ -1434,15 +1467,45 @@ void TraceViewer::DrawStateUI() {
       ImGui::BulletText("Depth Write: disabled");
       ImGui::PopStyleColor();
     }
+
     if (rb_depthcontrol & 0x00000001) {
       ImGui::BulletText("Stencil Test: enabled");
+      ImGui::BulletText("Stencil ref: 0x%.2X", stencil_ref);
+      ImGui::BulletText("Stencil read / write masks: 0x%.2X / 0x%.2X",
+                        stencil_read_mask, stencil_write_mask);
+      ImGui::BulletText("Front State:");
+      ImGui::Indent();
+      ImGui::BulletText("Compare Op: %s",
+                        kCompareFuncNames[(rb_depthcontrol >> 8) & 0x7]);
+      ImGui::BulletText("Fail Op: %s",
+                        kStencilFuncNames[(rb_depthcontrol >> 11) & 0x7]);
+      ImGui::BulletText("Pass Op: %s",
+                        kStencilFuncNames[(rb_depthcontrol >> 14) & 0x7]);
+      ImGui::BulletText("Depth Fail Op: %s",
+                        kStencilFuncNames[(rb_depthcontrol >> 17) & 0x7]);
+      ImGui::Unindent();
+
+      // BACKFACE_ENABLE
+      if (!(rb_depthcontrol & 0x80)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
+        ImGui::BulletText("Back State (same as front)");
+        ImGui::PopStyleColor();
+      } else {
+        ImGui::BulletText("Back State:");
+        ImGui::Indent();
+        ImGui::BulletText("Compare Op: %s",
+                          kCompareFuncNames[(rb_depthcontrol >> 20) & 0x7]);
+        ImGui::BulletText("Fail Op: %s",
+                          kStencilFuncNames[(rb_depthcontrol >> 23) & 0x7]);
+        ImGui::BulletText("Pass Op: %s",
+                          kStencilFuncNames[(rb_depthcontrol >> 26) & 0x7]);
+        ImGui::BulletText("Depth Fail Op: %s",
+                          kStencilFuncNames[(rb_depthcontrol >> 29) & 0x7]);
+        ImGui::Unindent();
+      }
     } else {
       ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
       ImGui::BulletText("Stencil Test: disabled");
-    }
-    // TODO(benvanik): stencil stuff.
-    ImGui::BulletText("TODO: stencil stuff");
-    if (!(rb_depthcontrol & 0x00000001)) {
       ImGui::PopStyleColor();
     }
 
@@ -1462,8 +1525,8 @@ void TraceViewer::DrawStateUI() {
       if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
 
-        ImGui::Text("Depth Target: base %.4X, pitch %d, format %d", depth_base,
-                    surface_pitch, depth_format);
+        ImGui::Text("Depth Target: base %.4X, pitch %d, format %s", depth_base,
+                    surface_pitch, kDepthFormatNames[uint32_t(depth_format)]);
 
         ImVec2 rel_pos;
         rel_pos.x = ImGui::GetMousePos().x - button_pos.x;

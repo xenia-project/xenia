@@ -429,8 +429,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Depth-only mode doesn't need a pixel shader (we'll use a fake one).
   if (enable_mode == ModeControl::kDepth) {
     // Use a dummy pixel shader when required.
-    // TODO(benvanik): dummy pixel shader.
-    assert_not_null(pixel_shader);
+    pixel_shader = nullptr;
   } else if (!pixel_shader) {
     // Need a pixel shader in normal color mode.
     return true;
@@ -574,16 +573,17 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   if (!index_buffer_info) {
     // Auto-indexed draw.
     uint32_t instance_count = 1;
-    uint32_t first_vertex = 0;
+    uint32_t first_vertex =
+        register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
     uint32_t first_instance = 0;
     vkCmdDraw(command_buffer, index_count, instance_count, first_vertex,
               first_instance);
   } else {
     // Index buffer draw.
     uint32_t instance_count = 1;
-    uint32_t first_index =
+    uint32_t first_index = 0;
+    uint32_t vertex_offset =
         register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
-    uint32_t vertex_offset = 0;
     uint32_t first_instance = 0;
     vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index,
                      vertex_offset, first_instance);
@@ -599,11 +599,15 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
+  xe::gpu::Shader::ConstantRegisterMap dummy_map;
+  std::memset(&dummy_map, 0, sizeof(dummy_map));
+
   // Upload the constants the shaders require.
   // These are optional, and if none are defined 0 will be returned.
   auto constant_offsets = buffer_cache_->UploadConstantRegisters(
       vertex_shader->constant_register_map(),
-      pixel_shader->constant_register_map(), current_batch_fence_);
+      pixel_shader ? pixel_shader->constant_register_map() : dummy_map,
+      current_batch_fence_);
   if (constant_offsets.first == VK_WHOLE_SIZE ||
       constant_offsets.second == VK_WHOLE_SIZE) {
     // Shader wants constants but we couldn't upload them.
@@ -709,6 +713,8 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
         break;
     }
 
+    assert_true(fetch->type == 0x3);
+
     // TODO(benvanik): compute based on indices or vertex count.
     //     THIS CAN BE MASSIVELY INCORRECT (too large).
     size_t valid_range = size_t(fetch->size * 4);
@@ -748,9 +754,10 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
+  std::vector<xe::gpu::Shader::TextureBinding> dummy_bindings;
   auto descriptor_set = texture_cache_->PrepareTextureSet(
       setup_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
-      pixel_shader->texture_bindings());
+      pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
     return false;
@@ -785,8 +792,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(copy_dest_array == 0);
   uint32_t copy_dest_slice = (copy_dest_info >> 4) & 0x7;
   assert_true(copy_dest_slice == 0);
-  auto copy_dest_format =
-      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F);
+  auto copy_dest_format = ColorFormatToTextureFormat(
+      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F));
   uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
   // assert_true(copy_dest_number == 0); // ?
   uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
@@ -837,7 +844,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     window_offset_y |= 0x8000;
   }
 
-  size_t read_size = GetTexelSize(ColorFormatToTextureFormat(copy_dest_format));
+  size_t read_size = GetTexelSize(copy_dest_format);
 
   // Adjust the copy base offset to point to the beginning of the texture, so
   // we don't run into hiccups down the road (e.g. resolving the last part going
@@ -913,6 +920,9 @@ bool VulkanCommandProcessor::IssueCopy() {
 
     depth_format =
         static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    if (!depth_clear_enabled) {
+      copy_dest_format = TextureFormat::k_24_8;
+    }
   }
 
   // Demand a resolve texture from the texture cache.
@@ -922,8 +932,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.height = dest_logical_height - 1;
   tex_info.dimension = gpu::Dimension::k2D;
   tex_info.input_length = copy_dest_pitch * copy_dest_height * 4;
-  tex_info.format_info =
-      FormatInfo::Get(uint32_t(ColorFormatToTextureFormat(copy_dest_format)));
+  tex_info.format_info = FormatInfo::Get(uint32_t(copy_dest_format));
   tex_info.size_2d.logical_width = dest_logical_width;
   tex_info.size_2d.logical_height = dest_logical_height;
   tex_info.size_2d.block_width = dest_block_width;
@@ -931,8 +940,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.size_2d.input_width = dest_block_width;
   tex_info.size_2d.input_height = dest_block_height;
   tex_info.size_2d.input_pitch = copy_dest_pitch * 4;
-  auto texture = texture_cache_->DemandResolveTexture(
-      tex_info, ColorFormatToTextureFormat(copy_dest_format), nullptr);
+  auto texture =
+      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format, nullptr);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 
@@ -998,6 +1007,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t src_format = copy_src_select <= 3
                             ? static_cast<uint32_t>(color_format)
                             : static_cast<uint32_t>(depth_format);
+  VkFilter filter = copy_src_select <= 3 ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
   switch (copy_command) {
     case CopyCommand::kRaw:
     /*
@@ -1007,11 +1017,11 @@ bool VulkanCommandProcessor::IssueCopy() {
       break;
     */
     case CopyCommand::kConvert:
-      render_cache_->BlitToImage(
-          command_buffer, edram_base, surface_pitch, resolve_extent.height,
-          surface_msaa, texture->image, texture->image_layout,
-          copy_src_select <= 3, src_format, VK_FILTER_LINEAR, resolve_offset,
-          resolve_extent);
+      render_cache_->BlitToImage(command_buffer, edram_base, surface_pitch,
+                                 resolve_extent.height, surface_msaa,
+                                 texture->image, texture->image_layout,
+                                 copy_src_select <= 3, src_format, filter,
+                                 resolve_offset, resolve_extent);
       break;
 
     case CopyCommand::kConstantOne:

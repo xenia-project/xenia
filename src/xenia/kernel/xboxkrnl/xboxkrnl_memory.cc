@@ -31,10 +31,10 @@ uint32_t ToXdkProtectFlags(uint32_t protect) {
     result = X_PAGE_READWRITE;
   }
   if (protect & kMemoryProtectNoCache) {
-    result = X_PAGE_NOCACHE;
+    result |= X_PAGE_NOCACHE;
   }
   if (protect & kMemoryProtectWriteCombine) {
-    result = X_PAGE_WRITECOMBINE;
+    result |= X_PAGE_WRITECOMBINE;
   }
   return result;
 }
@@ -42,10 +42,10 @@ uint32_t ToXdkProtectFlags(uint32_t protect) {
 uint32_t FromXdkProtectFlags(uint32_t protect) {
   uint32_t result = 0;
   if ((protect & X_PAGE_READONLY) | (protect & X_PAGE_EXECUTE_READ)) {
-    result |= kMemoryProtectRead;
+    result = kMemoryProtectRead;
   } else if ((protect & X_PAGE_READWRITE) |
              (protect & X_PAGE_EXECUTE_READWRITE)) {
-    result |= kMemoryProtectRead | kMemoryProtectWrite;
+    result = kMemoryProtectRead | kMemoryProtectWrite;
   }
   if (protect & X_PAGE_NOCACHE) {
     result |= kMemoryProtectNoCache;
@@ -56,29 +56,22 @@ uint32_t FromXdkProtectFlags(uint32_t protect) {
   return result;
 }
 
-SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t base_addr_ptr = SHIM_GET_ARG_32(0);
-  uint32_t base_addr_value = SHIM_MEM_32(base_addr_ptr);
-  uint32_t region_size_ptr = SHIM_GET_ARG_32(1);
-  uint32_t region_size_value = SHIM_MEM_32(region_size_ptr);
-  uint32_t alloc_type = SHIM_GET_ARG_32(2);    // X_MEM_* bitmask
-  uint32_t protect_bits = SHIM_GET_ARG_32(3);  // X_PAGE_* bitmask
-  uint32_t unknown = SHIM_GET_ARG_32(4);
-
-  XELOGD("NtAllocateVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X, %.8X)",
-         base_addr_ptr, base_addr_value, region_size_ptr, region_size_value,
-         alloc_type, protect_bits, unknown);
-
+dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
+                                       lpdword_t region_size_ptr,
+                                       dword_t alloc_type, dword_t protect_bits,
+                                       dword_t debug_memory) {
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
   // _Inout_  PSIZE_T RegionSize,
   // _In_     ULONG AllocationType,
   // _In_     ULONG Protect
-  // ? handle?
+  // _In_     BOOLEAN DebugMemory
 
-  // I've only seen zero.
-  assert_true(unknown == 0);
+  assert_not_null(base_addr_ptr);
+  assert_not_null(region_size_ptr);
+
+  // Set to TRUE when allocation is from devkit memory area.
+  assert_true(debug_memory == 0);
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
@@ -86,19 +79,16 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
   // it's simple today we could extend it to do better things in the future.
 
   // Must request a size.
-  if (!region_size_value) {
-    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
-    return;
+  if (!base_addr_ptr) {
+    return X_STATUS_INVALID_PARAMETER;
   }
   // Check allocation type.
   if (!(alloc_type & (X_MEM_COMMIT | X_MEM_RESET | X_MEM_RESERVE))) {
-    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
-    return;
+    return X_STATUS_INVALID_PARAMETER;
   }
   // If MEM_RESET is set only MEM_RESET can be set.
   if (alloc_type & X_MEM_RESET && (alloc_type & ~X_MEM_RESET)) {
-    SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
-    return;
+    return X_STATUS_INVALID_PARAMETER;
   }
   // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
@@ -111,18 +101,14 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
   if (alloc_type & X_MEM_LARGE_PAGES) {
     page_size = 64 * 1024;
   }
-  if (int32_t(region_size_value) < 0) {
-    // Some games pass in negative sizes.
-    region_size_value = -int32_t(region_size_value);
-  }
-  uint32_t adjusted_size = xe::round_up(region_size_value, page_size);
 
-  // Some games (BF1943) do this, but then if we return an error code it'll
-  // allocate with a smaller page size.
-  if (base_addr_value % page_size != 0) {
-    SHIM_SET_RETURN_32(X_STATUS_MAPPED_ALIGNMENT);
-    return;
-  }
+  // Round the base address down to the nearest page boundary.
+  uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
+  // For some reason, some games pass in negative sizes.
+  uint32_t adjusted_size = int32_t(*region_size_ptr) < 0
+                               ? -int32_t(*region_size_ptr)
+                               : *region_size_ptr;
+  adjusted_size = xe::round_up(adjusted_size, page_size);
 
   // Allocate.
   uint32_t allocation_type = 0;
@@ -138,28 +124,32 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
   }
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   uint32_t address = 0;
-  if (base_addr_value) {
-    auto heap = kernel_state->memory()->LookupHeap(base_addr_value);
-    if (heap->AllocFixed(base_addr_value, adjusted_size, page_size,
+  if (adjusted_base != 0) {
+    auto heap = kernel_memory()->LookupHeap(adjusted_base);
+    if (heap->page_size() != page_size) {
+      // Specified the wrong page size for the wrong heap.
+      return X_STATUS_ACCESS_DENIED;
+    }
+
+    if (heap->AllocFixed(adjusted_base, adjusted_size, page_size,
                          allocation_type, protect)) {
-      address = base_addr_value;
+      address = adjusted_base;
     }
   } else {
     bool top_down = !!(alloc_type & X_MEM_TOP_DOWN);
-    auto heap = kernel_state->memory()->LookupHeapByType(false, page_size);
+    auto heap = kernel_memory()->LookupHeapByType(false, page_size);
     heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down,
                 &address);
   }
   if (!address) {
     // Failed - assume no memory available.
-    SHIM_SET_RETURN_32(X_STATUS_NO_MEMORY);
-    return;
+    return X_STATUS_NO_MEMORY;
   }
 
   // Zero memory, if needed.
   if (address && !(alloc_type & X_MEM_NOZERO)) {
     if (alloc_type & X_MEM_COMMIT) {
-      kernel_state->memory()->Zero(address, adjusted_size);
+      kernel_memory()->Zero(address, adjusted_size);
     }
   }
 
@@ -167,10 +157,12 @@ SHIM_CALL NtAllocateVirtualMemory_shim(PPCContext* ppc_context,
 
   // Stash back.
   // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
-  SHIM_SET_MEM_32(base_addr_ptr, address);
-  SHIM_SET_MEM_32(region_size_ptr, adjusted_size);
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+  *base_addr_ptr = address;
+  *region_size_ptr = adjusted_size;
+  return X_STATUS_SUCCESS;
 }
+DECLARE_XBOXKRNL_EXPORT(NtAllocateVirtualMemory,
+                        ExportTag::kImplemented | ExportTag::kMemory);
 
 SHIM_CALL NtFreeVirtualMemory_shim(PPCContext* ppc_context,
                                    KernelState* kernel_state) {
@@ -180,20 +172,20 @@ SHIM_CALL NtFreeVirtualMemory_shim(PPCContext* ppc_context,
   uint32_t region_size_value = SHIM_MEM_32(region_size_ptr);
   // X_MEM_DECOMMIT | X_MEM_RELEASE
   uint32_t free_type = SHIM_GET_ARG_32(2);
-  uint32_t unknown = SHIM_GET_ARG_32(3);
+  uint32_t debug_memory = SHIM_GET_ARG_32(3);
 
   XELOGD("NtFreeVirtualMemory(%.8X(%.8X), %.8X(%.8X), %.8X, %.8X)",
          base_addr_ptr, base_addr_value, region_size_ptr, region_size_value,
-         free_type, unknown);
+         free_type, debug_memory);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
   // _Inout_  PSIZE_T RegionSize,
   // _In_     ULONG FreeType
-  // ? handle?
+  // _In_     BOOLEAN DebugMemory
 
-  // I've only seen zero.
-  assert_true(unknown == 0);
+  // Set to TRUE when freeing external devkit memory.
+  assert_true(debug_memory == 0);
 
   if (!base_addr_value) {
     SHIM_SET_RETURN_32(X_STATUS_MEMORY_NOT_ALLOCATED);
@@ -270,26 +262,18 @@ SHIM_CALL NtQueryVirtualMemory_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
 
-SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_context,
-                                          KernelState* kernel_state) {
-  uint32_t type = SHIM_GET_ARG_32(0);
-  uint32_t region_size = SHIM_GET_ARG_32(1);
-  uint32_t protect_bits = SHIM_GET_ARG_32(2);
-  uint32_t min_addr_range = SHIM_GET_ARG_32(3);
-  uint32_t max_addr_range = SHIM_GET_ARG_32(4);
-  uint32_t alignment = SHIM_GET_ARG_32(5);
-
-  XELOGD("MmAllocatePhysicalMemoryEx(%d, %.8X, %.8X, %.8X, %.8X, %.8X)", type,
-         region_size, protect_bits, min_addr_range, max_addr_range, alignment);
-
+dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
+                                          dword_t protect_bits,
+                                          dword_t min_addr_range,
+                                          dword_t max_addr_range,
+                                          dword_t alignment) {
   // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
   // by D3D/etc.
 
   // Check protection bits.
   if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
     XELOGE("MmAllocatePhysicalMemoryEx: bad protection bits");
-    SHIM_SET_RETURN_32(0);
-    return;
+    return 0;
   }
 
   // Either may be OR'ed into protect_bits:
@@ -314,27 +298,23 @@ SHIM_CALL MmAllocatePhysicalMemoryEx_shim(PPCContext* ppc_context,
   uint32_t adjusted_size = xe::round_up(region_size, page_size);
   uint32_t adjusted_alignment = xe::round_up(alignment, page_size);
 
-  // Callers can pick an address to allocate with min_addr_range/max_addr_range
-  // and the memory must be allocated there. I haven't seen a game do this,
-  // and instead they all do min=0 / max=-1 to indicate the system should pick.
-  // If we have to suport arbitrary placement things will get nasty.
-
   uint32_t allocation_type = kMemoryAllocationReserve | kMemoryAllocationCommit;
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   bool top_down = true;
-  auto heap = kernel_state->memory()->LookupHeapByType(true, page_size);
+  auto heap = kernel_memory()->LookupHeapByType(true, page_size);
   uint32_t base_address;
   if (!heap->AllocRange(min_addr_range, max_addr_range, adjusted_size,
                         adjusted_alignment, allocation_type, protect, top_down,
                         &base_address)) {
     // Failed - assume no memory available.
-    SHIM_SET_RETURN_32(0);
-    return;
+    return 0;
   }
   XELOGD("MmAllocatePhysicalMemoryEx = %.8X", base_address);
 
-  SHIM_SET_RETURN_32(base_address);
+  return base_address;
 }
+DECLARE_XBOXKRNL_EXPORT(MmAllocatePhysicalMemoryEx,
+                        ExportTag::kImplemented | ExportTag::kMemory);
 
 SHIM_CALL MmFreePhysicalMemory_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
@@ -373,7 +353,8 @@ void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
   auto heap = kernel_memory()->LookupHeap(base_address);
   heap->Protect(base_address.guest_address(), region_size, protect);
 }
-DECLARE_XBOXKRNL_EXPORT(MmSetAddressProtect, ExportTag::kMemory);
+DECLARE_XBOXKRNL_EXPORT(MmSetAddressProtect,
+                        ExportTag::kImplemented | ExportTag::kMemory);
 
 SHIM_CALL MmQueryAllocationSize_shim(PPCContext* ppc_context,
                                      KernelState* kernel_state) {
@@ -444,13 +425,35 @@ SHIM_CALL MmQueryStatistics_shim(PPCContext* ppc_context,
   // this won't work :/
   stats->size = size;
 
-  stats->total_physical_pages = 0x00020000;
+  stats->total_physical_pages = 0x00020000;  // 512mb / 4kb pages
   stats->kernel_pages = 0x00000300;
 
-  stats->title.available_pages = 0x00013300;
-  stats->title.total_virtual_memory_bytes = 0x2FFF0000;
-  stats->title.reserved_virtual_memory_bytes = 0x00160000;
-  stats->title.physical_pages = 0x00001000;
+  // TODO(gibbed): maybe use LookupHeapByType instead?
+  auto heap_a = kernel_memory()->LookupHeap(0xA0000000);
+  auto heap_c = kernel_memory()->LookupHeap(0xC0000000);
+  auto heap_e = kernel_memory()->LookupHeap(0xE0000000);
+
+  assert_not_null(heap_a);
+  assert_not_null(heap_c);
+  assert_not_null(heap_e);
+
+#define GET_USED_PAGE_COUNT(x) \
+  (x->GetTotalPageCount() - x->GetUnreservedPageCount())
+#define GET_USED_PAGE_SIZE(x) ((GET_USED_PAGE_COUNT(x) * x->page_size()) / 4096)
+  uint32_t used_pages = 0;
+  used_pages += GET_USED_PAGE_SIZE(heap_a);
+  used_pages += GET_USED_PAGE_SIZE(heap_c);
+  used_pages += GET_USED_PAGE_SIZE(heap_e);
+#undef GET_USED_PAGE_SIZE
+#undef GET_USED_PAGE_COUNT
+
+  assert_true(used_pages < stats->total_physical_pages);
+
+  stats->title.available_pages = stats->total_physical_pages - used_pages;
+  stats->title.total_virtual_memory_bytes = 0x2FFF0000;  // TODO(gibbed): FIXME
+  stats->title.reserved_virtual_memory_bytes =
+      0x00160000;                            // TODO(gibbed): FIXME
+  stats->title.physical_pages = 0x00001000;  // TODO(gibbed): FIXME
   stats->title.pool_pages = 0x00000010;
   stats->title.stack_pages = 0x00000100;
   stats->title.image_pages = 0x00000100;
@@ -546,6 +549,12 @@ SHIM_CALL ExFreePool_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   kernel_state->memory()->SystemHeapFree(base_address);
 }
 
+dword_result_t KeGetImagePageTableEntry(lpvoid_t address) {
+  // Unknown
+  return 1;
+}
+DECLARE_XBOXKRNL_EXPORT(KeGetImagePageTableEntry, ExportTag::kStub);
+
 SHIM_CALL KeLockL2_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   // Ignored for now. This is just a perf optimization, I think.
   // It may be useful as a hint for CPU-GPU transfer.
@@ -588,11 +597,8 @@ DECLARE_XBOXKRNL_EXPORT(MmDeleteKernelStack, ExportTag::kImplemented);
 
 void RegisterMemoryExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtAllocateVirtualMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtFreeVirtualMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtQueryVirtualMemory, state);
-  // SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemory, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", MmAllocatePhysicalMemoryEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmFreePhysicalMemory, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAddressProtect, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", MmQueryAllocationSize, state);

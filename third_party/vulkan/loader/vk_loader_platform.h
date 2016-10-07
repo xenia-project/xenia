@@ -4,24 +4,17 @@
  * Copyright (c) 2015-2016 Valve Corporation
  * Copyright (c) 2015-2016 LunarG, Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and/or associated documentation files (the "Materials"), to
- * deal in the Materials without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Materials, and to permit persons to whom the Materials are
- * furnished to do so, subject to the following conditions:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * The above copyright notice(s) and this permission notice shall be included in
- * all copies or substantial portions of the Materials.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- *
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE
- * USE OR OTHER DEALINGS IN THE MATERIALS.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * Author: Ian Elliot <ian@lunarg.com>
  * Author: Jon Ashburn <jon@lunarg.com>
@@ -107,13 +100,19 @@
 #define DEFAULT_VK_ELAYERS_INFO                                                \
     LOCAL_ELAYERS_INFO                                                         \
     "/" SYSCONFDIR VULKAN_ELAYERCONF_DIR ":"                                   \
-    "/usr/" DATADIR VULKAN_ELAYERCONF_DIR ":"
+    "/usr/" DATADIR VULKAN_ELAYERCONF_DIR
 #define DEFAULT_VK_ILAYERS_INFO                                                \
     LOCAL_ILAYERS_INFO                                                         \
     "/" SYSCONFDIR VULKAN_ILAYERCONF_DIR ":"                                   \
     "/usr/" DATADIR VULKAN_ILAYERCONF_DIR
 #define DEFAULT_VK_LAYERS_PATH ""
+#if !defined(LAYERS_SOURCE_PATH)
+#define LAYERS_SOURCE_PATH NULL
+#endif
 #define LAYERS_PATH_ENV "VK_LAYER_PATH"
+#define HOME_VK_DRIVERS_INFO "/.local/share" VULKAN_ICDCONF_DIR
+#define HOME_VK_ELAYERS_INFO "/.local/share" VULKAN_ELAYERCONF_DIR
+#define HOME_VK_ILAYERS_INFO "/.local/share" VULKAN_ILAYERCONF_DIR
 
 // C99:
 #define PRINTF_SIZE_T_SPECIFIER "%zu"
@@ -251,12 +250,19 @@ using namespace std;
 #define DEFAULT_VK_REGISTRY_HIVE HKEY_LOCAL_MACHINE
 #define DEFAULT_VK_DRIVERS_INFO "SOFTWARE\\Khronos\\Vulkan\\Drivers"
 // TODO: Are these the correct paths
-#define DEFAULT_VK_DRIVERS_PATH "C:\\Windows\\System32;C:\\Windows\\SysWow64"
+#define DEFAULT_VK_DRIVERS_PATH ""
 #define DEFAULT_VK_ELAYERS_INFO "SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers"
 #define DEFAULT_VK_ILAYERS_INFO "SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers"
-#define DEFAULT_VK_LAYERS_PATH "C:\\Windows\\System32;C:\\Windows\\SysWow64"
+#if !defined(DEFAULT_VK_LAYERS_PATH)
+#define DEFAULT_VK_LAYERS_PATH ""
+#endif
+#if !defined(LAYERS_SOURCE_PATH)
+#define LAYERS_SOURCE_PATH NULL
+#endif
 #define LAYERS_PATH_ENV "VK_LAYER_PATH"
-
+#define HOME_VK_DRIVERS_INFO ""
+#define HOME_VK_ELAYERS_INFO ""
+#define HOME_VK_ILAYERS_INFO ""
 #define PRINTF_SIZE_T_SPECIFIER "%Iu"
 
 // File IO

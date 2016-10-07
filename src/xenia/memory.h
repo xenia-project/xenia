@@ -101,6 +101,9 @@ class BaseHeap {
   // Dumps information about all allocations within the heap to the log.
   void DumpMap();
 
+  uint32_t GetTotalPageCount();
+  uint32_t GetUnreservedPageCount();
+
   // Allocates pages with the given properties and allocation strategy.
   // This can reserve and commit the pages as well as set protection modes.
   // This will fail if not enough contiguous pages can be found.

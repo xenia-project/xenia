@@ -157,21 +157,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
       ContextBarrier();
     }
 
-    if (address == FLAGS_break_on_instruction) {
-      Comment("--break-on-instruction target");
-
-      if (FLAGS_break_condition_gpr < 0) {
-        DebugBreak();
-      } else {
-        auto left = LoadGPR(FLAGS_break_condition_gpr);
-        auto right = LoadConstantUint64(FLAGS_break_condition_value);
-        if (FLAGS_break_condition_truncate) {
-          left = Truncate(left, INT32_TYPE);
-          right = Truncate(right, INT32_TYPE);
-        }
-        TrapTrue(CompareEQ(left, right));
-      }
-    }
+    MaybeBreakOnInstruction(address);
 
     InstrData i;
     i.address = address;
@@ -192,6 +178,52 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
   }
 
   return Finalize();
+}
+
+void PPCHIRBuilder::MaybeBreakOnInstruction(uint32_t address) {
+  if (address != FLAGS_break_on_instruction) {
+    return;
+  }
+
+  Comment("--break-on-instruction target");
+
+  if (FLAGS_break_condition_gpr < 0) {
+    DebugBreak();
+    return;
+  }
+
+  auto left = LoadGPR(FLAGS_break_condition_gpr);
+  auto right = LoadConstantUint64(FLAGS_break_condition_value);
+  if (FLAGS_break_condition_truncate) {
+    left = Truncate(left, INT32_TYPE);
+    right = Truncate(right, INT32_TYPE);
+  }
+
+  auto op = FLAGS_break_condition_op.c_str();
+  // TODO(rick): table?
+  if (strcasecmp(op, "eq") == 0) {
+    TrapTrue(CompareEQ(left, right));
+  } else if (strcasecmp(op, "ne") == 0) {
+    TrapTrue(CompareNE(left, right));
+  } else if (strcasecmp(op, "slt") == 0) {
+    TrapTrue(CompareSLT(left, right));
+  } else if (strcasecmp(op, "sle") == 0) {
+    TrapTrue(CompareSLE(left, right));
+  } else if (strcasecmp(op, "sgt") == 0) {
+    TrapTrue(CompareSGT(left, right));
+  } else if (strcasecmp(op, "sge") == 0) {
+    TrapTrue(CompareSGE(left, right));
+  } else if (strcasecmp(op, "ult") == 0) {
+    TrapTrue(CompareULT(left, right));
+  } else if (strcasecmp(op, "ule") == 0) {
+    TrapTrue(CompareULE(left, right));
+  } else if (strcasecmp(op, "ugt") == 0) {
+    TrapTrue(CompareUGT(left, right));
+  } else if (strcasecmp(op, "uge") == 0) {
+    TrapTrue(CompareUGE(left, right));
+  } else {
+    assert_always();
+  }
 }
 
 void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {

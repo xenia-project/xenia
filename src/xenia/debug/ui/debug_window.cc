@@ -1394,6 +1394,9 @@ void DebugWindow::SelectThreadStackFrame(cpu::ThreadDebugInfo* thread_info,
     state_.thread_stack_frame_index = stack_frame_index;
     state_.has_changed_thread = true;
   }
+  if (state_.thread_info && state_.thread_info->frames.empty()) {
+    return;
+  }
   if (state_.thread_info) {
     auto new_host_pc =
         state_.thread_info->frames[state_.thread_stack_frame_index].host_pc;

@@ -1,7 +1,7 @@
 # Style Guide
 
 The style guide can be summed up as 'clang-format with the Google style set'.
-In addition, the [Google Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml)
+In addition, the [Google Style Guide](https://google.github.io/styleguide/cppguide.html)
 is followed and cpplint is the source of truth. When in doubt, defer to what
 code in the project already does.
 
@@ -10,8 +10,8 @@ Base rules:
 * 80 column line length max
 * LF (Unix-style) line endings
 * 2-space soft tabs, no TABs!
-* [Google Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml) for naming/casing/etc
-* Sort includes according to the [style guide rules](http://google-styleguide.googlecode.com/svn/trunk/cppguide.html#Names_and_Order_of_Includes)
+* [Google Style Guide](https://google.github.io/styleguide/cppguide.html) for naming/casing/etc
+* Sort includes according to the [style guide rules](https://google.github.io/styleguide/cppguide.html#Names_and_Order_of_Includes)
 * Comments are properly punctuated (that means capitalization and periods, etc)
 * TODO's must be attributed like `// TODO(yourgithubname): foo.`
 
@@ -21,7 +21,7 @@ lines.
 
 ### Why?
 
-To quote the [Google Style Guide](http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml):
+To quote the [Google Style Guide](https://google.github.io/styleguide/cppguide.html):
 
 ```
 One way in which we keep the code base manageable is by enforcing consistency.

@@ -368,7 +368,8 @@ bool ShaderTranslator::TranslateBlocks() {
   // This is what freedreno does.
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
   std::set<uint32_t> label_addresses;
-  for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {
+  std::vector<ControlFlowInstruction> cf_instructions;
+  for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
     ControlFlowInstruction cf_a;
     ControlFlowInstruction cf_b;
     UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
@@ -383,11 +384,11 @@ bool ShaderTranslator::TranslateBlocks() {
     AddControlFlowTargetLabel(cf_a, &label_addresses);
     AddControlFlowTargetLabel(cf_b, &label_addresses);
 
-    PreProcessControlFlowInstruction(cf_index, cf_a);
-    ++cf_index;
-    PreProcessControlFlowInstruction(cf_index, cf_b);
-    ++cf_index;
+    cf_instructions.push_back(cf_a);
+    cf_instructions.push_back(cf_b);
   }
+
+  PreProcessControlFlowInstructions(cf_instructions);
 
   // Translate all instructions.
   for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {
@@ -491,7 +492,7 @@ void ShaderTranslator::TranslateControlFlowNop(
     const ControlFlowInstruction& cf) {
   ucode_disasm_buffer_.Append("      cnop\n");
 
-  ProcessControlFlowNopInstruction();
+  ProcessControlFlowNopInstruction(cf_index_);
 }
 
 void ShaderTranslator::TranslateControlFlowExec(
@@ -1065,7 +1066,9 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
     uint32_t b = ((swizzle >> 0) + 0) & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
     out_op->components[1] = GetSwizzleFromComponentIndex(b);
-  } else {
+  } else if (swizzle_component_count == 3) {
+    assert_always();
+  } else if (swizzle_component_count == 4) {
     for (int j = 0; j < swizzle_component_count; ++j, swizzle >>= 2) {
       out_op->components[j] = GetSwizzleFromComponentIndex((swizzle + j) & 0x3);
     }
@@ -1316,8 +1319,8 @@ void ShaderTranslator::ParseAluScalarInstruction(
                                &i.operands[0]);
   } else {
     uint32_t src3_swizzle = op.src_swizzle(3);
-    uint32_t swiz_a = ((src3_swizzle >> 6) - 1) & 0x3;
-    uint32_t swiz_b = (src3_swizzle & 0x3);
+    uint32_t swiz_a = ((src3_swizzle >> 6) + 3) & 0x3;
+    uint32_t swiz_b = ((src3_swizzle >> 0) + 0) & 0x3;
     uint32_t reg2 = (static_cast<int>(op.scalar_opcode()) & 1) |
                     (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1);
     int const_slot = (op.src_is_temp(1) || op.src_is_temp(2)) ? 1 : 0;

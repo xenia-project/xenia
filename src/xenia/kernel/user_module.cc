@@ -107,8 +107,14 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
     module_format_ = kModuleFormatElf;
   } else {
-    XELOGE("Unknown module magic: %.8X", magic);
-    return X_STATUS_NOT_IMPLEMENTED;
+    auto magic16 = xe::load_and_swap<uint16_t>(addr);
+    if (magic16 == 'MZ') {
+      XELOGE("XNA executables are not yet implemented");
+      return X_STATUS_NOT_IMPLEMENTED;
+    } else {
+      XELOGE("Unknown module magic: %.8X", magic);
+      return X_STATUS_NOT_IMPLEMENTED;
+    }
   }
 
   if (module_format_ == kModuleFormatXex) {

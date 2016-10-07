@@ -42,17 +42,30 @@ class Win32Loop : public Loop {
     std::function<void()> fn;
   };
 
+  class PostedFn {
+   public:
+    explicit PostedFn(std::function<void()> fn) : fn_(std::move(fn)) {}
+    void Call() { fn_(); }
+
+   private:
+    std::function<void()> fn_;
+  };
+
   void ThreadMain();
 
   static void TimerQueueCallback(void* context, uint8_t);
 
   std::thread thread_;
   DWORD thread_id_;
+  bool should_exit_ = false;
   xe::threading::Fence quit_fence_;
 
   HANDLE timer_queue_;
   std::mutex pending_timers_mutex_;
   std::list<PendingTimer*> pending_timers_;
+
+  std::mutex posted_functions_mutex_;
+  std::list<PostedFn> posted_functions_;
 };
 
 }  // namespace ui

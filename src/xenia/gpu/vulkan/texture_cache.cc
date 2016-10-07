@@ -25,7 +25,7 @@ namespace vulkan {
 using xe::ui::vulkan::CheckResult;
 
 constexpr uint32_t kMaxTextureSamplers = 32;
-constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
+constexpr VkDeviceSize kStagingBufferSize = 32 * 1024 * 1024;
 
 struct TextureConfig {
   TextureFormat guest_format;
@@ -111,17 +111,18 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       register_file_(register_file),
       trace_writer_(trace_writer),
       device_(device),
-      staging_buffer_(device) {
+      staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      kStagingBufferSize) {
   // Descriptor pool used for all of our cached descriptors.
   VkDescriptorPoolCreateInfo descriptor_pool_info;
   descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   descriptor_pool_info.pNext = nullptr;
   descriptor_pool_info.flags =
       VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-  descriptor_pool_info.maxSets = 8192;
+  descriptor_pool_info.maxSets = 32768;
   VkDescriptorPoolSize pool_sizes[1];
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  pool_sizes[0].descriptorCount = 8192;
+  pool_sizes[0].descriptorCount = 32768;
   descriptor_pool_info.poolSizeCount = 1;
   descriptor_pool_info.pPoolSizes = pool_sizes;
   auto err = vkCreateDescriptorPool(*device_, &descriptor_pool_info, nullptr,
@@ -152,17 +153,22 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                                     nullptr, &texture_descriptor_set_layout_);
   CheckResult(err, "vkCreateDescriptorSetLayout");
 
-  if (!staging_buffer_.Initialize(kStagingBufferSize,
-                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT)) {
+  if (!staging_buffer_.Initialize()) {
     assert_always();
   }
 
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
+
+  device_queue_ = device_->AcquireQueue();
 }
 
 TextureCache::~TextureCache() {
+  if (device_queue_) {
+    device_->ReleaseQueue(device_queue_);
+  }
+
   for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
     vkDestroySampler(*device_, it->second->sampler, nullptr);
     delete it->second;
@@ -204,15 +210,28 @@ TextureCache::Texture* TextureCache::AllocateTexture(
                         ? config.host_format
                         : VK_FORMAT_R8G8B8A8_UNORM;
 
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+  // Check the device limits for the format before we create it.
   VkFormatProperties props;
+  vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
   uint32_t required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
                             VK_FORMAT_FEATURE_BLIT_DST_BIT |
                             VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-  vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
     // assert_always();
   }
+
+  VkImageFormatProperties image_props;
+  vkGetPhysicalDeviceImageFormatProperties(
+      *device_, format, image_info.imageType, image_info.tiling,
+      image_info.usage, image_info.flags, &image_props);
+
+  // TODO(DrChat): Actually check the image properties.
 
   image_info.format = format;
   image_info.extent = {texture_info.width + 1, texture_info.height + 1,
@@ -220,10 +239,6 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
@@ -257,35 +272,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   texture->image_memory = memory;
   texture->memory_offset = 0;
   texture->memory_size = mem_requirements.size;
+  texture->access_watch_handle = 0;
   texture->texture_info = texture_info;
-
-  // Create a default view, just for kicks.
-  VkImageViewCreateInfo view_info;
-  view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  view_info.pNext = nullptr;
-  view_info.flags = 0;
-  view_info.image = image;
-  view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  view_info.format = image_info.format;
-  view_info.components = {
-      VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
-      VK_COMPONENT_SWIZZLE_A,
-  };
-  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  VkImageView view;
-  err = vkCreateImageView(*device_, &view_info, nullptr, &view);
-  CheckResult(err, "vkCreateImageView");
-  if (err == VK_SUCCESS) {
-    auto texture_view = std::make_unique<TextureView>();
-    texture_view->texture = texture;
-    texture_view->view = view;
-    texture_view->swiz_x = 0;
-    texture_view->swiz_y = 1;
-    texture_view->swiz_z = 2;
-    texture_view->swiz_w = 3;
-    texture->views.push_back(std::move(texture_view));
-  }
-
   return texture;
 }
 
@@ -414,11 +402,6 @@ TextureCache::Texture* TextureCache::Demand(
     return nullptr;
   }
 
-  if (texture_info.dimension != Dimension::k2D) {
-    // Abort.
-    return nullptr;
-  }
-
   // Create a new texture and cache it.
   auto texture = AllocateTexture(texture_info);
   if (!texture) {
@@ -433,6 +416,12 @@ TextureCache::Texture* TextureCache::Demand(
       uploaded = UploadTexture2D(command_buffer, completion_fence, texture,
                                  texture_info);
     } break;
+
+    case Dimension::kCube: {
+      uploaded = UploadTextureCube(command_buffer, completion_fence, texture,
+                                   texture_info);
+    } break;
+
     default:
       assert_unhandled_case(texture_info.dimension);
       break;
@@ -463,8 +452,11 @@ TextureCache::Texture* TextureCache::Demand(
   // woods yet. This texture could either be a portion of another texture or
   // vice versa. Copy any overlapping textures into this texture.
   // TODO: Byte count -> pixel count (on x and y axes)
+  /*
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    // TODO(DrChat)
   }
+  */
 
   // Okay. Now that the texture is uploaded from system memory, put a writewatch
   // on it to tell us if it's been modified from the guest.
@@ -535,6 +527,16 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT) {
+    // This applies to any depth/stencil format, but we only use D24S8.
+    view_info.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  }
+
+  if (texture->texture_info.dimension == Dimension::kCube) {
+    view_info.subresourceRange.layerCount = 6;
+  }
+
   VkImageView view;
   auto status = vkCreateImageView(*device_, &view_info, nullptr, &view);
   CheckResult(status, "vkCreateImageView");
@@ -768,44 +770,55 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
   }
 }
 
-bool TextureCache::UploadTexture2D(
+void TextureCache::FlushPendingCommands(
     VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
-    TextureInfo src) {
-#if FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+    std::shared_ptr<ui::vulkan::Fence> completion_fence) {
+  auto status = vkEndCommandBuffer(command_buffer);
+  CheckResult(status, "vkEndCommandBuffer");
 
-  assert_true(src.dimension == Dimension::k2D);
+  VkSubmitInfo submit_info;
+  std::memset(&submit_info, 0, sizeof(submit_info));
+  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submit_info.commandBufferCount = 1;
+  submit_info.pCommandBuffers = &command_buffer;
 
-  if (!staging_buffer_.CanAcquire(src.input_length)) {
-    // Need to have unique memory for every upload for at least one frame. If we
-    // run out of memory, we need to flush all queued upload commands to the
-    // GPU.
-    // TODO: Actually flush commands.
-    assert_always();
+  if (device_queue_) {
+    auto status =
+        vkQueueSubmit(device_queue_, 1, &submit_info, *completion_fence);
+    CheckResult(status, "vkQueueSubmit");
+  } else {
+    std::lock_guard<std::mutex>(device_->primary_queue_mutex());
+
+    auto status = vkQueueSubmit(device_->primary_queue(), 1, &submit_info,
+                                *completion_fence);
+    CheckResult(status, "vkQueueSubmit");
   }
 
-  // Grab some temporary memory for staging.
-  size_t unpack_length = src.output_length;
-  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
-  assert_not_null(alloc);
+  VkFence fences[] = {*completion_fence};
+  vkWaitForFences(*device_, 1, fences, VK_TRUE, -1);
+  staging_buffer_.Scavenge();
+  vkResetFences(*device_, 1, fences);
 
-  // Upload texture into GPU memory.
-  // TODO: If the GPU supports it, we can submit a compute batch to convert the
-  // texture and copy it to its destination. Otherwise, fallback to conversion
-  // on the CPU.
+  // Reset the command buffer and put it back into the recording state.
+  vkResetCommandBuffer(command_buffer, 0);
+  VkCommandBufferBeginInfo begin_info;
+  std::memset(&begin_info, 0, sizeof(begin_info));
+  begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  vkBeginCommandBuffer(command_buffer, &begin_info);
+}
+
+void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
   if (!src.is_tiled) {
     if (src.size_2d.input_pitch == src.size_2d.output_pitch) {
       // Fast path copy entire image.
-      TextureSwap(src.endianness, alloc->host_ptr, host_address, unpack_length);
+      TextureSwap(src.endianness, dest, host_address, src.output_length);
     } else {
       // Slow path copy row-by-row because strides differ.
       // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
       // this exact thing under the covers, so we just always do it here.
       const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr);
       uint32_t pitch =
           std::min(src.size_2d.input_pitch, src.size_2d.output_pitch);
       for (uint32_t y = 0;
@@ -822,7 +835,6 @@ bool TextureCache::UploadTexture2D(
 
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr);
     uint32_t bytes_per_block = src.format_info->block_width *
                                src.format_info->block_height *
                                src.format_info->bits_per_pixel / 8;
@@ -850,7 +862,103 @@ bool TextureCache::UploadTexture2D(
       }
     }
   }
+}
 
+void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
+  void* host_address = memory_->TranslatePhysical(src.guest_address);
+  if (!src.is_tiled) {
+    if (src.size_cube.input_pitch == src.size_cube.output_pitch) {
+      // Fast path copy entire image.
+      TextureSwap(src.endianness, dest, host_address, src.output_length);
+    } else {
+      // Slow path copy row-by-row because strides differ.
+      // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
+      // this exact thing under the covers, so we just always do it here.
+      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+      for (int face = 0; face < 6; ++face) {
+        uint32_t pitch =
+            std::min(src.size_cube.input_pitch, src.size_cube.output_pitch);
+        for (uint32_t y = 0; y < src.size_cube.block_height; y++) {
+          TextureSwap(src.endianness, dest, src_mem, pitch);
+          src_mem += src.size_cube.input_pitch;
+          dest += src.size_cube.output_pitch;
+        }
+      }
+    }
+  } else {
+    // TODO(benvanik): optimize this inner loop (or work by tiles).
+    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+    uint32_t bytes_per_block = src.format_info->block_width *
+                               src.format_info->block_height *
+                               src.format_info->bits_per_pixel / 8;
+    // Tiled textures can be packed; get the offset into the packed texture.
+    uint32_t offset_x;
+    uint32_t offset_y;
+    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+    auto bpp = (bytes_per_block >> 2) +
+               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+    for (int face = 0; face < 6; ++face) {
+      for (uint32_t y = 0, output_base_offset = 0;
+           y < src.size_cube.block_height;
+           y++, output_base_offset += src.size_cube.output_pitch) {
+        auto input_base_offset = TextureInfo::TiledOffset2DOuter(
+            offset_y + y,
+            (src.size_cube.input_width / src.format_info->block_width), bpp);
+        for (uint32_t x = 0, output_offset = output_base_offset;
+             x < src.size_cube.block_width;
+             x++, output_offset += bytes_per_block) {
+          auto input_offset =
+              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
+                                              input_base_offset) >>
+              bpp;
+          TextureSwap(src.endianness, dest + output_offset,
+                      src_mem + input_offset * bytes_per_block,
+                      bytes_per_block);
+        }
+      }
+      src_mem += src.size_cube.input_face_length;
+      dest += src.size_cube.output_face_length;
+    }
+  }
+}
+
+bool TextureCache::UploadTexture2D(
+    VkCommandBuffer command_buffer,
+    std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
+    const TextureInfo& src) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
+  assert_true(src.dimension == Dimension::k2D);
+
+  size_t unpack_length = src.output_length;
+  if (!staging_buffer_.CanAcquire(unpack_length)) {
+    // Need to have unique memory for every upload for at least one frame. If we
+    // run out of memory, we need to flush all queued upload commands to the
+    // GPU.
+    FlushPendingCommands(command_buffer, completion_fence);
+
+    // Uploads have been flushed. Continue.
+    if (!staging_buffer_.CanAcquire(unpack_length)) {
+      // The staging buffer isn't big enough to hold this texture.
+      XELOGE(
+          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
+          unpack_length);
+      assert_always();
+      return false;
+    }
+  }
+
+  // Grab some temporary memory for staging.
+  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
+  assert_not_null(alloc);
+
+  // Upload texture into GPU memory.
+  // TODO: If the GPU supports it, we can submit a compute batch to convert the
+  // texture and copy it to its destination. Otherwise, fallback to conversion
+  // on the CPU.
+  ConvertTexture2D(reinterpret_cast<uint8_t*>(alloc->host_ptr), src);
   staging_buffer_.Flush(alloc);
 
   // Transition the texture into a transfer destination layout.
@@ -879,6 +987,84 @@ bool TextureCache::UploadTexture2D(
   copy_region.imageOffset = {0, 0, 0};
   copy_region.imageExtent = {src.size_2d.output_width,
                              src.size_2d.output_height, 1};
+  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
+                         dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                         &copy_region);
+
+  // Now transition the texture into a shader readonly source.
+  barrier.srcAccessMask = barrier.dstAccessMask;
+  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  barrier.oldLayout = barrier.newLayout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  dest->image_layout = barrier.newLayout;
+  return true;
+}
+
+bool TextureCache::UploadTextureCube(
+    VkCommandBuffer command_buffer,
+    std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
+    const TextureInfo& src) {
+  assert_true(src.dimension == Dimension::kCube);
+
+  size_t unpack_length = src.output_length;
+  if (!staging_buffer_.CanAcquire(unpack_length)) {
+    // Need to have unique memory for every upload for at least one frame. If we
+    // run out of memory, we need to flush all queued upload commands to the
+    // GPU.
+    FlushPendingCommands(command_buffer, completion_fence);
+
+    // Uploads have been flushed. Continue.
+    if (!staging_buffer_.CanAcquire(unpack_length)) {
+      // The staging buffer isn't big enough to hold this texture.
+      XELOGE(
+          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
+          unpack_length);
+      assert_always();
+      return false;
+    }
+  }
+
+  // Grab some temporary memory for staging.
+  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
+  assert_not_null(alloc);
+
+  // Upload texture into GPU memory.
+  // TODO: If the GPU supports it, we can submit a compute batch to convert the
+  // texture and copy it to its destination. Otherwise, fallback to conversion
+  // on the CPU.
+  ConvertTextureCube(reinterpret_cast<uint8_t*>(alloc->host_ptr), src);
+  staging_buffer_.Flush(alloc);
+
+  // Transition the texture into a transfer destination layout.
+  VkImageMemoryBarrier barrier;
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.pNext = nullptr;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask =
+      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
+  barrier.oldLayout = dest->image_layout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = dest->image;
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  // Now move the converted texture into the destination.
+  VkBufferImageCopy copy_region;
+  copy_region.bufferOffset = alloc->offset;
+  copy_region.bufferRowLength = src.size_cube.output_width;
+  copy_region.bufferImageHeight = src.size_cube.output_height;
+  copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  copy_region.imageOffset = {0, 0, 0};
+  copy_region.imageExtent = {src.size_cube.output_width,
+                             src.size_cube.output_height, 6};
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                          &copy_region);
@@ -939,74 +1125,14 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     return nullptr;
   }
 
-  // Write all updated descriptors.
-  // TODO(benvanik): optimize? split into multiple sets? set per type?
-  // First: Reorganize and pool image update infos.
-  struct DescriptorInfo {
-    Dimension dimension;
-    uint32_t tf_binding_base;
-    std::vector<VkDescriptorImageInfo> infos;
-  };
-
-  std::vector<DescriptorInfo> descriptor_update_infos;
   for (uint32_t i = 0; i < update_set_info->image_write_count; i++) {
-    auto& image_info = update_set_info->image_infos[i];
-    if (descriptor_update_infos.size() > 0) {
-      // Check last write to see if we can pool more into it.
-      DescriptorInfo& last_write =
-          descriptor_update_infos[descriptor_update_infos.size() - 1];
-      if (last_write.dimension == image_info.dimension &&
-          last_write.tf_binding_base + last_write.infos.size() ==
-              image_info.tf_binding) {
-        // Compatible! Pool into it.
-        last_write.infos.push_back(image_info.info);
-        continue;
-      }
-    }
-
-    // Push a new descriptor write entry.
-    DescriptorInfo desc_info;
-    desc_info.dimension = image_info.dimension;
-    desc_info.tf_binding_base = image_info.tf_binding;
-    desc_info.infos.push_back(image_info.info);
-    descriptor_update_infos.push_back(desc_info);
+    update_set_info->image_writes[i].dstSet = descriptor_set;
   }
 
-  // Finalize the writes so they're consumable by Vulkan.
-  std::vector<VkWriteDescriptorSet> descriptor_writes;
-  descriptor_writes.resize(descriptor_update_infos.size());
-  for (size_t i = 0; i < descriptor_update_infos.size(); i++) {
-    auto& update_info = descriptor_update_infos[i];
-    auto& write_info = descriptor_writes[i];
-    std::memset(&write_info, 0, sizeof(VkWriteDescriptorSet));
-
-    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_info.dstSet = descriptor_set;
-
-    switch (update_info.dimension) {
-      case Dimension::k1D:
-        write_info.dstBinding = 0;
-        break;
-      case Dimension::k2D:
-        write_info.dstBinding = 1;
-        break;
-      case Dimension::k3D:
-        write_info.dstBinding = 2;
-        break;
-      case Dimension::kCube:
-        write_info.dstBinding = 3;
-        break;
-    }
-
-    write_info.dstArrayElement = update_info.tf_binding_base;
-    write_info.descriptorCount = uint32_t(update_info.infos.size());
-    write_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write_info.pImageInfo = update_info.infos.data();
-  }
-
-  if (descriptor_writes.size() > 0) {
-    vkUpdateDescriptorSets(*device_, uint32_t(descriptor_writes.size()),
-                           descriptor_writes.data(), 0, nullptr);
+  // Update the descriptor set.
+  if (update_set_info->image_write_count > 0) {
+    vkUpdateDescriptorSets(*device_, update_set_info->image_write_count,
+                           update_set_info->image_writes, 0, nullptr);
   }
 
   in_flight_sets_.push_back({descriptor_set, completion_fence});
@@ -1077,13 +1203,37 @@ bool TextureCache::SetupTextureBinding(
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
+  auto image_info =
+      &update_set_info->image_infos[update_set_info->image_write_count];
   auto image_write =
-      &update_set_info->image_infos[update_set_info->image_write_count++];
-  image_write->dimension = texture_info.dimension;
-  image_write->tf_binding = binding.fetch_constant;
-  image_write->info.imageView = view->view;
-  image_write->info.imageLayout = texture->image_layout;
-  image_write->info.sampler = sampler->sampler;
+      &update_set_info->image_writes[update_set_info->image_write_count];
+  update_set_info->image_write_count++;
+
+  image_write->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+  switch (texture_info.dimension) {
+    case Dimension::k1D:
+      image_write->dstBinding = 0;
+      break;
+    case Dimension::k2D:
+      image_write->dstBinding = 1;
+      break;
+    case Dimension::k3D:
+      image_write->dstBinding = 2;
+      break;
+    case Dimension::kCube:
+      image_write->dstBinding = 3;
+      break;
+  }
+
+  image_write->dstArrayElement = binding.fetch_constant;
+  image_write->descriptorCount = 1;
+  image_write->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  image_write->pImageInfo = image_info;
+
+  image_info->imageView = view->view;
+  image_info->imageLayout = texture->image_layout;
+  image_info->sampler = sampler->sampler;
   texture->in_flight_fence = completion_fence;
 
   return true;

@@ -24,6 +24,7 @@ class GlslShaderTranslator : public ShaderTranslator {
  public:
   enum class Dialect {
     kGL45,
+    kVulkan,
   };
 
   GlslShaderTranslator(Dialect dialect);
@@ -39,7 +40,7 @@ class GlslShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
 
   void ProcessLabel(uint32_t cf_index) override;
-  void ProcessControlFlowNopInstruction() override;
+  void ProcessControlFlowNopInstruction(uint32_t cf_index) override;
   void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
   void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;

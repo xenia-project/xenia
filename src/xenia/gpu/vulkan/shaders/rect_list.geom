@@ -7,13 +7,13 @@
 in gl_PerVertex {
   vec4 gl_Position;
   float gl_PointSize;
-  float gl_ClipDistance[];
+  // float gl_ClipDistance[];
 } gl_in[];
 
 out gl_PerVertex {
   vec4 gl_Position;
   float gl_PointSize;
-  float gl_ClipDistance[];
+  // float gl_ClipDistance[];
 };
 
 layout(location = 0) in vec4 in_interpolators[][16];

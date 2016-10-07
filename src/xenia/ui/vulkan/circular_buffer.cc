@@ -19,13 +19,10 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-CircularBuffer::CircularBuffer(VulkanDevice* device) : device_(device) {}
-CircularBuffer::~CircularBuffer() { Shutdown(); }
-
-bool CircularBuffer::Initialize(VkDeviceSize capacity, VkBufferUsageFlags usage,
-                                VkDeviceSize alignment) {
+CircularBuffer::CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
+                               VkDeviceSize capacity, VkDeviceSize alignment)
+    : device_(device), capacity_(capacity) {
   VkResult status = VK_SUCCESS;
-  capacity = xe::round_up(capacity, alignment);
 
   // Create our internal buffer.
   VkBufferCreateInfo buffer_info;
@@ -40,15 +37,52 @@ bool CircularBuffer::Initialize(VkDeviceSize capacity, VkBufferUsageFlags usage,
   status = vkCreateBuffer(*device_, &buffer_info, nullptr, &gpu_buffer_);
   CheckResult(status, "vkCreateBuffer");
   if (status != VK_SUCCESS) {
+    assert_always();
+  }
+
+  VkMemoryRequirements reqs;
+  vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
+  alignment_ = reqs.alignment;
+}
+CircularBuffer::~CircularBuffer() { Shutdown(); }
+
+bool CircularBuffer::Initialize(VkDeviceMemory memory, VkDeviceSize offset) {
+  assert_true(offset % alignment_ == 0);
+  gpu_memory_ = memory;
+  gpu_base_ = offset;
+
+  VkResult status = VK_SUCCESS;
+
+  // Bind the buffer to its backing memory.
+  status = vkBindBufferMemory(*device_, gpu_buffer_, gpu_memory_, gpu_base_);
+  CheckResult(status, "vkBindBufferMemory");
+  if (status != VK_SUCCESS) {
+    XELOGE("CircularBuffer::Initialize - Failed to bind memory!");
+    Shutdown();
     return false;
   }
+
+  // Map the memory so we can access it.
+  status = vkMapMemory(*device_, gpu_memory_, gpu_base_, capacity_, 0,
+                       reinterpret_cast<void**>(&host_base_));
+  CheckResult(status, "vkMapMemory");
+  if (status != VK_SUCCESS) {
+    XELOGE("CircularBuffer::Initialize - Failed to map memory!");
+    Shutdown();
+    return false;
+  }
+
+  return true;
+}
+
+bool CircularBuffer::Initialize() {
+  VkResult status = VK_SUCCESS;
 
   VkMemoryRequirements reqs;
   vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
 
   // Allocate memory from the device to back the buffer.
-  assert_true(reqs.size == capacity);
-  reqs.alignment = std::max(alignment, reqs.alignment);
+  owns_gpu_memory_ = true;
   gpu_memory_ = device_->AllocateMemory(reqs);
   if (!gpu_memory_) {
     XELOGE("CircularBuffer::Initialize - Failed to allocate memory!");
@@ -56,7 +90,6 @@ bool CircularBuffer::Initialize(VkDeviceSize capacity, VkBufferUsageFlags usage,
     return false;
   }
 
-  alignment_ = reqs.alignment;
   capacity_ = reqs.size;
   gpu_base_ = 0;
 
@@ -92,10 +125,14 @@ void CircularBuffer::Shutdown() {
     vkDestroyBuffer(*device_, gpu_buffer_, nullptr);
     gpu_buffer_ = nullptr;
   }
-  if (gpu_memory_) {
+  if (gpu_memory_ && owns_gpu_memory_) {
     vkFreeMemory(*device_, gpu_memory_, nullptr);
     gpu_memory_ = nullptr;
   }
+}
+
+void CircularBuffer::GetBufferMemoryRequirements(VkMemoryRequirements* reqs) {
+  vkGetBufferMemoryRequirements(*device_, gpu_buffer_, reqs);
 }
 
 bool CircularBuffer::CanAcquire(VkDeviceSize length) {
@@ -166,7 +203,8 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(
 
       return alloc;
     } else if ((read_head_ - 0) >= aligned_length) {
-      // Free space from begin -> read
+      // Not enough space from write -> capacity, but there is enough free space
+      // from begin -> read
       auto alloc = new Allocation();
       alloc->host_ptr = host_base_ + 0;
       alloc->gpu_memory = gpu_memory_;
@@ -219,6 +257,11 @@ void CircularBuffer::Scavenge() {
 
     delete *it;
     it = allocations_.erase(it);
+  }
+
+  if (allocations_.empty()) {
+    // Reset R/W heads to work around fragmentation issues.
+    read_head_ = write_head_ = 0;
   }
 }
 

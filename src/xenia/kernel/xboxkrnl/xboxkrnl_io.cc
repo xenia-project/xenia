@@ -194,6 +194,14 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous()) {
+      // some games NtReadFile() directly into texture memory
+      // TODO(rick): better checking of physical address
+      if (buffer.guest_address() >= 0xA0000000) {
+        auto heap = kernel_memory()->LookupHeap(buffer.guest_address());
+        cpu::MMIOHandler::global_handler()->InvalidateRange(
+            heap->GetPhysicalAddress(buffer.guest_address()), buffer_length);
+      }
+
       // Synchronous.
       size_t bytes_read = 0;
       result = file->Read(
@@ -255,7 +263,8 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtReadFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT(NtReadFile,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
                            function_t apc_routine, lpvoid_t apc_context,
@@ -359,8 +368,8 @@ dword_result_t NtRemoveIoCompletion(
   }
 
   uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout) : 0u;
-  if (port->WaitForNotification(timeout_ticks)) {
-    auto notification = port->DequeueNotification();
+  XIOCompletion::IONotification notification;
+  if (port->WaitForNotification(timeout_ticks, &notification)) {
     if (key_context) {
       *key_context = notification.key_context;
     }
@@ -448,7 +457,8 @@ dword_result_t NtSetInformationFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtSetInformationFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT(NtSetInformationFile,
+                        ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 struct X_IO_STATUS_BLOCK {
   union {

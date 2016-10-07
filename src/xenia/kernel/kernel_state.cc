@@ -608,7 +608,11 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
 
 void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr,
                                               X_RESULT result) {
-  CompleteOverlappedImmediateEx(overlapped_ptr, result, result, 0);
+  // TODO(gibbed): there are games that check 'length' of overlapped as
+  // an indication of success. WTF?
+  // Setting length to -1 when not success seems to be helping.
+  uint32_t length = !result ? 0 : 0xFFFFFFFF;
+  CompleteOverlappedImmediateEx(overlapped_ptr, result, result, length);
 }
 
 void KernelState::CompleteOverlappedImmediateEx(uint32_t overlapped_ptr,

@@ -328,7 +328,19 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
 
           // character
           case 'c': {
-            bool is_wide = ((flags & (FF_IsLong | FF_IsWide)) != 0) ^ wide;
+            bool is_wide;
+            if (flags & FF_IsLong) {
+              // "An lc, lC, wc or wC type specifier is synonymous with C in
+              // printf functions and with c in wprintf functions."
+              is_wide = true;
+            } else if (flags & FF_IsShort) {
+              // "An hc or hC type specifier is synonymous with c in printf
+              // functions and with C in wprintf functions."
+              is_wide = false;
+            } else {
+              is_wide = ((flags & FF_IsWide) != 0) ^ wide;
+            }
+
             auto value = args.get32();
 
             if (!is_wide) {
@@ -531,7 +543,18 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
               text.is_wide = false;
             } else {
               void* str = SHIM_MEM_ADDR(pointer);
-              bool is_wide = ((flags & (FF_IsLong | FF_IsWide)) != 0) ^ wide;
+              bool is_wide;
+              if (flags & FF_IsLong) {
+                // "An ls, lS, ws or wS type specifier is synonymous with S in
+                // printf functions and with s in wprintf functions."
+                is_wide = true;
+              } else if (flags & FF_IsShort) {
+                // "An hs or hS type specifier is synonymous with s in printf
+                // functions and with S in wprintf functions."
+                is_wide = false;
+              } else {
+                is_wide = ((flags & (FF_IsWide)) != 0) ^ wide;
+              }
               int32_t length;
 
               if (!is_wide) {
