@@ -62,8 +62,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   void PrepareForWait() override;
   void ReturnFromWait() override;
 
-  void CreateSwapImages(VkCommandBuffer setup_buffer, VkExtent2D extents);
-  void DestroySwapImages();
+  void WriteRegister(uint32_t index, uint32_t value) override;
+
+  void CreateSwapImage(VkCommandBuffer setup_buffer, VkExtent2D extents);
+  void DestroySwapImage();
 
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                    uint32_t frontbuffer_height) override;
@@ -90,8 +92,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // front buffer / back buffer memory
-  VkDeviceMemory fb_memory = nullptr;
-  VkDeviceMemory bb_memory = nullptr;
+  VkDeviceMemory fb_memory_ = nullptr;
+
+  uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
+  uint8_t dirty_bool_constants_ = 0;
+  uint32_t dirty_loop_constants_ = 0;
+
+  uint32_t coher_base_vc_ = 0;
+  uint32_t coher_size_vc_ = 0;
 
   // TODO(benvanik): abstract behind context?
   // Queue used to submit work. This may be a dedicated queue for the command
@@ -103,8 +111,10 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   // Last copy base address, for debugging only.
   uint32_t last_copy_base_ = 0;
+
   bool capturing_ = false;
   bool trace_requested_ = false;
+  bool cache_clear_requested_ = false;
 
   std::unique_ptr<BufferCache> buffer_cache_;
   std::unique_ptr<PipelineCache> pipeline_cache_;

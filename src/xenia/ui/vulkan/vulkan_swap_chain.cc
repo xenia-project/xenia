@@ -338,6 +338,10 @@ bool VulkanSwapChain::Reinitialize() {
   return Initialize(surface);
 }
 
+void VulkanSwapChain::WaitAndSignalSemaphore(VkSemaphore sem) {
+  wait_and_signal_semaphores_.push_back(sem);
+}
+
 void VulkanSwapChain::Shutdown() {
   // TODO(benvanik): properly wait for a clean state.
   for (auto& buffer : buffers_) {
@@ -372,6 +376,8 @@ void VulkanSwapChain::Shutdown() {
 }
 
 bool VulkanSwapChain::Begin() {
+  wait_and_signal_semaphores_.clear();
+
   // Get the index of the next available swapchain image.
   auto err =
       vkAcquireNextImageKHR(*device_, handle, 0, image_available_semaphore_,
@@ -521,28 +527,34 @@ bool VulkanSwapChain::End() {
 
   VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
+  std::vector<VkSemaphore> semaphores;
+  for (size_t i = 0; i < wait_and_signal_semaphores_.size(); i++) {
+    semaphores.push_back(wait_and_signal_semaphores_[i]);
+  }
+  semaphores.push_back(image_usage_semaphore_);
+
   // Submit copy commands.
+  // Wait on the image usage semaphore (signaled when an image is available)
   VkSubmitInfo render_submit_info;
   render_submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   render_submit_info.pNext = nullptr;
-  render_submit_info.waitSemaphoreCount = 1;
-  render_submit_info.pWaitSemaphores = &image_usage_semaphore_;
+  render_submit_info.waitSemaphoreCount = uint32_t(semaphores.size());
+  render_submit_info.pWaitSemaphores = semaphores.data();
   render_submit_info.pWaitDstStageMask = &wait_dst_stage;
   render_submit_info.commandBufferCount = 1;
   render_submit_info.pCommandBuffers = &copy_cmd_buffer_;
-  render_submit_info.signalSemaphoreCount = 1;
-  render_submit_info.pSignalSemaphores = &image_usage_semaphore_;
+  render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size());
+  render_submit_info.pSignalSemaphores = semaphores.data();
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
     err = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,
                         nullptr);
   }
 
-  // Submit render commands.
+  // Submit render commands, and don't signal the usage semaphore.
   render_submit_info.commandBufferCount = 1;
   render_submit_info.pCommandBuffers = &render_cmd_buffer_;
-  render_submit_info.signalSemaphoreCount = 0;
-  render_submit_info.pSignalSemaphores = nullptr;
+  render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size()) - 1;
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
     err = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,

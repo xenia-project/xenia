@@ -64,8 +64,6 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     std::lock_guard<std::mutex> lock(swap_state.mutex);
     if (swap_state.pending) {
       swap_state.pending = false;
-      std::swap(swap_state.front_buffer_texture,
-                swap_state.back_buffer_texture);
     }
   }
 
@@ -74,10 +72,16 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     return;
   }
 
+  auto semaphore = reinterpret_cast<VkSemaphore>(swap_state.backend_data);
   auto swap_chain = display_context_->swap_chain();
   auto copy_cmd_buffer = swap_chain->copy_cmd_buffer();
   auto front_buffer =
       reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
+
+  // Wait on and signal the swap semaphore.
+  // TODO(DrChat): Interacting with the window causes the device to be lost in
+  // some games.
+  // swap_chain->WaitAndSignalSemaphore(semaphore);
 
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));

@@ -49,14 +49,7 @@ void VulkanCommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
 
 void VulkanCommandProcessor::ClearCaches() {
   CommandProcessor::ClearCaches();
-
-  auto status = vkQueueWaitIdle(queue_);
-  CheckResult(status, "vkQueueWaitIdle");
-
-  buffer_cache_->ClearCache();
-  pipeline_cache_->ClearCache();
-  render_cache_->ClearCache();
-  texture_cache_->ClearCache();
+  cache_clear_requested_ = true;
 }
 
 bool VulkanCommandProcessor::SetupContext() {
@@ -89,15 +82,29 @@ bool VulkanCommandProcessor::SetupContext() {
       texture_cache_->texture_descriptor_set_layout());
   render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
 
+  VkSemaphoreCreateInfo info;
+  std::memset(&info, 0, sizeof(info));
+  info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+  VkResult result = vkCreateSemaphore(
+      *device_, &info, nullptr,
+      reinterpret_cast<VkSemaphore*>(&swap_state_.backend_data));
+  if (result != VK_SUCCESS) {
+    return false;
+  }
+
   return true;
 }
 
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
 
+  vkDestroySemaphore(*device_,
+                     reinterpret_cast<VkSemaphore>(swap_state_.backend_data),
+                     nullptr);
+
   if (swap_state_.front_buffer_texture) {
-    // Free swap chain images.
-    DestroySwapImages();
+    // Free swap chain image.
+    DestroySwapImage();
   }
 
   buffer_cache_.reset();
@@ -123,9 +130,15 @@ void VulkanCommandProcessor::MakeCoherent() {
 
   CommandProcessor::MakeCoherent();
 
+  // Make region coherent
   if (status_host & 0x80000000ul) {
     // TODO(benvanik): less-fine-grained clearing.
     buffer_cache_->InvalidateCache();
+
+    if ((status_host & 0x01000000) != 0 && (status_host & 0x02000000) == 0) {
+      coher_base_vc_ = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
+      coher_size_vc_ = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
+    }
   }
 }
 
@@ -149,8 +162,33 @@ void VulkanCommandProcessor::ReturnFromWait() {
   CommandProcessor::ReturnFromWait();
 }
 
-void VulkanCommandProcessor::CreateSwapImages(VkCommandBuffer setup_buffer,
-                                              VkExtent2D extents) {
+void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+  CommandProcessor::WriteRegister(index, value);
+
+  if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
+      index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
+    uint32_t offset = index - XE_GPU_REG_SHADER_CONSTANT_000_X;
+    offset /= 4 * 4;
+    offset ^= 0x3F;
+
+    dirty_float_constants_ |= (1ull << offset);
+  } else if (index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
+             index <= XE_GPU_REG_SHADER_CONSTANT_BOOL_224_255) {
+    uint32_t offset = index - XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031;
+    offset ^= 0x7;
+
+    dirty_bool_constants_ |= (1 << offset);
+  } else if (index >= XE_GPU_REG_SHADER_CONSTANT_LOOP_00 &&
+             index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
+    uint32_t offset = index - XE_GPU_REG_SHADER_CONSTANT_LOOP_00;
+    offset ^= 0x1F;
+
+    dirty_loop_constants_ |= (1 << offset);
+  }
+}
+
+void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
+                                             VkExtent2D extents) {
   VkImageCreateInfo image_info;
   std::memset(&image_info, 0, sizeof(VkImageCreateInfo));
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -168,34 +206,23 @@ void VulkanCommandProcessor::CreateSwapImages(VkCommandBuffer setup_buffer,
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-  VkImage image_fb, image_bb;
+  VkImage image_fb;
   auto status = vkCreateImage(*device_, &image_info, nullptr, &image_fb);
   CheckResult(status, "vkCreateImage");
 
-  status = vkCreateImage(*device_, &image_info, nullptr, &image_bb);
-  CheckResult(status, "vkCreateImage");
-
-  // Bind memory to images.
+  // Bind memory to image.
   VkMemoryRequirements mem_requirements;
   vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
-  fb_memory = device_->AllocateMemory(mem_requirements, 0);
-  assert_not_null(fb_memory);
+  fb_memory_ = device_->AllocateMemory(mem_requirements, 0);
+  assert_not_null(fb_memory_);
 
-  status = vkBindImageMemory(*device_, image_fb, fb_memory, 0);
-  CheckResult(status, "vkBindImageMemory");
-
-  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
-  bb_memory = device_->AllocateMemory(mem_requirements, 0);
-  assert_not_null(bb_memory);
-
-  status = vkBindImageMemory(*device_, image_bb, bb_memory, 0);
+  status = vkBindImageMemory(*device_, image_fb, fb_memory_, 0);
   CheckResult(status, "vkBindImageMemory");
 
   std::lock_guard<std::mutex> lock(swap_state_.mutex);
   swap_state_.front_buffer_texture = reinterpret_cast<uintptr_t>(image_fb);
-  swap_state_.back_buffer_texture = reinterpret_cast<uintptr_t>(image_bb);
 
-  // Transition both images to general layout.
+  // Transition image to general layout.
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -211,29 +238,17 @@ void VulkanCommandProcessor::CreateSwapImages(VkCommandBuffer setup_buffer,
   vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
-
-  barrier.image = image_bb;
-
-  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
 }
 
-void VulkanCommandProcessor::DestroySwapImages() {
+void VulkanCommandProcessor::DestroySwapImage() {
   std::lock_guard<std::mutex> lock(swap_state_.mutex);
   vkDestroyImage(*device_,
                  reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
                  nullptr);
-  vkDestroyImage(*device_,
-                 reinterpret_cast<VkImage>(swap_state_.back_buffer_texture),
-                 nullptr);
-  vkFreeMemory(*device_, fb_memory, nullptr);
-  vkFreeMemory(*device_, bb_memory, nullptr);
+  vkFreeMemory(*device_, fb_memory_, nullptr);
 
   swap_state_.front_buffer_texture = 0;
-  swap_state_.back_buffer_texture = 0;
-  fb_memory = nullptr;
-  bb_memory = nullptr;
+  fb_memory_ = nullptr;
 }
 
 void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
@@ -267,10 +282,27 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     frontbuffer_ptr = last_copy_base_;
   }
 
-  if (!swap_state_.back_buffer_texture) {
-    CreateSwapImages(copy_commands, {frontbuffer_width, frontbuffer_height});
+  if (!swap_state_.front_buffer_texture) {
+    CreateSwapImage(copy_commands, {frontbuffer_width, frontbuffer_height});
+
+    // Signal the swap usage semaphore by default.
+    auto swap_sem = reinterpret_cast<VkSemaphore>(swap_state_.backend_data);
+
+    VkSubmitInfo info;
+    std::memset(&info, 0, sizeof(info));
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info.signalSemaphoreCount = 1;
+    info.pSignalSemaphores = &swap_sem;
+    if (queue_mutex_) {
+      std::lock_guard<std::mutex> lock(*queue_mutex_);
+      status = vkQueueSubmit(queue_, 1, &info, nullptr);
+      CheckResult(status, "vkQueueSubmit");
+    } else {
+      status = vkQueueSubmit(queue_, 1, &info, nullptr);
+      CheckResult(status, "vkQueueSubmit");
+    }
   }
-  auto swap_bb = reinterpret_cast<VkImage>(swap_state_.back_buffer_texture);
+  auto swap_fb = reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
   // Issue the commands to copy the game's frontbuffer to our backbuffer.
   auto texture = texture_cache_->LookupAddress(
@@ -310,7 +342,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                           int32_t(frontbuffer_height), 1};
 
     vkCmdBlitImage(copy_commands, texture->image, texture->image_layout,
-                   swap_bb, VK_IMAGE_LAYOUT_GENERAL, 1, &blit,
+                   swap_fb, VK_IMAGE_LAYOUT_GENERAL, 1, &blit,
                    VK_FILTER_LINEAR);
 
     std::lock_guard<std::mutex> lock(swap_state_.mutex);
@@ -351,13 +383,28 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       queue_mutex_->lock();
     }
 
+    // TODO: We really don't need to wrap all the commands with this semaphore,
+    // only the copy commands.
+    auto swap_sem = reinterpret_cast<VkSemaphore>(swap_state_.backend_data);
+
     VkSubmitInfo submit_info;
     std::memset(&submit_info, 0, sizeof(VkSubmitInfo));
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = uint32_t(submit_buffers.size());
     submit_info.pCommandBuffers = submit_buffers.data();
-    status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
-    CheckResult(status, "vkQueueSubmit");
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &swap_sem;
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &swap_sem;
+
+    if (queue_mutex_) {
+      std::lock_guard<std::mutex> lock(*queue_mutex_);
+      status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
+      CheckResult(status, "vkQueueSubmit");
+    } else {
+      status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
+      CheckResult(status, "vkQueueSubmit");
+    }
 
     if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
@@ -369,6 +416,17 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   }
 
   command_buffer_pool_->EndBatch(current_batch_fence_);
+
+  if (cache_clear_requested_) {
+    cache_clear_requested_ = false;
+    VkFence fences[] = {*current_batch_fence_};
+    vkWaitForFences(*device_, 1, fences, VK_TRUE, -1);
+
+    buffer_cache_->ClearCache();
+    pipeline_cache_->ClearCache();
+    render_cache_->ClearCache();
+    texture_cache_->ClearCache();
+  }
 
   // Scavenging.
   {
@@ -492,10 +550,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     current_render_state_ = render_cache_->BeginRenderPass(
         command_buffer, vertex_shader, pixel_shader);
     if (!current_render_state_) {
-      command_buffer_pool_->CancelBatch();
-      current_command_buffer_ = nullptr;
-      current_setup_buffer_ = nullptr;
-      current_batch_fence_ = nullptr;
       return false;
     }
   }
@@ -512,46 +566,22 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipeline);
   } else if (pipeline_status == PipelineCache::UpdateStatus::kError) {
-    render_cache_->EndRenderPass();
-    command_buffer_pool_->CancelBatch();
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
-    current_batch_fence_ = nullptr;
-    current_render_state_ = nullptr;
     return false;
   }
   pipeline_cache_->SetDynamicState(command_buffer, started_command_buffer);
 
   // Pass registers to the shaders.
   if (!PopulateConstants(command_buffer, vertex_shader, pixel_shader)) {
-    render_cache_->EndRenderPass();
-    command_buffer_pool_->CancelBatch();
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
-    current_batch_fence_ = nullptr;
-    current_render_state_ = nullptr;
     return false;
   }
 
   // Upload and bind index buffer data (if we have any).
   if (!PopulateIndexBuffer(command_buffer, index_buffer_info)) {
-    render_cache_->EndRenderPass();
-    command_buffer_pool_->CancelBatch();
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
-    current_batch_fence_ = nullptr;
-    current_render_state_ = nullptr;
     return false;
   }
 
   // Upload and bind all vertex buffer data.
   if (!PopulateVertexBuffers(command_buffer, vertex_shader)) {
-    render_cache_->EndRenderPass();
-    command_buffer_pool_->CancelBatch();
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
-    current_batch_fence_ = nullptr;
-    current_render_state_ = nullptr;
     return false;
   }
 
@@ -560,12 +590,6 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Setup buffer may be flushed to GPU if the texture cache needs it.
   if (!PopulateSamplers(command_buffer, setup_buffer, vertex_shader,
                         pixel_shader)) {
-    render_cache_->EndRenderPass();
-    command_buffer_pool_->CancelBatch();
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
-    current_batch_fence_ = nullptr;
-    current_render_state_ = nullptr;
     return false;
   }
 
@@ -719,11 +743,12 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     //     THIS CAN BE MASSIVELY INCORRECT (too large).
     size_t valid_range = size_t(fetch->size * 4);
 
-    trace_writer_.WriteMemoryRead(fetch->address << 2, valid_range);
+    uint32_t physical_address = fetch->address << 2;
+    trace_writer_.WriteMemoryRead(physical_address, valid_range);
 
     // Upload (or get a cached copy of) the buffer.
     const void* source_ptr =
-        memory_->TranslatePhysical<const void*>(fetch->address << 2);
+        memory_->TranslatePhysical<const void*>(physical_address);
     size_t source_length = valid_range;
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
         source_ptr, source_length, static_cast<Endian>(fetch->endian),

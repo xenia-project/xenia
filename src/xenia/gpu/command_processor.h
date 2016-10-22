@@ -47,6 +47,8 @@ struct SwapState {
   uintptr_t front_buffer_texture = 0;
   // Current back buffer, being updated by the CP.
   uintptr_t back_buffer_texture = 0;
+  // Backend data
+  void* backend_data = nullptr;
   // Whether the back buffer is dirty and a swap is pending.
   bool pending = false;
 };
@@ -115,7 +117,7 @@ class CommandProcessor {
   virtual bool SetupContext() = 0;
   virtual void ShutdownContext() = 0;
 
-  void WriteRegister(uint32_t index, uint32_t value);
+  virtual void WriteRegister(uint32_t index, uint32_t value);
 
   virtual void MakeCoherent();
   virtual void PrepareForWait();
