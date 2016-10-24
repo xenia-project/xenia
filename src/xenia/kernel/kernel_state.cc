@@ -64,21 +64,6 @@ KernelState::KernelState(Emulator* emulator)
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
 
-  process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
-
-  auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
-  // TODO(benvanik): figure out what this list is.
-  pib->unk_04 = pib->unk_08 = 0;
-  pib->unk_0C = 0x0000007F;
-  pib->unk_10 = 0x001F0000;
-  pib->thread_count = 0;
-  pib->unk_1B = 0x06;
-  pib->kernel_stack_size = 16 * 1024;
-  pib->process_type = process_type_;
-  // TODO(benvanik): figure out what this list is.
-  pib->unk_54 = pib->unk_58 = 0;
-
   // Hardcoded maximum of 2048 TLS slots.
   tls_bitmap_.Resize(2048);
 
@@ -103,10 +88,6 @@ KernelState::~KernelState() {
 
   // Shutdown apps.
   app_manager_.reset();
-
-  if (process_info_block_address_) {
-    memory_->SystemHeapFree(process_info_block_address_);
-  }
 
   assert_true(shared_kernel_state_ == this);
   shared_kernel_state_ = nullptr;
@@ -253,6 +234,43 @@ object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
   return nullptr;
 }
 
+object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
+  if (!module->is_executable()) {
+    return nullptr;
+  }
+
+  SetExecutableModule(module);
+  XELOGI("KernelState: Launching module...");
+
+  // Create a thread to run in.
+  // We start suspended so we can run the debugger prep.
+  auto thread = object_ref<XThread>(
+      new XThread(kernel_state(), module->stack_size(), 0,
+                  module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
+
+  // We know this is the 'main thread'.
+  char thread_name[32];
+  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread%08X",
+                thread->handle());
+  thread->set_name(thread_name);
+
+  X_STATUS result = thread->Create();
+  if (XFAILED(result)) {
+    XELOGE("Could not create launch thread: %.8X", result);
+    return nullptr;
+  }
+
+  // Waits for a debugger client, if desired.
+  emulator()->processor()->PreLaunch();
+
+  // Resume the thread now.
+  // If the debugger has requested a suspend this will just decrement the
+  // suspend count without resuming it until the debugger wants.
+  thread->Resume();
+
+  return thread;
+}
+
 object_ref<UserModule> KernelState::GetExecutableModule() {
   if (!executable_module_) {
     return nullptr;
@@ -268,6 +286,22 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
   if (!executable_module_) {
     return;
   }
+
+  assert_zero(process_info_block_address_);
+  process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
+
+  auto pib =
+      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+  // TODO(benvanik): figure out what this list is.
+  pib->unk_04 = pib->unk_08 = 0;
+  pib->unk_0C = 0x0000007F;
+  pib->unk_10 = 0x001F0000;
+  pib->thread_count = 0;
+  pib->unk_1B = 0x06;
+  pib->kernel_stack_size = 16 * 1024;
+  pib->process_type = process_type_;
+  // TODO(benvanik): figure out what this list is.
+  pib->unk_54 = pib->unk_58 = 0;
 
   xex2_opt_tls_info* tls_header = nullptr;
   executable_module_->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
@@ -399,14 +433,8 @@ void KernelState::TerminateTitle() {
 
   // Kill all guest threads.
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
-    if (it->second->is_guest_thread()) {
+    if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
       auto thread = it->second;
-
-      if (XThread::IsInThread(thread)) {
-        // Don't terminate ourselves.
-        ++it;
-        continue;
-      }
 
       if (thread->is_running()) {
         // Need to step the thread to a safe point (returns it to guest code
@@ -447,6 +475,14 @@ void KernelState::TerminateTitle() {
   // Clear the TLS map.
   tls_bitmap_.Reset();
 
+  // Unset the executable module.
+  executable_module_ = nullptr;
+
+  if (process_info_block_address_) {
+    memory_->SystemHeapFree(process_info_block_address_);
+    process_info_block_address_ = 0;
+  }
+
   if (XThread::IsInThread()) {
     threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
 
@@ -461,9 +497,11 @@ void KernelState::RegisterThread(XThread* thread) {
   auto global_lock = global_critical_region_.Acquire();
   threads_by_id_[thread->thread_id()] = thread;
 
+  /*
   auto pib =
       memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
   pib->thread_count = pib->thread_count + 1;
+  */
 }
 
 void KernelState::UnregisterThread(XThread* thread) {
@@ -473,9 +511,11 @@ void KernelState::UnregisterThread(XThread* thread) {
     threads_by_id_.erase(it);
   }
 
+  /*
   auto pib =
       memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
   pib->thread_count = pib->thread_count - 1;
+  */
 }
 
 void KernelState::OnThreadExecute(XThread* thread) {

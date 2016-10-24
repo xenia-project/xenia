@@ -129,6 +129,7 @@ class KernelState {
   bool IsKernelModule(const char* name);
   object_ref<XModule> GetModule(const char* name, bool user_only = false);
 
+  object_ref<XThread> LaunchModule(object_ref<UserModule> module);
   object_ref<UserModule> GetExecutableModule();
   void SetExecutableModule(object_ref<UserModule> module);
   object_ref<UserModule> LoadUserModule(const char* name,

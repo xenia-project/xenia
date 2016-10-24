@@ -30,6 +30,7 @@ class TestModule : public Module {
   ~TestModule() override;
 
   const std::string& name() const override { return name_; }
+  bool is_executable() const override { return false; }
 
   bool ContainsAddress(uint32_t address) override;
 

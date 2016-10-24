@@ -299,38 +299,6 @@ X_STATUS UserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
   return X_STATUS_SUCCESS;
 }
 
-object_ref<XThread> UserModule::Launch(uint32_t flags) {
-  XELOGI("Launching module...");
-
-  // Create a thread to run in.
-  // We start suspended so we can run the debugger prep.
-  auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), stack_size_, 0, entry_point_, 0,
-                  X_CREATE_SUSPENDED, true, true));
-
-  // We know this is the 'main thread'.
-  char thread_name[32];
-  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread%08X",
-                thread->handle());
-  thread->set_name(thread_name);
-
-  X_STATUS result = thread->Create();
-  if (XFAILED(result)) {
-    XELOGE("Could not create launch thread: %.8X", result);
-    return nullptr;
-  }
-
-  // Waits for a debugger client, if desired.
-  emulator()->processor()->PreLaunch();
-
-  // Resume the thread now.
-  // If the debugger has requested a suspend this will just decrement the
-  // suspend count without resuming it until the debugger wants.
-  thread->Resume();
-
-  return thread;
-}
-
 bool UserModule::Save(ByteStream* stream) {
   if (!XModule::Save(stream)) {
     return false;

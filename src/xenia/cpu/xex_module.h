@@ -75,6 +75,9 @@ class XexModule : public xe::cpu::Module {
   bool Unload();
 
   const std::string& name() const override { return name_; }
+  bool is_executable() const override {
+    return (xex_header()->module_flags & XEX_MODULE_TITLE) != 0;
+  }
 
   bool ContainsAddress(uint32_t address) override;
 

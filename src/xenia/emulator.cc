@@ -564,12 +564,10 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     title_id_ = info->title_id;
   }
 
-  kernel_state_->SetExecutableModule(module);
-
   // Try and load the resource database (xex only).
   if (module->title_id()) {
     char title_id[9] = {0};
-    std::sprintf(title_id, "%08X", module->title_id());
+    std::snprintf(title_id, xe::countof(title_id), "%08X", module->title_id());
     uint32_t resource_data = 0;
     uint32_t resource_size = 0;
     if (XSUCCEEDED(
@@ -586,7 +584,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     }
   }
 
-  auto main_xthread = module->Launch();
+  auto main_xthread = kernel_state_->LaunchModule(module);
   if (!main_xthread) {
     return X_STATUS_UNSUCCESSFUL;
   }

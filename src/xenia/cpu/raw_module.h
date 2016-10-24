@@ -29,7 +29,9 @@ class RawModule : public Module {
   void SetAddressRange(uint32_t base_address, uint32_t size);
 
   const std::string& name() const override { return name_; }
+  bool is_executable() const override { return is_executable_; }
   void set_name(const std::string& name) { name_ = name; }
+  void set_executable(bool is_executable) { is_executable_ = is_executable; }
 
   bool ContainsAddress(uint32_t address) override;
 
@@ -38,6 +40,7 @@ class RawModule : public Module {
 
  private:
   std::string name_;
+  bool is_executable_ = false;
   uint32_t base_address_;
   uint32_t low_address_;
   uint32_t high_address_;

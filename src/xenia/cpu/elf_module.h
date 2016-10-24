@@ -31,6 +31,7 @@ class ElfModule : public xe::cpu::Module {
   bool loaded() const { return loaded_; }
   uint32_t entry_point() const { return entry_point_; }
   const std::string& name() const override { return name_; }
+  bool is_executable() const override;
   const std::string& path() const { return path_; }
 
   bool Load(const std::string& name, const std::string& path,

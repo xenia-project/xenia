@@ -60,6 +60,7 @@ class BuiltinModule : public Module {
       : Module(processor), name_("builtin") {}
 
   const std::string& name() const override { return name_; }
+  bool is_executable() const override { return false; }
 
   bool ContainsAddress(uint32_t address) override {
     return (address & 0xFFFFFFF0) == 0xFFFFFFF0;

@@ -55,6 +55,7 @@ class UserModule : public XModule {
   uint32_t guest_xex_header() const { return guest_xex_header_; }
   // The title ID in the xex header or 0 if this is not a xex.
   uint32_t title_id() const;
+  bool is_executable() const { return processor_module_->is_executable(); }
   bool is_dll_module() const { return is_dll_module_; }
 
   uint32_t entry_point() const { return entry_point_; }
@@ -84,8 +85,6 @@ class UserModule : public XModule {
   static X_STATUS GetOptHeader(uint8_t* membase, const xex2_header* header,
                                xe_xex2_header_keys key,
                                uint32_t* out_header_guest_ptr);
-
-  object_ref<XThread> Launch(uint32_t flags = 0);
 
   void Dump();
 

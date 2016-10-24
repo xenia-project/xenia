@@ -53,6 +53,11 @@ struct elf32_phdr {
   xe::be<uint32_t> p_align;
 };
 
+bool ElfModule::is_executable() const {
+  auto hdr = reinterpret_cast<const elf32_ehdr*>(elf_header_mem_.data());
+  return hdr->e_entry != 0;
+}
+
 bool ElfModule::Load(const std::string& name, const std::string& path,
                      const void* elf_addr, size_t elf_length) {
   name_ = name;

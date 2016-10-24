@@ -34,6 +34,7 @@ class Module {
   Memory* memory() const { return memory_; }
 
   virtual const std::string& name() const = 0;
+  virtual bool is_executable() const = 0;
 
   virtual bool ContainsAddress(uint32_t address);
 
