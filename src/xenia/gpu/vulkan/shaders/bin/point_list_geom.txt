@@ -1,136 +1,191 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 83
+; Bound: 116
 ; Schema: 0
                OpCapability Geometry
-               OpCapability GeometryPointSize
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Geometry %4 "main" %15 %40 %74 %77
-               OpExecutionMode %4 InputPoints
-               OpExecutionMode %4 Invocations 1
-               OpExecutionMode %4 OutputTriangleStrip
-               OpExecutionMode %4 OutputVertices 4
+               OpEntryPoint Geometry %main "main" %gl_in %point_size %_ %out_interpolators %in_interpolators %point_coord %in_point_coord_unused
+               OpExecutionMode %main InputPoints
+               OpExecutionMode %main Invocations 1
+               OpExecutionMode %main OutputTriangleStrip
+               OpExecutionMode %main OutputVertices 4
                OpSource GLSL 450
-               OpName %4 "main"
-               OpName %9 "pos"
-               OpName %10 "gl_PerVertex"
-               OpMemberName %10 0 "gl_Position"
-               OpMemberName %10 1 "gl_PointSize"
-               OpName %15 "gl_in"
-               OpName %22 "psize"
-               OpName %28 "i"
-               OpName %38 "gl_PerVertex"
-               OpMemberName %38 0 "gl_Position"
-               OpMemberName %38 1 "gl_PointSize"
-               OpName %40 ""
-               OpName %55 "indexable"
-               OpName %74 "out_interpolators"
-               OpName %77 "in_interpolators"
-               OpMemberDecorate %10 0 BuiltIn Position
-               OpMemberDecorate %10 1 BuiltIn PointSize
-               OpDecorate %10 Block
-               OpMemberDecorate %38 0 BuiltIn Position
-               OpMemberDecorate %38 1 BuiltIn PointSize
-               OpDecorate %38 Block
-               OpDecorate %74 Location 0
-               OpDecorate %77 Location 0
-          %2 = OpTypeVoid
-          %3 = OpTypeFunction %2
-          %6 = OpTypeFloat 32
-          %7 = OpTypeVector %6 4
-          %8 = OpTypePointer Function %7
-         %10 = OpTypeStruct %7 %6
-         %11 = OpTypeInt 32 0
-         %12 = OpConstant %11 1
-         %13 = OpTypeArray %10 %12
-         %14 = OpTypePointer Input %13
-         %15 = OpVariable %14 Input
-         %16 = OpTypeInt 32 1
-         %17 = OpConstant %16 0
-         %18 = OpTypePointer Input %7
-         %21 = OpTypePointer Function %6
-         %23 = OpConstant %16 1
-         %24 = OpTypePointer Input %6
-         %27 = OpTypePointer Function %16
-         %35 = OpConstant %16 4
-         %36 = OpTypeBool
-         %38 = OpTypeStruct %7 %6
-         %39 = OpTypePointer Output %38
-         %40 = OpVariable %39 Output
-         %41 = OpTypeVector %6 2
-         %44 = OpConstant %11 4
-         %45 = OpTypeArray %41 %44
-         %46 = OpConstant %6 -1
-         %47 = OpConstant %6 1
-         %48 = OpConstantComposite %41 %46 %47
-         %49 = OpConstantComposite %41 %47 %47
-         %50 = OpConstantComposite %41 %46 %46
-         %51 = OpConstantComposite %41 %47 %46
-         %52 = OpConstantComposite %45 %48 %49 %50 %51
-         %54 = OpTypePointer Function %45
-         %56 = OpTypePointer Function %41
-         %69 = OpTypePointer Output %7
-         %71 = OpConstant %11 16
-         %72 = OpTypeArray %7 %71
-         %73 = OpTypePointer Output %72
-         %74 = OpVariable %73 Output
-         %75 = OpTypeArray %72 %12
-         %76 = OpTypePointer Input %75
-         %77 = OpVariable %76 Input
-         %78 = OpTypePointer Input %72
-          %4 = OpFunction %2 None %3
+               OpName %main "main"
+               OpName %pos "pos"
+               OpName %gl_PerVertex "gl_PerVertex"
+               OpMemberName %gl_PerVertex 0 "gl_Position"
+               OpName %gl_in "gl_in"
+               OpName %window_scaled_psize "window_scaled_psize"
+               OpName %push_consts_type "push_consts_type"
+               OpMemberName %push_consts_type 0 "window_scale"
+               OpMemberName %push_consts_type 1 "vtx_fmt"
+               OpMemberName %push_consts_type 2 "point_size"
+               OpMemberName %push_consts_type 3 "alpha_test"
+               OpMemberName %push_consts_type 4 "ps_param_gen"
+               OpName %push_constants "push_constants"
+               OpName %point_size "point_size"
+               OpName %i "i"
+               OpName %gl_PerVertex_0 "gl_PerVertex"
+               OpMemberName %gl_PerVertex_0 0 "gl_Position"
+               OpName %_ ""
+               OpName %indexable "indexable"
+               OpName %out_interpolators "out_interpolators"
+               OpName %in_interpolators "in_interpolators"
+               OpName %point_coord "point_coord"
+               OpName %indexable_0 "indexable"
+               OpName %in_point_coord_unused "in_point_coord_unused"
+               OpMemberDecorate %gl_PerVertex 0 BuiltIn Position
+               OpDecorate %gl_PerVertex Block
+               OpMemberDecorate %push_consts_type 0 Offset 0
+               OpMemberDecorate %push_consts_type 1 Offset 16
+               OpMemberDecorate %push_consts_type 2 Offset 32
+               OpMemberDecorate %push_consts_type 3 Offset 48
+               OpMemberDecorate %push_consts_type 4 Offset 64
+               OpDecorate %push_consts_type Block
+               OpDecorate %point_size Location 17
+               OpMemberDecorate %gl_PerVertex_0 0 BuiltIn Position
+               OpDecorate %gl_PerVertex_0 Block
+               OpDecorate %out_interpolators Location 0
+               OpDecorate %in_interpolators Location 0
+               OpDecorate %point_coord Location 16
+               OpDecorate %in_point_coord_unused Location 16
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v4float = OpTypeVector %float 4
+%_ptr_Function_v4float = OpTypePointer Function %v4float
+%gl_PerVertex = OpTypeStruct %v4float
+       %uint = OpTypeInt 32 0
+         %12 = OpConstant %uint 1
+%_arr_gl_PerVertex_12 = OpTypeArray %gl_PerVertex %12
+%_ptr_Input__arr_gl_PerVertex_12 = OpTypePointer Input %_arr_gl_PerVertex_12
+      %gl_in = OpVariable %_ptr_Input__arr_gl_PerVertex_12 Input
+        %int = OpTypeInt 32 1
+         %17 = OpConstant %int 0
+%_ptr_Input_v4float = OpTypePointer Input %v4float
+    %v2float = OpTypeVector %float 2
+%_ptr_Function_v2float = OpTypePointer Function %v2float
+%push_consts_type = OpTypeStruct %v4float %v4float %v4float %v4float %uint
+%_ptr_PushConstant_push_consts_type = OpTypePointer PushConstant %push_consts_type
+%push_constants = OpVariable %_ptr_PushConstant_push_consts_type PushConstant
+         %27 = OpConstant %int 2
+%_ptr_PushConstant_v4float = OpTypePointer PushConstant %v4float
+%_arr_float_12 = OpTypeArray %float %12
+%_ptr_Input__arr_float_12 = OpTypePointer Input %_arr_float_12
+ %point_size = OpVariable %_ptr_Input__arr_float_12 Input
+%_ptr_Input_float = OpTypePointer Input %float
+         %38 = OpConstant %float 0
+       %bool = OpTypeBool
+%_ptr_Function_int = OpTypePointer Function %int
+         %59 = OpConstant %int 4
+%gl_PerVertex_0 = OpTypeStruct %v4float
+%_ptr_Output_gl_PerVertex_0 = OpTypePointer Output %gl_PerVertex_0
+          %_ = OpVariable %_ptr_Output_gl_PerVertex_0 Output
+         %66 = OpConstant %uint 4
+%_arr_v2float_66 = OpTypeArray %v2float %66
+         %68 = OpConstant %float -1
+         %69 = OpConstant %float 1
+         %70 = OpConstantComposite %v2float %68 %69
+         %71 = OpConstantComposite %v2float %69 %69
+         %72 = OpConstantComposite %v2float %68 %68
+         %73 = OpConstantComposite %v2float %69 %68
+         %74 = OpConstantComposite %_arr_v2float_66 %70 %71 %72 %73
+%_ptr_Function__arr_v2float_66 = OpTypePointer Function %_arr_v2float_66
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+         %92 = OpConstant %uint 16
+%_arr_v4float_92 = OpTypeArray %v4float %92
+%_ptr_Output__arr_v4float_92 = OpTypePointer Output %_arr_v4float_92
+%out_interpolators = OpVariable %_ptr_Output__arr_v4float_92 Output
+%_arr__arr_v4float_92_12 = OpTypeArray %_arr_v4float_92 %12
+%_ptr_Input__arr__arr_v4float_92_12 = OpTypePointer Input %_arr__arr_v4float_92_12
+%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_92_12 Input
+%_ptr_Input__arr_v4float_92 = OpTypePointer Input %_arr_v4float_92
+%_ptr_Output_v2float = OpTypePointer Output %v2float
+%point_coord = OpVariable %_ptr_Output_v2float Output
+        %108 = OpConstantComposite %v2float %38 %38
+        %111 = OpConstant %int 1
+%_arr_v2float_12 = OpTypeArray %v2float %12
+%_ptr_Input__arr_v2float_12 = OpTypePointer Input %_arr_v2float_12
+%in_point_coord_unused = OpVariable %_ptr_Input__arr_v2float_12 Input
+       %main = OpFunction %void None %3
           %5 = OpLabel
-          %9 = OpVariable %8 Function
-         %22 = OpVariable %21 Function
-         %28 = OpVariable %27 Function
-         %55 = OpVariable %54 Function
-         %19 = OpAccessChain %18 %15 %17 %17
-         %20 = OpLoad %7 %19
-               OpStore %9 %20
-         %25 = OpAccessChain %24 %15 %17 %23
-         %26 = OpLoad %6 %25
-               OpStore %22 %26
-               OpStore %28 %17
-               OpBranch %29
-         %29 = OpLabel
-               OpLoopMerge %31 %32 None
-               OpBranch %33
-         %33 = OpLabel
-         %34 = OpLoad %16 %28
-         %37 = OpSLessThan %36 %34 %35
-               OpBranchConditional %37 %30 %31
-         %30 = OpLabel
-         %42 = OpLoad %7 %9
-         %43 = OpVectorShuffle %41 %42 %42 0 1
-         %53 = OpLoad %16 %28
-               OpStore %55 %52
-         %57 = OpAccessChain %56 %55 %53
-         %58 = OpLoad %41 %57
-         %59 = OpLoad %6 %22
-         %60 = OpVectorTimesScalar %41 %58 %59
-         %61 = OpFAdd %41 %43 %60
-         %62 = OpLoad %7 %9
-         %63 = OpVectorShuffle %41 %62 %62 2 3
-         %64 = OpCompositeExtract %6 %61 0
-         %65 = OpCompositeExtract %6 %61 1
-         %66 = OpCompositeExtract %6 %63 0
-         %67 = OpCompositeExtract %6 %63 1
-         %68 = OpCompositeConstruct %7 %64 %65 %66 %67
-         %70 = OpAccessChain %69 %40 %17
-               OpStore %70 %68
-         %79 = OpAccessChain %78 %77 %17
-         %80 = OpLoad %72 %79
-               OpStore %74 %80
+        %pos = OpVariable %_ptr_Function_v4float Function
+%window_scaled_psize = OpVariable %_ptr_Function_v2float Function
+          %i = OpVariable %_ptr_Function_int Function
+  %indexable = OpVariable %_ptr_Function__arr_v2float_66 Function
+%indexable_0 = OpVariable %_ptr_Function__arr_v2float_66 Function
+         %19 = OpAccessChain %_ptr_Input_v4float %gl_in %17 %17
+         %20 = OpLoad %v4float %19
+               OpStore %pos %20
+         %29 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %27
+         %30 = OpLoad %v4float %29
+         %31 = OpVectorShuffle %v2float %30 %30 0 1
+               OpStore %window_scaled_psize %31
+         %36 = OpAccessChain %_ptr_Input_float %point_size %17
+         %37 = OpLoad %float %36
+         %40 = OpFOrdGreaterThan %bool %37 %38
+               OpSelectionMerge %42 None
+               OpBranchConditional %40 %41 %42
+         %41 = OpLabel
+         %43 = OpAccessChain %_ptr_Input_float %point_size %17
+         %44 = OpLoad %float %43
+         %45 = OpCompositeConstruct %v2float %44 %44
+               OpStore %window_scaled_psize %45
+               OpBranch %42
+         %42 = OpLabel
+         %46 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %17
+         %47 = OpLoad %v4float %46
+         %48 = OpVectorShuffle %v2float %47 %47 2 3
+         %49 = OpLoad %v2float %window_scaled_psize
+         %50 = OpFDiv %v2float %49 %48
+               OpStore %window_scaled_psize %50
+               OpStore %i %17
+               OpBranch %53
+         %53 = OpLabel
+               OpLoopMerge %55 %56 None
+               OpBranch %57
+         %57 = OpLabel
+         %58 = OpLoad %int %i
+         %60 = OpSLessThan %bool %58 %59
+               OpBranchConditional %60 %54 %55
+         %54 = OpLabel
+         %64 = OpLoad %v4float %pos
+         %65 = OpVectorShuffle %v2float %64 %64 0 1
+         %75 = OpLoad %int %i
+               OpStore %indexable %74
+         %78 = OpAccessChain %_ptr_Function_v2float %indexable %75
+         %79 = OpLoad %v2float %78
+         %80 = OpLoad %v2float %window_scaled_psize
+         %81 = OpFMul %v2float %79 %80
+         %82 = OpFAdd %v2float %65 %81
+         %83 = OpLoad %v4float %pos
+         %84 = OpVectorShuffle %v2float %83 %83 2 3
+         %85 = OpCompositeExtract %float %82 0
+         %86 = OpCompositeExtract %float %82 1
+         %87 = OpCompositeExtract %float %84 0
+         %88 = OpCompositeExtract %float %84 1
+         %89 = OpCompositeConstruct %v4float %85 %86 %87 %88
+         %91 = OpAccessChain %_ptr_Output_v4float %_ %17
+               OpStore %91 %89
+        %100 = OpAccessChain %_ptr_Input__arr_v4float_92 %in_interpolators %17
+        %101 = OpLoad %_arr_v4float_92 %100
+               OpStore %out_interpolators %101
+        %104 = OpLoad %int %i
+               OpStore %indexable_0 %74
+        %106 = OpAccessChain %_ptr_Function_v2float %indexable_0 %104
+        %107 = OpLoad %v2float %106
+        %109 = OpExtInst %v2float %1 FMax %107 %108
+               OpStore %point_coord %109
                OpEmitVertex
-               OpBranch %32
-         %32 = OpLabel
-         %81 = OpLoad %16 %28
-         %82 = OpIAdd %16 %81 %23
-               OpStore %28 %82
-               OpBranch %29
-         %31 = OpLabel
+               OpBranch %56
+         %56 = OpLabel
+        %110 = OpLoad %int %i
+        %112 = OpIAdd %int %110 %111
+               OpStore %i %112
+               OpBranch %53
+         %55 = OpLabel
                OpEndPrimitive
                OpReturn
                OpFunctionEnd
