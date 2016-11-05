@@ -120,24 +120,70 @@ inline uint8_t lzcnt(uint64_t v) {
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
 }
 #endif  // LZCNT supported
+
+inline uint8_t tzcnt(uint8_t v) {
+  unsigned long index;
+  unsigned long mask = v;
+  unsigned char is_nonzero = _BitScanForward(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
+}
+
+inline uint8_t tzcnt(uint16_t v) {
+  unsigned long index;
+  unsigned long mask = v;
+  unsigned char is_nonzero = _BitScanForward(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
+}
+
+inline uint8_t tzcnt(uint32_t v) {
+  unsigned long index;
+  unsigned long mask = v;
+  unsigned char is_nonzero = _BitScanForward(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
+}
+
+inline uint8_t tzcnt(uint64_t v) {
+  unsigned long index;
+  unsigned long long mask = v;
+  unsigned char is_nonzero = _BitScanForward64(&index, mask);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
+}
+
 #else
 inline uint8_t lzcnt(uint8_t v) {
-  return static_cast<uint8_t>(__builtin_clzs(v) - 8);
+  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_clzs(v) - 8);
 }
 inline uint8_t lzcnt(uint16_t v) {
-  return static_cast<uint8_t>(__builtin_clzs(v));
+  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_clzs(v));
 }
 inline uint8_t lzcnt(uint32_t v) {
-  return static_cast<uint8_t>(__builtin_clz(v));
+  return v == 0 ? 32 : static_cast<uint8_t>(__builtin_clz(v));
 }
 inline uint8_t lzcnt(uint64_t v) {
-  return static_cast<uint8_t>(__builtin_clzll(v));
+  return v == 0 ? 64 : static_cast<uint8_t>(__builtin_clzll(v));
+}
+
+inline uint8_t tzcnt(uint8_t v) {
+  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_ctzs(v) - 8) ^ 0x7;
+}
+inline uint8_t tzcnt(uint16_t v) {
+  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_ctzs(v)) ^ 0xF;
+}
+inline uint8_t tzcnt(uint32_t v) {
+  return v == 0 ? 32 : static_cast<uint8_t>(__builtin_ctz(v)) ^ 0x1F;
+}
+inline uint8_t tzcnt(uint64_t v) {
+  return v == 0 ? 64 : static_cast<uint8_t>(__builtin_ctzll(v)) ^ 0x3F;
 }
 #endif  // XE_PLATFORM_WIN32
 inline uint8_t lzcnt(int8_t v) { return lzcnt(static_cast<uint8_t>(v)); }
 inline uint8_t lzcnt(int16_t v) { return lzcnt(static_cast<uint16_t>(v)); }
 inline uint8_t lzcnt(int32_t v) { return lzcnt(static_cast<uint32_t>(v)); }
 inline uint8_t lzcnt(int64_t v) { return lzcnt(static_cast<uint64_t>(v)); }
+inline uint8_t tzcnt(int8_t v) { return tzcnt(static_cast<uint8_t>(v)); }
+inline uint8_t tzcnt(int16_t v) { return tzcnt(static_cast<uint16_t>(v)); }
+inline uint8_t tzcnt(int32_t v) { return tzcnt(static_cast<uint32_t>(v)); }
+inline uint8_t tzcnt(int64_t v) { return tzcnt(static_cast<uint64_t>(v)); }
 
 // BitScanForward (bsf).
 // Search the value from least significant bit (LSB) to the most significant bit
