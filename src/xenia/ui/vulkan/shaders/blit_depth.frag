@@ -1,0 +1,14 @@
+// NOTE: This file is compiled and embedded into the exe.
+//       Use `xenia-build genspirv` and check in any changes under bin/.
+
+#version 450 core
+precision highp float;
+
+layout(set = 0, binding = 0) uniform sampler2D src_texture;
+
+layout(location = 0) in vec2 vtx_uv;
+layout(location = 0) out vec4 oC;
+
+void main() {
+  gl_FragDepth = texture(src_texture, vtx_uv).r;
+}

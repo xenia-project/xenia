@@ -1,0 +1,48 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 1
+; Bound: 25
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %4 "main" %8 %16 %24
+               OpExecutionMode %4 OriginUpperLeft
+               OpExecutionMode %4 DepthReplacing
+               OpSource GLSL 450
+               OpName %4 "main"
+               OpName %8 "gl_FragDepth"
+               OpName %12 "src_texture"
+               OpName %16 "vtx_uv"
+               OpName %24 "oC"
+               OpDecorate %8 BuiltIn FragDepth
+               OpDecorate %12 DescriptorSet 0
+               OpDecorate %12 Binding 0
+               OpDecorate %16 Location 0
+               OpDecorate %24 Location 0
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %6 = OpTypeFloat 32
+          %7 = OpTypePointer Output %6
+          %8 = OpVariable %7 Output
+          %9 = OpTypeImage %6 2D 0 0 0 1 Unknown
+         %10 = OpTypeSampledImage %9
+         %11 = OpTypePointer UniformConstant %10
+         %12 = OpVariable %11 UniformConstant
+         %14 = OpTypeVector %6 2
+         %15 = OpTypePointer Input %14
+         %16 = OpVariable %15 Input
+         %18 = OpTypeVector %6 4
+         %20 = OpTypeInt 32 0
+         %21 = OpConstant %20 0
+         %23 = OpTypePointer Output %18
+         %24 = OpVariable %23 Output
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+         %13 = OpLoad %10 %12
+         %17 = OpLoad %14 %16
+         %19 = OpImageSampleImplicitLod %18 %13 %17
+         %22 = OpCompositeExtract %6 %19 0
+               OpStore %8 %22
+               OpReturn
+               OpFunctionEnd
