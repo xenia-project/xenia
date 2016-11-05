@@ -222,7 +222,8 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
       e->WriteItem(buffer) ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
 
   // Return X_ERROR_NO_MORE_FILES in HRESULT form.
-  X_HRESULT extended_result = result != 0 ? 0x80070012 : 0;
+  X_HRESULT extended_result =
+      result != 0 ? X_HRESULT_FROM_WIN32(X_ERROR_NO_MORE_FILES) : 0;
   if (items_returned) {
     assert_true(!overlapped);
     *items_returned = result == X_ERROR_SUCCESS ? 1 : 0;

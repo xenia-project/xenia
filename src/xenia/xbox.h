@@ -62,6 +62,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_MUTANT_NOT_OWNED                       ((X_STATUS)0xC0000046L)
 #define X_STATUS_INSUFFICIENT_RESOURCES                 ((X_STATUS)0xC000009AL)
 #define X_STATUS_MEMORY_NOT_ALLOCATED                   ((X_STATUS)0xC00000A0L)
+#define X_STATUS_NOT_SUPPORTED                          ((X_STATUS)0xC00000BBL)
 #define X_STATUS_INVALID_PARAMETER_1                    ((X_STATUS)0xC00000EFL)
 #define X_STATUS_INVALID_PARAMETER_2                    ((X_STATUS)0xC00000F0L)
 #define X_STATUS_INVALID_PARAMETER_3                    ((X_STATUS)0xC00000F1L)
@@ -71,41 +72,44 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_DRIVER_ORDINAL_NOT_FOUND               ((X_STATUS)0xC0000262L)
 #define X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND            ((X_STATUS)0xC0000263L)
 
-// HRESULT (ERROR_*)
+// Win32 error codes (ERROR_*)
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms681381(v=vs.85).aspx
 // Adding as needed.
-// For some reason, half of these aren't *actually* HRESULTs.
-// Windows is a weird place.
 typedef uint32_t X_RESULT;
-#define X_FACILITY_WIN32 7
-#define X_RESULT_FROM_WIN32(x) x
-// Maybe X_RESULT_FROM_WIN32 is this instead?:
-// ((X_RESULT)(x) <= 0 ? ((X_RESULT)(x)) :
-//     ((X_RESULT) (((x) & 0x0000FFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000)))
-#define X_ERROR_SUCCESS                                 X_RESULT_FROM_WIN32(0x00000000L)
-#define X_ERROR_FILE_NOT_FOUND                          X_RESULT_FROM_WIN32(0x00000002L)
-#define X_ERROR_PATH_NOT_FOUND                          X_RESULT_FROM_WIN32(0x00000003L)
-#define X_ERROR_ACCESS_DENIED                           X_RESULT_FROM_WIN32(0x00000005L)
-#define X_ERROR_INVALID_HANDLE                          X_RESULT_FROM_WIN32(0x00000006L)
-#define X_ERROR_NO_MORE_FILES                           X_RESULT_FROM_WIN32(0x00000012L)
-#define X_ERROR_INVALID_PARAMETER                       X_RESULT_FROM_WIN32(0x00000057L)
-#define X_ERROR_IO_PENDING                              X_RESULT_FROM_WIN32(0x000003E5L)
-#define X_ERROR_INSUFFICIENT_BUFFER                     X_RESULT_FROM_WIN32(0x0000007AL)
-#define X_ERROR_INVALID_NAME                            X_RESULT_FROM_WIN32(0x0000007BL)
-#define X_ERROR_BAD_ARGUMENTS                           X_RESULT_FROM_WIN32(0x000000A0L)
-#define X_ERROR_BUSY                                    X_RESULT_FROM_WIN32(0x000000AAL)
-#define X_ERROR_ALREADY_EXISTS                          X_RESULT_FROM_WIN32(0x000000B7L)
-#define X_ERROR_DEVICE_NOT_CONNECTED                    X_RESULT_FROM_WIN32(0x0000048FL)
-#define X_ERROR_NOT_FOUND                               X_RESULT_FROM_WIN32(0x00000490L)
-#define X_ERROR_CANCELLED                               X_RESULT_FROM_WIN32(0x000004C7L)
-#define X_ERROR_NOT_LOGGED_ON                           X_RESULT_FROM_WIN32(0x000004DDL)
-#define X_ERROR_NO_SUCH_USER                            X_RESULT_FROM_WIN32(0x00000525L)
-#define X_ERROR_FUNCTION_FAILED                         X_RESULT_FROM_WIN32(0x0000065BL)
-#define X_ERROR_EMPTY                                   X_RESULT_FROM_WIN32(0x000010D2L)
+#define X_FACILITY_WIN32 0x0007
+#define X_RESULT_FROM_WIN32(x) ((X_RESULT)(x))
 
+#define X_ERROR_SUCCESS                         X_RESULT_FROM_WIN32(0x00000000L)
+#define X_ERROR_FILE_NOT_FOUND                  X_RESULT_FROM_WIN32(0x00000002L)
+#define X_ERROR_PATH_NOT_FOUND                  X_RESULT_FROM_WIN32(0x00000003L)
+#define X_ERROR_ACCESS_DENIED                   X_RESULT_FROM_WIN32(0x00000005L)
+#define X_ERROR_INVALID_HANDLE                  X_RESULT_FROM_WIN32(0x00000006L)
+#define X_ERROR_NO_MORE_FILES                   X_RESULT_FROM_WIN32(0x00000012L)
+#define X_ERROR_INVALID_PARAMETER               X_RESULT_FROM_WIN32(0x00000057L)
+#define X_ERROR_IO_PENDING                      X_RESULT_FROM_WIN32(0x000003E5L)
+#define X_ERROR_INSUFFICIENT_BUFFER             X_RESULT_FROM_WIN32(0x0000007AL)
+#define X_ERROR_INVALID_NAME                    X_RESULT_FROM_WIN32(0x0000007BL)
+#define X_ERROR_BAD_ARGUMENTS                   X_RESULT_FROM_WIN32(0x000000A0L)
+#define X_ERROR_BUSY                            X_RESULT_FROM_WIN32(0x000000AAL)
+#define X_ERROR_ALREADY_EXISTS                  X_RESULT_FROM_WIN32(0x000000B7L)
+#define X_ERROR_DEVICE_NOT_CONNECTED            X_RESULT_FROM_WIN32(0x0000048FL)
+#define X_ERROR_NOT_FOUND                       X_RESULT_FROM_WIN32(0x00000490L)
+#define X_ERROR_CANCELLED                       X_RESULT_FROM_WIN32(0x000004C7L)
+#define X_ERROR_NOT_LOGGED_ON                   X_RESULT_FROM_WIN32(0x000004DDL)
+#define X_ERROR_NO_SUCH_USER                    X_RESULT_FROM_WIN32(0x00000525L)
+#define X_ERROR_FUNCTION_FAILED                 X_RESULT_FROM_WIN32(0x0000065BL)
+#define X_ERROR_EMPTY                           X_RESULT_FROM_WIN32(0x000010D2L)
+
+// HRESULT codes
 typedef uint32_t X_HRESULT;
-#define X_E_SUCCESS                                     static_cast<X_HRESULT>(0)
-#define X_E_FALSE                                       static_cast<X_HRESULT>(0x80000000L)
-#define X_E_INVALIDARG                                  static_cast<X_HRESULT>(0x80070057L)
+#define X_HRESULT_FROM_WIN32(x) ((int32_t)(x) <= 0 \
+                                  ? (static_cast<X_HRESULT>(x)) \
+                                  : (static_cast<X_HRESULT>(((x) & 0xFFFF) | (X_FACILITY_WIN32 << 16) | \
+                                    0x80000000L)))
+
+#define X_E_FALSE                               static_cast<X_HRESULT>(0x80000000L)
+#define X_E_SUCCESS                             X_HRESULT_FROM_WIN32(X_ERROR_SUCCESS)
+#define X_E_INVALIDARG                          X_HRESULT_FROM_WIN32(X_ERROR_INVALID_PARAMETER)
 
 // MEM_*, used by NtAllocateVirtualMemory
 #define X_MEM_COMMIT              0x00001000
