@@ -264,9 +264,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     copy_commands = command_buffer_pool_->AcquireEntry();
     opened_batch = false;
   } else {
-    command_buffer_pool_->BeginBatch();
+    current_batch_fence_ = command_buffer_pool_->BeginBatch();
     copy_commands = command_buffer_pool_->AcquireEntry();
-    current_batch_fence_.reset(new ui::vulkan::Fence(*device_));
     opened_batch = true;
   }
 
@@ -399,10 +398,10 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
     if (queue_mutex_) {
       std::lock_guard<std::mutex> lock(*queue_mutex_);
-      status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
+      status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
       CheckResult(status, "vkQueueSubmit");
     } else {
-      status = vkQueueSubmit(queue_, 1, &submit_info, *current_batch_fence_);
+      status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
       CheckResult(status, "vkQueueSubmit");
     }
 
@@ -415,12 +414,11 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     }
   }
 
-  command_buffer_pool_->EndBatch(current_batch_fence_);
+  command_buffer_pool_->EndBatch();
 
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
-    VkFence fences[] = {*current_batch_fence_};
-    vkWaitForFences(*device_, 1, fences, VK_TRUE, -1);
+    vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
 
     buffer_cache_->ClearCache();
     pipeline_cache_->ClearCache();
@@ -435,6 +433,9 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
         "gpu",
         "xe::gpu::vulkan::VulkanCommandProcessor::PerformSwap Scavenging");
 #endif  // FINE_GRAINED_DRAW_SCOPES
+    // Command buffers must be scavenged first to avoid a race condition.
+    // We don't want to reuse a batch when the caches haven't yet cleared old
+    // resources!
     command_buffer_pool_->Scavenge();
 
     texture_cache_->Scavenge();
@@ -497,10 +498,9 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   if (!current_command_buffer_) {
     // TODO(benvanik): bigger batches.
     // TODO(DrChat): Decouple setup buffer from current batch.
-    command_buffer_pool_->BeginBatch();
+    current_batch_fence_ = command_buffer_pool_->BeginBatch();
     current_command_buffer_ = command_buffer_pool_->AcquireEntry();
     current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
-    current_batch_fence_.reset(new ui::vulkan::Fence(*device_));
 
     VkCommandBufferBeginInfo command_buffer_begin_info;
     command_buffer_begin_info.sType =
@@ -974,10 +974,9 @@ bool VulkanCommandProcessor::IssueCopy() {
   last_copy_base_ = texture->texture_info.guest_address;
 
   if (!current_command_buffer_) {
-    command_buffer_pool_->BeginBatch();
+    current_batch_fence_ = command_buffer_pool_->BeginBatch();
     current_command_buffer_ = command_buffer_pool_->AcquireEntry();
     current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
-    current_batch_fence_.reset(new ui::vulkan::Fence(*device_));
 
     VkCommandBufferBeginInfo command_buffer_begin_info;
     command_buffer_begin_info.sType =

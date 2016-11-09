@@ -126,7 +126,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   const RenderState* current_render_state_ = nullptr;
   VkCommandBuffer current_command_buffer_ = nullptr;
   VkCommandBuffer current_setup_buffer_ = nullptr;
-  std::shared_ptr<ui::vulkan::Fence> current_batch_fence_;
+  VkFence current_batch_fence_;
 };
 
 }  // namespace vulkan
