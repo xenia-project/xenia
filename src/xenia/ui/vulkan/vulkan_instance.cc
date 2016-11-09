@@ -58,6 +58,9 @@ VulkanInstance::VulkanInstance() {
     DeclareRequiredExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
                              Version::Make(0, 0, 0), true);
   }
+
+  DeclareRequiredExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), true);
 }
 
 VulkanInstance::~VulkanInstance() { DestroyInstance(); }

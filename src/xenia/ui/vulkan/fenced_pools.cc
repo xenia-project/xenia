@@ -48,7 +48,7 @@ CommandBufferPool::CommandBufferPool(VkDevice device,
       vkAllocateCommandBuffers(device_, &command_buffer_info, command_buffers);
   CheckResult(err, "vkCreateCommandBuffer");
   for (size_t i = 0; i < xe::countof(command_buffers); ++i) {
-    PushEntry(command_buffers[i]);
+    PushEntry(command_buffers[i], nullptr);
   }
 }
 
@@ -58,7 +58,7 @@ CommandBufferPool::~CommandBufferPool() {
   command_pool_ = nullptr;
 }
 
-VkCommandBuffer CommandBufferPool::AllocateEntry() {
+VkCommandBuffer CommandBufferPool::AllocateEntry(void* data) {
   // TODO(benvanik): allocate a bunch at once?
   VkCommandBufferAllocateInfo command_buffer_info;
   command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -76,6 +76,42 @@ VkCommandBuffer CommandBufferPool::AllocateEntry() {
 void CommandBufferPool::FreeEntry(VkCommandBuffer handle) {
   vkFreeCommandBuffers(device_, command_pool_, 1, &handle);
 }
+
+DescriptorPool::DescriptorPool(VkDevice device, uint32_t max_count,
+                               std::vector<VkDescriptorPoolSize> pool_sizes)
+    : BaseFencedPool(device) {
+  VkDescriptorPoolCreateInfo descriptor_pool_info;
+  descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  descriptor_pool_info.pNext = nullptr;
+  descriptor_pool_info.flags =
+      VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+  descriptor_pool_info.maxSets = max_count;
+  descriptor_pool_info.poolSizeCount = uint32_t(pool_sizes.size());
+  descriptor_pool_info.pPoolSizes = pool_sizes.data();
+  auto err = vkCreateDescriptorPool(device, &descriptor_pool_info, nullptr,
+                                    &descriptor_pool_);
+  CheckResult(err, "vkCreateDescriptorPool");
+}
+DescriptorPool::~DescriptorPool() {}
+
+VkDescriptorSet DescriptorPool::AllocateEntry(void* data) {
+  VkDescriptorSetLayout layout = reinterpret_cast<VkDescriptorSetLayout>(data);
+
+  VkDescriptorSet descriptor_set = nullptr;
+  VkDescriptorSetAllocateInfo set_alloc_info;
+  set_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  set_alloc_info.pNext = nullptr;
+  set_alloc_info.descriptorPool = descriptor_pool_;
+  set_alloc_info.descriptorSetCount = 1;
+  set_alloc_info.pSetLayouts = &layout;
+  auto err =
+      vkAllocateDescriptorSets(device_, &set_alloc_info, &descriptor_set);
+  CheckResult(err, "vkAllocateDescriptorSets");
+
+  return descriptor_set;
+}
+
+void DescriptorPool::FreeEntry(VkDescriptorSet handle) {}
 
 }  // namespace vulkan
 }  // namespace ui

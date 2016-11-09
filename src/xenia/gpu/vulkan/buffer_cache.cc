@@ -149,7 +149,7 @@ BufferCache::~BufferCache() {
 std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
     const Shader::ConstantRegisterMap& vertex_constant_register_map,
     const Shader::ConstantRegisterMap& pixel_constant_register_map,
-    std::shared_ptr<ui::vulkan::Fence> fence) {
+    VkFence fence) {
   // Fat struct, including all registers:
   // struct {
   //   vec4 float[512];
@@ -230,7 +230,7 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
     const void* source_ptr, size_t source_length, IndexFormat format,
-    std::shared_ptr<ui::vulkan::Fence> fence) {
+    VkFence fence) {
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
@@ -256,7 +256,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
     const void* source_ptr, size_t source_length, Endian endian,
-    std::shared_ptr<ui::vulkan::Fence> fence) {
+    VkFence fence) {
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
@@ -276,8 +276,8 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   return {transient_buffer_->gpu_buffer(), offset};
 }
 
-VkDeviceSize BufferCache::AllocateTransientData(
-    VkDeviceSize length, std::shared_ptr<ui::vulkan::Fence> fence) {
+VkDeviceSize BufferCache::AllocateTransientData(VkDeviceSize length,
+                                                VkFence fence) {
   // Try fast path (if we have space).
   VkDeviceSize offset = TryAllocateTransientData(length, fence);
   if (offset != VK_WHOLE_SIZE) {
@@ -293,8 +293,8 @@ VkDeviceSize BufferCache::AllocateTransientData(
   return offset;
 }
 
-VkDeviceSize BufferCache::TryAllocateTransientData(
-    VkDeviceSize length, std::shared_ptr<ui::vulkan::Fence> fence) {
+VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize length,
+                                                   VkFence fence) {
   auto alloc = transient_buffer_->Acquire(length, fence);
   if (alloc) {
     return alloc->offset;

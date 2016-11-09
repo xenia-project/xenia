@@ -279,7 +279,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 
 bool TextureCache::FreeTexture(Texture* texture) {
   if (texture->in_flight_fence &&
-      texture->in_flight_fence->status() != VK_SUCCESS) {
+      vkGetFenceStatus(*device_, texture->in_flight_fence) != VK_SUCCESS) {
     // Texture still in flight.
     return false;
   }
@@ -315,6 +315,14 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   texture = AllocateTexture(texture_info);
   texture->is_full_texture = false;
 
+  // Setup a debug name for the texture.
+  device_->DbgSetObjectName(
+      reinterpret_cast<uint64_t>(texture->image),
+      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+      xe::format_string(
+          "0x%.8X - 0x%.8X", texture_info.guest_address,
+          texture_info.guest_address + texture_info.output_length));
+
   // Setup an access watch. If this texture is touched, it is destroyed.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
       texture_info.guest_address, texture_info.input_length,
@@ -337,9 +345,9 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   return texture;
 }
 
-TextureCache::Texture* TextureCache::Demand(
-    const TextureInfo& texture_info, VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence) {
+TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
+                                            VkCommandBuffer command_buffer,
+                                            VkFence completion_fence) {
   // Run a tight loop to scan for an exact match existing texture.
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
@@ -431,6 +439,14 @@ TextureCache::Texture* TextureCache::Demand(
     FreeTexture(texture);
     return nullptr;
   }
+
+  // Setup a debug name for the texture.
+  device_->DbgSetObjectName(
+      reinterpret_cast<uint64_t>(texture->image),
+      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+      xe::format_string(
+          "0x%.8X - 0x%.8X", texture_info.guest_address,
+          texture_info.guest_address + texture_info.output_length));
 
   // Copy in overlapping resolve textures.
   // FIXME: RDR appears to take textures from small chunks of a resolve texture?
@@ -770,9 +786,8 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
   }
 }
 
-void TextureCache::FlushPendingCommands(
-    VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence) {
+void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
+                                        VkFence completion_fence) {
   auto status = vkEndCommandBuffer(command_buffer);
   CheckResult(status, "vkEndCommandBuffer");
 
@@ -784,20 +799,19 @@ void TextureCache::FlushPendingCommands(
 
   if (device_queue_) {
     auto status =
-        vkQueueSubmit(device_queue_, 1, &submit_info, *completion_fence);
+        vkQueueSubmit(device_queue_, 1, &submit_info, completion_fence);
     CheckResult(status, "vkQueueSubmit");
   } else {
     std::lock_guard<std::mutex>(device_->primary_queue_mutex());
 
     auto status = vkQueueSubmit(device_->primary_queue(), 1, &submit_info,
-                                *completion_fence);
+                                completion_fence);
     CheckResult(status, "vkQueueSubmit");
   }
 
-  VkFence fences[] = {*completion_fence};
-  vkWaitForFences(*device_, 1, fences, VK_TRUE, -1);
+  vkWaitForFences(*device_, 1, &completion_fence, VK_TRUE, -1);
   staging_buffer_.Scavenge();
-  vkResetFences(*device_, 1, fences);
+  vkResetFences(*device_, 1, &completion_fence);
 
   // Reset the command buffer and put it back into the recording state.
   vkResetCommandBuffer(command_buffer, 0);
@@ -922,10 +936,9 @@ void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
   }
 }
 
-bool TextureCache::UploadTexture2D(
-    VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
-    const TextureInfo& src) {
+bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
+                                   VkFence completion_fence, Texture* dest,
+                                   const TextureInfo& src) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -1004,10 +1017,9 @@ bool TextureCache::UploadTexture2D(
   return true;
 }
 
-bool TextureCache::UploadTextureCube(
-    VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence, Texture* dest,
-    const TextureInfo& src) {
+bool TextureCache::UploadTextureCube(VkCommandBuffer command_buffer,
+                                     VkFence completion_fence, Texture* dest,
+                                     const TextureInfo& src) {
   assert_true(src.dimension == Dimension::kCube);
 
   size_t unpack_length = src.output_length;
@@ -1083,8 +1095,7 @@ bool TextureCache::UploadTextureCube(
 }
 
 VkDescriptorSet TextureCache::PrepareTextureSet(
-    VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence,
+    VkCommandBuffer command_buffer, VkFence completion_fence,
     const std::vector<Shader::TextureBinding>& vertex_bindings,
     const std::vector<Shader::TextureBinding>& pixel_bindings) {
   // Clear state.
@@ -1140,8 +1151,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
 }
 
 bool TextureCache::SetupTextureBindings(
-    VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence,
+    VkCommandBuffer command_buffer, VkFence completion_fence,
     UpdateSetInfo* update_set_info,
     const std::vector<Shader::TextureBinding>& bindings) {
   bool any_failed = false;
@@ -1158,10 +1168,10 @@ bool TextureCache::SetupTextureBindings(
   return !any_failed;
 }
 
-bool TextureCache::SetupTextureBinding(
-    VkCommandBuffer command_buffer,
-    std::shared_ptr<ui::vulkan::Fence> completion_fence,
-    UpdateSetInfo* update_set_info, const Shader::TextureBinding& binding) {
+bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
+                                       VkFence completion_fence,
+                                       UpdateSetInfo* update_set_info,
+                                       const Shader::TextureBinding& binding) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -1246,7 +1256,7 @@ void TextureCache::ClearCache() {
 void TextureCache::Scavenge() {
   // Free unused descriptor sets
   for (auto it = in_flight_sets_.begin(); it != in_flight_sets_.end();) {
-    if (vkGetFenceStatus(*device_, *it->second) == VK_SUCCESS) {
+    if (vkGetFenceStatus(*device_, it->second) == VK_SUCCESS) {
       // We can free this one.
       vkFreeDescriptorSets(*device_, descriptor_pool_, 1, &it->first);
       it = in_flight_sets_.erase(it);
