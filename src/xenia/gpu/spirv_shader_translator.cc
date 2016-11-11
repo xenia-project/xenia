@@ -1253,23 +1253,18 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   assert_not_zero(src);
 
   uint32_t dim_idx = 0;
-  spv::Id image_type = 0;
   switch (instr.dimension) {
     case TextureDimension::k1D: {
       dim_idx = 0;
-      image_type = image_1d_type_;
     } break;
     case TextureDimension::k2D: {
       dim_idx = 1;
-      image_type = image_2d_type_;
     } break;
     case TextureDimension::k3D: {
       dim_idx = 2;
-      image_type = image_3d_type_;
     } break;
     case TextureDimension::kCube: {
       dim_idx = 3;
-      image_type = image_cube_type_;
     } break;
     default:
       assert_unhandled_case(instr.dimension);
@@ -1283,9 +1278,23 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
+      spv::Id size = 0;
+      if (instr.attributes.offset_x || instr.attributes.offset_y) {
+        auto image =
+            b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
+
+        spv::Builder::TextureParameters params;
+        std::memset(&params, 0, sizeof(params));
+        params.sampler = image;
+        params.lod = b.makeIntConstant(0);
+        size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
+      }
+
       if (instr.dimension == TextureDimension::k1D &&
           (instr.attributes.offset_x)) {
         auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
+        offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
+
         src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
       } else if (instr.dimension == TextureDimension::k2D &&
                  (instr.attributes.offset_x || instr.attributes.offset_y)) {
@@ -1294,6 +1303,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             std::vector<Id>(
                 {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
                  b.makeFloatConstant(instr.attributes.offset_y + 0.5f)}));
+
+        offset = b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
         src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
       }
 
@@ -1309,19 +1320,21 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       auto texture_ptr =
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));
-      auto image = b.createUnaryOp(spv::Op::OpImage, image_type,
-                                   b.createLoad(texture_ptr));
+      auto texture = b.createLoad(texture_ptr);
+      auto image =
+          b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
 
-      /*
       switch (instr.dimension) {
         case TextureDimension::k1D: {
+          spv::Builder::TextureParameters params;
+          std::memset(&params, 0, sizeof(params));
+          params.sampler = image;
+          params.lod = b.makeIntConstant(0);
           auto size =
-              b.createUnaryOp(spv::Op::OpImageQuerySize, uint_type_, image);
+              b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
           size = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_, size);
-          auto tex_coord = b.createCompositeExtract(src, float_type_, 0);
 
-          auto weight =
-              b.createBinOp(spv::Op::OpFMul, float_type_, size, tex_coord);
+          auto weight = b.createBinOp(spv::Op::OpFMul, float_type_, size, src);
           weight = CreateGlslStd450InstructionCall(
               spv::NoPrecision, float_type_, spv::GLSLstd450::kFract, {weight});
 
@@ -1330,15 +1343,17 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         } break;
 
         case TextureDimension::k2D: {
-          auto size = b.createUnaryOp(spv::Op::OpImageQuerySize,
-                                      vec2_uint_type_, image);
+          spv::Builder::TextureParameters params;
+          std::memset(&params, 0, sizeof(params));
+          params.sampler = image;
+          params.lod = b.makeIntConstant(0);
+          auto size =
+              b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
           size =
               b.createUnaryOp(spv::Op::OpConvertUToF, vec2_float_type_, size);
-          auto tex_coord = b.createOp(spv::Op::OpVectorShuffle,
-                                      vec2_float_type_, {src, src, 0, 1});
 
           auto weight =
-              b.createBinOp(spv::Op::OpFMul, vec2_float_type_, size, tex_coord);
+              b.createBinOp(spv::Op::OpFMul, vec2_float_type_, size, src);
           weight = CreateGlslStd450InstructionCall(
               spv::NoPrecision, vec2_float_type_, spv::GLSLstd450::kFract,
               {weight});
@@ -1349,15 +1364,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
         default:
           // TODO(DrChat): The rest of these.
-          assert_always();
+          assert_unhandled_case(instr.dimension);
           break;
       }
-      */
     } break;
 
     default:
       // TODO: the rest of these
-      assert_always();
+      assert_unhandled_case(instr.opcode);
       break;
   }
 
