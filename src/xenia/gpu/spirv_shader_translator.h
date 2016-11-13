@@ -29,8 +29,11 @@ namespace gpu {
 // supported size).
 struct SpirvPushConstants {
   // Accessible to vertex shader only:
-  float window_scale[4];  // sx,sy, ?, ?
+  float window_scale[4];  // scale x/y, viewport width/height (pixels)
   float vtx_fmt[4];
+
+  // Accessible to geometry shader only:
+  float point_size[4];  // psx, psy, unused, unused
 
   // Accessible to fragment shader only:
   float alpha_test[4];  // alpha test enable, func, ref, ?
@@ -40,8 +43,11 @@ static_assert(sizeof(SpirvPushConstants) <= 128,
               "Push constants must fit <= 128b");
 constexpr uint32_t kSpirvPushConstantVertexRangeOffset = 0;
 constexpr uint32_t kSpirvPushConstantVertexRangeSize = (sizeof(float) * 4) * 2;
+constexpr uint32_t kSpirvPushConstantGeometryRangeOffset =
+    kSpirvPushConstantVertexRangeOffset + kSpirvPushConstantVertexRangeSize;
+constexpr uint32_t kSpirvPushConstantGeometryRangeSize = (sizeof(float) * 4);
 constexpr uint32_t kSpirvPushConstantFragmentRangeOffset =
-    kSpirvPushConstantVertexRangeSize;
+    kSpirvPushConstantGeometryRangeOffset + kSpirvPushConstantGeometryRangeSize;
 constexpr uint32_t kSpirvPushConstantFragmentRangeSize =
     (sizeof(float) * 4) + sizeof(uint32_t);
 constexpr uint32_t kSpirvPushConstantsSize = sizeof(SpirvPushConstants);
@@ -145,6 +151,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
+  spv::Id point_size_ = 0;
+  spv::Id point_coord_ = 0;
   spv::Id vertex_idx_ = 0;
   spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;

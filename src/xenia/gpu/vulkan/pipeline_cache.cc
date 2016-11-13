@@ -65,8 +65,9 @@ PipelineCache::PipelineCache(
   // We need to keep these under 128b across all stages.
   // TODO(benvanik): split between the stages?
   VkPushConstantRange push_constant_ranges[1];
-  push_constant_ranges[0].stageFlags =
-      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+  push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+                                       VK_SHADER_STAGE_GEOMETRY_BIT |
+                                       VK_SHADER_STAGE_FRAGMENT_BIT;
   push_constant_ranges[0].offset = 0;
   push_constant_ranges[0].size = kSpirvPushConstantsSize;
 
@@ -509,68 +510,66 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                                             XE_GPU_REG_PA_CL_VPORT_YSCALE);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
                                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
+  // RB_SURFACE_INFO
+  auto surface_msaa =
+      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+
+  // Apply a multiplier to emulate MSAA.
+  float window_width_scalar = 1;
+  float window_height_scalar = 1;
+  switch (surface_msaa) {
+    case MsaaSamples::k1X:
+      break;
+    case MsaaSamples::k2X:
+      window_height_scalar = 2;
+      break;
+    case MsaaSamples::k4X:
+      window_width_scalar = window_height_scalar = 2;
+      break;
+  }
+
+  // Whether each of the viewport settings are enabled.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
+  bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
+  bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
+  bool vport_yoffset_enable = (regs.pa_cl_vte_cntl & (1 << 3)) > 0;
+  bool vport_zscale_enable = (regs.pa_cl_vte_cntl & (1 << 4)) > 0;
+  bool vport_zoffset_enable = (regs.pa_cl_vte_cntl & (1 << 5)) > 0;
+  assert_true(vport_xscale_enable == vport_yscale_enable ==
+              vport_zscale_enable == vport_xoffset_enable ==
+              vport_yoffset_enable == vport_zoffset_enable);
+
+  float vpw, vph, vpx, vpy;
+  float texel_offset_x = 0.0f;
+  float texel_offset_y = 0.0f;
+
+  if (vport_xscale_enable) {
+    float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
+    float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
+    float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
+    float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
+
+    window_width_scalar = window_height_scalar = 1;
+    vpw = 2 * window_width_scalar * vsx;
+    vph = -2 * window_height_scalar * vsy;
+    vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
+    vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
+  } else {
+    vpw = 2 * 2560.0f * window_width_scalar;
+    vph = 2 * 2560.0f * window_height_scalar;
+    vpx = -2560.0f * window_width_scalar + window_offset_x;
+    vpy = -2560.0f * window_height_scalar + window_offset_y;
+  }
+
   if (viewport_state_dirty) {
-    // RB_SURFACE_INFO
-    auto surface_msaa =
-        static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-
-    // Apply a multiplier to emulate MSAA.
-    float window_width_scalar = 1;
-    float window_height_scalar = 1;
-    switch (surface_msaa) {
-      case MsaaSamples::k1X:
-        break;
-      case MsaaSamples::k2X:
-        window_height_scalar = 2;
-        break;
-      case MsaaSamples::k4X:
-        window_width_scalar = window_height_scalar = 2;
-        break;
-    }
-
-    // Whether each of the viewport settings are enabled.
-    // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-    bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
-    bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
-    bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
-    bool vport_yoffset_enable = (regs.pa_cl_vte_cntl & (1 << 3)) > 0;
-    bool vport_zscale_enable = (regs.pa_cl_vte_cntl & (1 << 4)) > 0;
-    bool vport_zoffset_enable = (regs.pa_cl_vte_cntl & (1 << 5)) > 0;
-    assert_true(vport_xscale_enable == vport_yscale_enable ==
-                vport_zscale_enable == vport_xoffset_enable ==
-                vport_yoffset_enable == vport_zoffset_enable);
-
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
-    if (vport_xscale_enable) {
-      float texel_offset_x = 0.0f;
-      float texel_offset_y = 0.0f;
-      float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
-      float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
-      float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
-      float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
+    viewport_rect.x = vpx + texel_offset_x;
+    viewport_rect.y = vpy + texel_offset_y;
+    viewport_rect.width = vpw;
+    viewport_rect.height = vph;
 
-      window_width_scalar = window_height_scalar = 1;
-      float vpw = 2 * window_width_scalar * vsx;
-      float vph = -2 * window_height_scalar * vsy;
-      float vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
-      float vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
-      viewport_rect.x = vpx + texel_offset_x;
-      viewport_rect.y = vpy + texel_offset_y;
-      viewport_rect.width = vpw;
-      viewport_rect.height = vph;
-    } else {
-      float texel_offset_x = 0.0f;
-      float texel_offset_y = 0.0f;
-      float vpw = 2 * 2560.0f * window_width_scalar;
-      float vph = 2 * 2560.0f * window_height_scalar;
-      float vpx = -2560.0f * window_width_scalar + window_offset_x;
-      float vpy = -2560.0f * window_height_scalar + window_offset_y;
-      viewport_rect.x = vpx + texel_offset_x;
-      viewport_rect.y = vpy + texel_offset_y;
-      viewport_rect.width = vpw;
-      viewport_rect.height = vph;
-    }
     float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
     float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
     viewport_rect.minDepth = voz;
@@ -625,6 +624,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
   push_constants_dirty |=
       SetShadowRegister(&regs.rb_alpha_ref, XE_GPU_REG_RB_ALPHA_REF);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.pa_su_point_size, XE_GPU_REG_PA_SU_POINT_SIZE);
   if (push_constants_dirty) {
     xenos::xe_gpu_program_cntl_t program_cntl;
     program_cntl.dword_0 = regs.sq_program_cntl;
@@ -648,6 +649,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[0] = 1.0f / 2560.0f;
       push_constants.window_scale[1] = 1.0f / 2560.0f;
     }
+    push_constants.window_scale[2] = vpw;
+    push_constants.window_scale[3] = vph;
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
@@ -663,6 +666,12 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     push_constants.vtx_fmt[1] = vtx_xy_fmt;
     push_constants.vtx_fmt[2] = vtx_z_fmt;
     push_constants.vtx_fmt[3] = vtx_w0_fmt;
+
+    // Point size
+    push_constants.point_size[0] =
+        static_cast<float>((regs.pa_su_point_size & 0xffff0000) >> 16) / 8.0f;
+    push_constants.point_size[1] =
+        static_cast<float>((regs.pa_su_point_size & 0x0000ffff)) / 8.0f;
 
     // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
     // Emulated in shader.
@@ -680,10 +689,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
     push_constants.ps_param_gen = program_cntl.param_gen ? ps_param_gen : -1;
 
-    vkCmdPushConstants(
-        command_buffer, pipeline_layout_,
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-        kSpirvPushConstantsSize, &push_constants);
+    vkCmdPushConstants(command_buffer, pipeline_layout_,
+                       VK_SHADER_STAGE_VERTEX_BIT |
+                           VK_SHADER_STAGE_GEOMETRY_BIT |
+                           VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, kSpirvPushConstantsSize, &push_constants);
   }
 
   if (full_update) {
@@ -1159,6 +1169,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   }
   if (primitive_type == PrimitiveType::kRectangleList) {
     // Rectangle lists aren't culled. There may be other things they skip too.
+    state_info.cullMode = VK_CULL_MODE_NONE;
+  } else if (primitive_type == PrimitiveType::kPointList) {
+    // Face culling doesn't apply to point primitives.
     state_info.cullMode = VK_CULL_MODE_NONE;
   }
 

@@ -13,6 +13,7 @@ layout(set = 0, binding = 1) uniform consts_type {
 layout(push_constant) uniform push_consts_type {
   vec4 window_scale;
   vec4 vtx_fmt;
+  vec4 point_size;
   vec4 alpha_test;
   uint ps_param_gen;
 } push_constants;

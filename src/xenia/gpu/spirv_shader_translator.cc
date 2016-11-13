@@ -155,9 +155,10 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Push constants, represented by SpirvPushConstants.
-  Id push_constants_type = b.makeStructType(
-      {vec4_float_type_, vec4_float_type_, vec4_float_type_, uint_type_},
-      "push_consts_type");
+  Id push_constants_type =
+      b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_,
+                        vec4_float_type_, uint_type_},
+                       "push_consts_type");
   b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
 
   // float4 window_scale;
@@ -170,16 +171,21 @@ void SpirvShaderTranslator::StartTranslation() {
       push_constants_type, 1, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, vtx_fmt)));
   b.addMemberName(push_constants_type, 1, "vtx_fmt");
-  // float4 alpha_test;
+  // float4 vtx_fmt;
   b.addMemberDecoration(
       push_constants_type, 2, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
-  b.addMemberName(push_constants_type, 2, "alpha_test");
-  // uint ps_param_gen;
+      static_cast<int>(offsetof(SpirvPushConstants, point_size)));
+  b.addMemberName(push_constants_type, 2, "point_size");
+  // float4 alpha_test;
   b.addMemberDecoration(
       push_constants_type, 3, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
+  b.addMemberName(push_constants_type, 3, "alpha_test");
+  // uint ps_param_gen;
+  b.addMemberDecoration(
+      push_constants_type, 4, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, ps_param_gen)));
-  b.addMemberName(push_constants_type, 3, "ps_param_gen");
+  b.addMemberName(push_constants_type, 4, "ps_param_gen");
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
@@ -292,6 +298,24 @@ void SpirvShaderTranslator::StartTranslation() {
       b.createStore(vec4_float_zero_, ptr);
     }
 
+    point_size_ = b.createVariable(spv::StorageClass::StorageClassOutput,
+                                   float_type_, "point_size");
+    b.addDecoration(point_size_, spv::Decoration::DecorationLocation, 17);
+    // Set default point-size value (-1.0f, indicating to the geometry shader
+    // that the register value should be used instead of the per-vertex value)
+    b.createStore(point_size_, b.makeFloatConstant(-1.0f));
+
+    point_coord_ = b.createVariable(spv::StorageClass::StorageClassOutput,
+                                    vec2_float_type_, "point_coord");
+    b.addDecoration(point_coord_, spv::Decoration::DecorationLocation, 16);
+    // point_coord is only ever populated in a geometry shader. Just write
+    // zero to it in the vertex shader.
+    b.createStore(
+        point_coord_,
+        b.makeCompositeConstant(vec2_float_type_,
+                                std::vector<Id>({b.makeFloatConstant(0.0f),
+                                                 b.makeFloatConstant(0.0f)})));
+
     pos_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                             vec4_float_type_, "gl_Position");
     b.addDecoration(pos_, spv::Decoration::DecorationBuiltIn,
@@ -303,6 +327,8 @@ void SpirvShaderTranslator::StartTranslation() {
                     spv::BuiltIn::BuiltInVertexIndex);
 
     interface_ids_.push_back(interpolators_);
+    interface_ids_.push_back(point_coord_);
+    interface_ids_.push_back(point_size_);
     interface_ids_.push_back(pos_);
     interface_ids_.push_back(vertex_idx_);
 
@@ -322,6 +348,10 @@ void SpirvShaderTranslator::StartTranslation() {
                                       interpolators_type, "interpolators");
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
 
+    point_coord_ = b.createVariable(spv::StorageClass::StorageClassInput,
+                                    vec2_float_type_, "point_coord");
+    b.addDecoration(point_coord_, spv::Decoration::DecorationLocation, 16);
+
     // Pixel fragment outputs (one per render target).
     Id frag_outputs_type =
         b.makeArrayType(vec4_float_type_, b.makeUintConstant(4), 0);
@@ -335,6 +365,7 @@ void SpirvShaderTranslator::StartTranslation() {
                     spv::BuiltIn::BuiltInFragDepth);
 
     interface_ids_.push_back(interpolators_);
+    interface_ids_.push_back(point_coord_);
     interface_ids_.push_back(frag_outputs_);
     interface_ids_.push_back(frag_depth_);
     // TODO(benvanik): frag depth, etc.
@@ -358,7 +389,7 @@ void SpirvShaderTranslator::StartTranslation() {
     // Setup ps_param_gen
     auto ps_param_gen_idx_ptr = b.createAccessChain(
         spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(3)}));
+        std::vector<Id>({b.makeUintConstant(4)}));
     auto ps_param_gen_idx = b.createLoad(ps_param_gen_idx_ptr);
 
     auto frag_coord = b.createVariable(spv::StorageClass::StorageClassInput,
@@ -366,16 +397,11 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addDecoration(frag_coord, spv::Decoration::DecorationBuiltIn,
                     spv::BuiltIn::BuiltInFragCoord);
 
-    auto point_coord = b.createVariable(spv::StorageClass::StorageClassInput,
-                                        vec2_float_type_, "gl_PointCoord");
-    b.addDecoration(point_coord, spv::Decoration::DecorationBuiltIn,
-                    spv::BuiltIn::BuiltInPointCoord);
     interface_ids_.push_back(frag_coord);
-    interface_ids_.push_back(point_coord);
 
     auto param = b.createOp(
         spv::Op::OpVectorShuffle, vec4_float_type_,
-        {b.createLoad(frag_coord), b.createLoad(point_coord), 0, 1, 4, 5});
+        {b.createLoad(frag_coord), b.createLoad(point_coord_), 0, 1, 4, 5});
     /*
     // TODO: gl_FrontFacing
     auto param_x = b.createCompositeExtract(param, float_type_, 0);
@@ -516,7 +542,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     // Alpha test
     auto alpha_test_ptr = b.createAccessChain(
         spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(2)}));
+        std::vector<Id>({b.makeUintConstant(3)}));
     auto alpha_test = b.createLoad(alpha_test_ptr);
 
     auto alpha_test_enabled =
@@ -2697,7 +2723,11 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       break;
     case InstructionStorageTarget::kPointSize:
       assert_true(is_vertex_shader());
-      // TODO(benvanik): result.storage_index
+      storage_pointer = point_size_;
+      storage_class = spv::StorageClass::StorageClassOutput;
+      storage_type = float_type_;
+      storage_offsets.push_back(0);
+      storage_array = false;
       break;
     case InstructionStorageTarget::kColorTarget:
       assert_true(is_pixel_shader());

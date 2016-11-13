@@ -396,14 +396,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &swap_sem;
 
-    if (queue_mutex_) {
-      std::lock_guard<std::mutex> lock(*queue_mutex_);
-      status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
-      CheckResult(status, "vkQueueSubmit");
-    } else {
-      status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
-      CheckResult(status, "vkQueueSubmit");
-    }
+    status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
+    CheckResult(status, "vkQueueSubmit");
 
     if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
