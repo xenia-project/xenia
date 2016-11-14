@@ -31,6 +31,7 @@ class WindowListener {
   virtual void OnPainting(UIEvent* e) {}
   virtual void OnPaint(UIEvent* e) {}
   virtual void OnPainted(UIEvent* e) {}
+  virtual void OnFileDrop(UIEvent* e) {}
 
   virtual void OnVisible(UIEvent* e) {}
   virtual void OnHidden(UIEvent* e) {}

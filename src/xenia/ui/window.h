@@ -102,6 +102,7 @@ class Window {
   Delegate<UIEvent*> on_painting;
   Delegate<UIEvent*> on_paint;
   Delegate<UIEvent*> on_painted;
+  Delegate<FileDropEvent*> on_file_drop;
 
   Delegate<KeyEvent*> on_key_down;
   Delegate<KeyEvent*> on_key_up;
@@ -128,6 +129,7 @@ class Window {
   virtual void OnResize(UIEvent* e);
   virtual void OnLayout(UIEvent* e);
   virtual void OnPaint(UIEvent* e);
+  virtual void OnFileDrop(FileDropEvent* e);
 
   virtual void OnVisible(UIEvent* e);
   virtual void OnHidden(UIEvent* e);

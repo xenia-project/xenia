@@ -213,6 +213,11 @@ void Window::OnPaint(UIEvent* e) {
   }
 }
 
+void Window::OnFileDrop(FileDropEvent* e) {
+  on_file_drop(e);
+  ForEachListener([e](auto listener) { listener->OnFileDrop(e); });
+}
+
 void Window::OnVisible(UIEvent* e) {
   ForEachListener([e](auto listener) { listener->OnVisible(e); });
 }

@@ -42,6 +42,7 @@ class EmulatorWindow {
 
   bool Initialize();
 
+  void FileDrop(wchar_t* filename);
   void FileOpen();
   void CheckHideCursor();
   void CpuTimeScalarReset();
