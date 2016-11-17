@@ -26,6 +26,18 @@ class UIEvent {
   Window* target_ = nullptr;
 };
 
+class FileDropEvent : public UIEvent {
+ public:
+  FileDropEvent(Window* target, wchar_t* filename)
+      : UIEvent(target), filename_(filename) {}
+  ~FileDropEvent() override = default;
+
+  wchar_t* filename() const { return filename_; }
+
+ private:
+  wchar_t* filename_ = nullptr;
+};
+
 class KeyEvent : public UIEvent {
  public:
   KeyEvent(Window* target, int key_code, int repeat_count, bool prev_state)

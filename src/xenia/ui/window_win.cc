@@ -101,6 +101,8 @@ bool Win32Window::OnCreate() {
 
   // Enable DWM elevation.
   EnableMMCSS();
+  // Enable file dragging from external sources
+  DragAcceptFiles(hwnd_, true);
 
   ShowWindow(hwnd_, SW_SHOWNORMAL);
   UpdateWindow(hwnd_);
@@ -378,6 +380,21 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
   }
 
   switch (message) {
+    case WM_DROPFILES: {
+      TCHAR lpszFile[MAX_PATH] = {0};
+      UINT uFiles = 0;
+      HDROP hDrop = (HDROP)wParam;
+      // Get number of files dropped
+      uFiles = DragQueryFile(hDrop, -1, NULL, NULL);
+
+      // Only getting first file dropped (other files ignored)
+      if (DragQueryFile(hDrop, 0, lpszFile, MAX_PATH)) {
+        auto e = FileDropEvent(this, lpszFile);
+        OnFileDrop(&e);
+      }
+
+      DragFinish(hDrop);
+    } break;
     case WM_NCCREATE:
       break;
     case WM_CREATE:

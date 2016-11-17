@@ -32,6 +32,7 @@ using xe::ui::KeyEvent;
 using xe::ui::MenuItem;
 using xe::ui::MouseEvent;
 using xe::ui::UIEvent;
+using xe::ui::FileDropEvent;
 
 const std::wstring kBaseTitle = L"xenia";
 
@@ -80,6 +81,9 @@ bool EmulatorWindow::Initialize() {
     exit(1);
   });
   loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
+
+  window_->on_file_drop.AddListener(
+      [this](FileDropEvent* e) { FileDrop(e->filename()); });
 
   window_->on_key_down.AddListener([this](KeyEvent* e) {
     bool handled = true;
@@ -255,6 +259,15 @@ bool EmulatorWindow::Initialize() {
   window_->Resize(1280, 720);
 
   return true;
+}
+
+void EmulatorWindow::FileDrop(wchar_t* filename) {
+  std::wstring path = filename;
+  auto result = emulator_->LaunchPath(path);
+  if (XFAILED(result)) {
+    // TODO: Display a message box.
+    XELOGE("Failed to launch target: %.8X", result);
+  }
 }
 
 void EmulatorWindow::FileOpen() {
