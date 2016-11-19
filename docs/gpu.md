@@ -1,17 +1,37 @@
 # GPU Documentation
 
+## The Xenos Chip
+
+The [Xenos](https://en.wikipedia.org/wiki/Xenos_\(graphics_chip\)) is a graphics
+chip designed by AMD based off of the R5xx architecture.
+
+### Command Processing
+
+The Xenos runs commands supplied to it directly by the DirectX bare-bones driver
+via a ringbuffer located in system memory.
+
+The bulk of the command processing code is located at
+[src/xenia/gpu/command_processor.cc](../src/xenia/gpu/command_processor.cc)
+
+### EDRAM
+
+The Xenos uses special high-speed memory located on the same die as the chip to 
+store framebuffers/render targets.
+
+TODO: More documentation
+
 ## Options
 
 ### General
 
-See the top of [src/xenia/gpu/gpu.cc](https://github.com/benvanik/xenia/blob/master/src/xenia/gpu/gpu.cc).
+See the top of [src/xenia/gpu/gpu.cc](../src/xenia/gpu/gpu.cc).
 
 `--vsync=false` will attempt to render the game as fast as possible instead of
 waiting for a fixed 60hz timer.
 
 ### OpenGL
 
-See the top of [src/xenia/gpu/gl4/gl4_gpu.cc](https://github.com/benvanik/xenia/blob/master/src/xenia/gpu/gl4/gl4_gpu.cc).
+See the top of [src/xenia/gpu/gl4/gl4_gpu.cc](../src/xenia/gpu/gl4/gl4_gpu.cc).
 
 Buggy GL implementations can benefit from `--thread_safe_gl`.
 
@@ -42,7 +62,7 @@ Playground tool.
 
 #### Shader Playground
 
-Built separately (for now) under [tools/shader-playground/](https://github.com/benvanik/xenia/blob/master/tools/shader-playground/)
+Built separately (for now) under [tools/shader-playground/](../tools/shader-playground/)
 is a GUI for interactive shader assembly, disassembly, validation, and
 translation.
 
@@ -59,7 +79,7 @@ disassembly is broken. Finally, the right most box will show the
 translated shader in the desired format.
 
 For more information and setup instructions see
-[tools/shader-playground/README.md](https://github.com/benvanik/xenia/blob/master/tools/shader-playground/README.md).
+[tools/shader-playground/README.md](../tools/shader-playground/README.md).
 
 ### xe-gpu-trace-viewer
 
@@ -94,6 +114,10 @@ you to seek through them in the trace viewer. These files will get large.
 ## References
 
 ### Command Buffer/Registers
+
+Registers documented at [src/xenia/gpu/register_table.inc](../src/xenia/gpu/register_table.inc).
+
+PM4 commands documented at [src/xenia/gpu/xenos.h](../src/xenia/gpu/xenos.h#L521).
 
 ### Shaders
 
