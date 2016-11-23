@@ -303,7 +303,7 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addDecoration(point_size_, spv::Decoration::DecorationLocation, 17);
     // Set default point-size value (-1.0f, indicating to the geometry shader
     // that the register value should be used instead of the per-vertex value)
-    b.createStore(point_size_, b.makeFloatConstant(-1.0f));
+    b.createStore(b.makeFloatConstant(-1.0f), point_size_);
 
     point_coord_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                                     vec2_float_type_, "point_coord");
@@ -311,10 +311,10 @@ void SpirvShaderTranslator::StartTranslation() {
     // point_coord is only ever populated in a geometry shader. Just write
     // zero to it in the vertex shader.
     b.createStore(
-        point_coord_,
         b.makeCompositeConstant(vec2_float_type_,
                                 std::vector<Id>({b.makeFloatConstant(0.0f),
-                                                 b.makeFloatConstant(0.0f)})));
+                                                 b.makeFloatConstant(0.0f)})),
+        point_coord_);
 
     pos_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                             vec4_float_type_, "gl_Position");
