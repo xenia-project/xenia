@@ -64,7 +64,7 @@ class Win32Loop : public Loop {
   std::mutex pending_timers_mutex_;
   std::list<PendingTimer*> pending_timers_;
 
-  std::mutex posted_functions_mutex_;
+  std::recursive_mutex posted_functions_mutex_;
   std::list<PostedFn> posted_functions_;
 };
 
