@@ -178,6 +178,17 @@ X_STATUS Emulator::Setup(
   return result;
 }
 
+X_STATUS Emulator::TerminateTitle() {
+  if (!is_title_open()) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  kernel_state_->TerminateTitle();
+  title_id_ = 0;
+  game_title_ = L"";
+  return X_STATUS_SUCCESS;
+}
+
 X_STATUS Emulator::LaunchPath(std::wstring path) {
   // Launch based on file type.
   // This is a silly guess based on file extension.

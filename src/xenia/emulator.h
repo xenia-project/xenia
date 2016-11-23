@@ -56,6 +56,9 @@ class Emulator {
   // Title of the game in the default language.
   const std::wstring& game_title() const { return game_title_; }
 
+  // Are we currently running a title?
+  bool is_title_open() const { return title_id_ != 0; }
+
   // Window used for displaying graphical output.
   ui::Window* display_window() const { return display_window_; }
 
@@ -102,6 +105,9 @@ class Emulator {
           graphics_system_factory,
       std::function<std::vector<std::unique_ptr<hid::InputDriver>>(ui::Window*)>
           input_driver_factory);
+
+  // Terminates the currently running title.
+  X_STATUS TerminateTitle();
 
   // Launches a game from the given file path.
   // This will attempt to infer the type of the given file (such as an iso, etc)

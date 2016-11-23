@@ -167,6 +167,9 @@ bool EmulatorWindow::Initialize() {
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, L"&Open", L"Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
+    file_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, L"Close",
+                         std::bind(&EmulatorWindow::FileClose, this)));
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, L"E&xit",
                                          L"Alt+F4",
                                          [this]() { window_->Close(); }));
@@ -301,6 +304,12 @@ void EmulatorWindow::FileOpen() {
       // TODO: Display a message box.
       XELOGE("Failed to launch target: %.8X", result);
     }
+  }
+}
+
+void EmulatorWindow::FileClose() {
+  if (emulator_->is_title_open()) {
+    emulator_->TerminateTitle();
   }
 }
 
