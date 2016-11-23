@@ -90,7 +90,7 @@ void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
 DECLARE_XBOXKRNL_EXPORT(RtlFillMemoryUlong, ExportTag::kImplemented);
 
 dword_result_t RtlUpperChar(dword_t in) {
-  char c = in & 0xF;
+  char c = in & 0xFF;
   if (c >= 'a' && c <= 'z') {
     return c ^ 0x20;
   }
@@ -100,7 +100,7 @@ dword_result_t RtlUpperChar(dword_t in) {
 DECLARE_XBOXKRNL_EXPORT(RtlUpperChar, ExportTag::kImplemented);
 
 dword_result_t RtlLowerChar(dword_t in) {
-  char c = in & 0xF;
+  char c = in & 0xFF;
   if (c >= 'A' && c <= 'Z') {
     return c ^ 0x20;
   }
