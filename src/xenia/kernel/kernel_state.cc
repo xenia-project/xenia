@@ -330,6 +330,9 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
     dispatch_thread_running_ = true;
     dispatch_thread_ =
         object_ref<XHostThread>(new XHostThread(this, 128 * 1024, 0, [this]() {
+          // As we run guest callbacks the debugger must be able to suspend us.
+          dispatch_thread_->set_can_debugger_suspend(true);
+
           while (dispatch_thread_running_) {
             auto global_lock = global_critical_region_.Acquire();
             if (dispatch_queue_.empty()) {
@@ -344,8 +347,6 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
           }
           return 0;
         }));
-    // As we run guest callbacks the debugger must be able to suspend us.
-    dispatch_thread_->set_can_debugger_suspend(true);
     dispatch_thread_->set_name("Kernel Dispatch Thread");
     dispatch_thread_->Create();
   }
