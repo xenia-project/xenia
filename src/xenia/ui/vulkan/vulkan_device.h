@@ -101,8 +101,6 @@ class VulkanDevice {
   std::vector<Requirement> required_layers_;
   std::vector<Requirement> required_extensions_;
 
-  PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_;
-
   DeviceInfo device_info_;
   uint32_t queue_family_index_ = 0;
   std::mutex queue_mutex_;

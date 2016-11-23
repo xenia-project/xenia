@@ -6,6 +6,7 @@ project("vulkan-loader")
 
   defines({
     "_LIB",
+    "API_NAME=\"vulkan\"",
   })
   removedefines({
     "_UNICODE",

@@ -50,69 +50,66 @@
 #define PATH_SEPERATOR ':'
 #define DIRECTORY_SYMBOL '/'
 
-#define VULKAN_ICDCONF_DIR                                                     \
-    "/"                                                                        \
-    "vulkan"                                                                   \
-    "/"                                                                        \
-    "icd.d"
-#define VULKAN_ICD_DIR                                                         \
-    "/"                                                                        \
-    "vulkan"                                                                   \
-    "/"                                                                        \
-    "icd"
-#define VULKAN_ELAYERCONF_DIR                                                  \
-    "/"                                                                        \
-    "vulkan"                                                                   \
-    "/"                                                                        \
-    "explicit_layer.d"
-#define VULKAN_ILAYERCONF_DIR                                                  \
-    "/"                                                                        \
-    "vulkan"                                                                   \
-    "/"                                                                        \
-    "implicit_layer.d"
-#define VULKAN_LAYER_DIR                                                       \
-    "/"                                                                        \
-    "vulkan"                                                                   \
-    "/"                                                                        \
-    "layer"
+#define VULKAN_DIR            "/vulkan/"
+#define VULKAN_ICDCONF_DIR    "icd.d"
+#define VULKAN_ICD_DIR        "icd"
+#define VULKAN_ELAYERCONF_DIR "explicit_layer.d"
+#define VULKAN_ILAYERCONF_DIR "implicit_layer.d"
+#define VULKAN_LAYER_DIR      "layer"
 
-#if defined(LOCALPREFIX)
-#define LOCAL_DRIVERS_INFO                                                     \
-    LOCALPREFIX "/" SYSCONFDIR VULKAN_ICDCONF_DIR ":" LOCALPREFIX              \
-                "/" DATADIR VULKAN_ICDCONF_DIR ":"
-#define LOCAL_ELAYERS_INFO                                                     \
-    LOCALPREFIX "/" SYSCONFDIR VULKAN_ELAYERCONF_DIR ":" LOCALPREFIX           \
-                "/" DATADIR VULKAN_ELAYERCONF_DIR ":"
-#define LOCAL_ILAYERS_INFO                                                     \
-    LOCALPREFIX "/" SYSCONFDIR VULKAN_ILAYERCONF_DIR ":" LOCALPREFIX           \
-                "/" DATADIR VULKAN_ILAYERCONF_DIR ":"
+#if defined(EXTRASYSCONFDIR)
+#define EXTRA_DRIVERS_SYSCONFDIR_INFO ":"                                      \
+    EXTRASYSCONFDIR VULKAN_DIR VULKAN_ICDCONF_DIR
+#define EXTRA_ELAYERS_SYSCONFDIR_INFO ":"                                      \
+    EXTRASYSCONFDIR VULKAN_DIR VULKAN_ELAYERCONF_DIR
+#define EXTRA_ILAYERS_SYSCONFDIR_INFO ":"                                      \
+    EXTRASYSCONFDIR VULKAN_DIR VULKAN_ILAYERCONF_DIR
 #else
-#define LOCAL_DRIVERS_INFO
-#define LOCAL_ELAYERS_INFO
-#define LOCAL_ILAYERS_INFO
+#define EXTRA_DRIVERS_SYSCONFDIR_INFO
+#define EXTRA_ELAYERS_SYSCONFDIR_INFO
+#define EXTRA_ILAYERS_SYSCONFDIR_INFO
+#endif
+
+#if defined(EXTRADATADIR)
+#define EXTRA_DRIVERS_DATADIR_INFO ":"                                         \
+    EXTRADATADIR VULKAN_DIR VULKAN_ICDCONF_DIR
+#define EXTRA_ELAYERS_DATADIR_INFO ":"                                         \
+    EXTRADATADIR VULKAN_DIR VULKAN_ELAYERCONF_DIR
+#define EXTRA_ILAYERS_DATADIR_INFO ":"                                         \
+    EXTRADATADIR VULKAN_DIR VULKAN_ILAYERCONF_DIR
+#else
+#define EXTRA_DRIVERS_DATADIR_INFO
+#define EXTRA_ELAYERS_DATADIR_INFO
+#define EXTRA_ILAYERS_DATADIR_INFO
 #endif
 
 #define DEFAULT_VK_DRIVERS_INFO                                                \
-    LOCAL_DRIVERS_INFO                                                         \
-    "/" SYSCONFDIR VULKAN_ICDCONF_DIR ":"                                      \
-    "/usr/" DATADIR VULKAN_ICDCONF_DIR
-#define DEFAULT_VK_DRIVERS_PATH ""
+    SYSCONFDIR   VULKAN_DIR VULKAN_ICDCONF_DIR ":"                             \
+    DATADIR      VULKAN_DIR VULKAN_ICDCONF_DIR                                 \
+    EXTRA_DRIVERS_SYSCONFDIR_INFO                                              \
+    EXTRA_DRIVERS_DATADIR_INFO
 #define DEFAULT_VK_ELAYERS_INFO                                                \
-    LOCAL_ELAYERS_INFO                                                         \
-    "/" SYSCONFDIR VULKAN_ELAYERCONF_DIR ":"                                   \
-    "/usr/" DATADIR VULKAN_ELAYERCONF_DIR
+    SYSCONFDIR   VULKAN_DIR VULKAN_ELAYERCONF_DIR ":"                          \
+    DATADIR      VULKAN_DIR VULKAN_ELAYERCONF_DIR                              \
+    EXTRA_ELAYERS_SYSCONFDIR_INFO                                              \
+    EXTRA_ELAYERS_DATADIR_INFO
 #define DEFAULT_VK_ILAYERS_INFO                                                \
-    LOCAL_ILAYERS_INFO                                                         \
-    "/" SYSCONFDIR VULKAN_ILAYERCONF_DIR ":"                                   \
-    "/usr/" DATADIR VULKAN_ILAYERCONF_DIR
+    SYSCONFDIR   VULKAN_DIR VULKAN_ILAYERCONF_DIR ":"                          \
+    DATADIR      VULKAN_DIR VULKAN_ILAYERCONF_DIR                              \
+    EXTRA_ILAYERS_SYSCONFDIR_INFO                                              \
+    EXTRA_ILAYERS_DATADIR_INFO
+
+#define DEFAULT_VK_DRIVERS_PATH ""
 #define DEFAULT_VK_LAYERS_PATH ""
+
 #if !defined(LAYERS_SOURCE_PATH)
 #define LAYERS_SOURCE_PATH NULL
 #endif
 #define LAYERS_PATH_ENV "VK_LAYER_PATH"
-#define HOME_VK_DRIVERS_INFO "/.local/share" VULKAN_ICDCONF_DIR
-#define HOME_VK_ELAYERS_INFO "/.local/share" VULKAN_ELAYERCONF_DIR
-#define HOME_VK_ILAYERS_INFO "/.local/share" VULKAN_ILAYERCONF_DIR
+
+#define HOME_VK_DRIVERS_INFO VULKAN_DIR VULKAN_ICDCONF_DIR
+#define HOME_VK_ELAYERS_INFO VULKAN_DIR VULKAN_ELAYERCONF_DIR
+#define HOME_VK_ILAYERS_INFO VULKAN_DIR VULKAN_ILAYERCONF_DIR
 
 // C99:
 #define PRINTF_SIZE_T_SPECIFIER "%zu"
@@ -135,12 +132,6 @@ static inline bool loader_platform_is_path_absolute(const char *path) {
 static inline char *loader_platform_dirname(char *path) {
     return dirname(path);
 }
-
-// Environment variables
-
-static inline char *loader_getenv(const char *name) { return getenv(name); }
-
-static inline void loader_free_getenv(const char *val) {}
 
 // Dynamic Loading of libraries:
 typedef void *loader_platform_dl_handle;
@@ -248,11 +239,10 @@ using namespace std;
 #define PATH_SEPERATOR ';'
 #define DIRECTORY_SYMBOL '\\'
 #define DEFAULT_VK_REGISTRY_HIVE HKEY_LOCAL_MACHINE
-#define DEFAULT_VK_DRIVERS_INFO "SOFTWARE\\Khronos\\Vulkan\\Drivers"
-// TODO: Are these the correct paths
+#define DEFAULT_VK_DRIVERS_INFO "SOFTWARE\\Khronos\\" API_NAME "\\Drivers"
 #define DEFAULT_VK_DRIVERS_PATH ""
-#define DEFAULT_VK_ELAYERS_INFO "SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers"
-#define DEFAULT_VK_ILAYERS_INFO "SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers"
+#define DEFAULT_VK_ELAYERS_INFO "SOFTWARE\\Khronos\\" API_NAME "\\ExplicitLayers"
+#define DEFAULT_VK_ILAYERS_INFO "SOFTWARE\\Khronos\\" API_NAME "\\ImplicitLayers"
 #if !defined(DEFAULT_VK_LAYERS_PATH)
 #define DEFAULT_VK_LAYERS_PATH ""
 #endif
@@ -322,29 +312,6 @@ static char *loader_platform_basename(char *pathname) {
     return current;
 }
 
-// Environment variables
-
-static inline char *loader_getenv(const char *name) {
-    char *retVal;
-    DWORD valSize;
-
-    valSize = GetEnvironmentVariableA(name, NULL, 0);
-
-    // valSize DOES include the null terminator, so for any set variable
-    // will always be at least 1. If it's 0, the variable wasn't set.
-    if (valSize == 0)
-        return NULL;
-
-    // TODO; FIXME This should be using any app defined memory allocation
-    retVal = (char *)malloc(valSize);
-
-    GetEnvironmentVariableA(name, retVal, valSize);
-
-    return retVal;
-}
-
-static inline void loader_free_getenv(const char *val) { free((void *)val); }
-
 // Dynamic Loading:
 typedef HMODULE loader_platform_dl_handle;
 static loader_platform_dl_handle
@@ -352,8 +319,8 @@ loader_platform_open_library(const char *libPath) {
     return LoadLibrary(libPath);
 }
 static char *loader_platform_open_library_error(const char *libPath) {
-    static char errorMsg[120];
-    snprintf(errorMsg, 119, "Failed to open dynamic library \"%s\"", libPath);
+    static char errorMsg[164];
+    snprintf(errorMsg, 163, "Failed to open dynamic library \"%s\"", libPath);
     return errorMsg;
 }
 static void loader_platform_close_library(loader_platform_dl_handle library) {

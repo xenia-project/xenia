@@ -22,6 +22,7 @@
 #include <string.h>
 #include "debug_report.h"
 #include "wsi.h"
+#include "extensions.h"
 
 static inline void *trampolineGetProcAddr(struct loader_instance *inst,
                                           const char *funcName) {
@@ -302,6 +303,9 @@ static inline void *trampolineGetProcAddr(struct loader_instance *inst,
         return addr;
 
     if (wsi_swapchain_instance_gpa(inst, funcName, &addr))
+        return addr;
+
+    if (extension_instance_gpa(inst, funcName, &addr))
         return addr;
 
     addr = loader_dev_ext_gpa(inst, funcName);

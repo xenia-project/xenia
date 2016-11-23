@@ -30,6 +30,7 @@
 #include "loader.h"
 #include "debug_report.h"
 #include "wsi.h"
+#include "extensions.h"
 #include "gpa_helper.h"
 #include "table_ops.h"
 
@@ -120,8 +121,9 @@ vkEnumerateInstanceExtensionProperties(const char *pLayerName,
     struct loader_extension_list *global_ext_list = NULL;
     struct loader_layer_list instance_layers;
     struct loader_extension_list local_ext_list;
-    struct loader_icd_libs icd_libs;
+    struct loader_icd_tramp_list icd_tramp_list;
     uint32_t copy_size;
+    VkResult res = VK_SUCCESS;
 
     tls_instance = NULL;
     memset(&local_ext_list, 0, sizeof(local_ext_list));
@@ -134,7 +136,8 @@ vkEnumerateInstanceExtensionProperties(const char *pLayerName,
             VK_STRING_ERROR_NONE) {
             assert(VK_FALSE && "vkEnumerateInstanceExtensionProperties:  "
                                "pLayerName is too long or is badly formed");
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
+            res = VK_ERROR_EXTENSION_NOT_PRESENT;
+            goto out;
         }
 
         loader_layer_scan(NULL, &instance_layers);
@@ -154,7 +157,7 @@ vkEnumerateInstanceExtensionProperties(const char *pLayerName,
                 loader_add_to_ext_list(NULL, &local_ext_list, ext_list->count,
                                        ext_list->list);
             }
-            loader_destroy_layer_list(NULL, &local_list);
+            loader_destroy_layer_list(NULL, NULL, &local_list);
             global_ext_list = &local_ext_list;
 
         } else {
@@ -169,12 +172,18 @@ vkEnumerateInstanceExtensionProperties(const char *pLayerName,
         }
     } else {
         /* Scan/discover all ICD libraries */
-        memset(&icd_libs, 0, sizeof(struct loader_icd_libs));
-        loader_icd_scan(NULL, &icd_libs);
+        memset(&icd_tramp_list, 0, sizeof(struct loader_icd_tramp_list));
+        res = loader_icd_scan(NULL, &icd_tramp_list);
+        if (VK_SUCCESS != res) {
+            goto out;
+        }
         /* get extensions from all ICD's, merge so no duplicates */
-        loader_get_icd_loader_instance_extensions(NULL, &icd_libs,
-                                                  &local_ext_list);
-        loader_scanned_icd_clear(NULL, &icd_libs);
+        res = loader_get_icd_loader_instance_extensions(NULL, &icd_tramp_list,
+                                                        &local_ext_list);
+        if (VK_SUCCESS != res) {
+            goto out;
+        }
+        loader_scanned_icd_clear(NULL, &icd_tramp_list);
 
         // Append implicit layers.
         loader_implicit_layer_scan(NULL, &instance_layers);
@@ -189,16 +198,13 @@ vkEnumerateInstanceExtensionProperties(const char *pLayerName,
     }
 
     if (global_ext_list == NULL) {
-        loader_destroy_layer_list(NULL, &instance_layers);
-        return VK_ERROR_LAYER_NOT_PRESENT;
+        res = VK_ERROR_LAYER_NOT_PRESENT;
+        goto out;
     }
 
     if (pProperties == NULL) {
         *pPropertyCount = global_ext_list->count;
-        loader_destroy_layer_list(NULL, &instance_layers);
-        loader_destroy_generic_list(
-            NULL, (struct loader_generic_list *)&local_ext_list);
-        return VK_SUCCESS;
+        goto out;
     }
 
     copy_size = *pPropertyCount < global_ext_list->count
@@ -209,21 +215,21 @@ vkEnumerateInstanceExtensionProperties(const char *pLayerName,
                sizeof(VkExtensionProperties));
     }
     *pPropertyCount = copy_size;
-    loader_destroy_generic_list(NULL,
-                                (struct loader_generic_list *)&local_ext_list);
 
     if (copy_size < global_ext_list->count) {
-        loader_destroy_layer_list(NULL, &instance_layers);
-        return VK_INCOMPLETE;
+        res = VK_INCOMPLETE;
+        goto out;
     }
 
-    loader_destroy_layer_list(NULL, &instance_layers);
-    return VK_SUCCESS;
+out:
+    loader_destroy_generic_list(NULL,
+                                (struct loader_generic_list *)&local_ext_list);
+    loader_delete_layer_properties(NULL, &instance_layers);
+    return res;
 }
 
-LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL
-vkEnumerateInstanceLayerProperties(uint32_t *pPropertyCount,
-                                   VkLayerProperties *pProperties) {
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(
+    uint32_t *pPropertyCount, VkLayerProperties *pProperties) {
 
     struct loader_layer_list instance_layer_list;
     tls_instance = NULL;
@@ -238,7 +244,7 @@ vkEnumerateInstanceLayerProperties(uint32_t *pPropertyCount,
 
     if (pProperties == NULL) {
         *pPropertyCount = instance_layer_list.count;
-        loader_destroy_layer_list(NULL, &instance_layer_list);
+        loader_destroy_layer_list(NULL, NULL, &instance_layer_list);
         return VK_SUCCESS;
     }
 
@@ -251,50 +257,54 @@ vkEnumerateInstanceLayerProperties(uint32_t *pPropertyCount,
     }
 
     *pPropertyCount = copy_size;
-    loader_destroy_layer_list(NULL, &instance_layer_list);
 
     if (copy_size < instance_layer_list.count) {
+        loader_destroy_layer_list(NULL, NULL, &instance_layer_list);
         return VK_INCOMPLETE;
     }
+
+    loader_destroy_layer_list(NULL, NULL, &instance_layer_list);
 
     return VK_SUCCESS;
 }
 
-LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL
-vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
-                 const VkAllocationCallbacks *pAllocator,
-                 VkInstance *pInstance) {
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(
+    const VkInstanceCreateInfo *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator, VkInstance *pInstance) {
     struct loader_instance *ptr_instance = NULL;
     VkInstance created_instance = VK_NULL_HANDLE;
+    bool loaderLocked = false;
     VkResult res = VK_ERROR_INITIALIZATION_FAILED;
 
     loader_platform_thread_once(&once_init, loader_initialize);
 
-    //TODO start handling the pAllocators again
-#if 0
-	if (pAllocator) {
-        ptr_instance = (struct loader_instance *) pAllocator->pfnAllocation(
-                           pAllocator->pUserData,
-                           sizeof(struct loader_instance),
-                           sizeof(int *),
-                           VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+#if (DEBUG_DISABLE_APP_ALLOCATORS == 1)
+    {
+#else
+    if (pAllocator) {
+        ptr_instance = (struct loader_instance *)pAllocator->pfnAllocation(
+            pAllocator->pUserData, sizeof(struct loader_instance),
+            sizeof(int *), VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
     } else {
 #endif
-    ptr_instance =
-        (struct loader_instance *)malloc(sizeof(struct loader_instance));
-    //}
+        ptr_instance =
+            (struct loader_instance *)malloc(sizeof(struct loader_instance));
+    }
+
+    VkInstanceCreateInfo ici = *pCreateInfo;
+
     if (ptr_instance == NULL) {
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+        res = VK_ERROR_OUT_OF_HOST_MEMORY;
+        goto out;
     }
 
     tls_instance = ptr_instance;
     loader_platform_thread_lock_mutex(&loader_lock);
+    loaderLocked = true;
     memset(ptr_instance, 0, sizeof(struct loader_instance));
-#if 0
     if (pAllocator) {
         ptr_instance->alloc_callbacks = *pAllocator;
     }
-#endif
 
     /*
      * Look for one or more debug report create info structures
@@ -309,9 +319,8 @@ vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                                         &ptr_instance->tmp_callbacks)) {
         // One or more were found, but allocation failed.  Therefore, clean up
         // and fail this function:
-        loader_heap_free(ptr_instance, ptr_instance);
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+        res = VK_ERROR_OUT_OF_HOST_MEMORY;
+        goto out;
     } else if (ptr_instance->num_tmp_callbacks > 0) {
         // Setup the temporary callback(s) here to catch early issues:
         if (util_CreateDebugReportCallbacks(ptr_instance, pAllocator,
@@ -320,12 +329,8 @@ vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                                             ptr_instance->tmp_callbacks)) {
             // Failure of setting up one or more of the callback.  Therefore,
             // clean up and fail this function:
-            util_FreeDebugReportCreateInfos(pAllocator,
-                                            ptr_instance->tmp_dbg_create_infos,
-                                            ptr_instance->tmp_callbacks);
-            loader_heap_free(ptr_instance, ptr_instance);
-            loader_platform_thread_unlock_mutex(&loader_lock);
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
+            res = VK_ERROR_OUT_OF_HOST_MEMORY;
+            goto out;
         }
     }
 
@@ -343,75 +348,47 @@ vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                                    pCreateInfo->ppEnabledLayerNames,
                                    &ptr_instance->instance_layer_list);
         if (res != VK_SUCCESS) {
-            util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
-                                             ptr_instance->num_tmp_callbacks,
-                                             ptr_instance->tmp_callbacks);
-            util_FreeDebugReportCreateInfos(pAllocator,
-                                            ptr_instance->tmp_dbg_create_infos,
-                                            ptr_instance->tmp_callbacks);
-            loader_heap_free(ptr_instance, ptr_instance);
-            loader_platform_thread_unlock_mutex(&loader_lock);
-            return res;
+            goto out;
         }
     }
 
     /* convert any meta layers to the actual layers makes a copy of layer name*/
-    VkInstanceCreateInfo ici = *pCreateInfo;
-    loader_expand_layer_names(
+    VkResult layerErr = loader_expand_layer_names(
         ptr_instance, std_validation_str,
         sizeof(std_validation_names) / sizeof(std_validation_names[0]),
         std_validation_names, &ici.enabledLayerCount, &ici.ppEnabledLayerNames);
+    if (VK_SUCCESS != layerErr) {
+        res = layerErr;
+        goto out;
+    }
 
     /* Scan/discover all ICD libraries */
-    memset(&ptr_instance->icd_libs, 0, sizeof(ptr_instance->icd_libs));
-    loader_icd_scan(ptr_instance, &ptr_instance->icd_libs);
+    memset(&ptr_instance->icd_tramp_list, 0,
+           sizeof(ptr_instance->icd_tramp_list));
+    res = loader_icd_scan(ptr_instance, &ptr_instance->icd_tramp_list);
+    if (res != VK_SUCCESS) {
+        goto out;
+    }
 
     /* get extensions from all ICD's, merge so no duplicates, then validate */
-    loader_get_icd_loader_instance_extensions(
-        ptr_instance, &ptr_instance->icd_libs, &ptr_instance->ext_list);
+    res = loader_get_icd_loader_instance_extensions(
+        ptr_instance, &ptr_instance->icd_tramp_list, &ptr_instance->ext_list);
+    if (res != VK_SUCCESS) {
+        goto out;
+    }
     res = loader_validate_instance_extensions(
         ptr_instance, &ptr_instance->ext_list,
         &ptr_instance->instance_layer_list, &ici);
     if (res != VK_SUCCESS) {
-        loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo, &ici);
-        loader_delete_layer_properties(ptr_instance,
-                                       &ptr_instance->instance_layer_list);
-        loader_scanned_icd_clear(ptr_instance, &ptr_instance->icd_libs);
-        loader_destroy_generic_list(
-            ptr_instance,
-            (struct loader_generic_list *)&ptr_instance->ext_list);
-        util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
-                                         ptr_instance->num_tmp_callbacks,
-                                         ptr_instance->tmp_callbacks);
-        util_FreeDebugReportCreateInfos(pAllocator,
-                                        ptr_instance->tmp_dbg_create_infos,
-                                        ptr_instance->tmp_callbacks);
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        loader_heap_free(ptr_instance, ptr_instance);
-        return res;
+        goto out;
     }
 
-    ptr_instance->disp =
-        loader_heap_alloc(ptr_instance, sizeof(VkLayerInstanceDispatchTable),
-                          VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+    ptr_instance->disp = loader_instance_heap_alloc(
+        ptr_instance, sizeof(VkLayerInstanceDispatchTable),
+        VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
     if (ptr_instance->disp == NULL) {
-        loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo, &ici);
-
-        loader_delete_layer_properties(ptr_instance,
-                                       &ptr_instance->instance_layer_list);
-        loader_scanned_icd_clear(ptr_instance, &ptr_instance->icd_libs);
-        loader_destroy_generic_list(
-            ptr_instance,
-            (struct loader_generic_list *)&ptr_instance->ext_list);
-        util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
-                                         ptr_instance->num_tmp_callbacks,
-                                         ptr_instance->tmp_callbacks);
-        util_FreeDebugReportCreateInfos(pAllocator,
-                                        ptr_instance->tmp_dbg_create_infos,
-                                        ptr_instance->tmp_callbacks);
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        loader_heap_free(ptr_instance, ptr_instance);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+        res = VK_ERROR_OUT_OF_HOST_MEMORY;
+        goto out;
     }
     memcpy(ptr_instance->disp, &instance_disp, sizeof(instance_disp));
     ptr_instance->next = loader.instances;
@@ -421,24 +398,7 @@ vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
     res = loader_enable_instance_layers(ptr_instance, &ici,
                                         &ptr_instance->instance_layer_list);
     if (res != VK_SUCCESS) {
-        loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo, &ici);
-        loader_delete_layer_properties(ptr_instance,
-                                       &ptr_instance->instance_layer_list);
-        loader_scanned_icd_clear(ptr_instance, &ptr_instance->icd_libs);
-        loader_destroy_generic_list(
-            ptr_instance,
-            (struct loader_generic_list *)&ptr_instance->ext_list);
-        loader.instances = ptr_instance->next;
-        util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
-                                         ptr_instance->num_tmp_callbacks,
-                                         ptr_instance->tmp_callbacks);
-        util_FreeDebugReportCreateInfos(pAllocator,
-                                        ptr_instance->tmp_dbg_create_infos,
-                                        ptr_instance->tmp_callbacks);
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        loader_heap_free(ptr_instance, ptr_instance->disp);
-        loader_heap_free(ptr_instance, ptr_instance);
-        return res;
+        goto out;
     }
 
     created_instance = (VkInstance)ptr_instance;
@@ -448,6 +408,7 @@ vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
     if (res == VK_SUCCESS) {
         wsi_create_instance(ptr_instance, &ici);
         debug_report_create_instance(ptr_instance, &ici);
+        extensions_create_instance(ptr_instance, &ici);
 
         *pInstance = created_instance;
 
@@ -458,22 +419,60 @@ vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
          * if enabled.
          */
         loader_activate_instance_layer_extensions(ptr_instance, *pInstance);
-    } else {
-        // TODO: cleanup here.
     }
 
-    /* Remove temporary debug_report callback */
-    util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
-                                     ptr_instance->num_tmp_callbacks,
-                                     ptr_instance->tmp_callbacks);
-    loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo, &ici);
-    loader_platform_thread_unlock_mutex(&loader_lock);
+out:
+
+    if (NULL != ptr_instance) {
+        if (res != VK_SUCCESS) {
+            if (NULL != ptr_instance->next) {
+                loader.instances = ptr_instance->next;
+            }
+            if (NULL != ptr_instance->disp) {
+                loader_instance_heap_free(ptr_instance, ptr_instance->disp);
+            }
+            if (ptr_instance->num_tmp_callbacks > 0) {
+                util_DestroyDebugReportCallbacks(
+                    ptr_instance, pAllocator, ptr_instance->num_tmp_callbacks,
+                    ptr_instance->tmp_callbacks);
+                util_FreeDebugReportCreateInfos(
+                    pAllocator, ptr_instance->tmp_dbg_create_infos,
+                    ptr_instance->tmp_callbacks);
+            }
+
+            loader_deactivate_layers(ptr_instance, NULL,
+                                     &ptr_instance->activated_layer_list);
+
+            loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo,
+                                                  &ici);
+            loader_delete_layer_properties(ptr_instance,
+                                           &ptr_instance->instance_layer_list);
+            loader_scanned_icd_clear(ptr_instance,
+                                     &ptr_instance->icd_tramp_list);
+            loader_destroy_generic_list(
+                ptr_instance,
+                (struct loader_generic_list *)&ptr_instance->ext_list);
+
+            loader_instance_heap_free(ptr_instance, ptr_instance);
+        } else {
+            /* Remove temporary debug_report callback */
+            util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
+                                             ptr_instance->num_tmp_callbacks,
+                                             ptr_instance->tmp_callbacks);
+            loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo,
+                                                  &ici);
+        }
+
+        if (loaderLocked) {
+            loader_platform_thread_unlock_mutex(&loader_lock);
+        }
+    }
+
     return res;
 }
 
-LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL
-vkDestroyInstance(VkInstance instance,
-                  const VkAllocationCallbacks *pAllocator) {
+LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL vkDestroyInstance(
+    VkInstance instance, const VkAllocationCallbacks *pAllocator) {
     const VkLayerInstanceDispatchTable *disp;
     struct loader_instance *ptr_instance = NULL;
     bool callback_setup = false;
@@ -488,6 +487,10 @@ vkDestroyInstance(VkInstance instance,
 
     ptr_instance = loader_get_instance(instance);
 
+    if (pAllocator) {
+        ptr_instance->alloc_callbacks = *pAllocator;
+    }
+
     if (ptr_instance->num_tmp_callbacks > 0) {
         // Setup the temporary callback(s) here to catch cleanup issues:
         if (!util_CreateDebugReportCallbacks(ptr_instance, pAllocator,
@@ -500,9 +503,11 @@ vkDestroyInstance(VkInstance instance,
 
     disp->DestroyInstance(instance, pAllocator);
 
-    loader_deactivate_layers(ptr_instance, &ptr_instance->activated_layer_list);
-    if (ptr_instance->phys_devs)
-        loader_heap_free(ptr_instance, ptr_instance->phys_devs);
+    loader_deactivate_layers(ptr_instance, NULL,
+                             &ptr_instance->activated_layer_list);
+    if (ptr_instance->phys_devs_tramp) {
+        loader_instance_heap_free(ptr_instance, ptr_instance->phys_devs_tramp);
+    }
     if (callback_setup) {
         util_DestroyDebugReportCallbacks(ptr_instance, pAllocator,
                                          ptr_instance->num_tmp_callbacks,
@@ -511,8 +516,8 @@ vkDestroyInstance(VkInstance instance,
                                         ptr_instance->tmp_dbg_create_infos,
                                         ptr_instance->tmp_callbacks);
     }
-    loader_heap_free(ptr_instance, ptr_instance->disp);
-    loader_heap_free(ptr_instance, ptr_instance);
+    loader_instance_heap_free(ptr_instance, ptr_instance->disp);
+    loader_instance_heap_free(ptr_instance, ptr_instance);
     loader_platform_thread_unlock_mutex(&loader_lock);
 }
 
@@ -549,14 +554,14 @@ vkEnumeratePhysicalDevices(VkInstance instance, uint32_t *pPhysicalDeviceCount,
                 ? inst->total_gpu_count
                 : *pPhysicalDeviceCount;
     *pPhysicalDeviceCount = count;
-    if (!inst->phys_devs) {
-        inst->phys_devs =
-            (struct loader_physical_device_tramp *)loader_heap_alloc(
+    if (NULL == inst->phys_devs_tramp) {
+        inst->phys_devs_tramp =
+            (struct loader_physical_device_tramp *)loader_instance_heap_alloc(
                 inst, inst->total_gpu_count *
                           sizeof(struct loader_physical_device_tramp),
                 VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
     }
-    if (!inst->phys_devs) {
+    if (NULL == inst->phys_devs_tramp) {
         loader_platform_thread_unlock_mutex(&loader_lock);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -564,20 +569,19 @@ vkEnumeratePhysicalDevices(VkInstance instance, uint32_t *pPhysicalDeviceCount,
     for (i = 0; i < count; i++) {
 
         // initialize the loader's physicalDevice object
-        loader_set_dispatch((void *)&inst->phys_devs[i], inst->disp);
-        inst->phys_devs[i].this_instance = inst;
-        inst->phys_devs[i].phys_dev = pPhysicalDevices[i];
+        loader_set_dispatch((void *)&inst->phys_devs_tramp[i], inst->disp);
+        inst->phys_devs_tramp[i].this_instance = inst;
+        inst->phys_devs_tramp[i].phys_dev = pPhysicalDevices[i];
 
         // copy wrapped object into Application provided array
-        pPhysicalDevices[i] = (VkPhysicalDevice)&inst->phys_devs[i];
+        pPhysicalDevices[i] = (VkPhysicalDevice)&inst->phys_devs_tramp[i];
     }
     loader_platform_thread_unlock_mutex(&loader_lock);
     return res;
 }
 
-LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL
-vkGetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
-                            VkPhysicalDeviceFeatures *pFeatures) {
+LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures(
+    VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures *pFeatures) {
     const VkLayerInstanceDispatchTable *disp;
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
@@ -585,10 +589,9 @@ vkGetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
     disp->GetPhysicalDeviceFeatures(unwrapped_phys_dev, pFeatures);
 }
 
-LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL
-vkGetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
-                                    VkFormat format,
-                                    VkFormatProperties *pFormatInfo) {
+LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFormatProperties(
+    VkPhysicalDevice physicalDevice, VkFormat format,
+    VkFormatProperties *pFormatInfo) {
     const VkLayerInstanceDispatchTable *disp;
     VkPhysicalDevice unwrapped_pd =
         loader_unwrap_physical_device(physicalDevice);
@@ -610,9 +613,8 @@ vkGetPhysicalDeviceImageFormatProperties(
         pImageFormatProperties);
 }
 
-LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL
-vkGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
-                              VkPhysicalDeviceProperties *pProperties) {
+LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceProperties(
+    VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties *pProperties) {
     const VkLayerInstanceDispatchTable *disp;
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
@@ -643,14 +645,13 @@ LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceMemoryProperties(
                                             pMemoryProperties);
 }
 
-LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL
-vkCreateDevice(VkPhysicalDevice physicalDevice,
-               const VkDeviceCreateInfo *pCreateInfo,
-               const VkAllocationCallbacks *pAllocator, VkDevice *pDevice) {
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(
+    VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator, VkDevice *pDevice) {
     VkResult res;
-    struct loader_physical_device_tramp *phys_dev;
-    struct loader_device *dev;
-    struct loader_instance *inst;
+    struct loader_physical_device_tramp *phys_dev = NULL;
+    struct loader_device *dev = NULL;
+    struct loader_instance *inst = NULL;
 
     assert(pCreateInfo->queueCreateInfoCount >= 1);
 
@@ -661,66 +662,78 @@ vkCreateDevice(VkPhysicalDevice physicalDevice,
 
     /* Get the physical device (ICD) extensions  */
     struct loader_extension_list icd_exts;
-    if (!loader_init_generic_list(inst, (struct loader_generic_list *)&icd_exts,
-                                  sizeof(VkExtensionProperties))) {
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    icd_exts.list = NULL;
+    res =
+        loader_init_generic_list(inst, (struct loader_generic_list *)&icd_exts,
+                                 sizeof(VkExtensionProperties));
+    if (VK_SUCCESS != res) {
+        goto out;
     }
 
     res = loader_add_device_extensions(
         inst, inst->disp->EnumerateDeviceExtensionProperties,
         phys_dev->phys_dev, "Unknown", &icd_exts);
     if (res != VK_SUCCESS) {
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return res;
+        goto out;
     }
 
     /* make sure requested extensions to be enabled are supported */
-    res = loader_validate_device_extensions(phys_dev, &inst->activated_layer_list,
-                                            &icd_exts, pCreateInfo);
+    res = loader_validate_device_extensions(
+        phys_dev, &inst->activated_layer_list, &icd_exts, pCreateInfo);
     if (res != VK_SUCCESS) {
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return res;
+        goto out;
     }
 
-    dev = loader_create_logical_device(inst);
+    dev = loader_create_logical_device(inst, pAllocator);
     if (dev == NULL) {
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+        res = VK_ERROR_OUT_OF_HOST_MEMORY;
+        goto out;
     }
 
     /* copy the instance layer list into the device */
     dev->activated_layer_list.capacity = inst->activated_layer_list.capacity;
     dev->activated_layer_list.count = inst->activated_layer_list.count;
-    dev->activated_layer_list.list = loader_heap_alloc(inst,
-                            inst->activated_layer_list.capacity,
-                            VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+    dev->activated_layer_list.list =
+        loader_device_heap_alloc(dev, inst->activated_layer_list.capacity,
+                                 VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
     if (dev->activated_layer_list.list == NULL) {
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
+        res = VK_ERROR_OUT_OF_HOST_MEMORY;
+        goto out;
     }
     memcpy(dev->activated_layer_list.list, inst->activated_layer_list.list,
-            sizeof(*dev->activated_layer_list.list) * dev->activated_layer_list.count);
+           sizeof(*dev->activated_layer_list.list) *
+               dev->activated_layer_list.count);
 
-
-    res = loader_create_device_chain(phys_dev, pCreateInfo, pAllocator, inst, dev);
+    res = loader_create_device_chain(phys_dev, pCreateInfo, pAllocator, inst,
+                                     dev);
     if (res != VK_SUCCESS) {
-        loader_platform_thread_unlock_mutex(&loader_lock);
-        return res;
+        goto out;
     }
 
-    *pDevice = dev->device;
+    *pDevice = dev->chain_device;
 
-    /* initialize any device extension dispatch entry's from the instance list*/
+    // Initialize any device extension dispatch entry's from the instance list
     loader_init_dispatch_dev_ext(inst, dev);
 
-    /* initialize WSI device extensions as part of core dispatch since loader
-     * has
-     * dedicated trampoline code for these*/
+    // Initialize WSI device extensions as part of core dispatch since loader
+    // has dedicated trampoline code for these*/
     loader_init_device_extension_dispatch_table(
         &dev->loader_dispatch,
         dev->loader_dispatch.core_dispatch.GetDeviceProcAddr, *pDevice);
 
+out:
+
+    // Failure cleanup
+    if (VK_SUCCESS != res) {
+        if (NULL != dev) {
+            loader_destroy_logical_device(inst, dev, pAllocator);
+        }
+    }
+
+    if (NULL != icd_exts.list) {
+        loader_destroy_generic_list(inst,
+                                    (struct loader_generic_list *)&icd_exts);
+    }
     loader_platform_thread_unlock_mutex(&loader_lock);
     return res;
 }
@@ -736,13 +749,15 @@ vkDestroyDevice(VkDevice device, const VkAllocationCallbacks *pAllocator) {
 
     loader_platform_thread_lock_mutex(&loader_lock);
 
-    struct loader_icd *icd = loader_get_icd_and_device(device, &dev);
-    const struct loader_instance *inst = icd->this_instance;
+    struct loader_icd_term *icd_term =
+        loader_get_icd_and_device(device, &dev, NULL);
+    const struct loader_instance *inst = icd_term->this_instance;
     disp = loader_get_dispatch(device);
 
     disp->DestroyDevice(device, pAllocator);
-    dev->device = NULL;
-    loader_remove_logical_device(inst, icd, dev);
+    dev->chain_device = NULL;
+    dev->icd_device = NULL;
+    loader_remove_logical_device(inst, icd_term, dev, pAllocator);
 
     loader_platform_thread_unlock_mutex(&loader_lock);
 }
@@ -786,8 +801,8 @@ vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                      i++) {
                     loader_find_layer_name_add_list(
                         NULL, std_validation_names[i],
-                        VK_LAYER_TYPE_INSTANCE_EXPLICIT, &inst->instance_layer_list,
-                        &local_list);
+                        VK_LAYER_TYPE_INSTANCE_EXPLICIT,
+                        &inst->instance_layer_list, &local_list);
                 }
                 for (uint32_t i = 0; i < local_list.count; i++) {
                     struct loader_device_extension_list *ext_list =
@@ -880,7 +895,7 @@ vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice,
         enabled_layers->count = count;
         enabled_layers->capacity = enabled_layers->count *
                                  sizeof(struct loader_layer_properties);
-        enabled_layers->list = loader_heap_alloc(inst, enabled_layers->capacity,
+        enabled_layers->list = loader_instance_heap_alloc(inst, enabled_layers->capacity,
                                 VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
         if (!enabled_layers->list)
             return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -893,14 +908,21 @@ vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice,
                     std_val_count, std_validation_names)) {
                 struct loader_layer_properties props;
                 loader_init_std_validation_props(&props);
-                loader_copy_layer_properties(inst,
-                                             &enabled_layers->list[j], &props);
+                VkResult err = loader_copy_layer_properties(inst,
+                                                            &enabled_layers->list[j],
+                                                            &props);
+                if (err != VK_SUCCESS) {
+                    return err;
+                }
                 i += std_val_count;
             }
             else {
-                loader_copy_layer_properties(inst,
-                                         &enabled_layers->list[j],
-                                         &inst->activated_layer_list.list[i++]);
+                VkResult err = loader_copy_layer_properties(inst,
+                                                            &enabled_layers->list[j],
+                                                            &inst->activated_layer_list.list[i++]);
+                if (err != VK_SUCCESS) {
+                    return err;
+                }
             }
         }
     }
@@ -916,8 +938,9 @@ vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice,
     }
     *pPropertyCount = copy_size;
 
-    if (inst->activated_layers_are_std_val)
+    if (inst->activated_layers_are_std_val) {
         loader_delete_layer_properties(inst, enabled_layers);
+    }
     if (copy_size < count) {
         loader_platform_thread_unlock_mutex(&loader_lock);
         return VK_INCOMPLETE;
@@ -2014,7 +2037,7 @@ vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage srcImage,
 LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL
 vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer,
                   VkDeviceSize dstOffset, VkDeviceSize dataSize,
-                  const uint32_t *pData) {
+                  const void *pData) {
     const VkLayerDispatchTable *disp;
 
     disp = loader_get_dispatch(commandBuffer);

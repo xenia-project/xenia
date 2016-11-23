@@ -19,8 +19,37 @@
  *
  */
 
+#ifndef WSI_H
+#define WSI_H
+
 #include "vk_loader_platform.h"
 #include "loader.h"
+
+typedef struct {
+    union {
+#ifdef VK_USE_PLATFORM_MIR_KHR
+        VkIcdSurfaceMir mir_surf;
+#endif // VK_USE_PLATFORM_MIR_KHR
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+        VkIcdSurfaceWayland wayland_surf;
+#endif // VK_USE_PLATFORM_WAYLAND_KHR
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+        VkIcdSurfaceWin32 win_surf;
+#endif // VK_USE_PLATFORM_WIN32_KHR
+#ifdef VK_USE_PLATFORM_XCB_KHR
+        VkIcdSurfaceXcb xcb_surf;
+#endif // VK_USE_PLATFORM_XCB_KHR
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+        VkIcdSurfaceXlib xlib_surf;
+#endif // VK_USE_PLATFORM_XLIB_KHR
+        VkIcdSurfaceDisplay display_surf;
+    };
+    uint32_t base_size; // Size of VkIcdSurfaceBase
+    uint32_t platform_size; // Size of corresponding VkIcdSurfaceXXX
+    uint32_t non_platform_offset; // Start offset to base_size
+    uint32_t entire_size; // Size of entire VkIcdSurface
+    VkSurfaceKHR *real_icd_surfaces;
+} VkIcdSurface;
 
 bool wsi_swapchain_instance_gpa(struct loader_instance *ptr_instance,
                                 const char *name, void **addr);
@@ -28,6 +57,10 @@ bool wsi_swapchain_instance_gpa(struct loader_instance *ptr_instance,
 void wsi_create_instance(struct loader_instance *ptr_instance,
                          const VkInstanceCreateInfo *pCreateInfo);
 bool wsi_unsupported_instance_extension(const VkExtensionProperties *ext_prop);
+
+VKAPI_ATTR VkResult VKAPI_CALL terminator_vkCreateSwapchainKHR(
+    VkDevice device, const VkSwapchainCreateInfoKHR *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator, VkSwapchainKHR *pSwapchain);
 
 VKAPI_ATTR void VKAPI_CALL
 terminator_DestroySurfaceKHR(VkInstance instance, VkSurfaceKHR surface,
@@ -135,3 +168,5 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_GetDisplayPlaneCapabilitiesKHR(
 VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateDisplayPlaneSurfaceKHR(
     VkInstance instance, const VkDisplaySurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface);
+
+#endif /* WSI_H */
