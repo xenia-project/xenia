@@ -89,6 +89,26 @@ void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
 }
 DECLARE_XBOXKRNL_EXPORT(RtlFillMemoryUlong, ExportTag::kImplemented);
 
+dword_result_t RtlUpperChar(dword_t in) {
+  char c = in & 0xF;
+  if (c >= 'a' && c <= 'z') {
+    return c ^ 0x20;
+  }
+
+  return c;
+}
+DECLARE_XBOXKRNL_EXPORT(RtlUpperChar, ExportTag::kImplemented);
+
+dword_result_t RtlLowerChar(dword_t in) {
+  char c = in & 0xF;
+  if (c >= 'A' && c <= 'Z') {
+    return c ^ 0x20;
+  }
+
+  return c;
+}
+DECLARE_XBOXKRNL_EXPORT(RtlLowerChar, ExportTag::kImplemented);
+
 dword_result_t RtlCompareString(lpstring_t string_1, lpstring_t string_2,
                                 dword_t case_insensitive) {
   int ret = case_insensitive ? strcasecmp(string_1, string_2)
@@ -378,7 +398,6 @@ void RtlEnterCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
                           nullptr);
   }
 
-  // We've now acquired the lock.
   assert_true(cs->owning_thread == 0);
   cs->owning_thread = cur_thread;
   cs->recursion_count = 1;
@@ -412,8 +431,9 @@ void RtlLeaveCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
   assert_true(cs->owning_thread == XThread::GetCurrentThread()->guest_object());
 
   // Drop recursion count - if it isn't zero we still have the lock.
+  assert_true(cs->recursion_count > 0);
   if (--cs->recursion_count != 0) {
-    assert_true(cs->recursion_count > 0);
+    assert_true(cs->recursion_count >= 0);
 
     xe::atomic_dec(&cs->lock_count);
     return;
