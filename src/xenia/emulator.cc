@@ -10,6 +10,7 @@
 #include "xenia/emulator.h"
 
 #include <gflags/gflags.h>
+#include <cinttypes>
 
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
@@ -22,6 +23,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/backend/code_cache.h"
+#include "xenia/cpu/thread_state.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_driver.h"
 #include "xenia/hid/input_system.h"
@@ -305,9 +307,12 @@ void Emulator::Pause() {
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
           kernel::XObject::kTypeThread);
+  auto current_thread = kernel::XThread::IsInThread()
+                            ? kernel::XThread::GetCurrentThread()
+                            : nullptr;
   for (auto thread : threads) {
-    if (!thread->can_debugger_suspend()) {
-      // Don't pause host threads.
+    // Don't pause ourself or host threads.
+    if (thread == current_thread || !thread->can_debugger_suspend()) {
       continue;
     }
 
@@ -474,33 +479,49 @@ bool Emulator::ExceptionCallback(Exception* ex) {
     return false;
   }
 
-  auto global_lock = global_critical_region::AcquireDirect();
-
   // Within range. Pause the emulator and eat the exception.
-  auto threads =
-      kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
-          kernel::XObject::kTypeThread);
+  Pause();
+
+  // Dump information into the log.
   auto current_thread = kernel::XThread::GetCurrentThread();
-  for (auto thread : threads) {
-    if (!thread->can_debugger_suspend()) {
-      // Don't pause host threads.
-      continue;
-    }
-    if (current_thread == thread.get()) {
-      continue;
-    }
-    thread->Suspend(nullptr);
+  assert_not_null(current_thread);
+
+  auto guest_function = code_cache->LookupFunction(ex->pc());
+  assert_not_null(guest_function);
+
+  auto context = current_thread->thread_state()->context();
+
+  XELOGE("==== CRASH DUMP ====");
+  XELOGE("Thread ID (Host: 0x%.8X / Guest: 0x%.8X)",
+         current_thread->thread()->system_id(), current_thread->thread_id());
+  XELOGE("Thread Handle: 0x%.8X", current_thread->handle());
+  XELOGE("PC: 0x%.8X", guest_function->MapMachineCodeToGuestAddress(ex->pc()));
+  XELOGE("Registers:");
+  for (int i = 0; i < 32; i++) {
+    XELOGE(" r%-3d = 0x%.16" PRIX64, i, context->r[i]);
+  }
+
+  for (int i = 0; i < 32; i++) {
+    XELOGE(" f%-3d = 0x%.16" PRIX64 " = (double)%f = (float)%f", i,
+           context->f[i], context->f[i], *(float*)&context->f[i]);
+  }
+
+  for (int i = 0; i < 128; i++) {
+    XELOGE(" v%-3d = [0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X]", i, context->v[i].i32[0],
+           context->v[i].i32[1], context->v[i].i32[2], context->v[i].i32[3]);
   }
 
   // Display a dialog telling the user the guest has crashed.
   display_window()->loop()->PostSynchronous([&]() {
-    xe::ui::ImGuiDialog::ShowMessageBox(display_window(), "Uh-oh!",
-                                        "The guest has crashed.\n\n"
-                                        "Xenia has now paused itself.");
+    xe::ui::ImGuiDialog::ShowMessageBox(
+        display_window(), "Uh-oh!",
+        "The guest has crashed.\n\n"
+        ""
+        "Xenia has now paused itself.\n"
+        "A crash dump has been written into the log.");
   });
 
   // Now suspend ourself (we should be a guest thread).
-  assert_true(current_thread->can_debugger_suspend());
   current_thread->Suspend(nullptr);
 
   // We should not arrive here!
