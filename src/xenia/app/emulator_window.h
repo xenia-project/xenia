@@ -36,6 +36,7 @@ class EmulatorWindow {
   ui::Window* window() const { return window_.get(); }
 
   void UpdateTitle();
+  void ToggleFullscreen();
 
  private:
   explicit EmulatorWindow(Emulator* emulator);
@@ -52,7 +53,6 @@ class EmulatorWindow {
   void CpuBreakIntoDebugger();
   void GpuTraceFrame();
   void GpuClearCaches();
-  void ToggleFullscreen();
   void ShowHelpWebsite();
 
   Emulator* emulator_;

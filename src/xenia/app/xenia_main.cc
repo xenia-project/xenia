@@ -42,6 +42,7 @@ DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4, vulkan, null]");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
+DEFINE_bool(fullscreen, false, "Toggles fullscreen");
 
 namespace xe {
 namespace app {
@@ -190,6 +191,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
       path = args[1];
     }
   }
+
+  // Toggles fullscreen
+  if (FLAGS_fullscreen) emulator_window->ToggleFullscreen();
 
   if (!path.empty()) {
     // Normalize the path and make absolute.
