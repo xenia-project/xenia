@@ -232,7 +232,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
 DECLARE_XBOXKRNL_EXPORT(RtlUnicodeStringToAnsiString, ExportTag::kImplemented);
 
 // https://msdn.microsoft.com/en-us/library/ff553113
-dword_result_t RtlMultiByteToUnicodeN(pointer_t<uint16_t> destination_ptr,
+dword_result_t RtlMultiByteToUnicodeN(lpword_t destination_ptr,
                                       dword_t destination_len,
                                       lpdword_t written_ptr,
                                       pointer_t<uint8_t> source_ptr,
@@ -260,8 +260,7 @@ DECLARE_XBOXKRNL_EXPORT(RtlMultiByteToUnicodeN,
 dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
                                       dword_t destination_len,
                                       lpdword_t written_ptr,
-                                      pointer_t<uint16_t> source_ptr,
-                                      dword_t source_len) {
+                                      lpword_t source_ptr, dword_t source_len) {
   uint32_t copy_len = source_len >> 1;
   copy_len = copy_len < destination_len ? copy_len : destination_len;
 
