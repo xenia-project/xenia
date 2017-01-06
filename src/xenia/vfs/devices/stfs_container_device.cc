@@ -184,9 +184,11 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
       }
       entry->size_ = file_size;
       entry->allocation_size_ = xe::round_up(file_size, bytes_per_sector());
-      entry->create_timestamp_ = update_timestamp;
-      entry->access_timestamp_ = access_timestamp;
-      entry->write_timestamp_ = update_timestamp;
+
+      // Convert to 100-nanosecond intervals since January 1, 1601 (UTC)
+      entry->create_timestamp_ = (update_timestamp + 11644473600000LL) * 10000;
+      entry->access_timestamp_ = (access_timestamp + 11644473600000LL) * 10000;
+      entry->write_timestamp_ = (update_timestamp + 11644473600000LL) * 10000;
       all_entries.push_back(entry.get());
 
       // Fill in all block records.
