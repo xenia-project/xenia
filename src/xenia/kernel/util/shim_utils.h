@@ -304,6 +304,7 @@ using qword_t = const shim::ParamBase<uint64_t>&;
 using float_t = const shim::ParamBase<float>&;
 using double_t = const shim::ParamBase<double>&;
 using lpvoid_t = const shim::PointerParam&;
+using lpword_t = const shim::PrimitivePointerParam<uint16_t>&;
 using lpdword_t = const shim::PrimitivePointerParam<uint32_t>&;
 using lpqword_t = const shim::PrimitivePointerParam<uint64_t>&;
 using lpfloat_t = const shim::PrimitivePointerParam<float>&;
