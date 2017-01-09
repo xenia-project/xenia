@@ -34,7 +34,7 @@ bool CreateFolder(const std::wstring& path) {
 }
 
 bool DeleteFolder(const std::wstring& path) {
-  auto double_null_path = path + L"\0";
+  auto double_null_path = path + std::wstring(L"\0", 1);
   SHFILEOPSTRUCT op = {0};
   op.wFunc = FO_DELETE;
   op.pFrom = double_null_path.c_str();
