@@ -405,6 +405,7 @@ void AppendParam(StringBuffer* string_buffer, pointer_t<T> param) {
 enum class KernelModuleId {
   xboxkrnl,
   xam,
+  xbdm,
 };
 
 template <size_t I = 0, typename... Ps>
@@ -518,6 +519,7 @@ using xe::cpu::ExportTag;
           &name, #name, tags));
 
 #define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)
+#define DECLARE_XBDM_EXPORT(name, tags) DECLARE_EXPORT(xbdm, name, tags)
 #define DECLARE_XBOXKRNL_EXPORT(name, tags) DECLARE_EXPORT(xboxkrnl, name, tags)
 
 }  // namespace kernel

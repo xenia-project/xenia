@@ -32,6 +32,7 @@
 #include "xenia/kernel/util/gameinfo_utils.h"
 #include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xbdm/xbdm_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
 #include "xenia/ui/imgui_dialog.h"
@@ -167,6 +168,7 @@ X_STATUS Emulator::Setup(
   // HLE kernel modules.
   kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
   kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
+  kernel_state_->LoadKernelModule<kernel::xbdm::XbdmModule>();
 
   // Initialize emulator fallback exception handling last.
   ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
