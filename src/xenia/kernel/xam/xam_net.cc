@@ -727,109 +727,113 @@ dword_result_t NetDll_accept(dword_t caller, dword_t socket_handle,
 DECLARE_XAM_EXPORT(NetDll_accept,
                    ExportTag::kImplemented | ExportTag::kNetworking);
 
-typedef struct x_fd_set {
+struct x_fd_set {
   xe::be<uint32_t> fd_count;
   xe::be<uint32_t> fd_array[64];
-} x_fd_set;
-
-struct host_set {
-  uint32_t fd_count;
-  object_ref<XSocket> sockets[64];
 };
 
-void LoadFdset(const x_fd_set* guest_set, host_set* host_set) {
-  assert_true(guest_set->fd_count < 64);
-  host_set->fd_count = guest_set->fd_count;
-  for (uint32_t i = 0; i < host_set->fd_count; ++i) {
-    auto socket_handle = static_cast<X_HANDLE>(guest_set->fd_array[i]);
-    if (socket_handle == -1) {
-      host_set->fd_count = i;
-      break;
+struct host_set {
+  uint32_t count;
+  object_ref<XSocket> sockets[64];
+
+  void Load(const x_fd_set* guest_set) {
+    assert_true(guest_set->fd_count < 64);
+    this->count = guest_set->fd_count;
+    for (uint32_t i = 0; i < this->count; ++i) {
+      auto socket_handle = static_cast<X_HANDLE>(guest_set->fd_array[i]);
+      if (socket_handle == -1) {
+        this->count = i;
+        break;
+      }
+      // Convert from Xenia -> native
+      auto socket =
+          kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+      assert_not_null(socket);
+      this->sockets[i] = socket;
     }
-    // Convert from Xenia -> native
-    auto socket =
-        kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
-    assert_not_null(socket);
-    host_set->sockets[i] = socket;
   }
-}
 
-void ImportFdset(host_set* host_set, fd_set* native_set) {
-  FD_ZERO(native_set);
-  for (uint32_t i = 0; i < host_set->fd_count; ++i) {
-    FD_SET(host_set->sockets[i]->native_handle(), native_set);
-  }
-}
-
-void StoreFdset(fd_set* native_set, host_set* host_set, x_fd_set* guest_set) {
-  guest_set->fd_count = 0;
-  for (uint32_t i = 0; i < host_set->fd_count; ++i) {
-    auto socket = host_set->sockets[i];
-    auto native_handle = socket->native_handle();
-    if (FD_ISSET(native_handle, native_set)) {
+  void Store(x_fd_set* guest_set) {
+    guest_set->fd_count = 0;
+    for (uint32_t i = 0; i < this->count; ++i) {
+      auto socket = this->sockets[i];
       guest_set->fd_array[guest_set->fd_count++] = socket->handle();
     }
   }
-}
 
-SHIM_CALL NetDll_select_shim(PPCContext* ppc_context,
-                             KernelState* kernel_state) {
-  uint32_t caller = SHIM_GET_ARG_32(0);
-  uint32_t nfds = SHIM_GET_ARG_32(1);
-  uint32_t readfds_ptr = SHIM_GET_ARG_32(2);
-  uint32_t writefds_ptr = SHIM_GET_ARG_32(3);
-  uint32_t exceptfds_ptr = SHIM_GET_ARG_32(4);
-  uint32_t timeout_ptr = SHIM_GET_ARG_32(5);
-
-  XELOGD("NetDll_select(%d, %d, %.8X, %.8X, %.8X, %.8X)", caller, nfds,
-         readfds_ptr, writefds_ptr, exceptfds_ptr, timeout_ptr);
-
-  host_set hostreadfds = {0};
-  fd_set readfds = {0};
-  if (readfds_ptr) {
-    LoadFdset((x_fd_set*)SHIM_MEM_ADDR(readfds_ptr), &hostreadfds);
-    ImportFdset(&hostreadfds, &readfds);
+  void Store(fd_set* native_set) {
+    FD_ZERO(native_set);
+    for (uint32_t i = 0; i < this->count; ++i) {
+      FD_SET(this->sockets[i]->native_handle(), native_set);
+    }
   }
-  host_set hostwritefds = {0};
-  fd_set writefds = {0};
-  if (writefds_ptr) {
-    LoadFdset((x_fd_set*)SHIM_MEM_ADDR(writefds_ptr), &hostwritefds);
-    ImportFdset(&hostwritefds, &writefds);
+
+  void UpdateFrom(fd_set* native_set) {
+    uint32_t new_count = 0;
+    for (uint32_t i = 0; i < this->count; ++i) {
+      auto socket = this->sockets[i];
+      if (FD_ISSET(socket->native_handle(), native_set)) {
+        this->sockets[new_count++] = socket;
+      }
+    }
+    this->count = new_count;
   }
-  host_set hostexceptfds = {0};
-  fd_set exceptfds = {0};
-  if (exceptfds_ptr) {
-    LoadFdset((x_fd_set*)SHIM_MEM_ADDR(exceptfds_ptr), &hostexceptfds);
-    ImportFdset(&hostexceptfds, &exceptfds);
+};
+
+int_result_t NetDll_select(int_t caller, int_t nfds,
+                           pointer_t<x_fd_set> readfds,
+                           pointer_t<x_fd_set> writefds,
+                           pointer_t<x_fd_set> exceptfds,
+                           lpvoid_t timeout_ptr) {
+  host_set host_readfds = {0};
+  fd_set native_readfds = {0};
+  if (readfds) {
+    host_readfds.Load(readfds);
+    host_readfds.Store(&native_readfds);
+  }
+  host_set host_writefds = {0};
+  fd_set native_writefds = {0};
+  if (writefds) {
+    host_writefds.Load(writefds);
+    host_writefds.Store(&native_writefds);
+  }
+  host_set host_exceptfds = {0};
+  fd_set native_exceptfds = {0};
+  if (exceptfds) {
+    host_exceptfds.Load(exceptfds);
+    host_exceptfds.Store(&native_exceptfds);
   }
   timeval* timeout_in = nullptr;
   timeval timeout;
   if (timeout_ptr) {
-    timeout = {static_cast<int32_t>(SHIM_MEM_32(timeout_ptr + 0)),
-               static_cast<int32_t>(SHIM_MEM_32(timeout_ptr + 4))};
+    timeout = {static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[0]),
+               static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[1])};
     Clock::ScaleGuestDurationTimeval(
         reinterpret_cast<int32_t*>(&timeout.tv_sec),
         reinterpret_cast<int32_t*>(&timeout.tv_usec));
     timeout_in = &timeout;
   }
-  int ret = select(nfds, readfds_ptr ? &readfds : nullptr,
-                   writefds_ptr ? &writefds : nullptr,
-                   exceptfds_ptr ? &exceptfds : nullptr, timeout_in);
-  if (readfds_ptr) {
-    StoreFdset(&readfds, &hostreadfds, (x_fd_set*)SHIM_MEM_ADDR(readfds_ptr));
+  int ret = select(nfds, readfds ? &native_readfds : nullptr,
+                   writefds ? &native_writefds : nullptr,
+                   exceptfds ? &native_exceptfds : nullptr, timeout_in);
+  if (readfds) {
+    host_readfds.UpdateFrom(&native_readfds);
+    host_readfds.Store(readfds);
   }
-  if (writefds_ptr) {
-    StoreFdset(&writefds, &hostwritefds,
-               (x_fd_set*)SHIM_MEM_ADDR(writefds_ptr));
+  if (writefds) {
+    host_writefds.UpdateFrom(&native_writefds);
+    host_writefds.Store(writefds);
   }
-  if (exceptfds_ptr) {
-    StoreFdset(&exceptfds, &hostexceptfds,
-               (x_fd_set*)SHIM_MEM_ADDR(exceptfds_ptr));
+  if (exceptfds) {
+    host_exceptfds.UpdateFrom(&native_exceptfds);
+    host_exceptfds.Store(exceptfds);
   }
 
   // TODO(gibbed): modify ret to be what's actually copied to the guest fd_sets?
-  SHIM_SET_RETURN_32(ret);
+  return ret;
 }
+DECLARE_XAM_EXPORT(NetDll_select,
+                   ExportTag::kNetworking | ExportTag::kImplemented);
 
 dword_result_t NetDll_recv(dword_t caller, dword_t socket_handle,
                            lpvoid_t buf_ptr, dword_t buf_len, dword_t flags) {
@@ -922,7 +926,6 @@ DECLARE_XAM_EXPORT(NetDll_sendto,
 void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetQosServiceLookup, state);
-  SHIM_SET_MAPPING("xam.xex", NetDll_select, state);
 }
 
 }  // namespace xam
