@@ -350,8 +350,7 @@ DECLARE_XBOXKRNL_EXPORT(XMABlockWhileInUse, ExportTag::kImplemented |
                                                 ExportTag::kHighFrequency);
 
 void RegisterAudioXmaExports(xe::cpu::ExportResolver* export_resolver,
-                             KernelState* kernel_state) {
-}
+                             KernelState* kernel_state) {}
 
 }  // namespace xboxkrnl
 }  // namespace kernel
