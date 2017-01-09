@@ -727,38 +727,47 @@ dword_result_t NetDll_accept(dword_t caller, dword_t socket_handle,
 DECLARE_XAM_EXPORT(NetDll_accept,
                    ExportTag::kImplemented | ExportTag::kNetworking);
 
-void LoadFdset(const uint8_t* src, fd_set* dest) {
-  dest->fd_count = xe::load_and_swap<uint32_t>(src);
-  for (u_int i = 0; i < 64; ++i) {
-    SOCKET native_handle = INVALID_SOCKET;
-    if (i < dest->fd_count) {
-      auto socket_handle =
-          static_cast<X_HANDLE>(xe::load_and_swap<uint32_t>(src + 4 + i * 4));
-      if (socket_handle) {
-        // Convert from Xenia -> native
-        auto socket = kernel_state()->object_table()->LookupObject<XSocket>(
-            socket_handle);
-        assert_not_null(socket);
-        native_handle = socket->native_handle();
-      }
+typedef struct x_fd_set {
+  xe::be<uint32_t> fd_count;
+  xe::be<uint32_t> fd_array[64];
+} x_fd_set;
+
+struct host_set {
+  uint32_t fd_count;
+  object_ref<XSocket> sockets[64];
+};
+
+void LoadFdset(const x_fd_set* guest_set, host_set* host_set) {
+  assert_true(guest_set->fd_count < 64);
+  host_set->fd_count = guest_set->fd_count;
+  for (uint32_t i = 0; i < host_set->fd_count; ++i) {
+    auto socket_handle = static_cast<X_HANDLE>(guest_set->fd_array[i]);
+    if (socket_handle == -1) {
+      host_set->fd_count = i;
+      break;
     }
-    dest->fd_array[i] = native_handle;
+    // Convert from Xenia -> native
+    auto socket =
+        kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+    assert_not_null(socket);
+    host_set->sockets[i] = socket;
   }
 }
 
-void StoreFdset(const fd_set& src, uint8_t* dest) {
-  xe::store_and_swap<uint32_t>(dest, src.fd_count);
-  for (u_int i = 0; i < src.fd_count; ++i) {
-    SOCKET socket_handle = src.fd_array[i];
+void ImportFdset(host_set* host_set, fd_set* native_set) {
+  FD_ZERO(native_set);
+  for (uint32_t i = 0; i < host_set->fd_count; ++i) {
+    FD_SET(host_set->sockets[i]->native_handle(), native_set);
+  }
+}
 
-    // TODO: Native -> Xenia
-
-    if (socket_handle != INVALID_SOCKET) {
-      assert_true(socket_handle >> 32 == 0);
-      xe::store_and_swap<uint32_t>(dest + 4 + i * 4,
-                                   static_cast<uint32_t>(socket_handle));
-    } else {
-      xe::store_and_swap<uint32_t>(dest + 4 + i * 4, -1);
+void StoreFdset(fd_set* native_set, host_set* host_set, x_fd_set* guest_set) {
+  guest_set->fd_count = 0;
+  for (uint32_t i = 0; i < host_set->fd_count; ++i) {
+    auto socket = host_set->sockets[i];
+    auto native_handle = socket->native_handle();
+    if (FD_ISSET(native_handle, native_set)) {
+      guest_set->fd_array[guest_set->fd_count++] = socket->handle();
     }
   }
 }
@@ -775,17 +784,23 @@ SHIM_CALL NetDll_select_shim(PPCContext* ppc_context,
   XELOGD("NetDll_select(%d, %d, %.8X, %.8X, %.8X, %.8X)", caller, nfds,
          readfds_ptr, writefds_ptr, exceptfds_ptr, timeout_ptr);
 
+  host_set hostreadfds = {0};
   fd_set readfds = {0};
   if (readfds_ptr) {
-    LoadFdset(SHIM_MEM_ADDR(readfds_ptr), &readfds);
+    LoadFdset((x_fd_set*)SHIM_MEM_ADDR(readfds_ptr), &hostreadfds);
+    ImportFdset(&hostreadfds, &readfds);
   }
+  host_set hostwritefds = {0};
   fd_set writefds = {0};
   if (writefds_ptr) {
-    LoadFdset(SHIM_MEM_ADDR(writefds_ptr), &writefds);
+    LoadFdset((x_fd_set*)SHIM_MEM_ADDR(writefds_ptr), &hostwritefds);
+    ImportFdset(&hostwritefds, &writefds);
   }
+  host_set hostexceptfds = {0};
   fd_set exceptfds = {0};
   if (exceptfds_ptr) {
-    LoadFdset(SHIM_MEM_ADDR(exceptfds_ptr), &exceptfds);
+    LoadFdset((x_fd_set*)SHIM_MEM_ADDR(exceptfds_ptr), &hostexceptfds);
+    ImportFdset(&hostexceptfds, &exceptfds);
   }
   timeval* timeout_in = nullptr;
   timeval timeout;
@@ -801,15 +816,18 @@ SHIM_CALL NetDll_select_shim(PPCContext* ppc_context,
                    writefds_ptr ? &writefds : nullptr,
                    exceptfds_ptr ? &exceptfds : nullptr, timeout_in);
   if (readfds_ptr) {
-    StoreFdset(readfds, SHIM_MEM_ADDR(readfds_ptr));
+    StoreFdset(&readfds, &hostreadfds, (x_fd_set*)SHIM_MEM_ADDR(readfds_ptr));
   }
   if (writefds_ptr) {
-    StoreFdset(writefds, SHIM_MEM_ADDR(writefds_ptr));
+    StoreFdset(&writefds, &hostwritefds,
+               (x_fd_set*)SHIM_MEM_ADDR(writefds_ptr));
   }
   if (exceptfds_ptr) {
-    StoreFdset(exceptfds, SHIM_MEM_ADDR(exceptfds_ptr));
+    StoreFdset(&exceptfds, &hostexceptfds,
+               (x_fd_set*)SHIM_MEM_ADDR(exceptfds_ptr));
   }
 
+  // TODO(gibbed): modify ret to be what's actually copied to the guest fd_sets?
   SHIM_SET_RETURN_32(ret);
 }
 
