@@ -739,8 +739,7 @@ void LoadFdset(const uint8_t* src, fd_set* dest) {
         auto socket = kernel_state()->object_table()->LookupObject<XSocket>(
             socket_handle);
         assert_not_null(socket);
-        auto native_handle = socket->native_handle();
-        dest->fd_array[i] = native_handle;
+        native_handle = socket->native_handle();
       }
     }
     dest->fd_array[i] = native_handle;
