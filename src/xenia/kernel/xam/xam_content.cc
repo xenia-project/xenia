@@ -200,17 +200,18 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
 }
 DECLARE_XAM_EXPORT(XamContentCreateEnumerator, ExportTag::kImplemented);
 
-void XamContentCreateCore(PPCContext* ppc_context, KernelState* kernel_state,
-                          uint32_t user_index, std::string root_name,
-                          XCONTENT_DATA content_data, uint32_t flags,
-                          uint32_t disposition_ptr, uint32_t license_mask_ptr,
-                          uint32_t cache_size, uint64_t content_size,
-                          uint32_t overlapped_ptr) {
-  assert_zero(license_mask_ptr);
+dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
+                                  lpvoid_t content_data_ptr, dword_t flags,
+                                  lpdword_t disposition_ptr,
+                                  lpdword_t license_mask_ptr,
+                                  dword_t cache_size, qword_t content_size,
+                                  lpvoid_t overlapped_ptr) {
+  assert_null(license_mask_ptr);
 
   X_RESULT result = X_ERROR_INVALID_PARAMETER;
+  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
 
-  auto content_manager = kernel_state->content_manager();
+  auto content_manager = kernel_state()->content_manager();
   bool create = false;
   bool open = false;
   switch (flags & 0xF) {
@@ -265,75 +266,38 @@ void XamContentCreateCore(PPCContext* ppc_context, KernelState* kernel_state,
   if (disposition_ptr) {
     if (overlapped_ptr) {
       // If async always set to zero, but don't set to a real value.
-      SHIM_SET_MEM_32(disposition_ptr, 0);
+      *disposition_ptr = 0;
     } else {
-      SHIM_SET_MEM_32(disposition_ptr, disposition);
+      *disposition_ptr = disposition;
     }
   }
 
   if (create) {
-    result = content_manager->CreateContent(root_name, content_data);
+    result = content_manager->CreateContent(root_name.value(), content_data);
   } else if (open) {
-    result = content_manager->OpenContent(root_name, content_data);
+    result = content_manager->OpenContent(root_name.value(), content_data);
   }
 
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediateEx(overlapped_ptr, result,
-                                                disposition, 0);
-    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    kernel_state()->CompleteOverlappedImmediateEx(overlapped_ptr, result,
+                                                  disposition, 0);
+    return X_ERROR_IO_PENDING;
   } else {
-    SHIM_SET_RETURN_32(result);
+    return result;
   }
 }
+DECLARE_XAM_EXPORT(XamContentCreateEx, ExportTag::kImplemented);
 
-SHIM_CALL XamContentCreate_shim(PPCContext* ppc_context,
-                                KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t root_name_ptr = SHIM_GET_ARG_32(1);
-  uint32_t content_data_ptr = SHIM_GET_ARG_32(2);
-  uint32_t flags = SHIM_GET_ARG_32(3);
-  uint32_t disposition_ptr = SHIM_GET_ARG_32(4);
-  uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(6);
-
-  auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
-  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
-
-  XELOGD("XamContentCreate(%d, %.8X(%s), %.8X, %.8X, %.8X, %.8X, %.8X)",
-         user_index, root_name_ptr, root_name.c_str(), content_data_ptr, flags,
-         disposition_ptr, license_mask_ptr, overlapped_ptr);
-
-  XamContentCreateCore(ppc_context, kernel_state, user_index, root_name,
-                       content_data, flags, disposition_ptr, license_mask_ptr,
-                       0, 0, overlapped_ptr);
+dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
+                                lpvoid_t content_data_ptr, dword_t flags,
+                                lpdword_t disposition_ptr,
+                                lpdword_t license_mask_ptr,
+                                lpvoid_t overlapped_ptr) {
+  return XamContentCreateEx(user_index, root_name, content_data_ptr, flags,
+                            disposition_ptr, license_mask_ptr, 0, 0,
+                            overlapped_ptr);
 }
-
-SHIM_CALL XamContentCreateEx_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t root_name_ptr = SHIM_GET_ARG_32(1);
-  uint32_t content_data_ptr = SHIM_GET_ARG_32(2);
-  uint32_t flags = SHIM_GET_ARG_32(3);
-  uint32_t disposition_ptr = SHIM_GET_ARG_32(4);
-  uint32_t license_mask_ptr = SHIM_GET_ARG_32(5);
-  uint32_t cache_size = SHIM_GET_ARG_32(6);
-  uint64_t content_size = SHIM_GET_ARG_64(7);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(8);
-
-  auto root_name = xe::load_and_swap<std::string>(SHIM_MEM_ADDR(root_name_ptr));
-  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
-
-  XELOGD(
-      "XamContentCreateEx(%d, %.8X(%s), %.8X, %.8X, %.8X, %.8X, %.8X, %.8llX, "
-      "%.8X)",
-      user_index, root_name_ptr, root_name.c_str(), content_data_ptr, flags,
-      disposition_ptr, license_mask_ptr, cache_size, content_size,
-      overlapped_ptr);
-
-  XamContentCreateCore(ppc_context, kernel_state, user_index, root_name,
-                       content_data, flags, disposition_ptr, license_mask_ptr,
-                       cache_size, content_size, overlapped_ptr);
-}
+DECLARE_XAM_EXPORT(XamContentCreate, ExportTag::kImplemented);
 
 dword_result_t XamContentOpenFile(dword_t r3, lpstring_t r4, lpstring_t r5,
                                   dword_t r6, dword_t r7, dword_t r8,
@@ -518,8 +482,6 @@ void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceState, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceData, state);
   SHIM_SET_MAPPING("xam.xex", XamContentResolve, state);
-  SHIM_SET_MAPPING("xam.xex", XamContentCreate, state);
-  SHIM_SET_MAPPING("xam.xex", XamContentCreateEx, state);
   SHIM_SET_MAPPING("xam.xex", XamContentFlush, state);
   SHIM_SET_MAPPING("xam.xex", XamContentClose, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetCreator, state);
