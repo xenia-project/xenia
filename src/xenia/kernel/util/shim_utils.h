@@ -372,6 +372,12 @@ inline void AppendParam(StringBuffer* string_buffer, lpdouble_t param) {
     string_buffer->AppendFormat("(%G)", param.value());
   }
 }
+inline void AppendParam(StringBuffer* string_buffer, lpstring_t param) {
+  string_buffer->AppendFormat("%.8X", param.guest_address());
+  if (param) {
+    string_buffer->AppendFormat("(%s)", param.value().c_str());
+  }
+}
 inline void AppendParam(StringBuffer* string_buffer,
                         pointer_t<X_OBJECT_ATTRIBUTES> record) {
   string_buffer->AppendFormat("%.8X", record.guest_address());
