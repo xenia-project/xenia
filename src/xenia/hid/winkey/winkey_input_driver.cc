@@ -180,6 +180,14 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
       // X
       buttons |= 0x0010;  // XINPUT_GAMEPAD_START
     }
+    if (IS_KEY_DOWN(0x31)) {
+      // 1
+      buttons |= 0x0100;  // XINPUT_GAMEPAD_LEFT_SHOULDER
+    }
+    if (IS_KEY_DOWN(0x33)) {
+      // 3
+      buttons |= 0x0200;  // XINPUT_GAMEPAD_RIGHT_SHOULDER
+    }
   }
 
   out_state->packet_number = packet_number_;
@@ -303,6 +311,22 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   if (evt.vkey == (0x5A)) {
     // Z
     virtual_key = 0x5815;  // VK_PAD_BACK
+  }
+  if (evt.vkey == (0x51) || evt.vkey == (0x49)) {
+    // Q / I
+    virtual_key = 0x5806;  // VK_PAD_LTRIGGER
+  }
+  if (evt.vkey == (0x45) || evt.vkey == (0x4F)) {
+    // E / O
+    virtual_key = 0x5807;  // VK_PAD_RTRIGGER
+  }
+  if (evt.vkey == (0x31)) {
+    // 1
+    virtual_key = 0x5805;  // VK_PAD_LSHOULDER
+  }
+  if (evt.vkey == (0x33)) {
+    // 3
+    virtual_key = 0x5804;  // VK_PAD_RSHOULDER
   }
 
   if (virtual_key != 0) {
