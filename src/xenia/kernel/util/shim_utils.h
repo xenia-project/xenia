@@ -317,6 +317,7 @@ using lpunknown_t = const shim::PointerParam&;
 template <typename T>
 using pointer_t = const shim::TypedPointerParam<T>&;
 
+using int_result_t = shim::Result<int32_t>;
 using dword_result_t = shim::Result<uint32_t>;
 using pointer_result_t = shim::Result<uint32_t>;
 

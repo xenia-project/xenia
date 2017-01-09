@@ -150,6 +150,8 @@ object_ref<XSocket> XSocket::Accept(N_XSOCKADDR* name, int* name_len) {
   return socket;
 }
 
+int XSocket::Shutdown(int how) { return shutdown(native_handle_, how); }
+
 int XSocket::Recv(uint8_t* buf, uint32_t buf_len, uint32_t flags) {
   return recv(native_handle_, reinterpret_cast<char*>(buf), buf_len, flags);
 }

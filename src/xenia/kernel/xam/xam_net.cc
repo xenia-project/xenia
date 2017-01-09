@@ -577,6 +577,25 @@ dword_result_t NetDll_closesocket(dword_t caller, dword_t socket_handle) {
 DECLARE_XAM_EXPORT(NetDll_closesocket,
                    ExportTag::kImplemented | ExportTag::kNetworking);
 
+int_result_t NetDll_shutdown(dword_t caller, dword_t socket_handle, int_t how) {
+  auto socket =
+      kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  if (!socket) {
+    // WSAENOTSOCK
+    XThread::SetLastError(0x2736);
+    return -1;
+  }
+
+  auto ret = socket->Shutdown(how);
+  if (ret == SOCKET_ERROR) {
+    uint32_t error_code = WSAGetLastError();
+    XThread::SetLastError(error_code);
+  }
+  return ret;
+}
+DECLARE_XAM_EXPORT(NetDll_shutdown,
+                   ExportTag::kImplemented | ExportTag::kNetworking);
+
 dword_result_t NetDll_setsockopt(dword_t caller, dword_t socket_handle,
                                  dword_t level, dword_t optname,
                                  lpvoid_t optval_ptr, dword_t optlen) {
@@ -710,32 +729,38 @@ DECLARE_XAM_EXPORT(NetDll_accept,
 
 void LoadFdset(const uint8_t* src, fd_set* dest) {
   dest->fd_count = xe::load_and_swap<uint32_t>(src);
-  for (int i = 0; i < 64; ++i) {
-    auto socket_handle =
-        static_cast<X_HANDLE>(xe::load_and_swap<uint32_t>(src + 4 + i * 4));
-    if (!socket_handle) {
-      break;
+  for (u_int i = 0; i < 64; ++i) {
+    SOCKET native_handle = INVALID_SOCKET;
+    if (i < dest->fd_count) {
+      auto socket_handle =
+          static_cast<X_HANDLE>(xe::load_and_swap<uint32_t>(src + 4 + i * 4));
+      if (socket_handle) {
+        // Convert from Xenia -> native
+        auto socket = kernel_state()->object_table()->LookupObject<XSocket>(
+            socket_handle);
+        assert_not_null(socket);
+        auto native_handle = socket->native_handle();
+        dest->fd_array[i] = native_handle;
+      }
     }
-
-    // Convert from Xenia -> native
-    auto socket =
-        kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
-    auto native_handle = socket->native_handle();
-
     dest->fd_array[i] = native_handle;
   }
 }
 
 void StoreFdset(const fd_set& src, uint8_t* dest) {
   xe::store_and_swap<uint32_t>(dest, src.fd_count);
-  for (int i = 0; i < 64; ++i) {
+  for (u_int i = 0; i < src.fd_count; ++i) {
     SOCKET socket_handle = src.fd_array[i];
 
     // TODO: Native -> Xenia
 
-    assert_true(socket_handle >> 32 == 0);
-    xe::store_and_swap<uint32_t>(dest + 4 + i * 4,
-                                 static_cast<uint32_t>(socket_handle));
+    if (socket_handle != INVALID_SOCKET) {
+      assert_true(socket_handle >> 32 == 0);
+      xe::store_and_swap<uint32_t>(dest + 4 + i * 4,
+                                   static_cast<uint32_t>(socket_handle));
+    } else {
+      xe::store_and_swap<uint32_t>(dest + 4 + i * 4, -1);
+    }
   }
 }
 
