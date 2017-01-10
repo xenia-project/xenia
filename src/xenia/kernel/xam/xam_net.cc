@@ -503,7 +503,8 @@ dword_result_t NetDll_XNetGetEthernetLinkStatus(dword_t caller) { return 0; }
 DECLARE_XAM_EXPORT(NetDll_XNetGetEthernetLinkStatus,
                    ExportTag::kStub | ExportTag::kNetworking);
 
-dword_result_t NetDll_XNetDnsLookup(lpstring_t address, dword_t evt_handle,
+dword_result_t NetDll_XNetDnsLookup(dword_t caller, lpstring_t address,
+                                    dword_t evt_handle,
                                     pointer_t<XNDNS> host_out) {
   return 0;
 }
