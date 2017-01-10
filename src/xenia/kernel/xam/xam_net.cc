@@ -503,12 +503,34 @@ dword_result_t NetDll_XNetGetEthernetLinkStatus(dword_t caller) { return 0; }
 DECLARE_XAM_EXPORT(NetDll_XNetGetEthernetLinkStatus,
                    ExportTag::kStub | ExportTag::kNetworking);
 
-dword_result_t NetDll_XNetDnsLookup(dword_t caller, lpstring_t address,
-                                    dword_t evt_handle,
-                                    pointer_t<XNDNS> host_out) {
+dword_result_t NetDll_XNetDnsLookup(dword_t caller, lpstring_t host,
+                                    dword_t event_handle, lpdword_t pdns) {
+  // TODO(gibbed): actually implement this
+  if (pdns) {
+    auto dns_guest = kernel_memory()->SystemHeapAlloc(sizeof(XNDNS));
+    auto dns = kernel_memory()->TranslateVirtual<XNDNS*>(dns_guest);
+    dns->status = 1;  // non-zero = error
+    *pdns = dns_guest;
+  }
+  if (event_handle) {
+    auto ev =
+        kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+    assert_not_null(ev);
+    ev->Set(0, false);
+  }
   return 0;
 }
 DECLARE_XAM_EXPORT(NetDll_XNetDnsLookup,
+                   ExportTag::kStub | ExportTag::kNetworking);
+
+dword_result_t NetDll_XNetDnsRelease(dword_t caller, pointer_t<XNDNS> dns) {
+  if (!dns) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+  kernel_memory()->SystemHeapFree(dns.guest_address());
+  return 0;
+}
+DECLARE_XAM_EXPORT(NetDll_XNetDnsRelease,
                    ExportTag::kStub | ExportTag::kNetworking);
 
 SHIM_CALL NetDll_XNetQosServiceLookup_shim(PPCContext* ppc_context,
