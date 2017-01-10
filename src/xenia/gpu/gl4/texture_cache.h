@@ -96,6 +96,7 @@ class TextureCache {
                                       uint64_t opt_hash = 0);
   void EvictTexture(TextureEntry* entry);
 
+  bool UploadTexture1D(GLuint texture, const TextureInfo& texture_info);
   bool UploadTexture2D(GLuint texture, const TextureInfo& texture_info);
   bool UploadTextureCube(GLuint texture, const TextureInfo& texture_info);
 

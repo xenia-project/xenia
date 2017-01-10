@@ -420,6 +420,11 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
   bool uploaded = false;
   switch (texture_info.dimension) {
+    case Dimension::k1D: {
+      uploaded = UploadTexture1D(command_buffer, completion_fence, texture,
+                                 texture_info);
+    } break;
+
     case Dimension::k2D: {
       uploaded = UploadTexture2D(command_buffer, completion_fence, texture,
                                  texture_info);
@@ -822,6 +827,19 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
+void TextureCache::ConvertTexture1D(uint8_t* dest, const TextureInfo& src) {
+  void* host_address = memory_->TranslatePhysical(src.guest_address);
+  if (!src.is_tiled) {
+    if (src.size_1d.input_pitch == src.size_1d.output_pitch) {
+      TextureSwap(src.endianness, dest, host_address, src.output_length);
+    } else {
+      assert_always();
+    }
+  } else {
+    assert_always();
+  }
+}
+
 void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
   if (!src.is_tiled) {
@@ -934,6 +952,86 @@ void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
       dest += src.size_cube.output_face_length;
     }
   }
+}
+
+bool TextureCache::UploadTexture1D(VkCommandBuffer command_buffer,
+                                   VkFence completion_fence, Texture* dest,
+                                   const TextureInfo& src) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
+  assert_true(src.dimension == Dimension::k1D);
+
+  size_t unpack_length = src.output_length;
+  if (!staging_buffer_.CanAcquire(unpack_length)) {
+    // Need to have unique memory for every upload for at least one frame. If we
+    // run out of memory, we need to flush all queued upload commands to the
+    // GPU.
+    FlushPendingCommands(command_buffer, completion_fence);
+
+    // Uploads have been flushed. Continue.
+    if (!staging_buffer_.CanAcquire(unpack_length)) {
+      // The staging buffer isn't big enough to hold this texture.
+      XELOGE(
+          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
+          unpack_length);
+      assert_always();
+      return false;
+    }
+  }
+
+  // Grab some temporary memory for staging.
+  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
+  assert_not_null(alloc);
+
+  // Upload texture into GPU memory.
+  // TODO: If the GPU supports it, we can submit a compute batch to convert the
+  // texture and copy it to its destination. Otherwise, fallback to conversion
+  // on the CPU.
+  ConvertTexture1D(reinterpret_cast<uint8_t*>(alloc->host_ptr), src);
+  staging_buffer_.Flush(alloc);
+
+  // Transition the texture into a transfer destination layout.
+  VkImageMemoryBarrier barrier;
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.pNext = nullptr;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask =
+      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
+  barrier.oldLayout = dest->image_layout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = dest->image;
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  // Now move the converted texture into the destination.
+  VkBufferImageCopy copy_region;
+  copy_region.bufferOffset = alloc->offset;
+  copy_region.bufferRowLength = src.size_1d.output_width;
+  copy_region.bufferImageHeight = 1;
+  copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  copy_region.imageOffset = {0, 0, 0};
+  copy_region.imageExtent = {src.size_1d.output_width, 1, 1};
+  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
+                         dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                         &copy_region);
+
+  // Now transition the texture into a shader readonly source.
+  barrier.srcAccessMask = barrier.dstAccessMask;
+  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  barrier.oldLayout = barrier.newLayout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  dest->image_layout = barrier.newLayout;
+  return true;
 }
 
 bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,

@@ -148,12 +148,16 @@ class TextureCache {
   void FlushPendingCommands(VkCommandBuffer command_buffer,
                             VkFence completion_fence);
 
+  void ConvertTexture1D(uint8_t* dest, const TextureInfo& src);
   void ConvertTexture2D(uint8_t* dest, const TextureInfo& src);
   void ConvertTextureCube(uint8_t* dest, const TextureInfo& src);
 
   // Queues commands to upload a texture from system memory, applying any
   // conversions necessary. This may flush the command buffer to the GPU if we
   // run out of staging memory.
+  bool UploadTexture1D(VkCommandBuffer command_buffer, VkFence completion_fence,
+                       Texture* dest, const TextureInfo& src);
+
   bool UploadTexture2D(VkCommandBuffer command_buffer, VkFence completion_fence,
                        Texture* dest, const TextureInfo& src);
 

@@ -231,7 +231,12 @@ struct TextureInfo {
 
   union {
     struct {
-      uint32_t width;
+      uint32_t logical_width;
+      uint32_t block_width;
+      uint32_t input_width;
+      uint32_t input_pitch;
+      uint32_t output_width;
+      uint32_t output_pitch;
     } size_1d;
     struct {
       uint32_t logical_width;
