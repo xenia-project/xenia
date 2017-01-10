@@ -13,4 +13,4 @@
 
 [//]: # (If applicable, provide a callstack here - esp. for crashes)
 
-[//]: # (If applicible, upload a logfile and link it here)
+[//]: # (If applicable, upload a logfile and link it here)
