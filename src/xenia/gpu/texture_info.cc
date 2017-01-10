@@ -165,7 +165,33 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
 void TextureInfo::CalculateTextureSizes1D(const xe_gpu_texture_fetch_t& fetch) {
   // ?
-  size_1d.width = fetch.size_1d.width;
+  size_1d.logical_width = 1 + fetch.size_1d.width;
+
+  uint32_t block_width =
+      xe::round_up(size_1d.logical_width, format_info->block_width) /
+      format_info->block_width;
+
+  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
+  size_1d.block_width = tile_width * 32;
+
+  uint32_t bytes_per_block =
+      format_info->block_width * format_info->bits_per_pixel / 8;
+
+  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
+  if (!is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = xe::round_up(byte_pitch, 256);
+  }
+
+  size_1d.input_width = tile_width * 32 * format_info->block_width;
+
+  size_1d.output_width = block_width * format_info->block_width;
+
+  size_1d.input_pitch = byte_pitch;
+  size_1d.output_pitch = block_width * bytes_per_block;
+
+  input_length = size_1d.input_pitch;
+  output_length = size_1d.output_pitch;
 }
 
 void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {

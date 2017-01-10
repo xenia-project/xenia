@@ -477,13 +477,15 @@ TextureCache::TextureEntry* TextureCache::LookupOrInsertTexture(
   // Upload/convert.
   bool uploaded = false;
   switch (texture_info.dimension) {
+    case Dimension::k1D:
+      uploaded = UploadTexture1D(entry->handle, texture_info);
+      break;
     case Dimension::k2D:
       uploaded = UploadTexture2D(entry->handle, texture_info);
       break;
     case Dimension::kCube:
       uploaded = UploadTextureCube(entry->handle, texture_info);
       break;
-    case Dimension::k1D:
     case Dimension::k3D:
       assert_unhandled_case(texture_info.dimension);
       return nullptr;
@@ -704,6 +706,62 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
       std::memcpy(dest, src, length);
       break;
   }
+}
+
+bool TextureCache::UploadTexture1D(GLuint texture,
+                                   const TextureInfo& texture_info) {
+  SCOPE_profile_cpu_f("gpu");
+  const auto host_address =
+      memory_->TranslatePhysical(texture_info.guest_address);
+
+  const auto& config =
+      texture_configs[uint32_t(texture_info.format_info->format)];
+  if (config.format == GL_INVALID_ENUM) {
+    assert_always("Unhandled texture format");
+    return false;
+  }
+
+  size_t unpack_length = texture_info.output_length;
+  glTextureStorage1D(texture, 1, config.internal_format,
+                     texture_info.size_1d.output_width);
+
+  auto allocation = scratch_buffer_->Acquire(unpack_length);
+
+  if (!texture_info.is_tiled) {
+    if (texture_info.size_1d.input_pitch == texture_info.size_1d.output_pitch) {
+      TextureSwap(texture_info.endianness, allocation.host_ptr, host_address,
+                  unpack_length);
+    } else {
+      assert_always();
+    }
+  } else {
+    assert_always();
+  }
+  size_t unpack_offset = allocation.offset;
+  scratch_buffer_->Commit(std::move(allocation));
+  // TODO(benvanik): avoid flush on entire buffer by using another texture
+  // buffer.
+  scratch_buffer_->Flush();
+
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, scratch_buffer_->handle());
+  if (texture_info.is_compressed()) {
+    glCompressedTextureSubImage1D(
+        texture, 0, 0, texture_info.size_1d.output_width, config.format,
+        static_cast<GLsizei>(unpack_length),
+        reinterpret_cast<void*>(unpack_offset));
+  } else {
+    // Most of these don't seem to have an effect on compressed images.
+    // glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
+    // glPixelStorei(GL_UNPACK_ALIGNMENT, texture_info.texel_pitch);
+    // glPixelStorei(GL_UNPACK_ROW_LENGTH, texture_info.size_2d.input_width);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTextureSubImage1D(texture, 0, 0, texture_info.size_1d.output_width,
+                        config.format, config.type,
+                        reinterpret_cast<void*>(unpack_offset));
+  }
+  glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+  return true;
 }
 
 bool TextureCache::UploadTexture2D(GLuint texture,
