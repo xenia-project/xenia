@@ -101,35 +101,23 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   return X_STATUS_SUCCESS;
 }
 
-SHIM_CALL ExGetXConfigSetting_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  uint16_t category = SHIM_GET_ARG_16(0);
-  uint16_t setting = SHIM_GET_ARG_16(1);
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(2);
-  uint16_t buffer_size = SHIM_GET_ARG_16(3);
-  uint32_t required_size_ptr = SHIM_GET_ARG_32(4);
-
-  XELOGD("ExGetXConfigSetting(%.4X, %.4X, %.8X, %.4X, %.8X)", category, setting,
-         buffer_ptr, buffer_size, required_size_ptr);
-
-  void* buffer = buffer_ptr ? SHIM_MEM_ADDR(buffer_ptr) : NULL;
+dword_result_t ExGetXConfigSetting(word_t category, word_t setting,
+                                   lpdword_t buffer_ptr, word_t buffer_size,
+                                   lpword_t required_size_ptr) {
   uint16_t required_size = 0;
-  X_STATUS result = xeExGetXConfigSetting(category, setting, buffer,
+  X_STATUS result = xeExGetXConfigSetting(category, setting, buffer_ptr,
                                           buffer_size, &required_size);
 
   if (required_size_ptr) {
-    SHIM_SET_MEM_16(required_size_ptr, required_size);
+    *required_size_ptr = required_size;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(ExGetXConfigSetting,
+                        ExportTag::kImplemented | ExportTag::kModules);
 
-SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_context,
-                                           KernelState* kernel_state) {
-  uint32_t privilege = SHIM_GET_ARG_32(0);
-
-  XELOGD("XexCheckExecutablePrivilege(%.8X)", privilege);
-
+dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
   // BOOL
   // DWORD Privilege
 
@@ -137,95 +125,77 @@ SHIM_CALL XexCheckExecutablePrivilege_shim(PPCContext* ppc_context,
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
-  auto module = kernel_state->GetExecutableModule();
+  auto module = kernel_state()->GetExecutableModule();
   if (!module) {
-    SHIM_SET_RETURN_32(0);
-    return;
+    return 0;
   }
 
   uint32_t flags = 0;
   module->GetOptHeader<uint32_t>(XEX_HEADER_SYSTEM_FLAGS, &flags);
 
-  SHIM_SET_RETURN_32((flags & mask) > 0);
+  return (flags & mask) > 0;
 }
+DECLARE_XBOXKRNL_EXPORT(XexCheckExecutablePrivilege,
+                        ExportTag::kImplemented | ExportTag::kModules);
 
-SHIM_CALL XexGetModuleHandle_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
-  const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
-  uint32_t hmodule_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("XexGetModuleHandle(%s, %.8X)", module_name, hmodule_ptr);
-
+dword_result_t XexGetModuleHandle(lpstring_t module_name,
+                                  lpdword_t hmodule_ptr) {
   object_ref<XModule> module;
+
   if (!module_name) {
-    module = kernel_state->GetExecutableModule();
+    module = kernel_state()->GetExecutableModule();
   } else {
-    module = kernel_state->GetModule(module_name);
+    module = kernel_state()->GetModule(module_name);
   }
+
   if (!module) {
-    SHIM_SET_MEM_32(hmodule_ptr, 0);
-    SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
-    return;
+    *hmodule_ptr = 0;
+    return X_ERROR_NOT_FOUND;
   }
 
   // NOTE: we don't retain the handle for return.
-  SHIM_SET_MEM_32(hmodule_ptr, module->hmodule_ptr());
+  *hmodule_ptr = module->hmodule_ptr();
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XBOXKRNL_EXPORT(XexGetModuleHandle,
+                        ExportTag::kImplemented | ExportTag::kModules);
 
-SHIM_CALL XexGetModuleSection_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  uint32_t hmodule = SHIM_GET_ARG_32(0);
-  uint32_t name_ptr = SHIM_GET_ARG_32(1);
-  const char* name = (const char*)SHIM_MEM_ADDR(name_ptr);
-  uint32_t data_ptr = SHIM_GET_ARG_32(2);
-  uint32_t size_ptr = SHIM_GET_ARG_32(3);
-
-  XELOGD("XexGetModuleSection(%.8X, %s, %.8X, %.8X)", hmodule, name, data_ptr,
-         size_ptr);
-
+dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
+                                   lpdword_t data_ptr, lpdword_t size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto module = XModule::GetFromHModule(kernel_state, SHIM_MEM_ADDR(hmodule));
+  auto module = XModule::GetFromHModule(kernel_state(), hmodule);
   if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
     result = module->GetSection(name, &section_data, &section_size);
     if (XSUCCEEDED(result)) {
-      SHIM_SET_MEM_32(data_ptr, section_data);
-      SHIM_SET_MEM_32(size_ptr, section_size);
+      *data_ptr = section_data;
+      *size_ptr = section_size;
     }
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(XexGetModuleSection,
+                        ExportTag::kImplemented | ExportTag::kModules);
 
-SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  uint32_t module_name_ptr = SHIM_GET_ARG_32(0);
-  const char* module_name = (const char*)SHIM_MEM_ADDR(module_name_ptr);
-  uint32_t module_flags = SHIM_GET_ARG_32(1);
-  uint32_t min_version = SHIM_GET_ARG_32(2);
-  uint32_t hmodule_ptr = SHIM_GET_ARG_32(3);
-
-  XELOGD("XexLoadImage(%s, %.8X, %.8X, %.8X)", module_name, module_flags,
-         min_version, hmodule_ptr);
-
+dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
+                            dword_t min_version, lpdword_t hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
-  auto module = kernel_state->GetModule(module_name);
+  auto module = kernel_state()->GetModule(module_name);
   if (module) {
     // Existing module found.
     hmodule = module->hmodule_ptr();
     result = X_STATUS_SUCCESS;
   } else {
     // Not found; attempt to load as a user module.
-    auto user_module = kernel_state->LoadUserModule(module_name);
+    auto user_module = kernel_state()->LoadUserModule(module_name);
     if (user_module) {
       user_module->Retain();
       hmodule = user_module->hmodule_ptr();
@@ -240,65 +210,50 @@ SHIM_CALL XexLoadImage_shim(PPCContext* ppc_context,
     ldr_data->load_count++;
   }
 
-  SHIM_SET_MEM_32(hmodule_ptr, hmodule);
+  *hmodule_ptr = hmodule;
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(XexLoadImage,
+                        ExportTag::kImplemented | ExportTag::kModules);
 
-SHIM_CALL XexUnloadImage_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  uint32_t hmodule = SHIM_GET_ARG_32(0);
-
-  XELOGD("XexUnloadImage(%.8X)", hmodule);
-
-  auto module = XModule::GetFromHModule(kernel_state, SHIM_MEM_ADDR(hmodule));
+dword_result_t XexUnloadImage(lpvoid_t hmodule) {
+  auto module = XModule::GetFromHModule(kernel_state(), hmodule);
   if (!module) {
-    SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
-    return;
+    return X_STATUS_INVALID_HANDLE;
   }
 
   // Can't unload kernel modules from user code.
   if (module->module_type() != XModule::ModuleType::kKernelModule) {
-    auto ldr_data =
-        kernel_state->memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(
-            hmodule);
+    auto ldr_data = hmodule.as<X_LDR_DATA_TABLE_ENTRY*>();
     if (--ldr_data->load_count == 0) {
       // No more references, free it.
       module->Release();
-      kernel_state->object_table()->RemoveHandle(module->handle());
+      kernel_state()->object_table()->RemoveHandle(module->handle());
     }
   }
 
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+  return X_STATUS_SUCCESS;
 }
+DECLARE_XBOXKRNL_EXPORT(XexUnloadImage,
+                        ExportTag::kImplemented | ExportTag::kModules);
 
-SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t hmodule = SHIM_GET_ARG_32(0);
-  uint32_t ordinal = SHIM_GET_ARG_32(1);
-  uint32_t out_function_ptr = SHIM_GET_ARG_32(2);
-
+dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
+                                      lpdword_t out_function_ptr) {
   // May be entry point?
   assert_not_zero(ordinal);
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
-  auto string_name = reinterpret_cast<const char*>(SHIM_MEM_ADDR(ordinal));
-
-  if (is_string_name) {
-    XELOGD("XexGetProcedureAddress(%.8X, %.8X(%s), %.8X)", hmodule, ordinal,
-           string_name, out_function_ptr);
-  } else {
-    XELOGD("XexGetProcedureAddress(%.8X, %.8X, %.8X)", hmodule, ordinal,
-           out_function_ptr);
-  }
+  auto string_name = reinterpret_cast<const char*>(
+      kernel_memory()->virtual_membase() + ordinal);
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
   object_ref<XModule> module;
   if (!hmodule) {
-    module = kernel_state->GetExecutableModule();
+    module = kernel_state()->GetExecutableModule();
   } else {
-    module = XModule::GetFromHModule(kernel_state, SHIM_MEM_ADDR(hmodule));
+    module = XModule::GetFromHModule(kernel_state(), hmodule);
   }
   if (module) {
     uint32_t ptr;
@@ -308,17 +263,18 @@ SHIM_CALL XexGetProcedureAddress_shim(PPCContext* ppc_context,
       ptr = module->GetProcAddressByOrdinal(ordinal);
     }
     if (ptr) {
-      SHIM_SET_MEM_32(out_function_ptr, ptr);
+      *out_function_ptr = ptr;
       result = X_STATUS_SUCCESS;
     } else {
       XELOGW("ERROR: XexGetProcedureAddress ordinal not found!");
-      SHIM_SET_MEM_32(out_function_ptr, 0);
+      *out_function_ptr = 0;
       result = X_STATUS_DRIVER_ORDINAL_NOT_FOUND;
     }
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(XexGetProcedureAddress, ExportTag::kImplemented);
 
 void ExRegisterTitleTerminateNotification(
     pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg, dword_t create) {
@@ -335,17 +291,7 @@ DECLARE_XBOXKRNL_EXPORT(ExRegisterTitleTerminateNotification,
                         ExportTag::kImplemented);
 
 void RegisterModuleExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xboxkrnl.exe", ExGetXConfigSetting, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", XexCheckExecutablePrivilege, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleHandle, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XexGetModuleSection, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XexLoadImage, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XexUnloadImage, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", XexGetProcedureAddress, state);
-}
+                           KernelState* kernel_state) {}
 
 }  // namespace xboxkrnl
 }  // namespace kernel
