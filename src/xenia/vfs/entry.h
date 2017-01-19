@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "xenia/base/filesystem.h"
+#include "xenia/base/filesystem_wildcard.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/string_buffer.h"
