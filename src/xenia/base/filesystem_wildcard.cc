@@ -8,19 +8,22 @@
  */
 
 #include "xenia/base/filesystem_wildcard.h"
+#include "xenia/base/assert.h"
 
 #include <algorithm>
 
 namespace xe {
 namespace filesystem {
 
-WildcardFlags WildcardFlags::FIRST(true, false);
-WildcardFlags WildcardFlags::LAST(false, true);
+WildcardFlags WildcardFlags::FIRST(true, false, false);
+WildcardFlags WildcardFlags::LAST(false, true, false);
+WildcardFlags WildcardFlags::ANY(false, false, true);
 
-WildcardFlags::WildcardFlags() : FromStart(false), ToEnd(false) {}
+WildcardFlags::WildcardFlags()
+    : FromStart(false), ToEnd(false), ExactLength(false) {}
 
-WildcardFlags::WildcardFlags(bool start, bool end)
-    : FromStart(start), ToEnd(end) {}
+WildcardFlags::WildcardFlags(bool start, bool end, bool exact_length)
+    : FromStart(start), ToEnd(end), ExactLength(exact_length) {}
 
 WildcardRule::WildcardRule(const std::string& str_match,
                            const WildcardFlags& flags)
@@ -36,6 +39,11 @@ bool WildcardRule::Check(const std::string& str_lower,
 
   if ((str_lower.size() - *offset) < match.size()) {
     return false;
+  }
+
+  if (rules.ExactLength) {
+    *offset += match.size();
+    return true;
   }
 
   std::string::size_type result(str_lower.find(match, *offset));
@@ -62,12 +70,22 @@ void WildcardEngine::PreparePattern(const std::string& pattern) {
   WildcardFlags flags(WildcardFlags::FIRST);
   size_t n = 0;
   size_t last = 0;
-  while ((n = pattern.find_first_of('*', last)) != pattern.npos) {
+  while ((n = pattern.find_first_of("*?", last)) != pattern.npos) {
     if (last != n) {
       std::string str_str(pattern.substr(last, n - last));
       rules.push_back(WildcardRule(str_str, flags));
     }
-    last = n + 1;
+    if (pattern[n] == '?') {
+      auto end = pattern.find_first_not_of('?', n + 1);
+      auto count = end == pattern.npos ? (pattern.size() - n) : (end - n);
+      rules.push_back(
+          WildcardRule(pattern.substr(n, count), WildcardFlags::ANY));
+      last = n + count;
+    } else if (pattern[n] == '*') {
+      last = n + 1;
+    } else {
+      assert_always();
+    }
     flags = WildcardFlags();
   }
   if (last != pattern.size()) {
