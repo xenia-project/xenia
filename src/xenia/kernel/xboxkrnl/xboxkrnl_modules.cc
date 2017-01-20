@@ -268,7 +268,7 @@ dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
     } else {
       XELOGW("ERROR: XexGetProcedureAddress ordinal not found!");
       *out_function_ptr = 0;
-      result = X_STATUS_DRIVER_ORDINAL_NOT_FOUND;
+      result = X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND;
     }
   }
 
