@@ -190,7 +190,8 @@ bool Win32Window::SetIcon(const void* buffer, size_t size) {
   // Create icon and set on window (if it's valid).
   icon_ = CreateIconFromResourceEx(
       reinterpret_cast<PBYTE>(const_cast<void*>(buffer)),
-      static_cast<DWORD>(size), TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
+      static_cast<DWORD>(size), TRUE, 0x00030000, 0, 0,
+      LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
   if (icon_) {
     SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon_));
     SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon_));
