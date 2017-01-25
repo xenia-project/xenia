@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include <cfloat>
 #include <cstring>
 
 #include "xenia/base/logging.h"
