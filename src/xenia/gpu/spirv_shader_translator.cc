@@ -241,8 +241,8 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_32_32:
             if (is_integer) {
               attrib_type = is_signed ? vec2_int_type_ : vec2_uint_type_;
-              break;
             }
+            break;
           case VertexFormat::k_16_16_FLOAT:
           case VertexFormat::k_32_32_FLOAT:
             attrib_type = vec2_float_type_;
@@ -258,8 +258,8 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_32_32_32_32:
             if (is_integer) {
               attrib_type = is_signed ? vec4_int_type_ : vec4_uint_type_;
-              break;
             }
+            break;
           case VertexFormat::k_16_16_16_16_FLOAT:
           case VertexFormat::k_32_32_32_32_FLOAT:
             attrib_type = vec4_float_type_;
@@ -1123,8 +1123,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_2_10_10_10:
     case VertexFormat::k_16_16:
     case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_FLOAT:
     case VertexFormat::k_16_16_16_16_FLOAT:
     case VertexFormat::k_32:
     case VertexFormat::k_32_32:
@@ -1211,6 +1213,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           vec3_float_type_,
           std::vector<Id>({components[0], components[1], components[2]}));
     } break;
+
+    case VertexFormat::kUndefined:
+      break;
   }
 
   // Convert any integers to floats.
