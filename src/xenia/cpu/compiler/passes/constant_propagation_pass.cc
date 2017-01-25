@@ -10,6 +10,7 @@
 #include "xenia/cpu/compiler/passes/constant_propagation_pass.h"
 
 #include <gflags/gflags.h>
+#include <cmath>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/profiling.h"
@@ -303,10 +304,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_IS_NAN:
           if (i->src1.value->IsConstant()) {
             if (i->src1.value->type == FLOAT32_TYPE &&
-                isnan(i->src1.value->constant.f32)) {
+                std::isnan(i->src1.value->constant.f32)) {
               v->set_constant(uint8_t(1));
             } else if (i->src1.value->type == FLOAT64_TYPE &&
-                       isnan(i->src1.value->constant.f64)) {
+                       std::isnan(i->src1.value->constant.f64)) {
               v->set_constant(uint8_t(1));
             } else {
               v->set_constant(uint8_t(0));
