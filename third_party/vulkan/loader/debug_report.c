@@ -103,7 +103,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL debug_report_CreateDebugReportCallbackEXT(
     VkDebugReportCallbackEXT *pCallback) {
     struct loader_instance *inst = loader_get_instance(instance);
     loader_platform_thread_lock_mutex(&loader_lock);
-    VkResult result = inst->disp->CreateDebugReportCallbackEXT(
+    VkResult result = inst->disp->layer_inst_disp.CreateDebugReportCallbackEXT(
         instance, pCreateInfo, pAllocator, pCallback);
     loader_platform_thread_unlock_mutex(&loader_lock);
     return result;
@@ -295,7 +295,8 @@ debug_report_DestroyDebugReportCallbackEXT(
     struct loader_instance *inst = loader_get_instance(instance);
     loader_platform_thread_lock_mutex(&loader_lock);
 
-    inst->disp->DestroyDebugReportCallbackEXT(instance, callback, pAllocator);
+    inst->disp->layer_inst_disp.DestroyDebugReportCallbackEXT(
+        instance, callback, pAllocator);
 
     util_DestroyDebugReportCallback(inst, callback, pAllocator);
 
@@ -308,8 +309,9 @@ static VKAPI_ATTR void VKAPI_CALL debug_report_DebugReportMessageEXT(
     int32_t msgCode, const char *pLayerPrefix, const char *pMsg) {
     struct loader_instance *inst = loader_get_instance(instance);
 
-    inst->disp->DebugReportMessageEXT(instance, flags, objType, object,
-                                      location, msgCode, pLayerPrefix, pMsg);
+    inst->disp->layer_inst_disp.DebugReportMessageEXT(
+        instance, flags, objType, object, location, msgCode, pLayerPrefix,
+        pMsg);
 }
 
 /*
@@ -336,8 +338,10 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateDebugReportCallback(
             pAllocator->pUserData,
             inst->total_icd_count * sizeof(VkDebugReportCallbackEXT),
             sizeof(void *), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT));
-        memset(icd_info, 0,
-               inst->total_icd_count * sizeof(VkDebugReportCallbackEXT));
+        if (icd_info) {
+            memset(icd_info, 0,
+                   inst->total_icd_count * sizeof(VkDebugReportCallbackEXT));
+        }
     } else {
 #endif
         icd_info =
@@ -407,7 +411,7 @@ out:
                 continue;
             }
 
-            if (icd_info[storage_idx]) {
+            if (icd_info && icd_info[storage_idx]) {
                 icd_term->DestroyDebugReportCallbackEXT(
                     icd_term->instance, icd_info[storage_idx], pAllocator);
             }

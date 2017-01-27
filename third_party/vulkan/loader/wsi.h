@@ -169,4 +169,9 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateDisplayPlaneSurfaceKHR(
     VkInstance instance, const VkDisplaySurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface);
 
+VKAPI_ATTR VkResult VKAPI_CALL terminator_vkCreateSharedSwapchainsKHR(
+    VkDevice device, uint32_t swapchainCount,
+    const VkSwapchainCreateInfoKHR *pCreateInfos,
+    const VkAllocationCallbacks *pAllocator, VkSwapchainKHR *pSwapchains);
+
 #endif /* WSI_H */
