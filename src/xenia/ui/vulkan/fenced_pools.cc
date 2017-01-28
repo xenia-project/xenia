@@ -92,7 +92,11 @@ DescriptorPool::DescriptorPool(VkDevice device, uint32_t max_count,
                                     &descriptor_pool_);
   CheckResult(err, "vkCreateDescriptorPool");
 }
-DescriptorPool::~DescriptorPool() {}
+DescriptorPool::~DescriptorPool() {
+  FreeAllEntries();
+  vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
+  descriptor_pool_ = nullptr;
+}
 
 VkDescriptorSet DescriptorPool::AllocateEntry(void* data) {
   VkDescriptorSetLayout layout = reinterpret_cast<VkDescriptorSetLayout>(data);
