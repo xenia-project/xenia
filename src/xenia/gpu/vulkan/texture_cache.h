@@ -20,6 +20,7 @@
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/circular_buffer.h"
+#include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
@@ -165,6 +166,8 @@ class TextureCache {
                          VkFence completion_fence, Texture* dest,
                          const TextureInfo& src);
 
+  void HashTextureBindings(XXH64_state_t* hash_state, uint32_t& fetch_mask,
+                           const std::vector<Shader::TextureBinding>& bindings);
   bool SetupTextureBindings(
       VkCommandBuffer command_buffer, VkFence completion_fence,
       UpdateSetInfo* update_set_info,
@@ -181,9 +184,9 @@ class TextureCache {
   ui::vulkan::VulkanDevice* device_ = nullptr;
   VkQueue device_queue_ = nullptr;
 
-  VkDescriptorPool descriptor_pool_ = nullptr;
+  std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
+  std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
-  std::list<std::pair<VkDescriptorSet, VkFence>> in_flight_sets_;
 
   ui::vulkan::CircularBuffer staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
