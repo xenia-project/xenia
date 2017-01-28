@@ -256,7 +256,8 @@ void VulkanCommandProcessor::BeginFrame() {
 
   // TODO(benvanik): bigger batches.
   // TODO(DrChat): Decouple setup buffer from current batch.
-  // Begin a new batch, and allocate and begin a command buffer and setup buffer.
+  // Begin a new batch, and allocate and begin a command buffer and setup
+  // buffer.
   current_batch_fence_ = command_buffer_pool_->BeginBatch();
   current_command_buffer_ = command_buffer_pool_->AcquireEntry();
   current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
@@ -446,7 +447,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = uint32_t(submit_buffers.size());
     submit_info.pCommandBuffers = submit_buffers.data();
-    
+
     VkPipelineStageFlags sem_waits[1];
     sem_waits[0] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     submit_info.waitSemaphoreCount = 1;
