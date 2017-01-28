@@ -64,6 +64,9 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void WriteRegister(uint32_t index, uint32_t value) override;
 
+  void BeginFrame();
+  void EndFrame();
+
   void CreateSwapImage(VkCommandBuffer setup_buffer, VkExtent2D extents);
   void DestroySwapImage();
 
@@ -123,6 +126,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;
 
+  bool frame_open_ = false;
   const RenderState* current_render_state_ = nullptr;
   VkCommandBuffer current_command_buffer_ = nullptr;
   VkCommandBuffer current_setup_buffer_ = nullptr;
