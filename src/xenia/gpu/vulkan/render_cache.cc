@@ -436,8 +436,10 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
 
   // Create the render pass.
   VkRenderPassCreateInfo render_pass_info;
+  std::memset(&render_pass_info, 0, sizeof(render_pass_info));
   render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   render_pass_info.pNext = nullptr;
+  render_pass_info.flags = 0;
   render_pass_info.attachmentCount = 5;
   render_pass_info.pAttachments = attachments;
   render_pass_info.subpassCount = 1;
