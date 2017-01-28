@@ -19,6 +19,12 @@ out gl_PerVertex {
 layout(location = 0) in vec4 in_interpolators[][16];
 layout(location = 0) out vec4 out_interpolators[16];
 
+layout(location = 16) in vec2 _in_point_coord_unused[];
+layout(location = 17) in float _in_point_size_unused[];
+
+layout(location = 16) out vec2 _out_point_coord_unused;
+layout(location = 17) out float _out_point_size_unused;
+
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 6) out;
 void main() {

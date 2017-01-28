@@ -1,13 +1,13 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 74
+; Bound: 84
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Geometry %main "main" %_ %gl_in %out_interpolators %in_interpolators
+               OpEntryPoint Geometry %main "main" %_ %gl_in %out_interpolators %in_interpolators %_in_point_coord_unused %_in_point_size_unused %_out_point_coord_unused %_out_point_size_unused
                OpExecutionMode %main InputLinesAdjacency
                OpExecutionMode %main Invocations 1
                OpExecutionMode %main OutputLineStrip
@@ -24,6 +24,10 @@
                OpName %gl_in "gl_in"
                OpName %out_interpolators "out_interpolators"
                OpName %in_interpolators "in_interpolators"
+               OpName %_in_point_coord_unused "_in_point_coord_unused"
+               OpName %_in_point_size_unused "_in_point_size_unused"
+               OpName %_out_point_coord_unused "_out_point_coord_unused"
+               OpName %_out_point_size_unused "_out_point_size_unused"
                OpMemberDecorate %gl_PerVertex 0 BuiltIn Position
                OpMemberDecorate %gl_PerVertex 1 BuiltIn PointSize
                OpDecorate %gl_PerVertex Block
@@ -32,6 +36,10 @@
                OpDecorate %gl_PerVertex_0 Block
                OpDecorate %out_interpolators Location 0
                OpDecorate %in_interpolators Location 0
+               OpDecorate %_in_point_coord_unused Location 16
+               OpDecorate %_in_point_size_unused Location 17
+               OpDecorate %_out_point_coord_unused Location 16
+               OpDecorate %_out_point_size_unused Location 17
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
       %float = OpTypeFloat 32
@@ -62,6 +70,16 @@
 %_ptr_Input__arr_v4float_30 = OpTypePointer Input %_arr_v4float_30
          %48 = OpConstant %int 2
          %57 = OpConstant %int 3
+    %v2float = OpTypeVector %float 2
+%_arr_v2float_15 = OpTypeArray %v2float %15
+%_ptr_Input__arr_v2float_15 = OpTypePointer Input %_arr_v2float_15
+%_in_point_coord_unused = OpVariable %_ptr_Input__arr_v2float_15 Input
+%_arr_float_15 = OpTypeArray %float %15
+%_ptr_Input__arr_float_15 = OpTypePointer Input %_arr_float_15
+%_in_point_size_unused = OpVariable %_ptr_Input__arr_float_15 Input
+%_ptr_Output_v2float = OpTypePointer Output %v2float
+%_out_point_coord_unused = OpVariable %_ptr_Output_v2float Output
+%_out_point_size_unused = OpVariable %_ptr_Output_float Output
        %main = OpFunction %void None %3
           %5 = OpLabel
          %20 = OpAccessChain %_ptr_Input_v4float %gl_in %12 %12
