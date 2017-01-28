@@ -391,8 +391,13 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = uint32_t(submit_buffers.size());
     submit_info.pCommandBuffers = submit_buffers.data();
+    
+    VkPipelineStageFlags sem_waits[1];
+    sem_waits[0] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = &swap_sem;
+    submit_info.pWaitDstStageMask = sem_waits;
+
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &swap_sem;
 
