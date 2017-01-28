@@ -550,8 +550,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT) {
     // This applies to any depth/stencil format, but we only use D24S8.
-    view_info.subresourceRange.aspectMask =
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
   }
 
   if (texture->texture_info.dimension == Dimension::kCube) {
