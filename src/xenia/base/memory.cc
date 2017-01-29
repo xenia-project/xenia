@@ -106,8 +106,12 @@ void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
-                                    size_t count) {
+void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count) {
+  return copy_and_swap_16_in_32_unaligned(dest, src, count);
+}
+
+void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
+                                      size_t count) {
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
   size_t i;

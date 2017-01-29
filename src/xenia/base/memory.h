@@ -130,6 +130,8 @@ void copy_and_swap_32_unaligned(void* dest, const void* src, size_t count);
 void copy_and_swap_64_aligned(void* dest, const void* src, size_t count);
 void copy_and_swap_64_unaligned(void* dest, const void* src, size_t count);
 void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count);
+void copy_and_swap_16_in_32_unaligned(void* dest, const void* src,
+                                      size_t count);
 
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {

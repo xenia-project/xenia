@@ -73,8 +73,8 @@ bool VulkanCommandProcessor::SetupContext() {
       *device_, device_->queue_family_index(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
   // Initialize the state machine caches.
-  buffer_cache_ = std::make_unique<BufferCache>(register_file_, device_,
-                                                kDefaultBufferCacheCapacity);
+  buffer_cache_ = std::make_unique<BufferCache>(
+      register_file_, memory_, device_, kDefaultBufferCacheCapacity);
   texture_cache_ = std::make_unique<TextureCache>(memory_, register_file_,
                                                   &trace_writer_, device_);
   pipeline_cache_ = std::make_unique<PipelineCache>(
@@ -696,13 +696,12 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
   trace_writer_.WriteMemoryRead(info.guest_base, info.length);
 
   // Upload (or get a cached copy of) the buffer.
-  const void* source_ptr =
-      memory_->TranslatePhysical<const void*>(info.guest_base);
-  size_t source_length =
+  uint32_t source_addr = info.guest_base;
+  uint32_t source_length =
       info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
                                                        : sizeof(uint16_t));
   auto buffer_ref = buffer_cache_->UploadIndexBuffer(
-      source_ptr, source_length, info.format, current_batch_fence_);
+      source_addr, source_length, info.format, current_batch_fence_);
   if (buffer_ref.second == VK_WHOLE_SIZE) {
     // Failed to upload buffer.
     return false;
@@ -764,11 +763,9 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     trace_writer_.WriteMemoryRead(physical_address, valid_range);
 
     // Upload (or get a cached copy of) the buffer.
-    const void* source_ptr =
-        memory_->TranslatePhysical<const void*>(physical_address);
-    size_t source_length = valid_range;
+    uint32_t source_length = uint32_t(valid_range);
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        source_ptr, source_length, static_cast<Endian>(fetch->endian),
+        physical_address, source_length, static_cast<Endian>(fetch->endian),
         current_batch_fence_);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.

@@ -13,11 +13,12 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/memory.h"
 #include "xenia/ui/vulkan/circular_buffer.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
-#include <unordered_map>
+#include <map>
 
 namespace xe {
 namespace gpu {
@@ -28,8 +29,8 @@ namespace vulkan {
 // transient data like shader constants.
 class BufferCache {
  public:
-  BufferCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
-              size_t capacity);
+  BufferCache(RegisterFile* register_file, Memory* memory,
+              ui::vulkan::VulkanDevice* device, size_t capacity);
   ~BufferCache();
 
   // Descriptor set containing the dynamic uniform buffer used for constant
@@ -60,8 +61,8 @@ class BufferCache {
   // recently uploaded data or cached copies.
   // Returns a buffer and offset that can be used with vkCmdBindIndexBuffer.
   // Size will be VK_WHOLE_SIZE if the data could not be uploaded (OOM).
-  std::pair<VkBuffer, VkDeviceSize> UploadIndexBuffer(const void* source_ptr,
-                                                      size_t source_length,
+  std::pair<VkBuffer, VkDeviceSize> UploadIndexBuffer(uint32_t source_addr,
+                                                      uint32_t source_length,
                                                       IndexFormat format,
                                                       VkFence fence);
 
@@ -69,8 +70,8 @@ class BufferCache {
   // recently uploaded data or cached copies.
   // Returns a buffer and offset that can be used with vkCmdBindVertexBuffers.
   // Size will be VK_WHOLE_SIZE if the data could not be uploaded (OOM).
-  std::pair<VkBuffer, VkDeviceSize> UploadVertexBuffer(const void* source_ptr,
-                                                       size_t source_length,
+  std::pair<VkBuffer, VkDeviceSize> UploadVertexBuffer(uint32_t source_addr,
+                                                       uint32_t source_length,
                                                        Endian endian,
                                                        VkFence fence);
 
@@ -99,8 +100,16 @@ class BufferCache {
   // Tries to allocate a block of memory in the transient buffer.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
   VkDeviceSize TryAllocateTransientData(VkDeviceSize length, VkFence fence);
+  // Finds a block of data in the transient buffer sourced from the specified
+  // guest address and length.
+  VkDeviceSize FindCachedTransientData(uint32_t guest_address,
+                                       uint32_t guest_length);
+  // Adds a block of data to the frame cache.
+  void CacheTransientData(uint32_t guest_address, uint32_t guest_length,
+                          VkDeviceSize offset);
 
   RegisterFile* register_file_ = nullptr;
+  Memory* memory_ = nullptr;
   VkDevice device_ = nullptr;
 
   VkDeviceMemory gpu_memory_pool_ = nullptr;
@@ -108,7 +117,7 @@ class BufferCache {
   // Staging ringbuffer we cycle through fast. Used for data we don't
   // plan on keeping past the current frame.
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
-  std::unordered_map<uint64_t, VkDeviceSize> transient_cache_;
+  std::map<uint64_t, VkDeviceSize> transient_cache_;
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_ = nullptr;
