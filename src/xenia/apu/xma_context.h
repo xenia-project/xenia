@@ -147,7 +147,7 @@ class XmaContext {
   ~XmaContext();
 
   int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr);
-  void Work();
+  bool Work();
 
   void Enable();
   bool Block(bool poll);

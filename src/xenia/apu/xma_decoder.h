@@ -69,7 +69,7 @@ class XmaDecoder {
 
   std::atomic<bool> worker_running_ = {false};
   kernel::object_ref<kernel::XHostThread> worker_thread_;
-  xe::threading::Fence worker_fence_;
+  std::unique_ptr<xe::threading::Event> work_event_ = nullptr;
 
   bool paused_ = false;
   xe::threading::Fence pause_fence_;   // Signaled when worker paused.
