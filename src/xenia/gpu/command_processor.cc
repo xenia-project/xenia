@@ -134,13 +134,17 @@ void CommandProcessor::WorkerThreadMain() {
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
       PrepareForWait();
+      uint32_t loop_count = 0;
       do {
-        // TODO(benvanik): if we go longer than Nms, switch to waiting?
-        // It'll keep us from burning power.
-        // const int wait_time_ms = 5;
-        // xe::threading::Wait(write_ptr_index_event_.get(), true,
-        //                     std::chrono::milliseconds(wait_time_ms));
+        // If we spin around too much, revert to a "low-power" state.
+        if (loop_count > 500) {
+          const int wait_time_ms = 5;
+          xe::threading::Wait(write_ptr_index_event_.get(), true,
+                              std::chrono::milliseconds(wait_time_ms));
+        }
+
         xe::threading::MaybeYield();
+        loop_count++;
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
                (write_ptr_index == 0xBAADF00D ||
