@@ -23,10 +23,10 @@ addons:
   apt:
     sources:
       # - ubuntu-toolchain-r-test
-      - llvm-toolchain-precise-3.9
+      - llvm-toolchain-precise
     packages:
-      - clang-3.9
-      - clang-format-3.9
+      - clang-3.8
+      - clang-format-3.8
       - libc++-dev
 
 git:
@@ -37,8 +37,8 @@ before_install:
   # Nothing!
 
 before_script:
-  - export CXX=clang++-3.9
-  - export CC=clang-3.9
+  - export CXX=clang++-3.8
+  - export CC=clang-3.8
   # Dump useful info.
   - $CXX --version
   # Prepare environment (pull dependencies, build tools).
