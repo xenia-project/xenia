@@ -13,6 +13,7 @@
 
 #include <climits>
 #include <cstring>
+#include <stddef.h>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"

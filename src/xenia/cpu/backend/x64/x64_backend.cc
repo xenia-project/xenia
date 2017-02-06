@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
+#include <stddef.h>
+
 #include "third_party/capstone/include/capstone.h"
 #include "third_party/capstone/include/x86.h"
 #include "xenia/base/exception_handler.h"

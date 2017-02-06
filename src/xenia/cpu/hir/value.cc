@@ -10,6 +10,7 @@
 #include "xenia/cpu/hir/value.h"
 
 #include <cmath>
+#include <cstdlib>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
@@ -1330,7 +1331,7 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
 void Value::DotProduct3(Value* other) {
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
   switch (type) {
-    case VEC128_TYPE:
+    case VEC128_TYPE: {
       alignas(16) float result[4];
       __m128 src1 = _mm_load_ps(constant.v128.f32);
       __m128 src2 = _mm_load_ps(other->constant.v128.f32);
@@ -1339,7 +1340,7 @@ void Value::DotProduct3(Value* other) {
       // TODO(rick): is this sane?
       type = FLOAT32_TYPE;
       constant.f32 = result[0];
-      break;
+    } break;
     default:
       assert_unhandled_case(type);
       break;
@@ -1349,7 +1350,7 @@ void Value::DotProduct3(Value* other) {
 void Value::DotProduct4(Value* other) {
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
   switch (type) {
-    case VEC128_TYPE:
+    case VEC128_TYPE: {
       alignas(16) float result[4];
       __m128 src1 = _mm_load_ps(constant.v128.f32);
       __m128 src2 = _mm_load_ps(other->constant.v128.f32);
@@ -1358,7 +1359,7 @@ void Value::DotProduct4(Value* other) {
       // TODO(rick): is this sane?
       type = FLOAT32_TYPE;
       constant.f32 = result[0];
-      break;
+    } break;
     default:
       assert_unhandled_case(type);
       break;
