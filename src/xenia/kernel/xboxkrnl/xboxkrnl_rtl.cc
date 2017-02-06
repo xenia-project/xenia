@@ -238,7 +238,7 @@ dword_result_t RtlMultiByteToUnicodeN(lpword_t destination_ptr,
                                       pointer_t<uint8_t> source_ptr,
                                       dword_t source_len) {
   uint32_t copy_len = destination_len >> 1;
-  copy_len = copy_len < source_len ? copy_len : source_len;
+  copy_len = copy_len < source_len ? copy_len : source_len.value();
 
   // TODO(benvanik): maybe use MultiByteToUnicode on Win32? would require
   // swapping.
@@ -262,7 +262,7 @@ dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
                                       lpdword_t written_ptr,
                                       lpword_t source_ptr, dword_t source_len) {
   uint32_t copy_len = source_len >> 1;
-  copy_len = copy_len < destination_len ? copy_len : destination_len;
+  copy_len = copy_len < destination_len ? copy_len : destination_len.value();
 
   // TODO(benvanik): maybe use UnicodeToMultiByte on Win32?
   for (uint32_t i = 0; i < copy_len; i++) {

@@ -49,10 +49,10 @@ class GraphicsSystem {
     return command_processor_.get();
   }
 
-  void InitializeRingBuffer(uint32_t ptr, uint32_t log2_size);
-  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
+  virtual void InitializeRingBuffer(uint32_t ptr, uint32_t log2_size);
+  virtual void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
-  void SetInterruptCallback(uint32_t callback, uint32_t user_data);
+  virtual void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   virtual void ClearCaches();

@@ -35,3 +35,6 @@ project("xenia-cpu-ppc-tests")
       "2>&1",
       "1>scratch/stdout-testing.txt",
     })
+
+    -- xenia-base needs this
+    links({"xenia-ui"})

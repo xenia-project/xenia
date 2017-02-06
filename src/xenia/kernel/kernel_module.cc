@@ -126,6 +126,9 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
       uint32_t guest_addr =
           GenerateTrampoline(export_entry->name, handler, export_entry);
 
+      XELOGD("GetProcAddressByOrdinal(\"%s\", \"%s\") = %.8X", name().c_str(),
+             export_entry->name, guest_addr);
+
       // Register the function in our map.
       guest_trampoline_map_[ordinal] = guest_addr;
       return guest_addr;

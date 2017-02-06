@@ -14,8 +14,7 @@ os:
 
 env:
   global:
-    - LLVM_VERSION=3.8.0
-    - LLVM_ARCHIVE_PATH=$HOME/clang+llvm.tar.xz
+
 
 dist: trusty
 sudo: required
@@ -52,6 +51,9 @@ script:
   # Build and run our simple hello world test.
   - ./xenia-build build --config=debug --target=xenia-base-tests
   - ./build/bin/Linux/Debug/xenia-base-tests
+  # Build and run ppc tests
+  - ./xenia-build build --config=debug --target=xenia-cpu-ppc-tests
+  - ./build/bin/Linux/Debug/xenia-cpu-ppc-tests
 
   # TODO(DrChat): Enable builds in the future.
   # Build all of xenia.

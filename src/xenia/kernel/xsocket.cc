@@ -14,10 +14,18 @@
 #include "xenia/kernel/xam/xam_module.h"
 // #include "xenia/kernel/xnet.h"
 
-#if XE_PLATFORM_WIN32
+#ifdef XE_PLATFORM_WIN32
+// clang-format off
+#include "xenia/base/platform_win.h"
+#include <WS2tcpip.h>
 #include <WinSock2.h>
-#elif XE_PLATFORM_LINUX
-#error TODO: Proper network includes
+// clang-format on
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #endif
 
 namespace xe {
@@ -54,7 +62,7 @@ X_STATUS XSocket::Close() {
 #if XE_PLATFORM_WIN32
   int ret = closesocket(native_handle_);
 #elif XE_PLATFORM_LINUX
-
+  int ret = close(native_handle_);
 #endif
 
   if (ret != 0) {
@@ -88,6 +96,7 @@ X_STATUS XSocket::SetOption(uint32_t level, uint32_t optname, void* optval_ptr,
 }
 
 X_STATUS XSocket::IOControl(uint32_t cmd, uint8_t* arg_ptr) {
+#ifdef XE_PLATFORM_WIN32
   int ret = ioctlsocket(native_handle_, cmd, (u_long*)arg_ptr);
   if (ret < 0) {
     // TODO: Get last error
@@ -95,6 +104,9 @@ X_STATUS XSocket::IOControl(uint32_t cmd, uint8_t* arg_ptr) {
   }
 
   return X_STATUS_SUCCESS;
+#elif XE_PLATFORM_LINUX
+  return X_STATUS_UNSUCCESSFUL;
+#endif
 }
 
 X_STATUS XSocket::Connect(N_XSOCKADDR* name, int name_len) {
@@ -129,9 +141,9 @@ X_STATUS XSocket::Listen(int backlog) {
 
 object_ref<XSocket> XSocket::Accept(N_XSOCKADDR* name, int* name_len) {
   sockaddr n_sockaddr;
-  int n_name_len = sizeof(sockaddr);
-  SOCKET ret = accept(native_handle_, &n_sockaddr, &n_name_len);
-  if (ret == INVALID_SOCKET) {
+  socklen_t n_name_len = sizeof(sockaddr);
+  uintptr_t ret = accept(native_handle_, &n_sockaddr, &n_name_len);
+  if (ret == -1) {
     std::memset(name, 0, *name_len);
     *name_len = 0;
     return nullptr;
@@ -182,7 +194,7 @@ int XSocket::RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags,
   */
 
   sockaddr_in nfrom;
-  int nfromlen = sizeof(sockaddr_in);
+  socklen_t nfromlen = sizeof(sockaddr_in);
   int ret = recvfrom(native_handle_, reinterpret_cast<char*>(buf), buf_len,
                      flags, (sockaddr*)&nfrom, &nfromlen);
   if (from) {
@@ -219,7 +231,7 @@ int XSocket::SendTo(uint8_t* buf, uint32_t buf_len, uint32_t flags,
 
   sockaddr_in nto;
   if (to) {
-    nto.sin_addr.S_un.S_addr = to->sin_addr;
+    nto.sin_addr.s_addr = to->sin_addr;
     nto.sin_family = to->sin_family;
     nto.sin_port = to->sin_port;
   }

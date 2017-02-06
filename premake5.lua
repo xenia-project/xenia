@@ -76,6 +76,9 @@ filter("platforms:Linux")
   buildoptions({
     "-mlzcnt",  -- Assume lzcnt supported.
   })
+  links({
+    "pthread",
+  })
 
 filter({"platforms:Linux", "language:C++"})
   buildoptions({
