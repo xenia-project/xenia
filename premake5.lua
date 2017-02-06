@@ -82,6 +82,9 @@ filter({"platforms:Linux", "language:C++"})
     "-std=c++14",
     "-stdlib=libc++",
   })
+  links({
+    "c++",
+  })
 
 filter("platforms:Windows")
   system("windows")
