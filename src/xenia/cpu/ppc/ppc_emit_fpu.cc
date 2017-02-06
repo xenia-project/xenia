@@ -351,7 +351,7 @@ int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
     // i.XFL.W;
     // i.XFL.FM;
     f.StoreFPSCR(
-      f.Truncate(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE), INT32_TYPE));
+        f.Truncate(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE), INT32_TYPE));
   }
   if (i.XFL.Rc) {
     f.CopyFPSCRToCR1();
