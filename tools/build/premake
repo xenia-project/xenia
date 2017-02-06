@@ -41,6 +41,10 @@ def main():
     sys.exit(1)
     return
 
+  if sys.platform == 'win32':
+    # Append the executable extension on windows.
+    premake5_bin = premake5_bin + '.exe'
+
   return_code = shell_call([
       premake5_bin,
       '--scripts=%s' % (premake_path),
@@ -91,13 +95,15 @@ def has_bin(bin):
   """Checks whether the given binary is present.
   """
   for path in os.environ["PATH"].split(os.pathsep):
-    path = path.strip('"')
-    exe_file = os.path.join(path, bin)
-    if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-      return True
-    exe_file = exe_file + '.exe'
-    if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-      return True
+    if sys.platform == 'win32':
+      exe_file = os.path.join(path, bin + '.exe')
+      if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+        return True
+    else:
+      path = path.strip('"')
+      exe_file = os.path.join(path, bin)
+      if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+        return True
   return None
 
 

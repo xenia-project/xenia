@@ -607,6 +607,7 @@ class BaseBuildCommand(Command):
       
       result = subprocess.call([
           'make',
+          '-j',
           '-Cbuild/',
           'config=%s_linux' % (args['config']),
           ] + pass_args + args['target'], shell=False)
