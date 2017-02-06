@@ -23,6 +23,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
 
@@ -215,7 +216,7 @@ class Logger {
 
 void InitializeLogging(const std::wstring& app_name) {
   // We leak this intentionally - lots of cleanup code needs it.
-  void* mem = _aligned_malloc(sizeof(Logger), 0x10);
+  auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
 }
 
