@@ -23,22 +23,22 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      # - llvm-toolchain-precise
+      - llvm-toolchain-precise
     packages:
-      # - clang-3.8
-      # - clang-format-3.8
+      - clang-3.8
+      - clang-format-3.8
+      - libc++-dev
 
 git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false
 
 before_install:
-  - wget http://llvm.org/releases/$LLVM_VERSION/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $LLVM_ARCHIVE_PATH
-  - mkdir $HOME/clang+llvm
-  - tar xf $LLVM_ARCHIVE_PATH -C $HOME/clang+llvm --strip-components 1
-  - export PATH=$HOME/clang+llvm/bin:$PATH
+  # Nothing!
 
 before_script:
+  - export CXX=clang++-3.8
+  - export CC=clang-3.8
   # Dump useful info.
   - $CXX --version
   # Prepare environment (pull dependencies, build tools).
@@ -49,10 +49,11 @@ script:
   - ./xenia-build lint --all
   # Run style checker.
   #- ./xenia-build style
-  # TODO(DrChat): Enable builds in the future.
   # Build and run our simple hello world test.
-  # - ./xenia-build build --config=debug --target=xenia-base-tests
-  # - ./build/bin/Linux/Debug/xenia-base-tests
+  - ./xenia-build build --config=debug --target=xenia-base-tests
+  - ./build/bin/Linux/Debug/xenia-base-tests
+
+  # TODO(DrChat): Enable builds in the future.
   # Build all of xenia.
   #- ./xenia-build build --config=debug
   # All tests (without haswell support).

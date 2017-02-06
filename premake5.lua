@@ -80,6 +80,7 @@ filter("platforms:Linux")
 filter({"platforms:Linux", "language:C++"})
   buildoptions({
     "-std=c++14",
+    "-stdlib=libc++",
   })
 
 filter("platforms:Windows")
