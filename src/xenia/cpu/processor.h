@@ -189,7 +189,7 @@ class Processor {
  public:
   // TODO(benvanik): hide.
   void OnThreadCreated(uint32_t handle, ThreadState* thread_state,
-                       kernel::XThread* thread);
+                       Thread* thread);
   void OnThreadExit(uint32_t thread_id);
   void OnThreadDestroyed(uint32_t thread_id);
   void OnThreadEnteringWait(uint32_t thread_id);

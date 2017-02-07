@@ -13,13 +13,8 @@
 #include <vector>
 
 #include "xenia/base/x64_context.h"
+#include "xenia/cpu/thread.h"
 #include "xenia/cpu/thread_state.h"
-
-namespace xe {
-namespace kernel {
-class XThread;
-}  // namespace kernel
-}  // namespace xe
 
 namespace xe {
 namespace cpu {
@@ -53,8 +48,8 @@ struct ThreadDebugInfo {
   // XThread::handle() of the thread.
   // This will be invalidated when the thread dies.
   uint32_t thread_handle = 0;
-  // Kernel thread object. Only valid when the thread is alive.
-  kernel::XThread* thread = nullptr;
+  // Thread object. Only valid when the thread is alive.
+  Thread* thread = nullptr;
   // Current state of the thread.
   State state = State::kAlive;
   // Whether the debugger has forcefully suspended this thread.

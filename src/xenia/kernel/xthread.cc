@@ -43,7 +43,6 @@ const uint32_t XAPC::kDummyRundownRoutine;
 using xe::cpu::ppc::PPCOpcode;
 
 uint32_t next_xthread_id_ = 0;
-thread_local XThread* current_thread_tls_ = nullptr;
 
 XThread::XThread(KernelState* kernel_state)
     : XObject(kernel_state, kTypeThread), guest_thread_(true) {}
@@ -102,13 +101,14 @@ XThread::~XThread() {
   }
 }
 
+bool XThread::IsInThread() { return Thread::IsInThread(); }
+
 bool XThread::IsInThread(XThread* other) {
   return current_thread_tls_ == other;
 }
-bool XThread::IsInThread() { return current_thread_tls_ != nullptr; }
 
 XThread* XThread::GetCurrentThread() {
-  XThread* thread = current_thread_tls_;
+  XThread* thread = reinterpret_cast<XThread*>(current_thread_tls_);
   if (!thread) {
     assert_always("Attempting to use kernel stuff from a non-kernel thread");
   }
@@ -142,12 +142,12 @@ void XThread::set_last_error(uint32_t error_code) {
 }
 
 void XThread::set_name(const std::string& name) {
-  name_ = xe::format_string("%s (%.8X)", name.c_str(), handle());
+  thread_name_ = xe::format_string("%s (%.8X)", name.c_str(), handle());
 
   if (thread_) {
     // May be getting set before the thread is created.
     // One the thread is ready it will handle it.
-    thread_->set_name(name_);
+    thread_->set_name(thread_name_);
   }
 }
 
@@ -393,10 +393,13 @@ X_STATUS XThread::Create() {
     XELOGE("CreateThread failed");
     return X_STATUS_NO_MEMORY;
   }
-  thread_->set_affinity_mask(proc_mask);
+
+  if (!FLAGS_ignore_thread_affinities) {
+    thread_->set_affinity_mask(proc_mask);
+  }
 
   // Set the thread name based on host ID (for easier debugging).
-  if (name_.empty()) {
+  if (thread_name_.empty()) {
     char thread_name[32];
     snprintf(thread_name, xe::countof(thread_name), "XThread%.04X",
              thread_->system_id());
@@ -472,7 +475,7 @@ X_STATUS XThread::Terminate(int exit_code) {
 
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
-              thread_id_, handle(), name_.c_str(), thread_->system_id());
+              thread_id_, handle(), thread_name_.c_str(), thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
@@ -852,7 +855,7 @@ bool XThread::Save(ByteStream* stream) {
   }
 
   stream->Write('THRD');
-  stream->Write(name_);
+  stream->Write(thread_name_);
 
   ThreadSavedState state;
   state.thread_id = thread_id_;
@@ -918,7 +921,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
   XELOGD("XThread %.8X", thread->handle());
 
-  thread->name_ = stream->Read<std::string>();
+  thread->thread_name_ = stream->Read<std::string>();
 
   ThreadSavedState state;
   stream->Read(&state, sizeof(ThreadSavedState));
@@ -1030,7 +1033,7 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 void XHostThread::Execute() {
   XELOGKERNEL(
       "XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
-      thread_id_, handle(), name_.c_str(), thread_->system_id());
+      thread_id_, handle(), thread_name_.c_str(), thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);

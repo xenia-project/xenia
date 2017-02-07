@@ -288,7 +288,7 @@ void DebugWindow::DrawToolbar() {
       current_thread_index = i;
     }
     if (thread_info->state != cpu::ThreadDebugInfo::State::kZombie) {
-      thread_combo.Append(thread_info->thread->name());
+      thread_combo.Append(thread_info->thread->thread_name());
     } else {
       thread_combo.Append("(zombie)");
     }
