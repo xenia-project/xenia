@@ -7,11 +7,12 @@ project("xenia-cpu-ppc-tests")
   kind("ConsoleApp")
   language("C++")
   links({
-    "gflags",
-    "xenia-base",
-    "xenia-core",
-    "xenia-cpu",
     "xenia-cpu-backend-x64",
+    "xenia-cpu",
+    "xenia-core",
+    "xenia-base",
+    "gflags",
+    "capstone", -- cpu-backend-x64
   })
   files({
     "ppc_testing_main.cc",
