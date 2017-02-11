@@ -53,7 +53,6 @@ class Logger {
       file_ = xe::filesystem::OpenFile(file_path, "wt");
     }
 
-    flush_event_ = xe::threading::Event::CreateAutoResetEvent(false);
     write_thread_ =
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
     write_thread_->set_name("xe::FileLogSink Writer");
@@ -61,7 +60,6 @@ class Logger {
 
   ~Logger() {
     running_ = false;
-    flush_event_->Set();
     xe::threading::Wait(write_thread_.get(), true);
     fflush(file_);
     fclose(file_);
@@ -113,9 +111,6 @@ class Logger {
         continue;
       }
     }
-
-    // Kick the consumer thread
-    flush_event_->Set();
   }
 
  private:
@@ -139,6 +134,7 @@ class Logger {
 
   void WriteThread() {
     RingBuffer rb(buffer_, kBufferSize);
+    uint32_t idle_loops = 0;
     while (running_) {
       bool did_write = false;
       rb.set_write_offset(write_tail_);
@@ -197,9 +193,16 @@ class Logger {
         if (FLAGS_flush_log) {
           fflush(file_);
         }
+
+        idle_loops = 0;
+      } else {
+        if (idle_loops > 1000) {
+          // Introduce a waiting period.
+          xe::threading::Sleep(std::chrono::milliseconds(50));
+        }
+
+        idle_loops++;
       }
-      xe::threading::Wait(flush_event_.get(), true,
-                          std::chrono::milliseconds(1));
     }
   }
 
@@ -210,7 +213,6 @@ class Logger {
   FILE* file_ = nullptr;
 
   std::atomic<bool> running_;
-  std::unique_ptr<xe::threading::Event> flush_event_;
   std::unique_ptr<xe::threading::Thread> write_thread_;
 };
 

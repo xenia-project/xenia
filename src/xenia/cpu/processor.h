@@ -71,7 +71,7 @@ class Processor {
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
 
-  bool Setup();
+  bool Setup(std::unique_ptr<backend::Backend> backend);
 
   // Runs any pre-launch logic once the module and thread have been setup.
   void PreLaunch();

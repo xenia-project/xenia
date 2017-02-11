@@ -7,9 +7,9 @@ project("xenia-cpu-ppc-tests")
   kind("ConsoleApp")
   language("C++")
   links({
+    "xenia-core",
     "xenia-cpu-backend-x64",
     "xenia-cpu",
-    "xenia-core",
     "xenia-base",
     "gflags",
     "capstone", -- cpu-backend-x64

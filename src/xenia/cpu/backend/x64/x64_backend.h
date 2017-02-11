@@ -38,7 +38,7 @@ class X64Backend : public Backend {
  public:
   static const uint32_t kForceReturnAddress = 0x9FFF0000u;
 
-  explicit X64Backend(Processor* processor);
+  explicit X64Backend();
   ~X64Backend() override;
 
   X64CodeCache* code_cache() const { return code_cache_.get(); }
@@ -53,7 +53,7 @@ class X64Backend : public Backend {
     return resolve_function_thunk_;
   }
 
-  bool Initialize() override;
+  bool Initialize(Processor* processor) override;
 
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high) override;
 

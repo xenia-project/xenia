@@ -95,7 +95,7 @@ Processor::~Processor() {
   }
 }
 
-bool Processor::Setup() {
+bool Processor::Setup(std::unique_ptr<backend::Backend> backend) {
   // TODO(benvanik): query mode from debugger?
   debug_info_flags_ = 0;
 
@@ -113,26 +113,10 @@ bool Processor::Setup() {
     return false;
   }
 
-  std::unique_ptr<xe::cpu::backend::Backend> backend;
-  if (!backend) {
-#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
-    if (FLAGS_cpu == "x64") {
-      backend.reset(new xe::cpu::backend::x64::X64Backend(this));
-    }
-#endif  // XENIA_HAS_X64_BACKEND
-    if (FLAGS_cpu == "any") {
-#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
-      if (!backend) {
-        backend.reset(new xe::cpu::backend::x64::X64Backend(this));
-      }
-#endif  // XENIA_HAS_X64_BACKEND
-    }
-  }
-
   if (!backend) {
     return false;
   }
-  if (!backend->Initialize()) {
+  if (!backend->Initialize(this)) {
     return false;
   }
   if (!frontend->Initialize()) {

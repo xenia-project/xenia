@@ -74,4 +74,10 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
   return std::move(mm);
 }
 
+std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
+    const std::wstring& path, size_t chunk_size, bool low_address_space) {
+  // TODO(DrChat)
+  return nullptr;
+}
+
 }  // namespace xe
