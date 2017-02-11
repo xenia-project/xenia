@@ -11,6 +11,7 @@ __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 import os
 import subprocess
 import sys
+import re
 
 
 self_path = os.path.dirname(os.path.abspath(__file__))
@@ -40,6 +41,10 @@ def main():
     sys.exit(1)
     return
 
+  if sys.platform == 'win32':
+    # Append the executable extension on windows.
+    premake5_bin = premake5_bin + '.exe'
+
   return_code = shell_call([
       premake5_bin,
       '--scripts=%s' % (premake_path),
@@ -56,24 +61,31 @@ def build_premake():
   try:
     os.chdir(premake_path)
     if sys.platform == 'darwin':
-      shell_call([
+      subprocess.call([
           'make',
           '-f', 'Bootstrap.mak',
           'osx',
-          ])
+          ], shell=False)
     elif sys.platform == 'win32':
-      # TODO(benvanik): import VS environment.
-      shell_call([
+      # Grab Visual Studio version and execute shell to set up environment.
+      vs_version = import_vs_environment()
+      if vs_version != 2015:
+        print('ERROR: Visual Studio 2015 not found!')
+        print('Ensure you have the VS140COMNTOOLS environment variable!')
+        sys.exit(1)
+        return
+
+      subprocess.call([
           'nmake',
           '-f', 'Bootstrap.mak',
           'windows',
-          ])
+          ], shell=False)
     else:
-      shell_call([
+      subprocess.call([
           'make',
           '-f', 'Bootstrap.mak',
           'linux',
-          ])
+          ], shell=False)
   finally:
     os.chdir(cwd)
   pass
@@ -83,13 +95,15 @@ def has_bin(bin):
   """Checks whether the given binary is present.
   """
   for path in os.environ["PATH"].split(os.pathsep):
-    path = path.strip('"')
-    exe_file = os.path.join(path, bin)
-    if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-      return True
-    exe_file = exe_file + '.exe'
-    if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-      return True
+    if sys.platform == 'win32':
+      exe_file = os.path.join(path, bin + '.exe')
+      if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+        return True
+    else:
+      path = path.strip('"')
+      exe_file = os.path.join(path, bin)
+      if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+        return True
   return None
 
 
@@ -120,6 +134,50 @@ def shell_call(command, throw_on_error=True, stdout_path=None):
       stdout_file.close()
   return result
 
+
+def import_vs_environment():
+  """Finds the installed Visual Studio version and imports
+  interesting environment variables into os.environ.
+
+  Returns:
+    A version such as 2015 or None if no VS is found.
+  """
+  version = 0
+  tools_path = ''
+  if 'VS140COMNTOOLS' in os.environ:
+    version = 2015
+    tools_path = os.environ['VS140COMNTOOLS']
+  if version == 0:
+    return None
+  tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+
+  args = [tools_path, '&&', 'set']
+  popen = subprocess.Popen(
+      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  variables, _ = popen.communicate()
+  envvars_to_save = (
+      'devenvdir',
+      'include',
+      'lib',
+      'libpath',
+      'path',
+      'pathext',
+      'systemroot',
+      'temp',
+      'tmp',
+      'windowssdkdir',
+      )
+  for line in variables.splitlines():
+    for envvar in envvars_to_save:
+      if re.match(envvar + '=', line.lower()):
+        var, setting = line.split('=', 1)
+        if envvar == 'path':
+          setting = os.path.dirname(sys.executable) + os.pathsep + setting
+        os.environ[var.upper()] = setting
+        break
+
+  os.environ['VSVERSION'] = str(version)
+  return version
 
 def git_submodule_update():
   """Runs a full recursive git submodule init and update.

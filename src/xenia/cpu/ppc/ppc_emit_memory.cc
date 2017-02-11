@@ -13,6 +13,8 @@
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
 
+#include <stddef.h>
+
 namespace xe {
 namespace cpu {
 namespace ppc {

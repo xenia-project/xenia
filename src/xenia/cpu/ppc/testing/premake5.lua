@@ -7,14 +7,12 @@ project("xenia-cpu-ppc-tests")
   kind("ConsoleApp")
   language("C++")
   links({
-    "gflags",
-    "xenia-base",
     "xenia-core",
-    "xenia-cpu",
     "xenia-cpu-backend-x64",
-
-    -- TODO(benvanik): remove these dependencies.
-    "xenia-kernel"
+    "xenia-cpu",
+    "xenia-base",
+    "gflags",
+    "capstone", -- cpu-backend-x64
   })
   files({
     "ppc_testing_main.cc",
@@ -35,3 +33,6 @@ project("xenia-cpu-ppc-tests")
       "2>&1",
       "1>scratch/stdout-testing.txt",
     })
+
+    -- xenia-base needs this
+    links({"xenia-ui"})

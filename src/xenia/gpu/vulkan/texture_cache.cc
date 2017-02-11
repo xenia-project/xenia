@@ -113,21 +113,15 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       device_(device),
       staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                       kStagingBufferSize) {
+  VkResult err = VK_SUCCESS;
+
   // Descriptor pool used for all of our cached descriptors.
-  VkDescriptorPoolCreateInfo descriptor_pool_info;
-  descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-  descriptor_pool_info.pNext = nullptr;
-  descriptor_pool_info.flags =
-      VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-  descriptor_pool_info.maxSets = 32768;
   VkDescriptorPoolSize pool_sizes[1];
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   pool_sizes[0].descriptorCount = 32768;
-  descriptor_pool_info.poolSizeCount = 1;
-  descriptor_pool_info.pPoolSizes = pool_sizes;
-  auto err = vkCreateDescriptorPool(*device_, &descriptor_pool_info, nullptr,
-                                    &descriptor_pool_);
-  CheckResult(err, "vkCreateDescriptorPool");
+  descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
+      *device_, 32768,
+      std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
 
   // Create the descriptor set layout used for rendering.
   // We always have the same number of samplers but only some are used.
@@ -177,7 +171,6 @@ TextureCache::~TextureCache() {
 
   vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
                                nullptr);
-  vkDestroyDescriptorPool(*device_, descriptor_pool_, nullptr);
 }
 
 TextureCache::Texture* TextureCache::AllocateTexture(
@@ -550,8 +543,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT) {
     // This applies to any depth/stencil format, but we only use D24S8.
-    view_info.subresourceRange.aspectMask =
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
   }
 
   if (texture->texture_info.dimension == Dimension::kCube) {
@@ -1192,10 +1184,44 @@ bool TextureCache::UploadTextureCube(VkCommandBuffer command_buffer,
   return true;
 }
 
+void TextureCache::HashTextureBindings(
+    XXH64_state_t* hash_state, uint32_t& fetch_mask,
+    const std::vector<Shader::TextureBinding>& bindings) {
+  for (auto& binding : bindings) {
+    uint32_t fetch_bit = 1 << binding.fetch_constant;
+    if (fetch_mask & fetch_bit) {
+      // We've covered this binding.
+      continue;
+    }
+
+    auto& regs = *register_file_;
+    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6;
+    auto group =
+        reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
+    auto& fetch = group->texture_fetch;
+
+    XXH64_update(hash_state, &fetch, sizeof(fetch));
+  }
+}
+
 VkDescriptorSet TextureCache::PrepareTextureSet(
     VkCommandBuffer command_buffer, VkFence completion_fence,
     const std::vector<Shader::TextureBinding>& vertex_bindings,
     const std::vector<Shader::TextureBinding>& pixel_bindings) {
+  XXH64_state_t hash_state;
+  XXH64_reset(&hash_state, 0);
+
+  // (quickly) Generate a hash.
+  uint32_t fetch_mask = 0;
+  HashTextureBindings(&hash_state, fetch_mask, vertex_bindings);
+  HashTextureBindings(&hash_state, fetch_mask, pixel_bindings);
+  uint64_t hash = XXH64_digest(&hash_state);
+  for (auto it = texture_bindings_.find(hash); it != texture_bindings_.end();
+       ++it) {
+    // TODO(DrChat): We need to compare the bindings and ensure they're equal.
+    return it->second;
+  }
+
   // Clear state.
   auto update_set_info = &update_set_info_;
   update_set_info->has_setup_fetch_mask = 0;
@@ -1218,19 +1244,15 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     // TODO(benvanik): actually bail out here?
   }
 
-  // TODO(benvanik): reuse.
-  VkDescriptorSet descriptor_set = nullptr;
-  VkDescriptorSetAllocateInfo set_alloc_info;
-  set_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-  set_alloc_info.pNext = nullptr;
-  set_alloc_info.descriptorPool = descriptor_pool_;
-  set_alloc_info.descriptorSetCount = 1;
-  set_alloc_info.pSetLayouts = &texture_descriptor_set_layout_;
-  auto err =
-      vkAllocateDescriptorSets(*device_, &set_alloc_info, &descriptor_set);
-  CheckResult(err, "vkAllocateDescriptorSets");
+  // Open a new batch of descriptor sets (for this frame)
+  if (!descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->BeginBatch(completion_fence);
+  }
 
-  if (err != VK_SUCCESS) {
+  // TODO(benvanik): reuse.
+  auto descriptor_set =
+      descriptor_pool_->AcquireEntry(texture_descriptor_set_layout_);
+  if (!descriptor_set) {
     return nullptr;
   }
 
@@ -1244,7 +1266,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
                            update_set_info->image_writes, 0, nullptr);
   }
 
-  in_flight_sets_.push_back({descriptor_set, completion_fence});
+  texture_bindings_[hash] = descriptor_set;
   return descriptor_set;
 }
 
@@ -1352,20 +1374,16 @@ void TextureCache::ClearCache() {
 }
 
 void TextureCache::Scavenge() {
-  // Free unused descriptor sets
-  for (auto it = in_flight_sets_.begin(); it != in_flight_sets_.end();) {
-    if (vkGetFenceStatus(*device_, it->second) == VK_SUCCESS) {
-      // We can free this one.
-      vkFreeDescriptorSets(*device_, descriptor_pool_, 1, &it->first);
-      it = in_flight_sets_.erase(it);
-      continue;
-    }
-
-    // We've encountered an item that hasn't been used yet, so any items
-    // afterwards are guaranteed to be unused.
-    break;
+  // Close any open descriptor pool batches
+  if (descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->EndBatch();
   }
 
+  // Free unused descriptor sets
+  // TODO(DrChat): These sets could persist across frames, we just need a smart
+  // way to detect if they're unused and free them.
+  texture_bindings_.clear();
+  descriptor_pool_->Scavenge();
   staging_buffer_.Scavenge();
 
   // Kill all pending delete textures.

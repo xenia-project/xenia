@@ -492,7 +492,7 @@ dword_result_t NtCreateEvent(lpdword_t handle_ptr,
     }
   }
 
-  XEvent* ev = new XEvent(kernel_state());
+  auto ev = object_ref<XEvent>(new XEvent(kernel_state()));
   ev->Initialize(!event_type, !!initial_state);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -678,7 +678,7 @@ dword_result_t NtCreateMutant(lpdword_t handle_out,
     }
   }
 
-  XMutant* mutant = new XMutant(kernel_state());
+  auto mutant = object_ref<XMutant>(new XMutant(kernel_state()));
   mutant->Initialize(initial_owner ? true : false);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -751,7 +751,7 @@ SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_context,
     return;
   }
 
-  XTimer* timer = new XTimer(kernel_state);
+  auto timer = object_ref<XTimer>(new XTimer(kernel_state));
   timer->Initialize(timer_type);
 
   // obj_attributes may have a name inside of it, if != NULL.

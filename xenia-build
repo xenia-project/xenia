@@ -307,7 +307,6 @@ def get_clang_format_binary():
   print 'See docs/style_guide.md for instructions on how to get it.'
   sys.exit(1)
 
-
 def run_premake(target_os, action):
   """Runs premake on the main project with the given format.
 
@@ -329,28 +328,30 @@ def run_premake(target_os, action):
   if ret == 0:
     generate_version_h()
 
+  return ret
 
 def run_premake_clean():
   """Runs a premake clean operation.
   """
   if sys.platform == 'darwin':
-    run_premake('macosx', 'clean')
+    return run_premake('macosx', 'clean')
   elif sys.platform == 'win32':
-    run_premake('windows', 'clean')
+    return run_premake('windows', 'clean')
   else:
-    run_premake('linux', 'clean')
+    return run_premake('linux', 'clean')
 
 
 def run_platform_premake():
   """Runs all gyp configurations.
   """
   if sys.platform == 'darwin':
-    run_premake('macosx', 'xcode4')
+    return run_premake('macosx', 'xcode4')
   elif sys.platform == 'win32':
-    run_premake('windows', 'vs2015')
+    return run_premake('windows', 'vs2015')
   else:
-    run_premake('linux', 'gmake')
-    run_premake('linux', 'codelite')
+    ret = run_premake('linux', 'gmake')
+    ret = ret != 0 and run_premake('linux', 'codelite') or ret
+    return ret
 
 
 def run_premake_export_commands():
@@ -472,10 +473,10 @@ class SetupCommand(Command):
     print('')
 
     print('- running premake...')
-    run_platform_premake()
-    print('')
+    if run_platform_premake() == 0:
+      print('')
+      print('Success!')
 
-    print('Success!')
     return 0
 
 
@@ -522,10 +523,10 @@ class PullCommand(Command):
     print('')
 
     print('- running premake...')
-    run_platform_premake()
-    print('')
+    if run_platform_premake() == 0:
+      print('')
+      print('Success!')
 
-    print('Success!')
     return 0
 
 
@@ -540,13 +541,12 @@ class PremakeCommand(Command):
         *args, **kwargs)
 
   def execute(self, args, pass_args, cwd):
+    # Update premake. If no binary found, it will be built from source.
     print('Running premake...')
     print('')
+    if run_platform_premake() == 0:
+      print('Success!')
 
-    # Update premake.
-    run_platform_premake()
-
-    print('Success!')
     return 0
 
 
@@ -607,6 +607,7 @@ class BaseBuildCommand(Command):
       
       result = subprocess.call([
           'make',
+          '-j',
           '-Cbuild/',
           'config=%s_linux' % (args['config']),
           ] + pass_args + args['target'], shell=False)

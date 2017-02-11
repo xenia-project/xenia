@@ -49,6 +49,7 @@ class BaseFencedPool {
   void Scavenge() {
     while (pending_batch_list_head_) {
       auto batch = pending_batch_list_head_;
+      assert_not_null(batch->fence);
       if (vkGetFenceStatus(device_, batch->fence) == VK_SUCCESS) {
         // Batch has completed. Reclaim.
         pending_batch_list_head_ = batch->next;
@@ -71,8 +72,10 @@ class BaseFencedPool {
 
   // Begins a new batch.
   // All entries acquired within this batch will be marked as in-use until
-  // the fence specified in EndBatch is signalled.
-  VkFence BeginBatch() {
+  // the fence returned is signalled.
+  // Pass in a fence to use an external fence. This assumes the fence has been
+  // reset.
+  VkFence BeginBatch(VkFence fence = nullptr) {
     assert_null(open_batch_);
     Batch* batch = nullptr;
     if (free_batch_list_head_) {
@@ -80,19 +83,49 @@ class BaseFencedPool {
       batch = free_batch_list_head_;
       free_batch_list_head_ = batch->next;
       batch->next = nullptr;
-      vkResetFences(device_, 1, &batch->fence);
+
+      if (batch->flags & kBatchOwnsFence && !fence) {
+        // Reset owned fence.
+        vkResetFences(device_, 1, &batch->fence);
+      } else if ((batch->flags & kBatchOwnsFence) && fence) {
+        // Transfer owned -> external
+        vkDestroyFence(device_, batch->fence, nullptr);
+        batch->fence = fence;
+      } else if (!(batch->flags & kBatchOwnsFence) && !fence) {
+        // external -> owned
+        VkFenceCreateInfo info;
+        info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        info.pNext = nullptr;
+        info.flags = 0;
+        VkResult res = vkCreateFence(device_, &info, nullptr, &batch->fence);
+        if (res != VK_SUCCESS) {
+          assert_always();
+        }
+
+        batch->flags |= kBatchOwnsFence;
+      } else {
+        // external -> external
+        batch->fence = fence;
+      }
     } else {
       // Allocate new batch.
       batch = new Batch();
       batch->next = nullptr;
+      batch->flags = 0;
 
-      VkFenceCreateInfo info;
-      info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-      info.pNext = nullptr;
-      info.flags = 0;
-      VkResult res = vkCreateFence(device_, &info, nullptr, &batch->fence);
-      if (res != VK_SUCCESS) {
-        assert_always();
+      if (!fence) {
+        VkFenceCreateInfo info;
+        info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        info.pNext = nullptr;
+        info.flags = 0;
+        VkResult res = vkCreateFence(device_, &info, nullptr, &batch->fence);
+        if (res != VK_SUCCESS) {
+          assert_always();
+        }
+
+        batch->flags |= kBatchOwnsFence;
+      } else {
+        batch->fence = fence;
       }
     }
     batch->entry_list_head = nullptr;
@@ -203,6 +236,11 @@ class BaseFencedPool {
     while (free_batch_list_head_) {
       auto batch = free_batch_list_head_;
       free_batch_list_head_ = batch->next;
+
+      if (batch->flags & kBatchOwnsFence) {
+        vkDestroyFence(device_, batch->fence, nullptr);
+        batch->fence = nullptr;
+      }
       delete batch;
     }
     while (free_entry_list_head_) {
@@ -225,8 +263,11 @@ class BaseFencedPool {
     Batch* next;
     Entry* entry_list_head;
     Entry* entry_list_tail;
+    uint32_t flags;
     VkFence fence;
   };
+
+  static const uint32_t kBatchOwnsFence = 1;
 
   Batch* free_batch_list_head_ = nullptr;
   Entry* free_entry_list_head_ = nullptr;
@@ -257,14 +298,18 @@ class CommandBufferPool
 
 class DescriptorPool : public BaseFencedPool<DescriptorPool, VkDescriptorSet> {
  public:
+  typedef BaseFencedPool<DescriptorPool, VkDescriptorSet> Base;
+
   DescriptorPool(VkDevice device, uint32_t max_count,
                  std::vector<VkDescriptorPoolSize> pool_sizes);
   ~DescriptorPool() override;
 
-  VkDescriptorSet AcquireEntry(VkDescriptorSetLayout layout) { return nullptr; }
+  VkDescriptorSet AcquireEntry(VkDescriptorSetLayout layout) {
+    return Base::AcquireEntry(layout);
+  }
 
  protected:
-  friend class BaseFencedPool<DescriptorPool, VkCommandBuffer>;
+  friend class BaseFencedPool<DescriptorPool, VkDescriptorSet>;
   VkDescriptorSet AllocateEntry(void* data);
   void FreeEntry(VkDescriptorSet handle);
 

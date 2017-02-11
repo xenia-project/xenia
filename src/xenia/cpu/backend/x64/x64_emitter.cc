@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include <stddef.h>
 #include <climits>
 #include <cstring>
 

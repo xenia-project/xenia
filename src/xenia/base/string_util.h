@@ -12,6 +12,7 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 

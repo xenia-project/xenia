@@ -79,7 +79,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   // it's simple today we could extend it to do better things in the future.
 
   // Must request a size.
-  if (!base_addr_ptr) {
+  if (!base_addr_ptr || !region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
   // Check allocation type.
@@ -106,8 +106,8 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
   // For some reason, some games pass in negative sizes.
   uint32_t adjusted_size = int32_t(*region_size_ptr) < 0
-                               ? -int32_t(*region_size_ptr)
-                               : *region_size_ptr;
+                               ? -int32_t(region_size_ptr.value())
+                               : region_size_ptr.value();
   adjusted_size = xe::round_up(adjusted_size, page_size);
 
   // Allocate.

@@ -15,14 +15,13 @@ namespace xe {
 namespace cpu {
 namespace backend {
 
-Backend::Backend(Processor* processor)
-    : processor_(processor), code_cache_(nullptr) {
-  std::memset(&machine_info_, 0, sizeof(machine_info_));
-}
-
+Backend::Backend() { std::memset(&machine_info_, 0, sizeof(machine_info_)); }
 Backend::~Backend() = default;
 
-bool Backend::Initialize() { return true; }
+bool Backend::Initialize(Processor* processor) {
+  processor_ = processor;
+  return true;
+}
 
 void* Backend::AllocThreadData() { return nullptr; }
 

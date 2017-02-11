@@ -118,6 +118,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   context_bitmap_.Resize(kContextCount);
 
   worker_running_ = true;
+  work_event_ = xe::threading::Event::CreateAutoResetEvent(false);
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
@@ -131,11 +132,13 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
 }
 
 void XmaDecoder::WorkerThreadMain() {
+  uint32_t idle_loop_count = 0;
   while (worker_running_) {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
+    bool did_work = false;
     for (uint32_t n = 0; n < kContextCount; n++) {
       XmaContext& context = contexts_[n];
-      context.Work();
+      did_work = context.Work() || did_work;
 
       // TODO: Need thread safety to do this.
       // Probably not too important though.
@@ -148,18 +151,33 @@ void XmaDecoder::WorkerThreadMain() {
       resume_fence_.Wait();
     }
 
+    if (!did_work) {
+      idle_loop_count++;
+    } else {
+      idle_loop_count = 0;
+    }
+
+    if (idle_loop_count > 500) {
+      // Idle for an extended period. Introduce a 20ms wait.
+      xe::threading::Wait(work_event_.get(), false,
+                          std::chrono::milliseconds(20));
+    }
+
     xe::threading::MaybeYield();
   }
 }
 
 void XmaDecoder::Shutdown() {
   worker_running_ = false;
-  worker_fence_.Signal();
-  worker_thread_.reset();
+  work_event_->Set();
 
   if (paused_) {
     Resume();
   }
+
+  // Wait for work thread.
+  xe::threading::Wait(worker_thread_->thread(), false);
+  worker_thread_.reset();
 
   memory()->SystemHeapFree(registers_.context_array_ptr);
 }
@@ -261,7 +279,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
     }
 
     // Signal the decoder thread to start processing.
-    worker_fence_.Signal();
+    work_event_->Set();
   } else if (r >= 0x1A40 && r <= 0x1A40 + 9 * 4) {
     // Context lock command.
     // This requests a lock by flagging the context.
@@ -276,7 +294,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
     }
 
     // Signal the decoder thread to start processing.
-    worker_fence_.Signal();
+    work_event_->Set();
   } else if (r >= 0x1A80 && r <= 0x1A80 + 9 * 4) {
     // Context clear command.
     // This will reset the given hardware contexts.

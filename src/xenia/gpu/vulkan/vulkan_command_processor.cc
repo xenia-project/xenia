@@ -73,8 +73,8 @@ bool VulkanCommandProcessor::SetupContext() {
       *device_, device_->queue_family_index(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
   // Initialize the state machine caches.
-  buffer_cache_ = std::make_unique<BufferCache>(register_file_, device_,
-                                                kDefaultBufferCacheCapacity);
+  buffer_cache_ = std::make_unique<BufferCache>(
+      register_file_, memory_, device_, kDefaultBufferCacheCapacity);
   texture_cache_ = std::make_unique<TextureCache>(memory_, register_file_,
                                                   &trace_writer_, device_);
   pipeline_cache_ = std::make_unique<PipelineCache>(
@@ -251,6 +251,70 @@ void VulkanCommandProcessor::DestroySwapImage() {
   fb_memory_ = nullptr;
 }
 
+void VulkanCommandProcessor::BeginFrame() {
+  assert_false(frame_open_);
+
+  // TODO(benvanik): bigger batches.
+  // TODO(DrChat): Decouple setup buffer from current batch.
+  // Begin a new batch, and allocate and begin a command buffer and setup
+  // buffer.
+  current_batch_fence_ = command_buffer_pool_->BeginBatch();
+  current_command_buffer_ = command_buffer_pool_->AcquireEntry();
+  current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
+
+  VkCommandBufferBeginInfo command_buffer_begin_info;
+  command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  command_buffer_begin_info.pNext = nullptr;
+  command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  command_buffer_begin_info.pInheritanceInfo = nullptr;
+  auto status =
+      vkBeginCommandBuffer(current_command_buffer_, &command_buffer_begin_info);
+  CheckResult(status, "vkBeginCommandBuffer");
+
+  status =
+      vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
+  CheckResult(status, "vkBeginCommandBuffer");
+
+  // Flag renderdoc down to start a capture if requested.
+  // The capture will end when these commands are submitted to the queue.
+  static uint32_t frame = 0;
+  if (device_->is_renderdoc_attached() && !capturing_ &&
+      (FLAGS_vulkan_renderdoc_capture_all || trace_requested_)) {
+    if (queue_mutex_) {
+      queue_mutex_->lock();
+    }
+
+    capturing_ = true;
+    trace_requested_ = false;
+    device_->BeginRenderDocFrameCapture();
+
+    if (queue_mutex_) {
+      queue_mutex_->unlock();
+    }
+  }
+
+  frame_open_ = true;
+}
+
+void VulkanCommandProcessor::EndFrame() {
+  if (current_render_state_) {
+    render_cache_->EndRenderPass();
+    current_render_state_ = nullptr;
+  }
+
+  VkResult status = VK_SUCCESS;
+  status = vkEndCommandBuffer(current_setup_buffer_);
+  CheckResult(status, "vkEndCommandBuffer");
+  status = vkEndCommandBuffer(current_command_buffer_);
+  CheckResult(status, "vkEndCommandBuffer");
+
+  current_command_buffer_ = nullptr;
+  current_setup_buffer_ = nullptr;
+  command_buffer_pool_->EndBatch();
+
+  frame_open_ = false;
+}
+
 void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_width,
                                          uint32_t frontbuffer_height) {
@@ -355,23 +419,15 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // Queue up current command buffers.
   // TODO(benvanik): bigger batches.
   std::vector<VkCommandBuffer> submit_buffers;
-  if (current_command_buffer_) {
-    if (current_render_state_) {
-      render_cache_->EndRenderPass();
-      current_render_state_ = nullptr;
-    }
-
-    status = vkEndCommandBuffer(current_setup_buffer_);
-    CheckResult(status, "vkEndCommandBuffer");
-    status = vkEndCommandBuffer(current_command_buffer_);
-    CheckResult(status, "vkEndCommandBuffer");
-
+  if (frame_open_) {
     // TODO(DrChat): If the setup buffer is empty, don't bother queueing it up.
     submit_buffers.push_back(current_setup_buffer_);
     submit_buffers.push_back(current_command_buffer_);
+    EndFrame();
+  }
 
-    current_command_buffer_ = nullptr;
-    current_setup_buffer_ = nullptr;
+  if (opened_batch) {
+    command_buffer_pool_->EndBatch();
   }
 
   submit_buffers.push_back(copy_commands);
@@ -391,8 +447,13 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = uint32_t(submit_buffers.size());
     submit_info.pCommandBuffers = submit_buffers.data();
+
+    VkPipelineStageFlags sem_waits[1];
+    sem_waits[0] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = &swap_sem;
+    submit_info.pWaitDstStageMask = sem_waits;
+
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &swap_sem;
 
@@ -407,8 +468,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       queue_mutex_->unlock();
     }
   }
-
-  command_buffer_pool_->EndBatch();
 
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
@@ -488,46 +547,10 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
-  bool started_command_buffer = false;
-  if (!current_command_buffer_) {
-    // TODO(benvanik): bigger batches.
-    // TODO(DrChat): Decouple setup buffer from current batch.
-    current_batch_fence_ = command_buffer_pool_->BeginBatch();
-    current_command_buffer_ = command_buffer_pool_->AcquireEntry();
-    current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
-
-    VkCommandBufferBeginInfo command_buffer_begin_info;
-    command_buffer_begin_info.sType =
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.pNext = nullptr;
-    command_buffer_begin_info.flags =
-        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    command_buffer_begin_info.pInheritanceInfo = nullptr;
-    auto status = vkBeginCommandBuffer(current_command_buffer_,
-                                       &command_buffer_begin_info);
-    CheckResult(status, "vkBeginCommandBuffer");
-
-    status =
-        vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
-    CheckResult(status, "vkBeginCommandBuffer");
-
-    static uint32_t frame = 0;
-    if (device_->is_renderdoc_attached() && !capturing_ &&
-        (FLAGS_vulkan_renderdoc_capture_all || trace_requested_)) {
-      if (queue_mutex_) {
-        queue_mutex_->lock();
-      }
-
-      capturing_ = true;
-      trace_requested_ = false;
-      device_->BeginRenderDocFrameCapture();
-
-      if (queue_mutex_) {
-        queue_mutex_->unlock();
-      }
-    }
-
-    started_command_buffer = true;
+  bool started_frame = false;
+  if (!frame_open_) {
+    BeginFrame();
+    started_frame = true;
   }
   auto command_buffer = current_command_buffer_;
   auto setup_buffer = current_setup_buffer_;
@@ -556,13 +579,13 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
       command_buffer, current_render_state_, vertex_shader, pixel_shader,
       primitive_type, &pipeline);
   if (pipeline_status == PipelineCache::UpdateStatus::kMismatch ||
-      started_command_buffer) {
+      started_frame) {
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipeline);
   } else if (pipeline_status == PipelineCache::UpdateStatus::kError) {
     return false;
   }
-  pipeline_cache_->SetDynamicState(command_buffer, started_command_buffer);
+  pipeline_cache_->SetDynamicState(command_buffer, started_frame);
 
   // Pass registers to the shaders.
   if (!PopulateConstants(command_buffer, vertex_shader, pixel_shader)) {
@@ -673,13 +696,12 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
   trace_writer_.WriteMemoryRead(info.guest_base, info.length);
 
   // Upload (or get a cached copy of) the buffer.
-  const void* source_ptr =
-      memory_->TranslatePhysical<const void*>(info.guest_base);
-  size_t source_length =
+  uint32_t source_addr = info.guest_base;
+  uint32_t source_length =
       info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
                                                        : sizeof(uint16_t));
   auto buffer_ref = buffer_cache_->UploadIndexBuffer(
-      source_ptr, source_length, info.format, current_batch_fence_);
+      source_addr, source_length, info.format, current_batch_fence_);
   if (buffer_ref.second == VK_WHOLE_SIZE) {
     // Failed to upload buffer.
     return false;
@@ -741,11 +763,9 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     trace_writer_.WriteMemoryRead(physical_address, valid_range);
 
     // Upload (or get a cached copy of) the buffer.
-    const void* source_ptr =
-        memory_->TranslatePhysical<const void*>(physical_address);
-    size_t source_length = valid_range;
+    uint32_t source_length = uint32_t(valid_range);
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        source_ptr, source_length, static_cast<Endian>(fetch->endian),
+        physical_address, source_length, static_cast<Endian>(fetch->endian),
         current_batch_fence_);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
@@ -894,26 +914,23 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(fetch->size == 6);
   const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
-  int32_t dest_min_x = int32_t((std::min(
-      std::min(
-          GpuSwap(xe::load<float>(vertex_addr + 0), Endian(fetch->endian)),
-          GpuSwap(xe::load<float>(vertex_addr + 8), Endian(fetch->endian))),
-      GpuSwap(xe::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
-  int32_t dest_max_x = int32_t((std::max(
-      std::max(
-          GpuSwap(xe::load<float>(vertex_addr + 0), Endian(fetch->endian)),
-          GpuSwap(xe::load<float>(vertex_addr + 8), Endian(fetch->endian))),
-      GpuSwap(xe::load<float>(vertex_addr + 16), Endian(fetch->endian)))));
-  int32_t dest_min_y = int32_t((std::min(
-      std::min(
-          GpuSwap(xe::load<float>(vertex_addr + 4), Endian(fetch->endian)),
-          GpuSwap(xe::load<float>(vertex_addr + 12), Endian(fetch->endian))),
-      GpuSwap(xe::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
-  int32_t dest_max_y = int32_t((std::max(
-      std::max(
-          GpuSwap(xe::load<float>(vertex_addr + 4), Endian(fetch->endian)),
-          GpuSwap(xe::load<float>(vertex_addr + 12), Endian(fetch->endian))),
-      GpuSwap(xe::load<float>(vertex_addr + 20), Endian(fetch->endian)))));
+
+  float dest_points[6];
+  for (int i = 0; i < 6; i++) {
+    dest_points[i] =
+        GpuSwap(xe::load<float>(vertex_addr + i * 4), Endian(fetch->endian));
+  }
+
+  // Note: The xenos only supports rectangle copies (luckily)
+  int32_t dest_min_x = int32_t(
+      (std::min(std::min(dest_points[0], dest_points[2]), dest_points[4])));
+  int32_t dest_max_x = int32_t(
+      (std::max(std::max(dest_points[0], dest_points[2]), dest_points[4])));
+
+  int32_t dest_min_y = int32_t(
+      (std::min(std::min(dest_points[1], dest_points[3]), dest_points[5])));
+  int32_t dest_max_y = int32_t(
+      (std::max(std::max(dest_points[1], dest_points[3]), dest_points[5])));
 
   uint32_t color_edram_base = 0;
   uint32_t depth_edram_base = 0;
@@ -967,26 +984,10 @@ bool VulkanCommandProcessor::IssueCopy() {
   // For debugging purposes only (trace viewer)
   last_copy_base_ = texture->texture_info.guest_address;
 
-  if (!current_command_buffer_) {
-    current_batch_fence_ = command_buffer_pool_->BeginBatch();
-    current_command_buffer_ = command_buffer_pool_->AcquireEntry();
-    current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
-
-    VkCommandBufferBeginInfo command_buffer_begin_info;
-    command_buffer_begin_info.sType =
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.pNext = nullptr;
-    command_buffer_begin_info.flags =
-        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    command_buffer_begin_info.pInheritanceInfo = nullptr;
-    auto status = vkBeginCommandBuffer(current_command_buffer_,
-                                       &command_buffer_begin_info);
-    CheckResult(status, "vkBeginCommandBuffer");
-
-    status =
-        vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
-    CheckResult(status, "vkBeginCommandBuffer");
+  if (!frame_open_) {
+    BeginFrame();
   } else if (current_render_state_) {
+    // Copy commands cannot be issued within a render pass.
     render_cache_->EndRenderPass();
     current_render_state_ = nullptr;
   }

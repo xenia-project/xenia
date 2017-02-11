@@ -108,7 +108,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
     module_format_ = kModuleFormatElf;
   } else {
     auto magic16 = xe::load_and_swap<uint16_t>(addr);
-    if (magic16 == 'MZ') {
+    if (magic16 == 0x4D5A) {
       XELOGE("XNA executables are not yet implemented");
       return X_STATUS_NOT_IMPLEMENTED;
     } else {

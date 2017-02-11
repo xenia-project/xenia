@@ -22,9 +22,16 @@
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
+#ifdef XE_PLATFORM_WIN32
 // NOTE: must be included last as it expects windows.h to already be included.
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 #include <winsock2.h>                    // NOLINT(build/include_order)
+#elif XE_PLATFORM_LINUX
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <sys/socket.h>
+#endif
 
 namespace xe {
 namespace kernel {
@@ -43,8 +50,8 @@ enum {
 // https://github.com/pmrowla/hl2sdk-csgo/blob/master/common/xbox/xboxstubs.h
 typedef struct {
   // FYI: IN_ADDR should be in network-byte order.
-  IN_ADDR ina;                   // IP address (zero if not static/DHCP)
-  IN_ADDR inaOnline;             // Online IP address (zero if not online)
+  in_addr ina;                   // IP address (zero if not static/DHCP)
+  in_addr inaOnline;             // Online IP address (zero if not online)
   xe::be<uint16_t> wPortOnline;  // Online port
   uint8_t abEnet[6];             // Ethernet MAC address
   uint8_t abOnline[20];          // Online identification
@@ -53,7 +60,7 @@ typedef struct {
 typedef struct {
   xe::be<int32_t> status;
   xe::be<uint32_t> cina;
-  IN_ADDR aina[8];
+  in_addr aina[8];
 } XNDNS;
 
 struct Xsockaddr_t {
@@ -96,7 +103,7 @@ void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
       auto in_addr = reinterpret_cast<sockaddr_in*>(out_addr);
       in_addr->sin_port = xe::load_and_swap<uint16_t>(ptr + 2);
       // Maybe? Depends on type.
-      in_addr->sin_addr.S_un.S_addr = *(uint32_t*)(ptr + 4);
+      in_addr->sin_addr.s_addr = *(uint32_t*)(ptr + 4);
       break;
     }
     default:
@@ -115,7 +122,7 @@ void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
       xe::store_and_swap<uint16_t>(ptr + 0, in_addr.sin_family);
       xe::store_and_swap<uint16_t>(ptr + 2, in_addr.sin_port);
       // Maybe? Depends on type.
-      xe::store_and_swap<uint32_t>(ptr + 4, in_addr.sin_addr.S_un.S_addr);
+      xe::store_and_swap<uint32_t>(ptr + 4, in_addr.sin_addr.s_addr);
       break;
     }
     default:
@@ -126,19 +133,19 @@ void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
 
 // https://github.com/joolswills/mameox/blob/master/MAMEoX/Sources/xbox_Network.cpp#L136
 struct XNetStartupParams {
-  BYTE cfgSizeOfStruct;
-  BYTE cfgFlags;
-  BYTE cfgSockMaxDgramSockets;
-  BYTE cfgSockMaxStreamSockets;
-  BYTE cfgSockDefaultRecvBufsizeInK;
-  BYTE cfgSockDefaultSendBufsizeInK;
-  BYTE cfgKeyRegMax;
-  BYTE cfgSecRegMax;
-  BYTE cfgQosDataLimitDiv4;
-  BYTE cfgQosProbeTimeoutInSeconds;
-  BYTE cfgQosProbeRetries;
-  BYTE cfgQosSrvMaxSimultaneousResponses;
-  BYTE cfgQosPairWaitTimeInSeconds;
+  uint8_t cfgSizeOfStruct;
+  uint8_t cfgFlags;
+  uint8_t cfgSockMaxDgramSockets;
+  uint8_t cfgSockMaxStreamSockets;
+  uint8_t cfgSockDefaultRecvBufsizeInK;
+  uint8_t cfgSockDefaultSendBufsizeInK;
+  uint8_t cfgKeyRegMax;
+  uint8_t cfgSecRegMax;
+  uint8_t cfgQosDataLimitDiv4;
+  uint8_t cfgQosProbeTimeoutInSeconds;
+  uint8_t cfgQosProbeRetries;
+  uint8_t cfgQosSrvMaxSimultaneousResponses;
+  uint8_t cfgQosPairWaitTimeInSeconds;
 };
 
 XNetStartupParams xnet_startup_params = {0};
@@ -186,13 +193,13 @@ dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
     case 1:
       if (*buffer_size < sizeof(XNetStartupParams)) {
         *buffer_size = sizeof(XNetStartupParams);
-        return WSAEMSGSIZE;
+        return 0x2738;  // WSAEMSGSIZE
       }
       std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
       return 0;
     default:
       XELOGE("NetDll_XNetGetOpt: option %d unimplemented", option_id);
-      return WSAEINVAL;
+      return 0x2726;  // WSAEINVAL
   }
 }
 DECLARE_XAM_EXPORT(NetDll_XNetGetOpt, ExportTag::kNetworking);
@@ -210,7 +217,8 @@ DECLARE_XAM_EXPORT(NetDll_XNetRandom,
 
 dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
                                  pointer_t<X_WSADATA> data_ptr) {
-  // TODO(benvanik): abstraction layer needed.
+// TODO(benvanik): abstraction layer needed.
+#ifdef XE_PLATFORM_WIN32
   WSADATA wsaData;
   ZeroMemory(&wsaData, sizeof(WSADATA));
   int ret = WSAStartup(version, &wsaData);
@@ -230,6 +238,17 @@ dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
     uint32_t vendor_ptr = xe::load_and_swap<uint32_t>(data_out + 0x190);
     xe::store_and_swap<uint32_t>(data_out + 0x190, vendor_ptr);
   }
+#else
+  int ret = 0;
+  if (data_ptr) {
+    // Guess these values!
+    data_ptr->version = version.value();
+    data_ptr->description[0] = '\0';
+    data_ptr->system_status[0] = '\0';
+    data_ptr->max_sockets = 100;
+    data_ptr->max_udpdg = 1024;
+  }
+#endif
 
   // DEBUG
   /*
@@ -425,8 +444,8 @@ dword_result_t NetDll_XNetGetTitleXnAddr(dword_t caller,
                                          pointer_t<XNADDR> addr_ptr) {
   // Just return a loopback address atm.
   // FIXME: This needs to return the ethernet MAC address!
-  addr_ptr->ina.S_un.S_addr = htonl(INADDR_LOOPBACK);
-  addr_ptr->inaOnline.S_un.S_addr = 0;
+  addr_ptr->ina.s_addr = htonl(INADDR_LOOPBACK);
+  addr_ptr->inaOnline.s_addr = 0;
   addr_ptr->wPortOnline = 0;
   std::memset(addr_ptr->abEnet, 0, 6);
   std::memset(addr_ptr->abOnline, 0, 20);
@@ -610,9 +629,13 @@ int_result_t NetDll_shutdown(dword_t caller, dword_t socket_handle, int_t how) {
   }
 
   auto ret = socket->Shutdown(how);
-  if (ret == SOCKET_ERROR) {
+  if (ret == -1) {
+#ifdef XE_PLATFORM_WIN32
     uint32_t error_code = WSAGetLastError();
     XThread::SetLastError(error_code);
+#else
+    XThread::SetLastError(0x0);
+#endif
   }
   return ret;
 }
@@ -726,6 +749,12 @@ DECLARE_XAM_EXPORT(NetDll_listen,
 dword_result_t NetDll_accept(dword_t caller, dword_t socket_handle,
                              pointer_t<XSOCKADDR> addr_ptr,
                              lpdword_t addrlen_ptr) {
+  if (!addr_ptr) {
+    // WSAEFAULT
+    XThread::SetLastError(0x271E);
+    return -1;
+  }
+
   auto socket =
       kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
@@ -889,7 +918,7 @@ dword_result_t NetDll_recvfrom(dword_t caller, dword_t socket_handle,
   if (from_ptr) {
     native_from = *from_ptr;
   }
-  uint32_t native_fromlen = fromlen_ptr ? *fromlen_ptr : 0;
+  uint32_t native_fromlen = fromlen_ptr ? fromlen_ptr.value() : 0;
   int ret = socket->RecvFrom(buf_ptr, buf_len, flags, &native_from,
                              fromlen_ptr ? &native_fromlen : 0);
 
@@ -904,9 +933,13 @@ dword_result_t NetDll_recvfrom(dword_t caller, dword_t socket_handle,
   }
 
   if (ret == -1) {
-    // TODO: Better way of getting the error code
+// TODO: Better way of getting the error code
+#ifdef XE_PLATFORM_WIN32
     uint32_t error_code = WSAGetLastError();
     XThread::SetLastError(error_code);
+#else
+    XThread::SetLastError(0x0);
+#endif
   }
 
   return ret;

@@ -15,6 +15,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
+#include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/processor.h"
@@ -188,9 +189,25 @@ class TestRunner {
     // Reset memory.
     memory->Reset();
 
+    std::unique_ptr<xe::cpu::backend::Backend> backend;
+    if (!backend) {
+#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
+      if (FLAGS_cpu == "x64") {
+        backend.reset(new xe::cpu::backend::x64::X64Backend());
+      }
+#endif  // XENIA_HAS_X64_BACKEND
+      if (FLAGS_cpu == "any") {
+#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
+        if (!backend) {
+          backend.reset(new xe::cpu::backend::x64::X64Backend());
+        }
+#endif  // XENIA_HAS_X64_BACKEND
+      }
+    }
+
     // Setup a fresh processor.
     processor.reset(new Processor(memory.get(), nullptr));
-    processor->Setup();
+    processor->Setup(std::move(backend));
     processor->set_debug_info_flags(DebugInfoFlags::kDebugInfoAll);
 
     // Load the binary module.

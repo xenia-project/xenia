@@ -25,9 +25,9 @@ using xe::ui::vulkan::CheckResult;
 constexpr VkDeviceSize kConstantRegisterUniformRange =
     512 * 4 * 4 + 8 * 4 + 32 * 4;
 
-BufferCache::BufferCache(RegisterFile* register_file,
+BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
                          ui::vulkan::VulkanDevice* device, size_t capacity)
-    : register_file_(register_file), device_(*device) {
+    : register_file_(register_file), memory_(memory), device_(*device) {
   transient_buffer_ = std::make_unique<ui::vulkan::CircularBuffer>(
       device,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
@@ -229,14 +229,21 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 }
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
-    const void* source_ptr, size_t source_length, IndexFormat format,
+    uint32_t source_addr, uint32_t source_length, IndexFormat format,
     VkFence fence) {
+  auto offset = FindCachedTransientData(source_addr, source_length);
+  if (offset != VK_WHOLE_SIZE) {
+    return {transient_buffer_->gpu_buffer(), offset};
+  }
+
   // Allocate space in the buffer for our data.
-  auto offset = AllocateTransientData(source_length, fence);
+  offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
   }
+
+  const void* source_ptr = memory_->TranslatePhysical(source_addr);
 
   // Copy data into the buffer.
   // TODO(benvanik): get min/max indices and pass back?
@@ -251,28 +258,41 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
                                  source_ptr, source_length / 4);
   }
 
+  CacheTransientData(source_addr, source_length, offset);
   return {transient_buffer_->gpu_buffer(), offset};
 }
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
-    const void* source_ptr, size_t source_length, Endian endian,
+    uint32_t source_addr, uint32_t source_length, Endian endian,
     VkFence fence) {
+  auto offset = FindCachedTransientData(source_addr, source_length);
+  if (offset != VK_WHOLE_SIZE) {
+    return {transient_buffer_->gpu_buffer(), offset};
+  }
+
   // Allocate space in the buffer for our data.
-  auto offset = AllocateTransientData(source_length, fence);
+  offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
   }
 
+  const void* source_ptr = memory_->TranslatePhysical(source_addr);
+
   // Copy data into the buffer.
   // TODO(benvanik): memcpy then use compute shaders to swap?
-  assert_true(endian == Endian::k8in32);
   if (endian == Endian::k8in32) {
     // Endian::k8in32, swap words.
     xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
                                  source_ptr, source_length / 4);
+  } else if (endian == Endian::k16in32) {
+    xe::copy_and_swap_16_in_32_aligned(transient_buffer_->host_base() + offset,
+                                       source_ptr, source_length / 4);
+  } else {
+    assert_always();
   }
 
+  CacheTransientData(source_addr, source_length, offset);
   return {transient_buffer_->gpu_buffer(), offset};
 }
 
@@ -304,6 +324,24 @@ VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize length,
   return VK_WHOLE_SIZE;
 }
 
+VkDeviceSize BufferCache::FindCachedTransientData(uint32_t guest_address,
+                                                  uint32_t guest_length) {
+  uint64_t key = uint64_t(guest_length) << 32 | uint64_t(guest_address);
+  auto it = transient_cache_.find(key);
+  if (it != transient_cache_.end()) {
+    return it->second;
+  }
+
+  return VK_WHOLE_SIZE;
+}
+
+void BufferCache::CacheTransientData(uint32_t guest_address,
+                                     uint32_t guest_length,
+                                     VkDeviceSize offset) {
+  uint64_t key = uint64_t(guest_length) << 32 | uint64_t(guest_address);
+  transient_cache_[key] = offset;
+}
+
 void BufferCache::Flush(VkCommandBuffer command_buffer) {
   // If we are flushing a big enough chunk queue up an event.
   // We don't want to do this for everything but often enough so that we won't
@@ -331,7 +369,10 @@ void BufferCache::InvalidateCache() {
 
 void BufferCache::ClearCache() { transient_cache_.clear(); }
 
-void BufferCache::Scavenge() { transient_buffer_->Scavenge(); }
+void BufferCache::Scavenge() {
+  transient_cache_.clear();
+  transient_buffer_->Scavenge();
+}
 
 }  // namespace vulkan
 }  // namespace gpu

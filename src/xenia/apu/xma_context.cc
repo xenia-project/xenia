@@ -98,10 +98,10 @@ int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
   return 0;
 }
 
-void XmaContext::Work() {
+bool XmaContext::Work() {
   std::lock_guard<std::mutex> lock(lock_);
   if (!is_allocated() || !is_enabled()) {
-    return;
+    return false;
   }
 
   set_is_enabled(false);
@@ -110,6 +110,7 @@ void XmaContext::Work() {
   XMA_CONTEXT_DATA data(context_ptr);
   DecodePackets(&data);
   data.Store(context_ptr);
+  return true;
 }
 
 void XmaContext::Enable() {

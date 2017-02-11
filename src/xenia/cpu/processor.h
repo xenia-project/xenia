@@ -71,7 +71,7 @@ class Processor {
   backend::Backend* backend() const { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
 
-  bool Setup();
+  bool Setup(std::unique_ptr<backend::Backend> backend);
 
   // Runs any pre-launch logic once the module and thread have been setup.
   void PreLaunch();
@@ -189,7 +189,7 @@ class Processor {
  public:
   // TODO(benvanik): hide.
   void OnThreadCreated(uint32_t handle, ThreadState* thread_state,
-                       kernel::XThread* thread);
+                       Thread* thread);
   void OnThreadExit(uint32_t thread_id);
   void OnThreadDestroyed(uint32_t thread_id);
   void OnThreadEnteringWait(uint32_t thread_id);

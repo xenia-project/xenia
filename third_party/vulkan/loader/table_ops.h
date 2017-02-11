@@ -29,7 +29,7 @@
 #include "loader.h"
 #include "vk_loader_platform.h"
 
-static VkResult vkDevExtError(VkDevice dev) {
+static VkResult VKAPI_CALL vkDevExtError(VkDevice dev) {
     struct loader_device *found_dev;
     // The device going in is a trampoline device
     struct loader_icd_term *icd_term =
@@ -46,7 +46,7 @@ static inline void
 loader_init_device_dispatch_table(struct loader_dev_dispatch_table *dev_table,
                                   PFN_vkGetDeviceProcAddr gpa, VkDevice dev) {
     VkLayerDispatchTable *table = &dev_table->core_dispatch;
-    for (uint32_t i = 0; i < MAX_NUM_DEV_EXTS; i++)
+    for (uint32_t i = 0; i < MAX_NUM_UNKNOWN_EXTS; i++)
         dev_table->ext_dispatch.dev_ext[i] = (PFN_vkDevExt)vkDevExtError;
 
     table->GetDeviceProcAddr =
@@ -269,27 +269,70 @@ static inline void loader_init_device_extension_dispatch_table(
         (PFN_vkGetSwapchainImagesKHR)gpa(dev, "vkGetSwapchainImagesKHR");
     table->QueuePresentKHR =
         (PFN_vkQueuePresentKHR)gpa(dev, "vkQueuePresentKHR");
-    table->CmdDrawIndirectCountAMD =
-        (PFN_vkCmdDrawIndirectCountAMD)gpa(dev, "vkCmdDrawIndirectCountAMD");
-    table->CmdDrawIndexedIndirectCountAMD =
-        (PFN_vkCmdDrawIndexedIndirectCountAMD)gpa(
-            dev, "vkCmdDrawIndexedIndirectCountAMD");
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-    table->GetMemoryWin32HandleNV =
-        (PFN_vkGetMemoryWin32HandleNV)gpa(dev, "vkGetMemoryWin32HandleNV");
-#endif // VK_USE_PLATFORM_WIN32_KHR
-    table->CreateSharedSwapchainsKHR =
-        (PFN_vkCreateSharedSwapchainsKHR)gpa(dev, "vkCreateSharedSwapchainsKHR");
-    table->DebugMarkerSetObjectTagEXT =
-        (PFN_vkDebugMarkerSetObjectTagEXT)gpa(dev, "vkDebugMarkerSetObjectTagEXT");
-    table->DebugMarkerSetObjectNameEXT =
-        (PFN_vkDebugMarkerSetObjectNameEXT)gpa(dev, "vkDebugMarkerSetObjectNameEXT");
+
+    // KHR_display_swapchain
+    table->CreateSharedSwapchainsKHR = (PFN_vkCreateSharedSwapchainsKHR)gpa(
+        dev, "vkCreateSharedSwapchainsKHR");
+
+    // KHR_maintenance1
+    table->TrimCommandPoolKHR =
+        (PFN_vkTrimCommandPoolKHR)gpa(dev, "vkTrimCommandPoolKHR");
+
+    // EXT_display_control
+    table->DisplayPowerControlEXT =
+        (PFN_vkDisplayPowerControlEXT)gpa(dev, "vkDisplayPowerControlEXT");
+    table->RegisterDeviceEventEXT =
+        (PFN_vkRegisterDeviceEventEXT)gpa(dev, "vkRegisterDeviceEventEXT");
+    table->RegisterDisplayEventEXT =
+        (PFN_vkRegisterDisplayEventEXT)gpa(dev, "vkRegisterDisplayEventEXT");
+    table->GetSwapchainCounterEXT =
+        (PFN_vkGetSwapchainCounterEXT)gpa(dev, "vkGetSwapchainCounterEXT");
+
+    // EXT_debug_marker
+    table->DebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)gpa(
+        dev, "vkDebugMarkerSetObjectTagEXT");
+    table->DebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)gpa(
+        dev, "vkDebugMarkerSetObjectNameEXT");
     table->CmdDebugMarkerBeginEXT =
         (PFN_vkCmdDebugMarkerBeginEXT)gpa(dev, "vkCmdDebugMarkerBeginEXT");
     table->CmdDebugMarkerEndEXT =
         (PFN_vkCmdDebugMarkerEndEXT)gpa(dev, "vkCmdDebugMarkerEndEXT");
     table->CmdDebugMarkerInsertEXT =
         (PFN_vkCmdDebugMarkerInsertEXT)gpa(dev, "vkCmdDebugMarkerInsertEXT");
+
+    // AMD_draw_indirect_count
+    table->CmdDrawIndirectCountAMD =
+        (PFN_vkCmdDrawIndirectCountAMD)gpa(dev, "vkCmdDrawIndirectCountAMD");
+    table->CmdDrawIndexedIndirectCountAMD =
+        (PFN_vkCmdDrawIndexedIndirectCountAMD)gpa(
+            dev, "vkCmdDrawIndexedIndirectCountAMD");
+
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+    // NV_external_memory_win32
+    table->GetMemoryWin32HandleNV =
+        (PFN_vkGetMemoryWin32HandleNV)gpa(dev, "vkGetMemoryWin32HandleNV");
+#endif
+
+    // NVX_device_generated_commands
+    table->CmdProcessCommandsNVX =
+        (PFN_vkCmdProcessCommandsNVX)gpa(dev, "vkCmdProcessCommandsNVX");
+    table->CmdReserveSpaceForCommandsNVX =
+        (PFN_vkCmdReserveSpaceForCommandsNVX)gpa(
+            dev, "vkCmdReserveSpaceForCommandsNVX");
+    table->CreateIndirectCommandsLayoutNVX =
+        (PFN_vkCreateIndirectCommandsLayoutNVX)gpa(
+            dev, "vkCreateIndirectCommandsLayoutNVX");
+    table->DestroyIndirectCommandsLayoutNVX =
+        (PFN_vkDestroyIndirectCommandsLayoutNVX)gpa(
+            dev, "vkDestroyIndirectCommandsLayoutNVX");
+    table->CreateObjectTableNVX =
+        (PFN_vkCreateObjectTableNVX)gpa(dev, "vkCreateObjectTableNVX");
+    table->DestroyObjectTableNVX =
+        (PFN_vkDestroyObjectTableNVX)gpa(dev, "vkDestroyObjectTableNVX");
+    table->RegisterObjectsNVX =
+        (PFN_vkRegisterObjectsNVX)gpa(dev, "vkRegisterObjectsNVX");
+    table->UnregisterObjectsNVX =
+        (PFN_vkUnregisterObjectsNVX)gpa(dev, "vkUnregisterObjectsNVX");
 }
 
 static inline void *
@@ -541,7 +584,6 @@ loader_lookup_device_dispatch_table(const VkLayerDispatchTable *table,
         return (void *)table->CmdEndRenderPass;
     if (!strcmp(name, "CmdExecuteCommands"))
         return (void *)table->CmdExecuteCommands;
-
     if (!strcmp(name, "DestroySwapchainKHR"))
         return (void *)table->DestroySwapchainKHR;
     if (!strcmp(name, "GetSwapchainImagesKHR"))
@@ -559,6 +601,8 @@ loader_lookup_device_dispatch_table(const VkLayerDispatchTable *table,
     // object before passing the appropriate info along to the ICD.
     if (!strcmp(name, "CreateSwapchainKHR")) {
         return (void *)vkCreateSwapchainKHR;
+    } else if (!strcmp(name, "CreateSharedSwapchainsKHR")) {
+        return (void *)vkCreateSharedSwapchainsKHR;
     } else if (!strcmp(name, "DebugMarkerSetObjectTagEXT")) {
         return (void *)vkDebugMarkerSetObjectTagEXT;
     } else if (!strcmp(name, "DebugMarkerSetObjectNameEXT")) {
@@ -608,16 +652,9 @@ loader_init_instance_core_dispatch_table(VkLayerInstanceDispatchTable *table,
 static inline void loader_init_instance_extension_dispatch_table(
     VkLayerInstanceDispatchTable *table, PFN_vkGetInstanceProcAddr gpa,
     VkInstance inst) {
+    // WSI extensions
     table->DestroySurfaceKHR =
         (PFN_vkDestroySurfaceKHR)gpa(inst, "vkDestroySurfaceKHR");
-    table->CreateDebugReportCallbackEXT =
-        (PFN_vkCreateDebugReportCallbackEXT)gpa(
-            inst, "vkCreateDebugReportCallbackEXT");
-    table->DestroyDebugReportCallbackEXT =
-        (PFN_vkDestroyDebugReportCallbackEXT)gpa(
-            inst, "vkDestroyDebugReportCallbackEXT");
-    table->DebugReportMessageEXT =
-        (PFN_vkDebugReportMessageEXT)gpa(inst, "vkDebugReportMessageEXT");
     table->GetPhysicalDeviceSurfaceSupportKHR =
         (PFN_vkGetPhysicalDeviceSurfaceSupportKHR)gpa(
             inst, "vkGetPhysicalDeviceSurfaceSupportKHR");
@@ -630,9 +667,6 @@ static inline void loader_init_instance_extension_dispatch_table(
     table->GetPhysicalDeviceSurfacePresentModesKHR =
         (PFN_vkGetPhysicalDeviceSurfacePresentModesKHR)gpa(
             inst, "vkGetPhysicalDeviceSurfacePresentModesKHR");
-    table->GetPhysicalDeviceExternalImageFormatPropertiesNV =
-        (PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV)gpa(
-            inst, "vkGetPhysicalDeviceExternalImageFormatPropertiesNV");
 #ifdef VK_USE_PLATFORM_MIR_KHR
     table->CreateMirSurfaceKHR =
         (PFN_vkCreateMirSurfaceKHR)gpa(inst, "vkCreateMirSurfaceKHR");
@@ -687,6 +721,124 @@ static inline void loader_init_instance_extension_dispatch_table(
     table->CreateDisplayPlaneSurfaceKHR =
         (PFN_vkCreateDisplayPlaneSurfaceKHR)gpa(
             inst, "vkCreateDisplayPlaneSurfaceKHR");
+
+    // KHR_get_physical_device_properties2
+    table->GetPhysicalDeviceFeatures2KHR =
+        (PFN_vkGetPhysicalDeviceFeatures2KHR)gpa(
+            inst, "vkGetPhysicalDeviceFeatures2KHR");
+    table->GetPhysicalDeviceProperties2KHR =
+        (PFN_vkGetPhysicalDeviceProperties2KHR)gpa(
+            inst, "vkGetPhysicalDeviceProperties2KHR");
+    table->GetPhysicalDeviceFormatProperties2KHR =
+        (PFN_vkGetPhysicalDeviceFormatProperties2KHR)gpa(
+            inst, "vkGetPhysicalDeviceFormatProperties2KHR");
+    table->GetPhysicalDeviceImageFormatProperties2KHR =
+        (PFN_vkGetPhysicalDeviceImageFormatProperties2KHR)gpa(
+            inst, "vkGetPhysicalDeviceImageFormatProperties2KHR");
+    table->GetPhysicalDeviceQueueFamilyProperties2KHR =
+        (PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR)gpa(
+            inst, "vkGetPhysicalDeviceQueueFamilyProperties2KHR");
+    table->GetPhysicalDeviceMemoryProperties2KHR =
+        (PFN_vkGetPhysicalDeviceMemoryProperties2KHR)gpa(
+            inst, "vkGetPhysicalDeviceMemoryProperties2KHR");
+    table->GetPhysicalDeviceSparseImageFormatProperties2KHR =
+        (PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR)gpa(
+            inst, "vkGetPhysicalDeviceSparseImageFormatProperties2KHR");
+
+#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
+    // EXT_acquire_xlib_display
+    table->AcquireXlibDisplayEXT =
+        (PFN_vkAcquireXlibDisplayEXT)gpa(inst, "vkAcquireXlibDisplayEXT");
+    table->GetRandROutputDisplayEXT =
+        (PFN_vkGetRandROutputDisplayEXT)gpa(inst, "vkGetRandROutputDisplayEXT");
+#endif
+
+    // EXT_debug_report
+    table->CreateDebugReportCallbackEXT =
+        (PFN_vkCreateDebugReportCallbackEXT)gpa(
+            inst, "vkCreateDebugReportCallbackEXT");
+    table->DestroyDebugReportCallbackEXT =
+        (PFN_vkDestroyDebugReportCallbackEXT)gpa(
+            inst, "vkDestroyDebugReportCallbackEXT");
+    table->DebugReportMessageEXT =
+        (PFN_vkDebugReportMessageEXT)gpa(inst, "vkDebugReportMessageEXT");
+
+    // EXT_direct_mode_display
+    table->ReleaseDisplayEXT =
+        (PFN_vkReleaseDisplayEXT)gpa(inst, "vkReleaseDisplayEXT");
+
+    // EXT_display_surface_counter
+    table->GetPhysicalDeviceSurfaceCapabilities2EXT =
+        (PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT)gpa(
+            inst, "vkGetPhysicalDeviceSurfaceCapabilities2EXT");
+
+    // NV_external_memory_capabilities
+    table->GetPhysicalDeviceExternalImageFormatPropertiesNV =
+        (PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV)gpa(
+            inst, "vkGetPhysicalDeviceExternalImageFormatPropertiesNV");
+
+    // NVX_device_generated_commands (physical device command)
+    table->GetPhysicalDeviceGeneratedCommandsPropertiesNVX =
+        (PFN_vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX)gpa(
+            inst, "vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX");
+}
+
+static inline void *loader_lookup_instance_extension_dispatch_table(
+    const VkLayerInstanceDispatchTable *table, const char *name,
+    bool *found_name) {
+
+    *found_name = true;
+
+    // KHR_get_physical_device_properties2
+    if (!strcmp(name, "GetPhysicalDeviceFeatures2KHR"))
+        return (void *)table->GetPhysicalDeviceFeatures2KHR;
+    if (!strcmp(name, "GetPhysicalDeviceProperties2KHR"))
+        return (void *)table->GetPhysicalDeviceProperties2KHR;
+    if (!strcmp(name, "GetPhysicalDeviceFormatProperties2KHR"))
+        return (void *)table->GetPhysicalDeviceFormatProperties2KHR;
+    if (!strcmp(name, "GetPhysicalDeviceImageFormatProperties2KHR"))
+        return (void *)table->GetPhysicalDeviceImageFormatProperties2KHR;
+    if (!strcmp(name, "GetPhysicalDeviceQueueFamilyProperties2KHR"))
+        return (void *)table->GetPhysicalDeviceQueueFamilyProperties2KHR;
+    if (!strcmp(name, "GetPhysicalDeviceMemoryProperties2KHR"))
+        return (void *)table->GetPhysicalDeviceMemoryProperties2KHR;
+    if (!strcmp(name, "GetPhysicalDeviceSparseImageFormatProperties2KHR"))
+        return (void *)table->GetPhysicalDeviceSparseImageFormatProperties2KHR;
+
+// EXT_acquire_xlib_display
+#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
+    if (!strcmp(name, "AcquireXlibDisplayEXT"))
+        return (void *)table->AcquireXlibDisplayEXT;
+    if (!strcmp(name, "GetRandROutputDisplayEXT"))
+        return (void *)table->GetRandROutputDisplayEXT;
+#endif
+
+    // EXT_debug_report
+    if (!strcmp(name, "CreateDebugReportCallbackEXT"))
+        return (void *)table->CreateDebugReportCallbackEXT;
+    if (!strcmp(name, "DestroyDebugReportCallbackEXT"))
+        return (void *)table->DestroyDebugReportCallbackEXT;
+    if (!strcmp(name, "DebugReportMessageEXT"))
+        return (void *)table->DebugReportMessageEXT;
+
+    // EXT_direct_mode_display
+    if (!strcmp(name, "ReleaseDisplayEXT"))
+        return (void *)table->ReleaseDisplayEXT;
+
+    // EXT_display_surface_counter
+    if (!strcmp(name, "GetPhysicalDeviceSurfaceCapabilities2EXT"))
+        return (void *)table->GetPhysicalDeviceSurfaceCapabilities2EXT;
+
+    // NV_external_memory_capabilities
+    if (!strcmp(name, "GetPhysicalDeviceExternalImageFormatPropertiesNV"))
+        return (void *)table->GetPhysicalDeviceExternalImageFormatPropertiesNV;
+
+    // NVX_device_generated_commands
+    if (!strcmp(name, "GetPhysicalDeviceGeneratedCommandsPropertiesNVX"))
+        return (void *)table->GetPhysicalDeviceGeneratedCommandsPropertiesNVX;
+
+    *found_name = false;
+    return NULL;
 }
 
 static inline void *
@@ -733,8 +885,6 @@ loader_lookup_instance_dispatch_table(const VkLayerInstanceDispatchTable *table,
         return (void *)table->GetPhysicalDeviceSurfaceFormatsKHR;
     if (!strcmp(name, "GetPhysicalDeviceSurfacePresentModesKHR"))
         return (void *)table->GetPhysicalDeviceSurfacePresentModesKHR;
-    if (!strcmp(name, "GetPhysicalDeviceExternalImageFormatPropertiesNV"))
-        return (void *)table->GetPhysicalDeviceExternalImageFormatPropertiesNV;
 #ifdef VK_USE_PLATFORM_MIR_KHR
     if (!strcmp(name, "CreateMirSurfaceKHR"))
         return (void *)table->CreateMirSurfaceKHR;
@@ -780,13 +930,6 @@ loader_lookup_instance_dispatch_table(const VkLayerInstanceDispatchTable *table,
     if (!strcmp(name, "CreateDisplayPlaneSurfaceKHR"))
         return (void *)table->CreateDisplayPlaneSurfaceKHR;
 
-    if (!strcmp(name, "CreateDebugReportCallbackEXT"))
-        return (void *)table->CreateDebugReportCallbackEXT;
-    if (!strcmp(name, "DestroyDebugReportCallbackEXT"))
-        return (void *)table->DestroyDebugReportCallbackEXT;
-    if (!strcmp(name, "DebugReportMessageEXT"))
-        return (void *)table->DebugReportMessageEXT;
-
-    *found_name = false;
-    return NULL;
+    return loader_lookup_instance_extension_dispatch_table(table, name,
+                                                           found_name);
 }

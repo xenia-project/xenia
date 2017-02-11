@@ -15,6 +15,7 @@
 
 #include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
+#include "xenia/cpu/thread.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/xmutant.h"
@@ -102,7 +103,7 @@ struct X_KTHREAD {
 };
 static_assert_size(X_KTHREAD, 0xAB0);
 
-class XThread : public XObject {
+class XThread : public XObject, public cpu::Thread {
  public:
   static const Type kType = kTypeThread;
 
@@ -136,18 +137,11 @@ class XThread : public XObject {
   // True if the thread is created by the guest app.
   bool is_guest_thread() const { return guest_thread_; }
   bool main_thread() const { return main_thread_; }
-  // True if the thread should be paused by the debugger.
-  // All threads that can run guest code must be stopped for the debugger to
-  // work properly.
-  bool can_debugger_suspend() const { return can_debugger_suspend_; }
-  void set_can_debugger_suspend(bool value) { can_debugger_suspend_ = value; }
   bool is_running() const { return running_; }
 
-  cpu::ThreadState* thread_state() const { return thread_state_; }
   uint32_t thread_id() const { return thread_id_; }
   uint32_t last_error();
   void set_last_error(uint32_t error_code);
-  const std::string& name() const { return name_; }
   void set_name(const std::string& name);
 
   X_STATUS Create();
@@ -211,7 +205,6 @@ class XThread : public XObject {
   std::vector<object_ref<XMutant>> pending_mutant_acquires_;
 
   uint32_t thread_id_ = 0;
-  std::unique_ptr<xe::threading::Thread> thread_;
   uint32_t scratch_address_ = 0;
   uint32_t scratch_size_ = 0;
   uint32_t tls_static_address_ = 0;
@@ -222,13 +215,9 @@ class XThread : public XObject {
   uint32_t stack_alloc_size_ = 0;  // Stack alloc size
   uint32_t stack_base_ = 0;        // High address
   uint32_t stack_limit_ = 0;       // Low address
-  cpu::ThreadState* thread_state_ = nullptr;
   bool guest_thread_ = false;
   bool main_thread_ = false;  // Entry-point thread
-  bool can_debugger_suspend_ = true;
   bool running_ = false;
-
-  std::string name_;
 
   int32_t priority_ = 0;
   uint32_t affinity_ = 0;

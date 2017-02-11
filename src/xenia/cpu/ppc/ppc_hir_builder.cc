@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
 
+#include <stddef.h>
 #include <cstring>
 
 #include "xenia/base/byte_order.h"

@@ -112,40 +112,6 @@ struct FileInfo {
 bool GetInfo(const std::wstring& path, FileInfo* out_info);
 std::vector<FileInfo> ListFiles(const std::wstring& path);
 
-class WildcardFlags {
- public:
-  bool FromStart : 1, ToEnd : 1;
-
-  WildcardFlags();
-  WildcardFlags(bool start, bool end);
-
-  static WildcardFlags FIRST;
-  static WildcardFlags LAST;
-};
-
-class WildcardRule {
- public:
-  WildcardRule(const std::string& str_match, const WildcardFlags& flags);
-  bool Check(const std::string& str_lower,
-             std::string::size_type* offset) const;
-
- private:
-  std::string match;
-  WildcardFlags rules;
-};
-
-class WildcardEngine {
- public:
-  void SetRule(const std::string& pattern);
-
-  // Always ignoring case
-  bool Match(const std::string& str) const;
-
- private:
-  std::vector<WildcardRule> rules;
-  void PreparePattern(const std::string& pattern);
-};
-
 }  // namespace filesystem
 }  // namespace xe
 

@@ -14,12 +14,16 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstdarg>
+#include <cstdlib>
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/atomic.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
 
@@ -29,8 +33,10 @@
 #include "xenia/base/platform_win.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(log_file, "",
-              "Logs are written to the given file instead of the default.");
+DEFINE_string(
+    log_file, "xenia.log",
+    "Logs are written to the given file (specify stdout for command line)");
+DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.");
 
 namespace xe {
@@ -42,18 +48,17 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 
 class Logger {
  public:
-  explicit Logger(const std::wstring& app_name)
-      : ring_buffer_(buffer_, kBufferSize), running_(true) {
+  explicit Logger(const std::wstring& app_name) : running_(true) {
     if (!FLAGS_log_file.empty()) {
-      auto file_path = xe::to_wstring(FLAGS_log_file.c_str());
-      xe::filesystem::CreateParentFolder(file_path);
-      file_ = xe::filesystem::OpenFile(file_path, "wt");
-    } else {
-      auto file_path = app_name + L".log";
-      file_ = xe::filesystem::OpenFile(file_path, "wt");
+      if (FLAGS_log_file == "stdout") {
+        file_ = stdout;
+      } else {
+        auto file_path = xe::to_wstring(FLAGS_log_file.c_str());
+        xe::filesystem::CreateParentFolder(file_path);
+        file_ = xe::filesystem::OpenFile(file_path, "wt");
+      }
     }
 
-    flush_event_ = xe::threading::Event::CreateAutoResetEvent(false);
     write_thread_ =
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
     write_thread_->set_name("xe::FileLogSink Writer");
@@ -61,7 +66,6 @@ class Logger {
 
   ~Logger() {
     running_ = false;
-    flush_event_->Set();
     xe::threading::Wait(write_thread_.get(), true);
     fflush(file_);
     fclose(file_);
@@ -70,44 +74,82 @@ class Logger {
   void AppendLine(uint32_t thread_id, const char level_char, const char* buffer,
                   size_t buffer_length) {
     LogLine line;
+    line.buffer_length = buffer_length;
     line.thread_id = thread_id;
     line.level_char = level_char;
-    line.buffer_length = buffer_length;
+
+    // First, run a check and see if we can increment write
+    // head without any problems. If so, cmpxchg it to reserve some space in the
+    // ring. If someone beats us, loop around.
+    //
+    // Once we have a reservation, write our data and then increment the write
+    // tail.
+    size_t size = sizeof(LogLine) + buffer_length;
     while (true) {
-      mutex_.lock();
-      if (ring_buffer_.write_count() < sizeof(line) + buffer_length) {
-        // Buffer is full. Stall.
-        mutex_.unlock();
+      // Attempt to make a reservation.
+      size_t write_head = write_head_;
+      size_t read_head = read_head_;
+
+      RingBuffer rb(buffer_, kBufferSize);
+      rb.set_write_offset(write_head);
+      rb.set_read_offset(read_head);
+      if (rb.write_count() < size) {
         xe::threading::MaybeYield();
         continue;
       }
-      ring_buffer_.Write(&line, sizeof(LogLine));
-      ring_buffer_.Write(buffer, buffer_length);
-      mutex_.unlock();
-      break;
+
+      // We have enough size to make a reservation!
+      rb.AdvanceWrite(size);
+      if (xe::atomic_cas(write_head, rb.write_offset(), &write_head_)) {
+        // Reservation made. Write out logline.
+        rb.set_write_offset(write_head);
+        rb.Write(&line, sizeof(LogLine));
+        rb.Write(buffer, buffer_length);
+
+        while (!xe::atomic_cas(write_head, rb.write_offset(), &write_tail_)) {
+          // Done writing. End the reservation.
+          xe::threading::MaybeYield();
+        }
+
+        break;
+      } else {
+        // Someone beat us to the chase. Loop around.
+        continue;
+      }
     }
-    flush_event_->Set();
   }
 
  private:
-  static const size_t kBufferSize = 32 * 1024 * 1024;
+  static const size_t kBufferSize = 8 * 1024 * 1024;
 
   struct LogLine {
+    size_t buffer_length;
     uint32_t thread_id;
     char level_char;
-    size_t buffer_length;
   };
 
+  void Write(const char* buf, size_t size) {
+    if (file_) {
+      fwrite(buf, 1, size, file_);
+    }
+
+    if (FLAGS_log_debugprint) {
+      debugging::DebugPrint("%.*s", size, buf);
+    }
+  }
+
   void WriteThread() {
+    RingBuffer rb(buffer_, kBufferSize);
+    uint32_t idle_loops = 0;
     while (running_) {
-      mutex_.lock();
       bool did_write = false;
-      while (!ring_buffer_.empty()) {
+      rb.set_write_offset(write_tail_);
+      while (!rb.empty()) {
         did_write = true;
 
         // Read line header and write out the line prefix.
         LogLine line;
-        ring_buffer_.Read(&line, sizeof(line));
+        rb.Read(&line, sizeof(line));
         char prefix[] = {
             line.level_char,
             '>',
@@ -125,14 +167,16 @@ class Logger {
         };
         std::snprintf(prefix + 3, sizeof(prefix) - 3, "%08" PRIX32 " ",
                       line.thread_id);
-        fwrite(prefix, 1, sizeof(prefix) - 1, file_);
+        Write(prefix, sizeof(prefix) - 1);
         if (line.buffer_length) {
           // Get access to the line data - which may be split in the ring buffer
           // - and write it out in parts.
-          auto line_range = ring_buffer_.BeginRead(line.buffer_length);
-          fwrite(line_range.first, 1, line_range.first_length, file_);
+          auto line_range = rb.BeginRead(line.buffer_length);
+          Write(reinterpret_cast<const char*>(line_range.first),
+                line_range.first_length);
           if (line_range.second_length) {
-            fwrite(line_range.second, 1, line_range.second_length, file_);
+            Write(reinterpret_cast<const char*>(line_range.second),
+                  line_range.second_length);
           }
           // Always ensure there is a newline.
           char last_char = line_range.second
@@ -140,36 +184,48 @@ class Logger {
                                : line_range.first[line_range.first_length - 1];
           if (last_char != '\n') {
             const char suffix[1] = {'\n'};
-            fwrite(suffix, 1, sizeof(suffix), file_);
+            Write(suffix, 1);
           }
-          ring_buffer_.EndRead(std::move(line_range));
+          rb.EndRead(std::move(line_range));
         } else {
           const char suffix[1] = {'\n'};
-          fwrite(suffix, 1, sizeof(suffix), file_);
+          Write(suffix, 1);
         }
+
+        rb.set_write_offset(write_tail_);
+        read_head_ = rb.read_offset();
       }
-      mutex_.unlock();
       if (did_write) {
         if (FLAGS_flush_log) {
           fflush(file_);
         }
+
+        idle_loops = 0;
+      } else {
+        if (idle_loops > 1000) {
+          // Introduce a waiting period.
+          xe::threading::Sleep(std::chrono::milliseconds(50));
+        }
+
+        idle_loops++;
       }
-      xe::threading::Wait(flush_event_.get(), true);
     }
   }
 
-  FILE* file_ = nullptr;
+  size_t write_head_ = 0;
+  size_t write_tail_ = 0;
+  size_t read_head_ = 0;
   uint8_t buffer_[kBufferSize];
-  RingBuffer ring_buffer_;
-  std::mutex mutex_;
+  FILE* file_ = nullptr;
+
   std::atomic<bool> running_;
-  std::unique_ptr<xe::threading::Event> flush_event_;
   std::unique_ptr<xe::threading::Thread> write_thread_;
 };
 
 void InitializeLogging(const std::wstring& app_name) {
   // We leak this intentionally - lots of cleanup code needs it.
-  logger_ = new Logger(app_name);
+  auto mem = memory::AlignedAlloc<Logger>(0x10);
+  logger_ = new (mem) Logger(app_name);
 }
 
 void LogLineFormat(const char level_char, const char* fmt, ...) {

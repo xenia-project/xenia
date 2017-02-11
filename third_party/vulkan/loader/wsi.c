@@ -152,7 +152,7 @@ LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL
 vkDestroySurfaceKHR(VkInstance instance, VkSurfaceKHR surface,
                     const VkAllocationCallbacks *pAllocator) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     disp->DestroySurfaceKHR(instance, surface, pAllocator);
 }
 
@@ -173,22 +173,19 @@ terminator_DestroySurfaceKHR(VkInstance instance, VkSurfaceKHR surface,
                 if (icd_term->scanned_icd->interface_version >=
                     ICD_VER_SUPPORTS_ICD_SURFACE_KHR) {
                     if (NULL != icd_term->DestroySurfaceKHR &&
-                        NULL !=
-                            (void *)(uintptr_t)
-                                icd_surface->real_icd_surfaces[i]) {
+                        (VkSurfaceKHR)NULL !=
+                            icd_surface->real_icd_surfaces[i]) {
                         icd_term->DestroySurfaceKHR(
                             icd_term->instance,
                             icd_surface->real_icd_surfaces[i], pAllocator);
-                        icd_surface->real_icd_surfaces[i] =
-                            (VkSurfaceKHR)(uintptr_t)NULL;
+                        icd_surface->real_icd_surfaces[i] = (VkSurfaceKHR)NULL;
                     }
                 } else {
                     // The real_icd_surface for any ICD not supporting the
                     // proper interface version should be NULL.  If not, then
                     // we have a problem.
-                    assert(
-                        NULL ==
-                        (void *)(uintptr_t)icd_surface->real_icd_surfaces[i]);
+                    assert((VkSurfaceKHR)NULL ==
+                           icd_surface->real_icd_surfaces[i]);
                 }
             }
             loader_instance_heap_free(ptr_instance,
@@ -208,7 +205,7 @@ vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice physicalDevice,
     const VkLayerInstanceDispatchTable *disp;
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetPhysicalDeviceSurfaceSupportKHR(
         unwrapped_phys_dev, queueFamilyIndex, surface, pSupported);
     return res;
@@ -243,9 +240,8 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_GetPhysicalDeviceSurfaceSupportKHR(
 
     VkIcdSurface *icd_surface = (VkIcdSurface *)(uintptr_t)surface;
     if (NULL != icd_surface->real_icd_surfaces &&
-        NULL !=
-            (void *)(uintptr_t)
-                icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
+        (VkSurfaceKHR)NULL !=
+            icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
         return icd_term->GetPhysicalDeviceSurfaceSupportKHR(
             phys_dev_term->phys_dev, queueFamilyIndex,
             icd_surface->real_icd_surfaces[phys_dev_term->icd_index],
@@ -265,7 +261,7 @@ vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
     const VkLayerInstanceDispatchTable *disp;
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetPhysicalDeviceSurfaceCapabilitiesKHR(
         unwrapped_phys_dev, surface, pSurfaceCapabilities);
     return res;
@@ -300,9 +296,8 @@ terminator_GetPhysicalDeviceSurfaceCapabilitiesKHR(
 
     VkIcdSurface *icd_surface = (VkIcdSurface *)(uintptr_t)surface;
     if (NULL != icd_surface->real_icd_surfaces &&
-        NULL !=
-            (void *)(uintptr_t)
-                icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
+        (VkSurfaceKHR)NULL !=
+            icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
         return icd_term->GetPhysicalDeviceSurfaceCapabilitiesKHR(
             phys_dev_term->phys_dev,
             icd_surface->real_icd_surfaces[phys_dev_term->icd_index],
@@ -322,7 +317,7 @@ vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetPhysicalDeviceSurfaceFormatsKHR(
         unwrapped_phys_dev, surface, pSurfaceFormatCount, pSurfaceFormats);
     return res;
@@ -357,9 +352,8 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_GetPhysicalDeviceSurfaceFormatsKHR(
 
     VkIcdSurface *icd_surface = (VkIcdSurface *)(uintptr_t)surface;
     if (NULL != icd_surface->real_icd_surfaces &&
-        NULL !=
-            (void *)(uintptr_t)
-                icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
+        (VkSurfaceKHR)NULL !=
+            icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
         return icd_term->GetPhysicalDeviceSurfaceFormatsKHR(
             phys_dev_term->phys_dev,
             icd_surface->real_icd_surfaces[phys_dev_term->icd_index],
@@ -379,7 +373,7 @@ vkGetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetPhysicalDeviceSurfacePresentModesKHR(
         unwrapped_phys_dev, surface, pPresentModeCount, pPresentModes);
     return res;
@@ -414,9 +408,8 @@ terminator_GetPhysicalDeviceSurfacePresentModesKHR(
 
     VkIcdSurface *icd_surface = (VkIcdSurface *)(uintptr_t)surface;
     if (NULL != icd_surface->real_icd_surfaces &&
-        NULL !=
-            (void *)(uintptr_t)
-                icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
+        (VkSurfaceKHR)NULL !=
+            icd_surface->real_icd_surfaces[phys_dev_term->icd_index]) {
         return icd_term->GetPhysicalDeviceSurfacePresentModesKHR(
             phys_dev_term->phys_dev,
             icd_surface->real_icd_surfaces[phys_dev_term->icd_index],
@@ -450,8 +443,8 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_vkCreateSwapchainKHR(
         VkIcdSurface *icd_surface =
             (VkIcdSurface *)(uintptr_t)pCreateInfo->surface;
         if (NULL != icd_surface->real_icd_surfaces) {
-            if (NULL !=
-                (void *)(uintptr_t)icd_surface->real_icd_surfaces[icd_index]) {
+            if ((VkSurfaceKHR)NULL !=
+                icd_surface->real_icd_surfaces[icd_index]) {
                 // We found the ICD, and there is an ICD KHR surface
                 // associated with it, so copy the CreateInfo struct
                 // and point it at the ICD's surface.
@@ -519,8 +512,7 @@ vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo) {
 
 static VkIcdSurface *AllocateIcdSurfaceStruct(struct loader_instance *instance,
                                               size_t base_size,
-                                              size_t platform_size,
-                                              bool create_icd_surfs) {
+                                              size_t platform_size) {
     // Next, if so, proceed with the implementation of this function:
     VkIcdSurface *pIcdSurface = loader_instance_heap_alloc(
         instance, sizeof(VkIcdSurface), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -533,19 +525,15 @@ static VkIcdSurface *AllocateIcdSurfaceStruct(struct loader_instance *instance,
             (uint8_t *)(&pIcdSurface->base_size) - (uint8_t *)pIcdSurface);
         pIcdSurface->entire_size = sizeof(VkIcdSurface);
 
-        if (create_icd_surfs) {
-            pIcdSurface->real_icd_surfaces = loader_instance_heap_alloc(
-                instance, sizeof(VkSurfaceKHR) * instance->total_icd_count,
-                VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-            if (pIcdSurface->real_icd_surfaces == NULL) {
-                loader_instance_heap_free(instance, pIcdSurface);
-                pIcdSurface = NULL;
-            } else {
-                memset(pIcdSurface->real_icd_surfaces, 0,
-                       sizeof(VkSurfaceKHR) * instance->total_icd_count);
-            }
+        pIcdSurface->real_icd_surfaces = loader_instance_heap_alloc(
+            instance, sizeof(VkSurfaceKHR) * instance->total_icd_count,
+            VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+        if (pIcdSurface->real_icd_surfaces == NULL) {
+            loader_instance_heap_free(instance, pIcdSurface);
+            pIcdSurface = NULL;
         } else {
-            pIcdSurface->real_icd_surfaces = NULL;
+            memset(pIcdSurface->real_icd_surfaces, 0,
+                   sizeof(VkSurfaceKHR) * instance->total_icd_count);
         }
     }
     return pIcdSurface;
@@ -560,7 +548,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateWin32SurfaceKHR(
     VkInstance instance, const VkWin32SurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res = disp->CreateWin32SurfaceKHR(instance, pCreateInfo, pAllocator,
@@ -591,7 +579,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateWin32SurfaceKHR(
     // Next, if so, proceed with the implementation of this function:
     pIcdSurface = AllocateIcdSurfaceStruct(ptr_instance,
                                            sizeof(pIcdSurface->win_surf.base),
-                                           sizeof(pIcdSurface->win_surf), true);
+                                           sizeof(pIcdSurface->win_surf));
     if (pIcdSurface == NULL) {
         vkRes = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
@@ -626,7 +614,7 @@ out:
             i = 0;
             for (struct loader_icd_term *icd_term = ptr_instance->icd_terms;
                  icd_term != NULL; icd_term = icd_term->next, i++) {
-                if (NULL != (void *)pIcdSurface->real_icd_surfaces[i] &&
+                if ((VkSurfaceKHR)NULL != pIcdSurface->real_icd_surfaces[i] &&
                     NULL != icd_term->DestroySurfaceKHR) {
                     icd_term->DestroySurfaceKHR(
                         icd_term->instance, pIcdSurface->real_icd_surfaces[i],
@@ -650,7 +638,7 @@ vkGetPhysicalDeviceWin32PresentationSupportKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkBool32 res = disp->GetPhysicalDeviceWin32PresentationSupportKHR(
         unwrapped_phys_dev, queueFamilyIndex);
     return res;
@@ -694,7 +682,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateMirSurfaceKHR(
     VkInstance instance, const VkMirSurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res =
@@ -723,7 +711,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateMirSurfaceKHR(
     // Next, if so, proceed with the implementation of this function:
     pIcdSurface = AllocateIcdSurfaceStruct(ptr_instance,
                                            sizeof(pIcdSurface->mir_surf.base),
-                                           sizeof(pIcdSurface->mir_surf), true);
+                                           sizeof(pIcdSurface->mir_surf));
     if (pIcdSurface == NULL) {
         vkRes = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
@@ -758,7 +746,7 @@ out:
             i = 0;
             for (struct loader_icd_term *icd_term = ptr_instance->icd_terms;
                  icd_term != NULL; icd_term = icd_term->next, i++) {
-                if (NULL != pIcdSurface->real_icd_surfaces[i] &&
+                if ((VkSurfaceKHR)NULL != pIcdSurface->real_icd_surfaces[i] &&
                     NULL != icd_term->DestroySurfaceKHR) {
                     icd_term->DestroySurfaceKHR(
                         icd_term->instance, pIcdSurface->real_icd_surfaces[i],
@@ -783,7 +771,7 @@ vkGetPhysicalDeviceMirPresentationSupportKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkBool32 res = disp->GetPhysicalDeviceMirPresentationSupportKHR(
         unwrapped_phys_dev, queueFamilyIndex, connection);
     return res;
@@ -830,7 +818,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateWaylandSurfaceKHR(
     VkInstance instance, const VkWaylandSurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res = disp->CreateWaylandSurfaceKHR(instance, pCreateInfo, pAllocator,
@@ -859,7 +847,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateWaylandSurfaceKHR(
     // Next, if so, proceed with the implementation of this function:
     pIcdSurface = AllocateIcdSurfaceStruct(
         ptr_instance, sizeof(pIcdSurface->wayland_surf.base),
-        sizeof(pIcdSurface->wayland_surf), true);
+        sizeof(pIcdSurface->wayland_surf));
     if (pIcdSurface == NULL) {
         vkRes = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
@@ -894,7 +882,7 @@ out:
             i = 0;
             for (struct loader_icd_term *icd_term = ptr_instance->icd_terms;
                  icd_term != NULL; icd_term = icd_term->next, i++) {
-                if (NULL != pIcdSurface->real_icd_surfaces[i] &&
+                if ((VkSurfaceKHR)NULL != pIcdSurface->real_icd_surfaces[i] &&
                     NULL != icd_term->DestroySurfaceKHR) {
                     icd_term->DestroySurfaceKHR(
                         icd_term->instance, pIcdSurface->real_icd_surfaces[i],
@@ -919,7 +907,7 @@ vkGetPhysicalDeviceWaylandPresentationSupportKHR(
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkBool32 res = disp->GetPhysicalDeviceWaylandPresentationSupportKHR(
         unwrapped_phys_dev, queueFamilyIndex, display);
     return res;
@@ -965,7 +953,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateXcbSurfaceKHR(
     VkInstance instance, const VkXcbSurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res =
@@ -994,7 +982,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateXcbSurfaceKHR(
     // Next, if so, proceed with the implementation of this function:
     pIcdSurface = AllocateIcdSurfaceStruct(ptr_instance,
                                            sizeof(pIcdSurface->xcb_surf.base),
-                                           sizeof(pIcdSurface->xcb_surf), true);
+                                           sizeof(pIcdSurface->xcb_surf));
     if (pIcdSurface == NULL) {
         vkRes = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
@@ -1020,7 +1008,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateXcbSurfaceKHR(
         }
     }
 
-    *pSurface = (VkSurfaceKHR)(uintptr_t)pIcdSurface;
+    *pSurface = (VkSurfaceKHR)pIcdSurface;
 
 out:
 
@@ -1029,8 +1017,7 @@ out:
             i = 0;
             for (struct loader_icd_term *icd_term = ptr_instance->icd_terms;
                  icd_term != NULL; icd_term = icd_term->next, i++) {
-                if (NULL !=
-                        (void *)(uintptr_t)pIcdSurface->real_icd_surfaces[i] &&
+                if ((VkSurfaceKHR)NULL != pIcdSurface->real_icd_surfaces[i] &&
                     NULL != icd_term->DestroySurfaceKHR) {
                     icd_term->DestroySurfaceKHR(
                         icd_term->instance, pIcdSurface->real_icd_surfaces[i],
@@ -1056,7 +1043,7 @@ vkGetPhysicalDeviceXcbPresentationSupportKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkBool32 res = disp->GetPhysicalDeviceXcbPresentationSupportKHR(
         unwrapped_phys_dev, queueFamilyIndex, connection, visual_id);
     return res;
@@ -1102,7 +1089,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateXlibSurfaceKHR(
     VkInstance instance, const VkXlibSurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res =
@@ -1131,7 +1118,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateXlibSurfaceKHR(
     // Next, if so, proceed with the implementation of this function:
     pIcdSurface = AllocateIcdSurfaceStruct(
         ptr_instance, sizeof(pIcdSurface->xlib_surf.base),
-        sizeof(pIcdSurface->xlib_surf), true);
+        sizeof(pIcdSurface->xlib_surf));
     if (pIcdSurface == NULL) {
         vkRes = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
@@ -1157,7 +1144,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateXlibSurfaceKHR(
         }
     }
 
-    *pSurface = (VkSurfaceKHR)(uintptr_t)pIcdSurface;
+    *pSurface = (VkSurfaceKHR)pIcdSurface;
 
 out:
 
@@ -1166,8 +1153,7 @@ out:
             i = 0;
             for (struct loader_icd_term *icd_term = ptr_instance->icd_terms;
                  icd_term != NULL; icd_term = icd_term->next, i++) {
-                if (NULL !=
-                        (void *)(uintptr_t)pIcdSurface->real_icd_surfaces[i] &&
+                if ((VkSurfaceKHR)NULL != pIcdSurface->real_icd_surfaces[i] &&
                     NULL != icd_term->DestroySurfaceKHR) {
                     icd_term->DestroySurfaceKHR(
                         icd_term->instance, pIcdSurface->real_icd_surfaces[i],
@@ -1192,7 +1178,7 @@ vkGetPhysicalDeviceXlibPresentationSupportKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkBool32 res = disp->GetPhysicalDeviceXlibPresentationSupportKHR(
         unwrapped_phys_dev, queueFamilyIndex, dpy, visualID);
     return res;
@@ -1238,7 +1224,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateAndroidSurfaceKHR(
     VkInstance instance, ANativeWindow *window,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res = disp->CreateAndroidSurfaceKHR(instance, window, pAllocator, pSurface);
@@ -1285,7 +1271,7 @@ vkGetPhysicalDeviceDisplayPropertiesKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetPhysicalDeviceDisplayPropertiesKHR(
         unwrapped_phys_dev, pPropertyCount, pProperties);
     return res;
@@ -1323,7 +1309,7 @@ vkGetPhysicalDeviceDisplayPlanePropertiesKHR(
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetPhysicalDeviceDisplayPlanePropertiesKHR(
         unwrapped_phys_dev, pPropertyCount, pProperties);
     return res;
@@ -1365,7 +1351,7 @@ vkGetDisplayPlaneSupportedDisplaysKHR(VkPhysicalDevice physicalDevice,
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetDisplayPlaneSupportedDisplaysKHR(
         unwrapped_phys_dev, planeIndex, pDisplayCount, pDisplays);
     return res;
@@ -1402,7 +1388,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkGetDisplayModePropertiesKHR(
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetDisplayModePropertiesKHR(
         unwrapped_phys_dev, display, pPropertyCount, pProperties);
     return res;
@@ -1440,7 +1426,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateDisplayModeKHR(
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->CreateDisplayModeKHR(unwrapped_phys_dev, display,
                                               pCreateInfo, pAllocator, pMode);
     return res;
@@ -1478,7 +1464,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkGetDisplayPlaneCapabilitiesKHR(
     VkPhysicalDevice unwrapped_phys_dev =
         loader_unwrap_physical_device(physicalDevice);
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
     VkResult res = disp->GetDisplayPlaneCapabilitiesKHR(
         unwrapped_phys_dev, mode, planeIndex, pCapabilities);
     return res;
@@ -1513,7 +1499,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateDisplayPlaneSurfaceKHR(
     VkInstance instance, const VkDisplaySurfaceCreateInfoKHR *pCreateInfo,
     const VkAllocationCallbacks *pAllocator, VkSurfaceKHR *pSurface) {
     const VkLayerInstanceDispatchTable *disp;
-    disp = loader_get_instance_dispatch(instance);
+    disp = loader_get_instance_layer_dispatch(instance);
     VkResult res;
 
     res = disp->CreateDisplayPlaneSurfaceKHR(instance, pCreateInfo, pAllocator,
@@ -1537,11 +1523,10 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateDisplayPlaneSurfaceKHR(
         goto out;
     }
 
-    // The VK_KHR_display path will continue to use the old path (hence the
-    // false as the last parameter).
+    // Next, if so, proceed with the implementation of this function:
     pIcdSurface =
         AllocateIcdSurfaceStruct(inst, sizeof(pIcdSurface->display_surf.base),
-                                 sizeof(pIcdSurface->display_surf), false);
+                                 sizeof(pIcdSurface->display_surf));
     if (pIcdSurface == NULL) {
         vkRes = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
@@ -1572,7 +1557,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateDisplayPlaneSurfaceKHR(
         }
     }
 
-    *pSurface = (VkSurfaceKHR)(uintptr_t)pIcdSurface;
+    *pSurface = (VkSurfaceKHR)pIcdSurface;
 
 out:
 
@@ -1581,8 +1566,7 @@ out:
             i = 0;
             for (struct loader_icd_term *icd_term = inst->icd_terms;
                  icd_term != NULL; icd_term = icd_term->next, i++) {
-                if (NULL !=
-                        (void *)(uintptr_t)pIcdSurface->real_icd_surfaces[i] &&
+                if ((VkSurfaceKHR)NULL != pIcdSurface->real_icd_surfaces[i] &&
                     NULL != icd_term->DestroySurfaceKHR) {
                     icd_term->DestroySurfaceKHR(
                         icd_term->instance, pIcdSurface->real_icd_surfaces[i],
@@ -1597,8 +1581,8 @@ out:
     return vkRes;
 }
 
-// This is the trampoline entrypoint
-// for CreateSharedSwapchainsKHR
+// EXT_display_swapchain Extension command
+
 LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateSharedSwapchainsKHR(
     VkDevice device, uint32_t swapchainCount,
     const VkSwapchainCreateInfoKHR *pCreateInfos,
@@ -1607,6 +1591,47 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateSharedSwapchainsKHR(
     disp = loader_get_dispatch(device);
     return disp->CreateSharedSwapchainsKHR(device, swapchainCount, pCreateInfos,
                                            pAllocator, pSwapchains);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL terminator_vkCreateSharedSwapchainsKHR(
+    VkDevice device, uint32_t swapchainCount,
+    const VkSwapchainCreateInfoKHR *pCreateInfos,
+    const VkAllocationCallbacks *pAllocator, VkSwapchainKHR *pSwapchains) {
+    uint32_t icd_index = 0;
+    struct loader_device *dev;
+    struct loader_icd_term *icd_term =
+        loader_get_icd_and_device(device, &dev, &icd_index);
+    if (NULL != icd_term && NULL != icd_term->CreateSharedSwapchainsKHR) {
+        VkIcdSurface *icd_surface =
+            (VkIcdSurface *)(uintptr_t)pCreateInfos->surface;
+        if (NULL != icd_surface->real_icd_surfaces) {
+            if ((VkSurfaceKHR)NULL !=
+                icd_surface->real_icd_surfaces[icd_index]) {
+                // We found the ICD, and there is an ICD KHR surface
+                // associated with it, so copy the CreateInfo struct
+                // and point it at the ICD's surface.
+                VkSwapchainCreateInfoKHR *pCreateCopy =
+                    loader_stack_alloc(sizeof(VkSwapchainCreateInfoKHR) *
+                        swapchainCount);
+                if (NULL == pCreateCopy) {
+                    return VK_ERROR_OUT_OF_HOST_MEMORY;
+                }
+                memcpy(pCreateCopy, pCreateInfos,
+                       sizeof(VkSwapchainCreateInfoKHR) * swapchainCount);
+                for (uint32_t sc = 0; sc < swapchainCount; sc++) {
+                    pCreateCopy[sc].surface =
+                        icd_surface->real_icd_surfaces[icd_index];
+                }
+                return icd_term->CreateSharedSwapchainsKHR(
+                    device, swapchainCount, pCreateCopy, pAllocator,
+                    pSwapchains);
+            }
+        }
+        return icd_term->CreateSharedSwapchainsKHR(device, swapchainCount,
+                                                   pCreateInfos, pAllocator,
+                                                   pSwapchains);
+    }
+    return VK_SUCCESS;
 }
 
 bool wsi_swapchain_instance_gpa(struct loader_instance *ptr_instance,

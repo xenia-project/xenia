@@ -10,9 +10,7 @@ project("xenia-kernel")
     "xenia-apu",
     "xenia-base",
     "xenia-cpu",
-    "xenia-gpu",
     "xenia-hid",
-    "xenia-ui",
     "xenia-vfs",
   })
   defines({

@@ -10,6 +10,7 @@
 #include "xenia/vfs/devices/stfs_container_file.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "xenia/vfs/devices/stfs_container_entry.h"
 

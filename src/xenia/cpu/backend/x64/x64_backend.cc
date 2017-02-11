@@ -9,6 +9,8 @@
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
+#include <stddef.h>
+
 #include "third_party/capstone/include/capstone.h"
 #include "third_party/capstone/include/x86.h"
 #include "xenia/base/exception_handler.h"
@@ -40,8 +42,7 @@ class X64ThunkEmitter : public X64Emitter {
   ResolveFunctionThunk EmitResolveFunctionThunk();
 };
 
-X64Backend::X64Backend(Processor* processor)
-    : Backend(processor), code_cache_(nullptr) {
+X64Backend::X64Backend() : Backend(), code_cache_(nullptr) {
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_) != CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
   }
@@ -59,8 +60,8 @@ X64Backend::~X64Backend() {
   ExceptionHandler::Uninstall(&ExceptionCallbackThunk, this);
 }
 
-bool X64Backend::Initialize() {
-  if (!Backend::Initialize()) {
+bool X64Backend::Initialize(Processor* processor) {
+  if (!Backend::Initialize(processor)) {
     return false;
   }
 
