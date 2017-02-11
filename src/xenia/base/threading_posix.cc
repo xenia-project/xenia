@@ -7,9 +7,10 @@
  ******************************************************************************
  */
 
+#include "xenia/base/threading.h"
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/threading.h"
 
 #include <pthread.h>
 #include <sys/syscall.h>

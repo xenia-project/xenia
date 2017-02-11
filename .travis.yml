@@ -53,7 +53,7 @@ script:
   - ./build/bin/Linux/Debug/xenia-base-tests
   # Build and run ppc tests
   - ./xenia-build build --config=debug --target=xenia-cpu-ppc-tests
-  - ./build/bin/Linux/Debug/xenia-cpu-ppc-tests
+  - if ! ./build/bin/Linux/Debug/xenia-cpu-ppc-tests; then cat xenia.log; fi
 
   # TODO(DrChat): Enable builds in the future.
   # Build all of xenia.
