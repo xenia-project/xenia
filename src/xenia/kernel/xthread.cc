@@ -101,14 +101,16 @@ XThread::~XThread() {
   }
 }
 
+thread_local XThread* current_xthread_tls_ = nullptr;
+
 bool XThread::IsInThread() { return Thread::IsInThread(); }
 
 bool XThread::IsInThread(XThread* other) {
-  return current_thread_tls_ == other;
+  return current_xthread_tls_ == other;
 }
 
 XThread* XThread::GetCurrentThread() {
-  XThread* thread = reinterpret_cast<XThread*>(current_thread_tls_);
+  XThread* thread = reinterpret_cast<XThread*>(current_xthread_tls_);
   if (!thread) {
     assert_always("Attempting to use kernel stuff from a non-kernel thread");
   }
@@ -370,17 +372,19 @@ X_STATUS XThread::Create() {
     xe::threading::set_current_thread_id(handle());
 
     // Set name immediately, if we have one.
-    thread_->set_name(name());
+    thread_->set_name(thread_name_);
 
     // Profiler needs to know about the thread.
-    xe::Profiler::ThreadEnter(name().c_str());
+    xe::Profiler::ThreadEnter(thread_name_.c_str());
 
     // Execute user code.
-    current_thread_tls_ = this;
+    current_xthread_tls_ = this;
+    current_thread_ = this;
     running_ = true;
     Execute();
     running_ = false;
-    current_thread_tls_ = nullptr;
+    current_thread_ = nullptr;
+    current_xthread_tls_ = nullptr;
 
     xe::Profiler::ThreadExit();
 
@@ -439,7 +443,8 @@ X_STATUS XThread::Exit(int exit_code) {
   emulator()->processor()->OnThreadExit(thread_id_);
 
   // NOTE: unless PlatformExit fails, expect it to never return!
-  current_thread_tls_ = nullptr;
+  current_xthread_tls_ = nullptr;
+  current_thread_ = nullptr;
   xe::Profiler::ThreadExit();
 
   running_ = false;
@@ -989,7 +994,8 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       Clock::SetGuestTickCount(state.tick_count_);
       Clock::SetGuestSystemTime(state.system_time_);
 
-      current_thread_tls_ = thread;
+      current_xthread_tls_ = thread;
+      current_thread_ = thread;
 
       // Acquire any mutants
       for (auto mutant : thread->pending_mutant_acquires_) {
@@ -1005,7 +1011,8 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       uint32_t pc = state.context.pc;
       thread->kernel_state_->processor()->ExecuteRaw(thread->thread_state_, pc);
 
-      current_thread_tls_ = nullptr;
+      current_thread_ = nullptr;
+      current_xthread_tls_ = nullptr;
 
       xe::Profiler::ThreadExit();
 

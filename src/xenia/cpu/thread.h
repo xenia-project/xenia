@@ -40,7 +40,7 @@ class Thread {
   const std::string& thread_name() const { return thread_name_; }
 
  protected:
-  static thread_local Thread* current_thread_tls_;
+  thread_local static Thread* current_thread_;
 
   ThreadState* thread_state_ = nullptr;
   std::unique_ptr<xe::threading::Thread> thread_ = nullptr;

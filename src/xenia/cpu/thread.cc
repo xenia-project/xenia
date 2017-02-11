@@ -13,14 +13,14 @@
 namespace xe {
 namespace cpu {
 
-thread_local Thread* Thread::current_thread_tls_ = nullptr;
+thread_local Thread* Thread::current_thread_ = nullptr;
 
 Thread::Thread() {}
 Thread::~Thread() {}
 
-bool Thread::IsInThread() { return current_thread_tls_ != nullptr; }
+bool Thread::IsInThread() { return current_thread_ != nullptr; }
 
-Thread* Thread::GetCurrentThread() { return current_thread_tls_; }
+Thread* Thread::GetCurrentThread() { return current_thread_; }
 uint32_t Thread::GetCurrentThreadId() {
   return Thread::GetCurrentThread()->thread_state()->thread_id();
 }
