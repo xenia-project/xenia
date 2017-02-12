@@ -82,6 +82,7 @@ class VulkanSwapChain {
   uint32_t surface_height_ = 0;
   VkFormat surface_format_ = VK_FORMAT_UNDEFINED;
   VkCommandPool cmd_pool_ = nullptr;
+  VkCommandBuffer cmd_buffer_ = nullptr;
   VkCommandBuffer copy_cmd_buffer_ = nullptr;
   VkCommandBuffer render_cmd_buffer_ = nullptr;
   VkRenderPass render_pass_ = nullptr;
