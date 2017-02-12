@@ -18,8 +18,9 @@
 #ifdef IGNORED_LLVM_XENIA
 #include "llvm/Support/SwapByteOrder.h"
 #endif  // IGNORED_LLVM_XENIA
-#include "llvm/Support/type_traits.h"
+#include <cmath>
 #include <cstring>
+#include "llvm/Support/type_traits.h"
 
 #ifdef _MSC_VER
 #include <intrin.h>

@@ -96,9 +96,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
                          bool is_signed);
 
   // Creates a call to the given GLSL intrinsic.
-  spv::Id SpirvShaderTranslator::CreateGlslStd450InstructionCall(
-      spv::Decoration precision, spv::Id result_type,
-      spv::GLSLstd450 instruction_ordinal, std::vector<spv::Id> args);
+  spv::Id CreateGlslStd450InstructionCall(spv::Decoration precision,
+                                          spv::Id result_type,
+                                          spv::GLSLstd450 instruction_ordinal,
+                                          std::vector<spv::Id> args);
 
   // Loads an operand into a value.
   // The value returned will be in the form described in the operand (number of

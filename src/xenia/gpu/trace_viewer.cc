@@ -404,7 +404,7 @@ int TraceViewer::RecursiveDrawCommandBufferUI(
         }
 
         ImGui::PushID(int(i));
-        if (ImGui::TreeNode((void*)0, "Indirect Buffer %d", i)) {
+        if (ImGui::TreeNode((void*)0, "Indirect Buffer %" PRIu64, i)) {
           ImGui::Indent();
           auto id = RecursiveDrawCommandBufferUI(
               frame, buffer->commands[i].command_subtree.get());
@@ -1563,7 +1563,7 @@ void TraceViewer::DrawStateUI() {
       vertices.resize(size / 4);
       QueryVSOutput(vertices.data(), size);
 
-      ImGui::Text("%d output vertices", vertices.size() / 4);
+      ImGui::Text("%" PRIu64 " output vertices", vertices.size() / 4);
       ImGui::SameLine();
       static bool normalize = false;
       ImGui::Checkbox("Normalize", &normalize);

@@ -10,6 +10,7 @@
 #include "xenia/gpu/texture_info.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "third_party/xxhash/xxhash.h"
