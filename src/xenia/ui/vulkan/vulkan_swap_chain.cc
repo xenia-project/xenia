@@ -415,22 +415,34 @@ bool VulkanSwapChain::Begin() {
   // Reset all command buffers.
   vkResetCommandBuffer(render_cmd_buffer_, 0);
   vkResetCommandBuffer(copy_cmd_buffer_, 0);
+  auto& current_buffer = buffers_[current_buffer_index_];
 
   // Build the command buffer that will execute all queued rendering buffers.
+  VkCommandBufferInheritanceInfo inherit_info;
+  inherit_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+  inherit_info.pNext = nullptr;
+  inherit_info.renderPass = render_pass_;
+  inherit_info.subpass = 0;
+  inherit_info.framebuffer = current_buffer.framebuffer;
+  inherit_info.occlusionQueryEnable = VK_FALSE;
+  inherit_info.queryFlags = 0;
+  inherit_info.pipelineStatistics = 0;
+
   VkCommandBufferBeginInfo begin_info;
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   begin_info.pNext = nullptr;
-  begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  begin_info.pInheritanceInfo = nullptr;
+  begin_info.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
+                     VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  begin_info.pInheritanceInfo = &inherit_info;
   err = vkBeginCommandBuffer(render_cmd_buffer_, &begin_info);
   CheckResult(err, "vkBeginCommandBuffer");
 
   // Start recording the copy command buffer as well.
+  begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   err = vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
   CheckResult(err, "vkBeginCommandBuffer");
 
   // Transition the image to a format we can copy to.
-  auto& current_buffer = buffers_[current_buffer_index_];
   VkImageMemoryBarrier pre_image_memory_barrier;
   pre_image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   pre_image_memory_barrier.pNext = nullptr;
@@ -563,6 +575,7 @@ bool VulkanSwapChain::End() {
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &post_image_memory_barrier);
 
+  vkEndCommandBuffer(cmd_buffer_);
   VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
   std::vector<VkSemaphore> semaphores;
