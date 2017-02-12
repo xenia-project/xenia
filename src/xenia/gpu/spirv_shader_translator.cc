@@ -241,8 +241,8 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_32_32:
             if (is_integer) {
               attrib_type = is_signed ? vec2_int_type_ : vec2_uint_type_;
+              break;
             }
-            break;
           case VertexFormat::k_16_16_FLOAT:
           case VertexFormat::k_32_32_FLOAT:
             attrib_type = vec2_float_type_;
@@ -258,8 +258,8 @@ void SpirvShaderTranslator::StartTranslation() {
           case VertexFormat::k_32_32_32_32:
             if (is_integer) {
               attrib_type = is_signed ? vec4_int_type_ : vec4_uint_type_;
+              break;
             }
-            break;
           case VertexFormat::k_16_16_16_16_FLOAT:
           case VertexFormat::k_32_32_32_32_FLOAT:
             attrib_type = vec4_float_type_;
