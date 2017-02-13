@@ -308,6 +308,9 @@ class DescriptorPool : public BaseFencedPool<DescriptorPool, VkDescriptorSet> {
     return Base::AcquireEntry(layout);
   }
 
+  // WARNING: Allocating sets from the vulkan pool will not be tracked!
+  VkDescriptorPool descriptor_pool() { return descriptor_pool_; }
+
  protected:
   friend class BaseFencedPool<DescriptorPool, VkDescriptorSet>;
   VkDescriptorSet AllocateEntry(void* data);
