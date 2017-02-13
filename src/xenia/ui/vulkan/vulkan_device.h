@@ -100,6 +100,9 @@ class VulkanDevice {
 
   std::vector<Requirement> required_layers_;
   std::vector<Requirement> required_extensions_;
+  std::vector<const char*> enabled_extensions_;
+
+  bool debug_marker_ena_ = false;
 
   DeviceInfo device_info_;
   uint32_t queue_family_index_ = 0;
