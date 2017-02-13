@@ -1,93 +1,87 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 53
+; Bound: 51
 ; Schema: 0
                OpCapability Shader
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Fragment %4 "main" %9 %11 %30
-               OpExecutionMode %4 OriginUpperLeft
+               OpEntryPoint Fragment %main "main" %out_color %vtx_color %vtx_uv
+               OpExecutionMode %main OriginUpperLeft
                OpSource GLSL 450
-               OpName %4 "main"
-               OpName %9 "out_color"
-               OpName %11 "vtx_color"
-               OpName %16 "PushConstants"
-               OpMemberName %16 0 "projection_matrix"
-               OpMemberName %16 1 "restrict_texture_samples"
-               OpName %18 "push_constants"
-               OpName %30 "vtx_uv"
-               OpName %42 "tex_color"
-               OpName %46 "texture_sampler"
-               OpDecorate %9 Location 0
-               OpDecorate %11 Location 1
-               OpMemberDecorate %16 0 ColMajor
-               OpMemberDecorate %16 0 Offset 0
-               OpMemberDecorate %16 0 MatrixStride 16
-               OpMemberDecorate %16 1 Offset 64
-               OpDecorate %16 Block
-               OpDecorate %30 Location 0
-               OpDecorate %46 DescriptorSet 0
-               OpDecorate %46 Binding 0
-          %2 = OpTypeVoid
-          %3 = OpTypeFunction %2
-          %6 = OpTypeFloat 32
-          %7 = OpTypeVector %6 4
-          %8 = OpTypePointer Output %7
-          %9 = OpVariable %8 Output
-         %10 = OpTypePointer Input %7
-         %11 = OpVariable %10 Input
-         %13 = OpTypeBool
-         %14 = OpTypeMatrix %7 4
-         %15 = OpTypeInt 32 1
-         %16 = OpTypeStruct %14 %15
-         %17 = OpTypePointer PushConstant %16
-         %18 = OpVariable %17 PushConstant
-         %19 = OpConstant %15 1
-         %20 = OpTypePointer PushConstant %15
-         %23 = OpConstant %15 0
-         %28 = OpTypeVector %6 2
-         %29 = OpTypePointer Input %28
-         %30 = OpVariable %29 Input
-         %31 = OpTypeInt 32 0
-         %32 = OpConstant %31 0
-         %33 = OpTypePointer Input %6
-         %36 = OpConstant %6 1
-         %41 = OpTypePointer Function %7
-         %43 = OpTypeImage %6 2D 0 0 0 1 Unknown
-         %44 = OpTypeSampledImage %43
-         %45 = OpTypePointer UniformConstant %44
-         %46 = OpVariable %45 UniformConstant
-          %4 = OpFunction %2 None %3
+               OpName %main "main"
+               OpName %out_color "out_color"
+               OpName %vtx_color "vtx_color"
+               OpName %PushConstants "PushConstants"
+               OpMemberName %PushConstants 0 "restrict_texture_samples"
+               OpName %push_constants "push_constants"
+               OpName %vtx_uv "vtx_uv"
+               OpName %tex_color "tex_color"
+               OpName %texture_sampler "texture_sampler"
+               OpDecorate %out_color Location 0
+               OpDecorate %vtx_color Location 1
+               OpMemberDecorate %PushConstants 0 Offset 64
+               OpDecorate %PushConstants Block
+               OpDecorate %vtx_uv Location 0
+               OpDecorate %texture_sampler DescriptorSet 0
+               OpDecorate %texture_sampler Binding 0
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v4float = OpTypeVector %float 4
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+  %out_color = OpVariable %_ptr_Output_v4float Output
+%_ptr_Input_v4float = OpTypePointer Input %v4float
+  %vtx_color = OpVariable %_ptr_Input_v4float Input
+       %bool = OpTypeBool
+        %int = OpTypeInt 32 1
+%PushConstants = OpTypeStruct %int
+%_ptr_PushConstant_PushConstants = OpTypePointer PushConstant %PushConstants
+%push_constants = OpVariable %_ptr_PushConstant_PushConstants PushConstant
+      %int_0 = OpConstant %int 0
+%_ptr_PushConstant_int = OpTypePointer PushConstant %int
+    %v2float = OpTypeVector %float 2
+%_ptr_Input_v2float = OpTypePointer Input %v2float
+     %vtx_uv = OpVariable %_ptr_Input_v2float Input
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+%_ptr_Input_float = OpTypePointer Input %float
+    %float_1 = OpConstant %float 1
+%_ptr_Function_v4float = OpTypePointer Function %v4float
+         %41 = OpTypeImage %float 2D 0 0 0 1 Unknown
+         %42 = OpTypeSampledImage %41
+%_ptr_UniformConstant_42 = OpTypePointer UniformConstant %42
+%texture_sampler = OpVariable %_ptr_UniformConstant_42 UniformConstant
+       %main = OpFunction %void None %3
           %5 = OpLabel
-         %42 = OpVariable %41 Function
-         %12 = OpLoad %7 %11
-               OpStore %9 %12
-         %21 = OpAccessChain %20 %18 %19
-         %22 = OpLoad %15 %21
-         %24 = OpIEqual %13 %22 %23
-         %25 = OpLogicalNot %13 %24
-               OpSelectionMerge %27 None
-               OpBranchConditional %25 %26 %27
-         %26 = OpLabel
-         %34 = OpAccessChain %33 %30 %32
-         %35 = OpLoad %6 %34
-         %37 = OpFOrdLessThanEqual %13 %35 %36
-               OpBranch %27
-         %27 = OpLabel
-         %38 = OpPhi %13 %24 %5 %37 %26
-               OpSelectionMerge %40 None
-               OpBranchConditional %38 %39 %40
-         %39 = OpLabel
-         %47 = OpLoad %44 %46
-         %48 = OpLoad %28 %30
-         %49 = OpImageSampleImplicitLod %7 %47 %48
-               OpStore %42 %49
-         %50 = OpLoad %7 %42
-         %51 = OpLoad %7 %9
-         %52 = OpFMul %7 %51 %50
-               OpStore %9 %52
-               OpBranch %40
-         %40 = OpLabel
+  %tex_color = OpVariable %_ptr_Function_v4float Function
+         %12 = OpLoad %v4float %vtx_color
+               OpStore %out_color %12
+         %20 = OpAccessChain %_ptr_PushConstant_int %push_constants %int_0
+         %21 = OpLoad %int %20
+         %22 = OpIEqual %bool %21 %int_0
+         %23 = OpLogicalNot %bool %22
+               OpSelectionMerge %25 None
+               OpBranchConditional %23 %24 %25
+         %24 = OpLabel
+         %32 = OpAccessChain %_ptr_Input_float %vtx_uv %uint_0
+         %33 = OpLoad %float %32
+         %35 = OpFOrdLessThanEqual %bool %33 %float_1
+               OpBranch %25
+         %25 = OpLabel
+         %36 = OpPhi %bool %22 %5 %35 %24
+               OpSelectionMerge %38 None
+               OpBranchConditional %36 %37 %38
+         %37 = OpLabel
+         %45 = OpLoad %42 %texture_sampler
+         %46 = OpLoad %v2float %vtx_uv
+         %47 = OpImageSampleImplicitLod %v4float %45 %46
+               OpStore %tex_color %47
+         %48 = OpLoad %v4float %tex_color
+         %49 = OpLoad %v4float %out_color
+         %50 = OpFMul %v4float %49 %48
+               OpStore %out_color %50
+               OpBranch %38
+         %38 = OpLabel
                OpReturn
                OpFunctionEnd

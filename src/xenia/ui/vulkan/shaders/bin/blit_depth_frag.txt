@@ -6,43 +6,43 @@
                OpCapability Shader
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Fragment %4 "main" %8 %16 %24
-               OpExecutionMode %4 OriginUpperLeft
-               OpExecutionMode %4 DepthReplacing
+               OpEntryPoint Fragment %main "main" %gl_FragDepth %vtx_uv %oC
+               OpExecutionMode %main OriginUpperLeft
+               OpExecutionMode %main DepthReplacing
                OpSource GLSL 450
-               OpName %4 "main"
-               OpName %8 "gl_FragDepth"
-               OpName %12 "src_texture"
-               OpName %16 "vtx_uv"
-               OpName %24 "oC"
-               OpDecorate %8 BuiltIn FragDepth
-               OpDecorate %12 DescriptorSet 0
-               OpDecorate %12 Binding 0
-               OpDecorate %16 Location 0
-               OpDecorate %24 Location 0
-          %2 = OpTypeVoid
-          %3 = OpTypeFunction %2
-          %6 = OpTypeFloat 32
-          %7 = OpTypePointer Output %6
-          %8 = OpVariable %7 Output
-          %9 = OpTypeImage %6 2D 0 0 0 1 Unknown
+               OpName %main "main"
+               OpName %gl_FragDepth "gl_FragDepth"
+               OpName %src_texture "src_texture"
+               OpName %vtx_uv "vtx_uv"
+               OpName %oC "oC"
+               OpDecorate %gl_FragDepth BuiltIn FragDepth
+               OpDecorate %src_texture DescriptorSet 0
+               OpDecorate %src_texture Binding 0
+               OpDecorate %vtx_uv Location 0
+               OpDecorate %oC Location 0
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+%_ptr_Output_float = OpTypePointer Output %float
+%gl_FragDepth = OpVariable %_ptr_Output_float Output
+          %9 = OpTypeImage %float 2D 0 0 0 1 Unknown
          %10 = OpTypeSampledImage %9
-         %11 = OpTypePointer UniformConstant %10
-         %12 = OpVariable %11 UniformConstant
-         %14 = OpTypeVector %6 2
-         %15 = OpTypePointer Input %14
-         %16 = OpVariable %15 Input
-         %18 = OpTypeVector %6 4
-         %20 = OpTypeInt 32 0
-         %21 = OpConstant %20 0
-         %23 = OpTypePointer Output %18
-         %24 = OpVariable %23 Output
-          %4 = OpFunction %2 None %3
+%_ptr_UniformConstant_10 = OpTypePointer UniformConstant %10
+%src_texture = OpVariable %_ptr_UniformConstant_10 UniformConstant
+    %v2float = OpTypeVector %float 2
+%_ptr_Input_v2float = OpTypePointer Input %v2float
+     %vtx_uv = OpVariable %_ptr_Input_v2float Input
+    %v4float = OpTypeVector %float 4
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+         %oC = OpVariable %_ptr_Output_v4float Output
+       %main = OpFunction %void None %3
           %5 = OpLabel
-         %13 = OpLoad %10 %12
-         %17 = OpLoad %14 %16
-         %19 = OpImageSampleImplicitLod %18 %13 %17
-         %22 = OpCompositeExtract %6 %19 0
-               OpStore %8 %22
+         %13 = OpLoad %10 %src_texture
+         %17 = OpLoad %v2float %vtx_uv
+         %19 = OpImageSampleImplicitLod %v4float %13 %17
+         %22 = OpCompositeExtract %float %19 0
+               OpStore %gl_FragDepth %22
                OpReturn
                OpFunctionEnd

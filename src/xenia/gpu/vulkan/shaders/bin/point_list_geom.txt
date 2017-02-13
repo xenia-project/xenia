@@ -58,97 +58,97 @@
 %_ptr_Function_v4float = OpTypePointer Function %v4float
 %gl_PerVertex = OpTypeStruct %v4float
        %uint = OpTypeInt 32 0
-         %12 = OpConstant %uint 1
-%_arr_gl_PerVertex_12 = OpTypeArray %gl_PerVertex %12
-%_ptr_Input__arr_gl_PerVertex_12 = OpTypePointer Input %_arr_gl_PerVertex_12
-      %gl_in = OpVariable %_ptr_Input__arr_gl_PerVertex_12 Input
+     %uint_1 = OpConstant %uint 1
+%_arr_gl_PerVertex_uint_1 = OpTypeArray %gl_PerVertex %uint_1
+%_ptr_Input__arr_gl_PerVertex_uint_1 = OpTypePointer Input %_arr_gl_PerVertex_uint_1
+      %gl_in = OpVariable %_ptr_Input__arr_gl_PerVertex_uint_1 Input
         %int = OpTypeInt 32 1
-         %17 = OpConstant %int 0
+      %int_0 = OpConstant %int 0
 %_ptr_Input_v4float = OpTypePointer Input %v4float
     %v2float = OpTypeVector %float 2
 %_ptr_Function_v2float = OpTypePointer Function %v2float
 %push_consts_type = OpTypeStruct %v4float %v4float %v4float %v4float %uint
 %_ptr_PushConstant_push_consts_type = OpTypePointer PushConstant %push_consts_type
 %push_constants = OpVariable %_ptr_PushConstant_push_consts_type PushConstant
-         %27 = OpConstant %int 2
+      %int_2 = OpConstant %int 2
 %_ptr_PushConstant_v4float = OpTypePointer PushConstant %v4float
-%_arr_float_12 = OpTypeArray %float %12
-%_ptr_Input__arr_float_12 = OpTypePointer Input %_arr_float_12
- %point_size = OpVariable %_ptr_Input__arr_float_12 Input
+%_arr_float_uint_1 = OpTypeArray %float %uint_1
+%_ptr_Input__arr_float_uint_1 = OpTypePointer Input %_arr_float_uint_1
+ %point_size = OpVariable %_ptr_Input__arr_float_uint_1 Input
 %_ptr_Input_float = OpTypePointer Input %float
-         %38 = OpConstant %float 0
+    %float_0 = OpConstant %float 0
        %bool = OpTypeBool
 %_ptr_Function_int = OpTypePointer Function %int
-         %59 = OpConstant %int 4
+      %int_4 = OpConstant %int 4
 %gl_PerVertex_0 = OpTypeStruct %v4float
 %_ptr_Output_gl_PerVertex_0 = OpTypePointer Output %gl_PerVertex_0
           %_ = OpVariable %_ptr_Output_gl_PerVertex_0 Output
-         %66 = OpConstant %uint 4
-%_arr_v2float_66 = OpTypeArray %v2float %66
-         %68 = OpConstant %float -1
-         %69 = OpConstant %float 1
-         %70 = OpConstantComposite %v2float %68 %69
-         %71 = OpConstantComposite %v2float %69 %69
-         %72 = OpConstantComposite %v2float %68 %68
-         %73 = OpConstantComposite %v2float %69 %68
-         %74 = OpConstantComposite %_arr_v2float_66 %70 %71 %72 %73
-%_ptr_Function__arr_v2float_66 = OpTypePointer Function %_arr_v2float_66
+     %uint_4 = OpConstant %uint 4
+%_arr_v2float_uint_4 = OpTypeArray %v2float %uint_4
+   %float_n1 = OpConstant %float -1
+    %float_1 = OpConstant %float 1
+         %70 = OpConstantComposite %v2float %float_n1 %float_1
+         %71 = OpConstantComposite %v2float %float_1 %float_1
+         %72 = OpConstantComposite %v2float %float_n1 %float_n1
+         %73 = OpConstantComposite %v2float %float_1 %float_n1
+         %74 = OpConstantComposite %_arr_v2float_uint_4 %70 %71 %72 %73
+%_ptr_Function__arr_v2float_uint_4 = OpTypePointer Function %_arr_v2float_uint_4
 %_ptr_Output_v4float = OpTypePointer Output %v4float
-         %92 = OpConstant %uint 16
-%_arr_v4float_92 = OpTypeArray %v4float %92
-%_ptr_Output__arr_v4float_92 = OpTypePointer Output %_arr_v4float_92
-%out_interpolators = OpVariable %_ptr_Output__arr_v4float_92 Output
-%_arr__arr_v4float_92_12 = OpTypeArray %_arr_v4float_92 %12
-%_ptr_Input__arr__arr_v4float_92_12 = OpTypePointer Input %_arr__arr_v4float_92_12
-%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_92_12 Input
-%_ptr_Input__arr_v4float_92 = OpTypePointer Input %_arr_v4float_92
+    %uint_16 = OpConstant %uint 16
+%_arr_v4float_uint_16 = OpTypeArray %v4float %uint_16
+%_ptr_Output__arr_v4float_uint_16 = OpTypePointer Output %_arr_v4float_uint_16
+%out_interpolators = OpVariable %_ptr_Output__arr_v4float_uint_16 Output
+%_arr__arr_v4float_uint_16_uint_1 = OpTypeArray %_arr_v4float_uint_16 %uint_1
+%_ptr_Input__arr__arr_v4float_uint_16_uint_1 = OpTypePointer Input %_arr__arr_v4float_uint_16_uint_1
+%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_uint_16_uint_1 Input
+%_ptr_Input__arr_v4float_uint_16 = OpTypePointer Input %_arr_v4float_uint_16
 %_ptr_Output_v2float = OpTypePointer Output %v2float
 %point_coord = OpVariable %_ptr_Output_v2float Output
-        %108 = OpConstantComposite %v2float %38 %38
-        %111 = OpConstant %int 1
-%_arr_v2float_12 = OpTypeArray %v2float %12
-%_ptr_Input__arr_v2float_12 = OpTypePointer Input %_arr_v2float_12
-%in_point_coord_unused = OpVariable %_ptr_Input__arr_v2float_12 Input
+        %108 = OpConstantComposite %v2float %float_0 %float_0
+      %int_1 = OpConstant %int 1
+%_arr_v2float_uint_1 = OpTypeArray %v2float %uint_1
+%_ptr_Input__arr_v2float_uint_1 = OpTypePointer Input %_arr_v2float_uint_1
+%in_point_coord_unused = OpVariable %_ptr_Input__arr_v2float_uint_1 Input
        %main = OpFunction %void None %3
           %5 = OpLabel
         %pos = OpVariable %_ptr_Function_v4float Function
 %window_scaled_psize = OpVariable %_ptr_Function_v2float Function
           %i = OpVariable %_ptr_Function_int Function
-  %indexable = OpVariable %_ptr_Function__arr_v2float_66 Function
-%indexable_0 = OpVariable %_ptr_Function__arr_v2float_66 Function
-         %19 = OpAccessChain %_ptr_Input_v4float %gl_in %17 %17
+  %indexable = OpVariable %_ptr_Function__arr_v2float_uint_4 Function
+%indexable_0 = OpVariable %_ptr_Function__arr_v2float_uint_4 Function
+         %19 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
          %20 = OpLoad %v4float %19
                OpStore %pos %20
-         %29 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %27
+         %29 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %int_2
          %30 = OpLoad %v4float %29
          %31 = OpVectorShuffle %v2float %30 %30 0 1
                OpStore %window_scaled_psize %31
-         %36 = OpAccessChain %_ptr_Input_float %point_size %17
+         %36 = OpAccessChain %_ptr_Input_float %point_size %int_0
          %37 = OpLoad %float %36
-         %40 = OpFOrdGreaterThan %bool %37 %38
+         %40 = OpFOrdGreaterThan %bool %37 %float_0
                OpSelectionMerge %42 None
                OpBranchConditional %40 %41 %42
          %41 = OpLabel
-         %43 = OpAccessChain %_ptr_Input_float %point_size %17
+         %43 = OpAccessChain %_ptr_Input_float %point_size %int_0
          %44 = OpLoad %float %43
          %45 = OpCompositeConstruct %v2float %44 %44
                OpStore %window_scaled_psize %45
                OpBranch %42
          %42 = OpLabel
-         %46 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %17
+         %46 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %int_0
          %47 = OpLoad %v4float %46
          %48 = OpVectorShuffle %v2float %47 %47 2 3
          %49 = OpLoad %v2float %window_scaled_psize
          %50 = OpFDiv %v2float %49 %48
                OpStore %window_scaled_psize %50
-               OpStore %i %17
+               OpStore %i %int_0
                OpBranch %53
          %53 = OpLabel
                OpLoopMerge %55 %56 None
                OpBranch %57
          %57 = OpLabel
          %58 = OpLoad %int %i
-         %60 = OpSLessThan %bool %58 %59
+         %60 = OpSLessThan %bool %58 %int_4
                OpBranchConditional %60 %54 %55
          %54 = OpLabel
          %64 = OpLoad %v4float %pos
@@ -167,10 +167,10 @@
          %87 = OpCompositeExtract %float %84 0
          %88 = OpCompositeExtract %float %84 1
          %89 = OpCompositeConstruct %v4float %85 %86 %87 %88
-         %91 = OpAccessChain %_ptr_Output_v4float %_ %17
+         %91 = OpAccessChain %_ptr_Output_v4float %_ %int_0
                OpStore %91 %89
-        %100 = OpAccessChain %_ptr_Input__arr_v4float_92 %in_interpolators %17
-        %101 = OpLoad %_arr_v4float_92 %100
+        %100 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_0
+        %101 = OpLoad %_arr_v4float_uint_16 %100
                OpStore %out_interpolators %101
         %104 = OpLoad %int %i
                OpStore %indexable_0 %74
@@ -182,7 +182,7 @@
                OpBranch %56
          %56 = OpLabel
         %110 = OpLoad %int %i
-        %112 = OpIAdd %int %110 %111
+        %112 = OpIAdd %int %110 %int_1
                OpStore %i %112
                OpBranch %53
          %55 = OpLabel

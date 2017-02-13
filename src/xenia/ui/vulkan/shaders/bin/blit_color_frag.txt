@@ -6,59 +6,59 @@
                OpCapability Shader
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Fragment %4 "main" %9 %17
-               OpExecutionMode %4 OriginUpperLeft
+               OpEntryPoint Fragment %main "main" %oC %vtx_uv
+               OpExecutionMode %main OriginUpperLeft
                OpSource GLSL 450
-               OpName %4 "main"
-               OpName %9 "oC"
-               OpName %13 "src_texture"
-               OpName %17 "vtx_uv"
-               OpName %21 "PushConstants"
-               OpMemberName %21 0 "swap"
-               OpName %23 "push_constants"
-               OpDecorate %9 Location 0
-               OpDecorate %13 DescriptorSet 0
-               OpDecorate %13 Binding 0
-               OpDecorate %17 Location 0
-               OpMemberDecorate %21 0 Offset 0
-               OpDecorate %21 Block
-          %2 = OpTypeVoid
-          %3 = OpTypeFunction %2
-          %6 = OpTypeFloat 32
-          %7 = OpTypeVector %6 4
-          %8 = OpTypePointer Output %7
-          %9 = OpVariable %8 Output
-         %10 = OpTypeImage %6 2D 0 0 0 1 Unknown
+               OpName %main "main"
+               OpName %oC "oC"
+               OpName %src_texture "src_texture"
+               OpName %vtx_uv "vtx_uv"
+               OpName %PushConstants "PushConstants"
+               OpMemberName %PushConstants 0 "swap"
+               OpName %push_constants "push_constants"
+               OpDecorate %oC Location 0
+               OpDecorate %src_texture DescriptorSet 0
+               OpDecorate %src_texture Binding 0
+               OpDecorate %vtx_uv Location 0
+               OpMemberDecorate %PushConstants 0 Offset 0
+               OpDecorate %PushConstants Block
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v4float = OpTypeVector %float 4
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+         %oC = OpVariable %_ptr_Output_v4float Output
+         %10 = OpTypeImage %float 2D 0 0 0 1 Unknown
          %11 = OpTypeSampledImage %10
-         %12 = OpTypePointer UniformConstant %11
-         %13 = OpVariable %12 UniformConstant
-         %15 = OpTypeVector %6 2
-         %16 = OpTypePointer Input %15
-         %17 = OpVariable %16 Input
-         %20 = OpTypeInt 32 0
-         %21 = OpTypeStruct %20
-         %22 = OpTypePointer PushConstant %21
-         %23 = OpVariable %22 PushConstant
-         %24 = OpTypeInt 32 1
-         %25 = OpConstant %24 0
-         %26 = OpTypePointer PushConstant %20
-         %29 = OpTypeBool
-         %30 = OpConstant %20 0
-          %4 = OpFunction %2 None %3
+%_ptr_UniformConstant_11 = OpTypePointer UniformConstant %11
+%src_texture = OpVariable %_ptr_UniformConstant_11 UniformConstant
+    %v2float = OpTypeVector %float 2
+%_ptr_Input_v2float = OpTypePointer Input %v2float
+     %vtx_uv = OpVariable %_ptr_Input_v2float Input
+       %uint = OpTypeInt 32 0
+%PushConstants = OpTypeStruct %uint
+%_ptr_PushConstant_PushConstants = OpTypePointer PushConstant %PushConstants
+%push_constants = OpVariable %_ptr_PushConstant_PushConstants PushConstant
+        %int = OpTypeInt 32 1
+      %int_0 = OpConstant %int 0
+%_ptr_PushConstant_uint = OpTypePointer PushConstant %uint
+       %bool = OpTypeBool
+     %uint_0 = OpConstant %uint 0
+       %main = OpFunction %void None %3
           %5 = OpLabel
-         %14 = OpLoad %11 %13
-         %18 = OpLoad %15 %17
-         %19 = OpImageSampleImplicitLod %7 %14 %18
-               OpStore %9 %19
-         %27 = OpAccessChain %26 %23 %25
-         %28 = OpLoad %20 %27
-         %31 = OpINotEqual %29 %28 %30
+         %14 = OpLoad %11 %src_texture
+         %18 = OpLoad %v2float %vtx_uv
+         %19 = OpImageSampleImplicitLod %v4float %14 %18
+               OpStore %oC %19
+         %27 = OpAccessChain %_ptr_PushConstant_uint %push_constants %int_0
+         %28 = OpLoad %uint %27
+         %31 = OpINotEqual %bool %28 %uint_0
                OpSelectionMerge %33 None
                OpBranchConditional %31 %32 %33
          %32 = OpLabel
-         %34 = OpLoad %7 %9
-         %35 = OpVectorShuffle %7 %34 %34 2 1 0 3
-               OpStore %9 %35
+         %34 = OpLoad %v4float %oC
+         %35 = OpVectorShuffle %v4float %34 %34 2 1 0 3
+               OpStore %oC %35
                OpBranch %33
          %33 = OpLabel
                OpReturn

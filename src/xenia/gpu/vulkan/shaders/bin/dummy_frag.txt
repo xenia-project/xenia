@@ -29,9 +29,9 @@
                OpName %textures4D "textures4D"
                OpName %in_interpolators "in_interpolators"
                OpName %oC "oC"
-               OpDecorate %_arr_v4float_10 ArrayStride 16
-               OpDecorate %_arr_uint_12 ArrayStride 16
-               OpDecorate %_arr_uint_14 ArrayStride 16
+               OpDecorate %_arr_v4float_uint_512 ArrayStride 16
+               OpDecorate %_arr_uint_uint_32 ArrayStride 16
+               OpDecorate %_arr_uint_uint_8 ArrayStride 16
                OpMemberDecorate %consts_type 0 Offset 0
                OpMemberDecorate %consts_type 1 Offset 8192
                OpMemberDecorate %consts_type 2 Offset 8704
@@ -59,13 +59,13 @@
       %float = OpTypeFloat 32
     %v4float = OpTypeVector %float 4
        %uint = OpTypeInt 32 0
-         %10 = OpConstant %uint 512
-%_arr_v4float_10 = OpTypeArray %v4float %10
-         %12 = OpConstant %uint 32
-%_arr_uint_12 = OpTypeArray %uint %12
-         %14 = OpConstant %uint 8
-%_arr_uint_14 = OpTypeArray %uint %14
-%consts_type = OpTypeStruct %_arr_v4float_10 %_arr_uint_12 %_arr_uint_14
+   %uint_512 = OpConstant %uint 512
+%_arr_v4float_uint_512 = OpTypeArray %v4float %uint_512
+    %uint_32 = OpConstant %uint 32
+%_arr_uint_uint_32 = OpTypeArray %uint %uint_32
+     %uint_8 = OpConstant %uint 8
+%_arr_uint_uint_8 = OpTypeArray %uint %uint_8
+%consts_type = OpTypeStruct %_arr_v4float_uint_512 %_arr_uint_uint_32 %_arr_uint_uint_8
 %_ptr_Uniform_consts_type = OpTypePointer Uniform %consts_type
      %consts = OpVariable %_ptr_Uniform_consts_type Uniform
 %push_consts_type = OpTypeStruct %v4float %v4float %v4float %v4float %uint
@@ -73,34 +73,34 @@
 %push_constants = OpVariable %_ptr_PushConstant_push_consts_type PushConstant
          %22 = OpTypeImage %float 1D 0 0 0 1 Unknown
          %23 = OpTypeSampledImage %22
- %_arr_23_12 = OpTypeArray %23 %12
-%_ptr_UniformConstant__arr_23_12 = OpTypePointer UniformConstant %_arr_23_12
- %textures1D = OpVariable %_ptr_UniformConstant__arr_23_12 UniformConstant
+%_arr_23_uint_32 = OpTypeArray %23 %uint_32
+%_ptr_UniformConstant__arr_23_uint_32 = OpTypePointer UniformConstant %_arr_23_uint_32
+ %textures1D = OpVariable %_ptr_UniformConstant__arr_23_uint_32 UniformConstant
          %27 = OpTypeImage %float 2D 0 0 0 1 Unknown
          %28 = OpTypeSampledImage %27
- %_arr_28_12 = OpTypeArray %28 %12
-%_ptr_UniformConstant__arr_28_12 = OpTypePointer UniformConstant %_arr_28_12
- %textures2D = OpVariable %_ptr_UniformConstant__arr_28_12 UniformConstant
+%_arr_28_uint_32 = OpTypeArray %28 %uint_32
+%_ptr_UniformConstant__arr_28_uint_32 = OpTypePointer UniformConstant %_arr_28_uint_32
+ %textures2D = OpVariable %_ptr_UniformConstant__arr_28_uint_32 UniformConstant
          %32 = OpTypeImage %float 3D 0 0 0 1 Unknown
          %33 = OpTypeSampledImage %32
- %_arr_33_12 = OpTypeArray %33 %12
-%_ptr_UniformConstant__arr_33_12 = OpTypePointer UniformConstant %_arr_33_12
- %textures3D = OpVariable %_ptr_UniformConstant__arr_33_12 UniformConstant
+%_arr_33_uint_32 = OpTypeArray %33 %uint_32
+%_ptr_UniformConstant__arr_33_uint_32 = OpTypePointer UniformConstant %_arr_33_uint_32
+ %textures3D = OpVariable %_ptr_UniformConstant__arr_33_uint_32 UniformConstant
          %37 = OpTypeImage %float Cube 0 0 0 1 Unknown
          %38 = OpTypeSampledImage %37
- %_arr_38_12 = OpTypeArray %38 %12
-%_ptr_UniformConstant__arr_38_12 = OpTypePointer UniformConstant %_arr_38_12
- %textures4D = OpVariable %_ptr_UniformConstant__arr_38_12 UniformConstant
-         %42 = OpConstant %uint 16
-%_arr_v4float_42 = OpTypeArray %v4float %42
-         %44 = OpConstant %uint 1
-%_arr__arr_v4float_42_44 = OpTypeArray %_arr_v4float_42 %44
-%_ptr_Input__arr__arr_v4float_42_44 = OpTypePointer Input %_arr__arr_v4float_42_44
-%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_42_44 Input
-         %48 = OpConstant %uint 4
-%_arr_v4float_48 = OpTypeArray %v4float %48
-%_ptr_Output__arr_v4float_48 = OpTypePointer Output %_arr_v4float_48
-         %oC = OpVariable %_ptr_Output__arr_v4float_48 Output
+%_arr_38_uint_32 = OpTypeArray %38 %uint_32
+%_ptr_UniformConstant__arr_38_uint_32 = OpTypePointer UniformConstant %_arr_38_uint_32
+ %textures4D = OpVariable %_ptr_UniformConstant__arr_38_uint_32 UniformConstant
+    %uint_16 = OpConstant %uint 16
+%_arr_v4float_uint_16 = OpTypeArray %v4float %uint_16
+     %uint_1 = OpConstant %uint 1
+%_arr__arr_v4float_uint_16_uint_1 = OpTypeArray %_arr_v4float_uint_16 %uint_1
+%_ptr_Input__arr__arr_v4float_uint_16_uint_1 = OpTypePointer Input %_arr__arr_v4float_uint_16_uint_1
+%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_uint_16_uint_1 Input
+     %uint_4 = OpConstant %uint 4
+%_arr_v4float_uint_4 = OpTypeArray %v4float %uint_4
+%_ptr_Output__arr_v4float_uint_4 = OpTypePointer Output %_arr_v4float_uint_4
+         %oC = OpVariable %_ptr_Output__arr_v4float_uint_4 Output
        %main = OpFunction %void None %3
           %5 = OpLabel
                OpReturn

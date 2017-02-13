@@ -5,8 +5,7 @@
 precision highp float;
 
 layout(push_constant) uniform PushConstants {
-  mat4 projection_matrix;
-  int restrict_texture_samples;
+  layout(offset = 0) mat4 projection_matrix;
 } push_constants;
 
 layout(location = 0) in vec2 in_pos;

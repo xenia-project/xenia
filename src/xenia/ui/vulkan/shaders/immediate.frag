@@ -5,8 +5,7 @@
 precision highp float;
 
 layout(push_constant) uniform PushConstants {
-  mat4 projection_matrix;
-  int restrict_texture_samples;
+  layout(offset = 64) int restrict_texture_samples;
 } push_constants;
 
 layout(set = 0, binding = 0) uniform sampler2D texture_sampler;
