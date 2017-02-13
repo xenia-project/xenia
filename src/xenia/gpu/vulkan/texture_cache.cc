@@ -140,16 +140,14 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
 
   // Create the descriptor set layout used for rendering.
   // We always have the same number of samplers but only some are used.
-  VkDescriptorSetLayoutBinding bindings[4];
-  for (int i = 0; i < xe::countof(bindings); ++i) {
-    auto& texture_binding = bindings[i];
-    texture_binding.binding = i;
-    texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    texture_binding.descriptorCount = kMaxTextureSamplers;
-    texture_binding.stageFlags =
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    texture_binding.pImmutableSamplers = nullptr;
-  }
+  // The shaders will alias the bindings to the 4 dimensional types.
+  VkDescriptorSetLayoutBinding bindings[1];
+  bindings[0].binding = 0;
+  bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  bindings[0].descriptorCount = kMaxTextureSamplers;
+  bindings[0].stageFlags =
+      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+  bindings[0].pImmutableSamplers = nullptr;
 
   VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
   descriptor_set_layout_info.sType =
@@ -330,7 +328,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string(
           "0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.output_length));
+          texture_info.guest_address + texture_info.input_length));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
@@ -1356,22 +1354,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   update_set_info->image_write_count++;
 
   image_write->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-
-  switch (texture_info.dimension) {
-    case Dimension::k1D:
-      image_write->dstBinding = 0;
-      break;
-    case Dimension::k2D:
-      image_write->dstBinding = 1;
-      break;
-    case Dimension::k3D:
-      image_write->dstBinding = 2;
-      break;
-    case Dimension::kCube:
-      image_write->dstBinding = 3;
-      break;
-  }
-
+  image_write->dstBinding = 0;
   image_write->dstArrayElement = binding.fetch_constant;
   image_write->descriptorCount = 1;
   image_write->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

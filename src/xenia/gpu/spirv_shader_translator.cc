@@ -214,12 +214,13 @@ void SpirvShaderTranslator::StartTranslation() {
                   b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[3], b.makeUintConstant(32), 0)};
 
+  // Create 4 texture types, all aliased on the same binding
   for (int i = 0; i < 4; i++) {
     tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
                                tex_a_t[i],
                                xe::format_string("textures%dD", i + 1).c_str());
     b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
-    b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, i);
+    b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
   }
 
   // Interpolators.
@@ -1399,6 +1400,12 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           assert_unhandled_case(instr.dimension);
           break;
       }
+    } break;
+
+    case FetchOpcode::kSetTextureLod: {
+      // <lod register> = src1.x
+      // ... immediately after
+      // tfetch UseRegisterLOD=true
     } break;
 
     default:
