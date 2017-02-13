@@ -561,7 +561,7 @@ bool VulkanSwapChain::End() {
   post_image_memory_barrier.pNext = nullptr;
   post_image_memory_barrier.srcAccessMask =
       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  post_image_memory_barrier.dstAccessMask = 0;
+  post_image_memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
   post_image_memory_barrier.oldLayout = current_buffer.image_layout;
   post_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
   post_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -598,7 +598,7 @@ bool VulkanSwapChain::End() {
   render_submit_info.pWaitDstStageMask = &wait_dst_stage;
   render_submit_info.commandBufferCount = 1;
   render_submit_info.pCommandBuffers = &cmd_buffer_;
-  render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size());
+  render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size()) - 1;
   render_submit_info.pSignalSemaphores = semaphores.data();
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
