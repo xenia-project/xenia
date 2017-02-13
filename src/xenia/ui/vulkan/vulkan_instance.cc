@@ -349,6 +349,7 @@ bool VulkanInstance::QueryDevices(Window* any_target_window) {
   std::vector<VkPhysicalDevice> device_handles;
   auto err = vkEnumeratePhysicalDevices(handle, &count, nullptr);
   CheckResult(err, "vkEnumeratePhysicalDevices");
+
   device_handles.resize(count);
   err = vkEnumeratePhysicalDevices(handle, &count, device_handles.data());
   CheckResult(err, "vkEnumeratePhysicalDevices");
@@ -516,11 +517,12 @@ void VulkanInstance::DumpDeviceInfo(const DeviceInfo& device_info) {
     auto& queue_props = device_info.queue_family_properties[j];
     XELOGVK("  - Queue %d:", j);
     XELOGVK(
-        "    queueFlags         = %s, %s, %s, %s",
-        (queue_props.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "graphics" : "",
-        (queue_props.queueFlags & VK_QUEUE_COMPUTE_BIT) ? "compute" : "",
-        (queue_props.queueFlags & VK_QUEUE_TRANSFER_BIT) ? "transfer" : "",
-        (queue_props.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "sparse" : "");
+        "    queueFlags         = %s%s%s%s",
+        (queue_props.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "graphics, " : "",
+        (queue_props.queueFlags & VK_QUEUE_COMPUTE_BIT) ? "compute, " : "",
+        (queue_props.queueFlags & VK_QUEUE_TRANSFER_BIT) ? "transfer, " : "",
+        (queue_props.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "sparse, "
+                                                               : "");
     XELOGVK("    queueCount         = %u", queue_props.queueCount);
     XELOGVK("    timestampValidBits = %u", queue_props.timestampValidBits);
     XELOGVK("    supportsPresent    = %s",
