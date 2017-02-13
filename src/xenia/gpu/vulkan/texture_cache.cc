@@ -123,10 +123,25 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       *device_, 32768,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
 
+  // Check some device limits
+  // On low sampler counts: Rarely would we experience over 16 unique samplers.
+  // This code could be refactored to scale up/down to the # of samplers.
+  auto& limits = device_->device_info().properties.limits;
+  if (limits.maxPerStageDescriptorSamplers < kMaxTextureSamplers * 4 ||
+      limits.maxPerStageDescriptorSampledImages < kMaxTextureSamplers * 4) {
+    XELOGE(
+        "Physical device is unable to support required number of sampled "
+        "images! Expect instability! (maxPerStageDescriptorSamplers=%d, "
+        "maxPerStageDescriptorSampledImages=%d)",
+        limits.maxPerStageDescriptorSamplers,
+        limits.maxPerStageDescriptorSampledImages);
+    assert_always();
+  }
+
   // Create the descriptor set layout used for rendering.
   // We always have the same number of samplers but only some are used.
   VkDescriptorSetLayoutBinding bindings[4];
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < xe::countof(bindings); ++i) {
     auto& texture_binding = bindings[i];
     texture_binding.binding = i;
     texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -135,6 +150,7 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     texture_binding.pImmutableSamplers = nullptr;
   }
+
   VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
   descriptor_set_layout_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
