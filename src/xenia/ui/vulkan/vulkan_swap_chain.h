@@ -64,6 +64,7 @@ class VulkanSwapChain {
  private:
   struct Buffer {
     VkImage image = nullptr;
+    VkImageLayout image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImageView image_view = nullptr;
     VkFramebuffer framebuffer = nullptr;
   };

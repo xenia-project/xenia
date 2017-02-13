@@ -448,7 +448,7 @@ bool VulkanSwapChain::Begin() {
   pre_image_memory_barrier.pNext = nullptr;
   pre_image_memory_barrier.srcAccessMask = 0;
   pre_image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   pre_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   pre_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -504,6 +504,7 @@ bool VulkanSwapChain::End() {
 
   // Execute copy commands (transitions embedded)
   vkCmdExecuteCommands(cmd_buffer_, 1, &copy_cmd_buffer_);
+  current_buffer.image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
   // Transition the image to a color attachment target for drawing.
   VkImageMemoryBarrier pre_image_memory_barrier;
@@ -511,7 +512,7 @@ bool VulkanSwapChain::End() {
   pre_image_memory_barrier.pNext = nullptr;
   pre_image_memory_barrier.srcAccessMask = 0;
   pre_image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   pre_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   pre_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -529,6 +530,8 @@ bool VulkanSwapChain::End() {
   vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
+
+  current_buffer.image_layout = pre_image_memory_barrier.newLayout;
 
   // Begin render pass.
   VkRenderPassBeginInfo render_pass_begin_info;
@@ -559,8 +562,7 @@ bool VulkanSwapChain::End() {
   post_image_memory_barrier.srcAccessMask =
       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   post_image_memory_barrier.dstAccessMask = 0;
-  post_image_memory_barrier.oldLayout =
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  post_image_memory_barrier.oldLayout = current_buffer.image_layout;
   post_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
   post_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   post_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -574,6 +576,8 @@ bool VulkanSwapChain::End() {
   vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &post_image_memory_barrier);
+
+  current_buffer.image_layout = post_image_memory_barrier.newLayout;
 
   vkEndCommandBuffer(cmd_buffer_);
   VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
