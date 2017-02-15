@@ -194,7 +194,7 @@ void TraceDump::Run() {
   loop_->PostDelayed(
       [&]() {
         // Capture.
-        auto raw_image = window_->context()->Capture();
+        auto raw_image = graphics_system_->Capture();
         if (!raw_image) {
           // Failed to capture anything.
           capture_fence.Signal();

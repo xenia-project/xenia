@@ -28,12 +28,23 @@ class VulkanGraphicsSystem : public GraphicsSystem {
                  ui::Window* target_window) override;
   void Shutdown() override;
 
- private:
-  std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
+  std::unique_ptr<xe::ui::RawImage> Capture() override;
 
+ private:
+  VkResult CreateCaptureBuffer(VkCommandBuffer cmd, VkExtent2D extents);
+  void DestroyCaptureBuffer();
+
+  std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
   void Swap(xe::ui::UIEvent* e) override;
 
+  xe::ui::vulkan::VulkanDevice* device_ = nullptr;
   xe::ui::vulkan::VulkanContext* display_context_ = nullptr;
+
+  VkCommandPool command_pool_ = nullptr;
+
+  VkBuffer capture_buffer_ = nullptr;
+  VkDeviceMemory capture_buffer_memory_ = nullptr;
+  VkDeviceSize capture_buffer_size_ = 0;
 };
 
 }  // namespace vulkan

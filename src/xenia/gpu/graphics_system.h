@@ -44,6 +44,8 @@ class GraphicsSystem {
                          ui::Window* target_window);
   virtual void Shutdown();
 
+  virtual std::unique_ptr<xe::ui::RawImage> Capture() { return nullptr; }
+
   RegisterFile* register_file() { return &register_file_; }
   CommandProcessor* command_processor() const {
     return command_processor_.get();
