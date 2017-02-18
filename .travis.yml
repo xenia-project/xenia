@@ -13,8 +13,14 @@ os:
   # - osx
 
 env:
-  global:
+  - LINT=true
+  - BUILD=true CONFIG=debug
+  - BUILD=true CONFIG=release
 
+matrix:
+  allow_failures:
+    # LLVMGold.so is not installed correctly
+    - env: CONFIG=release
 
 dist: trusty
 sudo: required
@@ -45,15 +51,14 @@ before_script:
 
 script:
   # Run linter.
-  - ./xenia-build lint --all
-  # Run style checker.
-  #- ./xenia-build style
+  - if [[ $LINT == true ]]; then ./xenia-build lint --all; fi
+  
   # Build and run our simple hello world test.
-  - ./xenia-build build --config=debug --target=xenia-base-tests
-  - ./build/bin/Linux/Debug/xenia-base-tests
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=debug --target=xenia-base-tests; fi
+  - if [[ $BUILD == true ]]; then ./build/bin/Linux/Debug/xenia-base-tests; fi
   # Build and run ppc tests
-  - ./xenia-build build --config=debug --target=xenia-cpu-ppc-tests
-  # - ./build/bin/Linux/Debug/xenia-cpu-ppc-tests --log_file=stdout
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=debug --target=xenia-cpu-ppc-tests; fi
+  # - if [[ $BUILD == true ]]; then ./build/bin/Linux/Debug/xenia-cpu-ppc-tests --log_file=stdout; fi
 
   # TODO(DrChat): Enable builds in the future.
   # Build all of xenia.
