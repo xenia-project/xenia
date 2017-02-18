@@ -47,6 +47,7 @@ bool TraceWriter::Open(const std::wstring& path, uint32_t title_id) {
   header.title_id = title_id;
   fwrite(&header, sizeof(header), 1, file_);
 
+  cached_memory_reads_.clear();
   return true;
 }
 
@@ -58,6 +59,8 @@ void TraceWriter::Flush() {
 
 void TraceWriter::Close() {
   if (file_) {
+    cached_memory_reads_.clear();
+
     fflush(file_);
     fclose(file_);
     file_ = nullptr;
@@ -130,6 +133,31 @@ void TraceWriter::WriteMemoryRead(uint32_t base_ptr, size_t length) {
     return;
   }
   WriteMemoryCommand(TraceCommandType::kMemoryRead, base_ptr, length);
+}
+
+void TraceWriter::WriteMemoryReadCached(uint32_t base_ptr, size_t length) {
+  if (!file_) {
+    return;
+  }
+
+  // HACK: length is guaranteed to be within 32-bits (guest memory)
+  uint64_t key = uint64_t(base_ptr) << 32 | uint64_t(length);
+  if (cached_memory_reads_.find(key) == cached_memory_reads_.end()) {
+    WriteMemoryCommand(TraceCommandType::kMemoryRead, base_ptr, length);
+    cached_memory_reads_.insert(key);
+  }
+}
+
+void TraceWriter::WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length) {
+  if (!file_) {
+    return;
+  }
+
+  // HACK: length is guaranteed to be within 32-bits (guest memory)
+  uint64_t key = uint64_t(base_ptr) << 32 | uint64_t(length);
+  if (cached_memory_reads_.find(key) == cached_memory_reads_.end()) {
+    cached_memory_reads_.insert(key);
+  }
 }
 
 void TraceWriter::WriteMemoryWrite(uint32_t base_ptr, size_t length) {

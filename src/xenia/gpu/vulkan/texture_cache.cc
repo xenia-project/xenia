@@ -348,9 +348,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   // Check the device limits for the format before we create it.
   VkFormatProperties props;
   vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
-  uint32_t required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                            VK_FORMAT_FEATURE_BLIT_DST_BIT |
-                            VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+  uint32_t required_flags =
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT;
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
     // assert_always();
@@ -484,9 +483,12 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     if (it->second->texture_info == texture_info) {
       if (it->second->pending_invalidation) {
         // This texture has been invalidated!
-        Scavenge();
+        RemoveInvalidatedTextures();
         break;
       }
+
+      trace_writer_->WriteMemoryReadCached(texture_info.guest_address,
+                                           texture_info.input_length);
 
       return it->second;
     }
@@ -501,6 +503,12 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
             texture->texture_info.size_2d.logical_width &&
         texture_info.size_2d.logical_height ==
             texture->texture_info.size_2d.logical_height) {
+      if (texture->pending_invalidation) {
+        // Texture invalidated! Remove.
+        RemoveInvalidatedTextures();
+        break;
+      }
+
       // Exact match.
       // TODO: Lazy match (at an offset)
       // Upgrade this texture to a full texture.
@@ -510,6 +518,10 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       if (texture->access_watch_handle) {
         memory_->CancelAccessWatch(texture->access_watch_handle);
       }
+
+      // Tell the trace writer to cache this memory but don't read it
+      trace_writer_->WriteMemoryReadCachedNop(texture_info.guest_address,
+                                              texture_info.input_length);
 
       texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
           texture_info.guest_address, texture_info.input_length,
@@ -547,6 +559,9 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     assert_always();
     return nullptr;
   }
+
+  trace_writer_->WriteMemoryRead(texture_info.guest_address,
+                                 texture_info.input_length);
 
   bool uploaded = false;
   switch (texture_info.dimension) {
@@ -1479,9 +1494,6 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   uint16_t swizzle = static_cast<uint16_t>(fetch.swizzle);
   auto view = DemandView(texture, swizzle);
 
-  trace_writer_->WriteMemoryRead(texture_info.guest_address,
-                                 texture_info.input_length);
-
   auto image_info =
       &update_set_info->image_infos[update_set_info->image_write_count];
   auto image_write =
@@ -1507,35 +1519,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   return true;
 }
 
-void TextureCache::ClearCache() {
-  // TODO(DrChat): Nuke everything.
-}
-
-void TextureCache::Scavenge() {
-  // Close any open descriptor pool batches
-  if (descriptor_pool_->has_open_batch()) {
-    descriptor_pool_->EndBatch();
-  }
-
-  // Free unused descriptor sets
-  // TODO(DrChat): These sets could persist across frames, we just need a smart
-  // way to detect if they're unused and free them.
-  texture_bindings_.clear();
-  descriptor_pool_->Scavenge();
-  staging_buffer_.Scavenge();
-
-  // Kill all pending delete textures.
-  if (!pending_delete_textures_.empty()) {
-    for (auto it = pending_delete_textures_.begin();
-         it != pending_delete_textures_.end();) {
-      if (!FreeTexture(*it)) {
-        break;
-      }
-
-      it = pending_delete_textures_.erase(it);
-    }
-  }
-
+void TextureCache::RemoveInvalidatedTextures() {
   // Clean up any invalidated textures.
   invalidated_textures_mutex_.lock();
   std::vector<Texture*>& invalidated_textures = *invalidated_textures_;
@@ -1572,6 +1556,37 @@ void TextureCache::Scavenge() {
     invalidated_resolve_textures_.clear();
   }
   invalidated_resolve_textures_mutex_.unlock();
+}
+
+void TextureCache::ClearCache() {
+  // TODO(DrChat): Nuke everything.
+}
+
+void TextureCache::Scavenge() {
+  // Close any open descriptor pool batches
+  if (descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->EndBatch();
+  }
+
+  // Free unused descriptor sets
+  // TODO(DrChat): These sets could persist across frames, we just need a smart
+  // way to detect if they're unused and free them.
+  texture_bindings_.clear();
+  descriptor_pool_->Scavenge();
+  staging_buffer_.Scavenge();
+
+  // Kill all pending delete textures.
+  RemoveInvalidatedTextures();
+  if (!pending_delete_textures_.empty()) {
+    for (auto it = pending_delete_textures_.begin();
+         it != pending_delete_textures_.end();) {
+      if (!FreeTexture(*it)) {
+        break;
+      }
+
+      it = pending_delete_textures_.erase(it);
+    }
+  }
 }
 
 }  // namespace vulkan

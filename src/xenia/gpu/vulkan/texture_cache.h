@@ -180,6 +180,9 @@ class TextureCache {
                            UpdateSetInfo* update_set_info,
                            const Shader::TextureBinding& binding);
 
+  // Removes invalidated textures from the cache, queues them for delete.
+  void RemoveInvalidatedTextures();
+
   Memory* memory_ = nullptr;
 
   RegisterFile* register_file_ = nullptr;

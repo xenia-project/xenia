@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_TRACE_WRITER_H_
 #define XENIA_GPU_TRACE_WRITER_H_
 
+#include <set>
 #include <string>
 
 #include "xenia/base/filesystem.h"
@@ -36,6 +37,8 @@ class TraceWriter {
   void WritePacketStart(uint32_t base_ptr, uint32_t count);
   void WritePacketEnd();
   void WriteMemoryRead(uint32_t base_ptr, size_t length);
+  void WriteMemoryReadCached(uint32_t base_ptr, size_t length);
+  void WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length);
   void WriteMemoryWrite(uint32_t base_ptr, size_t length);
   void WriteEvent(EventCommand::Type event_type);
 
@@ -43,6 +46,7 @@ class TraceWriter {
   void WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
                           size_t length);
 
+  std::set<uint64_t> cached_memory_reads_;
   uint8_t* membase_;
   FILE* file_;
 
