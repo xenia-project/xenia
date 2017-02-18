@@ -209,10 +209,9 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
   // Bind memory to buffer.
   VkMemoryRequirements mem_requirements;
   vkGetBufferMemoryRequirements(*device_, capture_buffer_, &mem_requirements);
-  capture_buffer_memory_ =
-      device_->AllocateMemory(mem_requirements,
-                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  capture_buffer_memory_ = device_->AllocateMemory(
+      mem_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   assert_not_null(capture_buffer_memory_);
 
   status =
