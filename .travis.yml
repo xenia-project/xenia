@@ -14,13 +14,13 @@ os:
 
 env:
   - LINT=true
-  - BUILD=true CONFIG=debug
-  - BUILD=true CONFIG=release
+  - BUILD=true CONFIG=Debug
+  - BUILD=true CONFIG=Release
 
 matrix:
   allow_failures:
     # LLVMGold.so is not installed correctly
-    - env: CONFIG=release
+    - env: BUILD=true CONFIG=Release
 
 dist: trusty
 sudo: required
@@ -54,11 +54,11 @@ script:
   - if [[ $LINT == true ]]; then ./xenia-build lint --all; fi
   
   # Build and run our simple hello world test.
-  - if [[ $BUILD == true ]]; then ./xenia-build build --config=debug --target=xenia-base-tests; fi
-  - if [[ $BUILD == true ]]; then ./build/bin/Linux/Debug/xenia-base-tests; fi
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-base-tests; fi
+  - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-base-tests; fi
   # Build and run ppc tests
-  - if [[ $BUILD == true ]]; then ./xenia-build build --config=debug --target=xenia-cpu-ppc-tests; fi
-  # - if [[ $BUILD == true ]]; then ./build/bin/Linux/Debug/xenia-cpu-ppc-tests --log_file=stdout; fi
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-ppc-tests; fi
+  # - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-ppc-tests --log_file=stdout; fi
 
   # TODO(DrChat): Enable builds in the future.
   # Build all of xenia.

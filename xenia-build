@@ -559,7 +559,7 @@ class BaseBuildCommand(Command):
         *args, **kwargs)
     self.parser.add_argument(
         '--config', choices=['checked', 'debug', 'release'], default='debug',
-        help='Chooses the build configuration.')
+        type=str.lower, help='Chooses the build configuration.')
     self.parser.add_argument(
         '--target', action='append', default=[],
         help='Builds only the given target(s).')
