@@ -359,7 +359,8 @@ bool DiscoverTests(std::wstring& test_path,
                    std::vector<std::wstring>& test_files) {
   auto file_infos = xe::filesystem::ListFiles(test_path);
   for (auto& file_info : file_infos) {
-    if (file_info.name.rfind(L".s") == file_info.name.size() - 2) {
+    if (file_info.name != L"." && file_info.name != L".." &&
+        file_info.name.rfind(L".s") == file_info.name.size() - 2) {
       test_files.push_back(xe::join_paths(test_path, file_info.name));
     }
   }
