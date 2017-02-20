@@ -67,5 +67,12 @@
       {value}
     </DisplayString>
   </Type>
+  
+  <Type Name="xe::bf&lt;*&gt;">
+    <DisplayString>
+      <!-- (storage & mask()) >> position -->
+      {($T1)((storage &amp; ((((value_type)~0) &gt;&gt; (8 * sizeof(value_type) - $T3)) &lt;&lt; $T2)) &gt;&gt; $T2)}
+    </DisplayString>
+  </Type>
 
 </AutoVisualizer>
