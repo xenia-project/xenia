@@ -19,7 +19,7 @@
 namespace xe {
 namespace vfs {
 
-// http://www.free60.org/STFS
+// http://www.free60.org/wiki/STFS
 
 enum class StfsPackageType {
   kCon,
