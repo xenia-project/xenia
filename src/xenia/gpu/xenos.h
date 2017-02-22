@@ -554,9 +554,9 @@ enum Type3Opcode {
   PM4_VIZ_QUERY             = 0x23,   // begin/end initiator for viz query extent processing
   PM4_SET_STATE             = 0x25,   // fetch state sub-blocks and initiate shader code DMAs
   PM4_SET_CONSTANT          = 0x2d,   // load constant into chip and to memory
-  PM4_SET_CONSTANT2         = 0x55,
+  PM4_SET_CONSTANT2         = 0x55,   // INCR_UPDATE_STATE
+  PM4_SET_SHADER_CONSTANTS  = 0x56,   // INCR_UPDT_CONST
   PM4_LOAD_ALU_CONSTANT     = 0x2f,   // load constants from memory
-  PM4_SET_SHADER_CONSTANTS  = 0x56,   // ?? constant values
   PM4_IM_LOAD               = 0x27,   // load sequencer instruction memory (pointer-based)
   PM4_IM_LOAD_IMMEDIATE     = 0x2b,   // load sequencer instruction memory (code embedded in packet)
   PM4_LOAD_CONSTANT_CONTEXT = 0x2e,   // load constants from a location in memory
