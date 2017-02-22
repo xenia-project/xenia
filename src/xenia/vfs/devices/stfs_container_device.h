@@ -19,7 +19,7 @@
 namespace xe {
 namespace vfs {
 
-// http://www.free60.org/STFS
+// http://www.free60.org/wiki/STFS
 
 enum class StfsPackageType {
   kCon,
@@ -33,7 +33,7 @@ enum class StfsContentType : uint32_t {
   kCacheFile = 0x00040000,
   kCommunityGame = 0x02000000,
   kGameDemo = 0x00080000,
-  kGamerPictuer = 0x00020000,
+  kGamerPicture = 0x00020000,
   kGameTitle = 0x000A0000,
   kGameTrailer = 0x000C0000,
   kGameVideo = 0x00400000,
