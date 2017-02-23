@@ -127,9 +127,11 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
   entry->attributes_ = attributes | kFileAttributeReadOnly;
   entry->size_ = length;
   entry->allocation_size_ = xe::round_up(length, bytes_per_sector());
-  entry->create_timestamp_ = 0;
-  entry->access_timestamp_ = 0;
-  entry->write_timestamp_ = 0;
+
+  // Set to January 1, 1970 (UTC) in 100-nanosecond intervals
+  entry->create_timestamp_ = 10000 * 11644473600000LL;
+  entry->access_timestamp_ = 10000 * 11644473600000LL;
+  entry->write_timestamp_ = 10000 * 11644473600000LL;
 
   if (attributes & kFileAttributeDirectory) {
     // Folder.

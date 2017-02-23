@@ -16,6 +16,11 @@
 #include "xenia/base/math.h"
 #include "xenia/vfs/devices/stfs_container_entry.h"
 
+#if XE_PLATFORM_WIN32
+#include "xenia/base/platform_win.h"
+#define timegm _mkgmtime
+#endif
+
 namespace xe {
 namespace vfs {
 
@@ -26,6 +31,25 @@ uint32_t load_uint24_be(const uint8_t* p) {
 uint32_t load_uint24_le(const uint8_t* p) {
   return (static_cast<uint32_t>(p[2]) << 16) |
          (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[0]);
+}
+
+// Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
+uint64_t decode_fat_timestamp(uint32_t date, uint32_t time) {
+  struct tm tm = {0};
+  // 80 is the difference between 1980 (FAT) and 1900 (tm);
+  tm.tm_year = ((0xFE00 & date) >> 9) + 80;
+  tm.tm_mon = (0x01E0 & date) >> 5;
+  tm.tm_mday = (0x001F & date) >> 0;
+  tm.tm_hour = (0xF800 & time) >> 11;
+  tm.tm_min = (0x07E0 & time) >> 5;
+  tm.tm_sec = (0x001F & time) << 1;  // the value stored in 2-seconds intervals
+  tm.tm_isdst = 0;
+  time_t timet = timegm(&tm);
+  if (timet == -1) {
+    return 0;
+  }
+  // 11644473600LL is a difference between 1970 and 1601
+  return (timet + 11644473600LL) * 10000000;
 }
 
 StfsContainerDevice::StfsContainerDevice(const std::string& mount_path,
@@ -157,8 +181,12 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
       uint32_t start_block_index = load_uint24_le(p + 0x2F);
       uint16_t path_indicator = xe::load_and_swap<uint16_t>(p + 0x32);
       uint32_t file_size = xe::load_and_swap<uint32_t>(p + 0x34);
-      uint32_t update_timestamp = xe::load_and_swap<uint32_t>(p + 0x38);
-      uint32_t access_timestamp = xe::load_and_swap<uint32_t>(p + 0x3C);
+
+      // both date and time parts of the timestamp are big endian
+      uint16_t update_date = xe::load_and_swap<uint16_t>(p + 0x38);
+      uint16_t update_time = xe::load_and_swap<uint16_t>(p + 0x3A);
+      uint32_t access_date = xe::load_and_swap<uint16_t>(p + 0x3C);
+      uint32_t access_time = xe::load_and_swap<uint16_t>(p + 0x3E);
       p += 0x40;
 
       StfsContainerEntry* parent_entry = nullptr;
@@ -184,9 +212,11 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
       }
       entry->size_ = file_size;
       entry->allocation_size_ = xe::round_up(file_size, bytes_per_sector());
-      entry->create_timestamp_ = update_timestamp;
-      entry->access_timestamp_ = access_timestamp;
-      entry->write_timestamp_ = update_timestamp;
+
+      entry->create_timestamp_ = decode_fat_timestamp(update_date, update_time);
+      entry->access_timestamp_ = decode_fat_timestamp(access_date, access_time);
+      entry->write_timestamp_ = entry->create_timestamp_;
+
       all_entries.push_back(entry.get());
 
       // Fill in all block records.
