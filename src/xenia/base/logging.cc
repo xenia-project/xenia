@@ -231,23 +231,29 @@ void InitializeLogging(const std::wstring& app_name) {
 void LogLineFormat(const char level_char, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  size_t chars_written = vsnprintf(log_format_buffer_.data(),
-                                   log_format_buffer_.capacity(), fmt, args);
+  int chars_written = vsnprintf(log_format_buffer_.data(),
+                                log_format_buffer_.capacity(), fmt, args);
   va_end(args);
-  if (chars_written != std::string::npos) {
+  if (chars_written >= 0 && chars_written < log_format_buffer_.capacity()) {
     logger_->AppendLine(xe::threading::current_thread_id(), level_char,
                         log_format_buffer_.data(), chars_written);
-  } else {
+  } else if (chars_written >= 0) {
     logger_->AppendLine(xe::threading::current_thread_id(), level_char, fmt,
                         std::strlen(fmt));
   }
 }
 
 void LogLineVarargs(const char level_char, const char* fmt, va_list args) {
-  size_t chars_written = vsnprintf(log_format_buffer_.data(),
-                                   log_format_buffer_.capacity(), fmt, args);
+  int chars_written = vsnprintf(log_format_buffer_.data(),
+                                log_format_buffer_.capacity(), fmt, args);
+  if (chars_written < 0) {
+    return;
+  }
+
+  auto size =
+      std::min(size_t(chars_written), log_format_buffer_.capacity() - 1);
   logger_->AppendLine(xe::threading::current_thread_id(), level_char,
-                      log_format_buffer_.data(), chars_written);
+                      log_format_buffer_.data(), size);
 }
 
 void LogLine(const char level_char, const char* str, size_t str_length) {
