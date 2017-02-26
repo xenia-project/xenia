@@ -237,39 +237,41 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   // Add all imports (variables/functions).
   xex2_opt_import_libraries* opt_import_header = nullptr;
   GetOptHeader(XEX_HEADER_IMPORT_LIBRARIES, &opt_import_header);
-  assert_not_null(opt_import_header);
 
-  // FIXME: Don't know if 32 is the actual limit, but haven't seen more than 2.
-  const char* string_table[32];
-  std::memset(string_table, 0, sizeof(string_table));
-  size_t max_string_table_index = 0;
+  if (opt_import_header) {
+    // FIXME: Don't know if 32 is the actual limit, but haven't seen more than
+    // 2.
+    const char* string_table[32];
+    std::memset(string_table, 0, sizeof(string_table));
+    size_t max_string_table_index = 0;
 
-  // Parse the string table
-  for (size_t i = 0; i < opt_import_header->string_table_size;
-       ++max_string_table_index) {
-    assert_true(max_string_table_index < xe::countof(string_table));
-    const char* str = opt_import_header->string_table + i;
+    // Parse the string table
+    for (size_t i = 0; i < opt_import_header->string_table_size;
+         ++max_string_table_index) {
+      assert_true(max_string_table_index < xe::countof(string_table));
+      const char* str = opt_import_header->string_table + i;
 
-    string_table[max_string_table_index] = str;
-    i += std::strlen(str) + 1;
+      string_table[max_string_table_index] = str;
+      i += std::strlen(str) + 1;
 
-    // Padding
-    if ((i % 4) != 0) {
-      i += 4 - (i % 4);
+      // Padding
+      if ((i % 4) != 0) {
+        i += 4 - (i % 4);
+      }
     }
-  }
 
-  auto libraries_ptr = reinterpret_cast<uint8_t*>(opt_import_header) +
-                       opt_import_header->string_table_size + 12;
-  uint32_t library_offset = 0;
-  uint32_t library_count = opt_import_header->library_count;
-  for (uint32_t i = 0; i < library_count; i++) {
-    auto library =
-        reinterpret_cast<xex2_import_library*>(libraries_ptr + library_offset);
-    size_t library_name_index = library->name_index & 0xFF;
-    assert_true(library_name_index < max_string_table_index);
-    SetupLibraryImports(string_table[library_name_index], library);
-    library_offset += library->size;
+    auto libraries_ptr = reinterpret_cast<uint8_t*>(opt_import_header) +
+                         opt_import_header->string_table_size + 12;
+    uint32_t library_offset = 0;
+    uint32_t library_count = opt_import_header->library_count;
+    for (uint32_t i = 0; i < library_count; i++) {
+      auto library = reinterpret_cast<xex2_import_library*>(libraries_ptr +
+                                                            library_offset);
+      size_t library_name_index = library->name_index & 0xFF;
+      assert_true(library_name_index < max_string_table_index);
+      SetupLibraryImports(string_table[library_name_index], library);
+      library_offset += library->size;
+    }
   }
 
   // Find __savegprlr_* and __restgprlr_* and the others.
