@@ -32,6 +32,7 @@ enum RoundMode {
   ROUND_TO_NEAREST,
   ROUND_TO_MINUS_INFINITY,
   ROUND_TO_POSITIVE_INFINITY,
+  ROUND_DYNAMIC,  // Round based on the host's rounding mode.
 };
 
 enum LoadStoreFlags {
