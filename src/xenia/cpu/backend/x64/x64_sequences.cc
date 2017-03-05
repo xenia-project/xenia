@@ -1429,21 +1429,25 @@ struct CONVERT_I32_F32
     : Sequence<CONVERT_I32_F32, I<OPCODE_CONVERT, I32Op, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): saturation check? cvtt* (trunc?)
-    e.vcvtss2si(i.dest, i.src1);
+    e.vminss(e.xmm0, i.src1, e.GetXmmConstPtr(XMMIntMaxPS));
+    e.vcvtss2si(i.dest, e.xmm0);
   }
 };
 struct CONVERT_I32_F64
     : Sequence<CONVERT_I32_F64, I<OPCODE_CONVERT, I32Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): saturation check? cvtt* (trunc?)
-    e.vcvttsd2si(i.dest, i.src1);
+    // Intel returns 0x80000000 if the double value does not fit within an int32
+    // PPC saturates the value instead.
+    // So, we can clamp the double value to (double)0x7FFFFFFF.
+    e.vminsd(e.xmm0, i.src1, e.GetXmmConstPtr(XMMIntMaxPD));
+    e.vcvttsd2si(i.dest, e.xmm0);
   }
 };
 struct CONVERT_I64_F64
     : Sequence<CONVERT_I64_F64, I<OPCODE_CONVERT, I64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): saturation check? cvtt* (trunc?)
-    e.vcvttsd2si(i.dest, i.src1);
+    e.vminsd(e.xmm0, i.src1, e.GetXmmConstPtr(XMMInt64MaxPD));
+    e.vcvttsd2si(i.dest, e.xmm0);
   }
 };
 struct CONVERT_F32_I32

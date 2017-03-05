@@ -89,6 +89,9 @@ enum XmmConst {
   XMMSignMaskF32,
   XMMShortMinPS,
   XMMShortMaxPS,
+  XMMIntMaxPS,
+  XMMIntMaxPD,
+  XMMInt64MaxPD,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
