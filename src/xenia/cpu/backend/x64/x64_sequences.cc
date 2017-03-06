@@ -1430,9 +1430,9 @@ struct CONVERT_I32_F32
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): saturation check? cvtt* (trunc?)
     if (i.instr->flags == ROUND_TO_ZERO) {
-      e.vcvttss2si(i.dest, e.xmm0);
+      e.vcvttss2si(i.dest, i.src1);
     } else {
-      e.vcvtss2si(i.dest, e.xmm0);
+      e.vcvtss2si(i.dest, i.src1);
     }
   }
 };
@@ -1455,9 +1455,9 @@ struct CONVERT_I64_F64
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): saturation check? cvtt* (trunc?)
     if (i.instr->flags == ROUND_TO_ZERO) {
-      e.vcvttsd2si(i.dest, e.xmm0);
+      e.vcvttsd2si(i.dest, i.src1);
     } else {
-      e.vcvtsd2si(i.dest, e.xmm0);
+      e.vcvtsd2si(i.dest, i.src1);
     }
   }
 };
