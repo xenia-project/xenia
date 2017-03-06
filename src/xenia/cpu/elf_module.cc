@@ -109,30 +109,37 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
   assert_true(hdr->e_phentsize == sizeof(elf32_phdr));
   elf32_phdr* phdr = (elf32_phdr*)(pelf + hdr->e_phoff);
   for (uint32_t i = 0; i < hdr->e_phnum; i++) {
-    if (phdr[i].p_type == 1 /* PT_LOAD */) {
+    if (phdr[i].p_type == 1 /* PT_LOAD */ ||
+        phdr[i].p_type == 2 /* PT_DYNAMIC */) {
       // Allocate and copy into memory.
       // Base address @ 0x80000000
-      uint32_t virtual_addr = phdr[i].p_vaddr < 0x80000000
-                                  ? uint32_t(phdr[i].p_vaddr) + 0x80000000
-                                  : uint32_t(phdr[i].p_vaddr);
+      if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
+        XELOGE("ELF: Could not allocate memory for section @ address 0x%.8X",
+               phdr[i].p_vaddr);
+        return false;
+      }
+
+      uint32_t virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
+      uint32_t virtual_size =
+          xe::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, phdr[i].p_align) -
+          virtual_addr;
       if (!memory()
                ->LookupHeap(virtual_addr)
                ->AllocFixed(
-                   virtual_addr, phdr[i].p_memsz, phdr[i].p_align,
+                   virtual_addr, virtual_size, phdr[i].p_align,
                    xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
                    xe::kMemoryProtectRead | xe::kMemoryProtectWrite)) {
         XELOGE("ELF: Could not allocate memory!");
       }
 
-      auto p = memory()->TranslateVirtual(virtual_addr);
+      auto p = memory()->TranslateVirtual(phdr[i].p_vaddr);
       std::memset(p, 0, phdr[i].p_memsz);
-      std::memcpy(p, pelf + phdr[i].p_offset,
-                  std::min(phdr[i].p_memsz, phdr[i].p_filesz));
+      std::memcpy(p, pelf + phdr[i].p_offset, phdr[i].p_filesz);
 
       // Notify backend about executable code.
       if (phdr[i].p_flags & 0x1 /* PF_X */) {
         processor_->backend()->CommitExecutableRange(
-            virtual_addr, virtual_addr + phdr[i].p_memsz);
+            virtual_addr, virtual_addr + virtual_size);
       }
     }
   }
