@@ -794,7 +794,6 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
           bool_type_, v, b.makeUintConstant(0));
 
       // Conditional branch
-      assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
       exec_cond_ = true;
       exec_skip_block_ = &b.makeNewBlock();
@@ -805,11 +804,15 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       b.createConditionalBranch(cond, body, exec_skip_block_);
 
       b.setBuildPoint(exec_skip_block_);
-      b.createBranch(cf_blocks_[instr.dword_index + 1].block);
+      if (!instr.is_end) {
+        assert_true(cf_blocks_.size() > instr.dword_index + 1);
+        b.createBranch(cf_blocks_[instr.dword_index + 1].block);
+      } else {
+        b.makeReturn(false);
+      }
     } break;
     case ParsedExecInstruction::Type::kPredicated: {
       // Branch based on p0.
-      assert_true(cf_blocks_.size() > instr.dword_index + 1);
       body = &b.makeNewBlock();
       exec_cond_ = true;
       exec_skip_block_ = &b.makeNewBlock();
@@ -823,7 +826,12 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       b.createConditionalBranch(cond, body, exec_skip_block_);
 
       b.setBuildPoint(exec_skip_block_);
-      b.createBranch(cf_blocks_[instr.dword_index + 1].block);
+      if (!instr.is_end) {
+        assert_true(cf_blocks_.size() > instr.dword_index + 1);
+        b.createBranch(cf_blocks_[instr.dword_index + 1].block);
+      } else {
+        b.makeReturn(false);
+      }
     } break;
   }
   b.setBuildPoint(body);
