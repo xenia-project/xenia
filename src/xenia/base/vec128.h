@@ -171,6 +171,19 @@ static inline vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
   v.u32[3] = w;
   return v;
 }
+static inline vec128_t vec128q(uint64_t src) {
+  vec128_t v;
+  for (auto i = 0; i < 2; ++i) {
+    v.i64[i] = src;
+  }
+  return v;
+}
+static inline vec128_t vec128q(uint64_t x, uint64_t y) {
+  vec128_t v;
+  v.i64[0] = x;
+  v.i64[1] = y;
+  return v;
+}
 static inline vec128_t vec128d(double src) {
   vec128_t v;
   for (auto i = 0; i < 2; ++i) {

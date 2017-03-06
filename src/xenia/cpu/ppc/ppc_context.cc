@@ -147,11 +147,28 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
     }
     return true;
   } else if (sscanf(name, "f%d", &n) == 1) {
-    double expected = string_util::from_string<double>(value);
-    // TODO(benvanik): epsilon
-    if (this->f[n] != expected) {
-      std::snprintf(out_value, out_value_size, "%f", this->f[n]);
-      return false;
+    if (std::strstr(value, "0x")) {
+      // Special case: Treat float as integer.
+      uint64_t expected = string_util::from_string<uint64_t>(value, true);
+
+      union {
+        double f;
+        uint64_t u;
+      } f2u;
+      f2u.f = this->f[n];
+
+      if (f2u.u != expected) {
+        std::snprintf(out_value, out_value_size, "%016" PRIX64, f2u.u);
+        return false;
+      }
+    } else {
+      double expected = string_util::from_string<double>(value);
+
+      // TODO(benvanik): epsilon
+      if (this->f[n] != expected) {
+        std::snprintf(out_value, out_value_size, "%f", this->f[n]);
+        return false;
+      }
     }
     return true;
   } else if (sscanf(name, "v%d", &n) == 1) {
