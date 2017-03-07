@@ -115,14 +115,14 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
       // Base address @ 0x80000000
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
         XELOGE("ELF: Could not allocate memory for section @ address 0x%.8X",
-               phdr[i].p_vaddr);
+               uint32_t(phdr[i].p_vaddr));
         return false;
       }
 
       uint32_t virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
-      uint32_t virtual_size =
-          xe::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, phdr[i].p_align) -
-          virtual_addr;
+      uint32_t virtual_size = xe::round_up(phdr[i].p_vaddr + phdr[i].p_memsz,
+                                           uint32_t(phdr[i].p_align)) -
+                              virtual_addr;
       if (!memory()
                ->LookupHeap(virtual_addr)
                ->AllocFixed(
