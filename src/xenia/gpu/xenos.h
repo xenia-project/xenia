@@ -73,6 +73,13 @@ enum class AnisoFilter : uint32_t {
   kUseFetchConst = 7,
 };
 
+enum class BorderColor : uint32_t {
+  k_AGBR_Black = 0,
+  k_AGBR_White = 1,
+  k_ACBYCR_BLACK = 2,
+  k_ACBCRY_BLACK = 3,
+};
+
 enum class TextureDimension : uint32_t {
   k1D = 0,
   k2D = 1,
@@ -381,21 +388,25 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t type : 2;  // dword_0
-    uint32_t sign_x : 2;
-    uint32_t sign_y : 2;
-    uint32_t sign_z : 2;
-    uint32_t sign_w : 2;
-    uint32_t clamp_x : 3;
-    uint32_t clamp_y : 3;
-    uint32_t clamp_z : 3;
-    uint32_t unk0 : 3;
-    uint32_t pitch : 9;
-    uint32_t tiled : 1;
+    uint32_t type : 2;      // +0 dword_0
+    uint32_t sign_x : 2;    // +2
+    uint32_t sign_y : 2;    // +4
+    uint32_t sign_z : 2;    // +6
+    uint32_t sign_w : 2;    // +8
+    uint32_t clamp_x : 3;   // +10
+    uint32_t clamp_y : 3;   // +13
+    uint32_t clamp_z : 3;   // +16
+    uint32_t unused_0 : 3;  // +19
+    uint32_t pitch : 9;     // +22 byte_pitch >> 5
+    uint32_t tiled : 1;     // +31
+
     uint32_t format : 6;  // dword_1
     uint32_t endianness : 2;
-    uint32_t unk1 : 4;
+    uint32_t request_size : 2;
+    uint32_t stacked : 1;
+    uint32_t clamp_policy : 1;  // d3d/opengl
     uint32_t address : 20;
+
     union {  // dword_2
       struct {
         uint32_t width : 24;
@@ -417,22 +428,34 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
         uint32_t depth : 10;
       } size_3d;
     };
-    uint32_t unk3_0 : 1;    // dword_3
-    uint32_t swizzle : 12;  // xyzw, 3b each (XE_GPU_SWIZZLE)
-    uint32_t unk3_1 : 6;
-    uint32_t mag_filter : 2;
-    uint32_t min_filter : 2;
-    uint32_t mip_filter : 2;
-    uint32_t aniso_filter : 3;
-    uint32_t unk3_2 : 3;
-    uint32_t border : 1;
-    uint32_t unk4_0 : 2;  // dword_4
-    uint32_t mip_min_level : 4;
-    uint32_t mip_max_level : 4;
-    uint32_t unk4_1 : 22;
-    uint32_t unk5 : 9;  // dword_5
-    uint32_t dimension : 2;
-    uint32_t unk5b : 21;
+
+    uint32_t num_format : 1;    // +0 dword_3 frac/int
+    uint32_t swizzle : 12;      // +1 xyzw, 3b each (XE_GPU_SWIZZLE)
+    int32_t exp_adjust : 6;     // +13
+    uint32_t mag_filter : 2;    // +19
+    uint32_t min_filter : 2;    // +21
+    uint32_t mip_filter : 2;    // +23
+    uint32_t aniso_filter : 3;  // +25
+    uint32_t unused_3 : 3;      // +28
+    uint32_t border_size : 1;   // +31
+
+    uint32_t vol_mag_filter : 1;    // +0 dword_4
+    uint32_t vol_min_filter : 1;    // +1
+    uint32_t mip_min_level : 4;     // +2
+    uint32_t mip_max_level : 4;     // +6
+    uint32_t mag_aniso_walk : 1;    // +10
+    uint32_t min_aniso_walk : 1;    // +11
+    int32_t lod_bias : 10;          // +12
+    int32_t grad_exp_adjust_h : 5;  // +22
+    int32_t grad_exp_adjust_v : 5;  // +27
+
+    uint32_t border_color : 2;   // +0 dword_5
+    uint32_t force_bcw_max : 1;  // +2
+    uint32_t tri_clamp : 2;      // +3
+    int32_t aniso_bias : 4;      // +5
+    uint32_t dimension : 2;      // +9
+    uint32_t packed_mips : 1;    // +11
+    uint32_t mip_address : 20;   // +12
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;
@@ -475,43 +498,30 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
 
 // Enum of event values used for VGT_EVENT_INITIATOR
 enum Event {
-  SAMPLE_STREAMOUTSTATS1 = (1 << 0),
-  SAMPLE_STREAMOUTSTATS2 = (2 << 0),
-  SAMPLE_STREAMOUTSTATS3 = (3 << 0),
-  CACHE_FLUSH_TS = (4 << 0),
-  CACHE_FLUSH = (6 << 0),
-  CS_PARTIAL_FLUSH = (7 << 0),
-  VGT_STREAMOUT_RESET = (10 << 0),
-  END_OF_PIPE_INCR_DE = (11 << 0),
-  END_OF_PIPE_IB_END = (12 << 0),
-  RST_PIX_CNT = (13 << 0),
-  VS_PARTIAL_FLUSH = (15 << 0),
-  PS_PARTIAL_FLUSH = (16 << 0),
-  CACHE_FLUSH_AND_INV_TS_EVENT = (20 << 0),
-  ZPASS_DONE = (21 << 0),
-  CACHE_FLUSH_AND_INV_EVENT = (22 << 0),
-  PERFCOUNTER_START = (23 << 0),
-  PERFCOUNTER_STOP = (24 << 0),
-  PIPELINESTAT_START = (25 << 0),
-  PIPELINESTAT_STOP = (26 << 0),
-  PERFCOUNTER_SAMPLE = (27 << 0),
-  SAMPLE_PIPELINESTAT = (30 << 0),
-  SAMPLE_STREAMOUTSTATS = (32 << 0),
-  RESET_VTX_CNT = (33 << 0),
-  VGT_FLUSH = (36 << 0),
-  BOTTOM_OF_PIPE_TS = (40 << 0),
-  DB_CACHE_FLUSH_AND_INV = (42 << 0),
-  FLUSH_AND_INV_DB_DATA_TS = (43 << 0),
-  FLUSH_AND_INV_DB_META = (44 << 0),
-  FLUSH_AND_INV_CB_DATA_TS = (45 << 0),
-  FLUSH_AND_INV_CB_META = (46 << 0),
-  CS_DONE = (47 << 0),
-  PS_DONE = (48 << 0),
-  FLUSH_AND_INV_CB_PIXEL_DATA = (49 << 0),
-  THREAD_TRACE_START = (51 << 0),
-  THREAD_TRACE_STOP = (52 << 0),
-  THREAD_TRACE_FLUSH = (54 << 0),
-  THREAD_TRACE_FINISH = (55 << 0),
+  VS_DEALLOC = 0,
+  PS_DEALLOC = 1,
+  VS_DONE_TS = 2,
+  PS_DONE_TS = 3,
+  CACHE_FLUSH_TS = 4,
+  CONTEXT_DONE = 5,
+  CACHE_FLUSH = 6,
+  VIZQUERY_START = 7,
+  VIZQUERY_END = 8,
+  SC_WAIT_WC = 9,
+  MPASS_PS_CP_REFETCH = 10,
+  MPASS_PS_RST_START = 11,
+  MPASS_PS_INCR_START = 12,
+  RST_PIX_CNT = 13,
+  RST_VTX_CNT = 14,
+  TILE_FLUSH = 15,
+  CACHE_FLUSH_AND_INV_TS_EVENT = 20,
+  ZPASS_DONE = 21,
+  CACHE_FLUSH_AND_INV_EVENT = 22,
+  PERFCOUNTER_START = 23,
+  PERFCOUNTER_STOP = 24,
+  SCREEN_EXT_INIT = 25,
+  SCREEN_EXT_RPT = 26,
+  VS_FETCH_DONE_TS = 27,
 };
 
 // Opcodes (IT_OPCODE) for Type-3 commands in the ringbuffer.
