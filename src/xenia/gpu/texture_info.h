@@ -222,6 +222,7 @@ struct TextureInfo {
   const FormatInfo* format_info;
   Endian endianness;
   bool is_tiled;
+  bool has_packed_mips;
   uint32_t input_length;
   uint32_t output_length;
 

@@ -986,7 +986,26 @@ void TextureCache::ConvertTexture1D(uint8_t* dest, const TextureInfo& src) {
 void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
   if (!src.is_tiled) {
-    if (src.size_2d.input_pitch == src.size_2d.output_pitch) {
+    if (src.has_packed_mips) {
+      uint32_t bytes_per_block = src.format_info->block_width *
+                                 src.format_info->block_height *
+                                 src.format_info->bits_per_pixel / 8;
+      uint32_t offset_x;
+      uint32_t offset_y;
+      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+      src_mem += offset_y * src.size_2d.input_pitch;
+      src_mem += offset_x * bytes_per_block;
+      uint32_t pitch =
+          std::min(src.size_2d.input_pitch, src.size_2d.output_pitch);
+      for (uint32_t y = 0;
+           y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
+           y++) {
+        TextureSwap(src.endianness, dest, src_mem, pitch);
+        src_mem += src.size_2d.input_pitch;
+        dest += src.size_2d.output_pitch;
+      }
+    } else if (src.size_2d.input_pitch == src.size_2d.output_pitch) {
       // Fast path copy entire image.
       TextureSwap(src.endianness, dest, host_address, src.output_length);
     } else {

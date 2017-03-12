@@ -135,6 +135,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.format_info = FormatInfo::Get(fetch.format);
   info.endianness = static_cast<Endian>(fetch.endianness);
   info.is_tiled = fetch.tiled;
+  info.has_packed_mips = fetch.packed_mips;
   info.input_length = 0;  // Populated below.
   info.output_length = 0;
 

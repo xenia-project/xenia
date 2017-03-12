@@ -785,7 +785,29 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   auto allocation = scratch_buffer_->Acquire(unpack_length);
 
   if (!texture_info.is_tiled) {
-    if (texture_info.size_2d.input_pitch == texture_info.size_2d.output_pitch) {
+    if (texture_info.has_packed_mips) {
+      uint32_t bytes_per_block = texture_info.format_info->block_width *
+                                 texture_info.format_info->block_height *
+                                 texture_info.format_info->bits_per_pixel / 8;
+      uint32_t offset_x;
+      uint32_t offset_y;
+      TextureInfo::GetPackedTileOffset(texture_info, &offset_x, &offset_y);
+      const uint8_t* src = host_address;
+      // TODO(gibbed): this needs checking
+      src += offset_y * texture_info.size_2d.input_pitch;
+      src += offset_x * bytes_per_block;
+      uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
+      uint32_t pitch = std::min(texture_info.size_2d.input_pitch,
+                                texture_info.size_2d.output_pitch);
+      for (uint32_t y = 0; y < std::min(texture_info.size_2d.block_height,
+                                        texture_info.size_2d.logical_height);
+           y++) {
+        TextureSwap(texture_info.endianness, dest, src, pitch);
+        src += texture_info.size_2d.input_pitch;
+        dest += texture_info.size_2d.output_pitch;
+      }
+    } else if (texture_info.size_2d.input_pitch ==
+               texture_info.size_2d.output_pitch) {
       // Fast path copy entire image.
       TextureSwap(texture_info.endianness, allocation.host_ptr, host_address,
                   unpack_length);
