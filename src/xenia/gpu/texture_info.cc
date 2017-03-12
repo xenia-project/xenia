@@ -211,23 +211,43 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
       xe::round_up(size_2d.logical_height, format_info->block_height) /
       format_info->block_height;
 
-  // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
-  uint32_t tile_height = uint32_t(std::ceil(block_height / 32.0f));
-  size_2d.block_width = tile_width * 32;
-  size_2d.block_height = tile_height * 32;
-
+  uint32_t tile_width = 0;
+  uint32_t tile_height = 0;
   uint32_t bytes_per_block = format_info->block_width *
                              format_info->block_height *
                              format_info->bits_per_pixel / 8;
-  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
-  if (!is_tiled) {
+  uint32_t byte_pitch = 0;
+  if (is_tiled) {
+    // Tiles are 32x32 blocks. All textures must be multiples of tile
+    // dimensions.
+    tile_width = xe::round_up(block_width, 32);
+    tile_height = xe::round_up(block_height, 32);
+    size_2d.block_width = tile_width;
+    size_2d.block_height = tile_height;
+
+    byte_pitch = tile_width * bytes_per_block;
+  } else if (format_info->type == FormatType::kCompressed) {
+    // TODO(DrChat): This appears to be incorrect!
+    tile_width = xe::round_up(block_width, 32);
+    tile_height = xe::round_up(block_height, 32);
+    size_2d.block_width = tile_width;
+    size_2d.block_height = tile_height;
+
+    byte_pitch = tile_width * bytes_per_block;
+  } else {
+    tile_width = block_width;
+    tile_height = block_height;
+    size_2d.block_width = block_width;
+    size_2d.block_height = block_height;
+
+    byte_pitch = tile_width * bytes_per_block;
+
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
   }
 
-  size_2d.input_width = tile_width * 32 * format_info->block_width;
-  size_2d.input_height = tile_height * 32 * format_info->block_height;
+  size_2d.input_width = tile_width * format_info->block_width;
+  size_2d.input_height = tile_height * format_info->block_height;
 
   size_2d.output_width = block_width * format_info->block_width;
   size_2d.output_height = block_height * format_info->block_height;
