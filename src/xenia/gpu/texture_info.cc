@@ -212,18 +212,20 @@ void TextureInfo::CalculateTextureSizes2D(const xe_gpu_texture_fetch_t& fetch) {
       format_info->block_height;
 
   // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  // ...except linear textures don't seem to need a multiple of 32 for height.
+  // ...except textures don't seem to need a multiple of 32 for height.
   uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
   uint32_t tile_height = uint32_t(std::ceil(block_height / 32.0f));
   size_2d.block_width = tile_width * 32;
-  size_2d.block_height = format_info->type == FormatType::kCompressed
+  size_2d.block_height =
+      /*format_info->type == FormatType::kCompressed
                              ? tile_height * 32
-                             : block_height;
+                             :*/ block_height;
 
   uint32_t bytes_per_block = format_info->block_width *
                              format_info->block_height *
                              format_info->bits_per_pixel / 8;
   uint32_t byte_pitch = size_2d.block_width * bytes_per_block;
+
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
