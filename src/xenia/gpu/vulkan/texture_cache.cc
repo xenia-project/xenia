@@ -986,13 +986,13 @@ void TextureCache::ConvertTexture1D(uint8_t* dest, const TextureInfo& src) {
 void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
   if (!src.is_tiled) {
-    if (src.has_packed_mips) {
+    uint32_t offset_x, offset_y;
+    if (src.has_packed_mips &&
+        TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
       uint32_t bytes_per_block = src.format_info->block_width *
                                  src.format_info->block_height *
                                  src.format_info->bits_per_pixel / 8;
-      uint32_t offset_x;
-      uint32_t offset_y;
-      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+
       const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
       src_mem += offset_y * src.size_2d.input_pitch;
       src_mem += offset_x * bytes_per_block;

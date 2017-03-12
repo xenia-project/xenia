@@ -785,13 +785,12 @@ bool TextureCache::UploadTexture2D(GLuint texture,
   auto allocation = scratch_buffer_->Acquire(unpack_length);
 
   if (!texture_info.is_tiled) {
-    if (texture_info.has_packed_mips) {
+    uint32_t offset_x, offset_y;
+    if (texture_info.has_packed_mips &&
+        TextureInfo::GetPackedTileOffset(texture_info, &offset_x, &offset_y)) {
       uint32_t bytes_per_block = texture_info.format_info->block_width *
                                  texture_info.format_info->block_height *
                                  texture_info.format_info->bits_per_pixel / 8;
-      uint32_t offset_x;
-      uint32_t offset_y;
-      TextureInfo::GetPackedTileOffset(texture_info, &offset_x, &offset_y);
       const uint8_t* src = host_address;
       // TODO(gibbed): this needs checking
       src += offset_y * texture_info.size_2d.input_pitch;

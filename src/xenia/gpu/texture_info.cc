@@ -289,7 +289,7 @@ void TextureInfo::CalculateTextureSizesCube(
   output_length = size_cube.output_face_length * 6;
 }
 
-void TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
+bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
                                       uint32_t* out_offset_x,
                                       uint32_t* out_offset_y) {
   // Tile size is 32x32, and once textures go <=16 they are packed into a
@@ -328,7 +328,7 @@ void TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
     // Too big, not packed.
     *out_offset_x = 0;
     *out_offset_y = 0;
-    return;
+    return false;
   }
 
   if (xe::log2_ceil(texture_info.size_2d.logical_width) >
@@ -343,6 +343,7 @@ void TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
   }
   *out_offset_x /= texture_info.format_info->block_width;
   *out_offset_y /= texture_info.format_info->block_height;
+  return true;
 }
 
 // https://code.google.com/p/crunch/source/browse/trunk/inc/crn_decomp.h#4104
