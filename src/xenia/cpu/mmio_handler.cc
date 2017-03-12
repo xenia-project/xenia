@@ -104,11 +104,45 @@ uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
 
   auto lock = global_critical_region_.Acquire();
 
+  // Fire any access watches that overlap this region.
+  for (auto it = access_watches_.begin(); it != access_watches_.end();) {
+    // Case 1: 2222222|222|11111111
+    // Case 2: 1111111|222|22222222
+    // Case 3: 1111111|222|11111111 (fragmentation)
+    // Case 4: 2222222|222|22222222 (complete overlap)
+    bool hit = false;
+    auto entry = *it;
+
+    if (base_address < (*it)->address &&
+        base_address + length > (*it)->address) {
+      hit = true;
+    } else if ((*it)->address < base_address &&
+               (*it)->address + (*it)->length > base_address) {
+      hit = true;
+    } else if ((*it)->address < base_address &&
+               (*it)->address + (*it)->length > base_address + length) {
+      hit = true;
+    } else if ((*it)->address > base_address &&
+               (*it)->address + (*it)->length < base_address + length) {
+      hit = true;
+    }
+
+    if (hit) {
+      FireAccessWatch(*it);
+      it = access_watches_.erase(it);
+      delete entry;
+      continue;
+    }
+
+    ++it;
+  }
+
   // Add to table. The slot reservation may evict a previous watch, which
   // could include our target, so we do it first.
   auto entry = new AccessWatchEntry();
   entry->address = base_address;
   entry->length = uint32_t(length);
+  entry->type = type;
   entry->callback = callback;
   entry->callback_context = callback_context;
   entry->callback_data = callback_data;
@@ -138,6 +172,12 @@ uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
                   page_access, nullptr);
 
   return reinterpret_cast<uintptr_t>(entry);
+}
+
+void MMIOHandler::FireAccessWatch(AccessWatchEntry* entry) {
+  ClearAccessWatch(entry);
+  entry->callback(entry->callback_context, entry->callback_data,
+                  entry->address);
 }
 
 void MMIOHandler::ClearAccessWatch(AccessWatchEntry* entry) {
@@ -179,10 +219,7 @@ void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
         (entry->address >= physical_address &&
          entry->address < physical_address + length)) {
       // This watch lies within the range. End it.
-      ClearAccessWatch(entry);
-      entry->callback(entry->callback_context, entry->callback_data,
-                      entry->address);
-
+      FireAccessWatch(entry);
       it = access_watches_.erase(it);
       delete entry;
       continue;
@@ -219,10 +256,7 @@ bool MMIOHandler::CheckAccessWatch(uint32_t physical_address) {
         entry->address + entry->length > physical_address) {
       // Hit! Remove the watch.
       hit = true;
-      ClearAccessWatch(entry);
-      entry->callback(entry->callback_context, entry->callback_data,
-                      physical_address);
-
+      FireAccessWatch(entry);
       it = access_watches_.erase(it);
       delete entry;
       continue;

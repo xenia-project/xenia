@@ -95,6 +95,7 @@ class MMIOHandler {
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 
+  void FireAccessWatch(AccessWatchEntry* entry);
   void ClearAccessWatch(AccessWatchEntry* entry);
   bool CheckAccessWatch(uint32_t guest_address);
 
