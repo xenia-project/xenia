@@ -1754,7 +1754,7 @@ bool GL4CommandProcessor::IssueCopy() {
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
   uint32_t dest_block_width = xe::round_up(dest_logical_width, 32);
-  uint32_t dest_block_height = xe::round_up(dest_logical_height, 32);
+  uint32_t dest_block_height = /*xe::round_up(*/ dest_logical_height /*, 32)*/;
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;

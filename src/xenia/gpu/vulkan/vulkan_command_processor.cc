@@ -370,7 +370,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // Issue the commands to copy the game's frontbuffer to our backbuffer.
   auto texture = texture_cache_->LookupAddress(
       frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
-      xe::round_up(frontbuffer_height, 32), TextureFormat::k_8_8_8_8);
+      /*xe::round_up(*/ frontbuffer_height /*, 32)*/, TextureFormat::k_8_8_8_8);
   if (texture) {
     texture->in_flight_fence = current_batch_fence_;
 
@@ -870,7 +870,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
   uint32_t dest_block_width = xe::round_up(dest_logical_width, 32);
-  uint32_t dest_block_height = xe::round_up(dest_logical_height, 32);
+  uint32_t dest_block_height = /*xe::round_up(*/ dest_logical_height /*, 32)*/;
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
