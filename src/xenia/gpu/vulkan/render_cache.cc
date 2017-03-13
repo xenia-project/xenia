@@ -1136,25 +1136,26 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
   // Update the view with the latest contents.
   // UpdateTileView(command_buffer, tile_view, true, true);
 
-  // Transition the image into a transfer destination layout, if needed.
-  // TODO: Util function for this
+  // Put a barrier on the tile view.
   VkImageMemoryBarrier image_barrier;
   image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   image_barrier.pNext = nullptr;
   image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  image_barrier.srcAccessMask = 0;
-  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  image_barrier.oldLayout = image_layout;
-  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  image_barrier.image = image;
+  image_barrier.srcAccessMask =
+      color_or_depth ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                     : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+  image_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  image_barrier.image = tile_view->image;
   image_barrier.subresourceRange = {0, 0, 1, 0, 1};
   image_barrier.subresourceRange.aspectMask =
       color_or_depth ? VK_IMAGE_ASPECT_COLOR_BIT
                      : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &image_barrier);
 
   // If we overflow we'll lose the device here.
@@ -1197,11 +1198,13 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                       image, image_layout, 1, &image_resolve);
   }
 
-  // Transition the image back into its previous layout.
+  // Add another barrier on the tile view.
   image_barrier.srcAccessMask = image_barrier.dstAccessMask;
-  image_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  image_barrier.dstAccessMask =
+      color_or_depth ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                     : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
   std::swap(image_barrier.oldLayout, image_barrier.newLayout);
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &image_barrier);
 }

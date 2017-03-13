@@ -82,12 +82,13 @@ bool VulkanCommandProcessor::SetupContext() {
       texture_cache_->texture_descriptor_set_layout());
   render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
 
-  VkSemaphoreCreateInfo info;
-  std::memset(&info, 0, sizeof(info));
-  info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-  VkResult result = vkCreateSemaphore(
-      *device_, &info, nullptr,
-      reinterpret_cast<VkSemaphore*>(&swap_state_.backend_data));
+  VkEventCreateInfo info = {
+      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO, nullptr, 0,
+  };
+
+  VkResult result =
+      vkCreateEvent(*device_, &info, nullptr,
+                    reinterpret_cast<VkEvent*>(&swap_state_.backend_data));
   if (result != VK_SUCCESS) {
     return false;
   }
@@ -98,9 +99,8 @@ bool VulkanCommandProcessor::SetupContext() {
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
 
-  vkDestroySemaphore(*device_,
-                     reinterpret_cast<VkSemaphore>(swap_state_.backend_data),
-                     nullptr);
+  vkDestroyEvent(*device_, reinterpret_cast<VkEvent>(swap_state_.backend_data),
+                 nullptr);
 
   if (swap_state_.front_buffer_texture) {
     // Free swap chain image.
@@ -347,23 +347,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
   if (!swap_state_.front_buffer_texture) {
     CreateSwapImage(copy_commands, {frontbuffer_width, frontbuffer_height});
-
-    // Signal the swap usage semaphore by default.
-    auto swap_sem = reinterpret_cast<VkSemaphore>(swap_state_.backend_data);
-
-    VkSubmitInfo info;
-    std::memset(&info, 0, sizeof(info));
-    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    info.signalSemaphoreCount = 1;
-    info.pSignalSemaphores = &swap_sem;
-    if (queue_mutex_) {
-      std::lock_guard<std::mutex> lock(*queue_mutex_);
-      status = vkQueueSubmit(queue_, 1, &info, nullptr);
-      CheckResult(status, "vkQueueSubmit");
-    } else {
-      status = vkQueueSubmit(queue_, 1, &info, nullptr);
-      CheckResult(status, "vkQueueSubmit");
-    }
   }
   auto swap_fb = reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
@@ -388,8 +371,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     barrier.image = texture->image;
     barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &barrier);
 
     // Now issue a blit command.
@@ -411,6 +394,9 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     std::lock_guard<std::mutex> lock(swap_state_.mutex);
     swap_state_.width = frontbuffer_width;
     swap_state_.height = frontbuffer_height;
+
+    auto swap_event = reinterpret_cast<VkEvent>(swap_state_.backend_data);
+    vkCmdSetEvent(copy_commands, swap_event, VK_PIPELINE_STAGE_TRANSFER_BIT);
   }
 
   status = vkEndCommandBuffer(copy_commands);
@@ -438,24 +424,18 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       queue_mutex_->lock();
     }
 
-    // TODO: We really don't need to wrap all the commands with this semaphore,
-    // only the copy commands.
-    auto swap_sem = reinterpret_cast<VkSemaphore>(swap_state_.backend_data);
-
     VkSubmitInfo submit_info;
     std::memset(&submit_info, 0, sizeof(VkSubmitInfo));
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = uint32_t(submit_buffers.size());
     submit_info.pCommandBuffers = submit_buffers.data();
 
-    VkPipelineStageFlags sem_waits[1];
-    sem_waits[0] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &swap_sem;
-    submit_info.pWaitDstStageMask = sem_waits;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = nullptr;
 
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores = &swap_sem;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
 
     status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
     CheckResult(status, "vkQueueSubmit");
@@ -883,13 +863,14 @@ bool VulkanCommandProcessor::IssueCopy() {
     window_offset_y |= 0x8000;
   }
 
-  size_t read_size = GetTexelSize(copy_dest_format);
+  uint32_t dest_texel_size = uint32_t(GetTexelSize(copy_dest_format));
 
   // Adjust the copy base offset to point to the beginning of the texture, so
   // we don't run into hiccups down the road (e.g. resolving the last part going
   // backwards).
-  int32_t dest_offset = window_offset_y * copy_dest_pitch * int(read_size);
-  dest_offset += window_offset_x * 32 * int(read_size);
+  int32_t dest_offset =
+      window_offset_y * copy_dest_pitch * int(dest_texel_size);
+  dest_offset += window_offset_x * 32 * int(dest_texel_size);
   copy_dest_base += dest_offset;
 
   // HACK: vertices to use are always in vf0.
@@ -918,7 +899,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   float dest_points[6];
   for (int i = 0; i < 6; i++) {
     dest_points[i] =
-        GpuSwap(xe::load<float>(vertex_addr + i * 4), Endian(fetch->endian));
+        GpuSwap(xe::load<float>(vertex_addr + i * 4), Endian(fetch->endian)) +
+        0.5f;
   }
 
   // Note: The xenos only supports rectangle copies (luckily)
@@ -956,7 +938,7 @@ bool VulkanCommandProcessor::IssueCopy() {
 
     depth_format =
         static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
-    if (!depth_clear_enabled) {
+    if (copy_src_select > 3) {
       copy_dest_format = TextureFormat::k_24_8;
     }
   }
@@ -967,15 +949,18 @@ bool VulkanCommandProcessor::IssueCopy() {
   tex_info.width = dest_logical_width - 1;
   tex_info.height = dest_logical_height - 1;
   tex_info.dimension = gpu::Dimension::k2D;
-  tex_info.input_length = copy_dest_pitch * copy_dest_height * 4;
+  tex_info.input_length =
+      dest_block_width * dest_block_height * dest_texel_size;
   tex_info.format_info = FormatInfo::Get(uint32_t(copy_dest_format));
+  tex_info.endianness = Endian::k8in32;
+  tex_info.is_tiled = true;
   tex_info.size_2d.logical_width = dest_logical_width;
   tex_info.size_2d.logical_height = dest_logical_height;
   tex_info.size_2d.block_width = dest_block_width;
   tex_info.size_2d.block_height = dest_block_height;
   tex_info.size_2d.input_width = dest_block_width;
   tex_info.size_2d.input_height = dest_block_height;
-  tex_info.size_2d.input_pitch = copy_dest_pitch * 4;
+  tex_info.size_2d.input_pitch = copy_dest_pitch * dest_texel_size;
   auto texture =
       texture_cache_->DemandResolveTexture(tex_info, copy_dest_format, nullptr);
   assert_not_null(texture);
@@ -1012,10 +997,32 @@ bool VulkanCommandProcessor::IssueCopy() {
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
 
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &image_barrier);
   }
+
+  // Transition the image into a transfer destination layout, if needed.
+  // TODO: Util function for this
+  VkImageMemoryBarrier image_barrier;
+  image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_barrier.pNext = nullptr;
+  image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  image_barrier.srcAccessMask = 0;
+  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.oldLayout = texture->image_layout;
+  image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  image_barrier.image = texture->image;
+  image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+  image_barrier.subresourceRange.aspectMask =
+      copy_src_select <= 3
+          ? VK_IMAGE_ASPECT_COLOR_BIT
+          : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 
   VkOffset3D resolve_offset = {dest_min_x, dest_min_y, 0};
   VkExtent3D resolve_extent = {uint32_t(dest_max_x - dest_min_x),
@@ -1048,6 +1055,15 @@ bool VulkanCommandProcessor::IssueCopy() {
       assert_always();
       break;
   }
+
+  // And pull it back from a transfer destination.
+  image_barrier.srcAccessMask = image_barrier.dstAccessMask;
+  image_barrier.dstAccessMask =
+      VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT;
+  std::swap(image_barrier.newLayout, image_barrier.oldLayout);
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &image_barrier);
 
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;

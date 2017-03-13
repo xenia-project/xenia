@@ -243,9 +243,19 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   auto& swap_state = command_processor_->swap_state();
   {
     std::lock_guard<std::mutex> lock(swap_state.mutex);
-    if (swap_state.pending) {
-      swap_state.pending = false;
+    if (!swap_state.pending) {
+      // return;
     }
+
+    auto event = reinterpret_cast<VkEvent>(swap_state.backend_data);
+    VkResult status = vkGetEventStatus(*device_, event);
+    if (status != VK_EVENT_SET) {
+      // The device has not finished processing the image.
+      // return;
+    }
+
+    vkResetEvent(*device_, event);
+    swap_state.pending = false;
   }
 
   if (!swap_state.front_buffer_texture) {
@@ -253,7 +263,6 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     return;
   }
 
-  auto semaphore = reinterpret_cast<VkSemaphore>(swap_state.backend_data);
   auto swap_chain = display_context_->swap_chain();
   auto copy_cmd_buffer = swap_chain->copy_cmd_buffer();
   auto front_buffer =
