@@ -16,6 +16,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
 namespace xe {
@@ -63,8 +64,7 @@ VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
     case DepthRenderTargetFormat::kD24S8:
       return VK_FORMAT_D24_UNORM_S8_UINT;
     case DepthRenderTargetFormat::kD24FS8:
-      // TODO(benvanik): some way to emulate? resolve-time flag?
-      XELOGW("Unsupported EDRAM format kD24FS8 used");
+      // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
       return VK_FORMAT_UNDEFINED;
@@ -296,6 +296,7 @@ CachedFramebuffer::CachedFramebuffer(
   VkFramebufferCreateInfo framebuffer_info;
   framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
   framebuffer_info.pNext = nullptr;
+  framebuffer_info.flags = 0;
   framebuffer_info.renderPass = render_pass;
   framebuffer_info.attachmentCount = image_view_count;
   framebuffer_info.pAttachments = image_views;
@@ -422,6 +423,8 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
       DepthRenderTargetFormatToVkFormat(depth_config.format);
 
   // Single subpass that writes to our attachments.
+  // FIXME: "Multiple attachments that alias the same memory must not be used in
+  // a single subpass"
   VkSubpassDescription subpass_info;
   subpass_info.flags = 0;
   subpass_info.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -567,13 +570,14 @@ bool RenderCache::dirty() const {
   auto& cur_regs = shadow_registers_;
 
   bool dirty = false;
-  dirty |= cur_regs.rb_modecontrol != regs[XE_GPU_REG_RB_MODECONTROL].u32;
-  dirty |= cur_regs.rb_surface_info != regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  dirty |= cur_regs.rb_color_info != regs[XE_GPU_REG_RB_COLOR_INFO].u32;
-  dirty |= cur_regs.rb_color1_info != regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
-  dirty |= cur_regs.rb_color2_info != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
-  dirty |= cur_regs.rb_color3_info != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
-  dirty |= cur_regs.rb_depth_info != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  dirty |= cur_regs.rb_modecontrol.value != regs[XE_GPU_REG_RB_MODECONTROL].u32;
+  dirty |=
+      cur_regs.rb_surface_info.value != regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  dirty |= cur_regs.rb_color_info.value != regs[XE_GPU_REG_RB_COLOR_INFO].u32;
+  dirty |= cur_regs.rb_color1_info.value != regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
+  dirty |= cur_regs.rb_color2_info.value != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
+  dirty |= cur_regs.rb_color3_info.value != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+  dirty |= cur_regs.rb_depth_info.value != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   dirty |= cur_regs.pa_sc_window_scissor_tl !=
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   dirty |= cur_regs.pa_sc_window_scissor_br !=
@@ -597,13 +601,20 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   CachedFramebuffer* framebuffer = nullptr;
   auto& regs = shadow_registers_;
   bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
-  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
-  dirty |= SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
-  dirty |= SetShadowRegister(&regs.rb_depth_info, XE_GPU_REG_RB_DEPTH_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_modecontrol.value, XE_GPU_REG_RB_MODECONTROL);
+  dirty |= SetShadowRegister(&regs.rb_surface_info.value,
+                             XE_GPU_REG_RB_SURFACE_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color1_info.value, XE_GPU_REG_RB_COLOR1_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
+  dirty |=
+      SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
@@ -696,13 +707,12 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
 
   // RB_MODECONTROL
   // Rough mode control (color, color+depth, etc).
-  config->mode_control = static_cast<ModeControl>(regs.rb_modecontrol & 0x7);
+  config->mode_control = regs.rb_modecontrol.edram_mode;
 
   // RB_SURFACE_INFO
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
-  config->surface_pitch_px = regs.rb_surface_info & 0x3FFF;
-  config->surface_msaa =
-      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+  config->surface_pitch_px = regs.rb_surface_info.surface_pitch;
+  config->surface_msaa = regs.rb_surface_info.msaa_samples;
 
   // TODO(benvanik): verify min/max so we don't go out of bounds.
   // TODO(benvanik): has to be a good way to get height.
@@ -721,14 +731,13 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
 
   // Color attachment configuration.
   if (config->mode_control == ModeControl::kColorDepth) {
-    uint32_t color_info[4] = {
+    reg::RB_COLOR_INFO color_info[4] = {
         regs.rb_color_info, regs.rb_color1_info, regs.rb_color2_info,
         regs.rb_color3_info,
     };
     for (int i = 0; i < 4; ++i) {
-      config->color[i].edram_base = color_info[i] & 0xFFF;
-      config->color[i].format =
-          static_cast<ColorRenderTargetFormat>((color_info[i] >> 16) & 0xF);
+      config->color[i].edram_base = color_info[i].color_base;
+      config->color[i].format = color_info[i].color_format;
       // We don't support GAMMA formats, so switch them to what we do support.
       switch (config->color[i].format) {
         case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
@@ -741,10 +750,6 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
           config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
           break;
       }
-
-      // Make sure all unknown bits are unset.
-      // RDR sets bit 0x00400000
-      // assert_zero(color_info[i] & ~0x000F0FFF);
     }
   } else {
     for (int i = 0; i < 4; ++i) {
@@ -757,12 +762,8 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   // Depth/stencil attachment configuration.
   if (config->mode_control == ModeControl::kColorDepth ||
       config->mode_control == ModeControl::kDepth) {
-    config->depth_stencil.edram_base = regs.rb_depth_info & 0xFFF;
-    config->depth_stencil.format =
-        static_cast<DepthRenderTargetFormat>((regs.rb_depth_info >> 16) & 0x1);
-
-    // Make sure all unknown bits are unset.
-    // assert_zero(regs.rb_depth_info & ~0x00010FFF);
+    config->depth_stencil.edram_base = regs.rb_depth_info.depth_base;
+    config->depth_stencil.format = regs.rb_depth_info.depth_format;
   } else {
     config->depth_stencil.edram_base = 0;
     config->depth_stencil.format = DepthRenderTargetFormat::kD24S8;
@@ -870,6 +871,27 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
   *out_render_pass = render_pass;
   *out_framebuffer = framebuffer;
   return true;
+}
+
+VkImageView RenderCache::FindTileView(uint32_t base, uint32_t pitch,
+                                      MsaaSamples samples, bool color_or_depth,
+                                      uint32_t format) {
+  uint32_t tile_width = samples == MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = samples != MsaaSamples::k1X ? 8 : 16;
+
+  TileViewKey key;
+  key.tile_offset = base;
+  key.tile_width = xe::round_up(pitch, tile_width) / tile_width;
+  key.tile_height = 160;
+  key.color_or_depth = color_or_depth ? 1 : 0;
+  key.msaa_samples = 0;
+  key.edram_format = static_cast<uint16_t>(format);
+  auto view = FindTileView(key);
+  if (view) {
+    return view->image_view;
+  }
+
+  return nullptr;
 }
 
 CachedTileView* RenderCache::FindOrCreateTileView(

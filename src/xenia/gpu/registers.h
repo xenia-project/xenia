@@ -30,6 +30,27 @@ namespace reg {
 
 ***************************************************/
 
+union COHER_STATUS_HOST {
+  xe::bf<uint32_t, 0, 8> matching_contexts;
+  xe::bf<uint32_t, 8, 1> rb_copy_dest_base_ena;
+  xe::bf<uint32_t, 9, 1> dest_base_0_ena;
+  xe::bf<uint32_t, 10, 1> dest_base_1_ena;
+  xe::bf<uint32_t, 11, 1> dest_base_2_ena;
+  xe::bf<uint32_t, 12, 1> dest_base_3_ena;
+  xe::bf<uint32_t, 13, 1> dest_base_4_ena;
+  xe::bf<uint32_t, 14, 1> dest_base_5_ena;
+  xe::bf<uint32_t, 15, 1> dest_base_6_ena;
+  xe::bf<uint32_t, 16, 1> dest_base_7_ena;
+
+  xe::bf<uint32_t, 24, 1> vc_action_ena;
+  xe::bf<uint32_t, 25, 1> tc_action_ena;
+  xe::bf<uint32_t, 26, 1> pglb_action_ena;
+
+  xe::bf<uint32_t, 31, 1> status;
+
+  uint32_t value;
+};
+
 union WAIT_UNTIL {
   xe::bf<uint32_t, 1, 1> wait_re_vsync;
   xe::bf<uint32_t, 2, 1> wait_fe_vsync;
@@ -91,10 +112,26 @@ union PA_SU_SC_MODE_CNTL {
   uint32_t value;
 };
 
+// Setup Unit Vertex Control
+union PA_SU_VTX_CNTL {
+  xe::bf<uint32_t, 0, 1> pix_center;  // 1 = half pixel offset
+  xe::bf<uint32_t, 1, 2> round_mode;
+  xe::bf<uint32_t, 3, 3> quant_mode;
+
+  uint32_t value;
+};
+
+union PA_SC_MPASS_PS_CNTL {
+  xe::bf<uint32_t, 0, 20> mpass_pix_vec_per_pass;
+  xe::bf<uint32_t, 31, 1> mpass_ps_ena;
+
+  uint32_t value;
+};
+
 // Scanline converter viz query
 union PA_SC_VIZ_QUERY {
   xe::bf<uint32_t, 0, 1> viz_query_ena;
-  xe::bf<uint32_t, 1, 5> viz_query_id;
+  xe::bf<uint32_t, 1, 6> viz_query_id;
   xe::bf<uint32_t, 7, 1> kill_pix_post_early_z;
 
   uint32_t value;
@@ -111,7 +148,9 @@ union PA_CL_CLIP_CNTL {
   xe::bf<uint32_t, 4, 1> ucp_ena_4;
   xe::bf<uint32_t, 5, 1> ucp_ena_5;
 
+  xe::bf<uint32_t, 14, 2> ps_ucp_mode;
   xe::bf<uint32_t, 16, 1> clip_disable;
+  xe::bf<uint32_t, 17, 1> ucp_cull_only_ena;
   xe::bf<uint32_t, 18, 1> boundary_edge_flag_ena;
   xe::bf<uint32_t, 19, 1> dx_clip_space_def;
   xe::bf<uint32_t, 20, 1> dis_clip_err_detect;
@@ -156,8 +195,8 @@ union RB_MODECONTROL {
 
 union RB_SURFACE_INFO {
   xe::bf<uint32_t, 0, 14> surface_pitch;
-  xe::bf<MsaaSamples, 14, 2> msaa_samples;
-  xe::bf<uint32_t, 16, 14> hiz_pitch;
+  xe::bf<MsaaSamples, 16, 2> msaa_samples;
+  xe::bf<uint32_t, 18, 14> hiz_pitch;
 
   uint32_t value;
 };
@@ -166,13 +205,6 @@ union RB_COLORCONTROL {
   xe::bf<uint32_t, 0, 3> alpha_func;
   xe::bf<uint32_t, 3, 1> alpha_test_enable;
   xe::bf<uint32_t, 4, 1> alpha_to_mask_enable;
-  xe::bf<uint32_t, 5, 1> blend_disable;
-  xe::bf<uint32_t, 6, 1> fog_enable;
-  xe::bf<uint32_t, 7, 1> vs_exports_fog;
-  xe::bf<uint32_t, 8, 4> rop_code;
-  xe::bf<uint32_t, 12, 2> dither_mode;
-  xe::bf<uint32_t, 14, 2> dither_type;
-  xe::bf<uint32_t, 16, 1> pixel_fog;
 
   xe::bf<uint32_t, 24, 2> alpha_to_mask_offset0;
   xe::bf<uint32_t, 26, 2> alpha_to_mask_offset1;
@@ -185,7 +217,7 @@ union RB_COLORCONTROL {
 union RB_COLOR_INFO {
   xe::bf<uint32_t, 0, 12> color_base;
   xe::bf<ColorRenderTargetFormat, 16, 4> color_format;
-  xe::bf<uint32_t, 22, 1> unk_22;
+  xe::bf<uint32_t, 20, 6> color_exp_bias;
 
   uint32_t value;
 };
@@ -193,6 +225,29 @@ union RB_COLOR_INFO {
 union RB_DEPTH_INFO {
   xe::bf<uint32_t, 0, 12> depth_base;
   xe::bf<DepthRenderTargetFormat, 16, 1> depth_format;
+
+  uint32_t value;
+};
+
+union RB_COPY_CONTROL {
+  xe::bf<uint32_t, 0, 3> copy_src_select;
+  xe::bf<uint32_t, 4, 3> copy_sample_select;
+  xe::bf<uint32_t, 8, 1> color_clear_enable;
+  xe::bf<uint32_t, 9, 1> depth_clear_enable;
+
+  xe::bf<xenos::CopyCommand, 20, 2> copy_command;
+
+  uint32_t value;
+};
+
+union RB_COPY_DEST_INFO {
+  xe::bf<Endian128, 0, 3> copy_dest_endian;
+  xe::bf<uint32_t, 3, 1> copy_dest_array;
+  xe::bf<uint32_t, 4, 3> copy_dest_slice;
+  xe::bf<ColorFormat, 7, 6> copy_dest_format;
+  xe::bf<uint32_t, 13, 3> copy_dest_number;
+  xe::bf<uint32_t, 16, 6> copy_dest_exp_bias;
+  xe::bf<uint32_t, 24, 1> copy_dest_swap;
 
   uint32_t value;
 };

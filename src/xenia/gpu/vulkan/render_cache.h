@@ -11,6 +11,7 @@
 #define XENIA_GPU_VULKAN_RENDER_CACHE_H_
 
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
@@ -268,6 +269,9 @@ class RenderCache {
   // with an already open pass.
   bool dirty() const;
 
+  VkImageView FindTileView(uint32_t base, uint32_t pitch, MsaaSamples samples,
+                           bool color_or_depth, uint32_t format);
+
   // Begins a render pass targeting the state-specified framebuffer formats.
   // The command buffer will be transitioned into the render pass phase.
   const RenderState* BeginRenderPass(VkCommandBuffer command_buffer,
@@ -353,13 +357,13 @@ class RenderCache {
   // If the registers don't change between passes we can quickly reuse the
   // previous one.
   struct ShadowRegisters {
-    uint32_t rb_modecontrol;
-    uint32_t rb_surface_info;
-    uint32_t rb_color_info;
-    uint32_t rb_color1_info;
-    uint32_t rb_color2_info;
-    uint32_t rb_color3_info;
-    uint32_t rb_depth_info;
+    reg::RB_MODECONTROL rb_modecontrol;
+    reg::RB_SURFACE_INFO rb_surface_info;
+    reg::RB_COLOR_INFO rb_color_info;
+    reg::RB_COLOR_INFO rb_color1_info;
+    reg::RB_COLOR_INFO rb_color2_info;
+    reg::RB_COLOR_INFO rb_color3_info;
+    reg::RB_DEPTH_INFO rb_depth_info;
     uint32_t pa_sc_window_scissor_tl;
     uint32_t pa_sc_window_scissor_br;
 
