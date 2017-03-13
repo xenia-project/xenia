@@ -159,12 +159,13 @@ DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
                         ExportTag::kVideo | ExportTag::kStub);
 
 dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
-                                   unknown_t unk1, lpunknown_t unk2_ptr,
+                                   lpvoid_t arg, lpunknown_t unk2_ptr,
                                    lpunknown_t unk3_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
-  // r5 = 0
-  // r6/r7 = some binary data in .data
+  // r5 = function arg
+  // r6 = register init cmds(?)
+  // r7 = gpu init cmds(?)
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeEngines,
@@ -268,11 +269,6 @@ dword_result_t VdInitializeScalerCommandBuffer(
 DECLARE_XBOXKRNL_EXPORT(VdInitializeScalerCommandBuffer,
                         ExportTag::kVideo | ExportTag::kSketchy);
 
-// We use these to shuffle data to VdSwap.
-// This way it gets properly stored in the command buffer (for replay/etc).
-uint32_t last_frontbuffer_width_ = 1280;
-uint32_t last_frontbuffer_height_ = 720;
-
 struct BufferScaling {
   xe::be<uint16_t> fb_width;
   xe::be<uint16_t> fb_height;
@@ -292,19 +288,13 @@ dword_result_t VdCallGraphicsNotificationRoutines(
 
   // TODO(benvanik): what does this mean, I forget:
   // callbacks get 0, r3, r4
-
-  // For use by VdSwap.
-  last_frontbuffer_width_ = args_ptr->fb_width;
-  last_frontbuffer_height_ = args_ptr->fb_height;
-
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdCallGraphicsNotificationRoutines,
                         ExportTag::kVideo | ExportTag::kSketchy);
 
 dword_result_t VdIsHSIOTrainingSucceeded() {
-  // Not really sure what this should be - code does weird stuff here:
-  // (cntlzw    r11, r3  / extrwi    r11, r11, 1, 26)
+  // BOOL return value
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT(VdIsHSIOTrainingSucceeded,
@@ -338,13 +328,23 @@ DECLARE_XBOXKRNL_EXPORT(VdRetrainEDRAM, ExportTag::kVideo | ExportTag::kStub);
 
 void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
             lpvoid_t fetch_ptr,   // frontbuffer texture fetch
-            unknown_t unk2,       //
+            lpunknown_t unk2,     // system writeback ptr
             lpunknown_t unk3,     // buffer from VdGetSystemCommandBuffer
             lpunknown_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
             lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
             lpdword_t color_format_ptr, lpdword_t color_space_ptr,
-            lpunknown_t unk8, unknown_t unk9) {
-  gpu::xenos::xe_gpu_texture_fetch_t fetch;
+            lpdword_t width, lpdword_t height) {
+  // All of these parameters are REQUIRED.
+  assert(buffer_ptr);
+  assert(fetch_ptr);
+  assert(frontbuffer_ptr);
+  assert(color_format_ptr);
+  assert(width);
+  assert(height);
+
+  namespace xenos = xe::gpu::xenos;
+
+  xenos::xe_gpu_texture_fetch_t fetch;
   xe::copy_and_swap_32_unaligned(
       &fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
@@ -352,10 +352,10 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   auto color_space = *color_space_ptr;
   assert_true(color_format == gpu::ColorFormat::k_8_8_8_8 ||
               color_format == gpu::ColorFormat::kUnknown0x36);
-  assert_true(color_space == 0);
+  assert_true(color_space == 0);  // RGB(0)
   assert_true(*frontbuffer_ptr == fetch.address << 12);
-  assert_true(last_frontbuffer_width_ == 1 + fetch.size_2d.width);
-  assert_true(last_frontbuffer_height_ == 1 + fetch.size_2d.height);
+  assert_true(*width == 1 + fetch.size_2d.width);
+  assert_true(*height == 1 + fetch.size_2d.height);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
   // for this method to do what it needs. We just zero them out and send a
@@ -364,16 +364,33 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   // use this method.
   buffer_ptr.Zero(64 * 4);
 
-  namespace xenos = xe::gpu::xenos;
+  // virtual -> physical
+  fetch.address &= 0x1FFFF;
 
+  uint32_t offset = 0;
   auto dwords = buffer_ptr.as_array<uint32_t>();
-  dwords[0] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 63>();
-  dwords[1] = 'SWAP';
-  dwords[2] = (*frontbuffer_ptr) & 0x1FFFFFFF;
 
-  // Set by VdCallGraphicsNotificationRoutines.
-  dwords[3] = last_frontbuffer_width_;
-  dwords[4] = last_frontbuffer_height_;
+  // Write in the texture fetch.
+  dwords[offset++] =
+      xenos::MakePacketType0<gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6>();
+  dwords[offset++] = fetch.dword_0;
+  dwords[offset++] = fetch.dword_1;
+  dwords[offset++] = fetch.dword_2;
+  dwords[offset++] = fetch.dword_3;
+  dwords[offset++] = fetch.dword_4;
+  dwords[offset++] = fetch.dword_5;
+
+  dwords[offset++] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 4>();
+  dwords[offset++] = 'SWAP';
+  dwords[offset++] = (*frontbuffer_ptr) & 0x1FFFFFFF;
+
+  dwords[offset++] = *width;
+  dwords[offset++] = *height;
+
+  // Fill the rest of the buffer with NOP packets.
+  for (uint32_t i = offset; i < 64; i++) {
+    dwords[i] = xenos::MakePacketType2();
+  }
 }
 DECLARE_XBOXKRNL_EXPORT(VdSwap, ExportTag::kVideo | ExportTag::kImportant);
 
