@@ -626,7 +626,7 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
   // Upload the constants the shaders require.
   // These are optional, and if none are defined 0 will be returned.
   auto constant_offsets = buffer_cache_->UploadConstantRegisters(
-      vertex_shader->constant_register_map(),
+      current_setup_buffer_, vertex_shader->constant_register_map(),
       pixel_shader ? pixel_shader->constant_register_map() : dummy_map,
       current_batch_fence_);
   if (constant_offsets.first == VK_WHOLE_SIZE ||
@@ -681,7 +681,8 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
       info.count * (info.format == IndexFormat::kInt32 ? sizeof(uint32_t)
                                                        : sizeof(uint16_t));
   auto buffer_ref = buffer_cache_->UploadIndexBuffer(
-      source_addr, source_length, info.format, current_batch_fence_);
+      current_setup_buffer_, source_addr, source_length, info.format,
+      current_batch_fence_);
   if (buffer_ref.second == VK_WHOLE_SIZE) {
     // Failed to upload buffer.
     return false;
@@ -745,8 +746,8 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     // Upload (or get a cached copy of) the buffer.
     uint32_t source_length = uint32_t(valid_range);
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        physical_address, source_length, static_cast<Endian>(fetch->endian),
-        current_batch_fence_);
+        current_setup_buffer_, physical_address, source_length,
+        static_cast<Endian>(fetch->endian), current_batch_fence_);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
       return false;

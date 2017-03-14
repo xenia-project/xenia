@@ -232,6 +232,16 @@ void CircularBuffer::Flush(Allocation* allocation) {
   vkFlushMappedMemoryRanges(*device_, 1, &range);
 }
 
+void CircularBuffer::Flush(VkDeviceSize offset, VkDeviceSize length) {
+  VkMappedMemoryRange range;
+  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+  range.pNext = nullptr;
+  range.memory = gpu_memory_;
+  range.offset = gpu_base_ + offset;
+  range.size = length;
+  vkFlushMappedMemoryRanges(*device_, 1, &range);
+}
+
 void CircularBuffer::Clear() {
   for (auto alloc : allocations_) {
     delete alloc;
