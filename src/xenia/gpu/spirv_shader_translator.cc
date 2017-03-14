@@ -117,6 +117,14 @@ void SpirvShaderTranslator::StartTranslation() {
   Id loop_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(32), 1);
   Id bool_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(8), 1);
 
+  // Strides
+  b.addDecoration(float_consts_type, spv::Decoration::DecorationArrayStride,
+                  4 * sizeof(float));
+  b.addDecoration(loop_consts_type, spv::Decoration::DecorationArrayStride,
+                  sizeof(uint32_t));
+  b.addDecoration(bool_consts_type, spv::Decoration::DecorationArrayStride,
+                  sizeof(uint32_t));
+
   Id consts_struct_type = b.makeStructType(
       {float_consts_type, loop_consts_type, bool_consts_type}, "consts_type");
   b.addDecoration(consts_struct_type, spv::Decoration::DecorationBlock);
@@ -124,25 +132,16 @@ void SpirvShaderTranslator::StartTranslation() {
   // Constants member decorations.
   b.addMemberDecoration(consts_struct_type, 0,
                         spv::Decoration::DecorationOffset, 0);
-  b.addMemberDecoration(consts_struct_type, 0,
-                        spv::Decoration::DecorationArrayStride,
-                        4 * sizeof(float));
   b.addMemberName(consts_struct_type, 0, "float_consts");
 
   b.addMemberDecoration(consts_struct_type, 1,
                         spv::Decoration::DecorationOffset,
                         512 * 4 * sizeof(float));
-  b.addMemberDecoration(consts_struct_type, 1,
-                        spv::Decoration::DecorationArrayStride,
-                        sizeof(uint32_t));
   b.addMemberName(consts_struct_type, 1, "loop_consts");
 
   b.addMemberDecoration(consts_struct_type, 2,
                         spv::Decoration::DecorationOffset,
                         512 * 4 * sizeof(float) + 32 * sizeof(uint32_t));
-  b.addMemberDecoration(consts_struct_type, 2,
-                        spv::Decoration::DecorationArrayStride,
-                        sizeof(uint32_t));
   b.addMemberName(consts_struct_type, 2, "bool_consts");
 
   consts_ = b.createVariable(spv::StorageClass::StorageClassUniform,
