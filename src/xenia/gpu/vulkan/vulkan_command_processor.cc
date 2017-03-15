@@ -850,8 +850,6 @@ bool VulkanCommandProcessor::IssueCopy() {
   // but I can't seem to find something similar.
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
-  uint32_t dest_block_width = xe::round_up(dest_logical_width, 32);
-  uint32_t dest_block_height = /*xe::round_up(*/ dest_logical_height /*, 32)*/;
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
@@ -951,7 +949,7 @@ bool VulkanCommandProcessor::IssueCopy() {
                               &tex_info);
 
   auto texture =
-      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format, nullptr);
+      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 
