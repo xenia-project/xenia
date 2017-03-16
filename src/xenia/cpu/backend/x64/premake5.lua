@@ -19,6 +19,11 @@ project("xenia-cpu-backend-x64")
     "CAPSTONE_USE_SYS_DYN_MEM",
     "XBYAK_NO_OP_NAMES",
   })
+  -- Enable VTune, if it's installed.
+  if os.isdir(project_root.."/third_party/vtune") then
+    defines { "ENABLE_VTUNE=1" }
+  end
+
   includedirs({
     project_root.."/third_party/capstone/include",
     project_root.."/third_party/gflags/src",

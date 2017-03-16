@@ -12,12 +12,18 @@
 #include <cstdlib>
 #include <cstring>
 
+#if ENABLE_VTUNE
+#include "third_party/vtune/include/jitprofiling.h"
+#pragma comment(lib, "../third_party/vtune/lib64/jitprofiling.lib")
+#endif
+
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/cpu/function.h"
+#include "xenia/cpu/module.h"
 
 namespace xe {
 namespace cpu {
@@ -189,6 +195,27 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
               unwind_reservation);
   }
+
+#if ENABLE_VTUNE
+  if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
+    std::string method_name;
+    if (function_info && function_info->name().size() != 0) {
+      method_name = function_info->name();
+    } else {
+      method_name = xe::format_string("sub_%.8X", guest_address);
+    }
+
+    iJIT_Method_Load_V2 method = {0};
+    method.method_id = iJIT_GetNewMethodID();
+    method.method_load_address = code_address;
+    method.method_size = uint32_t(code_size);
+    method.method_name = const_cast<char*>(method_name.data());
+    method.module_name = function_info
+                             ? (char*)function_info->module()->name().c_str()
+                             : nullptr;
+    iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED_V2, (void*)&method);
+  }
+#endif
 
   // Now that everything is ready, fix up the indirection table.
   // Note that we do support code that doesn't have an indirection fixup, so
