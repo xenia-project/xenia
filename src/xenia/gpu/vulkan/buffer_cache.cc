@@ -419,10 +419,7 @@ void BufferCache::Flush(VkCommandBuffer command_buffer) {
   vkFlushMappedMemoryRanges(device_, 1, &dirty_range);
 }
 
-void BufferCache::InvalidateCache() {
-  // TODO(benvanik): caching.
-}
-
+void BufferCache::InvalidateCache() { transient_cache_.clear(); }
 void BufferCache::ClearCache() { transient_cache_.clear(); }
 
 void BufferCache::Scavenge() {

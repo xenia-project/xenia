@@ -24,6 +24,8 @@ struct SamplerInfo {
   ClampMode clamp_v;
   ClampMode clamp_w;
   AnisoFilter aniso_filter;
+  BorderColor border_color;
+  float lod_bias;
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       const ParsedTextureFetchInstruction& fetch_instr,

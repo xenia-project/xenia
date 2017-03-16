@@ -850,8 +850,6 @@ bool VulkanCommandProcessor::IssueCopy() {
   // but I can't seem to find something similar.
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
-  uint32_t dest_block_width = xe::round_up(dest_logical_width, 32);
-  uint32_t dest_block_height = /*xe::round_up(*/ dest_logical_height /*, 32)*/;
 
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
@@ -944,26 +942,19 @@ bool VulkanCommandProcessor::IssueCopy() {
     }
   }
 
+  Endian resolve_endian = Endian::k8in32;
+  if (copy_dest_endian <= Endian128::k16in32) {
+    resolve_endian = static_cast<Endian>(copy_dest_endian);
+  }
+
   // Demand a resolve texture from the texture cache.
-  TextureInfo tex_info = {};
-  tex_info.guest_address = copy_dest_base;
-  tex_info.width = dest_logical_width - 1;
-  tex_info.height = dest_logical_height - 1;
-  tex_info.dimension = gpu::Dimension::k2D;
-  tex_info.input_length =
-      dest_block_width * dest_block_height * dest_texel_size;
-  tex_info.format_info = FormatInfo::Get(uint32_t(copy_dest_format));
-  tex_info.endianness = Endian::k8in32;
-  tex_info.is_tiled = true;
-  tex_info.size_2d.logical_width = dest_logical_width;
-  tex_info.size_2d.logical_height = dest_logical_height;
-  tex_info.size_2d.block_width = dest_block_width;
-  tex_info.size_2d.block_height = dest_block_height;
-  tex_info.size_2d.input_width = dest_block_width;
-  tex_info.size_2d.input_height = dest_block_height;
-  tex_info.size_2d.input_pitch = copy_dest_pitch * dest_texel_size;
+  TextureInfo tex_info;
+  TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
+                              dest_logical_width, dest_logical_height,
+                              &tex_info);
+
   auto texture =
-      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format, nullptr);
+      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 

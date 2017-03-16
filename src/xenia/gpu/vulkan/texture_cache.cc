@@ -430,19 +430,26 @@ bool TextureCache::FreeTexture(Texture* texture) {
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
-    const TextureInfo& texture_info, TextureFormat format,
-    VkOffset2D* out_offset) {
-  // Check to see if we've already used a texture at this location.
-  auto texture = LookupAddress(
-      texture_info.guest_address, texture_info.size_2d.block_width,
-      texture_info.size_2d.block_height, format, out_offset);
-  if (texture) {
-    return texture;
+    const TextureInfo& texture_info, TextureFormat format) {
+  auto texture_hash = texture_info.hash();
+  for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
+    if (it->second->texture_info == texture_info) {
+      if (it->second->pending_invalidation) {
+        // This texture has been invalidated!
+        RemoveInvalidatedTextures();
+        break;
+      }
+
+      // Tell the trace writer to "cache" this memory (but not read it)
+      trace_writer_->WriteMemoryReadCachedNop(texture_info.guest_address,
+                                              texture_info.input_length);
+
+      return it->second;
+    }
   }
 
   // No texture at this location. Make a new one.
-  texture = AllocateTexture(texture_info);
-  texture->is_full_texture = false;
+  auto texture = AllocateTexture(texture_info);
 
   // Setup a debug name for the texture.
   device_->DbgSetObjectName(
@@ -461,16 +468,18 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
         auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
         // Clear watch handle first so we don't redundantly
         // remove.
+        assert_not_zero(touched_texture->access_watch_handle);
         touched_texture->access_watch_handle = 0;
         touched_texture->pending_invalidation = true;
+
         // Add to pending list so Scavenge will clean it up.
-        self->invalidated_resolve_textures_mutex_.lock();
-        self->invalidated_resolve_textures_.push_back(touched_texture);
-        self->invalidated_resolve_textures_mutex_.unlock();
+        self->invalidated_textures_mutex_.lock();
+        self->invalidated_textures_->push_back(touched_texture);
+        self->invalidated_textures_mutex_.unlock();
       },
       this, texture);
 
-  resolve_textures_.push_back(texture);
+  textures_[texture_hash] = texture;
   return texture;
 }
 
@@ -491,58 +500,6 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
                                            texture_info.input_length);
 
       return it->second;
-    }
-  }
-
-  // Check resolve textures.
-  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
-       ++it) {
-    auto texture = (*it);
-    if (texture_info.guest_address == texture->texture_info.guest_address &&
-        texture_info.size_2d.logical_width ==
-            texture->texture_info.size_2d.logical_width &&
-        texture_info.size_2d.logical_height ==
-            texture->texture_info.size_2d.logical_height) {
-      if (texture->pending_invalidation) {
-        // Texture invalidated! Remove.
-        RemoveInvalidatedTextures();
-        break;
-      }
-
-      // Exact match.
-      // TODO: Lazy match (at an offset)
-      // Upgrade this texture to a full texture.
-      texture->is_full_texture = true;
-      texture->texture_info = texture_info;
-
-      if (texture->access_watch_handle) {
-        memory_->CancelAccessWatch(texture->access_watch_handle);
-      }
-
-      // Tell the trace writer to cache this memory but don't read it
-      trace_writer_->WriteMemoryReadCachedNop(texture_info.guest_address,
-                                              texture_info.input_length);
-
-      texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-          texture_info.guest_address, texture_info.input_length,
-          cpu::MMIOHandler::kWatchWrite,
-          [](void* context_ptr, void* data_ptr, uint32_t address) {
-            auto self = reinterpret_cast<TextureCache*>(context_ptr);
-            auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
-            // Clear watch handle first so we don't redundantly
-            // remove.
-            touched_texture->access_watch_handle = 0;
-            touched_texture->pending_invalidation = true;
-            // Add to pending list so Scavenge will clean it up.
-            self->invalidated_textures_mutex_.lock();
-            self->invalidated_textures_->push_back(touched_texture);
-            self->invalidated_textures_mutex_.unlock();
-          },
-          this, texture);
-
-      textures_[texture_hash] = *it;
-      it = resolve_textures_.erase(it);
-      return textures_[texture_hash];
     }
   }
 
@@ -598,22 +555,6 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
           "0x%.8X - 0x%.8X", texture_info.guest_address,
           texture_info.guest_address + texture_info.output_length));
 
-  // Copy in overlapping resolve textures.
-  // FIXME: RDR appears to take textures from small chunks of a resolve texture?
-  if (texture_info.dimension == Dimension::k2D) {
-    for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
-         ++it) {
-      auto texture = (*it);
-      if (texture_info.guest_address >= texture->texture_info.guest_address &&
-          texture_info.guest_address < texture->texture_info.guest_address +
-                                           texture->texture_info.input_length) {
-        // Lazy matched a resolve texture. Copy it in and destroy it.
-        // Future resolves will just copy directly into this texture.
-        // assert_always();
-      }
-    }
-  }
-
   // Though we didn't find an exact match, that doesn't mean we're out of the
   // woods yet. This texture could either be a portion of another texture or
   // vice versa. Copy any overlapping textures into this texture.
@@ -634,6 +575,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
         auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
         // Clear watch handle first so we don't redundantly
         // remove.
+        assert_not_zero(touched_texture->access_watch_handle);
         touched_texture->access_watch_handle = 0;
         touched_texture->pending_invalidation = true;
         // Add to pending list so Scavenge will clean it up.
@@ -693,8 +635,9 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT) {
-    // This applies to any depth/stencil format, but we only use D24S8.
+  if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+    // This applies to any depth/stencil format, but we only use D24S8 / D32FS8.
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
   }
 
@@ -804,7 +747,7 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.addressModeW =
       address_mode_map[static_cast<int>(sampler_info.clamp_w)];
 
-  sampler_create_info.mipLodBias = 0.0f;
+  sampler_create_info.mipLodBias = sampler_info.lod_bias;
 
   float aniso = 0.f;
   switch (sampler_info.aniso_filter) {
@@ -892,23 +835,6 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
       }
 
       return it->second;
-    }
-  }
-
-  // Check resolve textures
-  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
-       ++it) {
-    const auto& texture_info = (*it)->texture_info;
-    if (texture_info.guest_address == guest_address &&
-        texture_info.dimension == Dimension::k2D &&
-        texture_info.size_2d.input_width == width &&
-        texture_info.size_2d.input_height == height) {
-      if (out_offset) {
-        out_offset->x = 0;
-        out_offset->y = 0;
-      }
-
-      return (*it);
     }
   }
 
@@ -1239,8 +1165,7 @@ bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.pNext = nullptr;
   barrier.srcAccessMask = 0;
-  barrier.dstAccessMask =
-      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.oldLayout = dest->image_layout;
   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1419,7 +1344,6 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     descriptor_pool_->BeginBatch(completion_fence);
   }
 
-  // TODO(benvanik): reuse.
   auto descriptor_set =
       descriptor_pool_->AcquireEntry(texture_descriptor_set_layout_);
   if (!descriptor_set) {
@@ -1557,24 +1481,6 @@ void TextureCache::RemoveInvalidatedTextures() {
 
     invalidated_textures.clear();
   }
-
-  // Invalidated resolve textures.
-  invalidated_resolve_textures_mutex_.lock();
-  if (!invalidated_resolve_textures_.empty()) {
-    for (auto it = invalidated_resolve_textures_.begin();
-         it != invalidated_resolve_textures_.end(); ++it) {
-      pending_delete_textures_.push_back(*it);
-
-      auto tex =
-          std::find(resolve_textures_.begin(), resolve_textures_.end(), *it);
-      if (tex != resolve_textures_.end()) {
-        resolve_textures_.erase(tex);
-      }
-    }
-
-    invalidated_resolve_textures_.clear();
-  }
-  invalidated_resolve_textures_mutex_.unlock();
 }
 
 void TextureCache::ClearCache() {

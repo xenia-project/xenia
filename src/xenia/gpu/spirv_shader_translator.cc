@@ -1635,13 +1635,6 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
   auto& b = *builder_;
 
-  // TODO: If we have identical operands, reuse previous one.
-  Id sources[3] = {0};
-  Id dest = vec4_float_zero_;
-  for (size_t i = 0; i < instr.operand_count; i++) {
-    sources[i] = LoadFromOperand(instr.operands[i]);
-  }
-
   // Close the open predicated block if this instr isn't predicated or the
   // conditions do not match.
   if (open_predicated_block_ &&
@@ -1667,6 +1660,13 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
                            spv::SelectionControlMaskNone);
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
+  }
+
+  // TODO: If we have identical operands, reuse previous one.
+  Id sources[3] = {0};
+  Id dest = vec4_float_zero_;
+  for (size_t i = 0; i < instr.operand_count; i++) {
+    sources[i] = LoadFromOperand(instr.operands[i]);
   }
 
   bool close_predicated_block = false;
@@ -2048,22 +2048,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
   auto& b = *builder_;
 
-  // TODO: If we have identical operands, reuse previous one.
-  Id sources[3] = {0};
-  Id dest = b.makeFloatConstant(0);
-  for (size_t i = 0, x = 0; i < instr.operand_count; i++) {
-    auto src = LoadFromOperand(instr.operands[i]);
-
-    // Pull components out of the vector operands and use them as sources.
-    if (instr.operands[i].component_count > 1) {
-      for (int j = 0; j < instr.operands[i].component_count; j++) {
-        sources[x++] = b.createCompositeExtract(src, float_type_, j);
-      }
-    } else {
-      sources[x++] = src;
-    }
-  }
-
   // Close the open predicated block if this instr isn't predicated or the
   // conditions do not match.
   if (open_predicated_block_ &&
@@ -2089,6 +2073,22 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
                            spv::SelectionControlMaskNone);
     b.createConditionalBranch(pred_cond, block, predicated_block_end_);
     b.setBuildPoint(block);
+  }
+
+  // TODO: If we have identical operands, reuse previous one.
+  Id sources[3] = {0};
+  Id dest = b.makeFloatConstant(0);
+  for (size_t i = 0, x = 0; i < instr.operand_count; i++) {
+    auto src = LoadFromOperand(instr.operands[i]);
+
+    // Pull components out of the vector operands and use them as sources.
+    if (instr.operands[i].component_count > 1) {
+      for (int j = 0; j < instr.operands[i].component_count; j++) {
+        sources[x++] = b.createCompositeExtract(src, float_type_, j);
+      }
+    } else {
+      sources[x++] = src;
+    }
   }
 
   bool close_predicated_block = false;
