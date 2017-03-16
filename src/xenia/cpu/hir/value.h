@@ -254,6 +254,29 @@ class Value {
       return false;
     }
   }
+  bool IsConstantOne() const {
+    if (flags & VALUE_IS_CONSTANT) {
+      switch (type) {
+        case INT8_TYPE:
+          return constant.i8 == 1;
+        case INT16_TYPE:
+          return constant.i16 == 1;
+        case INT32_TYPE:
+          return constant.i32 == 1;
+        case INT64_TYPE:
+          return constant.i64 == 1;
+        case FLOAT32_TYPE:
+          return constant.f32 == 1.f;
+        case FLOAT64_TYPE:
+          return constant.f64 == 1.0;
+        default:
+          assert_unhandled_case(type);
+          return false;
+      }
+    } else {
+      return false;
+    }
+  }
   bool IsConstantEQ(Value* other) const {
     if (type == VEC128_TYPE) {
       assert_always();

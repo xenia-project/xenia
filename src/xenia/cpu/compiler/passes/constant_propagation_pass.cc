@@ -431,6 +431,27 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Mul(i->src2.value);
             i->Remove();
+          } else if (i->src1.value->IsConstant() ||
+                     i->src2.value->IsConstant()) {
+            // Reorder the sources to make things simpler.
+            // s1 = non-const, s2 = const
+            auto s1 =
+                i->src1.value->IsConstant() ? i->src2.value : i->src1.value;
+            auto s2 =
+                i->src1.value->IsConstant() ? i->src1.value : i->src2.value;
+
+            // Multiplication by one = no-op
+            if (s2->type != VEC128_TYPE && s2->IsConstantOne()) {
+              i->Replace(&OPCODE_ASSIGN_info, 0);
+              i->set_src1(s1);
+            } else if (s2->type == VEC128_TYPE) {
+              auto& c = s2->constant;
+              if (c.v128.f32[0] == 1.f && c.v128.f32[1] == 1.f &&
+                  c.v128.f32[2] == 1.f && c.v128.f32[3] == 1.f) {
+                i->Replace(&OPCODE_ASSIGN_info, 0);
+                i->set_src1(s1);
+              }
+            }
           }
           break;
         case OPCODE_MUL_HI:
@@ -445,6 +466,21 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Div(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
             i->Remove();
+          } else if (i->src2.value->IsConstant()) {
+            // Division by one = no-op.
+            Value* src1 = i->src1.value;
+            if (i->src2.value->type != VEC128_TYPE &&
+                i->src2.value->IsConstantOne()) {
+              i->Replace(&OPCODE_ASSIGN_info, 0);
+              i->set_src1(src1);
+            } else if (i->src2.value->type == VEC128_TYPE) {
+              auto& c = i->src2.value->constant;
+              if (c.v128.f32[0] == 1.f && c.v128.f32[1] == 1.f &&
+                  c.v128.f32[2] == 1.f && c.v128.f32[3] == 1.f) {
+                i->Replace(&OPCODE_ASSIGN_info, 0);
+                i->set_src1(src1);
+              }
+            }
           }
           break;
         case OPCODE_MUL_ADD:
