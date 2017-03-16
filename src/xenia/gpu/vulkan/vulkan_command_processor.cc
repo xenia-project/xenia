@@ -942,9 +942,14 @@ bool VulkanCommandProcessor::IssueCopy() {
     }
   }
 
+  Endian resolve_endian = Endian::k8in32;
+  if (copy_dest_endian <= Endian128::k16in32) {
+    resolve_endian = static_cast<Endian>(copy_dest_endian);
+  }
+
   // Demand a resolve texture from the texture cache.
   TextureInfo tex_info;
-  TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, Endian::k8in32,
+  TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
                               dest_logical_width, dest_logical_height,
                               &tex_info);
 
