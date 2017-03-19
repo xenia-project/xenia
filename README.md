@@ -72,7 +72,7 @@ Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
 is wide open greenfield fun.
 
-For general rules and guidelines please see [CONTRIBUTING.md](./github/CONTRIBUTING.md).
+For general rules and guidelines please see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
@@ -90,5 +90,5 @@ For more see the main [frequently asked questions](http://xenia.jp/faq/) page.
 
 ### Can I get an exe?
 
-Check the [Artifacts](https://ci.appveyor.com/project/benvanik/xenia/build/artifacts) tab to see
+Check [Appveyor's artifacts](https://ci.appveyor.com/project/benvanik/xenia/build/artifacts) to see
 what's there.
