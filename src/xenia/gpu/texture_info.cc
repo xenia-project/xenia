@@ -210,19 +210,19 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
       xe::round_up(size_1d.logical_width, format_info->block_width) /
       format_info->block_width;
 
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
-  size_1d.block_width = tile_width * 32;
+  uint32_t tile_width = uint32_t(std::ceil(block_width >> 5));
+  size_1d.block_width = tile_width << 5;
 
   uint32_t bytes_per_block =
-      format_info->block_width * format_info->bits_per_pixel / 8;
+      format_info->block_width * format_info->bits_per_pixel >> 3;
 
-  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
+  uint32_t byte_pitch = (tile_width << 5) * bytes_per_block;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
   }
 
-  size_1d.input_width = tile_width * 32 * format_info->block_width;
+  size_1d.input_width = (tile_width << 5) * format_info->block_width;
   size_1d.input_pitch = byte_pitch;
   input_length = size_1d.input_pitch;
 
@@ -250,13 +250,13 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
 
   // Tiles are 32x32 blocks. The pitch of all textures must a multiple of tile
   // dimensions.
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
-  size_2d.block_width = tile_width * 32;
+  uint32_t tile_width = uint32_t(std::ceil(block_width >> 5));
+  size_2d.block_width = tile_width << 5;
   size_2d.block_height = block_height;
 
   uint32_t bytes_per_block = format_info->block_width *
                              format_info->block_height *
-                             format_info->bits_per_pixel / 8;
+                             (format_info->bits_per_pixel >> 3);
   uint32_t byte_pitch = size_2d.block_width * bytes_per_block;
 
   if (!is_tiled) {
@@ -293,14 +293,14 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
       format_info->block_height;
 
   // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
-  uint32_t tile_height = uint32_t(std::ceil(block_height / 32.0f));
-  size_cube.block_width = tile_width * 32;
-  size_cube.block_height = tile_height * 32;
+  uint32_t tile_width = uint32_t(std::ceil(block_width >> 5));
+  uint32_t tile_height = uint32_t(std::ceil(block_height >> 5));
+  size_cube.block_width = tile_width << 5;
+  size_cube.block_height = tile_height << 5;
 
   uint32_t bytes_per_block = format_info->block_width *
                              format_info->block_height *
-                             format_info->bits_per_pixel / 8;
+                             (format_info->bits_per_pixel >> 3);
   uint32_t byte_pitch = size_cube.block_width * bytes_per_block;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
