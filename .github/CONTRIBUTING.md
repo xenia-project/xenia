@@ -26,9 +26,9 @@ could result in the project being terminated, so just don't do it.
 
 ## Style Guide
 
-Please read over [style_guide.md](docs/style_guide.md) before sending pull requests
+Please read over [style_guide.md](../docs/style_guide.md) before sending pull requests
 and ensure your code is clean as the buildbot (or I) will make you to fix it :)
-[style_guide.md](docs/style_guide.md) has information about using `xb format` and
+[style_guide.md](../docs/style_guide.md) has information about using `xb format` and
 various IDE auto formatting tools so that you can avoid having to clean things
 up later, so be sure to check it out.
 
@@ -62,10 +62,10 @@ things clean and easy.
 # License
 
 All xenia code is licensed under the 3-clause BSD license as detailed in
-[LICENSE](LICENSE). Code under `third_party/` is licensed under its original
+[LICENSE](../LICENSE). Code under `third_party/` is licensed under its original
 license.
 
-Incoming code in pull requests are subject to the xenia [LICENSE](LICENSE).
+Incoming code in pull requests are subject to the xenia [LICENSE](../LICENSE).
 Once code comes into the codebase it is very difficult to ever fully remove so
 copyright is ascribed to the project to prevent future disputes such as what
 occurred in [Dolphin](https://dolphin-emu.org/blog/2015/05/25/relicensing-dolphin/).

@@ -66,13 +66,13 @@ and be sure to run clang-format!
 
 ## Contributors Wanted!
 
-**Before contributing code or issues be sure to read [CONTRIBUTING.md](CONTRIBUTING.md).**
+**Before contributing code or issues be sure to read [CONTRIBUTING.md](.github/CONTRIBUTING.md).**
 
 Have some spare time, know advanced C++, and want to write an emulator?
 Contribute! There's a ton of work that needs to be done, a lot of which
 is wide open greenfield fun.
 
-For general rules and guidelines please see [CONTRIBUTING.md](CONTRIBUTING.md).
+For general rules and guidelines please see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
@@ -81,7 +81,7 @@ that there are some major work areas still untouched:
 * Add input drivers for [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
 * Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/benvanik/xenia/labels/cross%20platform)
 
-See more projects [good for contributors](https://github.com/benvanik/xenia/issues?labels=good+for+contributors&page=1&state=open). It's a good idea to ask on IRC/the bugs before beginning work
+See more projects [good for contributors](https://github.com/benvanik/xenia/labels/good%20for%20contributors). It's a good idea to ask on IRC/the bugs before beginning work
 on something.
 
 ## FAQ
@@ -90,5 +90,5 @@ For more see the main [frequently asked questions](http://xenia.jp/faq/) page.
 
 ### Can I get an exe?
 
-Check the [Releases](https://github.com/benvanik/xenia/releases) tab to see
-what's there. Updated irregularly.
+Check [Appveyor's artifacts](https://ci.appveyor.com/project/benvanik/xenia/build/artifacts) to see
+what's there.
