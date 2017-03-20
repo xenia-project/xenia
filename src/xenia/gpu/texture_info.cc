@@ -210,7 +210,7 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
       xe::round_up(size_1d.logical_width, format_info->block_width) /
       format_info->block_width;
 
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
+  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
   size_1d.block_width = tile_width * 32;
 
   uint32_t bytes_per_block =
@@ -250,7 +250,7 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
 
   // Tiles are 32x32 blocks. The pitch of all textures must a multiple of tile
   // dimensions.
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
+  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
   size_2d.block_width = tile_width * 32;
   size_2d.block_height = block_height;
 
@@ -293,8 +293,8 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
       format_info->block_height;
 
   // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  uint32_t tile_width = uint32_t(std::ceil(block_width / 32.0f));
-  uint32_t tile_height = uint32_t(std::ceil(block_height / 32.0f));
+  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
+  uint32_t tile_height = xe::round_up(block_height, 32) / 32;
   size_cube.block_width = tile_width * 32;
   size_cube.block_height = tile_height * 32;
 
