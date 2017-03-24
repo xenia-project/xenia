@@ -743,7 +743,7 @@ void UserModule::Dump() {
     sb.AppendFormat("\n");
   }
 
-  xe::LogLine('i', sb.GetString());
+  xe::LogLine(xe::LogLevel::LOG_LEVEL_INFO, 'i', sb.GetString());
 }
 
 }  // namespace kernel

@@ -38,6 +38,9 @@ DEFINE_string(
     "Logs are written to the given file (specify stdout for command line)");
 DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.");
+DEFINE_int32(
+    log_level, 2,
+    "Maximum level to be logged. (0=error, 1=warning, 2=info, 3=debug)");
 
 namespace xe {
 
@@ -71,12 +74,17 @@ class Logger {
     fclose(file_);
   }
 
-  void AppendLine(uint32_t thread_id, const char level_char, const char* buffer,
-                  size_t buffer_length) {
+  void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
+                  const char* buffer, size_t buffer_length) {
+    if (static_cast<int32_t>(level) > FLAGS_log_level) {
+      // Discard this line.
+      return;
+    }
+
     LogLine line;
     line.buffer_length = buffer_length;
     line.thread_id = thread_id;
-    line.level_char = level_char;
+    line.prefix_char = prefix_char;
 
     // First, run a check and see if we can increment write
     // head without any problems. If so, cmpxchg it to reserve some space in the
@@ -125,7 +133,9 @@ class Logger {
   struct LogLine {
     size_t buffer_length;
     uint32_t thread_id;
-    char level_char;
+    uint16_t _pad_0;  // (2b) padding
+    uint8_t _pad_1;   // (1b) padding
+    char prefix_char;
   };
 
   void Write(const char* buf, size_t size) {
@@ -151,7 +161,7 @@ class Logger {
         LogLine line;
         rb.Read(&line, sizeof(line));
         char prefix[] = {
-            line.level_char,
+            line.prefix_char,
             '>',
             ' ',
             '0',  // Thread ID gets placed here (8 chars).
@@ -228,22 +238,24 @@ void InitializeLogging(const std::wstring& app_name) {
   logger_ = new (mem) Logger(app_name);
 }
 
-void LogLineFormat(const char level_char, const char* fmt, ...) {
+void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
+                   ...) {
   va_list args;
   va_start(args, fmt);
   int chars_written = vsnprintf(log_format_buffer_.data(),
                                 log_format_buffer_.capacity(), fmt, args);
   va_end(args);
   if (chars_written >= 0 && chars_written < log_format_buffer_.capacity()) {
-    logger_->AppendLine(xe::threading::current_thread_id(), level_char,
-                        log_format_buffer_.data(), chars_written);
+    logger_->AppendLine(xe::threading::current_thread_id(), log_level,
+                        prefix_char, log_format_buffer_.data(), chars_written);
   } else if (chars_written >= 0) {
-    logger_->AppendLine(xe::threading::current_thread_id(), level_char, fmt,
-                        std::strlen(fmt));
+    logger_->AppendLine(xe::threading::current_thread_id(), log_level,
+                        prefix_char, fmt, std::strlen(fmt));
   }
 }
 
-void LogLineVarargs(const char level_char, const char* fmt, va_list args) {
+void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
+                    va_list args) {
   int chars_written = vsnprintf(log_format_buffer_.data(),
                                 log_format_buffer_.capacity(), fmt, args);
   if (chars_written < 0) {
@@ -252,25 +264,27 @@ void LogLineVarargs(const char level_char, const char* fmt, va_list args) {
 
   auto size =
       std::min(size_t(chars_written), log_format_buffer_.capacity() - 1);
-  logger_->AppendLine(xe::threading::current_thread_id(), level_char,
-                      log_format_buffer_.data(), size);
+  logger_->AppendLine(xe::threading::current_thread_id(), log_level,
+                      prefix_char, log_format_buffer_.data(), size);
 }
 
-void LogLine(const char level_char, const char* str, size_t str_length) {
+void LogLine(LogLevel log_level, const char prefix_char, const char* str,
+             size_t str_length) {
   logger_->AppendLine(
-      xe::threading::current_thread_id(), level_char, str,
+      xe::threading::current_thread_id(), log_level, prefix_char, str,
       str_length == std::string::npos ? std::strlen(str) : str_length);
 }
 
-void LogLine(const char level_char, const std::string& str) {
-  logger_->AppendLine(xe::threading::current_thread_id(), level_char,
-                      str.c_str(), str.length());
+void LogLine(LogLevel log_level, const char prefix_char,
+             const std::string& str) {
+  logger_->AppendLine(xe::threading::current_thread_id(), log_level,
+                      prefix_char, str.c_str(), str.length());
 }
 
 void FatalError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  LogLineVarargs('X', fmt, args);
+  LogLineVarargs(LogLevel::LOG_LEVEL_ERROR, 'X', fmt, args);
   va_end(args);
 
 #if XE_PLATFORM_WIN32

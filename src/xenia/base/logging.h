@@ -19,17 +19,27 @@ namespace xe {
 
 #define XE_OPTION_ENABLE_LOGGING 1
 
+enum class LogLevel {
+  LOG_LEVEL_ERROR,
+  LOG_LEVEL_WARNING,
+  LOG_LEVEL_INFO,
+  LOG_LEVEL_DEBUG,
+};
+
 // Initializes the logging system and any outputs requested.
 // Must be called on startup.
 void InitializeLogging(const std::wstring& app_name);
 
 // Appends a line to the log with printf-style formatting.
-void LogLineFormat(const char level_char, const char* fmt, ...);
-void LogLineVarargs(const char level_char, const char* fmt, va_list args);
+void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
+                   ...);
+void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
+                    va_list args);
 // Appends a line to the log.
-void LogLine(const char level_char, const char* str,
+void LogLine(LogLevel log_level, const char prefix_char, const char* str,
              size_t str_length = std::string::npos);
-void LogLine(const char level_char, const std::string& str);
+void LogLine(LogLevel log_level, const char prefix_char,
+             const std::string& str);
 
 // Logs a fatal error with printf-style formatting and aborts the program.
 void FatalError(const char* fmt, ...);
@@ -37,23 +47,33 @@ void FatalError(const char* fmt, ...);
 void FatalError(const std::string& str);
 
 #if XE_OPTION_ENABLE_LOGGING
-#define XELOGCORE(level, fmt, ...) xe::LogLineFormat(level, fmt, ##__VA_ARGS__)
+#define XELOGCORE(level, prefix, fmt, ...) \
+  xe::LogLineFormat(level, prefix, fmt, ##__VA_ARGS__)
 #else
 #define XELOGCORE(level, fmt, ...) \
   do {                             \
   } while (false)
 #endif  // ENABLE_LOGGING
 
-#define XELOGE(fmt, ...) XELOGCORE('!', fmt, ##__VA_ARGS__)
-#define XELOGW(fmt, ...) XELOGCORE('w', fmt, ##__VA_ARGS__)
-#define XELOGI(fmt, ...) XELOGCORE('i', fmt, ##__VA_ARGS__)
-#define XELOGD(fmt, ...) XELOGCORE('d', fmt, ##__VA_ARGS__)
+#define XELOGE(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_ERROR, '!', fmt, ##__VA_ARGS__)
+#define XELOGW(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_WARNING, 'w', fmt, ##__VA_ARGS__)
+#define XELOGI(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'i', fmt, ##__VA_ARGS__)
+#define XELOGD(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_DEBUG, 'd', fmt, ##__VA_ARGS__)
 
-#define XELOGCPU(fmt, ...) XELOGCORE('C', fmt, ##__VA_ARGS__)
-#define XELOGAPU(fmt, ...) XELOGCORE('A', fmt, ##__VA_ARGS__)
-#define XELOGGPU(fmt, ...) XELOGCORE('G', fmt, ##__VA_ARGS__)
-#define XELOGKERNEL(fmt, ...) XELOGCORE('K', fmt, ##__VA_ARGS__)
-#define XELOGFS(fmt, ...) XELOGCORE('F', fmt, ##__VA_ARGS__)
+#define XELOGCPU(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'C', fmt, ##__VA_ARGS__)
+#define XELOGAPU(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'A', fmt, ##__VA_ARGS__)
+#define XELOGGPU(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'G', fmt, ##__VA_ARGS__)
+#define XELOGKERNEL(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'K', fmt, ##__VA_ARGS__)
+#define XELOGFS(fmt, ...) \
+  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'F', fmt, ##__VA_ARGS__)
 
 }  // namespace xe
 

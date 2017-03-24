@@ -65,27 +65,33 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   }
 
   char level_char = '?';
+  LogLevel log_level;
   switch (level) {
     case AV_LOG_ERROR:
       level_char = '!';
+      log_level = xe::LogLevel::LOG_LEVEL_ERROR;
       break;
     case AV_LOG_WARNING:
       level_char = 'w';
+      log_level = xe::LogLevel::LOG_LEVEL_WARNING;
       break;
     case AV_LOG_INFO:
       level_char = 'i';
+      log_level = xe::LogLevel::LOG_LEVEL_INFO;
       break;
     case AV_LOG_VERBOSE:
       level_char = 'v';
+      log_level = xe::LogLevel::LOG_LEVEL_DEBUG;
       break;
     case AV_LOG_DEBUG:
       level_char = 'd';
+      log_level = xe::LogLevel::LOG_LEVEL_DEBUG;
       break;
   }
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  xe::LogLineFormat(level_char, "libav: %s", buff.GetString());
+  xe::LogLineFormat(log_level, level_char, "libav: %s", buff.GetString());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
