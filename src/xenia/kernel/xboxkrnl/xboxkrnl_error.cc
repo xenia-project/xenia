@@ -998,7 +998,7 @@ dword_result_t RtlNtStatusToDosError(dword_t source_status) {
       if (!result) {
         break;
       }
-      XELOGE("RtlNtStatusToDosError => %X", result);
+      XELOGI("RtlNtStatusToDosError => %X", result);
       return result;
     }
     ++error_table;
