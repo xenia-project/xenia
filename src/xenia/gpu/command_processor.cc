@@ -229,6 +229,7 @@ bool CommandProcessor::SetupContext() { return true; }
 void CommandProcessor::ShutdownContext() { context_.reset(); }
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
+  read_ptr_index_ = 0;
   primary_buffer_ptr_ = ptr;
   primary_buffer_size_ = uint32_t(std::pow(2u, log2_size));
 }
