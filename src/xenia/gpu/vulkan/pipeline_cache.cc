@@ -1074,6 +1074,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
   }
   // TODO(benvanik): no way to specify in Vulkan?
   assert_true(regs.multi_prim_ib_reset_index == 0xFFFF ||
+              regs.multi_prim_ib_reset_index == 0xFFFFFF ||
               regs.multi_prim_ib_reset_index == 0xFFFFFFFF);
   // glPrimitiveRestartIndex(regs.multi_prim_ib_reset_index);
 
