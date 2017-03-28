@@ -25,42 +25,35 @@ namespace xam {
 constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
 constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
 
-SHIM_CALL XamGetSystemVersion_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  XELOGD("XamGetSystemVersion()");
+dword_result_t XamGetSystemVersion() {
   // eh, just picking one. If we go too low we may break new games, but
   // this value seems to be used for conditionally loading symbols and if
   // we pretend to be old we have less to worry with implementing.
   // 0x200A3200
   // 0x20096B00
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XAM_EXPORT(XamGetSystemVersion, ExportTag::kStub);
 
 void XCustomRegisterDynamicActions() {
   // ???
 }
 DECLARE_XAM_EXPORT(XCustomRegisterDynamicActions, ExportTag::kStub);
 
-SHIM_CALL XGetAVPack_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+dword_result_t XGetAVPack() {
   // DWORD
   // Not sure what the values are for this, but 6 is VGA.
   // Other likely values are 3/4/8 for HDMI or something.
   // Games seem to use this as a PAL check - if the result is not 3/4/6/8
   // they explode with errors if not in PAL mode.
-  SHIM_SET_RETURN_32(6);
+  return 6;
 }
+DECLARE_XAM_EXPORT(XGetAVPack, ExportTag::kStub);
 
-SHIM_CALL XGetGameRegion_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  XELOGD("XGetGameRegion()");
+dword_result_t XGetGameRegion() { return 0xFFFF; }
+DECLARE_XAM_EXPORT(XGetGameRegion, ExportTag::kStub);
 
-  SHIM_SET_RETURN_32(0xFFFF);
-}
-
-SHIM_CALL XGetLanguage_shim(PPCContext* ppc_context,
-                            KernelState* kernel_state) {
-  XELOGD("XGetLanguage()");
-
+dword_result_t XGetLanguage() {
   uint32_t desired_language = X_LANGUAGE_ENGLISH;
 
   // Switch the language based on game region.
@@ -73,16 +66,12 @@ SHIM_CALL XGetLanguage_shim(PPCContext* ppc_context,
   }
   // Add more overrides?
 
-  SHIM_SET_RETURN_32(desired_language);
+  return desired_language;
 }
+DECLARE_XAM_EXPORT(XGetLanguage, ExportTag::kImplemented);
 
-SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t info_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("XamGetExecutionId(%.8X)", info_ptr);
-
-  auto module = kernel_state->GetExecutableModule();
+dword_result_t XamGetExecutionId(lpdword_t info_ptr) {
+  auto module = kernel_state()->GetExecutableModule();
   assert_not_null(module);
 
   uint32_t guest_hdr_ptr;
@@ -90,13 +79,13 @@ SHIM_CALL XamGetExecutionId_shim(PPCContext* ppc_context,
       module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
-    SHIM_SET_RETURN_32(result);
-    return;
+    return result;
   }
 
-  SHIM_SET_MEM_32(info_ptr, guest_hdr_ptr);
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+  *info_ptr = guest_hdr_ptr;
+  return X_STATUS_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamGetExecutionId, ExportTag::kImplemented);
 
 dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
@@ -173,32 +162,24 @@ void XamLoaderTerminateTitle() {
 }
 DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 
-SHIM_CALL XamAlloc_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t unk = SHIM_GET_ARG_32(0);
-  uint32_t size = SHIM_GET_ARG_32(1);
-  uint32_t out_ptr = SHIM_GET_ARG_32(2);
-
-  XELOGD("XamAlloc(%d, %d, %.8X)", unk, size, out_ptr);
-
+dword_result_t XamAlloc(dword_t unk, dword_t size, lpword_t out_ptr) {
   assert_true(unk == 0);
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
-  uint32_t ptr = kernel_state->memory()->SystemHeapAlloc(size);
-  SHIM_SET_MEM_32(out_ptr, ptr);
+  uint32_t ptr = kernel_state()->memory()->SystemHeapAlloc(size);
+  *out_ptr = ptr;
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamAlloc, ExportTag::kImplemented);
 
-SHIM_CALL XamFree_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t ptr = SHIM_GET_ARG_32(0);
+dword_result_t XamFree(lpdword_t ptr) {
+  kernel_state()->memory()->SystemHeapFree(ptr);
 
-  XELOGD("XamFree(%.8X)", ptr);
-
-  kernel_state->memory()->SystemHeapFree(ptr);
-
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamFree, ExportTag::kImplemented);
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
 dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
@@ -244,17 +225,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
 DECLARE_XAM_EXPORT(XamEnumerate, ExportTag::kImplemented);
 
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xam.xex", XamGetSystemVersion, state);
-  SHIM_SET_MAPPING("xam.xex", XGetAVPack, state);
-  SHIM_SET_MAPPING("xam.xex", XGetGameRegion, state);
-  SHIM_SET_MAPPING("xam.xex", XGetLanguage, state);
-
-  SHIM_SET_MAPPING("xam.xex", XamGetExecutionId, state);
-
-  SHIM_SET_MAPPING("xam.xex", XamAlloc, state);
-  SHIM_SET_MAPPING("xam.xex", XamFree, state);
-}
+                         KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
