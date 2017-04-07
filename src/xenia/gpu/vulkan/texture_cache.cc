@@ -334,8 +334,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
       return nullptr;
   }
 
-  assert_not_null(texture_info.format_info);
-  auto& config = texture_configs[int(texture_info.format_info->format)];
+  assert_not_null(texture_info.format_info());
+  auto& config = texture_configs[int(texture_info.format_info()->format)];
   VkFormat format = config.host_format != VK_FORMAT_UNDEFINED
                         ? config.host_format
                         : VK_FORMAT_R8G8B8A8_UNORM;
@@ -517,6 +517,18 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     return nullptr;
   }
 
+  // Though we didn't find an exact match, that doesn't mean we're out of the
+  // woods yet. This texture could either be a portion of another texture or
+  // vice versa. Copy any overlapping textures into this texture.
+  // TODO: Byte count -> pixel count (on x and y axes)
+  VkOffset2D offset;
+  auto collide_tex = LookupAddress(
+      texture_info.guest_address, texture_info.width + 1,
+      texture_info.height + 1, texture_info.format_info()->format, &offset);
+  if (collide_tex != nullptr) {
+    // assert_always();
+  }
+
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
@@ -554,16 +566,6 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       xe::format_string(
           "0x%.8X - 0x%.8X", texture_info.guest_address,
           texture_info.guest_address + texture_info.output_length));
-
-  // Though we didn't find an exact match, that doesn't mean we're out of the
-  // woods yet. This texture could either be a portion of another texture or
-  // vice versa. Copy any overlapping textures into this texture.
-  // TODO: Byte count -> pixel count (on x and y axes)
-  /*
-  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
-    // TODO(DrChat)
-  }
-  */
 
   // Okay. Now that the texture is uploaded from system memory, put a writewatch
   // on it to tell us if it's been modified from the guest.
@@ -915,9 +917,9 @@ void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
     uint32_t offset_x, offset_y;
     if (src.has_packed_mips &&
         TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
-      uint32_t bytes_per_block = src.format_info->block_width *
-                                 src.format_info->block_height *
-                                 src.format_info->bits_per_pixel / 8;
+      uint32_t bytes_per_block = src.format_info()->block_width *
+                                 src.format_info()->block_height *
+                                 src.format_info()->bits_per_pixel / 8;
 
       const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
       src_mem += offset_y * src.size_2d.input_pitch;
@@ -955,9 +957,9 @@ void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
 
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info->block_width *
-                               src.format_info->block_height *
-                               src.format_info->bits_per_pixel / 8;
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
 
     // Tiled textures can be packed; get the offset into the packed texture.
     uint32_t offset_x;
@@ -970,7 +972,7 @@ void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
          y++, output_base_offset += src.size_2d.output_pitch) {
       auto input_base_offset = TextureInfo::TiledOffset2DOuter(
           offset_y + y,
-          (src.size_2d.input_width / src.format_info->block_width), bpp);
+          (src.size_2d.input_width / src.format_info()->block_width), bpp);
       for (uint32_t x = 0, output_offset = output_base_offset;
            x < src.size_2d.block_width; x++, output_offset += bytes_per_block) {
         auto input_offset =
@@ -1008,9 +1010,9 @@ void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
   } else {
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info->block_width *
-                               src.format_info->block_height *
-                               src.format_info->bits_per_pixel / 8;
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
     // Tiled textures can be packed; get the offset into the packed texture.
     uint32_t offset_x;
     uint32_t offset_y;
@@ -1023,7 +1025,7 @@ void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
            y++, output_base_offset += src.size_cube.output_pitch) {
         auto input_base_offset = TextureInfo::TiledOffset2DOuter(
             offset_y + y,
-            (src.size_cube.input_width / src.format_info->block_width), bpp);
+            (src.size_cube.input_width / src.format_info()->block_width), bpp);
         for (uint32_t x = 0, output_offset = output_base_offset;
              x < src.size_cube.block_width;
              x++, output_offset += bytes_per_block) {

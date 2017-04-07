@@ -88,6 +88,38 @@ enum class TextureFormat : uint32_t {
   kUnknown = 0xFFFFFFFFu,
 };
 
+inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
+  // These formats are used for resampling textures / gamma control.
+  switch (texture_format) {
+    case TextureFormat::k_16_EXPAND:
+      return TextureFormat::k_16;
+    case TextureFormat::k_16_16_EXPAND:
+      return TextureFormat::k_16_16;
+    case TextureFormat::k_16_16_16_16_EXPAND:
+      return TextureFormat::k_16_16_16_16;
+    case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+      return TextureFormat::k_8_8_8_8;
+    case TextureFormat::k_DXT1_AS_16_16_16_16:
+      return TextureFormat::k_DXT1;
+    case TextureFormat::k_DXT2_3_AS_16_16_16_16:
+      return TextureFormat::k_DXT2_3;
+    case TextureFormat::k_DXT4_5_AS_16_16_16_16:
+      return TextureFormat::k_DXT4_5;
+    case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
+      return TextureFormat::k_2_10_10_10;
+    case TextureFormat::k_10_11_11_AS_16_16_16_16:
+      return TextureFormat::k_10_11_11;
+    case TextureFormat::k_11_11_10_AS_16_16_16_16:
+      return TextureFormat::k_11_11_10;
+    case TextureFormat::k_DXT3A_AS_1_1_1_1:
+      return TextureFormat::k_DXT3A;
+    default:
+      break;
+  }
+
+  return texture_format;
+}
+
 inline size_t GetTexelSize(TextureFormat format) {
   switch (format) {
     case TextureFormat::k_1_5_5_5:
@@ -215,19 +247,23 @@ struct FormatInfo {
 
 struct TextureInfo {
   uint32_t guest_address;
+  TextureFormat texture_format;
   Dimension dimension;
   uint32_t width;
   uint32_t height;
   uint32_t depth;
-  const FormatInfo* format_info;
   Endian endianness;
   bool is_tiled;
   bool has_packed_mips;
   uint32_t input_length;
   uint32_t output_length;
 
+  const FormatInfo* format_info() const {
+    return FormatInfo::Get(static_cast<uint32_t>(texture_format));
+  }
+
   bool is_compressed() const {
-    return format_info->type == FormatType::kCompressed;
+    return format_info()->type == FormatType::kCompressed;
   }
 
   union {
