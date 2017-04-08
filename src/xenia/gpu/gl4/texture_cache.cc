@@ -848,9 +848,8 @@ bool TextureCache::UploadTexture2D(GLuint texture,
                       texture_info.size_2d.logical_height);
          y++, output_base_offset += texture_info.size_2d.output_pitch) {
       auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-          offset_y + y,
-          (texture_info.size_2d.input_width /
-           texture_info.format_info()->block_width),
+          offset_y + y, (texture_info.size_2d.input_width /
+                         texture_info.format_info()->block_width),
           bpp);
       for (uint32_t x = 0, output_offset = output_base_offset;
            x < texture_info.size_2d.block_width;
@@ -951,9 +950,8 @@ bool TextureCache::UploadTextureCube(GLuint texture,
            y < texture_info.size_cube.block_height;
            y++, output_base_offset += texture_info.size_cube.output_pitch) {
         auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-            offset_y + y,
-            (texture_info.size_cube.input_width /
-             texture_info.format_info()->block_width),
+            offset_y + y, (texture_info.size_cube.input_width /
+                           texture_info.format_info()->block_width),
             bpp);
         for (uint32_t x = 0, output_offset = output_base_offset;
              x < texture_info.size_cube.block_width;
