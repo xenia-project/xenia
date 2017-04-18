@@ -162,7 +162,7 @@ void XamLoaderTerminateTitle() {
 }
 DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 
-dword_result_t XamAlloc(dword_t unk, dword_t size, lpword_t out_ptr) {
+dword_result_t XamAlloc(dword_t unk, dword_t size, lpdword_t out_ptr) {
   assert_true(unk == 0);
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
