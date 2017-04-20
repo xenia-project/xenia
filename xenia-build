@@ -48,10 +48,10 @@ def main():
   # Grab Visual Studio version and execute shell to set up environment.
   if sys.platform == 'win32':
     vs_version = import_vs_environment()
-    if vs_version == 0:
+    if vs_version == None:
       print('ERROR: Visual Studio not found!')
-      print('Visual Studio 2015 is the recommended version.')
-      print('Ensure you have the VS140COMNTOOLS environment variable!')
+      print('Please refer to the building guide:')
+      print('  https://github.com/benvanik/xenia/blob/master/docs/building.md')
       sys.exit(1)
       return
 
@@ -100,7 +100,7 @@ def import_vs_environment():
   """
   version = 0
 
-  candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False);
+  candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False)
   candidate_path = candidate_path.strip()
 
   tools_path = ''
