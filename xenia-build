@@ -356,7 +356,11 @@ def run_platform_premake():
   if sys.platform == 'darwin':
     return run_premake('macosx', 'xcode4')
   elif sys.platform == 'win32':
-    return run_premake('windows', 'vs2015')
+    vs_version = '2015'
+    if 'VSVERSION' in os.environ:
+      vs_version = os.environ['VSVERSION']
+
+    return run_premake('windows', 'vs' + vs_version)
   else:
     ret = run_premake('linux', 'gmake')
     ret = ret != 0 and run_premake('linux', 'codelite') or ret
