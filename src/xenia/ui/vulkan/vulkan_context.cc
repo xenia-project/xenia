@@ -61,6 +61,20 @@ bool VulkanContext::Initialize() {
     auto err = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
                                        nullptr, &surface);
     CheckResult(err, "vkCreateWin32SurfaceKHR");
+#elif XE_PLATFORM_LINUX
+    VkXcbSurfaceCreateInfoKHR create_info;
+    create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    create_info.pNext = nullptr;
+    create_info.flags = 0;
+    create_info.connection = static_cast<xcb_connection_t*>(
+        target_window_->native_platform_handle());
+    // TODO(sephiroth99): fix pointer to integer conversion
+    // create_info.window =
+    // static_cast<xcb_window_t>(target_window_->native_handle());
+    create_info.window = 0;
+    auto err = vkCreateXcbSurfaceKHR(*provider->instance(), &create_info,
+                                     nullptr, &surface);
+    CheckResult(err, "vkCreateXcbSurfaceKHR");
 #else
 #error Platform not yet implemented.
 #endif  // XE_PLATFORM_WIN32
