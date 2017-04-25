@@ -26,7 +26,9 @@
 #endif  // XE_PLATFORM_WIN32
 
 // Available graphics systems:
+#if XE_PLATFORM_WIN32
 #include "xenia/gpu/gl4/gl4_graphics_system.h"
+#endif  // XE_PLATFORM_WIN32
 #include "xenia/gpu/null/null_graphics_system.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 
@@ -71,12 +73,14 @@ std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  if (FLAGS_gpu.compare("gl4") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::gl4::GL4GraphicsSystem());
-  } else if (FLAGS_gpu.compare("vulkan") == 0) {
+  if (FLAGS_gpu.compare("vulkan") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::vulkan::VulkanGraphicsSystem());
+#if XE_PLATFORM_WIN32
+  } else if (FLAGS_gpu.compare("gl4") == 0) {
+    return std::unique_ptr<gpu::GraphicsSystem>(
+        new xe::gpu::gl4::GL4GraphicsSystem());
+#endif  // XE_PLATFORM_WIN32
   } else if (FLAGS_gpu.compare("null") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::null::NullGraphicsSystem());
