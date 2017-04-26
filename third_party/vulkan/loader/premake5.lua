@@ -30,6 +30,7 @@ project("vulkan-loader")
     removefiles("dirent_on_windows.c")
   filter("platforms:Linux")
     defines({
+      "VK_USE_PLATFORM_XCB_KHR",
       [[SYSCONFDIR="\"/etc\""]],
       [[FALLBACK_CONFIG_DIRS="\"/etc/xdg\""]],
       [[DATADIR="\"/usr/share\""]],
