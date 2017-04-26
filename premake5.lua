@@ -90,6 +90,7 @@ filter("platforms:Linux")
   })
   links({
     "pthread",
+    "dl",
   })
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
