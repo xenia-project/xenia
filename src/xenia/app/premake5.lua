@@ -8,8 +8,15 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
+    "capstone",
     "gflags",
+    "glslang-spirv",
     "imgui",
+    "libavcodec",
+    "libavutil",
+    "snappy",
+    "spirv-tools",
+    "vulkan-loader",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -21,11 +28,15 @@ project("xenia-app")
     "xenia-gpu-gl4",
     "xenia-gpu-null",
     "xenia-gpu-vulkan",
+    "xenia-hid",
     "xenia-hid-nop",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-gl",
+    "xenia-ui-spirv",
+    "xenia-ui-vulkan",
     "xenia-vfs",
+    "xxhash",
   })
   flags({
     "WinMain",  -- Use WinMain instead of main.
