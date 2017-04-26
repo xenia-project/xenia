@@ -261,7 +261,7 @@ int InstrEmit_fctiwx(PPCHIRBuilder& f, const InstrData& i) {
   // TODO(benvanik): pull from FPSCR[RN]
   RoundMode round_mode = ROUND_TO_ZERO;
   Value* v = f.Convert(f.LoadFPR(i.X.RB), INT32_TYPE, round_mode);
-  v = f.Cast(f.ZeroExtend(v, INT64_TYPE), FLOAT64_TYPE);
+  v = f.Cast(f.SignExtend(v, INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
   f.UpdateFPSCR(v, i.X.Rc);
   return 0;

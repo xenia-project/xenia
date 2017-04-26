@@ -45,7 +45,7 @@ test_fctiwz_6:
   fctiwz f1, f0
   blr
   #_ REGISTER_OUT f0 0xbff0000000000000
-  #_ REGISTER_OUT f1 0x00000000ffffffff
+  #_ REGISTER_OUT f1 0xffffffffffffffff
 
 # -(2^31)
 test_fctiwz_7:
@@ -53,7 +53,7 @@ test_fctiwz_7:
   fctiwz f1, f0
   blr
   #_ REGISTER_OUT f0 0xc1e0000000000000
-  #_ REGISTER_OUT f1 0x0000000080000000
+  #_ REGISTER_OUT f1 0xFFFFFFFF80000000
 
 # 2^31 - 1
 test_fctiwz_8:
@@ -77,7 +77,7 @@ test_fctiwz_10:
   fctiwz f1, f0
   blr
   #_ REGISTER_OUT f0 0xfff0000000000000
-  #_ REGISTER_OUT f1 0x0000000080000000
+  #_ REGISTER_OUT f1 0xFFFFFFFF80000000
 
 # TODO(DrChat): Xenia doesn't handle NaNs yet.
 # # QNaN
@@ -86,7 +86,7 @@ test_fctiwz_10:
 #   fctiwz f1, f0
 #   blr
 #   #_ REGISTER_OUT f0 0xfff8000000000000
-#   #_ REGISTER_OUT f1 0x0000000080000000
+#   #_ REGISTER_OUT f1 0xFFFFFFFF80000000
 # 
 # # SNaN
 # test_fctiwz_12:
@@ -94,7 +94,7 @@ test_fctiwz_10:
 #   fctiwz f1, f0
 #   blr
 #   #_ REGISTER_OUT f0 0xfff4000000000000
-#   #_ REGISTER_OUT f1 0x0000000080000000
+#   #_ REGISTER_OUT f1 0xFFFFFFFF80000000
 
 # +0
 test_fctidz_1:
