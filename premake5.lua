@@ -93,6 +93,9 @@ filter("platforms:Linux")
     "dl",
   })
 
+filter({"platforms:Linux", "kind:*App"})
+  linkgroups("On")
+
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   buildoptions({
     "--std=c++11",
