@@ -113,6 +113,11 @@ class Window {
   Delegate<MouseEvent*> on_mouse_up;
   Delegate<MouseEvent*> on_mouse_wheel;
 
+  bool modifier_shift_pressed_ = false;
+  bool modifier_cntrl_pressed_ = false;
+  bool modifier_alt_pressed_ = false;
+  bool modifier_super_pressed_ = false;
+
  protected:
   Window(Loop* loop, const std::wstring& title);
 
@@ -165,11 +170,6 @@ class Window {
   uint64_t fps_update_time_ns_ = 0;
   uint64_t fps_frame_count_ = 0;
   uint64_t last_paint_time_ns_ = 0;
-
-  bool modifier_shift_pressed_ = false;
-  bool modifier_cntrl_pressed_ = false;
-  bool modifier_alt_pressed_ = false;
-  bool modifier_super_pressed_ = false;
 
   // All currently-attached listeners that get event notifications.
   bool in_listener_loop_ = false;
