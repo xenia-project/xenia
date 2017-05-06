@@ -88,6 +88,11 @@ bool EmulatorWindow::Initialize() {
   window_->on_key_down.AddListener([this](KeyEvent* e) {
     bool handled = true;
     switch (e->key_code()) {
+      case 0x4F: {  // O
+        if (window_->modifier_cntrl_pressed_) {
+          FileOpen();
+        }
+      } break;
       case 0x6A: {  // numpad *
         CpuTimeScalarReset();
       } break;
