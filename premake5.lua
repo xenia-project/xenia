@@ -19,11 +19,15 @@ defines({
   "GLEW_NO_GLU=1",
 })
 
-vectorextensions("AVX")
+-- TODO(DrChat): Find a way to disable this on other architectures.
+filter("architecture:x86_64")
+  vectorextensions("AVX")
+filter({})
+
+characterset("Unicode")
 flags({
   --"ExtraWarnings",        -- Sets the compiler's maximum warning level.
   "FatalWarnings",        -- Treat warnings as errors.
-  "Unicode",
 })
 
 filter("kind:StaticLib")
@@ -74,13 +78,13 @@ filter("platforms:Linux")
   system("linux")
   toolset("clang")
   buildoptions({
-    "-mlzcnt",  -- Assume lzcnt supported.
+    -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
   })
   links({
     "pthread",
   })
 
-filter({"platforms:Linux", "language:C++"})
+filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
     "-std=c++14",
     "-stdlib=libc++",
@@ -103,8 +107,9 @@ filter("platforms:Windows")
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
-    "Symbols",
   })
+
+  symbols("On")
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
     "_CRT_SECURE_NO_WARNINGS",
