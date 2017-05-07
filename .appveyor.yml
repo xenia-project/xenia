@@ -56,8 +56,8 @@ platform: Windows
 
 # build Configuration, i.e. Debug, Release, etc.
 configuration:
-  - Checked
   - Release
+  - Checked
 
 #build:
 #  parallel: true                  # enable MSBuild parallel builds
