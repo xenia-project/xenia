@@ -47,6 +47,14 @@
 #define XE_COMPILER_UNKNOWN 1
 #endif
 
+#if defined(_M_AMD64) || defined(__amd64__)
+#define XE_ARCH_AMD64 1
+#elif defined(_M_IX86)
+#error "Xenia is not supported on 32-bit platforms."
+#elif defined(_M_PPC) || defined(__powerpc__)
+#define XE_ARCH_PPC 1
+#endif
+
 #if XE_PLATFORM_WIN32
 #define strdup _strdup
 #define strcasecmp _stricmp
@@ -57,7 +65,7 @@
 
 #if XE_PLATFORM_WIN32
 #include <intrin.h>
-#else
+#elif XE_ARCH_AMD64
 #include <x86intrin.h>
 #endif  // XE_PLATFORM_WIN32
 

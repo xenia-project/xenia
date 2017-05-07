@@ -10,14 +10,16 @@
 #ifndef XENIA_BASE_MATH_H_
 #define XENIA_BASE_MATH_H_
 
-#include <xmmintrin.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
 
 #include "xenia/base/platform.h"
+
+#if XE_ARCH_AMD64
+#include <xmmintrin.h>
+#endif
 
 namespace xe {
 
@@ -255,6 +257,7 @@ T clamp(T value, T min_value, T max_value) {
   return t > max_value ? max_value : t;
 }
 
+#if XE_ARCH_AMD64
 // Utilities for SSE values.
 template <int N>
 float m128_f32(const __m128& v) {
@@ -294,6 +297,7 @@ template <int N>
 int64_t m128_i64(const __m128& v) {
   return m128_i64<N>(_mm_castps_pd(v));
 }
+#endif
 
 uint16_t float_to_half(float value);
 float half_to_float(uint16_t value);
