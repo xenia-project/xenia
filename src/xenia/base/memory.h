@@ -50,6 +50,7 @@ enum class DeallocationType {
 
 // Allocates a block of memory at the given page-aligned base address.
 // Fails if the memory is not available.
+// Specify nullptr for base_address to leave it up to the system.
 void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access);
 
