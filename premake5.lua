@@ -5,6 +5,14 @@ location(build_root)
 targetdir(build_bin)
 objdir(build_obj)
 
+-- Define an ARCH variable
+-- Only use this to enable architecture-specific functionality.
+if os.is("linux") then
+  ARCH = os.outputof("uname -p")
+else
+  ARCH = "unknown"
+end
+
 includedirs({
   ".",
   "src",
@@ -82,6 +90,13 @@ filter("platforms:Linux")
   })
   links({
     "pthread",
+  })
+
+filter({"platforms:Linux", "language:C++", "toolset:gcc"})
+  buildoptions({
+    "--std=c++11",
+  })
+  links({
   })
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})

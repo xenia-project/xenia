@@ -36,3 +36,33 @@ project("xenia-cpu-ppc-tests")
 
     -- xenia-base needs this
     links({"xenia-ui"})
+
+if ARCH == "ppc64" or ARCH == "powerpc64" then
+
+project("xenia-cpu-ppc-nativetests")
+  uuid("E381E8EE-65CD-4D5E-9223-D9C03B2CE78C")
+  kind("ConsoleApp")
+  language("C++")
+  links({
+    "xenia-base",
+    "xenia-core",
+  })
+  files({
+    "ppc_testing_native_main.cc",
+    "../../../base/main_"..platform_suffix..".cc",
+  })
+  files({
+    "*.s",
+  })
+  includedirs({
+    project_root.."/third_party/gflags/src",
+  })
+  filter("files:*.s")
+    flags({"ExcludeFromBuild"})
+  filter({})
+
+  files({
+    "ppc_testing_native_thunks.s",
+  })
+
+end
