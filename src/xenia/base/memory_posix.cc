@@ -9,6 +9,7 @@
 
 #include "xenia/base/memory.h"
 
+#include <sys/mman.h>
 #include <unistd.h>
 
 namespace xe {
