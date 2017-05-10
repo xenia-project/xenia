@@ -11,6 +11,7 @@
 
 #include <sys/mman.h>
 #include <cstdio>
+#include <memory>
 
 #include "xenia/base/string.h"
 
