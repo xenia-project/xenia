@@ -59,6 +59,9 @@ inline std::string to_hex_string(const vec128_t& value) {
   return std::string(buffer);
 }
 
+#if XE_ARCH_AMD64
+
+// TODO(DrChat): This should not exist. Force the caller to use vec128.
 inline std::string to_hex_string(const __m128& value) {
   char buffer[128];
   float f[4];
@@ -78,6 +81,8 @@ inline std::string to_string(const __m128& value) {
                 f[3]);
   return std::string(buffer);
 }
+
+#endif
 
 template <typename T>
 inline T from_string(const char* value, bool force_hex = false);
@@ -182,6 +187,9 @@ inline vec128_t from_string<vec128_t>(const char* value, bool force_hex) {
   return v;
 }
 
+#if XE_ARCH_AMD64
+
+// TODO(DrChat): ?? Why is this here? Force the caller to use vec128.
 template <>
 inline __m128 from_string<__m128>(const char* value, bool force_hex) {
   __m128 v;
@@ -224,6 +232,8 @@ inline __m128 from_string<__m128>(const char* value, bool force_hex) {
   v = _mm_loadu_ps(f);
   return v;
 }
+
+#endif
 
 template <typename T>
 inline T from_string(const std::string& value, bool force_hex = false) {
