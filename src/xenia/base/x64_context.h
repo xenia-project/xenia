@@ -10,15 +10,21 @@
 #ifndef XENIA_BASE_X64_CONTEXT_H_
 #define XENIA_BASE_X64_CONTEXT_H_
 
-#include <xmmintrin.h>
-
 #include <cstdint>
 #include <string>
 
+#include "xenia/base/platform.h"
 #include "xenia/base/vec128.h"
+
+#if XE_ARCH_AMD64
+#include <xmmintrin.h>
+#endif
 
 namespace xe {
 
+class X64Context;
+
+#if XE_ARCH_AMD64
 enum class X64Register {
   // NOTE: this order matches 1:1 with the order in the X64Context.
   // NOTE: this order matches 1:1 with a string table in the x64_context.cc.
@@ -110,6 +116,7 @@ class X64Context {
   std::string GetStringFromValue(X64Register reg, bool hex) const;
   void SetValueFromString(X64Register reg, std::string value, bool hex);
 };
+#endif  // XE_ARCH_AMD64
 
 }  // namespace xe
 
