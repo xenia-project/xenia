@@ -10,9 +10,12 @@
 #include "xenia/base/x64_context.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/string_util.h"
 
 namespace xe {
+
+#if XE_ARCH_AMD64
 
 // NOTE: this order matches 1:1 with the X64Register enum.
 static const char* kRegisterNames[] = {
@@ -58,5 +61,7 @@ void X64Context::SetValueFromString(X64Register reg, std::string value,
   // TODO(benvanik): set value from string.
   assert_always(false);
 }
+
+#endif  // XE_ARCH_AMD64
 
 }  // namespace xe

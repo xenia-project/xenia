@@ -151,12 +151,12 @@ inline uint8_t tzcnt(uint64_t v) {
   return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
 }
 
-#else
+#else  // XE_PLATFORM_WIN32
 inline uint8_t lzcnt(uint8_t v) {
-  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_clzs(v) - 8);
+  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_clz(v) - 24);
 }
 inline uint8_t lzcnt(uint16_t v) {
-  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_clzs(v));
+  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_clz(v) - 16);
 }
 inline uint8_t lzcnt(uint32_t v) {
   return v == 0 ? 32 : static_cast<uint8_t>(__builtin_clz(v));
@@ -166,18 +166,18 @@ inline uint8_t lzcnt(uint64_t v) {
 }
 
 inline uint8_t tzcnt(uint8_t v) {
-  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_ctzs(v) - 8) ^ 0x7;
+  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_ctz(v));
 }
 inline uint8_t tzcnt(uint16_t v) {
-  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_ctzs(v)) ^ 0xF;
+  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_ctz(v));
 }
 inline uint8_t tzcnt(uint32_t v) {
-  return v == 0 ? 32 : static_cast<uint8_t>(__builtin_ctz(v)) ^ 0x1F;
+  return v == 0 ? 32 : static_cast<uint8_t>(__builtin_ctz(v));
 }
 inline uint8_t tzcnt(uint64_t v) {
-  return v == 0 ? 64 : static_cast<uint8_t>(__builtin_ctzll(v)) ^ 0x3F;
+  return v == 0 ? 64 : static_cast<uint8_t>(__builtin_ctzll(v));
 }
-#endif  // XE_PLATFORM_WIN32
+#endif
 inline uint8_t lzcnt(int8_t v) { return lzcnt(static_cast<uint8_t>(v)); }
 inline uint8_t lzcnt(int16_t v) { return lzcnt(static_cast<uint16_t>(v)); }
 inline uint8_t lzcnt(int32_t v) { return lzcnt(static_cast<uint32_t>(v)); }
