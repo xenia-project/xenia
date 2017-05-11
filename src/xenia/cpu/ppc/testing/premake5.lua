@@ -45,7 +45,7 @@ project("xenia-cpu-ppc-nativetests")
   language("C++")
   links({
     "xenia-base",
-    "xenia-core",
+    "gflags",
   })
   files({
     "ppc_testing_native_main.cc",
