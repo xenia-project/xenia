@@ -435,9 +435,10 @@ bool RunTests(const std::wstring& test_name) {
     test_suites.push_back(std::move(test_suite));
   }
   if (load_failed) {
-    return false;
+    XELOGE("One or more test suites failed to load.");
   }
 
+  XELOGI("%d tests loaded.", (int)test_suites.size());
   TestRunner runner;
   for (auto& test_suite : test_suites) {
     XELOGI("%ls.s:", test_suite.name.c_str());
