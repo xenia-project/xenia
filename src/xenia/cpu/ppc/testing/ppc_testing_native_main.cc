@@ -194,7 +194,6 @@ class TestRunner {
   }
 
   bool Setup(TestSuite& suite) {
-    // TODO: Load the test suite into memory.
     FILE* file = filesystem::OpenFile(suite.bin_file_path, "rb");
     if (!file) {
       XELOGE("Failed to open file %ls!", suite.bin_file_path.c_str());
@@ -214,6 +213,8 @@ class TestRunner {
     fread(memory_, file_length, 1, file);
     fclose(file);
 
+    // Zero out the context
+    std::memset(context_, 0, sizeof(Context));
     return true;
   }
 
