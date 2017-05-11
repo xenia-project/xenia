@@ -850,7 +850,8 @@ class GenTestsCommand(Command):
     src_files = [os.path.join(root, name)
        for root, dirs, files in os.walk('src')
        for name in files
-       if name.endswith(('.s'))]
+       if (name.startswith('instr_') or name.startswith('seq_'))
+           and name.endswith(('.s'))]
 
     def make_unix_path(p):
       """Forces a unix path separator style, as required by binutils.

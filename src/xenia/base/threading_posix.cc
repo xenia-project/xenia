@@ -36,7 +36,8 @@ void set_name(std::thread::native_handle_type handle, const std::string& name) {
 }
 
 void Sleep(std::chrono::microseconds duration) {
-  timespec rqtp = {duration.count() / 1000000, duration.count() % 1000};
+  timespec rqtp = {time_t(duration.count() / 1000000),
+                   time_t(duration.count() % 1000)};
   nanosleep(&rqtp, nullptr);
   // TODO(benvanik): spin while rmtp >0?
 }

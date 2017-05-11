@@ -7,14 +7,20 @@
  ******************************************************************************
  */
 
- // r3 = context
- // this does not touch r1, r3, r4, r13
+# r3 = context
+# this does not touch r1, r3, r4, r13
 .load_registers_ctx:
+  lwz r2,  0x400(r3) # CR
+  mtcrf 0xFF, r2
+
+  li  r2, 0
+  mtxer r2
+
   ld r0,  0x00(r3)
-  // r1 cannot be used
+  # r1 cannot be used
   ld r2,  0x10(r3)
-  // r3 will be loaded before the call
-  // r4 will be loaded before the call
+  # r3 will be loaded before the call
+  # r4 will be loaded before the call
   ld r5,  0x28(r3)
   ld r6,  0x30(r3)
   ld r7,  0x38(r3)
@@ -23,7 +29,7 @@
   ld r10, 0x50(r3)
   ld r11, 0x58(r3)
   ld r12, 0x60(r3)
-  // r13 cannot be used (OS use only)
+  # r13 cannot be used (OS use only)
   ld r14, 0x70(r3)
   ld r15, 0x78(r3)
   ld r16, 0x80(r3)
@@ -42,15 +48,48 @@
   ld r29, 0xE8(r3)
   ld r30, 0xF0(r3)
   ld r31, 0xF8(r3)
+
+  lfd f0,  0x100(r3)
+  lfd f1,  0x108(r3)
+  lfd f2,  0x110(r3)
+  lfd f3,  0x118(r3)
+  lfd f4,  0x120(r3)
+  lfd f5,  0x128(r3)
+  lfd f6,  0x130(r3)
+  lfd f7,  0x138(r3)
+  lfd f8,  0x140(r3)
+  lfd f9,  0x148(r3)
+  lfd f10, 0x150(r3)
+  lfd f11, 0x158(r3)
+  lfd f12, 0x160(r3)
+  lfd f13, 0x168(r3)
+  lfd f14, 0x170(r3)
+  lfd f15, 0x178(r3)
+  lfd f16, 0x180(r3)
+  lfd f17, 0x188(r3)
+  lfd f18, 0x190(r3)
+  lfd f19, 0x198(r3)
+  lfd f20, 0x1A0(r3)
+  lfd f21, 0x1A8(r3)
+  lfd f22, 0x1B0(r3)
+  lfd f23, 0x1B8(r3)
+  lfd f24, 0x1C0(r3)
+  lfd f25, 0x1C8(r3)
+  lfd f26, 0x1D0(r3)
+  lfd f27, 0x1D8(r3)
+  lfd f28, 0x1E0(r3)
+  lfd f29, 0x1E8(r3)
+  lfd f30, 0x1F0(r3)
+  lfd f31, 0x1F8(r3)
   blr
 
-// r3 = context
-// this does not save r1, r3, r13
+# r3 = context
+# this does not save r1, r3, r13
 .save_registers_ctx:
   std r0,  0x00(r3)
-  // r1 cannot be used
+  # r1 cannot be used
   std r2,  0x10(r3)
-  // r3 will be saved later
+  # r3 will be saved later
   std r4,  0x20(r3)
   std r5,  0x28(r3)
   std r6,  0x30(r3)
@@ -60,7 +99,7 @@
   std r10, 0x50(r3)
   std r11, 0x58(r3)
   std r12, 0x60(r3)
-  // r13 cannot be used (OS use only)
+  # r13 cannot be used (OS use only)
   std r14, 0x70(r3)
   std r15, 0x78(r3)
   std r16, 0x80(r3)
@@ -79,18 +118,54 @@
   std r29, 0xE8(r3)
   std r30, 0xF0(r3)
   std r31, 0xF8(r3)
+
+  stfd f0,  0x100(r3)
+  stfd f1,  0x108(r3)
+  stfd f2,  0x110(r3)
+  stfd f3,  0x118(r3)
+  stfd f4,  0x120(r3)
+  stfd f5,  0x128(r3)
+  stfd f6,  0x130(r3)
+  stfd f7,  0x138(r3)
+  stfd f8,  0x140(r3)
+  stfd f9,  0x148(r3)
+  stfd f10, 0x150(r3)
+  stfd f11, 0x158(r3)
+  stfd f12, 0x160(r3)
+  stfd f13, 0x168(r3)
+  stfd f14, 0x170(r3)
+  stfd f15, 0x178(r3)
+  stfd f16, 0x180(r3)
+  stfd f17, 0x188(r3)
+  stfd f18, 0x190(r3)
+  stfd f19, 0x198(r3)
+  stfd f20, 0x1A0(r3)
+  stfd f21, 0x1A8(r3)
+  stfd f22, 0x1B0(r3)
+  stfd f23, 0x1B8(r3)
+  stfd f24, 0x1C0(r3)
+  stfd f25, 0x1C8(r3)
+  stfd f26, 0x1D0(r3)
+  stfd f27, 0x1D8(r3)
+  stfd f28, 0x1E0(r3)
+  stfd f29, 0x1E8(r3)
+  stfd f30, 0x1F0(r3)
+  stfd f31, 0x1F8(r3)
+
+  mfcr r2 # CR
+  stw  r2,  0x400(r3)
   blr
 
-// void xe_call_native(Context* ctx, void* func)
+# void xe_call_native(Context* ctx, void* func)
 .globl xe_call_native
 xe_call_native:
   mflr r12
   stw  r12, -0x8(r1)
-  stwu r1, -0x380(r1) // 0x200(gpr + fp) + 0x200(vr)
+  stwu r1, -0x380(r1) # 0x200(gpr + fp) + 0x200(vr)
 
-  // Save nonvolatile registers on the stack.
+  # Save nonvolatile registers on the stack.
   std r2, 0x110(r1)
-  std r3, 0x118(r1)  // Store the context, this will be needed later.
+  std r3, 0x118(r1)  # Store the context, this will be needed later.
   std r14, 0x170(r1)
   std r15, 0x178(r1)
   std r16, 0x180(r1)
@@ -129,27 +204,27 @@ xe_call_native:
   stfd f30, 0x2F0(r1)
   stfd f31, 0x2F8(r1)
 
-  // Load registers from context
-  bl load_registers_ctx
+  # Load registers from context (except r3/r4)
+  bl .load_registers_ctx
 
-  // Call the test routine
+  # Call the test routine
   mtctr r4
-  ld r4, 0x28(r3)
-  ld r3, 0x20(r3)
+  ld r4, 0x20(r3)
+  ld r3, 0x18(r3)
   bctrl
 
-  // Temporarily store r3 into the stack (in the place of r0)
+  # Temporarily store r3 into the stack (in the place of r0)
   std r3, 0x100(r1)
 
-  // Store registers into context
+  # Store registers into context (except r3)
   ld r3, 0x118(r1)
-  bl save_registers_ctx
+  bl .save_registers_ctx
 
-  // Now store r3
+  # Now store r3
   ld r4, 0x100(r1)
-  std r4, 0x20(r3)
+  std r4, 0x18(r3)
 
-  // Restore nonvolatile registers from the stack
+  # Restore nonvolatile registers from the stack
   ld r2, 0x110(r1)
   ld r14, 0x170(r1)
   ld r15, 0x178(r1)

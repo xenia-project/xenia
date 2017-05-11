@@ -16,7 +16,6 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string_util.h"
-#include "xenia/cpu/ppc/ppc_context.h"
 
 #if XE_COMPILER_MSVC
 #include "xenia/base/platform_win.h"
@@ -34,10 +33,10 @@ namespace cpu {
 namespace test {
 
 struct Context {
-  uint64_t r[32];
-  double f[32];
-  vec128_t v[32];  // For now, only support 32 vector registers.
-  uint32_t cr;     // Condition register
+  uint64_t r[32];  // 0x000
+  double f[32];    // 0x100
+  vec128_t v[32];  // 0x200 For now, only support 32 vector registers.
+  uint32_t cr;     // 0x400 Condition register
 };
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
@@ -184,6 +183,7 @@ class TestRunner {
                                  memory::PageAccess::kExecuteReadWrite);
 
     context_ = memory::AlignedAlloc<Context>(32);
+    std::memset(context_, 0, sizeof(Context));
   }
 
   ~TestRunner() {
@@ -240,7 +240,6 @@ class TestRunner {
         std::snprintf(out_value, out_value_size, "%016" PRIX64, ctx->r[n]);
         return false;
       }
-      return true;
     } else if (sscanf(name, "f%d", &n) == 1) {
       if (std::strstr(value, "0x")) {
         // Special case: Treat float as integer.
@@ -265,7 +264,6 @@ class TestRunner {
           return false;
         }
       }
-      return true;
     } else if (sscanf(name, "v%d", &n) == 1) {
       vec128_t expected = string_util::from_string<vec128_t>(value);
       if (ctx->v[n] != expected) {
@@ -274,22 +272,19 @@ class TestRunner {
                       ctx->v[n].i32[3]);
         return false;
       }
-      return true;
     } else if (std::strcmp(name, "cr") == 0) {
-      // TODO(DrChat)
-      /*
-      uint64_t actual = ctx->cr();
+      uint64_t actual = ctx->cr;
       uint64_t expected = string_util::from_string<uint64_t>(value);
       if (actual != expected) {
         std::snprintf(out_value, out_value_size, "%016" PRIX64, actual);
         return false;
       }
-      */
-      return false;  // true;
     } else {
       assert_always("Unrecognized register name: %s\n", name);
       return false;
     }
+
+    return true;
   }
 
   bool SetRegFromString(const char* name, const char* value, Context* ctx) {
@@ -301,10 +296,13 @@ class TestRunner {
     } else if (sscanf(name, "v%d", &n) == 1) {
       ctx->v[n] = string_util::from_string<vec128_t>(value);
     } else if (std::strcmp(name, "cr") == 0) {
-      // this->set_cr(string_util::from_string<uint64_t>(value));
+      ctx->cr = uint32_t(string_util::from_string<uint64_t>(value));
     } else {
       printf("Unrecognized register name: %s\n", name);
+      return false;
     }
+
+    return true;
   }
 
   bool SetupTestState(TestCase& test_case) {
@@ -480,9 +478,8 @@ bool RunTests(const std::wstring& test_name) {
     }
     test_suites.push_back(std::move(test_suite));
   }
-  if (load_failed) {
-    return false;
-  }
+
+  XELOGI("%d tests loaded successfully.", (int)test_suites.size());
 
   TestRunner runner;
   for (auto& test_suite : test_suites) {

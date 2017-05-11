@@ -52,14 +52,18 @@ project("xenia-cpu-ppc-nativetests")
     "../../../base/main_"..platform_suffix..".cc",
   })
   files({
-    "*.s",
+    "instr_*.s",
+    "seq_*.s",
   })
+  filter("files:instr_*.s", "files:seq_*.s")
+    flags({"ExcludeFromBuild"})
+  filter({})
   includedirs({
     project_root.."/third_party/gflags/src",
   })
-  filter("files:*.s")
-    flags({"ExcludeFromBuild"})
-  filter({})
+  buildoptions({
+    "-Wa,-mregnames",  -- Tell GAS to accept register names.
+  })
 
   files({
     "ppc_testing_native_thunks.s",
