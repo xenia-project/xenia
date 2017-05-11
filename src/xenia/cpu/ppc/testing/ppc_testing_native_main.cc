@@ -197,7 +197,7 @@ class TestRunner {
     // TODO: Load the test suite into memory.
     FILE* file = filesystem::OpenFile(suite.bin_file_path, "rb");
     if (!file) {
-      XELOGE("Failed to open file %s!", suite.bin_file_path);
+      XELOGE("Failed to open file %ls!", suite.bin_file_path.c_str());
       return false;
     }
 
@@ -206,7 +206,7 @@ class TestRunner {
     fseek(file, 0, SEEK_SET);
 
     if (file_length > memory_size_) {
-      XELOGE("Bin file %s is too big!", suite.bin_file_path);
+      XELOGE("Bin file %ls is too big!", suite.bin_file_path.c_str());
       return false;
     }
 
