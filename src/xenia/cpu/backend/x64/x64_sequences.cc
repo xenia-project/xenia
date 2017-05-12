@@ -6881,6 +6881,9 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       case PACK_TYPE_SHORT_2:
         EmitSHORT_2(e, i);
         break;
+      case PACK_TYPE_SHORT_4:
+        EmitSHORT_4(e, i);
+        break;
       case PACK_TYPE_UINT_2101010:
         EmitUINT_2101010(e, i);
         break;
@@ -6970,10 +6973,18 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
     // Saturate.
-    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_2Min));
-    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2Max));
+    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_Min));
+    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Max));
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2));
+  }
+  static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    // Saturate.
+    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_Min));
+    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Max));
+    // Pack.
+    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_4));
   }
   static __m128i EmulatePackUINT_2101010(void*, __m128i src1) {
     // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
@@ -7229,14 +7240,14 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       case PACK_TYPE_FLOAT16_2:
         EmitFLOAT16_2(e, i);
         break;
-      case PACK_TYPE_FLOAT16_3:
-        EmitFLOAT16_3(e, i);
-        break;
       case PACK_TYPE_FLOAT16_4:
         EmitFLOAT16_4(e, i);
         break;
       case PACK_TYPE_SHORT_2:
         EmitSHORT_2(e, i);
+        break;
+      case PACK_TYPE_SHORT_4:
+        EmitSHORT_4(e, i);
         break;
       case PACK_TYPE_UINT_2101010:
         EmitUINT_2101010(e, i);
@@ -7323,27 +7334,6 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vmovaps(i.dest, e.xmm0);
     }
   }
-  // FIXME: This has not been verified on a real 360, but from context the
-  // return values are used in floating point math.
-  static __m128 EmulateFLOAT16_3(void*, __m128i src1) {
-    alignas(16) uint16_t a[8];
-    alignas(16) float b[4];
-    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
-
-    for (int i = 0; i < 3; i++) {
-      b[i] = half_float::detail::half2float(a[VEC128_W(5 + i)]);
-    }
-
-    // FIXME: Correct?
-    b[3] = 1.0f;
-
-    return _mm_load_ps(b);
-  }
-  static void EmitFLOAT16_3(X64Emitter& e, const EmitArgType& i) {
-    e.lea(e.r8, e.StashXmm(0, i.src1));
-    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_3));
-    e.vmovaps(i.dest, e.xmm0);
-  }
   static __m128 EmulateFLOAT16_4(void*, __m128i src1) {
     alignas(16) uint16_t a[8];
     alignas(16) float b[4];
@@ -7397,6 +7387,36 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 16);
     // Add 3,3,0,1.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
+  }
+  static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
+    // (VD.x) = 3.0 + (VB.x>>16)*2^-22
+    // (VD.y) = 3.0 + (VB.x)*2^-22
+    // (VD.z) = 3.0 + (VB.y>>16)*2^-22
+    // (VD.w) = 3.0 + (VB.y)*2^-22
+
+    // XMLoadShortN4 plus 3,3,3,3 (for some reason)
+    // src is (xx,xx,VALUE,VALUE)
+    // (VALUE,VALUE,VALUE,VALUE)
+    Xmm src;
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMM3333));
+        return;
+      } else {
+        // TODO(benvanik): check other common constants/perform shuffle/or here.
+        src = e.xmm0;
+        e.LoadConstantXmm(src, i.src1.constant());
+      }
+    } else {
+      src = i.src1;
+    }
+    // Shuffle bytes.
+    e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackSHORT_4));
+    // Sign extend words.
+    e.vpslld(i.dest, 16);
+    e.vpsrad(i.dest, 16);
+    // Add 3,3,3,3.
+    e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3333));
   }
   static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
     assert_always("not implemented");
