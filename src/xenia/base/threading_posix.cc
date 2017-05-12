@@ -112,7 +112,8 @@ struct ThreadStartData {
   std::function<void()> start_routine;
 };
 void* ThreadStartRoutine(void* parameter) {
-  current_thread_ = std::make_unique<PosixThread>(::pthread_self());
+  current_thread_ =
+      std::unique_ptr<PosixThread>(new PosixThread(::pthread_self()));
 
   auto start_data = reinterpret_cast<ThreadStartData*>(parameter);
   start_data->start_routine();
@@ -137,7 +138,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
     return nullptr;
   }
 
-  return std::make_unique<PosixThread>(handle);
+  return std::unique_ptr<PosixThread>(new PosixThread(handle));
 }
 
 }  // namespace threading
