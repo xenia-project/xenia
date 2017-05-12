@@ -43,6 +43,20 @@ permalink: /
 
   <div class="hr"></div>
 
+  <ul class="post-list">
+    {% for post in site.posts %}
+      <li>
+        <span class="post-meta">{{ post.date | date: "%b %-d, %Y" }}</span>
+        <h2>
+          <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+        </h2>
+      </li>
+    {% endfor %}
+  </ul>
+
+
+  <div class="hr"></div>
+
   <div>
     <strong>DISCLAIMER:</strong>
     <strong>xenia is not for enabling illegal activity.</strong>
@@ -62,19 +76,6 @@ permalink: /
     <a href="/faq/#system-requirements">System Requirements</a>: Windows 8.1+, OpenGL 4.5 (<a href="http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc" target="_blank">list</a>), Intel Sandy Bridge or Haswell (AVX).<br/>
     If xenia tells you your machine is not supported, it is not supported. Don't ask how to bypass the checks.
   </div>
-
-  <div class="hr"></div>
-
-  <ul class="post-list">
-    {% for post in site.posts %}
-      <li>
-        <span class="post-meta">{{ post.date | date: "%b %-d, %Y" }}</span>
-        <h2>
-          <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
-        </h2>
-      </li>
-    {% endfor %}
-  </ul>
 </div>
 
 <script src="{{ site.baseurl }}/scripts/merged-github-underscore.js"></script>
