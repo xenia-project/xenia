@@ -17,6 +17,9 @@ project("vulkan-loader")
   })
   recursive_platform_files()
 
+  -- Included elsewhere
+  removefiles("vk_loader_extensions.c")
+
   filter("platforms:Windows")
     warnings("Off")  -- Too many warnings.
     characterset("MBCS")

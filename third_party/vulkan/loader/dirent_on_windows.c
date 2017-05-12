@@ -37,12 +37,10 @@ DIR *opendir(const char *name) {
             strchr("/\\", name[base_length - 1]) ? "*" : "/*";
 
         if ((dir = (DIR *)loader_instance_tls_heap_alloc(sizeof *dir)) != 0 &&
-            (dir->name = (char *)loader_instance_tls_heap_alloc(
-                 base_length + strlen(all) + 1)) != 0) {
+            (dir->name = (char *)loader_instance_tls_heap_alloc(base_length + strlen(all) + 1)) != 0) {
             strcat(strcpy(dir->name, name), all);
 
-            if ((dir->handle =
-                     (handle_type)_findfirst(dir->name, &dir->info)) != -1) {
+            if ((dir->handle = (handle_type)_findfirst(dir->name, &dir->info)) != -1) {
                 dir->result.d_name = 0;
             } else /* rollback */
             {

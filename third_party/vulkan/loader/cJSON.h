@@ -47,9 +47,9 @@ typedef struct cJSON {
     struct cJSON *next, *prev; /* next/prev allow you to walk array/object
                                   chains. Alternatively, use
                                   GetArraySize/GetArrayItem/GetObjectItem */
-    struct cJSON *child; /* An array or object item will have a child pointer
-                            pointing to a chain of the items in the
-                            array/object. */
+    struct cJSON *child;       /* An array or object item will have a child pointer
+                                  pointing to a chain of the items in the
+                                  array/object. */
 
     int type; /* The type of the item, as above. */
 
@@ -118,19 +118,16 @@ extern cJSON *cJSON_CreateStringArray(const char **strings, int count);
 
 /* Append item to the specified array/object. */
 extern void cJSON_AddItemToArray(cJSON *array, cJSON *item);
-extern void cJSON_AddItemToObject(cJSON *object, const char *string,
-                                  cJSON *item);
-extern void cJSON_AddItemToObjectCS(
-    cJSON *object, const char *string,
-    cJSON *item); /* Use this when string is definitely const (i.e. a literal,
-                     or as good as), and will definitely survive the cJSON
-                     object */
+extern void cJSON_AddItemToObject(cJSON *object, const char *string, cJSON *item);
+extern void cJSON_AddItemToObjectCS(cJSON *object, const char *string,
+                                    cJSON *item); /* Use this when string is definitely const (i.e. a literal,
+                                                     or as good as), and will definitely survive the cJSON
+                                                     object */
 /* Append reference to item to the specified array/object. Use this when you
  * want to add an existing cJSON to a new cJSON, but don't want to corrupt your
  * existing cJSON. */
 extern void cJSON_AddItemReferenceToArray(cJSON *array, cJSON *item);
-extern void cJSON_AddItemReferenceToObject(cJSON *object, const char *string,
-                                           cJSON *item);
+extern void cJSON_AddItemReferenceToObject(cJSON *object, const char *string, cJSON *item);
 
 /* Remove/Detatch items from Arrays/Objects. */
 extern cJSON *cJSON_DetachItemFromArray(cJSON *array, int which);
@@ -139,12 +136,9 @@ extern cJSON *cJSON_DetachItemFromObject(cJSON *object, const char *string);
 extern void cJSON_DeleteItemFromObject(cJSON *object, const char *string);
 
 /* Update array items. */
-extern void cJSON_InsertItemInArray(
-    cJSON *array, int which,
-    cJSON *newitem); /* Shifts pre-existing items to the right. */
+extern void cJSON_InsertItemInArray(cJSON *array, int which, cJSON *newitem); /* Shifts pre-existing items to the right. */
 extern void cJSON_ReplaceItemInArray(cJSON *array, int which, cJSON *newitem);
-extern void cJSON_ReplaceItemInObject(cJSON *object, const char *string,
-                                      cJSON *newitem);
+extern void cJSON_ReplaceItemInObject(cJSON *object, const char *string, cJSON *newitem);
 
 /* Duplicate a cJSON item */
 extern cJSON *cJSON_Duplicate(cJSON *item, int recurse);
@@ -156,32 +150,22 @@ The item->next and ->prev pointers are always zero on return from Duplicate. */
 
 /* ParseWithOpts allows you to require (and check) that the JSON is null
  * terminated, and to retrieve the pointer to the final byte parsed. */
-extern cJSON *cJSON_ParseWithOpts(const char *value,
-                                  const char **return_parse_end,
-                                  int require_null_terminated);
+extern cJSON *cJSON_ParseWithOpts(const char *value, const char **return_parse_end, int require_null_terminated);
 
 extern void cJSON_Minify(char *json);
 
 /* Macros for creating things quickly. */
-#define cJSON_AddNullToObject(object, name)                                    \
-    cJSON_AddItemToObject(object, name, cJSON_CreateNull())
-#define cJSON_AddTrueToObject(object, name)                                    \
-    cJSON_AddItemToObject(object, name, cJSON_CreateTrue())
-#define cJSON_AddFalseToObject(object, name)                                   \
-    cJSON_AddItemToObject(object, name, cJSON_CreateFalse())
-#define cJSON_AddBoolToObject(object, name, b)                                 \
-    cJSON_AddItemToObject(object, name, cJSON_CreateBool(b))
-#define cJSON_AddNumberToObject(object, name, n)                               \
-    cJSON_AddItemToObject(object, name, cJSON_CreateNumber(n))
-#define cJSON_AddStringToObject(object, name, s)                               \
-    cJSON_AddItemToObject(object, name, cJSON_CreateString(s))
+#define cJSON_AddNullToObject(object, name) cJSON_AddItemToObject(object, name, cJSON_CreateNull())
+#define cJSON_AddTrueToObject(object, name) cJSON_AddItemToObject(object, name, cJSON_CreateTrue())
+#define cJSON_AddFalseToObject(object, name) cJSON_AddItemToObject(object, name, cJSON_CreateFalse())
+#define cJSON_AddBoolToObject(object, name, b) cJSON_AddItemToObject(object, name, cJSON_CreateBool(b))
+#define cJSON_AddNumberToObject(object, name, n) cJSON_AddItemToObject(object, name, cJSON_CreateNumber(n))
+#define cJSON_AddStringToObject(object, name, s) cJSON_AddItemToObject(object, name, cJSON_CreateString(s))
 
 /* When assigning an integer value, it needs to be propagated to valuedouble
  * too. */
-#define cJSON_SetIntValue(object, val)                                         \
-    ((object) ? (object)->valueint = (object)->valuedouble = (val) : (val))
-#define cJSON_SetNumberValue(object, val)                                      \
-    ((object) ? (object)->valueint = (object)->valuedouble = (val) : (val))
+#define cJSON_SetIntValue(object, val) ((object) ? (object)->valueint = (object)->valuedouble = (val) : (val))
+#define cJSON_SetNumberValue(object, val) ((object) ? (object)->valueint = (object)->valuedouble = (val) : (val))
 
 #ifdef __cplusplus
 }
