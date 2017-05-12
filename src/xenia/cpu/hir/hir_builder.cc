@@ -1269,6 +1269,12 @@ void HIRBuilder::Prefetch(Value* address, size_t length,
 
 void HIRBuilder::MemoryBarrier() { AppendInstr(OPCODE_MEMORY_BARRIER_info, 0); }
 
+void HIRBuilder::SetRoundingMode(Value* value) {
+  ASSERT_INTEGER_TYPE(value);
+  Instr* i = AppendInstr(OPCODE_SET_ROUNDING_MODE_info, 0);
+  i->set_src1(value);
+}
+
 Value* HIRBuilder::Max(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 

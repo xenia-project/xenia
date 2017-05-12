@@ -649,3 +649,9 @@ DEFINE_OPCODE(
     "atomic_compare_exchange",
     OPCODE_SIG_V_V_V_V,
     OPCODE_FLAG_VOLATILE)
+
+DEFINE_OPCODE(
+    OPCODE_SET_ROUNDING_MODE,
+    "set_rounding_mode",
+    OPCODE_SIG_X_V,
+    0)

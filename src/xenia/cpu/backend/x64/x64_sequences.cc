@@ -465,6 +465,7 @@ struct Sequence {
                                       const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
       if (i.src2.is_constant) {
+        // Both constants.
         if (i.src1.ConstantFitsIn32Reg()) {
           e.mov(i.dest, i.src2.constant());
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
@@ -478,6 +479,7 @@ struct Sequence {
           reg_reg_fn(e, i.dest, temp);
         }
       } else {
+        // src1 constant.
         if (i.dest == i.src2) {
           if (i.src1.ConstantFitsIn32Reg()) {
             reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
@@ -7588,6 +7590,25 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
 EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_COMPARE_EXCHANGE,
                      ATOMIC_COMPARE_EXCHANGE_I32, ATOMIC_COMPARE_EXCHANGE_I64);
 
+// ============================================================================
+// OPCODE_SET_ROUNDING_MODE
+// ============================================================================
+// Input: FPSCR (PPC format)
+static const uint32_t mxcsr_table[] = {
+    0x1F80, 0x7F80, 0x5F80, 0x3F80, 0x9F80, 0xFF80, 0xDF80, 0xBF80,
+};
+struct SET_ROUNDING_MODE_I32
+    : Sequence<SET_ROUNDING_MODE_I32,
+               I<OPCODE_SET_ROUNDING_MODE, VoidOp, I32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.mov(e.rcx, i.src1);
+    e.and_(e.rcx, 0x7);
+    e.mov(e.rax, uintptr_t(mxcsr_table));
+    e.vldmxcsr(e.ptr[e.rax + e.rcx * 4]);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
+
 void RegisterSequences() {
   Register_OPCODE_COMMENT();
   Register_OPCODE_NOP();
@@ -7706,6 +7727,7 @@ void RegisterSequences() {
   Register_OPCODE_UNPACK();
   Register_OPCODE_ATOMIC_EXCHANGE();
   Register_OPCODE_ATOMIC_COMPARE_EXCHANGE();
+  Register_OPCODE_SET_ROUNDING_MODE();
 }
 
 bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
