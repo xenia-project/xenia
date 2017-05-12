@@ -4,7 +4,7 @@
 #   1 = PACK_TYPE_SHORT_2
 #   2 = PACK_TYPE_2_10_10_10
 #   3 = PACK_TYPE_FLOAT16_2
-#   4 = ?
+#   4 = PACK_TYPE_SHORT_4
 #   5 = PACK_TYPE_FLOAT16_4
 # mask:
 #   must not be zero
