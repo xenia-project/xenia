@@ -16,6 +16,72 @@
   li  r2, 0
   mtxer r2
 
+  # Altivec registers (up to 32)
+  li    r2, 0x200
+  lvx   v0, r3, r2
+  addi  r2, r2, 16
+  lvx   v1, r3, r2
+  addi  r2, r2, 16
+  lvx   v2, r3, r2
+  addi  r2, r2, 16
+  lvx   v3, r3, r2
+  addi  r2, r2, 16
+  lvx   v4, r3, r2
+  addi  r2, r2, 16
+  lvx   v5, r3, r2
+  addi  r2, r2, 16
+  lvx   v6, r3, r2
+  addi  r2, r2, 16
+  lvx   v7, r3, r2
+  addi  r2, r2, 16
+  lvx   v8, r3, r2
+  addi  r2, r2, 16
+  lvx   v9, r3, r2
+  addi  r2, r2, 16
+  lvx   v10, r3, r2
+  addi  r2, r2, 16
+  lvx   v11, r3, r2
+  addi  r2, r2, 16
+  lvx   v12, r3, r2
+  addi  r2, r2, 16
+  lvx   v13, r3, r2
+  addi  r2, r2, 16
+  lvx   v14, r3, r2
+  addi  r2, r2, 16
+  lvx   v15, r3, r2
+  addi  r2, r2, 16
+  lvx   v16, r3, r2
+  addi  r2, r2, 16
+  lvx   v17, r3, r2
+  addi  r2, r2, 16
+  lvx   v18, r3, r2
+  addi  r2, r2, 16
+  lvx   v19, r3, r2
+  addi  r2, r2, 16
+  lvx   v20, r3, r2
+  addi  r2, r2, 16
+  lvx   v21, r3, r2
+  addi  r2, r2, 16
+  lvx   v22, r3, r2
+  addi  r2, r2, 16
+  lvx   v23, r3, r2
+  addi  r2, r2, 16
+  lvx   v24, r3, r2
+  addi  r2, r2, 16
+  lvx   v25, r3, r2
+  addi  r2, r2, 16
+  lvx   v26, r3, r2
+  addi  r2, r2, 16
+  lvx   v27, r3, r2
+  addi  r2, r2, 16
+  lvx   v28, r3, r2
+  addi  r2, r2, 16
+  lvx   v29, r3, r2
+  addi  r2, r2, 16
+  lvx   v30, r3, r2
+  addi  r2, r2, 16
+  lvx   v31, r3, r2
+
   ld r0,  0x00(r3)
   # r1 cannot be used
   ld r2,  0x10(r3)
@@ -151,6 +217,72 @@
   stfd f29, 0x1E8(r3)
   stfd f30, 0x1F0(r3)
   stfd f31, 0x1F8(r3)
+
+  # Altivec registers (up to 32)
+  li    r2, 0x200
+  stvx  v0, r3, r2
+  addi  r2, r2, 16
+  stvx  v1, r3, r2
+  addi  r2, r2, 16
+  stvx  v2, r3, r2
+  addi  r2, r2, 16
+  stvx  v3, r3, r2
+  addi  r2, r2, 16
+  stvx  v4, r3, r2
+  addi  r2, r2, 16
+  stvx  v5, r3, r2
+  addi  r2, r2, 16
+  stvx  v6, r3, r2
+  addi  r2, r2, 16
+  stvx  v7, r3, r2
+  addi  r2, r2, 16
+  stvx  v8, r3, r2
+  addi  r2, r2, 16
+  stvx  v9, r3, r2
+  addi  r2, r2, 16
+  stvx  v10, r3, r2
+  addi  r2, r2, 16
+  stvx  v11, r3, r2
+  addi  r2, r2, 16
+  stvx  v12, r3, r2
+  addi  r2, r2, 16
+  stvx  v13, r3, r2
+  addi  r2, r2, 16
+  stvx  v14, r3, r2
+  addi  r2, r2, 16
+  stvx  v15, r3, r2
+  addi  r2, r2, 16
+  stvx  v16, r3, r2
+  addi  r2, r2, 16
+  stvx  v17, r3, r2
+  addi  r2, r2, 16
+  stvx  v18, r3, r2
+  addi  r2, r2, 16
+  stvx  v19, r3, r2
+  addi  r2, r2, 16
+  stvx  v20, r3, r2
+  addi  r2, r2, 16
+  stvx  v21, r3, r2
+  addi  r2, r2, 16
+  stvx  v22, r3, r2
+  addi  r2, r2, 16
+  stvx  v23, r3, r2
+  addi  r2, r2, 16
+  stvx  v24, r3, r2
+  addi  r2, r2, 16
+  stvx  v25, r3, r2
+  addi  r2, r2, 16
+  stvx  v26, r3, r2
+  addi  r2, r2, 16
+  stvx  v27, r3, r2
+  addi  r2, r2, 16
+  stvx  v28, r3, r2
+  addi  r2, r2, 16
+  stvx  v29, r3, r2
+  addi  r2, r2, 16
+  stvx  v30, r3, r2
+  addi  r2, r2, 16
+  stvx  v31, r3, r2
 
   mfcr r2 # CR
   stw  r2,  0x400(r3)
