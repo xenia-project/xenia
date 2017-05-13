@@ -9,6 +9,7 @@
 
 #include "xenia/ui/vulkan/blitter.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/vulkan/fenced_pools.h"
 
 namespace xe {
 namespace ui {
@@ -20,7 +21,7 @@ namespace vulkan {
 #include "xenia/ui/vulkan/shaders/bin/blit_vert.h"
 
 Blitter::Blitter() {}
-Blitter::~Blitter() {}
+Blitter::~Blitter() { Shutdown(); }
 
 bool Blitter::Initialize(VulkanDevice* device) {
   device_ = device;
@@ -48,8 +49,7 @@ bool Blitter::Initialize(VulkanDevice* device) {
   CheckResult(result, "vkCreateShaderModule");
 
   // Create the descriptor set layout used for our texture sampler.
-  // As it changes almost every draw we keep it separate from the uniform buffer
-  // and cache it on the textures.
+  // As it changes almost every draw we cache it per texture.
   VkDescriptorSetLayoutCreateInfo texture_set_layout_info;
   texture_set_layout_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -67,8 +67,15 @@ bool Blitter::Initialize(VulkanDevice* device) {
                                        nullptr, &descriptor_set_layout_);
   CheckResult(result, "vkCreateDescriptorSetLayout");
 
+  // Create a descriptor pool
+  VkDescriptorPoolSize pool_sizes[1];
+  pool_sizes[0].descriptorCount = 4096;
+  pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  descriptor_pool_ = std::make_unique<DescriptorPool>(
+      *device_, 4096,
+      std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
+
   // Create the pipeline layout used for our pipeline.
-  // If we had multiple pipelines they would share this.
   VkPipelineLayoutCreateInfo pipeline_layout_info;
   pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipeline_layout_info.pNext = nullptr;
@@ -78,12 +85,17 @@ bool Blitter::Initialize(VulkanDevice* device) {
       static_cast<uint32_t>(xe::countof(set_layouts));
   pipeline_layout_info.pSetLayouts = set_layouts;
   VkPushConstantRange push_constant_ranges[2];
+
+  // vec4 src_uv
   push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
   push_constant_ranges[0].offset = 0;
-  push_constant_ranges[0].size = sizeof(float) * 16;
+  push_constant_ranges[0].size = sizeof(float) * 4;
+
+  // bool swap_channels
   push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  push_constant_ranges[1].offset = sizeof(float) * 16;
-  push_constant_ranges[1].size = sizeof(int);
+  push_constant_ranges[1].offset = sizeof(float) * 4;
+  push_constant_ranges[1].size = sizeof(int) * 4;
+
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
   pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
@@ -91,10 +103,44 @@ bool Blitter::Initialize(VulkanDevice* device) {
                                   &pipeline_layout_);
   CheckResult(result, "vkCreatePipelineLayout");
 
+  // Create two samplers.
+  VkSamplerCreateInfo sampler_create_info = {
+      VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+      nullptr,
+      0,
+      VK_FILTER_NEAREST,
+      VK_FILTER_NEAREST,
+      VK_SAMPLER_MIPMAP_MODE_NEAREST,
+      VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      0.f,
+      VK_FALSE,
+      0.f,
+      VK_FALSE,
+      VK_COMPARE_OP_NEVER,
+      0.f,
+      0.f,
+      VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
+      VK_FALSE,
+  };
+  result =
+      vkCreateSampler(*device_, &sampler_create_info, nullptr, &samp_nearest_);
+  CheckResult(result, "vkCreateSampler");
+
+  sampler_create_info.minFilter = VK_FILTER_LINEAR;
+  sampler_create_info.magFilter = VK_FILTER_LINEAR;
+  sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  result =
+      vkCreateSampler(*device_, &sampler_create_info, nullptr, &samp_linear_);
+  CheckResult(result, "vkCreateSampler");
+
   return true;
 }
 
 void Blitter::Shutdown() {
+  vkDestroySampler(*device_, samp_nearest_, nullptr);
+  vkDestroySampler(*device_, samp_linear_, nullptr);
   vkDestroyShaderModule(*device_, blit_vertex_, nullptr);
   vkDestroyShaderModule(*device_, blit_color_, nullptr);
   vkDestroyShaderModule(*device_, blit_depth_, nullptr);
@@ -102,25 +148,166 @@ void Blitter::Shutdown() {
   vkDestroyPipeline(*device_, pipeline_depth_, nullptr);
   vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
   vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
-  vkDestroyRenderPass(*device_, render_pass_, nullptr);
+
+  for (auto& pipeline : pipelines_) {
+    vkDestroyPipeline(*device_, pipeline.second, nullptr);
+  }
+  pipelines_.clear();
+
+  for (auto& pass : render_passes_) {
+    vkDestroyRenderPass(*device_, pass.second, nullptr);
+  }
+  render_passes_.clear();
 }
 
-void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkImage src_image,
-                            VkImageView src_image_view, VkOffset2D src_offset,
-                            VkExtent2D src_extents, VkImage dst_image,
-                            VkImageView dst_image_view, VkFilter filter,
-                            bool swap_channels) {}
+void Blitter::Scavenge() {
+  if (descriptor_pool_->has_open_batch()) {
+    descriptor_pool_->EndBatch();
+  }
 
-void Blitter::CopyColorTexture2D(VkCommandBuffer command_buffer,
+  descriptor_pool_->Scavenge();
+}
+
+void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
+                            VkImageView src_image_view, VkRect2D src_rect,
+                            VkExtent2D src_extents, VkFormat dst_image_format,
+                            VkOffset2D dst_offset, VkExtent2D dst_extents,
+                            VkFramebuffer dst_framebuffer, VkFilter filter,
+                            bool color_or_depth, bool swap_channels) {
+  // Do we need a full draw, or can we cheap out with a blit command?
+  bool full_draw = swap_channels || true;
+  if (full_draw) {
+    if (!descriptor_pool_->has_open_batch()) {
+      descriptor_pool_->BeginBatch(fence);
+    }
+
+    // Acquire a render pass.
+    auto render_pass = GetRenderPass(dst_image_format);
+    VkRenderPassBeginInfo render_pass_info = {
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        nullptr,
+        render_pass,
+        dst_framebuffer,
+        {{dst_offset.x, dst_offset.y}, {dst_extents.width, dst_extents.height}},
+        0,
+        nullptr,
+    };
+
+    vkCmdBeginRenderPass(command_buffer, &render_pass_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport = {
+        float(dst_offset.x),
+        float(dst_offset.y),
+        float(dst_extents.width),
+        float(dst_extents.height),
+        0.f,
+        1.f,
+    };
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    VkRect2D scissor = {
+        dst_offset.x, dst_offset.y, dst_extents.width, dst_extents.height,
+    };
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+    // Acquire a pipeline.
+    auto pipeline =
+        GetPipeline(render_pass, color_or_depth ? blit_color_ : blit_depth_);
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipeline);
+
+    // Acquire and update a descriptor set for this image.
+    auto set = descriptor_pool_->AcquireEntry(descriptor_set_layout_);
+    assert_not_null(set);
+
+    VkWriteDescriptorSet write;
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = nullptr;
+    write.dstSet = set;
+    write.dstBinding = 0;
+    write.dstArrayElement = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    VkDescriptorImageInfo image;
+    image.sampler = filter == VK_FILTER_NEAREST ? samp_nearest_ : samp_linear_;
+    image.imageView = src_image_view;
+    image.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    write.pImageInfo = &image;
+    write.pBufferInfo = nullptr;
+    write.pTexelBufferView = nullptr;
+    vkUpdateDescriptorSets(*device_, 1, &write, 0, nullptr);
+
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipeline_layout_, 0, 1, &set, 0, nullptr);
+
+    VtxPushConstants vtx_constants = {
+        {
+            float(src_rect.offset.x) / src_extents.width,
+            float(src_rect.offset.y) / src_extents.height,
+            float(src_rect.extent.width) / src_extents.width,
+            float(src_rect.extent.height) / src_extents.height,
+        },
+    };
+    vkCmdPushConstants(command_buffer, pipeline_layout_,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VtxPushConstants),
+                       &vtx_constants);
+
+    PixPushConstants pix_constants = {
+        0, 0, 0, swap_channels ? 1 : 0,
+    };
+    vkCmdPushConstants(command_buffer, pipeline_layout_,
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(VtxPushConstants),
+                       sizeof(PixPushConstants), &pix_constants);
+
+    vkCmdDraw(command_buffer, 4, 1, 0, 0);
+    vkCmdEndRenderPass(command_buffer);
+  }
+}
+
+void Blitter::CopyColorTexture2D(VkCommandBuffer command_buffer, VkFence fence,
                                  VkImage src_image, VkImageView src_image_view,
                                  VkOffset2D src_offset, VkImage dst_image,
                                  VkImageView dst_image_view, VkExtent2D extents,
                                  VkFilter filter, bool swap_channels) {}
 
-void Blitter::CopyDepthTexture(VkCommandBuffer command_buffer,
+void Blitter::CopyDepthTexture(VkCommandBuffer command_buffer, VkFence fence,
                                VkImage src_image, VkImageView src_image_view,
                                VkOffset2D src_offset, VkImage dst_image,
                                VkImageView dst_image_view, VkExtent2D extents) {
+}
+
+VkRenderPass Blitter::GetRenderPass(VkFormat format) {
+  auto pass = render_passes_.find(format);
+  if (pass != render_passes_.end()) {
+    return pass->second;
+  }
+
+  // Create and cache the render pass.
+  VkRenderPass render_pass = CreateRenderPass(format);
+  if (render_pass) {
+    render_passes_[format] = render_pass;
+  }
+
+  return render_pass;
+}
+
+VkPipeline Blitter::GetPipeline(VkRenderPass render_pass,
+                                VkShaderModule frag_shader) {
+  auto it = pipelines_.find(std::make_pair(render_pass, frag_shader));
+  if (it != pipelines_.end()) {
+    return it->second;
+  }
+
+  // Create and cache the pipeline.
+  VkPipeline pipeline = CreatePipeline(render_pass, frag_shader);
+  if (pipeline) {
+    pipelines_[std::make_pair(render_pass, frag_shader)] = pipeline;
+  }
+
+  return pipeline;
 }
 
 VkRenderPass Blitter::CreateRenderPass(VkFormat output_format) {
@@ -128,38 +315,51 @@ VkRenderPass Blitter::CreateRenderPass(VkFormat output_format) {
   std::memset(attachments, 0, sizeof(attachments));
 
   // Output attachment
-  // TODO(DrChat): Figure out a way to leave the format undefined here.
+  attachments[0].flags = 0;
   attachments[0].format = output_format;
   attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
   attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-  attachments[0].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
-  attachments[0].finalLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-  VkSubpassDescription subpass;
-  std::memset(&subpass, 0, sizeof(subpass));
-  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
   VkAttachmentReference attach_refs[1];
   attach_refs[0].attachment = 0;
-  attach_refs[0].layout = VK_IMAGE_LAYOUT_GENERAL;
-  subpass.colorAttachmentCount = 1;
-  subpass.pColorAttachments = attach_refs;
+  attach_refs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-  VkRenderPassCreateInfo renderpass;
-  std::memset(&renderpass, 0, sizeof(renderpass));
-  renderpass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  renderpass.attachmentCount = 1;
-  renderpass.pAttachments = attachments;
-  renderpass.subpassCount = 1;
-  renderpass.pSubpasses = &subpass;
+  VkSubpassDescription subpass = {
+      0,       VK_PIPELINE_BIND_POINT_GRAPHICS,
+      0,       nullptr,
+      1,       attach_refs,
+      nullptr, nullptr,
+      0,       nullptr,
+  };
 
-  return nullptr;
+  VkRenderPassCreateInfo renderpass_info = {
+      VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+      nullptr,
+      0,
+      1,
+      attachments,
+      1,
+      &subpass,
+      0,
+      nullptr,
+  };
+  VkRenderPass renderpass = nullptr;
+  VkResult result =
+      vkCreateRenderPass(*device_, &renderpass_info, nullptr, &renderpass);
+  CheckResult(result, "vkCreateRenderPass");
+
+  return renderpass;
 }
 
-VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass) {
+VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass,
+                                   VkShaderModule frag_shader) {
+  VkResult result = VK_SUCCESS;
+
   // Pipeline
   VkGraphicsPipelineCreateInfo pipeline_info;
   std::memset(&pipeline_info, 0, sizeof(VkGraphicsPipelineCreateInfo));
@@ -174,25 +374,21 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass) {
   stages[0].module = blit_vertex_;
   stages[0].pName = "main";
   stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  stages[1].stage = VK_SHADER_STAGE_VERTEX_BIT;
-  stages[1].module = blit_color_;
+  stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  stages[1].module = frag_shader;
   stages[1].pName = "main";
+
+  pipeline_info.pStages = stages;
 
   // Vertex input
   VkPipelineVertexInputStateCreateInfo vtx_state;
   std::memset(&vtx_state, 0, sizeof(vtx_state));
   vtx_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  VkVertexInputBindingDescription bindings[1];
-  VkVertexInputAttributeDescription attribs[1];
-  bindings[0].binding = 0;
-  bindings[0].stride = 8;
-  bindings[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-  attribs[0].location = 0;
-  attribs[0].binding = 0;
-  attribs[0].format = VK_FORMAT_R32G32_SFLOAT;
-  attribs[0].offset = 0;
+  vtx_state.flags = 0;
+  vtx_state.vertexAttributeDescriptionCount = 0;
+  vtx_state.pVertexAttributeDescriptions = nullptr;
+  vtx_state.vertexBindingDescriptionCount = 0;
+  vtx_state.pVertexBindingDescriptions = nullptr;
 
   pipeline_info.pVertexInputState = &vtx_state;
 
@@ -202,7 +398,7 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass) {
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   input_info.pNext = nullptr;
   input_info.flags = 0;
-  input_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  input_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   input_info.primitiveRestartEnable = VK_FALSE;
   pipeline_info.pInputAssemblyState = &input_info;
   pipeline_info.pTessellationState = nullptr;
@@ -224,8 +420,8 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass) {
   rasterization_info.depthClampEnable = VK_FALSE;
   rasterization_info.rasterizerDiscardEnable = VK_FALSE;
   rasterization_info.polygonMode = VK_POLYGON_MODE_FILL;
-  rasterization_info.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterization_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterization_info.cullMode = VK_CULL_MODE_NONE;
+  rasterization_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterization_info.depthBiasEnable = VK_FALSE;
   rasterization_info.depthBiasConstantFactor = 0;
   rasterization_info.depthBiasClamp = 0;
@@ -252,14 +448,12 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass) {
   blend_info.logicOpEnable = VK_FALSE;
   blend_info.logicOp = VK_LOGIC_OP_NO_OP;
   VkPipelineColorBlendAttachmentState blend_attachments[1];
-  blend_attachments[0].blendEnable = VK_TRUE;
+  blend_attachments[0].blendEnable = VK_FALSE;
   blend_attachments[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  blend_attachments[0].dstColorBlendFactor =
-      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  blend_attachments[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
   blend_attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
   blend_attachments[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  blend_attachments[0].dstAlphaBlendFactor =
-      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  blend_attachments[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
   blend_attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
   blend_attachments[0].colorWriteMask = 0xF;
   blend_info.attachmentCount =
@@ -280,12 +474,17 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass) {
   dynamic_state_info.pDynamicStates = dynamic_states;
   pipeline_info.pDynamicState = &dynamic_state_info;
   pipeline_info.layout = pipeline_layout_;
-  pipeline_info.renderPass = render_pass_;
+  pipeline_info.renderPass = render_pass;
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
 
-  return nullptr;
+  VkPipeline pipeline = nullptr;
+  result = vkCreateGraphicsPipelines(*device_, nullptr, 1, &pipeline_info,
+                                     nullptr, &pipeline);
+  CheckResult(result, "vkCreateGraphicsPipelines");
+
+  return pipeline;
 }
 
 }  // namespace vulkan
