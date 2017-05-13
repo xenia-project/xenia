@@ -230,6 +230,7 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   VkRenderPassCreateInfo render_pass_info;
   render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   render_pass_info.pNext = nullptr;
+  render_pass_info.flags = 0;
   render_pass_info.attachmentCount = 1;
   render_pass_info.pAttachments = &color_attachment;
   render_pass_info.subpassCount = 1;
@@ -271,6 +272,8 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
       XELOGE("Failed to initialize a swapchain buffer");
       return false;
     }
+
+    buffers_[i].image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   }
 
   XELOGVK("Swap chain initialized successfully!");
@@ -442,27 +445,6 @@ bool VulkanSwapChain::Begin() {
   err = vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
   CheckResult(err, "vkBeginCommandBuffer");
 
-  // Transition the image to a format we can copy to.
-  VkImageMemoryBarrier pre_image_memory_barrier;
-  pre_image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  pre_image_memory_barrier.pNext = nullptr;
-  pre_image_memory_barrier.srcAccessMask = 0;
-  pre_image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
-  pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  pre_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  pre_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  pre_image_memory_barrier.image = current_buffer.image;
-  pre_image_memory_barrier.subresourceRange.aspectMask =
-      VK_IMAGE_ASPECT_COLOR_BIT;
-  pre_image_memory_barrier.subresourceRange.baseMipLevel = 0;
-  pre_image_memory_barrier.subresourceRange.levelCount = 1;
-  pre_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
-  pre_image_memory_barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(copy_cmd_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &pre_image_memory_barrier);
-
   // First: Issue a command to clear the render target.
   VkImageSubresourceRange clear_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   VkClearColorValue clear_color;
@@ -502,18 +484,32 @@ bool VulkanSwapChain::End() {
   begin_info.pInheritanceInfo = nullptr;
   vkBeginCommandBuffer(cmd_buffer_, &begin_info);
 
-  // Execute copy commands (transitions embedded)
-  vkCmdExecuteCommands(cmd_buffer_, 1, &copy_cmd_buffer_);
+  // Transition the image to a format we can copy to.
+  VkImageMemoryBarrier pre_image_copy_barrier;
+  pre_image_copy_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  pre_image_copy_barrier.pNext = nullptr;
+  pre_image_copy_barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+  pre_image_copy_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  pre_image_copy_barrier.oldLayout = current_buffer.image_layout;
+  pre_image_copy_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  pre_image_copy_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  pre_image_copy_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  pre_image_copy_barrier.image = current_buffer.image;
+  pre_image_copy_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
+                                             1};
+  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &pre_image_copy_barrier);
+
   current_buffer.image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+
+  // Execute copy commands
+  vkCmdExecuteCommands(cmd_buffer_, 1, &copy_cmd_buffer_);
 
   // Transition the image to a color attachment target for drawing.
   VkImageMemoryBarrier pre_image_memory_barrier;
   pre_image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   pre_image_memory_barrier.pNext = nullptr;
-  pre_image_memory_barrier.srcAccessMask = 0;
-  pre_image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
-  pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   pre_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   pre_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   pre_image_memory_barrier.image = current_buffer.image;
@@ -523,12 +519,13 @@ bool VulkanSwapChain::End() {
   pre_image_memory_barrier.subresourceRange.levelCount = 1;
   pre_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   pre_image_memory_barrier.subresourceRange.layerCount = 1;
+
   pre_image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   pre_image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  pre_image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_memory_barrier);
 
   current_buffer.image_layout = pre_image_memory_barrier.newLayout;
@@ -573,14 +570,14 @@ bool VulkanSwapChain::End() {
   post_image_memory_barrier.subresourceRange.levelCount = 1;
   post_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   post_image_memory_barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &post_image_memory_barrier);
 
   current_buffer.image_layout = post_image_memory_barrier.newLayout;
 
   vkEndCommandBuffer(cmd_buffer_);
-  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
   std::vector<VkSemaphore> semaphores;
   for (size_t i = 0; i < wait_and_signal_semaphores_.size(); i++) {
