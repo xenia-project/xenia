@@ -231,8 +231,7 @@ void VulkanGraphicsSystem::DestroyCaptureBuffer() {
 
 std::unique_ptr<CommandProcessor>
 VulkanGraphicsSystem::CreateCommandProcessor() {
-  return std::unique_ptr<CommandProcessor>(
-      new VulkanCommandProcessor(this, kernel_state_));
+  return std::make_unique<VulkanCommandProcessor>(this, kernel_state_);
 }
 
 void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
