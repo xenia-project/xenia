@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/benvanik/xenia.png?label=ready)](https://waffle.io/benvanik/xenia)
 Xenia - Xbox 360 Emulator Research Project
 ==========================================
 
