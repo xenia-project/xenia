@@ -224,6 +224,20 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
 }
 DECLARE_XAM_EXPORT(XamEnumerate, ExportTag::kImplemented);
 
+dword_result_t XamCreateEnumeratorHandle(unknown_t unk1, unknown_t unk2,
+                                         unknown_t unk3, unknown_t unk4,
+                                         unknown_t unk5, unknown_t unk6,
+                                         unknown_t unk7, unknown_t unk8) {
+  return X_ERROR_INVALID_PARAMETER;
+}
+DECLARE_XAM_EXPORT(XamCreateEnumeratorHandle, ExportTag::kStub);
+
+dword_result_t XamGetPrivateEnumStructureFromHandle(unknown_t unk1,
+                                                    unknown_t unk2) {
+  return X_ERROR_INVALID_PARAMETER;
+}
+DECLARE_XAM_EXPORT(XamGetPrivateEnumStructureFromHandle, ExportTag::kStub);
+
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}
 
