@@ -905,6 +905,43 @@ SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   SHIM_SET_RETURN_32(count);
 }
 
+// https://msdn.microsoft.com/en-us/library/2ts7cx93.aspx
+SHIM_CALL _snwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
+  int32_t buffer_count = SHIM_GET_ARG_32(1);
+  uint32_t format_ptr = SHIM_GET_ARG_32(2);
+
+  XELOGD("_snwprintf(%08X, %i, %08X, ...)", buffer_ptr, buffer_count,
+         format_ptr);
+
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
+    SHIM_SET_RETURN_32(-1);
+    return;
+  }
+
+  auto buffer = (uint16_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint16_t*)SHIM_MEM_ADDR(format_ptr);
+
+  StackArgList args(ppc_context, 3);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, false);
+  if (count < 0) {
+    if (buffer_count > 0) {
+      buffer[0] = '\0';  // write a null, just to be safe
+    }
+  } else if (count <= buffer_count) {
+    xe::copy_and_swap(buffer, (uint16_t*)data.wstr().c_str(), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
+    }
+  } else {
+    xe::copy_and_swap(buffer, (uint16_t*)data.wstr().c_str(), buffer_count);
+    count = -1;  // for return value
+  }
+  SHIM_SET_RETURN_32(count);
+}
+
 // https://msdn.microsoft.com/en-us/library/ybk95axf.aspx
 SHIM_CALL swprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
@@ -1058,6 +1095,7 @@ void RegisterStringExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", DbgPrint, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _snprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", sprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", _snwprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", swprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vsnprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
