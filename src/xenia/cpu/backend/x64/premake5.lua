@@ -18,6 +18,7 @@ project("xenia-cpu-backend-x64")
     "CAPSTONE_HAS_X86",
     "CAPSTONE_USE_SYS_DYN_MEM",
     "XBYAK_NO_OP_NAMES",
+    "XBYAK_ENABLE_OMITTED_OPERAND",
   })
   -- Enable VTune, if it's installed.
   if os.isdir(project_root.."/third_party/vtune") then
