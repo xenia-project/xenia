@@ -97,12 +97,10 @@ bool DeallocFixed(void* base_address, size_t length,
   switch (deallocation_type) {
     case DeallocationType::kRelease:
       free_type = MEM_RELEASE;
+      length = 0;
       break;
     case DeallocationType::kDecommit:
       free_type = MEM_DECOMMIT;
-      break;
-    case DeallocationType::kDecommitRelease:
-      free_type = MEM_RELEASE | MEM_DECOMMIT;
       break;
     default:
       assert_unhandled_case(deallocation_type);

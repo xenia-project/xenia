@@ -45,7 +45,6 @@ enum class AllocationType {
 enum class DeallocationType {
   kRelease = 1 << 0,
   kDecommit = 1 << 1,
-  kDecommitRelease = kRelease | kDecommit,
 };
 
 // Allocates a block of memory at the given page-aligned base address.

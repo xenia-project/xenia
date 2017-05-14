@@ -684,7 +684,7 @@ static const uintptr_t kConstDataLocation = 0x20000000;
 static const uintptr_t kConstDataSize = sizeof(xmm_consts);
 
 // Increment the location by this amount for every allocation failure.
-static const uintptr_t kConstDataIncrement = 0x00010000;
+static const uintptr_t kConstDataIncrement = 0x00001000;
 
 // This function places constant data that is used by the emitter later on.
 // Only called once and used by multiple instances of the emitter.
@@ -713,7 +713,7 @@ uintptr_t X64Emitter::PlaceConstData() {
 
 void X64Emitter::FreeConstData(uintptr_t data) {
   memory::DeallocFixed(reinterpret_cast<void*>(data), 0,
-                       memory::DeallocationType::kDecommitRelease);
+                       memory::DeallocationType::kRelease);
 }
 
 Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
