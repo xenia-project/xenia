@@ -37,6 +37,7 @@ struct Context {
   double f[32];    // 0x100
   vec128_t v[32];  // 0x200 For now, only support 32 vector registers.
   uint32_t cr;     // 0x400 Condition register
+  uint64_t fpscr;  // 0x404 FPSCR
 };
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;

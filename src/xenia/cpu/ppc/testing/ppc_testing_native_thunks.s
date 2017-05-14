@@ -10,8 +10,11 @@
 # r3 = context
 # this does not touch r1, r3, r4, r13
 .load_registers_ctx:
-  lwz r2,  0x400(r3) # CR
+  lwz   r2, 0x400(r3) # CR
   mtcrf 0xFF, r2
+
+  lfd   f0, 0x404(r3) # FPSCR
+  mtfsf 0xFF, f0
 
   li  r2, 0
   mtxer r2
@@ -286,6 +289,9 @@
 
   mfcr r2 # CR
   stw  r2,  0x400(r3)
+
+  mffs f0 # FPSCR
+  stfd f0,  0x404(r3)
   blr
 
 # void xe_call_native(Context* ctx, void* func)
