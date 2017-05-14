@@ -7197,8 +7197,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           // TMP[15:0] <- (DEST[31:0] < 0) ? 0 : DEST[15:0];
           // DEST[15:0] <- (DEST[31:0] > FFFFH) ? FFFFH : TMP[15:0];
           e.vpackusdw(i.dest, i.src1, i.src2);
-          e.vpshuflw(i.dest, i.dest, B10110001);
-          e.vpshufhw(i.dest, i.dest, B10110001);
+          e.vpshuflw(i.dest, i.dest, 0b10110001);
+          e.vpshufhw(i.dest, i.dest, 0b10110001);
         } else {
           // signed -> unsigned
           assert_always();
@@ -7216,8 +7216,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
             src2 = e.xmm0;
           }
           e.vpackssdw(i.dest, i.src1, src2);
-          e.vpshuflw(i.dest, i.dest, B10110001);
-          e.vpshufhw(i.dest, i.dest, B10110001);
+          e.vpshuflw(i.dest, i.dest, 0b10110001);
+          e.vpshufhw(i.dest, i.dest, 0b10110001);
         } else {
           // signed -> signed
           assert_always();
@@ -7318,7 +7318,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       // Shuffle to 0|0|0|0|0|0|Y|X
       e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
       e.vcvtph2ps(i.dest, i.dest);
-      e.vpshufd(i.dest, i.dest, B10100100);
+      e.vpshufd(i.dest, i.dest, 0b10100100);
       e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
     } else {
       Xmm src;
