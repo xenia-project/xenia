@@ -5538,8 +5538,9 @@ struct VECTOR_SHL_V128
       // See if the shift is equal first for a shortcut.
       e.vpshuflw(e.xmm0, i.src2, 0b00000000);
       e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
-      e.vptest(e.xmm0, i.src2);
-      e.jnc(emu);
+      e.vpxor(e.xmm1, e.xmm0, i.src2);
+      e.vptest(e.xmm1, e.xmm1);
+      e.jnz(emu);
 
       // Equal. Shift using vpsllw.
       e.mov(e.rax, 0xF);
@@ -5615,8 +5616,9 @@ struct VECTOR_SHL_V128
       // Only bother with this check if shift amt isn't constant.
       if (!i.src2.is_constant) {
         e.vpshufd(e.xmm0, i.src2, 0b00000000);
-        e.vptest(e.xmm0, i.src2);
-        e.jnc(emu);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
 
         // Equal. Shift using vpsrad.
         e.mov(e.rax, 0x1F);
@@ -5722,8 +5724,9 @@ struct VECTOR_SHR_V128
     if (!i.src2.is_constant) {
       e.vpshuflw(e.xmm0, i.src2, 0b00000000);
       e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
-      e.vptest(e.xmm0, i.src2);
-      e.jnc(emu);
+      e.vpxor(e.xmm1, e.xmm0, i.src2);
+      e.vptest(e.xmm1, e.xmm1);
+      e.jnz(emu);
 
       // Equal. Shift using vpsrlw.
       e.mov(e.rax, 0xF);
@@ -5799,8 +5802,9 @@ struct VECTOR_SHR_V128
       // Only bother with this check if shift amt isn't constant.
       if (!i.src2.is_constant) {
         e.vpshufd(e.xmm0, i.src2, 0b00000000);
-        e.vptest(e.xmm0, i.src2);
-        e.jnc(emu);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
 
         // Equal. Shift using vpsrld.
         e.mov(e.rax, 0x1F);
@@ -5893,8 +5897,9 @@ struct VECTOR_SHA_V128
     if (!i.src2.is_constant) {
       e.vpshuflw(e.xmm0, i.src2, 0b00000000);
       e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
-      e.vptest(e.xmm0, i.src2);
-      e.jnc(emu);
+      e.vpxor(e.xmm1, e.xmm0, i.src2);
+      e.vptest(e.xmm1, e.xmm1);
+      e.jnz(emu);
 
       // Equal. Shift using vpsraw.
       e.mov(e.rax, 0xF);
@@ -5965,8 +5970,9 @@ struct VECTOR_SHA_V128
       // Only bother with this check if shift amt isn't constant.
       if (!i.src2.is_constant) {
         e.vpshufd(e.xmm0, i.src2, 0b00000000);
-        e.vptest(e.xmm0, i.src2);
-        e.jnc(emu);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
 
         // Equal. Shift using vpsrad.
         e.mov(e.rax, 0x1F);
