@@ -175,7 +175,7 @@ dword_result_t XamAlloc(dword_t unk, dword_t size, lpdword_t out_ptr) {
 DECLARE_XAM_EXPORT(XamAlloc, ExportTag::kImplemented);
 
 dword_result_t XamFree(lpdword_t ptr) {
-  kernel_state()->memory()->SystemHeapFree(ptr);
+  kernel_state()->memory()->SystemHeapFree(ptr.guest_address());
 
   return X_ERROR_SUCCESS;
 }
