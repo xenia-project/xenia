@@ -352,7 +352,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
     assert_always();
   }
 
-  if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) {
+  if (texture_info.dimension != Dimension::kCube &&
+      props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) {
     // Add color attachment usage if it's supported.
     image_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
   }
@@ -369,10 +370,9 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   // TODO(DrChat): Actually check the image properties.
 
   image_info.format = format;
-  image_info.extent = {texture_info.width + 1, texture_info.height + 1,
-                       texture_info.depth + 1};
+  image_info.extent = {texture_info.width + 1, texture_info.height + 1, 1};
   image_info.mipLevels = 1;
-  image_info.arrayLayers = 1;
+  image_info.arrayLayers = texture_info.depth + 1;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
@@ -649,7 +649,8 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+  if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+      texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     // This applies to any depth/stencil format, but we only use D24S8 / D32FS8.
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
