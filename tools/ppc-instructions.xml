@@ -908,7 +908,7 @@
   <insn mnem="mtspr"        opcode="7c0003a6" form="XFX"      group="c" desc="Move to Special-Purpose Register">
     <in field="RS" />
     <out field="SPR" />
-    <disasm>mtmspr [SPR], [RS]</disasm>
+    <disasm>mtspr [SPR], [RS]</disasm>
   </insn>
   <insn mnem="mulhdx"       opcode="7c000092" form="XO"       group="i" desc="Multiply High Doubleword">
     <in field="RA" />
