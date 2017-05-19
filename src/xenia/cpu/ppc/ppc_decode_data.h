@@ -86,6 +86,7 @@ struct PPCDecodeData {
     union {
       uint32_t value_;
       struct {
+        uint32_t : 2;
         uint32_t DS : 14;
         uint32_t RA : 5;
         uint32_t RT : 5;
