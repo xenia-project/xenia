@@ -240,10 +240,8 @@ int InstrEmit_fcfidx(PPCHIRBuilder& f, const InstrData& i) {
   return 0;
 }
 
-int InstrEmit_fctidx(PPCHIRBuilder& f, const InstrData& i) {
-  // frD <- double_to_signed_int64( frB )
-  // TODO(benvanik): pull from FPSCR[RN]
-  RoundMode round_mode = ROUND_TO_ZERO;
+int InstrEmit_fctidxx_(PPCHIRBuilder& f, const InstrData& i,
+                       RoundMode round_mode) {
   Value* v = f.Convert(f.LoadFPR(i.X.RB), INT64_TYPE, round_mode);
   v = f.Cast(v, FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
@@ -251,15 +249,17 @@ int InstrEmit_fctidx(PPCHIRBuilder& f, const InstrData& i) {
   return 0;
 }
 
-int InstrEmit_fctidzx(PPCHIRBuilder& f, const InstrData& i) {
-  // TODO(benvanik): assuming round to zero is always set, is that ok?
-  return InstrEmit_fctidx(f, i);
+int InstrEmit_fctidx(PPCHIRBuilder& f, const InstrData& i) {
+  // frD <- double_to_signed_int64( frB )
+  return InstrEmit_fctidxx_(f, i, ROUND_DYNAMIC);
 }
 
-int InstrEmit_fctiwx(PPCHIRBuilder& f, const InstrData& i) {
-  // frD <- double_to_signed_int32( frB )
-  // TODO(benvanik): pull from FPSCR[RN]
-  RoundMode round_mode = ROUND_TO_ZERO;
+int InstrEmit_fctidzx(PPCHIRBuilder& f, const InstrData& i) {
+  return InstrEmit_fctidxx_(f, i, ROUND_TO_ZERO);
+}
+
+int InstrEmit_fctiwxx_(PPCHIRBuilder& f, const InstrData& i,
+                       RoundMode round_mode) {
   Value* v = f.Convert(f.LoadFPR(i.X.RB), INT32_TYPE, round_mode);
   v = f.Cast(f.SignExtend(v, INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
@@ -267,16 +267,19 @@ int InstrEmit_fctiwx(PPCHIRBuilder& f, const InstrData& i) {
   return 0;
 }
 
+int InstrEmit_fctiwx(PPCHIRBuilder& f, const InstrData& i) {
+  // frD <- double_to_signed_int32( frB )
+  return InstrEmit_fctiwxx_(f, i, ROUND_DYNAMIC);
+}
+
 int InstrEmit_fctiwzx(PPCHIRBuilder& f, const InstrData& i) {
   // TODO(benvanik): assuming round to zero is always set, is that ok?
-  return InstrEmit_fctiwx(f, i);
+  return InstrEmit_fctiwxx_(f, i, ROUND_TO_ZERO);
 }
 
 int InstrEmit_frspx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- Round_single(frB)
-  // TODO(benvanik): pull from FPSCR[RN]
-  RoundMode round_mode = ROUND_TO_ZERO;
-  Value* v = f.Convert(f.LoadFPR(i.X.RB), FLOAT32_TYPE, round_mode);
+  Value* v = f.Convert(f.LoadFPR(i.X.RB), FLOAT32_TYPE, ROUND_DYNAMIC);
   v = f.Convert(v, FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
   f.UpdateFPSCR(v, i.X.Rc);
@@ -355,15 +358,33 @@ int InstrEmit_mtfsb1x(PPCHIRBuilder& f, const InstrData& i) {
 int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
   if (i.XFL.L) {
     // Move/shift.
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  } else {
-    // Directly store.
-    // TODO(benvanik): use w/field mask to select bits.
-    // i.XFL.W;
-    // i.XFL.FM;
     f.StoreFPSCR(
         f.Truncate(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE), INT32_TYPE));
+    return 1;
+  } else {
+    assert_zero(i.XFL.W);
+
+    // Store under control of mask.
+    // Expand the mask from 8 bits -> 32 bits.
+    uint32_t mask = 0;
+    for (int j = 0; j < 8; j++) {
+      if (i.XFL.FM & (1 << (j ^ 7))) {
+        mask |= 0xF << (4 * j);
+      }
+    }
+
+    Value* v = f.Truncate(f.Cast(f.LoadFPR(i.XFL.RB), INT64_TYPE), INT32_TYPE);
+    if (mask != 0xFFFFFFFF) {
+      Value* fpscr = f.LoadFPSCR();
+      v = f.And(v, f.LoadConstantInt32(mask));
+      v = f.Or(v, f.And(fpscr, f.LoadConstantInt32(~mask)));
+    }
+    f.StoreFPSCR(v);
+
+    // Update the system rounding mode.
+    if (mask & 0x7) {
+      f.SetRoundingMode(v);
+    }
   }
   if (i.XFL.Rc) {
     f.CopyFPSCRToCR1();
@@ -372,8 +393,27 @@ int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_mtfsfix(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // FPSCR[crfD] <- IMM
+
+  // Create a mask.
+  uint32_t mask = 0xF << (0x1C - (i.X.RT & 0x1C));
+  uint32_t value = i.X.RB << (0x1C - (i.X.RT & 0x1C));
+
+  Value* fpscr = f.LoadFPSCR();
+  fpscr = f.And(fpscr, f.LoadConstantInt32(~mask));
+  fpscr = f.Or(fpscr, f.LoadConstantInt32(value));
+  f.StoreFPSCR(fpscr);
+
+  // Update the system rounding mode.
+  if (mask & 0x7) {
+    f.SetRoundingMode(fpscr);
+  }
+
+  if (i.X.Rc) {
+    f.CopyFPSCRToCR1();
+  }
+
+  return 0;
 }
 
 // Floating-point move (A-21)
