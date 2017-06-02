@@ -92,7 +92,7 @@ int Main() {
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
-  CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   // Initialize logging. Needs parsed FLAGS.
   xe::InitializeLogging(entry_info.name);
