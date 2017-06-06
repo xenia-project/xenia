@@ -903,6 +903,9 @@ CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
         format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
         break;
+      default:
+        // Other types as-is.
+        break;
     }
   }
 
