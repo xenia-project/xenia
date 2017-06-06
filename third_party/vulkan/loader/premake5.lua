@@ -32,5 +32,6 @@ project("vulkan-loader")
     defines({
       "VK_USE_PLATFORM_XCB_KHR",
       [[SYSCONFDIR="\"/etc\""]],
-      [[DATADIR="\"/usr/share\""]],
+      [[FALLBACK_CONFIG_DIRS="\"/etc/xdg\""]],
+      [[FALLBACK_DATA_DIRS="\"/usr/local/share:/usr/share\""]],
     })
