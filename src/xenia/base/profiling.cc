@@ -268,6 +268,7 @@ void Profiler::ToggleDisplay() {}
 void Profiler::TogglePause() {}
 void Profiler::set_window(ui::Window* window) {}
 void Profiler::Present() {}
+void Profiler::Flip() {}
 
 #endif  // XE_OPTION_PROFILING
 
