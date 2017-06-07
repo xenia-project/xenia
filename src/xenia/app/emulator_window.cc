@@ -89,7 +89,7 @@ bool EmulatorWindow::Initialize() {
     bool handled = true;
     switch (e->key_code()) {
       case 0x4F: {  // o
-        if (e->is_cntrl_pressed()) {
+        if (e->is_ctrl_pressed()) {
           FileOpen();
         }
       } break;
