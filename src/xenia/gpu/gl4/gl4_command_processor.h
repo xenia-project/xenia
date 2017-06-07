@@ -74,16 +74,16 @@ class GL4CommandProcessor : public CommandProcessor {
     uint32_t width;
     uint32_t height;
     ColorRenderTargetFormat format;
-    GLenum internal_format;
     GLuint texture;
+	GLenum internal_format; 
   };
   struct CachedDepthRenderTarget {
     uint32_t base;
     uint32_t width;
     uint32_t height;
     DepthRenderTargetFormat format;
-    GLenum internal_format;
     GLuint texture;
+	GLenum internal_format; 
   };
   struct CachedPipeline {
     CachedPipeline();

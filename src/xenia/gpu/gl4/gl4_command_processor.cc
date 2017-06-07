@@ -2008,7 +2008,7 @@ GLuint GL4CommandProcessor::GetColorRenderTarget(
   for (auto it = cached_color_render_targets_.begin();
        it != cached_color_render_targets_.end(); ++it) {
     if (it->base == base && it->width == width && it->height == height &&
-        it->internal_format == internal_format) {
+        it->format == format) {
       return it->texture;
     }
   }
@@ -2018,7 +2018,6 @@ GLuint GL4CommandProcessor::GetColorRenderTarget(
   cached->width = width;
   cached->height = height;
   cached->format = format;
-  cached->internal_format = internal_format;
 
   glCreateTextures(GL_TEXTURE_2D, 1, &cached->texture);
   glTextureStorage2D(cached->texture, 1, internal_format, width, height);
