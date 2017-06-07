@@ -185,6 +185,13 @@ solution("xenia")
     platforms({"Linux"})
   elseif os.is("windows") then
     platforms({"Windows"})
+
+	-- Determine the Windows SDK version. Adapted from https://github.com/premake/premake-core/issues/651
+	if os.getversion().majorversion == 10 then
+		local win10SDK = os.getWindowsRegistry( "HKLM:SOFTWARE\\Wow6432Node\\Microsoft\\Microsoft SDKs\\Windows\\v10.0\\ProductVersion" )
+		-- It needs an extra ".0" to be recognized by VS
+		if win10SDK ~= nil then systemversion( win10SDK .. ".0" ) end
+	end
   end
   configurations({"Checked", "Debug", "Release"})
 
