@@ -21,11 +21,9 @@ namespace hid {
 namespace xinput {
 
 XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
-    : InputDriver(window) {
-  XInputEnable(TRUE);
-}
+    : InputDriver(window) { }
 
-XInputInputDriver::~XInputInputDriver() { XInputEnable(FALSE); }
+XInputInputDriver::~XInputInputDriver() { }
 
 X_STATUS XInputInputDriver::Setup() { return X_STATUS_SUCCESS; }
 
