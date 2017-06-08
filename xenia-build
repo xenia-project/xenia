@@ -328,7 +328,6 @@ def run_premake(target_os, action):
       os.path.join('tools', 'build', 'premake'),
       '--file=premake5.lua',
       '--os=%s' % (target_os),
-      '--cc=clang',
       '--test-suite-mode=combined',
       '--verbose',
       action,
