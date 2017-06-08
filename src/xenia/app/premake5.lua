@@ -27,9 +27,6 @@ project("xenia-app")
     "xenia-ui-gl",
     "xenia-vfs",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
   })
   includedirs({
