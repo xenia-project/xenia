@@ -5,15 +5,23 @@
 precision highp float;
 
 layout(push_constant) uniform PushConstants {
-  vec4 src_uv;
+  // normalized [x, y, w, h]
+  layout(offset = 0) vec4 src_uv;
 } push_constants;
 
-layout(location = 0) in vec2 vfetch_pos;
 layout(location = 0) out vec2 vtx_uv;
 
 void main() {
-  gl_Position = vec4(vfetch_pos.xy * vec2(2.0, -2.0) -
-                vec2(1.0, -1.0), 0.0, 1.0);
+  const vec2 vtx_arr[4]=vec2[4](
+    vec2(0,0),
+    vec2(1,0),
+    vec2(0,1),
+    vec2(1,1)
+  );
+  
+  vec2 vfetch_pos = vtx_arr[gl_VertexIndex];
+  gl_Position = vec4(vfetch_pos.xy * vec2(2.0, 2.0) -
+                vec2(1.0, 1.0), 0.0, 1.0);
   vtx_uv = vfetch_pos.xy * push_constants.src_uv.zw +
                            push_constants.src_uv.xy;
 }

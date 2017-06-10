@@ -236,16 +236,27 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
   err = vkCreateImageView(device_, &image_view_info, nullptr, &image_view);
   CheckResult(err, "vkCreateImageView");
 
+  // Create separate depth/stencil views.
+  if (key.color_or_depth == 0) {
+    image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    err = vkCreateImageView(device_, &image_view_info, nullptr,
+                            &image_view_depth);
+    CheckResult(err, "vkCreateImageView");
+
+    image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
+    err = vkCreateImageView(device_, &image_view_info, nullptr,
+                            &image_view_depth);
+    CheckResult(err, "vkCreateImageView");
+  }
+
   // TODO(benvanik): transition to general layout?
   VkImageMemoryBarrier image_barrier;
   image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   image_barrier.pNext = nullptr;
-  image_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+  image_barrier.srcAccessMask = 0;
   image_barrier.dstAccessMask =
       key.color_or_depth ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                          : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-  image_barrier.dstAccessMask |=
-      VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
   image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
   image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -873,11 +884,27 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
   return true;
 }
 
-VkImageView RenderCache::FindTileView(uint32_t base, uint32_t pitch,
-                                      MsaaSamples samples, bool color_or_depth,
-                                      uint32_t format) {
+CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
+                                          MsaaSamples samples,
+                                          bool color_or_depth,
+                                          uint32_t format) {
   uint32_t tile_width = samples == MsaaSamples::k4X ? 40 : 80;
   uint32_t tile_height = samples != MsaaSamples::k1X ? 8 : 16;
+
+  if (color_or_depth) {
+    // Adjust similar formats for easier matching.
+    switch (static_cast<ColorRenderTargetFormat>(format)) {
+      case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
+        break;
+      case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
+        break;
+      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
+        break;
+    }
+  }
 
   TileViewKey key;
   key.tile_offset = base;
@@ -888,7 +915,7 @@ VkImageView RenderCache::FindTileView(uint32_t base, uint32_t pitch,
   key.edram_format = static_cast<uint16_t>(format);
   auto view = FindTileView(key);
   if (view) {
-    return view->image_view;
+    return view;
   }
 
   return nullptr;

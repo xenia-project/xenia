@@ -20,9 +20,8 @@ namespace vulkan {
 using xe::ui::vulkan::CheckResult;
 
 CommandBufferPool::CommandBufferPool(VkDevice device,
-                                     uint32_t queue_family_index,
-                                     VkCommandBufferLevel level)
-    : BaseFencedPool(device), level_(level) {
+                                     uint32_t queue_family_index)
+    : BaseFencedPool(device) {
   // Create the pool used for allocating buffers.
   // They are marked as transient (short-lived) and cycled frequently.
   VkCommandPoolCreateInfo cmd_pool_info;
@@ -41,7 +40,7 @@ CommandBufferPool::CommandBufferPool(VkDevice device,
   command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   command_buffer_info.pNext = nullptr;
   command_buffer_info.commandPool = command_pool_;
-  command_buffer_info.level = level;
+  command_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   command_buffer_info.commandBufferCount = kDefaultCount;
   VkCommandBuffer command_buffers[kDefaultCount];
   err =
@@ -64,7 +63,8 @@ VkCommandBuffer CommandBufferPool::AllocateEntry(void* data) {
   command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   command_buffer_info.pNext = nullptr;
   command_buffer_info.commandPool = command_pool_;
-  command_buffer_info.level = level_;
+  command_buffer_info.level =
+      VkCommandBufferLevel(reinterpret_cast<uintptr_t>(data));
   command_buffer_info.commandBufferCount = 1;
   VkCommandBuffer command_buffer;
   auto err =
@@ -115,7 +115,9 @@ VkDescriptorSet DescriptorPool::AllocateEntry(void* data) {
   return descriptor_set;
 }
 
-void DescriptorPool::FreeEntry(VkDescriptorSet handle) {}
+void DescriptorPool::FreeEntry(VkDescriptorSet handle) {
+  vkFreeDescriptorSets(device_, descriptor_pool_, 1, &handle);
+}
 
 }  // namespace vulkan
 }  // namespace ui

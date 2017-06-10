@@ -465,6 +465,7 @@ struct Sequence {
                                       const REG_CONST_FN& reg_const_fn) {
     if (i.src1.is_constant) {
       if (i.src2.is_constant) {
+        // Both constants.
         if (i.src1.ConstantFitsIn32Reg()) {
           e.mov(i.dest, i.src2.constant());
           reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
@@ -478,6 +479,7 @@ struct Sequence {
           reg_reg_fn(e, i.dest, temp);
         }
       } else {
+        // src1 constant.
         if (i.dest == i.src2) {
           if (i.src1.ConstantFitsIn32Reg()) {
             reg_const_fn(e, i.dest, static_cast<int32_t>(i.src1.constant()));
@@ -5536,8 +5538,9 @@ struct VECTOR_SHL_V128
       // See if the shift is equal first for a shortcut.
       e.vpshuflw(e.xmm0, i.src2, 0b00000000);
       e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
-      e.vptest(e.xmm0, i.src2);
-      e.jnc(emu);
+      e.vpxor(e.xmm1, e.xmm0, i.src2);
+      e.vptest(e.xmm1, e.xmm1);
+      e.jnz(emu);
 
       // Equal. Shift using vpsllw.
       e.mov(e.rax, 0xF);
@@ -5613,8 +5616,9 @@ struct VECTOR_SHL_V128
       // Only bother with this check if shift amt isn't constant.
       if (!i.src2.is_constant) {
         e.vpshufd(e.xmm0, i.src2, 0b00000000);
-        e.vptest(e.xmm0, i.src2);
-        e.jnc(emu);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
 
         // Equal. Shift using vpsrad.
         e.mov(e.rax, 0x1F);
@@ -5720,8 +5724,9 @@ struct VECTOR_SHR_V128
     if (!i.src2.is_constant) {
       e.vpshuflw(e.xmm0, i.src2, 0b00000000);
       e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
-      e.vptest(e.xmm0, i.src2);
-      e.jnc(emu);
+      e.vpxor(e.xmm1, e.xmm0, i.src2);
+      e.vptest(e.xmm1, e.xmm1);
+      e.jnz(emu);
 
       // Equal. Shift using vpsrlw.
       e.mov(e.rax, 0xF);
@@ -5797,8 +5802,9 @@ struct VECTOR_SHR_V128
       // Only bother with this check if shift amt isn't constant.
       if (!i.src2.is_constant) {
         e.vpshufd(e.xmm0, i.src2, 0b00000000);
-        e.vptest(e.xmm0, i.src2);
-        e.jnc(emu);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
 
         // Equal. Shift using vpsrld.
         e.mov(e.rax, 0x1F);
@@ -5891,8 +5897,9 @@ struct VECTOR_SHA_V128
     if (!i.src2.is_constant) {
       e.vpshuflw(e.xmm0, i.src2, 0b00000000);
       e.vpshufd(e.xmm0, e.xmm0, 0b00000000);
-      e.vptest(e.xmm0, i.src2);
-      e.jnc(emu);
+      e.vpxor(e.xmm1, e.xmm0, i.src2);
+      e.vptest(e.xmm1, e.xmm1);
+      e.jnz(emu);
 
       // Equal. Shift using vpsraw.
       e.mov(e.rax, 0xF);
@@ -5963,8 +5970,9 @@ struct VECTOR_SHA_V128
       // Only bother with this check if shift amt isn't constant.
       if (!i.src2.is_constant) {
         e.vpshufd(e.xmm0, i.src2, 0b00000000);
-        e.vptest(e.xmm0, i.src2);
-        e.jnc(emu);
+        e.vpxor(e.xmm1, e.xmm0, i.src2);
+        e.vptest(e.xmm1, e.xmm1);
+        e.jnz(emu);
 
         // Equal. Shift using vpsrad.
         e.mov(e.rax, 0x1F);
@@ -6879,6 +6887,9 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       case PACK_TYPE_SHORT_2:
         EmitSHORT_2(e, i);
         break;
+      case PACK_TYPE_SHORT_4:
+        EmitSHORT_4(e, i);
+        break;
       case PACK_TYPE_UINT_2101010:
         EmitUINT_2101010(e, i);
         break;
@@ -6968,10 +6979,18 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
     // Saturate.
-    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_2Min));
-    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2Max));
+    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_Min));
+    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Max));
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2));
+  }
+  static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    // Saturate.
+    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_Min));
+    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Max));
+    // Pack.
+    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_4));
   }
   static __m128i EmulatePackUINT_2101010(void*, __m128i src1) {
     // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
@@ -7184,8 +7203,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           // TMP[15:0] <- (DEST[31:0] < 0) ? 0 : DEST[15:0];
           // DEST[15:0] <- (DEST[31:0] > FFFFH) ? FFFFH : TMP[15:0];
           e.vpackusdw(i.dest, i.src1, i.src2);
-          e.vpshuflw(i.dest, i.dest, B10110001);
-          e.vpshufhw(i.dest, i.dest, B10110001);
+          e.vpshuflw(i.dest, i.dest, 0b10110001);
+          e.vpshufhw(i.dest, i.dest, 0b10110001);
         } else {
           // signed -> unsigned
           assert_always();
@@ -7203,8 +7222,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
             src2 = e.xmm0;
           }
           e.vpackssdw(i.dest, i.src1, src2);
-          e.vpshuflw(i.dest, i.dest, B10110001);
-          e.vpshufhw(i.dest, i.dest, B10110001);
+          e.vpshuflw(i.dest, i.dest, 0b10110001);
+          e.vpshufhw(i.dest, i.dest, 0b10110001);
         } else {
           // signed -> signed
           assert_always();
@@ -7227,14 +7246,14 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       case PACK_TYPE_FLOAT16_2:
         EmitFLOAT16_2(e, i);
         break;
-      case PACK_TYPE_FLOAT16_3:
-        EmitFLOAT16_3(e, i);
-        break;
       case PACK_TYPE_FLOAT16_4:
         EmitFLOAT16_4(e, i);
         break;
       case PACK_TYPE_SHORT_2:
         EmitSHORT_2(e, i);
+        break;
+      case PACK_TYPE_SHORT_4:
+        EmitSHORT_4(e, i);
         break;
       case PACK_TYPE_UINT_2101010:
         EmitUINT_2101010(e, i);
@@ -7305,7 +7324,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       // Shuffle to 0|0|0|0|0|0|Y|X
       e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
       e.vcvtph2ps(i.dest, i.dest);
-      e.vpshufd(i.dest, i.dest, B10100100);
+      e.vpshufd(i.dest, i.dest, 0b10100100);
       e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
     } else {
       Xmm src;
@@ -7320,27 +7339,6 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
-  }
-  // FIXME: This has not been verified on a real 360, but from context the
-  // return values are used in floating point math.
-  static __m128 EmulateFLOAT16_3(void*, __m128i src1) {
-    alignas(16) uint16_t a[8];
-    alignas(16) float b[4];
-    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
-
-    for (int i = 0; i < 3; i++) {
-      b[i] = half_float::detail::half2float(a[VEC128_W(5 + i)]);
-    }
-
-    // FIXME: Correct?
-    b[3] = 1.0f;
-
-    return _mm_load_ps(b);
-  }
-  static void EmitFLOAT16_3(X64Emitter& e, const EmitArgType& i) {
-    e.lea(e.r8, e.StashXmm(0, i.src1));
-    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_3));
-    e.vmovaps(i.dest, e.xmm0);
   }
   static __m128 EmulateFLOAT16_4(void*, __m128i src1) {
     alignas(16) uint16_t a[8];
@@ -7395,6 +7393,36 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 16);
     // Add 3,3,0,1.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
+  }
+  static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
+    // (VD.x) = 3.0 + (VB.x>>16)*2^-22
+    // (VD.y) = 3.0 + (VB.x)*2^-22
+    // (VD.z) = 3.0 + (VB.y>>16)*2^-22
+    // (VD.w) = 3.0 + (VB.y)*2^-22
+
+    // XMLoadShortN4 plus 3,3,3,3 (for some reason)
+    // src is (xx,xx,VALUE,VALUE)
+    // (VALUE,VALUE,VALUE,VALUE)
+    Xmm src;
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMM3333));
+        return;
+      } else {
+        // TODO(benvanik): check other common constants/perform shuffle/or here.
+        src = e.xmm0;
+        e.LoadConstantXmm(src, i.src1.constant());
+      }
+    } else {
+      src = i.src1;
+    }
+    // Shuffle bytes.
+    e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackSHORT_4));
+    // Sign extend words.
+    e.vpslld(i.dest, 16);
+    e.vpsrad(i.dest, 16);
+    // Add 3,3,3,3.
+    e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3333));
   }
   static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
     assert_always("not implemented");
@@ -7588,6 +7616,25 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
 EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_COMPARE_EXCHANGE,
                      ATOMIC_COMPARE_EXCHANGE_I32, ATOMIC_COMPARE_EXCHANGE_I64);
 
+// ============================================================================
+// OPCODE_SET_ROUNDING_MODE
+// ============================================================================
+// Input: FPSCR (PPC format)
+static const uint32_t mxcsr_table[] = {
+    0x1F80, 0x7F80, 0x5F80, 0x3F80, 0x9F80, 0xFF80, 0xDF80, 0xBF80,
+};
+struct SET_ROUNDING_MODE_I32
+    : Sequence<SET_ROUNDING_MODE_I32,
+               I<OPCODE_SET_ROUNDING_MODE, VoidOp, I32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.mov(e.rcx, i.src1);
+    e.and_(e.rcx, 0x7);
+    e.mov(e.rax, uintptr_t(mxcsr_table));
+    e.vldmxcsr(e.ptr[e.rax + e.rcx * 4]);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
+
 void RegisterSequences() {
   Register_OPCODE_COMMENT();
   Register_OPCODE_NOP();
@@ -7706,6 +7753,7 @@ void RegisterSequences() {
   Register_OPCODE_UNPACK();
   Register_OPCODE_ATOMIC_EXCHANGE();
   Register_OPCODE_ATOMIC_COMPARE_EXCHANGE();
+  Register_OPCODE_SET_ROUNDING_MODE();
 }
 
 bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {

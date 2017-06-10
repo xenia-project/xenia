@@ -14,13 +14,15 @@
                OpName %src_texture "src_texture"
                OpName %vtx_uv "vtx_uv"
                OpName %PushConstants "PushConstants"
-               OpMemberName %PushConstants 0 "swap"
+               OpMemberName %PushConstants 0 "_pad"
+               OpMemberName %PushConstants 1 "swap"
                OpName %push_constants "push_constants"
                OpDecorate %oC Location 0
                OpDecorate %src_texture DescriptorSet 0
                OpDecorate %src_texture Binding 0
                OpDecorate %vtx_uv Location 0
-               OpMemberDecorate %PushConstants 0 Offset 0
+               OpMemberDecorate %PushConstants 0 Offset 16
+               OpMemberDecorate %PushConstants 1 Offset 28
                OpDecorate %PushConstants Block
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
@@ -35,24 +37,24 @@
     %v2float = OpTypeVector %float 2
 %_ptr_Input_v2float = OpTypePointer Input %v2float
      %vtx_uv = OpVariable %_ptr_Input_v2float Input
-       %uint = OpTypeInt 32 0
-%PushConstants = OpTypeStruct %uint
+    %v3float = OpTypeVector %float 3
+        %int = OpTypeInt 32 1
+%PushConstants = OpTypeStruct %v3float %int
 %_ptr_PushConstant_PushConstants = OpTypePointer PushConstant %PushConstants
 %push_constants = OpVariable %_ptr_PushConstant_PushConstants PushConstant
-        %int = OpTypeInt 32 1
+      %int_1 = OpConstant %int 1
+%_ptr_PushConstant_int = OpTypePointer PushConstant %int
       %int_0 = OpConstant %int 0
-%_ptr_PushConstant_uint = OpTypePointer PushConstant %uint
        %bool = OpTypeBool
-     %uint_0 = OpConstant %uint 0
        %main = OpFunction %void None %3
           %5 = OpLabel
          %14 = OpLoad %11 %src_texture
          %18 = OpLoad %v2float %vtx_uv
          %19 = OpImageSampleImplicitLod %v4float %14 %18
                OpStore %oC %19
-         %27 = OpAccessChain %_ptr_PushConstant_uint %push_constants %int_0
-         %28 = OpLoad %uint %27
-         %31 = OpINotEqual %bool %28 %uint_0
+         %27 = OpAccessChain %_ptr_PushConstant_int %push_constants %int_1
+         %28 = OpLoad %int %27
+         %31 = OpINotEqual %bool %28 %int_0
                OpSelectionMerge %33 None
                OpBranchConditional %31 %32 %33
          %32 = OpLabel

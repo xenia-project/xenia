@@ -29,4 +29,3 @@ typedef struct VkLayerDbgFunctionNode_ {
     void *pUserData;
     struct VkLayerDbgFunctionNode_ *pNext;
 } VkLayerDbgFunctionNode;
-

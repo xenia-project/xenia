@@ -40,11 +40,17 @@ class FileDropEvent : public UIEvent {
 
 class KeyEvent : public UIEvent {
  public:
-  KeyEvent(Window* target, int key_code, int repeat_count, bool prev_state)
+  KeyEvent(Window* target, int key_code, int repeat_count, bool prev_state,
+           bool modifier_shift_pressed, bool modifier_ctrl_pressed,
+           bool modifier_alt_pressed, bool modifier_super_pressed)
       : UIEvent(target),
         key_code_(key_code),
         repeat_count_(repeat_count),
-        prev_state_(prev_state) {}
+        prev_state_(prev_state),
+        modifier_shift_pressed_(modifier_shift_pressed),
+        modifier_ctrl_pressed_(modifier_ctrl_pressed),
+        modifier_alt_pressed_(modifier_alt_pressed),
+        modifier_super_pressed_(modifier_super_pressed) {}
   ~KeyEvent() override = default;
 
   bool is_handled() const { return handled_; }
@@ -55,12 +61,22 @@ class KeyEvent : public UIEvent {
   int repeat_count() const { return repeat_count_; }
   bool prev_state() const { return prev_state_; }
 
+  bool is_shift_pressed() const { return modifier_shift_pressed_; }
+  bool is_ctrl_pressed() const { return modifier_ctrl_pressed_; }
+  bool is_alt_pressed() const { return modifier_alt_pressed_; }
+  bool is_super_pressed() const { return modifier_super_pressed_; }
+
  private:
   bool handled_ = false;
   int key_code_ = 0;
 
   int repeat_count_ = 0;
   bool prev_state_ = false;  // Key previously down(true) or up(false)
+
+  bool modifier_shift_pressed_ = false;
+  bool modifier_ctrl_pressed_ = false;
+  bool modifier_alt_pressed_ = false;
+  bool modifier_super_pressed_ = false;
 };
 
 class MouseEvent : public UIEvent {

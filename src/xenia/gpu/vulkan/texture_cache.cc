@@ -311,7 +311,7 @@ void TextureCache::DestroyEmptySet() {
 }
 
 TextureCache::Texture* TextureCache::AllocateTexture(
-    const TextureInfo& texture_info) {
+    const TextureInfo& texture_info, VkFormatFeatureFlags required_flags) {
   // Create an image first.
   VkImageCreateInfo image_info = {};
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -334,25 +334,32 @@ TextureCache::Texture* TextureCache::AllocateTexture(
       return nullptr;
   }
 
-  assert_not_null(texture_info.format_info);
-  auto& config = texture_configs[int(texture_info.format_info->format)];
+  assert_not_null(texture_info.format_info());
+  auto& config = texture_configs[int(texture_info.format_info()->format)];
   VkFormat format = config.host_format != VK_FORMAT_UNDEFINED
                         ? config.host_format
                         : VK_FORMAT_R8G8B8A8_UNORM;
 
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+  image_info.usage =
+      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
   // Check the device limits for the format before we create it.
   VkFormatProperties props;
   vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
-  uint32_t required_flags =
-      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_BLIT_SRC_BIT;
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
-    // assert_always();
+    assert_always();
+  }
+
+  if (texture_info.dimension != Dimension::kCube &&
+      props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) {
+    // Add color attachment usage if it's supported.
+    image_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  }
+
+  if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) {
+    image_info.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
   }
 
   VkImageFormatProperties image_props;
@@ -363,10 +370,9 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   // TODO(DrChat): Actually check the image properties.
 
   image_info.format = format;
-  image_info.extent = {texture_info.width + 1, texture_info.height + 1,
-                       texture_info.depth + 1};
+  image_info.extent = {texture_info.width + 1, texture_info.height + 1, 1};
   image_info.mipLevels = 1;
-  image_info.arrayLayers = 1;
+  image_info.arrayLayers = texture_info.depth + 1;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
@@ -413,6 +419,10 @@ bool TextureCache::FreeTexture(Texture* texture) {
     return false;
   }
 
+  if (texture->framebuffer) {
+    vkDestroyFramebuffer(*device_, texture->framebuffer, nullptr);
+  }
+
   for (auto it = texture->views.begin(); it != texture->views.end();) {
     vkDestroyImageView(*device_, (*it)->view, nullptr);
     it = texture->views.erase(it);
@@ -449,7 +459,9 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   }
 
   // No texture at this location. Make a new one.
-  auto texture = AllocateTexture(texture_info);
+  auto texture =
+      AllocateTexture(texture_info, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
 
   // Setup a debug name for the texture.
   device_->DbgSetObjectName(
@@ -517,6 +529,18 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     return nullptr;
   }
 
+  // Though we didn't find an exact match, that doesn't mean we're out of the
+  // woods yet. This texture could either be a portion of another texture or
+  // vice versa. Copy any overlapping textures into this texture.
+  // TODO: Byte count -> pixel count (on x and y axes)
+  VkOffset2D offset;
+  auto collide_tex = LookupAddress(
+      texture_info.guest_address, texture_info.width + 1,
+      texture_info.height + 1, texture_info.format_info()->format, &offset);
+  if (collide_tex != nullptr) {
+    // assert_always();
+  }
+
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
@@ -554,16 +578,6 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       xe::format_string(
           "0x%.8X - 0x%.8X", texture_info.guest_address,
           texture_info.guest_address + texture_info.output_length));
-
-  // Though we didn't find an exact match, that doesn't mean we're out of the
-  // woods yet. This texture could either be a portion of another texture or
-  // vice versa. Copy any overlapping textures into this texture.
-  // TODO: Byte count -> pixel count (on x and y axes)
-  /*
-  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
-    // TODO(DrChat)
-  }
-  */
 
   // Okay. Now that the texture is uploaded from system memory, put a writewatch
   // on it to tell us if it's been modified from the guest.
@@ -635,7 +649,8 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  if (texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+  if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+      texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     // This applies to any depth/stencil format, but we only use D24S8 / D32FS8.
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -915,9 +930,9 @@ void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
     uint32_t offset_x, offset_y;
     if (src.has_packed_mips &&
         TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
-      uint32_t bytes_per_block = src.format_info->block_width *
-                                 src.format_info->block_height *
-                                 src.format_info->bits_per_pixel / 8;
+      uint32_t bytes_per_block = src.format_info()->block_width *
+                                 src.format_info()->block_height *
+                                 src.format_info()->bits_per_pixel / 8;
 
       const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
       src_mem += offset_y * src.size_2d.input_pitch;
@@ -955,31 +970,38 @@ void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
 
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info->block_width *
-                               src.format_info->block_height *
-                               src.format_info->bits_per_pixel / 8;
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
 
     // Tiled textures can be packed; get the offset into the packed texture.
     uint32_t offset_x;
     uint32_t offset_y;
     TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-    auto bpp = (bytes_per_block >> 2) +
-               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-    for (uint32_t y = 0, output_base_offset = 0;
-         y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
-         y++, output_base_offset += src.size_2d.output_pitch) {
-      auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-          offset_y + y,
-          (src.size_2d.input_width / src.format_info->block_width), bpp);
-      for (uint32_t x = 0, output_offset = output_base_offset;
-           x < src.size_2d.block_width; x++, output_offset += bytes_per_block) {
+    auto log2_bpp = (bytes_per_block >> 2) +
+                    ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+
+    // Offset to the current row, in bytes.
+    uint32_t output_row_offset = 0;
+    for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
+      auto input_row_offset = TextureInfo::TiledOffset2DOuter(
+          offset_y + y, src.size_2d.block_width, log2_bpp);
+
+      // Go block-by-block on this row.
+      uint32_t output_offset = output_row_offset;
+      for (uint32_t x = 0; x < src.size_2d.block_width; x++) {
         auto input_offset =
-            TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
-                                            input_base_offset) >>
-            bpp;
+            TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y,
+                                            log2_bpp, input_row_offset) >>
+            log2_bpp;
+
         TextureSwap(src.endianness, dest + output_offset,
                     src_mem + input_offset * bytes_per_block, bytes_per_block);
+
+        output_offset += bytes_per_block;
       }
+
+      output_row_offset += src.size_2d.output_pitch;
     }
   }
 }
@@ -1008,9 +1030,9 @@ void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
   } else {
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info->block_width *
-                               src.format_info->block_height *
-                               src.format_info->bits_per_pixel / 8;
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
     // Tiled textures can be packed; get the offset into the packed texture.
     uint32_t offset_x;
     uint32_t offset_y;
@@ -1023,7 +1045,7 @@ void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
            y++, output_base_offset += src.size_cube.output_pitch) {
         auto input_base_offset = TextureInfo::TiledOffset2DOuter(
             offset_y + y,
-            (src.size_cube.input_width / src.format_info->block_width), bpp);
+            (src.size_cube.input_width / src.format_info()->block_width), bpp);
         for (uint32_t x = 0, output_offset = output_base_offset;
              x < src.size_cube.block_width;
              x++, output_offset += bytes_per_block) {
@@ -1172,6 +1194,13 @@ bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = dest->image;
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+    barrier.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  }
+
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);

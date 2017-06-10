@@ -13,6 +13,7 @@
 #include <functional>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/x64_context.h"
 
 namespace xe {
@@ -41,11 +42,22 @@ class Exception {
   // Returns the platform-specific thread context info.
   X64Context* thread_context() const { return thread_context_; }
 
+#if XE_ARCH_AMD64
   // Returns the program counter where the exception occurred.
   // RIP on x64.
   uint64_t pc() const { return thread_context_->rip; }
   // Sets the program counter where execution will resume.
   void set_resume_pc(uint64_t pc) { thread_context_->rip = pc; }
+#else
+  // Returns the program counter where the exception occurred.
+  // RIP on x64.
+  uint64_t pc() const {
+    assert_always();
+    return 0;
+  }
+  // Sets the program counter where execution will resume.
+  void set_resume_pc(uint64_t pc) { assert_always(); }
+#endif
 
   // In case of AV, address that was read from/written to.
   uint64_t fault_address() const { return fault_address_; }

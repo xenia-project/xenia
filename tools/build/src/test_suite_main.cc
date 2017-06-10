@@ -40,6 +40,8 @@ int Main(int argc, char* argv[]) {
 }  // namespace xe
 
 #if _WIN32
+#include "xenia/base/platform_win.h"
+
 extern "C" int main(int argc, wchar_t* argv[]) {
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.

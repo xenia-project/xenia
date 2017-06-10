@@ -61,6 +61,11 @@ class CachedTileView {
   // Image sample count
   VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT;
 
+  // (if a depth view) Image view of depth aspect
+  VkImageView image_view_depth = nullptr;
+  // (if a depth view) Image view of stencil aspect
+  VkImageView image_view_stencil = nullptr;
+
   CachedTileView(ui::vulkan::VulkanDevice* device,
                  VkCommandBuffer command_buffer, VkDeviceMemory edram_memory,
                  TileViewKey view_key);
@@ -74,6 +79,10 @@ class CachedTileView {
 
   bool operator<(const CachedTileView& other) const {
     return key.tile_offset < other.key.tile_offset;
+  }
+
+  VkExtent2D GetSize() const {
+    return {key.tile_width * 80ul, key.tile_height * 16ul};
   }
 
  private:
@@ -269,8 +278,9 @@ class RenderCache {
   // with an already open pass.
   bool dirty() const;
 
-  VkImageView FindTileView(uint32_t base, uint32_t pitch, MsaaSamples samples,
-                           bool color_or_depth, uint32_t format);
+  CachedTileView* FindTileView(uint32_t base, uint32_t pitch,
+                               MsaaSamples samples, bool color_or_depth,
+                               uint32_t format);
 
   // Begins a render pass targeting the state-specified framebuffer formats.
   // The command buffer will be transitioned into the render pass phase.

@@ -4,6 +4,11 @@
 #version 450 core
 precision highp float;
 
+layout(push_constant) uniform PushConstants {
+  layout(offset = 16) vec3 _pad;
+  layout(offset = 28) int swap;
+} push_constants;
+
 layout(set = 0, binding = 0) uniform sampler2D src_texture;
 
 layout(location = 0) in vec2 vtx_uv;

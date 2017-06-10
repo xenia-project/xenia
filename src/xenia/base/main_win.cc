@@ -72,8 +72,8 @@ int Main() {
   int argca = argc;
   char** argva = reinterpret_cast<char**>(alloca(sizeof(char*) * argca));
   for (int n = 0; n < argca; n++) {
-    size_t len = wcslen(argv[n]);
-    argva[n] = reinterpret_cast<char*>(alloca(len + 1));
+    size_t len = std::wcstombs(nullptr, argv[n], 0);
+    argva[n] = reinterpret_cast<char*>(alloca(sizeof(char) * (len + 1)));
     std::wcstombs(argva[n], argv[n], len + 1);
   }
 
@@ -83,7 +83,11 @@ int Main() {
   // Widen all remaining flags and convert to usable strings.
   std::vector<std::wstring> args;
   for (int n = 0; n < argc; n++) {
-    args.push_back(xe::to_wstring(argva[n]));
+    size_t len = std::mbstowcs(nullptr, argva[n], 0);
+    auto argvw =
+        reinterpret_cast<wchar_t*>(alloca(sizeof(wchar_t) * (len + 1)));
+    std::mbstowcs(argvw, argva[n], len + 1);
+    args.push_back(std::wstring(argvw));
   }
 
   // Setup COM on the main thread.

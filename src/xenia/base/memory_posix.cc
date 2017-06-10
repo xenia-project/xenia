@@ -9,6 +9,7 @@
 
 #include "xenia/base/memory.h"
 
+#include <sys/mman.h>
 #include <unistd.h>
 
 namespace xe {
@@ -17,19 +18,41 @@ namespace memory {
 size_t page_size() { return getpagesize(); }
 size_t allocation_granularity() { return page_size(); }
 
+uint32_t ToPosixProtectFlags(PageAccess access) {
+  switch (access) {
+    case PageAccess::kNoAccess:
+      return PROT_NONE;
+    case PageAccess::kReadOnly:
+      return PROT_READ;
+    case PageAccess::kReadWrite:
+      return PROT_READ | PROT_WRITE;
+    case PageAccess::kExecuteReadWrite:
+      return PROT_READ | PROT_WRITE | PROT_EXEC;
+    default:
+      assert_unhandled_case(access);
+      return PROT_NONE;
+  }
+}
+
 void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
-  return nullptr;
+  // mmap does not support reserve / commit, so ignore allocation_type.
+  uint32_t prot = ToPosixProtectFlags(access);
+  return mmap(base_address, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
 bool DeallocFixed(void* base_address, size_t length,
                   DeallocationType deallocation_type) {
-  return false;
+  return munmap(base_address, length) == 0;
 }
 
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access) {
-  return false;
+  // Linux does not have a syscall to query memory permissions.
+  assert_null(out_old_access);
+
+  uint32_t prot = ToPosixProtectFlags(access);
+  return mprotect(base_address, length, prot) == 0;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {

@@ -714,8 +714,7 @@ bool TextureCache::UploadTexture1D(GLuint texture,
   const auto host_address =
       memory_->TranslatePhysical(texture_info.guest_address);
 
-  const auto& config =
-      texture_configs[uint32_t(texture_info.format_info->format)];
+  const auto& config = texture_configs[uint32_t(texture_info.texture_format)];
   if (config.format == GL_INVALID_ENUM) {
     assert_always("Unhandled texture format");
     return false;
@@ -771,7 +770,7 @@ bool TextureCache::UploadTexture2D(GLuint texture,
       memory_->TranslatePhysical(texture_info.guest_address);
 
   const auto& config =
-      texture_configs[uint32_t(texture_info.format_info->format)];
+      texture_configs[uint32_t(texture_info.format_info()->format)];
   if (config.format == GL_INVALID_ENUM) {
     assert_always("Unhandled texture format");
     return false;
@@ -788,9 +787,9 @@ bool TextureCache::UploadTexture2D(GLuint texture,
     uint32_t offset_x, offset_y;
     if (texture_info.has_packed_mips &&
         TextureInfo::GetPackedTileOffset(texture_info, &offset_x, &offset_y)) {
-      uint32_t bytes_per_block = texture_info.format_info->block_width *
-                                 texture_info.format_info->block_height *
-                                 texture_info.format_info->bits_per_pixel / 8;
+      uint32_t bytes_per_block = texture_info.format_info()->block_width *
+                                 texture_info.format_info()->block_height *
+                                 texture_info.format_info()->bits_per_pixel / 8;
       const uint8_t* src = host_address;
       // TODO(gibbed): this needs checking
       src += offset_y * texture_info.size_2d.input_pitch;
@@ -833,9 +832,9 @@ bool TextureCache::UploadTexture2D(GLuint texture,
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src = host_address;
     uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
-    uint32_t bytes_per_block = texture_info.format_info->block_width *
-                               texture_info.format_info->block_height *
-                               texture_info.format_info->bits_per_pixel / 8;
+    uint32_t bytes_per_block = texture_info.format_info()->block_width *
+                               texture_info.format_info()->block_height *
+                               texture_info.format_info()->bits_per_pixel / 8;
 
     // Tiled textures can be packed; get the offset into the packed texture.
     uint32_t offset_x;
@@ -850,7 +849,7 @@ bool TextureCache::UploadTexture2D(GLuint texture,
          y++, output_base_offset += texture_info.size_2d.output_pitch) {
       auto input_base_offset = TextureInfo::TiledOffset2DOuter(
           offset_y + y, (texture_info.size_2d.input_width /
-                         texture_info.format_info->block_width),
+                         texture_info.format_info()->block_width),
           bpp);
       for (uint32_t x = 0, output_offset = output_base_offset;
            x < texture_info.size_2d.block_width;
@@ -899,7 +898,7 @@ bool TextureCache::UploadTextureCube(GLuint texture,
       memory_->TranslatePhysical(texture_info.guest_address);
 
   const auto& config =
-      texture_configs[uint32_t(texture_info.format_info->format)];
+      texture_configs[uint32_t(texture_info.format_info()->format)];
   if (config.format == GL_INVALID_ENUM) {
     assert_always("Unhandled texture format");
     return false;
@@ -937,9 +936,9 @@ bool TextureCache::UploadTextureCube(GLuint texture,
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src = host_address;
     uint8_t* dest = reinterpret_cast<uint8_t*>(allocation.host_ptr);
-    uint32_t bytes_per_block = texture_info.format_info->block_width *
-                               texture_info.format_info->block_height *
-                               texture_info.format_info->bits_per_pixel / 8;
+    uint32_t bytes_per_block = texture_info.format_info()->block_width *
+                               texture_info.format_info()->block_height *
+                               texture_info.format_info()->bits_per_pixel / 8;
     // Tiled textures can be packed; get the offset into the packed texture.
     uint32_t offset_x;
     uint32_t offset_y;
@@ -952,7 +951,7 @@ bool TextureCache::UploadTextureCube(GLuint texture,
            y++, output_base_offset += texture_info.size_cube.output_pitch) {
         auto input_base_offset = TextureInfo::TiledOffset2DOuter(
             offset_y + y, (texture_info.size_cube.input_width /
-                           texture_info.format_info->block_width),
+                           texture_info.format_info()->block_width),
             bpp);
         for (uint32_t x = 0, output_offset = output_base_offset;
              x < texture_info.size_cube.block_width;

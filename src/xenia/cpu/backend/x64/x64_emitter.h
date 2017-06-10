@@ -22,6 +22,7 @@
 
 // NOTE: must be included last as it expects windows.h to already be included.
 #include "third_party/xbyak/xbyak/xbyak.h"
+#include "third_party/xbyak/xbyak/xbyak_bin2hex.h"
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 namespace xe {
@@ -70,10 +71,12 @@ enum XmmConst {
   XMMUnpackFLOAT16_2,
   XMMPackFLOAT16_4,
   XMMUnpackFLOAT16_4,
-  XMMPackSHORT_2Min,
-  XMMPackSHORT_2Max,
+  XMMPackSHORT_Min,
+  XMMPackSHORT_Max,
   XMMPackSHORT_2,
+  XMMPackSHORT_4,
   XMMUnpackSHORT_2,
+  XMMUnpackSHORT_4,
   XMMOneOver255,
   XMMMaskEvenPI16,
   XMMShiftMaskEvenPI16,

@@ -30,35 +30,32 @@
 #include "loader.h"
 
 #if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC optimize(3) // force gcc to use tail-calls
+#pragma GCC optimize(3)  // force gcc to use tail-calls
 #endif
 
 // Trampoline function macro for unknown physical device extension command.
-#define PhysDevExtTramp(num)                                                   \
-VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp##num(                             \
-        VkPhysicalDevice physical_device) {                                    \
-        const struct loader_instance_dispatch_table *disp;                     \
-        disp = loader_get_instance_dispatch(physical_device);                  \
-        disp->phys_dev_ext[num](                                               \
-            loader_unwrap_physical_device(physical_device));                   \
+#define PhysDevExtTramp(num)                                                              \
+    VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp##num(VkPhysicalDevice physical_device) { \
+        const struct loader_instance_dispatch_table *disp;                                \
+        disp = loader_get_instance_dispatch(physical_device);                             \
+        disp->phys_dev_ext[num](loader_unwrap_physical_device(physical_device));          \
     }
 
 // Terminator function macro for unknown physical device extension command.
-#define PhysDevExtTermin(num)                                                  \
-VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin##num(                            \
-        VkPhysicalDevice physical_device) {                                    \
-        struct loader_physical_device_term *phys_dev_term =                    \
-            (struct loader_physical_device_term *)physical_device;             \
-        struct loader_icd_term *icd_term = phys_dev_term->this_icd_term;       \
-        struct loader_instance *inst =                                         \
-            (struct loader_instance *)icd_term->this_instance;                 \
-        if (NULL == icd_term->phys_dev_ext[num]) {                             \
-            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,                 \
-                       "Extension %s not supported for this physical device",  \
-                       inst->phys_dev_ext_disp_hash[num].func_name);           \
-        }                                                                      \
-        icd_term->phys_dev_ext[num](phys_dev_term->phys_dev);                  \
+#define PhysDevExtTermin(num)                                                                                         \
+    VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin##num(VkPhysicalDevice physical_device) {                            \
+        struct loader_physical_device_term *phys_dev_term = (struct loader_physical_device_term *)physical_device;    \
+        struct loader_icd_term *icd_term = phys_dev_term->this_icd_term;                                              \
+        struct loader_instance *inst = (struct loader_instance *)icd_term->this_instance;                             \
+        if (NULL == icd_term->phys_dev_ext[num]) {                                                                    \
+            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0, "Extension %s not supported for this physical device", \
+                       inst->phys_dev_ext_disp_hash[num].func_name);                                                  \
+        }                                                                                                             \
+        icd_term->phys_dev_ext[num](phys_dev_term->phys_dev);                                                         \
     }
+
+// Disable clang-format for lists of macros
+// clang-format off
 
 // Instantiations of the trampoline and terminator
 PhysDevExtTramp(0)   PhysDevExtTermin(0)

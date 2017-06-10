@@ -153,6 +153,7 @@ class HIRBuilder {
   void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
   void MemoryBarrier();
 
+  void SetRoundingMode(Value* value);
   Value* Max(Value* value1, Value* value2);
   Value* VectorMax(Value* value1, Value* value2, TypeName part_type,
                    uint32_t arithmetic_flags = 0);

@@ -1,9 +1,10 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 51
+; Bound: 56
 ; Schema: 0
                OpCapability Shader
+               OpCapability Sampled1D
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
                OpEntryPoint Fragment %main "main" %out_color %vtx_color %vtx_uv
@@ -18,6 +19,8 @@
                OpName %vtx_uv "vtx_uv"
                OpName %tex_color "tex_color"
                OpName %texture_sampler "texture_sampler"
+               OpName %tex1D "tex1D"
+               OpName %tex2D "tex2D"
                OpDecorate %out_color Location 0
                OpDecorate %vtx_color Location 1
                OpMemberDecorate %PushConstants 0 Offset 64
@@ -25,6 +28,10 @@
                OpDecorate %vtx_uv Location 0
                OpDecorate %texture_sampler DescriptorSet 0
                OpDecorate %texture_sampler Binding 0
+               OpDecorate %tex1D DescriptorSet 0
+               OpDecorate %tex1D Binding 1
+               OpDecorate %tex2D DescriptorSet 0
+               OpDecorate %tex2D Binding 1
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
       %float = OpTypeFloat 32
@@ -52,6 +59,11 @@
          %42 = OpTypeSampledImage %41
 %_ptr_UniformConstant_42 = OpTypePointer UniformConstant %42
 %texture_sampler = OpVariable %_ptr_UniformConstant_42 UniformConstant
+         %51 = OpTypeImage %float 1D 0 0 0 1 Unknown
+         %52 = OpTypeSampledImage %51
+%_ptr_UniformConstant_52 = OpTypePointer UniformConstant %52
+      %tex1D = OpVariable %_ptr_UniformConstant_52 UniformConstant
+      %tex2D = OpVariable %_ptr_UniformConstant_42 UniformConstant
        %main = OpFunction %void None %3
           %5 = OpLabel
   %tex_color = OpVariable %_ptr_Function_v4float Function

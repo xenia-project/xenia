@@ -934,6 +934,11 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     return false;
   }
 
+  if (heap_base_ == 0x00000000 && base_page_number == 0) {
+    XELOGE("BaseHeap::Release: Attempt to free 0!");
+    return false;
+  }
+
   if (out_region_size) {
     *out_region_size = (base_page_entry.region_page_count * page_size_);
   }

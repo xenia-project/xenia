@@ -36,7 +36,8 @@ void set_name(std::thread::native_handle_type handle, const std::string& name) {
 }
 
 void Sleep(std::chrono::microseconds duration) {
-  timespec rqtp = {duration.count() / 1000000, duration.count() % 1000};
+  timespec rqtp = {time_t(duration.count() / 1000000),
+                   time_t(duration.count() % 1000)};
   nanosleep(&rqtp, nullptr);
   // TODO(benvanik): spin while rmtp >0?
 }
@@ -111,7 +112,8 @@ struct ThreadStartData {
   std::function<void()> start_routine;
 };
 void* ThreadStartRoutine(void* parameter) {
-  current_thread_ = std::make_unique<PosixThread>(::pthread_self());
+  current_thread_ =
+      std::unique_ptr<PosixThread>(new PosixThread(::pthread_self()));
 
   auto start_data = reinterpret_cast<ThreadStartData*>(parameter);
   start_data->start_routine();
@@ -136,7 +138,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
     return nullptr;
   }
 
-  return std::make_unique<PosixThread>(handle);
+  return std::unique_ptr<PosixThread>(new PosixThread(handle));
 }
 
 }  // namespace threading

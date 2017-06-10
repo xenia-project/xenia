@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 # Copyright 2015 Ben Vanik. All Rights Reserved.
 
@@ -48,9 +48,10 @@ def main():
   # Grab Visual Studio version and execute shell to set up environment.
   if sys.platform == 'win32':
     vs_version = import_vs_environment()
-    if vs_version != 2015:
-      print('ERROR: Visual Studio 2015 not found!')
-      print('Ensure you have the VS140COMNTOOLS environment variable!')
+    if vs_version == None:
+      print('ERROR: Visual Studio not found!')
+      print('Please refer to the building guide:')
+      print('  https://github.com/benvanik/xenia/blob/master/docs/building.md')
       sys.exit(1)
       return
 
@@ -98,15 +99,23 @@ def import_vs_environment():
     A version such as 2015 or None if no VS is found.
   """
   version = 0
+
+  candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False)
+  candidate_path = candidate_path.strip()
+
   tools_path = ''
-  if 'VS140COMNTOOLS' in os.environ:
+  if candidate_path:
+    tools_path = os.path.join(candidate_path, 'vc\\auxiliary\\build\\vcvarsall.bat')
+    if os.path.isfile(tools_path) and os.access(tools_path, os.X_OK):
+      version = 2017
+  if version == 0 and 'VS140COMNTOOLS' in os.environ:
     version = 2015
     tools_path = os.environ['VS140COMNTOOLS']
+    tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
   if version == 0:
     return None
-  tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
 
-  args = [tools_path, '&&', 'set']
+  args = [tools_path, 'x64', '&&', 'set']
   popen = subprocess.Popen(
       args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   variables, _ = popen.communicate()
@@ -347,7 +356,11 @@ def run_platform_premake():
   if sys.platform == 'darwin':
     return run_premake('macosx', 'xcode4')
   elif sys.platform == 'win32':
-    return run_premake('windows', 'vs2015')
+    vs_version = '2015'
+    if 'VSVERSION' in os.environ:
+      vs_version = os.environ['VSVERSION']
+
+    return run_premake('windows', 'vs' + vs_version)
   else:
     ret = run_premake('linux', 'gmake')
     ret = ret != 0 and run_premake('linux', 'codelite') or ret
@@ -837,7 +850,8 @@ class GenTestsCommand(Command):
     src_files = [os.path.join(root, name)
        for root, dirs, files in os.walk('src')
        for name in files
-       if name.endswith(('.s'))]
+       if (name.startswith('instr_') or name.startswith('seq_'))
+           and name.endswith(('.s'))]
 
     def make_unix_path(p):
       """Forces a unix path separator style, as required by binutils.

@@ -44,6 +44,7 @@ class TextureCache {
     VkDeviceMemory image_memory;
     VkDeviceSize memory_offset;
     VkDeviceSize memory_size;
+    VkFramebuffer framebuffer;  // Blit target frame buffer.
 
     uintptr_t access_watch_handle;
     bool pending_invalidation;
@@ -100,6 +101,8 @@ class TextureCache {
                          uint32_t height, TextureFormat format,
                          VkOffset2D* out_offset = nullptr);
 
+  TextureView* DemandView(Texture* texture, uint16_t swizzle);
+
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture.
   Texture* DemandResolveTexture(const TextureInfo& texture_info,
@@ -124,7 +127,9 @@ class TextureCache {
   void DestroyEmptySet();
 
   // Allocates a new texture and memory to back it on the GPU.
-  Texture* AllocateTexture(const TextureInfo& texture_info);
+  Texture* AllocateTexture(const TextureInfo& texture_info,
+                           VkFormatFeatureFlags required_flags =
+                               VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
   bool FreeTexture(Texture* texture);
 
   // Demands a texture. If command_buffer is null and the texture hasn't been
@@ -132,7 +137,6 @@ class TextureCache {
   Texture* Demand(const TextureInfo& texture_info,
                   VkCommandBuffer command_buffer = nullptr,
                   VkFence completion_fence = nullptr);
-  TextureView* DemandView(Texture* texture, uint16_t swizzle);
   Sampler* Demand(const SamplerInfo& sampler_info);
 
   void FlushPendingCommands(VkCommandBuffer command_buffer,

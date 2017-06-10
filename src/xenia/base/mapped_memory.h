@@ -33,7 +33,8 @@ class MappedMemory {
   virtual ~MappedMemory() = default;
 
   std::unique_ptr<MappedMemory> Slice(Mode mode, size_t offset, size_t length) {
-    return std::make_unique<MappedMemory>(path_, mode, data() + offset, length);
+    return std::unique_ptr<MappedMemory>(
+        new MappedMemory(path_, mode, data() + offset, length));
   }
 
   uint8_t* data() const { return reinterpret_cast<uint8_t*>(data_); }

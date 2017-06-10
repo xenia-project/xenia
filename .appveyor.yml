@@ -5,9 +5,6 @@
 # version format
 version: 1.0.{build}-{branch}
 
-# you can use {branch} name in version format too
-# version: 1.0.{build}-{branch}
-
 # branches to build
 branches:
   # whitelist
@@ -59,8 +56,8 @@ platform: Windows
 
 # build Configuration, i.e. Debug, Release, etc.
 configuration:
-  #- Checked
   - Release
+  - Checked
 
 #build:
 #  parallel: true                  # enable MSBuild parallel builds
@@ -76,12 +73,12 @@ configuration:
 
 # scripts to run after build
 after_build:
-  - 7z a xenia-%appveyor_repo_branch%-%appveyor_repo_commit%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\Windows\Release\xenia.exe %APPVEYOR_BUILD_FOLDER%\build\bin\Windows\Release\xenia.pdb
+  - 7z a xenia-%appveyor_repo_branch%-%appveyor_repo_commit%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb
 
 # to run your custom scripts instead of automatic MSBuild
 # We also compile the tests here instead of later on.
 build_script:
-  - cmd: xb.bat build --config=release --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests
+  - cmd: xb.bat build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests
 
 # to disable automatic builds
 #build: off
@@ -100,7 +97,7 @@ after_test:
 
 # to run your custom scripts instead of automatic tests
 test_script:
-  - cmd: xb.bat test --config=release --no_build
+  - cmd: xb.bat test --config=%CONFIGURATION% --no_build
 
 # to disable automatic tests
 #test: off
@@ -143,6 +140,7 @@ deploy:
     prerelease: true
     on:
       branch: master                # release from master branch only
+      configuration: release        # deploy release builds only
       appveyor_repo_tag: true       # deploy on tag push only
 
 # scripts to run before deployment

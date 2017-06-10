@@ -301,16 +301,13 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
 DECLARE_XBOXKRNL_EXPORT(MmAllocatePhysicalMemoryEx,
                         ExportTag::kImplemented | ExportTag::kMemory);
 
-dword_result_t MmFreePhysicalMemory(dword_t type, dword_t base_address) {
+void MmFreePhysicalMemory(dword_t type, dword_t base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
 
   assert_true((base_address & 0x1F) == 0);
 
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
-  if (heap->Release(base_address)) {
-    return X_STATUS_SUCCESS;
-  }
-  return X_STATUS_UNSUCCESSFUL;
+  heap->Release(base_address);
 }
 DECLARE_XBOXKRNL_EXPORT(MmFreePhysicalMemory, ExportTag::kImplemented);
 
@@ -326,14 +323,11 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
 }
 DECLARE_XBOXKRNL_EXPORT(MmQueryAddressProtect, ExportTag::kImplemented);
 
-dword_result_t MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
-                                   dword_t protect_bits) {
+void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
+                         dword_t protect_bits) {
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   auto heap = kernel_memory()->LookupHeap(base_address);
-  if (heap->Protect(base_address.guest_address(), region_size, protect)) {
-    return X_STATUS_SUCCESS;
-  }
-  return X_STATUS_UNSUCCESSFUL;
+  heap->Protect(base_address.guest_address(), region_size, protect);
 }
 DECLARE_XBOXKRNL_EXPORT(MmSetAddressProtect,
                         ExportTag::kImplemented | ExportTag::kMemory);
@@ -387,7 +381,7 @@ dword_result_t MmQueryStatistics(
   }
 
   // Zero out the struct.
-  std::memset(stats_ptr, 0, size);
+  stats_ptr.Zero();
 
   // Set the constants the game is likely asking for.
   // These numbers are mostly guessed. If the game is just checking for
@@ -478,7 +472,7 @@ dword_result_t MmMapIoSpace(dword_t unk0, lpvoid_t src_address, dword_t size,
   assert_true(size == 0x40);
   assert_true(flags == 0x404);
 
-  return 0;
+  return src_address.guest_address();
 }
 DECLARE_XBOXKRNL_EXPORT(MmMapIoSpace, ExportTag::kImplemented);
 

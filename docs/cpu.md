@@ -43,7 +43,7 @@ Registers are stored on the stack as defined by [StackLayout::Thunk](../src/xeni
 for later transitioning back to the host.
 
 Some registers are reserved for usage by the JIT to store temporary variables.
-See: [X64Emitter::gpr_reg_map_ and X64Emitter::xmm_reg_map_](../src/xenia/cpu/backend/x64/x64_backend.cc#L57).
+See: [X64Emitter::gpr_reg_map_ and X64Emitter::xmm_reg_map_](../src/xenia/cpu/backend/x64/x64_emitter.cc#L57).
 
 #### Integer Registers
 

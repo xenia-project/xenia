@@ -162,7 +162,7 @@ void XamLoaderTerminateTitle() {
 }
 DECLARE_XAM_EXPORT(XamLoaderTerminateTitle, ExportTag::kSketchy);
 
-dword_result_t XamAlloc(dword_t unk, dword_t size, lpword_t out_ptr) {
+dword_result_t XamAlloc(dword_t unk, dword_t size, lpdword_t out_ptr) {
   assert_true(unk == 0);
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
@@ -175,7 +175,7 @@ dword_result_t XamAlloc(dword_t unk, dword_t size, lpword_t out_ptr) {
 DECLARE_XAM_EXPORT(XamAlloc, ExportTag::kImplemented);
 
 dword_result_t XamFree(lpdword_t ptr) {
-  kernel_state()->memory()->SystemHeapFree(ptr);
+  kernel_state()->memory()->SystemHeapFree(ptr.guest_address());
 
   return X_ERROR_SUCCESS;
 }
@@ -223,6 +223,20 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   }
 }
 DECLARE_XAM_EXPORT(XamEnumerate, ExportTag::kImplemented);
+
+dword_result_t XamCreateEnumeratorHandle(unknown_t unk1, unknown_t unk2,
+                                         unknown_t unk3, unknown_t unk4,
+                                         unknown_t unk5, unknown_t unk6,
+                                         unknown_t unk7, unknown_t unk8) {
+  return X_ERROR_INVALID_PARAMETER;
+}
+DECLARE_XAM_EXPORT(XamCreateEnumeratorHandle, ExportTag::kStub);
+
+dword_result_t XamGetPrivateEnumStructureFromHandle(unknown_t unk1,
+                                                    unknown_t unk2) {
+  return X_ERROR_INVALID_PARAMETER;
+}
+DECLARE_XAM_EXPORT(XamGetPrivateEnumStructureFromHandle, ExportTag::kStub);
 
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}

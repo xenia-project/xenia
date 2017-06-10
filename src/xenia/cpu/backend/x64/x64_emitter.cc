@@ -639,12 +639,16 @@ static const vec128_t xmm_consts[] = {
                                          0x01000302u),
     /* XMMUnpackFLOAT16_4     */ vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu,
                                          0xFFFFFFFFu),
-    /* XMMPackSHORT_2Min      */ vec128i(0x403F8001u),
-    /* XMMPackSHORT_2Max      */ vec128i(0x40407FFFu),
+    /* XMMPackSHORT_Min       */ vec128i(0x403F8001u),
+    /* XMMPackSHORT_Max       */ vec128i(0x40407FFFu),
     /* XMMPackSHORT_2         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
                                          0x01000504u),
+    /* XMMPackSHORT_4         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u,
+                                         0x09080D0Cu),
     /* XMMUnpackSHORT_2       */ vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu,
                                          0xFFFFFFFFu),
+    /* XMMUnpackSHORT_4       */ vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu,
+                                         0xFFFF0D0Cu),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
     /* XMMMaskEvenPI16        */ vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu,
                                          0x0000FFFFu),
@@ -680,7 +684,7 @@ static const uintptr_t kConstDataLocation = 0x20000000;
 static const uintptr_t kConstDataSize = sizeof(xmm_consts);
 
 // Increment the location by this amount for every allocation failure.
-static const uintptr_t kConstDataIncrement = 0x00010000;
+static const uintptr_t kConstDataIncrement = 0x00001000;
 
 // This function places constant data that is used by the emitter later on.
 // Only called once and used by multiple instances of the emitter.
@@ -709,7 +713,7 @@ uintptr_t X64Emitter::PlaceConstData() {
 
 void X64Emitter::FreeConstData(uintptr_t data) {
   memory::DeallocFixed(reinterpret_cast<void*>(data), 0,
-                       memory::DeallocationType::kDecommitRelease);
+                       memory::DeallocationType::kRelease);
 }
 
 Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {

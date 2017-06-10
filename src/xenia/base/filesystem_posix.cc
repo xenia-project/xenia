@@ -43,7 +43,6 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
 
   while (auto ent = readdir(dir)) {
     FileInfo info;
-    std::memset(&info, 0, sizeof(info));
     if (ent->d_type == DT_DIR) {
       info.type = FileInfo::Type::kDirectory;
       info.total_size = 0;
@@ -52,6 +51,9 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
       info.total_size = 0;  // TODO(DrChat): Find a way to get this
     }
 
+    info.create_timestamp = 0;
+    info.access_timestamp = 0;
+    info.write_timestamp = 0;
     info.name = xe::to_wstring(ent->d_name);
     result.push_back(info);
   }

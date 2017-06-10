@@ -10,6 +10,8 @@
 #include "xenia/base/debugging.h"
 
 #include <signal.h>
+#include <cstdarg>
+
 #include "xenia/base/string_buffer.h"
 
 namespace xe {

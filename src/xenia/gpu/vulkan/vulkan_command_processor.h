@@ -31,6 +31,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
+#include "xenia/ui/vulkan/blitter.h"
 #include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
@@ -96,6 +97,8 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   // front buffer / back buffer memory
   VkDeviceMemory fb_memory_ = nullptr;
+  VkImageView fb_image_view_ = nullptr;
+  VkFramebuffer fb_framebuffer_ = nullptr;
 
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;
@@ -124,6 +127,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::unique_ptr<RenderCache> render_cache_;
   std::unique_ptr<TextureCache> texture_cache_;
 
+  std::unique_ptr<ui::vulkan::Blitter> blitter_;
   std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;
 
   bool frame_open_ = false;

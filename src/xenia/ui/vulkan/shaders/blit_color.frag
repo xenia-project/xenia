@@ -5,7 +5,8 @@
 precision highp float;
 
 layout(push_constant) uniform PushConstants {
-  bool swap;
+  layout(offset = 16) vec3 _pad;
+  layout(offset = 28) int swap;
 } push_constants;
 
 layout(set = 0, binding = 0) uniform sampler2D src_texture;
@@ -15,5 +16,5 @@ layout(location = 0) out vec4 oC;
 
 void main() {
   oC = texture(src_texture, vtx_uv);
-  if (push_constants.swap) oC = oC.bgra;
+  if (push_constants.swap != 0) oC = oC.bgra;
 }

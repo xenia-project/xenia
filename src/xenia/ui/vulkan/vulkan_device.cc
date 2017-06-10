@@ -234,13 +234,19 @@ void VulkanDevice::ReleaseQueue(VkQueue queue) {
 void VulkanDevice::DbgSetObjectName(VkDevice device, uint64_t object,
                                     VkDebugReportObjectTypeEXT object_type,
                                     std::string name) {
+  // Check to see if the extension is even loaded
+  if (vkGetDeviceProcAddr(device, "vkDebugMarkerSetObjectNameEXT") == nullptr) {
+    return;
+  }
+
+  // TODO(DrChat): fix linkage errors
   VkDebugMarkerObjectNameInfoEXT info;
   info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
   info.pNext = nullptr;
   info.objectType = object_type;
   info.object = object;
   info.pObjectName = name.c_str();
-  vkDebugMarkerSetObjectNameEXT(device, &info);
+  // vkDebugMarkerSetObjectNameEXT(device, &info);
 }
 
 void VulkanDevice::DbgSetObjectName(uint64_t object,

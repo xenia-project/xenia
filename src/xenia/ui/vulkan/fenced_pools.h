@@ -211,6 +211,10 @@ class BaseFencedPool {
       entry = new Entry();
       entry->data = data;
       entry->handle = static_cast<T*>(this)->AllocateEntry(data);
+      if (!entry->handle) {
+        delete entry;
+        return nullptr;
+      }
     }
     entry->next = nullptr;
     if (!open_batch_->entry_list_head) {
@@ -281,11 +285,13 @@ class CommandBufferPool
  public:
   typedef BaseFencedPool<CommandBufferPool, VkCommandBuffer> Base;
 
-  CommandBufferPool(VkDevice device, uint32_t queue_family_index,
-                    VkCommandBufferLevel level);
+  CommandBufferPool(VkDevice device, uint32_t queue_family_index);
   ~CommandBufferPool() override;
 
-  VkCommandBuffer AcquireEntry() { return Base::AcquireEntry(nullptr); }
+  VkCommandBuffer AcquireEntry(
+      VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
+    return Base::AcquireEntry(reinterpret_cast<void*>(level));
+  }
 
  protected:
   friend class BaseFencedPool<CommandBufferPool, VkCommandBuffer>;
@@ -293,7 +299,6 @@ class CommandBufferPool
   void FreeEntry(VkCommandBuffer handle);
 
   VkCommandPool command_pool_ = nullptr;
-  VkCommandBufferLevel level_ = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 };
 
 class DescriptorPool : public BaseFencedPool<DescriptorPool, VkDescriptorSet> {
