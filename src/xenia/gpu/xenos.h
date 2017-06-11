@@ -30,12 +30,19 @@ enum class PrimitiveType : uint32_t {
   kTriangleList = 0x04,
   kTriangleFan = 0x05,
   kTriangleStrip = 0x06,
-  kUnknown0x07 = 0x07,
+  kTriangleWithWFlags = 0x07,
   kRectangleList = 0x08,
   kLineLoop = 0x0C,
   kQuadList = 0x0D,
   kQuadStrip = 0x0E,
-  kUnknown0x11 = 0x11,
+  kPolygon = 0x0F,
+  k2DCopyRectListV0 = 0x10,
+  k2DCopyRectListV1 = 0x11,
+  k2DCopyRectListV2 = 0x12,
+  k2DCopyRectListV3 = 0x13,
+  k2DFillRectList = 0x14,
+  k2DLineStrip = 0x15,
+  k2DTriStrip = 0x16,
 };
 
 enum class Dimension : uint32_t {
@@ -373,11 +380,12 @@ typedef union {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t type : 2;
-    uint32_t address : 30;
-    uint32_t endian : 2;
-    uint32_t size : 24;  // size in words
-    uint32_t unk1 : 6;
+    uint32_t type : 2;      // +0
+    uint32_t address : 30;  // +2
+
+    uint32_t endian : 2;  // +0
+    uint32_t size : 24;   // +2 size in words
+    uint32_t unk1 : 6;    // +26
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;
@@ -400,12 +408,12 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t pitch : 9;     // +22 byte_pitch >> 5
     uint32_t tiled : 1;     // +31
 
-    uint32_t format : 6;  // dword_1
-    uint32_t endianness : 2;
-    uint32_t request_size : 2;
-    uint32_t stacked : 1;
-    uint32_t clamp_policy : 1;  // d3d/opengl
-    uint32_t address : 20;
+    uint32_t format : 6;        // +0 dword_1
+    uint32_t endianness : 2;    // +6
+    uint32_t request_size : 2;  // +8
+    uint32_t stacked : 1;       // +10
+    uint32_t clamp_policy : 1;  // +11 d3d/opengl
+    uint32_t address : 20;      // +12
 
     union {  // dword_2
       struct {

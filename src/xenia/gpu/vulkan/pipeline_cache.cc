@@ -275,6 +275,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
                                           &pipeline_info, nullptr, &pipeline);
   if (result != VK_SUCCESS) {
     XELOGE("vkCreateGraphicsPipelines failed with code %d", result);
+    assert_always();
     return nullptr;
   }
 
@@ -422,7 +423,7 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
       return nullptr;
     case PrimitiveType::kPointList:
       return geometry_shaders_.point_list;
-    case PrimitiveType::kUnknown0x07:
+    case PrimitiveType::kTriangleWithWFlags:
       assert_always("Unknown geometry type");
       return nullptr;
     case PrimitiveType::kRectangleList:
@@ -633,11 +634,19 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     // Normal vertex shaders only, for now.
     // TODO(benvanik): transform feedback/memexport.
     // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
-    // 0 = normal
-    // 2 = point size
-    // 7 = memexport
+    // Draw calls skipped if they have unsupported export modes.
+    // 0 = positionOnly
+    // 1 = unused
+    // 2 = sprite
+    // 3 = edge
+    // 4 = kill
+    // 5 = spriteKill
+    // 6 = edgeKill
+    // 7 = multipass
     assert_true(program_cntl.vs_export_mode == 0 ||
-                program_cntl.vs_export_mode == 2);
+                program_cntl.vs_export_mode == 2 ||
+                program_cntl.vs_export_mode == 7);
+    assert_false(program_cntl.gen_index_vtx);
 
     SpirvPushConstants push_constants;
 
@@ -897,6 +906,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
       vertex_attrib_descr.format = VK_FORMAT_UNDEFINED;
       vertex_attrib_descr.offset = attrib.fetch_instr.attributes.offset * 4;
 
+      // TODO(DrChat): Some floating point formats have is_integer set. Input
+      // data is still floating point, does this mean we need to truncate?
       bool is_signed = attrib.fetch_instr.attributes.is_signed;
       bool is_integer = attrib.fetch_instr.attributes.is_integer;
       switch (attrib.fetch_instr.attributes.data_format) {
@@ -1052,7 +1063,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
       break;
     default:
-    case PrimitiveType::kUnknown0x07:
+    case PrimitiveType::kTriangleWithWFlags:
       XELOGE("unsupported primitive type %d", primitive_type);
       assert_unhandled_case(primitive_type);
       return UpdateStatus::kError;

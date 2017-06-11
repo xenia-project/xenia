@@ -448,8 +448,8 @@ bool DrawBatcher::Flush(FlushMode mode) {
         prim_type = GL_LINES_ADJACENCY;
         break;
       default:
-      case PrimitiveType::kUnknown0x07:
-        prim_type = GL_POINTS;
+      case PrimitiveType::kTriangleWithWFlags:
+        prim_type = GL_TRIANGLES;
         valid_prim = false;
         XELOGE("unsupported primitive type %d", batch_state_.prim_type);
         assert_unhandled_case(batch_state_.prim_type);
