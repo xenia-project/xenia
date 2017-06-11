@@ -49,23 +49,27 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 
   // Initialize display and rendering context.
   // This must happen on the UI thread.
-  std::unique_ptr<xe::ui::GraphicsContext> processor_context;
-  target_window_->loop()->PostSynchronous([&]() {
-    // Create the context used for presentation.
-    assert_null(target_window->context());
-    target_window_->set_context(provider_->CreateContext(target_window_));
+  std::unique_ptr<xe::ui::GraphicsContext> processor_context = nullptr;
+  if (provider_) {
+    target_window_->loop()->PostSynchronous([&]() {
+      // Create the context used for presentation.
+      assert_null(target_window->context());
+      target_window_->set_context(provider_->CreateContext(target_window_));
 
-    // Setup the GL context the command processor will do all its drawing in.
-    // It's shared with the display context so that we can resolve framebuffers
-    // from it.
-    processor_context = provider()->CreateOffscreenContext();
-  });
-  if (!processor_context) {
-    xe::FatalError(
-        "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
-        "you have the latest drivers for your GPU and that it supports OpenGL "
-        "4.5. See http://xenia.jp/faq/ for more information.");
-    return X_STATUS_UNSUCCESSFUL;
+      // Setup the GL context the command processor will do all its drawing in.
+      // It's shared with the display context so that we can resolve
+      // framebuffers
+      // from it.
+      processor_context = provider()->CreateOffscreenContext();
+    });
+    if (!processor_context) {
+      xe::FatalError(
+          "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
+          "you have the latest drivers for your GPU and that it supports "
+          "OpenGL "
+          "4.5. See http://xenia.jp/faq/ for more information.");
+      return X_STATUS_UNSUCCESSFUL;
+    }
   }
 
   // Create command processor. This will spin up a thread to process all
@@ -148,18 +152,24 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
   switch (r) {
     case 0x3C00:  // ?
       return 0x08100748;
-    case 0x3C04:  // ?
+    case 0x3C04:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x6530:  // Scanline?
+    case 0x6530:  // R500_D1MODE_V_COUNTER(?) / scanline(?)
       return 0x000002D0;
     case 0x6544:  // ? vblank pending?
       return 1;
-    case 0x6584:  // Screen res - 1280x720
+    case 0x6584:  // AVIVO_D1MODE_VIEWPORT_SIZE
+      // Screen res - 1280x720
+      // [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
+    default:
+      if (!register_file_.GetRegisterInfo(r)) {
+        XELOGE("GPU: Read from unknown register (%.4X)", r);
+      }
   }
 
-  assert_true(r < RegisterFile::kRegisterCount);
-  return register_file_.values[r].u32;
+  assert_true((r / 4) < RegisterFile::kRegisterCount);
+  return register_file_.values[r / 4].u32;
 }
 
 void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
@@ -169,16 +179,15 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
     case 0x0714:  // CP_RB_WPTR
       command_processor_->UpdateWritePointer(value);
       break;
-    case 0x6110:  // ? swap related?
-      XELOGW("Unimplemented GPU register %.4X write: %.8X", r, value);
-      return;
+    case 0x6110:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
+      break;
     default:
       XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
       break;
   }
 
-  assert_true(r < RegisterFile::kRegisterCount);
-  register_file_.values[r].u32 = value;
+  assert_true((r / 4) < RegisterFile::kRegisterCount);
+  register_file_.values[r / 4].u32 = value;
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
