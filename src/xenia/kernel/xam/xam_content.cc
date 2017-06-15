@@ -472,7 +472,6 @@ SHIM_CALL XamContentDelete_shim(PPCContext* ppc_context,
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
                             KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceName, state);
-  SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceState, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceData, state);
   SHIM_SET_MAPPING("xam.xex", XamContentResolve, state);
   SHIM_SET_MAPPING("xam.xex", XamContentFlush, state);
