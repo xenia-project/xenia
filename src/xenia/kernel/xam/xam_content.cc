@@ -72,32 +72,28 @@ SHIM_CALL XamContentGetDeviceName_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
-SHIM_CALL XamContentGetDeviceState_shim(PPCContext* ppc_context,
-                                        KernelState* kernel_state) {
-  uint32_t device_id = SHIM_GET_ARG_32(0);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("XamContentGetDeviceState(%.8X, %.8X)", device_id, overlapped_ptr);
-
+dword_result_t XamContentGetDeviceState(
+    dword_t device_id, pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
     if (overlapped_ptr) {
-      kernel_state->CompleteOverlappedImmediateEx(
+      kernel_state()->CompleteOverlappedImmediateEx(
           overlapped_ptr, X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED,
           0);
-      SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+      return X_ERROR_IO_PENDING;
     } else {
-      SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+      return X_ERROR_DEVICE_NOT_CONNECTED;
     }
-    return;
   }
 
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
-    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
+                                                X_ERROR_SUCCESS);
+    return X_ERROR_IO_PENDING;
   } else {
-    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+    return X_ERROR_SUCCESS;
   }
 }
+DECLARE_XAM_EXPORT(XamContentGetDeviceState, ExportTag::kImplemented);
 
 SHIM_CALL XamContentGetDeviceData_shim(PPCContext* ppc_context,
                                        KernelState* kernel_state) {
