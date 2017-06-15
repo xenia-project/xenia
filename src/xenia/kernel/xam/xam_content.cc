@@ -49,20 +49,30 @@ dword_result_t XamContentGetLicenseMask(lpdword_t mask_ptr, pointer_t<XAM_OVERLA
 }
 DECLARE_XAM_EXPORT(XamContentGetLicenseMask, ExportTag::kImplemented);
 
-dword_result_t XamContentGetDeviceName(dword_t device_id, lpwstring_t name_ptr, dword_t name_capacity) {
+SHIM_CALL XamContentGetDeviceName_shim(PPCContext* ppc_context,
+	KernelState* kernel_state) {
+	uint32_t device_id = SHIM_GET_ARG_32(0);
+	uint32_t name_ptr = SHIM_GET_ARG_32(1);
+	uint32_t name_capacity = SHIM_GET_ARG_32(2);
+
+	XELOGD("XamContentGetDeviceName(%.8X, %.8X, %d)", device_id, name_ptr,
+		name_capacity);
+
 	if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
-		return X_ERROR_DEVICE_NOT_CONNECTED;
+		SHIM_SET_RETURN_32(X_ERROR_DEVICE_NOT_CONNECTED);
+		return;
 	}
 
 	if (name_capacity < dummy_device_info_.name.size() + 1) {
-		return X_ERROR_INSUFFICIENT_BUFFER;
+		SHIM_SET_RETURN_32(X_ERROR_INSUFFICIENT_BUFFER);
+		return;
 	}
 
-	*name_ptr = dummy_device_info.name;
+	xe::store_and_swap<std::wstring>(SHIM_MEM_ADDR(name_ptr),
+		dummy_device_info_.name);
 
-	return X_ERROR_SUCCESS;
+	SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
-DECLARE_XAM_EXPORT(XamContentGetDeviceName, ExportTag::kImplemented);
 
 SHIM_CALL XamContentGetDeviceState_shim(PPCContext* ppc_context,
                                         KernelState* kernel_state) {
@@ -445,6 +455,7 @@ DECLARE_XAM_EXPORT(XamContentDelete, ExportTag::kImplemented);
 
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
 	                        KernelState* kernel_state) {
+	SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceName, state);
 	SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceData, state);
 	SHIM_SET_MAPPING("xam.xex", XamContentGetThumbnail, state);
 	SHIM_SET_MAPPING("xam.xex", XamContentSetThumbnail, state);
