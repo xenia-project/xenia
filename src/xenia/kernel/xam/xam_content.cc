@@ -438,7 +438,7 @@ SHIM_CALL XamContentSetThumbnail_shim(PPCContext* ppc_context,
   }
 }
 
-dword_result_t XamContentDelete(dword_t user_index, lpdword_t content_data_ptr,
+dword_result_t XamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
                                 pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   auto content_data = XCONTENT_DATA(content_data_ptr);
 
