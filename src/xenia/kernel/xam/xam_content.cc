@@ -330,41 +330,36 @@ SHIM_CALL XamContentClose_shim(PPCContext* ppc_context,
   }
 }
 
-SHIM_CALL XamContentGetCreator_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t content_data_ptr = SHIM_GET_ARG_32(1);
-  uint32_t is_creator_ptr = SHIM_GET_ARG_32(2);
-  uint32_t creator_xuid_ptr = SHIM_GET_ARG_32(3);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
-
-  auto content_data = XCONTENT_DATA(SHIM_MEM_ADDR(content_data_ptr));
-
-  XELOGD("XamContentGetCreator(%d, %.8X, %.8X, %.8X, %.8X)", user_index,
-         content_data_ptr, is_creator_ptr, creator_xuid_ptr, overlapped_ptr);
+dword_result_t XamContentGetCreator(dword_t user_index,
+                                    lpvoid_t content_data_ptr,
+                                    lpdword_t is_creator_ptr,
+                                    lpqword_t creator_xuid_ptr,
+                                    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+  auto content_data = XCONTENT_DATA(content_data_ptr);
 
   auto result = X_ERROR_SUCCESS;
 
   if (content_data.content_type == 1) {
     // User always creates saves.
-    SHIM_SET_MEM_32(is_creator_ptr, 1);
+    *is_creator_ptr = 1;
     if (creator_xuid_ptr) {
-      SHIM_SET_MEM_64(creator_xuid_ptr, kernel_state->user_profile()->xuid());
+      *creator_xuid_ptr = kernel_state()->user_profile()->xuid();
     }
   } else {
-    SHIM_SET_MEM_32(is_creator_ptr, 0);
+    *is_creator_ptr = 0;
     if (creator_xuid_ptr) {
-      SHIM_SET_MEM_64(creator_xuid_ptr, 0);
+      *creator_xuid_ptr = 0;
     }
   }
 
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediate(overlapped_ptr, result);
-    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
+    return X_ERROR_IO_PENDING;
   } else {
-    SHIM_SET_RETURN_32(result);
+    return result;
   }
 }
+DECLARE_XAM_EXPORT(XamContentGetCreator, ExportTag::kImplemented);
 
 SHIM_CALL XamContentGetThumbnail_shim(PPCContext* ppc_context,
                                       KernelState* kernel_state) {
@@ -458,7 +453,6 @@ void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceName, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetDeviceData, state);
   SHIM_SET_MAPPING("xam.xex", XamContentClose, state);
-  SHIM_SET_MAPPING("xam.xex", XamContentGetCreator, state);
   SHIM_SET_MAPPING("xam.xex", XamContentGetThumbnail, state);
   SHIM_SET_MAPPING("xam.xex", XamContentSetThumbnail, state);
 }
