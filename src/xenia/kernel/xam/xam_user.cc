@@ -21,7 +21,7 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
+dword_result_t XamUserGetXUID(dword_t user_index, unknown_t unk,
                               lpqword_t xuid_ptr) {
   if (user_index == 0) {
     const auto& user_profile = kernel_state()->user_profile();
@@ -386,7 +386,7 @@ dword_result_t XamUserContentRestrictionGetFlags(dword_t user_index,
 DECLARE_XAM_EXPORT(XamUserContentRestrictionGetFlags, ExportTag::kStub);
 
 dword_result_t XamUserContentRestrictionGetRating(dword_t user_index,
-                                                  dword_t unk1,
+                                                  unknown_t unk1,
                                                   lpdword_t out_unk2_ptr,
                                                   lpdword_t out_unk3_ptr) {
   // Some games have special case paths for 3F that differ from the failure
@@ -398,9 +398,16 @@ dword_result_t XamUserContentRestrictionGetRating(dword_t user_index,
 }
 DECLARE_XAM_EXPORT(XamUserContentRestrictionGetRating, ExportTag::kImplemented);
 
-dword_result_t XamUserContentRestrictionCheckAccess(
-    dword_t user_index, dword_t unk1, dword_t unk2, dword_t unk3, dword_t unk4,
-    lpdword_t out_unk5_ptr, pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+dword_result_t XamUserContentRestrictionCheckAccess(dword_t user_index,
+	                                                  unknown_t unk1, unknown_t unk2,
+	                                                  unknown_t unk3, unknown_t unk4,
+	                                                  lpdword_t out_unk5_ptr,
+                                                    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+
+dword_result_t XamUserContentRestrictionCheckAccess(dword_t user_index, unknown_t unk1,
+                                                    unknown_t unk2, unknown_t unk3, 
+                                                    unknown_t unk4, lpdword_t out_unk5_ptr,
+                                                    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   *out_unk5_ptr = 1;
 
   if (overlapped_ptr) {
@@ -455,7 +462,7 @@ SHIM_CALL XamUserAreUsersFriends_shim(PPCContext* ppc_context,
   }
 }
 
-dword_result_t XamShowSigninUI(dword_t unk_0, dword_t unk_mask) {
+dword_result_t XamShowSigninUI(unknown_t unk_0, unknown_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification.
   kernel_state()->BroadcastNotification(0x00000009, 0);
@@ -494,9 +501,10 @@ dword_result_t XamParseGamerTileKey(lpdword_t key_ptr, lpdword_t out0_ptr,
 }
 DECLARE_XAM_EXPORT(XamParseGamerTileKey, ExportTag::kImplemented);
 
-dword_result_t XamReadTileToTexture(dword_t unk0, dword_t unk1, dword_t unk2,
-                                    dword_t unk3, lpdword_t buffer_ptr,
-                                    dword_t stride, dword_t height,
+dword_result_t XamReadTileToTexture(unknown_t unk0, unknown_t unk1,
+                                    unknown_t unk2, unknown_t unk3,
+                                    lpdword_t buffer_ptr, dword_t stride,
+                                    dword_t height,
                                     pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   // unk0 const?
   // unk1 out0 from XamParseGamerTileKey
