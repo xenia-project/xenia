@@ -399,14 +399,9 @@ dword_result_t XamUserContentRestrictionGetRating(dword_t user_index,
 DECLARE_XAM_EXPORT(XamUserContentRestrictionGetRating, ExportTag::kImplemented);
 
 dword_result_t XamUserContentRestrictionCheckAccess(dword_t user_index,
-	                                                  unknown_t unk1, unknown_t unk2,
-	                                                  unknown_t unk3, unknown_t unk4,
-	                                                  lpdword_t out_unk5_ptr,
-                                                    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
-
-dword_result_t XamUserContentRestrictionCheckAccess(dword_t user_index, unknown_t unk1,
-                                                    unknown_t unk2, unknown_t unk3, 
-                                                    unknown_t unk4, lpdword_t out_unk5_ptr,
+	                                            unknown_t unk1, unknown_t unk2,
+	                                            unknown_t unk3, unknown_t unk4,
+	                                            lpdword_t out_unk5_ptr,
                                                     pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   *out_unk5_ptr = 1;
 
