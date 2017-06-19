@@ -152,69 +152,49 @@ SHIM_CALL ExCreateThread_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result);
 }
 
-SHIM_CALL ExTerminateThread_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t exit_code = SHIM_GET_ARG_32(0);
-
-  XELOGD("ExTerminateThread(%d)", exit_code);
-
+dword_result_t ExTerminateThread(dword_t exit_code) {
   XThread* thread = XThread::GetCurrentThread();
 
   // NOTE: this kills us right now. We won't return from it.
   X_STATUS result = thread->Exit(exit_code);
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(ExTerminateThread, ExportTag::kImplemented);
 
-SHIM_CALL NtResumeThread_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
-  uint32_t suspend_count_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("NtResumeThread(%.8X, %.8X)", handle, suspend_count_ptr);
-
+dword_result_t NtResumeThread(dword_t handle, lpdword_t suspend_count_ptr) {
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   uint32_t suspend_count = 0;
 
-  auto thread = kernel_state->object_table()->LookupObject<XThread>(handle);
+  auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
   if (thread) {
     result = thread->Resume(&suspend_count);
   }
   if (suspend_count_ptr) {
-    SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
+    *suspend_count_ptr = suspend_count;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtResumeThread, ExportTag::kImplemented);
 
-SHIM_CALL KeResumeThread_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  uint32_t thread_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("KeResumeThread(%.8X)", thread_ptr);
-
+dword_result_t KeResumeThread(pointer_t<X_KTHREAD> thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state,
-                                                  SHIM_MEM_ADDR(thread_ptr));
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
   if (thread) {
     result = thread->Resume();
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(KeResumeThread, ExportTag::kImplemented);
 
-SHIM_CALL NtSuspendThread_shim(PPCContext* ppc_context,
-                               KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
-  uint32_t suspend_count_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("NtSuspendThread(%.8X, %.8X)", handle, suspend_count_ptr);
-
+dword_result_t NtSuspendThread(dword_t handle, lpdword_t suspend_count_ptr) {
   X_RESULT result = X_STATUS_SUCCESS;
   uint32_t suspend_count = 0;
 
-  auto thread = kernel_state->object_table()->LookupObject<XThread>(handle);
+  auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
   if (thread) {
     result = thread->Suspend(&suspend_count);
   } else {
@@ -222,11 +202,12 @@ SHIM_CALL NtSuspendThread_shim(PPCContext* ppc_context,
   }
 
   if (suspend_count_ptr) {
-    SHIM_SET_MEM_32(suspend_count_ptr, suspend_count);
+    *suspend_count_ptr, suspend_count;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtSuspendThread, ExportTag::kImplemented);
 
 void KeSetCurrentStackPointers(lpvoid_t stack_ptr,
                                pointer_t<X_KTHREAD> cur_thread,
@@ -255,6 +236,7 @@ SHIM_CALL KeSetAffinityThread_shim(PPCContext* ppc_context,
 
   auto thread = XObject::GetNativeObject<XThread>(kernel_state,
                                                   SHIM_MEM_ADDR(thread_ptr));
+
   if (thread) {
     thread->SetAffinity(affinity);
   }
@@ -262,86 +244,67 @@ SHIM_CALL KeSetAffinityThread_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(affinity);
 }
 
-SHIM_CALL KeQueryBasePriorityThread_shim(PPCContext* ppc_context,
-                                         KernelState* kernel_state) {
-  uint32_t thread_ptr = SHIM_GET_ARG_32(0);
-
-  XELOGD("KeQueryBasePriorityThread(%.8X)", thread_ptr);
-
+dword_result_t KeQueryBasePriorityThread(pointer_t<X_KTHREAD> thread_ptr) {
   int32_t priority = 0;
 
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state,
-                                                  SHIM_MEM_ADDR(thread_ptr));
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
   if (thread) {
     priority = thread->QueryPriority();
   }
 
-  SHIM_SET_RETURN_32(priority);
+  return priority;
 }
+DECLARE_XBOXKRNL_EXPORT(KeQueryBasePriorityThread, ExportTag::kImplemented);
 
-SHIM_CALL KeSetBasePriorityThread_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t thread_ptr = SHIM_GET_ARG_32(0);
-  uint32_t increment = SHIM_GET_ARG_32(1);
-
-  XELOGD("KeSetBasePriorityThread(%.8X, %.8X)", thread_ptr, increment);
-
+dword_result_t KeSetBasePriorityThread(pointer_t<X_KTHREAD> thread_ptr,
+                                       dword_t increment) {
   int32_t prev_priority = 0;
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state,
-                                                  SHIM_MEM_ADDR(thread_ptr));
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
 
   if (thread) {
     prev_priority = thread->QueryPriority();
     thread->SetPriority(increment);
   }
 
-  SHIM_SET_RETURN_32(prev_priority);
+  return prev_priority;
 }
+DECLARE_XBOXKRNL_EXPORT(KeSetBasePriorityThread, ExportTag::kImplemented);
 
-SHIM_CALL KeSetDisableBoostThread_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t thread_ptr = SHIM_GET_ARG_32(0);
-  uint32_t disabled = SHIM_GET_ARG_32(1);
-
-  XELOGD("KeSetDisableBoostThread(%.8X, %.8X)", thread_ptr, disabled);
-
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state,
-                                                  SHIM_MEM_ADDR(thread_ptr));
+dword_result_t KeSetDisableBoostThread(pointer_t<X_KTHREAD> thread_ptr,
+                                       dword_t disabled) {
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
   if (thread) {
     // Uhm?
   }
 
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(KeSetDisableBoostThread, ExportTag::kImplemented);
 
-SHIM_CALL KeGetCurrentProcessType_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  // XELOGD(
-  //     "KeGetCurrentProcessType()");
-
+dword_result_t KeGetCurrentProcessType() {
   // DWORD
 
-  SHIM_SET_RETURN_32(kernel_state->process_type());
+  return kernel_state()->process_type();
 }
+DECLARE_XBOXKRNL_EXPORT(KeGetCurrentProcessType, ExportTag::kImplemented);
 
-SHIM_CALL KeSetCurrentProcessType_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t type = SHIM_GET_ARG_32(0);
+void KeSetCurrentProcessType(dword_t type) {
   // One of X_PROCTYPE_?
-
-  XELOGD("KeSetCurrentProcessType(%d)", type);
-
   assert_true(type <= 2);
 
-  kernel_state->set_process_type(type);
+  kernel_state()->set_process_type(type);
 }
+DECLARE_XBOXKRNL_EXPORT(KeSetCurrentProcessType, ExportTag::kImplemented);
 
 SHIM_CALL KeQueryPerformanceFrequency_shim(PPCContext* ppc_context,
+
                                            KernelState* kernel_state) {
   // XELOGD(
+
   //     "KeQueryPerformanceFrequency()");
 
   uint64_t result = Clock::guest_tick_frequency();
+
   SHIM_SET_RETURN_32(result);
 }
 
@@ -356,21 +319,23 @@ DECLARE_XBOXKRNL_EXPORT(KeDelayExecutionThread,
                         ExportTag::kImplemented | ExportTag::kThreading |
                             ExportTag::kHighFrequency | ExportTag::kBlocking);
 
-SHIM_CALL NtYieldExecution_shim(PPCContext* ppc_context,
-                                KernelState* kernel_state) {
+dword_result_t NtYieldExecution() {
   // XELOGD("NtYieldExecution()");
   auto thread = XThread::GetCurrentThread();
   thread->Delay(0, 0, 0);
-  SHIM_SET_RETURN_32(0);
+  return 0;
 }
+DECLARE_XBOXKRNL_EXPORT(NtYieldExecution, ExportTag::kImplemented);
 
 SHIM_CALL KeQuerySystemTime_shim(PPCContext* ppc_context,
+
                                  KernelState* kernel_state) {
   uint32_t time_ptr = SHIM_GET_ARG_32(0);
 
   XELOGD("KeQuerySystemTime(%.8X)", time_ptr);
 
   uint64_t time = Clock::QueryGuestSystemTime();
+
   if (time_ptr) {
     SHIM_SET_MEM_64(time_ptr, time);
   }
@@ -594,33 +559,25 @@ dword_result_t KeReleaseSemaphore(pointer_t<X_KSEMAPHORE> semaphore_ptr,
 DECLARE_XBOXKRNL_EXPORT(KeReleaseSemaphore,
                         ExportTag::kImplemented | ExportTag::kThreading);
 
-SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
-  uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
-  int32_t count = SHIM_GET_ARG_32(2);
-  int32_t limit = SHIM_GET_ARG_32(3);
-
-  XELOGD("NtCreateSemaphore(%.8X, %.8X, %d, %d)", handle_ptr,
-         obj_attributes_ptr, count, limit);
-
+dword_result_t NtCreateSemaphore(
+    lpdword_t handle_ptr, pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
+    dword_t count, dword_t limit) {
   // Check for an existing timer with the same name.
   auto existing_object =
-      LookupNamedObject<XSemaphore>(kernel_state, obj_attributes_ptr);
+      LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
     if (existing_object->type() == XObject::kTypeSemaphore) {
       if (handle_ptr) {
         existing_object->RetainHandle();
-        SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
+        *handle_ptr = existing_object->handle();
       }
-      SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+      return X_STATUS_SUCCESS;
     } else {
-      SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
+      return X_STATUS_INVALID_HANDLE;
     }
-    return;
   }
 
-  auto sem = object_ref<XSemaphore>(new XSemaphore(kernel_state));
+  auto sem = object_ref<XSemaphore>(new XSemaphore(kernel_state()));
   sem->Initialize(count, limit);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -629,36 +586,32 @@ SHIM_CALL NtCreateSemaphore_shim(PPCContext* ppc_context,
   }
 
   if (handle_ptr) {
-    SHIM_SET_MEM_32(handle_ptr, sem->handle());
+    *handle_ptr = sem->handle();
   }
 
-  SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+  return X_STATUS_SUCCESS;
 }
+DECLARE_XBOXKRNL_EXPORT(NtCreateSemaphore, ExportTag::kImplemented);
 
-SHIM_CALL NtReleaseSemaphore_shim(PPCContext* ppc_context,
-                                  KernelState* kernel_state) {
-  uint32_t sem_handle = SHIM_GET_ARG_32(0);
-  int32_t release_count = SHIM_GET_ARG_32(1);
-  int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
-
-  XELOGD("NtReleaseSemaphore(%.8X, %d, %.8X)", sem_handle, release_count,
-         previous_count_ptr);
-
+dword_result_t NtReleaseSemaphore(dword_t sem_handle, dword_t release_count,
+                                  lpdword_t previous_count_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   int32_t previous_count = 0;
 
-  auto sem = kernel_state->object_table()->LookupObject<XSemaphore>(sem_handle);
+  auto sem =
+      kernel_state()->object_table()->LookupObject<XSemaphore>(sem_handle);
   if (sem) {
     previous_count = sem->ReleaseSemaphore(release_count);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
   if (previous_count_ptr) {
-    SHIM_SET_MEM_32(previous_count_ptr, previous_count);
+    *previous_count_ptr = previous_count;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtReleaseSemaphore, ExportTag::kImplemented);
 
 dword_result_t NtCreateMutant(lpdword_t handle_out,
                               pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes,
@@ -694,10 +647,7 @@ dword_result_t NtCreateMutant(lpdword_t handle_out,
 }
 DECLARE_XBOXKRNL_EXPORT(NtCreateMutant, ExportTag::kImplemented);
 
-SHIM_CALL NtReleaseMutant_shim(PPCContext* ppc_context,
-                               KernelState* kernel_state) {
-  uint32_t mutant_handle = SHIM_GET_ARG_32(0);
-  int32_t unknown = SHIM_GET_ARG_32(1);
+dword_result_t NtReleaseMutant(dword_t mutant_handle, dword_t unknown) {
   // This doesn't seem to be supported.
   // int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
 
@@ -709,52 +659,64 @@ SHIM_CALL NtReleaseMutant_shim(PPCContext* ppc_context,
   bool abandon = false;
   bool wait = false;
 
-  XELOGD("NtReleaseMutant(%.8X, %.8X)", mutant_handle, unknown);
-
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto mutant =
-      kernel_state->object_table()->LookupObject<XMutant>(mutant_handle);
+      kernel_state()->object_table()->LookupObject<XMutant>(mutant_handle);
   if (mutant) {
     result = mutant->ReleaseMutant(priority_increment, abandon, wait);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  SHIM_SET_RETURN_32(result);
+  return result;
 }
+DECLARE_XBOXKRNL_EXPORT(NtReleaseMutant, ExportTag::kImplemented);
 
 SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_context,
+
                              KernelState* kernel_state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+
   uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
+
   uint32_t timer_type = SHIM_GET_ARG_32(2);
 
   // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
 
   XELOGD("NtCreateTimer(%.8X, %.8X, %.1X)", handle_ptr, obj_attributes_ptr,
+
          timer_type);
 
   // Check for an existing timer with the same name.
+
   auto existing_object =
+
       LookupNamedObject<XTimer>(kernel_state, obj_attributes_ptr);
+
   if (existing_object) {
     if (existing_object->type() == XObject::kTypeTimer) {
       if (handle_ptr) {
         existing_object->RetainHandle();
+
         SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
       }
+
       SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
+
     } else {
       SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
     }
+
     return;
   }
 
   auto timer = object_ref<XTimer>(new XTimer(kernel_state));
+
   timer->Initialize(timer_type);
 
   // obj_attributes may have a name inside of it, if != NULL.
+
   if (obj_attributes_ptr) {
     timer->SetAttributes(obj_attributes_ptr);
   }
@@ -1008,119 +970,142 @@ DECLARE_XBOXKRNL_EXPORT(KeReleaseSpinLockFromRaisedIrql,
                         ExportTag::kImplemented | ExportTag::kThreading |
                             ExportTag::kHighFrequency);
 
-SHIM_CALL KeEnterCriticalRegion_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  // XELOGD(
-  //     "KeEnterCriticalRegion()");
-  XThread::EnterCriticalRegion();
-}
+void KeEnterCriticalRegion() { XThread::EnterCriticalRegion(); }
+DECLARE_XBOXKRNL_EXPORT(KeEnterCriticalRegion, ExportTag::kImplemented);
 
-SHIM_CALL KeLeaveCriticalRegion_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  // XELOGD(
-  //     "KeLeaveCriticalRegion()");
+void KeLeaveCriticalRegion() {
   XThread::LeaveCriticalRegion();
 
   XThread::GetCurrentThread()->CheckApcs();
 }
+DECLARE_XBOXKRNL_EXPORT(KeLeaveCriticalRegion, ExportTag::kImplemented);
 
 SHIM_CALL KeRaiseIrqlToDpcLevel_shim(PPCContext* ppc_context,
+
                                      KernelState* kernel_state) {
   // XELOGD(
+
   //     "KeRaiseIrqlToDpcLevel()");
+
   auto old_value = kernel_state->processor()->RaiseIrql(cpu::Irql::DPC);
+
   SHIM_SET_RETURN_32(old_value);
 }
 
-SHIM_CALL KfLowerIrql_shim(PPCContext* ppc_context, KernelState* kernel_state) {
-  uint32_t old_value = SHIM_GET_ARG_32(0);
-  // XELOGD(
-  //     "KfLowerIrql(%d)",
-  //     old_value);
-  kernel_state->processor()->LowerIrql(static_cast<cpu::Irql>(old_value));
+void KfLowerIrql(dword_t old_value) {
+  kernel_state()->processor()->LowerIrql(
+      static_cast<cpu::Irql>((uint32_t)old_value));
 
   XThread::GetCurrentThread()->CheckApcs();
 }
+DECLARE_XBOXKRNL_EXPORT(KfLowerIrql, ExportTag::kImplemented);
 
-SHIM_CALL NtQueueApcThread_shim(PPCContext* ppc_context,
-                                KernelState* kernel_state) {
-  uint32_t thread_handle = SHIM_GET_ARG_32(0);
-  uint32_t apc_routine = SHIM_GET_ARG_32(1);
-  uint32_t arg1 = SHIM_GET_ARG_32(2);
-  uint32_t arg2 = SHIM_GET_ARG_32(3);
-  uint32_t arg3 = SHIM_GET_ARG_32(4);  // ?
-  XELOGD("NtQueueApcThread(%.8X, %.8X, %.8X, %.8X, %.8X)", thread_handle,
-         apc_routine, arg1, arg2, arg3);
-
+void NtQueueApcThread(dword_t thread_handle, dword_t apc_routine, dword_t arg1,
+                      dword_t arg2, dword_t arg3) {
+  // arg3 ?
   // Alloc APC object (from somewhere) and insert.
 
   assert_always("not implemented");
 }
+DECLARE_XBOXKRNL_EXPORT(NtQueueApcThread, ExportTag::kStub);
 
 SHIM_CALL KeInitializeApc_shim(PPCContext* ppc_context,
+
                                KernelState* kernel_state) {
   uint32_t apc_ptr = SHIM_GET_ARG_32(0);
+
   uint32_t thread = SHIM_GET_ARG_32(1);
+
   uint32_t kernel_routine = SHIM_GET_ARG_32(2);
+
   uint32_t rundown_routine = SHIM_GET_ARG_32(3);
+
   uint32_t normal_routine = SHIM_GET_ARG_32(4);
+
   uint32_t processor_mode = SHIM_GET_ARG_32(5);
+
   uint32_t normal_context = SHIM_GET_ARG_32(6);
 
   XELOGD("KeInitializeApc(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", apc_ptr,
+
          thread, kernel_routine, rundown_routine, normal_routine,
+
          processor_mode, normal_context);
 
   auto apc = SHIM_STRUCT(XAPC, apc_ptr);
+
   apc->Initialize();
+
   apc->processor_mode = processor_mode;
+
   apc->thread_ptr = thread;
+
   apc->kernel_routine = kernel_routine;
+
   apc->rundown_routine = rundown_routine;
+
   apc->normal_routine = normal_routine;
+
   apc->normal_context = normal_routine ? normal_context : 0;
 }
 
 SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_context,
+
                                 KernelState* kernel_state) {
   uint32_t apc_ptr = SHIM_GET_ARG_32(0);
+
   uint32_t arg1 = SHIM_GET_ARG_32(1);
+
   uint32_t arg2 = SHIM_GET_ARG_32(2);
+
   uint32_t priority_increment = SHIM_GET_ARG_32(3);
 
   XELOGD("KeInsertQueueApc(%.8X, %.8X, %.8X, %.8X)", apc_ptr, arg1, arg2,
+
          priority_increment);
 
   auto apc = SHIM_STRUCT(XAPC, apc_ptr);
 
   auto thread = XObject::GetNativeObject<XThread>(
+
       kernel_state, SHIM_MEM_ADDR(apc->thread_ptr));
+
   if (!thread) {
     SHIM_SET_RETURN_32(0);
+
     return;
   }
 
   // Lock thread.
+
   thread->LockApc();
 
   // Fail if already inserted.
+
   if (apc->enqueued) {
     thread->UnlockApc(false);
+
     SHIM_SET_RETURN_32(0);
+
     return;
   }
 
   // Prep APC.
+
   apc->arg1 = arg1;
+
   apc->arg2 = arg2;
+
   apc->enqueued = 1;
 
   auto apc_list = thread->apc_list();
 
   uint32_t list_entry_ptr = apc_ptr + 8;
+
   apc_list->Insert(list_entry_ptr);
 
   // Unlock thread.
+
   thread->UnlockApc(true);
 
   SHIM_SET_RETURN_32(1);
@@ -1226,6 +1211,7 @@ SHIM_CALL KeInsertQueueDpc_shim(PPCContext* ppc_context,
 }
 
 SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
+
                                 KernelState* kernel_state) {
   uint32_t dpc_ptr = SHIM_GET_ARG_32(0);
 
@@ -1236,9 +1222,12 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
   uint32_t list_entry_ptr = dpc_ptr + 4;
 
   auto global_lock = xe::global_critical_region::AcquireDirect();
+
   auto dpc_list = kernel_state->dpc_list();
+
   if (dpc_list->IsQueued(list_entry_ptr)) {
     dpc_list->Remove(list_entry_ptr);
+
     result = true;
   }
 
@@ -1321,36 +1310,15 @@ DECLARE_XBOXKRNL_EXPORT(InterlockedFlushSList, ExportTag::kImplemented);
 void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
                               KernelState* kernel_state) {
   SHIM_SET_MAPPING("xboxkrnl.exe", ExCreateThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", ExTerminateThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtResumeThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeResumeThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtSuspendThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetAffinityThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryBasePriorityThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetBasePriorityThread, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetDisableBoostThread, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeGetCurrentProcessType, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeSetCurrentProcessType, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQueryPerformanceFrequency, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtYieldExecution, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeQuerySystemTime, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateSemaphore, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseSemaphore, state);
-
-  SHIM_SET_MAPPING("xboxkrnl.exe", NtReleaseMutant, state);
 
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCreateTimer, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtSetTimerEx, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", NtCancelTimer, state);
 
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeEnterCriticalRegion, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KeLeaveCriticalRegion, state);
-
   SHIM_SET_MAPPING("xboxkrnl.exe", KeRaiseIrqlToDpcLevel, state);
-  SHIM_SET_MAPPING("xboxkrnl.exe", KfLowerIrql, state);
 
   // SHIM_SET_MAPPING("xboxkrnl.exe", NtQueueApcThread, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", KeInitializeApc, state);
