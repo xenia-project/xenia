@@ -674,49 +674,39 @@ dword_result_t NtReleaseMutant(dword_t mutant_handle, dword_t unknown) {
 DECLARE_XBOXKRNL_EXPORT(NtReleaseMutant, ExportTag::kImplemented);
 
 SHIM_CALL NtCreateTimer_shim(PPCContext* ppc_context,
-
                              KernelState* kernel_state) {
   uint32_t handle_ptr = SHIM_GET_ARG_32(0);
-
   uint32_t obj_attributes_ptr = SHIM_GET_ARG_32(1);
-
   uint32_t timer_type = SHIM_GET_ARG_32(2);
 
   // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
 
   XELOGD("NtCreateTimer(%.8X, %.8X, %.1X)", handle_ptr, obj_attributes_ptr,
-
          timer_type);
 
   // Check for an existing timer with the same name.
 
   auto existing_object =
-
       LookupNamedObject<XTimer>(kernel_state, obj_attributes_ptr);
 
   if (existing_object) {
     if (existing_object->type() == XObject::kTypeTimer) {
       if (handle_ptr) {
         existing_object->RetainHandle();
-
         SHIM_SET_MEM_32(handle_ptr, existing_object->handle());
       }
 
       SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
-
     } else {
       SHIM_SET_RETURN_32(X_STATUS_INVALID_HANDLE);
     }
-
     return;
   }
 
   auto timer = object_ref<XTimer>(new XTimer(kernel_state));
-
   timer->Initialize(timer_type);
 
   // obj_attributes may have a name inside of it, if != NULL.
-
   if (obj_attributes_ptr) {
     timer->SetAttributes(obj_attributes_ptr);
   }
@@ -981,14 +971,11 @@ void KeLeaveCriticalRegion() {
 DECLARE_XBOXKRNL_EXPORT(KeLeaveCriticalRegion, ExportTag::kImplemented);
 
 SHIM_CALL KeRaiseIrqlToDpcLevel_shim(PPCContext* ppc_context,
-
                                      KernelState* kernel_state) {
   // XELOGD(
-
   //     "KeRaiseIrqlToDpcLevel()");
 
   auto old_value = kernel_state->processor()->RaiseIrql(cpu::Irql::DPC);
-
   SHIM_SET_RETURN_32(old_value);
 }
 
@@ -1010,104 +997,70 @@ void NtQueueApcThread(dword_t thread_handle, dword_t apc_routine, dword_t arg1,
 DECLARE_XBOXKRNL_EXPORT(NtQueueApcThread, ExportTag::kStub);
 
 SHIM_CALL KeInitializeApc_shim(PPCContext* ppc_context,
-
                                KernelState* kernel_state) {
   uint32_t apc_ptr = SHIM_GET_ARG_32(0);
-
   uint32_t thread = SHIM_GET_ARG_32(1);
-
   uint32_t kernel_routine = SHIM_GET_ARG_32(2);
-
   uint32_t rundown_routine = SHIM_GET_ARG_32(3);
-
   uint32_t normal_routine = SHIM_GET_ARG_32(4);
-
   uint32_t processor_mode = SHIM_GET_ARG_32(5);
-
   uint32_t normal_context = SHIM_GET_ARG_32(6);
 
   XELOGD("KeInitializeApc(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", apc_ptr,
-
          thread, kernel_routine, rundown_routine, normal_routine,
-
          processor_mode, normal_context);
 
   auto apc = SHIM_STRUCT(XAPC, apc_ptr);
-
   apc->Initialize();
-
   apc->processor_mode = processor_mode;
-
   apc->thread_ptr = thread;
-
   apc->kernel_routine = kernel_routine;
-
   apc->rundown_routine = rundown_routine;
-
   apc->normal_routine = normal_routine;
-
   apc->normal_context = normal_routine ? normal_context : 0;
 }
 
 SHIM_CALL KeInsertQueueApc_shim(PPCContext* ppc_context,
-
                                 KernelState* kernel_state) {
   uint32_t apc_ptr = SHIM_GET_ARG_32(0);
-
   uint32_t arg1 = SHIM_GET_ARG_32(1);
-
   uint32_t arg2 = SHIM_GET_ARG_32(2);
-
   uint32_t priority_increment = SHIM_GET_ARG_32(3);
 
   XELOGD("KeInsertQueueApc(%.8X, %.8X, %.8X, %.8X)", apc_ptr, arg1, arg2,
-
          priority_increment);
 
   auto apc = SHIM_STRUCT(XAPC, apc_ptr);
-
   auto thread = XObject::GetNativeObject<XThread>(
-
       kernel_state, SHIM_MEM_ADDR(apc->thread_ptr));
 
   if (!thread) {
     SHIM_SET_RETURN_32(0);
-
     return;
   }
 
   // Lock thread.
-
   thread->LockApc();
 
   // Fail if already inserted.
 
   if (apc->enqueued) {
     thread->UnlockApc(false);
-
     SHIM_SET_RETURN_32(0);
-
     return;
   }
 
   // Prep APC.
-
   apc->arg1 = arg1;
-
   apc->arg2 = arg2;
-
   apc->enqueued = 1;
 
   auto apc_list = thread->apc_list();
-
   uint32_t list_entry_ptr = apc_ptr + 8;
-
   apc_list->Insert(list_entry_ptr);
 
   // Unlock thread.
-
   thread->UnlockApc(true);
-
   SHIM_SET_RETURN_32(1);
 }
 
@@ -1118,9 +1071,7 @@ SHIM_CALL KeRemoveQueueApc_shim(PPCContext* ppc_context,
   XELOGD("KeRemoveQueueApc(%.8X)", apc_ptr);
 
   bool result = false;
-
   auto apc = SHIM_STRUCT(XAPC, apc_ptr);
-
   auto thread = XObject::GetNativeObject<XThread>(
       kernel_state, SHIM_MEM_ADDR(apc->thread_ptr));
   if (!thread) {
