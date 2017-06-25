@@ -21,31 +21,21 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-SHIM_CALL XamUserGetXUID_shim(PPCContext* ppc_context,
-                              KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t unk = SHIM_GET_ARG_32(1);
-  uint32_t xuid_ptr = SHIM_GET_ARG_32(2);
-
-  XELOGD("XamUserGetXUID(%d, %.8X, %.8X)", user_index, unk, xuid_ptr);
-
+dword_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
+                              lpqword_t xuid_ptr) {
   if (user_index == 0) {
-    const auto& user_profile = kernel_state->user_profile();
+    const auto& user_profile = kernel_state()->user_profile();
     if (xuid_ptr) {
-      SHIM_SET_MEM_64(xuid_ptr, user_profile->xuid());
+      *xuid_ptr = user_profile->xuid();
     }
-    SHIM_SET_RETURN_32(0);
+    return 0;
   } else {
-    SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
+    return X_ERROR_NO_SUCH_USER;
   }
 }
+DECLARE_XAM_EXPORT(XamUserGetXUID, ExportTag::kImplemented);
 
-SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-
-  XELOGD("XamUserGetSigninState(%d)", user_index);
-
+dword_result_t XamUserGetSigninState(dword_t user_index) {
   // Yield, as some games spam this.
   xe::threading::MaybeYield();
 
@@ -53,13 +43,14 @@ SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_context,
   // This should keep games from asking us to sign in and also keep them
   // from initializing the network.
   if (user_index == 0 || (user_index & 0xFF) == 0xFF) {
-    const auto& user_profile = kernel_state->user_profile();
+    const auto& user_profile = kernel_state()->user_profile();
     auto signin_state = user_profile->signin_state();
-    SHIM_SET_RETURN_32(signin_state);
+    return signin_state;
   } else {
-    SHIM_SET_RETURN_32(0);
+    return 0;
   }
 }
+DECLARE_XAM_EXPORT(XamUserGetSigninState, ExportTag::kImplemented);
 
 SHIM_CALL XamUserGetSigninInfo_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
@@ -370,246 +361,171 @@ SHIM_CALL XamUserWriteProfileSettings_shim(PPCContext* ppc_context,
   }
 }
 
-SHIM_CALL XamUserCheckPrivilege_shim(PPCContext* ppc_context,
-                                     KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t mask = SHIM_GET_ARG_32(1);
-  uint32_t out_value_ptr = SHIM_GET_ARG_32(2);
-
-  XELOGD("XamUserCheckPrivilege(%d, %.8X, %.8X)", user_index, mask,
-         out_value_ptr);
-
+dword_result_t XamUserCheckPrivilege(dword_t user_index, dword_t mask,
+                                     lpdword_t out_value_ptr) {
   // If we deny everything, games should hopefully not try to do stuff.
-  SHIM_SET_MEM_32(out_value_ptr, 0);
+  *out_value_ptr = 0;
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamUserCheckPrivilege, ExportTag::kStub);
 
-SHIM_CALL XamUserContentRestrictionGetFlags_shim(PPCContext* ppc_context,
-                                                 KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t out_flags_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("XamUserContentRestrictionGetFlags(%d, %.8X)", user_index,
-         out_flags_ptr);
-
+dword_result_t XamUserContentRestrictionGetFlags(dword_t user_index,
+                                                 lpdword_t out_flags_ptr) {
   // No restrictions?
-  SHIM_SET_MEM_32(out_flags_ptr, 0);
+  *out_flags_ptr = 0;
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamUserContentRestrictionGetFlags, ExportTag::kStub);
 
-SHIM_CALL XamUserContentRestrictionGetRating_shim(PPCContext* ppc_context,
-                                                  KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t unk1 = SHIM_GET_ARG_32(1);
-  uint32_t out_unk2_ptr = SHIM_GET_ARG_32(2);
-  uint32_t out_unk3_ptr = SHIM_GET_ARG_32(3);
-
-  XELOGD("XamUserContentRestrictionGetRating(%d, %.8X, %.8X, %.8X)", user_index,
-         unk1, out_unk2_ptr, out_unk3_ptr);
-
+dword_result_t XamUserContentRestrictionGetRating(dword_t user_index,
+                                                  dword_t unk1,
+                                                  lpdword_t out_unk2_ptr,
+                                                  lpdword_t out_unk3_ptr) {
   // Some games have special case paths for 3F that differ from the failure
   // path, so my guess is that's 'don't care'.
-  SHIM_SET_MEM_32(out_unk2_ptr, 0x3F);
-  SHIM_SET_MEM_32(out_unk3_ptr, 0);
+  *out_unk2_ptr = 0x3F;
+  *out_unk3_ptr = 0;
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamUserContentRestrictionGetRating, ExportTag::kImplemented);
 
-SHIM_CALL XamUserContentRestrictionCheckAccess_shim(PPCContext* ppc_context,
-                                                    KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t unk1 = SHIM_GET_ARG_32(1);
-  uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t unk3 = SHIM_GET_ARG_32(3);
-  uint32_t unk4 = SHIM_GET_ARG_32(4);
-  uint32_t out_unk5_ptr = SHIM_GET_ARG_32(5);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(6);
-
-  XELOGD(
-      "XamUserContentRestrictionCheckAccess(%d, %.8X, %.8X, %.8X, %.8X, %.8X, "
-      "%.8X)",
-      user_index, unk1, unk2, unk3, unk4, out_unk5_ptr, overlapped_ptr);
-
-  SHIM_SET_MEM_32(out_unk5_ptr, 1);
+dword_result_t XamUserContentRestrictionCheckAccess(
+    dword_t user_index, dword_t unk1, dword_t unk2, dword_t unk3, dword_t unk4,
+    lpdword_t out_unk5_ptr, pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+  *out_unk5_ptr = 1;
 
   if (overlapped_ptr) {
     // TODO(benvanik): does this need the access arg on it?
-    kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
+                                                X_ERROR_SUCCESS);
   }
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamUserContentRestrictionCheckAccess,
+                   ExportTag::kImplemented);
 
-SHIM_CALL XamUserAreUsersFriends_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t unk1 = SHIM_GET_ARG_32(1);
-  uint32_t unk2 = SHIM_GET_ARG_32(2);
-  uint32_t out_value_ptr = SHIM_GET_ARG_32(3);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(4);
-
-  XELOGD("XamUserAreUsersFriends(%d, %.8X, %.8X, %.8X, %.8X)", user_index, unk1,
-         unk2, out_value_ptr, overlapped_ptr);
-
+dword_result_t XamUserAreUsersFriends(
+    dword_t user_index, dword_t unk1, dword_t unk2, lpdword_t out_value_ptr,
+    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   if (user_index == 255) {
-    user_index = 0;
+    uint32_t user_index = 0;
   }
 
-  SHIM_SET_MEM_32(out_value_ptr, 0);
+  *out_value_ptr = 0;
 
   if (user_index) {
     // Only support user 0.
-    SHIM_SET_RETURN_32(X_ERROR_NOT_LOGGED_ON);
-    return;
+    return X_ERROR_NOT_LOGGED_ON;
   }
 
   X_RESULT result = X_ERROR_SUCCESS;
 
-  const auto& user_profile = kernel_state->user_profile();
+  const auto& user_profile = kernel_state()->user_profile();
   if (user_profile->signin_state() == 0) {
     result = X_ERROR_NOT_LOGGED_ON;
   }
 
   // No friends!
-  SHIM_SET_MEM_32(out_value_ptr, 0);
+  *out_value_ptr = 0;
 
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediate(overlapped_ptr, result);
-    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
+    return X_ERROR_IO_PENDING;
   } else {
-    SHIM_SET_RETURN_32(result);
+    return result;
   }
 }
+DECLARE_XAM_EXPORT(XamUserAreUsersFriends, ExportTag::kImplemented);
 
-SHIM_CALL XamShowSigninUI_shim(PPCContext* ppc_context,
-                               KernelState* kernel_state) {
-  uint32_t unk_0 = SHIM_GET_ARG_32(0);
-  uint32_t unk_mask = SHIM_GET_ARG_32(1);
-
-  XELOGD("XamShowSigninUI(%d, %.8X)", unk_0, unk_mask);
-
+dword_result_t XamShowSigninUI(dword_t unk_0, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification.
-  kernel_state->BroadcastNotification(0x00000009, 0);
+  kernel_state()->BroadcastNotification(0x00000009, 0);
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamShowSigninUI, ExportTag::kImplemented);
 
-SHIM_CALL XamUserCreateAchievementEnumerator_shim(PPCContext* ppc_context,
-                                                  KernelState* kernel_state) {
-  uint32_t title_id = SHIM_GET_ARG_32(0);
-  uint32_t user_index = SHIM_GET_ARG_32(1);
-  uint32_t xuid = SHIM_GET_ARG_32(2);
-  uint32_t flags = SHIM_GET_ARG_32(3);
-  uint32_t offset = SHIM_GET_ARG_32(4);
-  uint32_t count = SHIM_GET_ARG_32(5);
-  uint32_t buffer_size_ptr = SHIM_GET_ARG_32(6);
-  uint32_t handle_ptr = SHIM_GET_ARG_32(7);
-
-  XELOGD(
-      "XamUserCreateAchievementEnumerator(%.8X, %d, %.8X, %.8X, %d, %d, %.8X, "
-      "%.8X)",
-      title_id, user_index, xuid, flags, offset, count, buffer_size_ptr,
-      handle_ptr);
-
+dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
+                                                  dword_t user_index,
+                                                  dword_t xuid, dword_t flags,
+                                                  dword_t offset, dword_t count,
+                                                  lpdword_t buffer_size_ptr,
+                                                  lpdword_t handle_ptr) {
   if (buffer_size_ptr) {
     // TODO(benvanik): struct size/etc.
-    SHIM_SET_MEM_32(buffer_size_ptr, 64 * count);
+    *buffer_size_ptr = 64 * count;
   }
 
-  auto e = new XStaticEnumerator(kernel_state, count, 64);
+  auto e = new XStaticEnumerator(kernel_state(), count, 64);
   e->Initialize();
 
-  SHIM_SET_MEM_32(handle_ptr, e->handle());
+  *handle_ptr = e->handle();
 
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamUserCreateAchievementEnumerator, ExportTag::kImplemented);
 
-SHIM_CALL XamParseGamerTileKey_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t key_ptr = SHIM_GET_ARG_32(0);
-  uint32_t out0_ptr = SHIM_GET_ARG_32(1);
-  uint32_t out1_ptr = SHIM_GET_ARG_32(2);
-  uint32_t out2_ptr = SHIM_GET_ARG_32(3);
+dword_result_t XamParseGamerTileKey(lpdword_t key_ptr, lpdword_t out0_ptr,
+                                    lpdword_t out1_ptr, lpdword_t out2_ptr) {
+  *out0_ptr = 0xC0DE0001;
+  *out1_ptr = 0xC0DE0002;
+  *out2_ptr = 0xC0DE0003;
 
-  XELOGD("XamParseGamerTileKey(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", key_ptr,
-         out0_ptr, out1_ptr, out2_ptr);
-
-  SHIM_SET_MEM_32(out0_ptr, 0xC0DE0001);
-  SHIM_SET_MEM_32(out1_ptr, 0xC0DE0002);
-  SHIM_SET_MEM_32(out2_ptr, 0xC0DE0003);
-
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamParseGamerTileKey, ExportTag::kImplemented);
 
-SHIM_CALL XamReadTileToTexture_shim(PPCContext* ppc_context,
-                                    KernelState* kernel_state) {
-  uint32_t unk0 = SHIM_GET_ARG_32(0);  // const?
-  uint32_t unk1 = SHIM_GET_ARG_32(1);  // out0 from XamParseGamerTileKey
-  uint32_t unk2 = SHIM_GET_ARG_32(2);  // some variant of out1/out2
-  uint32_t unk3 = SHIM_GET_ARG_32(3);  // const?
-  uint32_t buffer_ptr = SHIM_GET_ARG_32(4);
-  uint32_t stride = SHIM_GET_ARG_32(5);
-  uint32_t height = SHIM_GET_ARG_32(6);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(7);
-
-  XELOGD("XamReadTileToTexture(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", unk0, unk1,
-         unk2, unk3, buffer_ptr, stride, height, overlapped_ptr);
-
+dword_result_t XamReadTileToTexture(dword_t unk0, dword_t unk1, dword_t unk2,
+                                    dword_t unk3, lpdword_t buffer_ptr,
+                                    dword_t stride, dword_t height,
+                                    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+  // unk0 const?
+  // unk1 out0 from XamParseGamerTileKey
+  // unk2 some variant of out1/out2
+  // unk3 const?
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
-    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
+                                                X_ERROR_SUCCESS);
+    return X_ERROR_IO_PENDING;
   } else {
-    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+    return X_ERROR_SUCCESS;
   }
 }
+DECLARE_XAM_EXPORT(XamReadTileToTexture, ExportTag::kImplemented);
 
-SHIM_CALL XamWriteGamerTile_shim(PPCContext* ppc_context,
-                                 KernelState* kernel_state) {
-  uint32_t arg0 = SHIM_GET_ARG_32(0);
-  uint32_t arg1 = SHIM_GET_ARG_32(1);
-  uint32_t arg2 = SHIM_GET_ARG_32(2);
-  uint32_t arg3 = SHIM_GET_ARG_32(3);
-  uint32_t arg4 = SHIM_GET_ARG_32(4);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(5);
-
-  XELOGD("XamWriteGamerTile(%.8X, %.8X, %.8X, %.8X, %.8X, %.8X)", arg0, arg1,
-         arg2, arg3, arg4, overlapped_ptr);
-
+dword_result_t XamWriteGamerTile(dword_t arg0, dword_t arg1, dword_t arg2,
+                                 dword_t arg3, dword_t arg4,
+                                 pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
   if (overlapped_ptr) {
-    kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
-    SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
+                                                X_ERROR_SUCCESS);
+    return X_ERROR_IO_PENDING;
   } else {
-    SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+    return X_ERROR_SUCCESS;
   }
 }
+DECLARE_XAM_EXPORT(XamWriteGamerTile, ExportTag::kImplemented);
 
-SHIM_CALL XamSessionCreateHandle_shim(PPCContext* ppc_context,
-                                      KernelState* kernel_state) {
-  uint32_t handle_ptr = SHIM_GET_ARG_32(0);
+dword_result_t XamSessionCreateHandle(lpdword_t handle_ptr) {
+  *handle_ptr = 0xCAFEDEAD;
 
-  XELOGD("XamSessionCreateHandle(%.8X)", handle_ptr);
-
-  SHIM_SET_MEM_32(handle_ptr, 0xCAFEDEAD);
-
-  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
+  return X_ERROR_SUCCESS;
 }
+DECLARE_XAM_EXPORT(XamSessionCreateHandle, ExportTag::kImplemented);
 
-SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_context,
-                                        KernelState* kernel_state) {
-  uint32_t handle = SHIM_GET_ARG_32(0);
-  uint32_t obj_ptr = SHIM_GET_ARG_32(1);
-
-  XELOGD("XamSessionRefObjByHandle(%.8X, %.8X)", handle, obj_ptr);
-
+dword_result_t XamSessionRefObjByHandle(dword_t handle, lpdword_t obj_ptr) {
   assert_true(handle == 0xCAFEDEAD);
 
-  SHIM_SET_MEM_32(obj_ptr, 0);
+  *obj_ptr = 0;
 
-  SHIM_SET_RETURN_32(X_ERROR_FUNCTION_FAILED);
+  return X_ERROR_FUNCTION_FAILED;
 }
+DECLARE_XAM_EXPORT(XamSessionRefObjByHandle, ExportTag::kImplemented);
 
 }  // namespace xam
 }  // namespace kernel
@@ -617,22 +533,8 @@ SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_context,
 
 void xe::kernel::xam::RegisterUserExports(
     xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xam.xex", XamUserGetXUID, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserGetSigninState, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetSigninInfo, state);
   SHIM_SET_MAPPING("xam.xex", XamUserGetName, state);
   SHIM_SET_MAPPING("xam.xex", XamUserReadProfileSettings, state);
   SHIM_SET_MAPPING("xam.xex", XamUserWriteProfileSettings, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserCheckPrivilege, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserContentRestrictionGetFlags, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserContentRestrictionGetRating, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserContentRestrictionCheckAccess, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserAreUsersFriends, state);
-  SHIM_SET_MAPPING("xam.xex", XamShowSigninUI, state);
-  SHIM_SET_MAPPING("xam.xex", XamUserCreateAchievementEnumerator, state);
-  SHIM_SET_MAPPING("xam.xex", XamParseGamerTileKey, state);
-  SHIM_SET_MAPPING("xam.xex", XamReadTileToTexture, state);
-  SHIM_SET_MAPPING("xam.xex", XamWriteGamerTile, state);
-  SHIM_SET_MAPPING("xam.xex", XamSessionCreateHandle, state);
-  SHIM_SET_MAPPING("xam.xex", XamSessionRefObjByHandle, state);
 }
