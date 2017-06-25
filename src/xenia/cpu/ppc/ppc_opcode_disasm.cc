@@ -1689,9 +1689,9 @@ void PrintDisasm_mtmsrd(const PPCDecodeData& d, StringBuffer* str) {
   str->AppendFormat("r%d", d.X.RS());
 }
 void PrintDisasm_mtspr(const PPCDecodeData& d, StringBuffer* str) {
-  // mtmspr [SPR], [RS]
+  // mtspr [SPR], [RS]
   size_t str_start = str->length();
-  str->Append("mtmspr");
+  str->Append("mtspr");
   PadStringBuffer(str, str_start, kNamePad);
   str->AppendFormat("%d", d.XFX.SPR());
   str->Append(", ");
