@@ -35,7 +35,7 @@ No. Do not post links or downloads to such resources or you will be banned.
 
 * Windows 8.1 or Windows 10
 * 64-bit Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
-* An Vulkan compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
+* A Vulkan compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
 * An XInput-compatible controller
 
 Xenia will check for the minimum supported CPU and GPU on startup and error out
