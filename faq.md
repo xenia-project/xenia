@@ -50,8 +50,8 @@ check if your GPU is supported by referencing [this list](http://vulkan.gpuinfo.
 
 #### Why do you need Vulkan? Won't OpenGL work fine?
 
-Nope. OpenGL is deprecated in this project. To get full speed and compatibility the project adapted Vulkan
-and Direct3D 12.
+Nope. OpenGL is deprecated in this project. To get full speed and compatibility the project adapted Vulkan.
+
 
 ### Can you add support for Windows Me? How about my Pentium II?
 
