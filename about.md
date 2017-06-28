@@ -12,7 +12,7 @@ permalink: /about/
 
 * Windows 8.1 or Windows 10
 * Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
-* An OpenGL 4.5-compatible GPU (NVIDIA preferred)
+* A Vulkan compatible GPU (NVIDIA preferred)
 * An XInput-compatible controller
 
 ## Overview
