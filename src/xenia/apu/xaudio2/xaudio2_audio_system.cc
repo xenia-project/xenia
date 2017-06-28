@@ -44,7 +44,6 @@ void XAudio2AudioSystem::DestroyDriver(AudioDriver* driver) {
   assert_not_null(driver);
   auto xdriver = static_cast<XAudio2AudioDriver*>(driver);
   xdriver->Shutdown();
-  assert_not_null(xdriver);
   delete xdriver;
 }
 
