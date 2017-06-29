@@ -35,28 +35,20 @@ No. Do not post links or downloads to such resources or you will be banned.
 
 * Windows 8.1 or Windows 10
 * 64-bit Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
-* An OpenGL 4.5-compatible GPU from [this list](http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc) (NVIDIA recommended)
+* A Vulkan compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
 * An XInput-compatible controller
 
 Xenia will check for the minimum supported CPU and GPU on startup and error out
-if one is not detected. Check that your GPU is on [this list](http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc)
+if one is not detected. Check that your GPU is on [this list](http://vulkan.gpuinfo.org/)
 and that you have the latest drivers installed.
 **You cannot just remove the checks in the code and assume things will work.**
 
 ### What kind of GPU do I need?
 
-OpenGL 4.5 support and drivers are required in addition to a small set of
-extensions, the most critical of which is `GL_ARB_bindless_texture`. You can
-check if your GPU is supported by referencing [this list](http://delphigl.de/glcapsviewer/listreports.php?listreportsbyextension=GL_ARB_bindless_texture&sortby=description_asc).
+Vulkan support and drivers are required. You can check if your GPU is supported by referencing [this list](http://vulkan.gpuinfo.org/).
 
-To get full speed and compatibility the project will be adopting Vulkan and
-Direct3D 12 so plan accordingly.
-
-#### Why do you need OpenGL 4.5? Won't 3.0 work fine?
-
-Nope. Though technically we could software rasterize everything on a 286 that's
-not a good way to go about things and we make use of the latest tech to get the
-best performance and keep the code sane.
+To get full speed and compatibility the project adapted to Vulkan.
+OpenGL is no longer supported in this project and deprecated.
 
 ### Can you add support for Windows Me? How about my Pentium II?
 
@@ -76,7 +68,7 @@ proceed in earnest, listed with the [cross-platform tag](https://github.com/benv
 Most of the code compiles with the latest Clang, and very few files have
 dependencies on Windows APIs (all of that is isolated to `_win.cc` files).
 Though the codebase is ready for the port, it's not a trivial task and anyone
-seeking to port it will need a deep understanding of Linux, X11, OpenGL, and
+seeking to port it will need a deep understanding of Linux, X11, Vulkan, and
 Win32 (to ensure matching semantics).
 
 #### You should port it to Linux, then tons of developers will contribute!
