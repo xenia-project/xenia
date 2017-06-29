@@ -1259,7 +1259,7 @@ pointer_result_t InterlockedPushEntrySList(
     new_hdr.depth = old_hdr.depth + 1;
     new_hdr.sequence = old_hdr.sequence + 1;
 
-    uint32_t old_head = old_hdr.next.next;
+    old_head = old_hdr.next.next;
     entry->next = old_hdr.next.next;
     new_hdr.next.next = entry.guest_address();
   } while (
