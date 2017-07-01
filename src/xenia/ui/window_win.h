@@ -30,6 +30,9 @@ class Win32Window : public Window {
   NativeWindowHandle native_handle() const override { return hwnd_; }
   HWND hwnd() const { return hwnd_; }
 
+  void EnableMainMenu() override;
+  void DisableMainMenu() override;
+
   bool set_title(const std::wstring& title) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
@@ -86,6 +89,9 @@ class Win32MenuItem : public MenuItem {
   ~Win32MenuItem() override;
 
   HMENU handle() { return handle_; }
+
+  void EnableMenuItem(Window& window) override;
+  void DisableMenuItem(Window& window) override;
 
   using MenuItem::OnSelected;
 

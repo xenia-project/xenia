@@ -266,6 +266,8 @@ bool EmulatorWindow::Initialize() {
 
   window_->Resize(1280, 720);
 
+  window_->DisableMainMenu();
+
   return true;
 }
 

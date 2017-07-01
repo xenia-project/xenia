@@ -163,6 +163,18 @@ void Win32Window::OnClose() {
   super::OnClose();
 }
 
+void Win32Window::EnableMainMenu() {
+  if (main_menu_) {
+    main_menu_->EnableMenuItem(*this);
+  }
+}
+
+void Win32Window::DisableMainMenu() {
+  if (main_menu_) {
+    main_menu_->DisableMenuItem(*this);
+  }
+}
+
 bool Win32Window::set_title(const std::wstring& title) {
   if (!super::set_title(title)) {
     return false;
@@ -626,6 +638,22 @@ Win32MenuItem::~Win32MenuItem() {
   if (handle_) {
     DestroyMenu(handle_);
   }
+}
+
+void Win32MenuItem::EnableMenuItem(Window& window) {
+  int i = 0;
+  for (auto iter = children_.begin(); iter != children_.end(); ++iter, i++) {
+    ::EnableMenuItem(handle_, i, MF_BYPOSITION | MF_ENABLED);
+  }
+  DrawMenuBar((HWND)window.native_handle());
+}
+
+void Win32MenuItem::DisableMenuItem(Window& window) {
+  int i = 0;
+  for (auto iter = children_.begin(); iter != children_.end(); ++iter, i++) {
+    ::EnableMenuItem(handle_, i, MF_BYPOSITION | MF_GRAYED);
+  }
+  DrawMenuBar((HWND)window.native_handle());
 }
 
 void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
