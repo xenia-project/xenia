@@ -13,8 +13,6 @@ os:
   # - osx
 
 env:
-  global:
-  - secure: "JfveH9y6aVuZjiPFa61seHptIqMNLOyrFLTPyMvdp1Fyid5qymVWpGBr4boBD/aOYqGjw4T7wvk0zHwWKm9ScMBbt0S5/+9TyBu9M68BrfTXzNM2oARYACbvzxWprvcM6KTKQSzcXWmzNCmmL+75sd3evPge3Ox7b3B7u7M8zXs="
   - LINT=true
   - BUILD=true CONFIG=Debug
   - BUILD=true CONFIG=Release
@@ -35,19 +33,10 @@ addons:
       - clang-3.8
       - clang-format-3.8
       - libc++-dev
-  coverity_scan:
-    project:
-      name: "benvanik/xenia"
-      description: "Build submitted via Travis CI"
-    build_command: "./xenia-build build --config=$CONFIG --target=xenia-cpu-ppc-tests"
-    branch_pattern: master
 
 git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false
-
-before_install:
-  - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
 
 before_script:
   - export CXX=clang++-3.8
