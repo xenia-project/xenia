@@ -147,18 +147,18 @@ void GraphicsSystem::WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs,
 }
 
 uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
-  uint32_t r = addr & 0xFFFF;
+  uint32_t r = (addr & 0xFFFF) / 4;
 
   switch (r) {
-    case 0x3C00:  // ?
+    case 0x0F00:  // ?
       return 0x08100748;
-    case 0x3C04:  // RB_BC_CONTROL
+    case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x6530:  // R500_D1MODE_V_COUNTER(?) / scanline(?)
+    case 0x194C:  // R500_D1MODE_V_COUNTER(?) / scanline(?)
       return 0x000002D0;
-    case 0x6544:  // ? vblank pending?
+    case 0x1951:  // ? vblank pending?
       return 1;
-    case 0x6584:  // AVIVO_D1MODE_VIEWPORT_SIZE
+    case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
       // Screen res - 1280x720
       // [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
@@ -168,26 +168,26 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       }
   }
 
-  assert_true((r / 4) < RegisterFile::kRegisterCount);
-  return register_file_.values[r / 4].u32;
+  assert_true(r < RegisterFile::kRegisterCount);
+  return register_file_.values[r].u32;
 }
 
 void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
-  uint32_t r = addr & 0xFFFF;
+  uint32_t r = (addr & 0xFFFF) / 4;
 
   switch (r) {
-    case 0x0714:  // CP_RB_WPTR
+    case 0x01C5:  // CP_RB_WPTR
       command_processor_->UpdateWritePointer(value);
       break;
-    case 0x6110:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
+    case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
       break;
     default:
       XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
       break;
   }
 
-  assert_true((r / 4) < RegisterFile::kRegisterCount);
-  register_file_.values[r / 4].u32 = value;
+  assert_true(r < RegisterFile::kRegisterCount);
+  register_file_.values[r].u32 = value;
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
