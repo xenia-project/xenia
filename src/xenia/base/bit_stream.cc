@@ -53,7 +53,7 @@ uint64_t BitStream::Peek(size_t num_bits) {
 
   // AND with mask
   // ...................| target bits |
-  bits &= (1 << num_bits) - 1;
+  bits &= (1ULL << num_bits) - 1;
 
   return bits;
 }
@@ -74,7 +74,7 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
   // Construct a mask
-  uint64_t mask = (1 << num_bits) - 1;
+  uint64_t mask = (1ULL << num_bits) - 1;
   mask <<= 64 - (rel_offset_bits + num_bits);
   mask = ~mask;
 
