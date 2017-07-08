@@ -1018,7 +1018,7 @@ spv::Id SpirvShaderTranslator::BitfieldExtract(spv::Id result_type,
   spv::Id base_type = b.getTypeId(base);
 
   // <-- 32 - (offset + count) ------ [bits] -?-
-  if (32 - (offset + count) > 0) {
+  if (32 != offset + count) {
     base = b.createBinOp(spv::Op::OpShiftLeftLogical, base_type, base,
                          b.makeUintConstant(32 - (offset + count)));
   }
