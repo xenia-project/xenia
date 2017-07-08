@@ -29,15 +29,7 @@ bool has_console_attached_ = true;
 bool has_console_attached() { return has_console_attached_; }
 
 void AttachConsole() {
-  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
-  if (!has_console) {
-    // We weren't launched from a console, so just return.
-    // We could alloc our own console, but meh:
-    // has_console = AllocConsole() == TRUE;
-    has_console_attached_ = false;
-    return;
-  }
-  has_console_attached_ = true;
+	has_console_attached_ = ::AttachConsole(ATTACH_PARENT_PROCESS);
 
   auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
   auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
