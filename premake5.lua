@@ -90,6 +90,14 @@ filter("platforms:Linux")
   })
   links({
     "pthread",
+    "lz4",
+    "X11",
+    "GL",
+    "GLEW",
+    "vulkan",
+  })
+  linkoptions({
+    "`pkg-config --libs gtk+-3.0`",
   })
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
@@ -102,10 +110,13 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
     "-std=c++14",
+<<<<<<< HEAD
     "-stdlib=libc++",
+=======
+--    "-stdlib=libc++", -- Seems to happier using gcc's libc++
+>>>>>>> d50e6f18... Add Linux build params for gtk, libvulkan, etc
   })
   links({
-    "c++",
   })
 
 filter("platforms:Windows")
