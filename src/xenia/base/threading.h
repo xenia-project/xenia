@@ -22,6 +22,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <functional>
 
 namespace xe {
 namespace threading {
