@@ -13,6 +13,7 @@
 
 #include <cfloat>
 #include <cstring>
+#include <vector>
 
 #include "xenia/base/logging.h"
 #include "xenia/gpu/spirv/passes/control_flow_analysis_pass.h"
