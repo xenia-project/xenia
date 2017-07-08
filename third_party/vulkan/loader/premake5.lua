@@ -31,5 +31,7 @@ project("vulkan-loader")
   filter("platforms:Linux")
     defines({
       [[SYSCONFDIR="\"/etc\""]],
+      [[FALLBACK_CONFIG_DIRS="\"/etc/xdg\""]],
       [[DATADIR="\"/usr/share\""]],
+      [[FALLBACK_DATA_DIRS="\"/usr/share:/usr/local/share\""]],
     })
