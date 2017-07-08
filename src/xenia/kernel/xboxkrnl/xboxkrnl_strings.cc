@@ -580,6 +580,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           // ANSI_STRING / UNICODE_STRING
           case 'Z': {
             assert_always();
+            break;
           }
 
           default: { assert_always(); }
