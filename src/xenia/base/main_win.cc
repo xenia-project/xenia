@@ -29,31 +29,31 @@ bool has_console_attached_ = true;
 bool has_console_attached() { return has_console_attached_; }
 
 void AttachConsole() {
-	bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) != FALSE;
+  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) != FALSE;
 
-	if (!has_console) {
-		// We weren't launched from a console, so just return.
-		// We could alloc our own console, but meh:
-		// has_console = AllocConsole() == TRUE;
-		has_console_attached_ = false;
+  if (!has_console) {
+    // We weren't launched from a console, so just return.
+    // We could alloc our own console, but meh:
+    // has_console = AllocConsole() == TRUE;
+    has_console_attached_ = false;
 
-		return;
-	}
+    return;
+  }
 
-	has_console_attached_ = true;
+  has_console_attached_ = true;
 }
 
-  auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
-  auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
-  auto fp = _fdopen(con_handle, "w");
-  *stdout = *fp;
-  setvbuf(stdout, nullptr, _IONBF, 0);
+auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
+auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
+auto fp = _fdopen(con_handle, "w");
+*stdout = *fp;
+setvbuf(stdout, nullptr, _IONBF, 0);
 
-  std_handle = (intptr_t)GetStdHandle(STD_ERROR_HANDLE);
-  con_handle = _open_osfhandle(std_handle, _O_TEXT);
-  fp = _fdopen(con_handle, "w");
-  *stderr = *fp;
-  setvbuf(stderr, nullptr, _IONBF, 0);
+std_handle = (intptr_t)GetStdHandle(STD_ERROR_HANDLE);
+con_handle = _open_osfhandle(std_handle, _O_TEXT);
+fp = _fdopen(con_handle, "w");
+*stderr = *fp;
+setvbuf(stderr, nullptr, _IONBF, 0);
 }
 
 int Main() {
