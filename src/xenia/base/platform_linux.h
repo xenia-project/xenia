@@ -19,13 +19,14 @@
 // Xlib/Xcb is used only for GLX/Vulkan interaction, the window management
 // and input events are done with gtk/gdk
 #include <X11/Xlib.h>
+#include <X11/Xlib-xcb.h>
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
 #include <xcb/xcb.h>
 
 //Used for window management. Gtk is for GUI and wigets, gdk is for lower
-//level events like key presses, mouse events, etc
+//level events like key presses, mouse events, window handles, etc
 #include <gtk/gtk.h>
-#include <gdk/gdk.h>
+#include <gdk/gdkx.h>
 
 #endif  // XENIA_BASE_PLATFORM_X11_H_

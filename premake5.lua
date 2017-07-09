@@ -87,11 +87,15 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
+    "`pkg-config --cflags gtk+-x11-3.0`"
   })
   links({
     "pthread",
+    "dl",
     "lz4",
     "X11",
+    "xcb",
+    "X11-xcb",
     "GL",
     "GLEW",
     "vulkan",
@@ -113,11 +117,7 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
     "-std=c++14",
-<<<<<<< HEAD
     "-stdlib=libc++",
-=======
---    "-stdlib=libc++", -- Seems to happier using gcc's libc++
->>>>>>> d50e6f18... Add Linux build params for gtk, libvulkan, etc
   })
   links({
   })
