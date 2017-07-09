@@ -209,7 +209,7 @@ class Win32StackWalker : public StackWalker {
            stack_walk_64_(IMAGE_FILE_MACHINE_AMD64, GetCurrentProcess(),
                           thread_handle, &stack_frame, &thread_context, nullptr,
                           XSymFunctionTableAccess64, XSymGetModuleBase64,
-                          nullptr) == TRUE) {
+                          nullptr) != FALSE) {
       if (frame_index >= frame_offset) {
         frame_host_pcs[frame_index - frame_offset] = stack_frame.AddrPC.Offset;
       }
