@@ -29,7 +29,7 @@ bool has_console_attached_ = true;
 bool has_console_attached() { return has_console_attached_; }
 
 void AttachConsole() {
-  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
+  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) != FALSE;
   if (!has_console) {
     // We weren't launched from a console, so just return.
     // We could alloc our own console, but meh:
