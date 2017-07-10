@@ -26,7 +26,7 @@ class PostedFn {
 
 std::unique_ptr<Loop> Loop::Create() { return std::make_unique<GTKLoop>(); }
 
-GTKLoop::GTKLoop() : thread_id_(0) {
+GTKLoop::GTKLoop() : thread_id_() {
   gtk_init(nullptr, nullptr);
     xe::threading::Fence init_fence;
   thread_ = std::thread([&init_fence, this]() {
@@ -65,7 +65,7 @@ gboolean _posted_fn_thunk(gpointer posted_fn) {
 }
 
 void GTKLoop::Post(std::function<void()> fn) {
-  assert_true(thread_id_ != std::thread::id(0));
+  assert_true(thread_id_ != std::thread::id());
   gdk_threads_add_idle(_posted_fn_thunk,
           reinterpret_cast<gpointer>(new PostedFn(std::move(fn))));
 }
@@ -77,7 +77,7 @@ void GTKLoop::PostDelayed(std::function<void()> fn, uint64_t delay_millis) {
 }
 
 void GTKLoop::Quit() {
-  assert_true(thread_id_ != std::thread::id(0));
+  assert_true(thread_id_ != std::thread::id());
 
 }
 
