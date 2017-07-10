@@ -99,6 +99,8 @@ filter("platforms:Linux")
     "GL",
     "GLEW",
     "vulkan",
+    "c++",
+    "c++abi"
   })
   linkoptions({
     "`pkg-config --libs gtk+-3.0`",
