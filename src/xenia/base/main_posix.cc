@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "build/version.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/main.h"
 
@@ -33,6 +34,10 @@ extern "C" int main(int argc, char** argv) {
 
   // Initialize logging. Needs parsed FLAGS.
   xe::InitializeLogging(entry_info.name);
+
+  // Print version info.
+  XELOGI("Build: {} / {} on {}", XE_BUILD_BRANCH, XE_BUILD_COMMIT,
+         XE_BUILD_DATE);
 
   // Call app-provided entry point.
   int result = entry_info.entry_point(args);
