@@ -51,9 +51,9 @@ static const TextureConfig texture_configs[64] = {
     {TextureFormat::k_4_4_4_4, VK_FORMAT_R4G4B4A4_UNORM_PACK16},
     {TextureFormat::k_10_11_11, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     {TextureFormat::k_11_11_10, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_DXT1, VK_FORMAT_BC1_RGBA_SRGB_BLOCK},
-    {TextureFormat::k_DXT2_3, VK_FORMAT_BC2_SRGB_BLOCK},
-    {TextureFormat::k_DXT4_5, VK_FORMAT_BC3_SRGB_BLOCK},
+    {TextureFormat::k_DXT1, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
+    {TextureFormat::k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK},
+    {TextureFormat::k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
     {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},
     {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ?
