@@ -264,7 +264,7 @@ void TextureCache::SetupEmptySet() {
   sampler_info.compareOp = VK_COMPARE_OP_NEVER;
   sampler_info.minLod = 0.f;
   sampler_info.maxLod = 0.f;
-  sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+  sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
   sampler_info.unnormalizedCoordinates = VK_FALSE;
   err = vkCreateSampler(*device_, &sampler_info, nullptr, &empty_sampler_);
   CheckResult(err, "vkCreateSampler");
@@ -797,7 +797,7 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
   sampler_create_info.minLod = 0.0f;
   sampler_create_info.maxLod = 0.0f;
-  sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+  sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
   sampler_create_info.unnormalizedCoordinates = VK_FALSE;
   VkSampler vk_sampler;
   status =
