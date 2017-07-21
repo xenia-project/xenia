@@ -110,8 +110,8 @@ def import_vs_environment():
 
     args = [tools_path, 'x64', '&&', 'set']
     popen = subprocess.Popen(
-        args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    variables = popen.communicate()[0].decode('utf-8')
+        args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    variables, _ = popen.communicate()
     envvars_to_save = (
         'devenvdir',
         'include',
