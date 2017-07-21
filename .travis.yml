@@ -33,6 +33,7 @@ addons:
       - clang-3.8
       - clang-format-3.8
       - libc++-dev
+      - python3
 
 git:
   # We handle submodules ourselves in xenia-build setup.
