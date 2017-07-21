@@ -93,7 +93,7 @@ def import_vs_environment():
     """
     version = 0
 
-    candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False)
+    candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False, universal_newlines=False)
     candidate_path = candidate_path.strip()
 
     tools_path = ''
