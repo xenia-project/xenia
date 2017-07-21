@@ -10,7 +10,7 @@ permalink: /development/quickstart/
 
 ## Getting Started
 
-Have Windows 8.1+ with Python 2.7 and [Visual Studio 2015](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
+Have Windows 8 or later with Python 3.6 and [Visual Studio 2017](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
 
     > git clone --recursive https://github.com/benvanik/xenia.git
     > xb setup
