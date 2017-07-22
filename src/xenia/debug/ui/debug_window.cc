@@ -1016,7 +1016,7 @@ void DebugWindow::DrawThreadsPane() {
     }
     ImGui::PushID(thread_info);
     if (is_current_thread) {
-      ImGui::SetNextTreeNodeOpened(true, ImGuiSetCond_Always);
+      ImGui::SetNextTreeNodeOpen(true, ImGuiSetCond_Always);
     }
     const char* state_label = "?";
     if (thread->can_debugger_suspend()) {
