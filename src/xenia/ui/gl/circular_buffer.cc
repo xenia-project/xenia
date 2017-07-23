@@ -81,7 +81,7 @@ CircularBuffer::Allocation CircularBuffer::Acquire(size_t length) {
 
 bool CircularBuffer::AcquireCached(uint32_t key, size_t length,
                                    Allocation* out_allocation) {
-  uint64_t full_key = key | (length << 32);
+  uint64_t full_key = key | (uint64_t(length) << 32);
   auto it = allocation_cache_.find(full_key);
   if (it != allocation_cache_.end()) {
     uintptr_t write_head = it->second;
