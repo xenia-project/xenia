@@ -135,7 +135,8 @@ class BaseHeap {
   virtual bool Release(uint32_t address, uint32_t* out_region_size = nullptr);
 
   // Modifies the protection mode of pages within the given range.
-  virtual bool Protect(uint32_t address, uint32_t size, uint32_t protect);
+  virtual bool Protect(uint32_t address, uint32_t size, uint32_t protect,
+                       uint32_t* old_protect = nullptr);
 
   // Queries information about the given region of pages.
   bool QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_info);
@@ -208,7 +209,8 @@ class PhysicalHeap : public BaseHeap {
   bool Decommit(uint32_t address, uint32_t size) override;
   bool Release(uint32_t base_address,
                uint32_t* out_region_size = nullptr) override;
-  bool Protect(uint32_t address, uint32_t size, uint32_t protect) override;
+  bool Protect(uint32_t address, uint32_t size, uint32_t protect,
+               uint32_t* old_protect = nullptr) override;
 
  protected:
   VirtualHeap* parent_heap_;

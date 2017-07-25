@@ -475,6 +475,23 @@ xe::memory::PageAccess ToPageAccess(uint32_t protect) {
   }
 }
 
+uint32_t FromPageAccess(xe::memory::PageAccess protect) {
+  switch (protect) {
+    case memory::PageAccess::kNoAccess:
+      return kMemoryProtectNoAccess;
+    case memory::PageAccess::kReadOnly:
+      return kMemoryProtectRead;
+    case memory::PageAccess::kReadWrite:
+      return kMemoryProtectRead | kMemoryProtectWrite;
+    case memory::PageAccess::kExecuteReadWrite:
+      // Guest memory cannot be executable - this should never happen :)
+      assert_always();
+      return kMemoryProtectRead | kMemoryProtectWrite;
+  }
+
+  return kMemoryProtectNoAccess;
+}
+
 BaseHeap::BaseHeap()
     : membase_(nullptr), heap_base_(0), heap_size_(0), page_size_(0) {}
 
@@ -982,7 +999,8 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   return true;
 }
 
-bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
+bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
+                       uint32_t* old_protect) {
   uint32_t page_count = xe::round_up(size, page_size_) / page_size_;
   uint32_t start_page_number = (address - heap_base_) / page_size_;
   uint32_t end_page_number = start_page_number + page_count - 1;
@@ -1014,14 +1032,21 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
   if (page_size_ == xe::memory::page_size() ||
       (((page_count * page_size_) % xe::memory::page_size() == 0) &&
        ((start_page_number * page_size_) % xe::memory::page_size() == 0))) {
+    memory::PageAccess old_protect_access;
     if (!xe::memory::Protect(
             membase_ + heap_base_ + start_page_number * page_size_,
-            page_count * page_size_, ToPageAccess(protect), nullptr)) {
+            page_count * page_size_, ToPageAccess(protect),
+            &old_protect_access)) {
       XELOGE("BaseHeap::Protect failed due to host VirtualProtect failure");
       return false;
     }
+
+    if (old_protect) {
+      *old_protect = FromPageAccess(old_protect_access);
+    }
   } else {
-    XELOGW("BaseHeap::Protect: ignoring request as not 64k page aligned");
+    XELOGW("BaseHeap::Protect: ignoring request as not 4k page aligned");
+    return false;
   }
 
   // Perform table change.
@@ -1293,12 +1318,13 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   return BaseHeap::Release(base_address, out_region_size);
 }
 
-bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect) {
+bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
+                           uint32_t* old_protect) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_address = GetPhysicalAddress(address);
   cpu::MMIOHandler::global_handler()->InvalidateRange(parent_address, size);
 
-  if (!parent_heap_->Protect(parent_address, size, protect)) {
+  if (!parent_heap_->Protect(parent_address, size, protect, old_protect)) {
     XELOGE("PhysicalHeap::Protect failed due to parent heap failure");
     return false;
   }

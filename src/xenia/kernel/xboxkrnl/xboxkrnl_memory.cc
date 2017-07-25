@@ -164,6 +164,55 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
 DECLARE_XBOXKRNL_EXPORT(NtAllocateVirtualMemory,
                         ExportTag::kImplemented | ExportTag::kMemory);
 
+dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
+                                      lpdword_t region_size_ptr,
+                                      dword_t protect_bits,
+                                      lpdword_t old_protect,
+                                      dword_t debug_memory) {
+  // Set to TRUE when this memory refers to devkit memory area.
+  assert_true(debug_memory == 0);
+
+  // Must request a size.
+  if (!base_addr_ptr || !region_size_ptr) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  // Don't allow games to set execute bits.
+  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
+                      X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
+    XELOGW("Game setting EXECUTE bit on protect");
+    return X_STATUS_ACCESS_DENIED;
+  }
+
+  auto heap = kernel_memory()->LookupHeap(*base_addr_ptr);
+
+  // Adjust the base downwards to the nearest page boundary.
+  uint32_t adjusted_base =
+      *base_addr_ptr - (*base_addr_ptr % heap->page_size());
+  uint32_t adjusted_size = xe::round_up(*region_size_ptr, heap->page_size());
+  uint32_t protect = FromXdkProtectFlags(protect_bits);
+
+  uint32_t tmp_old_protect = 0;
+
+  // FIXME: I think it's valid for NtProtectVirtualMemory to span regions, but
+  // as of now our implementation will fail in this case. Need to verify.
+  if (!heap->Protect(adjusted_base, adjusted_size, protect, &tmp_old_protect)) {
+    return X_STATUS_ACCESS_DENIED;
+  }
+
+  // Write back output variables.
+  *base_addr_ptr = adjusted_base;
+  *region_size_ptr = adjusted_size;
+
+  if (old_protect) {
+    *old_protect = tmp_old_protect;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT(NtProtectVirtualMemory,
+                        ExportTag::kImplemented | ExportTag::kMemory);
+
 dword_result_t NtFreeVirtualMemory(lpdword_t base_addr_ptr,
                                    lpdword_t region_size_ptr, dword_t free_type,
                                    dword_t debug_memory) {
