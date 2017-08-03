@@ -157,8 +157,10 @@ enum class ColorRenderTargetFormat : uint32_t {
 };
 
 enum class DepthRenderTargetFormat : uint32_t {
-  kD24S8 = 0,
-  kD24FS8 = 1,
+//	kD24S8 = 0,
+//	kD24FS8 = 1,
+	kD32S8 = 0,
+	kD32FS8 = 1,
 };
 
 // Subset of a2xx_sq_surfaceformat.
