@@ -365,6 +365,10 @@ void VulkanSwapChain::Shutdown() {
     vkDestroyRenderPass(*device_, render_pass_, nullptr);
     render_pass_ = nullptr;
   }
+  if (copy_cmd_buffer_) {
+    vkFreeCommandBuffers(*device_, cmd_pool_, 1, &copy_cmd_buffer_);
+    copy_cmd_buffer_ = nullptr;
+  }
   if (render_cmd_buffer_) {
     vkFreeCommandBuffers(*device_, cmd_pool_, 1, &render_cmd_buffer_);
     render_cmd_buffer_ = nullptr;
