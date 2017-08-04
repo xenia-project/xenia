@@ -50,7 +50,7 @@ bool Win32Window::OnCreate() {
   static bool has_registered_class = false;
   if (!has_registered_class) {
     // Tell Windows that we're DPI aware.
-    auto spda = (HRESULT(*)(PROCESS_DPI_AWARENESS value))GetProcAddress(
+    auto spda = (decltype(&SetProcessDpiAwareness))GetProcAddress(
         GetModuleHandle(L"shcore.dll"), "SetProcessDpiAwareness");
     if (spda) {
       auto res = spda(PROCESS_PER_MONITOR_DPI_AWARE);
@@ -466,7 +466,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     } break;
     case WM_NCCREATE: {
       // Tell Windows to automatically scale non-client areas on different DPIs.
-      auto en = (BOOL(*)(HWND hwnd))GetProcAddress(
+      auto en = (BOOL(WINAPI*)(HWND hwnd))GetProcAddress(
           GetModuleHandle(L"user32.dll"), "EnableNonClientDpiScaling");
       if (en) {
         en(hWnd);
