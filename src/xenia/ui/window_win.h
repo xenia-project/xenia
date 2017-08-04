@@ -49,6 +49,9 @@ class Win32Window : public Window {
   void Resize(int32_t left, int32_t top, int32_t right,
               int32_t bottom) override;
 
+  // (raw) Resize the window, no DPI scaling applied.
+  void RawReposition(const RECT& rc);
+
   bool Initialize() override;
   void Invalidate() override;
   void Close() override;

@@ -311,15 +311,25 @@ void Win32Window::Resize(int32_t width, int32_t height) {
     return;
   }
 
-  RECT rc = {0, 0, width, height};
-  bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
-  AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
-  if (true) {
-    rc.right += 100 - rc.left;
-    rc.left = 100;
-    rc.bottom += 100 - rc.top;
+  // Scale width and height
+  int32_t scaled_width, scaled_height;
+  scaled_width = int32_t(width * get_dpi_scale());
+  scaled_height = int32_t(height * get_dpi_scale());
+
+  RECT rc = {0, 0, 0, 0};
+  GetWindowRect(hwnd_, &rc);
+  if (rc.top < 0) {
     rc.top = 100;
   }
+  if (rc.left < 0) {
+    rc.left = 100;
+  }
+
+  rc.right = rc.left + scaled_width;
+  rc.bottom = rc.top + scaled_height;
+
+  bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
+  AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
   MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
              TRUE);
 
@@ -334,12 +344,22 @@ void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
   }
 
   RECT rc = {left, top, right, bottom};
+
+  // Scale width and height
+  rc.right = int32_t((right - left) * get_dpi_scale()) + left;
+  rc.bottom = int32_t((bottom - top) * get_dpi_scale()) + top;
+
   bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
   AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
   MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
              TRUE);
 
   super::Resize(left, top, right, bottom);
+}
+
+void Win32Window::RawReposition(const RECT& rc) {
+  MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
+             TRUE);
 }
 
 void Win32Window::OnResize(UIEvent* e) {
@@ -478,6 +498,11 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     case WM_DISPLAYCHANGE:
       break;
     case WM_DPICHANGED: {
+      LPRECT rect = (LPRECT)lParam;
+      if (rect) {
+        RawReposition(*rect);
+      }
+
       auto e = UIEvent(this);
       OnDpiChanged(&e);
     } break;
