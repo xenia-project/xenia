@@ -145,6 +145,7 @@ filter("platforms:Windows")
     "glu32",
     "opengl32",
     "comctl32",
+    "shcore",
     "shlwapi",
   })
 

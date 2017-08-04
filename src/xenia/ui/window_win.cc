@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include <ShellScalingApi.h>
 #include <string>
 
 #include "xenia/base/assert.h"
@@ -48,6 +49,16 @@ bool Win32Window::OnCreate() {
 
   static bool has_registered_class = false;
   if (!has_registered_class) {
+    // Tell Windows that we're DPI aware.
+    auto spda = (HRESULT(*)(PROCESS_DPI_AWARENESS value))GetProcAddress(
+        GetModuleHandle(L"shcore.dll"), "SetProcessDpiAwareness");
+    if (spda) {
+      auto res = spda(PROCESS_PER_MONITOR_DPI_AWARE);
+      if (res != S_OK) {
+        XELOGE("Failed to set process DPI awareness. (code = 0x%.8X)", res);
+      }
+    }
+
     WNDCLASSEX wcex;
     wcex.cbSize = sizeof(WNDCLASSEX);
     wcex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -207,22 +218,22 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
     return;
   }
 
-  fullscreen_ = fullscreen;
-
   DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
   if (fullscreen) {
-    // Kill our borders and resize to take up entire primary monitor.
     // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
     MONITORINFO mi = {sizeof(mi)};
     if (GetWindowPlacement(hwnd_, &windowed_pos_) &&
         GetMonitorInfo(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY),
                        &mi)) {
+      // Remove the menubar and borders.
       SetWindowLong(hwnd_, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
       ::SetMenu(hwnd_, NULL);
 
-      // Call into parent class to get around menu resizing code.
-      Resize(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right,
-             mi.rcMonitor.bottom);
+      // Resize the window to fullscreen.
+      auto& rc = mi.rcMonitor;
+      AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), false);
+      MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
+                 TRUE);
     }
   } else {
     // Reinstate borders, resize to 1280x720
@@ -234,6 +245,8 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
       ::SetMenu(hwnd_, main_menu->handle());
     }
   }
+
+  fullscreen_ = fullscreen;
 }
 
 bool Win32Window::is_bordered() const {
@@ -253,6 +266,15 @@ void Win32Window::set_bordered(bool enabled) {
   } else {
     SetWindowLong(hwnd_, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
   }
+}
+
+int Win32Window::get_dpi() const {
+  HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY);
+
+  // According to msdn, x and y are identical...
+  UINT dpi_x, dpi_y;
+  GetDpiForMonitor(monitor, MDT_DEFAULT, &dpi_x, &dpi_y);
+  return dpi_x;
 }
 
 void Win32Window::set_cursor_visible(bool value) {
@@ -284,6 +306,11 @@ void Win32Window::set_focus(bool value) {
 }
 
 void Win32Window::Resize(int32_t width, int32_t height) {
+  if (is_fullscreen()) {
+    // Cannot resize while in fullscreen.
+    return;
+  }
+
   RECT rc = {0, 0, width, height};
   bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
   AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
@@ -295,15 +322,24 @@ void Win32Window::Resize(int32_t width, int32_t height) {
   }
   MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
              TRUE);
+
+  super::Resize(width, height);
 }
 
 void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
                          int32_t bottom) {
+  if (is_fullscreen()) {
+    // Cannot resize while in fullscreen.
+    return;
+  }
+
   RECT rc = {left, top, right, bottom};
   bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
   AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
   MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
              TRUE);
+
+  super::Resize(left, top, right, bottom);
 }
 
 void Win32Window::OnResize(UIEvent* e) {
@@ -362,7 +398,7 @@ LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message,
 
 LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
                              LPARAM lParam) {
-  if (hWnd != hwnd_) {
+  if (hwnd_ != nullptr && hWnd != hwnd_) {
     return DefWindowProc(hWnd, message, wParam, lParam);
   }
 
@@ -396,8 +432,14 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
       DragFinish(hDrop);
     } break;
-    case WM_NCCREATE:
-      break;
+    case WM_NCCREATE: {
+      // Tell Windows to automatically scale non-client areas on different DPIs.
+      auto en = (BOOL(*)(HWND hwnd))GetProcAddress(
+          GetModuleHandle(L"user32.dll"), "EnableNonClientDpiScaling");
+      if (en) {
+        en(hWnd);
+      }
+    } break;
     case WM_CREATE:
       break;
     case WM_DESTROY:
@@ -418,8 +460,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     case WM_SIZE: {
       auto e = UIEvent(this);
       OnResize(&e);
-      break;
-    }
+    } break;
 
     case WM_PAINT: {
       ValidateRect(hwnd_, nullptr);
@@ -436,6 +477,10 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       return 0;  // Ignored because of custom paint.
     case WM_DISPLAYCHANGE:
       break;
+    case WM_DPICHANGED: {
+      auto e = UIEvent(this);
+      OnDpiChanged(&e);
+    } break;
 
     case WM_ACTIVATEAPP:
     case WM_SHOWWINDOW: {

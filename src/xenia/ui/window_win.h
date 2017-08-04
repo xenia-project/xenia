@@ -40,6 +40,8 @@ class Win32Window : public Window {
   bool is_bordered() const override;
   void set_bordered(bool enabled) override;
 
+  int get_dpi() const override;
+
   void set_cursor_visible(bool value) override;
   void set_focus(bool value) override;
 
