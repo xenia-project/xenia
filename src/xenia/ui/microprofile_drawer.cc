@@ -178,8 +178,8 @@ void MicroprofileDrawer::SetupFont() {
 MicroprofileDrawer::~MicroprofileDrawer() = default;
 
 void MicroprofileDrawer::Begin() {
-  graphics_context_->immediate_drawer()->Begin(window_->width(),
-                                               window_->height());
+  graphics_context_->immediate_drawer()->Begin(window_->scaled_width(),
+                                               window_->scaled_height());
 }
 
 void MicroprofileDrawer::End() {

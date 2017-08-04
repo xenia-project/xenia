@@ -30,6 +30,9 @@ class Win32Window : public Window {
   NativeWindowHandle native_handle() const override { return hwnd_; }
   HWND hwnd() const { return hwnd_; }
 
+  void EnableMainMenu() override;
+  void DisableMainMenu() override;
+
   bool set_title(const std::wstring& title) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
@@ -40,12 +43,17 @@ class Win32Window : public Window {
   bool is_bordered() const override;
   void set_bordered(bool enabled) override;
 
+  int get_dpi() const override;
+
   void set_cursor_visible(bool value) override;
   void set_focus(bool value) override;
 
   void Resize(int32_t width, int32_t height) override;
   void Resize(int32_t left, int32_t top, int32_t right,
               int32_t bottom) override;
+
+  // (raw) Resize the window, no DPI scaling applied.
+  void RawReposition(const RECT& rc);
 
   bool Initialize() override;
   void Invalidate() override;
@@ -86,6 +94,9 @@ class Win32MenuItem : public MenuItem {
   ~Win32MenuItem() override;
 
   HMENU handle() { return handle_; }
+
+  void EnableMenuItem(Window& window) override;
+  void DisableMenuItem(Window& window) override;
 
   using MenuItem::OnSelected;
 

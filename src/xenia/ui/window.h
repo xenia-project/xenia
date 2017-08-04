@@ -44,6 +44,9 @@ class Window {
     OnMainMenuChange();
   }
 
+  virtual void EnableMainMenu() = 0;
+  virtual void DisableMainMenu() = 0;
+
   const std::wstring& title() const { return title_; }
   virtual bool set_title(const std::wstring& title) {
     if (title == title_) {
@@ -62,6 +65,9 @@ class Window {
   virtual bool is_bordered() const { return false; }
   virtual void set_bordered(bool enabled) {}
 
+  virtual int get_dpi() const { return 96; }
+  virtual float get_dpi_scale() const { return get_dpi() / 96.f; }
+
   bool has_focus() const { return has_focus_; }
   virtual void set_focus(bool value) { has_focus_ = value; }
 
@@ -70,9 +76,18 @@ class Window {
 
   int32_t width() const { return width_; }
   int32_t height() const { return height_; }
-  virtual void Resize(int32_t width, int32_t height) = 0;
+  int32_t scaled_width() const { return int32_t(width_ * get_dpi_scale()); }
+  int32_t scaled_height() const { return int32_t(height_ * get_dpi_scale()); }
+
+  virtual void Resize(int32_t width, int32_t height) {
+    width_ = width;
+    height_ = height;
+  }
   virtual void Resize(int32_t left, int32_t top, int32_t right,
-                      int32_t bottom) = 0;
+                      int32_t bottom) {
+    width_ = right - left;
+    height_ = bottom - top;
+  }
 
   GraphicsContext* context() const { return context_.get(); }
   ImGuiDrawer* imgui_drawer() const { return imgui_drawer_.get(); }
@@ -126,6 +141,7 @@ class Window {
   virtual void OnClose();
   virtual void OnDestroy();
 
+  virtual void OnDpiChanged(UIEvent* e);
   virtual void OnResize(UIEvent* e);
   virtual void OnLayout(UIEvent* e);
   virtual void OnPaint(UIEvent* e);
