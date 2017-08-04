@@ -44,6 +44,9 @@ class Window {
     OnMainMenuChange();
   }
 
+  virtual void EnableMainMenu() = 0;
+  virtual void DisableMainMenu() = 0;
+
   const std::wstring& title() const { return title_; }
   virtual bool set_title(const std::wstring& title) {
     if (title == title_) {

@@ -178,6 +178,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
     evt->Set();
   });
 
+  // Enable the main menu now that the emulator is properly loaded
+  emulator_window->window()->EnableMainMenu();
+
   // Grab path from the flag or unnamed argument.
   std::wstring path;
   if (!FLAGS_target.empty() || args.size() >= 2) {

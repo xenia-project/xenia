@@ -641,8 +641,8 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  on_launch();
   main_thread_ = main_xthread->thread();
+  on_launch();
 
   return X_STATUS_SUCCESS;
 }
