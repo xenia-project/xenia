@@ -325,8 +325,9 @@ void Win32Window::Resize(int32_t width, int32_t height) {
 
   // Scale width and height
   int32_t scaled_width, scaled_height;
-  scaled_width = int32_t(width * get_dpi_scale());
-  scaled_height = int32_t(height * get_dpi_scale());
+  float dpi_scale = get_dpi_scale();
+  scaled_width = int32_t(width * dpi_scale);
+  scaled_height = int32_t(height * dpi_scale);
 
   RECT rc = {0, 0, 0, 0};
   GetWindowRect(hwnd_, &rc);
@@ -358,8 +359,9 @@ void Win32Window::Resize(int32_t left, int32_t top, int32_t right,
   RECT rc = {left, top, right, bottom};
 
   // Scale width and height
-  rc.right = int32_t((right - left) * get_dpi_scale()) + left;
-  rc.bottom = int32_t((bottom - top) * get_dpi_scale()) + top;
+  float dpi_scale = get_dpi_scale();
+  rc.right = int32_t((right - left) * dpi_scale) + left;
+  rc.bottom = int32_t((bottom - top) * dpi_scale) + top;
 
   bool has_menu = !is_fullscreen() && (main_menu_ ? true : false);
   AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
@@ -379,6 +381,12 @@ void Win32Window::OnResize(UIEvent* e) {
   GetClientRect(hwnd_, &client_rect);
   int32_t width = client_rect.right - client_rect.left;
   int32_t height = client_rect.bottom - client_rect.top;
+
+  // Rescale to base DPI.
+  float dpi_scale = get_dpi_scale();
+  width = int32_t(width / dpi_scale);
+  height = int32_t(height / dpi_scale);
+
   if (width != width_ || height != height_) {
     width_ = width;
     height_ = height;

@@ -76,6 +76,9 @@ class Window {
 
   int32_t width() const { return width_; }
   int32_t height() const { return height_; }
+  int32_t scaled_width() const { return int32_t(width_ * get_dpi_scale()); }
+  int32_t scaled_height() const { return int32_t(height_ * get_dpi_scale()); }
+
   virtual void Resize(int32_t width, int32_t height) {
     width_ = width;
     height_ = height;

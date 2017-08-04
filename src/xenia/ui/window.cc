@@ -193,8 +193,8 @@ void Window::OnPaint(UIEvent* e) {
     io.DeltaTime = (now_ns - last_paint_time_ns_) / 10000000.0f;
     last_paint_time_ns_ = now_ns;
   }
-  io.DisplaySize =
-      ImVec2(static_cast<float>(width()), static_cast<float>(height()));
+  io.DisplaySize = ImVec2(static_cast<float>(scaled_width()),
+                          static_cast<float>(scaled_height()));
   ImGui::NewFrame();
 
   context_->BeginSwap();
