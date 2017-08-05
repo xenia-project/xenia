@@ -6547,24 +6547,17 @@ EMITTER_OPCODE_TABLE(OPCODE_EXTRACT, EXTRACT_I8, EXTRACT_I16, EXTRACT_I32);
 // Copy a value into all elements of a vector
 struct SPLAT_I8 : Sequence<SPLAT_I8, I<OPCODE_SPLAT, V128Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-      if (i.src1.is_constant) {
-        // TODO(benvanik): faster constant splats.
-        e.mov(e.al, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-        e.vpbroadcastb(i.dest, e.xmm0);
-      } else {
-        e.vmovd(e.xmm0, i.src1.reg().cvt32());
-        e.vpbroadcastb(i.dest, e.xmm0);
-      }
+    if (i.src1.is_constant) {
+      // TODO(benvanik): faster constant splats.
+      e.mov(e.eax, i.src1.constant());
+      e.vmovd(e.xmm0, e.eax);
     } else {
-      if (i.src1.is_constant) {
-        e.mov(e.eax, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-      } else {
-        e.vmovd(e.xmm0, i.src1.reg().cvt32());
-      }
+      e.vmovd(e.xmm0, i.src1.reg().cvt32());
+    }
 
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      e.vpbroadcastb(i.dest, e.xmm0);
+    } else {
       e.vpunpcklbw(e.xmm0, e.xmm0);
       e.vpunpcklwd(e.xmm0, e.xmm0);
       e.vpshufd(i.dest, e.xmm0, 0);
@@ -6573,24 +6566,17 @@ struct SPLAT_I8 : Sequence<SPLAT_I8, I<OPCODE_SPLAT, V128Op, I8Op>> {
 };
 struct SPLAT_I16 : Sequence<SPLAT_I16, I<OPCODE_SPLAT, V128Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-      if (i.src1.is_constant) {
-        // TODO(benvanik): faster constant splats.
-        e.mov(e.ax, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-        e.vpbroadcastw(i.dest, e.xmm0);
-      } else {
-        e.vmovd(e.xmm0, i.src1.reg().cvt32());
-        e.vpbroadcastw(i.dest, e.xmm0);
-      }
+    if (i.src1.is_constant) {
+      // TODO(benvanik): faster constant splats.
+      e.mov(e.eax, i.src1.constant());
+      e.vmovd(e.xmm0, e.eax);
     } else {
-      if (i.src1.is_constant) {
-        e.mov(e.eax, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-      } else {
-        e.vmovd(e.xmm0, i.src1.reg().cvt32());
-      }
+      e.vmovd(e.xmm0, i.src1.reg().cvt32());
+    }
 
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      e.vpbroadcastw(i.dest, e.xmm0);
+    } else {
       e.vpunpcklwd(e.xmm0, e.xmm0);  // unpack low word data
       e.vpshufd(i.dest, e.xmm0, 0);
     }
@@ -6598,24 +6584,17 @@ struct SPLAT_I16 : Sequence<SPLAT_I16, I<OPCODE_SPLAT, V128Op, I16Op>> {
 };
 struct SPLAT_I32 : Sequence<SPLAT_I32, I<OPCODE_SPLAT, V128Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-      if (i.src1.is_constant) {
-        // TODO(benvanik): faster constant splats.
-        e.mov(e.eax, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-        e.vpbroadcastd(i.dest, e.xmm0);
-      } else {
-        e.vmovd(e.xmm0, i.src1);
-        e.vpbroadcastd(i.dest, e.xmm0);
-      }
+    if (i.src1.is_constant) {
+      // TODO(benvanik): faster constant splats.
+      e.mov(e.eax, i.src1.constant());
+      e.vmovd(e.xmm0, e.eax);
     } else {
-      if (i.src1.is_constant) {
-        e.mov(e.eax, i.src1.constant());
-        e.vmovd(e.xmm0, e.eax);
-      } else {
-        e.vmovd(e.xmm0, i.src1.reg().cvt32());
-      }
+      e.vmovd(e.xmm0, i.src1);
+    }
 
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      e.vpbroadcastd(i.dest, e.xmm0);
+    } else {
       e.vpshufd(i.dest, e.xmm0, 0);
     }
   }
