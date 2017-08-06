@@ -246,6 +246,9 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
       AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), false);
       MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
                  TRUE);
+
+      width_ = rc.right - rc.left;
+      height_ = rc.bottom - rc.top;
     }
   } else {
     // Reinstate borders, resize to 1280x720
@@ -256,6 +259,10 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
     if (main_menu) {
       ::SetMenu(hwnd_, main_menu->handle());
     }
+
+    auto& rc = windowed_pos_.rcNormalPosition;
+    width_ = rc.right - rc.left;
+    height_ = rc.bottom - rc.top;
   }
 
   fullscreen_ = fullscreen;
