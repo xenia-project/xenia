@@ -88,9 +88,6 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   if (FLAGS_shader_output_type == "spirv" ||
       FLAGS_shader_output_type == "spirvtext") {
     translator = std::make_unique<SpirvShaderTranslator>();
-  } else if (FLAGS_shader_output_type == "glsl45") {
-    translator = std::make_unique<GlslShaderTranslator>(
-        GlslShaderTranslator::Dialect::kGL45);
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
