@@ -44,6 +44,8 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   void EndDrawBatch() override;
   void End() override;
 
+  VkSampler GetSampler(ImmediateTextureFilter filter, bool repeat);
+
  private:
   VulkanContext* context_ = nullptr;
 

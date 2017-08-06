@@ -651,19 +651,7 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     const uint8_t* data) {
   auto device = context_->device();
 
-  VkSampler sampler = nullptr;
-  switch (filter) {
-    case ImmediateTextureFilter::kNearest:
-      sampler = repeat ? samplers_.nearest_repeat : samplers_.nearest_clamp;
-      break;
-    case ImmediateTextureFilter::kLinear:
-      sampler = repeat ? samplers_.linear_repeat : samplers_.linear_clamp;
-      break;
-    default:
-      assert_unhandled_case(filter);
-      sampler = samplers_.nearest_clamp;
-      break;
-  }
+  VkSampler sampler = GetSampler(filter, repeat);
 
   auto texture = std::make_unique<VulkanImmediateTexture>(
       device, descriptor_pool_, texture_set_layout_, sampler, width, height);
@@ -809,6 +797,25 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
 void VulkanImmediateDrawer::EndDrawBatch() {}
 
 void VulkanImmediateDrawer::End() { current_cmd_buffer_ = nullptr; }
+
+VkSampler VulkanImmediateDrawer::GetSampler(ImmediateTextureFilter filter,
+                                            bool repeat) {
+  VkSampler sampler = nullptr;
+  switch (filter) {
+    case ImmediateTextureFilter::kNearest:
+      sampler = repeat ? samplers_.nearest_repeat : samplers_.nearest_clamp;
+      break;
+    case ImmediateTextureFilter::kLinear:
+      sampler = repeat ? samplers_.linear_repeat : samplers_.linear_clamp;
+      break;
+    default:
+      assert_unhandled_case(filter);
+      sampler = samplers_.nearest_clamp;
+      break;
+  }
+
+  return sampler;
+}
 
 }  // namespace vulkan
 }  // namespace ui
