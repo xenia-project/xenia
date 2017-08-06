@@ -20,7 +20,7 @@ using namespace xe::gpu::xenos;
     {TextureFormat::texture_format, FormatType::format, block_width, block_height, bits_per_pixel}
 const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {
   static const FormatInfo format_infos[] = {
-      FORMAT_INFO(kUnknown                   , kUncompressed, 0, 0, 0), // k_1_REVERSE
+      FORMAT_INFO(k_1_REVERSE                , kUncompressed, 1, 1, 1),
       FORMAT_INFO(k_1                        , kUncompressed, 1, 1, 1),
       FORMAT_INFO(k_8                        , kUncompressed, 1, 1, 8),
       FORMAT_INFO(k_1_5_5_5                  , kUncompressed, 1, 1, 16),
