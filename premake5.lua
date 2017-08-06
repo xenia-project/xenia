@@ -24,8 +24,7 @@ defines({
   "UNICODE",
 
   -- TODO(benvanik): find a better place for this stuff.
-  "GLEW_NO_GLU=1",
-})
+ })
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
 filter("architecture:x86_64")
@@ -142,8 +141,6 @@ filter("platforms:Windows")
     "ws2_32",
     "xinput",
     "xaudio2",
-    "glu32",
-    "opengl32",
     "comctl32",
     "shcore",
     "shlwapi",
@@ -192,7 +189,6 @@ solution("xenia")
   -- Include third party files first so they don't have to deal with gflags.
   include("third_party/capstone.lua")
   include("third_party/gflags.lua")
-  include("third_party/glew.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")
@@ -212,13 +208,11 @@ solution("xenia")
   include("src/xenia/debug/ui")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
-  include("src/xenia/gpu/gl4")
   include("src/xenia/gpu/vulkan")
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
   include("src/xenia/kernel")
   include("src/xenia/ui")
-  include("src/xenia/ui/gl")
   include("src/xenia/ui/spirv")
   include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")
