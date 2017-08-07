@@ -24,20 +24,13 @@ project("xenia-hid-demo")
   language("C++")
   links({
     "gflags",
-    "glew",
     "imgui",
     "xenia-base",
     "xenia-hid",
     "xenia-hid-nop",
-    "xenia-ui",
-    "xenia-ui-gl",
   })
   flags({
     "WinMain",  -- Use WinMain instead of main.
-  })
-  defines({
-    "GLEW_STATIC=1",
-    "GLEW_MX=1",
   })
   includedirs({
     project_root.."/third_party/gflags/src",

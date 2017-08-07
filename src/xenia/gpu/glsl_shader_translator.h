@@ -23,7 +23,6 @@ namespace gpu {
 class GlslShaderTranslator : public ShaderTranslator {
  public:
   enum class Dialect {
-    kGL45,
     kVulkan,
   };
 
