@@ -37,7 +37,7 @@
 #endif  // XE_PLATFORM_WIN32
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4, vulkan, null]");
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, vulkan, null]");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");

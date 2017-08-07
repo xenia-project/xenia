@@ -20,7 +20,11 @@ namespace xe {
     {TextureFormat::texture_format, FormatType::format, block_width, block_height, bits_per_pixel}
 		const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {
 			static const FormatInfo format_infos[] = {
+<<<<<<< HEAD
 				FORMAT_INFO(k_1_REVERSE                , kUncompressed, 1, 1, 1),
+=======
+				FORMAT_INFO(kUnknown                   , kUncompressed, 0, 0, 0), // k_1_REVERSE
+>>>>>>> a5ea2612c5cc0c781e258b24a71750fe2bda3572
 				FORMAT_INFO(k_1                        , kUncompressed, 1, 1, 1),
 				FORMAT_INFO(k_8                        , kUncompressed, 1, 1, 8),
 				FORMAT_INFO(k_1_5_5_5                  , kUncompressed, 1, 1, 16),
@@ -89,4 +93,8 @@ namespace xe {
 		#undef FORMAT_INFO
 
 	}  //  namespace gpu
+<<<<<<< HEAD
 }  //  namespace xe
+=======
+}  //  namespace xe
+>>>>>>> a5ea2612c5cc0c781e258b24a71750fe2bda3572
