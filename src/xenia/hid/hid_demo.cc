@@ -18,7 +18,7 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/input_system.h"
-#include "xenia/ui/gl/gl_provider.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 
@@ -66,11 +66,6 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
   return drivers;
 }
 
-std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
-    xe::ui::Window* window) {
-  return xe::ui::gl::GLProvider::Create(window);
-}
-
 void DrawInputStatus();
 
 int hid_demo_main(const std::vector<std::wstring>& args) {
@@ -100,7 +95,7 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
     // Create context and give it to the window.
     // The window will finish initialization wtih the context (loading
     // resources, etc).
-    graphics_provider = CreateDemoGraphicsProvider(window.get());
+ 
     window->set_context(graphics_provider->CreateContext(window.get()));
 
     // Initialize input system and all drivers.

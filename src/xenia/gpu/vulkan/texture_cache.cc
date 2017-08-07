@@ -407,6 +407,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   texture->image_memory = memory;
   texture->memory_offset = 0;
   texture->memory_size = mem_requirements.size;
+  texture->framebuffer = nullptr;
   texture->access_watch_handle = 0;
   texture->texture_info = texture_info;
   return texture;
