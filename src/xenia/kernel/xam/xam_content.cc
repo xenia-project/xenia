@@ -173,7 +173,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   }
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = (uint32_t)XCONTENT_DATA::kSize;
+    *buffer_size_ptr = (uint32_t)XCONTENT_DATA::kSize * max_count;
   }
 
   auto e =
