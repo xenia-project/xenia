@@ -1151,10 +1151,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.pNext = nullptr;
   barrier.srcAccessMask = 0;
-  // TODO(gibbed): is this correct? 1D+cube had VK_ACCESS_HOST_WRITE_BIT, but
-  // not 2D.
-  barrier.dstAccessMask =
-      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.oldLayout = dest->image_layout;
   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
