@@ -123,9 +123,6 @@ namespace xe {
 					VkSampler sampler;
 				};
 
-				void SetupEmptySet();
-				void DestroyEmptySet();
-
 				// Allocates a new texture and memory to back it on the GPU.
 				Texture* AllocateTexture(const TextureInfo& texture_info,
 					VkFormatFeatureFlags required_flags =
@@ -182,12 +179,6 @@ namespace xe {
 				std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
 				std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
 				VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
-
-				VkImage empty_image_ = nullptr;
-				VkImageView empty_image_view_ = nullptr;
-				VkDeviceMemory empty_image_memory_ = nullptr;
-				VkSampler empty_sampler_ = nullptr;
-				VkDescriptorSet empty_set_ = nullptr;
 
 				ui::vulkan::CircularBuffer staging_buffer_;
 				std::unordered_map<uint64_t, Texture*> textures_;

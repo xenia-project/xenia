@@ -1153,6 +1153,16 @@ namespace xe {
 			}
 			else if (is_vertex_shader()) {
 				switch (dest_num) {
+				case 32:
+				case 33:
+				case 34:
+				case 35:
+				case 36:
+				case 37:
+					// TODO: Memexport registers
+					i.result.storage_target = InstructionStorageTarget::kNone;
+					i.result.storage_index = 0;
+					break;
 				case 62:
 					i.result.storage_target = InstructionStorageTarget::kPosition;
 					break;
@@ -1196,9 +1206,26 @@ namespace xe {
 					i.result.storage_target = InstructionStorageTarget::kColorTarget;
 					i.result.storage_index = 3;
 					break;
+				case 32:
+				case 33:
+				case 34:
+				case 35:
+				case 36:
+				case 37:
+					// TODO: Memexport registers
+					i.result.storage_target = InstructionStorageTarget::kNone;
+					i.result.storage_index = 0;
+					break;
 				case 61:
 					i.result.storage_target = InstructionStorageTarget::kDepth;
 					break;
+				default:
+					XELOGE(
+						"ShaderTranslator::ParseAluVectorInstruction: Unsupported write "
+						"to export %d",
+						dest_num);
+					i.result.storage_target = InstructionStorageTarget::kNone;
+					i.result.storage_index = 0;
 				}
 			}
 			if (op.is_export()) {
