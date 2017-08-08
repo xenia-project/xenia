@@ -15,6 +15,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
@@ -857,44 +858,44 @@ bool VulkanCommandProcessor::IssueCopy() {
   // The command buffer has stuff for actually doing this by drawing, however
   // we should be able to do it without that much easier.
 
-  uint32_t copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  struct {
+    reg::RB_COPY_CONTROL copy_control;
+    uint32_t copy_dest_base;
+    reg::RB_COPY_DEST_PITCH copy_dest_pitch;
+    reg::RB_COPY_DEST_INFO copy_dest_info;
+    uint32_t tile_clear;
+    uint32_t depth_clear;
+    uint32_t color_clear;
+    uint32_t color_clear_low;
+    uint32_t copy_func;
+    uint32_t copy_ref;
+    uint32_t copy_mask;
+    uint32_t copy_surface_slice;
+  }* copy_regs = (decltype(copy_regs)) & regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+
+  bool is_color_source = copy_regs->copy_control.copy_src_select <= 3;
+
   // Render targets 0-3, 4 = depth
-  uint32_t copy_src_select = copy_control & 0x7;
-  bool color_clear_enabled = (copy_control >> 8) & 0x1;
-  bool depth_clear_enabled = (copy_control >> 9) & 0x1;
-  auto copy_command = static_cast<CopyCommand>((copy_control >> 20) & 0x3);
+  uint32_t copy_src_select = copy_regs->copy_control.copy_src_select;
+  bool color_clear_enabled = copy_regs->copy_control.color_clear_enable;
+  bool depth_clear_enabled = copy_regs->copy_control.depth_clear_enable;
+  CopyCommand copy_command = copy_regs->copy_control.copy_command;
 
-  uint32_t copy_dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
-  auto copy_dest_endian = static_cast<Endian128>(copy_dest_info & 0x7);
-  uint32_t copy_dest_array = (copy_dest_info >> 3) & 0x1;
-  assert_true(copy_dest_array == 0);
-  uint32_t copy_dest_slice = (copy_dest_info >> 4) & 0x7;
-  assert_true(copy_dest_slice == 0);
-  auto copy_dest_format = ColorFormatToTextureFormat(
-      static_cast<ColorFormat>((copy_dest_info >> 7) & 0x3F));
-  uint32_t copy_dest_number = (copy_dest_info >> 13) & 0x7;
-  // assert_true(copy_dest_number == 0); // ?
-  uint32_t copy_dest_bias = (copy_dest_info >> 16) & 0x3F;
-  // assert_true(copy_dest_bias == 0);
-  uint32_t copy_dest_swap = (copy_dest_info >> 25) & 0x1;
+  assert_true(copy_regs->copy_dest_info.copy_dest_array == 0);
+  assert_true(copy_regs->copy_dest_info.copy_dest_slice == 0);
+  auto copy_dest_format =
+      ColorFormatToTextureFormat(copy_regs->copy_dest_info.copy_dest_format);
+  // TODO: copy dest number / bias
 
-  uint32_t copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
-  uint32_t copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
-  uint32_t copy_dest_height = (copy_dest_pitch >> 16) & 0x3FFF;
-  copy_dest_pitch &= 0x3FFF;
+  uint32_t copy_dest_base = copy_regs->copy_dest_base;
+  uint32_t copy_dest_pitch = copy_regs->copy_dest_pitch.copy_dest_pitch;
+  uint32_t copy_dest_height = copy_regs->copy_dest_pitch.copy_dest_height;
 
   // None of this is supported yet:
-  uint32_t copy_surface_slice = regs[XE_GPU_REG_RB_COPY_SURFACE_SLICE].u32;
-  assert_true(copy_surface_slice == 0);
-  uint32_t copy_func = regs[XE_GPU_REG_RB_COPY_FUNC].u32;
-  assert_true(copy_func == 0);
-  uint32_t copy_ref = regs[XE_GPU_REG_RB_COPY_REF].u32;
-  assert_true(copy_ref == 0);
-  uint32_t copy_mask = regs[XE_GPU_REG_RB_COPY_MASK].u32;
-  assert_true(copy_mask == 0);
-
-  // Supported in GL4, not supported here yet.
-  assert_zero(copy_dest_swap);
+  assert_true(copy_regs->copy_surface_slice == 0);
+  assert_true(copy_regs->copy_func == 0);
+  assert_true(copy_regs->copy_ref == 0);
+  assert_true(copy_regs->copy_mask == 0);
 
   // RB_SURFACE_INFO
   // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
@@ -955,6 +956,8 @@ bool VulkanCommandProcessor::IssueCopy() {
 
   float dest_points[6];
   for (int i = 0; i < 6; i++) {
+    // TODO(DrChat): I believe there is a register dictating whether this
+    // half-pixel offset needs to be applied.
     dest_points[i] =
         GpuSwap(xe::load<float>(vertex_addr + i * 4), Endian(fetch->endian)) +
         0.5f;
@@ -975,7 +978,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t depth_edram_base = 0;
   ColorRenderTargetFormat color_format;
   DepthRenderTargetFormat depth_format;
-  if (copy_src_select <= 3) {
+  if (is_color_source) {
     // Source from a color target.
     uint32_t color_info[4] = {
         regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
@@ -988,31 +991,32 @@ bool VulkanCommandProcessor::IssueCopy() {
         (color_info[copy_src_select] >> 16) & 0xF);
   }
 
-  if (copy_src_select > 3 || depth_clear_enabled) {
+  if (!is_color_source || depth_clear_enabled) {
     // Source from or clear a depth target.
     uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
     depth_edram_base = depth_info & 0xFFF;
 
     depth_format =
         static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
-    if (copy_src_select > 3) {
+    if (!is_color_source) {
       copy_dest_format = DepthRenderTargetToTextureFormat(depth_format);
     }
   }
 
   Endian resolve_endian = Endian::k8in32;
-  if (copy_dest_endian <= Endian128::k16in32) {
-    resolve_endian = static_cast<Endian>(copy_dest_endian);
+  if (copy_regs->copy_dest_info.copy_dest_endian <= Endian128::k16in32) {
+    resolve_endian =
+        static_cast<Endian>(copy_regs->copy_dest_info.copy_dest_endian.value());
   }
 
   // Demand a resolve texture from the texture cache.
-  TextureInfo tex_info;
+  TextureInfo texture_info;
   TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
                               dest_logical_width, dest_logical_height,
-                              &tex_info);
+                              &texture_info);
 
   auto texture =
-      texture_cache_->DemandResolveTexture(tex_info, copy_dest_format);
+      texture_cache_->DemandResolveTexture(texture_info, copy_dest_format);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 
@@ -1042,7 +1046,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     image_barrier.image = texture->image;
     image_barrier.subresourceRange = {0, 0, 1, 0, 1};
     image_barrier.subresourceRange.aspectMask =
-        copy_src_select <= 3
+        is_color_source
             ? VK_IMAGE_ASPECT_COLOR_BIT
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
@@ -1060,15 +1064,15 @@ bool VulkanCommandProcessor::IssueCopy() {
   image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.srcAccessMask = 0;
-  image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  image_barrier.dstAccessMask =
+      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   image_barrier.oldLayout = texture->image_layout;
   image_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   image_barrier.image = texture->image;
   image_barrier.subresourceRange = {0, 0, 1, 0, 1};
   image_barrier.subresourceRange.aspectMask =
-      copy_src_select <= 3
-          ? VK_IMAGE_ASPECT_COLOR_BIT
-          : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+      is_color_source ? VK_IMAGE_ASPECT_COLOR_BIT
+                      : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
                        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
@@ -1079,16 +1083,15 @@ bool VulkanCommandProcessor::IssueCopy() {
                                uint32_t(dest_max_y - dest_min_y)};
 
   // Ask the render cache to copy to the resolve texture.
-  auto edram_base = copy_src_select <= 3 ? color_edram_base : depth_edram_base;
-  uint32_t src_format = copy_src_select <= 3
-                            ? static_cast<uint32_t>(color_format)
-                            : static_cast<uint32_t>(depth_format);
-  VkFilter filter = copy_src_select <= 3 ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+  auto edram_base = is_color_source ? color_edram_base : depth_edram_base;
+  uint32_t src_format = is_color_source ? static_cast<uint32_t>(color_format)
+                                        : static_cast<uint32_t>(depth_format);
+  VkFilter filter = is_color_source ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
   switch (copy_command) {
     case CopyCommand::kRaw:
     /*
       render_cache_->RawCopyToImage(command_buffer, edram_base, texture->image,
-                                    texture->image_layout, copy_src_select <= 3,
+                                    texture->image_layout, is_color_source,
                                     resolve_offset, resolve_extent);
       break;
     */
@@ -1098,14 +1101,13 @@ bool VulkanCommandProcessor::IssueCopy() {
       render_cache_->BlitToImage(command_buffer, edram_base, surface_pitch,
                                  resolve_extent.height, surface_msaa,
                                  texture->image, texture->image_layout,
-                                 copy_src_select <= 3, src_format, filter,
+                                 is_color_source, src_format, filter,
                                  resolve_offset, resolve_extent);
       */
 
       // Blit with blitter.
-      auto view =
-          render_cache_->FindTileView(edram_base, surface_pitch, surface_msaa,
-                                      copy_src_select <= 3, src_format);
+      auto view = render_cache_->FindTileView(
+          edram_base, surface_pitch, surface_msaa, is_color_source, src_format);
       if (!view) {
         break;
       }
@@ -1118,15 +1120,15 @@ bool VulkanCommandProcessor::IssueCopy() {
       image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_barrier.srcAccessMask =
-          copy_src_select <= 3 ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-                               : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+          is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                          : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
       image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
       image_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
       image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
       image_barrier.image = view->image;
       image_barrier.subresourceRange = {0, 0, 1, 0, 1};
       image_barrier.subresourceRange.aspectMask =
-          copy_src_select <= 3
+          is_color_source
               ? VK_IMAGE_ASPECT_COLOR_BIT
               : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
       vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
@@ -1161,7 +1163,8 @@ bool VulkanCommandProcessor::IssueCopy() {
           copy_src_select == 4 ? view->image_view_depth : view->image_view,
           {{0, 0}, {resolve_extent.width, resolve_extent.height}},
           view->GetSize(), texture->format, resolve_offset, resolve_extent,
-          texture->framebuffer, filter, copy_src_select <= 3, true);
+          texture->framebuffer, filter, is_color_source,
+          copy_regs->copy_dest_info.copy_dest_swap);
 
       // Pull the tile view back to a color attachment.
       std::swap(image_barrier.srcAccessMask, image_barrier.dstAccessMask);
@@ -1194,7 +1197,7 @@ bool VulkanCommandProcessor::IssueCopy() {
 
   if (color_clear_enabled) {
     // If color clear is enabled, we can only clear a selected color target!
-    assert_true(copy_src_select <= 3);
+    assert_true(is_color_source);
 
     // TODO(benvanik): verify color order.
     float color[] = {((copy_color_clear >> 0) & 0xFF) / 255.0f,
