@@ -33,6 +33,7 @@ class XEnumerator : public XObject {
   virtual void WriteItems(uint8_t* buffer) = 0;
   virtual bool WriteItem(uint8_t* buffer) = 0;
 
+  size_t item_size() const { return item_size_; }
   size_t current_item() const { return current_item_; }
 
  protected:
