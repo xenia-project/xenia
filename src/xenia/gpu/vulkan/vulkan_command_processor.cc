@@ -617,12 +617,12 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
       command_buffer, current_render_state_, vertex_shader, pixel_shader,
       primitive_type, &pipeline);
-  if (pipeline_status == PipelineCache::UpdateStatus::kMismatch ||
-      full_update) {
+  if (pipeline_status == PipelineCache::UpdateStatus::kError) {
+    return false;
+  } else if (pipeline_status == PipelineCache::UpdateStatus::kMismatch ||
+             full_update) {
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipeline);
-  } else if (pipeline_status == PipelineCache::UpdateStatus::kError) {
-    return false;
   }
   pipeline_cache_->SetDynamicState(command_buffer, full_update);
 
