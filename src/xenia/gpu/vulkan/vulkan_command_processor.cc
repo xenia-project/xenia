@@ -1164,7 +1164,7 @@ bool VulkanCommandProcessor::IssueCopy() {
           {{0, 0}, {resolve_extent.width, resolve_extent.height}},
           view->GetSize(), texture->format, resolve_offset, resolve_extent,
           texture->framebuffer, filter, is_color_source,
-          copy_regs->copy_dest_info.copy_dest_swap);
+          static_cast<bool>(copy_regs->copy_dest_info.copy_dest_swap));
 
       // Pull the tile view back to a color attachment.
       std::swap(image_barrier.srcAccessMask, image_barrier.dstAccessMask);
