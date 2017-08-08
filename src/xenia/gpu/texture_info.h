@@ -220,9 +220,9 @@ namespace xe {
 		inline TextureFormat DepthRenderTargetToTextureFormat(
 			DepthRenderTargetFormat depth_format) {
 			switch (depth_format) {
-			case DepthRenderTargetFormat::kD32S8:
+			case DepthRenderTargetFormat::kD32S8: // Since kD24S8 is removed this is set to kD32S8
 				return TextureFormat::k_32_FLOAT;
-			case DepthRenderTargetFormat::kD32FS8:
+			case DepthRenderTargetFormat::kD32FS8: // Since kD24FS8 is removed this is set to kD32FS8
 				return TextureFormat::k_32_FLOAT;
 			default:
 				assert_unhandled_case(depth_format);

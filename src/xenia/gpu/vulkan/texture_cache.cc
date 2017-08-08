@@ -506,7 +506,7 @@ namespace xe {
 				};
 				view_info.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 				if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-					texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+//					texture->format == VK_FORMAT_D24_UNORM_S8_UINT || //Not going to use this
 					texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
 					// This applies to any depth/stencil format, but we only use D24S8 / D32FS8.
 					view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -1150,7 +1150,7 @@ namespace xe {
 				barrier.image = dest->image;
 				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 				if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-					dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+//					dest->format == VK_FORMAT_D24_UNORM_S8_UINT || // Not going to use this
 					dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
 					barrier.subresourceRange.aspectMask =
 						VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
