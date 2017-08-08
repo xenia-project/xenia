@@ -93,6 +93,8 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   auto& info = *out_info;
   info.guest_address = physical_address;
   info.dimension = Dimension::k2D;
+  assert_true(width > 0);
+  assert_true(height > 0);
   info.width = width - 1;
   info.height = height - 1;
   info.texture_format = texture_format;
