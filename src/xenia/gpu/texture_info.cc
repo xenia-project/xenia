@@ -56,7 +56,6 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
   info.input_length = 0;  // Populated below.
-  info.output_length = 0;
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
     assert_true("Unsupported texture format");
@@ -71,15 +70,6 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
     case Dimension::k2D: {
       info.CalculateTextureSizes2D(fetch.size_2d.width + 1,
                                    fetch.size_2d.height + 1);
-
-      // DEBUG: Make sure our calculated pitch is equal to the fetch pitch.
-      uint32_t bytes_per_block = info.format_info()->block_width *
-                                 info.format_info()->block_height *
-                                 info.format_info()->bits_per_pixel / 8;
-
-      assert_true(info.size_2d.input_pitch ==
-                  (bytes_per_block * fetch.pitch << 5) /
-                      info.format_info()->block_width);
     } break;
     case Dimension::k3D: {
       // TODO(benvanik): calculate size.
@@ -110,7 +100,6 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.is_tiled = true;
   info.has_packed_mips = false;
   info.input_length = 0;
-  info.output_length = 0;
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
     assert_true("Unsupported texture format");
@@ -145,11 +134,6 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
   size_1d.input_width = tile_width * 32 * format->block_width;
   size_1d.input_pitch = byte_pitch;
   input_length = size_1d.input_pitch;
-
-  // TODO(DrChat): Remove this, leave it up to the backend.
-  size_1d.output_width = block_width * format->block_width;
-  size_1d.output_pitch = block_width * bytes_per_block;
-  output_length = size_1d.output_pitch;
 }
 
 void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
@@ -190,13 +174,6 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
   size_2d.input_pitch = byte_pitch;
 
   input_length = size_2d.input_pitch * size_2d.block_height;
-
-  // TODO(DrChat): Remove this, leave it up to the backend.
-  size_2d.output_width = block_width * format->block_width;
-  size_2d.output_height = block_height * format->block_height;
-  size_2d.output_pitch = block_width * bytes_per_block;
-
-  output_length = size_2d.output_pitch * block_height;
 }
 
 void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
@@ -235,14 +212,6 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
 
   size_cube.input_face_length = size_cube.input_pitch * size_cube.block_height;
   input_length = size_cube.input_face_length * 6;
-
-  // TODO(DrChat): Remove this, leave it up to the backend.
-  size_cube.output_width = block_width * format->block_width;
-  size_cube.output_height = block_height * format->block_height;
-  size_cube.output_pitch = block_width * bytes_per_block;
-
-  size_cube.output_face_length = size_cube.output_pitch * block_height;
-  output_length = size_cube.output_face_length * 6;
 }
 
 bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,

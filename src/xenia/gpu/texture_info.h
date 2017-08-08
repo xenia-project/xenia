@@ -256,7 +256,6 @@ struct TextureInfo {
   bool is_tiled;
   bool has_packed_mips;
   uint32_t input_length;
-  uint32_t output_length;
 
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(texture_format));
@@ -272,10 +271,6 @@ struct TextureInfo {
       uint32_t block_width;  // # of horizontal blocks
       uint32_t input_width;  // pixel pitch
       uint32_t input_pitch;  // pitch in bytes
-
-      // DEPRECATED: Do not use.
-      uint32_t output_width;
-      uint32_t output_pitch;
     } size_1d;
     struct {
       uint32_t logical_width;
@@ -285,11 +280,6 @@ struct TextureInfo {
       uint32_t input_width;   // pixel pitch
       uint32_t input_height;  // pixel height
       uint32_t input_pitch;   // pitch in bytes
-
-      // DEPRECATED: Do not use.
-      uint32_t output_width;
-      uint32_t output_height;
-      uint32_t output_pitch;
     } size_2d;
     struct {
     } size_3d;
@@ -302,12 +292,6 @@ struct TextureInfo {
       uint32_t input_height;       // pixel height
       uint32_t input_pitch;        // pitch in bytes
       uint32_t input_face_length;  // pitch of face in bytes
-
-      // DEPRECATED: Do not use.
-      uint32_t output_width;
-      uint32_t output_height;
-      uint32_t output_pitch;
-      uint32_t output_face_length;
     } size_cube;
   };
 

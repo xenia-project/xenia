@@ -98,7 +98,7 @@ static const TextureConfig texture_configs[64] = {
     {TextureFormat::k_32_32_32_FLOAT, VK_FORMAT_R32G32B32_SFLOAT},
     {TextureFormat::k_DXT3A, VK_FORMAT_UNDEFINED},
     {TextureFormat::k_DXT5A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_CTX1, VK_FORMAT_UNDEFINED},
+    {TextureFormat::k_CTX1, VK_FORMAT_R8G8_UINT},
     {TextureFormat::k_DXT3A_AS_1_1_1_1, VK_FORMAT_UNDEFINED},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
@@ -545,29 +545,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
-  bool uploaded = false;
-  switch (texture_info.dimension) {
-    case Dimension::k1D: {
-      uploaded = UploadTexture1D(command_buffer, completion_fence, texture,
-                                 texture_info);
-    } break;
-
-    case Dimension::k2D: {
-      uploaded = UploadTexture2D(command_buffer, completion_fence, texture,
-                                 texture_info);
-    } break;
-
-    case Dimension::kCube: {
-      uploaded = UploadTextureCube(command_buffer, completion_fence, texture,
-                                   texture_info);
-    } break;
-
-    default:
-      assert_unhandled_case(texture_info.dimension);
-      break;
-  }
-
-  if (!uploaded) {
+  if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
     FreeTexture(texture);
     return nullptr;
   }
@@ -578,7 +556,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string(
           "0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.output_length));
+          texture_info.guest_address + texture_info.input_length));
 
   // Okay. Now that the texture is uploaded from system memory, put a writewatch
   // on it to tell us if it's been modified from the guest.
@@ -912,169 +890,230 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-void TextureCache::ConvertTexture1D(uint8_t* dest, const TextureInfo& src) {
+bool TextureCache::ConvertTexture1D(uint8_t* dest,
+                                    VkBufferImageCopy* copy_region,
+                                    const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (!src.is_tiled) {
-    if (src.size_1d.input_pitch == src.size_1d.output_pitch) {
-      TextureSwap(src.endianness, dest, host_address, src.output_length);
+  if (src.texture_format == TextureFormat::k_CTX1) {
+    assert_always();
+  } else {
+    if (!src.is_tiled) {
+      TextureSwap(src.endianness, dest, host_address, src.input_length);
+      copy_region->bufferRowLength = src.size_1d.input_width;
+      copy_region->bufferImageHeight = 1;
+      copy_region->imageExtent = {src.size_1d.logical_width, 1, 1};
+      return true;
     } else {
       assert_always();
     }
-  } else {
-    assert_always();
   }
+  return false;
 }
 
-void TextureCache::ConvertTexture2D(uint8_t* dest, const TextureInfo& src) {
+bool TextureCache::ConvertTexture2D(uint8_t* dest,
+                                    VkBufferImageCopy* copy_region,
+                                    const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (!src.is_tiled) {
-    uint32_t offset_x, offset_y;
-    if (src.has_packed_mips &&
-        TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
+  if (src.texture_format == TextureFormat::k_CTX1) {
+    assert_always();
+  } else {
+    if (!src.is_tiled) {
+      uint32_t offset_x, offset_y;
+      if (src.has_packed_mips &&
+          TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
+        uint32_t bytes_per_block = src.format_info()->block_width *
+                                   src.format_info()->block_height *
+                                   src.format_info()->bits_per_pixel / 8;
+
+        const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+        src_mem += offset_y * src.size_2d.input_pitch;
+        src_mem += offset_x * bytes_per_block;
+        for (uint32_t y = 0;
+             y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
+             y++) {
+          TextureSwap(src.endianness, dest, src_mem, src.size_2d.input_pitch);
+          src_mem += src.size_2d.input_pitch;
+          dest += src.size_2d.input_pitch;
+        }
+        copy_region->bufferRowLength = src.size_2d.input_width;
+        copy_region->bufferImageHeight = src.size_2d.input_height;
+        copy_region->imageExtent = {src.size_2d.logical_width,
+                                    src.size_2d.logical_height, 1};
+        return true;
+      } else {
+        // Fast path copy entire image.
+        TextureSwap(src.endianness, dest, host_address, src.input_length);
+        copy_region->bufferRowLength = src.size_2d.input_width;
+        copy_region->bufferImageHeight = src.size_2d.input_height;
+        copy_region->imageExtent = {src.size_2d.logical_width,
+                                    src.size_2d.logical_height, 1};
+        return true;
+      }
+    } else {
+      // Untile image.
+      // We could do this in a shader to speed things up, as this is pretty
+      // slow.
+
+      // TODO(benvanik): optimize this inner loop (or work by tiles).
+      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
       uint32_t bytes_per_block = src.format_info()->block_width *
                                  src.format_info()->block_height *
                                  src.format_info()->bits_per_pixel / 8;
 
-      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      src_mem += offset_y * src.size_2d.input_pitch;
-      src_mem += offset_x * bytes_per_block;
-      uint32_t pitch =
-          std::min(src.size_2d.input_pitch, src.size_2d.output_pitch);
-      for (uint32_t y = 0;
-           y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
-           y++) {
-        TextureSwap(src.endianness, dest, src_mem, pitch);
-        src_mem += src.size_2d.input_pitch;
-        dest += src.size_2d.output_pitch;
-      }
-    } else if (src.size_2d.input_pitch == src.size_2d.output_pitch) {
-      // Fast path copy entire image.
-      TextureSwap(src.endianness, dest, host_address, src.output_length);
-    } else {
-      // Slow path copy row-by-row because strides differ.
-      // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
-      // this exact thing under the covers, so we just always do it here.
-      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      uint32_t pitch =
-          std::min(src.size_2d.input_pitch, src.size_2d.output_pitch);
-      for (uint32_t y = 0;
-           y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
-           y++) {
-        TextureSwap(src.endianness, dest, src_mem, pitch);
-        src_mem += src.size_2d.input_pitch;
-        dest += src.size_2d.output_pitch;
-      }
-    }
-  } else {
-    // Untile image.
-    // We could do this in a shader to speed things up, as this is pretty slow.
+      // Tiled textures can be packed; get the offset into the packed texture.
+      uint32_t offset_x;
+      uint32_t offset_y;
+      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+      auto log2_bpp = (bytes_per_block >> 2) +
+                      ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
 
-    // TODO(benvanik): optimize this inner loop (or work by tiles).
-    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
+      // Offset to the current row, in bytes.
+      uint32_t output_row_offset = 0;
+      for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
+        auto input_row_offset = TextureInfo::TiledOffset2DOuter(
+            offset_y + y, src.size_2d.block_width, log2_bpp);
 
-    // Tiled textures can be packed; get the offset into the packed texture.
-    uint32_t offset_x;
-    uint32_t offset_y;
-    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-    auto log2_bpp = (bytes_per_block >> 2) +
-                    ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-
-    // Offset to the current row, in bytes.
-    uint32_t output_row_offset = 0;
-    for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
-      auto input_row_offset = TextureInfo::TiledOffset2DOuter(
-          offset_y + y, src.size_2d.block_width, log2_bpp);
-
-      // Go block-by-block on this row.
-      uint32_t output_offset = output_row_offset;
-      for (uint32_t x = 0; x < src.size_2d.block_width; x++) {
-        auto input_offset =
-            TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y,
-                                            log2_bpp, input_row_offset) >>
-            log2_bpp;
-
-        TextureSwap(src.endianness, dest + output_offset,
-                    src_mem + input_offset * bytes_per_block, bytes_per_block);
-
-        output_offset += bytes_per_block;
-      }
-
-      output_row_offset += src.size_2d.output_pitch;
-    }
-  }
-}
-
-void TextureCache::ConvertTextureCube(uint8_t* dest, const TextureInfo& src) {
-  void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (!src.is_tiled) {
-    if (src.size_cube.input_pitch == src.size_cube.output_pitch) {
-      // Fast path copy entire image.
-      TextureSwap(src.endianness, dest, host_address, src.output_length);
-    } else {
-      // Slow path copy row-by-row because strides differ.
-      // UNPACK_ROW_LENGTH only works for uncompressed images, and likely does
-      // this exact thing under the covers, so we just always do it here.
-      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      for (int face = 0; face < 6; ++face) {
-        uint32_t pitch =
-            std::min(src.size_cube.input_pitch, src.size_cube.output_pitch);
-        for (uint32_t y = 0; y < src.size_cube.block_height; y++) {
-          TextureSwap(src.endianness, dest, src_mem, pitch);
-          src_mem += src.size_cube.input_pitch;
-          dest += src.size_cube.output_pitch;
-        }
-      }
-    }
-  } else {
-    // TODO(benvanik): optimize this inner loop (or work by tiles).
-    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
-    // Tiled textures can be packed; get the offset into the packed texture.
-    uint32_t offset_x;
-    uint32_t offset_y;
-    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-    auto bpp = (bytes_per_block >> 2) +
-               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-    for (int face = 0; face < 6; ++face) {
-      for (uint32_t y = 0, output_base_offset = 0;
-           y < src.size_cube.block_height;
-           y++, output_base_offset += src.size_cube.output_pitch) {
-        auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-            offset_y + y,
-            (src.size_cube.input_width / src.format_info()->block_width), bpp);
-        for (uint32_t x = 0, output_offset = output_base_offset;
-             x < src.size_cube.block_width;
-             x++, output_offset += bytes_per_block) {
+        // Go block-by-block on this row.
+        uint32_t output_offset = output_row_offset;
+        for (uint32_t x = 0; x < src.size_2d.block_width; x++) {
           auto input_offset =
-              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
-                                              input_base_offset) >>
-              bpp;
+              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y,
+                                              log2_bpp, input_row_offset) >>
+              log2_bpp;
+
           TextureSwap(src.endianness, dest + output_offset,
                       src_mem + input_offset * bytes_per_block,
                       bytes_per_block);
+
+          output_offset += bytes_per_block;
         }
+
+        output_row_offset += src.size_2d.input_pitch;
       }
-      src_mem += src.size_cube.input_face_length;
-      dest += src.size_cube.output_face_length;
+
+      copy_region->bufferRowLength = src.size_2d.input_width;
+      copy_region->bufferImageHeight = src.size_2d.input_height;
+      copy_region->imageExtent = {src.size_2d.logical_width,
+                                  src.size_2d.logical_height, 1};
+      return true;
     }
+  }
+  return false;
+}
+
+bool TextureCache::ConvertTextureCube(uint8_t* dest,
+                                      VkBufferImageCopy* copy_region,
+                                      const TextureInfo& src) {
+  void* host_address = memory_->TranslatePhysical(src.guest_address);
+  if (src.texture_format == TextureFormat::k_CTX1) {
+    assert_always();
+  } else {
+    if (!src.is_tiled) {
+      // Fast path copy entire image.
+      TextureSwap(src.endianness, dest, host_address, src.input_length);
+      copy_region->bufferRowLength = src.size_cube.input_width;
+      copy_region->bufferImageHeight = src.size_cube.input_height;
+      copy_region->imageExtent = {src.size_cube.logical_width,
+                                  src.size_cube.logical_height, 6};
+      return true;
+    } else {
+      // TODO(benvanik): optimize this inner loop (or work by tiles).
+      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+      uint32_t bytes_per_block = src.format_info()->block_width *
+                                 src.format_info()->block_height *
+                                 src.format_info()->bits_per_pixel / 8;
+      // Tiled textures can be packed; get the offset into the packed texture.
+      uint32_t offset_x;
+      uint32_t offset_y;
+      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+      auto bpp = (bytes_per_block >> 2) +
+                 ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+      for (int face = 0; face < 6; ++face) {
+        for (uint32_t y = 0, output_base_offset = 0;
+             y < src.size_cube.block_height;
+             y++, output_base_offset += src.size_cube.input_pitch) {
+          auto input_base_offset = TextureInfo::TiledOffset2DOuter(
+              offset_y + y,
+              (src.size_cube.input_width / src.format_info()->block_width),
+              bpp);
+          for (uint32_t x = 0, output_offset = output_base_offset;
+               x < src.size_cube.block_width;
+               x++, output_offset += bytes_per_block) {
+            auto input_offset =
+                TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
+                                                input_base_offset) >>
+                bpp;
+            TextureSwap(src.endianness, dest + output_offset,
+                        src_mem + input_offset * bytes_per_block,
+                        bytes_per_block);
+          }
+        }
+        src_mem += src.size_cube.input_face_length;
+        dest += src.size_cube.input_face_length;
+      }
+
+      copy_region->bufferRowLength = src.size_cube.input_width;
+      copy_region->bufferImageHeight = src.size_cube.input_height;
+      copy_region->imageExtent = {src.size_cube.logical_width,
+                                  src.size_cube.logical_height, 6};
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
+                                  const TextureInfo& src) {
+  switch (src.dimension) {
+    case Dimension::k1D:
+      return ConvertTexture1D(dest, copy_region, src);
+    case Dimension::k2D:
+      return ConvertTexture2D(dest, copy_region, src);
+    case Dimension::kCube:
+      return ConvertTextureCube(dest, copy_region, src);
+  }
+  return false;
+}
+
+bool TextureCache::ComputeTextureStorage(size_t* output_length,
+                                         const TextureInfo& src) {
+  if (src.texture_format == TextureFormat::k_CTX1) {
+    switch (src.dimension) {
+      case Dimension::k1D: {
+        *output_length = src.size_1d.logical_width * 2;
+        return true;
+      }
+      case Dimension::k2D: {
+        *output_length =
+            src.size_2d.logical_width * src.size_2d.logical_height * 2;
+        return true;
+      }
+      case Dimension::kCube: {
+        *output_length =
+            src.size_cube.logical_width * src.size_cube.logical_height * 2 * 6;
+        return true;
+      }
+    }
+    return false;
+  } else {
+    *output_length = src.input_length;
+    return true;
   }
 }
 
-bool TextureCache::UploadTexture1D(VkCommandBuffer command_buffer,
-                                   VkFence completion_fence, Texture* dest,
-                                   const TextureInfo& src) {
+bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
+                                 VkFence completion_fence, Texture* dest,
+                                 const TextureInfo& src) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  assert_true(src.dimension == Dimension::k1D);
+  size_t unpack_length;
+  if (!ComputeTextureStorage(&unpack_length, src)) {
+    XELOGW("Failed to compute texture storage");
+    return false;
+  }
 
-  size_t unpack_length = src.output_length;
   if (!staging_buffer_.CanAcquire(unpack_length)) {
     // Need to have unique memory for every upload for at least one frame. If we
     // run out of memory, we need to flush all queued upload commands to the
@@ -1100,95 +1139,22 @@ bool TextureCache::UploadTexture1D(VkCommandBuffer command_buffer,
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
   // on the CPU.
-  ConvertTexture1D(reinterpret_cast<uint8_t*>(alloc->host_ptr), src);
-  staging_buffer_.Flush(alloc);
+  VkBufferImageCopy copy_region;
+  if (!ConvertTexture(reinterpret_cast<uint8_t*>(alloc->host_ptr), &copy_region,
+                      src)) {
+    XELOGW("Failed to convert texture");
+    return false;
+  }
 
   // Transition the texture into a transfer destination layout.
   VkImageMemoryBarrier barrier;
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.pNext = nullptr;
   barrier.srcAccessMask = 0;
+  // TODO(gibbed): is this correct? 1D+cube had VK_ACCESS_HOST_WRITE_BIT, but
+  // not 2D.
   barrier.dstAccessMask =
       VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
-  barrier.oldLayout = dest->image_layout;
-  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = dest->image;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
-
-  // Now move the converted texture into the destination.
-  VkBufferImageCopy copy_region;
-  copy_region.bufferOffset = alloc->offset;
-  copy_region.bufferRowLength = src.size_1d.output_width;
-  copy_region.bufferImageHeight = 1;
-  copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-  copy_region.imageOffset = {0, 0, 0};
-  copy_region.imageExtent = {src.size_1d.output_width, 1, 1};
-  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
-                         dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                         &copy_region);
-
-  // Now transition the texture into a shader readonly source.
-  barrier.srcAccessMask = barrier.dstAccessMask;
-  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-  barrier.oldLayout = barrier.newLayout;
-  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
-
-  dest->image_layout = barrier.newLayout;
-  return true;
-}
-
-bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
-                                   VkFence completion_fence, Texture* dest,
-                                   const TextureInfo& src) {
-#if FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
-
-  assert_true(src.dimension == Dimension::k2D);
-
-  size_t unpack_length = src.output_length;
-  if (!staging_buffer_.CanAcquire(unpack_length)) {
-    // Need to have unique memory for every upload for at least one frame. If we
-    // run out of memory, we need to flush all queued upload commands to the
-    // GPU.
-    FlushPendingCommands(command_buffer, completion_fence);
-
-    // Uploads have been flushed. Continue.
-    if (!staging_buffer_.CanAcquire(unpack_length)) {
-      // The staging buffer isn't big enough to hold this texture.
-      XELOGE(
-          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
-          unpack_length);
-      assert_always();
-      return false;
-    }
-  }
-
-  // Grab some temporary memory for staging.
-  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
-  assert_not_null(alloc);
-
-  // Upload texture into GPU memory.
-  // TODO: If the GPU supports it, we can submit a compute batch to convert the
-  // texture and copy it to its destination. Otherwise, fallback to conversion
-  // on the CPU.
-  ConvertTexture2D(reinterpret_cast<uint8_t*>(alloc->host_ptr), src);
-  staging_buffer_.Flush(alloc);
-
-  // Transition the texture into a transfer destination layout.
-  VkImageMemoryBarrier barrier;
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.pNext = nullptr;
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.oldLayout = dest->image_layout;
   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1207,91 +1173,9 @@ bool TextureCache::UploadTexture2D(VkCommandBuffer command_buffer,
                        nullptr, 1, &barrier);
 
   // Now move the converted texture into the destination.
-  VkBufferImageCopy copy_region;
   copy_region.bufferOffset = alloc->offset;
-  copy_region.bufferRowLength = src.size_2d.output_width;
-  copy_region.bufferImageHeight = src.size_2d.output_height;
   copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   copy_region.imageOffset = {0, 0, 0};
-  copy_region.imageExtent = {src.size_2d.output_width,
-                             src.size_2d.output_height, 1};
-  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
-                         dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                         &copy_region);
-
-  // Now transition the texture into a shader readonly source.
-  barrier.srcAccessMask = barrier.dstAccessMask;
-  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-  barrier.oldLayout = barrier.newLayout;
-  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
-
-  dest->image_layout = barrier.newLayout;
-  return true;
-}
-
-bool TextureCache::UploadTextureCube(VkCommandBuffer command_buffer,
-                                     VkFence completion_fence, Texture* dest,
-                                     const TextureInfo& src) {
-  assert_true(src.dimension == Dimension::kCube);
-
-  size_t unpack_length = src.output_length;
-  if (!staging_buffer_.CanAcquire(unpack_length)) {
-    // Need to have unique memory for every upload for at least one frame. If we
-    // run out of memory, we need to flush all queued upload commands to the
-    // GPU.
-    FlushPendingCommands(command_buffer, completion_fence);
-
-    // Uploads have been flushed. Continue.
-    if (!staging_buffer_.CanAcquire(unpack_length)) {
-      // The staging buffer isn't big enough to hold this texture.
-      XELOGE(
-          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
-          unpack_length);
-      assert_always();
-      return false;
-    }
-  }
-
-  // Grab some temporary memory for staging.
-  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
-  assert_not_null(alloc);
-
-  // Upload texture into GPU memory.
-  // TODO: If the GPU supports it, we can submit a compute batch to convert the
-  // texture and copy it to its destination. Otherwise, fallback to conversion
-  // on the CPU.
-  ConvertTextureCube(reinterpret_cast<uint8_t*>(alloc->host_ptr), src);
-  staging_buffer_.Flush(alloc);
-
-  // Transition the texture into a transfer destination layout.
-  VkImageMemoryBarrier barrier;
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.pNext = nullptr;
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask =
-      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_WRITE_BIT;
-  barrier.oldLayout = dest->image_layout;
-  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = dest->image;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
-
-  // Now move the converted texture into the destination.
-  VkBufferImageCopy copy_region;
-  copy_region.bufferOffset = alloc->offset;
-  copy_region.bufferRowLength = src.size_cube.output_width;
-  copy_region.bufferImageHeight = src.size_cube.output_height;
-  copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-  copy_region.imageOffset = {0, 0, 0};
-  copy_region.imageExtent = {src.size_cube.output_width,
-                             src.size_cube.output_height, 6};
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                          &copy_region);
