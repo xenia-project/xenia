@@ -792,7 +792,112 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                     const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
   if (src.texture_format == TextureFormat::k_CTX1) {
-    assert_always();
+    if (!src.is_tiled) {
+      assert_always();
+    } else {
+      // Untile image.
+      // We could do this in a shader to speed things up, as this is pretty
+      // slow.
+
+      // TODO(benvanik): optimize this inner loop (or work by tiles).
+      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+      const uint32_t bytes_per_block = 8;
+
+      // Tiled textures can be packed; get the offset into the packed texture.
+      uint32_t offset_x;
+      uint32_t offset_y;
+      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+      auto log2_bpp = (bytes_per_block >> 2) +
+                      ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+
+      uint32_t output_pitch = src.size_2d.input_width * 2;
+      // Offset to the current row, in bytes.
+      uint32_t output_row_offset = 0;
+      for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
+        auto input_row_offset = TextureInfo::TiledOffset2DOuter(
+            offset_y + y, src.size_2d.block_width, log2_bpp);
+
+        // Go block-by-block on this row.
+        uint32_t output_offset = output_row_offset;
+        for (uint32_t x = 0; x < src.size_2d.block_width;
+             x++, output_offset += 8) {
+          auto input_offset =
+              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y,
+                                              log2_bpp, input_row_offset) >>
+              log2_bpp;
+
+          union {
+            uint8_t data[8];
+            struct {
+              uint8_t r0, g0, r1, g1;
+              uint32_t xx;
+            };
+          } block;
+          static_assert(sizeof(block) == 8, "CTX1 block mismatch");
+
+          TextureSwap(src.endianness, block.data,
+                      src_mem + input_offset * bytes_per_block,
+                      bytes_per_block);
+
+          uint8_t cr[4] = {
+              block.r0, block.r1,
+              static_cast<uint8_t>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
+              static_cast<uint8_t>(1.f / 3.f * block.r0 +
+                                   2.f / 3.f * block.r1)};
+          uint8_t cg[4] = {
+              block.g0, block.g1,
+              static_cast<uint8_t>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
+              static_cast<uint8_t>(1.f / 3.f * block.g0 +
+                                   2.f / 3.f * block.g1)};
+
+          for (uint32_t oy = 0; oy < 4; ++oy) {
+            for (uint32_t ox = 0; ox < 4; ++ox) {
+              uint8_t xx = (block.xx >> (((ox + (oy * 4)) * 2))) & 3;
+              dest[output_offset + (oy * output_pitch) + (ox * 2) + 0] = cr[xx];
+              dest[output_offset + (oy * output_pitch) + (ox * 2) + 1] = cg[xx];
+            }
+          }
+        }
+        output_row_offset += output_pitch * 4;
+      }
+
+#if 0
+      static int dds_counter = 0;
+      uint8_t dds_header[] = {
+          0x44, 0x44, 0x53, 0x20, 0x7C, 0x00, 0x00, 0x00, 0x07, 0x10, 0x00,
+          0x00, 0x58, 0x02, 0x00, 0x00, 0x20, 0x03, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
+          0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x20, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00,
+          0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+      *((uint32_t*)(&dds_header[12])) = src.size_2d.input_height;
+      *((uint32_t*)(&dds_header[16])) = src.size_2d.input_width;
+
+      char dds_name[512];
+      sprintf(dds_name, "TEST_CTX1_%u.dds", ++dds_counter);
+      auto handle = fopen(dds_name, "wb");
+      fwrite(dds_header, sizeof(dds_header), 1, handle);
+      uint8_t dummy[2] = {0, 0};
+      for (uint32_t i = 0;
+           i < src.size_2d.input_width * src.size_2d.input_height * 2; i += 2) {
+        fwrite(&dest[i], 2, 1, handle);
+        fwrite(dummy, 2, 1, handle);
+      }
+      fclose(handle);
+#endif
+
+      copy_region->bufferRowLength = src.size_2d.input_width;
+      copy_region->bufferImageHeight = src.size_2d.input_height;
+      copy_region->imageExtent = {src.size_2d.logical_width,
+                                  src.size_2d.logical_height, 1};
+      return true;
+    }
   } else {
     if (!src.is_tiled) {
       uint32_t offset_x, offset_y;
@@ -957,17 +1062,16 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
   if (src.texture_format == TextureFormat::k_CTX1) {
     switch (src.dimension) {
       case Dimension::k1D: {
-        *output_length = src.size_1d.logical_width * 2;
+        *output_length = src.size_1d.input_width * 2;
         return true;
       }
       case Dimension::k2D: {
-        *output_length =
-            src.size_2d.logical_width * src.size_2d.logical_height * 2;
+        *output_length = src.size_2d.input_width * src.size_2d.input_height * 2;
         return true;
       }
       case Dimension::kCube: {
         *output_length =
-            src.size_cube.logical_width * src.size_cube.logical_height * 2 * 6;
+            src.size_cube.input_width * src.size_cube.input_height * 2 * 6;
         return true;
       }
     }
