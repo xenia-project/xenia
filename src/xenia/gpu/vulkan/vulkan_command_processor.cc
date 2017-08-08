@@ -884,8 +884,8 @@ namespace xe {
 
 				// Render targets 0-3, 4 = depth
 				uint32_t copy_src_select = copy_regs->copy_control.copy_src_select;
-				bool color_clear_enabled = copy_regs->copy_control.color_clear_enable;
-				bool depth_clear_enabled = copy_regs->copy_control.depth_clear_enable;
+				uint32_t color_clear_enabled = copy_regs->copy_control.color_clear_enable;
+				uint32_t depth_clear_enabled = copy_regs->copy_control.depth_clear_enable;
 				CopyCommand copy_command = copy_regs->copy_control.copy_command;
 
 				assert_true(copy_regs->copy_dest_info.copy_dest_array == 0);
