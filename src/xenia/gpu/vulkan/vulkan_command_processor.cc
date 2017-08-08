@@ -880,7 +880,7 @@ namespace xe {
 					uint32_t copy_surface_slice;
 				}*copy_regs = (decltype(copy_regs))& regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
 
-				bool is_color_source = copy_regs->copy_control.copy_src_select <= 3;
+				uint32_t is_color_source = copy_regs->copy_control.copy_src_select <= 3;
 
 				// Render targets 0-3, 4 = depth
 				uint32_t copy_src_select = copy_regs->copy_control.copy_src_select;
