@@ -624,11 +624,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
         case OPCODE_SPLAT:
+        /*
           if (i->src1.value->IsConstant()) {
             v->set_zero(v->type);
             v->Splat(i->src1.value);
             i->Remove();
           }
+        */
           break;
         case OPCODE_VECTOR_COMPARE_EQ:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {

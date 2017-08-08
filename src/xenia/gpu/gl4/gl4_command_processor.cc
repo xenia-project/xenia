@@ -1826,6 +1826,17 @@ bool GL4CommandProcessor::IssueCopy() {
   void* ptr = memory_->TranslatePhysical(copy_dest_base);
   size_t size = copy_dest_pitch * copy_dest_height * (read_size / 8);
 
+  Endian resolve_endian = Endian::k8in32;
+  if (copy_dest_endian <= Endian128::k16in32) {
+    resolve_endian = static_cast<Endian>(copy_dest_endian);
+  }
+
+  // Demand a resolve texture from the texture cache.
+  TextureInfo tex_info;
+  TextureInfo::PrepareResolve(copy_dest_base, ColorFormatToTextureFormat(copy_dest_format), resolve_endian,
+    dest_logical_width, dest_logical_height,
+    &tex_info);
+
   auto blitter = static_cast<xe::ui::gl::GLContext*>(context_.get())->blitter();
 
   // Make active so glReadPixels reads from us.
@@ -1837,9 +1848,9 @@ bool GL4CommandProcessor::IssueCopy() {
         // Source from a bound render target.
         // TODO(benvanik): RAW copy.
         last_framebuffer_texture_ = texture_cache_.CopyTexture(
-            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
-            dest_block_width, dest_block_height,
-            ColorFormatToTextureFormat(copy_dest_format),
+            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            tex_info.size_2d.block_width, tex_info.size_2d.block_height,
+            tex_info.texture_format,
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
@@ -1852,8 +1863,8 @@ bool GL4CommandProcessor::IssueCopy() {
         // Source from the bound depth/stencil target.
         // TODO(benvanik): RAW copy.
         texture_cache_.CopyTexture(
-            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
-            dest_block_width, dest_block_height, src_format,
+            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            tex_info.size_2d.block_width, tex_info.size_2d.block_height, src_format,
             copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // std::memset(ptr, 0xDE,
@@ -1870,9 +1881,9 @@ bool GL4CommandProcessor::IssueCopy() {
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
         last_framebuffer_texture_ = texture_cache_.ConvertTexture(
-            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
-            dest_block_width, dest_block_height,
-            ColorFormatToTextureFormat(copy_dest_format),
+            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            tex_info.size_2d.block_width, tex_info.size_2d.block_height,
+            tex_info.texture_format,
             copy_dest_swap ? true : false, color_targets[copy_src_select],
             src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
@@ -1884,8 +1895,8 @@ bool GL4CommandProcessor::IssueCopy() {
       } else {
         // Source from the bound depth/stencil target.
         texture_cache_.ConvertTexture(
-            blitter, copy_dest_base, dest_logical_width, dest_logical_height,
-            dest_block_width, dest_block_height, src_format,
+            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            tex_info.size_2d.block_width, tex_info.size_2d.block_height, src_format,
             copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
           // std::memset(ptr, 0xDE,

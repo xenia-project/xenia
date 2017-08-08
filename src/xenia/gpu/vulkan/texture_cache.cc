@@ -86,7 +86,7 @@ static const TextureConfig texture_configs[64] = {
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     {TextureFormat::k_DXN, VK_FORMAT_BC5_UNORM_BLOCK},  // ?
     {TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM},
-    {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGB_UNORM_BLOCK},
+    {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
     {TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK},
     {TextureFormat::k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_UNORM_BLOCK},
     {TextureFormat::k_2_10_10_10_AS_16_16_16_16,
@@ -319,27 +319,48 @@ bool TextureCache::FreeTexture(Texture* texture) {
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
     const TextureInfo& texture_info, TextureFormat format) {
-  auto texture_hash = texture_info.hash();
-  for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
-    if (it->second->texture_info == texture_info) {
+  // Check to see if we've already used a texture at this location.
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    auto texture = it->second->texture_info;
+    if (texture.guest_address == texture_info.guest_address &&
+      texture.dimension == Dimension::k2D &&
+      texture.size_2d.input_width == texture_info.size_2d.block_width &&
+      texture.size_2d.input_height == texture_info.size_2d.block_height) {
       if (it->second->pending_invalidation) {
-        // This texture has been invalidated!
+        // Texture invalidated! Remove.
         RemoveInvalidatedTextures();
         break;
       }
-
       // Tell the trace writer to "cache" this memory (but not read it)
       trace_writer_->WriteMemoryReadCachedNop(texture_info.guest_address,
-                                              texture_info.input_length);
-
+        texture_info.input_length);
       return it->second;
     }
   }
 
+  // Check resolve textures
+  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
+    ++it) {
+    const auto& texture = (*it)->texture_info;
+    if (texture.guest_address == texture_info.guest_address &&
+      texture.dimension == Dimension::k2D &&
+      texture.size_2d.input_width == texture_info.size_2d.block_width &&
+      texture.size_2d.input_height == texture_info.size_2d.block_height) {
+      if ((*it)->pending_invalidation) {
+        // Texture invalidated! Remove.
+        RemoveInvalidatedTextures();
+        break;
+      }
+      return (*it);
+    }
+  }
+
   // No texture at this location. Make a new one.
+  //texture = AllocateTexture(texture_info);
   auto texture =
       AllocateTexture(texture_info, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
                                         VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+  texture->is_full_texture = false;
 
   // Setup a debug name for the texture.
   device_->DbgSetObjectName(
@@ -363,13 +384,18 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
         touched_texture->pending_invalidation = true;
 
         // Add to pending list so Scavenge will clean it up.
-        self->invalidated_textures_mutex_.lock();
-        self->invalidated_textures_->push_back(touched_texture);
-        self->invalidated_textures_mutex_.unlock();
-      },
-      this, texture);
+        self->invalidated_resolve_textures_mutex_.lock();
+        self->invalidated_resolve_textures_.push_back(touched_texture);
+        self->invalidated_resolve_textures_mutex_.unlock();
 
-  textures_[texture_hash] = texture;
+        //self->invalidated_textures_mutex_.lock();
+        //self->invalidated_textures_->push_back(touched_texture);
+        //self->invalidated_textures_mutex_.unlock();
+  },
+    this, texture);
+
+  resolve_textures_.push_back(texture);
+  //textures_[texture_hash] = texture;
   return texture;
 }
 
@@ -387,9 +413,60 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       }
 
       trace_writer_->WriteMemoryReadCached(texture_info.guest_address,
-                                           texture_info.input_length);
+        texture_info.input_length);
 
       return it->second;
+    }
+  }
+  // Check resolve textures.
+  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
+    ++it) {
+    auto texture = (*it);
+    if (texture_info.guest_address == texture->texture_info.guest_address &&
+      texture_info.size_2d.logical_width ==
+      texture->texture_info.size_2d.logical_width &&
+      texture_info.size_2d.logical_height ==
+      texture->texture_info.size_2d.logical_height) {
+      if (texture->pending_invalidation) {
+        // Texture invalidated! Remove.
+        RemoveInvalidatedTextures();
+        break;
+      }
+
+      // Exact match.
+      // TODO: Lazy match (at an offset)
+      // Upgrade this texture to a full texture.
+      texture->is_full_texture = true;
+      texture->texture_info = texture_info;
+
+      if (texture->access_watch_handle) {
+        memory_->CancelAccessWatch(texture->access_watch_handle);
+      }
+
+      // Tell the trace writer to cache this memory but don't read it
+      trace_writer_->WriteMemoryReadCachedNop(texture_info.guest_address,
+        texture_info.input_length);
+
+      texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
+        texture_info.guest_address, texture_info.input_length,
+        cpu::MMIOHandler::kWatchWrite,
+        [](void* context_ptr, void* data_ptr, uint32_t address) {
+        auto self = reinterpret_cast<TextureCache*>(context_ptr);
+        auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
+        // Clear watch handle first so we don't redundantly
+        // remove.
+        touched_texture->access_watch_handle = 0;
+        touched_texture->pending_invalidation = true;
+        // Add to pending list so Scavenge will clean it up.
+        self->invalidated_textures_mutex_.lock();
+        self->invalidated_textures_->push_back(touched_texture);
+        self->invalidated_textures_mutex_.unlock();
+      },
+        this, texture);
+
+      textures_[texture_hash] = *it;
+      it = resolve_textures_.erase(it);
+      return textures_[texture_hash];
     }
   }
 
@@ -411,6 +488,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   // woods yet. This texture could either be a portion of another texture or
   // vice versa. Copy any overlapping textures into this texture.
   // TODO: Byte count -> pixel count (on x and y axes)
+  /*
   VkOffset2D offset;
   auto collide_tex = LookupAddress(
       texture_info.guest_address, texture_info.width + 1,
@@ -418,7 +496,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   if (collide_tex != nullptr) {
     // assert_always();
   }
-
+  */
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
@@ -706,6 +784,23 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
       }
 
       return it->second;
+    }
+  }
+
+  // Check resolve textures
+  for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
+    ++it) {
+    const auto& texture_info = (*it)->texture_info;
+    if (texture_info.guest_address == guest_address &&
+      texture_info.dimension == Dimension::k2D &&
+      texture_info.size_2d.input_width == width &&
+      texture_info.size_2d.input_height == height) {
+      if (out_offset) {
+        out_offset->x = 0;
+        out_offset->y = 0;
+      }
+
+      return (*it);
     }
   }
 
@@ -1360,6 +1455,24 @@ void TextureCache::RemoveInvalidatedTextures() {
 
     invalidated_textures.clear();
   }
+
+  // Invalidated resolve textures.
+  invalidated_resolve_textures_mutex_.lock();
+  if (!invalidated_resolve_textures_.empty()) {
+    for (auto it = invalidated_resolve_textures_.begin();
+      it != invalidated_resolve_textures_.end(); ++it) {
+      pending_delete_textures_.push_back(*it);
+
+      auto tex =
+        std::find(resolve_textures_.begin(), resolve_textures_.end(), *it);
+      if (tex != resolve_textures_.end()) {
+        resolve_textures_.erase(tex);
+      }
+    }
+
+    invalidated_resolve_textures_.clear();
+  }
+  invalidated_resolve_textures_mutex_.unlock();
 }
 
 void TextureCache::ClearCache() {

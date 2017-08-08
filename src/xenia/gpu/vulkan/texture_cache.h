@@ -38,6 +38,7 @@ class TextureCache {
     TextureInfo texture_info;
     std::vector<std::unique_ptr<TextureView>> views;
 
+    bool is_full_texture;
     VkFormat format;
     VkImage image;
     VkImageLayout image_layout;
@@ -183,11 +184,15 @@ class TextureCache {
   ui::vulkan::CircularBuffer staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
   std::unordered_map<uint64_t, Sampler*> samplers_;
+  std::vector<Texture*> resolve_textures_;
   std::list<Texture*> pending_delete_textures_;
 
   std::mutex invalidated_textures_mutex_;
   std::vector<Texture*>* invalidated_textures_;
   std::vector<Texture*> invalidated_textures_sets_[2];
+
+  std::mutex invalidated_resolve_textures_mutex_;
+  std::vector<Texture*> invalidated_resolve_textures_;
 
   struct UpdateSetInfo {
     // Bitmap of all 32 fetch constants and whether they have been setup yet.
