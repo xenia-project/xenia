@@ -127,6 +127,11 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
       }
     }
 
+    if (IS_KEY_DOWN(0x46)) {
+      // F
+      buttons |= 0x0040;  // XINPUT_GAMEPAD_LEFT_THUMB
+    }
+
     // Right stick
     if (IS_KEY_DOWN(0x26)) {
       // Up
@@ -160,6 +165,11 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
     if (IS_KEY_DOWN(0x50)) {
       // P
       buttons |= 0x8000;  // XINPUT_GAMEPAD_Y
+    }
+
+    if (IS_KEY_DOWN(0x4B)) {
+      // K
+      buttons |= 0x0080;  // XINPUT_GAMEPAD_RIGHT_THUMB
     }
 
     if (IS_KEY_DOWN(0x51) || IS_KEY_DOWN(0x49)) {

@@ -85,6 +85,7 @@ static const TextureConfig texture_configs[64] = {
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     {TextureFormat::k_DXN, VK_FORMAT_BC5_UNORM_BLOCK},  // ?
+
     {TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM},
     {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
     {TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK},
@@ -98,7 +99,10 @@ static const TextureConfig texture_configs[64] = {
     {TextureFormat::k_32_32_32_FLOAT, VK_FORMAT_R32G32B32_SFLOAT},
     {TextureFormat::k_DXT3A, VK_FORMAT_UNDEFINED},
     {TextureFormat::k_DXT5A, VK_FORMAT_UNDEFINED},
+
+    // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     {TextureFormat::k_CTX1, VK_FORMAT_R8G8_UINT},
+
     {TextureFormat::k_DXT3A_AS_1_1_1_1, VK_FORMAT_UNDEFINED},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
@@ -921,6 +925,7 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                               log2_bpp, input_row_offset) >>
               log2_bpp;
 
+          // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
           union {
             uint8_t data[8];
             struct {
