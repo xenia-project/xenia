@@ -880,12 +880,12 @@ namespace xe {
 					uint32_t copy_surface_slice;
 				}*copy_regs = (decltype(copy_regs))& regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
 
-				uint32_t is_color_source = copy_regs->copy_control.copy_src_select <= 3;
+				bool is_color_source = copy_regs->copy_control.copy_src_select <= 3;
 
 				// Render targets 0-3, 4 = depth
 				uint32_t copy_src_select = copy_regs->copy_control.copy_src_select;
-				uint32_t color_clear_enabled = copy_regs->copy_control.color_clear_enable;
-				uint32_t depth_clear_enabled = copy_regs->copy_control.depth_clear_enable;
+				bool color_clear_enabled = copy_regs->copy_control.color_clear_enable;
+				bool depth_clear_enabled = copy_regs->copy_control.depth_clear_enable;
 				CopyCommand copy_command = copy_regs->copy_control.copy_command;
 
 				assert_true(copy_regs->copy_dest_info.copy_dest_array == 0);
@@ -1019,8 +1019,8 @@ namespace xe {
 				// Demand a resolve texture from the texture cache.
 				TextureInfo texture_info;
 				TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
-					dest_logical_width, dest_logical_height,
-					&texture_info);
+					dest_logical_width,
+					std::max(1u, dest_logical_height), &texture_info);
 
 				auto texture =
 					texture_cache_->DemandResolveTexture(texture_info, copy_dest_format);
@@ -1172,7 +1172,7 @@ namespace xe {
 						{ { 0, 0 },{ resolve_extent.width, resolve_extent.height } },
 						view->GetSize(), texture->format, resolve_offset, resolve_extent,
 						texture->framebuffer, filter, is_color_source,
-						copy_regs->copy_dest_info.copy_dest_swap);
+						static_cast<bool>(copy_regs->copy_dest_info.copy_dest_swap));
 
 					// Pull the tile view back to a color attachment.
 					std::swap(image_barrier.srcAccessMask, image_barrier.dstAccessMask);
