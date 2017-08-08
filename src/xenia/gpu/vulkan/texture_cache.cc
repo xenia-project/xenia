@@ -55,8 +55,8 @@ namespace xe {
 				{ TextureFormat::k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK },
 				{ TextureFormat::k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK },
 				{ TextureFormat::kUnknown, VK_FORMAT_UNDEFINED },
-				{ TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT },
-				{ TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT },  // ?
+				{ TextureFormat::k_24_8, VK_FORMAT_D32_SFLOAT_S8_UINT },
+				{ TextureFormat::k_24_8_FLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT },  // ?
 				{ TextureFormat::k_16, VK_FORMAT_R16_UNORM },
 				{ TextureFormat::k_16_16, VK_FORMAT_R16G16_UNORM },
 				{ TextureFormat::k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM },
