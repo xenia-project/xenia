@@ -124,14 +124,18 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
   size_1d.block_width = tile_width * 32;
 
   uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
-
   uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
+
+  uint32_t texel_width;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = tile_width * 32 * format->block_width;
   }
 
-  size_1d.input_width = tile_width * 32 * format->block_width;
+  size_1d.input_width = texel_width;
   size_1d.input_pitch = byte_pitch;
   input_length = size_1d.input_pitch;
 }
@@ -164,12 +168,16 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
       format->block_width * format->block_height * format->bits_per_pixel / 8;
   uint32_t byte_pitch = size_2d.block_width * bytes_per_block;
 
+  uint32_t texel_width;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = size_2d.block_width * format->block_width;
   }
 
-  size_2d.input_width = size_2d.block_width * format->block_width;
+  size_2d.input_width = texel_width;
   size_2d.input_height = size_2d.block_height * format->block_height;
   size_2d.input_pitch = byte_pitch;
 
@@ -201,12 +209,17 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
   uint32_t bytes_per_block =
       format->block_width * format->block_height * format->bits_per_pixel / 8;
   uint32_t byte_pitch = size_cube.block_width * bytes_per_block;
+
+  uint32_t texel_width;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = size_cube.block_width * format->block_width;
   }
 
-  size_cube.input_width = size_cube.block_width * format->block_width;
+  size_cube.input_width = texel_width;
   size_cube.input_height = size_cube.block_height * format->block_height;
   size_cube.input_pitch = byte_pitch;
 

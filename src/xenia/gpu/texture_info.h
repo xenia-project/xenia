@@ -269,17 +269,17 @@ struct TextureInfo {
     struct {
       uint32_t logical_width;
       uint32_t block_width;  // # of horizontal blocks
-      uint32_t input_width;  // pixel pitch
-      uint32_t input_pitch;  // pitch in bytes
+      uint32_t input_width;  // texel pitch
+      uint32_t input_pitch;  // byte pitch
     } size_1d;
     struct {
       uint32_t logical_width;
       uint32_t logical_height;
       uint32_t block_width;   // # of horizontal blocks
       uint32_t block_height;  // # of vertical blocks
-      uint32_t input_width;   // pixel pitch
-      uint32_t input_height;  // pixel height
-      uint32_t input_pitch;   // pitch in bytes
+      uint32_t input_width;   // texel pitch
+      uint32_t input_height;  // texel height
+      uint32_t input_pitch;   // byte pitch
     } size_2d;
     struct {
     } size_3d;
@@ -288,10 +288,10 @@ struct TextureInfo {
       uint32_t logical_height;
       uint32_t block_width;        // # of horizontal blocks
       uint32_t block_height;       // # of vertical blocks
-      uint32_t input_width;        // pixel pitch
-      uint32_t input_height;       // pixel height
-      uint32_t input_pitch;        // pitch in bytes
-      uint32_t input_face_length;  // pitch of face in bytes
+      uint32_t input_width;        // texel pitch
+      uint32_t input_height;       // texel height
+      uint32_t input_pitch;        // byte pitch
+      uint32_t input_face_length;  // byte pitch of face
     } size_cube;
   };
 
