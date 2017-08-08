@@ -978,8 +978,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
         case VertexFormat::k_32_32_32_32:
           // FIXME: Is this a NORM format?
           assert_true(is_integer);
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
+          vertex_attrib_descr.format = is_signed ? VK_FORMAT_R32G32B32A32_SINT
+                                                 : VK_FORMAT_R32G32B32A32_UINT;
           break;
         case VertexFormat::k_32_FLOAT:
           // assert_true(is_signed);
