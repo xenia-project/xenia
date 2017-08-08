@@ -86,7 +86,7 @@ namespace xe {
 				// http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
 				{ TextureFormat::k_DXN, VK_FORMAT_BC5_UNORM_BLOCK },  // ?
 				{ TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM },
-				{ TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGB_UNORM_BLOCK },
+				{ TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGBA_UNORM_BLOCK },
 				{ TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK },
 				{ TextureFormat::k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_UNORM_BLOCK },
 				{ TextureFormat::k_2_10_10_10_AS_16_16_16_16,
