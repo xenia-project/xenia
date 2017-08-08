@@ -189,9 +189,6 @@ void SpirvShaderTranslator::StartTranslation() {
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
-  image_1d_type_ =
-      b.makeImageType(float_type_, spv::Dim::Dim1D, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown);
   image_2d_type_ =
       b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
                       spv::ImageFormat::ImageFormatUnknown);
@@ -203,21 +200,19 @@ void SpirvShaderTranslator::StartTranslation() {
                       spv::ImageFormat::ImageFormatUnknown);
 
   // Texture bindings
-  Id tex_t[] = {b.makeSampledImageType(image_1d_type_),
-                b.makeSampledImageType(image_2d_type_),
+  Id tex_t[] = {b.makeSampledImageType(image_2d_type_),
                 b.makeSampledImageType(image_3d_type_),
                 b.makeSampledImageType(image_cube_type_)};
 
   Id tex_a_t[] = {b.makeArrayType(tex_t[0], b.makeUintConstant(32), 0),
                   b.makeArrayType(tex_t[1], b.makeUintConstant(32), 0),
-                  b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0),
-                  b.makeArrayType(tex_t[3], b.makeUintConstant(32), 0)};
+                  b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0)};
 
-  // Create 4 texture types, all aliased on the same binding
-  for (int i = 0; i < 4; i++) {
+  // Create 3 texture types, all aliased on the same binding
+  for (int i = 0; i < 3; i++) {
     tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
                                tex_a_t[i],
-                               xe::format_string("textures%dD", i + 1).c_str());
+                               xe::format_string("textures%dD", i + 2).c_str());
     b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
     b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
   }
@@ -1296,17 +1291,15 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
   uint32_t dim_idx = 0;
   switch (instr.dimension) {
-    case TextureDimension::k1D: {
+    case TextureDimension::k1D:
+    case TextureDimension::k2D: {
       dim_idx = 0;
     } break;
-    case TextureDimension::k2D: {
+    case TextureDimension::k3D: {
       dim_idx = 1;
     } break;
-    case TextureDimension::k3D: {
-      dim_idx = 2;
-    } break;
     case TextureDimension::kCube: {
-      dim_idx = 3;
+      dim_idx = 2;
     } break;
     default:
       assert_unhandled_case(instr.dimension);
@@ -1332,22 +1325,30 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
       }
 
-      if (instr.dimension == TextureDimension::k1D &&
-          (instr.attributes.offset_x)) {
-        auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
-        offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
-
-        src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
-      } else if (instr.dimension == TextureDimension::k2D &&
-                 (instr.attributes.offset_x || instr.attributes.offset_y)) {
-        auto offset = b.makeCompositeConstant(
+      if (instr.dimension == TextureDimension::k1D) {
+        if (instr.attributes.offset_x) {
+          auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
+          offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
+          src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
+        }
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
+        // "Because the runtime does not support 1D textures, the compiler will
+        //  use a 2D texture with the knowledge that the y-coordinate is
+        //  unimportant."
+        src = b.createCompositeConstruct(
             vec2_float_type_,
-            std::vector<Id>(
-                {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
-                 b.makeFloatConstant(instr.attributes.offset_y + 0.5f)}));
-
-        offset = b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
-        src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
+            std::vector<Id>({src, b.makeFloatConstant(0.0f)}));
+      } else if (instr.dimension == TextureDimension::k2D) {
+        if (instr.attributes.offset_x || instr.attributes.offset_y) {
+          auto offset = b.makeCompositeConstant(
+              vec2_float_type_,
+              std::vector<Id>(
+                  {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
+                   b.makeFloatConstant(instr.attributes.offset_y + 0.5f)}));
+          offset =
+              b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
+          src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
+        }
       }
 
       spv::Builder::TextureParameters params = {0};
@@ -1367,23 +1368,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
 
       switch (instr.dimension) {
-        case TextureDimension::k1D: {
-          spv::Builder::TextureParameters params;
-          std::memset(&params, 0, sizeof(params));
-          params.sampler = image;
-          params.lod = b.makeIntConstant(0);
-          auto size =
-              b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
-          size = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_, size);
-
-          auto weight = b.createBinOp(spv::Op::OpFMul, float_type_, size, src);
-          weight = CreateGlslStd450InstructionCall(
-              spv::NoPrecision, float_type_, spv::GLSLstd450::kFract, {weight});
-
-          dest = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                            {weight, vec4_float_zero_, 0, 1, 1, 1});
-        } break;
-
+        case TextureDimension::k1D:
         case TextureDimension::k2D: {
           spv::Builder::TextureParameters params;
           std::memset(&params, 0, sizeof(params));
