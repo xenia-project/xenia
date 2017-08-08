@@ -139,8 +139,6 @@ class TextureCache {
   void FlushPendingCommands(VkCommandBuffer command_buffer,
                             VkFence completion_fence);
 
-  bool ConvertTexture1D(uint8_t* dest, VkBufferImageCopy* copy_region,
-                        const TextureInfo& src);
   bool ConvertTexture2D(uint8_t* dest, VkBufferImageCopy* copy_region,
                         const TextureInfo& src);
   bool ConvertTextureCube(uint8_t* dest, VkBufferImageCopy* copy_region,

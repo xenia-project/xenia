@@ -198,8 +198,6 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   switch (texture_info.dimension) {
     case Dimension::k1D:
-      image_info.imageType = VK_IMAGE_TYPE_1D;
-      break;
     case Dimension::k2D:
       image_info.imageType = VK_IMAGE_TYPE_2D;
       break;
@@ -480,8 +478,6 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
 
   switch (texture->texture_info.dimension) {
     case Dimension::k1D:
-      view_info.viewType = VK_IMAGE_VIEW_TYPE_1D;
-      break;
     case Dimension::k2D:
       view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
       break;
@@ -771,26 +767,6 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-bool TextureCache::ConvertTexture1D(uint8_t* dest,
-                                    VkBufferImageCopy* copy_region,
-                                    const TextureInfo& src) {
-  void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (src.texture_format == TextureFormat::k_CTX1) {
-    assert_always();
-  } else {
-    if (!src.is_tiled) {
-      TextureSwap(src.endianness, dest, host_address, src.input_length);
-      copy_region->bufferRowLength = src.size_1d.input_width;
-      copy_region->bufferImageHeight = 1;
-      copy_region->imageExtent = {src.size_1d.logical_width, 1, 1};
-      return true;
-    } else {
-      assert_always();
-    }
-  }
-  return false;
-}
-
 bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                     VkBufferImageCopy* copy_region,
                                     const TextureInfo& src) {
@@ -1053,7 +1029,7 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
                                   const TextureInfo& src) {
   switch (src.dimension) {
     case Dimension::k1D:
-      return ConvertTexture1D(dest, copy_region, src);
+      assert_always();
     case Dimension::k2D:
       return ConvertTexture2D(dest, copy_region, src);
     case Dimension::kCube:
@@ -1067,8 +1043,7 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
   if (src.texture_format == TextureFormat::k_CTX1) {
     switch (src.dimension) {
       case Dimension::k1D: {
-        *output_length = src.size_1d.input_width * 2;
-        return true;
+        assert_always();
       }
       case Dimension::k2D: {
         *output_length = src.size_2d.input_width * src.size_2d.input_height * 2;
