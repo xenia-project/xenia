@@ -716,10 +716,9 @@ struct HostTextureInfo {
     auto& info = *out_info;
     auto format = guest_info.format_info();
 
-    uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
-
     switch (guest_info.dimension) {
       case Dimension::k1D: {
+        uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
         uint32_t block_width = xe::round_up(guest_info.size_1d.logical_width,
                                             format->block_width) /
                                format->block_width;
@@ -729,6 +728,7 @@ struct HostTextureInfo {
         return true;
       }
       case Dimension::k2D: {
+        uint32_t bytes_per_block = format->block_width * format->block_height * format->bits_per_pixel / 8;
         uint32_t block_width = xe::round_up(guest_info.size_2d.logical_width,
                                             format->block_width) /
                                format->block_width;
@@ -745,6 +745,7 @@ struct HostTextureInfo {
         return false;
       }
       case Dimension::kCube: {
+        uint32_t bytes_per_block = format->block_width * format->block_height * format->bits_per_pixel / 8;
         uint32_t block_width = xe::round_up(guest_info.size_cube.logical_width,
                                             format->block_width) /
                                format->block_width;
