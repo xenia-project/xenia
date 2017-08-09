@@ -116,7 +116,7 @@ bool Blitter::Initialize(VulkanDevice* device) {
       VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
       0.f,
       VK_FALSE,
-      0.f,
+      1.f,
       VK_FALSE,
       VK_COMPARE_OP_NEVER,
       0.f,

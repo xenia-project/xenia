@@ -98,6 +98,10 @@ static inline char *loader_platform_dirname(char *path) { return dirname(path); 
 // Dynamic Loading of libraries:
 typedef void *loader_platform_dl_handle;
 static inline loader_platform_dl_handle loader_platform_open_library(const char *libPath) {
+    // When loading the library, we use RTLD_LAZY so that not all symbols have to be
+    // resolved at this time (which improves performance). Note that if not all symbols
+    // can be resolved, this could cause crashes later. Use the LD_BIND_NOW environment
+    // variable to force all symbols to be resolved here.
     return dlopen(libPath, RTLD_LAZY | RTLD_LOCAL);
 }
 static inline const char *loader_platform_open_library_error(const char *libPath) { return dlerror(); }
@@ -239,10 +243,18 @@ static char *loader_platform_basename(char *pathname) {
 
 // Dynamic Loading:
 typedef HMODULE loader_platform_dl_handle;
-static loader_platform_dl_handle loader_platform_open_library(const char *libPath) { return LoadLibrary(libPath); }
+static loader_platform_dl_handle loader_platform_open_library(const char *lib_path) {
+    // Try loading the library the original way first.
+    loader_platform_dl_handle lib_handle = LoadLibrary(lib_path);
+    if (lib_handle == NULL && GetLastError() == ERROR_MOD_NOT_FOUND && PathFileExists(lib_path)) {
+        // If that failed, then try loading it with broader search folders.
+        lib_handle = LoadLibraryEx(lib_path, NULL, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+    }
+    return lib_handle;
+}
 static char *loader_platform_open_library_error(const char *libPath) {
     static char errorMsg[164];
-    (void)snprintf(errorMsg, 163, "Failed to open dynamic library \"%s\"", libPath);
+    (void)snprintf(errorMsg, 163, "Failed to open dynamic library \"%s\" with error %d", libPath, GetLastError());
     return errorMsg;
 }
 static void loader_platform_close_library(loader_platform_dl_handle library) { FreeLibrary(library); }

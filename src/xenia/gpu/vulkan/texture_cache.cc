@@ -198,8 +198,6 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   switch (texture_info.dimension) {
     case Dimension::k1D:
-      image_info.imageType = VK_IMAGE_TYPE_1D;
-      break;
     case Dimension::k2D:
       image_info.imageType = VK_IMAGE_TYPE_2D;
       break;
@@ -322,7 +320,7 @@ bool TextureCache::FreeTexture(Texture* texture) {
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
-    const TextureInfo& texture_info, TextureFormat format) {
+    const TextureInfo& texture_info) {
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
     if (it->second->texture_info == texture_info) {
@@ -480,8 +478,6 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
 
   switch (texture->texture_info.dimension) {
     case Dimension::k1D:
-      view_info.viewType = VK_IMAGE_VIEW_TYPE_1D;
-      break;
     case Dimension::k2D:
       view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
       break;
@@ -556,6 +552,7 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.pNext = nullptr;
   sampler_create_info.flags = 0;
   sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  sampler_create_info.maxAnisotropy = 1.0f;
 
   // Texture level filtering.
   VkSamplerMipmapMode mip_filter;
@@ -675,6 +672,58 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   return sampler;
 }
 
+bool TextureFormatIsSimilar(TextureFormat left, TextureFormat right) {
+#define COMPARE_FORMAT(x, y)                                     \
+  if ((left == TextureFormat::x && right == TextureFormat::y) || \
+      (left == TextureFormat::y && right == TextureFormat::x)) { \
+    return true;                                                 \
+  }
+  if (left == right) return true;
+  COMPARE_FORMAT(k_2_10_10_10, k_2_10_10_10_AS_16_16_16_16);
+  return false;
+#undef COMPARE_FORMAT
+}
+
+TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
+  auto texture_hash = texture_info.hash();
+  for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
+    if (it->second->texture_info == texture_info) {
+      return it->second;
+    }
+  }
+  // slow path
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    const auto& other_texture_info = it->second->texture_info;
+#define COMPARE_FIELD(x) \
+  if (texture_info.x != other_texture_info.x) continue
+    COMPARE_FIELD(guest_address);
+    COMPARE_FIELD(dimension);
+    COMPARE_FIELD(width);
+    COMPARE_FIELD(height);
+    COMPARE_FIELD(depth);
+    COMPARE_FIELD(endianness);
+    COMPARE_FIELD(is_tiled);
+    COMPARE_FIELD(has_packed_mips);
+    COMPARE_FIELD(input_length);
+#undef COMPARE_FIELD
+    if (!TextureFormatIsSimilar(texture_info.texture_format,
+                                other_texture_info.texture_format)) {
+      continue;
+    }
+    /*const auto format_info = texture_info.format_info();
+    const auto other_format_info = other_texture_info.format_info();
+#define COMPARE_FIELD(x) if (format_info->x != other_format_info->x) continue
+    COMPARE_FIELD(type);
+    COMPARE_FIELD(block_width);
+    COMPARE_FIELD(block_height);
+    COMPARE_FIELD(bits_per_pixel);
+#undef COMPARE_FIELD*/
+    return it->second;
+  }
+
+  return nullptr;
+}
+
 TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
                                                    uint32_t width,
                                                    uint32_t height,
@@ -769,26 +818,6 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   vkBeginCommandBuffer(command_buffer, &begin_info);
-}
-
-bool TextureCache::ConvertTexture1D(uint8_t* dest,
-                                    VkBufferImageCopy* copy_region,
-                                    const TextureInfo& src) {
-  void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (src.texture_format == TextureFormat::k_CTX1) {
-    assert_always();
-  } else {
-    if (!src.is_tiled) {
-      TextureSwap(src.endianness, dest, host_address, src.input_length);
-      copy_region->bufferRowLength = src.size_1d.input_width;
-      copy_region->bufferImageHeight = 1;
-      copy_region->imageExtent = {src.size_1d.logical_width, 1, 1};
-      return true;
-    } else {
-      assert_always();
-    }
-  }
-  return false;
 }
 
 bool TextureCache::ConvertTexture2D(uint8_t* dest,
@@ -1053,7 +1082,7 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
                                   const TextureInfo& src) {
   switch (src.dimension) {
     case Dimension::k1D:
-      return ConvertTexture1D(dest, copy_region, src);
+      assert_always();
     case Dimension::k2D:
       return ConvertTexture2D(dest, copy_region, src);
     case Dimension::kCube:
@@ -1067,8 +1096,7 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
   if (src.texture_format == TextureFormat::k_CTX1) {
     switch (src.dimension) {
       case Dimension::k1D: {
-        *output_length = src.size_1d.input_width * 2;
-        return true;
+        assert_always();
       }
       case Dimension::k2D: {
         *output_length = src.size_2d.input_width * src.size_2d.input_height * 2;

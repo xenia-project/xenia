@@ -395,10 +395,19 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   }
   auto swap_fb = reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
+  auto& regs = *register_file_;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
+  auto group =
+      reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
+  auto& fetch = group->texture_fetch;
+
+  TextureInfo texture_info;
+  if (!TextureInfo::Prepare(group->texture_fetch, &texture_info)) {
+    assert_always();
+  }
+
   // Issue the commands to copy the game's frontbuffer to our backbuffer.
-  auto texture = texture_cache_->LookupAddress(
-      frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
-      /*xe::round_up(*/ frontbuffer_height /*, 32)*/, TextureFormat::k_8_8_8_8);
+  auto texture = texture_cache_->Lookup(texture_info);
   if (texture) {
     texture->in_flight_fence = current_batch_fence_;
 
@@ -887,6 +896,9 @@ bool VulkanCommandProcessor::IssueCopy() {
       ColorFormatToTextureFormat(copy_regs->copy_dest_info.copy_dest_format);
   // TODO: copy dest number / bias
 
+  // TODO: Issue with RDR - resolves k_16_16_16_16_FLOAT and samples
+  // k_16_16_16_16.
+
   uint32_t copy_dest_base = copy_regs->copy_dest_base;
   uint32_t copy_dest_pitch = copy_regs->copy_dest_pitch.copy_dest_pitch;
   uint32_t copy_dest_height = copy_regs->copy_dest_pitch.copy_dest_height;
@@ -954,13 +966,15 @@ bool VulkanCommandProcessor::IssueCopy() {
   const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
 
+  // Most vertices have a negative half pixel offset applied, which we reverse.
+  auto& vtx_cntl = *(reg::PA_SU_VTX_CNTL*)&regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
+  float vtx_offset = vtx_cntl.pix_center == 0 ? 0.5f : 0.f;
+
   float dest_points[6];
   for (int i = 0; i < 6; i++) {
-    // TODO(DrChat): I believe there is a register dictating whether this
-    // half-pixel offset needs to be applied.
     dest_points[i] =
         GpuSwap(xe::load<float>(vertex_addr + i * 4), Endian(fetch->endian)) +
-        0.5f;
+        vtx_offset;
   }
 
   // Note: The xenos only supports rectangle copies (luckily)
@@ -1015,8 +1029,7 @@ bool VulkanCommandProcessor::IssueCopy() {
                               dest_logical_width,
                               std::max(1u, dest_logical_height), &texture_info);
 
-  auto texture =
-      texture_cache_->DemandResolveTexture(texture_info, copy_dest_format);
+  auto texture = texture_cache_->DemandResolveTexture(texture_info);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 
