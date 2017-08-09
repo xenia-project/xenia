@@ -676,6 +676,58 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   return sampler;
 }
 
+bool TextureFormatIsSimilar(TextureFormat left, TextureFormat right) {
+#define COMPARE_FORMAT(x, y)                                     \
+  if ((left == TextureFormat::x && right == TextureFormat::y) || \
+      (left == TextureFormat::y && right == TextureFormat::x)) { \
+    return true;                                                 \
+  }
+  if (left == right) return true;
+  COMPARE_FORMAT(k_2_10_10_10, k_2_10_10_10_AS_16_16_16_16);
+  return false;
+#undef COMPARE_FORMAT
+}
+
+TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
+  auto texture_hash = texture_info.hash();
+  for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
+    if (it->second->texture_info == texture_info) {
+      return it->second;
+    }
+  }
+  // slow path
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    const auto& other_texture_info = it->second->texture_info;
+#define COMPARE_FIELD(x) \
+  if (texture_info.x != other_texture_info.x) continue
+    COMPARE_FIELD(guest_address);
+    COMPARE_FIELD(dimension);
+    COMPARE_FIELD(width);
+    COMPARE_FIELD(height);
+    COMPARE_FIELD(depth);
+    COMPARE_FIELD(endianness);
+    COMPARE_FIELD(is_tiled);
+    COMPARE_FIELD(has_packed_mips);
+    COMPARE_FIELD(input_length);
+#undef COMPARE_FIELD
+    if (!TextureFormatIsSimilar(texture_info.texture_format,
+                                other_texture_info.texture_format)) {
+      continue;
+    }
+    /*const auto format_info = texture_info.format_info();
+    const auto other_format_info = other_texture_info.format_info();
+#define COMPARE_FIELD(x) if (format_info->x != other_format_info->x) continue
+    COMPARE_FIELD(type);
+    COMPARE_FIELD(block_width);
+    COMPARE_FIELD(block_height);
+    COMPARE_FIELD(bits_per_pixel);
+#undef COMPARE_FIELD*/
+    return it->second;
+  }
+
+  return nullptr;
+}
+
 TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
                                                    uint32_t width,
                                                    uint32_t height,
