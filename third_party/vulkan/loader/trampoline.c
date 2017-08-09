@@ -122,27 +122,11 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionPropert
         }
 
         loader_layer_scan(NULL, &instance_layers);
-        if (strcmp(pLayerName, std_validation_str) == 0) {
-            struct loader_layer_list local_list;
-            memset(&local_list, 0, sizeof(local_list));
-            for (uint32_t i = 0; i < sizeof(std_validation_names) / sizeof(std_validation_names[0]); i++) {
-                loader_find_layer_name_add_list(NULL, std_validation_names[i], VK_LAYER_TYPE_INSTANCE_EXPLICIT, &instance_layers,
-                                                &local_list);
-            }
-            for (uint32_t i = 0; i < local_list.count; i++) {
-                struct loader_extension_list *ext_list = &local_list.list[i].instance_extension_list;
-                loader_add_to_ext_list(NULL, &local_ext_list, ext_list->count, ext_list->list);
-            }
-            loader_destroy_layer_list(NULL, NULL, &local_list);
-            global_ext_list = &local_ext_list;
-
-        } else {
-            for (uint32_t i = 0; i < instance_layers.count; i++) {
-                struct loader_layer_properties *props = &instance_layers.list[i];
-                if (strcmp(props->info.layerName, pLayerName) == 0) {
-                    global_ext_list = &props->instance_extension_list;
-                    break;
-                }
+        for (uint32_t i = 0; i < instance_layers.count; i++) {
+            struct loader_layer_properties *props = &instance_layers.list[i];
+            if (strcmp(props->info.layerName, pLayerName) == 0) {
+                global_ext_list = &props->instance_extension_list;
+                break;
             }
         }
     } else {
@@ -243,6 +227,22 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(const VkInstanceCr
 
     loader_platform_thread_once(&once_init, loader_initialize);
 
+    // Fail if the requested Vulkan apiVersion is > 1.0 since the loader only supports 1.0.
+    // Having pCreateInfo == NULL, pCreateInfo->pApplication == NULL, or
+    // pCreateInfo->pApplicationInfo->apiVersion == 0 all indicate that the application is
+    // only requesting a 1.0 instance, which this loader will always support.
+    uint32_t loader_major_version = 1;
+    uint32_t loader_minor_version = 0;
+    if (NULL != pCreateInfo && NULL != pCreateInfo->pApplicationInfo &&
+        pCreateInfo->pApplicationInfo->apiVersion >= VK_MAKE_VERSION(loader_major_version, loader_minor_version + 1, 0)) {
+        loader_log(ptr_instance, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                   "vkCreateInstance:  Called with invalid API version %d.%d.  Loader only supports %d.%d",
+                   VK_VERSION_MAJOR(pCreateInfo->pApplicationInfo->apiVersion),
+                   VK_VERSION_MINOR(pCreateInfo->pApplicationInfo->apiVersion), loader_major_version, loader_minor_version);
+        res = VK_ERROR_INCOMPATIBLE_DRIVER;
+        goto out;
+    }
+
 #if (DEBUG_DISABLE_APP_ALLOCATORS == 1)
     {
 #else
@@ -306,15 +306,6 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(const VkInstanceCr
         }
     }
 
-    // Convert any meta layers to the actual layers makes a copy of layer name
-    VkResult layerErr =
-        loader_expand_layer_names(ptr_instance, std_validation_str, sizeof(std_validation_names) / sizeof(std_validation_names[0]),
-                                  std_validation_names, &ici.enabledLayerCount, &ici.ppEnabledLayerNames);
-    if (VK_SUCCESS != layerErr) {
-        res = layerErr;
-        goto out;
-    }
-
     // Scan/discover all ICD libraries
     memset(&ptr_instance->icd_tramp_list, 0, sizeof(ptr_instance->icd_tramp_list));
     res = loader_icd_scan(ptr_instance, &ptr_instance->icd_tramp_list);
@@ -332,16 +323,16 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(const VkInstanceCr
         goto out;
     }
 
-    ptr_instance->disp =
-        loader_instance_heap_alloc(ptr_instance, sizeof(VkLayerInstanceDispatchTable), VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+    ptr_instance->disp = loader_instance_heap_alloc(ptr_instance, sizeof(struct loader_instance_dispatch_table),
+                                                    VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
     if (ptr_instance->disp == NULL) {
         loader_log(ptr_instance, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   "vkCreateInstance:  Failed to allocate Instance dispatch"
-                   " table.");
+                   "vkCreateInstance:  Failed to allocate Loader's full Instance dispatch table.");
         res = VK_ERROR_OUT_OF_HOST_MEMORY;
         goto out;
     }
-    memcpy(ptr_instance->disp, &instance_disp, sizeof(instance_disp));
+    memcpy(&ptr_instance->disp->layer_inst_disp, &instance_disp, sizeof(instance_disp));
+
     ptr_instance->next = loader.instances;
     loader.instances = ptr_instance;
 
@@ -386,9 +377,13 @@ out:
                 util_FreeDebugReportCreateInfos(pAllocator, ptr_instance->tmp_dbg_create_infos, ptr_instance->tmp_callbacks);
             }
 
-            loader_deactivate_layers(ptr_instance, NULL, &ptr_instance->activated_layer_list);
+            if (NULL != ptr_instance->expanded_activated_layer_list.list) {
+                loader_deactivate_layers(ptr_instance, NULL, &ptr_instance->expanded_activated_layer_list);
+            }
+            if (NULL != ptr_instance->app_activated_layer_list.list) {
+                loader_destroy_layer_list(ptr_instance, NULL, &ptr_instance->app_activated_layer_list);
+            }
 
-            loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo, &ici);
             loader_delete_layer_properties(ptr_instance, &ptr_instance->instance_layer_list);
             loader_scanned_icd_clear(ptr_instance, &ptr_instance->icd_tramp_list);
             loader_destroy_generic_list(ptr_instance, (struct loader_generic_list *)&ptr_instance->ext_list);
@@ -398,7 +393,6 @@ out:
             // Remove temporary debug_report callback
             util_DestroyDebugReportCallbacks(ptr_instance, pAllocator, ptr_instance->num_tmp_callbacks,
                                              ptr_instance->tmp_callbacks);
-            loader_delete_shadow_inst_layer_names(ptr_instance, pCreateInfo, &ici);
         }
 
         if (loaderLocked) {
@@ -438,7 +432,12 @@ LOADER_EXPORT VKAPI_ATTR void VKAPI_CALL vkDestroyInstance(VkInstance instance, 
 
     disp->DestroyInstance(instance, pAllocator);
 
-    loader_deactivate_layers(ptr_instance, NULL, &ptr_instance->activated_layer_list);
+    if (NULL != ptr_instance->expanded_activated_layer_list.list) {
+        loader_deactivate_layers(ptr_instance, NULL, &ptr_instance->expanded_activated_layer_list);
+    }
+    if (NULL != ptr_instance->app_activated_layer_list.list) {
+        loader_destroy_layer_list(ptr_instance, NULL, &ptr_instance->app_activated_layer_list);
+    }
 
     if (ptr_instance->phys_devs_tramp) {
         for (uint32_t i = 0; i < ptr_instance->phys_dev_count_tramp; i++) {
@@ -601,7 +600,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice phy
     }
 
     // Make sure requested extensions to be enabled are supported
-    res = loader_validate_device_extensions(phys_dev, &inst->activated_layer_list, &icd_exts, pCreateInfo);
+    res = loader_validate_device_extensions(phys_dev, &inst->expanded_activated_layer_list, &icd_exts, pCreateInfo);
     if (res != VK_SUCCESS) {
         loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0, "vkCreateDevice:  Failed to validate extensions in list");
         goto out;
@@ -613,21 +612,47 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice phy
         goto out;
     }
 
-    // Copy the instance layer list into the device
-    dev->activated_layer_list.capacity = inst->activated_layer_list.capacity;
-    dev->activated_layer_list.count = inst->activated_layer_list.count;
-    dev->activated_layer_list.list =
-        loader_device_heap_alloc(dev, inst->activated_layer_list.capacity, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
-    if (dev->activated_layer_list.list == NULL) {
-        loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                   "vkCreateDevice:  Failed to allocate activated layer"
-                   "list of size %d.",
-                   inst->activated_layer_list.capacity);
-        res = VK_ERROR_OUT_OF_HOST_MEMORY;
-        goto out;
+    // Copy the application enabled instance layer list into the device
+    if (NULL != inst->app_activated_layer_list.list) {
+        dev->app_activated_layer_list.capacity = inst->app_activated_layer_list.capacity;
+        dev->app_activated_layer_list.count = inst->app_activated_layer_list.count;
+        dev->app_activated_layer_list.list =
+            loader_device_heap_alloc(dev, inst->app_activated_layer_list.capacity, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+        if (dev->app_activated_layer_list.list == NULL) {
+            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                       "vkCreateDevice:  Failed to allocate application activated layer list of size %d.",
+                       inst->app_activated_layer_list.capacity);
+            res = VK_ERROR_OUT_OF_HOST_MEMORY;
+            goto out;
+        }
+        memcpy(dev->app_activated_layer_list.list, inst->app_activated_layer_list.list,
+               sizeof(*dev->app_activated_layer_list.list) * dev->app_activated_layer_list.count);
+    } else {
+        dev->app_activated_layer_list.capacity = 0;
+        dev->app_activated_layer_list.count = 0;
+        dev->app_activated_layer_list.list = NULL;
     }
-    memcpy(dev->activated_layer_list.list, inst->activated_layer_list.list,
-           sizeof(*dev->activated_layer_list.list) * dev->activated_layer_list.count);
+
+    // Copy the expanded enabled instance layer list into the device
+    if (NULL != inst->expanded_activated_layer_list.list) {
+        dev->expanded_activated_layer_list.capacity = inst->expanded_activated_layer_list.capacity;
+        dev->expanded_activated_layer_list.count = inst->expanded_activated_layer_list.count;
+        dev->expanded_activated_layer_list.list =
+            loader_device_heap_alloc(dev, inst->expanded_activated_layer_list.capacity, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+        if (dev->expanded_activated_layer_list.list == NULL) {
+            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                       "vkCreateDevice:  Failed to allocate expanded activated layer list of size %d.",
+                       inst->expanded_activated_layer_list.capacity);
+            res = VK_ERROR_OUT_OF_HOST_MEMORY;
+            goto out;
+        }
+        memcpy(dev->expanded_activated_layer_list.list, inst->expanded_activated_layer_list.list,
+               sizeof(*dev->expanded_activated_layer_list.list) * dev->expanded_activated_layer_list.count);
+    } else {
+        dev->expanded_activated_layer_list.capacity = 0;
+        dev->expanded_activated_layer_list.count = 0;
+        dev->expanded_activated_layer_list.list = NULL;
+    }
 
     res = loader_create_device_chain(phys_dev, pCreateInfo, pAllocator, inst, dev);
     if (res != VK_SUCCESS) {
@@ -709,28 +734,10 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceExtensionPropertie
         struct loader_device_extension_list local_ext_list;
         memset(&local_ext_list, 0, sizeof(local_ext_list));
         if (vk_string_validate(MaxLoaderStringLength, pLayerName) == VK_STRING_ERROR_NONE) {
-            if (strcmp(pLayerName, std_validation_str) == 0) {
-                struct loader_layer_list local_list;
-                memset(&local_list, 0, sizeof(local_list));
-                for (uint32_t i = 0; i < sizeof(std_validation_names) / sizeof(std_validation_names[0]); i++) {
-                    loader_find_layer_name_add_list(NULL, std_validation_names[i], VK_LAYER_TYPE_INSTANCE_EXPLICIT,
-                                                    &inst->instance_layer_list, &local_list);
-                }
-                for (uint32_t i = 0; i < local_list.count; i++) {
-                    struct loader_device_extension_list *ext_list = &local_list.list[i].device_extension_list;
-                    for (uint32_t j = 0; j < ext_list->count; j++) {
-                        loader_add_to_dev_ext_list(NULL, &local_ext_list, &ext_list->list[j].props, 0, NULL);
-                    }
-                }
-                loader_destroy_layer_list(NULL, NULL, &local_list);
-                dev_ext_list = &local_ext_list;
-
-            } else {
-                for (uint32_t i = 0; i < inst->instance_layer_list.count; i++) {
-                    struct loader_layer_properties *props = &inst->instance_layer_list.list[i];
-                    if (strcmp(props->info.layerName, pLayerName) == 0) {
-                        dev_ext_list = &props->device_extension_list;
-                    }
+            for (uint32_t i = 0; i < inst->instance_layer_list.count; i++) {
+                struct loader_layer_properties *props = &inst->instance_layer_list.list[i];
+                if (strcmp(props->info.layerName, pLayerName) == 0) {
+                    dev_ext_list = &props->device_extension_list;
                 }
             }
 
@@ -772,7 +779,6 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(Vk
     uint32_t copy_size;
     struct loader_physical_device_tramp *phys_dev;
     struct loader_layer_list *enabled_layers, layers_list;
-    uint32_t std_val_count = sizeof(std_validation_names) / sizeof(std_validation_names[0]);
     memset(&layers_list, 0, sizeof(layers_list));
     loader_platform_thread_lock_mutex(&loader_lock);
 
@@ -784,49 +790,13 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(Vk
     phys_dev = (struct loader_physical_device_tramp *)physicalDevice;
     const struct loader_instance *inst = phys_dev->this_instance;
 
-    uint32_t count = inst->activated_layer_list.count;
-    if (inst->activated_layers_are_std_val) count = count - std_val_count + 1;
-    if (pProperties == NULL) {
+    uint32_t count = inst->app_activated_layer_list.count;
+    if (count == 0 || pProperties == NULL) {
         *pPropertyCount = count;
         loader_platform_thread_unlock_mutex(&loader_lock);
         return VK_SUCCESS;
     }
-    // Make sure to enumerate standard_validation if that is what was used
-    // at the instance layer enablement
-    if (inst->activated_layers_are_std_val) {
-        enabled_layers = &layers_list;
-        enabled_layers->count = count;
-        enabled_layers->capacity = enabled_layers->count * sizeof(struct loader_layer_properties);
-        enabled_layers->list = loader_instance_heap_alloc(inst, enabled_layers->capacity, VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
-        if (!enabled_layers->list) {
-            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
-                       "vkEnumerateDeviceLayerProperties:  Failed to allocate enabled"
-                       "layer list of size %d",
-                       enabled_layers->capacity);
-            return VK_ERROR_OUT_OF_HOST_MEMORY;
-        }
-
-        uint32_t j = 0;
-        for (uint32_t i = 0; i < inst->activated_layer_list.count; j++) {
-            if (loader_find_layer_name_array(inst->activated_layer_list.list[i].info.layerName, std_val_count,
-                                             std_validation_names)) {
-                struct loader_layer_properties props;
-                loader_init_std_validation_props(&props);
-                VkResult err = loader_copy_layer_properties(inst, &enabled_layers->list[j], &props);
-                if (err != VK_SUCCESS) {
-                    return err;
-                }
-                i += std_val_count;
-            } else {
-                VkResult err = loader_copy_layer_properties(inst, &enabled_layers->list[j], &inst->activated_layer_list.list[i++]);
-                if (err != VK_SUCCESS) {
-                    return err;
-                }
-            }
-        }
-    } else {
-        enabled_layers = (struct loader_layer_list *)&inst->activated_layer_list;
-    }
+    enabled_layers = (struct loader_layer_list *)&inst->app_activated_layer_list;
 
     copy_size = (*pPropertyCount < count) ? *pPropertyCount : count;
     for (uint32_t i = 0; i < copy_size; i++) {
@@ -834,9 +804,6 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(Vk
     }
     *pPropertyCount = copy_size;
 
-    if (inst->activated_layers_are_std_val) {
-        loader_delete_layer_properties(inst, enabled_layers);
-    }
     if (copy_size < count) {
         loader_platform_thread_unlock_mutex(&loader_lock);
         return VK_INCOMPLETE;

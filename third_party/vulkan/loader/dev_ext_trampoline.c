@@ -16,6 +16,7 @@
  * limitations under the License.
  *
  * Author: Jon Ashburn <jon@lunarg.com>
+ * Author: Lenny Komow <lenny@lunarg.com>
  */
 
 #include "vk_loader_platform.h"
@@ -27,264 +28,256 @@
 // Clang-format does not understand macros.
 // clang-format off
 
- // Trampoline function macro for unknown physical device extension command.
-#define DevExtTramp(num)                                                       \
-VKAPI_ATTR void VKAPI_CALL vkdev_ext##num(VkDevice device) {                   \
-        const struct loader_dev_dispatch_table *disp;                          \
-        disp = loader_get_dev_dispatch(device);                                \
-        disp->ext_dispatch.dev_ext[num](device);                               \
-    }
-
-DevExtTramp(0)
-DevExtTramp(1)
-DevExtTramp(2)
-DevExtTramp(3)
-DevExtTramp(4)
-DevExtTramp(5)
-DevExtTramp(6)
-DevExtTramp(7)
-DevExtTramp(8)
-DevExtTramp(9)
-DevExtTramp(10)
-DevExtTramp(11)
-DevExtTramp(12)
-DevExtTramp(13)
-DevExtTramp(14)
-DevExtTramp(15)
-DevExtTramp(16)
-DevExtTramp(17)
-DevExtTramp(18)
-DevExtTramp(19)
-DevExtTramp(20)
-DevExtTramp(21)
-DevExtTramp(22)
-DevExtTramp(23)
-DevExtTramp(24)
-DevExtTramp(25)
-DevExtTramp(26)
-DevExtTramp(27)
-DevExtTramp(28)
-DevExtTramp(29)
-DevExtTramp(30)
-DevExtTramp(31)
-DevExtTramp(32)
-DevExtTramp(33)
-DevExtTramp(34)
-DevExtTramp(35)
-DevExtTramp(36)
-DevExtTramp(37)
-DevExtTramp(38)
-DevExtTramp(39)
-DevExtTramp(40)
-DevExtTramp(41)
-DevExtTramp(42)
-DevExtTramp(43)
-DevExtTramp(44)
-DevExtTramp(45)
-DevExtTramp(46)
-DevExtTramp(47)
-DevExtTramp(48)
-DevExtTramp(49)
-DevExtTramp(50)
-DevExtTramp(51)
-DevExtTramp(52)
-DevExtTramp(53)
-DevExtTramp(54)
-DevExtTramp(55)
-DevExtTramp(56)
-DevExtTramp(57)
-DevExtTramp(58)
-DevExtTramp(59)
-DevExtTramp(60)
-DevExtTramp(61)
-DevExtTramp(62)
-DevExtTramp(63)
-DevExtTramp(64)
-DevExtTramp(65)
-DevExtTramp(66)
-DevExtTramp(67)
-DevExtTramp(68)
-DevExtTramp(69)
-DevExtTramp(70)
-DevExtTramp(71)
-DevExtTramp(72)
-DevExtTramp(73)
-DevExtTramp(74)
-DevExtTramp(75)
-DevExtTramp(76)
-DevExtTramp(77)
-DevExtTramp(78)
-DevExtTramp(79)
-DevExtTramp(80)
-DevExtTramp(81)
-DevExtTramp(82)
-DevExtTramp(83)
-DevExtTramp(84)
-DevExtTramp(85)
-DevExtTramp(86)
-DevExtTramp(87)
-DevExtTramp(88)
-DevExtTramp(89)
-DevExtTramp(90)
-DevExtTramp(91)
-DevExtTramp(92)
-DevExtTramp(93)
-DevExtTramp(94)
-DevExtTramp(95)
-DevExtTramp(96)
-DevExtTramp(97)
-DevExtTramp(98)
-DevExtTramp(99)
-DevExtTramp(100)
-DevExtTramp(101)
-DevExtTramp(102)
-DevExtTramp(103)
-DevExtTramp(104)
-DevExtTramp(105)
-DevExtTramp(106)
-DevExtTramp(107)
-DevExtTramp(108)
-DevExtTramp(109)
-DevExtTramp(110)
-DevExtTramp(111)
-DevExtTramp(112)
-DevExtTramp(113)
-DevExtTramp(114)
-DevExtTramp(115)
-DevExtTramp(116)
-DevExtTramp(117)
-DevExtTramp(118)
-DevExtTramp(119)
-DevExtTramp(120)
-DevExtTramp(121)
-DevExtTramp(122)
-DevExtTramp(123)
-DevExtTramp(124)
-DevExtTramp(125)
-DevExtTramp(126)
-DevExtTramp(127)
-DevExtTramp(128)
-DevExtTramp(129)
-DevExtTramp(130)
-DevExtTramp(131)
-DevExtTramp(132)
-DevExtTramp(133)
-DevExtTramp(134)
-DevExtTramp(135)
-DevExtTramp(136)
-DevExtTramp(137)
-DevExtTramp(138)
-DevExtTramp(139)
-DevExtTramp(140)
-DevExtTramp(141)
-DevExtTramp(142)
-DevExtTramp(143)
-DevExtTramp(144)
-DevExtTramp(145)
-DevExtTramp(146)
-DevExtTramp(147)
-DevExtTramp(148)
-DevExtTramp(149)
-DevExtTramp(150)
-DevExtTramp(151)
-DevExtTramp(152)
-DevExtTramp(153)
-DevExtTramp(154)
-DevExtTramp(155)
-DevExtTramp(156)
-DevExtTramp(157)
-DevExtTramp(158)
-DevExtTramp(159)
-DevExtTramp(160)
-DevExtTramp(161)
-DevExtTramp(162)
-DevExtTramp(163)
-DevExtTramp(164)
-DevExtTramp(165)
-DevExtTramp(166)
-DevExtTramp(167)
-DevExtTramp(168)
-DevExtTramp(169)
-DevExtTramp(170)
-DevExtTramp(171)
-DevExtTramp(172)
-DevExtTramp(173)
-DevExtTramp(174)
-DevExtTramp(175)
-DevExtTramp(176)
-DevExtTramp(177)
-DevExtTramp(178)
-DevExtTramp(179)
-DevExtTramp(180)
-DevExtTramp(181)
-DevExtTramp(182)
-DevExtTramp(183)
-DevExtTramp(184)
-DevExtTramp(185)
-DevExtTramp(186)
-DevExtTramp(187)
-DevExtTramp(188)
-DevExtTramp(189)
-DevExtTramp(190)
-DevExtTramp(191)
-DevExtTramp(192)
-DevExtTramp(193)
-DevExtTramp(194)
-DevExtTramp(195)
-DevExtTramp(196)
-DevExtTramp(197)
-DevExtTramp(198)
-DevExtTramp(199)
-DevExtTramp(200)
-DevExtTramp(201)
-DevExtTramp(202)
-DevExtTramp(203)
-DevExtTramp(204)
-DevExtTramp(205)
-DevExtTramp(206)
-DevExtTramp(207)
-DevExtTramp(208)
-DevExtTramp(209)
-DevExtTramp(210)
-DevExtTramp(211)
-DevExtTramp(212)
-DevExtTramp(213)
-DevExtTramp(214)
-DevExtTramp(215)
-DevExtTramp(216)
-DevExtTramp(217)
-DevExtTramp(218)
-DevExtTramp(219)
-DevExtTramp(220)
-DevExtTramp(221)
-DevExtTramp(222)
-DevExtTramp(223)
-DevExtTramp(224)
-DevExtTramp(225)
-DevExtTramp(226)
-DevExtTramp(227)
-DevExtTramp(228)
-DevExtTramp(229)
-DevExtTramp(230)
-DevExtTramp(231)
-DevExtTramp(232)
-DevExtTramp(233)
-DevExtTramp(234)
-DevExtTramp(235)
-DevExtTramp(236)
-DevExtTramp(237)
-DevExtTramp(238)
-DevExtTramp(239)
-DevExtTramp(240)
-DevExtTramp(241)
-DevExtTramp(242)
-DevExtTramp(243)
-DevExtTramp(244)
-DevExtTramp(245)
-DevExtTramp(246)
-DevExtTramp(247)
-DevExtTramp(248)
-DevExtTramp(249)
+VKAPI_ATTR void VKAPI_CALL vkdev_ext0(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext1(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext2(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext3(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext4(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext5(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext6(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext7(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext8(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext9(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext10(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext11(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext12(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext13(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext14(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext15(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext16(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext17(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext18(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext19(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext20(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext21(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext22(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext23(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext24(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext25(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext26(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext27(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext28(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext29(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext30(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext31(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext32(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext33(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext34(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext35(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext36(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext37(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext38(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext39(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext40(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext41(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext42(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext43(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext44(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext45(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext46(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext47(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext48(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext49(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext50(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext51(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext52(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext53(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext54(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext55(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext56(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext57(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext58(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext59(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext60(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext61(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext62(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext63(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext64(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext65(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext66(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext67(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext68(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext69(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext70(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext71(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext72(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext73(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext74(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext75(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext76(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext77(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext78(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext79(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext80(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext81(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext82(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext83(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext84(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext85(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext86(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext87(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext88(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext89(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext90(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext91(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext92(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext93(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext94(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext95(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext96(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext97(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext98(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext99(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext100(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext101(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext102(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext103(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext104(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext105(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext106(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext107(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext108(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext109(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext110(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext111(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext112(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext113(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext114(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext115(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext116(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext117(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext118(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext119(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext120(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext121(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext122(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext123(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext124(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext125(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext126(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext127(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext128(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext129(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext130(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext131(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext132(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext133(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext134(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext135(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext136(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext137(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext138(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext139(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext140(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext141(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext142(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext143(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext144(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext145(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext146(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext147(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext148(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext149(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext150(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext151(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext152(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext153(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext154(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext155(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext156(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext157(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext158(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext159(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext160(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext161(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext162(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext163(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext164(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext165(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext166(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext167(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext168(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext169(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext170(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext171(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext172(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext173(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext174(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext175(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext176(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext177(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext178(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext179(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext180(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext181(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext182(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext183(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext184(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext185(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext186(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext187(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext188(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext189(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext190(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext191(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext192(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext193(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext194(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext195(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext196(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext197(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext198(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext199(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext200(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext201(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext202(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext203(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext204(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext205(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext206(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext207(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext208(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext209(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext210(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext211(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext212(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext213(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext214(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext215(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext216(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext217(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext218(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext219(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext220(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext221(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext222(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext223(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext224(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext225(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext226(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext227(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext228(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext229(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext230(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext231(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext232(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext233(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext234(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext235(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext236(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext237(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext238(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext239(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext240(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext241(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext242(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext243(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext244(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext245(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext246(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext247(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext248(VkDevice device);
+VKAPI_ATTR void VKAPI_CALL vkdev_ext249(VkDevice device);
 
 void *loader_get_dev_ext_trampoline(uint32_t index) {
     switch (index) {

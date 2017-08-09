@@ -1,8 +1,8 @@
 /*
  *
- * Copyright (c) 2016 The Khronos Group Inc.
- * Copyright (c) 2016 Valve Corporation
- * Copyright (c) 2016 LunarG, Inc.
+ * Copyright (c) 2016-17 The Khronos Group Inc.
+ * Copyright (c) 2016-17 Valve Corporation
+ * Copyright (c) 2016-17 LunarG, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
  * limitations under the License.
  *
  * Author: Mark Young <marky@lunarg.com>
+ * Author: Lenny Komow <lenny@lunarg.com>
  *
  */
 
@@ -33,281 +34,511 @@
 #pragma GCC optimize(3)  // force gcc to use tail-calls
 #endif
 
-// Trampoline function macro for unknown physical device extension command.
-#define PhysDevExtTramp(num)                                                              \
-    VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp##num(VkPhysicalDevice physical_device) { \
-        const struct loader_instance_dispatch_table *disp;                                \
-        disp = loader_get_instance_dispatch(physical_device);                             \
-        disp->phys_dev_ext[num](loader_unwrap_physical_device(physical_device));          \
-    }
-
-// Terminator function macro for unknown physical device extension command.
-#define PhysDevExtTermin(num)                                                                                         \
-    VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin##num(VkPhysicalDevice physical_device) {                            \
-        struct loader_physical_device_term *phys_dev_term = (struct loader_physical_device_term *)physical_device;    \
-        struct loader_icd_term *icd_term = phys_dev_term->this_icd_term;                                              \
-        struct loader_instance *inst = (struct loader_instance *)icd_term->this_instance;                             \
-        if (NULL == icd_term->phys_dev_ext[num]) {                                                                    \
-            loader_log(inst, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0, "Extension %s not supported for this physical device", \
-                       inst->phys_dev_ext_disp_hash[num].func_name);                                                  \
-        }                                                                                                             \
-        icd_term->phys_dev_ext[num](phys_dev_term->phys_dev);                                                         \
-    }
+// Declarations for the trampoline
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp0(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp1(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp2(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp3(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp4(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp5(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp6(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp7(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp8(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp9(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp10(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp11(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp12(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp13(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp14(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp15(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp16(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp17(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp18(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp19(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp20(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp21(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp22(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp23(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp24(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp25(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp26(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp27(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp28(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp29(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp30(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp31(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp32(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp33(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp34(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp35(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp36(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp37(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp38(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp39(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp40(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp41(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp42(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp43(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp44(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp45(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp46(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp47(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp48(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp49(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp50(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp51(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp52(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp53(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp54(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp55(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp56(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp57(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp58(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp59(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp60(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp61(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp62(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp63(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp64(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp65(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp66(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp67(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp68(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp69(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp70(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp71(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp72(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp73(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp74(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp75(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp76(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp77(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp78(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp79(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp80(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp81(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp82(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp83(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp84(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp85(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp86(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp87(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp88(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp89(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp90(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp91(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp92(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp93(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp94(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp95(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp96(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp97(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp98(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp99(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp100(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp101(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp102(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp103(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp104(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp105(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp106(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp107(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp108(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp109(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp110(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp111(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp112(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp113(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp114(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp115(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp116(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp117(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp118(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp119(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp120(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp121(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp122(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp123(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp124(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp125(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp126(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp127(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp128(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp129(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp130(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp131(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp132(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp133(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp134(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp135(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp136(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp137(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp138(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp139(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp140(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp141(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp142(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp143(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp144(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp145(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp146(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp147(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp148(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp149(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp150(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp151(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp152(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp153(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp154(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp155(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp156(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp157(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp158(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp159(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp160(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp161(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp162(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp163(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp164(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp165(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp166(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp167(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp168(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp169(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp170(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp171(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp172(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp173(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp174(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp175(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp176(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp177(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp178(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp179(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp180(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp181(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp182(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp183(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp184(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp185(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp186(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp187(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp188(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp189(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp190(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp191(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp192(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp193(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp194(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp195(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp196(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp197(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp198(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp199(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp200(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp201(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp202(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp203(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp204(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp205(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp206(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp207(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp208(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp209(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp210(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp211(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp212(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp213(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp214(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp215(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp216(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp217(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp218(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp219(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp220(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp221(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp222(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp223(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp224(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp225(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp226(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp227(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp228(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp229(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp230(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp231(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp232(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp233(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp234(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp235(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp236(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp237(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp238(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp239(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp240(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp241(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp242(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp243(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp244(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp245(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp246(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp247(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp248(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTramp249(VkPhysicalDevice);
 
 // Disable clang-format for lists of macros
 // clang-format off
 
-// Instantiations of the trampoline and terminator
-PhysDevExtTramp(0)   PhysDevExtTermin(0)
-PhysDevExtTramp(1)   PhysDevExtTermin(1)
-PhysDevExtTramp(2)   PhysDevExtTermin(2)
-PhysDevExtTramp(3)   PhysDevExtTermin(3)
-PhysDevExtTramp(4)   PhysDevExtTermin(4)
-PhysDevExtTramp(5)   PhysDevExtTermin(5)
-PhysDevExtTramp(6)   PhysDevExtTermin(6)
-PhysDevExtTramp(7)   PhysDevExtTermin(7)
-PhysDevExtTramp(8)   PhysDevExtTermin(8)
-PhysDevExtTramp(9)   PhysDevExtTermin(9)
-PhysDevExtTramp(10)  PhysDevExtTermin(10)
-PhysDevExtTramp(11)  PhysDevExtTermin(11)
-PhysDevExtTramp(12)  PhysDevExtTermin(12)
-PhysDevExtTramp(13)  PhysDevExtTermin(13)
-PhysDevExtTramp(14)  PhysDevExtTermin(14)
-PhysDevExtTramp(15)  PhysDevExtTermin(15)
-PhysDevExtTramp(16)  PhysDevExtTermin(16)
-PhysDevExtTramp(17)  PhysDevExtTermin(17)
-PhysDevExtTramp(18)  PhysDevExtTermin(18)
-PhysDevExtTramp(19)  PhysDevExtTermin(19)
-PhysDevExtTramp(20)  PhysDevExtTermin(20)
-PhysDevExtTramp(21)  PhysDevExtTermin(21)
-PhysDevExtTramp(22)  PhysDevExtTermin(22)
-PhysDevExtTramp(23)  PhysDevExtTermin(23)
-PhysDevExtTramp(24)  PhysDevExtTermin(24)
-PhysDevExtTramp(25)  PhysDevExtTermin(25)
-PhysDevExtTramp(26)  PhysDevExtTermin(26)
-PhysDevExtTramp(27)  PhysDevExtTermin(27)
-PhysDevExtTramp(28)  PhysDevExtTermin(28)
-PhysDevExtTramp(29)  PhysDevExtTermin(29)
-PhysDevExtTramp(30)  PhysDevExtTermin(30)
-PhysDevExtTramp(31)  PhysDevExtTermin(31)
-PhysDevExtTramp(32)  PhysDevExtTermin(32)
-PhysDevExtTramp(33)  PhysDevExtTermin(33)
-PhysDevExtTramp(34)  PhysDevExtTermin(34)
-PhysDevExtTramp(35)  PhysDevExtTermin(35)
-PhysDevExtTramp(36)  PhysDevExtTermin(36)
-PhysDevExtTramp(37)  PhysDevExtTermin(37)
-PhysDevExtTramp(38)  PhysDevExtTermin(38)
-PhysDevExtTramp(39)  PhysDevExtTermin(39)
-PhysDevExtTramp(40)  PhysDevExtTermin(40)
-PhysDevExtTramp(41)  PhysDevExtTermin(41)
-PhysDevExtTramp(42)  PhysDevExtTermin(42)
-PhysDevExtTramp(43)  PhysDevExtTermin(43)
-PhysDevExtTramp(44)  PhysDevExtTermin(44)
-PhysDevExtTramp(45)  PhysDevExtTermin(45)
-PhysDevExtTramp(46)  PhysDevExtTermin(46)
-PhysDevExtTramp(47)  PhysDevExtTermin(47)
-PhysDevExtTramp(48)  PhysDevExtTermin(48)
-PhysDevExtTramp(49)  PhysDevExtTermin(49)
-PhysDevExtTramp(50)  PhysDevExtTermin(50)
-PhysDevExtTramp(51)  PhysDevExtTermin(51)
-PhysDevExtTramp(52)  PhysDevExtTermin(52)
-PhysDevExtTramp(53)  PhysDevExtTermin(53)
-PhysDevExtTramp(54)  PhysDevExtTermin(54)
-PhysDevExtTramp(55)  PhysDevExtTermin(55)
-PhysDevExtTramp(56)  PhysDevExtTermin(56)
-PhysDevExtTramp(57)  PhysDevExtTermin(57)
-PhysDevExtTramp(58)  PhysDevExtTermin(58)
-PhysDevExtTramp(59)  PhysDevExtTermin(59)
-PhysDevExtTramp(60)  PhysDevExtTermin(60)
-PhysDevExtTramp(61)  PhysDevExtTermin(61)
-PhysDevExtTramp(62)  PhysDevExtTermin(62)
-PhysDevExtTramp(63)  PhysDevExtTermin(63)
-PhysDevExtTramp(64)  PhysDevExtTermin(64)
-PhysDevExtTramp(65)  PhysDevExtTermin(65)
-PhysDevExtTramp(66)  PhysDevExtTermin(66)
-PhysDevExtTramp(67)  PhysDevExtTermin(67)
-PhysDevExtTramp(68)  PhysDevExtTermin(68)
-PhysDevExtTramp(69)  PhysDevExtTermin(69)
-PhysDevExtTramp(70)  PhysDevExtTermin(70)
-PhysDevExtTramp(71)  PhysDevExtTermin(71)
-PhysDevExtTramp(72)  PhysDevExtTermin(72)
-PhysDevExtTramp(73)  PhysDevExtTermin(73)
-PhysDevExtTramp(74)  PhysDevExtTermin(74)
-PhysDevExtTramp(75)  PhysDevExtTermin(75)
-PhysDevExtTramp(76)  PhysDevExtTermin(76)
-PhysDevExtTramp(77)  PhysDevExtTermin(77)
-PhysDevExtTramp(78)  PhysDevExtTermin(78)
-PhysDevExtTramp(79)  PhysDevExtTermin(79)
-PhysDevExtTramp(80)  PhysDevExtTermin(80)
-PhysDevExtTramp(81)  PhysDevExtTermin(81)
-PhysDevExtTramp(82)  PhysDevExtTermin(82)
-PhysDevExtTramp(83)  PhysDevExtTermin(83)
-PhysDevExtTramp(84)  PhysDevExtTermin(84)
-PhysDevExtTramp(85)  PhysDevExtTermin(85)
-PhysDevExtTramp(86)  PhysDevExtTermin(86)
-PhysDevExtTramp(87)  PhysDevExtTermin(87)
-PhysDevExtTramp(88)  PhysDevExtTermin(88)
-PhysDevExtTramp(89)  PhysDevExtTermin(89)
-PhysDevExtTramp(90)  PhysDevExtTermin(90)
-PhysDevExtTramp(91)  PhysDevExtTermin(91)
-PhysDevExtTramp(92)  PhysDevExtTermin(92)
-PhysDevExtTramp(93)  PhysDevExtTermin(93)
-PhysDevExtTramp(94)  PhysDevExtTermin(94)
-PhysDevExtTramp(95)  PhysDevExtTermin(95)
-PhysDevExtTramp(96)  PhysDevExtTermin(96)
-PhysDevExtTramp(97)  PhysDevExtTermin(97)
-PhysDevExtTramp(98)  PhysDevExtTermin(98)
-PhysDevExtTramp(99)  PhysDevExtTermin(99)
-PhysDevExtTramp(100) PhysDevExtTermin(100)
-PhysDevExtTramp(101) PhysDevExtTermin(101)
-PhysDevExtTramp(102) PhysDevExtTermin(102)
-PhysDevExtTramp(103) PhysDevExtTermin(103)
-PhysDevExtTramp(104) PhysDevExtTermin(104)
-PhysDevExtTramp(105) PhysDevExtTermin(105)
-PhysDevExtTramp(106) PhysDevExtTermin(106)
-PhysDevExtTramp(107) PhysDevExtTermin(107)
-PhysDevExtTramp(108) PhysDevExtTermin(108)
-PhysDevExtTramp(109) PhysDevExtTermin(109)
-PhysDevExtTramp(110) PhysDevExtTermin(110)
-PhysDevExtTramp(111) PhysDevExtTermin(111)
-PhysDevExtTramp(112) PhysDevExtTermin(112)
-PhysDevExtTramp(113) PhysDevExtTermin(113)
-PhysDevExtTramp(114) PhysDevExtTermin(114)
-PhysDevExtTramp(115) PhysDevExtTermin(115)
-PhysDevExtTramp(116) PhysDevExtTermin(116)
-PhysDevExtTramp(117) PhysDevExtTermin(117)
-PhysDevExtTramp(118) PhysDevExtTermin(118)
-PhysDevExtTramp(119) PhysDevExtTermin(119)
-PhysDevExtTramp(120) PhysDevExtTermin(120)
-PhysDevExtTramp(121) PhysDevExtTermin(121)
-PhysDevExtTramp(122) PhysDevExtTermin(122)
-PhysDevExtTramp(123) PhysDevExtTermin(123)
-PhysDevExtTramp(124) PhysDevExtTermin(124)
-PhysDevExtTramp(125) PhysDevExtTermin(125)
-PhysDevExtTramp(126) PhysDevExtTermin(126)
-PhysDevExtTramp(127) PhysDevExtTermin(127)
-PhysDevExtTramp(128) PhysDevExtTermin(128)
-PhysDevExtTramp(129) PhysDevExtTermin(129)
-PhysDevExtTramp(130) PhysDevExtTermin(130)
-PhysDevExtTramp(131) PhysDevExtTermin(131)
-PhysDevExtTramp(132) PhysDevExtTermin(132)
-PhysDevExtTramp(133) PhysDevExtTermin(133)
-PhysDevExtTramp(134) PhysDevExtTermin(134)
-PhysDevExtTramp(135) PhysDevExtTermin(135)
-PhysDevExtTramp(136) PhysDevExtTermin(136)
-PhysDevExtTramp(137) PhysDevExtTermin(137)
-PhysDevExtTramp(138) PhysDevExtTermin(138)
-PhysDevExtTramp(139) PhysDevExtTermin(139)
-PhysDevExtTramp(140) PhysDevExtTermin(140)
-PhysDevExtTramp(141) PhysDevExtTermin(141)
-PhysDevExtTramp(142) PhysDevExtTermin(142)
-PhysDevExtTramp(143) PhysDevExtTermin(143)
-PhysDevExtTramp(144) PhysDevExtTermin(144)
-PhysDevExtTramp(145) PhysDevExtTermin(145)
-PhysDevExtTramp(146) PhysDevExtTermin(146)
-PhysDevExtTramp(147) PhysDevExtTermin(147)
-PhysDevExtTramp(148) PhysDevExtTermin(148)
-PhysDevExtTramp(149) PhysDevExtTermin(149)
-PhysDevExtTramp(150) PhysDevExtTermin(150)
-PhysDevExtTramp(151) PhysDevExtTermin(151)
-PhysDevExtTramp(152) PhysDevExtTermin(152)
-PhysDevExtTramp(153) PhysDevExtTermin(153)
-PhysDevExtTramp(154) PhysDevExtTermin(154)
-PhysDevExtTramp(155) PhysDevExtTermin(155)
-PhysDevExtTramp(156) PhysDevExtTermin(156)
-PhysDevExtTramp(157) PhysDevExtTermin(157)
-PhysDevExtTramp(158) PhysDevExtTermin(158)
-PhysDevExtTramp(159) PhysDevExtTermin(159)
-PhysDevExtTramp(160) PhysDevExtTermin(160)
-PhysDevExtTramp(161) PhysDevExtTermin(161)
-PhysDevExtTramp(162) PhysDevExtTermin(162)
-PhysDevExtTramp(163) PhysDevExtTermin(163)
-PhysDevExtTramp(164) PhysDevExtTermin(164)
-PhysDevExtTramp(165) PhysDevExtTermin(165)
-PhysDevExtTramp(166) PhysDevExtTermin(166)
-PhysDevExtTramp(167) PhysDevExtTermin(167)
-PhysDevExtTramp(168) PhysDevExtTermin(168)
-PhysDevExtTramp(169) PhysDevExtTermin(169)
-PhysDevExtTramp(170) PhysDevExtTermin(170)
-PhysDevExtTramp(171) PhysDevExtTermin(171)
-PhysDevExtTramp(172) PhysDevExtTermin(172)
-PhysDevExtTramp(173) PhysDevExtTermin(173)
-PhysDevExtTramp(174) PhysDevExtTermin(174)
-PhysDevExtTramp(175) PhysDevExtTermin(175)
-PhysDevExtTramp(176) PhysDevExtTermin(176)
-PhysDevExtTramp(177) PhysDevExtTermin(177)
-PhysDevExtTramp(178) PhysDevExtTermin(178)
-PhysDevExtTramp(179) PhysDevExtTermin(179)
-PhysDevExtTramp(180) PhysDevExtTermin(180)
-PhysDevExtTramp(181) PhysDevExtTermin(181)
-PhysDevExtTramp(182) PhysDevExtTermin(182)
-PhysDevExtTramp(183) PhysDevExtTermin(183)
-PhysDevExtTramp(184) PhysDevExtTermin(184)
-PhysDevExtTramp(185) PhysDevExtTermin(185)
-PhysDevExtTramp(186) PhysDevExtTermin(186)
-PhysDevExtTramp(187) PhysDevExtTermin(187)
-PhysDevExtTramp(188) PhysDevExtTermin(188)
-PhysDevExtTramp(189) PhysDevExtTermin(189)
-PhysDevExtTramp(190) PhysDevExtTermin(190)
-PhysDevExtTramp(191) PhysDevExtTermin(191)
-PhysDevExtTramp(192) PhysDevExtTermin(192)
-PhysDevExtTramp(193) PhysDevExtTermin(193)
-PhysDevExtTramp(194) PhysDevExtTermin(194)
-PhysDevExtTramp(195) PhysDevExtTermin(195)
-PhysDevExtTramp(196) PhysDevExtTermin(196)
-PhysDevExtTramp(197) PhysDevExtTermin(197)
-PhysDevExtTramp(198) PhysDevExtTermin(198)
-PhysDevExtTramp(199) PhysDevExtTermin(199)
-PhysDevExtTramp(200) PhysDevExtTermin(200)
-PhysDevExtTramp(201) PhysDevExtTermin(201)
-PhysDevExtTramp(202) PhysDevExtTermin(202)
-PhysDevExtTramp(203) PhysDevExtTermin(203)
-PhysDevExtTramp(204) PhysDevExtTermin(204)
-PhysDevExtTramp(205) PhysDevExtTermin(205)
-PhysDevExtTramp(206) PhysDevExtTermin(206)
-PhysDevExtTramp(207) PhysDevExtTermin(207)
-PhysDevExtTramp(208) PhysDevExtTermin(208)
-PhysDevExtTramp(209) PhysDevExtTermin(209)
-PhysDevExtTramp(210) PhysDevExtTermin(210)
-PhysDevExtTramp(211) PhysDevExtTermin(211)
-PhysDevExtTramp(212) PhysDevExtTermin(212)
-PhysDevExtTramp(213) PhysDevExtTermin(213)
-PhysDevExtTramp(214) PhysDevExtTermin(214)
-PhysDevExtTramp(215) PhysDevExtTermin(215)
-PhysDevExtTramp(216) PhysDevExtTermin(216)
-PhysDevExtTramp(217) PhysDevExtTermin(217)
-PhysDevExtTramp(218) PhysDevExtTermin(218)
-PhysDevExtTramp(219) PhysDevExtTermin(219)
-PhysDevExtTramp(220) PhysDevExtTermin(220)
-PhysDevExtTramp(221) PhysDevExtTermin(221)
-PhysDevExtTramp(222) PhysDevExtTermin(222)
-PhysDevExtTramp(223) PhysDevExtTermin(223)
-PhysDevExtTramp(224) PhysDevExtTermin(224)
-PhysDevExtTramp(225) PhysDevExtTermin(225)
-PhysDevExtTramp(226) PhysDevExtTermin(226)
-PhysDevExtTramp(227) PhysDevExtTermin(227)
-PhysDevExtTramp(228) PhysDevExtTermin(228)
-PhysDevExtTramp(229) PhysDevExtTermin(229)
-PhysDevExtTramp(230) PhysDevExtTermin(230)
-PhysDevExtTramp(231) PhysDevExtTermin(231)
-PhysDevExtTramp(232) PhysDevExtTermin(232)
-PhysDevExtTramp(233) PhysDevExtTermin(233)
-PhysDevExtTramp(234) PhysDevExtTermin(234)
-PhysDevExtTramp(235) PhysDevExtTermin(235)
-PhysDevExtTramp(236) PhysDevExtTermin(236)
-PhysDevExtTramp(237) PhysDevExtTermin(237)
-PhysDevExtTramp(238) PhysDevExtTermin(238)
-PhysDevExtTramp(239) PhysDevExtTermin(239)
-PhysDevExtTramp(240) PhysDevExtTermin(240)
-PhysDevExtTramp(241) PhysDevExtTermin(241)
-PhysDevExtTramp(242) PhysDevExtTermin(242)
-PhysDevExtTramp(243) PhysDevExtTermin(243)
-PhysDevExtTramp(244) PhysDevExtTermin(244)
-PhysDevExtTramp(245) PhysDevExtTermin(245)
-PhysDevExtTramp(246) PhysDevExtTermin(246)
-PhysDevExtTramp(247) PhysDevExtTermin(247)
-PhysDevExtTramp(248) PhysDevExtTermin(248)
-PhysDevExtTramp(249) PhysDevExtTermin(249)
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin0(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin1(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin2(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin3(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin4(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin5(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin6(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin7(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin8(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin9(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin10(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin11(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin12(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin13(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin14(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin15(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin16(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin17(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin18(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin19(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin20(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin21(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin22(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin23(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin24(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin25(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin26(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin27(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin28(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin29(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin30(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin31(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin32(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin33(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin34(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin35(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin36(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin37(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin38(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin39(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin40(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin41(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin42(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin43(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin44(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin45(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin46(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin47(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin48(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin49(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin50(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin51(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin52(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin53(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin54(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin55(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin56(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin57(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin58(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin59(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin60(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin61(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin62(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin63(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin64(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin65(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin66(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin67(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin68(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin69(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin70(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin71(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin72(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin73(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin74(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin75(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin76(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin77(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin78(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin79(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin80(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin81(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin82(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin83(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin84(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin85(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin86(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin87(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin88(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin89(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin90(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin91(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin92(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin93(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin94(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin95(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin96(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin97(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin98(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin99(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin100(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin101(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin102(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin103(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin104(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin105(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin106(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin107(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin108(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin109(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin110(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin111(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin112(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin113(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin114(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin115(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin116(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin117(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin118(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin119(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin120(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin121(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin122(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin123(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin124(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin125(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin126(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin127(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin128(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin129(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin130(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin131(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin132(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin133(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin134(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin135(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin136(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin137(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin138(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin139(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin140(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin141(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin142(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin143(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin144(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin145(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin146(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin147(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin148(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin149(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin150(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin151(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin152(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin153(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin154(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin155(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin156(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin157(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin158(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin159(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin160(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin161(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin162(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin163(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin164(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin165(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin166(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin167(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin168(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin169(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin170(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin171(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin172(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin173(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin174(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin175(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin176(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin177(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin178(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin179(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin180(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin181(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin182(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin183(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin184(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin185(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin186(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin187(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin188(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin189(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin190(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin191(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin192(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin193(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin194(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin195(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin196(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin197(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin198(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin199(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin200(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin201(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin202(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin203(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin204(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin205(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin206(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin207(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin208(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin209(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin210(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin211(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin212(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin213(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin214(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin215(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin216(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin217(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin218(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin219(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin220(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin221(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin222(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin223(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin224(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin225(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin226(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin227(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin228(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin229(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin230(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin231(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin232(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin233(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin234(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin235(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin236(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin237(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin238(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin239(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin240(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin241(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin242(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin243(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin244(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin245(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin246(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin247(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin248(VkPhysicalDevice);
+VKAPI_ATTR void VKAPI_CALL vkPhysDevExtTermin249(VkPhysicalDevice);
 
 
 void *loader_get_phys_dev_ext_tramp(uint32_t index) {
