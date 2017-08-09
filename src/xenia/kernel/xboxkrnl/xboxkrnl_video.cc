@@ -12,6 +12,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
@@ -332,13 +333,13 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
             lpunknown_t unk3,     // buffer from VdGetSystemCommandBuffer
             lpunknown_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
             lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
-            lpdword_t color_format_ptr, lpdword_t color_space_ptr,
+            lpdword_t texture_format_ptr, lpdword_t color_space_ptr,
             lpdword_t width, lpdword_t height) {
   // All of these parameters are REQUIRED.
   assert(buffer_ptr);
   assert(fetch_ptr);
   assert(frontbuffer_ptr);
-  assert(color_format_ptr);
+  assert(texture_format_ptr);
   assert(width);
   assert(height);
 
@@ -348,10 +349,10 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   xe::copy_and_swap_32_unaligned(
       &fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
-  auto color_format = gpu::ColorFormat(color_format_ptr.value());
+  auto texture_format = gpu::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
-  assert_true(color_format == gpu::ColorFormat::k_8_8_8_8 ||
-              color_format == gpu::ColorFormat::kUnknown0x36);
+  assert_true(texture_format == gpu::TextureFormat::k_8_8_8_8 ||
+              texture_format == gpu::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
   assert_true(*frontbuffer_ptr == fetch.address << 12);
   assert_true(*width == 1 + fetch.size_2d.width);
