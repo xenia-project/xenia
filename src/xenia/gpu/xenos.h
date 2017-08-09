@@ -157,8 +157,8 @@ enum class ColorRenderTargetFormat : uint32_t {
 };
 
 enum class DepthRenderTargetFormat : uint32_t {
-//  kD24S8 = 0,  // Crashes AMD GPUs
-//  kD24FS8 = 1,  // Also crashes AMD GPUs
+  //  kD24S8 = 0,  // Crashes AMD GPUs
+  //  kD24FS8 = 1,  // Also crashes AMD GPUs
   kD32S8 = 0,
   kD32FS8 = 1,
 };
