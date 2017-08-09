@@ -220,10 +220,10 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
 inline TextureFormat DepthRenderTargetToTextureFormat(
     DepthRenderTargetFormat depth_format) {
   switch (depth_format) {
-    case DepthRenderTargetFormat::kD24S8:
-      return TextureFormat::k_24_8;
-    case DepthRenderTargetFormat::kD24FS8:
-      return TextureFormat::k_24_8_FLOAT;
+    case DepthRenderTargetFormat::kD32S8:
+      return TextureFormat::k_32_FLOAT;
+    case DepthRenderTargetFormat::kD32FS8:
+      return TextureFormat::k_32_FLOAT;
     default:
       assert_unhandled_case(depth_format);
       return TextureFormat::kUnknown;
