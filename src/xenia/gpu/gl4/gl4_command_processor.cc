@@ -1838,7 +1838,8 @@ bool GL4CommandProcessor::IssueCopy() {
     &tex_info);
 
   auto blitter = static_cast<xe::ui::gl::GLContext*>(context_.get())->blitter();
-
+  uint32_t info_width = tex_info.width + 1;
+  uint32_t info_height = tex_info.height + 1;
   // Make active so glReadPixels reads from us.
   switch (copy_command) {
     case CopyCommand::kRaw: {
@@ -1848,7 +1849,7 @@ bool GL4CommandProcessor::IssueCopy() {
         // Source from a bound render target.
         // TODO(benvanik): RAW copy.
         last_framebuffer_texture_ = texture_cache_.CopyTexture(
-            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            blitter, tex_info.guest_address, info_width, info_height,
             tex_info.size_2d.block_width, tex_info.size_2d.block_height,
             tex_info.texture_format,
             copy_dest_swap ? true : false, color_targets[copy_src_select],
@@ -1863,7 +1864,7 @@ bool GL4CommandProcessor::IssueCopy() {
         // Source from the bound depth/stencil target.
         // TODO(benvanik): RAW copy.
         texture_cache_.CopyTexture(
-            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            blitter, tex_info.guest_address, info_width, info_height,
             tex_info.size_2d.block_width, tex_info.size_2d.block_height, src_format,
             copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
@@ -1881,7 +1882,7 @@ bool GL4CommandProcessor::IssueCopy() {
         // Either copy the readbuffer into an existing texture or create a new
         // one in the cache so we can service future upload requests.
         last_framebuffer_texture_ = texture_cache_.ConvertTexture(
-            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            blitter, tex_info.guest_address, info_width, info_height,
             tex_info.size_2d.block_width, tex_info.size_2d.block_height,
             tex_info.texture_format,
             copy_dest_swap ? true : false, color_targets[copy_src_select],
@@ -1895,7 +1896,7 @@ bool GL4CommandProcessor::IssueCopy() {
       } else {
         // Source from the bound depth/stencil target.
         texture_cache_.ConvertTexture(
-            blitter, tex_info.guest_address, tex_info.width, tex_info.height,
+            blitter, tex_info.guest_address, info_width, info_height,
             tex_info.size_2d.block_width, tex_info.size_2d.block_height, src_format,
             copy_dest_swap ? true : false, depth_target, src_rect, dest_rect);
         if (!FLAGS_disable_framebuffer_readback) {
