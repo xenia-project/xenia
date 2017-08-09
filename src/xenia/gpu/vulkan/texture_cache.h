@@ -92,6 +92,8 @@ class TextureCache {
 
   // TODO(benvanik): ReadTexture.
 
+  Texture* Lookup(const TextureInfo& texture_info);
+
   // Looks for a texture either containing or matching these parameters.
   // Caller is responsible for checking if the texture returned is an exact
   // match or just contains the texture given by the parameters.

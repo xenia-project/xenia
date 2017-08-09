@@ -395,10 +395,19 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   }
   auto swap_fb = reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
+  auto& regs = *register_file_;
+  int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
+  auto group =
+      reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
+  auto& fetch = group->texture_fetch;
+
+  TextureInfo texture_info;
+  if (!TextureInfo::Prepare(group->texture_fetch, &texture_info)) {
+    assert_always();
+  }
+
   // Issue the commands to copy the game's frontbuffer to our backbuffer.
-  auto texture = texture_cache_->LookupAddress(
-      frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
-      /*xe::round_up(*/ frontbuffer_height /*, 32)*/, TextureFormat::k_8_8_8_8);
+  auto texture = texture_cache_->Lookup(texture_info);
   if (texture) {
     texture->in_flight_fence = current_batch_fence_;
 
