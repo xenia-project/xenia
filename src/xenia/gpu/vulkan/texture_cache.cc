@@ -552,6 +552,7 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.pNext = nullptr;
   sampler_create_info.flags = 0;
   sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  sampler_create_info.maxAnisotropy = 1.0f;
 
   // Texture level filtering.
   VkSamplerMipmapMode mip_filter;
