@@ -392,6 +392,12 @@ void EmulatorWindow::UpdateTitle() {
     title += L" - " + game_title;
   }
 
+  auto graphics_system = emulator()->graphics_system();
+  if (graphics_system) {
+    auto graphics_name = graphics_system->name();
+    title += L" <" + graphics_name + L">";
+  }
+
   if (Clock::guest_time_scalar() != 1.0) {
     title += xe::format_string(L" (@%.2fx)", Clock::guest_time_scalar());
   }

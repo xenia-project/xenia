@@ -24,6 +24,8 @@ class GL4GraphicsSystem : public GraphicsSystem {
   GL4GraphicsSystem();
   ~GL4GraphicsSystem() override;
 
+  std::wstring name() const override { return L"GL4"; }
+
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::Window* target_window) override;
   void Shutdown() override;
