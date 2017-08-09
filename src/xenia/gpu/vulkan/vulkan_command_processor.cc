@@ -887,6 +887,9 @@ bool VulkanCommandProcessor::IssueCopy() {
       ColorFormatToTextureFormat(copy_regs->copy_dest_info.copy_dest_format);
   // TODO: copy dest number / bias
 
+  // TODO: Issue with RDR - resolves k_16_16_16_16_FLOAT and samples
+  // k_16_16_16_16.
+
   uint32_t copy_dest_base = copy_regs->copy_dest_base;
   uint32_t copy_dest_pitch = copy_regs->copy_dest_pitch.copy_dest_pitch;
   uint32_t copy_dest_height = copy_regs->copy_dest_pitch.copy_dest_height;
@@ -1015,8 +1018,7 @@ bool VulkanCommandProcessor::IssueCopy() {
                               dest_logical_width,
                               std::max(1u, dest_logical_height), &texture_info);
 
-  auto texture =
-      texture_cache_->DemandResolveTexture(texture_info, copy_dest_format);
+  auto texture = texture_cache_->DemandResolveTexture(texture_info);
   assert_not_null(texture);
   texture->in_flight_fence = current_batch_fence_;
 

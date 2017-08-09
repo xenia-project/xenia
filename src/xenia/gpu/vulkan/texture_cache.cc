@@ -324,7 +324,7 @@ bool TextureCache::FreeTexture(Texture* texture) {
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
-    const TextureInfo& texture_info, TextureFormat format) {
+    const TextureInfo& texture_info) {
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
     if (it->second->texture_info == texture_info) {

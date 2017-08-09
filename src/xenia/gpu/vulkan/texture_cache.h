@@ -105,8 +105,7 @@ class TextureCache {
 
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture.
-  Texture* DemandResolveTexture(const TextureInfo& texture_info,
-                                TextureFormat format);
+  Texture* DemandResolveTexture(const TextureInfo& texture_info);
 
   // Clears all cached content.
   void ClearCache();
