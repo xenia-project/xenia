@@ -994,7 +994,7 @@ static const char* kColorFormatNames[] = {
     /* 15 */ "k_32_32_FLOAT",
 };
 static const char* kDepthFormatNames[] = {
-    "kD24S8", "kD24FS8",
+    "kD32S8", "kD32FS8",  // kD24S8 and kD24FS8 are unused
 };
 
 void ProgressBar(float frac, float width, float height = 0,

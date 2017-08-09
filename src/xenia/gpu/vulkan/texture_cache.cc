@@ -55,8 +55,12 @@ static const TextureConfig texture_configs[64] = {
     {TextureFormat::k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK},
     {TextureFormat::k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},
-    {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ?
+    {TextureFormat::k_24_8,
+     VK_FORMAT_D32_SFLOAT_S8_UINT},  // Crashes AMD GPUs when set to
+                                     // VK_FORMAT_D24_UNROM_S8_UINT
+    {TextureFormat::k_24_8_FLOAT,
+     VK_FORMAT_D32_SFLOAT_S8_UINT},  // Crashes AMD GPUs when set to
+                                     // VK_FORMAT_D24_UNROM_S8_UINT
     {TextureFormat::k_16, VK_FORMAT_R16_UNORM},
     {TextureFormat::k_16_16, VK_FORMAT_R16G16_UNORM},
     {TextureFormat::k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM},
@@ -506,7 +510,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   };
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-      texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      //      texture->format == VK_FORMAT_D24_UNORM_S8_UINT || //Unused
       texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     // This applies to any depth/stencil format, but we only use D24S8 / D32FS8.
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -1120,7 +1124,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   barrier.image = dest->image;
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      //      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||  // Unused
       dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     barrier.subresourceRange.aspectMask =
         VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
