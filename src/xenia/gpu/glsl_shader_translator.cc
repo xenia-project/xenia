@@ -370,10 +370,9 @@ void main() {
 
   // Master loop and switch for flow control.
   EmitSourceDepth("int pc = 0;\n");
-  EmitSourceDepth("do {\n");
+  EmitSourceDepth("while (pc != 0xFFFF) {\n");
   Indent();
   EmitSourceDepth("switch (pc) {\n");
-  EmitSourceDepth("case 0x0:\n");
 }
 
 std::vector<uint8_t> GlslShaderTranslator::CompleteTranslation() {
@@ -381,7 +380,7 @@ std::vector<uint8_t> GlslShaderTranslator::CompleteTranslation() {
   EmitSourceDepth("default: pc = 0xFFFF; break;\n");
   EmitSourceDepth("};  // switch\n");
   Unindent();
-  EmitSourceDepth("} while (pc != 0xFFFF);  // do while\n");
+  EmitSourceDepth("}  // while\n");
 
   // End of process*() function.
   EmitSource("}\n");
@@ -390,10 +389,7 @@ std::vector<uint8_t> GlslShaderTranslator::CompleteTranslation() {
 }
 
 void GlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
-  // Case 0x0 is already defined at this point.
-  if (cf_index != 0x0) {
     EmitSourceDepth("case 0x%X:\n", cf_index);
-  }
 }
 
 void GlslShaderTranslator::ProcessControlFlowNopInstruction(uint32_t cf_index) {

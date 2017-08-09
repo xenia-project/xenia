@@ -38,6 +38,7 @@ class TextureCache {
     TextureInfo texture_info;
     std::vector<std::unique_ptr<TextureView>> views;
 
+    bool is_full_texture;
     VkFormat format;
     VkImage image;
     VkImageLayout image_layout;
@@ -124,6 +125,9 @@ class TextureCache {
     VkSampler sampler;
   };
 
+  void SetupEmptySet();
+  void DestroyEmptySet();
+
   // Allocates a new texture and memory to back it on the GPU.
   Texture* AllocateTexture(const TextureInfo& texture_info,
                            VkFormatFeatureFlags required_flags =
@@ -179,14 +183,24 @@ class TextureCache {
   std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
 
+  VkImage empty_image_ = nullptr;
+  VkImageView empty_image_view_ = nullptr;
+  VkDeviceMemory empty_image_memory_ = nullptr;
+  VkSampler empty_sampler_ = nullptr;
+  VkDescriptorSet empty_set_ = nullptr;
+
   ui::vulkan::CircularBuffer staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
   std::unordered_map<uint64_t, Sampler*> samplers_;
+  std::vector<Texture*> resolve_textures_;
   std::list<Texture*> pending_delete_textures_;
 
   std::mutex invalidated_textures_mutex_;
   std::vector<Texture*>* invalidated_textures_;
   std::vector<Texture*> invalidated_textures_sets_[2];
+
+  std::mutex invalidated_resolve_textures_mutex_;
+  std::vector<Texture*> invalidated_resolve_textures_;
 
   struct UpdateSetInfo {
     // Bitmap of all 32 fetch constants and whether they have been setup yet.

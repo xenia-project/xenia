@@ -97,8 +97,8 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.dimension = Dimension::k2D;
   assert_true(width > 0);
   assert_true(height > 0);
-  info.width = width - 1;
-  info.height = height - 1;
+  info.width = (width > 2) ? width - 2 : width - 1;
+  info.height = (height > 2) ? height - 2 : height - 1;
   info.texture_format = texture_format;
   info.endianness = endian;
   info.is_tiled = true;

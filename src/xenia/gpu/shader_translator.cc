@@ -335,7 +335,7 @@ void ShaderTranslator::GatherTextureBindingInformation(
 }
 
 void AddControlFlowTargetLabel(const ControlFlowInstruction& cf,
-                               std::set<uint32_t>* label_addresses) {
+                               std::set<uint32_t>* label_addresses, uint32_t index) {
   switch (cf.opcode()) {
     case ControlFlowOpcode::kLoopStart:
       label_addresses->insert(cf.loop_start.address());
@@ -348,6 +348,26 @@ void AddControlFlowTargetLabel(const ControlFlowInstruction& cf,
       break;
     case ControlFlowOpcode::kCondJmp:
       label_addresses->insert(cf.cond_jmp.address());
+      break;
+    case ControlFlowOpcode::kNop:
+      //label_addresses->insert(index);
+      break;
+    case ControlFlowOpcode::kExec:
+      label_addresses->insert(index);
+      //label_addresses->insert(cf.exec.address());
+      break;
+    case ControlFlowOpcode::kExecEnd:
+      label_addresses->insert(index);
+      break;
+    case ControlFlowOpcode::kCondExecPred:
+      label_addresses->insert(index);
+      //label_addresses->insert(cf.cond_exec_pred.address());
+      break;
+    case ControlFlowOpcode::kAlloc:
+      label_addresses->insert(index);
+      break;
+    case ControlFlowOpcode::kCondExecPredClean:
+      label_addresses->insert(index);
       break;
     default:
       // Ignored.
@@ -367,7 +387,7 @@ bool ShaderTranslator::TranslateBlocks() {
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
   std::set<uint32_t> label_addresses;
   std::vector<ControlFlowInstruction> cf_instructions;
-  for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
+  for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {
     ControlFlowInstruction cf_a;
     ControlFlowInstruction cf_b;
     UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
@@ -379,8 +399,10 @@ bool ShaderTranslator::TranslateBlocks() {
       max_cf_dword_index =
           std::min(max_cf_dword_index, cf_b.exec.address() * 3);
     }
-    AddControlFlowTargetLabel(cf_a, &label_addresses);
-    AddControlFlowTargetLabel(cf_b, &label_addresses);
+    AddControlFlowTargetLabel(cf_a, &label_addresses, cf_index);
+    ++cf_index;
+    AddControlFlowTargetLabel(cf_b, &label_addresses, cf_index);
+    ++cf_index;
 
     cf_instructions.push_back(cf_a);
     cf_instructions.push_back(cf_b);
