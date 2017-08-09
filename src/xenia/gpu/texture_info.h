@@ -317,7 +317,6 @@ struct TextureInfo {
   }
 
  private:
-  void CalculateTextureSizes1D(uint32_t width);
   void CalculateTextureSizes2D(uint32_t width, uint32_t height);
   void CalculateTextureSizesCube(uint32_t width, uint32_t height,
                                  uint32_t depth);

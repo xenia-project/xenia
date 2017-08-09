@@ -35,7 +35,13 @@
 //   Version 3 - Add ICD creation/destruction of KHR_surface objects.
 //   Version 4 - Add unknown physical device extension qyering via
 //               vk_icdGetPhysicalDeviceProcAddr.
-#define CURRENT_LOADER_ICD_INTERFACE_VERSION 4
+//   Version 5 - Tells ICDs that the loader is now paying attention to the
+//               application version of Vulkan passed into the ApplicationInfo
+//               structure during vkCreateInstance.  This will tell the ICD
+//               that if the loader is older, it should automatically fail a
+//               call for any API version > 1.0.  Otherwise, the loader will
+//               manually determine if it can support the expected version.
+#define CURRENT_LOADER_ICD_INTERFACE_VERSION 5
 #define MIN_SUPPORTED_LOADER_ICD_INTERFACE_VERSION 0
 #define MIN_PHYS_DEV_EXTENSION_ICD_INTERFACE_VERSION 4
 typedef VkResult (VKAPI_PTR *PFN_vkNegotiateLoaderICDInterfaceVersion)(uint32_t *pVersion);

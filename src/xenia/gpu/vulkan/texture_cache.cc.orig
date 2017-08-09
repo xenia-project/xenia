@@ -443,7 +443,8 @@ bool TextureCache::FreeTexture(Texture* texture) {
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
-    const TextureInfo& texture_info) {
+<<<<<<< HEAD
+    const TextureInfo& texture_info, TextureFormat format) {
   // Check to see if we've already used a texture at this location.
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
     auto texture = it->second->texture_info;
@@ -451,8 +452,14 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       texture.dimension == Dimension::k2D &&
       texture.size_2d.input_width == texture_info.size_2d.block_width &&
       texture.size_2d.input_height == texture_info.size_2d.block_height) {
+=======
+    const TextureInfo& texture_info) {
+  auto texture_hash = texture_info.hash();
+  for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
+    if (it->second->texture_info == texture_info) {
+>>>>>>> ff1a3aaa670b5efd490e3de30bdf46c09c6d8ce0
       if (it->second->pending_invalidation) {
-        // This texture has been invalidated!
+        // Texture invalidated! Remove.
         RemoveInvalidatedTextures();
         break;
       }
@@ -538,7 +545,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       }
 
       trace_writer_->WriteMemoryReadCached(texture_info.guest_address,
-                                           texture_info.input_length);
+        texture_info.input_length);
 
       return it->second;
     }

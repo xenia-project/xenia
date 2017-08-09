@@ -106,8 +106,7 @@ class TextureCache {
 
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture.
-  Texture* DemandResolveTexture(const TextureInfo& texture_info,
-                                TextureFormat format);
+  Texture* DemandResolveTexture(const TextureInfo& texture_info);
 
   // Clears all cached content.
   void ClearCache();
@@ -143,8 +142,6 @@ class TextureCache {
   void FlushPendingCommands(VkCommandBuffer command_buffer,
                             VkFence completion_fence);
 
-  bool ConvertTexture1D(uint8_t* dest, VkBufferImageCopy* copy_region,
-                        const TextureInfo& src);
   bool ConvertTexture2D(uint8_t* dest, VkBufferImageCopy* copy_region,
                         const TextureInfo& src);
   bool ConvertTextureCube(uint8_t* dest, VkBufferImageCopy* copy_region,

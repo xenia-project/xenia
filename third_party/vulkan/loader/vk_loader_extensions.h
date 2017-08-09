@@ -249,6 +249,19 @@ struct loader_icd_term_dispatch {
     PFN_vkGetPhysicalDeviceMemoryProperties2KHR GetPhysicalDeviceMemoryProperties2KHR;
     PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR GetPhysicalDeviceSparseImageFormatProperties2KHR;
 
+    // ---- VK_KHR_external_memory_capabilities extension commands
+    PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHR GetPhysicalDeviceExternalBufferPropertiesKHR;
+
+    // ---- VK_KHR_external_semaphore_capabilities extension commands
+    PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR GetPhysicalDeviceExternalSemaphorePropertiesKHR;
+
+    // ---- VK_KHR_external_fence_capabilities extension commands
+    PFN_vkGetPhysicalDeviceExternalFencePropertiesKHR GetPhysicalDeviceExternalFencePropertiesKHR;
+
+    // ---- VK_KHR_get_surface_capabilities2 extension commands
+    PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR GetPhysicalDeviceSurfaceCapabilities2KHR;
+    PFN_vkGetPhysicalDeviceSurfaceFormats2KHR GetPhysicalDeviceSurfaceFormats2KHR;
+
     // ---- VK_EXT_debug_report extension commands
     PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallbackEXT;
     PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallbackEXT;
@@ -272,12 +285,6 @@ struct loader_icd_term_dispatch {
 
     // ---- VK_KHX_device_group_creation extension commands
     PFN_vkEnumeratePhysicalDeviceGroupsKHX EnumeratePhysicalDeviceGroupsKHX;
-
-    // ---- VK_KHX_external_memory_capabilities extension commands
-    PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHX GetPhysicalDeviceExternalBufferPropertiesKHX;
-
-    // ---- VK_KHX_external_semaphore_capabilities extension commands
-    PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHX GetPhysicalDeviceExternalSemaphorePropertiesKHX;
 
     // ---- VK_NVX_device_generated_commands extension commands
     PFN_vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX GetPhysicalDeviceGeneratedCommandsPropertiesNVX;
@@ -310,12 +317,14 @@ struct loader_icd_term_dispatch {
 union loader_instance_extension_enables {
     struct {
         uint8_t khr_get_physical_device_properties2 : 1;
+        uint8_t khr_external_memory_capabilities : 1;
+        uint8_t khr_external_semaphore_capabilities : 1;
+        uint8_t khr_external_fence_capabilities : 1;
+        uint8_t khr_get_surface_capabilities2 : 1;
         uint8_t ext_debug_report : 1;
         uint8_t nv_external_memory_capabilities : 1;
         uint8_t nn_vi_surface : 1;
         uint8_t khx_device_group_creation : 1;
-        uint8_t khx_external_memory_capabilities : 1;
-        uint8_t khx_external_semaphore_capabilities : 1;
         uint8_t ext_direct_mode_display : 1;
         uint8_t ext_acquire_xlib_display : 1;
         uint8_t ext_display_surface_counter : 1;

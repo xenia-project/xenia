@@ -34,7 +34,9 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.width = info.height = info.depth = 0;
   switch (info.dimension) {
     case Dimension::k1D:
+      info.dimension = Dimension::k2D;
       info.width = fetch.size_1d.width;
+      info.height = 1;
       break;
     case Dimension::k2D:
       info.width = fetch.size_2d.width;
@@ -65,7 +67,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   // Must be called here when we know the format.
   switch (info.dimension) {
     case Dimension::k1D: {
-      info.CalculateTextureSizes1D(fetch.size_1d.width + 1);
+      assert_always();
     } break;
     case Dimension::k2D: {
       info.CalculateTextureSizes2D(fetch.size_2d.width + 1,
@@ -110,36 +112,6 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
 
   info.CalculateTextureSizes2D(width, height);
   return true;
-}
-
-void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
-  // ?
-  size_1d.logical_width = width;
-
-  auto format = format_info();
-
-  uint32_t block_width =
-      xe::round_up(size_1d.logical_width, format->block_width) /
-      format->block_width;
-
-  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
-  size_1d.block_width = tile_width * 32;
-
-  uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
-  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
-
-  uint32_t texel_width;
-  if (!is_tiled) {
-    // Each row must be a multiple of 256 in linear textures.
-    byte_pitch = xe::round_up(byte_pitch, 256);
-    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
-  } else {
-    texel_width = tile_width * 32 * format->block_width;
-  }
-
-  size_1d.input_width = texel_width;
-  size_1d.input_pitch = byte_pitch;
-  input_length = size_1d.input_pitch;
 }
 
 void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
