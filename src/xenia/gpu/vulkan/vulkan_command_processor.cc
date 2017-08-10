@@ -30,7 +30,7 @@ namespace vulkan {
 using namespace xe::gpu::xenos;
 using xe::ui::vulkan::CheckResult;
 
-constexpr size_t kDefaultBufferCacheCapacity = 256 * 1024 * 1024;
+constexpr size_t kDefaultBufferCacheCapacity = 1024 * 1024 * 1024;
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
@@ -407,7 +407,11 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   }
 
   // Issue the commands to copy the game's frontbuffer to our backbuffer.
-  auto texture = texture_cache_->Lookup(texture_info);
+  // auto texture = texture_cache_->Lookup(texture_info);
+  auto texture = texture_cache_->LookupAddress(
+    frontbuffer_ptr, xe::round_up(frontbuffer_width, 32),
+    frontbuffer_height, TextureFormat::k_8_8_8_8);
+
   if (texture) {
     texture->in_flight_fence = current_batch_fence_;
 
