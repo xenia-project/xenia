@@ -1149,6 +1149,23 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
   assert_not_null(alloc);
 
+  // DEBUG: Check the source address. If it's completely zero'd out, print it.
+  bool valid = false;
+  auto src_data = memory_->TranslatePhysical(src.guest_address);
+  for (uint32_t i = 0; i < src.input_length; i++) {
+    if (src_data[i] != 0) {
+      valid = true;
+      break;
+    }
+  }
+
+  if (!valid) {
+    XELOGW(
+        "Warning: Uploading blank texture at address 0x%.8X "
+        "(length: 0x%.8X, format: %d)",
+        src.guest_address, src.input_length, src.texture_format);
+  }
+
   // Upload texture into GPU memory.
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
