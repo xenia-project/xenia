@@ -103,7 +103,7 @@ uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
   base_address = base_address - (base_address % xe::memory::page_size());
 
   auto lock = global_critical_region_.Acquire();
-
+  /*
   // Fire any access watches that overlap this region.
   for (auto it = access_watches_.begin(); it != access_watches_.end();) {
     // Case 1: 2222222|222|11111111
@@ -136,7 +136,7 @@ uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
 
     ++it;
   }
-
+  */
   // Add to table. The slot reservation may evict a previous watch, which
   // could include our target, so we do it first.
   auto entry = new AccessWatchEntry();
