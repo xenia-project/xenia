@@ -225,6 +225,20 @@ bool Win32Window::SetIcon(const void* buffer, size_t size) {
 
 bool Win32Window::is_fullscreen() const { return fullscreen_; }
 
+// https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
+BOOL UnadjustWindowRect(LPRECT prc, DWORD dwStyle, BOOL fMenu) {
+  RECT rc;
+  SetRectEmpty(&rc);
+  BOOL fRc = AdjustWindowRect(&rc, dwStyle, fMenu);
+  if (fRc) {
+    prc->left -= rc.left;
+    prc->top -= rc.top;
+    prc->right -= rc.right;
+    prc->bottom -= rc.bottom;
+  }
+  return fRc;
+}
+
 void Win32Window::ToggleFullscreen(bool fullscreen) {
   if (fullscreen == is_fullscreen()) {
     return;
@@ -261,6 +275,8 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
     }
 
     auto& rc = windowed_pos_.rcNormalPosition;
+    bool has_menu = main_menu_ ? true : false;
+    UnadjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
     width_ = rc.right - rc.left;
     height_ = rc.bottom - rc.top;
   }
