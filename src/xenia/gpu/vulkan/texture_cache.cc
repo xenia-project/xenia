@@ -116,7 +116,9 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       trace_writer_(trace_writer),
       device_(device),
       staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                      kStagingBufferSize) {
+                      kStagingBufferSize),
+      wb_staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                         kStagingBufferSize) {
   VkResult err = VK_SUCCESS;
 
   // Descriptor pool used for all of our cached descriptors.
@@ -126,6 +128,9 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
       *device_, 32768,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
+
+  wb_command_pool_ = std::make_unique<ui::vulkan::CommandBufferPool>(
+      *device_, VK_QUEUE_FAMILY_IGNORED);
 
   // Check some device limits
   // On low sampler counts: Rarely would we experience over 16 unique samplers.
@@ -166,6 +171,10 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   CheckResult(err, "vkCreateDescriptorSetLayout");
 
   if (!staging_buffer_.Initialize()) {
+    assert_always();
+  }
+
+  if (!wb_staging_buffer_.Initialize()) {
     assert_always();
   }
 
@@ -424,21 +433,8 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
-  if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
-    FreeTexture(texture);
-    return nullptr;
-  }
-
-  // Setup a debug name for the texture.
-  device_->DbgSetObjectName(
-      reinterpret_cast<uint64_t>(texture->image),
-      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string(
-          "0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.input_length));
-
-  // Okay. Now that the texture is uploaded from system memory, put a writewatch
-  // on it to tell us if it's been modified from the guest.
+  // Okay. Put a writewatch on it to tell us if it's been modified from the
+  // guest.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
       texture_info.guest_address, texture_info.input_length,
       cpu::MMIOHandler::kWatchWrite,
@@ -456,6 +452,19 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
         self->invalidated_textures_mutex_.unlock();
       },
       this, texture);
+
+  if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
+    FreeTexture(texture);
+    return nullptr;
+  }
+
+  // Setup a debug name for the texture.
+  device_->DbgSetObjectName(
+      reinterpret_cast<uint64_t>(texture->image),
+      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+      xe::format_string(
+          "0x%.8X - 0x%.8X", texture_info.guest_address,
+          texture_info.guest_address + texture_info.input_length));
 
   textures_[texture_hash] = texture;
   return texture;
@@ -1113,6 +1122,76 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
     *output_length = src.input_length;
     return true;
   }
+}
+
+void TextureCache::WritebackTexture(Texture* texture) {
+  VkResult status = VK_SUCCESS;
+  VkFence fence = wb_command_pool_->BeginBatch();
+  auto alloc = wb_staging_buffer_.Acquire(texture->memory_size, fence);
+  if (!alloc) {
+    wb_command_pool_->EndBatch();
+    return;
+  }
+
+  auto command_buffer = wb_command_pool_->AcquireEntry();
+
+  VkCommandBufferBeginInfo begin_info = {
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
+      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr,
+  };
+  vkBeginCommandBuffer(command_buffer, &begin_info);
+
+  // TODO: Transition the texture to a transfer source.
+
+  VkBufferImageCopy region = {
+      alloc->offset,
+      0,
+      0,
+      {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+      {0, 0, 0},
+      {texture->texture_info.width + 1, texture->texture_info.height + 1, 1},
+  };
+
+  vkCmdCopyImageToBuffer(command_buffer, texture->image,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         wb_staging_buffer_.gpu_buffer(), 1, &region);
+
+  // TODO: Transition the texture back to a shader resource.
+
+  vkEndCommandBuffer(command_buffer);
+
+  // Submit the command buffer.
+  // Submit commands and wait.
+  {
+    std::lock_guard<std::mutex>(device_->primary_queue_mutex());
+    VkSubmitInfo submit_info = {
+        VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        nullptr,
+        0,
+        nullptr,
+        nullptr,
+        1,
+        &command_buffer,
+        0,
+        nullptr,
+    };
+    status = vkQueueSubmit(device_->primary_queue(), 1, &submit_info, fence);
+    CheckResult(status, "vkQueueSubmit");
+
+    if (status == VK_SUCCESS) {
+      status = vkQueueWaitIdle(device_->primary_queue());
+      CheckResult(status, "vkQueueWaitIdle");
+    }
+  }
+
+  wb_command_pool_->EndBatch();
+
+  auto dest = memory_->TranslatePhysical(texture->texture_info.guest_address);
+  if (status == VK_SUCCESS) {
+    std::memcpy(dest, alloc->host_ptr, texture->texture_info.input_length);
+  }
+
+  wb_staging_buffer_.Scavenge();
 }
 
 bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
