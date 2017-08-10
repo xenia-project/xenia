@@ -1340,10 +1340,9 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
 
   // Disabled?
   // TODO(benvanik): reset sampler.
-  if (!fetch.type) {
-    return true;
+  if (fetch.type != 0x2) {
+    return false;
   }
-  assert_true(fetch.type == 0x2);
 
   TextureInfo texture_info;
   if (!TextureInfo::Prepare(fetch, &texture_info)) {
@@ -1355,6 +1354,9 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
     XELOGE("Unable to parse sampler info");
     return false;  // invalid texture used
   }
+
+  // Search via the base format.
+  texture_info.texture_format = GetBaseFormat(texture_info.texture_format);
 
   auto texture = Demand(texture_info, command_buffer, completion_fence);
   auto sampler = Demand(sampler_info);
