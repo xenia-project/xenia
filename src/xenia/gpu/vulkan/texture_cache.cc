@@ -130,7 +130,7 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
 
   wb_command_pool_ = std::make_unique<ui::vulkan::CommandBufferPool>(
-      *device_, VK_QUEUE_FAMILY_IGNORED);
+      *device_, device_->queue_family_index());
 
   // Check some device limits
   // On low sampler counts: Rarely would we experience over 16 unique samplers.
