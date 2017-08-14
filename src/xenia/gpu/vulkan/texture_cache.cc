@@ -687,8 +687,10 @@ bool TextureFormatIsSimilar(TextureFormat left, TextureFormat right) {
       (left == TextureFormat::y && right == TextureFormat::x)) { \
     return true;                                                 \
   }
+
   if (left == right) return true;
-  COMPARE_FORMAT(k_2_10_10_10, k_2_10_10_10_AS_16_16_16_16);
+  if (GetBaseFormat(left) == GetBaseFormat(right)) return true;
+
   return false;
 #undef COMPARE_FORMAT
 }
