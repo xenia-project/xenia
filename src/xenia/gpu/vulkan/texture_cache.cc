@@ -36,7 +36,7 @@ static const TextureConfig texture_configs[64] = {
     {TextureFormat::k_1_REVERSE, VK_FORMAT_UNDEFINED},
     {TextureFormat::k_1, VK_FORMAT_UNDEFINED},
     {TextureFormat::k_8, VK_FORMAT_R8_UNORM},
-    {TextureFormat::k_1_5_5_5, VK_FORMAT_R5G5B5A1_UNORM_PACK16},
+    {TextureFormat::k_1_5_5_5, VK_FORMAT_A1R5G5B5_UNORM_PACK16},  // ! A1BGR5
     {TextureFormat::k_5_6_5, VK_FORMAT_R5G6B5_UNORM_PACK16},
     {TextureFormat::k_6_5_5, VK_FORMAT_UNDEFINED},
     {TextureFormat::k_8_8_8_8, VK_FORMAT_R8G8B8A8_UNORM},
@@ -55,8 +55,8 @@ static const TextureConfig texture_configs[64] = {
     {TextureFormat::k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK},
     {TextureFormat::k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK},
     {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},
-    {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ?
+    {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},        // ! AMD
+    {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ! AMD
     {TextureFormat::k_16, VK_FORMAT_R16_UNORM},
     {TextureFormat::k_16_16, VK_FORMAT_R16G16_UNORM},
     {TextureFormat::k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM},
