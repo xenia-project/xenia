@@ -2039,10 +2039,10 @@ GLuint GL4CommandProcessor::GetDepthRenderTarget(
 
   GLenum internal_format;
   switch (format) {
-    case DepthRenderTargetFormat::kD32S8:
+    case DepthRenderTargetFormat::kD24S8:
       internal_format = GL_DEPTH24_STENCIL8;
       break;
-    case DepthRenderTargetFormat::kD32FS8:
+    case DepthRenderTargetFormat::kD24FS8:
       // TODO(benvanik): not supported in GL?
       internal_format = GL_DEPTH24_STENCIL8;
       break;

@@ -61,9 +61,9 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
 
 VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
   switch (format) {
-    case DepthRenderTargetFormat::kD32S8:
+    case DepthRenderTargetFormat::kD24S8:
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
-    case DepthRenderTargetFormat::kD32FS8:
+    case DepthRenderTargetFormat::kD24FS8:
       // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
@@ -781,7 +781,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     config->depth_stencil.format = regs.rb_depth_info.depth_format;
   } else {
     config->depth_stencil.edram_base = 0;
-    config->depth_stencil.format = DepthRenderTargetFormat::kD32S8;
+    config->depth_stencil.format = DepthRenderTargetFormat::kD24S8;
     config->depth_stencil.used = false;
   }
 
