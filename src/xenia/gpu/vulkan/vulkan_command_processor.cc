@@ -967,6 +967,10 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(fetch->type == 3);
   assert_true(fetch->endian == 2);
   assert_true(fetch->size == 6);
+  if (!(fetch->type == 3 && fetch->endian == 2 && fetch->size == 6))
+  {
+    return false;
+  }
   const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
 
