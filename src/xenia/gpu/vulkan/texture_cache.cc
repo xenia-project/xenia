@@ -28,84 +28,90 @@ constexpr uint32_t kMaxTextureSamplers = 32;
 constexpr VkDeviceSize kStagingBufferSize = 32 * 1024 * 1024;
 
 struct TextureConfig {
-  TextureFormat guest_format;
   VkFormat host_format;
 };
 
 static const TextureConfig texture_configs[64] = {
-    {TextureFormat::k_1_REVERSE, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_1, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8, VK_FORMAT_R8_UNORM},
-    {TextureFormat::k_1_5_5_5, VK_FORMAT_R5G5B5A1_UNORM_PACK16},
-    {TextureFormat::k_5_6_5, VK_FORMAT_R5G6B5_UNORM_PACK16},
-    {TextureFormat::k_6_5_5, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_8_8_8, VK_FORMAT_R8G8B8A8_UNORM},
-    {TextureFormat::k_2_10_10_10, VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    {TextureFormat::k_8_A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_B, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_8, VK_FORMAT_R8G8_UNORM},
-    {TextureFormat::k_Cr_Y1_Cb_Y0, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_Y1_Cr_Y0_Cb, VK_FORMAT_UNDEFINED},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_8_8_8_A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_4_4_4_4, VK_FORMAT_R4G4B4A4_UNORM_PACK16},
-    {TextureFormat::k_10_11_11, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_11_11_10, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_DXT1, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    {TextureFormat::k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK},
-    {TextureFormat::k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},
-    {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ?
-    {TextureFormat::k_16, VK_FORMAT_R16_UNORM},
-    {TextureFormat::k_16_16, VK_FORMAT_R16G16_UNORM},
-    {TextureFormat::k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM},
-    {TextureFormat::k_16_EXPAND, VK_FORMAT_R16_UNORM},                    // ?
-    {TextureFormat::k_16_16_EXPAND, VK_FORMAT_R16G16_UNORM},              // ?
-    {TextureFormat::k_16_16_16_16_EXPAND, VK_FORMAT_R16G16B16A16_UNORM},  // ?
-    {TextureFormat::k_16_FLOAT, VK_FORMAT_R16_SFLOAT},
-    {TextureFormat::k_16_16_FLOAT, VK_FORMAT_R16G16_SFLOAT},
-    {TextureFormat::k_16_16_16_16_FLOAT, VK_FORMAT_R16G16B16A16_SFLOAT},
-    {TextureFormat::k_32, VK_FORMAT_R32_SINT},
-    {TextureFormat::k_32_32, VK_FORMAT_R32G32_SINT},
-    {TextureFormat::k_32_32_32_32, VK_FORMAT_R32G32B32A32_SINT},
-    {TextureFormat::k_32_FLOAT, VK_FORMAT_R32_SFLOAT},
-    {TextureFormat::k_32_32_FLOAT, VK_FORMAT_R32G32_SFLOAT},
-    {TextureFormat::k_32_32_32_32_FLOAT, VK_FORMAT_R32G32B32A32_SFLOAT},
-    {TextureFormat::k_32_AS_8, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_32_AS_8_8, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_MPEG, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_16_MPEG, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_32_AS_8_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_32_AS_8_8_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_MPEG_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_16_MPEG_INTERLACED, VK_FORMAT_UNDEFINED},
+    /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
+    /* k_1                      */ {VK_FORMAT_UNDEFINED},
+    /* k_8                      */ {VK_FORMAT_R8_UNORM},
+    // ! A1BGR5
+    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16},
+    /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16},
+    /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
+    /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
+    /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+    /* k_8_A                    */ {VK_FORMAT_UNDEFINED},
+    /* k_8_B                    */ {VK_FORMAT_UNDEFINED},
+    /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM},
+    /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED},
+    /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED},
+    /* k_Shadow                 */ {VK_FORMAT_UNDEFINED},
+    /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED},
+    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16},
+    // TODO: Verify if these two are correct (I think not).
+    /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
+    /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
+
+    /* k_DXT1                   */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
+    /* k_DXT2_3                 */ {VK_FORMAT_BC2_UNORM_BLOCK},
+    /* k_DXT4_5                 */ {VK_FORMAT_BC3_UNORM_BLOCK},
+    /* k_DXV                    */ {VK_FORMAT_UNDEFINED},
+
+    // TODO: D24 unsupported on AMD.
+    /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT},
+    /* k_24_8_FLOAT             */ {VK_FORMAT_D24_UNORM_S8_UINT},
+    /* k_16                     */ {VK_FORMAT_R16_UNORM},
+    /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM},
+    /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM},
+    /* k_16_EXPAND              */ {VK_FORMAT_R16_UNORM},
+    /* k_16_16_EXPAND           */ {VK_FORMAT_R16G16_UNORM},
+    /* k_16_16_16_16_EXPAND     */ {VK_FORMAT_R16G16B16A16_UNORM},
+    /* k_16_FLOAT               */ {VK_FORMAT_R16_SFLOAT},
+    /* k_16_16_FLOAT            */ {VK_FORMAT_R16G16_SFLOAT},
+    /* k_16_16_16_16_FLOAT      */ {VK_FORMAT_R16G16B16A16_SFLOAT},
+    /* k_32                     */ {VK_FORMAT_R32_SINT},
+    /* k_32_32                  */ {VK_FORMAT_R32G32_SINT},
+    /* k_32_32_32_32            */ {VK_FORMAT_R32G32B32A32_SINT},
+    /* k_32_FLOAT               */ {VK_FORMAT_R32_SFLOAT},
+    /* k_32_32_FLOAT            */ {VK_FORMAT_R32G32_SFLOAT},
+    /* k_32_32_32_32_FLOAT      */ {VK_FORMAT_R32G32B32A32_SFLOAT},
+    /* k_32_AS_8                */ {VK_FORMAT_UNDEFINED},
+    /* k_32_AS_8_8              */ {VK_FORMAT_UNDEFINED},
+    /* k_16_MPEG                */ {VK_FORMAT_UNDEFINED},
+    /* k_16_16_MPEG             */ {VK_FORMAT_UNDEFINED},
+    /* k_8_INTERLACED           */ {VK_FORMAT_UNDEFINED},
+    /* k_32_AS_8_INTERLACED     */ {VK_FORMAT_UNDEFINED},
+    /* k_32_AS_8_8_INTERLACED   */ {VK_FORMAT_UNDEFINED},
+    /* k_16_INTERLACED          */ {VK_FORMAT_UNDEFINED},
+    /* k_16_MPEG_INTERLACED     */ {VK_FORMAT_UNDEFINED},
+    /* k_16_16_MPEG_INTERLACED  */ {VK_FORMAT_UNDEFINED},
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    {TextureFormat::k_DXN, VK_FORMAT_BC5_UNORM_BLOCK},  // ?
+    /* k_DXN                    */ {VK_FORMAT_BC5_UNORM_BLOCK},  // ?
 
-    {TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM},
-    {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    {TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK},
-    {TextureFormat::k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_UNORM_BLOCK},
-    {TextureFormat::k_2_10_10_10_AS_16_16_16_16,
-     VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    {TextureFormat::k_10_11_11_AS_16_16_16_16,
-     VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_11_11_10_AS_16_16_16_16,
-     VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_32_32_32_FLOAT, VK_FORMAT_R32G32B32_SFLOAT},
-    {TextureFormat::k_DXT3A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_DXT5A, VK_FORMAT_UNDEFINED},
+    /* k_8_8_8_8_AS_16_16_16_16 */ {VK_FORMAT_R8G8B8A8_UNORM},
+    /* k_DXT1_AS_16_16_16_16    */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
+    /* k_DXT2_3_AS_16_16_16_16  */ {VK_FORMAT_BC2_UNORM_BLOCK},
+    /* k_DXT4_5_AS_16_16_16_16  */ {VK_FORMAT_BC3_UNORM_BLOCK},
+
+    /* k_2_10_10_10_AS_16_16_16_16 */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+
+    // TODO: Verify if these two are correct (I think not).
+    /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
+    /* k_DXT3A                  */ {VK_FORMAT_UNDEFINED},
+    /* k_DXT5A                  */ {VK_FORMAT_UNDEFINED},
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    {TextureFormat::k_CTX1, VK_FORMAT_R8G8_UINT},
+    /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
 
-    {TextureFormat::k_DXT3A_AS_1_1_1_1, VK_FORMAT_UNDEFINED},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
+    /* k_DXT3A_AS_1_1_1_1       */ {VK_FORMAT_UNDEFINED},
+
+    // Unused.
+    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
+    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
 };
 
 TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
@@ -116,7 +122,9 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       trace_writer_(trace_writer),
       device_(device),
       staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                      kStagingBufferSize) {
+                      kStagingBufferSize),
+      wb_staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                         kStagingBufferSize) {
   VkResult err = VK_SUCCESS;
 
   // Descriptor pool used for all of our cached descriptors.
@@ -126,6 +134,9 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
       *device_, 32768,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
+
+  wb_command_pool_ = std::make_unique<ui::vulkan::CommandBufferPool>(
+      *device_, device_->queue_family_index());
 
   // Check some device limits
   // On low sampler counts: Rarely would we experience over 16 unique samplers.
@@ -166,6 +177,10 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   CheckResult(err, "vkCreateDescriptorSetLayout");
 
   if (!staging_buffer_.Initialize()) {
+    assert_always();
+  }
+
+  if (!wb_staging_buffer_.Initialize()) {
     assert_always();
   }
 
@@ -424,21 +439,8 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
                                  texture_info.input_length);
 
-  if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
-    FreeTexture(texture);
-    return nullptr;
-  }
-
-  // Setup a debug name for the texture.
-  device_->DbgSetObjectName(
-      reinterpret_cast<uint64_t>(texture->image),
-      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string(
-          "0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.input_length));
-
-  // Okay. Now that the texture is uploaded from system memory, put a writewatch
-  // on it to tell us if it's been modified from the guest.
+  // Okay. Put a writewatch on it to tell us if it's been modified from the
+  // guest.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
       texture_info.guest_address, texture_info.input_length,
       cpu::MMIOHandler::kWatchWrite,
@@ -456,6 +458,19 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
         self->invalidated_textures_mutex_.unlock();
       },
       this, texture);
+
+  if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
+    FreeTexture(texture);
+    return nullptr;
+  }
+
+  // Setup a debug name for the texture.
+  device_->DbgSetObjectName(
+      reinterpret_cast<uint64_t>(texture->image),
+      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+      xe::format_string(
+          "0x%.8X - 0x%.8X", texture_info.guest_address,
+          texture_info.guest_address + texture_info.input_length));
 
   textures_[texture_hash] = texture;
   return texture;
@@ -678,8 +693,10 @@ bool TextureFormatIsSimilar(TextureFormat left, TextureFormat right) {
       (left == TextureFormat::y && right == TextureFormat::x)) { \
     return true;                                                 \
   }
+
   if (left == right) return true;
-  COMPARE_FORMAT(k_2_10_10_10, k_2_10_10_10_AS_16_16_16_16);
+  if (GetBaseFormat(left) == GetBaseFormat(right)) return true;
+
   return false;
 #undef COMPARE_FORMAT
 }
@@ -1113,6 +1130,76 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
     *output_length = src.input_length;
     return true;
   }
+}
+
+void TextureCache::WritebackTexture(Texture* texture) {
+  VkResult status = VK_SUCCESS;
+  VkFence fence = wb_command_pool_->BeginBatch();
+  auto alloc = wb_staging_buffer_.Acquire(texture->memory_size, fence);
+  if (!alloc) {
+    wb_command_pool_->EndBatch();
+    return;
+  }
+
+  auto command_buffer = wb_command_pool_->AcquireEntry();
+
+  VkCommandBufferBeginInfo begin_info = {
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
+      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr,
+  };
+  vkBeginCommandBuffer(command_buffer, &begin_info);
+
+  // TODO: Transition the texture to a transfer source.
+
+  VkBufferImageCopy region = {
+      alloc->offset,
+      0,
+      0,
+      {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+      {0, 0, 0},
+      {texture->texture_info.width + 1, texture->texture_info.height + 1, 1},
+  };
+
+  vkCmdCopyImageToBuffer(command_buffer, texture->image,
+                         VK_IMAGE_LAYOUT_GENERAL,
+                         wb_staging_buffer_.gpu_buffer(), 1, &region);
+
+  // TODO: Transition the texture back to a shader resource.
+
+  vkEndCommandBuffer(command_buffer);
+
+  // Submit the command buffer.
+  // Submit commands and wait.
+  {
+    std::lock_guard<std::mutex>(device_->primary_queue_mutex());
+    VkSubmitInfo submit_info = {
+        VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        nullptr,
+        0,
+        nullptr,
+        nullptr,
+        1,
+        &command_buffer,
+        0,
+        nullptr,
+    };
+    status = vkQueueSubmit(device_->primary_queue(), 1, &submit_info, fence);
+    CheckResult(status, "vkQueueSubmit");
+
+    if (status == VK_SUCCESS) {
+      status = vkQueueWaitIdle(device_->primary_queue());
+      CheckResult(status, "vkQueueWaitIdle");
+    }
+  }
+
+  wb_command_pool_->EndBatch();
+
+  auto dest = memory_->TranslatePhysical(texture->texture_info.guest_address);
+  if (status == VK_SUCCESS) {
+    std::memcpy(dest, alloc->host_ptr, texture->texture_info.input_length);
+  }
+
+  wb_staging_buffer_.Scavenge();
 }
 
 bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
