@@ -152,6 +152,10 @@ class TextureCache {
                       const TextureInfo& src);
   bool ComputeTextureStorage(size_t* output_length, const TextureInfo& src);
 
+  // Writes a texture back into guest memory. This call is (mostly) asynchronous
+  // but the texture must not be flagged for destruction.
+  void WritebackTexture(Texture* texture);
+
   // Queues commands to upload a texture from system memory, applying any
   // conversions necessary. This may flush the command buffer to the GPU if we
   // run out of staging memory.
@@ -179,6 +183,7 @@ class TextureCache {
   ui::vulkan::VulkanDevice* device_ = nullptr;
   VkQueue device_queue_ = nullptr;
 
+  std::unique_ptr<xe::ui::vulkan::CommandBufferPool> wb_command_pool_ = nullptr;
   std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
   std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
@@ -190,6 +195,7 @@ class TextureCache {
   VkDescriptorSet empty_set_ = nullptr;
 
   ui::vulkan::CircularBuffer staging_buffer_;
+  ui::vulkan::CircularBuffer wb_staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
   std::unordered_map<uint64_t, Sampler*> samplers_;
   std::vector<Texture*> resolve_textures_;
