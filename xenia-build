@@ -390,12 +390,18 @@ def get_build_bin_path(args):
     A full path for the bin folder.
   """
   if sys.platform == 'darwin':
-    platform = 'macosx'
+    platform = 'macosx' #TODO(javask) Get real MacOSX string.
   elif sys.platform == 'win32':
-    platform = 'windows'
+    platform = 'Windows'
   else:
-    platform = 'linux'
-  return os.path.join(self_path, 'build', 'bin', platform, args['config'])
+    platform = 'Linux'
+  if args['config']=='debug':
+    config = 'Debug'
+  elif args['config']=='release':
+    config = 'Release'
+  elif args['config']=='checked':
+    config = 'Checked'
+  return os.path.join(self_path, 'build', 'bin', platform, config)
 
 
 def discover_commands(subparsers):
