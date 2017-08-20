@@ -479,14 +479,6 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
     }
   }
 
-  VkFormatFeatureFlags required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-  if (texture_info.texture_format == TextureFormat::k_24_8 ||
-      texture_info.texture_format == TextureFormat::k_24_8_FLOAT) {
-    required_flags |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
-  } else {
-    required_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-  }
-
   // Check resolve textures
   for (auto it = resolve_textures_.begin(); it != resolve_textures_.end();
     ++it) {
@@ -504,6 +496,14 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
     }
   }
 
+  VkFormatFeatureFlags required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+  if (texture_info.texture_format == TextureFormat::k_24_8 ||
+    texture_info.texture_format == TextureFormat::k_24_8_FLOAT) {
+    required_flags |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  }
+  else {
+    required_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+  }
   // No texture at this location. Make a new one.
   //texture = AllocateTexture(texture_info);
   auto texture = AllocateTexture(texture_info, required_flags);
