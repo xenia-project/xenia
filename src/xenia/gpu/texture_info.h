@@ -237,6 +237,7 @@ enum class FormatType {
 
 struct FormatInfo {
   TextureFormat format;
+  const char* name;
   FormatType type;
   uint32_t block_width;
   uint32_t block_height;
