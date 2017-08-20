@@ -673,20 +673,21 @@ void TraceViewer::DrawTextureInfo(
     return;
   }
   auto texture = GetTextureEntry(texture_info, sampler_info);
-  if (!texture) {
-    DrawFailedTextureInfo(texture_binding, "Failed to demand texture");
-    return;
-  }
 
   ImGui::Columns(2);
-  ImVec2 button_size(256, 256);
-  if (ImGui::ImageButton(ImTextureID(texture), button_size, ImVec2(0, 0),
-                         ImVec2(1, 1))) {
-    // show viewer
+  if (texture) {
+    ImVec2 button_size(256, 256);
+    if (ImGui::ImageButton(ImTextureID(texture), button_size, ImVec2(0, 0),
+                           ImVec2(1, 1))) {
+      // show viewer
+    }
+  } else {
+    DrawFailedTextureInfo(texture_binding, "Failed to demand texture");
   }
   ImGui::NextColumn();
   ImGui::Text("Fetch Slot: %u", texture_binding.fetch_constant);
   ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
+  ImGui::Text("Format: %s", texture_info.format_info()->name);
   switch (texture_info.dimension) {
     case Dimension::k1D:
       ImGui::Text("1D: %dpx", texture_info.width + 1);
