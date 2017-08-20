@@ -92,11 +92,11 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
   // These formats are used for resampling textures / gamma control.
   switch (texture_format) {
     case TextureFormat::k_16_EXPAND:
-      return TextureFormat::k_16;
+      return TextureFormat::k_16_FLOAT;
     case TextureFormat::k_16_16_EXPAND:
-      return TextureFormat::k_16_16;
+      return TextureFormat::k_16_16_FLOAT;
     case TextureFormat::k_16_16_16_16_EXPAND:
-      return TextureFormat::k_16_16_16_16;
+      return TextureFormat::k_16_16_16_16_FLOAT;
     case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
       return TextureFormat::k_8_8_8_8;
     case TextureFormat::k_DXT1_AS_16_16_16_16:
