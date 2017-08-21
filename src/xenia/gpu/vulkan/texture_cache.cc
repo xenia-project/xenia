@@ -18,6 +18,8 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -70,6 +72,8 @@ static const TextureConfig texture_configs[64] = {
     /* k_16_FLOAT               */ {VK_FORMAT_R16_SFLOAT},
     /* k_16_16_FLOAT            */ {VK_FORMAT_R16G16_SFLOAT},
     /* k_16_16_16_16_FLOAT      */ {VK_FORMAT_R16G16B16A16_SFLOAT},
+
+    // ! These are UNORM formats, not SINT.
     /* k_32                     */ {VK_FORMAT_R32_SINT},
     /* k_32_32                  */ {VK_FORMAT_R32G32_SINT},
     /* k_32_32_32_32            */ {VK_FORMAT_R32G32B32A32_SINT},
@@ -184,6 +188,13 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
     assert_always();
   }
 
+  // Create a memory allocator for textures.
+  VmaAllocatorCreateInfo alloc_info = {
+      0, *device_, *device_, 0, 0, nullptr, nullptr,
+  };
+  err = vmaCreateAllocator(&alloc_info, &mem_allocator_);
+  CheckResult(err, "vmaCreateAllocator");
+
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
@@ -273,34 +284,26 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage image;
-  auto err = vkCreateImage(*device_, &image_info, nullptr, &image);
-  CheckResult(err, "vkCreateImage");
 
-  VkMemoryRequirements mem_requirements;
-  vkGetImageMemoryRequirements(*device_, image, &mem_requirements);
-
-  // TODO: Use a circular buffer or something else to allocate this memory.
-  // The device has a limited amount (around 64) of memory allocations that we
-  // can make.
-  // Now that we have the size, back the image with GPU memory.
-  auto memory = device_->AllocateMemory(mem_requirements, 0);
-  if (!memory) {
+  VmaAllocation alloc;
+  VmaMemoryRequirements vma_reqs = {
+      0, VMA_MEMORY_USAGE_GPU_ONLY, 0, 0, nullptr,
+  };
+  VmaAllocationInfo vma_info = {};
+  VkResult status = vmaCreateImage(mem_allocator_, &image_info, &vma_reqs,
+                                   &image, &alloc, &vma_info);
+  if (status != VK_SUCCESS) {
     // Crap.
     assert_always();
-    vkDestroyImage(*device_, image, nullptr);
     return nullptr;
   }
-
-  err = vkBindImageMemory(*device_, image, memory, 0);
-  CheckResult(err, "vkBindImageMemory");
 
   auto texture = new Texture();
   texture->format = image_info.format;
   texture->image = image;
   texture->image_layout = image_info.initialLayout;
-  texture->image_memory = memory;
-  texture->memory_offset = 0;
-  texture->memory_size = mem_requirements.size;
+  texture->alloc = alloc;
+  texture->alloc_info = vma_info;
   texture->framebuffer = nullptr;
   texture->access_watch_handle = 0;
   texture->texture_info = texture_info;
@@ -328,8 +331,7 @@ bool TextureCache::FreeTexture(Texture* texture) {
     texture->access_watch_handle = 0;
   }
 
-  vkDestroyImage(*device_, texture->image, nullptr);
-  vkFreeMemory(*device_, texture->image_memory, nullptr);
+  vmaDestroyImage(mem_allocator_, texture->image, texture->alloc);
   delete texture;
   return true;
 }
@@ -1084,7 +1086,7 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
 void TextureCache::WritebackTexture(Texture* texture) {
   VkResult status = VK_SUCCESS;
   VkFence fence = wb_command_pool_->BeginBatch();
-  auto alloc = wb_staging_buffer_.Acquire(texture->memory_size, fence);
+  auto alloc = wb_staging_buffer_.Acquire(texture->alloc_info.size, fence);
   if (!alloc) {
     wb_command_pool_->EndBatch();
     return;
