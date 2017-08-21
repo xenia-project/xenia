@@ -61,8 +61,8 @@ static const TextureConfig texture_configs[64] = {
     /* k_DXV                    */ {VK_FORMAT_UNDEFINED},
 
     // TODO: D24 unsupported on AMD.
-    /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT},
-    /* k_24_8_FLOAT             */ {VK_FORMAT_D24_UNORM_S8_UINT},
+    /* k_24_8                   */ {VK_FORMAT_D32_SFLOAT_S8_UINT},
+    /* k_24_8_FLOAT             */ {VK_FORMAT_D32_SFLOAT_S8_UINT},
     /* k_16                     */ {VK_FORMAT_R16_UNORM},
     /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM},
     /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM},
@@ -1095,8 +1095,10 @@ void TextureCache::WritebackTexture(Texture* texture) {
   auto command_buffer = wb_command_pool_->AcquireEntry();
 
   VkCommandBufferBeginInfo begin_info = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
-      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr,
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      nullptr,
+      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      nullptr,
   };
   vkBeginCommandBuffer(command_buffer, &begin_info);
 
