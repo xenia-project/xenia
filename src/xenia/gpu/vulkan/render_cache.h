@@ -56,6 +56,8 @@ class CachedTileView {
   VkImage image = nullptr;
   // Simple view on the image matching the format.
   VkImageView image_view = nullptr;
+  // Image layout
+  VkImageLayout image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   // Memory buffer
   VkDeviceMemory memory = nullptr;
   // Image sample count

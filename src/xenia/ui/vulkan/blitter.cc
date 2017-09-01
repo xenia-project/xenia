@@ -182,7 +182,7 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
     }
 
     // Acquire a render pass.
-    auto render_pass = GetRenderPass(dst_image_format);
+    auto render_pass = GetRenderPass(dst_image_format, color_or_depth);
     VkRenderPassBeginInfo render_pass_info = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         nullptr,
@@ -207,7 +207,10 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
     VkRect2D scissor = {
-        dst_offset.x, dst_offset.y, dst_extents.width, dst_extents.height,
+        dst_offset.x,
+        dst_offset.y,
+        dst_extents.width,
+        dst_extents.height,
     };
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
@@ -233,7 +236,7 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
     VkDescriptorImageInfo image;
     image.sampler = filter == VK_FILTER_NEAREST ? samp_nearest_ : samp_linear_;
     image.imageView = src_image_view;
-    image.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    image.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     write.pImageInfo = &image;
     write.pBufferInfo = nullptr;
@@ -256,7 +259,10 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
                        &vtx_constants);
 
     PixPushConstants pix_constants = {
-        0, 0, 0, swap_channels ? 1 : 0,
+        0,
+        0,
+        0,
+        swap_channels ? 1 : 0,
     };
     vkCmdPushConstants(command_buffer, pipeline_layout_,
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(VtxPushConstants),
@@ -279,14 +285,14 @@ void Blitter::CopyDepthTexture(VkCommandBuffer command_buffer, VkFence fence,
                                VkImageView dst_image_view, VkExtent2D extents) {
 }
 
-VkRenderPass Blitter::GetRenderPass(VkFormat format) {
+VkRenderPass Blitter::GetRenderPass(VkFormat format, bool color_or_depth) {
   auto pass = render_passes_.find(format);
   if (pass != render_passes_.end()) {
     return pass->second;
   }
 
   // Create and cache the render pass.
-  VkRenderPass render_pass = CreateRenderPass(format);
+  VkRenderPass render_pass = CreateRenderPass(format, color_or_depth);
   if (render_pass) {
     render_passes_[format] = render_pass;
   }
@@ -310,7 +316,8 @@ VkPipeline Blitter::GetPipeline(VkRenderPass render_pass,
   return pipeline;
 }
 
-VkRenderPass Blitter::CreateRenderPass(VkFormat output_format) {
+VkRenderPass Blitter::CreateRenderPass(VkFormat output_format,
+                                       bool color_or_depth) {
   VkAttachmentDescription attachments[1];
   std::memset(attachments, 0, sizeof(attachments));
 
@@ -327,15 +334,24 @@ VkRenderPass Blitter::CreateRenderPass(VkFormat output_format) {
 
   VkAttachmentReference attach_refs[1];
   attach_refs[0].attachment = 0;
-  attach_refs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  attach_refs[0].layout =
+      color_or_depth ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                     : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
   VkSubpassDescription subpass = {
       0,       VK_PIPELINE_BIND_POINT_GRAPHICS,
       0,       nullptr,
-      1,       attach_refs,
+      0,       nullptr,
       nullptr, nullptr,
       0,       nullptr,
   };
+
+  if (color_or_depth) {
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = attach_refs;
+  } else {
+    subpass.pDepthStencilAttachment = attach_refs;
+  }
 
   VkRenderPassCreateInfo renderpass_info = {
       VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -440,7 +456,21 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass,
   multisample_info.alphaToCoverageEnable = VK_FALSE;
   multisample_info.alphaToOneEnable = VK_FALSE;
   pipeline_info.pMultisampleState = &multisample_info;
-  pipeline_info.pDepthStencilState = nullptr;
+  VkPipelineDepthStencilStateCreateInfo depth_info = {
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      VK_TRUE,
+      VK_TRUE,
+      VK_COMPARE_OP_ALWAYS,
+      VK_FALSE,
+      VK_FALSE,
+      {},
+      {},
+      0.f,
+      1.f,
+  };
+  pipeline_info.pDepthStencilState = &depth_info;
   VkPipelineColorBlendStateCreateInfo blend_info;
   blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   blend_info.pNext = nullptr;
@@ -467,7 +497,8 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass,
   dynamic_state_info.pNext = nullptr;
   dynamic_state_info.flags = 0;
   VkDynamicState dynamic_states[] = {
-      VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
   };
   dynamic_state_info.dynamicStateCount =
       static_cast<uint32_t>(xe::countof(dynamic_states));
