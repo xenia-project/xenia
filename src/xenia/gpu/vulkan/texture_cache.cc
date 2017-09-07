@@ -207,12 +207,11 @@ TextureCache::~TextureCache() {
     device_->ReleaseQueue(device_queue_);
   }
 
-  for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
-    vkDestroySampler(*device_, it->second->sampler, nullptr);
-    delete it->second;
-  }
-  samplers_.clear();
+  // Free all textures allocated.
+  ClearCache();
+  Scavenge();
 
+  vmaDestroyAllocator(mem_allocator_);
   vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
                                nullptr);
 }
@@ -1453,7 +1452,20 @@ void TextureCache::RemoveInvalidatedTextures() {
 }
 
 void TextureCache::ClearCache() {
-  // TODO(DrChat): Nuke everything.
+  RemoveInvalidatedTextures();
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    while (!FreeTexture(it->second)) {
+      // Texture still in use. Busy loop.
+      xe::threading::MaybeYield();
+    }
+  }
+  textures_.clear();
+
+  for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
+    vkDestroySampler(*device_, it->second->sampler, nullptr);
+    delete it->second;
+  }
+  samplers_.clear();
 }
 
 void TextureCache::Scavenge() {
