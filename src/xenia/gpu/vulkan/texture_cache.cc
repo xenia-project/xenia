@@ -253,6 +253,11 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
+    XELOGE(
+        "Texture Cache: Invalid usage flag specified on format %s (vk %d) "
+        "(0x%.8X != 0x%.8X)",
+        texture_info.format_info()->name, format,
+        (props.optimalTilingFeatures & required_flags), required_flags);
     assert_always();
   }
 
