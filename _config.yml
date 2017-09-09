@@ -32,6 +32,9 @@ navigation:
       path: index.html
     - path: about.md
     - path: faq.md
+    - title: Download
+      url: https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-master.zip?branch=master&job=Configuration%3A%20Release
+      icon: file_download
     - path: roadmap.md
     - path: compatibility.html
     - path: gallery.html
