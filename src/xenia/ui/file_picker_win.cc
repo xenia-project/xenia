@@ -36,10 +36,10 @@ class CDialogEventHandler : public IFileDialogEvents,
   IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
     static const QITAB qit[] = {
         {&__uuidof(IFileDialogEvents),
-         static_cast<int>(
+         static_cast<DWORD>(
              OFFSETOFCLASS(IFileDialogEvents, CDialogEventHandler))},
         {&__uuidof(IFileDialogControlEvents),
-         static_cast<int>(
+         static_cast<DWORD>(
              OFFSETOFCLASS(IFileDialogControlEvents, CDialogEventHandler))},
         {0},
     };

@@ -32,9 +32,6 @@ project("xenia-hid-demo")
     "xenia-ui",
     "xenia-ui-gl",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
     "GLEW_STATIC=1",
     "GLEW_MX=1",

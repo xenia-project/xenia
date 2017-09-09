@@ -7,7 +7,7 @@ build_tools = "tools/build"
 build_scripts = build_tools .. "/scripts"
 build_tools_src = build_tools .. "/src"
 
-if os.is("windows") then
+if os.istarget("windows") then
   platform_suffix = "win"
 else
   platform_suffix = "posix"

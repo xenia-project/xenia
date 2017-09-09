@@ -50,9 +50,6 @@ project("xenia-gpu-gl4-trace-viewer")
     "xenia-ui-gl",
     "xenia-vfs",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
     "GLEW_STATIC=1",
     "GLEW_MX=1",

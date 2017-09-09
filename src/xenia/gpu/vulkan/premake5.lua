@@ -53,9 +53,6 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-ui-vulkan",
     "xenia-vfs",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
   })
   includedirs({
