@@ -24,7 +24,7 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-DEFINE_bool(protect_zero, true, "Protect the zero page from reads and writes.");
+DEFINE_bool(protect_zero, false, "Protect the zero page from reads and writes.");
 DEFINE_bool(protect_on_release, false,
             "Protect released memory to prevent accesses.");
 
