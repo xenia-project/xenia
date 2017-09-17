@@ -34,6 +34,7 @@ struct PacketTypeInfo {
 struct PacketAction {
   enum class Type {
     kRegisterWrite,
+    kRegisterWriteIndirect,
     kSetBinMask,
     kSetBinSelect,
   };
@@ -44,6 +45,10 @@ struct PacketAction {
       uint32_t index;
       RegisterFile::RegisterValue value;
     } register_write;
+    struct {
+      uint32_t index;
+      uint32_t value_address;
+    } register_write_indirect;
     struct {
       uint64_t value;
     } set_bin_mask;
@@ -57,6 +62,15 @@ struct PacketAction {
     action.type = Type::kRegisterWrite;
     action.register_write.index = index;
     action.register_write.value.u32 = value;
+    return action;
+  }
+
+  static PacketAction RegisterWriteIndirect(uint32_t index,
+                                            uint32_t value_address) {
+    PacketAction action;
+    action.type = Type::kRegisterWriteIndirect;
+    action.register_write_indirect.index = index;
+    action.register_write_indirect.value_address = value_address;
     return action;
   }
 

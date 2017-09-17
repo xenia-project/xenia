@@ -340,6 +340,32 @@ void TraceViewer::DrawPacketDisassemblerUI() {
                   ImGui::Columns(1);
                   break;
                 }
+                case PacketAction::Type::kRegisterWriteIndirect: {
+                  auto register_info = xe::gpu::RegisterFile::GetRegisterInfo(
+                      action.register_write.index);
+                  ImGui::Columns(2);
+                  ImGui::Text("%.4X %s", action.register_write_indirect.index,
+                              register_info ? register_info->name : "???");
+                  ImGui::NextColumn();
+
+                  const uint8_t* value_ptr = memory_->TranslatePhysical(
+                      action.register_write_indirect.value_address);
+                  RegisterFile::RegisterValue value;
+                  value.u32 = xe::load_and_swap<uint32_t>(value_ptr);
+
+                  if (!register_info ||
+                      register_info->type == RegisterInfo::Type::kDword) {
+                    ImGui::Text("[%.8X] %.8X",
+                                action.register_write_indirect.value_address,
+                                value.u32);
+                  } else {
+                    ImGui::Text("[%.8X] %8f",
+                                action.register_write_indirect.value_address,
+                                value.f32);
+                  }
+                  ImGui::Columns(1);
+                  break;
+                }
                 case PacketAction::Type::kSetBinMask: {
                   ImGui::Text("%.16" PRIX64, action.set_bin_mask.value);
                   break;

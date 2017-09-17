@@ -361,9 +361,8 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr,
       for (uint32_t n = 0; n < size_dwords; n++, index++) {
         // Hrm, ?
         // xe::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
-        uint32_t data = 0xDEADBEEF;
-        out_info->actions.emplace_back(
-            PacketAction::RegisterWrite(index, data));
+        out_info->actions.emplace_back(PacketAction::RegisterWriteIndirect(
+            index, GpuToCpu(address + n * 4)));
       }
       break;
     }
