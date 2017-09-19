@@ -412,8 +412,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x0007003D: {
       // XMPCaptureOutput - not sure how this works :/
       XELOGD("XMPCaptureOutput(...)");
-      assert_always("XMP output not unimplemented");
-      return X_STATUS_UNSUCCESSFUL;
+      // fallthrough to unimpl
     }
   }
   XELOGE("Unimplemented XMP message app=%.8X, msg=%.8X, arg1=%.8X, arg2=%.8X",
