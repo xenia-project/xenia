@@ -22,17 +22,19 @@ matrix:
     # LLVMGold.so is not installed correctly
     - env: BUILD=true CONFIG=Release
 
-dist: trusty
 sudo: required
 addons:
   apt:
     sources:
       # - ubuntu-toolchain-r-test
-      - llvm-toolchain-precise
+      - llvm-toolchain-trusty
     packages:
       - clang-3.8
       - clang-format-3.8
       - libc++-dev
+      - libc++abi-dev
+      - libgtk-3-dev
+      - liblz4-dev
 
 git:
   # We handle submodules ourselves in xenia-build setup.
@@ -43,6 +45,10 @@ before_script:
   - export CC=clang-3.8
   # Dump useful info.
   - $CXX --version
+  # Add Vulkan dependencies
+  - wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - sudo dpkg -i libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
