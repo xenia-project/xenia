@@ -11,9 +11,11 @@
 
 #include <gflags/gflags.h>
 
+#include <gdk/gdkx.h>
 #include <mutex>
 #include <string>
 
+#include "third_party/GL/glxew.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -21,27 +23,21 @@
 #include "xenia/base/profiling.h"
 #include "xenia/ui/gl/gl_immediate_drawer.h"
 #include "xenia/ui/window.h"
-#include "third_party/GL/glxew.h"
-#include <gdk/gdkx.h>
 
 namespace xe {
 namespace ui {
 namespace gl {
-
-
 
 thread_local GLEWContext* tls_glew_context_ = nullptr;
 thread_local GLXEWContext* tls_glxew_context_ = nullptr;
 extern "C" GLEWContext* glewGetContext() { return tls_glew_context_; }
 extern "C" GLXEWContext* glxewGetContext() { return tls_glxew_context_; }
 
-
-
 std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
                                              Window* target_window,
                                              GLContext* share_context) {
   auto context =
-    std::unique_ptr<GLContext>(new GLXContext(provider, target_window));
+      std::unique_ptr<GLContext>(new GLXContext(provider, target_window));
   if (!context->Initialize(share_context)) {
     return nullptr;
   }
@@ -50,9 +46,9 @@ std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
 }
 
 std::unique_ptr<GLContext> GLContext::CreateOffscreen(
-        GraphicsProvider* provider, GLContext* parent_context) {
+    GraphicsProvider* provider, GLContext* parent_context) {
   return GLXContext::CreateOffscreen(provider,
-		  static_cast<GLXContext*>(parent_context));
+                                     static_cast<GLXContext*>(parent_context));
 }
 
 GLXContext::GLXContext(GraphicsProvider* provider, Window* target_window)
@@ -74,8 +70,6 @@ GLXContext::~GLXContext() {
   }
 }
 
-
-
 bool GLXContext::Initialize(GLContext* share_context) {
   GtkWidget* window = GTK_WIDGET(target_window_->native_handle());
   GtkWidget* draw_area = gtk_drawing_area_new();
@@ -90,8 +84,8 @@ bool GLXContext::Initialize(GLContext* share_context) {
   Display* display = gdk_x11_display_get_xdisplay(gdk_display);
   disp_ = display;
   ::Window root = gdk_x11_get_default_root_xwindow();
-  static int vis_attrib_list[] =
-           {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
+  static int vis_attrib_list[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24,
+                                  GLX_DOUBLEBUFFER, None};
   XVisualInfo* vi = glXChooseVisual(display, 0, vis_attrib_list);
   if (vi == NULL) {
     FatalGLError("No matching visuals for X display");
@@ -151,8 +145,8 @@ bool GLXContext::Initialize(GLContext* share_context) {
   GLXContext* share_context_glx = static_cast<GLXContext*>(share_context);
   glx_context_ = glXCreateContextAttribsARB(
       display, nullptr,
-	     share_context ? share_context_glx->glx_context_ : nullptr, True,
-		    attrib_list);
+      share_context ? share_context_glx->glx_context_ : nullptr, True,
+      attrib_list);
   glXMakeCurrent(display, 0, nullptr);
   glXDestroyContext(display, temp_context);
   if (!glx_context_) {
@@ -222,7 +216,8 @@ std::unique_ptr<GLXContext> GLXContext::CreateOffscreen(
         robust_access_supported ? GLX_LOSE_CONTEXT_ON_RESET_ARB : 0,
         0};
     new_glrc = glXCreateContextAttribsARB(parent_context->disp_, nullptr,
-                    parent_context->glx_context_, True, attrib_list);
+                                          parent_context->glx_context_, True,
+                                          attrib_list);
     if (!new_glrc) {
       FatalGLError("Could not create shared context.");
       return nullptr;
@@ -271,12 +266,9 @@ std::unique_ptr<GLXContext> GLXContext::CreateOffscreen(
   return new_context;
 }
 
-
-
 bool GLXContext::is_current() {
   return tls_glew_context_ == glew_context_.get();
 }
-
 
 bool GLXContext::MakeCurrent() {
   SCOPE_profile_cpu_f("gpu");
@@ -307,7 +299,6 @@ void GLXContext::ClearCurrent() {
     global_gl_mutex_.unlock();
   }
 }
-
 
 void GLXContext::BeginSwap() {
   SCOPE_profile_cpu_i("gpu", "xe::ui::gl::GLXContext::BeginSwap");

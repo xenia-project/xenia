@@ -13,9 +13,9 @@
 #include <memory>
 #include <string>
 
+#include "xenia/base/platform_linux.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/window.h"
-#include "xenia/base/platform_linux.h"
 
 namespace xe {
 namespace ui {
@@ -27,9 +27,10 @@ class GTKWindow : public Window {
   GTKWindow(Loop* loop, const std::wstring& title);
   ~GTKWindow() override;
 
-  NativePlatformHandle native_platform_handle() const override {return nullptr;}
-  NativeWindowHandle native_handle() const override { return window_;}
-
+  NativePlatformHandle native_platform_handle() const override {
+    return nullptr;
+  }
+  NativeWindowHandle native_handle() const override { return window_; }
 
   bool set_title(const std::wstring& title) override;
 
@@ -60,7 +61,6 @@ class GTKWindow : public Window {
 
   void OnResize(UIEvent* e) override;
 
-
  private:
   void Create();
   GtkWidget* window_;
@@ -75,16 +75,15 @@ class GTKWindow : public Window {
 
   bool closing_ = false;
   bool fullscreen_ = false;
-
 };
 
 class GTKMenuItem : public MenuItem {
  public:
   GTKMenuItem(Type type, const std::wstring& text, const std::wstring& hotkey,
-                std::function<void()> callback);
+              std::function<void()> callback);
   ~GTKMenuItem() override;
 
-  GtkWidget* handle() {return menu_;}
+  GtkWidget* handle() { return menu_; }
   using MenuItem::OnSelected;
 
  protected:

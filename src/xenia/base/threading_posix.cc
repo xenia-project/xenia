@@ -14,18 +14,16 @@
 
 #include <pthread.h>
 #include <sys/syscall.h>
-#include <sys/types.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
 namespace xe {
 namespace threading {
 
-//TODO(dougvj)
-void EnableAffinityConfiguration() {
-
-}
+// TODO(dougvj)
+void EnableAffinityConfiguration() {}
 
 // uint64_t ticks() { return mach_absolute_time(); }
 
@@ -46,9 +44,7 @@ void MaybeYield() {
   __sync_synchronize();
 }
 
-void SyncMemory() {
-  __sync_synchronize();
-}
+void SyncMemory() { __sync_synchronize(); }
 
 void Sleep(std::chrono::microseconds duration) {
   timespec rqtp = {time_t(duration.count() / 1000000),
@@ -57,35 +53,28 @@ void Sleep(std::chrono::microseconds duration) {
   // TODO(benvanik): spin while rmtp >0?
 }
 
-//TODO(dougvj) Not sure how to implement the equivalent of this on POSIX.
+// TODO(dougvj) Not sure how to implement the equivalent of this on POSIX.
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
   sleep(duration.count() / 1000);
   return SleepResult::kSuccess;
 }
 
-//TODO(dougvj) We can probably wrap this with pthread_key_t but the type of
-//TlsHandle probably needs to be refactored
-TlsHandle AllocateTlsHandle() {
-  assert_always();
-}
+// TODO(dougvj) We can probably wrap this with pthread_key_t but the type of
+// TlsHandle probably needs to be refactored
+TlsHandle AllocateTlsHandle() { assert_always(); }
 
 bool FreeTlsHandle(TlsHandle handle) { return true; }
 
-uintptr_t GetTlsValue(TlsHandle handle) {
-  assert_always();
-}
+uintptr_t GetTlsValue(TlsHandle handle) { assert_always(); }
 
-bool SetTlsValue(TlsHandle handle, uintptr_t value) {
-  assert_always();
-}
+bool SetTlsValue(TlsHandle handle, uintptr_t value) { assert_always(); }
 
-//TODO(dougvj)
+// TODO(dougvj)
 class PosixHighResolutionTimer : public HighResolutionTimer {
  public:
   PosixHighResolutionTimer(std::function<void()> callback)
       : callback_(callback) {}
-  ~PosixHighResolutionTimer() override {
-  }
+  ~PosixHighResolutionTimer() override {}
 
   bool Initialize(std::chrono::milliseconds period) {
     assert_always();
@@ -111,7 +100,7 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
 // some more functionality
 class PosixCondition {
  public:
-  PosixCondition(): signal_(false) {
+  PosixCondition() : signal_(false) {
     pthread_mutex_init(&mutex_, NULL);
     pthread_cond_init(&cond_, NULL);
   }
@@ -135,7 +124,7 @@ class PosixCondition {
   }
 
   bool Wait(unsigned int timeout_ms) {
-    //Assume 0 means no timeout, not instant timeout
+    // Assume 0 means no timeout, not instant timeout
     if (timeout_ms == 0) {
       Wait();
     }
@@ -143,42 +132,40 @@ class PosixCondition {
     struct timeval now;
     gettimeofday(&now, NULL);
 
-    //Add the number of seconds we want to wait to the current time
-    time_to_wait.tv_sec = now.tv_sec + (timeout_ms/1000);
-    //Add the number of nanoseconds we want to wait to the current nanosecond
-    //stride
-    long nsec = (now.tv_usec+(timeout_ms % 1000)) * 1000;
-    //If we overflowed the nanosecond count then we add a second
-    time_to_wait.tv_sec += nsec/1000000000UL;
-    //We only add nanoseconds within the 1 second stride
+    // Add the number of seconds we want to wait to the current time
+    time_to_wait.tv_sec = now.tv_sec + (timeout_ms / 1000);
+    // Add the number of nanoseconds we want to wait to the current nanosecond
+    // stride
+    long nsec = (now.tv_usec + (timeout_ms % 1000)) * 1000;
+    // If we overflowed the nanosecond count then we add a second
+    time_to_wait.tv_sec += nsec / 1000000000UL;
+    // We only add nanoseconds within the 1 second stride
     time_to_wait.tv_nsec = nsec % 1000000000UL;
     pthread_mutex_lock(&mutex_);
-    while(!signal_) {
+    while (!signal_) {
       int status = pthread_cond_timedwait(&cond_, &mutex_, &time_to_wait);
-      if (status == ETIMEDOUT)
-        return false; //We timed out
+      if (status == ETIMEDOUT) return false;  // We timed out
     }
     pthread_mutex_unlock(&mutex_);
-    return true; //We didn't time out
+    return true;  // We didn't time out
   }
 
   bool Wait() {
     pthread_mutex_lock(&mutex_);
-    while(!signal_) {
+    while (!signal_) {
       pthread_cond_wait(&cond_, &mutex_);
     }
     pthread_mutex_unlock(&mutex_);
-    return true; //Did not time out;
+    return true;  // Did not time out;
   }
 
  private:
   bool signal_;
   pthread_cond_t cond_;
   pthread_mutex_t mutex_;
-
 };
 
-//Native posix thread handle
+// Native posix thread handle
 template <typename T>
 class PosixThreadHandle : public T {
  public:
@@ -193,8 +180,8 @@ class PosixThreadHandle : public T {
   pthread_t handle_;
 };
 
-//This is wraps a condition object as our handle because posix has no single
-//native handle for higher level concurrency constructs such as semaphores
+// This is wraps a condition object as our handle because posix has no single
+// native handle for higher level concurrency constructs such as semaphores
 template <typename T>
 class PosixConditionHandle : public T {
  public:
@@ -208,10 +195,9 @@ class PosixConditionHandle : public T {
   PosixCondition handle_;
 };
 
-
 // TODO(dougvj)
 WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
-        std::chrono::milliseconds timeout) {
+                std::chrono::milliseconds timeout) {
   assert_always();
   return WaitResult::kFailed;
 }
@@ -233,15 +219,15 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
   return std::pair<WaitResult, size_t>(WaitResult::kFailed, 0);
 }
 
-
-//TODO(dougvj)
-class PosixEvent: public PosixConditionHandle<Event> {
+// TODO(dougvj)
+class PosixEvent : public PosixConditionHandle<Event> {
  public:
   PosixEvent(bool initial_state, int auto_reset) { assert_always(); }
   ~PosixEvent() override = default;
   void Set() override { assert_always(); }
   void Reset() override { assert_always(); }
   void Pulse() override { assert_always(); }
+
  private:
   PosixCondition condition_;
 };
@@ -254,7 +240,7 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
   return std::make_unique<PosixEvent>(PosixEvent(initial_state, true));
 }
 
-//TODO(dougvj)
+// TODO(dougvj)
 class PosixSemaphore : public PosixConditionHandle<Semaphore> {
  public:
   PosixSemaphore(int initial_count, int maximum_count) { assert_always(); }
@@ -270,22 +256,22 @@ std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
   return std::make_unique<PosixSemaphore>(initial_count, maximum_count);
 }
 
-//TODO(dougvj)
+// TODO(dougvj)
 class PosixMutant : public PosixConditionHandle<Mutant> {
  public:
-  PosixMutant(bool initial_owner) {
-    assert_always();
-  }
+  PosixMutant(bool initial_owner) { assert_always(); }
   ~PosixMutant() = default;
-  bool Release() override { assert_always(); return false; }
- private:
+  bool Release() override {
+    assert_always();
+    return false;
+  }
 };
 
 std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
   return std::make_unique<PosixMutant>(initial_owner);
 }
 
-//TODO(dougvj)
+// TODO(dougvj)
 class PosixTimer : public PosixConditionHandle<Timer> {
  public:
   PosixTimer(bool manual_reset) { assert_always(); }
@@ -305,7 +291,6 @@ class PosixTimer : public PosixConditionHandle<Timer> {
     assert_always();
     return false;
   }
-
 };
 
 std::unique_ptr<Timer> Timer::CreateManualResetTimer() {

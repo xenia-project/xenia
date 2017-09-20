@@ -761,7 +761,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
           config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
           break;
         default:
-          //The rest are good
+          // The rest are good
           break;
       }
     }
@@ -1149,7 +1149,7 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
         format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
         break;
       default:
-        //Rest are OK
+        // Rest are OK
         break;
     }
   }
@@ -1265,7 +1265,7 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
       format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
       break;
     default:
-      //Rest are OK
+      // Rest are OK
       break;
   }
 

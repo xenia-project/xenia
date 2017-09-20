@@ -35,15 +35,13 @@ class GTKLoop : public Loop {
 
   void Quit() override;
   void AwaitQuit() override;
- private:
 
+ private:
   void ThreadMain();
 
   std::thread::id thread_id_;
   std::thread thread_;
   xe::threading::Fence quit_fence_;
-
-
 };
 
 }  // namespace ui

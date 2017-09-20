@@ -29,7 +29,6 @@ DECLARE_bool(gl_debug);
 DECLARE_bool(gl_debug_output);
 DECLARE_bool(gl_debug_output_synchronous);
 
-
 namespace xe {
 namespace ui {
 namespace gl {
@@ -69,6 +68,7 @@ class GLContext : public GraphicsContext {
   void AssertExtensionsPresent();
   void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
                     GLsizei length, const GLchar* message);
+
  private:
   friend class GLProvider;
 
@@ -79,15 +79,11 @@ class GLContext : public GraphicsContext {
                                                     GLContext* parent_context);
 
  private:
-
-
   static void GLAPIENTRY DebugMessageThunk(GLenum source, GLenum type,
                                            GLuint id, GLenum severity,
                                            GLsizei length,
                                            const GLchar* message,
                                            GLvoid* user_param);
-
-
 };
 
 }  // namespace gl

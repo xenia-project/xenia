@@ -18,5 +18,4 @@ void LaunchBrowser(const char* url) {
   system(cmd.c_str());
 }
 
-
 }  // namespace xe

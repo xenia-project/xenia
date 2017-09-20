@@ -14,15 +14,14 @@
 
 #include <memory>
 
-#include "xenia/ui/gl/gl_context.h"
-#include "xenia/ui/gl/blitter.h"
-#include "xenia/ui/gl/gl.h"
-#include "xenia/ui/graphics_context.h"
 #include "third_party/GL/glxew.h"
 #include "xenia/base/platform_linux.h"
+#include "xenia/ui/gl/blitter.h"
+#include "xenia/ui/gl/gl.h"
+#include "xenia/ui/gl/gl_context.h"
+#include "xenia/ui/graphics_context.h"
 
 DECLARE_bool(thread_safe_gl);
-
 
 namespace xe {
 namespace ui {
@@ -35,7 +34,6 @@ class GLXContext : public GLContext {
  public:
   ~GLXContext() override;
 
-
   bool is_current() override;
 
   bool MakeCurrent() override;
@@ -44,13 +42,12 @@ class GLXContext : public GLContext {
   void BeginSwap() override;
   void EndSwap() override;
 
-
  protected:
-  static std::unique_ptr<GLXContext> CreateOffscreen(GraphicsProvider* provider,
-                                                    GLXContext* parent_context);
+  static std::unique_ptr<GLXContext> CreateOffscreen(
+      GraphicsProvider* provider, GLXContext* parent_context);
 
   bool Initialize(GLContext* share_context) override;
-  void* handle() override {return glx_context_;}
+  void* handle() override { return glx_context_; }
 
  private:
   friend class GLContext;

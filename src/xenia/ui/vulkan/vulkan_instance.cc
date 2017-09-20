@@ -397,18 +397,17 @@ bool VulkanInstance::QueryDevices(Window* any_target_window) {
     assert(GDK_IS_X11_DISPLAY(gdk_display));
     xcb_connection_t* connection =
         XGetXCBConnection(gdk_x11_display_get_xdisplay(gdk_display));
-    xcb_window_t window = gdk_x11_window_get_xid(
-            gtk_widget_get_window(window_handle));
+    xcb_window_t window =
+        gdk_x11_window_get_xid(gtk_widget_get_window(window_handle));
     VkXcbSurfaceCreateInfoKHR create_info;
     create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
     create_info.pNext = nullptr;
     create_info.flags = 0;
-    create_info.connection = static_cast<xcb_connection_t*>
-        (any_target_window->native_platform_handle());
-    create_info.window =
-        static_cast<xcb_window_t>(window);
-    auto err = vkCreateXcbSurfaceKHR(handle, &create_info,
-                                     nullptr, &any_surface);
+    create_info.connection = static_cast<xcb_connection_t*>(
+        any_target_window->native_platform_handle());
+    create_info.window = static_cast<xcb_window_t>(window);
+    auto err =
+        vkCreateXcbSurfaceKHR(handle, &create_info, nullptr, &any_surface);
     CheckResult(err, "vkCreateXcbSurfaceKHR");
 #else
 #error Unsupported GDK Backend on Linux.
