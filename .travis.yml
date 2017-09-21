@@ -33,6 +33,7 @@ addons:
       - clang-3.8
       - clang-format-3.8
       - libc++-dev
+      - python3
 
 git:
   # We handle submodules ourselves in xenia-build setup.
@@ -43,6 +44,7 @@ before_script:
   - export CC=clang-3.8
   # Dump useful info.
   - $CXX --version
+  - python3 --version
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
