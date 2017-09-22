@@ -240,4 +240,3 @@ class CommandProcessor {
 }  // namespace xe
 
 #endif  // XENIA_GPU_COMMAND_PROCESSOR_H_
-

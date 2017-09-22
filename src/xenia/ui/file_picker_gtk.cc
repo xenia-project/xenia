@@ -9,11 +9,11 @@
 
 #include "xenia/ui/file_picker.h"
 
+#include <codecvt>
+#include <locale>
+#include <string>
 #include "xenia/base/assert.h"
 #include "xenia/base/platform_linux.h"
-#include <locale>
-#include <codecvt>
-#include <string>
 
 namespace xe {
 namespace ui {
@@ -36,39 +36,34 @@ GtkFilePicker::GtkFilePicker() = default;
 
 GtkFilePicker::~GtkFilePicker() = default;
 
-
 bool GtkFilePicker::Show(void* parent_window_handle) {
   // TODO(benvanik): FileSaveDialog.
   assert_true(mode() == Mode::kOpen);
   // TODO(benvanik): folder dialogs.
   assert_true(type() == Type::kFile);
-  GtkWidget *dialog;
+  GtkWidget* dialog;
   gint res;
 
-  dialog = gtk_file_chooser_dialog_new ("Open File",
-                                        (GtkWindow*)parent_window_handle,
-                                        GTK_FILE_CHOOSER_ACTION_OPEN,
-                                        "_Cancel",
-                                        GTK_RESPONSE_CANCEL,
-                                        "_Open",
-                                        GTK_RESPONSE_ACCEPT,
-                                        NULL);
+  dialog = gtk_file_chooser_dialog_new(
+      "Open File", (GtkWindow*)parent_window_handle,
+      GTK_FILE_CHOOSER_ACTION_OPEN, "_Cancel", GTK_RESPONSE_CANCEL, "_Open",
+      GTK_RESPONSE_ACCEPT, NULL);
 
-  res = gtk_dialog_run (GTK_DIALOG (dialog));
-  char *filename;
+  res = gtk_dialog_run(GTK_DIALOG(dialog));
+  char* filename;
   if (res == GTK_RESPONSE_ACCEPT) {
-    GtkFileChooser *chooser = GTK_FILE_CHOOSER (dialog);
-    filename = gtk_file_chooser_get_filename (chooser);
+    GtkFileChooser* chooser = GTK_FILE_CHOOSER(dialog);
+    filename = gtk_file_chooser_get_filename(chooser);
     std::vector<std::wstring> selected_files;
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     std::wstring ws_filename = converter.from_bytes(filename);
     selected_files.push_back(ws_filename);
     set_selected_files(selected_files);
-    gtk_widget_destroy (dialog);
+    gtk_widget_destroy(dialog);
     return true;
   }
-  gtk_widget_destroy (dialog);
-  return false;;
+  gtk_widget_destroy(dialog);
+  return false;
 }
 
 }  // namespace ui

@@ -13,8 +13,5 @@
 #include <time.h>
 
 namespace xe {
-namespace threading {
-
-
-}  // namespace threading
+namespace threading {}  // namespace threading
 }  // namespace xe

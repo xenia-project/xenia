@@ -12,11 +12,11 @@
 #include "xenia/base/string.h"
 
 #include <dirent.h>
+#include <fcntl.h>
+#include <ftw.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <ftw.h>
-#include <fcntl.h>
 
 namespace xe {
 namespace filesystem {
@@ -25,7 +25,6 @@ bool PathExists(const std::wstring& path) {
   struct stat st;
   return stat(xe::to_string(path).c_str(), &st) == 0;
 }
-
 
 FILE* OpenFile(const std::wstring& path, const char* mode) {
   auto fixed_path = xe::fix_path_separators(path);
@@ -36,23 +35,25 @@ bool CreateFolder(const std::wstring& path) {
   return mkdir(xe::to_string(path).c_str(), 0774);
 }
 
-static int removeCallback(const char *fpath, const struct stat* sb,
-        int typeflag, struct FTW* ftwbuf) {
+static int removeCallback(const char* fpath, const struct stat* sb,
+                          int typeflag, struct FTW* ftwbuf) {
   int rv = remove(fpath);
   return rv;
 }
 
 bool DeleteFolder(const std::wstring& path) {
   return nftw(xe::to_string(path).c_str(), removeCallback, 64,
-          FTW_DEPTH | FTW_PHYS) == 0 ? true : false;
+              FTW_DEPTH | FTW_PHYS) == 0
+             ? true
+             : false;
 }
 
 static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
-  //Linux uses number of seconds since 1/1/1970, and Windows uses
-  //number of nanoseconds since 1/1/1601
-  //so we convert linux time to nanoseconds and then add the number of
-  //nanoseconds from 1601 to 1970
-  //see https://msdn.microsoft.com/en-us/library/ms724228
+  // Linux uses number of seconds since 1/1/1970, and Windows uses
+  // number of nanoseconds since 1/1/1601
+  // so we convert linux time to nanoseconds and then add the number of
+  // nanoseconds from 1601 to 1970
+  // see https://msdn.microsoft.com/en-us/library/ms724228
   uint64_t filetime = filetime = (unixtime * 10000000) + 116444736000000000;
   return filetime;
 }
@@ -60,8 +61,7 @@ static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
 bool IsFolder(const std::wstring& path) {
   struct stat st;
   if (stat(xe::to_string(path).c_str(), &st) == 0) {
-    if (S_ISDIR(st.st_mode))
-      return true;
+    if (S_ISDIR(st.st_mode)) return true;
   }
   return false;
 }
@@ -89,11 +89,9 @@ class PosixFileHandle : public FileHandle {
   }
   bool Read(size_t file_offset, void* buffer, size_t buffer_length,
             size_t* out_bytes_read) override {
-
     ssize_t out = pread(handle_, buffer, buffer_length, file_offset);
     *out_bytes_read = out;
     return out >= 0 ? true : false;
-
   }
   bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
              size_t* out_bytes_written) override {
@@ -144,8 +142,7 @@ bool GetInfo(const std::wstring& path, FileInfo* out_info) {
   if (stat(xe::to_string(path).c_str(), &st) == 0) {
     if (S_ISDIR(st.st_mode)) {
       out_info->type = FileInfo::Type::kDirectory;
-    }
-    else {
+    } else {
       out_info->type = FileInfo::Type::kFile;
     }
     out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
@@ -186,7 +183,5 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
   return result;
 }
 
-
 }  // namespace filesystem
 }  // namespace xe
-

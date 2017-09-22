@@ -14,9 +14,9 @@
 
 #include <memory>
 
-#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/gl/blitter.h"
 #include "xenia/ui/gl/gl.h"
+#include "xenia/ui/gl/gl_context.h"
 #include "xenia/ui/graphics_context.h"
 
 typedef struct HDC__* HDC;
@@ -33,7 +33,6 @@ class WGLContext : public GLContext {
  public:
   ~WGLContext() override;
 
-
   bool is_current() override;
   bool MakeCurrent() override;
   void ClearCurrent() override;
@@ -41,25 +40,21 @@ class WGLContext : public GLContext {
   void BeginSwap() override;
   void EndSwap() override;
 
-
  protected:
   friend class GLContext;
   WGLContext(GraphicsProvider* provider, Window* target_window);
-  static std::unique_ptr<WGLContext> CreateOffscreen(GraphicsProvider* provider,
-                                                    WGLContext* parent_context);
+  static std::unique_ptr<WGLContext> CreateOffscreen(
+      GraphicsProvider* provider, WGLContext* parent_context);
 
   bool Initialize(GLContext* share_context) override;
-  void* handle() override {return glrc_;};
+  void* handle() override { return glrc_; }
 
  private:
-
-
   HDC dc_ = nullptr;
   HGLRC glrc_ = nullptr;
 
   std::unique_ptr<GLEWContext> glew_context_;
   std::unique_ptr<WGLEWContext> wglew_context_;
-
 };
 
 }  // namespace gl

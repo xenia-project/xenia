@@ -16,13 +16,13 @@
 #include <climits>
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
-#include <functional>
 
 namespace xe {
 namespace threading {

@@ -21,7 +21,6 @@
 #include "xenia/ui/gl/gl_immediate_drawer.h"
 #include "xenia/ui/window.h"
 
-
 DEFINE_bool(thread_safe_gl, false,
             "Only allow one GL context to be active at a time.");
 
@@ -40,7 +39,6 @@ namespace xe {
 namespace ui {
 namespace gl {
 
-
 std::recursive_mutex GLContext::global_gl_mutex_;
 
 void GLContext::FatalGLError(std::string error) {
@@ -51,10 +49,8 @@ void GLContext::FatalGLError(std::string error) {
       "of supported GPUs.");
 }
 
-
-
 GLContext::GLContext(GraphicsProvider* provider, Window* target_window)
-    : GraphicsContext(provider, target_window) {  }
+    : GraphicsContext(provider, target_window) {}
 
 GLContext::~GLContext() {}
 
@@ -217,8 +213,6 @@ void GLContext::SetupDebugging() {
 ImmediateDrawer* GLContext::immediate_drawer() {
   return immediate_drawer_.get();
 }
-
-
 
 bool GLContext::WasLost() {
   if (!robust_access_supported_) {

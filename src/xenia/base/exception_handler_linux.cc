@@ -24,13 +24,12 @@ constexpr size_t kMaxHandlerCount = 8;
 // Executed in order.
 std::pair<ExceptionHandler::Handler, void*> handlers_[kMaxHandlerCount];
 
-
 void ExceptionHandler::Install(Handler fn, void* data) {
-  //TODO(dougvj) stub
+  // TODO(dougvj) stub
 }
 
 void ExceptionHandler::Uninstall(Handler fn, void* data) {
-  //TODO(dougvj) stub
+  // TODO(dougvj) stub
 }
 
 }  // namespace xe

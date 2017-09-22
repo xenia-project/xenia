@@ -14,7 +14,6 @@
 namespace xe {
 namespace ui {
 
-
 class PostedFn {
  public:
   explicit PostedFn(std::function<void()> fn) : fn_(std::move(fn)) {}
@@ -28,7 +27,7 @@ std::unique_ptr<Loop> Loop::Create() { return std::make_unique<GTKLoop>(); }
 
 GTKLoop::GTKLoop() : thread_id_() {
   gtk_init(nullptr, nullptr);
-    xe::threading::Fence init_fence;
+  xe::threading::Fence init_fence;
   thread_ = std::thread([&init_fence, this]() {
     xe::threading::set_name("GTK Loop");
 
@@ -47,39 +46,31 @@ GTKLoop::~GTKLoop() {
   thread_.join();
 }
 
-void GTKLoop::ThreadMain() {
-
-    gtk_main();
-
-}
+void GTKLoop::ThreadMain() { gtk_main(); }
 
 bool GTKLoop::is_on_loop_thread() {
   return thread_id_ == std::this_thread::get_id();
 }
 
-
 gboolean _posted_fn_thunk(gpointer posted_fn) {
-     PostedFn* Fn = reinterpret_cast<PostedFn*>(posted_fn);
-     Fn->Call();
-     return G_SOURCE_REMOVE;
+  PostedFn* Fn = reinterpret_cast<PostedFn*>(posted_fn);
+  Fn->Call();
+  return G_SOURCE_REMOVE;
 }
 
 void GTKLoop::Post(std::function<void()> fn) {
   assert_true(thread_id_ != std::thread::id());
   gdk_threads_add_idle(_posted_fn_thunk,
-          reinterpret_cast<gpointer>(new PostedFn(std::move(fn))));
+                       reinterpret_cast<gpointer>(new PostedFn(std::move(fn))));
 }
-
 
 void GTKLoop::PostDelayed(std::function<void()> fn, uint64_t delay_millis) {
-  gdk_threads_add_timeout(delay_millis, _posted_fn_thunk,
-          reinterpret_cast<gpointer>(new PostedFn(std::move(fn))));
+  gdk_threads_add_timeout(
+      delay_millis, _posted_fn_thunk,
+      reinterpret_cast<gpointer>(new PostedFn(std::move(fn))));
 }
 
-void GTKLoop::Quit() {
-  assert_true(thread_id_ != std::thread::id());
-
-}
+void GTKLoop::Quit() { assert_true(thread_id_ != std::thread::id()); }
 
 void GTKLoop::AwaitQuit() { quit_fence_.Wait(); }
 

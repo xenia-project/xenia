@@ -17,7 +17,6 @@
 namespace xe {
 namespace ui {
 
-
 class FnWrapper {
  public:
   explicit FnWrapper(std::function<void()> fn) : fn_(std::move(fn)) {}
@@ -161,12 +160,12 @@ void GTKWindow::set_focus(bool value) {
     if (value) {
       gtk_window_activate_focus(GTK_WINDOW(window_));
     } else {
-      // TODO(dougvj) Check to see if we need to do somethign here to unset
+      // TODO(dougvj) Check to see if we need to do something here to unset
       // the focus.
     }
-    } else {
-      has_focus_ = value;
-    }
+  } else {
+    has_focus_ = value;
+  }
 }
 
 void GTKWindow::Resize(int32_t width, int32_t height) {
@@ -219,8 +218,6 @@ void GTKWindow::OnMainMenuChange() {
   }
 }
 
-
-
 bool GTKWindow::HandleWindowOwnerChange(GdkEventOwnerChange* event) {
   if (event->type == GDK_OWNER_CHANGE) {
     if (event->reason == GDK_OWNER_CHANGE_DESTROY) {
@@ -231,8 +228,8 @@ bool GTKWindow::HandleWindowOwnerChange(GdkEventOwnerChange* event) {
       OnClose();
     }
     return true;
-    }
-    return false;
+  }
+  return false;
 }
 
 bool GTKWindow::HandleWindowResize(GdkEventConfigure* event) {
@@ -243,8 +240,6 @@ bool GTKWindow::HandleWindowResize(GdkEventConfigure* event) {
   }
   return false;
 }
-
-
 
 bool GTKWindow::HandleWindowVisibility(GdkEventVisibility* event) {
   // TODO(dougvj) The gdk docs say that this is deprecated because modern window
@@ -258,8 +253,8 @@ bool GTKWindow::HandleWindowVisibility(GdkEventVisibility* event) {
       OnHidden(&e);
     }
     return true;
-    }
-    return false;
+  }
+  return false;
 }
 
 bool GTKWindow::HandleWindowFocus(GdkEventFocus* event) {
@@ -274,8 +269,8 @@ bool GTKWindow::HandleWindowFocus(GdkEventFocus* event) {
       OnGotFocus(&e);
     }
     return true;
-    }
-    return false;
+  }
+  return false;
 }
 
 bool GTKWindow::HandleMouse(GdkEventAny* event) {
@@ -326,26 +321,26 @@ bool GTKWindow::HandleMouse(GdkEventAny* event) {
       dy = e->delta_y;
       break;
     }
-    }
+  }
 
-    auto e = MouseEvent(this, button, x, y, dx, dy);
-    switch (event->type) {
-      case GDK_BUTTON_PRESS:
-        OnMouseDown(&e);
-        break;
-      case GDK_BUTTON_RELEASE:
-        OnMouseUp(&e);
-        break;
-      case GDK_MOTION_NOTIFY:
-        OnMouseMove(&e);
-        break;
-      case GDK_SCROLL:
-        OnMouseWheel(&e);
-        break;
-      default:
-        return false;
-    }
-    return e.is_handled();
+  auto e = MouseEvent(this, button, x, y, dx, dy);
+  switch (event->type) {
+    case GDK_BUTTON_PRESS:
+      OnMouseDown(&e);
+      break;
+    case GDK_BUTTON_RELEASE:
+      OnMouseUp(&e);
+      break;
+    case GDK_MOTION_NOTIFY:
+      OnMouseMove(&e);
+      break;
+    case GDK_SCROLL:
+      OnMouseWheel(&e);
+      break;
+    default:
+      return false;
+  }
+  return e.is_handled();
 }
 
 bool GTKWindow::HandleKeyboard(GdkEventKey* event) {
@@ -364,8 +359,8 @@ bool GTKWindow::HandleKeyboard(GdkEventKey* event) {
     case GDK_KEY_RELEASE:
       OnKeyUp(&e);
       break;
-// TODO(dougvj) GDK doesn't have a KEY CHAR event, so we will have to
-// figure out its equivalent here to call  OnKeyChar(&e);
+    // TODO(dougvj) GDK doesn't have a KEY CHAR event, so we will have to
+    // figure out its equivalent here to call  OnKeyChar(&e);
     default:
       return false;
   }

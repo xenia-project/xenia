@@ -24,23 +24,20 @@
 
 #include "third_party/GL/wglew.h"
 
-
 namespace xe {
 namespace ui {
 namespace gl {
-
 
 thread_local GLEWContext* tls_glew_context_ = nullptr;
 thread_local WGLEWContext* tls_wglew_context_ = nullptr;
 extern "C" GLEWContext* glewGetContext() { return tls_glew_context_; }
 extern "C" WGLEWContext* wglewGetContext() { return tls_wglew_context_; }
 
-
 std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
                                              Window* target_window,
                                              GLContext* share_context) {
   auto context =
-    std::unique_ptr<GLContext>(new WGLContext(provider, target_window));
+      std::unique_ptr<GLContext>(new WGLContext(provider, target_window));
   if (!context->Initialize(share_context)) {
     return nullptr;
   }
@@ -48,11 +45,10 @@ std::unique_ptr<GLContext> GLContext::Create(GraphicsProvider* provider,
   return context;
 }
 
-
 std::unique_ptr<GLContext> GLContext::CreateOffscreen(
-        GraphicsProvider* provider, GLContext* parent_context) {
+    GraphicsProvider* provider, GLContext* parent_context) {
   return WGLContext::CreateOffscreen(provider,
-          static_cast<WGLContext*>(parent_context));
+                                     static_cast<WGLContext*>(parent_context));
 }
 
 WGLContext::WGLContext(GraphicsProvider* provider, Window* target_window)
@@ -295,7 +291,6 @@ void WGLContext::ClearCurrent() {
     global_gl_mutex_.unlock();
   }
 }
-
 
 void WGLContext::BeginSwap() {
   SCOPE_profile_cpu_i("gpu", "xe::ui::gl::WGLContext::BeginSwap");
