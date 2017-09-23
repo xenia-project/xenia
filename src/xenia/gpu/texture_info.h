@@ -92,11 +92,11 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
   // These formats are used for resampling textures / gamma control.
   switch (texture_format) {
     case TextureFormat::k_16_EXPAND:
-      return TextureFormat::k_16;
+      return TextureFormat::k_16_FLOAT;
     case TextureFormat::k_16_16_EXPAND:
-      return TextureFormat::k_16_16;
+      return TextureFormat::k_16_16_FLOAT;
     case TextureFormat::k_16_16_16_16_EXPAND:
-      return TextureFormat::k_16_16_16_16;
+      return TextureFormat::k_16_16_16_16_FLOAT;
     case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
       return TextureFormat::k_8_8_8_8;
     case TextureFormat::k_DXT1_AS_16_16_16_16:
@@ -237,6 +237,7 @@ enum class FormatType {
 
 struct FormatInfo {
   TextureFormat format;
+  const char* name;
   FormatType type;
   uint32_t block_width;
   uint32_t block_height;
@@ -256,7 +257,6 @@ struct TextureInfo {
   bool is_tiled;
   bool has_packed_mips;
   uint32_t input_length;
-  uint32_t output_length;
 
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(texture_format));
@@ -270,26 +270,17 @@ struct TextureInfo {
     struct {
       uint32_t logical_width;
       uint32_t block_width;  // # of horizontal blocks
-      uint32_t input_width;  // pixel pitch
-      uint32_t input_pitch;  // pitch in bytes
-
-      // DEPRECATED: Do not use.
-      uint32_t output_width;
-      uint32_t output_pitch;
+      uint32_t input_width;  // texel pitch
+      uint32_t input_pitch;  // byte pitch
     } size_1d;
     struct {
       uint32_t logical_width;
       uint32_t logical_height;
       uint32_t block_width;   // # of horizontal blocks
       uint32_t block_height;  // # of vertical blocks
-      uint32_t input_width;   // pixel pitch
-      uint32_t input_height;  // pixel height
-      uint32_t input_pitch;   // pitch in bytes
-
-      // DEPRECATED: Do not use.
-      uint32_t output_width;
-      uint32_t output_height;
-      uint32_t output_pitch;
+      uint32_t input_width;   // texel pitch
+      uint32_t input_height;  // texel height
+      uint32_t input_pitch;   // byte pitch
     } size_2d;
     struct {
     } size_3d;
@@ -298,16 +289,10 @@ struct TextureInfo {
       uint32_t logical_height;
       uint32_t block_width;        // # of horizontal blocks
       uint32_t block_height;       // # of vertical blocks
-      uint32_t input_width;        // pixel pitch
-      uint32_t input_height;       // pixel height
-      uint32_t input_pitch;        // pitch in bytes
-      uint32_t input_face_length;  // pitch of face in bytes
-
-      // DEPRECATED: Do not use.
-      uint32_t output_width;
-      uint32_t output_height;
-      uint32_t output_pitch;
-      uint32_t output_face_length;
+      uint32_t input_width;        // texel pitch
+      uint32_t input_height;       // texel height
+      uint32_t input_pitch;        // byte pitch
+      uint32_t input_face_length;  // byte pitch of face
     } size_cube;
   };
 
@@ -333,7 +318,6 @@ struct TextureInfo {
   }
 
  private:
-  void CalculateTextureSizes1D(uint32_t width);
   void CalculateTextureSizes2D(uint32_t width, uint32_t height);
   void CalculateTextureSizesCube(uint32_t width, uint32_t height,
                                  uint32_t depth);

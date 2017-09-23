@@ -266,6 +266,8 @@ bool EmulatorWindow::Initialize() {
 
   window_->Resize(1280, 720);
 
+  window_->DisableMainMenu();
+
   return true;
 }
 
@@ -388,6 +390,12 @@ void EmulatorWindow::UpdateTitle() {
   auto game_title = emulator()->game_title();
   if (!game_title.empty()) {
     title += L" - " + game_title;
+  }
+
+  auto graphics_system = emulator()->graphics_system();
+  if (graphics_system) {
+    auto graphics_name = graphics_system->name();
+    title += L" <" + graphics_name + L">";
   }
 
   if (Clock::guest_time_scalar() != 1.0) {

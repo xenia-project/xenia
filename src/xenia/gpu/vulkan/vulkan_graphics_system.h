@@ -24,6 +24,8 @@ class VulkanGraphicsSystem : public GraphicsSystem {
   VulkanGraphicsSystem();
   ~VulkanGraphicsSystem() override;
 
+  std::wstring name() const override { return L"Vulkan"; }
+
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::Window* target_window) override;
   void Shutdown() override;

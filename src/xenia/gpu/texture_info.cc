@@ -21,87 +21,6 @@ namespace gpu {
 
 using namespace xe::gpu::xenos;
 
-const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {
-  static const FormatInfo format_infos[64] = {
-      {TextureFormat::k_1_REVERSE, FormatType::kUncompressed, 1, 1, 1},
-      {TextureFormat::k_1, FormatType::kUncompressed, 1, 1, 1},
-      {TextureFormat::k_8, FormatType::kUncompressed, 1, 1, 8},
-      {TextureFormat::k_1_5_5_5, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_5_6_5, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_6_5_5, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_8_8_8_8, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_2_10_10_10, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_8_A, FormatType::kUncompressed, 1, 1, 8},
-      {TextureFormat::k_8_B, FormatType::kUncompressed, 1, 1, 8},
-      {TextureFormat::k_8_8, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_Cr_Y1_Cb_Y0, FormatType::kCompressed, 2, 1, 16},
-      {TextureFormat::k_Y1_Cr_Y0_Cb, FormatType::kCompressed, 2, 1, 16},
-      {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
-      {TextureFormat::k_8_8_8_8_A, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_4_4_4_4, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_10_11_11, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_11_11_10, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_DXT1, FormatType::kCompressed, 4, 4, 4},
-      {TextureFormat::k_DXT2_3, FormatType::kCompressed, 4, 4, 8},
-      {TextureFormat::k_DXT4_5, FormatType::kCompressed, 4, 4, 8},
-      {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
-      {TextureFormat::k_24_8, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_24_8_FLOAT, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_16, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_16_16, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_16_16_16_16, FormatType::kUncompressed, 1, 1, 64},
-      {TextureFormat::k_16_EXPAND, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_16_16_EXPAND, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_16_16_16_16_EXPAND, FormatType::kUncompressed, 1, 1,
-       64},
-      {TextureFormat::k_16_FLOAT, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_16_16_FLOAT, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_16_16_16_16_FLOAT, FormatType::kUncompressed, 1, 1, 64},
-      {TextureFormat::k_32, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_32_32, FormatType::kUncompressed, 1, 1, 64},
-      {TextureFormat::k_32_32_32_32, FormatType::kUncompressed, 1, 1, 128},
-      {TextureFormat::k_32_FLOAT, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_32_32_FLOAT, FormatType::kUncompressed, 1, 1, 64},
-      {TextureFormat::k_32_32_32_32_FLOAT, FormatType::kUncompressed, 1, 1,
-       128},
-      {TextureFormat::k_32_AS_8, FormatType::kCompressed, 4, 1, 8},
-      {TextureFormat::k_32_AS_8_8, FormatType::kCompressed, 2, 1, 16},
-      {TextureFormat::k_16_MPEG, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_16_16_MPEG, FormatType::kUncompressed, 1, 1, 32},
-      {TextureFormat::k_8_INTERLACED, FormatType::kUncompressed, 1, 1, 8},
-      {TextureFormat::k_32_AS_8_INTERLACED, FormatType::kCompressed, 4, 1, 8},
-      {TextureFormat::k_32_AS_8_8_INTERLACED, FormatType::kCompressed, 1, 1,
-       16},
-      {TextureFormat::k_16_INTERLACED, FormatType::kUncompressed, 1, 1, 16},
-      {TextureFormat::k_16_MPEG_INTERLACED, FormatType::kUncompressed, 1, 1,
-       16},
-      {TextureFormat::k_16_16_MPEG_INTERLACED, FormatType::kUncompressed, 1, 1,
-       32},
-      {TextureFormat::k_DXN, FormatType::kCompressed, 4, 4, 8},
-      {TextureFormat::k_8_8_8_8_AS_16_16_16_16, FormatType::kUncompressed, 1, 1,
-       32},
-      {TextureFormat::k_DXT1_AS_16_16_16_16, FormatType::kCompressed, 4, 4, 4},
-      {TextureFormat::k_DXT2_3_AS_16_16_16_16, FormatType::kCompressed, 4, 4,
-       8},
-      {TextureFormat::k_DXT4_5_AS_16_16_16_16, FormatType::kCompressed, 4, 4,
-       8},
-      {TextureFormat::k_2_10_10_10_AS_16_16_16_16, FormatType::kUncompressed, 1,
-       1, 32},
-      {TextureFormat::k_10_11_11_AS_16_16_16_16, FormatType::kUncompressed, 1,
-       1, 32},
-      {TextureFormat::k_11_11_10_AS_16_16_16_16, FormatType::kUncompressed, 1,
-       1, 32},
-      {TextureFormat::k_32_32_32_FLOAT, FormatType::kUncompressed, 1, 1, 96},
-      {TextureFormat::k_DXT3A, FormatType::kCompressed, 4, 4, 4},
-      {TextureFormat::k_DXT5A, FormatType::kCompressed, 4, 4, 4},
-      {TextureFormat::k_CTX1, FormatType::kCompressed, 4, 4, 4},
-      {TextureFormat::k_DXT3A_AS_1_1_1_1, FormatType::kCompressed, 4, 4, 4},
-      {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
-      {TextureFormat::kUnknown, FormatType::kUncompressed, 0, 0},
-  };
-  return &format_infos[gpu_format];
-}
-
 bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
                           TextureInfo* out_info) {
   std::memset(out_info, 0, sizeof(TextureInfo));
@@ -115,7 +34,9 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.width = info.height = info.depth = 0;
   switch (info.dimension) {
     case Dimension::k1D:
+      info.dimension = Dimension::k2D;
       info.width = fetch.size_1d.width;
+      info.height = 1;
       break;
     case Dimension::k2D:
       info.width = fetch.size_2d.width;
@@ -137,7 +58,6 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
   info.input_length = 0;  // Populated below.
-  info.output_length = 0;
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
     assert_true("Unsupported texture format");
@@ -147,20 +67,11 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   // Must be called here when we know the format.
   switch (info.dimension) {
     case Dimension::k1D: {
-      info.CalculateTextureSizes1D(fetch.size_1d.width + 1);
+      assert_always();
     } break;
     case Dimension::k2D: {
       info.CalculateTextureSizes2D(fetch.size_2d.width + 1,
                                    fetch.size_2d.height + 1);
-
-      // DEBUG: Make sure our calculated pitch is equal to the fetch pitch.
-      uint32_t bytes_per_block = info.format_info()->block_width *
-                                 info.format_info()->block_height *
-                                 info.format_info()->bits_per_pixel / 8;
-
-      assert_true(info.size_2d.input_pitch ==
-                  (bytes_per_block * fetch.pitch << 5) /
-                      info.format_info()->block_width);
     } break;
     case Dimension::k3D: {
       // TODO(benvanik): calculate size.
@@ -184,6 +95,8 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   auto& info = *out_info;
   info.guest_address = physical_address;
   info.dimension = Dimension::k2D;
+  assert_true(width > 0);
+  assert_true(height > 0);
   info.width = width - 1;
   info.height = height - 1;
   info.texture_format = texture_format;
@@ -191,7 +104,6 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.is_tiled = true;
   info.has_packed_mips = false;
   info.input_length = 0;
-  info.output_length = 0;
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
     assert_true("Unsupported texture format");
@@ -200,37 +112,6 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
 
   info.CalculateTextureSizes2D(width, height);
   return true;
-}
-
-void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
-  // ?
-  size_1d.logical_width = width;
-
-  auto format = format_info();
-
-  uint32_t block_width =
-      xe::round_up(size_1d.logical_width, format->block_width) /
-      format->block_width;
-
-  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
-  size_1d.block_width = tile_width * 32;
-
-  uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
-
-  uint32_t byte_pitch = tile_width * 32 * bytes_per_block;
-  if (!is_tiled) {
-    // Each row must be a multiple of 256 in linear textures.
-    byte_pitch = xe::round_up(byte_pitch, 256);
-  }
-
-  size_1d.input_width = tile_width * 32 * format->block_width;
-  size_1d.input_pitch = byte_pitch;
-  input_length = size_1d.input_pitch;
-
-  // TODO(DrChat): Remove this, leave it up to the backend.
-  size_1d.output_width = block_width * format->block_width;
-  size_1d.output_pitch = block_width * bytes_per_block;
-  output_length = size_1d.output_pitch;
 }
 
 void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
@@ -261,23 +142,20 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
       format->block_width * format->block_height * format->bits_per_pixel / 8;
   uint32_t byte_pitch = size_2d.block_width * bytes_per_block;
 
+  uint32_t texel_width;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = size_2d.block_width * format->block_width;
   }
 
-  size_2d.input_width = size_2d.block_width * format->block_width;
+  size_2d.input_width = texel_width;
   size_2d.input_height = size_2d.block_height * format->block_height;
   size_2d.input_pitch = byte_pitch;
 
   input_length = size_2d.input_pitch * size_2d.block_height;
-
-  // TODO(DrChat): Remove this, leave it up to the backend.
-  size_2d.output_width = block_width * format->block_width;
-  size_2d.output_height = block_height * format->block_height;
-  size_2d.output_pitch = block_width * bytes_per_block;
-
-  output_length = size_2d.output_pitch * block_height;
 }
 
 void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
@@ -305,25 +183,22 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
   uint32_t bytes_per_block =
       format->block_width * format->block_height * format->bits_per_pixel / 8;
   uint32_t byte_pitch = size_cube.block_width * bytes_per_block;
+
+  uint32_t texel_width;
   if (!is_tiled) {
     // Each row must be a multiple of 256 in linear textures.
     byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = size_cube.block_width * format->block_width;
   }
 
-  size_cube.input_width = size_cube.block_width * format->block_width;
+  size_cube.input_width = texel_width;
   size_cube.input_height = size_cube.block_height * format->block_height;
   size_cube.input_pitch = byte_pitch;
 
   size_cube.input_face_length = size_cube.input_pitch * size_cube.block_height;
   input_length = size_cube.input_face_length * 6;
-
-  // TODO(DrChat): Remove this, leave it up to the backend.
-  size_cube.output_width = block_width * format->block_width;
-  size_cube.output_height = block_height * format->block_height;
-  size_cube.output_pitch = block_width * bytes_per_block;
-
-  size_cube.output_face_length = size_cube.output_pitch * block_height;
-  output_length = size_cube.output_face_length * 6;
 }
 
 bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,

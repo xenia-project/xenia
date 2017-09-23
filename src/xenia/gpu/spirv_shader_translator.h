@@ -137,8 +137,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_int_type_ = 0, vec4_uint_type_ = 0;
   spv::Id vec2_bool_type_ = 0, vec3_bool_type_ = 0, vec4_bool_type_ = 0;
-  spv::Id image_1d_type_ = 0, image_2d_type_ = 0, image_3d_type_ = 0,
-          image_cube_type_ = 0;
+  spv::Id image_2d_type_ = 0, image_3d_type_ = 0, image_cube_type_ = 0;
 
   // Constants.
   spv::Id vec4_float_zero_ = 0, vec4_float_one_ = 0;
@@ -157,7 +156,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id vertex_idx_ = 0;
   spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
-  spv::Id tex_[4] = {0};  // Images {1D, 2D, 3D, Cube}
+  spv::Id tex_[3] = {0};  // Images {2D, 3D, Cube}
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;

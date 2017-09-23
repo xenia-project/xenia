@@ -34,6 +34,8 @@ class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
 
+  virtual std::wstring name() const = 0;
+
   Memory* memory() const { return memory_; }
   cpu::Processor* processor() const { return processor_; }
   kernel::KernelState* kernel_state() const { return kernel_state_; }

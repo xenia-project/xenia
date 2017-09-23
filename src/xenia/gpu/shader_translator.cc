@@ -257,14 +257,12 @@ void ShaderTranslator::GatherBindingInformation(
           // Gather up color targets written to.
           auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords_ +
                                                               instr_offset * 3);
-          if (op.has_vector_op() && op.is_export()) {
-            if (op.vector_dest() <= 3) {
+          if (op.is_export()) {
+            if (op.has_vector_op() && op.vector_dest() <= 3) {
               writes_color_targets_[op.vector_dest()] = true;
             }
-          }
-          if (op.has_scalar_op() && op.is_export()) {
-            if (op.vector_dest() <= 3) {
-              writes_color_targets_[op.vector_dest()] = true;
+            if (op.has_scalar_op() && op.scalar_dest() <= 3) {
+              writes_color_targets_[op.scalar_dest()] = true;
             }
           }
         }
@@ -1132,6 +1130,16 @@ void ShaderTranslator::ParseAluVectorInstruction(
             : InstructionStorageAddressingMode::kStatic;
   } else if (is_vertex_shader()) {
     switch (dest_num) {
+      case 32:
+      case 33:
+      case 34:
+      case 35:
+      case 36:
+      case 37:
+        // TODO: Memexport registers
+        i.result.storage_target = InstructionStorageTarget::kNone;
+        i.result.storage_index = 0;
+        break;
       case 62:
         i.result.storage_target = InstructionStorageTarget::kPosition;
         break;
@@ -1173,9 +1181,26 @@ void ShaderTranslator::ParseAluVectorInstruction(
         i.result.storage_target = InstructionStorageTarget::kColorTarget;
         i.result.storage_index = 3;
         break;
+      case 32:
+      case 33:
+      case 34:
+      case 35:
+      case 36:
+      case 37:
+        // TODO: Memexport registers
+        i.result.storage_target = InstructionStorageTarget::kNone;
+        i.result.storage_index = 0;
+        break;
       case 61:
         i.result.storage_target = InstructionStorageTarget::kDepth;
         break;
+      default:
+        XELOGE(
+            "ShaderTranslator::ParseAluVectorInstruction: Unsupported write "
+            "to export %d",
+            dest_num);
+        i.result.storage_target = InstructionStorageTarget::kNone;
+        i.result.storage_index = 0;
     }
   }
   if (op.is_export()) {
@@ -1321,8 +1346,9 @@ void ShaderTranslator::ParseAluScalarInstruction(
     uint32_t src3_swizzle = op.src_swizzle(3);
     uint32_t swiz_a = ((src3_swizzle >> 6) + 3) & 0x3;
     uint32_t swiz_b = ((src3_swizzle >> 0) + 0) & 0x3;
-    uint32_t reg2 = (static_cast<int>(op.scalar_opcode()) & 1) |
-                    (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1);
+    uint32_t reg2 = (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1) |
+                    (static_cast<int>(op.scalar_opcode()) & 1);
+
     int const_slot = (op.src_is_temp(1) || op.src_is_temp(2)) ? 1 : 0;
 
     ParseAluInstructionOperandSpecial(

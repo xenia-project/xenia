@@ -12,6 +12,10 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 
+// Implement AMD's VMA here.
+#define VMA_IMPLEMENTATION
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace ui {
 namespace vulkan {

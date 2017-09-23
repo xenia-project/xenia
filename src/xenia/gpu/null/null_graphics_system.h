@@ -24,6 +24,8 @@ class NullGraphicsSystem : public GraphicsSystem {
   NullGraphicsSystem();
   ~NullGraphicsSystem() override;
 
+  std::wstring name() const override { return L"null"; }
+
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::Window* target_window) override;
   void Shutdown() override;

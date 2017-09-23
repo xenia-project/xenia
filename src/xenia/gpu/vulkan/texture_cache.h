@@ -24,6 +24,8 @@
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -41,9 +43,8 @@ class TextureCache {
     VkFormat format;
     VkImage image;
     VkImageLayout image_layout;
-    VkDeviceMemory image_memory;
-    VkDeviceSize memory_offset;
-    VkDeviceSize memory_size;
+    VmaAllocation alloc;
+    VmaAllocationInfo alloc_info;
     VkFramebuffer framebuffer;  // Blit target frame buffer.
 
     uintptr_t access_watch_handle;
@@ -92,6 +93,8 @@ class TextureCache {
 
   // TODO(benvanik): ReadTexture.
 
+  Texture* Lookup(const TextureInfo& texture_info);
+
   // Looks for a texture either containing or matching these parameters.
   // Caller is responsible for checking if the texture returned is an exact
   // match or just contains the texture given by the parameters.
@@ -105,8 +108,7 @@ class TextureCache {
 
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture.
-  Texture* DemandResolveTexture(const TextureInfo& texture_info,
-                                TextureFormat format);
+  Texture* DemandResolveTexture(const TextureInfo& texture_info);
 
   // Clears all cached content.
   void ClearCache();
@@ -122,9 +124,6 @@ class TextureCache {
     SamplerInfo sampler_info;
     VkSampler sampler;
   };
-
-  void SetupEmptySet();
-  void DestroyEmptySet();
 
   // Allocates a new texture and memory to back it on the GPU.
   Texture* AllocateTexture(const TextureInfo& texture_info,
@@ -142,22 +141,26 @@ class TextureCache {
   void FlushPendingCommands(VkCommandBuffer command_buffer,
                             VkFence completion_fence);
 
-  void ConvertTexture1D(uint8_t* dest, const TextureInfo& src);
-  void ConvertTexture2D(uint8_t* dest, const TextureInfo& src);
-  void ConvertTextureCube(uint8_t* dest, const TextureInfo& src);
+  static void ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
+                               const uint8_t* src, Endian src_endianness);
+
+  bool ConvertTexture2D(uint8_t* dest, VkBufferImageCopy* copy_region,
+                        const TextureInfo& src);
+  bool ConvertTextureCube(uint8_t* dest, VkBufferImageCopy* copy_region,
+                          const TextureInfo& src);
+  bool ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
+                      const TextureInfo& src);
+  bool ComputeTextureStorage(size_t* output_length, const TextureInfo& src);
+
+  // Writes a texture back into guest memory. This call is (mostly) asynchronous
+  // but the texture must not be flagged for destruction.
+  void WritebackTexture(Texture* texture);
 
   // Queues commands to upload a texture from system memory, applying any
   // conversions necessary. This may flush the command buffer to the GPU if we
   // run out of staging memory.
-  bool UploadTexture1D(VkCommandBuffer command_buffer, VkFence completion_fence,
-                       Texture* dest, const TextureInfo& src);
-
-  bool UploadTexture2D(VkCommandBuffer command_buffer, VkFence completion_fence,
-                       Texture* dest, const TextureInfo& src);
-
-  bool UploadTextureCube(VkCommandBuffer command_buffer,
-                         VkFence completion_fence, Texture* dest,
-                         const TextureInfo& src);
+  bool UploadTexture(VkCommandBuffer command_buffer, VkFence completion_fence,
+                     Texture* dest, const TextureInfo& src);
 
   void HashTextureBindings(XXH64_state_t* hash_state, uint32_t& fetch_mask,
                            const std::vector<Shader::TextureBinding>& bindings);
@@ -180,17 +183,15 @@ class TextureCache {
   ui::vulkan::VulkanDevice* device_ = nullptr;
   VkQueue device_queue_ = nullptr;
 
+  std::unique_ptr<xe::ui::vulkan::CommandBufferPool> wb_command_pool_ = nullptr;
   std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
   std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
 
-  VkImage empty_image_ = nullptr;
-  VkImageView empty_image_view_ = nullptr;
-  VkDeviceMemory empty_image_memory_ = nullptr;
-  VkSampler empty_sampler_ = nullptr;
-  VkDescriptorSet empty_set_ = nullptr;
+  VmaAllocator mem_allocator_ = nullptr;
 
   ui::vulkan::CircularBuffer staging_buffer_;
+  ui::vulkan::CircularBuffer wb_staging_buffer_;
   std::unordered_map<uint64_t, Texture*> textures_;
   std::unordered_map<uint64_t, Sampler*> samplers_;
   std::list<Texture*> pending_delete_textures_;

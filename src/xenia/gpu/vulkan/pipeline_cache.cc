@@ -435,6 +435,12 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
       // TODO(benvanik): quad strip geometry shader.
       assert_always("Quad strips not implemented");
       return nullptr;
+    case PrimitiveType::k2DCopyRectListV0:
+    case PrimitiveType::k2DCopyRectListV1:
+    case PrimitiveType::k2DCopyRectListV2:
+    case PrimitiveType::k2DCopyRectListV3:
+      // TODO(DrChat): Research this.
+      return nullptr;
     default:
       assert_unhandled_case(primitive_type);
       return nullptr;
@@ -978,8 +984,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
         case VertexFormat::k_32_32_32_32:
           // FIXME: Is this a NORM format?
           assert_true(is_integer);
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R32G32B32A32_SINT : VK_FORMAT_R32_UINT;
+          vertex_attrib_descr.format = is_signed ? VK_FORMAT_R32G32B32A32_SINT
+                                                 : VK_FORMAT_R32G32B32A32_UINT;
           break;
         case VertexFormat::k_32_FLOAT:
           // assert_true(is_signed);

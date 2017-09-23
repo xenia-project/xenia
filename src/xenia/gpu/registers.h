@@ -252,6 +252,13 @@ union RB_COPY_DEST_INFO {
   uint32_t value;
 };
 
+union RB_COPY_DEST_PITCH {
+  xe::bf<uint32_t, 0, 14> copy_dest_pitch;
+  xe::bf<uint32_t, 16, 14> copy_dest_height;
+
+  uint32_t value;
+};
+
 }  // namespace reg
 }  // namespace gpu
 }  // namespace xe

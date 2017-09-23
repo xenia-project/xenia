@@ -85,7 +85,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
       1,
   };
 
-  VkCommandBuffer cmd;
+  VkCommandBuffer cmd = nullptr;
   status = vkAllocateCommandBuffers(*device_, &alloc_info, &cmd);
   CheckResult(status, "vkAllocateCommandBuffers");
 
@@ -247,6 +247,11 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     }
 
     auto event = reinterpret_cast<VkEvent>(swap_state.backend_data);
+    if (event == nullptr) {
+      // The command processor is currently uninitialized.
+      return;
+    }
+
     VkResult status = vkGetEventStatus(*device_, event);
     if (status != VK_EVENT_SET) {
       // The device has not finished processing the image.

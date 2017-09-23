@@ -199,23 +199,38 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   }
 
   buffer.Zero(buffer_length);
-  X_RESULT result =
-      e->WriteItem(buffer) ? X_ERROR_SUCCESS : X_ERROR_NO_MORE_FILES;
+
+  X_RESULT result;
+  uint32_t item_count = 0;
+
+  if (buffer_length < e->item_size()) {
+    result = X_ERROR_INSUFFICIENT_BUFFER;
+  } else if (e->current_item() >= e->item_count()) {
+    result = X_ERROR_NO_MORE_FILES;
+  } else {
+    auto item_buffer = buffer.as<uint8_t*>();
+    auto max_items = buffer_length / e->item_size();
+    while (max_items--) {
+      if (!e->WriteItem(item_buffer)) {
+        break;
+      }
+      item_buffer += e->item_size();
+      item_count++;
+    }
+    result = X_ERROR_SUCCESS;
+  }
 
   // Return X_ERROR_NO_MORE_FILES in HRESULT form.
-  X_HRESULT extended_result =
-      result != 0 ? X_HRESULT_FROM_WIN32(X_ERROR_NO_MORE_FILES) : 0;
+  X_HRESULT extended_result = result != 0 ? X_HRESULT_FROM_WIN32(result) : 0;
   if (items_returned) {
     assert_true(!overlapped);
-    *items_returned = result == X_ERROR_SUCCESS ? 1 : 0;
-
+    *items_returned = result == X_ERROR_SUCCESS ? item_count : 0;
     return result;
   } else if (overlapped) {
     assert_true(!items_returned);
     kernel_state()->CompleteOverlappedImmediateEx(
         overlapped, result, extended_result,
-        result == X_ERROR_SUCCESS ? e->item_count() : 0);
-
+        result == X_ERROR_SUCCESS ? item_count : 0);
     return X_ERROR_IO_PENDING;
   } else {
     assert_always();
