@@ -418,10 +418,14 @@ DECLARE_XBOXKRNL_EXPORT(RtlTryEnterCriticalSection,
                         ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 void RtlLeaveCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  if (cs->recursion_count == 0) {
+    // This CS is not locked. API misuse, but not fatal.
+    return;
+  }
+
   assert_true(cs->owning_thread == XThread::GetCurrentThread()->guest_object());
 
   // Drop recursion count - if it isn't zero we still have the lock.
-  assert_true(cs->recursion_count > 0);
   if (--cs->recursion_count != 0) {
     assert_true(cs->recursion_count >= 0);
 
