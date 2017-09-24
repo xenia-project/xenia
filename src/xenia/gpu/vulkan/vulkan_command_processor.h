@@ -135,6 +135,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkCommandBuffer current_command_buffer_ = nullptr;
   VkCommandBuffer current_setup_buffer_ = nullptr;
   VkFence current_batch_fence_;
+
+  std::vector<VkExtent2D> resolve_sizes_;
 };
 
 }  // namespace vulkan
