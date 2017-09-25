@@ -678,6 +678,41 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
                      vertex_offset, first_instance);
   }
 
+  // Track candidate "real" sizes for resolve operations. We don't have enough
+  // information during resolve to know how much of the viewport was actually
+  // rendered to (just the rounded-up tile size), so keep track of the scissor
+  // rects used during rendering to make an educated guess.
+  {
+    uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+    uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+    MsaaSamples surface_msaa =
+        MsaaSamples((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3);
+
+    uint32_t window_x1 = window_scissor_tl & 0x7FFF;
+    uint32_t window_y1 = (window_scissor_tl >> 16) & 0x7FFF;
+    uint32_t window_x2 = window_scissor_br & 0x7FFF;
+    uint32_t window_y2 = (window_scissor_br >> 16) & 0x7FFF;
+    switch (surface_msaa) {
+      case MsaaSamples::k1X:
+        break;
+      case MsaaSamples::k4X:
+        window_x1 *= 2;
+        window_x2 *= 2;
+      // fallthrough
+      case MsaaSamples::k2X:
+        window_y1 *= 2;
+        window_y2 *= 2;
+        break;
+    }
+
+    if (window_x1 == 0 && window_y1 == 0) {
+      // the scissor extent will probably only be relevant if we're covering the
+      // full frame
+      VkExtent2D candidate = {window_x2, window_y2};
+      resolve_sizes_.push_back(candidate);
+    }
+  }
+
   return true;
 }
 
@@ -995,6 +1030,49 @@ bool VulkanCommandProcessor::IssueCopy() {
   int32_t dest_max_y = int32_t(
       (std::max(std::max(dest_points[1], dest_points[3]), dest_points[5])));
 
+  uint32_t dest_width = dest_max_x;
+  // Destination height needs to be large enough to cover the copy height
+  // plus y-offset
+  uint32_t dest_height =
+      std::max<uint32_t>(dest_max_y, copy_dest_height + dest_min_y);
+
+  // Destination pitch is larger than would be required for this width, so
+  // assume that this resolve is filling a part of a larger texture and
+  // use the destination pitch as the width.
+  if (copy_dest_pitch > xe::round_up(dest_width, 32)) {
+    dest_width = copy_dest_pitch;
+  }
+
+  // Not sure if this logic will apply correctly to resolves that don't read
+  // starting at (0, 0), so only adjust those for now.
+  if (dest_min_x == 0 && dest_min_y == 0) {
+    // Adjust dest_max_y and dest_height for copy_dest_height, which is not
+    // rounded off to a block dimension.
+    dest_max_y -= (dest_height - copy_dest_height);
+    dest_height = copy_dest_height;
+
+    // Search recently used window scissor sizes for the actual dimensions of
+    // this copy (instead of the rounded-out tile size we currently have)
+
+    for (auto it = resolve_sizes_.crbegin(); it != resolve_sizes_.crend();
+         ++it) {
+      if (it->width == dest_width && it->height == dest_height) continue;
+
+      if ((((it->width + 7) & ~7) == dest_width) &&
+          (it->height == dest_height)) {
+        // this scissor size matches the specified tile size and our known
+        // copy height.
+        dest_max_x -= (dest_width - it->width);
+
+        dest_width = it->width;
+        break;
+      }
+    }
+  }
+
+  // Clear list before the next render batch
+  resolve_sizes_.clear();
+
   uint32_t color_edram_base = 0;
   uint32_t depth_edram_base = 0;
   ColorRenderTargetFormat color_format;
@@ -1033,8 +1111,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   // Demand a resolve texture from the texture cache.
   TextureInfo texture_info;
   TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
-                              dest_logical_width,
-                              std::max(1u, dest_logical_height), &texture_info);
+                              dest_width, std::max(1u, dest_height),
+                              &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
   assert_not_null(texture);
